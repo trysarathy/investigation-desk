@@ -1,0 +1,135 @@
+import type { Code, Confidence, RuleResult } from "../types";
+import type { Ctx } from "./context";
+import { EV } from "./evidence";
+
+/**
+ * One pure function per catalogue code: (ctx) -> result. No network, no clock.
+ *
+ * Where the spec's catalogue order would let a broad rule hide a narrower one, the broad
+ * rule carries an explicit exclusion instead of reordering the catalogue:
+ *  - D02 only matches a deposit that would otherwise be credited, so a fake token,
+ *    a wrong address or a below-minimum amount is never told "it will be credited".
+ *  - D05 does not match a token impersonating USDT or USDC (that is D06).
+ *  - D07 yields to D07b when the look-alike-plus-poisoning pattern is present.
+ */
+type Rule = (ctx: Ctx) => RuleResult;
+
+const hit = (code: Code, confidence: Confidence, evidenceIds: string[], reason: string): RuleResult =>
+  ({ code, matched: true, confidence, evidenceIds, reason });
+const miss = (code: Code, reason: string): RuleResult =>
+  ({ code, matched: false, evidenceIds: [], reason });
+
+/** Confirmed or not, would this transfer be credited by policy? */
+function creditable(ctx: Ctx): boolean {
+  return !!(ctx.tx?.status === "success" && ctx.depositChain && ctx.addrOnTxChain &&
+    ctx.tokenAccepted && !ctx.impersonation && !ctx.belowMinimum && ctx.freezeHits.length === 0);
+}
+
+export const RULES: Record<Exclude<Code, "D99">, Rule> = {
+  D01: (ctx) => {
+    const { facts } = ctx;
+    if (facts.input.kind !== "hash") return miss("D01", "Input is not a transaction hash.");
+    if (ctx.tx || facts.mempool) return miss("D01", "Hash was found.");
+    if (facts.lookups.some((l) => l.result === "error")) return miss("D01", "At least one chain lookup failed, so absence is not proven.");
+    if (facts.lookups.length === 0) return miss("D01", "No chains were checked.");
+    return hit("D01", "High", [EV.lookup], `Not found on any of ${facts.lookups.length} chains.`);
+  },
+
+  D02: (ctx) => {
+    if (!creditable(ctx)) return miss("D02", "Not a creditable deposit, so confirmations are not the blocker.");
+    if (ctx.confirmations! >= ctx.threshold!) return miss("D02", `${ctx.confirmations} of ${ctx.threshold} confirmations reached.`);
+    return hit("D02", "High", [EV.tx, EV.confirmations, EV.address, EV.token],
+      `${ctx.confirmations} of ${ctx.threshold} confirmations.`);
+  },
+
+  D03: (ctx) => {
+    if (!ctx.tx) return miss("D03", "No mined transaction.");
+    if (ctx.tx.status !== "failed") return miss("D03", "Receipt status is success.");
+    return hit("D03", "High", [EV.tx], `Receipt status failed (${ctx.tx.errorCode ?? "reverted"}).`);
+  },
+
+  D04: (ctx) => {
+    if (!ctx.tx || !ctx.transfer) return miss("D04", "No token transfer found.");
+    if (ctx.tx.chain === "tron") return miss("D04", "Tron addresses cannot land on an EVM chain by mistake.");
+    if (ctx.addrOnTxChain) return miss("D04", "Destination is a deposit address on the chain the funds arrived on.");
+    if (!ctx.addrOtherChain) return miss("D04", "Destination is not a company deposit address on any chain.");
+    return hit("D04", "High", [EV.lookup, EV.tx, EV.address],
+      `Sent on ${ctx.tx.chain}; address is registered on ${ctx.addrOtherChain.chain}.`);
+  },
+
+  D05: (ctx) => {
+    if (!ctx.transfer || !ctx.addrOnTxChain) return miss("D05", "Not a transfer to a company address on this chain.");
+    if (ctx.tokenAccepted) return miss("D05", "Token contract is on the allowlist.");
+    if (ctx.impersonation) return miss("D05", "Token impersonates an official stablecoin; see D06.");
+    return hit("D05", "High", [EV.token, EV.address], `Contract ${ctx.transfer.tokenContract} is not on the allowlist.`);
+  },
+
+  D06: (ctx) => {
+    if (!ctx.transfer) return miss("D06", "No token transfer found.");
+    if (!["USDT", "USDC"].includes(ctx.transfer.tokenSymbol)) return miss("D06", "Token does not claim to be USDT or USDC.");
+    if (!ctx.officialContract) return miss("D06", `No confirmed official ${ctx.transfer.tokenSymbol} contract in settings for this chain.`);
+    if (!ctx.impersonation) return miss("D06", "Contract matches the official one.");
+    return hit("D06", "High", [EV.token], `Symbol ${ctx.transfer.tokenSymbol}, contract differs from the official one.`);
+  },
+
+  D07: (ctx) => {
+    if (!ctx.transfer || !ctx.tx) return miss("D07", "No token transfer found.");
+    if (ctx.addrOnTxChain || ctx.addrOtherChain) return miss("D07", "Destination is a company deposit address.");
+    if (ctx.lookalike?.prior) return miss("D07", "Look-alike pattern with an earlier dust transfer; see D07b.");
+    return hit("D07", "High", [EV.address], "Destination is not in the deposit-address list.");
+  },
+
+  D07b: (ctx) => {
+    if (!ctx.lookalike) return miss("D07b", "Destination does not resemble the customer's address.");
+    if (!ctx.lookalike.prior) return miss("D07b", "No earlier zero-value or dust transfer from the look-alike address.");
+    return hit("D07b", "Medium", [EV.address, EV.history],
+      "First 4 and last 4 characters match the customer's address, after a dust transfer from it.");
+  },
+
+  D08: (ctx) => {
+    if (!ctx.transfer || !ctx.addrOnTxChain || !ctx.tokenAccepted) return miss("D08", "Not an accepted token to a company address.");
+    if (!ctx.minimum) return miss("D08", "No minimum configured.");
+    if (!ctx.belowMinimum) return miss("D08", `Amount is at or above ${ctx.minimum}.`);
+    return hit("D08", "High", [EV.amount], `${ctx.transfer.amount} is below ${ctx.minimum}.`);
+  },
+
+  D09: (ctx) => {
+    if (ctx.facts.freezes.length === 0) return miss("D09", "No freeze calls made.");
+    if (ctx.freezeHits.length === 0) return miss("D09", "Issuer freeze calls returned false.");
+    return hit("D09", "High", [EV.freeze], `${ctx.freezeHits.map((h) => h.role).join(" and ")} frozen by the issuer.`);
+  },
+
+  D10: (ctx) => {
+    const m = ctx.facts.mempool;
+    if (!m || ctx.tx) return miss("D10", "Not a pending mempool transaction.");
+    const window = ctx.settings.pendingWindowSec[m.chain];
+    if (ctx.pendingSec! <= window) return miss("D10", "Still inside the chain's normal pending window.");
+    return hit("D10", "Medium", [EV.mempool], `Pending for longer than the normal ${Math.round(window / 60)}-minute window.`);
+  },
+
+  D11: (ctx) => {
+    if (ctx.tx?.isBatch) return miss("D11", "Batch call decoded into Transfer events; not a failure.");
+    if (ctx.facts.input.kind !== "unrecognised") return miss("D11", "Input is a hash, address or customer reference.");
+    return hit("D11", "Medium", [EV.input], "Input looks like an exchange withdrawal ID, not an on-chain hash.");
+  },
+
+  D12: (ctx) => {
+    if (!creditable(ctx)) return miss("D12", "Not a creditable deposit.");
+    if (ctx.confirmations! < ctx.threshold!) return miss("D12", "Not yet confirmed.");
+    const r = ctx.ledgerRow;
+    if (r && r.status !== "PENDING") return miss("D12", `Ledger row exists with status ${r.status}.`);
+    return hit("D12", "High", [EV.tx, EV.confirmations, EV.token, EV.address, EV.amount, EV.ledger],
+      r ? "Confirmed on-chain; ledger row is still PENDING." : "Confirmed on-chain; no ledger credit for this hash.");
+  },
+
+  D13: (ctx) => {
+    if (ctx.ledgerRow?.status !== "CREDITED") return miss("D13", "No CREDITED ledger row for this hash.");
+    return hit("D13", "High", [EV.ledger], `Credited as ${ctx.ledgerRow.depositId}.`);
+  },
+
+  D14: (ctx) => {
+    const s = ctx.ledgerRow?.status;
+    if (s !== "HELD" && s !== "REVIEW") return miss("D14", "Ledger row is not HELD or REVIEW.");
+    return hit("D14", "High", [EV.ledger], `Ledger status ${s}.`);
+  },
+};
