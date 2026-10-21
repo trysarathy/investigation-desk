@@ -17,6 +17,7 @@ export const EV = {
   freeze: "ev.freeze",
   history: "ev.history",
   ledger: "ev.ledger",
+  provider: "ev.provider",
 } as const;
 
 function chainLabel(chain: keyof typeof CHAIN_NAMES): string {
@@ -181,21 +182,37 @@ export function buildEvidence(ctx: Ctx): Evidence[] {
     });
   }
 
-  const showLedger = !!ctx.ledgerRow || !!ctx.unhashedLedgerCandidate ||
-    (tx?.status === "success" && !!ctx.addrOnTxChain);
+  const m = ctx.ledgerMatch;
+  const showLedger = !!m || (tx?.status === "success" && !!ctx.addrOnTxChain);
   if (showLedger) {
-    const r = ctx.ledgerRow ?? ctx.unhashedLedgerCandidate;
+    const r = m?.row;
+    const how = !m ? "" : m.quality === "exact"
+      ? "Exact match on chain, tx hash, transfer index and token contract."
+      : m.quality === "ambiguous"
+        ? `Matched on tx hash only: no transfer index, and the transaction has ${ctx.companyTransferCount} transfers to company addresses. Capped at Medium.`
+        : "Matched on address and amount only (no tx hash). Capped at Medium.";
+    // D14 shows status and timestamp only; the reason code is shown only for a rejection.
+    const reason = r?.status === "REJECTED" && r.reasonCode ? `Reason code ${r.reasonCode}.` : "";
     out.push({
       id: EV.ledger,
       label: "Ledger",
-      status: !r ? "fail" : r.status === "CREDITED" ? "pass" : r.status === "REJECTED" ? "fail" : "warn",
+      status: !r ? "fail" : r.status === "CREDITED" && m?.quality === "exact" ? "pass" : r.status === "REJECTED" ? "fail" : "warn",
       value: !r
-        ? "No ledger row for this transaction"
-        : ctx.ledgerRow
-          ? `${r.status}${r.creditedAt ? ` at ${formatTime(r.creditedAt)}` : ""} (${r.depositId})`
-          : `${r.status} row ${r.depositId} with no tx_hash; same address and amount`,
-      detail: `Ledger last uploaded ${formatTime(facts.ledgerUploadedAt)}`,
+        ? "No ledger row for this transfer"
+        : `${r.status}${r.creditedAt ? ` at ${formatTime(r.creditedAt)}` : ""} (${r.depositId})`,
+      detail: [how, reason, `Ledger last uploaded ${formatTime(facts.ledgerUploadedAt)}`].filter(Boolean).join("\n"),
       source: r ? { kind: "ledger", row: r.row } : { kind: "none" },
+    });
+  }
+
+  for (const [i, p] of (facts.providerEvents ?? []).entries()) {
+    out.push({
+      id: `${EV.provider}.${i}`,
+      label: "Provider event",
+      status: p.kind === "returned" ? "fail" : "info",
+      value: `${p.provider}: ${p.kind.replace("_", " ")}, status ${p.providerStatus}${p.returnReason ? ` (${p.returnReason})` : ""}`,
+      detail: `Reported ${formatTime(p.at)}`,
+      source: { kind: "provider", provider: p.provider, reference: p.reference },
     });
   }
 

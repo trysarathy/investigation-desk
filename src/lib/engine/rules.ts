@@ -1,16 +1,16 @@
-import type { Code, Confidence, RuleResult } from "../types";
+import type { Code, Confidence, LedgerMatch, RuleResult } from "../types";
 import type { Ctx } from "./context";
 import { EV } from "./evidence";
 
 /**
  * One pure function per catalogue code: (ctx) -> result. No network, no clock.
  *
- * Where the spec's catalogue order would let a broad rule hide a narrower one, the broad
- * rule carries an explicit exclusion instead of reordering the catalogue:
- *  - D02 only matches a deposit that would otherwise be credited, so a fake token,
- *    a wrong address or a below-minimum amount is never told "it will be credited".
- *  - D05 does not match a token impersonating USDT or USDC (that is D06).
- *  - D07 yields to D07b when the look-alike-plus-poisoning pattern is present.
+ * Rule precedence signed off in the spec (21 and 22 Oct) is carried by guards inside rules:
+ *  1. D02 only matches a deposit that would otherwise be credited.
+ *  2. D05 skips tokens whose symbol is USDT or USDC, so D06 is never hidden.
+ *  3. D07 always stands; D07b is a Medium finding attached beside it (see run.ts).
+ *  4. A REJECTED ledger row is D16, not D99.
+ *  5. D12, D13, D14 and D16 are High only on an exact ledger match; otherwise Medium.
  */
 type Rule = (ctx: Ctx) => RuleResult;
 
@@ -24,6 +24,10 @@ function creditable(ctx: Ctx): boolean {
   return !!(ctx.tx?.status === "success" && ctx.depositChain && ctx.addrOnTxChain &&
     ctx.tokenAccepted && !ctx.impersonation && !ctx.belowMinimum && ctx.freezeHits.length === 0);
 }
+
+const ledgerConfidence = (m: LedgerMatch): Confidence => (m.quality === "exact" ? "High" : "Medium");
+const ledgerQualityNote = (m: LedgerMatch) =>
+  m.quality === "exact" ? "" : m.quality === "ambiguous" ? " (no transfer index; several company transfers)" : " (address and amount only)";
 
 export const RULES: Record<Exclude<Code, "D99">, Rule> = {
   D01: (ctx) => {
@@ -60,7 +64,7 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
   D05: (ctx) => {
     if (!ctx.transfer || !ctx.addrOnTxChain) return miss("D05", "Not a transfer to a company address on this chain.");
     if (ctx.tokenAccepted) return miss("D05", "Token contract is on the allowlist.");
-    if (ctx.impersonation) return miss("D05", "Token impersonates an official stablecoin; see D06.");
+    if (["USDT", "USDC"].includes(ctx.transfer.tokenSymbol)) return miss("D05", "Symbol is USDT or USDC; left to D06.");
     return hit("D05", "High", [EV.token, EV.address], `Contract ${ctx.transfer.tokenContract} is not on the allowlist.`);
   },
 
@@ -75,7 +79,6 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
   D07: (ctx) => {
     if (!ctx.transfer || !ctx.tx) return miss("D07", "No token transfer found.");
     if (ctx.addrOnTxChain || ctx.addrOtherChain) return miss("D07", "Destination is a company deposit address.");
-    if (ctx.lookalike?.prior) return miss("D07", "Look-alike pattern with an earlier dust transfer; see D07b.");
     return hit("D07", "High", [EV.address], "Destination is not in the deposit-address list.");
   },
 
@@ -116,20 +119,34 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
   D12: (ctx) => {
     if (!creditable(ctx)) return miss("D12", "Not a creditable deposit.");
     if (ctx.confirmations! < ctx.threshold!) return miss("D12", "Not yet confirmed.");
-    const r = ctx.ledgerRow;
-    if (r && r.status !== "PENDING") return miss("D12", `Ledger row exists with status ${r.status}.`);
-    return hit("D12", "High", [EV.tx, EV.confirmations, EV.token, EV.address, EV.amount, EV.ledger],
-      r ? "Confirmed on-chain; ledger row is still PENDING." : "Confirmed on-chain; no ledger credit for this hash.");
+    const m = ctx.ledgerMatch;
+    const cites = [EV.tx, EV.confirmations, EV.token, EV.address, EV.amount, EV.ledger];
+    if (!m) return hit("D12", "High", cites, "Confirmed on-chain; no ledger row for this transfer.");
+    if (m.row.status !== "PENDING") return miss("D12", `Ledger row exists with status ${m.row.status}.`);
+    return hit("D12", ledgerConfidence(m), cites, `Confirmed on-chain; ledger row is still PENDING${ledgerQualityNote(m)}.`);
   },
 
   D13: (ctx) => {
-    if (ctx.ledgerRow?.status !== "CREDITED") return miss("D13", "No CREDITED ledger row for this hash.");
-    return hit("D13", "High", [EV.ledger], `Credited as ${ctx.ledgerRow.depositId}.`);
+    const m = ctx.ledgerMatch;
+    if (m?.row.status !== "CREDITED") return miss("D13", "No CREDITED ledger row for this transfer.");
+    return hit("D13", ledgerConfidence(m), [EV.ledger], `Credited as ${m.row.depositId}${ledgerQualityNote(m)}.`);
   },
 
   D14: (ctx) => {
-    const s = ctx.ledgerRow?.status;
-    if (s !== "HELD" && s !== "REVIEW") return miss("D14", "Ledger row is not HELD or REVIEW.");
-    return hit("D14", "High", [EV.ledger], `Ledger status ${s}.`);
+    const m = ctx.ledgerMatch;
+    const s = m?.row.status;
+    if (!m || (s !== "HELD" && s !== "REVIEW")) return miss("D14", "Ledger row is not HELD or REVIEW.");
+    return hit("D14", ledgerConfidence(m), [EV.ledger], `Ledger status ${s}${ledgerQualityNote(m)}.`);
+  },
+
+  D16: (ctx) => {
+    const m = ctx.ledgerMatch;
+    if (m?.row.status !== "REJECTED") return miss("D16", "Ledger row is not REJECTED.");
+    if (ctx.tx?.status !== "success" || !ctx.addrOnTxChain || !ctx.tokenAccepted || ctx.impersonation) {
+      return miss("D16", "Not a valid deposit to a company address in an accepted token.");
+    }
+    if (ctx.confirmations === undefined || ctx.confirmations < ctx.threshold!) return miss("D16", "Not yet confirmed.");
+    return hit("D16", ledgerConfidence(m), [EV.tx, EV.confirmations, EV.token, EV.address, EV.ledger],
+      `Rejected by the company as ${m.row.depositId}${ledgerQualityNote(m)}.`);
   },
 };

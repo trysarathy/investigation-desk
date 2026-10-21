@@ -17,6 +17,7 @@ export function Investigation({ view }: { view: CaseView }) {
   const [revealed, setRevealed] = useState(view.revealed);
   const [checking, setChecking] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [confirmedFindings, setConfirmedFindings] = useState<Record<string, boolean>>({});
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -34,6 +35,7 @@ export function Investigation({ view }: { view: CaseView }) {
   // A new verdict invalidates the analyst's confirmation and edits.
   useEffect(() => {
     setConfirmed(false);
+    setConfirmedFindings({});
     setDraft(null);
     setEditing(false);
   }, [v]);
@@ -100,6 +102,22 @@ export function Investigation({ view }: { view: CaseView }) {
 
       <VerdictBar v={v} checking={checking} />
 
+      {!checking && v.findings.map((f) => (
+        <section key={f.code} className="bar bar-amber" aria-label={`Likely cause: ${f.label}`} style={{ alignItems: "flex-start", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <Status status="warn" label="Likely cause" />
+            <span className="code">{f.code}</span>
+            <strong>{f.label}</strong>
+            <span>(Medium, does not change the {v.code} verdict)</span>
+          </div>
+          <span style={{ color: "var(--text)" }}>{f.reason} {f.nextStep}</span>
+          <label style={{ display: "flex", gap: 8, alignItems: "center", color: "var(--text)" }}>
+            <input type="checkbox" checked={!!confirmedFindings[f.code]} onChange={(e) => setConfirmedFindings((c) => ({ ...c, [f.code]: e.target.checked }))} />
+            {confirmedFindings[f.code] ? "Confirmed by analyst" : "I've checked the evidence and confirm this likely cause"}
+          </label>
+        </section>
+      ))}
+
       <div className="cols">
         <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
           <section className="panel" aria-label="Evidence">
@@ -109,7 +127,7 @@ export function Investigation({ view }: { view: CaseView }) {
             </div>
             {checking ? <TimelineSkeleton /> : (
               <ol className="timeline">
-                {v.evidence.map((e, i) => <EvidenceRow key={e.id} e={e} cited={v.evidenceIds.includes(e.id)} delay={i * 60} />)}
+                {v.evidence.map((e, i) => <EvidenceRow key={e.id} e={e} cited={v.evidenceIds.includes(e.id) || v.findings.some((f) => f.evidenceIds.includes(e.id))} delay={i * 60} />)}
               </ol>
             )}
           </section>
@@ -262,6 +280,8 @@ function Source({ e }: { e: Evidence }) {
       return <Link href="/settings?tab=rules" className="muted">Settings</Link>;
     case "input":
       return <span className="muted">Ticket</span>;
+    case "provider":
+      return <span className="muted">{s.provider} {s.reference}</span>;
     default:
       return null;
   }

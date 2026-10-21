@@ -1,8 +1,8 @@
 import { compareDecimal } from "../decimal";
 import { normaliseHash, sameAddress } from "../normalise";
 import type {
-  ChainTx, DepositAddressRow, DepositChain, Facts, FreezeCheck, LedgerRow,
-  PriorTransfer, Settings, Token, TokenTransfer,
+  ChainTx, DepositAddressRow, DepositChain, Facts, FreezeCheck, LedgerMatch,
+  LedgerRow, PriorTransfer, Settings, Token, TokenTransfer,
 } from "../types";
 import { DEPOSIT_CHAINS } from "../types";
 
@@ -29,8 +29,9 @@ export interface Ctx {
   minimum?: string;
   belowMinimum: boolean;
   freezeHits: FreezeCheck[];
-  ledgerRow?: LedgerRow;
-  unhashedLedgerCandidate?: LedgerRow;
+  /** Transfers in this tx that go to company deposit addresses on the tx's chain. */
+  companyTransferCount: number;
+  ledgerMatch?: LedgerMatch;
   lookalike?: { assigned: DepositAddressRow; prior?: PriorTransfer };
   pendingSec?: number;
 }
@@ -91,14 +92,11 @@ export function buildContext(facts: Facts, settings: Settings): Ctx {
 
   const freezeHits = facts.freezes.filter((f) => f.frozen);
 
-  const hash = tx?.hash ?? (facts.input.kind === "hash" ? facts.input.value : undefined);
-  // D13 and D14 are High confidence, so they only ever use an exact tx_hash join.
-  const ledgerRow = hash
-    ? facts.ledger.find((r) => r.txHash && normaliseHash(r.txHash) === normaliseHash(hash))
-    : undefined;
-  const unhashedLedgerCandidate = !ledgerRow && transfer && depositChain
-    ? facts.ledger.find((r) => !r.txHash && r.chain === depositChain &&
-        sameAddress(r.toAddress, transfer.to) && compareDecimal(r.amount, transfer.amount) === 0)
+  const companyTransferCount = tx && depositChain
+    ? tx.transfers.filter((t) => facts.depositAddresses.some((r) => r.chain === depositChain && sameAddress(r.address, t.to))).length
+    : 0;
+  const ledgerMatch = tx && transfer && depositChain
+    ? matchLedger(facts.ledger, tx, transfer, depositChain, companyTransferCount, settings)
     : undefined;
 
   let lookalike: Ctx["lookalike"];
@@ -121,6 +119,34 @@ export function buildContext(facts: Facts, settings: Settings): Ctx {
   return {
     facts, settings, tx, transfer, depositChain, addrOnTxChain, addrOtherChain, customerAddresses,
     confirmations, threshold, tokenAccepted, officialContract, impersonation, minimum, belowMinimum,
-    freezeHits, ledgerRow, unhashedLedgerCandidate, lookalike, pendingSec,
+    freezeHits, companyTransferCount, ledgerMatch, lookalike, pendingSec,
   };
+}
+
+/**
+ * Spec rule precedence 5: a ledger row decides a High verdict only on chain + tx_hash +
+ * transfer index + token contract. File B carries a token symbol, so the row's contract is the
+ * accepted contract for that symbol on that chain.
+ */
+export function matchLedger(
+  ledger: LedgerRow[], tx: ChainTx, transfer: TokenTransfer, chain: DepositChain,
+  companyTransferCount: number, settings: Settings,
+): LedgerMatch | undefined {
+  const contractOf = (r: LedgerRow) => settings.acceptedTokens[r.chain].find((a) => a.symbol === r.token)?.contract;
+  let ambiguous: LedgerRow | undefined;
+  for (const r of ledger) {
+    if (!r.txHash || r.chain !== chain || normaliseHash(r.txHash) !== normaliseHash(tx.hash)) continue;
+    const contract = contractOf(r);
+    if (!contract || !sameAddress(contract, transfer.tokenContract)) continue;
+    if (r.transferIndex !== undefined) {
+      if (r.transferIndex === transfer.logIndex) return { row: r, quality: "exact" };
+      continue; // A row for a different transfer in the same tx.
+    }
+    if (companyTransferCount <= 1) return { row: r, quality: "exact" };
+    ambiguous ??= r;
+  }
+  if (ambiguous) return { row: ambiguous, quality: "ambiguous" };
+  const byAmount = ledger.find((r) => !r.txHash && r.chain === chain &&
+    sameAddress(r.toAddress, transfer.to) && compareDecimal(r.amount, transfer.amount) === 0);
+  return byAmount ? { row: byAmount, quality: "address_amount" } : undefined;
 }

@@ -31,7 +31,7 @@ export const CHAIN_NAMES: Record<Chain, string> = {
 
 export type Code =
   | "D01" | "D02" | "D03" | "D04" | "D05" | "D06" | "D07" | "D07b"
-  | "D08" | "D09" | "D10" | "D11" | "D12" | "D13" | "D14" | "D99";
+  | "D08" | "D09" | "D10" | "D11" | "D12" | "D13" | "D14" | "D16" | "D99";
 
 export type Confidence = "High" | "Medium";
 
@@ -132,11 +132,53 @@ export interface LedgerRow {
   status: LedgerStatus;
   creditedAt?: string;
   customerId: string;
+  /** Optional File B column: EVM log index or Tron event index of the transfer this row credits. */
+  transferIndex?: number;
+  /** Company's reason code for a REJECTED row, if the ledger carries one. Internal only. */
+  reasonCode?: string;
   /** Free text from the company's system. Treated as data, never as instructions. */
   note?: string;
 }
 
+/**
+ * How a ledger row was joined to the on-chain transfer (spec rule precedence 5).
+ *  exact          chain + tx_hash + transfer index + token contract all match, or the index is
+ *                 absent and the tx holds only one transfer to a company address
+ *  ambiguous      tx_hash and contract match, no transfer index, and the tx holds several
+ *                 transfers to company addresses
+ *  address_amount no tx_hash; same chain, address and amount only
+ * Only "exact" may decide a High ledger verdict.
+ */
+export type LedgerMatchQuality = "exact" | "ambiguous" | "address_amount";
+
+export interface LedgerMatch {
+  row: LedgerRow;
+  quality: LedgerMatchQuality;
+}
+
+// ---- Provider payouts (data-model hedge, spec 22 Oct). No rules read these yet. ----
+
+export type Workflow = "deposit" | "payout";
+
+export interface ProviderEvent {
+  provider: string;
+  /** Provider's own reference for the payout. */
+  reference: string;
+  kind: "payout_created" | "status_update" | "returned";
+  /** Status exactly as the provider reported it. */
+  providerStatus: string;
+  amount?: string;
+  currency?: string;
+  /** For a return: the provider's return or failure reason, verbatim. */
+  returnReason?: string;
+  at: string;
+  fetchedAt: string;
+  rawBody: string;
+}
+
 export interface Facts {
+  /** Defaults to "deposit". Only deposit rules exist in v1. */
+  workflow?: Workflow;
   input: NormalisedInput;
   customerId?: string;
   checkedAt: string;
@@ -149,6 +191,7 @@ export interface Facts {
   depositAddresses: DepositAddressRow[];
   ledger: LedgerRow[];
   ledgerUploadedAt: string;
+  providerEvents?: ProviderEvent[];
 }
 
 // ---- Company settings ----
@@ -184,6 +227,7 @@ export type EvidenceSource =
   | { kind: "addresses"; row: number }
   | { kind: "settings"; key: string }
   | { kind: "input" }
+  | { kind: "provider"; provider: string; reference: string }
   | { kind: "none" };
 
 export interface Evidence {
@@ -211,6 +255,8 @@ export interface Verdict {
   code: Code;
   confidence: Confidence | null;
   evidenceIds: string[];
+  /** Other matched Medium rules, e.g. D07b beside a D07 verdict. Each needs analyst confirmation. */
+  findings: RuleResult[];
   checks: RuleResult[];
   evidence: Evidence[];
   pausedChains: Chain[];

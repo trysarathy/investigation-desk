@@ -22,6 +22,7 @@ export interface VerdictView {
   nextStep: string;
   evidence: Evidence[];
   evidenceIds: string[];
+  findings: { code: Code; label: string; reason: string; nextStep: string; evidenceIds: string[] }[];
   checks: RuleResult[];
   reply: { text: string; open: string[] } | null;
   checkedAt: string;
@@ -74,6 +75,9 @@ function verdictView(f: Facts, down?: Chain): VerdictView {
     nextStep: v.state === "paused" ? "Wait for the chain API to recover. The check re-runs automatically." : nextStep(v.code, SAMPLE_SETTINGS),
     evidence: v.evidence,
     evidenceIds: v.evidenceIds,
+    findings: v.findings.map((f) => ({
+      code: f.code, label: VERDICT_LABELS[f.code], reason: f.reason, nextStep: nextStep(f.code, SAMPLE_SETTINGS), evidenceIds: f.evidenceIds,
+    })),
     checks: v.checks,
     reply: v.state === "verdict" ? fillReply(v.code, v.fill) : null,
     checkedAt: v.checkedAt,
