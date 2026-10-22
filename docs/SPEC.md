@@ -152,6 +152,19 @@ Tron's USDC status needs checking before build: Circle has wound down USDC on so
 
 **Confirmation thresholds** are company settings, not our constants. Defaults to offer: Tron 20, Ethereum 12, BNB Chain 15. Binance's published counts per the eco.com summary \[VERIFIED as reported there; re-check each exchange's page before pilots\].
 
+**Data sources, revised 22 Oct (after Week 2):** Etherscan's free plan refuses BNB Chain, Base and Optimism \[VERIFIED, Week 2 live test and [Etherscan docs](https://docs.etherscan.io/resources/common-error-messages)\]. Until a paying pilot exists, those chains use free official public RPCs, by transaction hash only (`eth_getTransactionByHash`, `eth_getTransactionReceipt`, `eth_blockNumber`; Transfer events come from the receipt's logs, so `eth_getLogs` isn't needed):
+
+| Chain | Chain ID | Source until a paying pilot |
+| --- | --- | --- |
+| BNB Chain | 56 | `https://bsc-dataseed.bnbchain.org` — official; about 10,000 requests per 5 minutes per IP; `eth_getLogs` disabled \[VERIFIED as reported by [OnFinality](https://www.onfinality.io/en/rpc-assistant/bnb-smart-chain-endpoint)\] |
+| Base | 8453 | `https://mainnet.base.org` \[VERIFIED, [Base docs](https://docs.base.org/base-chain/quickstart/connecting-to-base.md)\] |
+| Optimism | 10 | `https://mainnet.optimism.io` \[ASSUMPTION — confirm in Optimism docs before use\] |
+| Polygon, Arbitrum | 137, 42161 | Etherscan V2 if the free key allows; otherwise their official public RPCs \[ASSUMPTION — test in Week 3\] |
+
+Public RPCs are shared and rate-limited, so they suit development, demos and a first pilot only \[ASSUMPTION\]. Move to a managed RPC provider or Etherscan's paid plan (from US$49/month \[VERIFIED, [Yahoo Finance](https://finance.yahoo.com/news/ethereum-explorer-etherscan-locks-avalanche-143215634.html)\]) once a pilot pays. The look-alike check (D07b) needs a sender's transfer history, which public RPCs can't list: on these chains D07b stays off until then.
+
+**D10 is disabled by default (22 Oct).** Week 2 found that neither TronGrid nor Etherscan gives a reliable pending list or a "first seen" time. A pending or missing hash falls to D01. D10 can return once cases are stored (Week 5) and we record our own first-seen time.
+
 ## 4. Inputs from the company
 
 CSV upload in v1, read-only API pull in v2. Three files, UTF-8, one header row. Amounts are decimal strings, never floats. Timestamps are ISO 8601 with an offset.
