@@ -88,15 +88,19 @@ export function Investigation({ view }: { view: CaseView }) {
           <span className="faint">/</span>
           <h1 className="mono">{view.id}</h1>
           <span className="muted mono">{view.customerId}</span>
-          {view.live
-            ? <span className="badge" title="Chain data is fetched live and checked against the Files A and B uploaded in Settings → Data.">Live chain data · your uploaded files</span>
-            : <span className="badge">Sample data</span>}
+          {view.demo
+            ? <span className="badge" title="Demo workspace: sample company files (Files A and B). Chain data is real: recorded from the chains for the demo hashes; any other hash is looked up live only if chain keys are set, and otherwise pauses.">Demo workspace · real chain data</span>
+            : view.live
+              ? <span className="badge" title="Chain data is fetched live and checked against the Files A and B uploaded in Settings → Data.">Live chain data · your uploaded files</span>
+              : <span className="badge">Sample data</span>}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button className="btn" type="button" onClick={recheck} disabled={checking}>Re-run checks <span className="kbd">R</span></button>
           <Link className="btn" href="/">Back <span className="kbd">Esc</span></Link>
         </div>
       </div>
+
+      {view.query && <ReportingCustomerForm q={view.query.q} current={view.query.customer} inferred={view.query.customerInferred} />}
 
       {changed && !checking && (
         <div className="bar bar-red fade-in" role="alert">
@@ -367,5 +371,32 @@ function ExplanationPanel({ x }: { x: NonNullable<VerdictView["explanation"]> })
       </p>
       {x.fallbackReason && <p className="faint" style={{ margin: 0, fontSize: 12 }}>{x.fallbackReason} Showing template text.</p>}
     </section>
+  );
+}
+
+/**
+ * Who reported the deposit. Without it the customer comes from File A, and "sent to another
+ * customer's address" (D17) can't be detected; with it, the case re-runs as that customer.
+ */
+function ReportingCustomerForm({ q, current, inferred }: { q: string; current?: string; inferred: boolean }) {
+  const router = useRouter();
+  const [value, setValue] = useState(current ?? "");
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const params = new URLSearchParams({ q, ...(value.trim() ? { customer: value.trim() } : {}) });
+    router.push(`/investigate?${params}`);
+  };
+  return (
+    <form onSubmit={submit} className="panel" style={{ padding: "8px 12px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+      <label htmlFor="reporting-customer" className="muted">Reporting customer</label>
+      <input id="reporting-customer" className="input mono" style={{ width: 180, height: 28 }} value={value}
+        onChange={(e) => setValue(e.target.value)} placeholder="e.g. C-10422" />
+      <button className="btn btn-sm" type="submit">Re-run as this customer</button>
+      <span className="faint" style={{ fontSize: 12 }}>
+        {current ? "Checked as reported by this customer." : inferred
+          ? "Not given: the customer was taken from File A, so D17 can't be detected."
+          : "Not given."}
+      </span>
+    </form>
   );
 }

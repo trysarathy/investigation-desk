@@ -286,9 +286,11 @@ describe("D07b sender history and freeze status from live facts", () => {
     const evmPoison = lookAlike(evmCustomer, "p");
     const ws = { ...workspace, depositAddresses: [{ ...workspace.depositAddresses[0], address: evmCustomer, chain: "bsc" as const }] };
     const d = deps(tx("bsc", evmPoison, "0x" + "9".repeat(40), "0x" + "5".repeat(40)));
-    const facts = await fetchFacts("ab".repeat(32), ws, d, SAMPLE_SETTINGS);
+    // No BNB Chain contract declared, so the made-up token here isn't a D06 fake and D07 stands.
+    const noBsc = { ...SAMPLE_SETTINGS, acceptedTokens: { ...SAMPLE_SETTINGS.acceptedTokens, bsc: [] } };
+    const facts = await fetchFacts("ab".repeat(32), ws, d, noBsc);
     expect(facts.senderHistoryStatus).toBe("not_supported");
-    const v = investigate(facts, SAMPLE_SETTINGS);
+    const v = investigate(facts, noBsc);
     expect(v.code).toBe("D07");
     expect(v.checks.find((c) => c.code === "D07b")!.reason).toMatch(/public RPC/);
   });

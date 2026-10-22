@@ -131,7 +131,7 @@ export function buildEvidence(ctx: Ctx): Evidence[] {
           : `Claims to be ${transfer.tokenSymbol}; contract is not the official one`
         : accepted
           ? company
-            ? `${transfer.tokenSymbol} at the ${COMPANY_CONTRACT_LABEL}`
+            ? `${transfer.tokenSymbol} at the ${COMPANY_CONTRACT_LABEL}${ctx.officialNote ? ` (${ctx.officialNote})` : ""}`
             : `Official ${transfer.tokenSymbol}, on the allowlist`
           : `${transfer.tokenSymbol} at this contract is not on the allowlist for ${CHAIN_NAMES[tx.chain]}`,
       mono: [

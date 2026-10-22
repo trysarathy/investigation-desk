@@ -13,12 +13,14 @@ export const COMPANY_CONTRACT_LABEL = "company-accepted contract (bridged by Bin
 export interface OfficialContract {
   contract: string;
   source: "issuer" | "company";
+  /** The company's note on its declared contract, e.g. "sample setting". */
+  note?: string;
 }
 
 export function officialContractFor(chain: Chain, token: Token, settings: Settings): OfficialContract | undefined {
   if (COMPANY_DECLARED_CHAINS.has(chain)) {
     const declared = chain === "bsc" ? settings.acceptedTokens.bsc.find((a) => a.symbol === token) : undefined;
-    return declared ? { contract: declared.contract, source: "company" } : undefined;
+    return declared ? { contract: declared.contract, source: "company", ...(declared.note ? { note: declared.note } : {}) } : undefined;
   }
   const issuer = settings.officialContracts[chain]?.[token];
   return issuer ? { contract: issuer, source: "issuer" } : undefined;

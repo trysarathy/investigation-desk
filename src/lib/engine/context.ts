@@ -37,6 +37,7 @@ export interface Ctx {
   officialContract?: string;
   /** "company" on BNB Chain: the company's declared contract stands in for an issuer contract. */
   officialSource?: "issuer" | "company";
+  officialNote?: string;
   impersonation: boolean;
   minimum?: string;
   belowMinimum: boolean;
@@ -125,6 +126,7 @@ export function buildContext(facts: Facts, settings: Settings): Ctx {
   const official = tx && symbol ? officialContractFor(tx.chain, symbol, settings) : undefined;
   const officialContract = official?.contract;
   const officialSource = official?.source;
+  const officialNote = official?.note;
   const impersonation = !!(transfer && officialContract && !sameAddress(transfer.tokenContract, officialContract));
   const tokenAccepted = !!(transfer && depositChain &&
     settings.acceptedTokens[depositChain].some((a) => sameAddress(a.contract, transfer.tokenContract)));
@@ -162,7 +164,7 @@ export function buildContext(facts: Facts, settings: Settings): Ctx {
 
   return {
     facts, settings, tx, transfer, depositChain, addrOnTxChain, addrStatus, addrOtherChain, customerAddresses,
-    confirmations, threshold, amountKnown, tokenAccepted, officialContract, officialSource, impersonation, minimum, belowMinimum,
+    confirmations, threshold, amountKnown, tokenAccepted, officialContract, officialSource, officialNote, impersonation, minimum, belowMinimum,
     freezeHits, companyTransferCount, ledgerMatch, lookalike, pendingSec,
   };
 }
