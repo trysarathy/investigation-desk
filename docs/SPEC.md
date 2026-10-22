@@ -158,12 +158,19 @@ Tron's USDC status needs checking before build: Circle has wound down USDC on so
 | --- | --- | --- |
 | BNB Chain | 56 | `https://bsc-dataseed.bnbchain.org` — official; about 10,000 requests per 5 minutes per IP; `eth_getLogs` disabled \[VERIFIED as reported by [OnFinality](https://www.onfinality.io/en/rpc-assistant/bnb-smart-chain-endpoint)\] |
 | Base | 8453 | `https://mainnet.base.org` \[VERIFIED, [Base docs](https://docs.base.org/base-chain/quickstart/connecting-to-base.md)\] |
-| Optimism | 10 | `https://mainnet.optimism.io` \[ASSUMPTION — confirm in Optimism docs before use\] |
-| Polygon, Arbitrum | 137, 42161 | Etherscan V2 if the free key allows; otherwise their official public RPCs \[ASSUMPTION — test in Week 3\] |
+| Optimism | 10 | `https://mainnet.optimism.io` \[VERIFIED, Optimism docs (docs.optimism.io); rate-limited, not for production\] |
+| Polygon, Arbitrum | 137, 42161 | Etherscan V2 free key \[VERIFIED, Week 3 live test: every call we need works\] |
 
 Public RPCs are shared and rate-limited, so they suit development, demos and a first pilot only \[ASSUMPTION\]. Move to a managed RPC provider or Etherscan's paid plan (from US$49/month \[VERIFIED, [Yahoo Finance](https://finance.yahoo.com/news/ethereum-explorer-etherscan-locks-avalanche-143215634.html)\]) once a pilot pays. The look-alike check (D07b) needs a sender's transfer history, which public RPCs can't list: on these chains D07b stays off until then.
 
 **D10 is disabled by default (22 Oct).** Week 2 found that neither TronGrid nor Etherscan gives a reliable pending list or a "first seen" time. A pending or missing hash falls to D01. D10 can return once cases are stored (Week 5) and we record our own first-seen time.
+
+**BNB Chain tokens (decided 22 Oct): BNB Chain stays a v1 deposit chain.** Neither issuer lists a native contract there: Circle doesn't issue USDC natively on BNB Smart Chain, and Tether shows no USDT issued there \[VERIFIED, Week 3 check of [Circle](https://www.circle.com/multi-chain-usdc) and [Tether](https://tether.to/en/supported-protocols/)\]. The "USDT" BNB Chain wallets use is Binance-Peg BSC-USD (`0x55d398326f99059ff775485246999027b3197955`), issued by Binance and backed by USDT that Binance holds \[VERIFIED as reported by [Coinranking](https://coinranking.com/coin/i5jggxiwp+binance-pegbsc-usd-bsc-usd/about)\]. We keep the chain because it carries a large share of Asian exchange flows \[VERIFIED, DL Research in section 3\]. Rules on BNB Chain:
+
+- **Official contract = the company's declared contract.** The company enters the exact contracts it accepts in Settings. Evidence always labels it "company-accepted contract (bridged by Binance, not issued by Tether or Circle)". We never hard-code it.
+- **D06** compares against that company-declared contract, and its evidence says so.
+- **D09** is "not available on this chain" (the token has no issuer freeze function). That counts as a known gap, not a missing fact, so it does not block D02 or D12; the case shows the gap.
+- **D07b** stays off (public RPC has no sender history).
 
 ## 4. Inputs from the company
 
