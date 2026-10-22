@@ -50,7 +50,8 @@ export interface NormalisedInput {
 
 export interface ChainLookup {
   chain: Chain;
-  result: "found" | "not_found" | "error";
+  /** "pending": the node knows the tx but it is not mined. Treated as unconfirmed (D01) while D10 is disabled. */
+  result: "found" | "not_found" | "pending" | "error";
   fetchedAt: string;
   sourceUrl: string;
   rawBody: string;
@@ -192,6 +193,8 @@ export interface Facts {
   ledger: LedgerRow[];
   ledgerUploadedAt: string;
   providerEvents?: ProviderEvent[];
+  /** Every raw API response behind these facts, in fetch order (spec 6.2). Empty for sample data. */
+  rawResponses?: RawResponse[];
 }
 
 // ---- Company settings ----
@@ -219,6 +222,11 @@ export interface Settings {
   retiredAddressPolicy: string;
   /** Where a credited deposit appears in the company's app (D13 reply). */
   whereInApp: string;
+  /**
+   * D10 needs a reliable "pending since" time. Week 2 found neither TronGrid nor Etherscan V2
+   * provides one, so this is off: an unmined or missing hash falls to D01.
+   */
+  mempoolChecksEnabled: boolean;
 }
 
 // ---- Engine output ----
@@ -269,4 +277,20 @@ export interface Verdict {
   ruleVersion: string;
   settingsVersion: string;
   checkedAt: string;
+}
+
+// ---- Raw chain API responses (spec 6.2: stored with fetch time and SHA-256) ----
+
+export interface RawResponse {
+  source: "trongrid" | "etherscan";
+  chain: Chain;
+  /** Request as sent, with any API key removed. */
+  request: { method: "GET" | "POST"; url: string; body?: string };
+  status: number;
+  fetchedAt: string;
+  /** SHA-256 of `body`, hex. */
+  sha256: string;
+  body: string;
+  /** True when served from cache; fetchedAt and sha256 are those of the original fetch. */
+  cached?: boolean;
 }

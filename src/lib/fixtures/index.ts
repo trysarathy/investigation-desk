@@ -37,6 +37,7 @@ export const SAMPLE_SETTINGS: Settings = {
   dustThreshold: "0.01",
   retiredAddressPolicy: "Deposits team confirms the sender, then credits the customer who last held the address.",
   whereInApp: "Wallet > Transaction history",
+  mempoolChecksEnabled: false,
 };
 
 export const LEDGER_UPLOADED_AT = "2026-10-21T09:00:00+08:00";
@@ -70,9 +71,9 @@ const CURRENT_BLOCK: Record<Chain, number> = {
   base: 37_015_882, arbitrum: 391_204_776, optimism: 142_610_390,
 };
 
-function lookups(hash: string, at: string, found?: Chain): Facts["lookups"] {
+function lookups(hash: string, at: string, found?: Chain, pending?: Chain): Facts["lookups"] {
   return ALL_CHAINS.map((chain) => {
-    const result = chain === found ? "found" as const : "not_found" as const;
+    const result = chain === found ? "found" as const : chain === pending ? "pending" as const : "not_found" as const;
     return {
       chain,
       result,
@@ -149,7 +150,7 @@ function facts(s: FactsSpec): Facts {
     input,
     customerId: s.customerId,
     checkedAt: at,
-    lookups: s.noLookups ? [] : lookups(s.input, at, s.found ?? s.tx?.tx.chain ?? s.mempool?.chain),
+    lookups: s.noLookups ? [] : lookups(s.input, at, s.found ?? s.tx?.tx.chain, s.mempool?.chain),
     tx: s.tx?.tx,
     currentBlock: s.tx?.currentBlock,
     mempool: s.mempool,
@@ -188,7 +189,7 @@ const H = {
   d13: evmHash("d13"),
   d14: tronHash("d14"),
   d16: tronHash("d99"),
-  d99: evmHash("d99-mempool"),
+  d99: tronHash("d99-unattributed"),
   ambiguous: evmHash("ambiguous"),
   byAmount: tronHash("by-amount"),
   d17: tronHash("d17"),
@@ -352,9 +353,9 @@ export const SAMPLE_CASES: SampleCase[] = [
   },
   {
     id: "CS-1060", customerId: "C-12301", openedAt: "2026-10-21T15:12:00+08:00", status: "open", revealed: 1,
-    demonstrates: "D99 (in the mempool, still inside the normal pending window)",
+    demonstrates: "D99 (mined before the address was assigned to anyone, so ownership is unknown)",
     snapshots: [facts({ input: H.d99, customerId: "C-12301",
-      mempool: { chain: "ethereum", hash: H.d99, firstSeenAt: "2026-10-21T15:10:00+08:00", gasPriceGwei: "0.6" } })],
+      tx: tx({ chain: "tron", hash: H.d99, to: tronOf("C-12301"), amount: "300.00", minedAt: "2026-08-15T12:00:00+08:00" }) })],
   },
   {
     id: "CS-1057", customerId: "C-12044", openedAt: "2026-10-21T15:05:00+08:00", status: "open", revealed: 1,

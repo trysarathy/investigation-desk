@@ -56,6 +56,8 @@ export interface CaseView {
   openedAt: string;
   verdicts: VerdictView[];
   revealed: number;
+  /** Real chain data from the live fetchers (company files are still the sample ones). */
+  live: boolean;
 }
 
 export function parseDown(v: string | string[] | undefined): Chain | undefined {
@@ -87,7 +89,9 @@ function verdictView(f: Facts, down?: Chain): VerdictView {
     record: {
       ruleVersion: v.ruleVersion,
       settingsVersion: v.settingsVersion,
-      evidenceHashes: facts.lookups.map((l) => ({ chain: l.chain, sha256: sha256(l.rawBody) })),
+      evidenceHashes: facts.rawResponses?.length
+        ? facts.rawResponses.map((r) => ({ chain: r.chain, sha256: r.sha256 }))
+        : facts.lookups.map((l) => ({ chain: l.chain, sha256: sha256(l.rawBody) })),
     },
   };
 }
@@ -134,6 +138,7 @@ export function caseView(c: SampleCase, down?: Chain): CaseView {
     openedAt: c.openedAt,
     verdicts: c.snapshots.map((f) => verdictView(f, down)),
     revealed: c.revealed,
+    live: false,
   };
 }
 
@@ -157,4 +162,18 @@ export function resolveInput(raw: string): SampleCase | undefined {
   const qHash = normaliseHash(q);
   const hit = searchIndex().find((e) => e.terms.some((t) => t === q || t === qHash));
   return hit ? SAMPLE_CASES.find((c) => c.id === hit.id) : undefined;
+}
+
+/** A case built from one live fetch. Not stored yet: cases persist once the database lands (week 5). */
+export function liveCaseView(facts: Facts): CaseView {
+  return {
+    id: `LIVE-${facts.input.value.replace(/^0x/, "").slice(0, 8)}`,
+    customerId: facts.customerId ?? "Unknown customer",
+    owner: null,
+    status: "open",
+    openedAt: facts.checkedAt,
+    verdicts: [verdictView(facts)],
+    revealed: 1,
+    live: true,
+  };
 }
