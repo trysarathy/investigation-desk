@@ -65,8 +65,12 @@ export interface CaseView {
   openedAt: string;
   verdicts: VerdictView[];
   revealed: number;
-  /** Real chain data from the live fetchers (company files are still the sample ones). */
+  /** Real chain data from the live fetchers, checked against the company's files. */
   live: boolean;
+  /** For live cases: what was pasted and who reported it, so the case can be re-run. */
+  query?: { q: string; customer?: string; customerInferred: boolean };
+  /** The demo workspace: sample company files, real chain data. */
+  demo?: boolean;
 }
 
 export function parseDown(v: string | string[] | undefined): Chain | undefined {
@@ -190,8 +194,11 @@ export function resolveInput(raw: string): SampleCase | undefined {
 }
 
 /** A case built from one live fetch. Not stored yet: cases persist once the database lands (week 5). */
-export async function liveCaseView(facts: Facts): Promise<CaseView> {
+export async function liveCaseView(facts: Facts, demo = false): Promise<CaseView> {
+  const inferred = facts.customerInferredFromRow !== undefined;
   return {
+    query: { q: facts.input.raw.trim(), customer: inferred ? undefined : facts.customerId, customerInferred: inferred },
+    demo,
     id: `LIVE-${facts.input.value.replace(/^0x/, "").slice(0, 8)}`,
     customerId: facts.customerId ?? "Unknown customer",
     owner: null,

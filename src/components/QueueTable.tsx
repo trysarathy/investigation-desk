@@ -23,6 +23,7 @@ export function QueueTable({ rows, empty }: { rows: CaseRow[]; empty: boolean })
   const [filter, setFilter] = useState<Filter>("all");
   const [sel, setSel] = useState(0);
   const [q, setQ] = useState("");
+  const [customer, setCustomer] = useState("");
   const { owners, assign } = useAssignments();
   const tbodyRef = useRef<HTMLTableSectionElement>(null);
 
@@ -55,21 +56,32 @@ export function QueueTable({ rows, empty }: { rows: CaseRow[]; empty: boolean })
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (q.trim()) router.push(`/investigate?q=${encodeURIComponent(q.trim())}`);
+    if (!q.trim()) return;
+    const params = new URLSearchParams({ q: q.trim(), ...(customer.trim() ? { customer: customer.trim() } : {}) });
+    router.push(`/investigate?${params}`);
   };
 
   return (
     <>
       <div className="page-head">
         <h1>Cases</h1>
-        <form onSubmit={submit} style={{ display: "flex", gap: 8, flex: "1 1 360px", maxWidth: 560 }}>
+        <form onSubmit={submit} style={{ display: "flex", gap: 8, flex: "1 1 520px", maxWidth: 760, flexWrap: "wrap" }}>
           <input
             className="input mono"
-            style={{ flex: 1 }}
+            style={{ flex: "3 1 260px" }}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Paste a transaction hash, address or customer ref"
             aria-label="Transaction hash, address or customer reference"
+          />
+          <input
+            className="input mono"
+            style={{ flex: "1 1 150px" }}
+            value={customer}
+            onChange={(e) => setCustomer(e.target.value)}
+            placeholder="Reporting customer (optional)"
+            aria-label="Reporting customer (optional)"
+            title="The customer who reported the deposit. Without it, File A's owner of the destination is used, and 'sent to another customer's address' (D17) can't be detected."
           />
           <button className="btn btn-primary" type="submit">New case</button>
         </form>

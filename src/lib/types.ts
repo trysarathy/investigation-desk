@@ -217,6 +217,8 @@ export interface Facts {
 export interface AcceptedToken {
   symbol: Token;
   contract: string;
+  /** Shown wherever the contract is, e.g. "sample setting" for the demo company's own choice. */
+  note?: string;
 }
 
 export interface Settings {

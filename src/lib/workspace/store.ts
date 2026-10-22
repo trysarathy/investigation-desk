@@ -27,6 +27,8 @@ export interface WorkspaceData {
   fileA?: { upload: UploadRecord; rows: DepositAddressRow[] };
   fileB?: { upload: UploadRecord; rows: LedgerRow[] };
   history: UploadRecord[];
+  /** The seeded demo workspace (sample company files). A real upload ends it. */
+  demo?: boolean;
 }
 
 export interface WorkspaceStore {
@@ -83,6 +85,7 @@ export async function applyUpload<T extends DepositAddressRow | LedgerRow>(
     record = { ...current.upload, outcome: "no_change", uploadedAt: now.toISOString(), filename };
   } else {
     record = { ...base, outcome: "replaced" };
+    data.demo = false;
     if (kind === "A") data.fileA = { upload: record, rows: result.rows as DepositAddressRow[] };
     else data.fileB = { upload: record, rows: result.rows as LedgerRow[] };
   }

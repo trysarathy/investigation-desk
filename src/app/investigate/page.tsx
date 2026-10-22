@@ -7,6 +7,8 @@ import { fetchFacts } from "@/lib/chain/investigate";
 import { liveDeps, liveKeysPresent } from "@/lib/chain/live";
 import { SAMPLE_SETTINGS } from "@/lib/fixtures";
 import { loadWorkspace } from "@/lib/workspace/live";
+import { parseReportingCustomer } from "@/lib/csv/files";
+import { demoDeps } from "@/lib/demo/deps";
 import { normaliseInput } from "@/lib/normalise";
 import { liveCaseView, resolveInput } from "@/lib/view";
 
@@ -29,18 +31,20 @@ export default async function InvestigatePage({ searchParams }: { searchParams: 
   if (match) redirect(`/cases/${match.id}`);
   const input = normaliseInput(q);
 
-  const { ws, missing } = await loadWorkspace(customer?.trim() || undefined);
-  if (input.kind === "hash" && liveKeysPresent() && ws) {
-    const facts = await fetchFacts(q, ws, liveDeps(), SAMPLE_SETTINGS);
-    const view = await liveCaseView(facts);
-    return <Investigation key={`${view.id}-${facts.checkedAt}`} view={view} />;
+  const reporting = parseReportingCustomer(customer);
+  const { ws, missing, data } = await loadWorkspace(reporting.customerId);
+  const demo = !!data.demo;
+  if (input.kind === "hash" && (liveKeysPresent() || demo) && ws && !reporting.error) {
+    const facts = await fetchFacts(q, ws, demo ? demoDeps() : liveDeps(), SAMPLE_SETTINGS);
+    const view = await liveCaseView(facts, demo);
+    return <Investigation key={`${view.id}-${facts.checkedAt}-${reporting.customerId ?? ""}`} view={view} />;
   }
 
-  const reason = input.kind !== "hash"
+  const reason = reporting.error ? reporting.error : input.kind !== "hash"
     ? "Live lookup by address or customer reference is not built yet; paste a transaction hash."
     : !liveKeysPresent()
       ? "Live chain lookups need TRONGRID_API_KEY and ETHERSCAN_API_KEY in the server environment."
-      : `Upload ${missing.map((m) => `File ${m}`).join(" and ")} in Settings → Data first: without the company's files no address or ledger verdict can be given.`;
+      : `Upload ${missing.map((m) => `File ${m}`).join(" and ")} in Settings → Data first, or load the demo workspace there: without the company's files no address or ledger verdict can be given.`;
 
   return (
     <div className="page">

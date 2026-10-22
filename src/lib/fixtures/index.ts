@@ -23,7 +23,9 @@ export const SAMPLE_SETTINGS: Settings = {
   acceptedTokens: {
     tron: [{ symbol: "USDT", contract: USDT_TRON }],
     ethereum: [{ symbol: "USDT", contract: USDT_ETHEREUM }],
-    bsc: [],
+    // The sample company's own choice (spec, decisions after Week 4): BSC-USD, Binance-Peg USDT,
+    // bridged by Binance and not issued by Tether. Real companies declare their own in Week 5.
+    bsc: [{ symbol: "USDT", contract: "0x55d398326f99059ff775485246999027b3197955", note: "sample setting" }],
   },
   // BNB Chain stays unset: neither Tether's nor Circle's own pages list a BNB Chain contract
   // (week 3 finding), so D06 and D09 do not run there.
@@ -32,7 +34,7 @@ export const SAMPLE_SETTINGS: Settings = {
     ethereum: { USDT: USDT_ETHEREUM, USDC: USDC_ETHEREUM },
   },
   confirmations: { tron: 20, ethereum: 12, bsc: 15 },
-  minimums: { tron: { USDT: "1" }, ethereum: { USDT: "10" }, bsc: {} },
+  minimums: { tron: { USDT: "1" }, ethereum: { USDT: "10" }, bsc: { USDT: "20" } },
   belowMinimumPolicy: "Deposits below the minimum are not credited on their own. Please contact us if you'd like this deposit reviewed.",
   keysHeldOnOtherChains: false,
   // Sample values for the prototype. A pilot company sets its own.

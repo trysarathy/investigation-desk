@@ -180,14 +180,24 @@ describe("week 3 rules on live data", () => {
 
   it("BNB Chain: with no declared contract, D06 can't run and the token is unsupported (D05)", async () => {
     const { facts } = await replay("bsc-binance-hot16-withdrawal");
-    const v = investigate(facts, SAMPLE_SETTINGS);
+    const noBsc = { ...SAMPLE_SETTINGS, acceptedTokens: { ...SAMPLE_SETTINGS.acceptedTokens, bsc: [] } };
+    const v = investigate(facts, noBsc);
     expect(v.code).toBe("D05");
     expect(v.checks.find((c) => c.code === "D06")!.reason).toMatch(/No company-declared USDT contract/);
   });
 
+  it("BNB Chain: the sample settings declare BSC-USD, labelled as a sample setting", async () => {
+    const { facts } = await replay("bsc-binance-hot16-withdrawal");
+    const v = investigate(facts, SAMPLE_SETTINGS);
+    expect(v.code).not.toBe("D05");
+    expect(v.evidence.find((e) => e.id === "ev.token")!.value)
+      .toBe("USDT at the company-accepted contract (bridged by Binance, not issued by Tether or Circle) (sample setting)");
+  });
+
   it("BNB Chain: an officialContracts entry is ignored; only the company's Settings count", async () => {
     const { facts } = await replay("bsc-binance-hot16-withdrawal");
-    const hardCoded = { ...SAMPLE_SETTINGS, officialContracts: { ...SAMPLE_SETTINGS.officialContracts, bsc: { USDT: "0x55d398326f99059ff775485246999027b3197955" } } };
+    const hardCoded = { ...SAMPLE_SETTINGS, acceptedTokens: { ...SAMPLE_SETTINGS.acceptedTokens, bsc: [] },
+      officialContracts: { ...SAMPLE_SETTINGS.officialContracts, bsc: { USDT: "0x55d398326f99059ff775485246999027b3197955" } } };
     expect(investigate(facts, hardCoded).code).toBe("D05");
   });
 

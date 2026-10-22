@@ -113,8 +113,10 @@ fine for development, demos and a first pilot only.
   and is only fetched when the look-alike pattern could match. Public RPCs can't list history,
   so on those chains D07b is off and the case says so.
 - **Official contracts on BNB Chain stay unset:** neither Tether's nor Circle's own pages list
-  one, so D06 and D09 don't run there. A company can still accept a BNB Chain token in its own
-  allowlist; that is its choice, not an issuer confirmation.
+  one, so D09 doesn't run there. A company can declare its own BNB Chain token in settings; the
+  sample settings declare BSC-USD (`0x55d398326f99059ff775485246999027b3197955`), labelled
+  "sample setting" wherever it appears. D06 then checks against the company's declaration, not
+  an issuer confirmation.
 - **D10** is disabled; see `docs/week2-d10-mempool.md`.
 
 Pasting a hash that isn't a sample case runs it live (`/investigate?q=…&customer=…`) against
@@ -144,8 +146,9 @@ NODE_USE_ENV_PROXY=1 npx vite-node --config vitest.config.mts scripts/record-liv
 - **Ledger join D12–D18** runs on the uploaded files. A pasted hash with no customer takes the
   customer from File A (the destination's owner when the transfer was mined), and the case
   says so; with no owner at that time, nothing is inferred.
-- **AI explanation** (`src/lib/ai/`): Claude (`claude-opus-5-5`, official SDK, structured JSON
-  output, server-side refusal fallback on) gets only the verdict code, the evidence objects with
+- **AI explanation** (`src/lib/ai/`): Claude (default `claude-haiku-5-5`, override with
+  `AI_MODEL`; official SDK, structured JSON output; server-side refusal fallback only on models
+  that support it, which Haiku 5.5 does not) gets only the verdict code, the evidence objects with
   customer IDs scrubbed, and the reply template with company-setting values pre-filled. The
   output is rejected, and template text shown, if a sentence cites no evidence or unknown
   evidence, or contains a number, address, hash, date or token name not in the evidence, or a
@@ -157,6 +160,54 @@ NODE_USE_ENV_PROXY=1 npx vite-node --config vitest.config.mts scripts/record-liv
   rows. Bad rows are skipped and listed; the rest run as a background job with a progress bar.
   "Create cases for non-credited" adds every result not shown as credited (D13) to the queue as
   a live case; "Export results CSV" neutralises cells a spreadsheet would execute.
+
+## Decisions after Week 4
+
+- **AI model:** `claude-haiku-5-5` by default; set `AI_MODEL` to use another.
+- **Reporting customer:** the investigate form has an optional "Reporting customer" field
+  (`/investigate?q=…&customer=…`), and the case view lets you set or change it. With it, D17
+  can fire on a pasted hash; without it, the customer is still taken from File A and labelled.
+- **BSC-USD** on BNB Chain is declared in the sample company settings (see above).
+- **Demo mode:** Settings → Data → **Load demo workspace** replaces Files A and B with the
+  fabricated demo files in `src/lib/demo/files.ts` and clears demo cases and bulk runs; press it
+  again to reset. Real transactions in the demo are served from the recorded chain responses in
+  `tests/fixtures/live/`, so the demo needs no keys and gives the same answer every time. The
+  panel lists the section 10 script steps with a link for each, plus a demo bulk CSV. An
+  upload of your own ends demo mode.
+
+## Private preview
+
+A shareable link for a call, with **no real customer data**: set `DEMO_MODE=1`. The server
+then seeds the demo workspace on first load, refuses uploads (403), and the reset button stays.
+Add `PREVIEW_USER` and `PREVIEW_PASSWORD` to put the whole app behind a browser password
+prompt. Leave `ANTHROPIC_API_KEY` unset (the image also sets `AI_EXPLANATIONS=off`): template
+text only, so nothing is sent to a model. Chain keys are optional. Without them, only the
+recorded demo hashes give verdicts, and any other hash pauses rather than guessing.
+
+Option 1, a quick tunnel from your laptop (the link lives while the command runs):
+
+```
+npm ci && npm run build
+DEMO_MODE=1 AI_EXPLANATIONS=off PREVIEW_USER=demo PREVIEW_PASSWORD='choose-one' npm start
+cloudflared tunnel --url http://localhost:3000     # second terminal; prints https://….trycloudflare.com
+```
+
+Option 2, a hosted container (Fly.io shown; Render or Cloud Run work the same way with the
+`Dockerfile`):
+
+```
+fly launch --no-deploy --internal-port 3000 --name investigation-desk-preview
+fly secrets set PREVIEW_USER=demo PREVIEW_PASSWORD='choose-one'
+fly deploy
+fly scale count 1      # one machine: bulk jobs and the demo workspace live in its process and disk
+```
+
+The image already sets `DEMO_MODE=1`. The workspace is on the container's disk, so a restart
+re-seeds it, which is fine for a demo. Before sharing, open the link in a private window, check
+the password prompt, then run step 1 from Settings → Data.
+
+To build and run the image locally: `docker build -t desk-preview . && docker run -p 3000:3000
+-e PREVIEW_USER=demo -e PREVIEW_PASSWORD=choose-one desk-preview`.
 
 ## Not built yet (by plan)
 

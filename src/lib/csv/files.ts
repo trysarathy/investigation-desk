@@ -153,7 +153,7 @@ function readTable<T>(bytes: Uint8Array, columns: Column<T>[], maxRows: number,
 const oneOf = <T extends string>(allowed: readonly T[], what: string) => (v: string) =>
   (allowed as readonly string[]).includes(v) ? undefined : `Unknown ${what} "${v}" (expected ${allowed.join(", ")}).`;
 
-const customerIdCheck = (v: string) =>
+export const customerIdCheck = (v: string) =>
   EMAIL.test(v) ? "Looks like an email address. Use the pseudonymous customer ID; emails and names are not accepted." :
   v.length > 100 ? "Longer than 100 characters." :
   /[\u0000-\u001f]/.test(v) ? "Contains control characters." : undefined;
@@ -254,4 +254,15 @@ export function validateBulk(bytes: Uint8Array): ValidationResult<BulkRow> {
     ...(row.chain ? { chain: row.chain as Chain } : {}),
     ...(row.customer_id ? { customerId: row.customer_id } : {}),
   }));
+}
+
+/**
+ * The optional "Reporting customer" on a pasted hash (form field or `customer=` in the link).
+ * Same rules as File A's customer_id: pseudonymous IDs only, never fixed up.
+ */
+export function parseReportingCustomer(raw: string | undefined): { customerId?: string; error?: string } {
+  if (raw === undefined || raw === "") return {};
+  if (raw !== raw.trim()) return { error: "Reporting customer has leading or trailing spaces." };
+  const err = customerIdCheck(raw);
+  return err ? { error: `Reporting customer: ${err}` } : { customerId: raw };
 }
