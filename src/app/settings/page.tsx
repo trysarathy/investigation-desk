@@ -55,6 +55,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               }).join(" · ")}</dd>
               <dt>Below-minimum policy</dt>
               <dd>{s.belowMinimumPolicy}</dd>
+              <dt>Retired-address policy</dt>
+              <dd>{s.retiredAddressPolicy} <span className="faint">(D18 next step)</span></dd>
+              <dt>Where credits appear in the app</dt>
+              <dd>{s.whereInApp} <span className="faint">(D13 reply)</span></dd>
               <dt>Keys held on other EVM chains</dt>
               <dd>{s.keysHeldOnOtherChains ? "Yes" : "No"} <span className="faint">(decides the D04 next step)</span></dd>
             </dl>

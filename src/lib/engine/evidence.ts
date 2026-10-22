@@ -1,5 +1,6 @@
 import { explorerTxUrl } from "../catalogue";
 import { formatTime } from "../format";
+import { sameAddress } from "../normalise";
 import type { Evidence } from "../types";
 import { CHAIN_NAMES, EVM_CHAIN_IDS } from "../types";
 import type { Ctx } from "./context";
@@ -119,24 +120,30 @@ export function buildEvidence(ctx: Ctx): Evidence[] {
       source: { kind: "settings", key: `acceptedTokens.${tx.chain}` },
     });
 
-    const expected = ctx.customerAddresses.find((r) => r.chain === tx.chain) ?? ctx.lookalike?.assigned ?? ctx.customerAddresses[0];
+    const expected = ctx.customerAddresses.find((r) => r.chain === tx.chain && !r.retiredAt) ?? ctx.lookalike?.assigned ?? ctx.customerAddresses[0];
     const row = ctx.addrOnTxChain ?? ctx.addrOtherChain;
     out.push({
       id: EV.address,
       label: "Destination address",
-      status: ctx.addrOnTxChain ? "pass" : ctx.addrOtherChain ? "warn" : "fail",
+      status: ctx.addrStatus === "this_customer" ? "pass"
+        : ctx.addrStatus === "unattributed" || (!ctx.addrOnTxChain && ctx.addrOtherChain) ? "warn" : "fail",
+      // Never name the other customer: evidence objects can reach the AI and the reply.
       value: ctx.addrOnTxChain
-        ? ctx.addrOnTxChain.customerId === facts.customerId
+        ? ctx.addrStatus === "this_customer"
           ? "Company deposit address assigned to this customer"
-          : `Company deposit address assigned to ${ctx.addrOnTxChain.customerId}`
+          : ctx.addrStatus === "other_customer"
+            ? "Company deposit address assigned to another customer at the time of the transfer"
+            : ctx.addrStatus === "retired"
+              ? `Company deposit address retired at ${formatTime(ctx.addrOnTxChain.retiredAt!)}, before the transfer`
+              : "Company deposit address, not assigned to this case's customer at the time of the transfer"
         : ctx.addrOtherChain
           ? `Company deposit address on ${CHAIN_NAMES[ctx.addrOtherChain.chain]}, but funds arrived on ${CHAIN_NAMES[tx.chain]}`
           : ctx.lookalike
             ? "Not a company address; matches the customer's address on the first 4 and last 4 characters"
             : "Not in the deposit-address list",
       mono: [
-        ...(expected && !ctx.addrOnTxChain ? [{ label: "Expected", value: expected.address }] : []),
-        { label: ctx.addrOnTxChain ? "Address" : "Actual", value: transfer.to },
+        ...(expected && ctx.addrStatus !== "this_customer" && !sameAddress(expected.address, transfer.to) ? [{ label: "Expected", value: expected.address }] : []),
+        { label: ctx.addrStatus === "this_customer" ? "Address" : "Actual", value: transfer.to },
       ],
       source: row ? { kind: "addresses", row: row.row } : expected ? { kind: "addresses", row: expected.row } : { kind: "none" },
     });

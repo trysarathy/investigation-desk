@@ -16,8 +16,13 @@ export interface Ctx {
   tx?: ChainTx;
   transfer?: TokenTransfer;
   depositChain?: DepositChain;
-  /** Destination registered as a deposit address on the chain the tx is on. */
+  /**
+   * File A row for the destination on the tx's chain: the row active at block time, else the
+   * row retired most recently before it, else the first row for that address.
+   */
   addrOnTxChain?: DepositAddressRow;
+  /** Who held the destination address when the tx was mined. */
+  addrStatus?: AddressStatus;
   /** Destination registered as a deposit address, but on a different chain. */
   addrOtherChain?: DepositAddressRow;
   customerAddresses: DepositAddressRow[];
@@ -61,15 +66,40 @@ export function looksAlike(a: string, b: string): boolean {
   return x.slice(0, 4) === y.slice(0, 4) && x.slice(-4) === y.slice(-4);
 }
 
+/**
+ * this_customer   assigned to the case's customer at block time
+ * other_customer  assigned to a different customer at block time (D17)
+ * retired         retired before block time and not reassigned (D18)
+ * unattributed    company address, but ownership at block time can't be tied to this case
+ *                 (no customer on the case, or the tx predates the assignment)
+ */
+export type AddressStatus = "this_customer" | "other_customer" | "retired" | "unattributed";
+
+function addressAtTime(rows: DepositAddressRow[], at: string, customerId?: string):
+  { row?: DepositAddressRow; status?: AddressStatus } {
+  if (rows.length === 0) return {};
+  const t = Date.parse(at);
+  const active = rows.find((r) => Date.parse(r.assignedAt) <= t && (!r.retiredAt || t < Date.parse(r.retiredAt)));
+  if (active) {
+    if (!customerId) return { row: active, status: "unattributed" };
+    return { row: active, status: active.customerId === customerId ? "this_customer" : "other_customer" };
+  }
+  const retired = rows
+    .filter((r) => r.retiredAt && Date.parse(r.retiredAt) <= t)
+    .sort((a, b) => Date.parse(b.retiredAt!) - Date.parse(a.retiredAt!))[0];
+  if (retired) return { row: retired, status: "retired" };
+  return { row: rows[0], status: "unattributed" };
+}
+
 export function buildContext(facts: Facts, settings: Settings): Ctx {
   const tx = facts.tx;
   const transfer = tx ? pickTransfer(tx, facts) : undefined;
   const depositChain = tx ? asDepositChain(tx.chain) : undefined;
   const customerAddresses = facts.depositAddresses.filter((r) => r.customerId === facts.customerId);
 
-  const addrOnTxChain = transfer && tx
-    ? facts.depositAddresses.find((r) => r.chain === tx.chain && sameAddress(r.address, transfer.to))
-    : undefined;
+  const { row: addrOnTxChain, status: addrStatus } = transfer && tx
+    ? addressAtTime(facts.depositAddresses.filter((r) => r.chain === tx.chain && sameAddress(r.address, transfer.to)), tx.blockTime, facts.customerId)
+    : {};
   const addrOtherChain = transfer && tx && !addrOnTxChain
     ? facts.depositAddresses.find((r) => r.chain !== tx.chain && sameAddress(r.address, transfer.to))
     : undefined;
@@ -117,7 +147,7 @@ export function buildContext(facts: Facts, settings: Settings): Ctx {
     : undefined;
 
   return {
-    facts, settings, tx, transfer, depositChain, addrOnTxChain, addrOtherChain, customerAddresses,
+    facts, settings, tx, transfer, depositChain, addrOnTxChain, addrStatus, addrOtherChain, customerAddresses,
     confirmations, threshold, tokenAccepted, officialContract, impersonation, minimum, belowMinimum,
     freezeHits, companyTransferCount, ledgerMatch, lookalike, pendingSec,
   };

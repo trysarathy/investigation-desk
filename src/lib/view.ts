@@ -22,7 +22,7 @@ export interface VerdictView {
   nextStep: string;
   evidence: Evidence[];
   evidenceIds: string[];
-  findings: { code: Code; label: string; reason: string; nextStep: string; evidenceIds: string[] }[];
+  findings: { code: Code; confidence: Confidence; label: string; reason: string; nextStep: string; evidenceIds: string[] }[];
   checks: RuleResult[];
   reply: { text: string; open: string[] } | null;
   checkedAt: string;
@@ -76,7 +76,7 @@ function verdictView(f: Facts, down?: Chain): VerdictView {
     evidence: v.evidence,
     evidenceIds: v.evidenceIds,
     findings: v.findings.map((f) => ({
-      code: f.code, label: VERDICT_LABELS[f.code], reason: f.reason, nextStep: nextStep(f.code, SAMPLE_SETTINGS), evidenceIds: f.evidenceIds,
+      code: f.code, confidence: f.confidence!, label: VERDICT_LABELS[f.code], reason: f.reason, nextStep: nextStep(f.code, SAMPLE_SETTINGS), evidenceIds: f.evidenceIds,
     })),
     checks: v.checks,
     reply: v.state === "verdict" ? fillReply(v.code, v.fill) : null,

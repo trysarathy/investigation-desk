@@ -13,8 +13,8 @@ import { RULES } from "./rules";
 /**
  * Spec 6, steps 3 and 4: run every rule in catalogue order, then pick the first High
  * match, else the first Medium match, else D99. All rules run even after a match so
- * the "Checks run" list is complete. Every other matched Medium rule is attached as a
- * finding for the analyst to confirm: a heuristic never replaces an established fact.
+ * the "Checks run" list is complete. Every other match is attached as a finding; Medium
+ * findings need analyst confirmation. A heuristic never replaces an established fact.
  */
 export function investigate(facts: Facts, settings: Settings): Verdict {
   const ctx = buildContext(facts, settings);
@@ -36,7 +36,7 @@ export function investigate(facts: Facts, settings: Settings): Verdict {
   const checks: RuleResult[] = CATALOGUE_ORDER.map((code) => RULES[code as keyof typeof RULES](ctx));
   const winner = checks.find((c) => c.matched && c.confidence === "High") ??
     checks.find((c) => c.matched && c.confidence === "Medium");
-  const findings = checks.filter((c) => c.matched && c.confidence === "Medium" && c !== winner);
+  const findings = checks.filter((c) => c.matched && c !== winner);
 
   if (!winner) {
     return { ...base, state: "verdict", code: "D99", confidence: null, evidenceIds: evidence.map((e) => e.id), findings, checks, pausedChains };
@@ -73,5 +73,6 @@ function fillValues(ctx: Ctx): Record<string, string> {
   if (ctx.minimum) fill.min = ctx.minimum;
   if (ctx.ledgerMatch?.row.creditedAt) fill.credited_at = formatTime(ctx.ledgerMatch.row.creditedAt);
   fill.policy_sentence = settings.belowMinimumPolicy;
+  fill.where_in_app = settings.whereInApp;
   return fill;
 }

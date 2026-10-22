@@ -1,12 +1,16 @@
 import type { Code } from "./types";
 
 const NEUTRAL_REVIEW = "Your deposit is under review. We'll contact you when the review is complete.";
+// DRAFT wording: the 22 Oct second-pass spec text for D12, D17 and D18 is not in this repo yet.
+// Swap these three in when it is; tests check only the rules below, not the exact text.
+export const DRAFT_TEMPLATES = new Set<Code>(["D12", "D17", "D18"]);
+const ADDRESS_REVIEW = "Your deposit reached one of our addresses that isn't currently your deposit address. Our team is reviewing it and will update you by {date}.";
 const WRONG_ADDRESS = "The funds went to {short_addr}, which is not your deposit address. We can't access or recover funds at that address. Always copy your address from our app, never from your transaction history.";
 
 /**
  * Approved reply templates from the spec (section 2, updated 22 Oct). No template may promise a
  * future credit: chain evidence establishes eligibility; only a ledger row establishes a credit.
- * {date} and {where_in_app} are left for the analyst to fill.
+ * {date} is left for the analyst to fill; {where_in_app} comes from settings.
  */
 export const REPLY_TEMPLATES: Partial<Record<Code, string>> = {
   D01: "We couldn't find a transaction with that ID on {chains_checked}. Could you send the transaction hash from the sending app's withdrawal history? If the sending platform shows it as pending, it may not have been sent yet.",
@@ -21,14 +25,16 @@ export const REPLY_TEMPLATES: Partial<Record<Code, string>> = {
   D09: NEUTRAL_REVIEW,
   D10: "Your transaction is still waiting to be processed by the {chain} network. Once the network confirms it, our usual deposit checks apply. If it's still pending after {window}, please let us know.",
   D11: "The ID you sent is a withdrawal reference from the sending platform, not a network transaction hash. Please ask them for the on-chain transaction hash, or check whether the withdrawal has been sent yet.",
-  D12: "We can see your transfer arrived. Our team is completing the credit and will confirm by {date}.",
+  D12: "We can see your transfer arrived on the network. It hasn't been credited yet; our team is checking why and will update you by {date}.",
   D13: "Your deposit of {amount} {token} was credited on {credited_at}. You can see it under {where_in_app}.",
   D14: NEUTRAL_REVIEW,
   D16: NEUTRAL_REVIEW,
+  D17: ADDRESS_REVIEW,
+  D18: ADDRESS_REVIEW,
 };
 
 /** Placeholders the analyst must fill before sending. */
-export const ANALYST_FIELDS = new Set(["date", "where_in_app"]);
+export const ANALYST_FIELDS = new Set(["date"]);
 
 export interface FilledReply {
   text: string;

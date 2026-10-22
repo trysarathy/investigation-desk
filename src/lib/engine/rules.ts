@@ -5,12 +5,15 @@ import { EV } from "./evidence";
 /**
  * One pure function per catalogue code: (ctx) -> result. No network, no clock.
  *
- * Rule precedence signed off in the spec (21 and 22 Oct) is carried by guards inside rules:
+ * Rule precedence signed off in the spec (22 Oct, second pass) is carried by guards inside rules:
  *  1. D02 only matches a deposit that would otherwise be credited.
- *  2. D05 skips tokens whose symbol is USDT or USDC, so D06 is never hidden.
- *  3. D07 always stands; D07b is a Medium finding attached beside it (see run.ts).
+ *  2. D05 skips a token only when it claims USDT or USDC and its contract is not the official
+ *     one (that is D06). Genuine but unaccepted USDT or USDC is D05.
+ *  3. D07 always stands; D07b is attached beside it as a finding (see run.ts).
  *  4. A REJECTED ledger row is D16, not D99.
  *  5. D12, D13, D14 and D16 are High only on an exact ledger match; otherwise Medium.
+ *  6. D12 and D16 need the destination assigned to this customer at block time; another
+ *     customer's address is D17, a retired address is D18.
  */
 type Rule = (ctx: Ctx) => RuleResult;
 
@@ -21,7 +24,7 @@ const miss = (code: Code, reason: string): RuleResult =>
 
 /** Confirmed or not, would this transfer be credited by policy? */
 function creditable(ctx: Ctx): boolean {
-  return !!(ctx.tx?.status === "success" && ctx.depositChain && ctx.addrOnTxChain &&
+  return !!(ctx.tx?.status === "success" && ctx.depositChain && ctx.addrStatus === "this_customer" &&
     ctx.tokenAccepted && !ctx.impersonation && !ctx.belowMinimum && ctx.freezeHits.length === 0);
 }
 
@@ -64,7 +67,7 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
   D05: (ctx) => {
     if (!ctx.transfer || !ctx.addrOnTxChain) return miss("D05", "Not a transfer to a company address on this chain.");
     if (ctx.tokenAccepted) return miss("D05", "Token contract is on the allowlist.");
-    if (["USDT", "USDC"].includes(ctx.transfer.tokenSymbol)) return miss("D05", "Symbol is USDT or USDC; left to D06.");
+    if (ctx.impersonation) return miss("D05", "Claims to be USDT or USDC with a non-official contract; left to D06.");
     return hit("D05", "High", [EV.token, EV.address], `Contract ${ctx.transfer.tokenContract} is not on the allowlist.`);
   },
 
@@ -87,6 +90,16 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
     if (!ctx.lookalike.prior) return miss("D07b", "No earlier zero-value or dust transfer from the look-alike address.");
     return hit("D07b", "Medium", [EV.address, EV.history],
       "First 4 and last 4 characters match the customer's address, after a dust transfer from it.");
+  },
+
+  D17: (ctx) => {
+    if (ctx.addrStatus !== "other_customer") return miss("D17", "Destination is not assigned to a different customer.");
+    return hit("D17", "High", [EV.tx, EV.address], `Destination is assigned to another customer (File A row ${ctx.addrOnTxChain!.row}).`);
+  },
+
+  D18: (ctx) => {
+    if (ctx.addrStatus !== "retired") return miss("D18", "Destination is not a retired address.");
+    return hit("D18", "High", [EV.tx, EV.address], `Mined after the address was retired (File A row ${ctx.addrOnTxChain!.row}).`);
   },
 
   D08: (ctx) => {
@@ -142,7 +155,7 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
   D16: (ctx) => {
     const m = ctx.ledgerMatch;
     if (m?.row.status !== "REJECTED") return miss("D16", "Ledger row is not REJECTED.");
-    if (ctx.tx?.status !== "success" || !ctx.addrOnTxChain || !ctx.tokenAccepted || ctx.impersonation) {
+    if (ctx.tx?.status !== "success" || ctx.addrStatus !== "this_customer" || !ctx.tokenAccepted || ctx.impersonation) {
       return miss("D16", "Not a valid deposit to a company address in an accepted token.");
     }
     if (ctx.confirmations === undefined || ctx.confirmations < ctx.threshold!) return miss("D16", "Not yet confirmed.");

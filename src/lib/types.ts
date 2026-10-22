@@ -31,7 +31,7 @@ export const CHAIN_NAMES: Record<Chain, string> = {
 
 export type Code =
   | "D01" | "D02" | "D03" | "D04" | "D05" | "D06" | "D07" | "D07b"
-  | "D08" | "D09" | "D10" | "D11" | "D12" | "D13" | "D14" | "D16" | "D99";
+  | "D08" | "D09" | "D10" | "D11" | "D12" | "D13" | "D14" | "D16" | "D17" | "D18" | "D99";
 
 export type Confidence = "High" | "Medium";
 
@@ -215,6 +215,10 @@ export interface Settings {
   ledgerStaleAfterHours: number;
   /** A prior transfer at or below this amount counts as dust for D07b. */
   dustThreshold: string;
+  /** What ops does with a deposit to a retired address (D18 next step). */
+  retiredAddressPolicy: string;
+  /** Where a credited deposit appears in the company's app (D13 reply). */
+  whereInApp: string;
 }
 
 // ---- Engine output ----

@@ -1,10 +1,13 @@
 import type { Chain, Code, Settings } from "./types";
 
-export const RULE_VERSION = "rules-2026-10-22.1";
+export const RULE_VERSION = "rules-2026-10-22.2";
 
-/** Catalogue order (spec section 2). The engine evaluates rules in exactly this order. */
+/**
+ * Evaluation order. Every rule runs; the verdict is the first High match in this order (spec
+ * "Rule precedence"). D17 and D18 sit with the other address checks. D15 (memo) is out of v1.
+ */
 export const CATALOGUE_ORDER: Code[] = [
-  "D01", "D02", "D03", "D04", "D05", "D06", "D07", "D07b",
+  "D01", "D02", "D03", "D04", "D05", "D06", "D07", "D07b", "D17", "D18",
   "D08", "D09", "D10", "D11", "D12", "D13", "D14", "D16",
 ];
 
@@ -25,6 +28,8 @@ export const VERDICT_LABELS: Record<Code, string> = {
   D13: "Already credited",
   D14: "On hold",
   D16: "Rejected by company",
+  D17: "Sent to another customer's address",
+  D18: "Sent to a retired address",
   D99: "Unknown",
 };
 
@@ -49,6 +54,8 @@ export function nextStep(code: Code, settings: Settings): string {
     case "D13": return "Tell the customer where the credit appears.";
     case "D14": return "Route to compliance. Neutral reply only.";
     case "D16": return "Route to the deposits team for the rejection reason. Neutral reply only.";
+    case "D17": return "Route to the deposits team to resolve between the two accounts. Never reveal the other customer.";
+    case "D18": return `Apply the retired-address policy: ${settings.retiredAddressPolicy}`;
     case "D99": return "Investigate manually and record what you find.";
   }
 }

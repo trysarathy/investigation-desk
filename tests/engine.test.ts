@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compareDecimal } from "@/lib/decimal";
 import { investigate } from "@/lib/engine/run";
+import { CATALOGUE_ORDER, nextStep } from "@/lib/catalogue";
 import { looksAlike } from "@/lib/engine/context";
 import { SAMPLE_CASES, SAMPLE_SETTINGS, findCase, withChainDown } from "@/lib/fixtures";
 import { normaliseInput } from "@/lib/normalise";
@@ -34,6 +35,8 @@ describe("one fixture case per catalogue code", () => {
     ["CS-1058", "D13", "Medium"],
     ["CS-1059", "D12", "Medium"],
     ["CS-1060", "D99", null],
+    ["CS-1061", "D17", "High"],
+    ["CS-1062", "D18", "High"],
   ];
 
   it.each(expected)("%s returns %s", (id, code, confidence) => {
@@ -45,7 +48,7 @@ describe("one fixture case per catalogue code", () => {
 
   it("covers every code", () => {
     const codes = new Set(expected.map((e) => e[1]));
-    for (const c of ["D01", "D02", "D03", "D04", "D05", "D06", "D07", "D08", "D09", "D10", "D11", "D12", "D13", "D14", "D16", "D99"]) {
+    for (const c of ["D01", "D02", "D03", "D04", "D05", "D06", "D07", "D08", "D09", "D10", "D11", "D12", "D13", "D14", "D16", "D17", "D18", "D99"]) {
       expect(codes.has(c as Code)).toBe(true);
     }
     // D07b is never a verdict on its own fixture; it appears as a finding (see "c." below).
@@ -63,7 +66,7 @@ describe("verdict integrity", () => {
   });
 
   it("runs every rule, not just up to the winner", () => {
-    expect(run(latest("CS-1055")).checks).toHaveLength(16);
+    expect(run(latest("CS-1055")).checks).toHaveLength(18);
   });
 
   it("is deterministic", () => {
@@ -235,17 +238,22 @@ describe("a. D02 only matches a deposit that would otherwise be credited", () =>
   });
 });
 
-describe("b. D05 skips USDT and USDC so D06 can fire", () => {
+describe("b. D05 stands aside only for impersonating USDT/USDC", () => {
   it("a fake USDT to a company address is D06, and D05 records why it stood aside", () => {
     const v = run(latest("CS-1046"));
     expect(v.code).toBe("D06");
-    expect(v.checks.find((c) => c.code === "D05")!.reason).toMatch(/USDT or USDC/);
+    expect(v.checks.find((c) => c.code === "D05")!.reason).toMatch(/non-official contract/);
   });
 
-  it("D05 does not match a USDC transfer even when the contract is off the allowlist", () => {
-    const v = run(withTransfer(latest("CS-1045"), { tokenSymbol: "USDC" }));
-    expect(v.checks.find((c) => c.code === "D05")!.matched).toBe(false);
-    expect(v.code).not.toBe("D05");
+  it("genuine USDT on a chain where the company does not accept it is D05", () => {
+    const f = latest("CS-1041");
+    const v = investigate(f, { ...SAMPLE_SETTINGS, acceptedTokens: { ...SAMPLE_SETTINGS.acceptedTokens, tron: [] } });
+    expect(v.code).toBe("D05");
+    expect(v.checks.find((c) => c.code === "D06")!.matched).toBe(false);
+  });
+
+  it("USDC with no confirmed official contract and off the allowlist is D05, not D99", () => {
+    expect(run(withTransfer(latest("CS-1045"), { tokenSymbol: "USDC" })).code).toBe("D05");
   });
 
   it("D05 still matches other unsupported tokens", () => {
@@ -405,15 +413,20 @@ describe("f. no reply promises a future credit", () => {
     expect(fillReply(v.code, v.fill)!.text).toMatch(/^The ID you sent is a withdrawal reference/);
   });
 
-  it("D13 fills amount, token and credit time, leaves where_in_app to the analyst", () => {
+  it("D13 fills amount, token, credit time and where_in_app from settings", () => {
     const v = run(latest("CS-1053"));
     const r = fillReply(v.code, v.fill)!;
-    expect(r.text).toContain("Your deposit of 1200.00 USDT was credited on 2026-10-21 11:41 SGT.");
-    expect(r.open).toEqual(["where_in_app"]);
+    expect(r.text).toBe("Your deposit of 1200.00 USDT was credited on 2026-10-21 11:41 SGT. You can see it under Wallet > Transaction history.");
+    expect(r.open).toEqual([]);
+  });
+
+  it("D12 reply makes no credit promise", () => {
+    const t = REPLY_TEMPLATES.D12!;
+    expect(t).not.toMatch(/completing the credit|will be credited|will credit/i);
   });
 
   it("every code with a verdict fixture except D99 has a template", () => {
-    for (const code of ["D01", "D02", "D03", "D04", "D05", "D06", "D07", "D07b", "D08", "D09", "D10", "D11", "D12", "D13", "D14", "D16"] as Code[]) {
+    for (const code of ["D01", "D02", "D03", "D04", "D05", "D06", "D07", "D07b", "D08", "D09", "D10", "D11", "D12", "D13", "D14", "D16", "D17", "D18"] as Code[]) {
       expect(REPLY_TEMPLATES[code], code).toBeDefined();
     }
   });
@@ -442,5 +455,85 @@ describe("g. the model holds provider payout events", () => {
     expect(b.code).toBe(a.code);
     expect(b.confidence).toBe(a.confidence);
     expect(b.checks).toEqual(a.checks);
+  });
+});
+
+// ---- 22 Oct spec, second pass ----
+
+describe("D17 sent to another customer's address", () => {
+  it("is High from File A", () => {
+    const v = run(latest("CS-1061"));
+    expect(v.code).toBe("D17");
+    expect(v.confidence).toBe("High");
+  });
+
+  it("D12 requires the destination to belong to this customer", () => {
+    const v = run(latest("CS-1061"));
+    expect(v.checks.find((c) => c.code === "D12")!.matched).toBe(false);
+  });
+
+  it("never reveals the other customer in evidence or reply", () => {
+    const v = run(latest("CS-1061"));
+    const other = "C-10734";
+    expect(JSON.stringify(v.evidence)).not.toContain(other);
+    expect(JSON.stringify(v.checks)).not.toContain(other);
+    expect(fillReply(v.code, v.fill)!.text).not.toContain(other);
+  });
+
+  it("a case with no customer is neither D12 nor D17", () => {
+    const v = run({ ...latest("CS-1041"), customerId: undefined });
+    expect(["D12", "D17"]).not.toContain(v.code);
+  });
+});
+
+describe("D18 sent to a retired address", () => {
+  it("is High when mined after retired_at", () => {
+    const v = run(latest("CS-1062"));
+    expect(v.code).toBe("D18");
+    expect(v.confidence).toBe("High");
+    expect(v.evidence.find((e) => e.id === "ev.address")!.value).toMatch(/retired/);
+  });
+
+  it("a transfer mined before retired_at is credited as normal", () => {
+    const f = latest("CS-1062");
+    const v = run({ ...f, tx: { ...f.tx!, blockTime: "2026-09-20T12:00:00+08:00" } });
+    expect(v.code).toBe("D12");
+  });
+
+  it("a retired address reassigned to someone else is D17, not D18", () => {
+    const f = latest("CS-1062");
+    const old = f.depositAddresses.find((r) => r.retiredAt)!;
+    const reassigned = { ...old, row: 999, customerId: "C-99999", assignedAt: "2026-10-05T00:00:00+08:00", retiredAt: undefined };
+    expect(run({ ...f, depositAddresses: [...f.depositAddresses, reassigned] }).code).toBe("D17");
+  });
+
+  it("next step uses the retired-address policy setting", () => {
+    expect(nextStep("D18", { ...SAMPLE_SETTINGS, retiredAddressPolicy: "Hold and ask ops." })).toContain("Hold and ask ops.");
+  });
+
+  it("D17 and D18 share the neutral address-review reply", () => {
+    expect(REPLY_TEMPLATES.D17).toBe(REPLY_TEMPLATES.D18);
+    expect(REPLY_TEMPLATES.D17).not.toMatch(/customer|account holder/i);
+  });
+});
+
+describe("every rule runs; other matches are findings", () => {
+  it("evaluates every code from D01 to D18 except out-of-scope D15", () => {
+    const codes = new Set(run(latest("CS-1041")).checks.map((c) => c.code));
+    for (let i = 1; i <= 18; i++) {
+      const code = `D${String(i).padStart(2, "0")}` as Code;
+      expect(codes.has(code), code).toBe(i !== 15);
+    }
+    expect(codes.has("D07b")).toBe(true);
+    expect(CATALOGUE_ORDER).toHaveLength(18);
+  });
+
+  it("a second High match is attached as a finding, not dropped", () => {
+    const f = latest("CS-1046");
+    const freezes = [{ chain: "tron" as const, token: "USDT" as const, address: f.tx!.transfers[0].from, role: "sender" as const,
+      method: "isBlackListed" as const, frozen: true, blockNumber: 1 }];
+    const v = run({ ...f, freezes });
+    expect(v.code).toBe("D06");
+    expect(v.findings.map((x) => `${x.code}/${x.confidence}`)).toEqual(["D09/High"]);
   });
 });

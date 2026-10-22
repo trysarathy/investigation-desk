@@ -35,6 +35,8 @@ export const SAMPLE_SETTINGS: Settings = {
   blockTimeSec: { tron: 3, ethereum: 12, bsc: 3, polygon: 2, base: 2, arbitrum: 1, optimism: 2 },
   ledgerStaleAfterHours: 24,
   dustThreshold: "0.01",
+  retiredAddressPolicy: "Deposits team confirms the sender, then credits the customer who last held the address.",
+  whereInApp: "Wallet > Transaction history",
 };
 
 export const LEDGER_UPLOADED_AT = "2026-10-21T09:00:00+08:00";
@@ -45,13 +47,18 @@ export const ADDRESSES_UPLOADED_AT = "2026-10-20T18:00:00+08:00";
 const CUSTOMERS = [
   "C-10422", "C-10587", "C-10611", "C-10734", "C-10802", "C-10915", "C-11008", "C-11140",
   "C-11263", "C-11307", "C-11452", "C-11519", "C-11688", "C-11730", "C-11891", "C-11957", "C-12044",
-  "C-12107", "C-12188", "C-12230", "C-12301",
+  "C-12107", "C-12188", "C-12230", "C-12301", "C-12350", "C-12412",
 ];
 
 export const FILE_A: DepositAddressRow[] = CUSTOMERS.flatMap((c, i) => [
   { row: i * 2 + 2, address: tronAddress(c), chain: "tron" as const, customerId: c, assignedAt: "2026-09-01T10:00:00+08:00" },
   { row: i * 2 + 3, address: evmAddress(c), chain: "ethereum" as const, customerId: c, assignedAt: "2026-09-01T10:00:00+08:00" },
 ]);
+
+// C-12412 moved to a new Tron address on 1 Oct; the old one was retired, not reassigned.
+export const RETIRED_TRON = tronAddress("C-12412-old");
+FILE_A.push({ row: FILE_A.length + 2, address: RETIRED_TRON, chain: "tron", customerId: "C-12412",
+  assignedAt: "2026-06-01T10:00:00+08:00", retiredAt: "2026-10-01T00:00:00+08:00" });
 
 const tronOf = (c: string) => FILE_A.find((r) => r.customerId === c && r.chain === "tron")!.address;
 const ethOf = (c: string) => FILE_A.find((r) => r.customerId === c && r.chain === "ethereum")!.address;
@@ -184,6 +191,8 @@ const H = {
   d99: evmHash("d99-mempool"),
   ambiguous: evmHash("ambiguous"),
   byAmount: tronHash("by-amount"),
+  d17: tronHash("d17"),
+  d18: tronHash("d18"),
   flip: tronHash("flip"),
 };
 
@@ -330,6 +339,16 @@ export const SAMPLE_CASES: SampleCase[] = [
     id: "CS-1059", customerId: "C-12230", openedAt: "2026-10-21T14:10:00+08:00", status: "open", revealed: 1,
     demonstrates: "D12 Medium: ledger row matches on address and amount only",
     snapshots: [facts({ input: H.byAmount, customerId: "C-12230", tx: tx({ chain: "tron", hash: H.byAmount, to: tronOf("C-12230"), amount: "95.00" }) })],
+  },
+  {
+    id: "CS-1061", customerId: "C-12350", openedAt: "2026-10-21T12:40:00+08:00", status: "open", revealed: 1,
+    demonstrates: "D17 (sent to another customer's deposit address)",
+    snapshots: [facts({ input: H.d17, customerId: "C-12350", tx: tx({ chain: "tron", hash: H.d17, to: tronOf("C-10734"), amount: "410.00" }) })],
+  },
+  {
+    id: "CS-1062", customerId: "C-12412", openedAt: "2026-10-21T10:20:00+08:00", status: "open", revealed: 1,
+    demonstrates: "D18 (sent to the customer's retired address)",
+    snapshots: [facts({ input: H.d18, customerId: "C-12412", tx: tx({ chain: "tron", hash: H.d18, to: RETIRED_TRON, amount: "860.00" }) })],
   },
   {
     id: "CS-1060", customerId: "C-12301", openedAt: "2026-10-21T15:12:00+08:00", status: "open", revealed: 1,

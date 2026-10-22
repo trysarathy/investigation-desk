@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { formatTime } from "@/lib/format";
+import { DRAFT_TEMPLATES } from "@/lib/templates";
 import { CHAIN_NAMES, type Chain, type Evidence } from "@/lib/types";
 import type { CaseView, VerdictView } from "@/lib/view";
 import { useAssignments } from "./assignments";
@@ -103,18 +104,20 @@ export function Investigation({ view }: { view: CaseView }) {
       <VerdictBar v={v} checking={checking} />
 
       {!checking && v.findings.map((f) => (
-        <section key={f.code} className="bar bar-amber" aria-label={`Likely cause: ${f.label}`} style={{ alignItems: "flex-start", flexDirection: "column", gap: 8 }}>
+        <section key={f.code} className={`bar ${f.confidence === "Medium" ? "bar-amber" : "bar-info"}`} aria-label={`${f.confidence === "Medium" ? "Likely cause" : "Also found"}: ${f.label}`} style={{ alignItems: "flex-start", flexDirection: "column", gap: 8 }}>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <Status status="warn" label="Likely cause" />
+            {f.confidence === "Medium" ? <Status status="warn" label="Likely cause" /> : <Status status="info" label="Also found" />}
             <span className="code">{f.code}</span>
-            <strong>{f.label}</strong>
-            <span>(Medium, does not change the {v.code} verdict)</span>
+            <strong style={{ color: "var(--text)" }}>{f.label}</strong>
+            <span>({f.confidence}, does not change the {v.code} verdict)</span>
           </div>
           <span style={{ color: "var(--text)" }}>{f.reason} {f.nextStep}</span>
-          <label style={{ display: "flex", gap: 8, alignItems: "center", color: "var(--text)" }}>
-            <input type="checkbox" checked={!!confirmedFindings[f.code]} onChange={(e) => setConfirmedFindings((c) => ({ ...c, [f.code]: e.target.checked }))} />
-            {confirmedFindings[f.code] ? "Confirmed by analyst" : "I've checked the evidence and confirm this likely cause"}
-          </label>
+          {f.confidence === "Medium" && (
+            <label style={{ display: "flex", gap: 8, alignItems: "center", color: "var(--text)" }}>
+              <input type="checkbox" checked={!!confirmedFindings[f.code]} onChange={(e) => setConfirmedFindings((c) => ({ ...c, [f.code]: e.target.checked }))} />
+              {confirmedFindings[f.code] ? "Confirmed by analyst" : "I've checked the evidence and confirm this likely cause"}
+            </label>
+          )}
         </section>
       ))}
 
@@ -202,7 +205,9 @@ export function Investigation({ view }: { view: CaseView }) {
                   </div>
                 )}
                 {/\{\w+\}/.test(replyText) && <p className="s-warn" style={{ margin: 0, fontSize: 12 }}>Fill the highlighted fields before sending.</p>}
-                <p className="faint" style={{ margin: 0, fontSize: 12 }}>From the approved {v.code} template. Every value comes from the evidence.</p>
+                <p className="faint" style={{ margin: 0, fontSize: 12 }}>
+                  {DRAFT_TEMPLATES.has(v.code) ? `Draft ${v.code} wording, pending the spec text.` : `From the approved ${v.code} template.`} Every value comes from the evidence.
+                </p>
               </>
             )}
           </section>
