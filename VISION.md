@@ -19,3 +19,7 @@ Public transfers do not establish customer identity, intended network, minimum p
 ## Release gates
 
 100+ independently labelled public transactions plus authorized ledger cases for company-dependent diagnoses; zero known wrong High results; measured cold and warm latency; tenant isolation; authenticated roles and audit; external security review and DPA before real customer data. Targets (<2s investigation, <60s scan) are targets until measured. Live integration installation and verified wallet ownership require partner participation.
+
+## Evidence correction in this build
+
+The latest instruction “unsure = needs review, never a confident wrong answer” supersedes the old D10 fallback. A transaction a node reports as pending is not “not found”: without a reliable pending-since time it now yields D99, no confident D01 reply. D01 requires explicit not-found answers from every supported chain. Rule version advanced to `rules-2026-10-22.6`.

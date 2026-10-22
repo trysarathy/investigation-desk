@@ -10,14 +10,21 @@ import { useAssignments } from "./assignments";
 import { Mono } from "./Mono";
 import { ConfidenceLabel, Status } from "./Status";
 
-const STATUS_TEXT = { pass: "Passed", warn: "Check", fail: "Failed", info: "Info" } as const;
+const STATUS_TEXT = {
+  pass: "Passed",
+  warn: "Check",
+  fail: "Failed",
+  info: "Info",
+} as const;
 
 export function Investigation({ view }: { view: CaseView }) {
   const router = useRouter();
   const [revealed, setRevealed] = useState(view.revealed);
   const [checking, setChecking] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
-  const [confirmedFindings, setConfirmedFindings] = useState<Record<string, boolean>>({});
+  const [confirmedFindings, setConfirmedFindings] = useState<
+    Record<string, boolean>
+  >({});
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -27,7 +34,8 @@ export function Investigation({ view }: { view: CaseView }) {
   const history = view.verdicts.slice(0, revealed);
   const v = history[history.length - 1];
   const prev = history.length > 1 ? history[history.length - 2] : undefined;
-  const changed = prev && (prev.code !== v.code || prev.state !== v.state) ? prev : undefined;
+  const changed =
+    prev && (prev.code !== v.code || prev.state !== v.state) ? prev : undefined;
   const owner = owners[view.id] ?? view.owner;
   const replyLocked = v.confidence === "Medium" && !confirmed;
   // The checked AI reply when there is one, otherwise the template reply.
@@ -46,7 +54,10 @@ export function Investigation({ view }: { view: CaseView }) {
     if (checking) return;
     setChecking(true);
     // Live: fetch again on the server. Sample data: the next stored snapshot stands in for a fetch.
-    if (view.live && view.query) router.push(`/investigate?${new URLSearchParams({q:view.query.q,...(view.query.customer ? {customer:view.query.customer} : {})})}`);
+    if (view.live && view.query)
+      router.push(
+        `/investigate?${new URLSearchParams({ q: view.query.q, ...(view.query.customer ? { customer: view.query.customer } : {}) })}`,
+      );
     setTimeout(() => {
       setRevealed((r) => Math.min(r + 1, view.verdicts.length));
       setChecking(false);
@@ -55,26 +66,55 @@ export function Investigation({ view }: { view: CaseView }) {
 
   const copy = () => {
     if (!reply || replyLocked) return;
-    navigator.clipboard?.writeText(replyText).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    }, () => {});
+    navigator.clipboard?.writeText(replyText).then(
+      () => {
+        setCopied(true);
+        if (view.id.startsWith("CASE-"))
+          void fetch(`/api/cases/${view.id}/events`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ action: "reply.copied" }),
+          });
+        setTimeout(() => setCopied(false), 1500);
+      },
+      () => {},
+    );
   };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
-      if (e.metaKey || e.ctrlKey || e.altKey || document.querySelector(".cmd")) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || document.querySelector(".cmd"))
+        return;
       if (e.key === "Escape") {
-        if (editing) { setEditing(false); return; }
+        if (editing) {
+          setEditing(false);
+          return;
+        }
         router.push("/");
         return;
       }
-      if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT") return;
+      if (
+        t.tagName === "INPUT" ||
+        t.tagName === "TEXTAREA" ||
+        t.tagName === "SELECT"
+      )
+        return;
       if (e.key === "c") copy();
-      else if (e.key === "e" && reply && !replyLocked) { e.preventDefault(); setEditing(true); }
-      else if (e.key === "r") recheck();
+      else if (e.key === "e" && reply && !replyLocked) {
+        e.preventDefault();
+        setEditing(true);
+      } else if (e.key === "r") recheck();
       else if (e.key === "a") assign(view.id);
+      else if (e.key === "v" && v.confidence === "Medium") {
+        setConfirmed(true);
+        if (view.id.startsWith("CASE-"))
+          void fetch(`/api/cases/${view.id}/events`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ action: "verdict.confirmed" }),
+          });
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -83,64 +123,182 @@ export function Investigation({ view }: { view: CaseView }) {
   return (
     <div className="page">
       <div className="page-head">
-        <div style={{ display: "flex", gap: 12, alignItems: "baseline", flexWrap: "wrap" }}>
-          <Link href="/" className="muted">Cases</Link>
+        <div
+          style={{
+            display: "flex",
+            gap: 12,
+            alignItems: "baseline",
+            flexWrap: "wrap",
+          }}
+        >
+          <Link href="/" className="muted">
+            Cases
+          </Link>
           <span className="faint">/</span>
           <h1 className="mono">{view.id}</h1>
           <span className="muted mono">{view.customerId}</span>
-          {view.demo
-            ? <span className="badge" title="Demo workspace: sample company files (Files A and B). Chain data is real: recorded from the chains for the demo hashes; any other hash is looked up live only if chain keys are set, and otherwise pauses.">Demo workspace · real chain data</span>
-            : view.live
-              ? <span className="badge" title="Chain data is fetched live and checked against the Files A and B uploaded in Settings → Data.">Live chain data · your uploaded files</span>
-              : <span className="badge">Sample data</span>}
+          {view.demo ? (
+            <span
+              className="badge"
+              title="Demo workspace: sample company files (Files A and B). Chain data is real: recorded from the chains for the demo hashes; any other hash is looked up live only if chain keys are set, and otherwise pauses."
+            >
+              Demo workspace · real chain data
+            </span>
+          ) : view.live ? (
+            <span
+              className="badge"
+              title="Chain data is fetched live and checked against the Files A and B uploaded in Settings → Data."
+            >
+              Live chain data · your uploaded files
+            </span>
+          ) : (
+            <span className="badge">Sample data</span>
+          )}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn" type="button" onClick={recheck} disabled={checking}>Re-run checks <span className="kbd">R</span></button>
-          <Link className="btn" href="/">Back <span className="kbd">Esc</span></Link>
+          <button
+            className="btn"
+            type="button"
+            onClick={recheck}
+            disabled={checking}
+          >
+            Re-run checks <span className="kbd">R</span>
+          </button>
+          <Link className="btn" href="/">
+            Back <span className="kbd">Esc</span>
+          </Link>
         </div>
       </div>
 
-      {view.query && <ReportingCustomerForm q={view.query.q} current={view.query.customer} inferred={view.query.customerInferred} />}
+      {view.query && (
+        <ReportingCustomerForm
+          q={view.query.q}
+          current={view.query.customer}
+          inferred={view.query.customerInferred}
+        />
+      )}
 
       {changed && !checking && (
         <div className="bar bar-red fade-in" role="alert">
           <Status status="fail" label="Verdict changed" />
-          <span>from <span className="code">{changed.state === "paused" ? "Paused" : changed.code}</span> to <span className="code">{v.state === "paused" ? "Paused" : v.code}</span> at {formatTime(v.checkedAt)}. History is kept below.</span>
+          <span>
+            from{" "}
+            <span className="code">
+              {changed.state === "paused" ? "Paused" : changed.code}
+            </span>{" "}
+            to{" "}
+            <span className="code">
+              {v.state === "paused" ? "Paused" : v.code}
+            </span>{" "}
+            at {formatTime(v.checkedAt)}. History is kept below.
+          </span>
         </div>
       )}
 
       <VerdictBar v={v} checking={checking} />
 
-      {!checking && v.findings.map((f) => (
-        <section key={f.code} className={`bar ${f.confidence === "Medium" ? "bar-amber" : "bar-info"}`} aria-label={`${f.confidence === "Medium" ? "Likely cause" : "Also found"}: ${f.label}`} style={{ alignItems: "flex-start", flexDirection: "column", gap: 8 }}>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            {f.confidence === "Medium" ? <Status status="warn" label="Likely cause" /> : <Status status="info" label="Also found" />}
-            <span className="code">{f.code}</span>
-            <strong style={{ color: "var(--text)" }}>{f.label}</strong>
-            <span>({f.confidence}, does not change the {v.code} verdict)</span>
-          </div>
-          <span style={{ color: "var(--text)" }}>{f.reason} {f.nextStep}</span>
-          {f.confidence === "Medium" && (
-            <label style={{ display: "flex", gap: 8, alignItems: "center", color: "var(--text)" }}>
-              <input type="checkbox" checked={!!confirmedFindings[f.code]} onChange={(e) => setConfirmedFindings((c) => ({ ...c, [f.code]: e.target.checked }))} />
-              {confirmedFindings[f.code] ? "Confirmed by analyst" : "I've checked the evidence and confirm this likely cause"}
-            </label>
-          )}
-        </section>
-      ))}
+      {!checking &&
+        v.findings.map((f) => (
+          <section
+            key={f.code}
+            className={`bar ${f.confidence === "Medium" ? "bar-amber" : "bar-info"}`}
+            aria-label={`${f.confidence === "Medium" ? "Likely cause" : "Also found"}: ${f.label}`}
+            style={{
+              alignItems: "flex-start",
+              flexDirection: "column",
+              gap: 8,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              {f.confidence === "Medium" ? (
+                <Status status="warn" label="Likely cause" />
+              ) : (
+                <Status status="info" label="Also found" />
+              )}
+              <span className="code">{f.code}</span>
+              <strong style={{ color: "var(--text)" }}>{f.label}</strong>
+              <span>
+                ({f.confidence}, does not change the {v.code} verdict)
+              </span>
+            </div>
+            <span style={{ color: "var(--text)" }}>
+              {f.reason} {f.nextStep}
+            </span>
+            {f.confidence === "Medium" && (
+              <label
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                  color: "var(--text)",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={!!confirmedFindings[f.code]}
+                  onChange={(e) =>
+                    setConfirmedFindings((c) => ({
+                      ...c,
+                      [f.code]: e.target.checked,
+                    }))
+                  }
+                />
+                {confirmedFindings[f.code]
+                  ? "Confirmed by analyst"
+                  : "I've checked the evidence and confirm this likely cause"}
+              </label>
+            )}
+          </section>
+        ))}
 
       <div className="cols">
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 16,
+            minWidth: 0,
+          }}
+        >
           {!checking && v.explanation && <ExplanationPanel x={v.explanation} />}
 
           <section className="panel" aria-label="Evidence">
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between" }}>
+            <div
+              style={{
+                padding: "12px 16px",
+                borderBottom: "1px solid var(--border)",
+                display: "flex",
+                justifyContent: "space-between",
+              }}
+            >
               <h2>Evidence</h2>
-              <span className="faint">Highlighted rows are cited by the verdict</span>
+              <span className="faint">
+                Highlighted rows are cited by the verdict
+              </span>
             </div>
-            {checking ? <TimelineSkeleton /> : (
+            {checking ? (
+              <TimelineSkeleton />
+            ) : (
               <ol className="timeline">
-                {v.evidence.map((e, i) => <EvidenceRow key={e.id} e={e} live={view.live} cited={v.evidenceIds.includes(e.id) || v.findings.some((f) => f.evidenceIds.includes(e.id))} delay={i * 60} />)}
+                {v.evidence.map((e, i) => (
+                  <EvidenceRow
+                    key={e.id}
+                    e={e}
+                    live={view.live}
+                    cited={
+                      v.evidenceIds.includes(e.id) ||
+                      v.findings.some((f) => f.evidenceIds.includes(e.id))
+                    }
+                    delay={i * 60}
+                  />
+                ))}
               </ol>
             )}
           </section>
@@ -148,11 +306,26 @@ export function Investigation({ view }: { view: CaseView }) {
           {!checking && v.state === "verdict" && <ChecksRun v={v} />}
 
           {history.length > 1 && (
-            <section className="panel" aria-label="Verdict history" style={{ padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+            <section
+              className="panel"
+              aria-label="Verdict history"
+              style={{
+                padding: 16,
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+              }}
+            >
               <h2>Verdict history</h2>
               <ol style={{ margin: 0, paddingLeft: 20 }}>
                 {history.map((h, i) => (
-                  <li key={i}><span className="code">{h.state === "paused" ? "Paused" : h.code}</span> {h.label} <span className="faint">at {formatTime(h.checkedAt)}</span></li>
+                  <li key={i}>
+                    <span className="code">
+                      {h.state === "paused" ? "Paused" : h.code}
+                    </span>{" "}
+                    {h.label}{" "}
+                    <span className="faint">at {formatTime(h.checkedAt)}</span>
+                  </li>
                 ))}
               </ol>
             </section>
@@ -167,54 +340,135 @@ export function Investigation({ view }: { view: CaseView }) {
 
           <section className="panel" aria-label="Case">
             <span className="section-title">Case</span>
-            <dl style={{ margin: 0, display: "grid", gridTemplateColumns: "80px 1fr", gap: 4 }}>
+            <dl
+              style={{
+                margin: 0,
+                display: "grid",
+                gridTemplateColumns: "80px 1fr",
+                gap: 4,
+              }}
+            >
               <dt className="muted">Owner</dt>
               <dd style={{ margin: 0 }}>
                 {owner ?? <span className="faint">Unassigned</span>}{" "}
-                {!owner && <button className="btn btn-sm" type="button" onClick={() => assign(view.id)}>Assign to me <span className="kbd">A</span></button>}
+                {!owner && (
+                  <button
+                    className="btn btn-sm"
+                    type="button"
+                    onClick={() => assign(view.id)}
+                  >
+                    Assign to me <span className="kbd">A</span>
+                  </button>
+                )}
               </dd>
               <dt className="muted">Status</dt>
-              <dd style={{ margin: 0 }}>{view.status === "resolved" ? "Resolved" : "Open"}</dd>
+              <dd style={{ margin: 0 }}>
+                {view.status === "resolved" ? "Resolved" : "Open"}
+              </dd>
               <dt className="muted">Opened</dt>
               <dd style={{ margin: 0 }}>{formatTime(view.openedAt)}</dd>
             </dl>
           </section>
 
           <section className="panel" aria-label="Reply draft">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
               <span className="section-title">Reply draft</span>
               {reply && !checking && (
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button className="btn btn-sm" type="button" onClick={() => setEditing((x) => !x)} disabled={replyLocked}>{editing ? "Done" : "Edit"} <span className="kbd">E</span></button>
-                  <button className="btn btn-sm btn-primary" type="button" onClick={copy} disabled={replyLocked}>{copied ? "Copied" : "Copy"} <span className="kbd">C</span></button>
+                  <button
+                    className="btn btn-sm"
+                    type="button"
+                    onClick={() => setEditing((x) => !x)}
+                    disabled={replyLocked}
+                  >
+                    {editing ? "Done" : "Edit"} <span className="kbd">E</span>
+                  </button>
+                  <button
+                    className="btn btn-sm btn-primary"
+                    type="button"
+                    onClick={copy}
+                    disabled={replyLocked}
+                  >
+                    {copied ? "Copied" : "Copy"} <span className="kbd">C</span>
+                  </button>
                 </div>
               )}
             </div>
-            {checking ? <div className="skel" style={{ height: 64 }} /> : v.state === "paused" ? (
-              <p className="muted" style={{ margin: 0 }}>No reply while the check is paused.</p>
+            {checking ? (
+              <div className="skel" style={{ height: 64 }} />
+            ) : v.state === "paused" ? (
+              <p className="muted" style={{ margin: 0 }}>
+                No reply while the check is paused.
+              </p>
             ) : v.code === "D99" ? (
               <>
-                <p className="muted" style={{ margin: 0 }}>No reply draft for an unknown verdict. Record what you find.</p>
-                <textarea className="input" rows={5} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Investigation notes" aria-label="Investigation notes" />
+                <p className="muted" style={{ margin: 0 }}>
+                  No reply draft for an unknown verdict. Record what you find.
+                </p>
+                <textarea
+                  className="input"
+                  rows={5}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Investigation notes"
+                  aria-label="Investigation notes"
+                />
               </>
             ) : !reply ? (
-              <p className="muted" style={{ margin: 0 }}>No approved template for {v.code} yet. Write the reply by hand.</p>
+              <p className="muted" style={{ margin: 0 }}>
+                No approved template for {v.code} yet. Write the reply by hand.
+              </p>
             ) : (
               <>
                 {v.confidence === "Medium" && (
-                  <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                    <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} style={{ marginTop: 3 }} />
-                    <span>I've checked the evidence and confirm this verdict. The reply stays locked until then.</span>
+                  <label
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      alignItems: "flex-start",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={confirmed}
+                      onChange={(e) => setConfirmed(e.target.checked)}
+                      style={{ marginTop: 3 }}
+                    />
+                    <span>
+                      I've checked the evidence and confirm this verdict. The
+                      reply stays locked until then.
+                    </span>
                   </label>
                 )}
                 {editing ? (
-                  <textarea className="input" rows={6} value={replyText} onChange={(e) => setDraft(e.target.value)} aria-label="Edit reply" autoFocus />
+                  <textarea
+                    className="input"
+                    rows={6}
+                    value={replyText}
+                    onChange={(e) => setDraft(e.target.value)}
+                    aria-label="Edit reply"
+                    autoFocus
+                  />
                 ) : (
-                  <div className="reply" aria-disabled={replyLocked} style={replyLocked ? { opacity: 0.55 } : undefined}>
+                  <div
+                    className="reply"
+                    aria-disabled={replyLocked}
+                    style={replyLocked ? { opacity: 0.55 } : undefined}
+                  >
                     <ReplyText text={replyText} />
                   </div>
                 )}
-                {/\{\w+\}/.test(replyText) && <p className="s-warn" style={{ margin: 0, fontSize: 12 }}>Fill the highlighted fields before sending.</p>}
+                {/\{\w+\}/.test(replyText) && (
+                  <p className="s-warn" style={{ margin: 0, fontSize: 12 }}>
+                    Fill the highlighted fields before sending.
+                  </p>
+                )}
                 <p className="faint" style={{ margin: 0, fontSize: 12 }}>
                   {v.explanation?.source === "ai"
                     ? `Approved ${v.code} template, filled by AI and checked against the evidence.`
@@ -233,19 +487,45 @@ function VerdictBar({ v, checking }: { v: VerdictView; checking: boolean }) {
   if (checking) {
     return (
       <div className="verdict-bar" role="status" aria-live="polite">
-        <div className="verdict-title">Checking {v.checkingChain === "all chains" ? "all chains" : CHAIN_NAMES[v.checkingChain as Chain]}…</div>
+        <div className="verdict-title">
+          Checking{" "}
+          {v.checkingChain === "all chains"
+            ? "all chains"
+            : CHAIN_NAMES[v.checkingChain as Chain]}
+          …
+        </div>
       </div>
     );
   }
-  const cls = v.state === "paused" ? "paused" : v.code === "D99" ? "unknown" : v.confidence === "Medium" ? "medium" : "";
-  const title = v.state === "paused"
-    ? `Check paused: ${v.pausedChains.map((c) => CHAIN_NAMES[c]).join(", ")} not responding`
-    : v.code === "D99" ? "No rule matched." : v.confidence === "Medium" ? `Likely: ${v.label.toLowerCase()}` : v.label;
+  const cls =
+    v.state === "paused"
+      ? "paused"
+      : v.code === "D99"
+        ? "unknown"
+        : v.confidence === "Medium"
+          ? "medium"
+          : "";
+  const title =
+    v.state === "paused"
+      ? `Check paused: ${v.pausedChains.map((c) => CHAIN_NAMES[c]).join(", ")} not responding`
+      : v.code === "D99"
+        ? "No rule matched."
+        : v.confidence === "Medium"
+          ? `Likely: ${v.label.toLowerCase()}`
+          : v.label;
   const n = v.checks.length;
   return (
     <div className={`verdict-bar ${cls}`} role="status" aria-live="polite">
       {v.state === "verdict" && <span className="verdict-code">{v.code}</span>}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 240 }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          flex: 1,
+          minWidth: 240,
+        }}
+      >
         <div className="verdict-title">{title}</div>
         <div className="muted">
           {v.state === "paused"
@@ -255,18 +535,47 @@ function VerdictBar({ v, checking }: { v: VerdictView; checking: boolean }) {
               : `Based on ${n} checks at ${formatTime(v.checkedAt)}.`}
         </div>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-        <span className="faint" style={{ fontSize: 12 }}>Confidence</span>
-        <ConfidenceLabel confidence={v.confidence} paused={v.state === "paused"} />
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "flex-end",
+          gap: 4,
+        }}
+      >
+        <span className="faint" style={{ fontSize: 12 }}>
+          Confidence
+        </span>
+        <ConfidenceLabel
+          confidence={v.confidence}
+          paused={v.state === "paused"}
+        />
       </div>
     </div>
   );
 }
 
-function EvidenceRow({ e, cited, delay, live }: { e: Evidence; cited: boolean; delay: number; live: boolean }) {
+function EvidenceRow({
+  e,
+  cited,
+  delay,
+  live,
+}: {
+  e: Evidence;
+  cited: boolean;
+  delay: number;
+  live: boolean;
+}) {
   return (
-    <li id={`row-${e.id}`} className={`fade-in${cited ? " cited" : ""}`} style={{ animationDelay: `${delay}ms` }}>
-      <div className="tl-label" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+    <li
+      id={`row-${e.id}`}
+      className={`fade-in${cited ? " cited" : ""}`}
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      <div
+        className="tl-label"
+        style={{ display: "flex", flexDirection: "column", gap: 4 }}
+      >
         <span>{e.label}</span>
         <span className={`status s-${e.status}`} style={{ fontSize: 12 }}>
           <Status status={e.status} label={STATUS_TEXT[e.status]} />
@@ -275,11 +584,16 @@ function EvidenceRow({ e, cited, delay, live }: { e: Evidence; cited: boolean; d
       <div className="tl-value">
         <span>{e.value}</span>
         {e.mono?.map((m) => (
-          <span key={m.label} className="tl-mono"><span className="k">{m.label}</span><Mono value={m.value} head={8} tail={8} /></span>
+          <span key={m.label} className="tl-mono">
+            <span className="k">{m.label}</span>
+            <Mono value={m.value} head={8} tail={8} />
+          </span>
         ))}
         {e.detail && <span className="tl-detail">{e.detail}</span>}
       </div>
-      <div className="tl-source"><Source e={e} live={live} /></div>
+      <div className="tl-source">
+        <Source e={e} live={live} />
+      </div>
     </li>
   );
 }
@@ -288,17 +602,36 @@ function Source({ e, live }: { e: Evidence; live: boolean }) {
   const s = e.source;
   switch (s.kind) {
     case "explorer":
-      return <a href={s.url} target="_blank" rel="noreferrer" title={live ? undefined : "Sample hash: the explorer will not find it"}>Explorer ↗</a>;
+      return (
+        <a
+          href={s.url}
+          target="_blank"
+          rel="noreferrer"
+          title={
+            live ? undefined : "Sample hash: the explorer will not find it"
+          }
+        >
+          Explorer ↗
+        </a>
+      );
     case "ledger":
       return <span className="muted">Ledger line {s.row}</span>;
     case "addresses":
       return <span className="muted">File A line {s.row}</span>;
     case "settings":
-      return <Link href="/settings?tab=rules" className="muted">Settings</Link>;
+      return (
+        <Link href="/settings?tab=rules" className="muted">
+          Settings
+        </Link>
+      );
     case "input":
       return <span className="muted">Ticket</span>;
     case "provider":
-      return <span className="muted">{s.provider} {s.reference}</span>;
+      return (
+        <span className="muted">
+          {s.provider} {s.reference}
+        </span>
+      );
     default:
       return null;
   }
@@ -309,24 +642,57 @@ function ChecksRun({ v }: { v: VerdictView }) {
     <details className="panel checks">
       <summary>
         <h2>Checks run</h2>
-        <span className="muted">{v.checks.filter((c) => c.matched).length} matched of {v.checks.length}</span>
+        <span className="muted">
+          {v.checks.filter((c) => c.matched).length} matched of{" "}
+          {v.checks.length}
+        </span>
       </summary>
       <table className="table">
-        <thead><tr><th>Code</th><th>Result</th><th>Reason</th></tr></thead>
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Result</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
         <tbody>
           {v.checks.map((c) => (
             <tr key={c.code} style={{ cursor: "default" }}>
               <td className="code">{c.code}</td>
-              <td>{c.matched ? <Status status="warn" label={`Matched (${c.confidence})`} /> : <Status status="info" label="No match" />}</td>
+              <td>
+                {c.matched ? (
+                  <Status status="warn" label={`Matched (${c.confidence})`} />
+                ) : (
+                  <Status status="info" label="No match" />
+                )}
+              </td>
               <td className="muted">{c.reason}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      <div className="faint" style={{ padding: "12px 16px", borderTop: "1px solid var(--border)", fontSize: 12, display: "flex", flexDirection: "column", gap: 4 }}>
-        <span>Reproducible with {v.record.ruleVersion} and {v.record.settingsVersion}.</span>
+      <div
+        className="faint"
+        style={{
+          padding: "12px 16px",
+          borderTop: "1px solid var(--border)",
+          fontSize: 12,
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+        }}
+      >
+        <span>
+          Reproducible with {v.record.ruleVersion} and{" "}
+          {v.record.settingsVersion}.
+        </span>
         {v.record.evidenceHashes.length > 0 && (
-          <span>Response SHA-256: {v.record.evidenceHashes.map((h) => `${h.chain} ${h.sha256.slice(0, 12)}`).join(" · ")}</span>
+          <span>
+            Response SHA-256:{" "}
+            {v.record.evidenceHashes
+              .map((h) => `${h.chain} ${h.sha256.slice(0, 12)}`)
+              .join(" · ")}
+          </span>
         )}
       </div>
     </details>
@@ -337,7 +703,11 @@ function TimelineSkeleton() {
   return (
     <ol className="timeline" aria-busy="true">
       {Array.from({ length: 5 }, (_, i) => (
-        <li key={i}><div className="skel" style={{ width: 90 }} /><div className="skel" /><div className="skel" style={{ width: 60 }} /></li>
+        <li key={i}>
+          <div className="skel" style={{ width: 90 }} />
+          <div className="skel" />
+          <div className="skel" style={{ width: 60 }} />
+        </li>
       ))}
     </ol>
   );
@@ -345,17 +715,46 @@ function TimelineSkeleton() {
 
 function ReplyText({ text }: { text: string }) {
   const parts = text.split(/(\{\w+\})/g);
-  return <>{parts.map((p, i) => (/^\{\w+\}$/.test(p) ? <span key={i} className="placeholder">{p}</span> : <span key={i}>{p}</span>))}</>;
+  return (
+    <>
+      {parts.map((p, i) =>
+        /^\{\w+\}$/.test(p) ? (
+          <span key={i} className="placeholder">
+            {p}
+          </span>
+        ) : (
+          <span key={i}>{p}</span>
+        ),
+      )}
+    </>
+  );
 }
 
 /** One sentence per line of thought; each links to the evidence rows it rests on. */
-function ExplanationPanel({ x }: { x: NonNullable<VerdictView["explanation"]> }) {
+function ExplanationPanel({
+  x,
+}: {
+  x: NonNullable<VerdictView["explanation"]>;
+}) {
   return (
-    <section className="panel" aria-label="Explanation" style={{ padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+    <section
+      className="panel"
+      aria-label="Explanation"
+      style={{ padding: 16, display: "flex", flexDirection: "column", gap: 8 }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 8,
+          flexWrap: "wrap",
+        }}
+      >
         <h2>Explanation</h2>
         <span className="faint" style={{ fontSize: 12 }}>
-          {x.source === "ai" ? "Written by AI from the evidence only, then checked against it" : "Template text"}
+          {x.source === "ai"
+            ? "Written by AI from the evidence only, then checked against it"
+            : "Template text"}
         </span>
       </div>
       <p style={{ margin: 0, lineHeight: 1.7 }}>
@@ -363,13 +762,28 @@ function ExplanationPanel({ x }: { x: NonNullable<VerdictView["explanation"]> })
           <span key={i}>
             {s.text}
             {s.evidenceIds.map((id, j) => (
-              <a key={id} href={`#row-${id}`} className="faint" style={{ fontSize: 11, marginLeft: j ? 2 : 3, verticalAlign: "super" }}
-                aria-label={`Evidence: ${id.replace("ev.", "")}`}>[{id.replace("ev.", "")}]</a>
+              <a
+                key={id}
+                href={`#row-${id}`}
+                className="faint"
+                style={{
+                  fontSize: 11,
+                  marginLeft: j ? 2 : 3,
+                  verticalAlign: "super",
+                }}
+                aria-label={`Evidence: ${id.replace("ev.", "")}`}
+              >
+                [{id.replace("ev.", "")}]
+              </a>
             ))}{" "}
           </span>
         ))}
       </p>
-      {x.fallbackReason && <p className="faint" style={{ margin: 0, fontSize: 12 }}>{x.fallbackReason} Showing template text.</p>}
+      {x.fallbackReason && (
+        <p className="faint" style={{ margin: 0, fontSize: 12 }}>
+          {x.fallbackReason} Showing template text.
+        </p>
+      )}
     </section>
   );
 }
@@ -378,24 +792,57 @@ function ExplanationPanel({ x }: { x: NonNullable<VerdictView["explanation"]> })
  * Who reported the deposit. Without it the customer comes from File A, and "sent to another
  * customer's address" (D17) can't be detected; with it, the case re-runs as that customer.
  */
-function ReportingCustomerForm({ q, current, inferred }: { q: string; current?: string; inferred: boolean }) {
+function ReportingCustomerForm({
+  q,
+  current,
+  inferred,
+}: {
+  q: string;
+  current?: string;
+  inferred: boolean;
+}) {
   const router = useRouter();
   const [value, setValue] = useState(current ?? "");
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const params = new URLSearchParams({ q, ...(value.trim() ? { customer: value.trim() } : {}) });
+    const params = new URLSearchParams({
+      q,
+      ...(value.trim() ? { customer: value.trim() } : {}),
+    });
     router.push(`/investigate?${params}`);
   };
   return (
-    <form onSubmit={submit} className="panel" style={{ padding: "8px 12px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-      <label htmlFor="reporting-customer" className="muted">Reporting customer</label>
-      <input id="reporting-customer" className="input mono" style={{ width: 180, height: 28 }} value={value}
-        onChange={(e) => setValue(e.target.value)} placeholder="e.g. C-10422" />
-      <button className="btn btn-sm" type="submit">Re-run as this customer</button>
+    <form
+      onSubmit={submit}
+      className="panel"
+      style={{
+        padding: "8px 12px",
+        display: "flex",
+        gap: 8,
+        alignItems: "center",
+        flexWrap: "wrap",
+      }}
+    >
+      <label htmlFor="reporting-customer" className="muted">
+        Reporting customer
+      </label>
+      <input
+        id="reporting-customer"
+        className="input mono"
+        style={{ width: 180, height: 28 }}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="e.g. C-10422"
+      />
+      <button className="btn btn-sm" type="submit">
+        Re-run as this customer
+      </button>
       <span className="faint" style={{ fontSize: 12 }}>
-        {current ? "Checked as reported by this customer." : inferred
-          ? "Not given: the customer was taken from File A, so D17 can't be detected."
-          : "Not given."}
+        {current
+          ? "Checked as reported by this customer."
+          : inferred
+            ? "Not given: the customer was taken from File A, so D17 can't be detected."
+            : "Not given."}
       </span>
     </form>
   );

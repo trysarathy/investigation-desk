@@ -1,3 +1,4 @@
+import { loadWorkspace } from "@/lib/workspace/live";
 import { documents, type CaseRecord } from "@/lib/platform/store";
 import { VERDICT_LABELS } from "@/lib/catalogue";
 import type { CaseRow } from "@/lib/view";
@@ -15,30 +16,69 @@ type Search = Promise<Record<string, string | string[] | undefined>>;
  *   ?state=empty   new workspace     ?state=stale   ledger out of date
  *   ?down=tron     chain API down (any chain id)
  */
-export default async function QueuePage({ searchParams }: { searchParams: Search }) {
+export default async function QueuePage({
+  searchParams,
+}: {
+  searchParams: Search;
+}) {
   const sp = await searchParams;
   const down = parseDown(sp.down);
   const state = typeof sp.state === "string" ? sp.state : undefined;
-  const uploadedAt = state === "stale" ? "2026-10-19T08:00:00+08:00" : LEDGER_UPLOADED_AT;
-  const stale = Date.parse(FIXTURE_NOW) - Date.parse(uploadedAt) > SAMPLE_SETTINGS.ledgerStaleAfterHours * 3600_000;
+  const uploadedAt =
+    state === "stale" ? "2026-10-19T08:00:00+08:00" : LEDGER_UPLOADED_AT;
+  const stale =
+    Date.parse(FIXTURE_NOW) - Date.parse(uploadedAt) >
+    SAMPLE_SETTINGS.ledgerStaleAfterHours * 3600_000;
   // Live cases from bulk runs first, then the sample cases.
-  const persisted: CaseRow[] = documents<CaseRecord>("case").map(c => {
-    const v=c.view.verdicts.at(-1)!,t=c.facts.tx?.transfers[0];
-    return {id:c.id,customerId:c.facts.customerId??"Unknown",chain:c.facts.tx?.chain??null,token:t?.tokenSymbol??null,amount:t?.amount??null,code:v.code,label:VERDICT_LABELS[v.code],confidence:v.confidence,paused:v.state==='paused',age:'Saved',ageMinutes:Math.max(0,(Date.now()-Date.parse(c.createdAt))/60000),owner:null,bucket:c.resolvedAt?'resolved':v.code==='D99'?'unknown':'needs_action',href:`/library/${c.id}`,live:!c.view.demo};
+  const persisted: CaseRow[] = documents<CaseRecord>("case").map((c) => {
+    const v = c.view.verdicts.at(-1)!,
+      t = c.facts.tx?.transfers[0];
+    return {
+      id: c.id,
+      customerId: c.facts.customerId ?? "Unknown",
+      chain: c.facts.tx?.chain ?? null,
+      token: t?.tokenSymbol ?? null,
+      amount: t?.amount ?? null,
+      code: v.code,
+      label: VERDICT_LABELS[v.code],
+      confidence: v.confidence,
+      paused: v.state === "paused",
+      age: "Saved",
+      ageMinutes: Math.max(0, (Date.now() - Date.parse(c.createdAt)) / 60000),
+      owner: null,
+      bucket: c.resolvedAt
+        ? "resolved"
+        : v.code === "D99"
+          ? "unknown"
+          : "needs_action",
+      href: `/library/${c.id}`,
+      live: !c.view.demo,
+    };
   });
-  const rows = state === "empty" ? [] : [...persisted, ...storedCaseRows(await loadCases(), new Date()), ...caseRows(down)];
+  const { data: workspace } = await loadWorkspace();
+  const rows =
+    state === "empty"
+      ? []
+      : [
+          ...persisted,
+          ...storedCaseRows(await loadCases(), new Date()),
+          ...(workspace.demo ? caseRows(down) : []),
+        ];
 
   return (
     <div className="page">
       {down && (
         <div className="bar bar-red" role="alert">
           <strong>{CHAIN_NAMES[down]} API is not responding.</strong>
-          <span>Cases that depend on it show “Check paused”. No verdict is guessed.</span>
+          <span>
+            Cases that depend on it show “Check paused”. No verdict is guessed.
+          </span>
         </div>
       )}
       {stale && (
         <div className="bar bar-amber" role="status">
-          Ledger last uploaded {formatTime(uploadedAt)}. Verdicts that depend on it may be out of date.
+          Ledger last uploaded {formatTime(uploadedAt)}. Verdicts that depend on
+          it may be out of date.
         </div>
       )}
       <QueueTable rows={rows} empty={state === "empty"} />

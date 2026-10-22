@@ -16,7 +16,14 @@ export function liveDeps(): LiveDeps {
   deps ??= buildFetchers({
     tronKey: process.env.TRONGRID_API_KEY ?? "",
     etherscanKey: process.env.ETHERSCAN_API_KEY ?? "",
-    rpcFallbacks: Object.fromEntries(["ethereum", "bsc", "polygon", "base", "arbitrum", "optimism"].flatMap(c => process.env[`RPC_${c.toUpperCase()}_URL`] ? [[c, process.env[`RPC_${c.toUpperCase()}_URL`]]] : [])),
+    rpcFallbacks: Object.fromEntries(
+      ["ethereum", "bsc", "polygon", "base", "arbitrum", "optimism"].flatMap(
+        (c) =>
+          process.env[`RPC_${c.toUpperCase()}_URL`]
+            ? [[c, process.env[`RPC_${c.toUpperCase()}_URL`]]]
+            : [],
+      ),
+    ),
     store: new FileStore(path.join(process.cwd(), ".data")),
   });
   return deps;

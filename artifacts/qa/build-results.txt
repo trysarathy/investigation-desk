@@ -1,0 +1,68 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> investigation-desk@0.1.0 build
+> next build
+
+   ▲ Next.js 15.5.28
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 3.3s
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/22) ...
+   Generating static pages (5/22) 
+   Generating static pages (10/22) 
+   Generating static pages (16/22) 
+ ✓ Generating static pages (22/22)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                 Size  First Load JS
+┌ ƒ /                                    3.08 kB         109 kB
+├ ○ /_not-found                            205 B         103 kB
+├ ƒ /accuracy                              205 B         103 kB
+├ ƒ /api/alerts/deliver                    205 B         103 kB
+├ ƒ /api/auth/login                        205 B         103 kB
+├ ƒ /api/auth/logout                       205 B         103 kB
+├ ƒ /api/bulk                              205 B         103 kB
+├ ƒ /api/bulk/[id]                         205 B         103 kB
+├ ƒ /api/bulk/[id]/cases                   205 B         103 kB
+├ ƒ /api/cases/[id]/adjudicate             205 B         103 kB
+├ ƒ /api/cases/[id]/events                 205 B         103 kB
+├ ƒ /api/cases/[id]/feedback               205 B         103 kB
+├ ƒ /api/cases/[id]/resolve                205 B         103 kB
+├ ƒ /api/demo/bulk.csv                     205 B         103 kB
+├ ƒ /api/demo/reset                        205 B         103 kB
+├ ƒ /api/health                            205 B         103 kB
+├ ƒ /api/integrations/slack                205 B         103 kB
+├ ƒ /api/integrations/ticket               205 B         103 kB
+├ ƒ /api/intelligence                      205 B         103 kB
+├ ƒ /api/regressions                       205 B         103 kB
+├ ƒ /api/scans                             205 B         103 kB
+├ ƒ /api/scans/[id]                        205 B         103 kB
+├ ƒ /api/scans/[id]/pdf                    205 B         103 kB
+├ ƒ /api/security                          205 B         103 kB
+├ ƒ /api/settings                          205 B         103 kB
+├ ƒ /api/uploads/[kind]                    205 B         103 kB
+├ ƒ /bulk                                 3.4 kB         110 kB
+├ ƒ /cases/[id]                            166 B         112 kB
+├ ƒ /connections                           205 B         103 kB
+├ ƒ /intelligence                        1.37 kB         104 kB
+├ ƒ /investigate                           738 B         107 kB
+├ ƒ /library/[id]                        1.44 kB         114 kB
+├ ○ /login                                 846 B         104 kB
+├ ƒ /reports                               205 B         103 kB
+├ ○ /scan                                3.37 kB         106 kB
+├ ƒ /security                              849 B         104 kB
+└ ƒ /settings                             4.6 kB         111 kB
++ First Load JS shared by all             103 kB
+  ├ chunks/1255-dc3ddf72a1dc71a7.js      46.6 kB
+  ├ chunks/4bd1b696-f785427dddbba9fb.js  54.2 kB
+  └ other shared chunks (total)          1.93 kB
+
+
+ƒ Middleware                             35.2 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

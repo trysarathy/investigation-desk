@@ -18,7 +18,11 @@ export function demoDeps(): LiveDeps {
     tronKey: process.env.TRONGRID_API_KEY || "demo",
     etherscanKey: process.env.ETHERSCAN_API_KEY || "demo",
     store: new MemoryStore(),
-    transport: demoTransport(RECORDINGS, liveKeysPresent() ? fetchTransport : undefined),
+    noSpacing: true, // Recorded offline responses consume no provider quota.
+    transport: demoTransport(
+      RECORDINGS,
+      liveKeysPresent() ? fetchTransport : undefined,
+    ),
   });
   return deps;
 }

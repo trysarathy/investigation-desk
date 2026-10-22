@@ -1,3 +1,146 @@
-import {auditRows} from '@/lib/platform/store';import {retentionDays} from '@/lib/platform/retention';import {SecurityControls} from '@/components/SecurityControls';
-export const dynamic='force-dynamic';
-export default function Security(){const rows=auditRows() as {sequence:number;at:string;actor:string;action:string;object_id:string;hash:string}[];return <div className="page"><div className="page-head"><div><span className="eyebrow">Trust by construction</span><h1 className="display-title">Evidence access. Never fund access.</h1><p className="muted">A precise account of what this deployment does—and what it does not yet guarantee.</p></div><span className="badge">Read-only</span></div><div className="scan-principles"><section><h2>What we read</h2><p>Public transaction responses, token contracts, address assignments, pseudonymous customer references and uploaded ledger statuses. No identity documents are required.</p></section><section><h2>What we cannot do</h2><p>No wallet connection, seed phrase, private signing key, token approval, custody or fund movement endpoint. Chain API credentials only authorize data reads.</p></section><section><h2>Where data goes</h2><p>Chain providers see requested public hashes or addresses. Optional AI receives scrubbed evidence only when configured; leave it off without an approved data agreement.</p></section></div><section className="panel"><h2>Deployment boundary</h2><p className="muted">This build is a single-company instance. SQLite stores workspace-keyed cases and audit events; existing uploads and chain cache use local files. Do not put multiple companies on one instance. Managed Postgres row-level security, encrypted object storage, backup lifecycle and an external security review remain release gates.</p><p className="muted">Configured accounts use a password plus TOTP and a signed 12-hour HttpOnly session. Roles are checked server-side. Production fails closed without authentication, except explicitly fictional demo mode. Accounts are provisioned by the operator; self-service invites and recovery are not implemented.</p><p className="muted">Audit rows are append-only and hash-linked in the application database. This is not external tamper-proof storage: an infrastructure administrator can replace the database. Audit actor metadata is retained separately from case evidence.</p></section><section className="panel" style={{margin:'24px 0'}}><h2>Roles</h2><div className="table-wrap"><table><thead><tr><th>Action</th><th>Analyst</th><th>Lead</th><th>Admin</th></tr></thead><tbody><tr><td>Investigate, review and resolve</td><td>Yes</td><td>Yes</td><td>Yes</td></tr><tr><td>Bulk, exports and adjudication</td><td>—</td><td>Yes</td><td>Yes</td></tr><tr><td>Uploads, retention, consent, audit</td><td>—</td><td>—</td><td>Yes</td></tr></tbody></table></div></section><SecurityControls initial={retentionDays()}/><section className="panel" style={{marginTop:24}}><div className="section-heading"><h2>Audit trail</h2><span className="muted">Latest 200 events</span></div><div className="table-wrap"><table><thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Object</th><th>Integrity hash</th></tr></thead><tbody>{rows.map(r=><tr key={r.sequence}><td>{r.at}</td><td>{r.actor}</td><td>{r.action}</td><td className="mono">{r.object_id.slice(0,24)}</td><td className="mono" title={r.hash}>{r.hash.slice(0,16)}…</td></tr>)}</tbody></table></div></section></div>;}
+import { auditRows } from "@/lib/platform/store";
+import { retentionDays } from "@/lib/platform/retention";
+import { SecurityControls } from "@/components/SecurityControls";
+export const dynamic = "force-dynamic";
+export default function Security() {
+  const rows = auditRows() as {
+    sequence: number;
+    at: string;
+    actor: string;
+    action: string;
+    object_id: string;
+    hash: string;
+  }[];
+  return (
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <span className="eyebrow">Trust by construction</span>
+          <h1 className="display-title">Evidence access. Never fund access.</h1>
+          <p className="muted">
+            A precise account of what this deployment does—and what it does not
+            yet guarantee.
+          </p>
+        </div>
+        <span className="badge">Read-only</span>
+      </div>
+      <div className="scan-principles">
+        <section>
+          <h2>What we read</h2>
+          <p>
+            Public transaction responses, token contracts, address assignments,
+            pseudonymous customer references and uploaded ledger statuses. No
+            identity documents are required.
+          </p>
+        </section>
+        <section>
+          <h2>What we cannot do</h2>
+          <p>
+            No wallet connection, seed phrase, private signing key, token
+            approval, custody or fund movement endpoint. Chain API credentials
+            only authorize data reads.
+          </p>
+        </section>
+        <section>
+          <h2>Where data goes</h2>
+          <p>
+            Chain providers see requested public hashes or addresses. Optional
+            AI receives scrubbed evidence only when configured; leave it off
+            without an approved data agreement.
+          </p>
+        </section>
+      </div>
+      <section className="panel padded">
+        <h2>Deployment boundary</h2>
+        <p className="muted">
+          This build is a single-company instance. SQLite stores workspace-keyed
+          cases and audit events; existing uploads and chain cache use local
+          files. Do not put multiple companies on one instance. Managed Postgres
+          row-level security, encrypted object storage, backup lifecycle and an
+          external security review remain release gates.
+        </p>
+        <p className="muted">
+          Configured accounts use a password plus TOTP and a signed 12-hour
+          HttpOnly session. Roles are checked server-side. Production fails
+          closed without authentication, except explicitly fictional demo mode.
+          Accounts are provisioned by the operator; self-service invites and
+          recovery are not implemented.
+        </p>
+        <p className="muted">
+          Audit rows are append-only and hash-linked in the application
+          database. This is not external tamper-proof storage: an infrastructure
+          administrator can replace the database. Audit actor metadata is
+          retained separately from case evidence.
+        </p>
+      </section>
+      <section className="panel padded" style={{ margin: "24px 0" }}>
+        <h2>Roles</h2>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Action</th>
+                <th>Analyst</th>
+                <th>Lead</th>
+                <th>Admin</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Investigate, review and resolve</td>
+                <td>Yes</td>
+                <td>Yes</td>
+                <td>Yes</td>
+              </tr>
+              <tr>
+                <td>Bulk, exports and adjudication</td>
+                <td>—</td>
+                <td>Yes</td>
+                <td>Yes</td>
+              </tr>
+              <tr>
+                <td>Uploads, retention, consent, audit</td>
+                <td>—</td>
+                <td>—</td>
+                <td>Yes</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <SecurityControls initial={retentionDays()} />
+      <section className="panel padded" style={{ marginTop: 24 }}>
+        <div className="section-heading">
+          <h2>Audit trail</h2>
+          <span className="muted">Latest 200 events</span>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Actor</th>
+                <th>Action</th>
+                <th>Object</th>
+                <th>Integrity hash</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.sequence}>
+                  <td>{r.at}</td>
+                  <td>{r.actor}</td>
+                  <td>{r.action}</td>
+                  <td className="mono">{r.object_id.slice(0, 24)}</td>
+                  <td className="mono" title={r.hash}>
+                    {r.hash.slice(0, 16)}…
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
+}
