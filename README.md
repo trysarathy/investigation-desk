@@ -49,7 +49,19 @@ inside the rules (`src/lib/engine/rules.ts`):
    reveals that customer, and neither do the evidence objects. An address retired before the
    transfer, and not reassigned, is D18.
 
-No reply template may promise a future credit; a test fails on "will be credited".
+Data-quality guards (spec, 22 Oct, from code review):
+
+- No rule matches on a missing fact. An unknown block height or a non-decimal chain amount
+  (e.g. `1e3`) makes that fact unknown, shown as such in the evidence; it is never D02 or D12
+  and never a crash.
+- Addresses and contracts compare in one canonical form (`src/lib/address.ts`): EVM lowercase
+  hex with `0x`; Tron base58, converting `41…` hex first.
+- The address-and-amount ledger fallback only considers this customer's rows not dated before
+  the transfer (rows without `credited_at` stay candidates and cap at Medium). D13 also
+  requires the ledger row's customer to be this case's customer.
+
+Reply templates are word for word from `docs/SPEC.md`, and a test checks each one against it.
+No template may promise a future credit; a test fails on "will be credited".
 
 ## Company data
 

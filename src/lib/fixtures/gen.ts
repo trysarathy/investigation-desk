@@ -1,3 +1,5 @@
+import { tronHexToBase58 } from "../address";
+
 // Deterministic generators for sample hashes and addresses. Every value they produce is
 // fabricated: none of these hashes or addresses exist on any chain.
 
@@ -32,7 +34,8 @@ const BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
 export const tronHash = (seed: string) => pick(`tx:${seed}`, HEX, 64);
 export const evmHash = (seed: string) => `0x${pick(`tx:${seed}`, HEX, 64)}`;
-export const tronAddress = (seed: string) => `T${pick(`ta:${seed}`, BASE58, 33)}`;
+/** A valid base58check Tron address (41-prefixed payload), so hex and base58 forms round-trip. */
+export const tronAddress = (seed: string) => tronHexToBase58(`41${pick(`ta:${seed}`, HEX, 40)}`);
 export const evmAddress = (seed: string) => `0x${pick(`ea:${seed}`, HEX, 40)}`;
 
 /** Same first 4 and last 4 characters as `target`, different middle: an address-poisoning look-alike. */

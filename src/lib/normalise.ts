@@ -22,12 +22,6 @@ export function normaliseHash(hash: string): string {
   return hash.trim().replace(/^0x/i, "").toLowerCase();
 }
 
-/** Tron base58 addresses are case-sensitive; EVM hex addresses are not. */
-export function sameAddress(a: string, b: string): boolean {
-  if (a.startsWith("0x") || b.startsWith("0x")) return a.toLowerCase() === b.toLowerCase();
-  return a === b;
-}
-
 export function isEvm(chain: Chain): boolean {
   return chain !== "tron";
 }

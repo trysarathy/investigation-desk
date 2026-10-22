@@ -22,10 +22,22 @@ const hit = (code: Code, confidence: Confidence, evidenceIds: string[], reason: 
 const miss = (code: Code, reason: string): RuleResult =>
   ({ code, matched: false, evidenceIds: [], reason });
 
-/** Confirmed or not, would this transfer be credited by policy? */
+/**
+ * Confirmed or not, would this transfer be credited by policy? Every fact it rests on must be
+ * known: an unknown block height or amount never yields D02 or D12.
+ */
 function creditable(ctx: Ctx): boolean {
   return !!(ctx.tx?.status === "success" && ctx.depositChain && ctx.addrStatus === "this_customer" &&
+    ctx.amountKnown && ctx.confirmations !== undefined && ctx.threshold !== undefined &&
     ctx.tokenAccepted && !ctx.impersonation && !ctx.belowMinimum && ctx.freezeHits.length === 0);
+}
+
+/** Why a fact the confirmation rules need is missing, or undefined when all are known. */
+function missingFact(ctx: Ctx): string | undefined {
+  if (!ctx.tx || ctx.tx.status !== "success" || !ctx.depositChain) return undefined;
+  if (ctx.confirmations === undefined || ctx.threshold === undefined) return "Current block height unknown, so confirmations are unknown.";
+  if (!ctx.amountKnown) return "Amount from chain data is not a plain decimal, so it is unknown.";
+  return undefined;
 }
 
 const ledgerConfidence = (m: LedgerMatch): Confidence => (m.quality === "exact" ? "High" : "Medium");
@@ -43,6 +55,8 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
   },
 
   D02: (ctx) => {
+    const missing = missingFact(ctx);
+    if (missing) return miss("D02", missing);
     if (!creditable(ctx)) return miss("D02", "Not a creditable deposit, so confirmations are not the blocker.");
     if (ctx.confirmations! >= ctx.threshold!) return miss("D02", `${ctx.confirmations} of ${ctx.threshold} confirmations reached.`);
     return hit("D02", "High", [EV.tx, EV.confirmations, EV.address, EV.token],
@@ -130,6 +144,8 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
   },
 
   D12: (ctx) => {
+    const missing = missingFact(ctx);
+    if (missing) return miss("D12", missing);
     if (!creditable(ctx)) return miss("D12", "Not a creditable deposit.");
     if (ctx.confirmations! < ctx.threshold!) return miss("D12", "Not yet confirmed.");
     const m = ctx.ledgerMatch;
@@ -142,6 +158,7 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
   D13: (ctx) => {
     const m = ctx.ledgerMatch;
     if (m?.row.status !== "CREDITED") return miss("D13", "No CREDITED ledger row for this transfer.");
+    if (m.row.customerId !== ctx.facts.customerId) return miss("D13", "The CREDITED row belongs to a different customer.");
     return hit("D13", ledgerConfidence(m), [EV.ledger], `Credited as ${m.row.depositId}${ledgerQualityNote(m)}.`);
   },
 
@@ -158,7 +175,9 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
     if (ctx.tx?.status !== "success" || ctx.addrStatus !== "this_customer" || !ctx.tokenAccepted || ctx.impersonation) {
       return miss("D16", "Not a valid deposit to a company address in an accepted token.");
     }
-    if (ctx.confirmations === undefined || ctx.confirmations < ctx.threshold!) return miss("D16", "Not yet confirmed.");
+    const missing = missingFact(ctx);
+    if (missing) return miss("D16", missing);
+    if (ctx.confirmations! < ctx.threshold!) return miss("D16", "Not yet confirmed.");
     return hit("D16", ledgerConfidence(m), [EV.tx, EV.confirmations, EV.token, EV.address, EV.ledger],
       `Rejected by the company as ${m.row.depositId}${ledgerQualityNote(m)}.`);
   },

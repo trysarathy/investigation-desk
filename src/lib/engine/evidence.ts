@@ -1,6 +1,6 @@
 import { explorerTxUrl } from "../catalogue";
 import { formatTime } from "../format";
-import { sameAddress } from "../normalise";
+import { sameAddress } from "../address";
 import type { Evidence } from "../types";
 import { CHAIN_NAMES, EVM_CHAIN_IDS } from "../types";
 import type { Ctx } from "./context";
@@ -90,6 +90,16 @@ export function buildEvidence(ctx: Ctx): Evidence[] {
     });
   }
 
+  if (tx && tx.status === "success" && ctx.depositChain && (ctx.confirmations === undefined || ctx.threshold === undefined)) {
+    out.push({
+      id: EV.confirmations,
+      label: "Confirmations",
+      status: "warn",
+      value: "Unknown: current block height unavailable",
+      source: { kind: "none" },
+    });
+  }
+
   if (tx && tx.status === "success" && ctx.depositChain && ctx.confirmations !== undefined && ctx.threshold !== undefined) {
     const done = ctx.confirmations >= ctx.threshold;
     out.push({
@@ -152,8 +162,10 @@ export function buildEvidence(ctx: Ctx): Evidence[] {
       out.push({
         id: EV.amount,
         label: "Amount",
-        status: ctx.belowMinimum ? "fail" : "pass",
-        value: ctx.minimum
+        status: !ctx.amountKnown ? "warn" : ctx.belowMinimum ? "fail" : "pass",
+        value: !ctx.amountKnown
+          ? `Unknown: chain reported "${transfer.amount}", not a plain decimal`
+          : ctx.minimum
           ? `${transfer.amount} ${transfer.tokenSymbol}, minimum ${ctx.minimum}`
           : `${transfer.amount} ${transfer.tokenSymbol}, no minimum set`,
         source: { kind: "settings", key: `minimums.${ctx.depositChain}` },

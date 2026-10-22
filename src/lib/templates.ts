@@ -1,20 +1,18 @@
 import type { Code } from "./types";
 
 const NEUTRAL_REVIEW = "Your deposit is under review. We'll contact you when the review is complete.";
-// DRAFT wording: the 22 Oct second-pass spec text for D12, D17 and D18 is not in this repo yet.
-// Swap these three in when it is; tests check only the rules below, not the exact text.
-export const DRAFT_TEMPLATES = new Set<Code>(["D12", "D17", "D18"]);
-const ADDRESS_REVIEW = "Your deposit reached one of our addresses that isn't currently your deposit address. Our team is reviewing it and will update you by {date}.";
+// D17 and D18 share this reply; it must never reveal another customer.
+const ADDRESS_REVIEW = "We've found your transfer and our team is reviewing how it was routed. We'll update you by {date}.";
 const WRONG_ADDRESS = "The funds went to {short_addr}, which is not your deposit address. We can't access or recover funds at that address. Always copy your address from our app, never from your transaction history.";
 
 /**
- * Approved reply templates from the spec (section 2, updated 22 Oct). No template may promise a
+ * Reply templates, word for word from docs/SPEC.md (section 2, 22 Oct). No template may promise a
  * future credit: chain evidence establishes eligibility; only a ledger row establishes a credit.
  * {date} is left for the analyst to fill; {where_in_app} comes from settings.
  */
 export const REPLY_TEMPLATES: Partial<Record<Code, string>> = {
   D01: "We couldn't find a transaction with that ID on {chains_checked}. Could you send the transaction hash from the sending app's withdrawal history? If the sending platform shows it as pending, it may not have been sent yet.",
-  D02: "Your transfer is on the {chain} network and has {n} of {N} confirmations. Once it reaches {N} confirmations it becomes eligible for crediting, usually within {eta}. We'll confirm when it has been credited.",
+  D02: "Your transfer is on the {chain} network and has {n} of {N} confirmations. Once it reaches {N} confirmations it becomes eligible for crediting, usually within {eta}. We'll update you once our checks are complete.",
   D03: "Your transaction failed on the network ({error}), so no {token} left your wallet. You can send it again; network fees for the failed attempt are not refundable.",
   D04: "Your {token} was sent on {found_chain}, but we only accept it on {expected_chain}. Our team is reviewing whether it can be recovered. We'll update you by {date}.",
   D05: "We received {token} on {chain}, which we don't support for deposits. Our team is reviewing your case under our unsupported-asset policy and will update you by {date}.",
@@ -25,7 +23,7 @@ export const REPLY_TEMPLATES: Partial<Record<Code, string>> = {
   D09: NEUTRAL_REVIEW,
   D10: "Your transaction is still waiting to be processed by the {chain} network. Once the network confirms it, our usual deposit checks apply. If it's still pending after {window}, please let us know.",
   D11: "The ID you sent is a withdrawal reference from the sending platform, not a network transaction hash. Please ask them for the on-chain transaction hash, or check whether the withdrawal has been sent yet.",
-  D12: "We can see your transfer arrived on the network. It hasn't been credited yet; our team is checking why and will update you by {date}.",
+  D12: "We can see your transfer arrived on {chain}. Our team is checking why it hasn't been credited yet and will update you by {date}.",
   D13: "Your deposit of {amount} {token} was credited on {credited_at}. You can see it under {where_in_app}.",
   D14: NEUTRAL_REVIEW,
   D16: NEUTRAL_REVIEW,

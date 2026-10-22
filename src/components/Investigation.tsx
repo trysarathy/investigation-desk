@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { formatTime } from "@/lib/format";
-import { DRAFT_TEMPLATES } from "@/lib/templates";
 import { CHAIN_NAMES, type Chain, type Evidence } from "@/lib/types";
 import type { CaseView, VerdictView } from "@/lib/view";
 import { useAssignments } from "./assignments";
@@ -206,7 +205,7 @@ export function Investigation({ view }: { view: CaseView }) {
                 )}
                 {/\{\w+\}/.test(replyText) && <p className="s-warn" style={{ margin: 0, fontSize: 12 }}>Fill the highlighted fields before sending.</p>}
                 <p className="faint" style={{ margin: 0, fontSize: 12 }}>
-                  {DRAFT_TEMPLATES.has(v.code) ? `Draft ${v.code} wording, pending the spec text.` : `From the approved ${v.code} template.`} Every value comes from the evidence.
+                  From the approved {v.code} template. Every value comes from the evidence.
                 </p>
               </>
             )}

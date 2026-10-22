@@ -1,5 +1,6 @@
-import { compareDecimal } from "../decimal";
-import { normaliseHash, sameAddress } from "../normalise";
+import { compareDecimal, isDecimal } from "../decimal";
+import { canonicalAddress, sameAddress } from "../address";
+import { normaliseHash } from "../normalise";
 import type {
   ChainTx, DepositAddressRow, DepositChain, Facts, FreezeCheck, LedgerMatch,
   LedgerRow, PriorTransfer, Settings, Token, TokenTransfer,
@@ -26,8 +27,11 @@ export interface Ctx {
   /** Destination registered as a deposit address, but on a different chain. */
   addrOtherChain?: DepositAddressRow;
   customerAddresses: DepositAddressRow[];
+  /** Undefined when the current block height is unknown: no rule may treat it as a number. */
   confirmations?: number;
   threshold?: number;
+  /** False when the chain gave an amount that is not a plain decimal string (e.g. "1e3"). */
+  amountKnown: boolean;
   tokenAccepted: boolean;
   officialContract?: string;
   impersonation: boolean;
@@ -60,7 +64,10 @@ function pickTransfer(tx: ChainTx, facts: Facts): TokenTransfer | undefined {
 /** First 4 and last 4 characters match, but the addresses differ. */
 export function looksAlike(a: string, b: string): boolean {
   if (sameAddress(a, b)) return false;
-  const norm = (s: string) => (s.startsWith("0x") ? s.toLowerCase().slice(2) : s);
+  const norm = (s: string) => {
+    const c = canonicalAddress(s);
+    return /^0x/i.test(c) ? c.slice(2).toLowerCase() : c;
+  };
   const x = norm(a);
   const y = norm(b);
   return x.slice(0, 4) === y.slice(0, 4) && x.slice(-4) === y.slice(-4);
@@ -117,8 +124,10 @@ export function buildContext(facts: Facts, settings: Settings): Ctx {
   const tokenAccepted = !!(transfer && depositChain &&
     settings.acceptedTokens[depositChain].some((a) => sameAddress(a.contract, transfer.tokenContract)));
 
+  // An amount that isn't a plain decimal is an unknown fact, never a crash.
+  const amountKnown = !!transfer && isDecimal(transfer.amount);
   const minimum = depositChain && symbol && tokenAccepted ? settings.minimums[depositChain][symbol] : undefined;
-  const belowMinimum = !!(transfer && minimum && compareDecimal(transfer.amount, minimum) < 0);
+  const belowMinimum = !!(amountKnown && minimum && compareDecimal(transfer!.amount, minimum) < 0);
 
   const freezeHits = facts.freezes.filter((f) => f.frozen);
 
@@ -126,7 +135,7 @@ export function buildContext(facts: Facts, settings: Settings): Ctx {
     ? tx.transfers.filter((t) => facts.depositAddresses.some((r) => r.chain === depositChain && sameAddress(r.address, t.to))).length
     : 0;
   const ledgerMatch = tx && transfer && depositChain
-    ? matchLedger(facts.ledger, tx, transfer, depositChain, companyTransferCount, settings)
+    ? matchLedger(facts.ledger, tx, transfer, depositChain, companyTransferCount, settings, facts.customerId)
     : undefined;
 
   let lookalike: Ctx["lookalike"];
@@ -136,7 +145,7 @@ export function buildContext(facts: Facts, settings: Settings): Ctx {
       const prior = facts.senderHistory.find((p) =>
         sameAddress(p.from, transfer.to) &&
         sameAddress(p.to, transfer.from) &&
-        compareDecimal(p.amount, settings.dustThreshold) <= 0 &&
+        isDecimal(p.amount) && compareDecimal(p.amount, settings.dustThreshold) <= 0 &&
         Date.parse(p.time) < Date.parse(tx.blockTime));
       lookalike = { assigned, prior };
     }
@@ -148,7 +157,7 @@ export function buildContext(facts: Facts, settings: Settings): Ctx {
 
   return {
     facts, settings, tx, transfer, depositChain, addrOnTxChain, addrStatus, addrOtherChain, customerAddresses,
-    confirmations, threshold, tokenAccepted, officialContract, impersonation, minimum, belowMinimum,
+    confirmations, threshold, amountKnown, tokenAccepted, officialContract, impersonation, minimum, belowMinimum,
     freezeHits, companyTransferCount, ledgerMatch, lookalike, pendingSec,
   };
 }
@@ -160,7 +169,7 @@ export function buildContext(facts: Facts, settings: Settings): Ctx {
  */
 export function matchLedger(
   ledger: LedgerRow[], tx: ChainTx, transfer: TokenTransfer, chain: DepositChain,
-  companyTransferCount: number, settings: Settings,
+  companyTransferCount: number, settings: Settings, customerId?: string,
 ): LedgerMatch | undefined {
   const contractOf = (r: LedgerRow) => settings.acceptedTokens[r.chain].find((a) => a.symbol === r.token)?.contract;
   let ambiguous: LedgerRow | undefined;
@@ -176,7 +185,13 @@ export function matchLedger(
     ambiguous ??= r;
   }
   if (ambiguous) return { row: ambiguous, quality: "ambiguous" };
-  const byAmount = ledger.find((r) => !r.txHash && r.chain === chain &&
-    sameAddress(r.toAddress, transfer.to) && compareDecimal(r.amount, transfer.amount) === 0);
+  // Fallback without a hash: only this customer's rows, not dated before the transfer (an
+  // earlier deposit of the same amount must not stand in for this one). A row with no
+  // credited_at can't be placed in time, so it stays a candidate; it caps at Medium anyway.
+  if (!customerId || !isDecimal(transfer.amount)) return undefined;
+  const minedAt = Date.parse(tx.blockTime);
+  const byAmount = ledger.find((r) => !r.txHash && r.chain === chain && r.customerId === customerId &&
+    (!r.creditedAt || Date.parse(r.creditedAt) >= minedAt) &&
+    sameAddress(r.toAddress, transfer.to) && isDecimal(r.amount) && compareDecimal(r.amount, transfer.amount) === 0);
   return byAmount ? { row: byAmount, quality: "address_amount" } : undefined;
 }

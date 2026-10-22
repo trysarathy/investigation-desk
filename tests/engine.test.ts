@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { compareDecimal } from "@/lib/decimal";
 import { investigate } from "@/lib/engine/run";
@@ -5,6 +7,7 @@ import { CATALOGUE_ORDER, nextStep } from "@/lib/catalogue";
 import { looksAlike } from "@/lib/engine/context";
 import { SAMPLE_CASES, SAMPLE_SETTINGS, findCase, withChainDown } from "@/lib/fixtures";
 import { normaliseInput } from "@/lib/normalise";
+import { canonicalAddress, tronToHex } from "@/lib/address";
 import { fillReply, REPLY_TEMPLATES } from "@/lib/templates";
 import type { Code, Facts, ProviderEvent } from "@/lib/types";
 
@@ -383,7 +386,7 @@ describe("f. no reply promises a future credit", () => {
   it("D02 uses the 22 Oct wording", () => {
     const v = run(latest("CS-1042"));
     expect(fillReply(v.code, v.fill)!.text).toBe(
-      "Your transfer is on the Tron network and has 8 of 20 confirmations. Once it reaches 20 confirmations it becomes eligible for crediting, usually within about a minute. We'll confirm when it has been credited.");
+      "Your transfer is on the Tron network and has 8 of 20 confirmations. Once it reaches 20 confirmations it becomes eligible for crediting, usually within about a minute. We'll update you once our checks are complete.");
   });
 
   it("D10 uses the 22 Oct wording", () => {
@@ -420,9 +423,25 @@ describe("f. no reply promises a future credit", () => {
     expect(r.open).toEqual([]);
   });
 
-  it("D12 reply makes no credit promise", () => {
+  it("D12 reply makes no credit promise and matches the spec", () => {
     const t = REPLY_TEMPLATES.D12!;
     expect(t).not.toMatch(/completing the credit|will be credited|will credit/i);
+    const v = run(latest("CS-1041"));
+    expect(fillReply(v.code, v.fill)).toEqual({
+      text: "We can see your transfer arrived on Tron. Our team is checking why it hasn't been credited yet and will update you by {date}.",
+      open: ["date"],
+    });
+  });
+
+  it("D02 no longer says we'll confirm the credit", () => {
+    expect(REPLY_TEMPLATES.D02).not.toMatch(/confirm when it has been credited/i);
+  });
+
+  it("every template is word for word in docs/SPEC.md", () => {
+    const spec = readFileSync(path.join(__dirname, "..", "docs", "SPEC.md"), "utf8").replace(/\\_/g, "_");
+    for (const [code, t] of Object.entries(REPLY_TEMPLATES)) {
+      expect(spec, code).toContain(t);
+    }
   });
 
   it("every code with a verdict fixture except D99 has a template", () => {
@@ -535,5 +554,94 @@ describe("every rule runs; other matches are findings", () => {
     const v = run({ ...f, freezes });
     expect(v.code).toBe("D06");
     expect(v.findings.map((x) => `${x.code}/${x.confidence}`)).toEqual(["D09/High"]);
+  });
+});
+
+// ---- Review findings (spec "Data-quality guards", 22 Oct) ----
+
+describe("a. no rule matches on a missing fact", () => {
+  const noHeight = (f: Facts): Facts => ({ ...f, currentBlock: undefined });
+
+  it("unknown current block never gives D02", () => {
+    const v = run(noHeight(latest("CS-1042")));
+    expect(v.code).not.toBe("D02");
+    expect(v.state === "paused" || v.code === "D99").toBe(true);
+  });
+
+  it("unknown current block never gives D12", () => {
+    const v = run(noHeight(latest("CS-1041")));
+    expect(v.code).not.toBe("D12");
+    expect(v.state === "paused" || v.code === "D99").toBe(true);
+  });
+
+  it("unknown amount never gives D02 or D12", () => {
+    for (const id of ["CS-1041", "CS-1042"]) {
+      const v = run(withTransfer(latest(id), { amount: "" }));
+      expect(["D02", "D12"], id).not.toContain(v.code);
+    }
+  });
+});
+
+describe("b. canonical address comparison per chain", () => {
+  const USDT_TRON_HEX = "41a614f803b6fd780986a42c78ec9c7f77e6ded13c";
+
+  it("converts 41-prefixed Tron hex to base58", () => {
+    expect(canonicalAddress(USDT_TRON_HEX)).toBe("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t");
+    expect(canonicalAddress(`0x${USDT_TRON_HEX}`)).toBe("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t");
+  });
+
+  it("lower-cases EVM hex and keeps the 0x prefix", () => {
+    expect(canonicalAddress("0xdAC17F958D2ee523a2206206994597C13D831ec7")).toBe("0xdac17f958d2ee523a2206206994597c13d831ec7");
+  });
+
+  it.each([USDT_TRON_HEX, `0x${USDT_TRON_HEX}`])("official Tron USDT given as hex %s is not D06", (hex) => {
+    const v = run(withTransfer(latest("CS-1041"), { tokenContract: hex }));
+    expect(v.code).toBe("D12");
+    expect(v.checks.find((c) => c.code === "D06")!.matched).toBe(false);
+  });
+
+  it("a Tron deposit address given as hex still matches File A", () => {
+    const f = latest("CS-1041");
+    const to = f.tx!.transfers[0].to;
+    expect(run(withTransfer(f, { to: tronToHex(to) })).code).toBe("D12");
+  });
+});
+
+describe("c. address-and-amount fallback and D13 customer check", () => {
+  it("the same amount deposited twice: the earlier credited row is ignored, D12 Medium not D13", () => {
+    const f = latest("CS-1059");
+    const pending = f.ledger.find((r) => r.depositId === "DEP-55170")!;
+    const earlier = { ...pending, row: 50, depositId: "DEP-54001", status: "CREDITED" as const, creditedAt: "2026-10-10T09:00:00+08:00" };
+    const v = run({ ...f, ledger: [earlier, ...f.ledger] });
+    expect(v.code).toBe("D12");
+    expect(v.confidence).toBe("Medium");
+  });
+
+  it("the fallback ignores another customer's row", () => {
+    const f = latest("CS-1059");
+    const ledger = f.ledger.map((r) => (r.depositId === "DEP-55170" ? { ...r, status: "CREDITED" as const, customerId: "C-99999" } : r));
+    expect(run({ ...f, ledger }).code).not.toBe("D13");
+  });
+
+  it("D13 requires the ledger row's customer to be this case's customer", () => {
+    const f = latest("CS-1053");
+    const ledger = f.ledger.map((r) => (r.depositId === "DEP-55120" ? { ...r, customerId: "C-99999" } : r));
+    expect(run({ ...f, ledger }).code).not.toBe("D13");
+  });
+});
+
+describe("d. a non-decimal chain amount is an unknown fact, not a crash", () => {
+  it.each(["1e3", "12,5", "-3", "NaN"])("amount %s does not throw and decides nothing about the amount", (amount) => {
+    const f = withTransfer(latest("CS-1041"), { amount });
+    expect(() => run(f)).not.toThrow();
+    const v = run(f);
+    expect(["D02", "D08", "D12"]).not.toContain(v.code);
+    expect(v.evidence.find((e) => e.id === "ev.amount")?.value).toMatch(/unknown/i);
+  });
+
+  it("a non-decimal dust amount in sender history does not throw", () => {
+    const f = latest("CS-1048");
+    const senderHistory = f.senderHistory.map((p) => ({ ...p, amount: "1e-18" }));
+    expect(() => run({ ...f, senderHistory })).not.toThrow();
   });
 });
