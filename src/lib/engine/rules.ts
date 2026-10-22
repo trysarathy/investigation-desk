@@ -1,4 +1,5 @@
 import type { Code, Confidence, LedgerMatch, RuleResult } from "../types";
+import { COMPANY_DECLARED_CHAINS } from "../contracts";
 import type { Ctx } from "./context";
 import { EV } from "./evidence";
 
@@ -94,9 +95,15 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
   D06: (ctx) => {
     if (!ctx.transfer) return miss("D06", "No token transfer found.");
     if (!["USDT", "USDC"].includes(ctx.transfer.tokenSymbol)) return miss("D06", "Token does not claim to be USDT or USDC.");
-    if (!ctx.officialContract) return miss("D06", `No confirmed official ${ctx.transfer.tokenSymbol} contract in settings for this chain.`);
-    if (!ctx.impersonation) return miss("D06", "Contract matches the official one.");
-    return hit("D06", "High", [EV.token], `Symbol ${ctx.transfer.tokenSymbol}, contract differs from the official one.`);
+    const company = ctx.officialSource === "company";
+    if (!ctx.officialContract) {
+      return miss("D06", company || COMPANY_DECLARED_CHAINS.has(ctx.tx!.chain)
+        ? `No company-declared ${ctx.transfer.tokenSymbol} contract in Settings for this chain.`
+        : `No confirmed official ${ctx.transfer.tokenSymbol} contract in settings for this chain.`);
+    }
+    const which = company ? "the company-accepted contract (bridged by Binance, not issued by Tether or Circle)" : "the official one";
+    if (!ctx.impersonation) return miss("D06", `Contract matches ${which}.`);
+    return hit("D06", "High", [EV.token], `Symbol ${ctx.transfer.tokenSymbol}, contract differs from ${which}.`);
   },
 
   D07: (ctx) => {
@@ -135,7 +142,11 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
   },
 
   D09: (ctx) => {
-    if (ctx.facts.freezeStatus === "not_supported") return miss("D09", "No confirmed issuer contract to ask on this chain and token.");
+    if (ctx.facts.freezeStatus === "not_supported") {
+      return miss("D09", ctx.tx && COMPANY_DECLARED_CHAINS.has(ctx.tx.chain)
+        ? "Not available on this chain: the token has no issuer freeze function (known gap, not a missing fact)."
+        : "No confirmed issuer contract to ask on this chain and token.");
+    }
     if (ctx.facts.freezeStatus === "failed") return miss("D09", "Issuer freeze call failed, so freeze status is unknown.");
     if (ctx.facts.freezes.length === 0) return miss("D09", "No freeze calls made.");
     if (ctx.freezeHits.length === 0) return miss("D09", "Issuer freeze calls returned false.");

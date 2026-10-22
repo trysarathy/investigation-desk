@@ -1,5 +1,6 @@
 import { compareDecimal, isDecimal } from "../decimal";
 import { canonicalAddress, sameAddress } from "../address";
+import { officialContractFor } from "../contracts";
 import { normaliseHash } from "../normalise";
 import type {
   ChainTx, DepositAddressRow, DepositChain, Facts, FreezeCheck, LedgerMatch,
@@ -34,6 +35,8 @@ export interface Ctx {
   amountKnown: boolean;
   tokenAccepted: boolean;
   officialContract?: string;
+  /** "company" on BNB Chain: the company's declared contract stands in for an issuer contract. */
+  officialSource?: "issuer" | "company";
   impersonation: boolean;
   minimum?: string;
   belowMinimum: boolean;
@@ -119,7 +122,9 @@ export function buildContext(facts: Facts, settings: Settings): Ctx {
   const symbol = transfer && (TOKENS as string[]).includes(transfer.tokenSymbol)
     ? (transfer.tokenSymbol as Token)
     : undefined;
-  const officialContract = tx && symbol ? settings.officialContracts[tx.chain]?.[symbol] : undefined;
+  const official = tx && symbol ? officialContractFor(tx.chain, symbol, settings) : undefined;
+  const officialContract = official?.contract;
+  const officialSource = official?.source;
   const impersonation = !!(transfer && officialContract && !sameAddress(transfer.tokenContract, officialContract));
   const tokenAccepted = !!(transfer && depositChain &&
     settings.acceptedTokens[depositChain].some((a) => sameAddress(a.contract, transfer.tokenContract)));
@@ -157,7 +162,7 @@ export function buildContext(facts: Facts, settings: Settings): Ctx {
 
   return {
     facts, settings, tx, transfer, depositChain, addrOnTxChain, addrStatus, addrOtherChain, customerAddresses,
-    confirmations, threshold, amountKnown, tokenAccepted, officialContract, impersonation, minimum, belowMinimum,
+    confirmations, threshold, amountKnown, tokenAccepted, officialContract, officialSource, impersonation, minimum, belowMinimum,
     freezeHits, companyTransferCount, ledgerMatch, lookalike, pendingSec,
   };
 }

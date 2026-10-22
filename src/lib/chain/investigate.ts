@@ -6,6 +6,7 @@
 
 import { sameAddress } from "../address";
 import { explorerTxUrl } from "../catalogue";
+import { officialContractFor } from "../contracts";
 import { compareDecimal, isDecimal } from "../decimal";
 import { looksAlike, pickTransfer } from "../engine/context";
 import { normaliseInput } from "../normalise";
@@ -97,9 +98,10 @@ async function freezeFacts(tx: ChainTx, facts: Facts, settings: Settings, deps: 
   Promise<Pick<Facts, "freezes" | "freezeStatus">> {
   const transfer = pickTransfer(tx, facts);
   const token = transfer?.tokenSymbol as Token | undefined;
-  const official = token && token in FREEZE_SELECTOR ? settings.officialContracts[tx.chain]?.[token] : undefined;
-  // Only the genuine issuer contract can say an address is frozen. No confirmed official contract
-  // (e.g. BNB Chain, where neither issuer lists one) means the check doesn't apply.
+  const resolved = token && token in FREEZE_SELECTOR ? officialContractFor(tx.chain, token, settings) : undefined;
+  // Only the genuine issuer contract can say an address is frozen. On BNB Chain the official
+  // contract is the company's declared one, which has no issuer freeze function: a known gap.
+  const official = resolved?.source === "issuer" ? resolved.contract : undefined;
   if (!transfer || !token || !official || !sameAddress(official, transfer.tokenContract)) {
     return { freezes: [], freezeStatus: "not_supported" };
   }
