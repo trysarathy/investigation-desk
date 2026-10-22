@@ -1,3 +1,4 @@
+import { FallbackSource } from "./adapters";
 // Which data source answers for each chain (spec section 3, revised 22 Oct, confirmed in week 3):
 //   Tron                          TronGrid V1
 //   Ethereum, Polygon, Arbitrum   Etherscan API V2, free key (all calls we need work on 1, 137, 42161)
@@ -34,6 +35,8 @@ export interface FetcherOptions {
   sleep?: (ms: number) => Promise<void>;
   /** Tests replay instantly; live use keeps each API's spacing. */
   noSpacing?: boolean;
+  /** Operator-configured read-only RPC URLs, never accepted from requests. */
+  rpcFallbacks?: Partial<Record<EvmChain, string>>;
 }
 
 export function buildFetchers(o: FetcherOptions): LiveDeps {
@@ -46,9 +49,15 @@ export function buildFetchers(o: FetcherOptions): LiveDeps {
   const sources: Partial<Record<EvmChain, EvmSource>> = {};
   for (const [chain, plan] of Object.entries(EVM_SOURCES) as [EvmChain, SourcePlan][]) {
     sources[chain] = plan.kind === "etherscan"
-      ? new EtherscanSource(etherscan, o.etherscanKey, chain)
+      ? (o.etherscanKey ? new EtherscanSource(etherscan, o.etherscanKey, chain) : undefined)
       : new JsonRpcSource(new ChainClient({ ...common, source: "public-rpc", minIntervalMs: spacing(plan.minIntervalMs),
           classifyBody: jsonRpcClassifyBody }), plan.url, chain);
+  }
+  for (const [chain, url] of Object.entries(o.rpcFallbacks ?? {}) as [EvmChain, string][]) {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:") throw new Error("RPC fallbacks require HTTPS");
+    const fallback = new JsonRpcSource(new ChainClient({ ...common, source: "public-rpc", minIntervalMs: spacing(100), classifyBody: jsonRpcClassifyBody }), url, chain);
+    sources[chain] = new FallbackSource([...(sources[chain] ? [sources[chain]!] : []), fallback]);
   }
   return {
     tron: new TronFetcher(new ChainClient({ ...common, source: "trongrid", minIntervalMs: spacing(80), classifyBody: tronClassifyBody }), o.tronKey),

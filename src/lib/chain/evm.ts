@@ -17,8 +17,8 @@ import type { ChainLookupResult, TokenMeta } from "./types";
 const ETHERSCAN = "https://api.etherscan.io/v2/api";
 const NATIVE: Record<EvmChain, string> = { ethereum: "ETH", bsc: "BNB", polygon: "POL", base: "ETH", arbitrum: "ETH", optimism: "ETH" };
 
-type RpcMethod = "eth_getTransactionByHash" | "eth_getTransactionReceipt" | "eth_getBlockByNumber" | "eth_blockNumber" | "eth_call";
-interface CallOpts { ttlSec: number; ttlFor?: (r: RawResponse) => number }
+export type RpcMethod = "eth_getTransactionByHash" | "eth_getTransactionReceipt" | "eth_getBlockByNumber" | "eth_blockNumber" | "eth_call";
+export interface CallOpts { ttlSec: number; ttlFor?: (r: RawResponse) => number }
 
 /** One chain's JSON-RPC answers, from wherever they come. Every raw response lands in `raws`. */
 export interface EvmSource {
@@ -128,7 +128,7 @@ export class EvmFetcher {
     let tx: Record<string, string> | null;
     try {
       tx = (await src.call("eth_getTransactionByHash", [txhash], { ttlSec: 30,
-        ttlFor: (r) => (JSON.parse(r.body).result?.blockNumber ? Infinity : 15) }, raws)) as Record<string, string> | null;
+        ttlFor: (r) => (JSON.parse(r.body).result?.blockNumber ? 30 : 15) }, raws)) as Record<string, string> | null;
     } catch (e) {
       const err = e instanceof ChainApiError ? e : undefined;
       return { lookup: { chain, result: "error", error: err?.message ?? "lookup failed",
@@ -139,14 +139,15 @@ export class EvmFetcher {
     if (!tx) return { lookup: { ...base, result: "not_found" } };
     if (!tx.blockNumber) return { lookup: { ...base, result: "pending" } };
 
-    const receipt = (await src.call("eth_getTransactionReceipt", [txhash], { ttlSec: Infinity }, raws)) as Record<string, unknown> & {
+    const receipt = (await src.call("eth_getTransactionReceipt", [txhash], { ttlSec: 30 }, raws)) as Record<string, unknown> & {
       status?: string; gasUsed?: string; effectiveGasPrice?: string; logs?: { address: string; topics: string[]; data: string; logIndex: string }[];
     };
     const blockNumber = Number(BigInt(tx.blockNumber));
     const block = (await src.call("eth_getBlockByNumber", [hex(blockNumber), false], { ttlSec: Infinity }, raws)) as { timestamp: string };
     const head = (await src.call("eth_blockNumber", [], { ttlSec: 5 }, raws)) as string | undefined;
 
-    const failed = receipt?.status !== "0x1";
+    if (!receipt || !["0x0", "0x1"].includes(receipt.status ?? "")) throw new ChainApiError("Receipt unavailable or invalid; outcome unknown", true);
+    const failed = receipt.status === "0x0";
     const fee = (hexToBigInt(receipt?.gasUsed ?? "0") ?? 0n) * (hexToBigInt(receipt?.effectiveGasPrice ?? tx.gasPrice ?? "0") ?? 0n);
     const transfers: TokenTransfer[] = [];
     const logs = (receipt?.logs ?? []).map((l) =>
