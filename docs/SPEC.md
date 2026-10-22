@@ -71,9 +71,7 @@ The engine runs every check. The verdict follows catalogue order as modified by 
 | D15 | Missing memo or tag | Out of v1: our v1 chains use unique deposit addresses | — | — | — | [Keplr](https://help.keplr.app/troubleshooting/5R3bMyjtr2Qj3TcLwuW7J6/resolve-a-missing-memo-issue/5So5gM41LifQhxiMqFUt9k) |
 | D99 | Unknown | No rule matched with High confidence | Every check run, and its result | — | Analyst investigates manually | — |
 
-**D16 — Rejected by company** (added 21 Oct). Detection: tx confirmed, correct address and token, and the ledger row for this exact tx hash has status REJECTED. Evidence: ledger row and any reason code. Confidence: High that it was rejected; the reason is only as good as the ledger's reason code. Next step: route to the deposits team for the reason. Reply: neutral, as D14.
-
-**D17 — Sent to another customer's address** (added 22 Oct). Detection: the destination is a company deposit address in File A, but assigned to a different customer than the one in this case. Confidence: High (from File A). Next step: ops checks whether the customer reused an address meant for someone else, then decides any reallocation under policy. The reply must never reveal the other customer: "We've found your transfer and our team is reviewing how it was routed. We'll update you by {date}." **D12 now requires the destination to be assigned to this customer.**
+**D16 — Rejected by company** (added 21 Oct). Detection: tx confirmed, correct address and token, and the ledger row for this exact tx hash has status REJECTED. Evidence: ledger row and any reason code. Confidence: High that it was rejected; the reason is only as good as the ledger's reason code. Next step: route to the deposits team for the reason. Reply: neutral, as D14.**D17 — Sent to another customer's address** (added 22 Oct). Detection: the destination is a company deposit address in File A, but assigned to a different customer than the one in this case. Confidence: High (from File A). Next step: ops checks whether the customer reused an address meant for someone else, then decides any reallocation under policy. The reply must never reveal the other customer: "We've found your transfer and our team is reviewing how it was routed. We'll update you by {date}." **D12 now requires the destination to be assigned to this customer.**
 
 **D18 — Sent to a retired address** (added 22 Oct). Detection: the destination is in File A, but the transfer's block time is after that address's `retired_at`. Confidence: High. Next step: ops decides crediting under the company's retired-address policy (a new Settings field). Reply: neutral, as D17.
 
@@ -91,6 +89,15 @@ Strict "first High match wins" gave wrong answers in five cases, so these guards
 4. **REJECTED** ledger rows get D16, not D99.
 5. **D12, D13, D14, D16** decide a High verdict only on an exact match of chain + tx\_hash + transfer index (EVM log index or Tron event index) + token contract (revised 22 Oct). One transaction can contain several transfers. If the ledger has no transfer index and the transaction holds more than one transfer to company addresses, the verdict caps at Medium. File B gains an optional \`transfer\_index\` column. A row that matches only on address and amount is shown as evidence and caps the verdict at Medium.
 
+**Data-quality guards (22 Oct, from code review):**
+
+- No rule may match on a missing fact. If the current block height, a confirmation count or an amount is unknown, the case is "Check paused" (chain unavailable) or D99, never D02 or D12.
+- Addresses and contracts are compared in one canonical form per chain: EVM lowercase hex with `0x`; Tron base58 (hex `41…` is converted before comparing).
+- An amount from chain data that isn't a plain decimal string (for example `1e3`) makes that fact unknown; it never crashes the investigation.
+- The address-and-amount ledger fallback only considers rows for this case's customer, dated at or after the transfer's block time. D13 also requires the ledger row's customer to be this case's customer.
+
+**D18 reply:** same as D17.
+
 **Rule for all replies (22 Oct):** no template may promise a future credit. Chain evidence establishes eligibility; only a ledger row establishes a credit.
 
 **Scope decision (22 Oct): v1 stays on the deposit side.** A reviewer flagged that the build investigates deposits while the older CloseTrace brief described fiat payouts. That is deliberate (see the verdict at the top): deposits can be diagnosed from public chain data plus one CSV, so they can be demoed now; the payout leg needs partner data we don't have. The hedge: the data model must also hold payout events, provider statuses and later returns, so adding the payout workflow later is new rules, not a rewrite. Interviews decide which workflow v2 adds.
@@ -103,7 +110,7 @@ Sources are vendor help centres \[VERIFIED as what each vendor publishes\], not 
 
 Every reply is a draft the analyst edits and sends. None promises an outcome.
 
-- **D02:** "Your transfer is on the {chain} network and has {n} of {N} confirmations. Once it reaches {N} confirmations it becomes eligible for crediting, usually within {eta}. We'll confirm when it has been credited."
+- **D02:** "Your transfer is on the {chain} network and has {n} of {N} confirmations. Once it reaches {N} confirmations it becomes eligible for crediting, usually within {eta}. We'll update you once our checks are complete."
 - **D03:** "Your transaction failed on the network ({error}), so no {token} left your wallet. You can send it again; network fees for the failed attempt are not refundable."
 - **D04:** "Your {token} was sent on {found\_chain}, but we only accept it on {expected\_chain}. Our team is reviewing whether it can be recovered. We'll update you by {date}."
 - **D06:** "The token you sent is not genuine {symbol}: its contract address doesn't match the official one. It can't be credited. Please be cautious with whoever supplied it."
