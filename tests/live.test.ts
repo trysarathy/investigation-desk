@@ -1,17 +1,15 @@
-// Week 2 "done when": real public USDT transfers return the correct verdict. The recorded
-// TronGrid and Etherscan V2 responses replay through the real fetchers, offline and keyless.
+// Weeks 2–3 "done when": real public USDT transfers return the correct verdict. The recorded
+// TronGrid, Etherscan V2 and public-RPC responses replay through the real fetchers, offline and keyless.
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { etherscanClassifyBody, EvmFetcher } from "@/lib/chain/evm";
-import { ChainClient, sha256Hex } from "@/lib/chain/http";
+import { sha256Hex } from "@/lib/chain/http";
 import { fetchFacts } from "@/lib/chain/investigate";
+import { buildFetchers } from "@/lib/chain/sources";
 import { MemoryStore } from "@/lib/chain/store";
-import { tronClassifyBody, TronFetcher } from "@/lib/chain/tron";
 import { investigate } from "@/lib/engine/run";
-import { SAMPLE_SETTINGS } from "@/lib/fixtures";
-import { LIVE_CASES, liveWorkspace } from "./fixtures/live/cases";
+import { LIVE_CASES, liveSettings, liveWorkspace } from "./fixtures/live/cases";
 import { replayTransport, type Recording } from "./fixtures/live/replay";
 
 const load = (name: string): Recording =>
@@ -23,15 +21,10 @@ async function replay(name: string) {
   const transport = replayTransport(rec);
   const store = new MemoryStore();
   const now = () => new Date(rec.recordedAt);
-  const sleep = async () => {};
-  const deps = {
-    tron: new TronFetcher(new ChainClient({ source: "trongrid", minIntervalMs: 0, store, transport, now, sleep, classifyBody: tronClassifyBody }), "test-key"),
-    evm: new EvmFetcher(new ChainClient({ source: "etherscan", minIntervalMs: 0, store, transport, now, sleep,
-      secretParams: ["apikey"], classifyBody: etherscanClassifyBody }), "test-key"),
-    now,
-  };
-  const facts = await fetchFacts(c.hash, liveWorkspace(c), deps);
-  return { c, rec, facts, store, v: investigate(facts, SAMPLE_SETTINGS) };
+  const deps = buildFetchers({ tronKey: "test-key", etherscanKey: "test-key", store, transport, now, sleep: async () => {}, noSpacing: true });
+  const settings = liveSettings(c);
+  const facts = await fetchFacts(c.hash, liveWorkspace(c), deps, settings);
+  return { c, rec, facts, store, settings, v: investigate(facts, settings) };
 }
 
 describe.each(LIVE_CASES.map((c) => c.name))("live fixture %s", (name) => {
@@ -46,25 +39,27 @@ describe.each(LIVE_CASES.map((c) => c.name))("live fixture %s", (name) => {
 
   it("keeps every raw response with fetch time and SHA-256, and stores it", async () => {
     const { rec, facts, store } = await replay(name);
-    expect(facts.rawResponses).toHaveLength(rec.exchanges.length);
+    // A rate-limited reply is retried, not kept as a fact; every other exchange is.
+    const facts_ = rec.exchanges.filter((e) => !/rate limit/i.test(e.response.body));
+    expect(facts.rawResponses).toHaveLength(facts_.length);
     for (const r of facts.rawResponses!) {
       expect(r.sha256).toBe(sha256Hex(r.body));
       expect(r.fetchedAt).toBe(new Date(rec.recordedAt).toISOString());
       expect(r.request.url).not.toContain("test-key");
     }
-    expect(store.raw).toHaveLength(rec.exchanges.length);
+    expect(store.raw).toHaveLength(facts_.length);
   });
 
   it("links to the explorer for the transaction", async () => {
     const { c, rec } = await replay(name);
     expect(rec.explorer).toBe(c.explorer);
-    expect(c.explorer).toMatch(/^https:\/\/(tronscan\.org\/#\/transaction\/|etherscan\.io\/tx\/0x)[0-9a-f]{64}$/);
+    expect(c.explorer).toMatch(/^https:\/\/(tronscan\.org\/#\/transaction\/|(etherscan\.io|bscscan\.com|polygonscan\.com)\/tx\/0x)[0-9a-f]{64}$/);
   });
 });
 
-describe.each(LIVE_CASES.filter((c) => c.expected.state === "verdict").map((c) => c.name))("live facts %s", (name) => {
+describe.each(LIVE_CASES.filter((c) => c.transfer.to).map((c) => c.name))("live facts %s", (name) => {
   it("decodes the real transfer exactly as the explorer shows it", async () => {
-    const { c, facts } = await replay(name);
+    const { c, facts, settings } = await replay(name);
     expect(facts.tx!.chain).toBe(c.transfer.chain);
     expect(facts.tx!.status).toBe("success");
     const t = facts.tx!.transfers.find((x) => x.to.toLowerCase() === c.transfer.to.toLowerCase())!;
@@ -72,8 +67,9 @@ describe.each(LIVE_CASES.filter((c) => c.expected.state === "verdict").map((c) =
     expect(t.from.toLowerCase()).toBe(c.transfer.from.toLowerCase());
     expect(t.amount).toBe(c.transfer.amount);
     expect(t.tokenContract.toLowerCase()).toBe(c.transfer.contract.toLowerCase());
-    expect(t.tokenSymbol).toBe("USDT");
-    expect(facts.currentBlock! - facts.tx!.blockNumber).toBeGreaterThan(SAMPLE_SETTINGS.confirmations[c.transfer.chain]);
+    expect(t.tokenSymbol).toBe(c.transfer.symbol ?? "USDT");
+    const threshold = (settings.confirmations as Record<string, number>)[c.transfer.chain];
+    if (threshold !== undefined) expect(facts.currentBlock! - facts.tx!.blockNumber).toBeGreaterThan(threshold);
   });
 
   it("checks every rule D01–D07 on live data without a missing fact", async () => {
@@ -85,13 +81,92 @@ describe.each(LIVE_CASES.filter((c) => c.expected.state === "verdict").map((c) =
   });
 });
 
-describe("free-plan chains", () => {
-  it("BNB Chain, Base and Optimism lookups are errors, so absence is never claimed", async () => {
-    const { facts, v } = await replay("unknown-hash-free-plan");
-    const errors = facts.lookups.filter((l) => l.result === "error").map((l) => l.chain).sort();
-    expect(errors).toEqual(["base", "bsc", "optimism"]);
-    expect(facts.lookups.filter((l) => l.result === "not_found").map((l) => l.chain).sort()).toEqual(["arbitrum", "ethereum", "polygon", "tron"]);
-    expect(v.state).toBe("paused");
-    expect(v.checks.find((c) => c.code === "D01")).toBeUndefined();
+const hostOf = (url: string) => new URL(url).host;
+
+describe("data source per chain (week 3)", () => {
+  it("Tron on TronGrid; Ethereum, Polygon, Arbitrum on Etherscan; BNB Chain, Base, Optimism on public RPCs", async () => {
+    const { facts } = await replay("unknown-hash-not-found");
+    const byChain = new Map<string, Set<string>>();
+    for (const r of facts.rawResponses!) byChain.set(r.chain, new Set([...(byChain.get(r.chain) ?? []), hostOf(r.request.url)]));
+    expect([...byChain.get("tron")!]).toEqual(["api.trongrid.io"]);
+    for (const c of ["ethereum", "polygon", "arbitrum"]) expect([...byChain.get(c)!]).toEqual(["api.etherscan.io"]);
+    expect([...byChain.get("bsc")!]).toEqual(["bsc-dataseed.bnbchain.org"]);
+    expect([...byChain.get("base")!]).toEqual(["mainnet.base.org"]);
+    expect([...byChain.get("optimism")!]).toEqual(["mainnet.optimism.io"]);
+  });
+});
+
+describe("real Etherscan rate limit, recorded", () => {
+  it("was retried with backoff and the lookup still succeeded", async () => {
+    const rec = load("tron-frozen-sender");
+    const limited = rec.exchanges.filter((e) => /Max calls per sec rate limit reached/.test(e.response.body));
+    expect(limited.length).toBeGreaterThan(0);
+    const { facts } = await replay("tron-frozen-sender");
+    expect(facts.lookups.find((l) => l.chain === "ethereum")!.result).toBe("not_found");
+  });
+});
+
+describe("D01 with every chain answering", () => {
+  it("fires for a hash found nowhere", async () => {
+    const { facts, v } = await replay("unknown-hash-not-found");
+    expect(facts.lookups.every((l) => l.result === "not_found")).toBe(true);
+    expect(facts.lookups).toHaveLength(7);
+    expect(v.code).toBe("D01");
+    expect(v.confidence).toBe("High");
+  });
+
+  it.each(["bsc-dataseed.bnbchain.org", "mainnet.optimism.io", "api.etherscan.io", "api.trongrid.io"])(
+    "still pauses if %s errors", async (host) => {
+      const c = LIVE_CASES.find((x) => x.name === "unknown-hash-not-found")!;
+      const rec = load(c.name);
+      const inner = replayTransport(rec);
+      const transport = async (req: Parameters<typeof inner>[0]) =>
+        hostOf(req.url) === host ? { status: 503, headers: {}, body: "" } : inner(req);
+      const deps = buildFetchers({ tronKey: "k", etherscanKey: "k", store: new MemoryStore(), transport,
+        now: () => new Date(rec.recordedAt), sleep: async () => {}, noSpacing: true });
+      const facts = await fetchFacts(c.hash, liveWorkspace(c), deps, liveSettings(c));
+      const v = investigate(facts, liveSettings(c));
+      expect(facts.lookups.some((l) => l.result === "error")).toBe(true);
+      expect(v.state).toBe("paused");
+    });
+});
+
+describe("week 3 rules on live data", () => {
+  it("D09: Tron USDT isBlackListed(sender) is true, read-only", async () => {
+    const { facts, v } = await replay("tron-frozen-sender");
+    expect(facts.freezeStatus).toBe("checked");
+    expect(facts.freezes).toEqual([
+      expect.objectContaining({ role: "sender", address: "TLGgXMMm2qMDQHXrt5pnGEBHCoK5QG5n9T", method: "isBlackListed", frozen: true }),
+      expect.objectContaining({ role: "deposit", frozen: false }),
+    ]);
+    expect(v.code).toBe("D09");
+    const calls = facts.rawResponses!.filter((r) => r.request.body?.includes("isBlackListed"));
+    expect(calls).toHaveLength(2);
+  });
+
+  it("D09 checks run on Ethereum USDT too, and find no freeze on Binance 14", async () => {
+    const { facts } = await replay("eth-binance14-to-tether-treasury");
+    expect(facts.freezeStatus).toBe("checked");
+    expect(facts.freezes.map((f) => f.frozen)).toEqual([false, false]);
+  });
+
+  it("D09 doesn't run on BNB Chain: no issuer-confirmed contract", async () => {
+    const { facts, v } = await replay("bsc-binance-hot16-withdrawal");
+    expect(facts.freezeStatus).toBe("not_supported");
+    expect(v.checks.find((c) => c.code === "D09")!.reason).toMatch(/No confirmed issuer contract/);
+    expect(v.checks.find((c) => c.code === "D06")!.reason).toMatch(/No confirmed official/);
+  });
+
+  it("D08: a real 14.49 USDT BNB Chain transfer under a 20 USDT minimum", async () => {
+    const { v } = await replay("bsc-binance-hot11-below-minimum");
+    expect(v.code).toBe("D08");
+    expect(v.evidence.find((e) => e.id === "ev.amount")!.value).toContain("minimum 20");
+  });
+
+  it("D04: same 0x address, found on Polygon, registered only on Ethereum", async () => {
+    const { facts, v } = await replay("polygon-usdt0-to-binance-hot20");
+    expect(facts.tx!.chain).toBe("polygon");
+    expect(v.code).toBe("D04");
+    expect(v.evidence.find((e) => e.id === "ev.address")!.value).toMatch(/on Ethereum, but funds arrived on Polygon/);
   });
 });

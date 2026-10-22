@@ -1,9 +1,11 @@
-// Read-only EVM fetcher on Etherscan API V2 (spec section 3): one key, chain picked by chainid.
-// Uses the proxy module (JSON-RPC passthrough): eth_getTransactionByHash, eth_getTransactionReceipt,
-// eth_getBlockByNumber, eth_blockNumber and eth_call for symbol()/decimals(). The key travels in
-// the `apikey` query parameter and is redacted before anything is stored.
-// Week 2 finding: the free plan refuses BNB Chain (56), Base (8453) and Optimism (10). Those
-// lookups come back as "error", so the engine pauses instead of claiming "not found".
+// Read-only EVM fetcher. The lookup logic is the same on every EVM chain; only the data source
+// differs (spec section 3, revised 22 Oct):
+//   Etherscan API V2 (free key):  Ethereum (1), Polygon (137), Arbitrum (42161)
+//   Official public JSON-RPC:     BNB Chain (56), Base (8453), Optimism (10)
+// Both speak the same JSON-RPC methods, by transaction hash only: eth_getTransactionByHash,
+// eth_getTransactionReceipt (Transfer events come from its logs, so no eth_getLogs),
+// eth_getBlockByNumber (block time), eth_blockNumber, and eth_call for token metadata and
+// issuer freeze checks. Etherscan's key travels in `apikey` and is redacted before storage.
 
 import { explorerTxUrl } from "../catalogue";
 import type { ChainTx, EvmChain, RawResponse, TokenTransfer } from "../types";
@@ -12,8 +14,28 @@ import { decodeAbiString, decodeAbiUint, decodeTransferCall, decodeTransferLogs,
 import { ChainApiError, type ChainClient } from "./http";
 import type { ChainLookupResult, TokenMeta } from "./types";
 
-const BASE = "https://api.etherscan.io/v2/api";
+const ETHERSCAN = "https://api.etherscan.io/v2/api";
 const NATIVE: Record<EvmChain, string> = { ethereum: "ETH", bsc: "BNB", polygon: "POL", base: "ETH", arbitrum: "ETH", optimism: "ETH" };
+
+type RpcMethod = "eth_getTransactionByHash" | "eth_getTransactionReceipt" | "eth_getBlockByNumber" | "eth_blockNumber" | "eth_call";
+interface CallOpts { ttlSec: number; ttlFor?: (r: RawResponse) => number }
+
+/** One chain's JSON-RPC answers, from wherever they come. Every raw response lands in `raws`. */
+export interface EvmSource {
+  readonly kind: "etherscan" | "public-rpc";
+  call(method: RpcMethod, params: unknown[], opts: CallOpts, raws: RawResponse[]): Promise<unknown>;
+}
+
+async function recorded(raws: RawResponse[], p: Promise<RawResponse>): Promise<RawResponse> {
+  try {
+    const r = await p;
+    raws.push(r);
+    return r;
+  } catch (e) {
+    if (e instanceof ChainApiError && e.raw) raws.push(e.raw);
+    throw e;
+  }
+}
 
 export function etherscanClassifyBody(body: string): { retryable: boolean; message: string } | undefined {
   let j: { status?: string; message?: string; result?: unknown; error?: { message?: string } };
@@ -27,48 +49,107 @@ export function etherscanClassifyBody(body: string): { retryable: boolean; messa
   return { retryable: /rate limit|max calls|too many/i.test(text), message: text };
 }
 
-const hex = (n: number) => `0x${n.toString(16)}`;
+/** Public JSON-RPC errors: rate limits are retried, anything else (e.g. a revert) is final. */
+export function jsonRpcClassifyBody(body: string): { retryable: boolean; message: string } | undefined {
+  let j: { error?: { code?: number; message?: string } };
+  try {
+    j = JSON.parse(body);
+  } catch {
+    return { retryable: false, message: "RPC returned non-JSON" };
+  }
+  if (!j.error) return undefined;
+  const message = j.error.message ?? `RPC error ${j.error.code}`;
+  return { retryable: j.error.code === -32005 || j.error.code === -32029 || /rate|limit|too many|capacity|busy/i.test(message), message };
+}
 
-export class EvmFetcher {
-  constructor(private readonly client: ChainClient, private readonly apiKey: string) {
+export class EtherscanSource implements EvmSource {
+  readonly kind = "etherscan" as const;
+
+  constructor(private readonly client: ChainClient, private readonly apiKey: string, private readonly chain: EvmChain) {
     if (!apiKey) throw new ChainApiError("ETHERSCAN_API_KEY is not set", false);
   }
 
-  private async rpc(chain: EvmChain, params: Record<string, string>, ttlSec: number, raws: RawResponse[],
-    ttlFor?: (r: RawResponse) => number) {
-    const q = new URLSearchParams({ chainid: String(EVM_CHAIN_IDS[chain]), module: "proxy", ...params, apikey: this.apiKey });
-    const r = await this.client.request({ method: "GET", url: `${BASE}?${q}` }, { chain, ttlSec, ttlFor });
-    raws.push(r);
+  /** Etherscan's proxy module takes JSON-RPC calls as query parameters. */
+  async call(method: RpcMethod, params: unknown[], opts: CallOpts, raws: RawResponse[]) {
+    const p: Record<string, string> = { action: method };
+    if (method === "eth_getTransactionByHash" || method === "eth_getTransactionReceipt") p.txhash = String(params[0]);
+    if (method === "eth_getBlockByNumber") Object.assign(p, { tag: String(params[0]), boolean: String(params[1]) });
+    if (method === "eth_call") {
+      const c = params[0] as { to: string; data: string };
+      Object.assign(p, { to: c.to, data: c.data, tag: String(params[1] ?? "latest") });
+    }
+    const q = new URLSearchParams({ chainid: String(EVM_CHAIN_IDS[this.chain]), module: "proxy", ...p, apikey: this.apiKey });
+    const r = await recorded(raws, this.client.request({ method: "GET", url: `${ETHERSCAN}?${q}` }, { chain: this.chain, ...opts }));
     return JSON.parse(r.body).result;
+  }
+
+  /** ERC-20 transfers out of `address` before `beforeBlock` (Etherscan account module; D07b history). */
+  async tokenTransfersFrom(address: string, beforeBlock: number, raws: RawResponse[]) {
+    const q = new URLSearchParams({ chainid: String(EVM_CHAIN_IDS[this.chain]), module: "account", action: "tokentx",
+      address, startblock: "0", endblock: String(beforeBlock - 1), page: "1", offset: "100", sort: "desc", apikey: this.apiKey });
+    const r = await recorded(raws, this.client.request({ method: "GET", url: `${ETHERSCAN}?${q}` }, { chain: this.chain, ttlSec: Infinity }));
+    const j = JSON.parse(r.body);
+    return (Array.isArray(j.result) ? j.result : []) as {
+      hash: string; from: string; to: string; value: string; tokenSymbol: string; tokenDecimal: string; timeStamp: string;
+    }[];
+  }
+}
+
+export class JsonRpcSource implements EvmSource {
+  readonly kind = "public-rpc" as const;
+
+  constructor(private readonly client: ChainClient, private readonly url: string, private readonly chain: EvmChain) {}
+
+  async call(method: RpcMethod, params: unknown[], opts: CallOpts, raws: RawResponse[]) {
+    // A fixed id keeps identical requests identical, so they cache and replay.
+    const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method, params });
+    const r = await recorded(raws, this.client.request(
+      { method: "POST", url: this.url, body, headers: { "content-type": "application/json" } }, { chain: this.chain, ...opts }));
+    return JSON.parse(r.body).result;
+  }
+}
+
+const hex = (n: number) => `0x${n.toString(16)}`;
+
+export class EvmFetcher {
+  constructor(private readonly sources: Partial<Record<EvmChain, EvmSource>>) {}
+
+  source(chain: EvmChain): EvmSource | undefined {
+    return this.sources[chain];
   }
 
   async lookup(chain: EvmChain, hash: string, raws: RawResponse[]): Promise<ChainLookupResult> {
     const txhash = `0x${hash.replace(/^0x/i, "").toLowerCase()}`;
     const sourceUrl = explorerTxUrl(chain, txhash);
-    const fetchedAt = () => raws[raws.length - 1]?.fetchedAt ?? new Date().toISOString();
+    const src = this.sources[chain];
+    if (!src) {
+      return { lookup: { chain, result: "error", error: "No data source configured", fetchedAt: new Date().toISOString(), sourceUrl, rawBody: "" } };
+    }
     let tx: Record<string, string> | null;
     try {
-      tx = await this.rpc(chain, { action: "eth_getTransactionByHash", txhash }, 30, raws,
-        (r) => (JSON.parse(r.body).result?.blockNumber ? Infinity : 15));
+      tx = (await src.call("eth_getTransactionByHash", [txhash], { ttlSec: 30,
+        ttlFor: (r) => (JSON.parse(r.body).result?.blockNumber ? Infinity : 15) }, raws)) as Record<string, string> | null;
     } catch (e) {
       const err = e instanceof ChainApiError ? e : undefined;
-      if (err?.raw) raws.push(err.raw);
       return { lookup: { chain, result: "error", error: err?.message ?? "lookup failed",
         fetchedAt: err?.raw?.fetchedAt ?? new Date().toISOString(), sourceUrl, rawBody: err?.raw?.body ?? "" } };
     }
-    const base = { chain, fetchedAt: fetchedAt(), sourceUrl, rawBody: raws[raws.length - 1].body };
+    const first = raws[raws.length - 1];
+    const base = { chain, fetchedAt: first.fetchedAt, sourceUrl, rawBody: first.body };
     if (!tx) return { lookup: { ...base, result: "not_found" } };
     if (!tx.blockNumber) return { lookup: { ...base, result: "pending" } };
 
-    const receipt = await this.rpc(chain, { action: "eth_getTransactionReceipt", txhash }, Infinity, raws);
+    const receipt = (await src.call("eth_getTransactionReceipt", [txhash], { ttlSec: Infinity }, raws)) as Record<string, unknown> & {
+      status?: string; gasUsed?: string; effectiveGasPrice?: string; logs?: { address: string; topics: string[]; data: string; logIndex: string }[];
+    };
     const blockNumber = Number(BigInt(tx.blockNumber));
-    const block = await this.rpc(chain, { action: "eth_getBlockByNumber", tag: hex(blockNumber), boolean: "false" }, Infinity, raws);
-    const head = await this.rpc(chain, { action: "eth_blockNumber" }, 5, raws);
+    const block = (await src.call("eth_getBlockByNumber", [hex(blockNumber), false], { ttlSec: Infinity }, raws)) as { timestamp: string };
+    const head = (await src.call("eth_blockNumber", [], { ttlSec: 5 }, raws)) as string | undefined;
 
     const failed = receipt?.status !== "0x1";
     const fee = (hexToBigInt(receipt?.gasUsed ?? "0") ?? 0n) * (hexToBigInt(receipt?.effectiveGasPrice ?? tx.gasPrice ?? "0") ?? 0n);
     const transfers: TokenTransfer[] = [];
-    const logs = (receipt?.logs ?? []).map((l: { address: string; topics: string[]; data: string; logIndex: string }) =>
+    const logs = (receipt?.logs ?? []).map((l) =>
       ({ address: l.address, topics: l.topics ?? [], data: l.data ?? "", index: Number(BigInt(l.logIndex)) }));
     for (const t of decodeTransferLogs(logs)) {
       transfers.push(await this.transfer(chain, `0x${t.contractHex}`, t.index, `0x${t.fromHex}`, `0x${t.toHex}`, t.value, raws));
@@ -94,6 +175,18 @@ export class EvmFetcher {
     return { lookup: { ...base, result: "found" }, tx: chainTx, currentBlock: Number.isFinite(current) ? current : undefined };
   }
 
+  /** Read-only eth_call at the latest block; undefined on any error (a revert means "no such function"). */
+  async ethCall(chain: EvmChain, to: string, data: string, ttlSec: number, raws: RawResponse[]): Promise<string | undefined> {
+    const src = this.sources[chain];
+    if (!src) return undefined;
+    try {
+      const r = (await src.call("eth_call", [{ to, data }, "latest"], { ttlSec }, raws)) as string | undefined;
+      return r && r !== "0x" ? r : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   private async transfer(chain: EvmChain, contract: string, index: number, from: string, to: string,
     value: bigint | undefined, raws: RawResponse[]): Promise<TokenTransfer> {
     const m = await this.tokenMeta(chain, contract, raws);
@@ -108,15 +201,8 @@ export class EvmFetcher {
   }
 
   private async tokenMeta(chain: EvmChain, contract: string, raws: RawResponse[]): Promise<TokenMeta> {
-    const call = async (data: string) => {
-      try {
-        return (await this.rpc(chain, { action: "eth_call", to: contract, data, tag: "latest" }, Infinity, raws)) as string | undefined;
-      } catch {
-        return undefined;
-      }
-    };
-    const sym = await call("0x95d89b41"); // symbol()
-    const dec = await call("0x313ce567"); // decimals()
+    const sym = await this.ethCall(chain, contract, "0x95d89b41", Infinity, raws); // symbol()
+    const dec = await this.ethCall(chain, contract, "0x313ce567", Infinity, raws); // decimals()
     return { symbol: sym ? decodeAbiString(sym) : undefined, decimals: dec ? decodeAbiUint(dec) : undefined };
   }
 }

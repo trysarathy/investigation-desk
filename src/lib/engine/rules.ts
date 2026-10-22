@@ -29,7 +29,8 @@ const miss = (code: Code, reason: string): RuleResult =>
 function creditable(ctx: Ctx): boolean {
   return !!(ctx.tx?.status === "success" && ctx.depositChain && ctx.addrStatus === "this_customer" &&
     ctx.amountKnown && ctx.confirmations !== undefined && ctx.threshold !== undefined &&
-    ctx.tokenAccepted && !ctx.impersonation && !ctx.belowMinimum && ctx.freezeHits.length === 0);
+    ctx.tokenAccepted && !ctx.impersonation && !ctx.belowMinimum && ctx.freezeHits.length === 0 &&
+    ctx.facts.freezeStatus !== "failed");
 }
 
 /** Why a fact the confirmation rules need is missing, or undefined when all are known. */
@@ -37,6 +38,7 @@ function missingFact(ctx: Ctx): string | undefined {
   if (!ctx.tx || ctx.tx.status !== "success" || !ctx.depositChain) return undefined;
   if (ctx.confirmations === undefined || ctx.threshold === undefined) return "Current block height unknown, so confirmations are unknown.";
   if (!ctx.amountKnown) return "Amount from chain data is not a plain decimal, so it is unknown.";
+  if (ctx.facts.freezeStatus === "failed") return "Issuer freeze call failed, so freeze status is unknown.";
   return undefined;
 }
 
@@ -105,6 +107,11 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
 
   D07b: (ctx) => {
     if (!ctx.lookalike) return miss("D07b", "Destination does not resemble the customer's address.");
+    const hs = ctx.facts.senderHistoryStatus;
+    if (!ctx.lookalike.prior && hs === "not_supported") {
+      return miss("D07b", "Sender history isn't available on this chain (public RPC), so D07b is off here.");
+    }
+    if (!ctx.lookalike.prior && hs === "failed") return miss("D07b", "Sender history lookup failed, so the pattern is unknown.");
     if (!ctx.lookalike.prior) return miss("D07b", "No earlier zero-value or dust transfer from the look-alike address.");
     return hit("D07b", "Medium", [EV.address, EV.history],
       "First 4 and last 4 characters match the customer's address, after a dust transfer from it.");
@@ -128,6 +135,8 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
   },
 
   D09: (ctx) => {
+    if (ctx.facts.freezeStatus === "not_supported") return miss("D09", "No confirmed issuer contract to ask on this chain and token.");
+    if (ctx.facts.freezeStatus === "failed") return miss("D09", "Issuer freeze call failed, so freeze status is unknown.");
     if (ctx.facts.freezes.length === 0) return miss("D09", "No freeze calls made.");
     if (ctx.freezeHits.length === 0) return miss("D09", "Issuer freeze calls returned false.");
     return hit("D09", "High", [EV.freeze], `${ctx.freezeHits.map((h) => h.role).join(" and ")} frozen by the issuer.`);

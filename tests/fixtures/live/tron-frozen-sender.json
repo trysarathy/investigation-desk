@@ -1,0 +1,172 @@
+{
+ "name": "tron-frozen-sender",
+ "hash": "056fbff6c4d78bd1f3f36ecd685f71f383efd6d23b176cecfaaa0fe47686c797",
+ "explorer": "https://tronscan.org/#/transaction/056fbff6c4d78bd1f3f36ecd685f71f383efd6d23b176cecfaaa0fe47686c797",
+ "recordedAt": "2026-10-22T05:38:51.029Z",
+ "exchanges": [
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://mainnet.base.org/",
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_getTransactionByHash\",\"params\":[\"0x056fbff6c4d78bd1f3f36ecd685f71f383efd6d23b176cecfaaa0fe47686c797\"]}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://bsc-dataseed.bnbchain.org/",
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_getTransactionByHash\",\"params\":[\"0x056fbff6c4d78bd1f3f36ecd685f71f383efd6d23b176cecfaaa0fe47686c797\"]}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}"
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://api.etherscan.io/v2/api?chainid=1&module=proxy&action=eth_getTransactionByHash&txhash=0x056fbff6c4d78bd1f3f36ecd685f71f383efd6d23b176cecfaaa0fe47686c797&apikey=REDACTED"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"status\":\"0\",\"message\":\"NOTOK\",\"result\":\"Max calls per sec rate limit reached (3/sec)\"}"
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://api.etherscan.io/v2/api?chainid=137&module=proxy&action=eth_getTransactionByHash&txhash=0x056fbff6c4d78bd1f3f36ecd685f71f383efd6d23b176cecfaaa0fe47686c797&apikey=REDACTED"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://mainnet.optimism.io/",
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_getTransactionByHash\",\"params\":[\"0x056fbff6c4d78bd1f3f36ecd685f71f383efd6d23b176cecfaaa0fe47686c797\"]}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"result\":null,\"id\":1}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.trongrid.io/wallet/gettransactionbyid",
+    "body": "{\"value\":\"056fbff6c4d78bd1f3f36ecd685f71f383efd6d23b176cecfaaa0fe47686c797\"}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"raw_data\":{\"ref_block_bytes\":\"32b7\",\"ref_block_hash\":\"9a38fd6f2afcba64\",\"expiration\":1792594797474,\"contract\":[{\"parameter\":{\"value\":{\"owner_address\":\"4170ff4dbb4669895c8c5e638e7ea70a82b71a3103\",\"contract_address\":\"41a614f803b6fd780986a42c78ec9c7f77e6ded13c\",\"data\":\"a9059cbb0000000000000000000000412b4eeee4773663323da3b46838932a88cc024d7c00000000000000000000000000000000000000000000000000000000270a81c0\"},\"type_url\":\"type.googleapis.com/protocol.TriggerSmartContract\"},\"type\":\"TriggerSmartContract\"}],\"timestamp\":1792593897474,\"fee_limit\":100000000},\"signature\":[\"030f9cab90c2afee14a27f8906991037d8bfd1a47b4807b27946e47bf41781bb49fdb0cbec506a28fa0ad81334a69c2fa5b633cc75f261d4724fa666210934ec00\"],\"ret\":[{\"contractRet\":\"SUCCESS\"}],\"raw_data_hex\":\"0a0232b722089a38fd6f2afcba6440a2c7e7f795345aae01081f12a9010a31747970652e676f6f676c65617069732e636f6d2f70726f746f636f6c2e54726967676572536d617274436f6e747261637412740a154170ff4dbb4669895c8c5e638e7ea70a82b71a3103121541a614f803b6fd780986a42c78ec9c7f77e6ded13c2244a9059cbb0000000000000000000000412b4eeee4773663323da3b46838932a88cc024d7c00000000000000000000000000000000000000000000000000000000270a81c07082d0b0f79534900180c2d72f\",\"txID\":\"056fbff6c4d78bd1f3f36ecd685f71f383efd6d23b176cecfaaa0fe47686c797\"}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.trongrid.io/wallet/gettransactioninfobyid",
+    "body": "{\"value\":\"056fbff6c4d78bd1f3f36ecd685f71f383efd6d23b176cecfaaa0fe47686c797\"}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"id\": \"056fbff6c4d78bd1f3f36ecd685f71f383efd6d23b176cecfaaa0fe47686c797\",\"fee\": 345000,\"blockNumber\": 87306944,\"blockTimeStamp\": 1792593918000,\"contractResult\": [\"0000000000000000000000000000000000000000000000000000000000000000\"],\"contract_address\": \"41a614f803b6fd780986a42c78ec9c7f77e6ded13c\",\"receipt\": {\"energy_usage\": 64285,\"energy_usage_total\": 64285,\"net_fee\": 345000,\"result\": \"SUCCESS\",\"energy_penalty_total\": 49635},\"log\": [{\"address\": \"a614f803b6fd780986a42c78ec9c7f77e6ded13c\",\"topics\": [\"ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef\",\"00000000000000000000000070ff4dbb4669895c8c5e638e7ea70a82b71a3103\",\"0000000000000000000000002b4eeee4773663323da3b46838932a88cc024d7c\"],\"data\": \"00000000000000000000000000000000000000000000000000000000270a81c0\"}]}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://api.etherscan.io/v2/api?chainid=42161&module=proxy&action=eth_getTransactionByHash&txhash=0x056fbff6c4d78bd1f3f36ecd685f71f383efd6d23b176cecfaaa0fe47686c797&apikey=REDACTED"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://api.etherscan.io/v2/api?chainid=1&module=proxy&action=eth_getTransactionByHash&txhash=0x056fbff6c4d78bd1f3f36ecd685f71f383efd6d23b176cecfaaa0fe47686c797&apikey=REDACTED"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.trongrid.io/wallet/getblock",
+    "body": "{\"detail\":false}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"blockID\":\"000000000534788b9ac829a817389b37d35ad16a512f68e55facbdb113c497f0\",\"block_header\":{\"raw_data\":{\"timestamp\":1792647531000,\"txTrieRoot\":\"481a725bef11fd573b2f9c1d96f4c12643544e8bc0c108f18222c4b6cb7b2424\",\"parentHash\":\"000000000534788a2f8ab0e010235c45ad5627aefad00d385fd59145524092f6\",\"number\":87324811,\"witness_address\":\"414cdd560ded17f30e2c2d5422669cc86a14c8c3ba\",\"version\":38},\"witness_signature\":\"bccd957b7d83f5b4ebfa1b6a0bcc596377e2e637e9d7f9f353566e72893fafd907544f055b3f7968a66c4c050457216b718de3217bea624f83067c980a410ee000\"}}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.trongrid.io/wallet/triggerconstantcontract",
+    "body": "{\"owner_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"contract_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"function_selector\":\"symbol()\",\"visible\":true}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"transaction\":{\"raw_data\":{\"ref_block_bytes\":\"7879\",\"ref_block_hash\":\"d07897b210d0e7fc\",\"expiration\":1792647591000,\"contract\":[{\"parameter\":{\"value\":{\"owner_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"contract_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"data\":\"95d89b41\"},\"type_url\":\"type.googleapis.com/protocol.TriggerSmartContract\"},\"type\":\"TriggerSmartContract\"}],\"timestamp\":1792647532624},\"ret\":[{}],\"raw_data_hex\":\"0a0278792208d07897b210d0e7fc40d8e8fd9096345a6d081f12690a31747970652e676f6f676c65617069732e636f6d2f70726f746f636f6c2e54726967676572536d617274436f6e747261637412340a1541a614f803b6fd780986a42c78ec9c7f77e6ded13c121541a614f803b6fd780986a42c78ec9c7f77e6ded13c220495d89b4170d0a0fa909634\",\"txID\":\"71f2bd4d806ebc862f5986398ea3db6abd4ffa96fb7825e0850f21d2421d96d0\",\"visible\":true},\"constant_result\":[\"000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000045553445400000000000000000000000000000000000000000000000000000000\"],\"result\":{\"result\":true},\"energy_used\":5922,\"energy_penalty\":4558}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.trongrid.io/wallet/triggerconstantcontract",
+    "body": "{\"owner_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"contract_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"function_selector\":\"decimals()\",\"visible\":true}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"transaction\":{\"raw_data\":{\"ref_block_bytes\":\"7879\",\"ref_block_hash\":\"d07897b210d0e7fc\",\"expiration\":1792647591000,\"contract\":[{\"parameter\":{\"value\":{\"owner_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"contract_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"data\":\"313ce567\"},\"type_url\":\"type.googleapis.com/protocol.TriggerSmartContract\"},\"type\":\"TriggerSmartContract\"}],\"timestamp\":1792647532759},\"ret\":[{}],\"raw_data_hex\":\"0a0278792208d07897b210d0e7fc40d8e8fd9096345a6d081f12690a31747970652e676f6f676c65617069732e636f6d2f70726f746f636f6c2e54726967676572536d617274436f6e747261637412340a1541a614f803b6fd780986a42c78ec9c7f77e6ded13c121541a614f803b6fd780986a42c78ec9c7f77e6ded13c2204313ce56770d7a1fa909634\",\"txID\":\"bb7a325ae9db51f0026eae2a8b16543e4ed13af5aff2d7f23cb1d930e1328ef7\",\"visible\":true},\"constant_result\":[\"0000000000000000000000000000000000000000000000000000000000000006\"],\"result\":{\"result\":true},\"energy_used\":2207,\"energy_penalty\":1699}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.trongrid.io/wallet/triggerconstantcontract",
+    "body": "{\"owner_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"contract_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"function_selector\":\"isBlackListed(address)\",\"parameter\":\"00000000000000000000000070ff4dbb4669895c8c5e638e7ea70a82b71a3103\",\"visible\":true}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"transaction\":{\"raw_data\":{\"ref_block_bytes\":\"7879\",\"ref_block_hash\":\"d07897b210d0e7fc\",\"expiration\":1792647591000,\"contract\":[{\"parameter\":{\"value\":{\"owner_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"contract_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"data\":\"e47d606000000000000000000000000070ff4dbb4669895c8c5e638e7ea70a82b71a3103\"},\"type_url\":\"type.googleapis.com/protocol.TriggerSmartContract\"},\"type\":\"TriggerSmartContract\"}],\"timestamp\":1792647532888},\"ret\":[{}],\"raw_data_hex\":\"0a0278792208d07897b210d0e7fc40d8e8fd9096345a8e01081f1289010a31747970652e676f6f676c65617069732e636f6d2f70726f746f636f6c2e54726967676572536d617274436f6e747261637412540a1541a614f803b6fd780986a42c78ec9c7f77e6ded13c121541a614f803b6fd780986a42c78ec9c7f77e6ded13c2224e47d606000000000000000000000000070ff4dbb4669895c8c5e638e7ea70a82b71a310370d8a2fa909634\",\"txID\":\"04f8c8f98df0eee8ddcce0125b5dc612c14dea8ea0532f62855358e7335bb8ff\",\"visible\":true},\"constant_result\":[\"0000000000000000000000000000000000000000000000000000000000000001\"],\"result\":{\"result\":true},\"energy_used\":4658,\"energy_penalty\":3587}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.trongrid.io/wallet/triggerconstantcontract",
+    "body": "{\"owner_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"contract_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"function_selector\":\"isBlackListed(address)\",\"parameter\":\"0000000000000000000000002b4eeee4773663323da3b46838932a88cc024d7c\",\"visible\":true}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"transaction\":{\"raw_data\":{\"ref_block_bytes\":\"7879\",\"ref_block_hash\":\"d07897b210d0e7fc\",\"expiration\":1792647591000,\"contract\":[{\"parameter\":{\"value\":{\"owner_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"contract_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"data\":\"e47d60600000000000000000000000002b4eeee4773663323da3b46838932a88cc024d7c\"},\"type_url\":\"type.googleapis.com/protocol.TriggerSmartContract\"},\"type\":\"TriggerSmartContract\"}],\"timestamp\":1792647533043},\"ret\":[{}],\"raw_data_hex\":\"0a0278792208d07897b210d0e7fc40d8e8fd9096345a8e01081f1289010a31747970652e676f6f676c65617069732e636f6d2f70726f746f636f6c2e54726967676572536d617274436f6e747261637412540a1541a614f803b6fd780986a42c78ec9c7f77e6ded13c121541a614f803b6fd780986a42c78ec9c7f77e6ded13c2224e47d60600000000000000000000000002b4eeee4773663323da3b46838932a88cc024d7c70f3a3fa909634\",\"txID\":\"3d54f9747d30d995cdfe8f7f86caaaf35631671e17a83af4bea2c46601452d98\",\"visible\":true},\"constant_result\":[\"0000000000000000000000000000000000000000000000000000000000000000\"],\"result\":{\"result\":true},\"energy_used\":4658,\"energy_penalty\":3587}\n"
+   }
+  }
+ ]
+}

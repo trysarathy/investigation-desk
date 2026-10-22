@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { decodeAbiString, decodeAbiUint, decodeTransferCall, decodeTransferLogs, formatUnits, TRANSFER_TOPIC } from "@/lib/chain/abi";
-import { etherscanClassifyBody, EvmFetcher } from "@/lib/chain/evm";
+import { keccak_256 } from "@noble/hashes/sha3";
+import { bytesToHex } from "@noble/hashes/utils";
+import { EtherscanSource, etherscanClassifyBody, EvmFetcher, JsonRpcSource, jsonRpcClassifyBody } from "@/lib/chain/evm";
+import { FREEZE_SELECTOR } from "@/lib/chain/investigate";
+import { investigate } from "@/lib/engine/run";
+import { SAMPLE_SETTINGS } from "@/lib/fixtures";
+import { lookAlike, tronAddress } from "@/lib/fixtures/gen";
+import type { ChainTx, Facts } from "@/lib/types";
 import { ChainApiError, ChainClient, sha256Hex, type HttpRequest, type HttpResponse } from "@/lib/chain/http";
 import { fetchFacts } from "@/lib/chain/investigate";
 import { MemoryStore } from "@/lib/chain/store";
@@ -130,20 +137,20 @@ describe("fetchers", () => {
   it("refuse to start without a key from the environment", () => {
     const { c } = client([]);
     expect(() => new TronFetcher(c, "")).toThrow(/TRONGRID_API_KEY/);
-    expect(() => new EvmFetcher(c, "")).toThrow(/ETHERSCAN_API_KEY/);
+    expect(() => new EtherscanSource(c, "", "ethereum")).toThrow(/ETHERSCAN_API_KEY/);
   });
 
   it("a chain that fails mid-lookup becomes an error lookup, so the case pauses", async () => {
     const tron = { lookup: vi.fn().mockRejectedValue(new ChainApiError("trongrid HTTP 403", true, 403)) } as unknown as TronFetcher;
     const evm = { lookup: vi.fn().mockResolvedValue({ lookup: { chain: "ethereum", result: "not_found", fetchedAt: "", sourceUrl: "", rawBody: "" } }) } as unknown as EvmFetcher;
-    const facts = await fetchFacts("ab".repeat(32), { depositAddresses: [], ledger: [], ledgerUploadedAt: "" }, { tron, evm });
+    const facts = await fetchFacts("ab".repeat(32), { depositAddresses: [], ledger: [], ledgerUploadedAt: "" }, { tron, evm }, SAMPLE_SETTINGS);
     expect(facts.lookups.find((l) => l.chain === "tron")).toMatchObject({ result: "error", error: "trongrid HTTP 403" });
   });
 
-  it("only hashes are looked up live in week 2", async () => {
+  it("only hashes are looked up live", async () => {
     const tron = { lookup: vi.fn() } as unknown as TronFetcher;
     const evm = { lookup: vi.fn() } as unknown as EvmFetcher;
-    const facts = await fetchFacts("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t", { depositAddresses: [], ledger: [], ledgerUploadedAt: "" }, { tron, evm });
+    const facts = await fetchFacts("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t", { depositAddresses: [], ledger: [], ledgerUploadedAt: "" }, { tron, evm }, SAMPLE_SETTINGS);
     expect(facts.lookups).toEqual([]);
     expect(tron.lookup).not.toHaveBeenCalled();
   });
@@ -175,5 +182,136 @@ describe("ABI decoding", () => {
 
   it("ignores logs that are not Transfer events", () => {
     expect(decodeTransferLogs([{ address: "aa", index: 0, topics: ["0x1234"], data: "0x" }])).toEqual([]);
+  });
+});
+
+// ---- Week 3 ----
+
+const sel = (sig: string) => `0x${bytesToHex(keccak_256(new TextEncoder().encode(sig))).slice(0, 8)}`;
+
+describe("selectors are computed, not recalled", () => {
+  it("freeze calls match keccak256 of their signatures", () => {
+    expect(FREEZE_SELECTOR.USDT).toEqual({ fn: "isBlackListed", selector: sel("isBlackListed(address)") });
+    expect(FREEZE_SELECTOR.USDC).toEqual({ fn: "isBlacklisted", selector: sel("isBlacklisted(address)") });
+  });
+
+  it("Transfer topic, transfer(), symbol() and decimals() match too", () => {
+    expect(TRANSFER_TOPIC).toBe(bytesToHex(keccak_256(new TextEncoder().encode("Transfer(address,address,uint256)"))));
+    expect(sel("transfer(address,uint256)")).toBe("0xa9059cbb");
+    expect(sel("symbol()")).toBe("0x95d89b41");
+    expect(sel("decimals()")).toBe("0x313ce567");
+  });
+});
+
+describe("public JSON-RPC", () => {
+  it("retries rate limits and treats a revert as final", () => {
+    expect(jsonRpcClassifyBody('{"jsonrpc":"2.0","id":1,"error":{"code":-32005,"message":"limit exceeded"}}')?.retryable).toBe(true);
+    expect(jsonRpcClassifyBody('{"jsonrpc":"2.0","id":1,"error":{"code":3,"message":"execution reverted"}}')).toEqual({ retryable: false, message: "execution reverted" });
+    expect(jsonRpcClassifyBody('{"jsonrpc":"2.0","id":1,"result":"0x1"}')).toBeUndefined();
+  });
+
+  it("sends a POST with a fixed id, so identical calls cache and replay", async () => {
+    const { c, calls } = client([ok('{"jsonrpc":"2.0","id":1,"result":"0x10"}')], { classifyBody: jsonRpcClassifyBody });
+    const src = new JsonRpcSource(c, "https://bsc-dataseed.bnbchain.org", "bsc");
+    expect(await src.call("eth_blockNumber", [], { ttlSec: 0 }, [])).toBe("0x10");
+    expect(calls[0]).toMatchObject({ method: "POST", url: "https://bsc-dataseed.bnbchain.org" });
+    expect(JSON.parse(calls[0].body!)).toEqual({ jsonrpc: "2.0", id: 1, method: "eth_blockNumber", params: [] });
+  });
+
+  it("a reverted eth_call (no such function) reads as unknown, not as a crash", async () => {
+    const { c } = client([ok('{"jsonrpc":"2.0","id":1,"error":{"code":3,"message":"execution reverted"}}')], { classifyBody: jsonRpcClassifyBody });
+    const evm = new EvmFetcher({ bsc: new JsonRpcSource(c, "https://bsc-dataseed.bnbchain.org", "bsc") });
+    const raws: Parameters<typeof evm.ethCall>[4] = [];
+    expect(await evm.ethCall("bsc", "0x55d398326f99059ff775485246999027b3197955", "0xe47d6060", 60, raws)).toBeUndefined();
+    expect(raws).toHaveLength(1);
+  });
+});
+
+// D07b live history and freeze-failure paths, with stubbed fetchers.
+describe("D07b sender history and freeze status from live facts", () => {
+  const customerAddr = tronAddress("victim");
+  const poison = lookAlike(customerAddr, "poisoner");
+  const sender = tronAddress("victim-wallet");
+  const usdtTron = SAMPLE_SETTINGS.officialContracts.tron!.USDT!;
+  const workspace = {
+    customerId: "C-9",
+    depositAddresses: [{ row: 2, address: customerAddr, chain: "tron" as const, customerId: "C-9", assignedAt: "2024-01-01T00:00:00Z" }],
+    ledger: [], ledgerUploadedAt: "2026-10-22T00:00:00Z",
+  };
+  const tx = (chain: ChainTx["chain"], to: string, from = sender, contract = usdtTron): ChainTx => ({
+    chain, hash: "ab".repeat(32), status: "success", blockNumber: 100, blockTime: "2026-10-20T00:00:00Z", isBatch: false,
+    transfers: [{ logIndex: 0, tokenContract: contract, tokenSymbol: "USDT", from, to, amount: "5000.000000" }],
+  });
+  const notFound = (chain: string) => ({ lookup: { chain, result: "not_found", fetchedAt: "", sourceUrl: "", rawBody: "" } });
+
+  function deps(found: ChainTx, opts: { history?: unknown[] | Error; frozen?: boolean | undefined } = {}) {
+    const tron = {
+      lookup: vi.fn().mockResolvedValue(found.chain === "tron"
+        ? { lookup: { chain: "tron", result: "found", fetchedAt: "", sourceUrl: "", rawBody: "" }, tx: found, currentBlock: 200 }
+        : notFound("tron")),
+      isBlackListed: vi.fn().mockResolvedValue("frozen" in opts ? opts.frozen : false),
+      trc20From: opts.history instanceof Error ? vi.fn().mockRejectedValue(opts.history) : vi.fn().mockResolvedValue(opts.history ?? []),
+    } as unknown as TronFetcher;
+    const evm = {
+      lookup: vi.fn().mockImplementation(async (chain: string) => (chain === found.chain
+        ? { lookup: { chain, result: "found", fetchedAt: "", sourceUrl: "", rawBody: "" }, tx: found, currentBlock: 200 }
+        : notFound(chain))),
+      ethCall: vi.fn().mockResolvedValue(undefined),
+      source: vi.fn().mockReturnValue(undefined),
+    } as unknown as EvmFetcher;
+    return { tron, evm };
+  }
+
+  const dust = { transaction_id: "cd".repeat(32), from: poison, to: sender, value: "0", block_timestamp: Date.parse("2026-10-19T00:00:00Z"),
+    token_info: { symbol: "USDT", decimals: 6 } };
+
+  it("on Tron, a dust transfer from the look-alike gives D07 with a D07b finding", async () => {
+    const d = deps(tx("tron", poison), { history: [dust] });
+    const facts = await fetchFacts("ab".repeat(32), workspace, d, SAMPLE_SETTINGS);
+    expect(facts.senderHistoryStatus).toBe("checked");
+    expect(d.tron.trc20From).toHaveBeenCalledWith(poison, Date.parse("2026-10-20T00:00:00Z"), expect.any(Array));
+    const v = investigate(facts, SAMPLE_SETTINGS);
+    expect(v.code).toBe("D07");
+    expect(v.findings.map((f) => f.code)).toEqual(["D07b"]);
+  });
+
+  it("history is only fetched when the look-alike pattern could match", async () => {
+    const d = deps(tx("tron", tronAddress("stranger")), { history: [dust] });
+    await fetchFacts("ab".repeat(32), workspace, d, SAMPLE_SETTINGS);
+    expect(d.tron.trc20From).not.toHaveBeenCalled();
+  });
+
+  it("on a public-RPC chain D07b is off and says so", async () => {
+    const evmCustomer = "0x1111aaaabbbbccccddddeeeeffff000011112222";
+    const evmPoison = lookAlike(evmCustomer, "p");
+    const ws = { ...workspace, depositAddresses: [{ ...workspace.depositAddresses[0], address: evmCustomer, chain: "bsc" as const }] };
+    const d = deps(tx("bsc", evmPoison, "0x" + "9".repeat(40), "0x" + "5".repeat(40)));
+    const facts = await fetchFacts("ab".repeat(32), ws, d, SAMPLE_SETTINGS);
+    expect(facts.senderHistoryStatus).toBe("not_supported");
+    const v = investigate(facts, SAMPLE_SETTINGS);
+    expect(v.code).toBe("D07");
+    expect(v.checks.find((c) => c.code === "D07b")!.reason).toMatch(/public RPC/);
+  });
+
+  it("a failed history lookup is unknown, never 'no dust found'", async () => {
+    const d = deps(tx("tron", poison), { history: new Error("503") });
+    const facts = await fetchFacts("ab".repeat(32), workspace, d, SAMPLE_SETTINGS);
+    expect(facts.senderHistoryStatus).toBe("failed");
+    expect(investigate(facts, SAMPLE_SETTINGS).checks.find((c) => c.code === "D07b")!.reason).toMatch(/failed/);
+  });
+
+  it("a failed freeze call never lets D12 through", async () => {
+    const d = deps(tx("tron", customerAddr), { frozen: undefined });
+    const facts: Facts = await fetchFacts("ab".repeat(32), workspace, d, SAMPLE_SETTINGS);
+    expect(facts.freezeStatus).toBe("failed");
+    const v = investigate(facts, SAMPLE_SETTINGS);
+    expect(v.code).not.toBe("D12");
+    expect(v.checks.find((c) => c.code === "D12")!.reason).toMatch(/freeze/i);
+  });
+
+  it("a successful freeze check with no hits allows D12", async () => {
+    const d = deps(tx("tron", customerAddr), { frozen: false });
+    const v = investigate(await fetchFacts("ab".repeat(32), workspace, d, SAMPLE_SETTINGS), SAMPLE_SETTINGS);
+    expect(v.code).toBe("D12");
   });
 });

@@ -5,7 +5,7 @@
 //   /wallet/triggerconstantcontract  token symbol() and decimals(), read-only
 // The API key goes in the TRON-PRO-API-KEY header and is never stored.
 
-import { tronHexToBase58 } from "../address";
+import { tronHexToBase58, tronToHex } from "../address";
 import { explorerTxUrl } from "../catalogue";
 import type { ChainTx, RawResponse, TokenTransfer } from "../types";
 import { decodeAbiString, decodeAbiUint, decodeTransferCall, decodeTransferLogs, formatUnits } from "./abi";
@@ -110,6 +110,39 @@ export class TronFetcher {
       // Unknown decimals or value leave the amount unknown (""), never guessed.
       amount: value !== undefined && m.decimals !== undefined ? formatUnits(value, m.decimals) : "",
     };
+  }
+
+  /** USDT's isBlackListed(address) on Tron, read-only. Undefined if the call fails. */
+  async isBlackListed(contract: string, address: string, raws: RawResponse[]): Promise<boolean | undefined> {
+    try {
+      const r = await this.post("/wallet/triggerconstantcontract", {
+        owner_address: contract, contract_address: contract, function_selector: "isBlackListed(address)",
+        parameter: tronToHex(address).slice(2).padStart(64, "0"), visible: true,
+      }, 60);
+      raws.push(r);
+      const out = JSON.parse(r.body)?.constant_result?.[0] as string | undefined;
+      return out && /^[0-9a-f]{64}$/i.test(out) ? BigInt(`0x${out}`) !== 0n : undefined;
+    } catch (e) {
+      if (e instanceof ChainApiError && e.raw) raws.push(e.raw);
+      return undefined;
+    }
+  }
+
+  /** TRC-20 transfers sent by `address` before `beforeMs` (TronGrid V1; D07b sender history). */
+  async trc20From(address: string, beforeMs: number, raws: RawResponse[]) {
+    const q = new URLSearchParams({ only_from: "true", max_timestamp: String(beforeMs - 1), limit: "50" });
+    const r = await this.client.request(
+      { method: "GET", url: `${BASE}/v1/accounts/${address}/transactions/trc20?${q}`, headers: { "TRON-PRO-API-KEY": this.apiKey } },
+      { chain: "tron", ttlSec: Infinity },
+    ).catch((e) => {
+      if (e instanceof ChainApiError && e.raw) raws.push(e.raw);
+      throw e;
+    });
+    raws.push(r);
+    return (JSON.parse(r.body)?.data ?? []) as {
+      transaction_id: string; from: string; to: string; value: string; block_timestamp: number;
+      token_info?: { symbol?: string; decimals?: number };
+    }[];
   }
 
   /** symbol() and decimals(), cached forever by the client. A failed call leaves them unknown. */

@@ -176,7 +176,17 @@ export function buildEvidence(ctx: Ctx): Evidence[] {
     }
   }
 
-  if (facts.freezes.length > 0) {
+  if (facts.freezeStatus === "not_supported" || facts.freezeStatus === "failed") {
+    out.push({
+      id: EV.freeze,
+      label: "Issuer freeze",
+      status: facts.freezeStatus === "failed" ? "warn" : "info",
+      value: facts.freezeStatus === "failed"
+        ? "Unknown: the issuer freeze call failed"
+        : "Not checked: no confirmed issuer contract for this chain and token",
+      source: { kind: "none" },
+    });
+  } else if (facts.freezes.length > 0) {
     const hits = ctx.freezeHits;
     out.push({
       id: EV.freeze,
@@ -198,7 +208,11 @@ export function buildEvidence(ctx: Ctx): Evidence[] {
       status: p ? "warn" : "info",
       value: p
         ? `${p.amount} ${p.tokenSymbol} from the look-alike address to the sender at ${formatTime(p.time)}, before the payment`
-        : "No earlier zero-value or dust transfer from the look-alike address",
+        : facts.senderHistoryStatus === "not_supported"
+          ? "Not available on this chain (public RPC can't list history)"
+          : facts.senderHistoryStatus === "failed"
+            ? "Unknown: the history lookup failed"
+            : "No earlier zero-value or dust transfer from the look-alike address",
       mono: p ? [{ label: "Earlier transfer", value: p.hash }] : undefined,
       source: p ? { kind: "explorer", url: explorerTxUrl(p.chain, p.hash) } : { kind: "none" },
     });

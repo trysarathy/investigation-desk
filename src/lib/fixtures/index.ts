@@ -14,6 +14,9 @@ import { evmAddress, evmHash, lookAlike, tronAddress, tronHash } from "./gen";
 // confirmed against Tether's and Circle's own pages.
 export const USDT_TRON = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
 export const USDT_ETHEREUM = "0xdAC17F958D2ee523a2206206994597C13D831ec7";
+// Circle's USDC contract-address page (developers.circle.com/stablecoins/usdc-contract-addresses),
+// confirmed in week 3; symbol() on chain returns "USDC".
+export const USDC_ETHEREUM = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 
 export const SAMPLE_SETTINGS: Settings = {
   version: "settings-v3",
@@ -22,9 +25,11 @@ export const SAMPLE_SETTINGS: Settings = {
     ethereum: [{ symbol: "USDT", contract: USDT_ETHEREUM }],
     bsc: [],
   },
+  // BNB Chain stays unset: neither Tether's nor Circle's own pages list a BNB Chain contract
+  // (week 3 finding), so D06 and D09 do not run there.
   officialContracts: {
     tron: { USDT: USDT_TRON },
-    ethereum: { USDT: USDT_ETHEREUM },
+    ethereum: { USDT: USDT_ETHEREUM, USDC: USDC_ETHEREUM },
   },
   confirmations: { tron: 20, ethereum: 12, bsc: 15 },
   minimums: { tron: { USDT: "1" }, ethereum: { USDT: "10" }, bsc: {} },
