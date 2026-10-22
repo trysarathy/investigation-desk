@@ -1,0 +1,2 @@
+import {setRetention,sweepRetention} from '@/lib/platform/retention';import {actor} from '@/lib/auth/actor';
+export async function POST(req:Request){const origin=req.headers.get('origin');if(origin&&origin!==new URL(req.url).origin)return Response.json({error:'Origin rejected'},{status:403});const b=await req.json();try{setRetention(b.days,await actor());return Response.json(b.sweep?sweepRetention(Date.now(),await actor()):{ok:true});}catch{return Response.json({error:'Choose 7, 30 or 90 days'},{status:400});}}

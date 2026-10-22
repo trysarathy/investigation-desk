@@ -1,0 +1,5 @@
+import {scryptSync,createHmac,timingSafeEqual} from 'node:crypto';
+export function verifyPassword(password:string,salt:string,hash:string){if(password.length>1024||!salt||!/^[a-f0-9]{128}$/i.test(hash))return false;return timingSafeEqual(scryptSync(password,salt,64),Buffer.from(hash,'hex'));}
+function base32(s:string){let bits='';for(const c of s.toUpperCase().replace(/=+$/,'')){const n='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'.indexOf(c);if(n<0)throw Error('Invalid TOTP secret');bits+=n.toString(2).padStart(5,'0');}return Buffer.from((bits.match(/.{8}/g)??[]).map(b=>parseInt(b,2)));}
+export function totp(secret:string,counter:number){const b=Buffer.alloc(8);b.writeBigUInt64BE(BigInt(counter));const h=createHmac('sha1',base32(secret)).update(b).digest();const off=h[h.length-1]&15;return ((h.readUInt32BE(off)&0x7fffffff)%1000000).toString().padStart(6,'0');}
+export function verifyTotp(secret:string,code:string,now=Date.now()){if(!/^\d{6}$/.test(code))return null;const counter=Math.floor(now/30000);for(const c of [counter-1,counter,counter+1])if(timingSafeEqual(Buffer.from(totp(secret,c)),Buffer.from(code)))return c;return null;}

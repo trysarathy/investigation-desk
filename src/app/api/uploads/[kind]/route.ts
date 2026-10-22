@@ -1,3 +1,5 @@
+import {audit} from "@/lib/platform/store";
+import {actor} from "@/lib/auth/actor";
 // POST /api/uploads/A or /api/uploads/B with a multipart "file". Validates, then applies the
 // upload to the workspace. Roles arrive in week 5: until then anyone with the app can upload.
 
@@ -24,5 +26,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ kind: s
   const record = kind === "A"
     ? await applyUpload(workspaceStore(), "A", name, validateFileA(bytes), new Date())
     : await applyUpload(workspaceStore(), "B", name, validateFileB(bytes), new Date());
+  audit("data.uploaded",kind,await actor());
   return NextResponse.json(record, { status: record.outcome === "rejected" ? 422 : 200 });
 }
