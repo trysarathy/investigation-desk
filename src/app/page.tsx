@@ -1,3 +1,6 @@
+import { documents, type CaseRecord } from "@/lib/platform/store";
+import { VERDICT_LABELS } from "@/lib/catalogue";
+import type { CaseRow } from "@/lib/view";
 import { QueueTable } from "@/components/QueueTable";
 import { LEDGER_UPLOADED_AT, SAMPLE_SETTINGS } from "@/lib/fixtures";
 import { FIXTURE_NOW, formatTime } from "@/lib/format";
@@ -19,7 +22,11 @@ export default async function QueuePage({ searchParams }: { searchParams: Search
   const uploadedAt = state === "stale" ? "2026-10-19T08:00:00+08:00" : LEDGER_UPLOADED_AT;
   const stale = Date.parse(FIXTURE_NOW) - Date.parse(uploadedAt) > SAMPLE_SETTINGS.ledgerStaleAfterHours * 3600_000;
   // Live cases from bulk runs first, then the sample cases.
-  const rows = state === "empty" ? [] : [...storedCaseRows(await loadCases(), new Date()), ...caseRows(down)];
+  const persisted: CaseRow[] = documents<CaseRecord>("case").map(c => {
+    const v=c.view.verdicts.at(-1)!,t=c.facts.tx?.transfers[0];
+    return {id:c.id,customerId:c.facts.customerId??"Unknown",chain:c.facts.tx?.chain??null,token:t?.tokenSymbol??null,amount:t?.amount??null,code:v.code,label:VERDICT_LABELS[v.code],confidence:v.confidence,paused:v.state==='paused',age:'Saved',ageMinutes:Math.max(0,(Date.now()-Date.parse(c.createdAt))/60000),owner:null,bucket:c.resolvedAt?'resolved':v.code==='D99'?'unknown':'needs_action',href:`/library/${c.id}`,live:!c.view.demo};
+  });
+  const rows = state === "empty" ? [] : [...persisted, ...storedCaseRows(await loadCases(), new Date()), ...caseRows(down)];
 
   return (
     <div className="page">
