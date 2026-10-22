@@ -8,7 +8,13 @@ import type { SearchEntry } from "@/lib/view";
 
 const NAV = [
   { href: "/", label: "Queue" },
+  { href: "/scan", label: "Company Scan" },
   { href: "/bulk", label: "Bulk" },
+  { href: "/accuracy", label: "Accuracy" },
+  { href: "/intelligence", label: "Intelligence" },
+  { href: "/reports", label: "Value report" },
+  { href: "/connections", label: "Connections" },
+  { href: "/security", label: "Security" },
   { href: "/settings", label: "Settings" },
 ];
 
@@ -51,8 +57,8 @@ export function Shell({ index, children }: { index: SearchEntry[]; children: Rea
     <div className="shell">
       <nav className="sidebar" aria-label="Main">
         <div className="workspace">
-          <strong>Sample workspace</strong>
-          <span className="badge" title="Every case, hash and address here is fabricated sample data.">Sample data</span>
+          <strong>Investigation desk</strong>
+          <span className="badge">Read-only workspace</span>
         </div>
         {NAV.map((n) => {
           const active = n.href === "/" ? pathname === "/" || pathname.startsWith("/cases") : pathname.startsWith(n.href);
