@@ -34,7 +34,9 @@ export function buildEvidence(ctx: Ctx): Evidence[] {
     id: EV.input,
     label: "Customer instruction",
     status: "info",
-    value: facts.customerId ? `Reported by ${facts.customerId}` : "Reported by customer",
+    value: facts.customerInferredFromRow !== undefined
+      ? `Customer ${facts.customerId}, taken from File A line ${facts.customerInferredFromRow} (owner of the destination when the transfer was mined)`
+      : facts.customerId ? `Reported by ${facts.customerId}` : "Reported by customer",
     mono: [{ label: inputKindLabel(facts.input.kind), value: facts.input.raw.trim() }],
     source: { kind: "input" },
   });
@@ -244,7 +246,8 @@ export function buildEvidence(ctx: Ctx): Evidence[] {
       value: !r
         ? "No ledger row for this transfer"
         : `${r.status}${r.creditedAt ? ` at ${formatTime(r.creditedAt)}` : ""} (${r.depositId})`,
-      detail: [how, reason, `Ledger last uploaded ${formatTime(facts.ledgerUploadedAt)}`].filter(Boolean).join("\n"),
+      detail: [how, reason, `Ledger last uploaded ${formatTime(facts.ledgerUploadedAt)}`,
+        facts.fileBRejectedRows ? `${facts.fileBRejectedRows} ledger row(s) were rejected at that upload.` : ""].filter(Boolean).join("\n"),
       source: r ? { kind: "ledger", row: r.row } : { kind: "none" },
     });
   }

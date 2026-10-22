@@ -109,6 +109,11 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
   D07: (ctx) => {
     if (!ctx.transfer || !ctx.tx) return miss("D07", "No token transfer found.");
     if (ctx.addrOnTxChain || ctx.addrOtherChain) return miss("D07", "Destination is a company deposit address.");
+    const rejected = ctx.facts.fileARejectedRows ?? 0;
+    if (rejected > 0) {
+      return hit("D07", "Medium", [EV.address],
+        `Destination is not in the deposit-address list, but ${rejected} File A row(s) were rejected at upload and could hold it.`);
+    }
     return hit("D07", "High", [EV.address], "Destination is not in the deposit-address list.");
   },
 
@@ -126,12 +131,12 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
 
   D17: (ctx) => {
     if (ctx.addrStatus !== "other_customer") return miss("D17", "Destination is not assigned to a different customer.");
-    return hit("D17", "High", [EV.tx, EV.address], `Destination is assigned to another customer (File A row ${ctx.addrOnTxChain!.row}).`);
+    return hit("D17", "High", [EV.tx, EV.address], `Destination is assigned to another customer (File A line ${ctx.addrOnTxChain!.row}).`);
   },
 
   D18: (ctx) => {
     if (ctx.addrStatus !== "retired") return miss("D18", "Destination is not a retired address.");
-    return hit("D18", "High", [EV.tx, EV.address], `Mined after the address was retired (File A row ${ctx.addrOnTxChain!.row}).`);
+    return hit("D18", "High", [EV.tx, EV.address], `Mined after the address was retired (File A line ${ctx.addrOnTxChain!.row}).`);
   },
 
   D08: (ctx) => {
@@ -177,9 +182,13 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
     if (ctx.confirmations! < ctx.threshold!) return miss("D12", "Not yet confirmed.");
     const m = ctx.ledgerMatch;
     const cites = [EV.tx, EV.confirmations, EV.token, EV.address, EV.amount, EV.ledger];
-    if (!m) return hit("D12", "High", cites, "Confirmed on-chain; no ledger row for this transfer.");
-    if (m.row.status !== "PENDING") return miss("D12", `Ledger row exists with status ${m.row.status}.`);
-    return hit("D12", ledgerConfidence(m), cites, `Confirmed on-chain; ledger row is still PENDING${ledgerQualityNote(m)}.`);
+    if (m && m.row.status !== "PENDING") return miss("D12", `Ledger row exists with status ${m.row.status}.`);
+    // A ledger row rejected at upload might be this credit: "not credited" can't be High then.
+    const rejected = ctx.facts.fileBRejectedRows ?? 0;
+    const gap = rejected > 0 ? ` ${rejected} ledger row(s) were rejected at upload and could be this credit.` : "";
+    const confidence: Confidence = rejected > 0 ? "Medium" : m ? ledgerConfidence(m) : "High";
+    if (!m) return hit("D12", confidence, cites, `Confirmed on-chain; no ledger row for this transfer.${gap}`);
+    return hit("D12", confidence, cites, `Confirmed on-chain; ledger row is still PENDING${ledgerQualityNote(m)}.${gap}`);
   },
 
   D13: (ctx) => {

@@ -200,6 +200,14 @@ export interface Facts {
    */
   freezeStatus?: "checked" | "not_supported" | "failed";
   senderHistoryStatus?: "checked" | "not_supported" | "failed";
+  /**
+   * Rows rejected when Files A and B were uploaded. Each is an unknown fact that could be the
+   * very address or credit a verdict depends on, so D07 and D12 cap at Medium while any exist.
+   */
+  fileARejectedRows?: number;
+  fileBRejectedRows?: number;
+  /** Set when the case had no customer and File A named the destination's owner at block time. */
+  customerInferredFromRow?: number;
   /** Every raw API response behind these facts, in fetch order (spec 6.2). Empty for sample data. */
   rawResponses?: RawResponse[];
 }

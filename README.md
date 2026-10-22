@@ -117,8 +117,8 @@ fine for development, demos and a first pilot only.
   allowlist; that is its choice, not an issuer confirmation.
 - **D10** is disabled; see `docs/week2-d10-mempool.md`.
 
-Pasting a hash that isn't a sample case runs it live (`/investigate?q=…`). File A and the
-ledger are still the sample files until upload arrives in week 4.
+Pasting a hash that isn't a sample case runs it live (`/investigate?q=…&customer=…`) against
+the uploaded Files A and B (see below); without both files no live verdict is given.
 
 `tests/fixtures/live/` holds real public USDT transfers between labelled wallets, recorded once
 and replayed offline by `tests/live.test.ts`. To re-record them:
@@ -129,9 +129,39 @@ NODE_USE_ENV_PROXY=1 npx vite-node --config vitest.config.mts scripts/record-liv
 
 (`NODE_USE_ENV_PROXY=1` is only needed behind an HTTPS proxy, on Node 22.21 or later.)
 
+## Uploads, ledger join, AI text and bulk (week 4)
+
+- **Uploads** (Settings → Data, `POST /api/uploads/A|B`): Files A and B are validated by
+  `src/lib/csv/files.ts`. A missing required column, invalid UTF-8 or a broken quote rejects
+  the file (the previous one stays). A bad row is rejected and listed with its line, column and
+  reason; nothing is trimmed, case-folded or guessed. Tron and EIP-55 checksums catch typos,
+  overlapping address assignments are rejected, and a customer ID that looks like an email is
+  refused (no personal data). An identical re-upload (same SHA-256) is a no-op. Uploads live in
+  `.data/workspace.json` until the database lands.
+- **Rejected rows are unknown facts:** while any File A row was rejected, D07 caps at Medium;
+  while any File B row was rejected, D12 caps at Medium. Either could be the very address or
+  credit the verdict depends on.
+- **Ledger join D12–D18** runs on the uploaded files. A pasted hash with no customer takes the
+  customer from File A (the destination's owner when the transfer was mined), and the case
+  says so; with no owner at that time, nothing is inferred.
+- **AI explanation** (`src/lib/ai/`): Claude (`claude-opus-5-5`, official SDK, structured JSON
+  output, server-side refusal fallback on) gets only the verdict code, the evidence objects with
+  customer IDs scrubbed, and the reply template with company-setting values pre-filled. The
+  output is rejected, and template text shown, if a sentence cites no evidence or unknown
+  evidence, or contains a number, address, hash, date or token name not in the evidence, or a
+  banned word; the reply must keep the approved template wording. No `ANTHROPIC_API_KEY`, an
+  outage or a rejection all fall back to template text; `AI_EXPLANATIONS=off` forces it. The
+  spec's no-training, zero-retention agreement is an Anthropic organization setting and must be
+  in place before real customer data is sent.
+- **Bulk** (`/bulk`): a CSV of `tx_hash, chain (optional), customer_id (optional)`, up to 1,000
+  rows. Bad rows are skipped and listed; the rest run as a background job with a progress bar.
+  "Create cases for non-credited" adds every result not shown as credited (D13) to the queue as
+  a live case; "Export results CSV" neutralises cells a spreadsheet would execute.
+
 ## Not built yet (by plan)
 
-CSV upload and validation, AI text and its validator, bulk (week 4);
-auth, roles, row-level security, audit log, rule versioning (week 5). Official contracts other
-than USDT on Tron and USDT on Ethereum stay unset until checked against Tether's and Circle's own
-pages. With them unset, D06 does not run for those pairs.
+Auth, roles, row-level security, audit log, rule versioning and Settings editing (week 5):
+until then uploads and bulk runs are open to anyone with the app, and the live checks use the
+sample company settings. Bulk jobs live in the server process and don't survive a restart.
+Official contracts other than those confirmed on the issuers' pages stay unset; with them
+unset, D06 does not run for those pairs.

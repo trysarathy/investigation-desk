@@ -1,6 +1,6 @@
 import type { Chain, Code, Settings } from "./types";
 
-export const RULE_VERSION = "rules-2026-10-22.4";
+export const RULE_VERSION = "rules-2026-10-22.5";
 
 /**
  * Evaluation order. Every rule runs; the verdict is the first High match in this order (spec

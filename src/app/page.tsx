@@ -2,7 +2,8 @@ import { QueueTable } from "@/components/QueueTable";
 import { LEDGER_UPLOADED_AT, SAMPLE_SETTINGS } from "@/lib/fixtures";
 import { FIXTURE_NOW, formatTime } from "@/lib/format";
 import { CHAIN_NAMES } from "@/lib/types";
-import { caseRows, parseDown } from "@/lib/view";
+import { loadCases } from "@/lib/bulk/cases";
+import { caseRows, parseDown, storedCaseRows } from "@/lib/view";
 
 type Search = Promise<Record<string, string | string[] | undefined>>;
 
@@ -17,7 +18,8 @@ export default async function QueuePage({ searchParams }: { searchParams: Search
   const state = typeof sp.state === "string" ? sp.state : undefined;
   const uploadedAt = state === "stale" ? "2026-10-19T08:00:00+08:00" : LEDGER_UPLOADED_AT;
   const stale = Date.parse(FIXTURE_NOW) - Date.parse(uploadedAt) > SAMPLE_SETTINGS.ledgerStaleAfterHours * 3600_000;
-  const rows = state === "empty" ? [] : caseRows(down);
+  // Live cases from bulk runs first, then the sample cases.
+  const rows = state === "empty" ? [] : [...storedCaseRows(await loadCases(), new Date()), ...caseRows(down)];
 
   return (
     <div className="page">

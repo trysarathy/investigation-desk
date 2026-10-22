@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { Mono } from "@/components/Mono";
 import { Status } from "@/components/Status";
-import { ADDRESSES_UPLOADED_AT, FILE_A, FILE_B, LEDGER_UPLOADED_AT, SAMPLE_SETTINGS } from "@/lib/fixtures";
-import { formatTime } from "@/lib/format";
+import { UploadPanel } from "@/components/UploadPanel";
+import { workspaceStore } from "@/lib/workspace/live";
+import { SAMPLE_SETTINGS } from "@/lib/fixtures";
 import { CHAIN_NAMES, DEPOSIT_CHAINS, type Token } from "@/lib/types";
 
 const TABS = [
@@ -14,6 +15,7 @@ const TABS = [
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const { tab = "data" } = await searchParams;
+  const workspace = await workspaceStore().load();
   const s = SAMPLE_SETTINGS;
 
   return (
@@ -26,17 +28,18 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       </nav>
 
       {tab === "data" && (
-        <section className="panel table-wrap">
-          <table className="table">
-            <thead><tr><th>File</th><th>Last upload</th><th style={{ textAlign: "right" }}>Rows</th><th>Errors</th></tr></thead>
-            <tbody>
-              <tr style={{ cursor: "default" }}><td>A · Deposit addresses</td><td>{formatTime(ADDRESSES_UPLOADED_AT)}</td><td className="num" style={{ textAlign: "right" }}>{FILE_A.length}</td><td><Status status="pass" label="None" /></td></tr>
-              <tr style={{ cursor: "default" }}><td>B · Deposit ledger</td><td>{formatTime(LEDGER_UPLOADED_AT)}</td><td className="num" style={{ textAlign: "right" }}>{FILE_B.length}</td><td><Status status="pass" label="None" /></td></tr>
-              <tr style={{ cursor: "default" }}><td>C · Customers (optional)</td><td className="faint">Not uploaded</td><td className="num faint" style={{ textAlign: "right" }}>—</td><td className="faint">—</td></tr>
-            </tbody>
-          </table>
-          <p className="faint" style={{ margin: 0, padding: "12px 16px", borderTop: "1px solid var(--border)" }}>Sample files. Upload and row-level validation arrive in build week 4.</p>
-        </section>
+        <>
+          <p className="muted" style={{ margin: 0 }}>
+            Live investigations (pasted hashes and bulk runs) use these files. The sample cases in the queue keep their own sample data.
+          </p>
+          <UploadPanel kind="A" current={workspace.fileA?.upload} />
+          <UploadPanel kind="B" current={workspace.fileB?.upload} />
+          <p className="faint" style={{ margin: 0 }}>
+            UTF-8, one header row, column names exactly as listed. Amounts are exact decimals, timestamps carry an offset.
+            Rows that break a rule are rejected and listed, never fixed. Uploading an identical file changes nothing.
+            File C (customers) is optional and not needed.
+          </p>
+        </>
       )}
 
       {tab === "rules" && (

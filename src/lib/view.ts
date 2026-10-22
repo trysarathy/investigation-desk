@@ -9,6 +9,10 @@ import { FILE_A, SAMPLE_CASES, SAMPLE_SETTINGS, withChainDown, type SampleCase }
 import { formatAge, FIXTURE_NOW } from "./format";
 import { sameAddress } from "./address";
 import { normaliseHash } from "./normalise";
+import { configuredModel } from "./ai/anthropic";
+import type { StoredCase } from "./bulk/cases";
+import { explain, type Explanation } from "./ai/explain";
+import type { AiOutput } from "./ai/validate";
 import { fillReply } from "./templates";
 import type { Chain, Code, Confidence, Evidence, Facts, RuleResult } from "./types";
 import { ALL_CHAINS } from "./types";
@@ -26,6 +30,8 @@ export interface VerdictView {
   findings: { code: Code; confidence: Confidence; label: string; reason: string; nextStep: string; evidenceIds: string[] }[];
   checks: RuleResult[];
   reply: { text: string; open: string[] } | null;
+  /** The plain-English paragraph and filled reply (AI-written and checked, or template text). Case pages only. */
+  explanation?: Explanation;
   checkedAt: string;
   checkingChain: string;
   pausedChains: Chain[];
@@ -46,6 +52,9 @@ export interface CaseRow {
   ageMinutes: number;
   owner: string | null;
   bucket: Bucket;
+  /** Cases from a bulk run open as live investigations rather than sample cases. */
+  href?: string;
+  live?: boolean;
 }
 
 export interface CaseView {
@@ -66,6 +75,18 @@ export function parseDown(v: string | string[] | undefined): Chain | undefined {
 }
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
+
+// Validated AI output, keyed by a hash of exactly what the model was sent.
+const aiCache = new Map<string, AiOutput>();
+
+/** Adds the explanation: AI text when configured and it passes validation, template text otherwise. */
+async function withExplanation(view: VerdictView, facts: Facts): Promise<VerdictView> {
+  const v = investigate(facts, SAMPLE_SETTINGS);
+  const { model, reason } = configuredModel();
+  const explanation = await explain(v.code, v.evidence, v.evidenceIds, v.fill, v.state === "paused",
+    [facts.customerId ?? ""], { model, unavailableReason: reason, cache: aiCache });
+  return { ...view, explanation };
+}
 
 function verdictView(f: Facts, down?: Chain): VerdictView {
   const facts = down ? withChainDown(f, down) : f;
@@ -129,14 +150,18 @@ export function caseRows(down?: Chain): CaseRow[] {
   }).sort((a, b) => order[a.bucket] - order[b.bucket] || b.ageMinutes - a.ageMinutes);
 }
 
-export function caseView(c: SampleCase, down?: Chain): CaseView {
+export async function caseView(c: SampleCase, down?: Chain): Promise<CaseView> {
+  const verdicts = await Promise.all(c.snapshots.map((f) => {
+    const facts = down ? withChainDown(f, down) : f;
+    return withExplanation(verdictView(f, down), facts);
+  }));
   return {
     id: c.id,
     customerId: c.customerId,
     owner: c.owner ?? null,
     status: c.status,
     openedAt: c.openedAt,
-    verdicts: c.snapshots.map((f) => verdictView(f, down)),
+    verdicts,
     revealed: c.revealed,
     live: false,
   };
@@ -165,15 +190,29 @@ export function resolveInput(raw: string): SampleCase | undefined {
 }
 
 /** A case built from one live fetch. Not stored yet: cases persist once the database lands (week 5). */
-export function liveCaseView(facts: Facts): CaseView {
+export async function liveCaseView(facts: Facts): Promise<CaseView> {
   return {
     id: `LIVE-${facts.input.value.replace(/^0x/, "").slice(0, 8)}`,
     customerId: facts.customerId ?? "Unknown customer",
     owner: null,
     status: "open",
     openedAt: facts.checkedAt,
-    verdicts: [verdictView(facts)],
+    verdicts: [await withExplanation(verdictView(facts), facts)],
     revealed: 1,
     live: true,
   };
+}
+
+/** Queue rows for cases created from bulk runs ("Create cases for non-credited"). */
+export function storedCaseRows(cases: StoredCase[], now: Date): CaseRow[] {
+  return cases.map((c) => {
+    const bucket: Bucket = c.paused ? "waiting" : c.code === "D99" || !c.code ? "unknown" : "needs_action";
+    const q = new URLSearchParams({ q: c.txHash, ...(c.customerId ? { customer: c.customerId } : {}) });
+    return {
+      id: c.id, customerId: c.customerId ?? "—", chain: c.chain ?? null, token: c.token ?? null, amount: c.amount ?? null,
+      code: c.code ?? "D99", label: c.label, confidence: c.confidence, paused: c.paused,
+      age: formatAge(c.createdAt, now.toISOString()), ageMinutes: Math.round((now.getTime() - Date.parse(c.createdAt)) / 60000),
+      owner: null, bucket, href: `/investigate?${q}`, live: true,
+    };
+  });
 }

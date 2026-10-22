@@ -85,7 +85,7 @@ export function looksAlike(a: string, b: string): boolean {
  */
 export type AddressStatus = "this_customer" | "other_customer" | "retired" | "unattributed";
 
-function addressAtTime(rows: DepositAddressRow[], at: string, customerId?: string):
+export function addressAtTime(rows: DepositAddressRow[], at: string, customerId?: string):
   { row?: DepositAddressRow; status?: AddressStatus } {
   if (rows.length === 0) return {};
   const t = Date.parse(at);
