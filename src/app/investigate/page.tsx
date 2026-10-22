@@ -1,3 +1,4 @@
+import { saveInvestigation, documents, type CaseRecord } from "@/lib/platform/store";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Mono } from "@/components/Mono";
@@ -37,11 +38,16 @@ export default async function InvestigatePage({ searchParams }: { searchParams: 
   if (input.kind === "hash" && (liveKeysPresent() || demo) && ws && !reporting.error) {
     const facts = await fetchFacts(q, ws, demo ? demoDeps() : liveDeps(), SAMPLE_SETTINGS);
     const view = await liveCaseView(facts, demo);
-    return <Investigation key={`${view.id}-${facts.checkedAt}-${reporting.customerId ?? ""}`} view={view} />;
+    const record = saveInvestigation(facts, SAMPLE_SETTINGS, view, demo);
+    redirect(`/library/${record.id}`);
   }
 
+  if (q.trim() && input.kind !== "hash") {
+    const results = documents<CaseRecord>("case").filter(c => c.facts.customerId === q.trim() || c.facts.tx?.transfers.some(t => t.to.toLowerCase() === q.trim().toLowerCase() || t.from.toLowerCase() === q.trim().toLowerCase()));
+    if (results.length) return <div className="page"><div className="page-head"><h1>Matching investigations</h1><span className="muted">{results.length} stored cases</span></div>{results.map(c=><Link className="panel search-result" href={`/library/${c.id}`} key={c.id}><strong>{c.view.verdicts.at(-1)?.label}</strong><span className="mono muted">{c.facts.input.value}</span></Link>)}</div>;
+  }
   const reason = reporting.error ? reporting.error : input.kind !== "hash"
-    ? "Live lookup by address or customer reference is not built yet; paste a transaction hash."
+    ? "No stored investigations match this address or customer reference. Use Company Scan for public address history, or paste a transaction hash."
     : !liveKeysPresent()
       ? "Live chain lookups need TRONGRID_API_KEY and ETHERSCAN_API_KEY in the server environment."
       : `Upload ${missing.map((m) => `File ${m}`).join(" and ")} in Settings → Data first, or load the demo workspace there: without the company's files no address or ledger verdict can be given.`;

@@ -46,7 +46,7 @@ export function Investigation({ view }: { view: CaseView }) {
     if (checking) return;
     setChecking(true);
     // Live: fetch again on the server. Sample data: the next stored snapshot stands in for a fetch.
-    if (view.live) router.refresh();
+    if (view.live && view.query) router.push(`/investigate?${new URLSearchParams({q:view.query.q,...(view.query.customer ? {customer:view.query.customer} : {})})}`);
     setTimeout(() => {
       setRevealed((r) => Math.min(r + 1, view.verdicts.length));
       setChecking(false);
