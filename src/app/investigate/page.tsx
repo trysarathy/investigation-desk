@@ -1,9 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Mono } from "@/components/Mono";
+import { Investigation } from "@/components/Investigation";
 import { Status } from "@/components/Status";
+import { fetchFacts } from "@/lib/chain/investigate";
+import { liveDeps, liveKeysPresent } from "@/lib/chain/live";
+import { FILE_A, FILE_B, LEDGER_UPLOADED_AT } from "@/lib/fixtures";
 import { normaliseInput } from "@/lib/normalise";
-import { resolveInput } from "@/lib/view";
+import { liveCaseView, resolveInput } from "@/lib/view";
 
 const KIND_LABEL = {
   hash: "Transaction hash",
@@ -13,12 +17,25 @@ const KIND_LABEL = {
   unrecognised: "Unrecognised reference (possibly an exchange withdrawal ID)",
 } as const;
 
-/** Pasted input lands here: open the matching case, or explain why no verdict is possible yet. */
+/**
+ * Pasted input lands here: open the matching sample case, or look a hash up live on every
+ * supported chain. Company files are still the sample File A and ledger until upload (week 4).
+ */
 export default async function InvestigatePage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const { q = "" } = await searchParams;
   const match = q.trim() ? resolveInput(q) : undefined;
   if (match) redirect(`/cases/${match.id}`);
   const input = normaliseInput(q);
+
+  if (input.kind === "hash" && liveKeysPresent()) {
+    const facts = await fetchFacts(q, { depositAddresses: FILE_A, ledger: FILE_B, ledgerUploadedAt: LEDGER_UPLOADED_AT }, liveDeps());
+    const view = liveCaseView(facts);
+    return <Investigation key={`${view.id}-${facts.checkedAt}`} view={view} />;
+  }
+
+  const reason = input.kind !== "hash"
+    ? "Live lookup by address or customer reference is not built yet; paste a transaction hash."
+    : "Live chain lookups need TRONGRID_API_KEY and ETHERSCAN_API_KEY in the server environment.";
 
   return (
     <div className="page">
@@ -30,7 +47,7 @@ export default async function InvestigatePage({ searchParams }: { searchParams: 
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <div className="verdict-title">Check paused</div>
           <div className="muted">
-            Live chain lookups are not connected in this prototype, so no verdict is given. Only sample cases can be investigated.
+            {reason} No verdict is given.
           </div>
         </div>
       </div>
@@ -43,7 +60,7 @@ export default async function InvestigatePage({ searchParams }: { searchParams: 
           <dt>Chains to check</dt>
           <dd>{input.kind === "hash" ? "Tron, Ethereum, BNB Chain, then Polygon, Base, Arbitrum, Optimism" : input.kind === "tron_address" ? "Tron" : input.kind === "evm_address" ? "Ethereum, BNB Chain" : "Looked up in File A"}</dd>
           <dt>Status</dt>
-          <dd><Status status="warn" label="Waiting for chain fetchers (build week 2)" /></dd>
+          <dd><Status status="warn" label="Not checked" /></dd>
         </dl>
       </section>
     </div>

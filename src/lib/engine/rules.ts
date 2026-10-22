@@ -48,10 +48,14 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
   D01: (ctx) => {
     const { facts } = ctx;
     if (facts.input.kind !== "hash") return miss("D01", "Input is not a transaction hash.");
-    if (ctx.tx || facts.mempool) return miss("D01", "Hash was found.");
+    if (ctx.tx) return miss("D01", "Hash was found.");
+    if (facts.mempool && ctx.settings.mempoolChecksEnabled) return miss("D01", "Hash is pending in the mempool; see D10.");
     if (facts.lookups.some((l) => l.result === "error")) return miss("D01", "At least one chain lookup failed, so absence is not proven.");
     if (facts.lookups.length === 0) return miss("D01", "No chains were checked.");
-    return hit("D01", "High", [EV.lookup], `Not found on any of ${facts.lookups.length} chains.`);
+    const pending = facts.lookups.filter((l) => l.result === "pending").length;
+    return hit("D01", "High", [EV.lookup], pending
+      ? `Not mined on any of ${facts.lookups.length} chains (seen pending on ${pending}; D10 is disabled).`
+      : `Not found on any of ${facts.lookups.length} chains.`);
   },
 
   D02: (ctx) => {
@@ -130,6 +134,9 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
   },
 
   D10: (ctx) => {
+    if (!ctx.settings.mempoolChecksEnabled) {
+      return miss("D10", "Disabled: TronGrid and Etherscan V2 give no reliable pending-since time (week 2 finding).");
+    }
     const m = ctx.facts.mempool;
     if (!m || ctx.tx) return miss("D10", "Not a pending mempool transaction.");
     const window = ctx.settings.pendingWindowSec[m.chain];

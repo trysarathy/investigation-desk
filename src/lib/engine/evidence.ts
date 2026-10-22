@@ -41,18 +41,21 @@ export function buildEvidence(ctx: Ctx): Evidence[] {
   if (facts.lookups.length > 0) {
     const found = facts.lookups.find((l) => l.result === "found");
     const errors = facts.lookups.filter((l) => l.result === "error");
+    const pending = facts.lookups.filter((l) => l.result === "pending");
     const value = found
       ? `Found on ${chainLabel(found.chain)}`
       : errors.length
         ? `Check paused on ${errors.map((e) => CHAIN_NAMES[e.chain]).join(", ")}`
-        : `Not found on ${facts.lookups.length} chains`;
+        : pending.length
+          ? `Not mined: seen pending on ${pending.map((p) => CHAIN_NAMES[p.chain]).join(", ")}`
+          : `Not found on ${facts.lookups.length} chains`;
     out.push({
       id: EV.lookup,
       label: "Chain lookup",
       status: found ? (ctx.depositChain ? "pass" : "warn") : errors.length ? "warn" : "fail",
       value,
       detail: facts.lookups
-        .map((l) => `${CHAIN_NAMES[l.chain]}: ${l.result === "found" ? "found" : l.result === "error" ? `error (${l.error ?? "unavailable"})` : "not found"} at ${formatTime(l.fetchedAt)}`)
+        .map((l) => `${CHAIN_NAMES[l.chain]}: ${l.result === "found" ? "found" : l.result === "pending" ? "pending, not mined" : l.result === "error" ? `error (${l.error ?? "unavailable"})` : "not found"} at ${formatTime(l.fetchedAt)}`)
         .join("\n"),
       source: found ? { kind: "explorer", url: found.sourceUrl } : { kind: "none" },
     });

@@ -78,9 +78,42 @@ evidence with a provider source. A payout workflow would add a provider fetcher 
 `providerEvents`, a second rule list (P-codes) selected by `workflow` in `run.ts`, and templates
 for those codes. The verdict picker, findings, evidence, UI and audit record stay as they are.
 
+## Live chain data (week 2)
+
+Read-only fetchers in `src/lib/chain/`: **Tron** on TronGrid (`/wallet/gettransactionbyid`,
+`gettransactioninfobyid`, `getblock`, `triggerconstantcontract`) and **EVM** chains on
+Etherscan API V2 (`chainid=1` for Ethereum; the same key covers the cross-check chains).
+
+- **Keys** come only from `TRONGRID_API_KEY` and `ETHERSCAN_API_KEY` (see `.env.example`;
+  `.env` is git-ignored). Etherscan's key is redacted from every stored URL, and TronGrid's
+  travels in a header that is never stored.
+- **Raw responses** are kept with fetch time and SHA-256 in the case's facts and on disk under
+  `.data/raw/` (git-ignored; Postgres replaces it in week 5).
+- **Rate limits:** requests are spaced per API; 429, 403 and Etherscan's "rate limit" bodies
+  are retried with exponential backoff (honouring `Retry-After`), then reported as a lookup
+  error, so the case shows "Check paused" and never a guess.
+- **Cache:** mined transactions, receipts and token metadata are cached forever; "not found",
+  "pending" and the current block are cached for seconds.
+- **Etherscan free plan:** it refuses BNB Chain, Base and Optimism. Those lookups are errors,
+  so a hash found nowhere pauses instead of claiming D01. A paid plan, or another BNB Chain
+  source, is needed before BNB Chain deposits (week 3).
+- **D10** is disabled; see `docs/week2-d10-mempool.md`.
+
+Pasting a hash that isn't a sample case runs it live (`/investigate?q=…`). File A and the
+ledger are still the sample files until upload arrives in week 4.
+
+`tests/fixtures/live/` holds real public USDT transfers between labelled wallets, recorded once
+and replayed offline by `tests/live.test.ts`. To re-record them:
+
+```
+NODE_USE_ENV_PROXY=1 npx vite-node --config vitest.config.mts scripts/record-live.ts
+```
+
+(`NODE_USE_ENV_PROXY=1` is only needed behind an HTTPS proxy, on Node 22.21 or later.)
+
 ## Not built yet (by plan)
 
-Chain fetchers (week 2); CSV upload and validation, AI text and its validator, bulk (week 4);
+CSV upload and validation, AI text and its validator, bulk (week 4);
 auth, roles, row-level security, audit log, rule versioning (week 5). Official contracts other
 than USDT on Tron and USDT on Ethereum stay unset until checked against Tether's and Circle's own
 pages. With them unset, D06 does not run for those pairs.

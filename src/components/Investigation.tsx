@@ -43,7 +43,8 @@ export function Investigation({ view }: { view: CaseView }) {
   const recheck = () => {
     if (checking) return;
     setChecking(true);
-    // Fixture mode: the next stored snapshot stands in for a fresh fetch.
+    // Live: fetch again on the server. Sample data: the next stored snapshot stands in for a fetch.
+    if (view.live) router.refresh();
     setTimeout(() => {
       setRevealed((r) => Math.min(r + 1, view.verdicts.length));
       setChecking(false);
@@ -85,7 +86,9 @@ export function Investigation({ view }: { view: CaseView }) {
           <span className="faint">/</span>
           <h1 className="mono">{view.id}</h1>
           <span className="muted mono">{view.customerId}</span>
-          <span className="badge">Sample data</span>
+          {view.live
+            ? <span className="badge" title="Chain data is fetched live. File A and the ledger are still the sample files until upload arrives (week 4).">Live chain data · sample company files</span>
+            : <span className="badge">Sample data</span>}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button className="btn" type="button" onClick={recheck} disabled={checking}>Re-run checks <span className="kbd">R</span></button>
@@ -129,7 +132,7 @@ export function Investigation({ view }: { view: CaseView }) {
             </div>
             {checking ? <TimelineSkeleton /> : (
               <ol className="timeline">
-                {v.evidence.map((e, i) => <EvidenceRow key={e.id} e={e} cited={v.evidenceIds.includes(e.id) || v.findings.some((f) => f.evidenceIds.includes(e.id))} delay={i * 60} />)}
+                {v.evidence.map((e, i) => <EvidenceRow key={e.id} e={e} live={view.live} cited={v.evidenceIds.includes(e.id) || v.findings.some((f) => f.evidenceIds.includes(e.id))} delay={i * 60} />)}
               </ol>
             )}
           </section>
@@ -250,7 +253,7 @@ function VerdictBar({ v, checking }: { v: VerdictView; checking: boolean }) {
   );
 }
 
-function EvidenceRow({ e, cited, delay }: { e: Evidence; cited: boolean; delay: number }) {
+function EvidenceRow({ e, cited, delay, live }: { e: Evidence; cited: boolean; delay: number; live: boolean }) {
   return (
     <li className={`fade-in${cited ? " cited" : ""}`} style={{ animationDelay: `${delay}ms` }}>
       <div className="tl-label" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -266,16 +269,16 @@ function EvidenceRow({ e, cited, delay }: { e: Evidence; cited: boolean; delay: 
         ))}
         {e.detail && <span className="tl-detail">{e.detail}</span>}
       </div>
-      <div className="tl-source"><Source e={e} /></div>
+      <div className="tl-source"><Source e={e} live={live} /></div>
     </li>
   );
 }
 
-function Source({ e }: { e: Evidence }) {
+function Source({ e, live }: { e: Evidence; live: boolean }) {
   const s = e.source;
   switch (s.kind) {
     case "explorer":
-      return <a href={s.url} target="_blank" rel="noreferrer" title="Sample hash: the explorer will not find it">Explorer ↗</a>;
+      return <a href={s.url} target="_blank" rel="noreferrer" title={live ? undefined : "Sample hash: the explorer will not find it"}>Explorer ↗</a>;
     case "ledger":
       return <span className="muted">Ledger row {s.row}</span>;
     case "addresses":

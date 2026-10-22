@@ -16,6 +16,7 @@ const latest = (id: string): Facts => {
   return c.snapshots[c.snapshots.length - 1];
 };
 const run = (f: Facts) => investigate(f, SAMPLE_SETTINGS);
+const MEMPOOL_ON = { ...SAMPLE_SETTINGS, mempoolChecksEnabled: true };
 
 describe("one fixture case per catalogue code", () => {
   const expected: [string, Code, "High" | "Medium" | null][] = [
@@ -29,7 +30,7 @@ describe("one fixture case per catalogue code", () => {
     ["CS-1048", "D07", "High"],
     ["CS-1049", "D08", "High"],
     ["CS-1050", "D09", "High"],
-    ["CS-1051", "D10", "Medium"],
+    ["CS-1051", "D01", "High"],
     ["CS-1052", "D11", "Medium"],
     ["CS-1041", "D12", "High"],
     ["CS-1053", "D13", "High"],
@@ -51,9 +52,11 @@ describe("one fixture case per catalogue code", () => {
 
   it("covers every code", () => {
     const codes = new Set(expected.map((e) => e[1]));
-    for (const c of ["D01", "D02", "D03", "D04", "D05", "D06", "D07", "D08", "D09", "D10", "D11", "D12", "D13", "D14", "D16", "D17", "D18", "D99"]) {
+    for (const c of ["D01", "D02", "D03", "D04", "D05", "D06", "D07", "D08", "D09", "D11", "D12", "D13", "D14", "D16", "D17", "D18", "D99"]) {
       expect(codes.has(c as Code)).toBe(true);
     }
+    // D10 is disabled by default (week 2 mempool finding); its fixture is covered with it enabled below.
+    expect(investigate(latest("CS-1051"), MEMPOOL_ON).code).toBe("D10");
     // D07b is never a verdict on its own fixture; it appears as a finding (see "c." below).
     expect(run(latest("CS-1048")).findings.map((f) => f.code)).toEqual(["D07b"]);
   });
@@ -390,7 +393,7 @@ describe("f. no reply promises a future credit", () => {
   });
 
   it("D10 uses the 22 Oct wording", () => {
-    const v = run(latest("CS-1051"));
+    const v = investigate(latest("CS-1051"), MEMPOOL_ON);
     expect(fillReply(v.code, v.fill)).toEqual({
       text: "Your transaction is still waiting to be processed by the Ethereum network. Once the network confirms it, our usual deposit checks apply. If it's still pending after 30 minutes, please let us know.",
       open: [],
@@ -643,5 +646,33 @@ describe("d. a non-decimal chain amount is an unknown fact, not a crash", () => 
     const f = latest("CS-1048");
     const senderHistory = f.senderHistory.map((p) => ({ ...p, amount: "1e-18" }));
     expect(() => run({ ...f, senderHistory })).not.toThrow();
+  });
+});
+
+describe("D10 disabled by default (week 2 mempool finding)", () => {
+  it("a hash seen only as pending falls to D01, whose reply covers 'may not have been sent yet'", () => {
+    const v = run(latest("CS-1051"));
+    expect(v.code).toBe("D01");
+    expect(v.checks.find((c) => c.code === "D10")!.reason).toMatch(/Disabled/);
+    expect(v.evidence.find((e) => e.id === "ev.lookup")!.value).toMatch(/pending on Ethereum/);
+    expect(fillReply(v.code, v.fill)!.text).toMatch(/may not have been sent yet/);
+  });
+
+  it("with mempool checks enabled, D10 applies and D01 stands aside", () => {
+    const v = investigate(latest("CS-1051"), MEMPOOL_ON);
+    expect(v.code).toBe("D10");
+    expect(v.checks.find((c) => c.code === "D01")!.matched).toBe(false);
+  });
+
+  it("D01 still never fires when a chain lookup failed", () => {
+    expect(run(withChainDown(latest("CS-1051"), "bsc")).state).toBe("paused");
+  });
+});
+
+describe("D99 sample: mined before the address was assigned", () => {
+  it("ownership at block time is unknown, so no address verdict is guessed", () => {
+    const v = run(latest("CS-1060"));
+    expect(v.code).toBe("D99");
+    expect(v.evidence.find((e) => e.id === "ev.address")!.status).toBe("warn");
   });
 });

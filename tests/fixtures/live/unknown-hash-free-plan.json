@@ -1,0 +1,86 @@
+{
+ "name": "unknown-hash-free-plan",
+ "hash": "4a1d0f6b9c3e2a7d8f5b6c4e3a2d1f0e9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d",
+ "explorer": "https://tronscan.org/#/transaction/4a1d0f6b9c3e2a7d8f5b6c4e3a2d1f0e9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d",
+ "recordedAt": "2026-10-22T05:09:16.403Z",
+ "exchanges": [
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://api.etherscan.io/v2/api?chainid=1&module=proxy&action=eth_getTransactionByHash&txhash=0x4a1d0f6b9c3e2a7d8f5b6c4e3a2d1f0e9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d&apikey=REDACTED"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.trongrid.io/wallet/gettransactionbyid",
+    "body": "{\"value\":\"4a1d0f6b9c3e2a7d8f5b6c4e3a2d1f0e9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d\"}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://api.etherscan.io/v2/api?chainid=56&module=proxy&action=eth_getTransactionByHash&txhash=0x4a1d0f6b9c3e2a7d8f5b6c4e3a2d1f0e9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d&apikey=REDACTED"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"status\":\"0\",\"message\":\"NOTOK\",\"result\":\"Free API access is not supported for this chain. Please upgrade your api plan for full chain coverage. https://etherscan.io/apis\"}"
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://api.etherscan.io/v2/api?chainid=137&module=proxy&action=eth_getTransactionByHash&txhash=0x4a1d0f6b9c3e2a7d8f5b6c4e3a2d1f0e9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d&apikey=REDACTED"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://api.etherscan.io/v2/api?chainid=8453&module=proxy&action=eth_getTransactionByHash&txhash=0x4a1d0f6b9c3e2a7d8f5b6c4e3a2d1f0e9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d&apikey=REDACTED"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"status\":\"0\",\"message\":\"NOTOK\",\"result\":\"Free API access is not supported for this chain. Please upgrade your api plan for full chain coverage. https://etherscan.io/apis\"}"
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://api.etherscan.io/v2/api?chainid=42161&module=proxy&action=eth_getTransactionByHash&txhash=0x4a1d0f6b9c3e2a7d8f5b6c4e3a2d1f0e9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d&apikey=REDACTED"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://api.etherscan.io/v2/api?chainid=10&module=proxy&action=eth_getTransactionByHash&txhash=0x4a1d0f6b9c3e2a7d8f5b6c4e3a2d1f0e9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d&apikey=REDACTED"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"status\":\"0\",\"message\":\"NOTOK\",\"result\":\"Free API access is not supported for this chain. Please upgrade your api plan for full chain coverage. https://etherscan.io/apis\"}"
+   }
+  }
+ ]
+}

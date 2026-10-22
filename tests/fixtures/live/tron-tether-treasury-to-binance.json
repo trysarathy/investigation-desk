@@ -1,0 +1,134 @@
+{
+ "name": "tron-tether-treasury-to-binance",
+ "hash": "e25114e130161005c3173f2cb5a90d35d8d48cbffde637e525b0cf35701151b1",
+ "explorer": "https://tronscan.org/#/transaction/e25114e130161005c3173f2cb5a90d35d8d48cbffde637e525b0cf35701151b1",
+ "recordedAt": "2026-10-22T05:09:10.265Z",
+ "exchanges": [
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://api.etherscan.io/v2/api?chainid=1&module=proxy&action=eth_getTransactionByHash&txhash=0xe25114e130161005c3173f2cb5a90d35d8d48cbffde637e525b0cf35701151b1&apikey=REDACTED"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.trongrid.io/wallet/gettransactionbyid",
+    "body": "{\"value\":\"e25114e130161005c3173f2cb5a90d35d8d48cbffde637e525b0cf35701151b1\"}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"raw_data\":{\"ref_block_bytes\":\"d58b\",\"ref_block_hash\":\"1bf335dbd34cb7c3\",\"expiration\":1790949123000,\"contract\":[{\"parameter\":{\"value\":{\"owner_address\":\"4166426c7ac3d98b29191063833345b6bc540d7278\",\"contract_address\":\"41a614f803b6fd780986a42c78ec9c7f77e6ded13c\",\"data\":\"a9059cbb000000000000000000000000315269565f42e773d13b26eac2d4860885651a1b0000000000000000000000000000000000000000000000000001c6bf52634000\"},\"type_url\":\"type.googleapis.com/protocol.TriggerSmartContract\"},\"type\":\"TriggerSmartContract\"}],\"timestamp\":1790949064604,\"fee_limit\":1000000000},\"signature\":[\"908172bd0ff51e4e15cc8adb7e7d40994577787fb942edc403e59b654b658044181f8af4bcfab6dc7ff060651241970bd59772d55c53fa51a29859c69622453001\"],\"ret\":[{\"contractRet\":\"SUCCESS\"}],\"raw_data_hex\":\"0a02d58b22081bf335dbd34cb7c340b8c78be78f345aae01081f12a9010a31747970652e676f6f676c65617069732e636f6d2f70726f746f636f6c2e54726967676572536d617274436f6e747261637412740a154166426c7ac3d98b29191063833345b6bc540d7278121541a614f803b6fd780986a42c78ec9c7f77e6ded13c2244a9059cbb000000000000000000000000315269565f42e773d13b26eac2d4860885651a1b0000000000000000000000000000000000000000000000000001c6bf52634000709cff87e78f3490018094ebdc03\",\"txID\":\"e25114e130161005c3173f2cb5a90d35d8d48cbffde637e525b0cf35701151b1\"}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.trongrid.io/wallet/gettransactioninfobyid",
+    "body": "{\"value\":\"e25114e130161005c3173f2cb5a90d35d8d48cbffde637e525b0cf35701151b1\"}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"id\": \"e25114e130161005c3173f2cb5a90d35d8d48cbffde637e525b0cf35701151b1\",\"blockNumber\": 86758815,\"blockTimeStamp\": 1790949069000,\"contractResult\": [\"0000000000000000000000000000000000000000000000000000000000000000\"],\"contract_address\": \"41a614f803b6fd780986a42c78ec9c7f77e6ded13c\",\"receipt\": {\"energy_usage\": 130285,\"energy_usage_total\": 130285,\"net_usage\": 346,\"result\": \"SUCCESS\",\"energy_penalty_total\": 100635},\"log\": [{\"address\": \"a614f803b6fd780986a42c78ec9c7f77e6ded13c\",\"topics\": [\"ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef\",\"00000000000000000000000066426c7ac3d98b29191063833345b6bc540d7278\",\"000000000000000000000000315269565f42e773d13b26eac2d4860885651a1b\"],\"data\": \"0000000000000000000000000000000000000000000000000001c6bf52634000\"}]}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.trongrid.io/wallet/getblock",
+    "body": "{\"detail\":false}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"blockID\":\"0000000005347639d257777c4282f9840281dd2aa3b1c2b596a094a33a62dee6\",\"block_header\":{\"raw_data\":{\"timestamp\":1792645749000,\"txTrieRoot\":\"ca5cceecc7f18eb0f1e1ca50fac36c16739b01962b273ff6811095f573a3ec69\",\"parentHash\":\"000000000534763811e36d7825e5dd38501d47594c015419d1689533f81e5bac\",\"number\":87324217,\"witness_address\":\"414cdd560ded17f30e2c2d5422669cc86a14c8c3ba\",\"version\":38},\"witness_signature\":\"72e3aef35ce87314995fc93b33467bd66075aa9afb0f679756cbe72ea3a3eb903ad03e5c1438e5176e6ffd0f410acea3e3f43e028beb9359d3206318481bb95e01\"}}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://api.etherscan.io/v2/api?chainid=56&module=proxy&action=eth_getTransactionByHash&txhash=0xe25114e130161005c3173f2cb5a90d35d8d48cbffde637e525b0cf35701151b1&apikey=REDACTED"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"status\":\"0\",\"message\":\"NOTOK\",\"result\":\"Free API access is not supported for this chain. Please upgrade your api plan for full chain coverage. https://etherscan.io/apis\"}"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.trongrid.io/wallet/triggerconstantcontract",
+    "body": "{\"owner_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"contract_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"function_selector\":\"symbol()\",\"visible\":true}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"transaction\":{\"raw_data\":{\"ref_block_bytes\":\"7627\",\"ref_block_hash\":\"088ffaaa60418ee1\",\"expiration\":1792645809000,\"contract\":[{\"parameter\":{\"value\":{\"owner_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"contract_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"data\":\"95d89b41\"},\"type_url\":\"type.googleapis.com/protocol.TriggerSmartContract\"},\"type\":\"TriggerSmartContract\"}],\"timestamp\":1792645750715},\"ret\":[{}],\"raw_data_hex\":\"0a0276272208088ffaaa60418ee140e886919096345a6d081f12690a31747970652e676f6f676c65617069732e636f6d2f70726f746f636f6c2e54726967676572536d617274436f6e747261637412340a1541a614f803b6fd780986a42c78ec9c7f77e6ded13c121541a614f803b6fd780986a42c78ec9c7f77e6ded13c220495d89b4170bbbf8d909634\",\"txID\":\"83f362c611db9208c49d87b4f93a488c883e600756c03a2bd851c8b6ed12629a\",\"visible\":true},\"constant_result\":[\"000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000045553445400000000000000000000000000000000000000000000000000000000\"],\"result\":{\"result\":true},\"energy_used\":5922,\"energy_penalty\":4558}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.trongrid.io/wallet/triggerconstantcontract",
+    "body": "{\"owner_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"contract_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"function_selector\":\"decimals()\",\"visible\":true}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"transaction\":{\"raw_data\":{\"ref_block_bytes\":\"7627\",\"ref_block_hash\":\"088ffaaa60418ee1\",\"expiration\":1792645809000,\"contract\":[{\"parameter\":{\"value\":{\"owner_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"contract_address\":\"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t\",\"data\":\"313ce567\"},\"type_url\":\"type.googleapis.com/protocol.TriggerSmartContract\"},\"type\":\"TriggerSmartContract\"}],\"timestamp\":1792645750846},\"ret\":[{}],\"raw_data_hex\":\"0a0276272208088ffaaa60418ee140e886919096345a6d081f12690a31747970652e676f6f676c65617069732e636f6d2f70726f746f636f6c2e54726967676572536d617274436f6e747261637412340a1541a614f803b6fd780986a42c78ec9c7f77e6ded13c121541a614f803b6fd780986a42c78ec9c7f77e6ded13c2204313ce56770bec08d909634\",\"txID\":\"ff7cdb3f109360acd0eaf8219efec036e39eb186b16379cdaded4f721febe092\",\"visible\":true},\"constant_result\":[\"0000000000000000000000000000000000000000000000000000000000000006\"],\"result\":{\"result\":true},\"energy_used\":2207,\"energy_penalty\":1699}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://api.etherscan.io/v2/api?chainid=137&module=proxy&action=eth_getTransactionByHash&txhash=0xe25114e130161005c3173f2cb5a90d35d8d48cbffde637e525b0cf35701151b1&apikey=REDACTED"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://api.etherscan.io/v2/api?chainid=8453&module=proxy&action=eth_getTransactionByHash&txhash=0xe25114e130161005c3173f2cb5a90d35d8d48cbffde637e525b0cf35701151b1&apikey=REDACTED"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"status\":\"0\",\"message\":\"NOTOK\",\"result\":\"Free API access is not supported for this chain. Please upgrade your api plan for full chain coverage. https://etherscan.io/apis\"}"
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://api.etherscan.io/v2/api?chainid=42161&module=proxy&action=eth_getTransactionByHash&txhash=0xe25114e130161005c3173f2cb5a90d35d8d48cbffde637e525b0cf35701151b1&apikey=REDACTED"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://api.etherscan.io/v2/api?chainid=10&module=proxy&action=eth_getTransactionByHash&txhash=0xe25114e130161005c3173f2cb5a90d35d8d48cbffde637e525b0cf35701151b1&apikey=REDACTED"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"status\":\"0\",\"message\":\"NOTOK\",\"result\":\"Free API access is not supported for this chain. Please upgrade your api plan for full chain coverage. https://etherscan.io/apis\"}"
+   }
+  }
+ ]
+}

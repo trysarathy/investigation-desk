@@ -29,7 +29,8 @@ export function investigate(facts: Facts, settings: Settings): Verdict {
 
   // A chain we could not reach means absence is unproven: pause instead of guessing.
   const pausedChains = facts.lookups.filter((l) => l.result === "error").map((l) => l.chain);
-  if (!facts.tx && !facts.mempool && pausedChains.length > 0) {
+  const mempoolCounts = !!facts.mempool && settings.mempoolChecksEnabled;
+  if (!facts.tx && !mempoolCounts && pausedChains.length > 0) {
     return { ...base, state: "paused", code: "D99", confidence: null, evidenceIds: [], findings: [], checks: [], pausedChains };
   }
 
