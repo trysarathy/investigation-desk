@@ -274,6 +274,14 @@ Hard rules:
 
 **Tests that must pass before any pilot:** one fixture case per code D01–D18 plus D99, a contradiction case (D02 becomes D12 after re-check), a malformed-CSV case, and a prompt-injection case (a ledger note saying "ignore instructions" must not change the output).
 
+**Decisions after Week 4 (22 Oct):**
+
+- **Banned words are matched as whole words**, and approved template text is exempt. "Not refundable" in the D03 reply is allowed; "refund" written by the AI is not.
+- **Rejected upload rows cap D07 and D12 at Medium** (accepted). While any File A or File B row is rejected, the address or credit a verdict depends on might be in it. The case says why it is capped.
+- **Customer inference from File A** (accepted): a pasted hash with no customer takes the address's owner at block time, and the case says so. D17 needs a reporting customer, so the investigate form gets an optional "Reporting customer" field (and `customer=` in the link).
+- **AI model:** default to `claude-haiku-5-5`, configurable by environment variable. The job is a short, validated rewrite of facts the code already decided, so the cheapest current model is enough \[ASSUMPTION — compare quality on 20 cases before a pilot\]. Template text remains the default whenever no `ANTHROPIC_API_KEY` is set; no key until a pilot is signed and a zero-retention agreement is in place.
+- **Sample company settings** declare BSC-USD as an accepted BNB Chain contract, labelled "sample setting", so demos of real BNB Chain deposits don't show D05. Real companies declare their own in Week 5.
+
 ## 7. Trust and security
 
 **Read-only by construction:** the product holds no private keys, no seed phrases and no signing ability, and calls only read endpoints. Our chain API keys are ours, not the customer's. There is no code path that can move funds.
