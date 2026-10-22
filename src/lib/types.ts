@@ -7,7 +7,12 @@ export type EvmChain = Exclude<Chain, "tron">;
 export type Token = "USDT" | "USDC";
 
 export const DEPOSIT_CHAINS: DepositChain[] = ["tron", "ethereum", "bsc"];
-export const CROSS_CHECK_CHAINS: CrossCheckChain[] = ["polygon", "base", "arbitrum", "optimism"];
+export const CROSS_CHECK_CHAINS: CrossCheckChain[] = [
+  "polygon",
+  "base",
+  "arbitrum",
+  "optimism",
+];
 export const ALL_CHAINS: Chain[] = [...DEPOSIT_CHAINS, ...CROSS_CHECK_CHAINS];
 
 export const EVM_CHAIN_IDS: Record<EvmChain, number> = {
@@ -30,14 +35,32 @@ export const CHAIN_NAMES: Record<Chain, string> = {
 };
 
 export type Code =
-  | "D01" | "D02" | "D03" | "D04" | "D05" | "D06" | "D07" | "D07b"
-  | "D08" | "D09" | "D10" | "D11" | "D12" | "D13" | "D14" | "D16" | "D17" | "D18" | "D99";
+  | "D01"
+  | "D02"
+  | "D03"
+  | "D04"
+  | "D05"
+  | "D06"
+  | "D07"
+  | "D07b"
+  | "D08"
+  | "D09"
+  | "D10"
+  | "D11"
+  | "D12"
+  | "D13"
+  | "D14"
+  | "D16"
+  | "D17"
+  | "D18"
+  | "D99";
 
 export type Confidence = "High" | "Medium";
 
 // ---- Inputs ----
 
-export type InputKind = "hash" | "tron_address" | "evm_address" | "customer_ref" | "unrecognised";
+export type InputKind =
+  "hash" | "tron_address" | "evm_address" | "customer_ref" | "unrecognised";
 
 export interface NormalisedInput {
   raw: string;
@@ -120,7 +143,8 @@ export interface DepositAddressRow {
   retiredAt?: string;
 }
 
-export type LedgerStatus = "CREDITED" | "PENDING" | "HELD" | "REVIEW" | "REJECTED";
+export type LedgerStatus =
+  "CREDITED" | "PENDING" | "HELD" | "REVIEW" | "REJECTED";
 
 export interface LedgerRow {
   row: number;
@@ -299,7 +323,7 @@ export interface Verdict {
 // ---- Raw chain API responses (spec 6.2: stored with fetch time and SHA-256) ----
 
 export interface RawResponse {
-  source: "trongrid" | "etherscan" | "public-rpc";
+  source: "trongrid" | "etherscan" | "public-rpc" | "blockscout";
   chain: Chain;
   /** Request as sent, with any API key removed. */
   request: { method: "GET" | "POST"; url: string; body?: string };

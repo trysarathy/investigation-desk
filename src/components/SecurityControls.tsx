@@ -1,0 +1,51 @@
+"use client";
+import { useState } from "react";
+export function SecurityControls({ initial }: { initial: number }) {
+  const [days, setDays] = useState(initial),
+    [status, setStatus] = useState("");
+  async function update(sweep = false) {
+    const r = await fetch("/api/security", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ days, sweep }),
+    });
+    const b = await r.json();
+    setStatus(
+      r.ok
+        ? sweep
+          ? `Deleted ${b.deleted} expired database documents and ${b.deletedFiles} local files. Expired local raw/cache files were also removed. External backups require operator cleanup.`
+          : "Retention setting saved. Run a sweep to apply it."
+        : b.error,
+    );
+  }
+  return (
+    <section className="panel padded">
+      <h2>Evidence retention</h2>
+      <p className="muted">
+        Evidence window. Shortening this and running a sweep deletes expired
+        case snapshots and review candidates.
+      </p>
+      <div className="form-row">
+        <select
+          className="input"
+          aria-label="Retention days"
+          value={days}
+          onChange={(e) => setDays(Number(e.target.value))}
+        >
+          {[7, 30, 90].map((d) => (
+            <option key={d} value={d}>
+              {d} days
+            </option>
+          ))}
+        </select>
+        <button className="btn" onClick={() => update()}>
+          Save retention
+        </button>
+        <button className="btn" onClick={() => update(true)}>
+          Delete expired database evidence
+        </button>
+      </div>
+      <p role="status">{status}</p>
+    </section>
+  );
+}

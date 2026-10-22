@@ -1,0 +1,118 @@
+import { accuracy, type LabelledOutcome } from "@/lib/quality/accuracy";
+import { documents, type CaseRecord } from "@/lib/platform/store";
+import { VERDICT_LABELS } from "@/lib/catalogue";
+export const dynamic = "force-dynamic";
+const pct = (n: number | null) =>
+  n === null ? "Not measured" : `${(n * 100).toFixed(1)}%`;
+export default function AccuracyPage() {
+  const cases = documents<CaseRecord>("case"),
+    labels: LabelledOutcome[] = cases
+      .filter((c) => c.feedback)
+      .map((c) => ({
+        id: c.id,
+        predicted: c.view.verdicts.at(-1)!.code,
+        actual: c.feedback!.actual,
+        provenance: c.provenance,
+        adjudicated: c.feedback!.adjudicated,
+      })),
+    rows = accuracy(labels, "analyst");
+  return (
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <span className="eyebrow">Learning from outcomes</span>
+          <h1 className="display-title">Accuracy, with the denominator.</h1>
+          <p className="muted">
+            Confirmed cases are a reviewed subset, not an unbiased estimate of
+            production performance.
+          </p>
+        </div>
+        <a className="btn" href="/api/regressions">
+          Export regression candidates
+        </a>
+      </div>
+      <div className="metric-grid">
+        <div className="metric">
+          <span>Stored investigations</span>
+          <strong>{cases.length}</strong>
+          <small>Versioned evidence snapshots</small>
+        </div>
+        <div className="metric">
+          <span>Analyst reviews</span>
+          <strong>{labels.length}</strong>
+          <small>Synthetic labels kept separate</small>
+        </div>
+        <div className="metric">
+          <span>Adjudicated real cases</span>
+          <strong>
+            {
+              labels.filter((l) => l.provenance === "analyst" && l.adjudicated)
+                .length
+            }
+          </strong>
+          <small>Eligible for metrics below</small>
+        </div>
+        <div className="metric">
+          <span>Recorded public transactions</span>
+          <strong>7 / 100</strong>
+          <small>Independent labels still required</small>
+        </div>
+      </div>
+      <div className="bar bar-amber">
+        No accuracy claim until labels exist. Company credit and policy
+        diagnoses require authorized company records.
+      </div>
+      <section className="panel padded">
+        <div className="section-heading">
+          <h2>Per-diagnosis evaluation</h2>
+          <span className="muted">Adjudicated analyst cases only</span>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Diagnosis</th>
+                <th>Precision</th>
+                <th>Recall</th>
+                <th>TP</th>
+                <th>FP</th>
+                <th>FN</th>
+                <th>Labelled positives</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.code}>
+                  <td>
+                    <span className="mono">{r.code}</span>{" "}
+                    {VERDICT_LABELS[r.code]}
+                  </td>
+                  <td>{pct(r.precision)}</td>
+                  <td>{pct(r.recall)}</td>
+                  <td>{r.tp}</td>
+                  <td>{r.fp}</td>
+                  <td>{r.fn}</td>
+                  <td>{r.support}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section className="panel padded" style={{ marginTop: 24 }}>
+        <h2>How the numbers work</h2>
+        <p className="muted">
+          Precision = true positives / (true positives + false positives).
+          Recall = true positives / (true positives + false negatives). Unknown
+          predictions count as misses when an adjudicated diagnosis exists.
+          Empty denominators stay unmeasured.
+        </p>
+        <p className="muted">
+          Corrections preserve original evidence and become regression
+          candidates. A lead must adjudicate them; no automatic retraining or
+          rule changes.
+        </p>
+      </section>
+    </div>
+  );
+}

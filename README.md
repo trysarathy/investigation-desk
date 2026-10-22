@@ -1,9 +1,14 @@
 # Stablecoin Payment Investigation Desk
 
-Build week 1 of Product Spec v1 (21 Oct 2026): app shell, design tokens, the case queue and the
-investigation view, running on **fabricated sample data**. The rules engine (D01–D18 except D15, D07b, D99)
-is also in, as pure functions. Week 2 needs it, and the investigation view should show verdicts
-the code actually computed.
+An evidence-backed, read-only investigation desk with live chain adapters, bounded Company Scan,
+reviewed-case accuracy, CSV workflows, integration interfaces and single-company trust controls.
+This is a **pilot candidate, not a production-certified payment system**. Public-chain evidence
+cannot establish whether a customer's internal account was credited.
+
+Read [VISION.md](VISION.md), [operations](docs/OPERATIONS.md) and the
+[build review](docs/reports/build-review.md) for current scope, validation and release gates.
+Historical implementation notes below retain earlier milestones; the build review takes precedence.
+Node 24 is the tested runtime. Demo: `DEMO_MODE=1 npm run dev`.
 
 ```
 npm install

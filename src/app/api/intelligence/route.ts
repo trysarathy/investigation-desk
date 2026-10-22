@@ -1,0 +1,40 @@
+import { actor } from "@/lib/auth/actor";
+import {
+  intelligence,
+  setConsent,
+  contribute,
+} from "@/lib/intelligence/service";
+import { PATTERNS } from "@/lib/intelligence/signals";
+export async function GET() {
+  return Response.json(intelligence(), {
+    headers: { "Cache-Control": "no-store" },
+  });
+}
+export async function POST(req: Request) {
+  const origin = req.headers.get("origin");
+  if (origin && new URL(origin).host !== req.headers.get("host"))
+    return Response.json(
+      { error: "Cross-origin mutation refused" },
+      { status: 403 },
+    );
+  const b = await req.json();
+  if (typeof b.enabled === "boolean") setConsent(b.enabled, await actor());
+  else if (
+    PATTERNS.includes(b.pattern) &&
+    ["tron", "ethereum", "bsc"].includes(b.chain)
+  ) {
+    try {
+      contribute(b.pattern, b.chain, await actor());
+    } catch {
+      return Response.json({ error: "Opt in first" }, { status: 409 });
+    }
+  } else
+    return Response.json(
+      {
+        error:
+          "Only enumerated public patterns accepted; no free text or addresses",
+      },
+      { status: 400 },
+    );
+  return Response.json(intelligence());
+}

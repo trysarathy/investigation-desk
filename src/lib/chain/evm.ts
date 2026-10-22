@@ -10,23 +10,53 @@
 import { explorerTxUrl } from "../catalogue";
 import type { ChainTx, EvmChain, RawResponse, TokenTransfer } from "../types";
 import { EVM_CHAIN_IDS } from "../types";
-import { decodeAbiString, decodeAbiUint, decodeTransferCall, decodeTransferLogs, formatUnits, hexToBigInt } from "./abi";
+import {
+  decodeAbiString,
+  decodeAbiUint,
+  decodeTransferCall,
+  decodeTransferLogs,
+  formatUnits,
+  hexToBigInt,
+} from "./abi";
 import { ChainApiError, type ChainClient } from "./http";
 import type { ChainLookupResult, TokenMeta } from "./types";
 
 const ETHERSCAN = "https://api.etherscan.io/v2/api";
-const NATIVE: Record<EvmChain, string> = { ethereum: "ETH", bsc: "BNB", polygon: "POL", base: "ETH", arbitrum: "ETH", optimism: "ETH" };
+const NATIVE: Record<EvmChain, string> = {
+  ethereum: "ETH",
+  bsc: "BNB",
+  polygon: "POL",
+  base: "ETH",
+  arbitrum: "ETH",
+  optimism: "ETH",
+};
 
-type RpcMethod = "eth_getTransactionByHash" | "eth_getTransactionReceipt" | "eth_getBlockByNumber" | "eth_blockNumber" | "eth_call";
-interface CallOpts { ttlSec: number; ttlFor?: (r: RawResponse) => number }
+export type RpcMethod =
+  | "eth_getTransactionByHash"
+  | "eth_getTransactionReceipt"
+  | "eth_getBlockByNumber"
+  | "eth_blockNumber"
+  | "eth_call";
+export interface CallOpts {
+  ttlSec: number;
+  ttlFor?: (r: RawResponse) => number;
+}
 
 /** One chain's JSON-RPC answers, from wherever they come. Every raw response lands in `raws`. */
 export interface EvmSource {
   readonly kind: "etherscan" | "public-rpc";
-  call(method: RpcMethod, params: unknown[], opts: CallOpts, raws: RawResponse[]): Promise<unknown>;
+  call(
+    method: RpcMethod,
+    params: unknown[],
+    opts: CallOpts,
+    raws: RawResponse[],
+  ): Promise<unknown>;
 }
 
-async function recorded(raws: RawResponse[], p: Promise<RawResponse>): Promise<RawResponse> {
+async function recorded(
+  raws: RawResponse[],
+  p: Promise<RawResponse>,
+): Promise<RawResponse> {
   try {
     const r = await p;
     raws.push(r);
@@ -37,20 +67,34 @@ async function recorded(raws: RawResponse[], p: Promise<RawResponse>): Promise<R
   }
 }
 
-export function etherscanClassifyBody(body: string): { retryable: boolean; message: string } | undefined {
-  let j: { status?: string; message?: string; result?: unknown; error?: { message?: string } };
+export function etherscanClassifyBody(
+  body: string,
+): { retryable: boolean; message: string } | undefined {
+  let j: {
+    status?: string;
+    message?: string;
+    result?: unknown;
+    error?: { message?: string };
+  };
   try {
     j = JSON.parse(body);
   } catch {
     return { retryable: false, message: "Etherscan returned non-JSON" };
   }
-  const text = j.error?.message ?? (j.status === "0" && typeof j.result === "string" ? j.result : undefined);
+  const text =
+    j.error?.message ??
+    (j.status === "0" && typeof j.result === "string" ? j.result : undefined);
   if (!text) return undefined;
-  return { retryable: /rate limit|max calls|too many/i.test(text), message: text };
+  return {
+    retryable: /rate limit|max calls|too many/i.test(text),
+    message: text,
+  };
 }
 
 /** Public JSON-RPC errors: rate limits are retried, anything else (e.g. a revert) is final. */
-export function jsonRpcClassifyBody(body: string): { retryable: boolean; message: string } | undefined {
+export function jsonRpcClassifyBody(
+  body: string,
+): { retryable: boolean; message: string } | undefined {
   let j: { error?: { code?: number; message?: string } };
   try {
     j = JSON.parse(body);
@@ -59,38 +103,99 @@ export function jsonRpcClassifyBody(body: string): { retryable: boolean; message
   }
   if (!j.error) return undefined;
   const message = j.error.message ?? `RPC error ${j.error.code}`;
-  return { retryable: j.error.code === -32005 || j.error.code === -32029 || /rate|limit|too many|capacity|busy/i.test(message), message };
+  return {
+    retryable:
+      j.error.code === -32005 ||
+      j.error.code === -32029 ||
+      /rate|limit|too many|capacity|busy/i.test(message),
+    message,
+  };
 }
 
 export class EtherscanSource implements EvmSource {
   readonly kind = "etherscan" as const;
 
-  constructor(private readonly client: ChainClient, private readonly apiKey: string, private readonly chain: EvmChain) {
+  constructor(
+    private readonly client: ChainClient,
+    private readonly apiKey: string,
+    private readonly chain: EvmChain,
+  ) {
     if (!apiKey) throw new ChainApiError("ETHERSCAN_API_KEY is not set", false);
   }
 
   /** Etherscan's proxy module takes JSON-RPC calls as query parameters. */
-  async call(method: RpcMethod, params: unknown[], opts: CallOpts, raws: RawResponse[]) {
+  async call(
+    method: RpcMethod,
+    params: unknown[],
+    opts: CallOpts,
+    raws: RawResponse[],
+  ) {
     const p: Record<string, string> = { action: method };
-    if (method === "eth_getTransactionByHash" || method === "eth_getTransactionReceipt") p.txhash = String(params[0]);
-    if (method === "eth_getBlockByNumber") Object.assign(p, { tag: String(params[0]), boolean: String(params[1]) });
+    if (
+      method === "eth_getTransactionByHash" ||
+      method === "eth_getTransactionReceipt"
+    )
+      p.txhash = String(params[0]);
+    if (method === "eth_getBlockByNumber")
+      Object.assign(p, { tag: String(params[0]), boolean: String(params[1]) });
     if (method === "eth_call") {
       const c = params[0] as { to: string; data: string };
-      Object.assign(p, { to: c.to, data: c.data, tag: String(params[1] ?? "latest") });
+      Object.assign(p, {
+        to: c.to,
+        data: c.data,
+        tag: String(params[1] ?? "latest"),
+      });
     }
-    const q = new URLSearchParams({ chainid: String(EVM_CHAIN_IDS[this.chain]), module: "proxy", ...p, apikey: this.apiKey });
-    const r = await recorded(raws, this.client.request({ method: "GET", url: `${ETHERSCAN}?${q}` }, { chain: this.chain, ...opts }));
+    const q = new URLSearchParams({
+      chainid: String(EVM_CHAIN_IDS[this.chain]),
+      module: "proxy",
+      ...p,
+      apikey: this.apiKey,
+    });
+    const r = await recorded(
+      raws,
+      this.client.request(
+        { method: "GET", url: `${ETHERSCAN}?${q}` },
+        { chain: this.chain, ...opts },
+      ),
+    );
     return JSON.parse(r.body).result;
   }
 
   /** ERC-20 transfers out of `address` before `beforeBlock` (Etherscan account module; D07b history). */
-  async tokenTransfersFrom(address: string, beforeBlock: number, raws: RawResponse[]) {
-    const q = new URLSearchParams({ chainid: String(EVM_CHAIN_IDS[this.chain]), module: "account", action: "tokentx",
-      address, startblock: "0", endblock: String(beforeBlock - 1), page: "1", offset: "100", sort: "desc", apikey: this.apiKey });
-    const r = await recorded(raws, this.client.request({ method: "GET", url: `${ETHERSCAN}?${q}` }, { chain: this.chain, ttlSec: Infinity }));
+  async tokenTransfersFrom(
+    address: string,
+    beforeBlock: number,
+    raws: RawResponse[],
+  ) {
+    const q = new URLSearchParams({
+      chainid: String(EVM_CHAIN_IDS[this.chain]),
+      module: "account",
+      action: "tokentx",
+      address,
+      startblock: "0",
+      endblock: String(beforeBlock - 1),
+      page: "1",
+      offset: "100",
+      sort: "desc",
+      apikey: this.apiKey,
+    });
+    const r = await recorded(
+      raws,
+      this.client.request(
+        { method: "GET", url: `${ETHERSCAN}?${q}` },
+        { chain: this.chain, ttlSec: Infinity },
+      ),
+    );
     const j = JSON.parse(r.body);
     return (Array.isArray(j.result) ? j.result : []) as {
-      hash: string; from: string; to: string; value: string; tokenSymbol: string; tokenDecimal: string; timeStamp: string;
+      hash: string;
+      from: string;
+      to: string;
+      value: string;
+      tokenSymbol: string;
+      tokenDecimal: string;
+      timeStamp: string;
     }[];
   }
 }
@@ -98,13 +203,32 @@ export class EtherscanSource implements EvmSource {
 export class JsonRpcSource implements EvmSource {
   readonly kind = "public-rpc" as const;
 
-  constructor(private readonly client: ChainClient, private readonly url: string, private readonly chain: EvmChain) {}
+  constructor(
+    private readonly client: ChainClient,
+    private readonly url: string,
+    private readonly chain: EvmChain,
+  ) {}
 
-  async call(method: RpcMethod, params: unknown[], opts: CallOpts, raws: RawResponse[]) {
+  async call(
+    method: RpcMethod,
+    params: unknown[],
+    opts: CallOpts,
+    raws: RawResponse[],
+  ) {
     // A fixed id keeps identical requests identical, so they cache and replay.
     const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method, params });
-    const r = await recorded(raws, this.client.request(
-      { method: "POST", url: this.url, body, headers: { "content-type": "application/json" } }, { chain: this.chain, ...opts }));
+    const r = await recorded(
+      raws,
+      this.client.request(
+        {
+          method: "POST",
+          url: this.url,
+          body,
+          headers: { "content-type": "application/json" },
+        },
+        { chain: this.chain, ...opts },
+      ),
+    );
     return JSON.parse(r.body).result;
   }
 }
@@ -118,45 +242,133 @@ export class EvmFetcher {
     return this.sources[chain];
   }
 
-  async lookup(chain: EvmChain, hash: string, raws: RawResponse[]): Promise<ChainLookupResult> {
+  async lookup(
+    chain: EvmChain,
+    hash: string,
+    raws: RawResponse[],
+  ): Promise<ChainLookupResult> {
     const txhash = `0x${hash.replace(/^0x/i, "").toLowerCase()}`;
     const sourceUrl = explorerTxUrl(chain, txhash);
     const src = this.sources[chain];
     if (!src) {
-      return { lookup: { chain, result: "error", error: "No data source configured", fetchedAt: new Date().toISOString(), sourceUrl, rawBody: "" } };
+      return {
+        lookup: {
+          chain,
+          result: "error",
+          error: "No data source configured",
+          fetchedAt: new Date().toISOString(),
+          sourceUrl,
+          rawBody: "",
+        },
+      };
     }
     let tx: Record<string, string> | null;
     try {
-      tx = (await src.call("eth_getTransactionByHash", [txhash], { ttlSec: 30,
-        ttlFor: (r) => (JSON.parse(r.body).result?.blockNumber ? Infinity : 15) }, raws)) as Record<string, string> | null;
+      tx = (await src.call(
+        "eth_getTransactionByHash",
+        [txhash],
+        {
+          ttlSec: 30,
+          ttlFor: (r) => (JSON.parse(r.body).result?.blockNumber ? 30 : 15),
+        },
+        raws,
+      )) as Record<string, string> | null;
     } catch (e) {
       const err = e instanceof ChainApiError ? e : undefined;
-      return { lookup: { chain, result: "error", error: err?.message ?? "lookup failed",
-        fetchedAt: err?.raw?.fetchedAt ?? new Date().toISOString(), sourceUrl, rawBody: err?.raw?.body ?? "" } };
+      return {
+        lookup: {
+          chain,
+          result: "error",
+          error: err?.message ?? "lookup failed",
+          fetchedAt: err?.raw?.fetchedAt ?? new Date().toISOString(),
+          sourceUrl,
+          rawBody: err?.raw?.body ?? "",
+        },
+      };
     }
     const first = raws[raws.length - 1];
-    const base = { chain, fetchedAt: first.fetchedAt, sourceUrl, rawBody: first.body };
+    const base = {
+      chain,
+      fetchedAt: first.fetchedAt,
+      sourceUrl,
+      rawBody: first.body,
+    };
     if (!tx) return { lookup: { ...base, result: "not_found" } };
     if (!tx.blockNumber) return { lookup: { ...base, result: "pending" } };
 
-    const receipt = (await src.call("eth_getTransactionReceipt", [txhash], { ttlSec: Infinity }, raws)) as Record<string, unknown> & {
-      status?: string; gasUsed?: string; effectiveGasPrice?: string; logs?: { address: string; topics: string[]; data: string; logIndex: string }[];
+    const receipt = (await src.call(
+      "eth_getTransactionReceipt",
+      [txhash],
+      { ttlSec: 30 },
+      raws,
+    )) as Record<string, unknown> & {
+      status?: string;
+      gasUsed?: string;
+      effectiveGasPrice?: string;
+      logs?: {
+        address: string;
+        topics: string[];
+        data: string;
+        logIndex: string;
+      }[];
     };
     const blockNumber = Number(BigInt(tx.blockNumber));
-    const block = (await src.call("eth_getBlockByNumber", [hex(blockNumber), false], { ttlSec: Infinity }, raws)) as { timestamp: string };
-    const head = (await src.call("eth_blockNumber", [], { ttlSec: 5 }, raws)) as string | undefined;
+    const block = (await src.call(
+      "eth_getBlockByNumber",
+      [hex(blockNumber), false],
+      { ttlSec: Infinity },
+      raws,
+    )) as { timestamp: string };
+    const head = (await src.call(
+      "eth_blockNumber",
+      [],
+      { ttlSec: 5 },
+      raws,
+    )) as string | undefined;
 
-    const failed = receipt?.status !== "0x1";
-    const fee = (hexToBigInt(receipt?.gasUsed ?? "0") ?? 0n) * (hexToBigInt(receipt?.effectiveGasPrice ?? tx.gasPrice ?? "0") ?? 0n);
+    if (!receipt || !["0x0", "0x1"].includes(receipt.status ?? ""))
+      throw new ChainApiError(
+        "Receipt unavailable or invalid; outcome unknown",
+        true,
+      );
+    const failed = receipt.status === "0x0";
+    const fee =
+      (hexToBigInt(receipt?.gasUsed ?? "0") ?? 0n) *
+      (hexToBigInt(receipt?.effectiveGasPrice ?? tx.gasPrice ?? "0") ?? 0n);
     const transfers: TokenTransfer[] = [];
-    const logs = (receipt?.logs ?? []).map((l) =>
-      ({ address: l.address, topics: l.topics ?? [], data: l.data ?? "", index: Number(BigInt(l.logIndex)) }));
+    const logs = (receipt?.logs ?? []).map((l) => ({
+      address: l.address,
+      topics: l.topics ?? [],
+      data: l.data ?? "",
+      index: Number(BigInt(l.logIndex)),
+    }));
     for (const t of decodeTransferLogs(logs)) {
-      transfers.push(await this.transfer(chain, `0x${t.contractHex}`, t.index, `0x${t.fromHex}`, `0x${t.toHex}`, t.value, raws));
+      transfers.push(
+        await this.transfer(
+          chain,
+          `0x${t.contractHex}`,
+          t.index,
+          `0x${t.fromHex}`,
+          `0x${t.toHex}`,
+          t.value,
+          raws,
+        ),
+      );
     }
     if (failed && transfers.length === 0 && tx.to && tx.input) {
       const call = decodeTransferCall(tx.input);
-      if (call) transfers.push(await this.transfer(chain, tx.to.toLowerCase(), 0, tx.from.toLowerCase(), `0x${call.toHex}`, call.value, raws));
+      if (call)
+        transfers.push(
+          await this.transfer(
+            chain,
+            tx.to.toLowerCase(),
+            0,
+            tx.from.toLowerCase(),
+            `0x${call.toHex}`,
+            call.value,
+            raws,
+          ),
+        );
     }
 
     const chainTx: ChainTx = {
@@ -172,23 +384,45 @@ export class EvmFetcher {
       transfers,
     };
     const current = head ? Number(BigInt(head)) : NaN;
-    return { lookup: { ...base, result: "found" }, tx: chainTx, currentBlock: Number.isFinite(current) ? current : undefined };
+    return {
+      lookup: { ...base, result: "found" },
+      tx: chainTx,
+      currentBlock: Number.isFinite(current) ? current : undefined,
+    };
   }
 
   /** Read-only eth_call at the latest block; undefined on any error (a revert means "no such function"). */
-  async ethCall(chain: EvmChain, to: string, data: string, ttlSec: number, raws: RawResponse[]): Promise<string | undefined> {
+  async ethCall(
+    chain: EvmChain,
+    to: string,
+    data: string,
+    ttlSec: number,
+    raws: RawResponse[],
+  ): Promise<string | undefined> {
     const src = this.sources[chain];
     if (!src) return undefined;
     try {
-      const r = (await src.call("eth_call", [{ to, data }, "latest"], { ttlSec }, raws)) as string | undefined;
+      const r = (await src.call(
+        "eth_call",
+        [{ to, data }, "latest"],
+        { ttlSec },
+        raws,
+      )) as string | undefined;
       return r && r !== "0x" ? r : undefined;
     } catch {
       return undefined;
     }
   }
 
-  private async transfer(chain: EvmChain, contract: string, index: number, from: string, to: string,
-    value: bigint | undefined, raws: RawResponse[]): Promise<TokenTransfer> {
+  private async transfer(
+    chain: EvmChain,
+    contract: string,
+    index: number,
+    from: string,
+    to: string,
+    value: bigint | undefined,
+    raws: RawResponse[],
+  ): Promise<TokenTransfer> {
     const m = await this.tokenMeta(chain, contract, raws);
     return {
       logIndex: index,
@@ -196,13 +430,35 @@ export class EvmFetcher {
       tokenSymbol: m.symbol ?? "UNKNOWN",
       from,
       to,
-      amount: value !== undefined && m.decimals !== undefined ? formatUnits(value, m.decimals) : "",
+      amount:
+        value !== undefined && m.decimals !== undefined
+          ? formatUnits(value, m.decimals)
+          : "",
     };
   }
 
-  private async tokenMeta(chain: EvmChain, contract: string, raws: RawResponse[]): Promise<TokenMeta> {
-    const sym = await this.ethCall(chain, contract, "0x95d89b41", Infinity, raws); // symbol()
-    const dec = await this.ethCall(chain, contract, "0x313ce567", Infinity, raws); // decimals()
-    return { symbol: sym ? decodeAbiString(sym) : undefined, decimals: dec ? decodeAbiUint(dec) : undefined };
+  private async tokenMeta(
+    chain: EvmChain,
+    contract: string,
+    raws: RawResponse[],
+  ): Promise<TokenMeta> {
+    const sym = await this.ethCall(
+      chain,
+      contract,
+      "0x95d89b41",
+      Infinity,
+      raws,
+    ); // symbol()
+    const dec = await this.ethCall(
+      chain,
+      contract,
+      "0x313ce567",
+      Infinity,
+      raws,
+    ); // decimals()
+    return {
+      symbol: sym ? decodeAbiString(sym) : undefined,
+      decimals: dec ? decodeAbiUint(dec) : undefined,
+    };
   }
 }

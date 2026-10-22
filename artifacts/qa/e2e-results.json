@@ -1,0 +1,82 @@
+{
+  "checks": [
+    {
+      "name": "Unauthenticated API refused",
+      "ok": true
+    },
+    {
+      "name": "analyst password + TOTP login",
+      "ok": true
+    },
+    {
+      "name": "lead password + TOTP login",
+      "ok": true
+    },
+    {
+      "name": "admin password + TOTP login",
+      "ok": true
+    },
+    {
+      "name": "TOTP replay rejected",
+      "ok": true
+    },
+    {
+      "name": "Analyst bulk denied",
+      "ok": true
+    },
+    {
+      "name": "Lead policy edit denied",
+      "ok": true
+    },
+    {
+      "name": "Investigation stored 0",
+      "ok": true
+    },
+    {
+      "name": "Investigation stored 1",
+      "ok": true
+    },
+    {
+      "name": "Investigation stored 2",
+      "ok": true
+    },
+    {
+      "name": "Feedback persisted",
+      "ok": true
+    },
+    {
+      "name": "Analyst adjudication denied",
+      "ok": true
+    },
+    {
+      "name": "Independent lead adjudication",
+      "ok": true
+    },
+    {
+      "name": "Adjudication propagated to regression export",
+      "ok": true
+    },
+    {
+      "name": "Resolution recorded",
+      "ok": true
+    },
+    {
+      "name": "Background scan completed",
+      "ok": true
+    },
+    {
+      "name": "Analyst export denied",
+      "ok": true
+    },
+    {
+      "name": "Lead PDF export",
+      "ok": true
+    }
+  ],
+  "investigationMs": [
+    78,
+    30,
+    29
+  ],
+  "mode": "Production build; recorded public chain data and fictional company records; no live latency claim"
+}

@@ -5,7 +5,12 @@ import { compareDecimal } from "@/lib/decimal";
 import { investigate } from "@/lib/engine/run";
 import { CATALOGUE_ORDER, nextStep } from "@/lib/catalogue";
 import { looksAlike } from "@/lib/engine/context";
-import { SAMPLE_CASES, SAMPLE_SETTINGS, findCase, withChainDown } from "@/lib/fixtures";
+import {
+  SAMPLE_CASES,
+  SAMPLE_SETTINGS,
+  findCase,
+  withChainDown,
+} from "@/lib/fixtures";
 import { normaliseInput } from "@/lib/normalise";
 import { canonicalAddress, tronToHex } from "@/lib/address";
 import { fillReply, REPLY_TEMPLATES } from "@/lib/templates";
@@ -30,7 +35,7 @@ describe("one fixture case per catalogue code", () => {
     ["CS-1048", "D07", "High"],
     ["CS-1049", "D08", "High"],
     ["CS-1050", "D09", "High"],
-    ["CS-1051", "D01", "High"],
+    ["CS-1051", "D99", null],
     ["CS-1052", "D11", "Medium"],
     ["CS-1041", "D12", "High"],
     ["CS-1053", "D13", "High"],
@@ -52,24 +57,47 @@ describe("one fixture case per catalogue code", () => {
 
   it("covers every code", () => {
     const codes = new Set(expected.map((e) => e[1]));
-    for (const c of ["D01", "D02", "D03", "D04", "D05", "D06", "D07", "D08", "D09", "D11", "D12", "D13", "D14", "D16", "D17", "D18", "D99"]) {
+    for (const c of [
+      "D01",
+      "D02",
+      "D03",
+      "D04",
+      "D05",
+      "D06",
+      "D07",
+      "D08",
+      "D09",
+      "D11",
+      "D12",
+      "D13",
+      "D14",
+      "D16",
+      "D17",
+      "D18",
+      "D99",
+    ]) {
       expect(codes.has(c as Code)).toBe(true);
     }
     // D10 is disabled by default (week 2 mempool finding); its fixture is covered with it enabled below.
     expect(investigate(latest("CS-1051"), MEMPOOL_ON).code).toBe("D10");
     // D07b is never a verdict on its own fixture; it appears as a finding (see "c." below).
-    expect(run(latest("CS-1048")).findings.map((f) => f.code)).toEqual(["D07b"]);
+    expect(run(latest("CS-1048")).findings.map((f) => f.code)).toEqual([
+      "D07b",
+    ]);
   });
 });
 
 describe("verdict integrity", () => {
-  it.each(SAMPLE_CASES.map((c) => c.id))("%s cites only evidence that exists, and records versions", (id) => {
-    const v = run(latest(id));
-    const ids = new Set(v.evidence.map((e) => e.id));
-    for (const e of v.evidenceIds) expect(ids.has(e)).toBe(true);
-    expect(v.ruleVersion).toMatch(/^rules-/);
-    expect(v.settingsVersion).toBe(SAMPLE_SETTINGS.version);
-  });
+  it.each(SAMPLE_CASES.map((c) => c.id))(
+    "%s cites only evidence that exists, and records versions",
+    (id) => {
+      const v = run(latest(id));
+      const ids = new Set(v.evidence.map((e) => e.id));
+      for (const e of v.evidenceIds) expect(ids.has(e)).toBe(true);
+      expect(v.ruleVersion).toMatch(/^rules-/);
+      expect(v.settingsVersion).toBe(SAMPLE_SETTINGS.version);
+    },
+  );
 
   it("runs every rule, not just up to the winner", () => {
     expect(run(latest("CS-1055")).checks).toHaveLength(18);
@@ -108,8 +136,13 @@ describe("chain API down", () => {
 describe("prompt injection", () => {
   it("a ledger note saying 'ignore instructions' does not change the verdict", () => {
     const f = latest("CS-1054");
-    expect(f.ledger.some((r) => r.note?.toLowerCase().includes("ignore"))).toBe(true);
-    const clean: Facts = { ...f, ledger: f.ledger.map((r) => ({ ...r, note: undefined })) };
+    expect(f.ledger.some((r) => r.note?.toLowerCase().includes("ignore"))).toBe(
+      true,
+    );
+    const clean: Facts = {
+      ...f,
+      ledger: f.ledger.map((r) => ({ ...r, note: undefined })),
+    };
     const a = run(f);
     const b = run(clean);
     expect(a.code).toBe("D14");
@@ -148,7 +181,9 @@ describe("rule guards", () => {
   it("D04 next step depends on the keys-held setting", async () => {
     const { nextStep } = await import("@/lib/catalogue");
     expect(nextStep("D04", SAMPLE_SETTINGS)).toMatch(/Unrecoverable/);
-    expect(nextStep("D04", { ...SAMPLE_SETTINGS, keysHeldOnOtherChains: true })).toMatch(/Ops decides/);
+    expect(
+      nextStep("D04", { ...SAMPLE_SETTINGS, keysHeldOnOtherChains: true }),
+    ).toMatch(/Ops decides/);
   });
 });
 
@@ -216,13 +251,24 @@ describe("look-alike match", () => {
 
 // ---- 22 Oct spec changes ----
 
-const withTransfer = (f: Facts, patch: Partial<NonNullable<Facts["tx"]>["transfers"][number]>): Facts => ({
+const withTransfer = (
+  f: Facts,
+  patch: Partial<NonNullable<Facts["tx"]>["transfers"][number]>,
+): Facts => ({
   ...f,
-  tx: { ...f.tx!, transfers: f.tx!.transfers.map((t, i, all) => (i === all.length - 1 ? { ...t, ...patch } : t)) },
+  tx: {
+    ...f.tx!,
+    transfers: f.tx!.transfers.map((t, i, all) =>
+      i === all.length - 1 ? { ...t, ...patch } : t,
+    ),
+  },
 });
 
 describe("a. D02 only matches a deposit that would otherwise be credited", () => {
-  const unconfirmed = (f: Facts): Facts => ({ ...f, currentBlock: f.tx!.blockNumber + 3 });
+  const unconfirmed = (f: Facts): Facts => ({
+    ...f,
+    currentBlock: f.tx!.blockNumber + 3,
+  });
 
   it("matches a creditable deposit with too few confirmations", () => {
     expect(run(latest("CS-1042")).code).toBe("D02");
@@ -248,23 +294,41 @@ describe("b. D05 stands aside only for impersonating USDT/USDC", () => {
   it("a fake USDT to a company address is D06, and D05 records why it stood aside", () => {
     const v = run(latest("CS-1046"));
     expect(v.code).toBe("D06");
-    expect(v.checks.find((c) => c.code === "D05")!.reason).toMatch(/non-official contract/);
+    expect(v.checks.find((c) => c.code === "D05")!.reason).toMatch(
+      /non-official contract/,
+    );
   });
 
   it("genuine USDT on a chain where the company does not accept it is D05", () => {
     const f = latest("CS-1041");
-    const v = investigate(f, { ...SAMPLE_SETTINGS, acceptedTokens: { ...SAMPLE_SETTINGS.acceptedTokens, tron: [] } });
+    const v = investigate(f, {
+      ...SAMPLE_SETTINGS,
+      acceptedTokens: { ...SAMPLE_SETTINGS.acceptedTokens, tron: [] },
+    });
     expect(v.code).toBe("D05");
     expect(v.checks.find((c) => c.code === "D06")!.matched).toBe(false);
   });
 
   it("USDC with no confirmed official contract and off the allowlist is D05, not D99", () => {
-    const noUsdc = { ...SAMPLE_SETTINGS, officialContracts: { ...SAMPLE_SETTINGS.officialContracts, ethereum: { USDT: SAMPLE_SETTINGS.officialContracts.ethereum!.USDT } } };
-    expect(investigate(withTransfer(latest("CS-1045"), { tokenSymbol: "USDC" }), noUsdc).code).toBe("D05");
+    const noUsdc = {
+      ...SAMPLE_SETTINGS,
+      officialContracts: {
+        ...SAMPLE_SETTINGS.officialContracts,
+        ethereum: { USDT: SAMPLE_SETTINGS.officialContracts.ethereum!.USDT },
+      },
+    };
+    expect(
+      investigate(
+        withTransfer(latest("CS-1045"), { tokenSymbol: "USDC" }),
+        noUsdc,
+      ).code,
+    ).toBe("D05");
   });
 
   it("with Circle's USDC contract confirmed on Ethereum, a different 'USDC' contract is D06", () => {
-    expect(run(withTransfer(latest("CS-1045"), { tokenSymbol: "USDC" })).code).toBe("D06");
+    expect(
+      run(withTransfer(latest("CS-1045"), { tokenSymbol: "USDC" })).code,
+    ).toBe("D06");
   });
 
   it("D05 still matches other unsupported tokens", () => {
@@ -278,14 +342,21 @@ describe("c. D07b never outranks D07", () => {
     expect(v.code).toBe("D07");
     expect(v.confidence).toBe("High");
     expect(v.findings).toHaveLength(1);
-    expect(v.findings[0]).toMatchObject({ code: "D07b", confidence: "Medium", matched: true });
+    expect(v.findings[0]).toMatchObject({
+      code: "D07b",
+      confidence: "Medium",
+      matched: true,
+    });
     expect(v.findings[0].evidenceIds).toContain("ev.history");
   });
 
   it("the D07 rule matches whether or not the look-alike pattern is present", () => {
     const f = latest("CS-1048");
     expect(run(f).checks.find((c) => c.code === "D07")!.matched).toBe(true);
-    expect(run({ ...f, senderHistory: [] }).checks.find((c) => c.code === "D07")!.matched).toBe(true);
+    expect(
+      run({ ...f, senderHistory: [] }).checks.find((c) => c.code === "D07")!
+        .matched,
+    ).toBe(true);
   });
 
   it("findings never include the verdict itself", () => {
@@ -304,7 +375,9 @@ describe("d. REJECTED ledger rows are D16", () => {
   });
 
   it("shows the reason code as evidence", () => {
-    const ledger = run(latest("CS-1056")).evidence.find((e) => e.id === "ev.ledger")!;
+    const ledger = run(latest("CS-1056")).evidence.find(
+      (e) => e.id === "ev.ledger",
+    )!;
     expect(ledger.detail).toContain("R-207");
   });
 
@@ -328,7 +401,9 @@ describe("e. ledger verdicts are High only on an exact match", () => {
 
   it("a row whose transfer_index points at another transfer does not count for this one", () => {
     const f = latest("CS-1053");
-    const ledger = f.ledger.map((r) => (r.depositId === "DEP-55120" ? { ...r, transferIndex: 0 } : r));
+    const ledger = f.ledger.map((r) =>
+      r.depositId === "DEP-55120" ? { ...r, transferIndex: 0 } : r,
+    );
     const v = run({ ...f, ledger });
     expect(v.code).toBe("D12");
     expect(v.confidence).toBe("High");
@@ -336,14 +411,28 @@ describe("e. ledger verdicts are High only on an exact match", () => {
 
   it("a row for a different token contract does not match", () => {
     const f = latest("CS-1041");
-    const ledger = [...f.ledger, { row: 99, depositId: "DEP-X", txHash: f.tx!.hash, chain: "tron" as const, token: "USDC" as const,
-      toAddress: f.tx!.transfers[0].to, amount: "250.00", status: "CREDITED" as const, customerId: "C-10422" }];
+    const ledger = [
+      ...f.ledger,
+      {
+        row: 99,
+        depositId: "DEP-X",
+        txHash: f.tx!.hash,
+        chain: "tron" as const,
+        token: "USDC" as const,
+        toAddress: f.tx!.transfers[0].to,
+        amount: "250.00",
+        status: "CREDITED" as const,
+        customerId: "C-10422",
+      },
+    ];
     expect(run({ ...f, ledger }).code).toBe("D12");
   });
 
   it("no transfer_index with one company transfer in the tx is still exact", () => {
     const f = latest("CS-1053");
-    const ledger = f.ledger.map((r) => (r.depositId === "DEP-55120" ? { ...r, transferIndex: undefined } : r));
+    const ledger = f.ledger.map((r) =>
+      r.depositId === "DEP-55120" ? { ...r, transferIndex: undefined } : r,
+    );
     expect(run({ ...f, ledger }).confidence).toBe("High");
   });
 
@@ -355,7 +444,9 @@ describe("e. ledger verdicts are High only on an exact match", () => {
 
   it("adding the transfer_index restores High", () => {
     const f = latest("CS-1058");
-    const ledger = f.ledger.map((r) => (r.depositId === "DEP-55161" ? { ...r, transferIndex: 1 } : r));
+    const ledger = f.ledger.map((r) =>
+      r.depositId === "DEP-55161" ? { ...r, transferIndex: 1 } : r,
+    );
     expect(run({ ...f, ledger }).confidence).toBe("High");
   });
 
@@ -365,13 +456,18 @@ describe("e. ledger verdicts are High only on an exact match", () => {
     expect(v.confidence).toBe("Medium");
   });
 
-  it.each(["HELD", "REJECTED"] as const)("an address-and-amount-only %s row caps at Medium", (status) => {
-    const f = latest("CS-1059");
-    const ledger = f.ledger.map((r) => (r.depositId === "DEP-55170" ? { ...r, status } : r));
-    const v = run({ ...f, ledger });
-    expect(v.code).toBe(status === "HELD" ? "D14" : "D16");
-    expect(v.confidence).toBe("Medium");
-  });
+  it.each(["HELD", "REJECTED"] as const)(
+    "an address-and-amount-only %s row caps at Medium",
+    (status) => {
+      const f = latest("CS-1059");
+      const ledger = f.ledger.map((r) =>
+        r.depositId === "DEP-55170" ? { ...r, status } : r,
+      );
+      const v = run({ ...f, ledger });
+      expect(v.code).toBe(status === "HELD" ? "D14" : "D16");
+      expect(v.confidence).toBe("Medium");
+    },
+  );
 });
 
 describe("f. no reply promises a future credit", () => {
@@ -394,7 +490,8 @@ describe("f. no reply promises a future credit", () => {
   it("D02 uses the 22 Oct wording", () => {
     const v = run(latest("CS-1042"));
     expect(fillReply(v.code, v.fill)!.text).toBe(
-      "Your transfer is on the Tron network and has 8 of 20 confirmations. Once it reaches 20 confirmations it becomes eligible for crediting, usually within about a minute. We'll update you once our checks are complete.");
+      "Your transfer is on the Tron network and has 8 of 20 confirmations. Once it reaches 20 confirmations it becomes eligible for crediting, usually within about a minute. We'll update you once our checks are complete.",
+    );
   });
 
   it("D10 uses the 22 Oct wording", () => {
@@ -409,7 +506,9 @@ describe("f. no reply promises a future credit", () => {
     const v = run(latest("CS-1055"));
     const r = fillReply(v.code, v.fill)!;
     expect(r.open).toEqual([]);
-    expect(r.text).toContain("on Tron, Ethereum, BNB Chain, Polygon, Base, Arbitrum and Optimism.");
+    expect(r.text).toContain(
+      "on Tron, Ethereum, BNB Chain, Polygon, Base, Arbitrum and Optimism.",
+    );
   });
 
   it("D05 fills token and chain, leaves the date to the analyst", () => {
@@ -421,19 +520,25 @@ describe("f. no reply promises a future credit", () => {
 
   it("D11 has its template", () => {
     const v = run(latest("CS-1052"));
-    expect(fillReply(v.code, v.fill)!.text).toMatch(/^The ID you sent is a withdrawal reference/);
+    expect(fillReply(v.code, v.fill)!.text).toMatch(
+      /^The ID you sent is a withdrawal reference/,
+    );
   });
 
   it("D13 fills amount, token, credit time and where_in_app from settings", () => {
     const v = run(latest("CS-1053"));
     const r = fillReply(v.code, v.fill)!;
-    expect(r.text).toBe("Your deposit of 1200.00 USDT was credited on 2026-10-21 11:41 SGT. You can see it under Wallet > Transaction history.");
+    expect(r.text).toBe(
+      "Your deposit of 1200.00 USDT was credited on 2026-10-21 11:41 SGT. You can see it under Wallet > Transaction history.",
+    );
     expect(r.open).toEqual([]);
   });
 
   it("D12 reply makes no credit promise and matches the spec", () => {
     const t = REPLY_TEMPLATES.D12!;
-    expect(t).not.toMatch(/completing the credit|will be credited|will credit/i);
+    expect(t).not.toMatch(
+      /completing the credit|will be credited|will credit/i,
+    );
     const v = run(latest("CS-1041"));
     expect(fillReply(v.code, v.fill)).toEqual({
       text: "We can see your transfer arrived on Tron. Our team is checking why it hasn't been credited yet and will update you by {date}.",
@@ -442,18 +547,42 @@ describe("f. no reply promises a future credit", () => {
   });
 
   it("D02 no longer says we'll confirm the credit", () => {
-    expect(REPLY_TEMPLATES.D02).not.toMatch(/confirm when it has been credited/i);
+    expect(REPLY_TEMPLATES.D02).not.toMatch(
+      /confirm when it has been credited/i,
+    );
   });
 
   it("every template is word for word in docs/SPEC.md", () => {
-    const spec = readFileSync(path.join(__dirname, "..", "docs", "SPEC.md"), "utf8").replace(/\\_/g, "_");
+    const spec = readFileSync(
+      path.join(__dirname, "..", "docs", "SPEC.md"),
+      "utf8",
+    ).replace(/\\_/g, "_");
     for (const [code, t] of Object.entries(REPLY_TEMPLATES)) {
       expect(spec, code).toContain(t);
     }
   });
 
   it("every code with a verdict fixture except D99 has a template", () => {
-    for (const code of ["D01", "D02", "D03", "D04", "D05", "D06", "D07", "D07b", "D08", "D09", "D10", "D11", "D12", "D13", "D14", "D16", "D17", "D18"] as Code[]) {
+    for (const code of [
+      "D01",
+      "D02",
+      "D03",
+      "D04",
+      "D05",
+      "D06",
+      "D07",
+      "D07b",
+      "D08",
+      "D09",
+      "D10",
+      "D11",
+      "D12",
+      "D13",
+      "D14",
+      "D16",
+      "D17",
+      "D18",
+    ] as Code[]) {
       expect(REPLY_TEMPLATES[code], code).toBeDefined();
     }
   });
@@ -461,9 +590,36 @@ describe("f. no reply promises a future credit", () => {
 
 describe("g. the model holds provider payout events", () => {
   const events: ProviderEvent[] = [
-    { provider: "SamplePay", reference: "PO-881", kind: "payout_created", providerStatus: "CREATED", amount: "1000.00", currency: "SGD", at: "2026-10-21T10:00:00+08:00", fetchedAt: "2026-10-21T15:20:00+08:00", rawBody: "{}" },
-    { provider: "SamplePay", reference: "PO-881", kind: "status_update", providerStatus: "COMPLETED", at: "2026-10-21T10:05:00+08:00", fetchedAt: "2026-10-21T15:20:00+08:00", rawBody: "{}" },
-    { provider: "SamplePay", reference: "PO-881", kind: "returned", providerStatus: "RETURNED", returnReason: "AC04 closed account", at: "2026-10-22T09:00:00+08:00", fetchedAt: "2026-10-22T09:05:00+08:00", rawBody: "{}" },
+    {
+      provider: "SamplePay",
+      reference: "PO-881",
+      kind: "payout_created",
+      providerStatus: "CREATED",
+      amount: "1000.00",
+      currency: "SGD",
+      at: "2026-10-21T10:00:00+08:00",
+      fetchedAt: "2026-10-21T15:20:00+08:00",
+      rawBody: "{}",
+    },
+    {
+      provider: "SamplePay",
+      reference: "PO-881",
+      kind: "status_update",
+      providerStatus: "COMPLETED",
+      at: "2026-10-21T10:05:00+08:00",
+      fetchedAt: "2026-10-21T15:20:00+08:00",
+      rawBody: "{}",
+    },
+    {
+      provider: "SamplePay",
+      reference: "PO-881",
+      kind: "returned",
+      providerStatus: "RETURNED",
+      returnReason: "AC04 closed account",
+      at: "2026-10-22T09:00:00+08:00",
+      fetchedAt: "2026-10-22T09:05:00+08:00",
+      rawBody: "{}",
+    },
   ];
 
   it("stores payout events, provider statuses and returns as evidence with a provider source", () => {
@@ -518,24 +674,42 @@ describe("D18 sent to a retired address", () => {
     const v = run(latest("CS-1062"));
     expect(v.code).toBe("D18");
     expect(v.confidence).toBe("High");
-    expect(v.evidence.find((e) => e.id === "ev.address")!.value).toMatch(/retired/);
+    expect(v.evidence.find((e) => e.id === "ev.address")!.value).toMatch(
+      /retired/,
+    );
   });
 
   it("a transfer mined before retired_at is credited as normal", () => {
     const f = latest("CS-1062");
-    const v = run({ ...f, tx: { ...f.tx!, blockTime: "2026-09-20T12:00:00+08:00" } });
+    const v = run({
+      ...f,
+      tx: { ...f.tx!, blockTime: "2026-09-20T12:00:00+08:00" },
+    });
     expect(v.code).toBe("D12");
   });
 
   it("a retired address reassigned to someone else is D17, not D18", () => {
     const f = latest("CS-1062");
     const old = f.depositAddresses.find((r) => r.retiredAt)!;
-    const reassigned = { ...old, row: 999, customerId: "C-99999", assignedAt: "2026-10-05T00:00:00+08:00", retiredAt: undefined };
-    expect(run({ ...f, depositAddresses: [...f.depositAddresses, reassigned] }).code).toBe("D17");
+    const reassigned = {
+      ...old,
+      row: 999,
+      customerId: "C-99999",
+      assignedAt: "2026-10-05T00:00:00+08:00",
+      retiredAt: undefined,
+    };
+    expect(
+      run({ ...f, depositAddresses: [...f.depositAddresses, reassigned] }).code,
+    ).toBe("D17");
   });
 
   it("next step uses the retired-address policy setting", () => {
-    expect(nextStep("D18", { ...SAMPLE_SETTINGS, retiredAddressPolicy: "Hold and ask ops." })).toContain("Hold and ask ops.");
+    expect(
+      nextStep("D18", {
+        ...SAMPLE_SETTINGS,
+        retiredAddressPolicy: "Hold and ask ops.",
+      }),
+    ).toContain("Hold and ask ops.");
   });
 
   it("D17 and D18 share the neutral address-review reply", () => {
@@ -557,11 +731,22 @@ describe("every rule runs; other matches are findings", () => {
 
   it("a second High match is attached as a finding, not dropped", () => {
     const f = latest("CS-1046");
-    const freezes = [{ chain: "tron" as const, token: "USDT" as const, address: f.tx!.transfers[0].from, role: "sender" as const,
-      method: "isBlackListed" as const, frozen: true, blockNumber: 1 }];
+    const freezes = [
+      {
+        chain: "tron" as const,
+        token: "USDT" as const,
+        address: f.tx!.transfers[0].from,
+        role: "sender" as const,
+        method: "isBlackListed" as const,
+        frozen: true,
+        blockNumber: 1,
+      },
+    ];
     const v = run({ ...f, freezes });
     expect(v.code).toBe("D06");
-    expect(v.findings.map((x) => `${x.code}/${x.confidence}`)).toEqual(["D09/High"]);
+    expect(v.findings.map((x) => `${x.code}/${x.confidence}`)).toEqual([
+      "D09/High",
+    ]);
   });
 });
 
@@ -594,19 +779,28 @@ describe("b. canonical address comparison per chain", () => {
   const USDT_TRON_HEX = "41a614f803b6fd780986a42c78ec9c7f77e6ded13c";
 
   it("converts 41-prefixed Tron hex to base58", () => {
-    expect(canonicalAddress(USDT_TRON_HEX)).toBe("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t");
-    expect(canonicalAddress(`0x${USDT_TRON_HEX}`)).toBe("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t");
+    expect(canonicalAddress(USDT_TRON_HEX)).toBe(
+      "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    );
+    expect(canonicalAddress(`0x${USDT_TRON_HEX}`)).toBe(
+      "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    );
   });
 
   it("lower-cases EVM hex and keeps the 0x prefix", () => {
-    expect(canonicalAddress("0xdAC17F958D2ee523a2206206994597C13D831ec7")).toBe("0xdac17f958d2ee523a2206206994597c13d831ec7");
+    expect(canonicalAddress("0xdAC17F958D2ee523a2206206994597C13D831ec7")).toBe(
+      "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    );
   });
 
-  it.each([USDT_TRON_HEX, `0x${USDT_TRON_HEX}`])("official Tron USDT given as hex %s is not D06", (hex) => {
-    const v = run(withTransfer(latest("CS-1041"), { tokenContract: hex }));
-    expect(v.code).toBe("D12");
-    expect(v.checks.find((c) => c.code === "D06")!.matched).toBe(false);
-  });
+  it.each([USDT_TRON_HEX, `0x${USDT_TRON_HEX}`])(
+    "official Tron USDT given as hex %s is not D06",
+    (hex) => {
+      const v = run(withTransfer(latest("CS-1041"), { tokenContract: hex }));
+      expect(v.code).toBe("D12");
+      expect(v.checks.find((c) => c.code === "D06")!.matched).toBe(false);
+    },
+  );
 
   it("a Tron deposit address given as hex still matches File A", () => {
     const f = latest("CS-1041");
@@ -619,7 +813,13 @@ describe("c. address-and-amount fallback and D13 customer check", () => {
   it("the same amount deposited twice: the earlier credited row is ignored, D12 Medium not D13", () => {
     const f = latest("CS-1059");
     const pending = f.ledger.find((r) => r.depositId === "DEP-55170")!;
-    const earlier = { ...pending, row: 50, depositId: "DEP-54001", status: "CREDITED" as const, creditedAt: "2026-10-10T09:00:00+08:00" };
+    const earlier = {
+      ...pending,
+      row: 50,
+      depositId: "DEP-54001",
+      status: "CREDITED" as const,
+      creditedAt: "2026-10-10T09:00:00+08:00",
+    };
     const v = run({ ...f, ledger: [earlier, ...f.ledger] });
     expect(v.code).toBe("D12");
     expect(v.confidence).toBe("Medium");
@@ -627,40 +827,56 @@ describe("c. address-and-amount fallback and D13 customer check", () => {
 
   it("the fallback ignores another customer's row", () => {
     const f = latest("CS-1059");
-    const ledger = f.ledger.map((r) => (r.depositId === "DEP-55170" ? { ...r, status: "CREDITED" as const, customerId: "C-99999" } : r));
+    const ledger = f.ledger.map((r) =>
+      r.depositId === "DEP-55170"
+        ? { ...r, status: "CREDITED" as const, customerId: "C-99999" }
+        : r,
+    );
     expect(run({ ...f, ledger }).code).not.toBe("D13");
   });
 
   it("D13 requires the ledger row's customer to be this case's customer", () => {
     const f = latest("CS-1053");
-    const ledger = f.ledger.map((r) => (r.depositId === "DEP-55120" ? { ...r, customerId: "C-99999" } : r));
+    const ledger = f.ledger.map((r) =>
+      r.depositId === "DEP-55120" ? { ...r, customerId: "C-99999" } : r,
+    );
     expect(run({ ...f, ledger }).code).not.toBe("D13");
   });
 });
 
 describe("d. a non-decimal chain amount is an unknown fact, not a crash", () => {
-  it.each(["1e3", "12,5", "-3", "NaN"])("amount %s does not throw and decides nothing about the amount", (amount) => {
-    const f = withTransfer(latest("CS-1041"), { amount });
-    expect(() => run(f)).not.toThrow();
-    const v = run(f);
-    expect(["D02", "D08", "D12"]).not.toContain(v.code);
-    expect(v.evidence.find((e) => e.id === "ev.amount")?.value).toMatch(/unknown/i);
-  });
+  it.each(["1e3", "12,5", "-3", "NaN"])(
+    "amount %s does not throw and decides nothing about the amount",
+    (amount) => {
+      const f = withTransfer(latest("CS-1041"), { amount });
+      expect(() => run(f)).not.toThrow();
+      const v = run(f);
+      expect(["D02", "D08", "D12"]).not.toContain(v.code);
+      expect(v.evidence.find((e) => e.id === "ev.amount")?.value).toMatch(
+        /unknown/i,
+      );
+    },
+  );
 
   it("a non-decimal dust amount in sender history does not throw", () => {
     const f = latest("CS-1048");
-    const senderHistory = f.senderHistory.map((p) => ({ ...p, amount: "1e-18" }));
+    const senderHistory = f.senderHistory.map((p) => ({
+      ...p,
+      amount: "1e-18",
+    }));
     expect(() => run({ ...f, senderHistory })).not.toThrow();
   });
 });
 
 describe("D10 disabled by default (week 2 mempool finding)", () => {
-  it("a hash seen only as pending falls to D01, whose reply covers 'may not have been sent yet'", () => {
+  it("a known pending transaction needs review when reliable timing is unavailable", () => {
     const v = run(latest("CS-1051"));
-    expect(v.code).toBe("D01");
+    expect(v.code).toBe("D99");
     expect(v.checks.find((c) => c.code === "D10")!.reason).toMatch(/Disabled/);
-    expect(v.evidence.find((e) => e.id === "ev.lookup")!.value).toMatch(/pending on Ethereum/);
-    expect(fillReply(v.code, v.fill)!.text).toMatch(/may not have been sent yet/);
+    expect(v.evidence.find((e) => e.id === "ev.lookup")!.value).toMatch(
+      /pending on Ethereum/,
+    );
+    expect(fillReply(v.code, v.fill)).toBeNull();
   });
 
   it("with mempool checks enabled, D10 applies and D01 stands aside", () => {
@@ -680,4 +896,10 @@ describe("D99 sample: mined before the address was assigned", () => {
     expect(v.code).toBe("D99");
     expect(v.evidence.find((e) => e.id === "ev.address")!.status).toBe("warn");
   });
+});
+
+it("cannot declare absent everywhere after only one chain answered", () => {
+  const f = structuredClone(latest("CS-1055"));
+  f.lookups = f.lookups.slice(0, 1);
+  expect(run(f).code).toBe("D99");
 });

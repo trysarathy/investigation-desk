@@ -8,16 +8,31 @@ import type { SearchEntry } from "@/lib/view";
 
 const NAV = [
   { href: "/", label: "Queue" },
+  { href: "/scan", label: "Company Scan" },
   { href: "/bulk", label: "Bulk" },
+  { href: "/accuracy", label: "Accuracy" },
+  { href: "/intelligence", label: "Intelligence" },
+  { href: "/reports", label: "Value report" },
+  { href: "/connections", label: "Connections" },
+  { href: "/security", label: "Security" },
   { href: "/settings", label: "Settings" },
 ];
 
 function isTyping(el: EventTarget | null): boolean {
   const t = el as HTMLElement | null;
-  return !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+  return (
+    !!t &&
+    (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)
+  );
 }
 
-export function Shell({ index, children }: { index: SearchEntry[]; children: React.ReactNode }) {
+export function Shell({
+  index,
+  children,
+}: {
+  index: SearchEntry[];
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -51,18 +66,36 @@ export function Shell({ index, children }: { index: SearchEntry[]; children: Rea
     <div className="shell">
       <nav className="sidebar" aria-label="Main">
         <div className="workspace">
-          <strong>Sample workspace</strong>
-          <span className="badge" title="Every case, hash and address here is fabricated sample data.">Sample data</span>
+          <strong>Investigation desk</strong>
+          <span className="badge">Read-only workspace</span>
         </div>
         {NAV.map((n) => {
-          const active = n.href === "/" ? pathname === "/" || pathname.startsWith("/cases") : pathname.startsWith(n.href);
+          const active =
+            n.href === "/"
+              ? pathname === "/" || pathname.startsWith("/cases")
+              : pathname.startsWith(n.href);
           return (
-            <Link key={n.href} href={n.href} className="nav-link" aria-current={active ? "page" : undefined}>
+            <Link
+              key={n.href}
+              href={n.href}
+              className="nav-link"
+              aria-current={active ? "page" : undefined}
+            >
               {n.label}
             </Link>
           );
         })}
-        <button type="button" className="nav-link" style={{ border: 0, background: "transparent", cursor: "pointer", textAlign: "left" }} onClick={() => setOpen(true)}>
+        <button
+          type="button"
+          className="nav-link"
+          style={{
+            border: 0,
+            background: "transparent",
+            cursor: "pointer",
+            textAlign: "left",
+          }}
+          onClick={() => setOpen(true)}
+        >
           Search <span className="kbd">⌘K</span>
         </button>
         <div className="sidebar-foot">
@@ -78,18 +111,30 @@ export function Shell({ index, children }: { index: SearchEntry[]; children: Rea
 function ThemeToggle() {
   const [theme, setTheme] = useState<string>("system");
   useEffect(() => {
-    try { setTheme(localStorage.getItem("desk.theme") ?? "system"); } catch {}
+    try {
+      setTheme(localStorage.getItem("desk.theme") ?? "system");
+    } catch {}
   }, []);
   const apply = (t: string) => {
     setTheme(t);
-    try { localStorage.setItem("desk.theme", t); } catch {}
+    try {
+      localStorage.setItem("desk.theme", t);
+    } catch {}
     if (t === "system") document.documentElement.removeAttribute("data-theme");
     else document.documentElement.setAttribute("data-theme", t);
   };
   return (
-    <label className="faint" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+    <label
+      className="faint"
+      style={{ display: "flex", gap: 8, alignItems: "center" }}
+    >
       Theme
-      <select className="input" style={{ height: 26, padding: "0 6px" }} value={theme} onChange={(e) => apply(e.target.value)}>
+      <select
+        className="input"
+        style={{ height: 26, padding: "0 6px" }}
+        value={theme}
+        onChange={(e) => apply(e.target.value)}
+      >
         <option value="system">System</option>
         <option value="light">Light</option>
         <option value="dark">Dark</option>
@@ -98,7 +143,13 @@ function ThemeToggle() {
   );
 }
 
-function CommandBar({ index, onClose }: { index: SearchEntry[]; onClose: () => void }) {
+function CommandBar({
+  index,
+  onClose,
+}: {
+  index: SearchEntry[];
+  onClose: () => void;
+}) {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
@@ -107,15 +158,21 @@ function CommandBar({ index, onClose }: { index: SearchEntry[]; onClose: () => v
   useEffect(() => inputRef.current?.focus(), []);
 
   const results = useMemo(() => {
-    const s = q.trim().toLowerCase().replace(/^0x(?=[0-9a-f]{64}$)/, "");
+    const s = q
+      .trim()
+      .toLowerCase()
+      .replace(/^0x(?=[0-9a-f]{64}$)/, "");
     if (!s) return index.slice(0, 8);
     return index.filter((e) => e.terms.some((t) => t.includes(s))).slice(0, 8);
   }, [q, index]);
 
-  const go = useCallback((href: string) => {
-    onClose();
-    router.push(href);
-  }, [onClose, router]);
+  const go = useCallback(
+    (href: string) => {
+      onClose();
+      router.push(href);
+    },
+    [onClose, router],
+  );
 
   const submit = () => {
     if (results[sel]) go(`/cases/${results[sel].id}`);
@@ -124,23 +181,42 @@ function CommandBar({ index, onClose }: { index: SearchEntry[]; onClose: () => v
 
   return (
     <div className="cmd-backdrop" onMouseDown={onClose}>
-      <div className="cmd" role="dialog" aria-modal="true" aria-label="Search" onMouseDown={(e) => e.stopPropagation()}>
+      <div
+        className="cmd"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Search"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <input
           ref={inputRef}
           value={q}
           placeholder="Paste a hash, address or customer reference"
           aria-label="Hash, address or customer reference"
-          onChange={(e) => { setQ(e.target.value); setSel(0); }}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setSel(0);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Escape") onClose();
-            else if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(s + 1, results.length - 1)); }
-            else if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)); }
-            else if (e.key === "Enter") submit();
+            else if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setSel((s) => Math.min(s + 1, results.length - 1));
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setSel((s) => Math.max(s - 1, 0));
+            } else if (e.key === "Enter") submit();
           }}
         />
         <ul role="listbox" aria-label="Matching cases">
           {results.map((r, i) => (
-            <li key={r.id} role="option" aria-selected={i === sel} onMouseEnter={() => setSel(i)} onClick={() => go(`/cases/${r.id}`)}>
+            <li
+              key={r.id}
+              role="option"
+              aria-selected={i === sel}
+              onMouseEnter={() => setSel(i)}
+              onClick={() => go(`/cases/${r.id}`)}
+            >
               <span className="mono">{r.id}</span>
               <span className="muted">{r.customerId}</span>
               <span className="code">{r.code}</span>
@@ -150,11 +226,23 @@ function CommandBar({ index, onClose }: { index: SearchEntry[]; onClose: () => v
           {results.length === 0 && q.trim() && (
             <li aria-selected onClick={submit}>
               Investigate <span className="mono">{q.trim().slice(0, 48)}</span>
-              <span className="faint">({normaliseInput(q).kind.replace("_", " ")})</span>
+              <span className="faint">
+                ({normaliseInput(q).kind.replace("_", " ")})
+              </span>
             </li>
           )}
         </ul>
-        <div className="hint"><span><span className="kbd">↑</span> <span className="kbd">↓</span> move</span><span><span className="kbd">↵</span> open</span><span><span className="kbd">esc</span> close</span></div>
+        <div className="hint">
+          <span>
+            <span className="kbd">↑</span> <span className="kbd">↓</span> move
+          </span>
+          <span>
+            <span className="kbd">↵</span> open
+          </span>
+          <span>
+            <span className="kbd">esc</span> close
+          </span>
+        </div>
       </div>
     </div>
   );

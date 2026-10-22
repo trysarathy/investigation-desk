@@ -1,0 +1,34 @@
+import { expect, it } from "vitest";
+import {
+  signSession,
+  verifySession,
+  permitted,
+  requiredRole,
+} from "../src/lib/auth/session";
+import { totp, verifyTotp } from "../src/lib/auth/password";
+it("rejects tampering, expired sessions and wrong keys", async () => {
+  const secret = "x".repeat(32),
+    now = Date.now(),
+    s = { actor: "a", role: "analyst" as const, expires: now + 10000 };
+  const token = await signSession(s, secret);
+  expect(await verifySession(token, secret, now)).toEqual(s);
+  expect(await verifySession(token + "a", secret, now)).toBeNull();
+  expect(await verifySession(token, "y".repeat(32), now)).toBeNull();
+  expect(await verifySession(token, secret, now + 20000)).toBeNull();
+});
+it("enforces sensitive role boundaries", () => {
+  expect(permitted("analyst", requiredRole("/api/bulk", "POST"))).toBe(false);
+  expect(permitted("lead", requiredRole("/api/uploads/A", "POST"))).toBe(false);
+  expect(
+    permitted("lead", requiredRole("/api/cases/x/adjudicate", "POST")),
+  ).toBe(true);
+  expect(permitted("analyst", requiredRole("/api/intelligence", "POST"))).toBe(
+    false,
+  );
+});
+it("matches RFC6238 SHA1 test secret at 59 seconds", () => {
+  const secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+  expect(totp(secret, 1)).toBe("287082");
+  expect(verifyTotp(secret, "287082", 59000)).toBe(1);
+  expect(verifyTotp(secret, "000000", 59000)).toBeNull();
+});
