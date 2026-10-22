@@ -78,25 +78,43 @@ evidence with a provider source. A payout workflow would add a provider fetcher 
 `providerEvents`, a second rule list (P-codes) selected by `workflow` in `run.ts`, and templates
 for those codes. The verdict picker, findings, evidence, UI and audit record stay as they are.
 
-## Live chain data (week 2)
+## Live chain data (weeks 2–3)
 
-Read-only fetchers in `src/lib/chain/`: **Tron** on TronGrid (`/wallet/gettransactionbyid`,
-`gettransactioninfobyid`, `getblock`, `triggerconstantcontract`) and **EVM** chains on
-Etherscan API V2 (`chainid=1` for Ethereum; the same key covers the cross-check chains).
+Read-only fetchers in `src/lib/chain/`, one data source per chain (`src/lib/chain/sources.ts`):
 
-- **Keys** come only from `TRONGRID_API_KEY` and `ETHERSCAN_API_KEY` (see `.env.example`;
-  `.env` is git-ignored). Etherscan's key is redacted from every stored URL, and TronGrid's
-  travels in a header that is never stored.
+| Chain | Source | Why |
+| --- | --- | --- |
+| Tron | TronGrid V1 (`TRONGRID_API_KEY`) | Spec |
+| Ethereum, Polygon, Arbitrum | Etherscan API V2, free key (`ETHERSCAN_API_KEY`) | Every call we need works on chain IDs 1, 137, 42161 |
+| BNB Chain | `https://bsc-dataseed.bnbchain.org` (public RPC) | Etherscan's free plan refuses chain ID 56 |
+| Base | `https://mainnet.base.org` (public RPC) | Refused by the free plan; URL from Base's docs |
+| Optimism | `https://mainnet.optimism.io` (public RPC) | Refused by the free plan; URL confirmed in Optimism's docs |
+
+EVM lookups are by transaction hash only: `eth_getTransactionByHash`, `eth_getTransactionReceipt`
+(Transfer events come from its logs), `eth_getBlockByNumber` for the block time, `eth_blockNumber`,
+and `eth_call` for token metadata and freeze checks. Public RPCs are shared and rate-limited:
+fine for development, demos and a first pilot only.
+
+- **Keys** come only from the two environment variables (see `.env.example`; `.env` is
+  git-ignored). Etherscan's key is redacted from every stored URL, and TronGrid's travels in a
+  header that is never stored. Public RPCs need no key.
 - **Raw responses** are kept with fetch time and SHA-256 in the case's facts and on disk under
   `.data/raw/` (git-ignored; Postgres replaces it in week 5).
-- **Rate limits:** requests are spaced per API; 429, 403 and Etherscan's "rate limit" bodies
-  are retried with exponential backoff (honouring `Retry-After`), then reported as a lookup
-  error, so the case shows "Check paused" and never a guess.
+- **Rate limits:** each host has its own request spacing. 429, 403, 5xx, Etherscan's "rate
+  limit" bodies and JSON-RPC rate-limit errors are retried with exponential backoff (honouring
+  `Retry-After`), then reported as a lookup error, so the case shows "Check paused".
 - **Cache:** mined transactions, receipts and token metadata are cached forever; "not found",
-  "pending" and the current block are cached for seconds.
-- **Etherscan free plan:** it refuses BNB Chain, Base and Optimism. Those lookups are errors,
-  so a hash found nowhere pauses instead of claiming D01. A paid plan, or another BNB Chain
-  source, is needed before BNB Chain deposits (week 3).
+  "pending", freeze state and the current block are cached for seconds to a minute.
+- **D01** fires only when all seven chains answer "not found"; any chain error pauses the case.
+- **D09** reads `isBlackListed(address)` (USDT) or `isBlacklisted(address)` (USDC) on the
+  issuer's official contract, for sender and destination. Selectors are computed with keccak256
+  in the tests, not recalled. A failed call makes freeze status unknown, which blocks D02 and D12.
+- **D07b** sender history comes from TronGrid (Tron) and Etherscan's account module (Ethereum),
+  and is only fetched when the look-alike pattern could match. Public RPCs can't list history,
+  so on those chains D07b is off and the case says so.
+- **Official contracts on BNB Chain stay unset:** neither Tether's nor Circle's own pages list
+  one, so D06 and D09 don't run there. A company can still accept a BNB Chain token in its own
+  allowlist; that is its choice, not an issuer confirmation.
 - **D10** is disabled; see `docs/week2-d10-mempool.md`.
 
 Pasting a hash that isn't a sample case runs it live (`/investigate?q=…`). File A and the

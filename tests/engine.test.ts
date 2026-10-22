@@ -259,7 +259,12 @@ describe("b. D05 stands aside only for impersonating USDT/USDC", () => {
   });
 
   it("USDC with no confirmed official contract and off the allowlist is D05, not D99", () => {
-    expect(run(withTransfer(latest("CS-1045"), { tokenSymbol: "USDC" })).code).toBe("D05");
+    const noUsdc = { ...SAMPLE_SETTINGS, officialContracts: { ...SAMPLE_SETTINGS.officialContracts, ethereum: { USDT: SAMPLE_SETTINGS.officialContracts.ethereum!.USDT } } };
+    expect(investigate(withTransfer(latest("CS-1045"), { tokenSymbol: "USDC" }), noUsdc).code).toBe("D05");
+  });
+
+  it("with Circle's USDC contract confirmed on Ethereum, a different 'USDC' contract is D06", () => {
+    expect(run(withTransfer(latest("CS-1045"), { tokenSymbol: "USDC" })).code).toBe("D06");
   });
 
   it("D05 still matches other unsupported tokens", () => {

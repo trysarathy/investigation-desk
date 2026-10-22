@@ -1,11 +1,20 @@
 // Live fact gathering for one case (spec 6, steps 1–2): normalise the input, look the hash up on
-// every supported chain in parallel, and assemble Facts for the pure rules engine. No rule runs here.
+// every supported chain in parallel, then read the extra facts week 3 rules need:
+//   D09: issuer freeze calls on the official USDT/USDC contract (sender and destination)
+//   D07b: the look-alike address's earlier transfers to the sender, on Tron and Ethereum only
+// No rule runs here; the pure engine decides.
 
+import { sameAddress } from "../address";
 import { explorerTxUrl } from "../catalogue";
+import { compareDecimal, isDecimal } from "../decimal";
+import { looksAlike, pickTransfer } from "../engine/context";
 import { normaliseInput } from "../normalise";
-import type { Chain, DepositAddressRow, EvmChain, Facts, LedgerRow, RawResponse } from "../types";
+import type {
+  Chain, ChainTx, DepositAddressRow, EvmChain, Facts, FreezeCheck, LedgerRow, PriorTransfer, RawResponse, Settings, Token,
+} from "../types";
 import { ALL_CHAINS } from "../types";
-import type { EvmFetcher } from "./evm";
+import { formatUnits } from "./abi";
+import { EtherscanSource, type EvmFetcher } from "./evm";
 import { ChainApiError } from "./http";
 import type { TronFetcher } from "./tron";
 import type { ChainLookupResult } from "./types";
@@ -23,7 +32,13 @@ export interface LiveDeps {
   now?: () => Date;
 }
 
-export async function fetchFacts(rawInput: string, ws: Workspace, deps: LiveDeps): Promise<Facts> {
+// Verified by computing keccak256 of the signature (tests/chain.test.ts), not recalled.
+export const FREEZE_SELECTOR: Record<Token, { fn: "isBlackListed" | "isBlacklisted"; selector: string }> = {
+  USDT: { fn: "isBlackListed", selector: "0xe47d6060" },
+  USDC: { fn: "isBlacklisted", selector: "0xfe575a87" },
+};
+
+export async function fetchFacts(rawInput: string, ws: Workspace, deps: LiveDeps, settings: Settings): Promise<Facts> {
   const input = normaliseInput(rawInput);
   const now = deps.now ?? (() => new Date());
   const base: Facts = {
@@ -31,29 +46,33 @@ export async function fetchFacts(rawInput: string, ws: Workspace, deps: LiveDeps
     customerId: ws.customerId,
     checkedAt: now().toISOString(),
     lookups: [],
-    freezes: [],        // D09 freeze calls arrive in week 3
-    senderHistory: [],  // D07b sender history arrives in week 3
+    freezes: [],
+    senderHistory: [],
     depositAddresses: ws.depositAddresses,
     ledger: ws.ledger,
     ledgerUploadedAt: ws.ledgerUploadedAt,
     rawResponses: [],
   };
-  // Week 2 looks up transaction hashes. Address and customer-reference search come later.
+  // Live lookup is by transaction hash. Address and customer-reference search come later.
   if (input.kind !== "hash") return base;
 
   // Each chain records its own raw responses so concurrent lookups keep a stable order.
   const perChain = new Map<Chain, RawResponse[]>(ALL_CHAINS.map((c) => [c, []]));
   const results = await Promise.all(ALL_CHAINS.map((chain) => lookupOne(chain, input.value, deps, perChain.get(chain)!)));
-
-  // Deposit chains first, in catalogue order, then the cross-check chains.
   const found = results.find((r) => r.tx);
-  return {
+  const facts: Facts = {
     ...base,
     lookups: results.map((r) => r.lookup),
     tx: found?.tx,
     currentBlock: found?.currentBlock,
-    rawResponses: ALL_CHAINS.flatMap((c) => perChain.get(c)!),
   };
+  const extra: RawResponse[] = [];
+  if (found?.tx) {
+    Object.assign(facts, await freezeFacts(found.tx, facts, settings, deps, extra));
+    Object.assign(facts, await historyFacts(found.tx, facts, settings, deps, extra));
+  }
+  facts.rawResponses = [...ALL_CHAINS.flatMap((c) => perChain.get(c)!), ...extra];
+  return facts;
 }
 
 async function lookupOne(chain: Chain, hash: string, deps: LiveDeps, raws: RawResponse[]): Promise<ChainLookupResult> {
@@ -70,5 +89,76 @@ async function lookupOne(chain: Chain, hash: string, deps: LiveDeps, raws: RawRe
         sourceUrl: explorerTxUrl(chain, hash), rawBody: err?.raw?.body ?? "",
       },
     };
+  }
+}
+
+/** D09: ask the issuer's own contract whether sender or destination is frozen, read-only. */
+async function freezeFacts(tx: ChainTx, facts: Facts, settings: Settings, deps: LiveDeps, raws: RawResponse[]):
+  Promise<Pick<Facts, "freezes" | "freezeStatus">> {
+  const transfer = pickTransfer(tx, facts);
+  const token = transfer?.tokenSymbol as Token | undefined;
+  const official = token && token in FREEZE_SELECTOR ? settings.officialContracts[tx.chain]?.[token] : undefined;
+  // Only the genuine issuer contract can say an address is frozen. No confirmed official contract
+  // (e.g. BNB Chain, where neither issuer lists one) means the check doesn't apply.
+  if (!transfer || !token || !official || !sameAddress(official, transfer.tokenContract)) {
+    return { freezes: [], freezeStatus: "not_supported" };
+  }
+  const { fn, selector } = FREEZE_SELECTOR[token];
+  const freezes: FreezeCheck[] = [];
+  for (const [role, address] of [["sender", transfer.from], ["deposit", transfer.to]] as const) {
+    let frozen: boolean | undefined;
+    if (tx.chain === "tron") {
+      frozen = await deps.tron.isBlackListed(official, address, raws);
+    } else {
+      const word = address.replace(/^0x/i, "").toLowerCase().padStart(64, "0");
+      const out = await deps.evm.ethCall(tx.chain as EvmChain, official, `${selector}${word}`, 60, raws);
+      frozen = out && /^0x[0-9a-f]{64}$/i.test(out) ? BigInt(out) !== 0n : undefined;
+    }
+    if (frozen === undefined) return { freezes: [], freezeStatus: "failed" };
+    freezes.push({ chain: tx.chain, token, address, role, method: fn, frozen, blockNumber: facts.currentBlock ?? tx.blockNumber });
+  }
+  return { freezes, freezeStatus: "checked" };
+}
+
+/**
+ * D07b: only when the pattern could match (destination isn't a company address but looks like
+ * this customer's), fetch the destination's earlier transfers to the sender. Tron uses TronGrid,
+ * Ethereum uses Etherscan's account module; public-RPC chains can't list history, so D07b is off there.
+ */
+async function historyFacts(tx: ChainTx, facts: Facts, settings: Settings, deps: LiveDeps, raws: RawResponse[]):
+  Promise<Pick<Facts, "senderHistory" | "senderHistoryStatus">> {
+  const transfer = pickTransfer(tx, facts);
+  if (!transfer) return { senderHistory: [] };
+  const isCompany = facts.depositAddresses.some((r) => sameAddress(r.address, transfer.to));
+  const mine = facts.depositAddresses.filter((r) => r.customerId === facts.customerId);
+  if (isCompany || !mine.some((r) => looksAlike(r.address, transfer.to))) return { senderHistory: [] };
+
+  try {
+    let history: PriorTransfer[] = [];
+    if (tx.chain === "tron") {
+      const rows = await deps.tron.trc20From(transfer.to, Date.parse(tx.blockTime), raws);
+      history = rows.map((r) => ({
+        chain: "tron" as const, hash: r.transaction_id, from: r.from, to: r.to, tokenSymbol: r.token_info?.symbol ?? "UNKNOWN",
+        amount: r.token_info?.decimals !== undefined && /^\d+$/.test(r.value) ? formatUnits(BigInt(r.value), r.token_info.decimals) : "",
+        time: new Date(r.block_timestamp).toISOString(),
+      }));
+    } else if (tx.chain === "ethereum") {
+      const src = deps.evm.source("ethereum");
+      if (!(src instanceof EtherscanSource)) return { senderHistory: [], senderHistoryStatus: "not_supported" };
+      const rows = await src.tokenTransfersFrom(transfer.to, tx.blockNumber, raws);
+      history = rows.map((r) => ({
+        chain: "ethereum" as const, hash: r.hash, from: r.from, to: r.to, tokenSymbol: r.tokenSymbol,
+        amount: /^\d+$/.test(r.value) && /^\d+$/.test(r.tokenDecimal) ? formatUnits(BigInt(r.value), Number(r.tokenDecimal)) : "",
+        time: new Date(Number(r.timeStamp) * 1000).toISOString(),
+      }));
+    } else {
+      return { senderHistory: [], senderHistoryStatus: "not_supported" };
+    }
+    // Keep only what D07b reads: transfers from the look-alike to this sender, small enough to be dust.
+    const relevant = history.filter((p) => sameAddress(p.to, transfer.from) &&
+      isDecimal(p.amount) && compareDecimal(p.amount, settings.dustThreshold) <= 0);
+    return { senderHistory: relevant, senderHistoryStatus: "checked" };
+  } catch {
+    return { senderHistory: [], senderHistoryStatus: "failed" };
   }
 }

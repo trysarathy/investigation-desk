@@ -2,8 +2,32 @@
  "name": "eth-binance14-to-tether-treasury",
  "hash": "0x1f8e11a6ea2dca0b1dfa896f2d440eedbbe9d959060c5bf1da9d45662e8b24b3",
  "explorer": "https://etherscan.io/tx/0x1f8e11a6ea2dca0b1dfa896f2d440eedbbe9d959060c5bf1da9d45662e8b24b3",
- "recordedAt": "2026-10-22T05:09:12.331Z",
+ "recordedAt": "2026-10-22T05:38:40.870Z",
  "exchanges": [
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://mainnet.base.org/",
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_getTransactionByHash\",\"params\":[\"0x1f8e11a6ea2dca0b1dfa896f2d440eedbbe9d959060c5bf1da9d45662e8b24b3\"]}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://bsc-dataseed.bnbchain.org/",
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_getTransactionByHash\",\"params\":[\"0x1f8e11a6ea2dca0b1dfa896f2d440eedbbe9d959060c5bf1da9d45662e8b24b3\"]}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}"
+   }
+  },
   {
    "request": {
     "method": "GET",
@@ -29,13 +53,14 @@
   },
   {
    "request": {
-    "method": "GET",
-    "url": "https://api.etherscan.io/v2/api?chainid=56&module=proxy&action=eth_getTransactionByHash&txhash=0x1f8e11a6ea2dca0b1dfa896f2d440eedbbe9d959060c5bf1da9d45662e8b24b3&apikey=REDACTED"
+    "method": "POST",
+    "url": "https://mainnet.optimism.io/",
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_getTransactionByHash\",\"params\":[\"0x1f8e11a6ea2dca0b1dfa896f2d440eedbbe9d959060c5bf1da9d45662e8b24b3\"]}"
    },
    "response": {
     "status": 200,
     "headers": {},
-    "body": "{\"status\":\"0\",\"message\":\"NOTOK\",\"result\":\"Free API access is not supported for this chain. Please upgrade your api plan for full chain coverage. https://etherscan.io/apis\"}"
+    "body": "{\"jsonrpc\":\"2.0\",\"result\":null,\"id\":1}\n"
    }
   },
   {
@@ -52,34 +77,12 @@
   {
    "request": {
     "method": "GET",
-    "url": "https://api.etherscan.io/v2/api?chainid=8453&module=proxy&action=eth_getTransactionByHash&txhash=0x1f8e11a6ea2dca0b1dfa896f2d440eedbbe9d959060c5bf1da9d45662e8b24b3&apikey=REDACTED"
-   },
-   "response": {
-    "status": 200,
-    "headers": {},
-    "body": "{\"status\":\"0\",\"message\":\"NOTOK\",\"result\":\"Free API access is not supported for this chain. Please upgrade your api plan for full chain coverage. https://etherscan.io/apis\"}"
-   }
-  },
-  {
-   "request": {
-    "method": "GET",
     "url": "https://api.etherscan.io/v2/api?chainid=42161&module=proxy&action=eth_getTransactionByHash&txhash=0x1f8e11a6ea2dca0b1dfa896f2d440eedbbe9d959060c5bf1da9d45662e8b24b3&apikey=REDACTED"
    },
    "response": {
     "status": 200,
     "headers": {},
     "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}\n"
-   }
-  },
-  {
-   "request": {
-    "method": "GET",
-    "url": "https://api.etherscan.io/v2/api?chainid=10&module=proxy&action=eth_getTransactionByHash&txhash=0x1f8e11a6ea2dca0b1dfa896f2d440eedbbe9d959060c5bf1da9d45662e8b24b3&apikey=REDACTED"
-   },
-   "response": {
-    "status": 200,
-    "headers": {},
-    "body": "{\"status\":\"0\",\"message\":\"NOTOK\",\"result\":\"Free API access is not supported for this chain. Please upgrade your api plan for full chain coverage. https://etherscan.io/apis\"}"
    }
   },
   {
@@ -112,7 +115,7 @@
    "response": {
     "status": 200,
     "headers": {},
-    "body": "{\"jsonrpc\":\"2.0\",\"id\":83,\"result\":\"0x1907b50\"}\n"
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":83,\"result\":\"0x1907be3\"}\n"
    }
   },
   {
@@ -135,6 +138,28 @@
     "status": 200,
     "headers": {},
     "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x0000000000000000000000000000000000000000000000000000000000000006\"}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://api.etherscan.io/v2/api?chainid=1&module=proxy&action=eth_call&to=0xdAC17F958D2ee523a2206206994597C13D831ec7&data=0xe47d606000000000000000000000000028c6c06298d514db089934071355e5743bf21d60&tag=latest&apikey=REDACTED"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x0000000000000000000000000000000000000000000000000000000000000000\"}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://api.etherscan.io/v2/api?chainid=1&module=proxy&action=eth_call&to=0xdAC17F958D2ee523a2206206994597C13D831ec7&data=0xe47d60600000000000000000000000005754284f345afc66a98fbb0a0afe71e0f007b949&tag=latest&apikey=REDACTED"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x0000000000000000000000000000000000000000000000000000000000000000\"}\n"
    }
   }
  ]

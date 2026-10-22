@@ -193,6 +193,13 @@ export interface Facts {
   ledger: LedgerRow[];
   ledgerUploadedAt: string;
   providerEvents?: ProviderEvent[];
+  /**
+   * Whether the issuer freeze calls (D09) and sender history (D07b) could be read. Unset means
+   * checked (sample data). "not_supported": no issuer contract or no history source on this
+   * chain. "failed": the source errored, so the fact is unknown.
+   */
+  freezeStatus?: "checked" | "not_supported" | "failed";
+  senderHistoryStatus?: "checked" | "not_supported" | "failed";
   /** Every raw API response behind these facts, in fetch order (spec 6.2). Empty for sample data. */
   rawResponses?: RawResponse[];
 }
@@ -282,7 +289,7 @@ export interface Verdict {
 // ---- Raw chain API responses (spec 6.2: stored with fetch time and SHA-256) ----
 
 export interface RawResponse {
-  source: "trongrid" | "etherscan";
+  source: "trongrid" | "etherscan" | "public-rpc";
   chain: Chain;
   /** Request as sent, with any API key removed. */
   request: { method: "GET" | "POST"; url: string; body?: string };

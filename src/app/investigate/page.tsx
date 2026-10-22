@@ -5,7 +5,7 @@ import { Investigation } from "@/components/Investigation";
 import { Status } from "@/components/Status";
 import { fetchFacts } from "@/lib/chain/investigate";
 import { liveDeps, liveKeysPresent } from "@/lib/chain/live";
-import { FILE_A, FILE_B, LEDGER_UPLOADED_AT } from "@/lib/fixtures";
+import { FILE_A, FILE_B, LEDGER_UPLOADED_AT, SAMPLE_SETTINGS } from "@/lib/fixtures";
 import { normaliseInput } from "@/lib/normalise";
 import { liveCaseView, resolveInput } from "@/lib/view";
 
@@ -28,7 +28,7 @@ export default async function InvestigatePage({ searchParams }: { searchParams: 
   const input = normaliseInput(q);
 
   if (input.kind === "hash" && liveKeysPresent()) {
-    const facts = await fetchFacts(q, { depositAddresses: FILE_A, ledger: FILE_B, ledgerUploadedAt: LEDGER_UPLOADED_AT }, liveDeps());
+    const facts = await fetchFacts(q, { depositAddresses: FILE_A, ledger: FILE_B, ledgerUploadedAt: LEDGER_UPLOADED_AT }, liveDeps(), SAMPLE_SETTINGS);
     const view = liveCaseView(facts);
     return <Investigation key={`${view.id}-${facts.checkedAt}`} view={view} />;
   }

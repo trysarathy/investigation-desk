@@ -51,7 +51,7 @@ export function asDepositChain(chain: string): DepositChain | undefined {
   return (DEPOSIT_CHAINS as string[]).includes(chain) ? (chain as DepositChain) : undefined;
 }
 
-function pickTransfer(tx: ChainTx, facts: Facts): TokenTransfer | undefined {
+export function pickTransfer(tx: ChainTx, facts: Facts): TokenTransfer | undefined {
   const { transfers } = tx;
   if (transfers.length === 0) return undefined;
   const isCustomers = (to: string) =>

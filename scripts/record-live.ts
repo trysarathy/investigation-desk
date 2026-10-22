@@ -1,4 +1,5 @@
-// Records the live fixtures in tests/fixtures/live/*.json from TronGrid and Etherscan V2.
+// Records the live fixtures in tests/fixtures/live/*.json from TronGrid, Etherscan V2 and the
+// official public RPCs (BNB Chain, Base, Optimism).
 //
 //   NODE_USE_ENV_PROXY=1 npx vite-node scripts/record-live.ts      (proxy only needed behind one)
 //
@@ -7,14 +8,12 @@
 
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { etherscanClassifyBody, EvmFetcher } from "../src/lib/chain/evm";
-import { ChainClient, fetchTransport, type HttpRequest, type Transport } from "../src/lib/chain/http";
+import { fetchTransport, type HttpRequest, type Transport } from "../src/lib/chain/http";
 import { fetchFacts } from "../src/lib/chain/investigate";
+import { buildFetchers } from "../src/lib/chain/sources";
 import { MemoryStore } from "../src/lib/chain/store";
-import { tronClassifyBody, TronFetcher } from "../src/lib/chain/tron";
 import { investigate } from "../src/lib/engine/run";
-import { SAMPLE_SETTINGS } from "../src/lib/fixtures";
-import { LIVE_CASES, liveWorkspace } from "../tests/fixtures/live/cases";
+import { LIVE_CASES, liveSettings, liveWorkspace } from "../tests/fixtures/live/cases";
 import { redactUrl, type Exchange } from "../tests/fixtures/live/replay";
 
 const tronKey = process.env.TRONGRID_API_KEY ?? "";
@@ -33,14 +32,11 @@ for (const c of LIVE_CASES.filter((x) => !only || x.name === only)) {
     });
     return res;
   };
-  const store = new MemoryStore(); // fresh per case, so every response is fetched and recorded
-  const deps = {
-    tron: new TronFetcher(new ChainClient({ source: "trongrid", minIntervalMs: 100, store, transport: recording, classifyBody: tronClassifyBody }), tronKey),
-    evm: new EvmFetcher(new ChainClient({ source: "etherscan", minIntervalMs: 400, store, transport: recording,
-      secretParams: ["apikey"], classifyBody: etherscanClassifyBody }), ethKey),
-  };
-  const facts = await fetchFacts(c.hash, liveWorkspace(c), deps);
-  const v = investigate(facts, SAMPLE_SETTINGS);
+  // A fresh store per case, so every response is fetched and recorded.
+  const deps = buildFetchers({ tronKey, etherscanKey: ethKey, store: new MemoryStore(), transport: recording });
+  const settings = liveSettings(c);
+  const facts = await fetchFacts(c.hash, liveWorkspace(c), deps, settings);
+  const v = investigate(facts, settings);
   const out = JSON.stringify({ name: c.name, hash: c.hash, explorer: c.explorer, recordedAt: facts.checkedAt, exchanges }, null, 1);
   if (out.includes(tronKey) || out.includes(ethKey)) throw new Error(`Refusing to write ${c.name}: an API key would be recorded`);
   await writeFile(path.join("tests", "fixtures", "live", `${c.name}.json`), `${out}\n`);
