@@ -9,6 +9,7 @@ import { fetchFacts } from "@/lib/chain/investigate";
 import { buildFetchers } from "@/lib/chain/sources";
 import { MemoryStore } from "@/lib/chain/store";
 import { investigate } from "@/lib/engine/run";
+import { SAMPLE_SETTINGS } from "@/lib/fixtures";
 import { LIVE_CASES, liveSettings, liveWorkspace } from "./fixtures/live/cases";
 import { replayTransport, type Recording } from "./fixtures/live/replay";
 
@@ -150,11 +151,44 @@ describe("week 3 rules on live data", () => {
     expect(facts.freezes.map((f) => f.frozen)).toEqual([false, false]);
   });
 
-  it("D09 doesn't run on BNB Chain: no issuer-confirmed contract", async () => {
+  it("BNB Chain: D09 is a known gap that does not block D12, and the case shows it", async () => {
     const { facts, v } = await replay("bsc-binance-hot16-withdrawal");
     expect(facts.freezeStatus).toBe("not_supported");
-    expect(v.checks.find((c) => c.code === "D09")!.reason).toMatch(/No confirmed issuer contract/);
-    expect(v.checks.find((c) => c.code === "D06")!.reason).toMatch(/No confirmed official/);
+    expect(v.code).toBe("D12");
+    expect(v.confidence).toBe("High");
+    expect(v.checks.find((c) => c.code === "D09")!.reason).toMatch(/no issuer freeze function \(known gap/);
+    expect(v.evidence.find((e) => e.id === "ev.freeze")!.value).toMatch(/Not available on BNB Chain/);
+    // No freeze call is even attempted against the Binance-bridged token.
+    expect(facts.rawResponses!.some((r) => r.request.body?.includes("0xe47d6060"))).toBe(false);
+  });
+
+  it("BNB Chain: the token row labels the company-accepted contract", async () => {
+    const { v } = await replay("bsc-binance-hot16-withdrawal");
+    const token = v.evidence.find((e) => e.id === "ev.token")!;
+    expect(token.value).toBe("USDT at the company-accepted contract (bridged by Binance, not issued by Tether or Circle)");
+    expect(token.mono!.map((m) => m.label)).toEqual(["Received", "Company-accepted"]);
+  });
+
+  it("BNB Chain: D06 compares against the company-declared contract", async () => {
+    const { facts, settings } = await replay("bsc-binance-hot16-withdrawal");
+    const fake = { ...facts, tx: { ...facts.tx!, transfers: facts.tx!.transfers.map((t) => ({ ...t, tokenContract: "0x" + "1".repeat(40) })) } };
+    const v = investigate(fake, settings);
+    expect(v.code).toBe("D06");
+    expect(v.checks.find((c) => c.code === "D06")!.reason).toMatch(/company-accepted contract \(bridged by Binance/);
+    expect(v.evidence.find((e) => e.id === "ev.token")!.value).toMatch(/not the company-accepted contract/);
+  });
+
+  it("BNB Chain: with no declared contract, D06 can't run and the token is unsupported (D05)", async () => {
+    const { facts } = await replay("bsc-binance-hot16-withdrawal");
+    const v = investigate(facts, SAMPLE_SETTINGS);
+    expect(v.code).toBe("D05");
+    expect(v.checks.find((c) => c.code === "D06")!.reason).toMatch(/No company-declared USDT contract/);
+  });
+
+  it("BNB Chain: an officialContracts entry is ignored; only the company's Settings count", async () => {
+    const { facts } = await replay("bsc-binance-hot16-withdrawal");
+    const hardCoded = { ...SAMPLE_SETTINGS, officialContracts: { ...SAMPLE_SETTINGS.officialContracts, bsc: { USDT: "0x55d398326f99059ff775485246999027b3197955" } } };
+    expect(investigate(facts, hardCoded).code).toBe("D05");
   });
 
   it("D08: a real 14.49 USDT BNB Chain transfer under a 20 USDT minimum", async () => {

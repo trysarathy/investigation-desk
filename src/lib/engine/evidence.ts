@@ -1,4 +1,5 @@
 import { explorerTxUrl } from "../catalogue";
+import { COMPANY_CONTRACT_LABEL, COMPANY_DECLARED_CHAINS } from "../contracts";
 import { formatTime } from "../format";
 import { sameAddress } from "../address";
 import type { Evidence } from "../types";
@@ -33,7 +34,9 @@ export function buildEvidence(ctx: Ctx): Evidence[] {
     id: EV.input,
     label: "Customer instruction",
     status: "info",
-    value: facts.customerId ? `Reported by ${facts.customerId}` : "Reported by customer",
+    value: facts.customerInferredFromRow !== undefined
+      ? `Customer ${facts.customerId}, taken from File A line ${facts.customerInferredFromRow} (owner of the destination when the transfer was mined)`
+      : facts.customerId ? `Reported by ${facts.customerId}` : "Reported by customer",
     mono: [{ label: inputKindLabel(facts.input.kind), value: facts.input.raw.trim() }],
     source: { kind: "input" },
   });
@@ -117,18 +120,23 @@ export function buildEvidence(ctx: Ctx): Evidence[] {
 
   if (transfer && tx) {
     const accepted = ctx.tokenAccepted && !ctx.impersonation;
+    const company = ctx.officialSource === "company";
     out.push({
       id: EV.token,
       label: "Token contract",
       status: ctx.impersonation ? "fail" : accepted ? "pass" : "warn",
       value: ctx.impersonation
-        ? `Claims to be ${transfer.tokenSymbol}; contract is not the official one`
+        ? company
+          ? `Claims to be ${transfer.tokenSymbol}; contract is not the ${COMPANY_CONTRACT_LABEL}`
+          : `Claims to be ${transfer.tokenSymbol}; contract is not the official one`
         : accepted
-          ? `Official ${transfer.tokenSymbol}, on the allowlist`
+          ? company
+            ? `${transfer.tokenSymbol} at the ${COMPANY_CONTRACT_LABEL}`
+            : `Official ${transfer.tokenSymbol}, on the allowlist`
           : `${transfer.tokenSymbol} at this contract is not on the allowlist for ${CHAIN_NAMES[tx.chain]}`,
       mono: [
         { label: "Received", value: transfer.tokenContract },
-        ...(ctx.officialContract ? [{ label: "Official", value: ctx.officialContract }] : []),
+        ...(ctx.officialContract ? [{ label: company ? "Company-accepted" : "Official", value: ctx.officialContract }] : []),
       ],
       source: { kind: "settings", key: `acceptedTokens.${tx.chain}` },
     });
@@ -183,7 +191,9 @@ export function buildEvidence(ctx: Ctx): Evidence[] {
       status: facts.freezeStatus === "failed" ? "warn" : "info",
       value: facts.freezeStatus === "failed"
         ? "Unknown: the issuer freeze call failed"
-        : "Not checked: no confirmed issuer contract for this chain and token",
+        : tx && COMPANY_DECLARED_CHAINS.has(tx.chain)
+          ? `Not available on ${CHAIN_NAMES[tx.chain]}: the token has no issuer freeze function (known gap; does not block a verdict)`
+          : "Not checked: no confirmed issuer contract for this chain and token",
       source: { kind: "none" },
     });
   } else if (facts.freezes.length > 0) {
@@ -236,7 +246,8 @@ export function buildEvidence(ctx: Ctx): Evidence[] {
       value: !r
         ? "No ledger row for this transfer"
         : `${r.status}${r.creditedAt ? ` at ${formatTime(r.creditedAt)}` : ""} (${r.depositId})`,
-      detail: [how, reason, `Ledger last uploaded ${formatTime(facts.ledgerUploadedAt)}`].filter(Boolean).join("\n"),
+      detail: [how, reason, `Ledger last uploaded ${formatTime(facts.ledgerUploadedAt)}`,
+        facts.fileBRejectedRows ? `${facts.fileBRejectedRows} ledger row(s) were rejected at that upload.` : ""].filter(Boolean).join("\n"),
       source: r ? { kind: "ledger", row: r.row } : { kind: "none" },
     });
   }

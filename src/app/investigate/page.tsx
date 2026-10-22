@@ -5,7 +5,8 @@ import { Investigation } from "@/components/Investigation";
 import { Status } from "@/components/Status";
 import { fetchFacts } from "@/lib/chain/investigate";
 import { liveDeps, liveKeysPresent } from "@/lib/chain/live";
-import { FILE_A, FILE_B, LEDGER_UPLOADED_AT, SAMPLE_SETTINGS } from "@/lib/fixtures";
+import { SAMPLE_SETTINGS } from "@/lib/fixtures";
+import { loadWorkspace } from "@/lib/workspace/live";
 import { normaliseInput } from "@/lib/normalise";
 import { liveCaseView, resolveInput } from "@/lib/view";
 
@@ -19,23 +20,27 @@ const KIND_LABEL = {
 
 /**
  * Pasted input lands here: open the matching sample case, or look a hash up live on every
- * supported chain. Company files are still the sample File A and ledger until upload (week 4).
+ * supported chain against the company's uploaded Files A and B. `customer` is optional; without
+ * it, File A's owner of the destination at block time is used, and the case says so.
  */
-export default async function InvestigatePage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
-  const { q = "" } = await searchParams;
+export default async function InvestigatePage({ searchParams }: { searchParams: Promise<{ q?: string; customer?: string }> }) {
+  const { q = "", customer } = await searchParams;
   const match = q.trim() ? resolveInput(q) : undefined;
   if (match) redirect(`/cases/${match.id}`);
   const input = normaliseInput(q);
 
-  if (input.kind === "hash" && liveKeysPresent()) {
-    const facts = await fetchFacts(q, { depositAddresses: FILE_A, ledger: FILE_B, ledgerUploadedAt: LEDGER_UPLOADED_AT }, liveDeps(), SAMPLE_SETTINGS);
-    const view = liveCaseView(facts);
+  const { ws, missing } = await loadWorkspace(customer?.trim() || undefined);
+  if (input.kind === "hash" && liveKeysPresent() && ws) {
+    const facts = await fetchFacts(q, ws, liveDeps(), SAMPLE_SETTINGS);
+    const view = await liveCaseView(facts);
     return <Investigation key={`${view.id}-${facts.checkedAt}`} view={view} />;
   }
 
   const reason = input.kind !== "hash"
     ? "Live lookup by address or customer reference is not built yet; paste a transaction hash."
-    : "Live chain lookups need TRONGRID_API_KEY and ETHERSCAN_API_KEY in the server environment.";
+    : !liveKeysPresent()
+      ? "Live chain lookups need TRONGRID_API_KEY and ETHERSCAN_API_KEY in the server environment."
+      : `Upload ${missing.map((m) => `File ${m}`).join(" and ")} in Settings → Data first: without the company's files no address or ledger verdict can be given.`;
 
   return (
     <div className="page">

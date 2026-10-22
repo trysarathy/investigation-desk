@@ -6,6 +6,7 @@
 
 import { sameAddress } from "../address";
 import { explorerTxUrl } from "../catalogue";
+import { officialContractFor } from "../contracts";
 import { compareDecimal, isDecimal } from "../decimal";
 import { looksAlike, pickTransfer } from "../engine/context";
 import { normaliseInput } from "../normalise";
@@ -24,6 +25,8 @@ export interface Workspace {
   depositAddresses: DepositAddressRow[];
   ledger: LedgerRow[];
   ledgerUploadedAt: string;
+  fileARejectedRows?: number;
+  fileBRejectedRows?: number;
 }
 
 export interface LiveDeps {
@@ -51,6 +54,8 @@ export async function fetchFacts(rawInput: string, ws: Workspace, deps: LiveDeps
     depositAddresses: ws.depositAddresses,
     ledger: ws.ledger,
     ledgerUploadedAt: ws.ledgerUploadedAt,
+    fileARejectedRows: ws.fileARejectedRows,
+    fileBRejectedRows: ws.fileBRejectedRows,
     rawResponses: [],
   };
   // Live lookup is by transaction hash. Address and customer-reference search come later.
@@ -67,6 +72,7 @@ export async function fetchFacts(rawInput: string, ws: Workspace, deps: LiveDeps
     currentBlock: found?.currentBlock,
   };
   const extra: RawResponse[] = [];
+  if (found?.tx && !facts.customerId) Object.assign(facts, inferCustomer(found.tx, facts));
   if (found?.tx) {
     Object.assign(facts, await freezeFacts(found.tx, facts, settings, deps, extra));
     Object.assign(facts, await historyFacts(found.tx, facts, settings, deps, extra));
@@ -92,14 +98,28 @@ async function lookupOne(chain: Chain, hash: string, deps: LiveDeps, raws: RawRe
   }
 }
 
+/**
+ * A pasted hash has no customer. File A says who held the destination when the transfer was
+ * mined; that company record names the case's customer. No owner at that time, no inference.
+ */
+function inferCustomer(tx: ChainTx, facts: Facts): Pick<Facts, "customerId" | "customerInferredFromRow"> | object {
+  const transfer = pickTransfer(tx, facts);
+  if (!transfer) return {};
+  const t = Date.parse(tx.blockTime);
+  const owner = facts.depositAddresses.find((r) => r.chain === tx.chain && sameAddress(r.address, transfer.to) &&
+    Date.parse(r.assignedAt) <= t && (!r.retiredAt || t < Date.parse(r.retiredAt)));
+  return owner ? { customerId: owner.customerId, customerInferredFromRow: owner.row } : {};
+}
+
 /** D09: ask the issuer's own contract whether sender or destination is frozen, read-only. */
 async function freezeFacts(tx: ChainTx, facts: Facts, settings: Settings, deps: LiveDeps, raws: RawResponse[]):
   Promise<Pick<Facts, "freezes" | "freezeStatus">> {
   const transfer = pickTransfer(tx, facts);
   const token = transfer?.tokenSymbol as Token | undefined;
-  const official = token && token in FREEZE_SELECTOR ? settings.officialContracts[tx.chain]?.[token] : undefined;
-  // Only the genuine issuer contract can say an address is frozen. No confirmed official contract
-  // (e.g. BNB Chain, where neither issuer lists one) means the check doesn't apply.
+  const resolved = token && token in FREEZE_SELECTOR ? officialContractFor(tx.chain, token, settings) : undefined;
+  // Only the genuine issuer contract can say an address is frozen. On BNB Chain the official
+  // contract is the company's declared one, which has no issuer freeze function: a known gap.
+  const official = resolved?.source === "issuer" ? resolved.contract : undefined;
   if (!transfer || !token || !official || !sameAddress(official, transfer.tokenContract)) {
     return { freezes: [], freezeStatus: "not_supported" };
   }

@@ -42,7 +42,7 @@ export function QueueTable({ rows, empty }: { rows: CaseRow[]; empty: boolean })
       if (document.querySelector(".cmd")) return;
       if (e.key === "ArrowDown" || e.key === "j") { e.preventDefault(); setSel((s) => Math.min(s + 1, visible.length - 1)); }
       else if (e.key === "ArrowUp" || e.key === "k") { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)); }
-      else if (e.key === "Enter" && visible[sel]) router.push(`/cases/${visible[sel].id}`);
+      else if (e.key === "Enter" && visible[sel]) router.push(visible[sel].href ?? `/cases/${visible[sel].id}`);
       else if (e.key === "a" && visible[sel]) assign(visible[sel].id);
     };
     window.addEventListener("keydown", onKey);
@@ -108,8 +108,11 @@ export function QueueTable({ rows, empty }: { rows: CaseRow[]; empty: boolean })
               {visible.map((r, i) => {
                 const owner = owners[r.id] ?? r.owner;
                 return (
-                  <tr key={r.id} aria-selected={i === sel} onClick={() => router.push(`/cases/${r.id}`)} onMouseMove={() => sel !== i && setSel(i)}>
-                    <td><Link href={`/cases/${r.id}`} className="mono" style={{ color: "inherit" }} onClick={(e) => e.stopPropagation()}>{r.id}</Link></td>
+                  <tr key={r.id} aria-selected={i === sel} onClick={() => router.push(r.href ?? `/cases/${r.id}`)} onMouseMove={() => sel !== i && setSel(i)}>
+                    <td>
+                      <Link href={r.href ?? `/cases/${r.id}`} className="mono" style={{ color: "inherit" }} onClick={(e) => e.stopPropagation()}>{r.id}</Link>
+                      {r.live && <span className="badge" style={{ marginLeft: 6 }} title="From a bulk run on your uploaded files; opens a live check">Live</span>}
+                    </td>
                     <td className="mono muted">{r.customerId}</td>
                     <td>{r.chain ? <span className="badge">{CHAIN_NAMES[r.chain]}</span> : <span className="faint">—</span>}</td>
                     <td className="mono" style={{ textAlign: "right" }}>{r.amount ? `${r.amount} ${r.token}` : <span className="faint">—</span>}</td>

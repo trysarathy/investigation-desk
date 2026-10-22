@@ -1,4 +1,5 @@
 import type { Code, Confidence, LedgerMatch, RuleResult } from "../types";
+import { COMPANY_DECLARED_CHAINS } from "../contracts";
 import type { Ctx } from "./context";
 import { EV } from "./evidence";
 
@@ -94,14 +95,25 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
   D06: (ctx) => {
     if (!ctx.transfer) return miss("D06", "No token transfer found.");
     if (!["USDT", "USDC"].includes(ctx.transfer.tokenSymbol)) return miss("D06", "Token does not claim to be USDT or USDC.");
-    if (!ctx.officialContract) return miss("D06", `No confirmed official ${ctx.transfer.tokenSymbol} contract in settings for this chain.`);
-    if (!ctx.impersonation) return miss("D06", "Contract matches the official one.");
-    return hit("D06", "High", [EV.token], `Symbol ${ctx.transfer.tokenSymbol}, contract differs from the official one.`);
+    const company = ctx.officialSource === "company";
+    if (!ctx.officialContract) {
+      return miss("D06", company || COMPANY_DECLARED_CHAINS.has(ctx.tx!.chain)
+        ? `No company-declared ${ctx.transfer.tokenSymbol} contract in Settings for this chain.`
+        : `No confirmed official ${ctx.transfer.tokenSymbol} contract in settings for this chain.`);
+    }
+    const which = company ? "the company-accepted contract (bridged by Binance, not issued by Tether or Circle)" : "the official one";
+    if (!ctx.impersonation) return miss("D06", `Contract matches ${which}.`);
+    return hit("D06", "High", [EV.token], `Symbol ${ctx.transfer.tokenSymbol}, contract differs from ${which}.`);
   },
 
   D07: (ctx) => {
     if (!ctx.transfer || !ctx.tx) return miss("D07", "No token transfer found.");
     if (ctx.addrOnTxChain || ctx.addrOtherChain) return miss("D07", "Destination is a company deposit address.");
+    const rejected = ctx.facts.fileARejectedRows ?? 0;
+    if (rejected > 0) {
+      return hit("D07", "Medium", [EV.address],
+        `Destination is not in the deposit-address list, but ${rejected} File A row(s) were rejected at upload and could hold it.`);
+    }
     return hit("D07", "High", [EV.address], "Destination is not in the deposit-address list.");
   },
 
@@ -119,12 +131,12 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
 
   D17: (ctx) => {
     if (ctx.addrStatus !== "other_customer") return miss("D17", "Destination is not assigned to a different customer.");
-    return hit("D17", "High", [EV.tx, EV.address], `Destination is assigned to another customer (File A row ${ctx.addrOnTxChain!.row}).`);
+    return hit("D17", "High", [EV.tx, EV.address], `Destination is assigned to another customer (File A line ${ctx.addrOnTxChain!.row}).`);
   },
 
   D18: (ctx) => {
     if (ctx.addrStatus !== "retired") return miss("D18", "Destination is not a retired address.");
-    return hit("D18", "High", [EV.tx, EV.address], `Mined after the address was retired (File A row ${ctx.addrOnTxChain!.row}).`);
+    return hit("D18", "High", [EV.tx, EV.address], `Mined after the address was retired (File A line ${ctx.addrOnTxChain!.row}).`);
   },
 
   D08: (ctx) => {
@@ -135,7 +147,11 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
   },
 
   D09: (ctx) => {
-    if (ctx.facts.freezeStatus === "not_supported") return miss("D09", "No confirmed issuer contract to ask on this chain and token.");
+    if (ctx.facts.freezeStatus === "not_supported") {
+      return miss("D09", ctx.tx && COMPANY_DECLARED_CHAINS.has(ctx.tx.chain)
+        ? "Not available on this chain: the token has no issuer freeze function (known gap, not a missing fact)."
+        : "No confirmed issuer contract to ask on this chain and token.");
+    }
     if (ctx.facts.freezeStatus === "failed") return miss("D09", "Issuer freeze call failed, so freeze status is unknown.");
     if (ctx.facts.freezes.length === 0) return miss("D09", "No freeze calls made.");
     if (ctx.freezeHits.length === 0) return miss("D09", "Issuer freeze calls returned false.");
@@ -166,9 +182,13 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
     if (ctx.confirmations! < ctx.threshold!) return miss("D12", "Not yet confirmed.");
     const m = ctx.ledgerMatch;
     const cites = [EV.tx, EV.confirmations, EV.token, EV.address, EV.amount, EV.ledger];
-    if (!m) return hit("D12", "High", cites, "Confirmed on-chain; no ledger row for this transfer.");
-    if (m.row.status !== "PENDING") return miss("D12", `Ledger row exists with status ${m.row.status}.`);
-    return hit("D12", ledgerConfidence(m), cites, `Confirmed on-chain; ledger row is still PENDING${ledgerQualityNote(m)}.`);
+    if (m && m.row.status !== "PENDING") return miss("D12", `Ledger row exists with status ${m.row.status}.`);
+    // A ledger row rejected at upload might be this credit: "not credited" can't be High then.
+    const rejected = ctx.facts.fileBRejectedRows ?? 0;
+    const gap = rejected > 0 ? ` ${rejected} ledger row(s) were rejected at upload and could be this credit.` : "";
+    const confidence: Confidence = rejected > 0 ? "Medium" : m ? ledgerConfidence(m) : "High";
+    if (!m) return hit("D12", confidence, cites, `Confirmed on-chain; no ledger row for this transfer.${gap}`);
+    return hit("D12", confidence, cites, `Confirmed on-chain; ledger row is still PENDING${ledgerQualityNote(m)}.${gap}`);
   },
 
   D13: (ctx) => {

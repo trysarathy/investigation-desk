@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "0.132.0",
     "@fontsource/inter": "5.2.8",
     "@fontsource/jetbrains-mono": "5.2.8",
     "@noble/hashes": "1.8.0",

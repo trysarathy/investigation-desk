@@ -30,7 +30,9 @@ export function Investigation({ view }: { view: CaseView }) {
   const changed = prev && (prev.code !== v.code || prev.state !== v.state) ? prev : undefined;
   const owner = owners[view.id] ?? view.owner;
   const replyLocked = v.confidence === "Medium" && !confirmed;
-  const replyText = draft ?? v.reply?.text ?? "";
+  // The checked AI reply when there is one, otherwise the template reply.
+  const reply = v.explanation ? v.explanation.reply : v.reply;
+  const replyText = draft ?? reply?.text ?? "";
 
   // A new verdict invalidates the analyst's confirmation and edits.
   useEffect(() => {
@@ -52,7 +54,7 @@ export function Investigation({ view }: { view: CaseView }) {
   };
 
   const copy = () => {
-    if (!v.reply || replyLocked) return;
+    if (!reply || replyLocked) return;
     navigator.clipboard?.writeText(replyText).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
@@ -70,7 +72,7 @@ export function Investigation({ view }: { view: CaseView }) {
       }
       if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT") return;
       if (e.key === "c") copy();
-      else if (e.key === "e" && v.reply && !replyLocked) { e.preventDefault(); setEditing(true); }
+      else if (e.key === "e" && reply && !replyLocked) { e.preventDefault(); setEditing(true); }
       else if (e.key === "r") recheck();
       else if (e.key === "a") assign(view.id);
     };
@@ -87,7 +89,7 @@ export function Investigation({ view }: { view: CaseView }) {
           <h1 className="mono">{view.id}</h1>
           <span className="muted mono">{view.customerId}</span>
           {view.live
-            ? <span className="badge" title="Chain data is fetched live. File A and the ledger are still the sample files until upload arrives (week 4).">Live chain data · sample company files</span>
+            ? <span className="badge" title="Chain data is fetched live and checked against the Files A and B uploaded in Settings → Data.">Live chain data · your uploaded files</span>
             : <span className="badge">Sample data</span>}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -125,6 +127,8 @@ export function Investigation({ view }: { view: CaseView }) {
 
       <div className="cols">
         <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
+          {!checking && v.explanation && <ExplanationPanel x={v.explanation} />}
+
           <section className="panel" aria-label="Evidence">
             <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between" }}>
               <h2>Evidence</h2>
@@ -175,7 +179,7 @@ export function Investigation({ view }: { view: CaseView }) {
           <section className="panel" aria-label="Reply draft">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span className="section-title">Reply draft</span>
-              {v.reply && !checking && (
+              {reply && !checking && (
                 <div style={{ display: "flex", gap: 8 }}>
                   <button className="btn btn-sm" type="button" onClick={() => setEditing((x) => !x)} disabled={replyLocked}>{editing ? "Done" : "Edit"} <span className="kbd">E</span></button>
                   <button className="btn btn-sm btn-primary" type="button" onClick={copy} disabled={replyLocked}>{copied ? "Copied" : "Copy"} <span className="kbd">C</span></button>
@@ -189,7 +193,7 @@ export function Investigation({ view }: { view: CaseView }) {
                 <p className="muted" style={{ margin: 0 }}>No reply draft for an unknown verdict. Record what you find.</p>
                 <textarea className="input" rows={5} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Investigation notes" aria-label="Investigation notes" />
               </>
-            ) : !v.reply ? (
+            ) : !reply ? (
               <p className="muted" style={{ margin: 0 }}>No approved template for {v.code} yet. Write the reply by hand.</p>
             ) : (
               <>
@@ -208,7 +212,9 @@ export function Investigation({ view }: { view: CaseView }) {
                 )}
                 {/\{\w+\}/.test(replyText) && <p className="s-warn" style={{ margin: 0, fontSize: 12 }}>Fill the highlighted fields before sending.</p>}
                 <p className="faint" style={{ margin: 0, fontSize: 12 }}>
-                  From the approved {v.code} template. Every value comes from the evidence.
+                  {v.explanation?.source === "ai"
+                    ? `Approved ${v.code} template, filled by AI and checked against the evidence.`
+                    : `From the approved ${v.code} template. Every value comes from the evidence.`}
                 </p>
               </>
             )}
@@ -255,7 +261,7 @@ function VerdictBar({ v, checking }: { v: VerdictView; checking: boolean }) {
 
 function EvidenceRow({ e, cited, delay, live }: { e: Evidence; cited: boolean; delay: number; live: boolean }) {
   return (
-    <li className={`fade-in${cited ? " cited" : ""}`} style={{ animationDelay: `${delay}ms` }}>
+    <li id={`row-${e.id}`} className={`fade-in${cited ? " cited" : ""}`} style={{ animationDelay: `${delay}ms` }}>
       <div className="tl-label" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <span>{e.label}</span>
         <span className={`status s-${e.status}`} style={{ fontSize: 12 }}>
@@ -280,9 +286,9 @@ function Source({ e, live }: { e: Evidence; live: boolean }) {
     case "explorer":
       return <a href={s.url} target="_blank" rel="noreferrer" title={live ? undefined : "Sample hash: the explorer will not find it"}>Explorer ↗</a>;
     case "ledger":
-      return <span className="muted">Ledger row {s.row}</span>;
+      return <span className="muted">Ledger line {s.row}</span>;
     case "addresses":
-      return <span className="muted">File A row {s.row}</span>;
+      return <span className="muted">File A line {s.row}</span>;
     case "settings":
       return <Link href="/settings?tab=rules" className="muted">Settings</Link>;
     case "input":
@@ -336,4 +342,30 @@ function TimelineSkeleton() {
 function ReplyText({ text }: { text: string }) {
   const parts = text.split(/(\{\w+\})/g);
   return <>{parts.map((p, i) => (/^\{\w+\}$/.test(p) ? <span key={i} className="placeholder">{p}</span> : <span key={i}>{p}</span>))}</>;
+}
+
+/** One sentence per line of thought; each links to the evidence rows it rests on. */
+function ExplanationPanel({ x }: { x: NonNullable<VerdictView["explanation"]> }) {
+  return (
+    <section className="panel" aria-label="Explanation" style={{ padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+        <h2>Explanation</h2>
+        <span className="faint" style={{ fontSize: 12 }}>
+          {x.source === "ai" ? "Written by AI from the evidence only, then checked against it" : "Template text"}
+        </span>
+      </div>
+      <p style={{ margin: 0, lineHeight: 1.7 }}>
+        {x.sentences.map((s, i) => (
+          <span key={i}>
+            {s.text}
+            {s.evidenceIds.map((id, j) => (
+              <a key={id} href={`#row-${id}`} className="faint" style={{ fontSize: 11, marginLeft: j ? 2 : 3, verticalAlign: "super" }}
+                aria-label={`Evidence: ${id.replace("ev.", "")}`}>[{id.replace("ev.", "")}]</a>
+            ))}{" "}
+          </span>
+        ))}
+      </p>
+      {x.fallbackReason && <p className="faint" style={{ margin: 0, fontSize: 12 }}>{x.fallbackReason} Showing template text.</p>}
+    </section>
+  );
 }

@@ -14,6 +14,6 @@ export default async function CasePage({
   const sp = await searchParams;
   const c = findCase(id);
   if (!c) notFound();
-  const view = caseView(c, parseDown(sp.down));
+  const view = await caseView(c, parseDown(sp.down));
   return <Investigation key={view.id} view={view} />;
 }
