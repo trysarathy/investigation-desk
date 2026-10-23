@@ -293,7 +293,7 @@ describe("ledger legs by direction", () => {
 
   it("an outbound payout: the payout ledger links, a deposit row on the same transfer does not", async () => {
     const d = await records();
-    const r = run(d, fileB(N2_TO));
+    const r = run(d, fileB(N2_TO), []);
     const p = r.payments.find((x) => x.anchor.recordId.startsWith("ins:INS-1:"))!;
     expect(p.legs.ledger).toMatchObject({ state: "linked", links: [{ basis: "instruction_id" }] });
   });

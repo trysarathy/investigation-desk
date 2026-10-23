@@ -5,6 +5,7 @@ import "server-only";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Chain, Code, Confidence } from "../types";
+import { dataDir } from "../data-dir";
 
 export interface StoredCase {
   id: string;
@@ -21,7 +22,7 @@ export interface StoredCase {
   fromJob: string;
 }
 
-const FILE = () => path.join(process.cwd(), ".data", "cases.json");
+const FILE = () => path.join(dataDir(), "cases.json");
 
 export async function loadCases(): Promise<StoredCase[]> {
   try {

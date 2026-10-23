@@ -5,8 +5,9 @@ import path from "node:path";
 import type { Workspace } from "../chain/investigate";
 import { demoModeOn, resetDemoWorkspace } from "../demo/reset";
 import { FileWorkspaceStore, type WorkspaceData } from "./store";
+import { dataDir } from "../data-dir";
 
-export const workspaceStore = () => new FileWorkspaceStore(path.join(process.cwd(), ".data", "workspace.json"));
+export const workspaceStore = () => new FileWorkspaceStore(path.join(dataDir(), "workspace.json"));
 
 /** The uploaded files as an investigation workspace, or which file is still missing. */
 export async function loadWorkspace(customerId?: string): Promise<{ ws?: Workspace; missing: ("A" | "B")[]; data: WorkspaceData }> {

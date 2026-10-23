@@ -1,10 +1,10 @@
 // Wires the live fetchers from environment variables. Keys are read here and nowhere else.
 
 import "server-only";
-import path from "node:path";
 import type { LiveDeps } from "./investigate";
 import { buildFetchers } from "./sources";
 import { FileStore } from "./store";
+import { dataDir } from "../data-dir";
 
 export function liveKeysPresent(): boolean {
   return !!process.env.TRONGRID_API_KEY && !!process.env.ETHERSCAN_API_KEY;
@@ -16,7 +16,7 @@ export function liveDeps(): LiveDeps {
   deps ??= buildFetchers({
     tronKey: process.env.TRONGRID_API_KEY ?? "",
     etherscanKey: process.env.ETHERSCAN_API_KEY ?? "",
-    store: new FileStore(path.join(process.cwd(), ".data")),
+    store: new FileStore(dataDir()),
   });
   return deps;
 }
