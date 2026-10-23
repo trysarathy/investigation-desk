@@ -194,7 +194,8 @@ export interface Candidate {
 }
 
 export type Leg =
-  | { state: "linked"; links: Link[] }
+  /** With a reviewId: linked, under review (a "direction changed" review waits for a person). */
+  | { state: "linked"; links: Link[]; reviewId?: string }
   | { state: "missing"; suggestions: Candidate[]; note?: string }
   | { state: "needs_review"; reviewId: string }
   /** We couldn't find out (a chain lookup failed). Not the same as missing. */
@@ -293,6 +294,8 @@ export interface MatchResult {
   redirects: Record<string, PaymentRedirect>;
   /** Linked ledger entries and the direction the transfer had then. Fed back into the next run. */
   ledgerLinks?: LedgerLink[];
+  /** Deposit ledger rows on a payment's transfer whose direction can't be told (File A not loaded, no block time). */
+  unclassifiedLedger?: { recordId: string; paymentId: string; note: string }[];
 }
 
 export type Direction = "inbound" | "outbound" | "unknown";

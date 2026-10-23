@@ -44,7 +44,7 @@ export function reconciledCsv(data: PaymentsData, inbox: InboxData): string {
     const led = p.timeline.map((x) => recs.get(x.recordId)).filter((r): r is LedgerEntryRecord => r?.kind === "ledger" && !r.reverses).at(-1);
     const bank = linked<BankRecord>(p, "bank", recs);
     const open = itemsFor(result, inbox, p.paymentId).filter((i) => i.status !== "closed");
-    const inReview = LEGS.some((l) => p.legs[l].state === "needs_review");
+    const inReview = LEGS.some((l) => { const leg = p.legs[l]; return leg.state === "needs_review" || (leg.state === "linked" && !!leg.reviewId); });
     const allLinked = LEGS.every((l) => p.legs[l].state === "linked" || p.legs[l].state === "not_applicable");
     const reconciliation = inReview ? "in review" : open.length ? "exceptions open" : allLinked ? "reconciled" : "incomplete";
     return [
@@ -120,7 +120,7 @@ export function evidencePack(itemId: string, data: PaymentsData, inbox: InboxDat
   if (payment) {
     sections.push({ heading: `Payment ${payment.paymentId}: legs`, rows: LEGS.map((l) => {
       const leg = payment!.legs[l];
-      const detail = leg.state === "linked" ? leg.links.map((x) => x.detail).join(" ")
+      const detail = leg.state === "linked" ? leg.links.map((x) => x.detail).join(" ") + (leg.reviewId ? ` (under review ${resolveReview(result!, leg.reviewId)})` : "")
         : leg.state === "needs_review" ? `review ${resolveReview(result!, leg.reviewId)}`
         : leg.state === "missing" ? leg.note ?? "no record" : leg.state === "unknown" ? leg.note : "no records of this kind imported";
       return [l, `${leg.state.replace("_", " ")} · ${detail}`];

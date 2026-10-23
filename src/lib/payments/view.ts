@@ -29,7 +29,7 @@ export function fileABanner({ fileALoaded, depositLedgerRows }: { fileALoaded: b
 
 export function legStatus(l: Leg): { status: EvidenceStatus; label: string } {
   switch (l.state) {
-    case "linked": return { status: "pass", label: "Linked" };
+    case "linked": return l.reviewId ? { status: "warn", label: "Linked, under review" } : { status: "pass", label: "Linked" };
     case "needs_review": return { status: "warn", label: "Needs review" };
     case "missing": return { status: "warn", label: l.suggestions.length ? `Missing · ${l.suggestions.length} to check` : "Missing" };
     case "unknown": return { status: "info", label: "Unknown" };

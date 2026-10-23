@@ -139,7 +139,11 @@ function ImportPanel({ kind, title, mappings }: { kind: ImportKind; title: strin
       const res = await fetch(`/api/payments/imports/${kind}`, { method: "POST", body });
       const json = await res.json();
       if (json.error) setMessage({ kind: "error", text: json.error });
-      else { setLog(json as ImportLog); router.refresh(); }
+      else {
+        setLog(json as ImportLog);
+        if (json.warnings?.length) setMessage({ kind: "info", text: json.warnings.join(" ") });
+        router.refresh();
+      }
     } catch {
       setMessage({ kind: "error", text: "Import failed. Nothing was changed." });
     } finally { setBusy(false); }

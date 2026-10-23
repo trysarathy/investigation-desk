@@ -9,7 +9,7 @@ import { tronHexToBase58, tronToHex } from "../address";
 import { explorerTxUrl } from "../catalogue";
 import type { ChainTx, RawResponse, TokenTransfer } from "../types";
 import { decodeAbiString, decodeAbiUint, decodeTransferCall, decodeTransferLogs, formatUnits } from "./abi";
-import { ChainApiError, type ChainClient } from "./http";
+import { ChainApiError, KEY_NOT_SET, type ChainClient } from "./http";
 import type { ChainLookupResult, TokenMeta } from "./types";
 
 const BASE = "https://api.trongrid.io";
@@ -28,14 +28,19 @@ export function tronClassifyBody(body: string): { retryable: boolean; message: s
 }
 
 export class TronFetcher {
-  constructor(private readonly client: ChainClient, private readonly apiKey: string) {
-    if (!apiKey) throw new ChainApiError("TRONGRID_API_KEY is not set", false);
+  // A missing key is checked per request, not here: building the fetchers must never fail, so a
+  // lookup without a key is an unknown ("chain lookup unavailable"), never a crashed request.
+  constructor(private readonly client: ChainClient, private readonly apiKey: string) {}
+
+  private key() {
+    if (!this.apiKey) throw new ChainApiError(KEY_NOT_SET("TRONGRID_API_KEY"), false);
+    return this.apiKey;
   }
 
   private post(path: string, body: unknown, ttlSec: number, ttlFor?: (r: RawResponse) => number) {
     return this.client.request(
       { method: "POST", url: `${BASE}${path}`, body: JSON.stringify(body),
-        headers: { "TRON-PRO-API-KEY": this.apiKey, "content-type": "application/json" } },
+        headers: { "TRON-PRO-API-KEY": this.key(), "content-type": "application/json" } },
       { chain: "tron", ttlSec, ttlFor },
     );
   }
@@ -132,7 +137,7 @@ export class TronFetcher {
   async trc20From(address: string, beforeMs: number, raws: RawResponse[]) {
     const q = new URLSearchParams({ only_from: "true", max_timestamp: String(beforeMs - 1), limit: "50" });
     const r = await this.client.request(
-      { method: "GET", url: `${BASE}/v1/accounts/${address}/transactions/trc20?${q}`, headers: { "TRON-PRO-API-KEY": this.apiKey } },
+      { method: "GET", url: `${BASE}/v1/accounts/${address}/transactions/trc20?${q}`, headers: { "TRON-PRO-API-KEY": this.key() } },
       { chain: "tron", ttlSec: Infinity },
     ).catch((e) => {
       if (e instanceof ChainApiError && e.raw) raws.push(e.raw);

@@ -1,10 +1,12 @@
-// Re-review fixes on PR #14. Each block was written to fail before its fix. On-chain transfers are
+// Re-review fixes on PR #14 and #15. Each block was written to fail before its fix. On-chain transfers are
 // real, replayed from tests/fixtures/live/bsc-payout-*.json.
 
 import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { Transport } from "@/lib/chain/http";
+import { overrideChainDeps } from "@/lib/chain/live";
 import { validateFileB } from "@/lib/csv/files";
 import { buildFetchers } from "@/lib/chain/sources";
 import { MemoryStore } from "@/lib/chain/store";
@@ -13,10 +15,11 @@ import { demoTransport } from "@/lib/demo/transport";
 import { MemoryAuditLog } from "@/lib/payments/audit";
 import { computeExceptions } from "@/lib/payments/exceptions";
 import type { ColumnMapping } from "@/lib/payments/mapping";
+import { matchPayments } from "@/lib/payments/match";
 import { refreshMatching } from "@/lib/payments/refresh";
 import type { ExceptionSettings } from "@/lib/payments/settings";
 import { applyImport, ledgerFromFileB, MemoryPaymentsStore, saveMappingVersion, type PaymentsData } from "@/lib/payments/store";
-import type { LedgerEntryRecord } from "@/lib/payments/types";
+import type { LedgerEntryRecord, PaymentRecord } from "@/lib/payments/types";
 import { fileABanner } from "@/lib/payments/view";
 import { act, MemoryInboxStore, resolveReview, syncAll, type Stores } from "@/lib/payments/workflow";
 
@@ -142,7 +145,8 @@ describe("ledger direction", () => {
     // N2's recipient is now in File A, assigned before the transfer.
     const d2 = await rematch([], [{ chain: "bsc", address: N2_TO, assignedAt: "2026-10-01T00:00:00Z" }])(d1);
     const p = byIns(d2, "INS-1");
-    expect(p.legs.ledger.state).toBe("needs_review");
+    // The link stays while the review is pending (PR #15 re-review): "linked, under review".
+    expect(p.legs.ledger).toMatchObject({ state: "linked", links: [{ recordId: expect.stringMatching(/^ldp:L-1:/) }], reviewId: expect.stringMatching(/^REV-/) });
     const rev = d2.match!.result.reviews.find((r) => r.paymentId === p.paymentId && r.leg === "ledger")!;
     expect(rev.reason).toBe("direction_changed");
     expect(rev.message).toMatch(/was linked when this transfer counted as outbound.*now counts as inbound/);
@@ -170,9 +174,20 @@ describe("ledger direction", () => {
 
 describe("import and clear routes (as the app calls them)", () => {
   let dir: string;
-  const saved = process.env.DESK_DATA_DIR;
-  beforeAll(async () => { dir = await mkdtemp(path.join(tmpdir(), "desk-")); process.env.DESK_DATA_DIR = dir; });
-  afterAll(() => { if (saved === undefined) delete process.env.DESK_DATA_DIR; else process.env.DESK_DATA_DIR = saved; });
+  const saved = { DESK_DATA_DIR: process.env.DESK_DATA_DIR, TRONGRID_API_KEY: process.env.TRONGRID_API_KEY, ETHERSCAN_API_KEY: process.env.ETHERSCAN_API_KEY };
+  const keyed: string[] = [];
+  beforeAll(async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "desk-"));
+    process.env.DESK_DATA_DIR = dir;
+    // Offline, keys unset: the app's chain source, with a stub instead of the network.
+    delete process.env.TRONGRID_API_KEY;
+    delete process.env.ETHERSCAN_API_KEY;
+    overrideChainDeps(keylessDeps(keyed));
+  });
+  afterAll(() => {
+    overrideChainDeps(undefined);
+    for (const [k, v] of Object.entries(saved)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+  });
 
   it("write audit entries with actor, time and IP; refuse without an actor", async () => {
     const { POST: importRoute } = await import("@/app/api/payments/imports/[kind]/route");
@@ -180,7 +195,7 @@ describe("import and clear routes (as the app calls them)", () => {
     const headers = { "x-forwarded-for": "198.51.100.4, 10.0.0.1" };
     const form = (actor?: string) => {
       const f = new FormData();
-      f.set("file", new File([`${I_HEAD}\nINS-1,2026-10-22T05:35:00Z,1,tron,USDT,,,,,\n`], "instructions.csv", { type: "text/csv" }));
+      f.set("file", new File([`${I_HEAD}\nINS-1,2026-10-22T05:35:00Z,1,tron,USDT,,${"ab".repeat(32)},,,\n`], "instructions.csv", { type: "text/csv" }));
       f.set("mappingId", "instructions-standard");
       if (actor !== undefined) f.set("actor", actor);
       return f;
@@ -191,6 +206,9 @@ describe("import and clear routes (as the app calls them)", () => {
     expect(refused.status).toBe(422);
     const ok = await importRoute(new Request("http://desk.test/api/payments/imports/instruction", { method: "POST", body: form("Ana"), headers }), kind);
     expect(ok.status).toBe(200);
+    // The import finishes; the lookup it couldn't make is a warning, never a crash.
+    expect((await ok.json()).warnings).toEqual([expect.stringMatching(/chain lookup unavailable: key not set/)]);
+    expect(keyed).toEqual([]);
     expect((await clearRoute(new Request("http://desk.test/api/payments/clear", { method: "POST", body: JSON.stringify({}), headers }))).status).toBe(422);
     expect((await clearRoute(new Request("http://desk.test/api/payments/clear", { method: "POST", body: JSON.stringify({ actor: "Ana" }), headers }))).status).toBe(200);
 
@@ -202,5 +220,79 @@ describe("import and clear routes (as the app calls them)", () => {
       expect(Number.isNaN(Date.parse(e.at))).toBe(false);
     }
     expect(mine[0]).toMatchObject({ subject: "instructions.csv", detail: expect.stringMatching(/^instruction file instructions\.csv .*: imported, 1 accepted/) });
+  });
+});
+
+// ---- PR #15 re-review ----
+
+/** The app's chain source with no keys set; public RPCs answer "not found", keyed APIs must not be called. */
+function keylessDeps(keyed: string[] = []) {
+  const transport: Transport = async (req) => {
+    if (/trongrid|etherscan/.test(req.url)) { keyed.push(req.url); throw new Error("a keyed API was called without a key"); }
+    const body = JSON.parse(req.body ?? "{}");
+    const answer = (b: { id?: number }) => ({ jsonrpc: "2.0", id: b.id ?? 1, result: null });
+    return { status: 200, headers: { "content-type": "application/json" }, body: JSON.stringify(Array.isArray(body) ? body.map(answer) : answer(body)) };
+  };
+  return buildFetchers({ tronKey: "", etherscanKey: "", store: new MemoryStore(), transport, sleep: async () => {}, noSpacing: true });
+}
+
+describe("a pending 'direction changed' review persists", () => {
+  it("link payout L-1, add its address to File A, run twice with no decision: review still open, link kept, no Missing/Overdue/Unmatched", async () => {
+    const s = await stores();
+    await load(s, [...PAYOUT, PAYOUT_LEDGER], [], []);
+    await syncAll(s, { now: NOW });
+    const fileA = [{ chain: "bsc", address: N2_TO, assignedAt: "2026-10-01T00:00:00Z" }];
+    let reviewId: string | undefined;
+    for (const runNo of [1, 2]) {
+      await s.payments.save(await rematch([], fileA)(await s.payments.load()));
+      const inbox = await syncAll(s, { now: NOW });
+      const d = await s.payments.load();
+      const p = byIns(d, "INS-1");
+      expect(p.legs.ledger, `run ${runNo}`).toMatchObject({ state: "linked", links: [{ recordId: expect.stringMatching(/^ldp:L-1:/) }] });
+      const rev = d.match!.result.reviews.find((r) => r.paymentId === p.paymentId && r.leg === "ledger");
+      expect(rev?.reason, `run ${runNo}`).toBe("direction_changed");
+      reviewId ??= rev!.reviewId;
+      expect(rev!.reviewId).toBe(reviewId);
+      expect((p.legs.ledger as { reviewId?: string }).reviewId).toBe(reviewId);
+      expect(inbox.items[reviewId].status, `run ${runNo}`).not.toBe("closed");
+      expect(d.match!.result.unlinked.some((u) => u.recordId.startsWith("ldp:L-1:"))).toBe(false);
+      const codes = computeExceptions({ data: d, settings: SETTINGS, now: NOW }).map((e) => e.code);
+      expect(codes.filter((c) => c === "missing_leg" || c === "overdue" || c === "unmatched_ledger_entry"), `run ${runNo}`).toEqual([]);
+    }
+  });
+});
+
+describe("missing chain API keys", () => {
+  it("lookups are unknown ('chain lookup unavailable: key not set'), matching finishes", async () => {
+    const s = await stores();
+    await applyImport(s.payments, "instruction", "i.csv", enc(`${I_HEAD}\nINS-7,2026-10-22T05:35:00Z,5,tron,USDT,,${"cd".repeat(32)},,,\n`), "instructions-standard", undefined, NOW);
+    const keyed: string[] = [];
+    const d = await refreshMatching(await s.payments.load(), keylessDeps(keyed), [], () => NOW, { depositAddresses: [] });
+    expect(byIns(d, "INS-7").legs.chain).toMatchObject({ state: "unknown", note: expect.stringMatching(/chain lookup unavailable: key not set/) });
+    expect(keyed).toEqual([]);
+  });
+});
+
+describe("direction unknown", () => {
+  it("no File A: a deposit row on a transfer the payout row already links is unknown, not unlinked", async () => {
+    const s = await stores();
+    await load(s, [...PAYOUT, PAYOUT_LEDGER], fileB(), undefined);
+    const d = await s.payments.load();
+    const p = byIns(d, "INS-1");
+    expect(p.legs.ledger).toMatchObject({ state: "linked", links: [{ recordId: expect.stringMatching(/^ldp:L-1:/) }] });
+    expect(d.match!.result.unlinked.map((u) => u.recordId)).not.toContain("ldg:DEP-1");
+    expect(d.match!.result.unclassifiedLedger).toEqual([{ recordId: "ldg:DEP-1", paymentId: p.paymentId, note: expect.stringMatching(/File A not loaded/) }]);
+  });
+
+  it("a transfer with no block time can't be classified against File A dates: direction unknown, never 'assigned'", async () => {
+    const s = await stores();
+    await load(s, PAYOUT, [], []);
+    const d = await s.payments.load();
+    const r = matchPayments({ instructions: d.records.instruction, provider: d.records.provider, bank: [],
+      chain: d.chain.transfers.map(({ eventTime: _drop, ...t }) => t), lookups: d.chain.lookups,
+      ledger: fileB() as PaymentRecord[] as never, depositAddresses: [{ chain: "bsc", address: N2_TO, assignedAt: "2026-10-01T00:00:00Z" }] });
+    const p = r.payments.find((x) => x.anchor.recordId.startsWith("ins:INS-1:"))!;
+    expect(p.legs.ledger).toMatchObject({ state: "unknown", note: expect.stringMatching(/no block time/i) });
+    expect(r.unlinked.map((u) => u.recordId)).not.toContain("ldg:DEP-1");
   });
 });

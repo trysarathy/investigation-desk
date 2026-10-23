@@ -42,11 +42,12 @@ export default async function PaymentPage({ params, searchParams }: { params: Pr
       ))}
     </ol>
   );
+  const reviewBlock = (id: string) => { const r = reviews.find((x) => x.reviewId === id); return r ? <div id={r.reviewId}><p style={{ margin: 0 }}><span className="mono faint">{r.reviewId}</span> {r.message}</p>{candidateList(r.candidates)}</div> : null; };
   const legDetail = (l: Leg) => {
     switch (l.state) {
-      case "linked": return <ul style={{ margin: 0, paddingLeft: 20 }}>{[...new Map(l.links.map((x) => [x.detail, x])).values()].map((x) => <li key={x.detail}>{x.detail}</li>)}</ul>;
+      case "linked": return <><ul style={{ margin: 0, paddingLeft: 20 }}>{[...new Map(l.links.map((x) => [x.detail, x])).values()].map((x) => <li key={x.detail}>{x.detail}</li>)}</ul>{l.reviewId && reviewBlock(l.reviewId)}</>;
       case "missing": return <>{l.note && <p style={{ margin: 0 }}>{l.note}</p>}{l.suggestions.length > 0 && <><p className="muted" style={{ margin: "4px 0 0" }}>Similar records, ranked. None is linked until someone confirms it:</p>{candidateList(l.suggestions)}</>}</>;
-      case "needs_review": { const r = reviews.find((x) => x.reviewId === l.reviewId); return r ? <div id={r.reviewId}><p style={{ margin: 0 }}><span className="mono faint">{r.reviewId}</span> {r.message}</p>{candidateList(r.candidates)}</div> : null; }
+      case "needs_review": return reviewBlock(l.reviewId);
       case "unknown": return <p style={{ margin: 0 }}>{l.note}</p>;
       case "not_applicable": return <p className="faint" style={{ margin: 0 }}>No records of this kind imported.</p>;
     }

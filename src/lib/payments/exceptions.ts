@@ -397,9 +397,13 @@ function overdueRule(v: View, now: Date, base: (c: PaymentExceptionCode, d?: str
   // A leg whose lookup failed is unknown, not missing: it may already be there.
   const waiting = outstanding.filter((l) => v.p.legs[l].state !== "unknown");
   const unknown = outstanding.filter((l) => v.p.legs[l].state === "unknown");
-  // Why each is unknown: a lookup that failed, or File A not loaded (deposit ledger rows can't be classified).
-  const noFileA = (l: LegName) => { const leg = v.p.legs[l]; return leg.state === "unknown" && /^File A not loaded/.test(leg.note); };
-  const failed = [...new Set(unknown.map((l) => (noFileA(l) ? "File A not loaded" : `the ${l === "chain" ? "on-chain" : LEG_NOUN[l]} lookup failed`)))].join(" and ");
+  // Why each is unknown: a lookup that failed, or the transfer's direction can't be told (File A not
+  // loaded, or no block time to check File A's dates), so deposit ledger rows can't be classified.
+  const direction = (l: LegName) => { const leg = v.p.legs[l]; return leg.state === "unknown" ? /^(File A not loaded|No block time)/.exec(leg.note)?.[1] : undefined; };
+  const noFileA = (l: LegName) => direction(l) === "File A not loaded";
+  const why = (l: LegName) => direction(l) === "File A not loaded" ? "File A not loaded"
+    : direction(l) ? "the transfer has no block time to check against File A" : `the ${l === "chain" ? "on-chain" : LEG_NOUN[l]} lookup failed`;
+  const failed = [...new Set(unknown.map(why))].join(" and ");
   const reached = [...STAGES].reverse().find((l) => v.p.legs[l].state === "linked");
   return {
     ...(base("overdue") as Pick<PaymentException, "exceptionId" | "family" | "code" | "subject">),

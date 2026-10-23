@@ -40,6 +40,10 @@ export class ChainApiError extends Error {
   }
 }
 
+/** The error a lookup gets when its API key isn't set. Matched by KEY_NOT_SET_RE; never a crash. */
+export const KEY_NOT_SET = (env: string) => `chain lookup unavailable: key not set (${env})`;
+export const KEY_NOT_SET_RE = /chain lookup unavailable: key not set/;
+
 export const sha256Hex = (s: string) => createHash("sha256").update(s).digest("hex");
 
 export interface ClientOptions {

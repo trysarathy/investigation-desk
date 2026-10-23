@@ -4,6 +4,7 @@
 
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { KEY_NOT_SET_RE } from "../chain/http";
 import { checkActor, type AuditDraft, type AuditLog } from "./audit";
 import { computeExceptions, recordsOf, type DepositCaseRow } from "./exceptions";
 import { applyAction, candidatesFrom, emptyInbox, syncInbox, type InboxAction, type InboxData } from "./inbox";
@@ -117,9 +118,18 @@ export async function resolveReview(stores: Stores, req: { reviewId: string; rec
   return { decision };
 }
 
+/** Hashes that couldn't be checked because an API key isn't set: the import still succeeds, with this warning. */
+export function keyWarnings(data: PaymentsData): string[] {
+  const keyless = data.chain.lookups.filter((l) => l.result !== "found" && l.result !== "not_found" && KEY_NOT_SET_RE.test(l.error ?? ""));
+  if (!keyless.length) return [];
+  const envs = [...new Set(keyless.flatMap((l) => /key not set \(([^)]+)\)/.exec(l.error!)?.[1].split(", ") ?? []))];
+  return [`${keyless.length} transaction${keyless.length === 1 ? "" : "s"}: chain lookup unavailable: key not set (${envs.join(", ")}). ` +
+    "Their on-chain leg shows as unknown until the key is set and matching re-runs."];
+}
+
 /** Import one file with a mapping, re-match and refresh the inbox. Audit-logged with who did it. */
 export async function importFile(stores: Stores, req: { kind: ImportKind; fileName: string; bytes: Uint8Array; mappingId: string; mappingVersion?: number },
-  who: Who, now: Date, rematch: (data: PaymentsData) => Promise<PaymentsData>, cases?: DepositCaseRow[]): Promise<{ error?: string; log?: ImportLog }> {
+  who: Who, now: Date, rematch: (data: PaymentsData) => Promise<PaymentsData>, cases?: DepositCaseRow[]): Promise<{ error?: string; log?: ImportLog; warnings?: string[] }> {
   const actorErr = checkActor(who.actor);
   if (actorErr) return { error: actorErr };
   const log = await applyImport(stores.payments, req.kind, req.fileName, req.bytes, req.mappingId, req.mappingVersion, now);
@@ -128,10 +138,12 @@ export async function importFile(stores: Stores, req: { kind: ImportKind; fileNa
     detail: `${req.kind} file ${req.fileName} (${log.mappingId} v${log.mappingVersion}): ${log.outcome}, ${log.acceptedRows} accepted, ${log.rejectedRows} rejected; SHA-256 ${log.sha256}`,
     after: { importId: log.importId, newRecords: log.newRecords, duplicateRows: log.duplicateRows, fileErrors: log.fileErrors } }]);
   if (log.outcome === "imported") {
-    await stores.payments.save(await rematch(await stores.payments.load()));
+    const next = await rematch(await stores.payments.load());
+    await stores.payments.save(next);
     await syncAll(stores, { now, cases });
+    return { log, warnings: keyWarnings(next) };
   }
-  return { log };
+  return { log, warnings: [] };
 }
 
 /** Remove every imported record (mappings, payment IDs, redirects and decisions stay). Audit-logged. */

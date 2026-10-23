@@ -38,7 +38,8 @@ export interface MatchInput {
   /**
    * The company's deposit addresses (File A). A transfer to one of them is inbound: only the
    * deposit ledger (File B) can be its ledger leg. Anything else is outbound: only the payout ledger.
-   * An address counts only while assigned (assignedAt ≤ the transfer's block time < retiredAt).
+   * An address counts only while assigned (assignedAt ≤ the transfer's block time < retiredAt); a
+   * transfer with no block time can't be checked against those dates, so its direction is unknown.
    * Undefined means File A isn't loaded: a deposit row can't be classified, so its leg is unknown.
    */
   depositAddresses?: DepositAddress[];
@@ -562,16 +563,26 @@ export function matchPayments(input: MatchInput): MatchResult {
     .map((g) => ({ ...g, recordKey: `ledger:${g.key}` }));
   const principalLedger = ledgerGroups.filter((g) => !g.records.some((r) => r.reverses));
   const fileA = input.depositAddresses;
-  // Assigned at the transfer's block time. Without a block time the window can't be checked, so a
-  // listed address counts.
-  const assignedAt = (a: DepositAddress, at: number) => Number.isNaN(at) ||
-    ((!a.assignedAt || Date.parse(a.assignedAt) <= at) && (!a.retiredAt || at < Date.parse(a.retiredAt)));
-  const direction = (d: Draft): Direction => {
+  const assignedAt = (a: DepositAddress, at: number) =>
+    (!a.assignedAt || Date.parse(a.assignedAt) <= at) && (!a.retiredAt || at < Date.parse(a.retiredAt));
+  // Inbound if the destination was a company deposit address at the transfer's block time. Unknown,
+  // with the reason, when that can't be told: File A not loaded, or no block time to check its dates.
+  const directionOf = (d: Draft): { dir: Direction; why?: string } => {
     const t = d.chainLink?.record;
-    if (!t?.to) return "outbound";
-    if (!fileA) return "unknown";
+    if (!t?.to) return { dir: "outbound" };
+    if (!fileA) return { dir: "unknown", why: "File A not loaded" };
+    const listed = fileA.filter((a) => a.chain === t.chain && canonicalAddress(a.address) === canonicalAddress(t.to!));
+    if (!listed.length) return { dir: "outbound" };
     const at = Date.parse(t.eventTime ?? "");
-    return fileA.some((a) => a.chain === t.chain && canonicalAddress(a.address) === canonicalAddress(t.to!) && assignedAt(a, at)) ? "inbound" : "outbound";
+    if (Number.isNaN(at)) return listed.some((a) => a.assignedAt || a.retiredAt) ? { dir: "unknown", why: "No block time" } : { dir: "inbound" };
+    return { dir: listed.some((a) => assignedAt(a, at)) ? "inbound" : "outbound" };
+  };
+  const direction = (d: Draft) => directionOf(d).dir;
+  const undecidedNote = (d: Draft, rows: LedgerGroup[]) => {
+    const ids = rows.map((g) => g.records[0].entryId).join(", ");
+    return directionOf(d).why === "No block time"
+      ? `No block time: the transfer has none, so it can't be checked against File A's assigned and retired dates; deposit ledger ${ids} can't be classified.`
+      : `File A not loaded: deposit ledger ${ids} carries this transfer, but without File A we can't tell whether it is a deposit.`;
   };
   const toSameAddress = (g: LedgerGroup, d: Draft) => !g.view.toAddress || sameAddress(g.view.toAddress, d.chainLink!.record.to!);
   // Deposit rows only for a transfer into a company deposit address (that same address);
@@ -580,28 +591,30 @@ export function matchPayments(input: MatchInput): MatchResult {
   const sameDirection = (g: LedgerGroup, d: Draft) => g.records[0].ledger === "deposit"
     ? direction(d) === "inbound" && toSameAddress(g, d)
     : direction(d) !== "inbound";
-  const ledgerHits = new Map<LedgerGroup, { drafts: Draft[]; basis: Map<Draft, { basis: LinkBasis; detail: string }>; problem?: string; undecided: Draft[] }>();
+  type Basis = { basis: LinkBasis; detail: string };
+  const ledgerHits = new Map<LedgerGroup, { drafts: Draft[]; basis: Map<Draft, Basis>; anyBasis: Map<Draft, Basis>; problem?: string; undecided: Draft[] }>();
   for (const g of principalLedger) {
     const e = g.view;
-    const basis = new Map<Draft, { basis: LinkBasis; detail: string }>();
+    // Every payment the entry's identifiers point to, then only those in the entry's direction.
+    const anyBasis = new Map<Draft, Basis>();
     const byIns = e.instructionId ? drafts.filter((d) => d.ins?.key === e.instructionId) : [];
-    for (const d of byIns.filter((x) => sameDirection(g, x))) basis.set(d, { basis: "instruction_id", detail: `Ledger ${g.records[0].entryId} names instruction ${e.instructionId}` });
+    for (const d of byIns) anyBasis.set(d, { basis: "instruction_id", detail: `Ledger ${g.records[0].entryId} names instruction ${e.instructionId}` });
     const byProv = e.providerPaymentId
       ? drafts.filter((d) => d.prov?.providerPaymentId === e.providerPaymentId || d.ins?.view.providerPaymentId === e.providerPaymentId) : [];
-    for (const d of byProv.filter((x) => sameDirection(g, x))) if (!basis.has(d)) basis.set(d, { basis: "provider_payment_id", detail: `Ledger ${g.records[0].entryId} names provider payment ${e.providerPaymentId}` });
+    for (const d of byProv) if (!anyBasis.has(d)) anyBasis.set(d, { basis: "provider_payment_id", detail: `Ledger ${g.records[0].entryId} names provider payment ${e.providerPaymentId}` });
     const byChain = e.txHash ? drafts.filter((d) => {
       const t = d.chainLink?.record;
       return !!t && t.txHash === e.txHash && (!e.chain || e.chain === t.chain) &&
         (e.transferIndex === t.transferIndex || (e.transferIndex === undefined && t.transfersInTx <= 1));
     }) : [];
-    const undecided: Draft[] = [];
     for (const d of byChain) {
-      if (!basis.has(d) && g.records[0].ledger === "deposit" && direction(d) === "unknown" && toSameAddress(g, d)) undecided.push(d);
-      if (basis.has(d) || !sameDirection(g, d)) continue;
+      if (anyBasis.has(d)) continue;
       const t = d.chainLink!.record;
-      basis.set(d, { basis: e.transferIndex === undefined ? "chain_tx_single_transfer" : "chain_tx_index",
+      anyBasis.set(d, { basis: e.transferIndex === undefined ? "chain_tx_single_transfer" : "chain_tx_index",
         detail: `Ledger ${g.records[0].entryId} carries ${chainName(t.chain)} transaction ${short(t.txHash)}${e.transferIndex !== undefined ? `, index ${e.transferIndex}` : ""}` });
     }
+    const basis = new Map([...anyBasis].filter(([d]) => sameDirection(g, d)));
+    const undecided = [...anyBasis.keys()].filter((d) => !basis.has(d) && g.records[0].ledger === "deposit" && direction(d) === "unknown" && toSameAddress(g, d));
     const involved = [...basis.keys()];
     let problem: string | undefined;
     const id = g.records[0].entryId;
@@ -611,7 +624,7 @@ export function matchPayments(input: MatchInput): MatchResult {
         ? `Ledger entry ${id} names instruction ${e.instructionId} and provider payment ${e.providerPaymentId}, which ${providerIdKnown(e.providerPaymentId) ? "is not linked to this payment" : "no payment has"}.`
         : `Ledger entry ${id} names provider payment ${e.providerPaymentId} and instruction ${e.instructionId}, which no payment has.`;
     }
-    ledgerHits.set(g, { drafts: involved, basis, problem, undecided });
+    ledgerHits.set(g, { drafts: involved, basis, anyBasis, problem, undecided });
   }
   const ledgerChosen = new Map<Draft, { group: LedgerGroup; by: ReviewDecision }>();
   const ledgerNo = new Map<Draft, Set<string>>();
@@ -624,11 +637,15 @@ export function matchPayments(input: MatchInput): MatchResult {
   }
   const ledgerTaken = new Set([...ledgerChosen.values()].map((c) => c.group));
   const awaitingFileA = new Set<string>();
+  const unclassifiedLedger: { recordId: string; paymentId: string; note: string }[] = [];
+  // Payments whose link waits in a "direction changed" review, with the direction it was linked under.
+  const flipPending = new Map<Draft, Direction>();
   const followRedirects = (id: string) => {
     for (let i = 0, r = input.redirects?.[id]; r && r.to.kind !== "none" && i < 20; i++, r = input.redirects?.[id]) id = r.to.paymentId;
     return id;
   };
   const prevLinks = (input.previousLedgerLinks ?? []).map((l) => ({ ...l, paymentId: followRedirects(l.paymentId) }));
+  const undecidedFor = (d: Draft) => principalLedger.filter((g) => ledgerHits.get(g)!.undecided.includes(d) && !ledgerTaken.has(g) && !ledgerNo.get(d)!.has(g.recordKey));
   for (const d of drafts) {
     if (!ledgerGroups.length) { d.legs.ledger = { state: "not_applicable" }; continue; }
     const chosen = ledgerChosen.get(d);
@@ -643,7 +660,8 @@ export function matchPayments(input: MatchInput): MatchResult {
     // File A): not unlinked silently. A person decides, with both views in front of them.
     const now = direction(d);
     const flipped = now === "unknown" ? [] : prevLinks.filter((l) => l.paymentId === d.paymentId && l.direction !== now)
-      .map((l) => principalLedger.find((g) => g.recordKey === l.ledgerKey && !mine.includes(g) && !ledgerTaken.has(g) && !ledgerNo.get(d)!.has(g.recordKey) && !sameDirection(g, d)))
+      .map((l) => principalLedger.find((g) => g.recordKey === l.ledgerKey && !mine.includes(g) && !ledgerTaken.has(g) && !ledgerNo.get(d)!.has(g.recordKey)
+        && !sameDirection(g, d) && ledgerHits.get(g)!.anyBasis.has(d)))
       .filter((g): g is LedgerGroup => !!g);
     if (flipped.length) {
       const was = prevLinks.find((l) => l.paymentId === d.paymentId && l.ledgerKey === flipped[0].recordKey)!.direction;
@@ -654,6 +672,13 @@ export function matchPayments(input: MatchInput): MatchResult {
         `Ledger ${flipped.map((g) => `${g.records[0].ledger} entry ${g.records[0].entryId}`).join(", ")} was linked when this transfer counted as ${view(was)}; ` +
         `it now counts as ${view(now)}, going by File A for ${short(t.to!)} at the transfer's block time${t.eventTime ? ` (${t.eventTime})` : ""}. Confirm to keep the link, or reject it.`,
         [...flipped, ...mine].map((g) => ({ recordId: latest(g.records).recordId, score: 0, reasons: [] })));
+      // Until a person decides, the link stays ("linked, under review"), and this run remembers the
+      // direction it was linked under, so the next run raises the same review again.
+      const leg = { state: "linked" as const, links: [{ recordId: latest(flipped[0].records).recordId, ...ledgerHits.get(flipped[0])!.anyBasis.get(d)! }], reviewId: "" };
+      d.legs.ledger = leg;
+      pending.at(-1)!.legRef = leg;
+      d.ledgerLink = flipped[0];
+      flipPending.set(d, was);
     } else if (contested.length) {
       addReview(d, "ledger", "conflicting_ids", contested.map((g) => ledgerHits.get(g)!.problem).join(" "), rank(d.anchor, contested.map((g) => latest(g.records))));
     } else if (mine.length > 1) {
@@ -667,18 +692,23 @@ export function matchPayments(input: MatchInput): MatchResult {
       const b = ledgerHits.get(mine[0])!.basis.get(d)!;
       d.legs.ledger = { state: "linked", links: [{ recordId: latest(mine[0].records).recordId, ...b }] };
     } else {
-      const waiting = principalLedger.filter((g) => ledgerHits.get(g)!.undecided.includes(d) && !ledgerTaken.has(g) && !ledgerNo.get(d)!.has(g.recordKey));
-      if (waiting.length) {
-        for (const g of waiting) for (const r of g.records) awaitingFileA.add(r.recordId);
-        d.legs.ledger = { state: "unknown", note: `File A not loaded: deposit ledger ${waiting.map((g) => g.records[0].entryId).join(", ")} carries this transfer, but without File A we can't tell whether it is a deposit.` };
-      } else {
+      const waiting = undecidedFor(d);
+      if (waiting.length) d.legs.ledger = { state: "unknown", note: undecidedNote(d, waiting) };
+      else {
         d.legs.ledger = { state: "missing", suggestions: [],
           note: !d.chainLink && !d.ins && !d.prov ? "No identifier to join the ledger on." : undefined };
       }
     }
   }
+  // Deposit rows on a transfer whose direction can't be told are unknown, never unlinked, even
+  // when a payout row already links the payment.
+  for (const d of drafts) {
+    const rows = undecidedFor(d).filter((g) => g !== d.ledgerLink);
+    for (const g of rows) for (const r of g.records) awaitingFileA.add(r.recordId);
+    for (const g of rows) unclassifiedLedger.push({ recordId: latest(g.records).recordId, paymentId: d.paymentId, note: undecidedNote(d, [g]) });
+  }
   const ledgerLinks: LedgerLink[] = drafts.filter((d) => d.ledgerLink && d.legs.ledger?.state === "linked")
-    .map((d) => ({ ledgerKey: d.ledgerLink!.recordKey, paymentId: d.paymentId, direction: direction(d) }));
+    .map((d) => ({ ledgerKey: d.ledgerLink!.recordKey, paymentId: d.paymentId, direction: flipPending.get(d) ?? direction(d) }));
   // Reversal entries attach to the payment whose ledger entry they reverse.
   for (const g of ledgerGroups.filter((x) => x.records.some((r) => r.reverses))) {
     const target = drafts.find((d) => d.ledgerLink && d.ledgerLink.records[0].entryId === g.view.reverses && d.ledgerLink.records[0].ledger === g.records[0].ledger);
@@ -844,7 +874,7 @@ export function matchPayments(input: MatchInput): MatchResult {
   const used = new Set<string>([...reviewed, ...linkedAnywhere, ...awaitingFileA]);
   const duplicateRecords = [...all.values()].filter((r) => r.sources.length > 1).map((r) => ({ recordId: r.recordId, kind: r.kind, sources: r.sources }));
   const unlinked = [...all.values()].filter((r) => !used.has(r.recordId) && r.kind !== "chain_transfer").map((r) => ({ recordId: r.recordId, kind: r.kind }));
-  return { payments, reviews, duplicateRecords, unlinked, paymentIds: assigned, redirects, ledgerLinks };
+  return { payments, reviews, duplicateRecords, unlinked, paymentIds: assigned, redirects, ledgerLinks, unclassifiedLedger };
 }
 
 const legWord = (l?: Leg) => (l?.state === "needs_review" ? "needs review" : l?.state ?? "missing");

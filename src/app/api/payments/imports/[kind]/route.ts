@@ -26,5 +26,5 @@ export async function POST(req: Request, { params }: { params: Promise<{ kind: s
   const res = await importFile(stores(), { kind: kind as ImportKind, fileName: file.name.slice(0, 200), bytes: new Uint8Array(await file.arrayBuffer()), mappingId, mappingVersion: version },
     whoFrom(req, form?.get("actor")), new Date(), rematchData, await depositRows());
   if (res.error || !res.log) return NextResponse.json({ error: res.error }, { status: 422 });
-  return NextResponse.json(res.log, { status: res.log.outcome === "rejected" ? 422 : 200 });
+  return NextResponse.json({ ...res.log, warnings: res.warnings ?? [] }, { status: res.log.outcome === "rejected" ? 422 : 200 });
 }
