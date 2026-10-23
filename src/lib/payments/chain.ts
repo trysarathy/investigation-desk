@@ -4,9 +4,10 @@
 // SHA-256 of the raw responses it was read from. A lookup error leaves the hash unknown.
 
 import { explorerTxUrl } from "../catalogue";
+import { KEY_NOT_SET_RE } from "../chain/http";
 import { lookupOne, type LiveDeps } from "../chain/investigate";
 import type { ChainTx, RawResponse } from "../types";
-import { ALL_CHAINS, CHAIN_NAMES } from "../types";
+import { ALL_CHAINS, CHAIN_NAMES, type Chain } from "../types";
 import type { ChainLookupSummary, ChainTransferRecord, PaymentRecord } from "./types";
 
 export const transferKey = (chain: string, txHash: string, index: number | undefined) => `${chain}:${txHash}:${index ?? "-"}`;
@@ -50,6 +51,17 @@ export function transferRecords(tx: ChainTx, raws: RawResponse[], originalHash: 
  *     as unresolved (matching treats the hash as unknown unless the record names the found chain);
  *   nowhere found, all "not found": not found. Any error otherwise: unknown.
  */
+/** Why a hash couldn't be checked: chains with no API key set are named apart from chains that didn't answer. */
+export function lookupError(failed: { chain: Chain; error?: string }[]): string {
+  const keyless = failed.filter((l) => KEY_NOT_SET_RE.test(l.error ?? ""));
+  const silent = failed.filter((l) => !keyless.includes(l));
+  const envs = [...new Set(keyless.map((l) => /\((\w+)\)/.exec(l.error!)?.[1]).filter(Boolean))];
+  return [
+    keyless.length ? `chain lookup unavailable: key not set (${envs.join(", ")}) for ${keyless.map((l) => CHAIN_NAMES[l.chain]).join(", ")}` : "",
+    silent.length ? `no answer from ${silent.map((l) => CHAIN_NAMES[l.chain]).join(", ")}` : "",
+  ].filter(Boolean).join("; ").replace(/^n/, (c) => c.toUpperCase()) + ".";
+}
+
 export async function fetchTransfers(hashes: string[], deps: LiveDeps, now: () => Date = () => new Date()):
   Promise<{ transfers: ChainTransferRecord[]; lookups: ChainLookupSummary[] }> {
   const transfers: ChainTransferRecord[] = [];
@@ -70,7 +82,7 @@ export async function fetchTransfers(hashes: string[], deps: LiveDeps, now: () =
     } else if (results.every((r) => r.lookup.result !== "error")) {
       lookups.push({ txHash: hash, result: "pending", checkedAt });
     } else {
-      lookups.push({ txHash: hash, result: "error", checkedAt, unresolved, error: `No answer from ${unresolved.map((c) => CHAIN_NAMES[c]).join(", ")}.` });
+      lookups.push({ txHash: hash, result: "error", checkedAt, unresolved, error: lookupError(results.filter((r) => unresolved.includes(r.lookup.chain)).map((r) => r.lookup)) });
     }
   }
   return { transfers, lookups };

@@ -134,10 +134,13 @@ describe("ChainClient: storage, hashing, redaction, cache", () => {
 });
 
 describe("fetchers", () => {
-  it("refuse to start without a key from the environment", () => {
-    const { c } = client([]);
-    expect(() => new TronFetcher(c, "")).toThrow(/TRONGRID_API_KEY/);
-    expect(() => new EtherscanSource(c, "", "ethereum")).toThrow(/ETHERSCAN_API_KEY/);
+  it("without a key: they build (never crash a request), and each call fails as 'key not set' without a request", async () => {
+    const { c, calls } = client([]);
+    const tron = new TronFetcher(c, "");
+    const eth = new EtherscanSource(c, "", "ethereum");
+    await expect(tron.lookup("ab".repeat(32), [])).rejects.toThrow(/chain lookup unavailable: key not set \(TRONGRID_API_KEY\)/);
+    await expect(eth.call("eth_getTransactionByHash", ["0x" + "ab".repeat(32)], { ttlSec: 0 }, [])).rejects.toThrow(/chain lookup unavailable: key not set \(ETHERSCAN_API_KEY\)/);
+    expect(calls).toEqual([]);
   });
 
   it("a chain that fails mid-lookup becomes an error lookup, so the case pauses", async () => {

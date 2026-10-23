@@ -194,7 +194,8 @@ export interface Candidate {
 }
 
 export type Leg =
-  | { state: "linked"; links: Link[] }
+  /** With a reviewId: linked, under review (a "direction changed" review waits for a person). */
+  | { state: "linked"; links: Link[]; reviewId?: string }
   | { state: "missing"; suggestions: Candidate[]; note?: string }
   | { state: "needs_review"; reviewId: string }
   /** We couldn't find out (a chain lookup failed). Not the same as missing. */
@@ -208,7 +209,9 @@ export type ReviewReason =
   | "conflicting_record"
   | "chain_mismatch"
   /** A fee or return row relates to a provider payment, but the payment's provider leg isn't linked. */
-  | "provider_leg_not_linked";
+  | "provider_leg_not_linked"
+  /** A linked ledger entry's transfer now counts the other way (inbound vs outbound, per File A). */
+  | "direction_changed";
 
 /** A review is about one leg, or about the fee or return rows hanging off the provider leg. */
 export type ReviewTarget = LegName | "returns" | "fees";
@@ -289,4 +292,11 @@ export interface MatchResult {
   paymentIds: Record<string, string>;
   /** Every retired payment ID and where it leads now. Fed back into the next run. */
   redirects: Record<string, PaymentRedirect>;
+  /** Linked ledger entries and the direction the transfer had then. Fed back into the next run. */
+  ledgerLinks?: LedgerLink[];
+  /** Deposit ledger rows on a payment's transfer whose direction can't be told (File A not loaded, no block time). */
+  unclassifiedLedger?: { recordId: string; paymentId: string; note: string }[];
 }
+
+export type Direction = "inbound" | "outbound" | "unknown";
+export interface LedgerLink { ledgerKey: string; paymentId: string; direction: Direction }

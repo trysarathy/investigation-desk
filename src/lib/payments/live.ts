@@ -12,8 +12,9 @@ import type { DepositCaseRow } from "./exceptions";
 import { refreshMatching } from "./refresh";
 import { FilePaymentsStore, ledgerFromFileB, type PaymentsData } from "./store";
 import { FileInboxStore, syncAll, type Stores, type Who } from "./workflow";
+import { dataDir } from "../data-dir";
 
-const DATA = () => path.join(process.cwd(), ".data");
+const DATA = () => dataDir();
 export const paymentsStore = () => new FilePaymentsStore(path.join(DATA(), "payments.json"));
 export const inboxStore = () => new FileInboxStore(path.join(DATA(), "inbox.json"));
 export const auditLog = () => new FileAuditLog(path.join(DATA(), "audit.jsonl"));
@@ -25,8 +26,9 @@ export async function rematchData(data: PaymentsData): Promise<PaymentsData> {
   const ledger = ws.fileB ? ledgerFromFileB(ws.fileB.rows, ws.fileB.upload.sha256, ws.fileB.upload.uploadedAt) : [];
   // Without chain keys, the demo workspace replays its recorded chain responses; anything else is looked up live.
   const deps = !liveKeysPresent() && ws.demo ? demoDeps() : liveDeps();
-  // File A says which addresses are the company's deposit addresses: transfers into them are inbound.
-  const depositAddresses = (ws.fileA?.rows ?? []).map((r) => ({ chain: r.chain, address: r.address }));
+  // File A says which addresses are the company's deposit addresses (and since when): transfers
+  // into them are inbound. No File A: undefined, so deposit rows wait instead of being dropped.
+  const depositAddresses = ws.fileA?.rows.map((r) => ({ chain: r.chain, address: r.address, assignedAt: r.assignedAt, retiredAt: r.retiredAt }));
   return refreshMatching(data, deps, ledger, undefined, { depositAddresses });
 }
 

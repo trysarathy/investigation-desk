@@ -7,6 +7,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { RowError } from "../csv/files";
 import type { BulkResult } from "./types";
+import { dataDir } from "../data-dir";
 
 export interface BulkJob {
   id: string;
@@ -22,7 +23,7 @@ export interface BulkJob {
   casesCreated?: number;
 }
 
-const DIR = () => path.join(process.cwd(), ".data", "bulk");
+const DIR = () => path.join(dataDir(), "bulk");
 const jobs = new Map<string, BulkJob>();
 
 export function createJob(filename: string, sha256: string, total: number, skipped: RowError[]): BulkJob {

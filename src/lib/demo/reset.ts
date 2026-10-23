@@ -7,11 +7,12 @@ import path from "node:path";
 import { validateFileA, validateFileB } from "../csv/files";
 import { applyUpload, type WorkspaceStore } from "../workspace/store";
 import { DEMO_FILE_A, DEMO_FILE_B } from "./files";
+import { dataDir as deskDataDir } from "../data-dir";
 
 const enc = (s: string) => new TextEncoder().encode(s);
 
 export async function resetDemoWorkspace(store: WorkspaceStore, now = new Date(),
-  dataDir = path.join(process.cwd(), ".data")): Promise<void> {
+  dataDir = deskDataDir()): Promise<void> {
   await store.save({ history: [] });
   await applyUpload(store, "A", "demo-file-a.csv", validateFileA(enc(DEMO_FILE_A)), now);
   await applyUpload(store, "B", "demo-file-b.csv", validateFileB(enc(DEMO_FILE_B)), now);

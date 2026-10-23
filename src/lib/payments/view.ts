@@ -19,11 +19,17 @@ export const REVIEW_REASONS: Record<ReviewReason, string> = {
   conflicting_record: "Record arrived with different content",
   chain_mismatch: "Chain doesn't match",
   provider_leg_not_linked: "Provider leg not linked",
+  direction_changed: "Direction changed",
 };
+
+/** Without File A, deposit ledger rows can't be told from payouts, so they can't be matched. */
+export function fileABanner({ fileALoaded, depositLedgerRows }: { fileALoaded: boolean; depositLedgerRows: number }): string | undefined {
+  return !fileALoaded && depositLedgerRows > 0 ? "Load File A to match deposit ledger rows." : undefined;
+}
 
 export function legStatus(l: Leg): { status: EvidenceStatus; label: string } {
   switch (l.state) {
-    case "linked": return { status: "pass", label: "Linked" };
+    case "linked": return l.reviewId ? { status: "warn", label: "Linked, under review" } : { status: "pass", label: "Linked" };
     case "needs_review": return { status: "warn", label: "Needs review" };
     case "missing": return { status: "warn", label: l.suggestions.length ? `Missing · ${l.suggestions.length} to check` : "Missing" };
     case "unknown": return { status: "info", label: "Unknown" };

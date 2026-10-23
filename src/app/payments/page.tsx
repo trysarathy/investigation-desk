@@ -8,7 +8,8 @@ import { demoModeOn } from "@/lib/demo/reset";
 import { paymentsStore } from "@/lib/payments/live";
 import { describeRedirect } from "@/lib/payments/match";
 import { allMappings } from "@/lib/payments/store";
-import { describe, LEG_LABELS, LEG_ORDER, MEANING_LABELS, paymentRow, recordIndex, REVIEW_REASONS } from "@/lib/payments/view";
+import { describe, fileABanner, LEG_LABELS, LEG_ORDER, MEANING_LABELS, paymentRow, recordIndex, REVIEW_REASONS } from "@/lib/payments/view";
+import { workspaceStore } from "@/lib/workspace/live";
 
 // Reads the imported records on every request; never pre-render it at build time.
 export const dynamic = "force-dynamic";
@@ -19,6 +20,8 @@ export default async function PaymentsPage() {
   const recs = recordIndex(data);
   const rows = (result?.payments ?? []).map((p) => paymentRow(p, recs, result!.reviews.filter((r) => r.paymentId === p.paymentId).length));
   const held = data.records.instruction.length + data.records.provider.length + data.records.bank.length;
+  const ws = await workspaceStore().load();
+  const banner = fileABanner({ fileALoaded: !!ws.fileA, depositLedgerRows: ws.fileB?.rows.length ?? 0 });
 
   return (
     <div className="page">
@@ -27,6 +30,7 @@ export default async function PaymentsPage() {
         <PaymentActions disabled={!held} preview={demoModeOn()} />
       </div>
       <ActingAs />
+      {banner && <div className="bar bar-amber" role="status">{banner}</div>}
       <p className="muted" style={{ margin: 0 }}>
         One payment ID per payment, linking instruction, on-chain transfer, provider record, bank record and ledger entry.
         Links use exact identifiers only; anything ambiguous waits for review. A provider&apos;s &ldquo;complete&rdquo; is shown as the provider

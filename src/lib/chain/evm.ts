@@ -11,7 +11,7 @@ import { explorerTxUrl } from "../catalogue";
 import type { ChainTx, EvmChain, RawResponse, TokenTransfer } from "../types";
 import { EVM_CHAIN_IDS } from "../types";
 import { decodeAbiString, decodeAbiUint, decodeTransferCall, decodeTransferLogs, formatUnits, hexToBigInt } from "./abi";
-import { ChainApiError, type ChainClient } from "./http";
+import { ChainApiError, KEY_NOT_SET, type ChainClient } from "./http";
 import type { ChainLookupResult, TokenMeta } from "./types";
 
 const ETHERSCAN = "https://api.etherscan.io/v2/api";
@@ -65,8 +65,12 @@ export function jsonRpcClassifyBody(body: string): { retryable: boolean; message
 export class EtherscanSource implements EvmSource {
   readonly kind = "etherscan" as const;
 
-  constructor(private readonly client: ChainClient, private readonly apiKey: string, private readonly chain: EvmChain) {
-    if (!apiKey) throw new ChainApiError("ETHERSCAN_API_KEY is not set", false);
+  // Checked per request, not here (see TronFetcher): a missing key makes the lookup unknown.
+  constructor(private readonly client: ChainClient, private readonly apiKey: string, private readonly chain: EvmChain) {}
+
+  private key() {
+    if (!this.apiKey) throw new ChainApiError(KEY_NOT_SET("ETHERSCAN_API_KEY"), false);
+    return this.apiKey;
   }
 
   /** Etherscan's proxy module takes JSON-RPC calls as query parameters. */
@@ -78,7 +82,7 @@ export class EtherscanSource implements EvmSource {
       const c = params[0] as { to: string; data: string };
       Object.assign(p, { to: c.to, data: c.data, tag: String(params[1] ?? "latest") });
     }
-    const q = new URLSearchParams({ chainid: String(EVM_CHAIN_IDS[this.chain]), module: "proxy", ...p, apikey: this.apiKey });
+    const q = new URLSearchParams({ chainid: String(EVM_CHAIN_IDS[this.chain]), module: "proxy", ...p, apikey: this.key() });
     const r = await recorded(raws, this.client.request({ method: "GET", url: `${ETHERSCAN}?${q}` }, { chain: this.chain, ...opts }));
     return JSON.parse(r.body).result;
   }
@@ -86,7 +90,7 @@ export class EtherscanSource implements EvmSource {
   /** ERC-20 transfers out of `address` before `beforeBlock` (Etherscan account module; D07b history). */
   async tokenTransfersFrom(address: string, beforeBlock: number, raws: RawResponse[]) {
     const q = new URLSearchParams({ chainid: String(EVM_CHAIN_IDS[this.chain]), module: "account", action: "tokentx",
-      address, startblock: "0", endblock: String(beforeBlock - 1), page: "1", offset: "100", sort: "desc", apikey: this.apiKey });
+      address, startblock: "0", endblock: String(beforeBlock - 1), page: "1", offset: "100", sort: "desc", apikey: this.key() });
     const r = await recorded(raws, this.client.request({ method: "GET", url: `${ETHERSCAN}?${q}` }, { chain: this.chain, ttlSec: Infinity }));
     const j = JSON.parse(r.body);
     return (Array.isArray(j.result) ? j.result : []) as {

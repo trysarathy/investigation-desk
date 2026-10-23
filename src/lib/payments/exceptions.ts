@@ -24,7 +24,7 @@ import { nextStep as depositNextStep } from "../catalogue";
 import { SAMPLE_SETTINGS } from "../fixtures";
 import type { Code, Confidence } from "../types";
 import { describe } from "./match";
-import { abs, eq, isAmount, mulBps, sub, sum } from "./money";
+import { abs, add, eq, isAmount, mulBps, sub, sum } from "./money";
 import { routeFor, type ExceptionSettings, type RouteSetting } from "./settings";
 import type { PaymentsData } from "./store";
 import type {
@@ -331,6 +331,7 @@ function amountRules(v: View, base: (c: PaymentExceptionCode, d?: string) => obj
     const feeSum = feeRows.length ? sum(feeRows.map((f) => abs(f.amount))) : undefined;
     const ruleFee = expectedFee(v.route, ref.amount);
     const mismatches: string[] = [];
+    const mismatchValues: string[] = [];
     evidence.push(ev(`${ref.leg} (reference for ${ref.asset})`, ref.record, `${ref.amount} ${ref.asset}`));
     for (const a of rest) {
       const diff = sub(ref.amount, a.amount);
@@ -342,6 +343,7 @@ function amountRules(v: View, base: (c: PaymentExceptionCode, d?: string) => obj
         continue;
       }
       mismatches.push(`${a.leg} ${a.amount}`);
+      mismatchValues.push(a.amount);
       evidence.push(ev(`${a.leg} (differs by ${diff})`, a.record, `${a.amount} ${a.asset}`));
     }
     feeNotes.push(
@@ -350,7 +352,10 @@ function amountRules(v: View, base: (c: PaymentExceptionCode, d?: string) => obj
     );
     if (mismatches.length) {
       titles.push(`${ref.leg.toLowerCase()} ${ref.amount} ${ref.asset} vs ${mismatches.join(", ")}`);
-      prints.push(`${asset}: ${ref.leg}=${ref.amount} ${mismatches.join(" ")} fees=${feeSum ?? "-"} rule=${ruleFee ?? "-"}`);
+      // The facts, not the wording: which leg happens to be the reference (instruction before a
+      // merge, provider after it) must not change the key, or a person's close would be reopened.
+      const values = [...new Set([ref.amount, ...mismatchValues].map((x) => add(x, "0")))].sort();
+      prints.push(`${asset}: ${values.join(" ")} fees=${feeSum ?? "-"} rule=${ruleFee ?? "-"}`);
     }
     if (feeSum !== undefined && ruleFee !== undefined && !eq(feeSum, ruleFee)) {
       out.push({
@@ -392,13 +397,19 @@ function overdueRule(v: View, now: Date, base: (c: PaymentExceptionCode, d?: str
   // A leg whose lookup failed is unknown, not missing: it may already be there.
   const waiting = outstanding.filter((l) => v.p.legs[l].state !== "unknown");
   const unknown = outstanding.filter((l) => v.p.legs[l].state === "unknown");
-  const failed = unknown.map((l) => (l === "chain" ? "on-chain" : LEG_NOUN[l])).join(" and ");
+  // Why each is unknown: a lookup that failed, or the transfer's direction can't be told (File A not
+  // loaded, or no block time to check File A's dates), so deposit ledger rows can't be classified.
+  const direction = (l: LegName) => { const leg = v.p.legs[l]; return leg.state === "unknown" ? /^(File A not loaded|No block time)/.exec(leg.note)?.[1] : undefined; };
+  const noFileA = (l: LegName) => direction(l) === "File A not loaded";
+  const why = (l: LegName) => direction(l) === "File A not loaded" ? "File A not loaded"
+    : direction(l) ? "the transfer has no block time to check against File A" : `the ${l === "chain" ? "on-chain" : LEG_NOUN[l]} lookup failed`;
+  const failed = [...new Set(unknown.map(why))].join(" and ");
   const reached = [...STAGES].reverse().find((l) => v.p.legs[l].state === "linked");
   return {
     ...(base("overdue") as Pick<PaymentException, "exceptionId" | "family" | "code" | "subject">),
     title: waiting.length
-      ? `Overdue: due ${deadline}, still waiting for the ${waiting.map((l) => LEG_NOUN[l]).join(", ")}${unknown.length ? ` (the ${failed} lookup failed)` : ""}`
-      : `Overdue: due ${deadline}; not confirmed complete because the ${failed} lookup failed`,
+      ? `Overdue: due ${deadline}, still waiting for the ${waiting.map((l) => LEG_NOUN[l]).join(", ")}${unknown.length ? ` (${failed})` : ""}`
+      : `Overdue: due ${deadline}; not confirmed complete because ${failed}`,
     confidence: waiting.length ? "High" : "Medium",
     evidence: [
       ev("Instruction", v.ins),
@@ -412,6 +423,7 @@ function overdueRule(v: View, now: Date, base: (c: PaymentExceptionCode, d?: str
     ],
     nextStep: waiting.length
       ? `Chase the ${LEG_NOUN[waiting[0]]}${v.provider ? ` with ${v.provider.provider}` : ""}: the agreed deadline has passed.`
+      : unknown.some(noFileA) ? "Load File A so deposit ledger rows can be matched: the payment may already be complete."
       : "Re-run matching once the chain answers: the payment may already be complete.",
     // The deadline and what's outstanding define it; the clock doesn't.
     fingerprint: `overdue ${deadline} outstanding=${outstanding.join(",")}`,
