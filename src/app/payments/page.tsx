@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ActingAs } from "@/components/ActingAs";
 import { PaymentActions } from "@/components/PaymentActions";
 import { PaymentImports } from "@/components/PaymentImports";
 import { Status } from "@/components/Status";
@@ -25,6 +26,7 @@ export default async function PaymentsPage() {
         <h1>Payments</h1>
         <PaymentActions disabled={!held} preview={demoModeOn()} />
       </div>
+      <ActingAs />
       <p className="muted" style={{ margin: 0 }}>
         One payment ID per payment, linking instruction, on-chain transfer, provider record, bank record and ledger entry.
         Links use exact identifiers only; anything ambiguous waits for review. A provider&apos;s &ldquo;complete&rdquo; is shown as the provider

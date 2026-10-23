@@ -13,7 +13,7 @@
 // Pure: no I/O, same input, same output.
 
 import { createHash } from "node:crypto";
-import { sameAddress } from "../address";
+import { canonicalAddress, sameAddress } from "../address";
 import { compareDecimal, isDecimal } from "../decimal";
 import { CHAIN_NAMES, type Chain } from "../types";
 import type {
@@ -35,6 +35,11 @@ export interface MatchInput {
   redirects?: Record<string, PaymentRedirect>;
   /** Review resolutions made in the app. The latest decision per record wins. */
   decisions?: ReviewDecision[];
+  /**
+   * The company's deposit addresses (File A). A transfer to one of them is inbound: only the
+   * deposit ledger (File B) can be its ledger leg. Anything else is outbound: only the payout ledger.
+   */
+  depositAddresses?: { chain: string; address: string }[];
 }
 
 /** The stable key a decision is recorded against (see ReviewDecision). */
@@ -401,6 +406,12 @@ export function matchPayments(input: MatchInput): MatchResult {
   // 3. On-chain leg, from the instruction's and the provider record's exact references.
   const chainProposals = new Map<Draft, { record: ChainTransferRecord; links: Link[] }>();
   const chainRejected = new Map<Draft, Set<string>>();
+  // A transfer a reviewer confirmed for one payment belongs to that payment alone.
+  const chainConfirmedFor = new Map<string, { d: Draft; by: ReviewDecision }>();
+  for (const d of drafts) {
+    const yes = confirmed(decided(anchorKeys(d), "chain"), (k) => input.chain.some((c) => c.recordId === k));
+    if (yes) chainConfirmedFor.set(yes.recordKey, { d, by: yes });
+  }
   for (const d of drafts) {
     const m = decided(anchorKeys(d), "chain");
     note(d, m);
@@ -466,7 +477,12 @@ export function matchPayments(input: MatchInput): MatchResult {
   }
   for (const [d, prop] of chainProposals) {
     const claimants = [...chainProposals].filter(([, v]) => v.record === prop.record).map(([o]) => o);
-    if (claimants.length > 1) {
+    const taken = chainConfirmedFor.get(prop.record.recordId);
+    if (taken && taken.d !== d) {
+      addReview(d, "chain", "conflicting_ids",
+        `${chainName(prop.record.chain)} transaction ${short(prop.record.txHash)} transfer ${prop.record.transferIndex ?? "(none)"} is named by this payment, but was confirmed for another payment (${label(taken.d)}) by ${taken.by.by} (${taken.by.decisionId}).`,
+        rank(d.anchor, [prop.record]));
+    } else if (claimants.length > 1) {
       addReview(d, "chain", "conflicting_ids",
         `${chainName(prop.record.chain)} transaction ${short(prop.record.txHash)} transfer ${prop.record.transferIndex ?? "(none)"} is named by ${claimants.length} payments (${claimants.map(label).join(", ")}).`,
         rank(d.anchor, [prop.record]));
@@ -539,22 +555,32 @@ export function matchPayments(input: MatchInput): MatchResult {
   const ledgerGroups: LedgerGroup[] = groupBy(input.ledger ?? [], (r) => `${r.ledger}:${r.entryId}`, LEDGER_FIELDS)
     .map((g) => ({ ...g, recordKey: `ledger:${g.key}` }));
   const principalLedger = ledgerGroups.filter((g) => !g.records.some((r) => r.reverses));
+  const depositAt = new Set((input.depositAddresses ?? []).map((a) => `${a.chain}:${canonicalAddress(a.address)}`));
+  const inbound = (d: Draft) => {
+    const t = d.chainLink?.record;
+    return !!t?.to && depositAt.has(`${t.chain}:${canonicalAddress(t.to)}`);
+  };
+  // Deposit rows only for a transfer into a company deposit address (that same address);
+  // payout rows only for everything else.
+  const sameDirection = (g: LedgerGroup, d: Draft) => g.records[0].ledger === "deposit"
+    ? inbound(d) && (!g.view.toAddress || sameAddress(g.view.toAddress, d.chainLink!.record.to!))
+    : !inbound(d);
   const ledgerHits = new Map<LedgerGroup, { drafts: Draft[]; basis: Map<Draft, { basis: LinkBasis; detail: string }>; problem?: string }>();
   for (const g of principalLedger) {
     const e = g.view;
     const basis = new Map<Draft, { basis: LinkBasis; detail: string }>();
     const byIns = e.instructionId ? drafts.filter((d) => d.ins?.key === e.instructionId) : [];
-    for (const d of byIns) basis.set(d, { basis: "instruction_id", detail: `Ledger ${g.records[0].entryId} names instruction ${e.instructionId}` });
+    for (const d of byIns.filter((x) => sameDirection(g, x))) basis.set(d, { basis: "instruction_id", detail: `Ledger ${g.records[0].entryId} names instruction ${e.instructionId}` });
     const byProv = e.providerPaymentId
       ? drafts.filter((d) => d.prov?.providerPaymentId === e.providerPaymentId || d.ins?.view.providerPaymentId === e.providerPaymentId) : [];
-    for (const d of byProv) if (!basis.has(d)) basis.set(d, { basis: "provider_payment_id", detail: `Ledger ${g.records[0].entryId} names provider payment ${e.providerPaymentId}` });
+    for (const d of byProv.filter((x) => sameDirection(g, x))) if (!basis.has(d)) basis.set(d, { basis: "provider_payment_id", detail: `Ledger ${g.records[0].entryId} names provider payment ${e.providerPaymentId}` });
     const byChain = e.txHash ? drafts.filter((d) => {
       const t = d.chainLink?.record;
       return !!t && t.txHash === e.txHash && (!e.chain || e.chain === t.chain) &&
         (e.transferIndex === t.transferIndex || (e.transferIndex === undefined && t.transfersInTx <= 1));
     }) : [];
     for (const d of byChain) {
-      if (basis.has(d)) continue;
+      if (basis.has(d) || !sameDirection(g, d)) continue;
       const t = d.chainLink!.record;
       basis.set(d, { basis: e.transferIndex === undefined ? "chain_tx_single_transfer" : "chain_tx_index",
         detail: `Ledger ${g.records[0].entryId} carries ${chainName(t.chain)} transaction ${short(t.txHash)}${e.transferIndex !== undefined ? `, index ${e.transferIndex}` : ""}` });
@@ -563,8 +589,8 @@ export function matchPayments(input: MatchInput): MatchResult {
     let problem: string | undefined;
     const id = g.records[0].entryId;
     if (involved.length > 1) problem = `Ledger entry ${id} carries identifiers of more than one payment.`;
-    else if (involved.length === 1 && e.instructionId && e.providerPaymentId && (!byIns.length || !byProv.length)) {
-      problem = !byProv.length
+    else if (involved.length === 1 && e.instructionId && e.providerPaymentId && (!byIns.some((x) => basis.has(x)) || !byProv.some((x) => basis.has(x)))) {
+      problem = !byProv.some((x) => basis.has(x))
         ? `Ledger entry ${id} names instruction ${e.instructionId} and provider payment ${e.providerPaymentId}, which ${providerIdKnown(e.providerPaymentId) ? "is not linked to this payment" : "no payment has"}.`
         : `Ledger entry ${id} names provider payment ${e.providerPaymentId} and instruction ${e.instructionId}, which no payment has.`;
     }

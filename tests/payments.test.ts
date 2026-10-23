@@ -33,6 +33,7 @@ const FILE_B = [
   "deposit_id,tx_hash,chain,token,to_address,amount,status,credited_at,customer_id,transfer_index",
   `DEP-77,0x${T2},bsc,USDT,0x7c1f3180d059fef421b3a0eeb626d975e7577f41,1999.99,CREDITED,2026-10-22T05:40:00Z,C-1,134`,
 ].join("\n");
+const DEPOSITS = [{ chain: "bsc", address: "0x7c1f3180d059fef421b3a0eeb626d975e7577f41" }];
 const ledger = () => { const v = validateFileB(new TextEncoder().encode(FILE_B)); return ledgerFromFileB(v.rows, v.sha256, NOW.toISOString()); };
 
 async function loaded(): Promise<{ store: MemoryPaymentsStore; data: PaymentsData }> {
@@ -62,7 +63,9 @@ const rec = (id: string) => [...data.records.instruction, ...data.records.provid
 
 beforeAll(async () => {
   ({ data } = await loaded());
-  data = await refreshMatching(data, recorded(), ledger(), () => NOW);
+  // DEP-77 credits a company deposit address (File A): the transfer into it is inbound, so the
+  // deposit ledger may be its ledger leg.
+  data = await refreshMatching(data, recorded(), ledger(), () => NOW, { depositAddresses: DEPOSITS });
   result = data.match!.result;
 });
 
@@ -262,7 +265,7 @@ describe("three-way matching on recorded chain data", () => {
 
   it("same input, same output", () => {
     const again = matchPayments({ instructions: data.records.instruction, provider: data.records.provider, bank: data.records.bank,
-      chain: data.chain.transfers, lookups: data.chain.lookups, ledger: ledger() });
+      chain: data.chain.transfers, lookups: data.chain.lookups, ledger: ledger(), depositAddresses: DEPOSITS });
     expect(again).toEqual(result);
   });
 });

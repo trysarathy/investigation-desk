@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ActingAs, ActorLink } from "@/components/ActingAs";
 import { InboxActions, ReviewDecide } from "@/components/InboxActions";
 import { Status } from "@/components/Status";
 import { formatTime } from "@/lib/format";
 import { recordsOf } from "@/lib/payments/exceptions";
-import { STATUS_LABELS } from "@/lib/payments/inbox";
+import { openContradictionsFor, resolveItemId, STATUS_LABELS } from "@/lib/payments/inbox";
 import { inboxStore, paymentsStore } from "@/lib/payments/live";
 import { describe, describeRedirect, resolvePaymentRef } from "@/lib/payments/match";
 import { codeLabel } from "@/lib/payments/view";
@@ -16,10 +16,18 @@ export default async function InboxItemPage({ params }: { params: Promise<{ item
   const { itemId } = await params;
   const id = decodeURIComponent(itemId);
   const inbox = await inboxStore().load();
+  if (inbox.items[id]?.movedTo) {
+    // Its payment merged into another: the item continues there.
+    const to = resolveItemId(inbox, id);
+    if (to) redirect(`/inbox/${encodeURIComponent(to)}?from=${encodeURIComponent(id)}`);
+  }
   const item = inbox.items[id];
   if (!item) notFound();
   const data = await paymentsStore().load();
   const result = data.match?.result;
+  const paymentOf = (pid: string) => (result ? resolvePaymentRef(result, pid).payment?.paymentId : undefined) ?? pid;
+  const contradictions = openContradictionsFor(inbox, item, paymentOf);
+  const moved = item.history.filter((h) => h.action === "moved").at(-1);
   const recs = recordsOf(data);
   const resolved = item.subject.kind === "payment" && result ? resolvePaymentRef(result, item.subject.paymentId) : undefined;
   const review = item.kind === "review" && result ? result.reviews.find((r) => r.reviewId === item.itemId) : undefined;
@@ -34,6 +42,12 @@ export default async function InboxItemPage({ params }: { params: Promise<{ item
         </div>
       </div>
       <ActingAs />
+      {contradictions.map((c) => (
+        <div key={c.itemId} className="bar bar-red" role="alert">
+          <span>New contradiction on this payment: <Link href={`/inbox/${encodeURIComponent(c.itemId)}`} className="mono">{c.itemId}</Link> · {c.title}</span>
+        </div>
+      ))}
+      {moved && <div className="bar bar-info">{moved.why}</div>}
       <section className="panel" style={{ padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
           <strong>{codeLabel(item)}</strong>

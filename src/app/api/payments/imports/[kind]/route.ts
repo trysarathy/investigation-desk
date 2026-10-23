@@ -1,11 +1,11 @@
 // POST /api/payments/imports/instruction|provider|bank|ledger, multipart: "file", "mappingId",
-// optional "mappingVersion". Validates with that mapping version, merges the records, then
+// optional "mappingVersion", and "actor" (who is importing; audit-logged). Validates with that mapping version, merges the records, then
 // re-runs matching. Roles arrive in week 5: until then anyone with the app can import.
 
 import { NextResponse } from "next/server";
 import { demoModeOn } from "@/lib/demo/reset";
-import { paymentsStore, rematch } from "@/lib/payments/live";
-import { applyImport } from "@/lib/payments/store";
+import { depositRows, rematchData, stores, whoFrom } from "@/lib/payments/live";
+import { importFile } from "@/lib/payments/workflow";
 import type { ImportKind } from "@/lib/payments/types";
 
 const KINDS: ImportKind[] = ["instruction", "provider", "bank", "ledger"];
@@ -23,7 +23,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ kind: s
   if (typeof mappingId !== "string" || !mappingId) return NextResponse.json({ error: "Choose a column mapping." }, { status: 400 });
   const version = typeof versionRaw === "string" && /^\d+$/.test(versionRaw) ? Number(versionRaw) : undefined;
   if (file.size > MAX_BYTES) return NextResponse.json({ error: "File is larger than 20 MB." }, { status: 413 });
-  const log = await applyImport(paymentsStore(), kind as ImportKind, file.name.slice(0, 200), new Uint8Array(await file.arrayBuffer()), mappingId, version, new Date());
-  if (log.outcome === "imported") await rematch();
-  return NextResponse.json(log, { status: log.outcome === "rejected" ? 422 : 200 });
+  const res = await importFile(stores(), { kind: kind as ImportKind, fileName: file.name.slice(0, 200), bytes: new Uint8Array(await file.arrayBuffer()), mappingId, mappingVersion: version },
+    whoFrom(req, form?.get("actor")), new Date(), rematchData, await depositRows());
+  if (res.error || !res.log) return NextResponse.json({ error: res.error }, { status: 422 });
+  return NextResponse.json(res.log, { status: res.log.outcome === "rejected" ? 422 : 200 });
 }

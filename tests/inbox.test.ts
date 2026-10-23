@@ -123,9 +123,9 @@ describe("exception rules", () => {
     expect(e[0]).toMatchObject({ confidence: "Medium", title: "Missing leg: no provider record 180 minutes after the instruction" });
   });
 
-  it("provider reports complete but no on-chain transfer: High, even within grace", () => {
+  it("provider reports complete but reported no hash: raised within grace, as Medium", () => {
     const e = excFor(excs, data, "INS-2008").find((x) => x.code === "missing_leg")!;
-    expect(e).toMatchObject({ confidence: "High", title: "Missing leg: provider reports complete, but there is no on-chain transfer" });
+    expect(e).toMatchObject({ confidence: "Medium", title: "Missing leg: provider reports complete, but no transaction hash was reported" });
   });
 
   it("duplicate record is never called a duplicate payment", () => {
@@ -137,7 +137,7 @@ describe("exception rules", () => {
 
   it("amount mismatch: exact decimals, no fee to explain it", () => {
     const e = excFor(excs, data, "INS-2004").find((x) => x.code === "amount_mismatch")!;
-    expect(e).toMatchObject({ confidence: "High", title: "Amount mismatch: instruction 500000001 USDT vs On-chain 500000000.000000" });
+    expect(e).toMatchObject({ confidence: "High", title: "Amount mismatch: instruction 594.56 USDT vs On-chain 593.560000000000000000" });
     expect(e.evidence.find((x) => x.label.startsWith("On-chain"))!.label).toBe("On-chain (differs by 1)");
   });
 
@@ -151,14 +151,14 @@ describe("exception rules", () => {
 
   it("fee mismatch: the fee record disagrees with the configured rule", () => {
     const e = excFor(excs, data, "INS-2001").find((x) => x.code === "fee_mismatch")!;
-    expect(e.title).toBe("Fee mismatch: provider charged 1.5 USDT, the route's rule gives 1.00");
+    expect(e.title).toBe("Fee mismatch: provider charged 1.5 USDT, the route's rule gives 0.01");
   });
 
   it("overdue against the instruction's due_by, and against the route's deadline", () => {
     const due = excFor(excs, data, "INS-2007").find((x) => x.code === "overdue")!;
     expect(due.evidence.find((x) => x.label === "Deadline")!.value).toBe("2026-10-23T07:00:00Z (the instruction's due_by)");
     const route = excFor(excs, data, "INS-2005").find((x) => x.code === "overdue")!;
-    expect(route.evidence.find((x) => x.label === "Deadline")!.value).toMatch(/created 2026-10-02T13:40:00Z \+ 1440 minutes, route default/);
+    expect(route.evidence.find((x) => x.label === "Deadline")!.value).toMatch(/created 2026-10-22T05:30:00Z \+ 1440 minutes, route default/);
     // Complete payments are never overdue, however old.
     expect(excFor(excs, data, "INS-2001").some((x) => x.code === "overdue")).toBe(false);
   });
@@ -180,16 +180,16 @@ describe("exception rules", () => {
     const d = await rematch()(await s.payments.load());
     const e = computeExceptions({ data: d, settings: (await s.inbox.load()).settings, now: NOW }).find((x) => x.code === "contradiction")!;
     expect(e).toMatchObject({ confidence: "High", subject: { paymentId: forIns(d, "INS-2001").paymentId }, occurredAt: "2026-10-22T09:00:00Z" });
-    expect(e.title).toBe("Contradiction: TP reported DONE at 2026-10-21T14:46:00Z, then a return arrived later: TP REFUND AP-2001R: status REFUNDED");
+    expect(e.title).toBe("Contradiction: TP reported DONE at 2026-10-22T05:43:00Z, then a return arrived later: TP REFUND AP-2001R: status REFUNDED");
   });
 
   it("contradiction: the ledger posts, then reverses the same entry", async () => {
     const s = await setup();
-    await applyImport(s.payments, "ledger", "l3.csv", enc("entry_id,booked_at,amount,status,currency,instruction_id\nL-2004,2026-10-22T08:00:00Z,-500000001,REVERSED,USDT,INS-2004\n"),
+    await applyImport(s.payments, "ledger", "l3.csv", enc("entry_id,booked_at,amount,status,currency,instruction_id\nL-2004,2026-10-22T08:00:00Z,-594.56,REVERSED,USDT,INS-2004\n"),
       "payout-ledger-standard", undefined, NOW);
     const d = await rematch()(await s.payments.load());
     const e = computeExceptions({ data: d, settings: (await s.inbox.load()).settings, now: NOW }).find((x) => x.code === "contradiction")!;
-    expect(e.evidence.find((x) => x.label === "Ledger reversal")!.value).toMatch(/L-2004: -500000001 USDT, status REVERSED/);
+    expect(e.evidence.find((x) => x.label === "Ledger reversal")!.value).toMatch(/L-2004: -594.56 USDT, status REVERSED/);
     expect(e.title).toMatch(/The ledger later marked entry L-2004 REVERSED|ledger later marked entry L-2004 REVERSED/);
   });
 

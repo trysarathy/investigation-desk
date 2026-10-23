@@ -3,7 +3,7 @@
 // /api/payments/resolve, so an ID that has since merged or moved into a review is shown with
 // where it leads now, never as a dead end.
 
-import { csvCell } from "../bulk/export";
+import { csvValue as cell } from "../csv/cell";
 import { CHAIN_NAMES } from "../types";
 import type { AuditEntry } from "./audit";
 import { recordsOf, sourceText } from "./exceptions";
@@ -13,9 +13,6 @@ import type { PaymentsData } from "./store";
 import type { BankRecord, CanonicalPayment, ChainTransferRecord, InstructionRecord, LedgerEntryRecord, LegName, MatchResult, PaymentRecord, ProviderRecord } from "./types";
 
 const LEGS: LegName[] = ["instruction", "chain", "provider", "bank", "ledger"];
-const AMOUNT = /^-?\d+(\.\d+)?$/;
-/** Exact amounts go out as numbers; everything else is neutralised so a spreadsheet can't run it. */
-const cell = (v: string | number | undefined | null) => (typeof v === "string" && AMOUNT.test(v) ? v : csvCell(v));
 
 export const EXPORT_COLUMNS = [
   "payment_id", "requested_id", "resolution", "reconciliation", "open_items", "instruction_id", "provider", "provider_payment_id",
