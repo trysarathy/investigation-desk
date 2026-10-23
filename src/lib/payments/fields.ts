@@ -64,6 +64,9 @@ export const STATUS_MEANINGS: ProviderStatusMeaning[] = [
 ];
 export const ROW_TYPES: ProviderRowType[] = ["principal", "fee", "return", "other"];
 
+export type TimestampFormat = "iso8601_offset" | "epoch_s" | "epoch_ms";
+export const TIMESTAMP_FORMATS: TimestampFormat[] = ["iso8601_offset", "epoch_s", "epoch_ms"];
+
 export interface ColumnMapping {
   /** Stable across versions. */
   mappingId: string;
@@ -83,7 +86,7 @@ export interface ColumnMapping {
     status?: Record<string, ProviderStatusMeaning>;
     type?: Record<string, ProviderRowType>;
   };
-  timestampFormat: "iso8601_offset" | "epoch_ms";
+  timestampFormat: TimestampFormat;
   /** Where each part of the format came from (docs URLs), for a provider reference format. */
   sources?: { about: string; url: string }[];
   notes?: string[];

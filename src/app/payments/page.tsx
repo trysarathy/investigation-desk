@@ -6,17 +6,10 @@ import { formatTime } from "@/lib/format";
 import { demoModeOn } from "@/lib/demo/reset";
 import { paymentsStore } from "@/lib/payments/live";
 import { allMappings } from "@/lib/payments/store";
-import { describe, LEG_LABELS, LEG_ORDER, MEANING_LABELS, paymentRow, recordIndex } from "@/lib/payments/view";
+import { describe, LEG_LABELS, LEG_ORDER, MEANING_LABELS, paymentRow, recordIndex, REVIEW_REASONS } from "@/lib/payments/view";
 
 // Reads the imported records on every request; never pre-render it at build time.
 export const dynamic = "force-dynamic";
-
-const REASONS = {
-  multiple_candidates: "Several candidates",
-  conflicting_ids: "Identifiers disagree",
-  conflicting_record: "Record arrived with different content",
-  chain_mismatch: "Chain doesn't match",
-} as const;
 
 export default async function PaymentsPage() {
   const data = await paymentsStore().load();
@@ -55,7 +48,7 @@ export default async function PaymentsPage() {
                       <tr key={r.reviewId}>
                         <td><Link href={`/payments/${r.paymentId}`} className="mono">{r.paymentId}</Link></td>
                         <td>{LEG_LABELS[r.leg]}</td>
-                        <td><Status status="warn" label={REASONS[r.reason]} /></td>
+                        <td><Status status="warn" label={REVIEW_REASONS[r.reason]} /></td>
                         <td style={{ whiteSpace: "normal", minWidth: 320 }}>{r.message}</td>
                         <td className="num">{r.candidates.length}</td>
                       </tr>

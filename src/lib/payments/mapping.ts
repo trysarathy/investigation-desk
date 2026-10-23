@@ -8,10 +8,10 @@ import { createHash } from "node:crypto";
 import { checkAddress, checkTimestamp, customerIdCheck, HASH, readTable, sha256Bytes, type Column, type RowError, type ValidationResult } from "../csv/files";
 import { isDecimal } from "../decimal";
 import { ALL_CHAINS } from "../types";
-import { FIELDS, ROW_TYPES, STATUS_MEANINGS, type ColumnMapping, type FieldSpec } from "./fields";
+import { FIELDS, ROW_TYPES, STATUS_MEANINGS, TIMESTAMP_FORMATS, type ColumnMapping, type FieldSpec } from "./fields";
 import type { BankRecord, Identifier, InstructionRecord, PaymentRecord, ProviderRecord, ProviderRowType, ProviderStatusMeaning } from "./types";
 
-export { FIELDS, ROW_TYPES, STATUS_MEANINGS, type ColumnMapping, type FieldSpec } from "./fields";
+export { FIELDS, ROW_TYPES, STATUS_MEANINGS, TIMESTAMP_FORMATS, type ColumnMapping, type FieldSpec, type TimestampFormat } from "./fields";
 
 /** Problems that make a mapping unusable. Empty means it can be saved. */
 export function checkMapping(m: ColumnMapping): string[] {
@@ -21,6 +21,7 @@ export function checkMapping(m: ColumnMapping): string[] {
   if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(m.mappingId)) errs.push("Mapping ID must be lower-case letters, digits and dashes.");
   if (!m.name.trim()) errs.push("Mapping needs a name.");
   if (m.kind === "provider" && !m.provider?.trim()) errs.push("A provider mapping must name the provider.");
+  if (!TIMESTAMP_FORMATS.includes(m.timestampFormat)) errs.push(`Unknown timestamp format "${m.timestampFormat}".`);
   for (const s of specs) if (s.required && !m.columns[s.field]) errs.push(`Required field "${s.label}" has no column.`);
   for (const f of Object.keys(m.columns)) if (!specs.some((s) => s.field === f)) errs.push(`Unknown field "${f}".`);
   const used = Object.entries(m.columns).filter(([, c]) => c);
@@ -85,8 +86,7 @@ function checkValue(s: FieldSpec, v: string, m: ColumnMapping): string | undefin
     case "raw":
       return v.length > 100 ? "Longer than 100 characters." : undefined;
     case "timestamp":
-      if (m.timestampFormat === "epoch_ms") return /^\d{10,16}$/.test(v) ? undefined : "Not a Unix time in milliseconds.";
-      return checkTimestamp(v);
+      return m.timestampFormat === "iso8601_offset" ? checkTimestamp(v) : checkEpoch(v, m.timestampFormat);
     case "date": {
       const d = DATE.exec(v);
       if (!d) return "Not a date (YYYY-MM-DD).";
@@ -129,13 +129,31 @@ function crossCheck(m: ColumnMapping, f: Record<string, string | undefined>, lin
   if (f.transfer_index && !f.tx_hash) {
     return { line, column: m.columns.transfer_index, value: f.transfer_index, message: "A transfer index needs a transaction hash on the same row." };
   }
-  if (m.kind === "instruction" && f.due_by && f.created_at && toIso(m, f.due_by) < toIso(m, f.created_at)) {
+  // Compare instants, not text: 10:00+08:00 is before 05:00Z.
+  if (m.kind === "instruction" && f.due_by && f.created_at && Date.parse(toIso(m, f.due_by)) < Date.parse(toIso(m, f.created_at))) {
     return { line, column: m.columns.due_by, value: f.due_by, message: "Due before it was created." };
   }
   return undefined;
 }
 
-const toIso = (m: ColumnMapping, v: string) => (m.timestampFormat === "epoch_ms" ? new Date(Number(v)).toISOString() : v);
+// Unix times are read only inside this window, in the mapping's own unit. A value outside it is
+// a row error: most often seconds in a milliseconds column (January 1970) or the reverse (year 58000).
+const EPOCH_WINDOW = { from: Date.UTC(2009, 0, 1), to: Date.UTC(2100, 0, 1) };
+const EPOCH_UNIT = { epoch_s: { ms: 1000, name: "seconds" }, epoch_ms: { ms: 1, name: "milliseconds" } } as const;
+
+function checkEpoch(v: string, format: keyof typeof EPOCH_UNIT): string | undefined {
+  const unit = EPOCH_UNIT[format];
+  if (!/^\d{1,16}$/.test(v)) return `Not a Unix time in ${unit.name} (whole digits only).`;
+  const ms = Number(v) * unit.ms;
+  if (ms < EPOCH_WINDOW.from || ms >= EPOCH_WINDOW.to) {
+    return `Unix time in ${unit.name} out of range (2009 to 2099); check the column's unit (seconds or milliseconds).`;
+  }
+  return undefined;
+}
+
+// Only called on values checkValue accepted, so the conversion can't fail.
+const toIso = (m: ColumnMapping, v: string) =>
+  (m.timestampFormat === "iso8601_offset" ? v : new Date(Number(v) * EPOCH_UNIT[m.timestampFormat].ms).toISOString());
 const canonHash = (h: string) => h.toLowerCase().replace(/^0x/, "");
 const sha8 = (o: unknown) => createHash("sha256").update(JSON.stringify(o)).digest("hex").slice(0, 12);
 

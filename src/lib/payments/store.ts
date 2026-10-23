@@ -43,6 +43,8 @@ export interface PaymentsData {
   records: { instruction: InstructionRecord[]; provider: ProviderRecord[]; bank: BankRecord[] };
   chain: { transfers: ChainTransferRecord[]; lookups: ChainLookupSummary[] };
   match?: { result: MatchResult; at: string };
+  /** Payment IDs assigned so far, by anchor key. They never change once assigned. */
+  paymentIds?: Record<string, string>;
 }
 
 export const emptyPayments = (): PaymentsData => ({

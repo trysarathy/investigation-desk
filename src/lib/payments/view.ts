@@ -4,11 +4,19 @@ import { CHAIN_NAMES } from "../types";
 import type { EvidenceStatus } from "../types";
 import { describe } from "./match";
 import type { PaymentsData } from "./store";
-import type { CanonicalPayment, Leg, LegName, PaymentRecord, ProviderRecord, SourceRef } from "./types";
+import type { CanonicalPayment, Leg, LegName, PaymentRecord, ProviderRecord, ReviewReason, ReviewTarget, SourceRef } from "./types";
 
 export const LEG_ORDER: LegName[] = ["instruction", "chain", "provider", "bank", "ledger"];
-export const LEG_LABELS: Record<LegName, string> = {
-  instruction: "Instruction", chain: "On-chain", provider: "Provider", bank: "Bank", ledger: "Ledger",
+export const LEG_LABELS: Record<ReviewTarget, string> = {
+  instruction: "Instruction", chain: "On-chain", provider: "Provider", bank: "Bank", ledger: "Ledger", returns: "Returns", fees: "Fees",
+};
+
+export const REVIEW_REASONS: Record<ReviewReason, string> = {
+  multiple_candidates: "Several candidates",
+  conflicting_ids: "Identifiers disagree",
+  conflicting_record: "Record arrived with different content",
+  chain_mismatch: "Chain doesn't match",
+  provider_leg_not_linked: "Provider leg not linked",
 };
 
 export function legStatus(l: Leg): { status: EvidenceStatus; label: string } {

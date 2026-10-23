@@ -71,7 +71,9 @@ export const BVNK_TRANSACTION_REPORT: ColumnMapping = {
     { about: "On-hold state for security review (exact status spelling not published, so not mapped: it shows raw)", url: BVNK_DOCS.cryptoStatus },
   ],
   notes: [
-    "Check against a real export before a pilot: the help-centre header guide was read only in part, and the timestamp format of Date Created is not documented (ISO 8601 with offset is assumed; switch the mapping to epoch milliseconds if the export uses them).",
+    "Column names confirmed against help.bvnk.com (23 Oct 2026).",
+    "Unconfirmed: \"Amount\" as the settled amount is unconfirmed. The candidates are Amount, Transaction Amount, Paid Actual Amount and Required Amount; BVNK's docs don't say which one is the amount that settled. Confirm with BVNK or a real export before amounts are compared.",
+    "Unconfirmed: the timestamp format of Date Created is not documented (ISO 8601 with offset is assumed; switch the mapping to Unix seconds or milliseconds if the export uses them).",
     "Statuses not listed here are kept raw and shown as unmapped; none is guessed.",
   ],
 };

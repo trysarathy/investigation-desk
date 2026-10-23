@@ -4,7 +4,7 @@ import { Status } from "@/components/Status";
 import { formatTime } from "@/lib/format";
 import { paymentsStore } from "@/lib/payments/live";
 import type { Candidate, Leg } from "@/lib/payments/types";
-import { describe, LEG_LABELS, LEG_ORDER, legStatus, recordIndex, sourceLabel } from "@/lib/payments/view";
+import { describe, LEG_LABELS, LEG_ORDER, legStatus, recordIndex, REVIEW_REASONS, sourceLabel } from "@/lib/payments/view";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +55,13 @@ export default async function PaymentPage({ params }: { params: Promise<{ id: st
                   </tr>
                 );
               })}
+              {reviews.filter((r) => r.leg === "fees" || r.leg === "returns").map((r) => (
+                <tr key={r.reviewId} style={{ cursor: "default" }}>
+                  <th scope="row">{LEG_LABELS[r.leg]}</th>
+                  <td><Status status="warn" label={REVIEW_REASONS[r.reason]} /></td>
+                  <td style={{ whiteSpace: "normal" }}><p style={{ margin: 0 }}>{r.message}</p>{candidateList(r.candidates)}</td>
+                </tr>
+              ))}
               {p.fees.length > 0 && <tr style={{ cursor: "default" }}><th scope="row">Fees</th><td /><td style={{ whiteSpace: "normal" }}>{p.fees.map((f) => <div key={f.recordId}>{label(f.recordId)}</div>)}</td></tr>}
               {p.returns.length > 0 && <tr style={{ cursor: "default" }}><th scope="row">Returns</th><td /><td style={{ whiteSpace: "normal" }}>{p.returns.map((f) => <div key={f.recordId}>{label(f.recordId)}</div>)}</td></tr>}
             </tbody>

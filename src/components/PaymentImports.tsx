@@ -193,6 +193,7 @@ function ImportPanel({ kind, title, mappings }: { kind: ImportKind; title: strin
                     <select value={edited.timestampFormat} aria-label="Timestamp format"
                       onChange={(e) => setDraft({ ...edited, timestampFormat: e.target.value as ColumnMapping["timestampFormat"] })}>
                       <option value="iso8601_offset">ISO 8601 with offset</option>
+                      <option value="epoch_s">Unix time, seconds</option>
                       <option value="epoch_ms">Unix time, milliseconds</option>
                     </select>
                   </td>

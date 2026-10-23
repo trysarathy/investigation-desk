@@ -15,10 +15,10 @@
 import { createHash } from "node:crypto";
 import { sameAddress } from "../address";
 import { compareDecimal, isDecimal } from "../decimal";
-import { CHAIN_NAMES } from "../types";
+import { CHAIN_NAMES, type Chain } from "../types";
 import type {
   BankRecord, Candidate, CanonicalPayment, ChainLookupSummary, ChainTransferRecord, InstructionRecord, Leg, LegName, Link,
-  LedgerEntryRecord, MatchResult, PaymentRecord, ProviderRecord, ReviewItem, ReviewReason,
+  LedgerEntryRecord, MatchResult, PaymentRecord, ProviderRecord, ReviewItem, ReviewReason, ReviewTarget,
 } from "./types";
 
 export interface MatchInput {
@@ -28,6 +28,8 @@ export interface MatchInput {
   chain: ChainTransferRecord[];
   lookups: ChainLookupSummary[];
   ledger?: LedgerEntryRecord[];
+  /** Payment IDs from earlier runs, by anchor key. An assigned ID is never changed. */
+  assigned?: Record<string, string>;
 }
 
 // ---- Grouping: one logical record per original identifier ----
@@ -50,12 +52,24 @@ function groupBy<T extends PaymentRecord>(records: T[], key: (r: T) => string, f
     const view: Partial<T> = {};
     const conflicts: string[] = [];
     for (const f of fields) {
-      const vals = new Set(sorted.map((r) => JSON.stringify(r[f] ?? null)));
-      if (vals.size === 1) view[f] = sorted[0][f];
+      if (sorted.every((r) => sameValue(String(f), r[f], sorted[0][f]))) view[f] = sorted[0][f];
       else conflicts.push(String(f));
     }
     return { key: k, records: sorted, view, conflicts };
   });
+}
+
+// Amounts are compared as decimals: 100.00 and 100.000000 are the same amount.
+const DECIMAL_FIELDS = new Set(["amount", "fee"]);
+const SIGNED_DECIMAL = /^-?\d+(\.\d+)?$/;
+function sameValue(field: string, a: unknown, b: unknown): boolean {
+  if (DECIMAL_FIELDS.has(field) && typeof a === "string" && typeof b === "string" && SIGNED_DECIMAL.test(a) && SIGNED_DECIMAL.test(b)) {
+    const [sa, ma] = [a.startsWith("-"), a.replace(/^-/, "")];
+    const [sb, mb] = [b.startsWith("-"), b.replace(/^-/, "")];
+    if (compareDecimal(ma, mb) !== 0) return false;
+    return sa === sb || compareDecimal(ma, "0") === 0;
+  }
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 }
 
 const byEventTime = (a: PaymentRecord, b: PaymentRecord) =>
@@ -126,11 +140,24 @@ function resolveChain(ref: ChainRef, chain: ChainTransferRecord[], lookups: Chai
   if (lookup.result === "not_found") return { kind: "missing", note: `Transaction ${short(ref.txHash)} (from ${ref.from}) was not found on any supported chain.` };
   if (lookup.result === "pending") return { kind: "unknown", note: `Transaction ${short(ref.txHash)} is known to a node but not mined yet.` };
   if (lookup.result === "error") return { kind: "unknown", note: `Couldn't check transaction ${short(ref.txHash)}: ${lookup.error ?? "lookup failed"}` };
-  const inTx = chain.filter((c) => c.txHash === ref.txHash);
-  if (ref.chain && lookup.chain !== ref.chain) {
-    return { kind: "review", reason: "chain_mismatch", candidates: inTx,
-      message: `The ${ref.from} says ${chainName(ref.chain)}, but transaction ${short(ref.txHash)} is on ${chainName(lookup.chain)}.` };
+  const chains = lookup.chains ?? (lookup.chain ? [lookup.chain] : []);
+  const unresolved = lookup.unresolved ?? [];
+  if (chains.length > 1) {
+    return { kind: "review", reason: "multiple_candidates", candidates: chain.filter((c) => c.txHash === ref.txHash),
+      message: `Transaction ${short(ref.txHash)} exists on ${names(chains)}. A hash found on more than one chain is never linked automatically.` };
   }
+  const onChain = chains[0];
+  if (ref.chain && ref.chain !== onChain) {
+    if (unresolved.includes(ref.chain as Chain)) {
+      return { kind: "unknown", note: `The ${ref.from} says ${chainName(ref.chain)}, and ${chainName(ref.chain)} didn't answer; transaction ${short(ref.txHash)} was found on ${chainName(onChain)}.` };
+    }
+    return { kind: "review", reason: "chain_mismatch", candidates: chain.filter((c) => c.txHash === ref.txHash),
+      message: `The ${ref.from} says ${chainName(ref.chain)}, but transaction ${short(ref.txHash)} is on ${chainName(onChain)}.` };
+  }
+  if (!ref.chain && unresolved.length) {
+    return { kind: "unknown", note: `Transaction ${short(ref.txHash)} was found on ${chainName(onChain)}, but ${names(unresolved)} didn't answer, so it isn't confirmed to be only there. The ${ref.from} gives no chain.` };
+  }
+  const inTx = chain.filter((c) => c.txHash === ref.txHash && c.chain === onChain);
   if (ref.transferIndex !== undefined) {
     const hit = inTx.find((c) => c.transferIndex === ref.transferIndex);
     if (hit) return { kind: "link", record: hit, basis: "chain_tx_index" };
@@ -143,6 +170,7 @@ function resolveChain(ref: ChainRef, chain: ChainTransferRecord[], lookups: Chai
 }
 
 const short = (h: string) => `${h.slice(0, 10)}…`;
+const names = (cs: string[]) => cs.map(chainName).join(cs.length === 2 ? " and " : ", ");
 const chainName = (c?: string) => (c ? CHAIN_NAMES[c as keyof typeof CHAIN_NAMES] ?? c : "an unknown chain");
 const paymentIdFor = (seed: string) => `PAY-${createHash("sha256").update(seed).digest("hex").slice(0, 10).toUpperCase()}`;
 
@@ -162,13 +190,18 @@ interface Draft {
 }
 
 export function matchPayments(input: MatchInput): MatchResult {
-  const reviews: ReviewItem[] = [];
+  // Reviews are collected per draft and numbered once payment IDs are settled (after step 2).
+  const pending: { d: Draft; leg: ReviewTarget; reason: ReviewReason; message: string; candidates: Candidate[]; legRef?: { reviewId: string } }[] = [];
   const reviewed = new Set<string>();
-  const addReview = (d: Draft, leg: LegName, reason: ReviewReason, message: string, candidates: Candidate[]) => {
-    const reviewId = `REV-${d.paymentId.slice(4)}-${leg}`;
-    reviews.push({ reviewId, paymentId: d.paymentId, leg, reason, message, candidates });
+  const addReview = (d: Draft, leg: ReviewTarget, reason: ReviewReason, message: string, candidates: Candidate[]) => {
     for (const c of candidates) reviewed.add(c.recordId);
-    d.legs[leg] = { state: "needs_review", reviewId };
+    const item: (typeof pending)[number] = { d, leg, reason, message, candidates };
+    if (leg !== "returns" && leg !== "fees") {
+      const legRef = { state: "needs_review" as const, reviewId: "" };
+      d.legs[leg] = legRef;
+      item.legRef = legRef;
+    }
+    pending.push(item);
   };
 
   const insGroups: InsGroup[] = groupBy(input.instructions, (r) => r.instructionId, INSTRUCTION_FIELDS);
@@ -180,7 +213,7 @@ export function matchPayments(input: MatchInput): MatchResult {
   // 1. Instruction <-> provider. First every exact tie, then decide: a provider payment tied to
   //    two instructions (by either identifier) is contested, and both go to review.
   const drafts: Draft[] = insGroups.map((g) => ({
-    paymentId: paymentIdFor(`instruction:${g.key}`), anchor: g.records[0], ins: g, legs: {}, returns: [], fees: [], linked: new Set(),
+    paymentId: "", anchor: g.records[0], ins: g, legs: {}, returns: [], fees: [], linked: new Set(),
   }));
   const ties = new Map<Draft, { byRef: ProvGroup[]; byId: ProvGroup[]; namedIds: string[] }>();
   for (const d of drafts) {
@@ -205,6 +238,13 @@ export function matchPayments(input: MatchInput): MatchResult {
     }
     const { byRef, byId, namedIds } = ties.get(d)!;
     const union = [...new Set([...byRef, ...byId])];
+    // Until the instruction's own content is settled, nothing links to it.
+    if (g.conflicts.length) {
+      addReview(d, "provider", "conflicting_record",
+        `Instruction ${g.key} arrived with different ${g.conflicts.join(", ")}; its provider leg waits until that is resolved.`,
+        rank(g.records[0], provRecs(union)));
+      continue;
+    }
     if (!union.length) {
       d.legs.provider = { state: "missing", suggestions: [],
         note: namedIds.length ? `The instruction names provider payment ${namedIds.join(", ")}; no provider record has it.` : undefined };
@@ -252,7 +292,7 @@ export function matchPayments(input: MatchInput): MatchResult {
   const claimed = new Set(drafts.map((d) => d.prov).filter(Boolean));
   for (const p of provGroups) {
     if (claimed.has(p) || p.records.some((r) => reviewed.has(r.recordId))) continue;
-    const d: Draft = { paymentId: paymentIdFor(`provider:${p.provider}:${p.providerPaymentId}`), anchor: latest(p.records), prov: p,
+    const d: Draft = { paymentId: "", anchor: latest(p.records), prov: p,
       legs: {}, returns: [], fees: [], linked: new Set() };
     if (p.conflicts.length) {
       addReview(d, "provider", "conflicting_record", `${p.provider} payment ${p.providerPaymentId} arrived with different ${p.conflicts.join(", ")}.`,
@@ -266,13 +306,38 @@ export function matchPayments(input: MatchInput): MatchResult {
     drafts.push(d);
   }
 
+  // Payment IDs. An ID, once assigned to an anchor key, is never changed. An instruction that now
+  // links a provider record which had a payment of its own takes over that payment's ID.
+  const assigned: Record<string, string> = { ...(input.assigned ?? {}) };
+  const inUse = new Set<string>();
+  const everAssigned = new Set(Object.values(assigned));
+  for (const d of drafts) {
+    const keys = [
+      ...(d.ins ? [`instruction:${d.ins.key}`] : []),
+      ...(d.prov && (!d.ins || d.legs.provider?.state === "linked") ? [`provider:${d.prov.provider}:${d.prov.providerPaymentId}`] : []),
+    ];
+    const prior = keys.map((k) => assigned[k]).filter((x): x is string => !!x && !inUse.has(x));
+    let id = prior[0];
+    for (let n = 0; !id; n++) {
+      const fresh = paymentIdFor(n ? `${keys[0]}#${n}` : keys[0]);
+      if (!inUse.has(fresh) && !everAssigned.has(fresh)) id = fresh;
+    }
+    d.paymentId = id;
+    inUse.add(id);
+    for (const k of keys) assigned[k] ??= id;
+    everAssigned.add(id);
+  }
+
   // 3. On-chain leg, from the instruction's and the provider record's exact references.
   const chainProposals = new Map<Draft, { record: ChainTransferRecord; links: Link[] }>();
   for (const d of drafts) {
     const refs: ChainRef[] = [];
     if (d.ins) {
-      if (d.ins.conflicts.some((f) => ["txHash", "chain", "transferIndex"].includes(f))) {
-        addReview(d, "chain", "conflicting_record", `Versions of instruction ${d.ins.key} give different on-chain references.`,
+      if (d.ins.conflicts.length) {
+        const onChain = d.ins.conflicts.some((f) => ["txHash", "chain", "transferIndex"].includes(f));
+        addReview(d, "chain", "conflicting_record",
+          onChain ? `Versions of instruction ${d.ins.key} give different on-chain references.`
+            : `Instruction ${d.ins.key} arrived with different ${d.ins.conflicts.join(", ")}; its on-chain leg waits until that is resolved.`,
           rank(d.anchor, input.chain.filter((c) => d.ins!.records.some((r) => r.txHash === c.txHash))));
         continue;
       }
@@ -330,19 +395,32 @@ export function matchPayments(input: MatchInput): MatchResult {
   }
 
   // 4. Bank leg: an exact instruction ID or provider payment ID column. Free text is never parsed.
+  //    A row naming both links only when both point to the same payment; otherwise it is reviewed.
   const bankPrincipal = input.bank.filter((b) => !b.returnOf);
-  const bankHits = new Map<BankRecord, Draft[]>();
+  const providerIdKnown = (id: string) => input.provider.some((r) => r.providerPaymentId === id);
+  const bankHits = new Map<BankRecord, { drafts: Draft[]; problem?: string }>();
   for (const b of bankPrincipal) {
-    const hits = drafts.filter((d) => (b.instructionId && d.ins?.key === b.instructionId) ||
-      (b.providerPaymentId && (d.prov?.providerPaymentId === b.providerPaymentId || d.ins?.view.providerPaymentId === b.providerPaymentId)));
-    bankHits.set(b, hits);
+    const byIns = b.instructionId ? drafts.filter((d) => d.ins?.key === b.instructionId) : [];
+    const byProv = b.providerPaymentId
+      ? drafts.filter((d) => d.prov?.providerPaymentId === b.providerPaymentId || d.ins?.view.providerPaymentId === b.providerPaymentId) : [];
+    const involved = [...new Set([...byIns, ...byProv])];
+    let problem: string | undefined;
+    if (involved.length > 1) {
+      problem = b.instructionId && b.providerPaymentId
+        ? `Bank ${b.bankReference} names instruction ${b.instructionId} and provider payment ${b.providerPaymentId}, which belong to different payments.`
+        : `Bank ${b.bankReference} carries an identifier of more than one payment.`;
+    } else if (involved.length === 1 && b.instructionId && b.providerPaymentId && (!byIns.length || !byProv.length)) {
+      problem = !byProv.length
+        ? `Bank ${b.bankReference} names instruction ${b.instructionId} and provider payment ${b.providerPaymentId}, which ${providerIdKnown(b.providerPaymentId) ? "is not linked to this payment" : "no payment has"}.`
+        : `Bank ${b.bankReference} names provider payment ${b.providerPaymentId} and instruction ${b.instructionId}, which no payment has.`;
+    }
+    bankHits.set(b, { drafts: involved, problem });
   }
   for (const d of drafts) {
-    const mine = bankPrincipal.filter((b) => bankHits.get(b)!.includes(d));
-    const contested = mine.filter((b) => bankHits.get(b)!.length > 1);
+    const mine = bankPrincipal.filter((b) => bankHits.get(b)!.drafts.includes(d));
+    const contested = mine.filter((b) => bankHits.get(b)!.problem);
     if (contested.length) {
-      addReview(d, "bank", "conflicting_ids",
-        `Bank record ${contested.map((b) => b.bankReference).join(", ")} carries identifiers of more than one payment.`, rank(d.anchor, contested));
+      addReview(d, "bank", "conflicting_ids", contested.map((b) => bankHits.get(b)!.problem).join(" "), rank(d.anchor, contested));
     } else if (mine.length > 1) {
       addReview(d, "bank", "multiple_candidates", `${mine.length} bank records carry an identifier of this payment: ${mine.map((b) => b.bankReference).join(", ")}.`, rank(d.anchor, mine));
     } else if (mine.length === 1) {
@@ -374,17 +452,42 @@ export function matchPayments(input: MatchInput): MatchResult {
     }
   }
 
-  // 6. Returns and fees: exact identifiers only.
-  const others = input.provider.filter((r) => r.type !== "principal");
-  for (const d of drafts) {
-    const provIds = [d.prov?.providerPaymentId, d.ins?.view.providerPaymentId].filter(Boolean);
-    for (const r of others) {
-      const basis = r.relatesTo && provIds.includes(r.relatesTo) ? "provider_payment_id" as const
-        : d.ins && r.merchantReference === d.ins.key ? "merchant_reference" as const : undefined;
-      if (!basis || r.type === "other") continue;
-      const link = { recordId: r.recordId, basis, detail: basis === "provider_payment_id" ? `${r.provider} ${r.type} row relates to ${r.relatesTo}` : `${r.provider} ${r.type} row carries merchant reference ${r.merchantReference}` };
-      (r.type === "fee" ? d.fees : d.returns).push(link);
+  // 6. Returns and fees: exact identifiers only. A row that relates to a provider payment attaches
+  //    only where that provider leg is linked. If the payment it ties to has its provider leg
+  //    unresolved, the row waits in a review on that payment instead.
+  const held = new Map<Draft, { fees: ProviderRecord[]; returns: ProviderRecord[] }>();
+  const isProv = (g: ProvGroup | undefined, r: ProviderRecord) => !!g && g.provider === r.provider && g.providerPaymentId === r.relatesTo;
+  for (const r of input.provider.filter((x) => x.type === "fee" || x.type === "return")) {
+    const bucket = r.type === "fee" ? "fees" as const : "returns" as const;
+    if (r.relatesTo) {
+      const linked = drafts.filter((d) => d.legs.provider?.state === "linked" && isProv(d.prov, r));
+      for (const d of linked) d[bucket].push({ recordId: r.recordId, basis: "provider_payment_id", detail: `${r.provider} ${r.type} row relates to ${r.relatesTo}` });
+      if (linked.length) continue;
+      const waiting = drafts.filter((d) => d.legs.provider?.state !== "linked" && (
+        isProv(d.prov, r) ||
+        d.ins?.records.some((x) => x.providerPaymentId === r.relatesTo) ||
+        (d.ins && [...ties.get(d)!.byRef, ...ties.get(d)!.byId].some((g) => isProv(g, r)))));
+      for (const d of waiting) {
+        const h = held.get(d) ?? { fees: [], returns: [] };
+        h[bucket].push(r);
+        held.set(d, h);
+      }
+      continue;
     }
+    for (const d of drafts.filter((x) => x.ins && r.merchantReference === x.ins.key)) {
+      d[bucket].push({ recordId: r.recordId, basis: "merchant_reference", detail: `${r.provider} ${r.type} row carries merchant reference ${r.merchantReference}` });
+    }
+  }
+  for (const [d, h] of held) {
+    const state = d.legs.provider?.state === "needs_review" ? "needs review" : d.legs.provider?.state ?? "missing";
+    for (const bucket of ["fees", "returns"] as const) {
+      if (!h[bucket].length) continue;
+      addReview(d, bucket, "provider_leg_not_linked",
+        h[bucket].map((r) => `${r.provider} ${r.type} row ${r.providerPaymentId} relates to ${r.provider} payment ${r.relatesTo}, but this payment's provider leg is not linked (${state}).`).join(" "),
+        h[bucket].map((r) => ({ recordId: r.recordId, score: 0, reasons: [] })));
+    }
+  }
+  for (const d of drafts) {
     if (d.bankLink) {
       for (const b of input.bank.filter((x) => x.returnOf === d.bankLink!.bankReference)) {
         d.returns.push({ recordId: b.recordId, basis: "return_of", detail: `Bank ${b.bankReference} is a return of ${b.returnOf}` });
@@ -398,8 +501,9 @@ export function matchPayments(input: MatchInput): MatchResult {
     const legs = { instruction: d.legs.instruction!, chain: d.legs.chain!, provider: d.legs.provider!, bank: d.legs.bank!, ledger: d.legs.ledger! };
     const ids = new Set<string>();
     for (const leg of Object.values(legs)) if (leg.state === "linked") for (const l of leg.links) ids.add(l.recordId);
-    // Every version of a linked instruction or provider record belongs to the timeline.
-    if (legs.instruction.state === "linked") for (const r of d.ins?.records ?? []) ids.add(r.recordId);
+    // Every version of the payment's own instruction belongs to it, even while under review, and
+    // so does every version of a linked provider record.
+    for (const r of d.ins?.records ?? []) ids.add(r.recordId);
     if (legs.provider.state === "linked") for (const r of d.prov?.records ?? []) ids.add(r.recordId);
     for (const l of [...d.returns, ...d.fees]) ids.add(l.recordId);
     const recs = [...ids].map((id) => all.get(id)!).filter(Boolean).sort(byEventTime);
@@ -438,10 +542,16 @@ export function matchPayments(input: MatchInput): MatchResult {
     }
   }
 
+  const reviews: ReviewItem[] = pending.map((p) => {
+    const reviewId = `REV-${p.d.paymentId.slice(4)}-${p.leg}`;
+    if (p.legRef) p.legRef.reviewId = reviewId;
+    return { reviewId, paymentId: p.d.paymentId, leg: p.leg, reason: p.reason, message: p.message, candidates: p.candidates };
+  });
+
   const used = new Set<string>([...reviewed, ...linkedAnywhere]);
   const duplicateRecords = [...all.values()].filter((r) => r.sources.length > 1).map((r) => ({ recordId: r.recordId, kind: r.kind, sources: r.sources }));
   const unlinked = [...all.values()].filter((r) => !used.has(r.recordId) && r.kind !== "chain_transfer").map((r) => ({ recordId: r.recordId, kind: r.kind }));
-  return { payments, reviews, duplicateRecords, unlinked };
+  return { payments, reviews, duplicateRecords, unlinked, paymentIds: assigned };
 }
 
 const l2basis = (l: LedgerEntryRecord) => (l.transferIndex === undefined ? "chain_tx_single_transfer" as const : "chain_tx_index" as const);

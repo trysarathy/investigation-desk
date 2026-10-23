@@ -133,7 +133,12 @@ export interface ChainLookupSummary {
   txHash: string;
   /** "pending": a node knows it but it isn't mined yet. */
   result: "found" | "not_found" | "pending" | "error";
+  /** Where it was found. With "found", the one chain; see `chains` when there are more. */
   chain?: Chain;
+  /** Every chain it was found on. More than one goes to review. */
+  chains?: Chain[];
+  /** Chains that errored or only saw it pending, so "only on `chain`" isn't confirmed. */
+  unresolved?: Chain[];
   checkedAt: string;
   error?: string;
 }
@@ -180,12 +185,17 @@ export type ReviewReason =
   | "multiple_candidates"
   | "conflicting_ids"
   | "conflicting_record"
-  | "chain_mismatch";
+  | "chain_mismatch"
+  /** A fee or return row relates to a provider payment, but the payment's provider leg isn't linked. */
+  | "provider_leg_not_linked";
+
+/** A review is about one leg, or about the fee or return rows hanging off the provider leg. */
+export type ReviewTarget = LegName | "returns" | "fees";
 
 export interface ReviewItem {
   reviewId: string;
   paymentId: string;
-  leg: LegName;
+  leg: ReviewTarget;
   reason: ReviewReason;
   message: string;
   /** The records involved, best-ranked first where a ranking applies. */
@@ -215,4 +225,9 @@ export interface MatchResult {
   duplicateRecords: { recordId: string; kind: RecordKind; sources: SourceRef[] }[];
   /** Records no payment links or reviews (e.g. a bank credit no identifier ties to anything). */
   unlinked: { recordId: string; kind: RecordKind }[];
+  /**
+   * Every payment ID ever assigned, by anchor key ("instruction:<id>", "provider:<provider>:<id>").
+   * Fed back into the next run so an assigned ID never changes.
+   */
+  paymentIds: Record<string, string>;
 }

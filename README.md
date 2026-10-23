@@ -213,8 +213,8 @@ To build and run the image locally: `docker build -t desk-preview . && docker ru
 
 `/payments`, code in `src/lib/payments/`.
 
-- **Canonical payment:** one payment ID (`PAY-…`, derived from the instruction ID, or from the
-  provider and its payment ID when there is no instruction) links instruction → on-chain
+- **Canonical payment:** one payment ID (`PAY-…`, first derived from the instruction ID, or from
+  the provider and its payment ID when there is no instruction) links instruction → on-chain
   transfer(s) → provider record → bank record → ledger entry → later returns, plus fee rows.
   Every record keeps its original identifiers (with the column they came from), its event time
   as the source wrote it, its observed time, every source row (file, line, mapping version) or
@@ -229,7 +229,12 @@ To build and run the image locally: `docker build -t desk-preview . && docker ru
 - **Provider status** is kept raw beside a mapped meaning. `COMPLETE` means "provider reports
   complete", never "beneficiary credited". A status not in the mapping shows raw as "unmapped".
 - **BVNK** is the first provider format (`src/lib/payments/presets.ts`, with the docs URL for
-  each part). Another provider is another mapping; nothing in the matcher is BVNK specific.
+  each part). Column names are confirmed against help.bvnk.com; reading "Amount" as the settled
+  amount (vs Transaction Amount, Paid Actual Amount, Required Amount) is not yet. Another
+  provider is another mapping; nothing in the matcher is BVNK specific.
+- **Timestamps** are ISO 8601 with an offset, or Unix seconds or milliseconds as the mapping
+  says. A Unix time outside 2009–2099 in the mapping's unit is a row error (usually the wrong
+  unit). Due and created times compare as instants.
 - **Matching** links on exact identifiers only: merchant reference = instruction ID, or the
   instruction names the provider payment ID; chain + tx hash + transfer index; the bank row's
   instruction or provider ID column. A hash with no transfer index links only when that
@@ -237,6 +242,14 @@ To build and run the image locally: `docker build -t desk-preview . && docker ru
   disagree, a chain that doesn't match, or a record that arrived with different content go to
   review. Amount, time and address similarity only rank candidates and suggestions. A failed
   chain lookup leaves the leg unknown, never missing. Bank free text is never parsed.
+  - A hash found on more than one chain goes to review. Found on one chain while another chain
+    didn't answer: unknown, unless the record names the chain it was found on.
+  - An instruction that arrived with conflicting content holds its provider and chain legs in
+    review too. A bank row naming two payments, or a provider ID no payment has, is reviewed.
+    Fee and return rows attach through `relates_to` only where that provider leg is linked;
+    otherwise they wait in a review on the payment. Amounts compare as decimals.
+- **Payment IDs never change once assigned** (kept in `.data/payments.json`, also across "Clear
+  records"). An instruction that arrives for a provider-only payment takes that payment's ID.
 - **Ledger leg** joins File B on the linked transfer (chain + hash + index).
 
 ## Not built yet (by plan)

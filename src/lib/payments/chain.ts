@@ -6,7 +6,7 @@
 import { explorerTxUrl } from "../catalogue";
 import { lookupOne, type LiveDeps } from "../chain/investigate";
 import type { ChainTx, RawResponse } from "../types";
-import { ALL_CHAINS } from "../types";
+import { ALL_CHAINS, CHAIN_NAMES } from "../types";
 import type { ChainLookupSummary, ChainTransferRecord, PaymentRecord } from "./types";
 
 export const transferKey = (chain: string, txHash: string, index: number | undefined) => `${chain}:${txHash}:${index ?? "-"}`;
@@ -42,7 +42,14 @@ export function transferRecords(tx: ChainTx, raws: RawResponse[], originalHash: 
   }));
 }
 
-/** Look every hash up on all chains. Found on one: its transfers. All "not found": not found. Any error: unknown. */
+/**
+ * Look every hash up on all chains and keep every chain's answer:
+ *   found on one, every other chain "not found": found there;
+ *   found on two or more: found, with all of them listed (matching sends it to review);
+ *   found on one while another errored or only saw it pending: found, with those chains listed
+ *     as unresolved (matching treats the hash as unknown unless the record names the found chain);
+ *   nowhere found, all "not found": not found. Any error otherwise: unknown.
+ */
 export async function fetchTransfers(hashes: string[], deps: LiveDeps, now: () => Date = () => new Date()):
   Promise<{ transfers: ChainTransferRecord[]; lookups: ChainLookupSummary[] }> {
   const transfers: ChainTransferRecord[] = [];
@@ -50,18 +57,20 @@ export async function fetchTransfers(hashes: string[], deps: LiveDeps, now: () =
   for (const hash of hashes) {
     const raws = new Map(ALL_CHAINS.map((c) => [c, [] as RawResponse[]]));
     const results = await Promise.all(ALL_CHAINS.map((c) => lookupOne(c, hash, deps, raws.get(c)!)));
-    const found = results.find((r) => r.tx);
     const checkedAt = now().toISOString();
-    if (found?.tx) {
-      transfers.push(...transferRecords(found.tx, raws.get(found.tx.chain)!, hash));
-      lookups.push({ txHash: hash, result: "found", chain: found.tx.chain, checkedAt });
-    } else if (results.every((r) => r.lookup.result === "not_found")) {
+    const found = results.filter((r) => r.tx);
+    const unresolved = results.filter((r) => !r.tx && r.lookup.result !== "not_found").map((r) => r.lookup.chain);
+    if (found.length) {
+      for (const r of found) transfers.push(...transferRecords(r.tx!, raws.get(r.tx!.chain)!, hash));
+      const chains = found.map((r) => r.tx!.chain);
+      lookups.push({ txHash: hash, result: "found", chain: chains[0], checkedAt,
+        ...(chains.length > 1 ? { chains } : {}), ...(unresolved.length ? { unresolved } : {}) });
+    } else if (!unresolved.length) {
       lookups.push({ txHash: hash, result: "not_found", checkedAt });
-    } else if (results.some((r) => r.lookup.result === "pending") && results.every((r) => r.lookup.result !== "error")) {
+    } else if (results.every((r) => r.lookup.result !== "error")) {
       lookups.push({ txHash: hash, result: "pending", checkedAt });
     } else {
-      const failed = results.filter((r) => r.lookup.result !== "not_found").map((r) => r.lookup.chain);
-      lookups.push({ txHash: hash, result: "error", checkedAt, error: `No answer from ${failed.join(", ")}.` });
+      lookups.push({ txHash: hash, result: "error", checkedAt, unresolved, error: `No answer from ${unresolved.map((c) => CHAIN_NAMES[c]).join(", ")}.` });
     }
   }
   return { transfers, lookups };
