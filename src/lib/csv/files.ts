@@ -29,13 +29,15 @@ export interface ValidationResult<T> {
   /** Columns present but not part of the format; they are not read or stored. */
   ignoredColumns: string[];
   notes: string[];
+  /** The file's header row, as read. */
+  header?: string[];
 }
 
 const MAX_BYTES = 20 * 1024 * 1024;
 export const MAX_ROWS = { A: 200_000, B: 500_000, bulk: 1_000 } as const;
 
 const ISO_WITH_OFFSET = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})$/;
-const HASH = /^(0x)?[0-9a-fA-F]{64}$/;
+export const HASH = /^(0x)?[0-9a-fA-F]{64}$/;
 const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const TRON_ADDRESS = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -78,14 +80,14 @@ export function checkAddress(chain: Chain, v: string): string | undefined {
   return undefined;
 }
 
-interface Column<T> {
+export interface Column {
   name: string;
   required: boolean;
   /** Returns an error message, or undefined if the value is valid. Empty optional values skip this. */
   check?: (v: string, row: Record<string, string>) => string | undefined;
 }
 
-function readTable<T>(bytes: Uint8Array, columns: Column<T>[], maxRows: number,
+export function readTable<T>(bytes: Uint8Array, columns: Column[], maxRows: number,
   build: (row: Record<string, string>, line: number) => T | RowError): ValidationResult<T> {
   const res: ValidationResult<T> = { sha256: sha256Bytes(bytes), fileErrors: [], rows: [], rowErrors: [], ignoredColumns: [], notes: [] };
   if (bytes.length > MAX_BYTES) {
@@ -106,6 +108,7 @@ function readTable<T>(bytes: Uint8Array, columns: Column<T>[], maxRows: number,
   }
 
   const header = csv.header;
+  res.header = header;
   const dupes = header.filter((h, i) => header.indexOf(h) !== i);
   if (dupes.length) res.fileErrors.push(`Duplicate column(s): ${[...new Set(dupes)].join(", ")}.`);
   const known = new Set(columns.map((c) => c.name));
@@ -150,7 +153,7 @@ function readTable<T>(bytes: Uint8Array, columns: Column<T>[], maxRows: number,
   return res;
 }
 
-const oneOf = <T extends string>(allowed: readonly T[], what: string) => (v: string) =>
+export const oneOf = <T extends string>(allowed: readonly T[], what: string) => (v: string) =>
   (allowed as readonly string[]).includes(v) ? undefined : `Unknown ${what} "${v}" (expected ${allowed.join(", ")}).`;
 
 export const customerIdCheck = (v: string) =>

@@ -1,0 +1,218 @@
+// Canonical payment records (spec "Product direction (23 Oct)"): one payment ID linking
+// instruction -> on-chain transfer(s) -> provider record -> bank record -> ledger entry -> later
+// returns. Every record keeps its original identifiers, its event time (when it happened, by its
+// own source), its observed time (when we read it) and the exact source row or response.
+
+import type { Chain, Token } from "../types";
+
+export type RecordKind = "instruction" | "chain_transfer" | "provider" | "bank" | "ledger";
+export type ImportKind = "instruction" | "provider" | "bank";
+
+/** Where one observation of a record came from. A record seen twice has two. */
+export type SourceRef =
+  | { kind: "file"; importId: string; fileName: string; fileSha256: string; line: number; mappingId: string; mappingVersion: number }
+  | { kind: "chain"; url: string; rawSha256: string[]; fetchedAt: string }
+  | { kind: "deposit_ledger"; line: number; fileSha256: string };
+
+export interface Identifier {
+  /** Canonical role, e.g. "instruction_id" or "provider_payment_id". */
+  role: string;
+  /** The column (or API field) it was read from, exactly as the source names it. */
+  sourceField: string;
+  value: string;
+}
+
+interface RecordBase {
+  /** Ours, deterministic: same input, same ID. Never shown in place of an original identifier. */
+  recordId: string;
+  kind: RecordKind;
+  identifiers: Identifier[];
+  /** When it happened according to its source, exactly as given (offset kept). */
+  eventTime?: string;
+  /** When we first read it (import time, or chain fetch time). */
+  observedTime: string;
+  /** Every observation. More than one means the same record arrived more than once (a duplicate record, not a second payment). */
+  sources: SourceRef[];
+  /** The source row as read, every column, unchanged. */
+  original: Record<string, string>;
+}
+
+export interface InstructionRecord extends RecordBase {
+  kind: "instruction";
+  instructionId: string;
+  chain?: Chain;
+  token?: Token;
+  toAddress?: string;
+  amount: string;
+  txHash?: string;
+  transferIndex?: number;
+  providerPaymentId?: string;
+  /** Agreed deadline for the payment to complete (used by the overdue rule, chunk 2). */
+  dueBy?: string;
+}
+
+/** What a provider status means, kept beside the raw status, never instead of it. */
+export type ProviderStatusMeaning =
+  | "pending" | "awaiting_approval" | "processing" | "on_hold"
+  /** The provider reports it complete. This is not proof the beneficiary was credited. */
+  | "provider_reports_complete"
+  | "cancelled" | "expired" | "underpaid" | "overpaid" | "returned"
+  /** The raw status is not in the mapping: shown as is, with no meaning assumed. */
+  | "unmapped";
+
+export type ProviderRowType = "principal" | "fee" | "return" | "other";
+
+export interface ProviderRecord extends RecordBase {
+  kind: "provider";
+  provider: string;
+  providerPaymentId: string;
+  merchantReference?: string;
+  txHash?: string;
+  chain?: Chain;
+  transferIndex?: number;
+  typeRaw?: string;
+  type: ProviderRowType;
+  statusRaw: string;
+  statusMeaning: ProviderStatusMeaning;
+  /** Signed as the provider reports it. */
+  amount: string;
+  currency?: string;
+  fee?: string;
+  /** For a return or fee row: the payment it belongs to, by the provider's own identifier. */
+  relatesTo?: string;
+}
+
+export interface BankRecord extends RecordBase {
+  kind: "bank";
+  bankReference: string;
+  bookedAt: string;
+  valueDate?: string;
+  amount: string;
+  currency: string;
+  direction: "credit" | "debit";
+  instructionId?: string;
+  providerPaymentId?: string;
+  /** Free text from the bank. Read as data only; never parsed into a link. */
+  remittanceInfo?: string;
+  /** For a returned payment: the bank reference of the original. */
+  returnOf?: string;
+}
+
+export interface ChainTransferRecord extends RecordBase {
+  kind: "chain_transfer";
+  chain: Chain;
+  /** Lower-case, no 0x: the join key. The original spelling is kept in identifiers. */
+  txHash: string;
+  /** Log index (EVM) or event index (Tron). Absent for a failed transaction with no transfer. */
+  transferIndex?: number;
+  txStatus: "success" | "failed";
+  token?: string;
+  tokenContract?: string;
+  from?: string;
+  to?: string;
+  amount?: string;
+  blockNumber: number;
+  /** How many token transfers the whole transaction carries. */
+  transfersInTx: number;
+}
+
+export interface LedgerEntryRecord extends RecordBase {
+  kind: "ledger";
+  entryId: string;
+  chain: Chain;
+  txHash?: string;
+  transferIndex?: number;
+  amount: string;
+  status: string;
+}
+
+export type PaymentRecord = InstructionRecord | ProviderRecord | BankRecord | ChainTransferRecord | LedgerEntryRecord;
+
+/** A hash we asked the chains about, and what they said. Errors are unknowns, never "not found". */
+export interface ChainLookupSummary {
+  txHash: string;
+  /** "pending": a node knows it but it isn't mined yet. */
+  result: "found" | "not_found" | "pending" | "error";
+  chain?: Chain;
+  checkedAt: string;
+  error?: string;
+}
+
+// ---- Matching output ----
+
+export type LegName = "instruction" | "chain" | "provider" | "bank" | "ledger";
+
+export type LinkBasis =
+  | "anchor"
+  | "instruction_id"
+  | "provider_payment_id"
+  | "merchant_reference"
+  | "chain_tx_index"
+  /** Hash given without a transfer index, and the transaction carries exactly one token transfer. */
+  | "chain_tx_single_transfer"
+  /** A bank row's return-of column names the linked bank record. */
+  | "return_of";
+
+export interface Link {
+  recordId: string;
+  basis: LinkBasis;
+  /** Plain words: which identifier on which record equalled which. */
+  detail: string;
+}
+
+/** A possible record for a leg, ranked by similarity. Never linked on this alone. */
+export interface Candidate {
+  recordId: string;
+  score: number;
+  reasons: string[];
+}
+
+export type Leg =
+  | { state: "linked"; links: Link[] }
+  | { state: "missing"; suggestions: Candidate[]; note?: string }
+  | { state: "needs_review"; reviewId: string }
+  /** We couldn't find out (a chain lookup failed). Not the same as missing. */
+  | { state: "unknown"; note: string }
+  /** Not expected for this payment (e.g. no bank leg without bank records). */
+  | { state: "not_applicable" };
+
+export type ReviewReason =
+  | "multiple_candidates"
+  | "conflicting_ids"
+  | "conflicting_record"
+  | "chain_mismatch";
+
+export interface ReviewItem {
+  reviewId: string;
+  paymentId: string;
+  leg: LegName;
+  reason: ReviewReason;
+  message: string;
+  /** The records involved, best-ranked first where a ranking applies. */
+  candidates: Candidate[];
+}
+
+export interface CanonicalPayment {
+  paymentId: string;
+  anchor: { kind: RecordKind; recordId: string };
+  legs: Record<LegName, Leg>;
+  /** Later returns or refunds, linked on an exact identifier only. */
+  returns: Link[];
+  /** Provider fee rows linked on an exact identifier. */
+  fees: Link[];
+  /** Every original identifier from every linked record. */
+  identifiers: (Identifier & { recordId: string; kind: RecordKind })[];
+  /** Linked records in event-time order; records without an event time go last. */
+  timeline: { recordId: string; kind: RecordKind; eventTime?: string; observedTime: string; label: string }[];
+  /** Records linked here that arrived more than once. */
+  duplicateRecords: string[];
+}
+
+export interface MatchResult {
+  payments: CanonicalPayment[];
+  reviews: ReviewItem[];
+  /** Same ID, identical content, more than once: one record, every source kept. */
+  duplicateRecords: { recordId: string; kind: RecordKind; sources: SourceRef[] }[];
+  /** Records no payment links or reviews (e.g. a bank credit no identifier ties to anything). */
+  unlinked: { recordId: string; kind: RecordKind }[];
+}

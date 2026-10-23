@@ -209,6 +209,36 @@ the password prompt, then run step 1 from Settings → Data.
 To build and run the image locally: `docker build -t desk-preview . && docker run -p 3000:3000
 -e PREVIEW_USER=demo -e PREVIEW_PASSWORD=choose-one desk-preview`.
 
+## Payment records and three-way matching (product direction, chunk 1)
+
+`/payments`, code in `src/lib/payments/`.
+
+- **Canonical payment:** one payment ID (`PAY-…`, derived from the instruction ID, or from the
+  provider and its payment ID when there is no instruction) links instruction → on-chain
+  transfer(s) → provider record → bank record → ledger entry → later returns, plus fee rows.
+  Every record keeps its original identifiers (with the column they came from), its event time
+  as the source wrote it, its observed time, every source row (file, line, mapping version) or
+  explorer link plus raw-response SHA-256, and the original row unchanged.
+- **Imports with column mapping:** payment instructions, provider settlement reports and bank
+  records. Mappings are saved and versioned: an edit is the next version and every record names
+  the version that read it. Validation is the Files A/B code: missing required column rejects
+  the file, a bad row is listed with line, column and reason, nothing is trimmed or guessed,
+  an ID that looks like an email is refused, and the same file (SHA-256) is a no-op. A row
+  already held (same identifier, same content) adds a source to that record: a duplicate record,
+  not a second payment. Imports append, since providers send overlapping period reports.
+- **Provider status** is kept raw beside a mapped meaning. `COMPLETE` means "provider reports
+  complete", never "beneficiary credited". A status not in the mapping shows raw as "unmapped".
+- **BVNK** is the first provider format (`src/lib/payments/presets.ts`, with the docs URL for
+  each part). Another provider is another mapping; nothing in the matcher is BVNK specific.
+- **Matching** links on exact identifiers only: merchant reference = instruction ID, or the
+  instruction names the provider payment ID; chain + tx hash + transfer index; the bank row's
+  instruction or provider ID column. A hash with no transfer index links only when that
+  transaction carries exactly one token transfer. Several candidates, identifiers that
+  disagree, a chain that doesn't match, or a record that arrived with different content go to
+  review. Amount, time and address similarity only rank candidates and suggestions. A failed
+  chain lookup leaves the leg unknown, never missing. Bank free text is never parsed.
+- **Ledger leg** joins File B on the linked transfer (chain + hash + index).
+
 ## Not built yet (by plan)
 
 Auth, roles, row-level security, audit log, rule versioning and Settings editing (week 5):
