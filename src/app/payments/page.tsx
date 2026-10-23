@@ -5,6 +5,7 @@ import { Status } from "@/components/Status";
 import { formatTime } from "@/lib/format";
 import { demoModeOn } from "@/lib/demo/reset";
 import { paymentsStore } from "@/lib/payments/live";
+import { describeRedirect } from "@/lib/payments/match";
 import { allMappings } from "@/lib/payments/store";
 import { describe, LEG_LABELS, LEG_ORDER, MEANING_LABELS, paymentRow, recordIndex, REVIEW_REASONS } from "@/lib/payments/view";
 
@@ -42,14 +43,24 @@ export default async function PaymentsPage() {
               <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)" }}><h2>Needs review</h2></div>
               <div className="table-wrap">
                 <table className="table">
-                  <thead><tr><th>Payment</th><th>Leg</th><th>Why</th><th>Detail</th><th className="num">Candidates</th></tr></thead>
+                  <thead><tr><th>Review</th><th>Payment</th><th>Leg</th><th>Why</th><th>Detail</th><th>Held payment IDs</th><th className="num">Candidates</th></tr></thead>
                   <tbody>
                     {result.reviews.map((r) => (
                       <tr key={r.reviewId}>
+                        <td className="mono faint">{r.reviewId}</td>
                         <td><Link href={`/payments/${r.paymentId}`} className="mono">{r.paymentId}</Link></td>
                         <td>{LEG_LABELS[r.leg]}</td>
                         <td><Status status="warn" label={REVIEW_REASONS[r.reason]} /></td>
                         <td style={{ whiteSpace: "normal", minWidth: 320 }}>{r.message}</td>
+                        <td style={{ whiteSpace: "normal" }}>
+                          {r.candidates.filter((c) => c.reservedPaymentId).map((c) => (
+                            <div key={c.recordId}>
+                              <Link href={`/payments/${c.reservedPaymentId}`} className="mono">{c.reservedPaymentId}</Link>{" "}
+                              <span className="faint">(reserved) · {recs.get(c.recordId) ? describe(recs.get(c.recordId)!) : c.recordId}</span>
+                            </div>
+                          ))}
+                          {!r.candidates.some((c) => c.reservedPaymentId) && <span className="faint">—</span>}
+                        </td>
                         <td className="num">{r.candidates.length}</td>
                       </tr>
                     ))}
@@ -85,6 +96,20 @@ export default async function PaymentsPage() {
               </table>
             </div>
           </section>
+
+          {Object.keys(result.redirects ?? {}).length > 0 && (
+            <section className="panel" aria-label="Retired payment IDs">
+              <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
+                <h2>Retired payment IDs</h2>
+                <p className="faint" style={{ margin: "4px 0 0" }}>No payment ID ever disappears. Opening one of these goes to where it leads now.</p>
+              </div>
+              <ul style={{ margin: 0, padding: "8px 16px 12px 32px" }}>
+                {Object.values(result.redirects).map((r) => (
+                  <li key={r.from}><Link href={`/payments/${r.from}`} className="mono">{r.from}</Link> · {describeRedirect(r).slice(r.from.length + 1)}</li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           {result.unlinked.length > 0 && (
             <section className="panel" aria-label="Unlinked records">

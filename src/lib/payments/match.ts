@@ -18,7 +18,7 @@ import { compareDecimal, isDecimal } from "../decimal";
 import { CHAIN_NAMES, type Chain } from "../types";
 import type {
   BankRecord, Candidate, CanonicalPayment, ChainLookupSummary, ChainTransferRecord, InstructionRecord, Leg, LegName, Link,
-  LedgerEntryRecord, MatchResult, PaymentRecord, ProviderRecord, ReviewItem, ReviewReason, ReviewTarget,
+  LedgerEntryRecord, MatchResult, PaymentRecord, PaymentRedirect, ProviderRecord, ReviewItem, ReviewReason, ReviewTarget,
 } from "./types";
 
 export interface MatchInput {
@@ -30,6 +30,8 @@ export interface MatchInput {
   ledger?: LedgerEntryRecord[];
   /** Payment IDs from earlier runs, by anchor key. An assigned ID is never changed. */
   assigned?: Record<string, string>;
+  /** Redirects from earlier runs. A retired ID keeps its last known redirect until a newer one. */
+  redirects?: Record<string, PaymentRedirect>;
 }
 
 // ---- Grouping: one logical record per original identifier ----
@@ -308,25 +310,31 @@ export function matchPayments(input: MatchInput): MatchResult {
 
   // Payment IDs. An ID, once assigned to an anchor key, is never changed. An instruction that now
   // links a provider record which had a payment of its own takes over that payment's ID.
+  // Two passes, so an ID stays with the payment that owns it: first every payment takes the ID of
+  // its own anchor (instruction, or provider record when there is none); only then may a payment
+  // take over the ID of a provider record it now links.
   const assigned: Record<string, string> = { ...(input.assigned ?? {}) };
   const inUse = new Set<string>();
   const everAssigned = new Set(Object.values(assigned));
+  const keysOf = (d: Draft) => [
+    ...(d.ins ? [`instruction:${d.ins.key}`] : []),
+    ...(d.prov && (!d.ins || d.legs.provider?.state === "linked") ? [`provider:${d.prov.provider}:${d.prov.providerPaymentId}`] : []),
+  ];
+  const take = (d: Draft, id: string) => { d.paymentId = id; inUse.add(id); everAssigned.add(id); };
   for (const d of drafts) {
-    const keys = [
-      ...(d.ins ? [`instruction:${d.ins.key}`] : []),
-      ...(d.prov && (!d.ins || d.legs.provider?.state === "linked") ? [`provider:${d.prov.provider}:${d.prov.providerPaymentId}`] : []),
-    ];
-    const prior = keys.map((k) => assigned[k]).filter((x): x is string => !!x && !inUse.has(x));
-    let id = prior[0];
+    const own = assigned[keysOf(d)[0]];
+    if (own && !inUse.has(own)) take(d, own);
+  }
+  for (const d of drafts.filter((x) => !x.paymentId)) {
+    const keys = keysOf(d);
+    let id = keys.slice(1).map((k) => assigned[k]).find((x) => x && !inUse.has(x));
     for (let n = 0; !id; n++) {
       const fresh = paymentIdFor(n ? `${keys[0]}#${n}` : keys[0]);
       if (!inUse.has(fresh) && !everAssigned.has(fresh)) id = fresh;
     }
-    d.paymentId = id;
-    inUse.add(id);
-    for (const k of keys) assigned[k] ??= id;
-    everAssigned.add(id);
+    take(d, id);
   }
+  for (const d of drafts) for (const k of keysOf(d)) assigned[k] ??= d.paymentId;
 
   // 3. On-chain leg, from the instruction's and the provider record's exact references.
   const chainProposals = new Map<Draft, { record: ChainTransferRecord; links: Link[] }>();
@@ -474,8 +482,15 @@ export function matchPayments(input: MatchInput): MatchResult {
       }
       continue;
     }
+    // Tied only to the instruction: attach when both its instruction and provider legs are linked.
     for (const d of drafts.filter((x) => x.ins && r.merchantReference === x.ins.key)) {
-      d[bucket].push({ recordId: r.recordId, basis: "merchant_reference", detail: `${r.provider} ${r.type} row carries merchant reference ${r.merchantReference}` });
+      if (d.legs.instruction?.state === "linked" && d.legs.provider?.state === "linked") {
+        d[bucket].push({ recordId: r.recordId, basis: "merchant_reference", detail: `${r.provider} ${r.type} row carries merchant reference ${r.merchantReference}` });
+      } else {
+        const h = held.get(d) ?? { fees: [], returns: [] };
+        h[bucket].push(r);
+        held.set(d, h);
+      }
     }
   }
   for (const [d, h] of held) {
@@ -483,7 +498,9 @@ export function matchPayments(input: MatchInput): MatchResult {
     for (const bucket of ["fees", "returns"] as const) {
       if (!h[bucket].length) continue;
       addReview(d, bucket, "provider_leg_not_linked",
-        h[bucket].map((r) => `${r.provider} ${r.type} row ${r.providerPaymentId} relates to ${r.provider} payment ${r.relatesTo}, but this payment's provider leg is not linked (${state}).`).join(" "),
+        h[bucket].map((r) => r.relatesTo
+          ? `${r.provider} ${r.type} row ${r.providerPaymentId} relates to ${r.provider} payment ${r.relatesTo}, but this payment's provider leg is not linked (${state}).`
+          : `${r.provider} ${r.type} row ${r.providerPaymentId} carries merchant reference ${r.merchantReference}, but this payment's instruction and provider legs are not both linked (instruction ${legWord(d.legs.instruction)}, provider ${legWord(d.legs.provider)}).`).join(" "),
         h[bucket].map((r) => ({ recordId: r.recordId, score: 0, reasons: [] })));
     }
   }
@@ -542,16 +559,101 @@ export function matchPayments(input: MatchInput): MatchResult {
     }
   }
 
+  // A provider record held in a review keeps showing the payment ID it had on its own.
+  const carried = new Set(drafts.map((d) => d.paymentId));
+  const providerById = new Map(input.provider.map((r) => [r.recordId, r]));
+  const reservedFor = (recordId: string) => {
+    const r = providerById.get(recordId);
+    const id = r && assigned[`provider:${r.provider}:${r.providerPaymentId}`];
+    return id && !carried.has(id) ? id : undefined;
+  };
   const reviews: ReviewItem[] = pending.map((p) => {
     const reviewId = `REV-${p.d.paymentId.slice(4)}-${p.leg}`;
     if (p.legRef) p.legRef.reviewId = reviewId;
-    return { reviewId, paymentId: p.d.paymentId, leg: p.leg, reason: p.reason, message: p.message, candidates: p.candidates };
+    const candidates = p.candidates.map((c) => { const id = reservedFor(c.recordId); return id ? { ...c, reservedPaymentId: id } : c; });
+    return { reviewId, paymentId: p.d.paymentId, leg: p.leg, reason: p.reason, message: p.message, candidates };
   });
+
+  // Retired IDs: every ID ever assigned that no payment carries now gets a redirect to where its
+  // records are, or keeps its last known one. Nothing assigned is ever dropped.
+  const redirects: Record<string, PaymentRedirect> = { ...(input.redirects ?? {}) };
+  const locate = (key: string): PaymentRedirect["to"] & { reason: PaymentRedirect["reason"] } | undefined => {
+    const [kind, ...rest] = key.split(":");
+    if (kind === "instruction") {
+      const d = drafts.find((x) => x.ins?.key === rest.join(":"));
+      return d ? { kind: "payment", paymentId: d.paymentId, reason: "merged" } : undefined;
+    }
+    const g = provGroups.find((x) => `provider:${x.provider}:${x.providerPaymentId}` === key);
+    if (!g) return undefined;
+    const d = drafts.find((x) => x.prov === g && (x.legs.provider?.state === "linked" || !x.ins));
+    if (d) return { kind: "payment", paymentId: d.paymentId, reason: "merged" };
+    const ids = new Set(g.records.map((r) => r.recordId));
+    const rv = reviews.find((x) => x.candidates.some((c) => ids.has(c.recordId)));
+    return rv ? { kind: "review", reviewId: rv.reviewId, paymentId: rv.paymentId, reason: "held_in_review" } : undefined;
+  };
+  for (const id of everAssigned) {
+    if (carried.has(id)) { delete redirects[id]; continue; }
+    const at = Object.keys(assigned).filter((k) => assigned[k] === id).map(locate).find(Boolean);
+    if (at) {
+      const { reason, ...to } = at;
+      redirects[id] = { from: id, reason, to } as PaymentRedirect;
+    } else {
+      // Its records are gone. Keep where it last led only while that payment still exists.
+      const last = redirects[id];
+      const stillLeads = last && last.to.kind !== "none" && carried.has(last.to.paymentId);
+      if (!stillLeads) redirects[id] = { from: id, reason: "unheld", to: { kind: "none" } };
+    }
+  }
 
   const used = new Set<string>([...reviewed, ...linkedAnywhere]);
   const duplicateRecords = [...all.values()].filter((r) => r.sources.length > 1).map((r) => ({ recordId: r.recordId, kind: r.kind, sources: r.sources }));
   const unlinked = [...all.values()].filter((r) => !used.has(r.recordId) && r.kind !== "chain_transfer").map((r) => ({ recordId: r.recordId, kind: r.kind }));
-  return { payments, reviews, duplicateRecords, unlinked, paymentIds: assigned };
+  return { payments, reviews, duplicateRecords, unlinked, paymentIds: assigned, redirects };
+}
+
+const legWord = (l?: Leg) => (l?.state === "needs_review" ? "needs review" : l?.state ?? "missing");
+
+/** The one-line explanation shown wherever a retired ID is looked up. */
+export function describeRedirect(r: PaymentRedirect): string {
+  switch (r.reason) {
+    case "merged": return `${r.from} merged into ${r.to.paymentId}`;
+    case "held_in_review": return `${r.from} is held in review ${r.to.reviewId} on ${r.to.paymentId}`;
+    case "unheld": return `${r.from} is no longer held: its records were cleared`;
+  }
+}
+
+/**
+ * Resolve a payment ID or review ID from anywhere (a URL, an export, a review link) to the
+ * payment that carries it now, following redirects. `via` lists the redirects followed.
+ */
+export function resolvePaymentRef(result: MatchResult, ref: string):
+  { payment?: CanonicalPayment; review?: ReviewItem; via: PaymentRedirect[] } {
+  const via: PaymentRedirect[] = [];
+  const seen = new Set<string>();
+  let id = ref;
+  let review: ReviewItem | undefined;
+  // A review ID: REV-<payment>-<leg>. Current, or rebuilt from its payment part if that payment moved.
+  const rev = /^REV-([0-9A-F]{10})-([a-z]+)$/.exec(ref);
+  if (rev) {
+    review = result.reviews.find((r) => r.reviewId === ref);
+    if (review) return { payment: result.payments.find((p) => p.paymentId === review!.paymentId), review, via };
+    id = `PAY-${rev[1]}`;
+  }
+  while (!seen.has(id)) {
+    seen.add(id);
+    const payment = result.payments.find((p) => p.paymentId === id);
+    if (payment) {
+      review ??= rev ? result.reviews.find((r) => r.paymentId === id && r.leg === rev[2]) : undefined;
+      return { payment, review, via };
+    }
+    const r = result.redirects?.[id];
+    if (!r) break;
+    via.push(r);
+    if (r.to.kind === "none") break;
+    if (r.to.kind === "review") review = result.reviews.find((x) => x.reviewId === (r.to as { reviewId: string }).reviewId);
+    id = r.to.paymentId;
+  }
+  return { payment: undefined, review, via };
 }
 
 const l2basis = (l: LedgerEntryRecord) => (l.transferIndex === undefined ? "chain_tx_single_transfer" as const : "chain_tx_index" as const);

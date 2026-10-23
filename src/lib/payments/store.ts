@@ -12,7 +12,7 @@ import { checkMapping, importWithMapping, type ColumnMapping } from "./mapping";
 import { PRESET_MAPPINGS } from "./presets";
 import type {
   BankRecord, ChainLookupSummary, ChainTransferRecord, ImportKind, InstructionRecord, LedgerEntryRecord, MatchResult,
-  PaymentRecord, ProviderRecord,
+  PaymentRecord, PaymentRedirect, ProviderRecord,
 } from "./types";
 
 export interface ImportLog {
@@ -45,6 +45,13 @@ export interface PaymentsData {
   match?: { result: MatchResult; at: string };
   /** Payment IDs assigned so far, by anchor key. They never change once assigned. */
   paymentIds?: Record<string, string>;
+  /** Where each retired payment ID leads. */
+  paymentRedirects?: Record<string, PaymentRedirect>;
+}
+
+/** Remove every imported record, import log and match result. Mappings, assigned payment IDs and redirects stay. */
+export function clearRecords(d: PaymentsData): PaymentsData {
+  return { ...emptyPayments(), mappings: d.mappings, paymentIds: d.paymentIds, paymentRedirects: d.paymentRedirects };
 }
 
 export const emptyPayments = (): PaymentsData => ({

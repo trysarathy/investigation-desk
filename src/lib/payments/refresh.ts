@@ -21,8 +21,8 @@ export async function refreshMatching(data: PaymentsData, deps: LiveDeps, ledger
   for (const l of fetched.lookups) known.set(l.txHash, l);
   const chain = { transfers: [...transfers.values()], lookups: [...known.values()] };
   const { instruction: instructions, provider, bank } = data.records;
-  const result = matchPayments({ instructions, provider, bank, chain: chain.transfers, lookups: chain.lookups, ledger, assigned: data.paymentIds });
-  return { ...data, chain, paymentIds: result.paymentIds, match: { result, at: now().toISOString() } };
+  const result = matchPayments({ instructions, provider, bank, chain: chain.transfers, lookups: chain.lookups, ledger, assigned: data.paymentIds, redirects: data.paymentRedirects });
+  return { ...data, chain, paymentIds: result.paymentIds, paymentRedirects: result.redirects, match: { result, at: now().toISOString() } };
 }
 
 export async function refreshAndSave(store: PaymentsStore, deps: LiveDeps, ledger: LedgerEntryRecord[], now?: () => Date) {

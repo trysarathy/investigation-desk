@@ -170,6 +170,8 @@ export interface Candidate {
   recordId: string;
   score: number;
   reasons: string[];
+  /** A provider record that had its own payment keeps that payment ID while it is held here. */
+  reservedPaymentId?: string;
 }
 
 export type Leg =
@@ -218,6 +220,17 @@ export interface CanonicalPayment {
   duplicateRecords: string[];
 }
 
+/**
+ * Where a payment ID that no payment carries any more now leads. IDs are never reused or dropped:
+ *   merged: its records are linked into another payment;
+ *   held_in_review: its records are candidates in a review on another payment;
+ *   unheld: its records are no longer held (cleared); kept so the ID still explains itself.
+ */
+export type PaymentRedirect =
+  | { from: string; reason: "merged"; to: { kind: "payment"; paymentId: string } }
+  | { from: string; reason: "held_in_review"; to: { kind: "review"; reviewId: string; paymentId: string } }
+  | { from: string; reason: "unheld"; to: { kind: "none" } };
+
 export interface MatchResult {
   payments: CanonicalPayment[];
   reviews: ReviewItem[];
@@ -230,4 +243,6 @@ export interface MatchResult {
    * Fed back into the next run so an assigned ID never changes.
    */
   paymentIds: Record<string, string>;
+  /** Every retired payment ID and where it leads now. Fed back into the next run. */
+  redirects: Record<string, PaymentRedirect>;
 }

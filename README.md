@@ -246,10 +246,18 @@ To build and run the image locally: `docker build -t desk-preview . && docker ru
     didn't answer: unknown, unless the record names the chain it was found on.
   - An instruction that arrived with conflicting content holds its provider and chain legs in
     review too. A bank row naming two payments, or a provider ID no payment has, is reviewed.
-    Fee and return rows attach through `relates_to` only where that provider leg is linked;
+    Fee and return rows attach through `relates_to` only where that provider leg is linked, and
+    through a merchant reference only where the instruction and provider legs are both linked;
     otherwise they wait in a review on the payment. Amounts compare as decimals.
 - **Payment IDs never change once assigned** (kept in `.data/payments.json`, also across "Clear
   records"). An instruction that arrives for a provider-only payment takes that payment's ID.
+  An ID always stays with the payment that owns it; another payment can only take over an ID
+  nobody is using.
+- **Retired payment IDs never vanish.** An ID no payment carries any more redirects: "X merged
+  into Y", "X is held in review R on Y", or "X is no longer held" after its records were
+  cleared. `/payments/X`, a stale review ID, and `GET /api/payments/resolve?ref=X` all resolve
+  to the current payment. Provider records held in a review show their reserved IDs in the
+  review queue.
 - **Ledger leg** joins File B on the linked transfer (chain + hash + index).
 
 ## Not built yet (by plan)
