@@ -16,10 +16,12 @@ const KINDS: { kind: ImportKind; title: string }[] = [
   { kind: "instruction", title: "Payment instructions" },
   { kind: "provider", title: "Provider settlement reports" },
   { kind: "bank", title: "Bank records" },
+  { kind: "ledger", title: "Payout ledger" },
 ];
 const VALUE_MAPS: Record<ImportKind, (keyof NonNullable<ColumnMapping["values"]>)[]> = {
-  instruction: ["chain", "token"], provider: ["status", "type", "chain"], bank: ["direction"],
+  instruction: ["chain", "token"], provider: ["status", "type", "chain"], bank: ["direction"], ledger: ["status", "chain"],
 };
+const helpFor = (kind: ImportKind, k: string) => (kind === "ledger" && k === "status" ? "posted, pending, reversed, failed" : MAP_HELP[k]);
 const MAP_HELP: Record<string, string> = {
   status: "pending, awaiting_approval, processing, on_hold, provider_reports_complete, cancelled, expired, underpaid, overpaid, returned",
   type: "principal, fee, return, other",
@@ -203,7 +205,7 @@ function ImportPanel({ kind, title, mappings }: { kind: ImportKind; title: strin
           </div>
           {VALUE_MAPS[kind].map((k) => (
             <label key={k} style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
-              <span className="muted">{k} values, one per line as <span className="mono">RAW = meaning</span> ({MAP_HELP[k]}){k === "status" || k === "type" ? ". Anything not listed is kept raw as unmapped." : ". Empty: the file must use these names exactly."}</span>
+              <span className="muted">{k} values, one per line as <span className="mono">RAW = meaning</span> ({helpFor(kind, k)}){k === "status" || k === "type" ? ". Anything not listed is kept raw as unmapped." : ". Empty: the file must use these names exactly."}</span>
               <textarea className="mono" rows={Math.min(10, Math.max(2, (mapTexts[k] ?? "").split("\n").length))} value={mapTexts[k] ?? ""}
                 onChange={(e) => setMapTexts({ ...mapTexts, [k]: e.target.value })} aria-label={`${k} values`} />
             </label>

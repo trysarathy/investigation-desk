@@ -8,6 +8,7 @@ import type { SearchEntry } from "@/lib/view";
 
 const NAV = [
   { href: "/", label: "Queue" },
+  { href: "/inbox", label: "Inbox" },
   { href: "/payments", label: "Payments" },
   { href: "/bulk", label: "Bulk" },
   { href: "/settings", label: "Settings" },

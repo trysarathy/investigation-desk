@@ -21,8 +21,10 @@ export async function refreshMatching(data: PaymentsData, deps: LiveDeps, ledger
   for (const l of fetched.lookups) known.set(l.txHash, l);
   const chain = { transfers: [...transfers.values()], lookups: [...known.values()] };
   const { instruction: instructions, provider, bank } = data.records;
-  const result = matchPayments({ instructions, provider, bank, chain: chain.transfers, lookups: chain.lookups, ledger, assigned: data.paymentIds, redirects: data.paymentRedirects });
-  return { ...data, chain, paymentIds: result.paymentIds, paymentRedirects: result.redirects, match: { result, at: now().toISOString() } };
+  // The ledger leg reads the payout ledger and File B (deposits).
+  const allLedger = [...(data.records.ledger ?? []), ...ledger];
+  const result = matchPayments({ instructions, provider, bank, chain: chain.transfers, lookups: chain.lookups, ledger: allLedger, assigned: data.paymentIds, redirects: data.paymentRedirects, decisions: data.decisions });
+  return { ...data, chain, paymentIds: result.paymentIds, paymentRedirects: result.redirects, match: { result, at: now().toISOString(), depositLedger: ledger } };
 }
 
 export async function refreshAndSave(store: PaymentsStore, deps: LiveDeps, ledger: LedgerEntryRecord[], now?: () => Date) {

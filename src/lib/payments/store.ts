@@ -12,7 +12,7 @@ import { checkMapping, importWithMapping, type ColumnMapping } from "./mapping";
 import { PRESET_MAPPINGS } from "./presets";
 import type {
   BankRecord, ChainLookupSummary, ChainTransferRecord, ImportKind, InstructionRecord, LedgerEntryRecord, MatchResult,
-  PaymentRecord, PaymentRedirect, ProviderRecord,
+  PaymentRecord, PaymentRedirect, ProviderRecord, ReviewDecision,
 } from "./types";
 
 export interface ImportLog {
@@ -40,22 +40,25 @@ export interface PaymentsData {
   /** Saved versions only; the presets are version 1 of their mapping IDs. */
   mappings: ColumnMapping[];
   imports: ImportLog[];
-  records: { instruction: InstructionRecord[]; provider: ProviderRecord[]; bank: BankRecord[] };
+  records: { instruction: InstructionRecord[]; provider: ProviderRecord[]; bank: BankRecord[]; ledger: LedgerEntryRecord[] };
   chain: { transfers: ChainTransferRecord[]; lookups: ChainLookupSummary[] };
-  match?: { result: MatchResult; at: string };
+  /** The latest match, and the File B rows it read as deposit-ledger entries (not stored elsewhere). */
+  match?: { result: MatchResult; at: string; depositLedger?: LedgerEntryRecord[] };
   /** Payment IDs assigned so far, by anchor key. They never change once assigned. */
   paymentIds?: Record<string, string>;
   /** Where each retired payment ID leads. */
   paymentRedirects?: Record<string, PaymentRedirect>;
+  /** Review resolutions made in the app, applied on every run. Kept across Clear records. */
+  decisions?: ReviewDecision[];
 }
 
-/** Remove every imported record, import log and match result. Mappings, assigned payment IDs and redirects stay. */
+/** Remove every imported record, import log and match result. Mappings, assigned payment IDs, redirects and review decisions stay. */
 export function clearRecords(d: PaymentsData): PaymentsData {
-  return { ...emptyPayments(), mappings: d.mappings, paymentIds: d.paymentIds, paymentRedirects: d.paymentRedirects };
+  return { ...emptyPayments(), mappings: d.mappings, paymentIds: d.paymentIds, paymentRedirects: d.paymentRedirects, decisions: d.decisions };
 }
 
 export const emptyPayments = (): PaymentsData => ({
-  mappings: [], imports: [], records: { instruction: [], provider: [], bank: [] }, chain: { transfers: [], lookups: [] },
+  mappings: [], imports: [], records: { instruction: [], provider: [], bank: [], ledger: [] }, chain: { transfers: [], lookups: [] },
 });
 
 export interface PaymentsStore {
@@ -72,7 +75,14 @@ export class MemoryPaymentsStore implements PaymentsStore {
 export class FilePaymentsStore implements PaymentsStore {
   constructor(private readonly file: string) {}
   async load(): Promise<PaymentsData> {
-    try { return { ...emptyPayments(), ...JSON.parse(await readFile(this.file, "utf8")) }; } catch { return emptyPayments(); }
+    try {
+      const saved = JSON.parse(await readFile(this.file, "utf8")) as Partial<PaymentsData>;
+      const empty = emptyPayments();
+      // Files written before a record kind existed lack its bucket.
+      return { ...empty, ...saved, records: { ...empty.records, ...saved.records } } as PaymentsData;
+    } catch {
+      return emptyPayments();
+    }
   }
   async save(d: PaymentsData) {
     await mkdir(path.dirname(this.file), { recursive: true });
@@ -165,12 +175,15 @@ export function mergeRecords(bucket: PaymentRecord[], incoming: PaymentRecord[])
 }
 
 /** File B rows as ledger entries, so a payment's ledger leg can join on its on-chain transfer. */
+/** File B rows as deposit-ledger entries. Its statuses are the spec's fixed set, mapped here. */
+const FILE_B_MEANING = { CREDITED: "posted", PENDING: "pending", HELD: "pending", REVIEW: "pending", REJECTED: "failed" } as const;
+
 export function ledgerFromFileB(rows: LedgerRow[], fileSha256: string, observedTime: string): LedgerEntryRecord[] {
   return rows.map((r) => ({
-    recordId: `ldg:${r.depositId}`, kind: "ledger", entryId: r.depositId, chain: r.chain,
+    recordId: `ldg:${r.depositId}`, kind: "ledger", ledger: "deposit", entryId: r.depositId, chain: r.chain,
     ...(r.txHash ? { txHash: r.txHash.toLowerCase().replace(/^0x/, "") } : {}),
     ...(r.transferIndex !== undefined ? { transferIndex: r.transferIndex } : {}),
-    amount: r.amount, status: r.status, eventTime: r.creditedAt, observedTime,
+    amount: r.amount, currency: r.token, status: r.status, statusMeaning: FILE_B_MEANING[r.status], eventTime: r.creditedAt, observedTime,
     identifiers: [
       { role: "ledger_entry_id", sourceField: "deposit_id", value: r.depositId },
       ...(r.txHash ? [{ role: "tx_hash", sourceField: "tx_hash", value: r.txHash }] : []),

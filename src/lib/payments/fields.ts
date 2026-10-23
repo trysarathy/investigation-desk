@@ -2,7 +2,7 @@
 // screen uses these in the browser to check a file's header before sending it.
 
 import type { Chain, Token } from "../types";
-import type { ImportKind, ProviderRowType, ProviderStatusMeaning } from "./types";
+import type { ImportKind, LedgerStatusMeaning, ProviderRowType, ProviderStatusMeaning } from "./types";
 
 export type FieldType = "id" | "text" | "timestamp" | "date" | "decimal" | "signed_decimal" | "chain" | "token" | "address" | "hash" | "index" | "raw" | "direction";
 
@@ -56,7 +56,22 @@ export const FIELDS: Record<ImportKind, FieldSpec[]> = {
     { field: "remittance_info", label: "Remittance information (free text)", type: "text", required: false },
     { field: "return_of", label: "Return of (original bank reference)", type: "id", required: false, role: "return_of" },
   ],
+  ledger: [
+    { field: "entry_id", label: "Ledger entry ID", type: "id", required: true, role: "ledger_entry_id" },
+    { field: "booked_at", label: "Booked at (event time)", type: "timestamp", required: true },
+    { field: "amount", label: "Amount", type: "signed_decimal", required: true },
+    { field: "status", label: "Status (kept raw)", type: "raw", required: true },
+    { field: "currency", label: "Currency or token", type: "text", required: false },
+    { field: "instruction_id", label: "Instruction ID", type: "id", required: false, role: "instruction_id" },
+    { field: "provider_payment_id", label: "Provider payment ID", type: "id", required: false, role: "provider_payment_id" },
+    { field: "chain", label: "Chain", type: "chain", required: false },
+    { field: "tx_hash", label: "Transaction hash", type: "hash", required: false, role: "tx_hash" },
+    { field: "transfer_index", label: "Transfer index", type: "index", required: false, role: "transfer_index" },
+    { field: "reverses", label: "Reverses (entry ID of the entry this one reverses)", type: "id", required: false, role: "reverses" },
+],
 };
+
+export const LEDGER_STATUS_MEANINGS: LedgerStatusMeaning[] = ["posted", "pending", "reversed", "failed"];
 
 export const STATUS_MEANINGS: ProviderStatusMeaning[] = [
   "pending", "awaiting_approval", "processing", "on_hold", "provider_reports_complete",
@@ -83,7 +98,8 @@ export interface ColumnMapping {
     chain?: Record<string, Chain>;
     token?: Record<string, Token>;
     direction?: Record<string, "credit" | "debit">;
-    status?: Record<string, ProviderStatusMeaning>;
+    /** Provider status meanings for provider imports; ledger status meanings for ledger imports. */
+    status?: Record<string, ProviderStatusMeaning | LedgerStatusMeaning>;
     type?: Record<string, ProviderRowType>;
   };
   timestampFormat: TimestampFormat;

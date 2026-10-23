@@ -1,0 +1,2 @@
+bank_reference,booked_at,value_date,amount,currency,direction,instruction_id,provider_payment_id,remittance_info,return_of
+BNK-9,2026-10-22T10:00:00Z,,77.00,USD,CRDT,,,Settlement AP-2009,
