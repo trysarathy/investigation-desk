@@ -9,8 +9,8 @@ import { computeExceptions, recordsOf, type DepositCaseRow } from "./exceptions"
 import { applyAction, candidatesFrom, emptyInbox, syncInbox, type InboxAction, type InboxData } from "./inbox";
 import { recordKeyOf, resolvePaymentRef } from "./match";
 import { checkRoutes, type RouteSetting } from "./settings";
-import type { PaymentsData, PaymentsStore } from "./store";
-import type { ReviewDecision } from "./types";
+import { applyImport, clearRecords, type ImportLog, type PaymentsData, type PaymentsStore } from "./store";
+import type { ImportKind, ReviewDecision } from "./types";
 
 export interface InboxStore {
   load(): Promise<InboxData>;
@@ -51,7 +51,7 @@ export async function syncAll(stores: Stores, opts: { now: Date; cases?: Deposit
   const result = data.match?.result;
   const run = candidatesFrom(exceptions, result?.reviews ?? []);
   const paymentOf = (id: string) => (result ? resolvePaymentRef(result, id).payment?.paymentId : undefined) ?? id;
-  const synced = syncInbox(inbox, run, { now: opts.now, decisions: data.decisions ?? [], paymentOf });
+  const synced = syncInbox(inbox, run, { now: opts.now, decisions: data.decisions ?? [], paymentOf, redirects: result?.redirects });
   await stores.inbox.save(synced.inbox);
   await stores.audit.append(synced.audit);
   return synced.inbox;
@@ -115,6 +115,36 @@ export async function resolveReview(stores: Stores, req: { reviewId: string; rec
   await stores.audit.append([entry]);
   await syncAll(stores, { now, cases });
   return { decision };
+}
+
+/** Import one file with a mapping, re-match and refresh the inbox. Audit-logged with who did it. */
+export async function importFile(stores: Stores, req: { kind: ImportKind; fileName: string; bytes: Uint8Array; mappingId: string; mappingVersion?: number },
+  who: Who, now: Date, rematch: (data: PaymentsData) => Promise<PaymentsData>, cases?: DepositCaseRow[]): Promise<{ error?: string; log?: ImportLog }> {
+  const actorErr = checkActor(who.actor);
+  if (actorErr) return { error: actorErr };
+  const log = await applyImport(stores.payments, req.kind, req.fileName, req.bytes, req.mappingId, req.mappingVersion, now);
+  await stores.audit.append([{ at: now.toISOString(), actor: who.actor, actorKind: "person", ...(who.ip ? { ip: who.ip } : {}),
+    action: "payments.import", subject: req.fileName,
+    detail: `${req.kind} file ${req.fileName} (${log.mappingId} v${log.mappingVersion}): ${log.outcome}, ${log.acceptedRows} accepted, ${log.rejectedRows} rejected; SHA-256 ${log.sha256}`,
+    after: { importId: log.importId, newRecords: log.newRecords, duplicateRows: log.duplicateRows, fileErrors: log.fileErrors } }]);
+  if (log.outcome === "imported") {
+    await stores.payments.save(await rematch(await stores.payments.load()));
+    await syncAll(stores, { now, cases });
+  }
+  return { log };
+}
+
+/** Remove every imported record (mappings, payment IDs, redirects and decisions stay). Audit-logged. */
+export async function clearAll(stores: Stores, who: Who, now: Date, cases?: DepositCaseRow[]): Promise<{ error?: string }> {
+  const actorErr = checkActor(who.actor);
+  if (actorErr) return { error: actorErr };
+  const before = await stores.payments.load();
+  await stores.payments.save(clearRecords(before));
+  const counts = `${before.records.instruction.length} instructions, ${before.records.provider.length} provider, ${before.records.bank.length} bank, ${before.records.ledger.length} ledger records`;
+  await stores.audit.append([{ at: now.toISOString(), actor: who.actor, actorKind: "person", ...(who.ip ? { ip: who.ip } : {}),
+    action: "payments.clear", subject: "payment records", detail: `Cleared ${counts}.` }]);
+  await syncAll(stores, { now, cases });
+  return {};
 }
 
 export async function saveRoutes(stores: Stores, routes: RouteSetting[], who: Who, now: Date, cases?: DepositCaseRow[]): Promise<{ errors: string[] }> {

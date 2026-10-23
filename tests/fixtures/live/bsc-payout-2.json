@@ -1,0 +1,172 @@
+{
+ "name": "bsc-payout-2",
+ "hash": "0xe348b97f471659cf7ca7b65d65bff17a896e9a36f16bddd80fde1d9f91108325",
+ "explorer": "https://bscscan.com/tx/0xe348b97f471659cf7ca7b65d65bff17a896e9a36f16bddd80fde1d9f91108325",
+ "recordedAt": "2026-10-23T14:21:24.439Z",
+ "exchanges": [
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://bsc-dataseed.bnbchain.org/",
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_getTransactionByHash\",\"params\":[\"0xe348b97f471659cf7ca7b65d65bff17a896e9a36f16bddd80fde1d9f91108325\"]}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"blockHash\":\"0x1ef3113a21176b383121a6d2bb23b7a187578e2e64ef5e2f34b23349db2d25de\",\"blockNumber\":\"0x7b18a5a\",\"from\":\"0x16daf9293e49468f0f1c226abba207543e77761c\",\"gas\":\"0x124f8\",\"gasPrice\":\"0x8f0d180\",\"hash\":\"0xe348b97f471659cf7ca7b65d65bff17a896e9a36f16bddd80fde1d9f91108325\",\"input\":\"0xa9059cbb000000000000000000000000a34180c830e2c135b44f95cc96656818b428546600000000000000000000000000000000000000000000000eda573d115f648000\",\"nonce\":\"0x628c3\",\"to\":\"0x55d398326f99059ff775485246999027b3197955\",\"transactionIndex\":\"0x1a\",\"value\":\"0x0\",\"type\":\"0x1\",\"accessList\":[],\"chainId\":\"0x38\",\"v\":\"0x1\",\"r\":\"0xac9fab23284105a2e8cfde8e766e024862da7e176e136ba8c2d3492ac5e2fe3c\",\"s\":\"0x8c1dc8e6df1f3a9267c71143f402a443ef0a82e2583a78f791b4de42796eb8c\",\"yParity\":\"0x1\"}}"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://mainnet.base.org/",
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_getTransactionByHash\",\"params\":[\"0xe348b97f471659cf7ca7b65d65bff17a896e9a36f16bddd80fde1d9f91108325\"]}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}"
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://api.etherscan.io/v2/api?chainid=1&module=proxy&action=eth_getTransactionByHash&txhash=0xe348b97f471659cf7ca7b65d65bff17a896e9a36f16bddd80fde1d9f91108325&apikey=REDACTED"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"status\":\"0\",\"message\":\"NOTOK\",\"result\":\"Max calls per sec rate limit reached (3/sec)\"}"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://api.trongrid.io/wallet/gettransactionbyid",
+    "body": "{\"value\":\"e348b97f471659cf7ca7b65d65bff17a896e9a36f16bddd80fde1d9f91108325\"}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://bsc-dataseed.bnbchain.org/",
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_getTransactionReceipt\",\"params\":[\"0xe348b97f471659cf7ca7b65d65bff17a896e9a36f16bddd80fde1d9f91108325\"]}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"type\":\"0x1\",\"from\":\"0x16daf9293e49468f0f1c226abba207543e77761c\",\"to\":\"0x55d398326f99059ff775485246999027b3197955\",\"status\":\"0x1\",\"cumulativeGasUsed\":\"0x304749\",\"logsBloom\":\"0x00000400000000000000000008000000000000000000001000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000001000008000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000002000000000000000000000000200000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000\",\"logs\":[{\"address\":\"0x55d398326f99059ff775485246999027b3197955\",\"topics\":[\"0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef\",\"0x00000000000000000000000016daf9293e49468f0f1c226abba207543e77761c\",\"0x000000000000000000000000a34180c830e2c135b44f95cc96656818b4285466\"],\"data\":\"0x00000000000000000000000000000000000000000000000eda573d115f648000\",\"blockNumber\":\"0x7b18a5a\",\"transactionHash\":\"0xe348b97f471659cf7ca7b65d65bff17a896e9a36f16bddd80fde1d9f91108325\",\"transactionIndex\":\"0x1a\",\"blockHash\":\"0x1ef3113a21176b383121a6d2bb23b7a187578e2e64ef5e2f34b23349db2d25de\",\"blockTimestamp\":\"0x6ad9a223\",\"logIndex\":\"0x41\",\"removed\":false}],\"transactionHash\":\"0xe348b97f471659cf7ca7b65d65bff17a896e9a36f16bddd80fde1d9f91108325\",\"contractAddress\":null,\"gasUsed\":\"0x86df\",\"blockHash\":\"0x1ef3113a21176b383121a6d2bb23b7a187578e2e64ef5e2f34b23349db2d25de\",\"blockNumber\":\"0x7b18a5a\",\"transactionIndex\":\"0x1a\",\"effectiveGasPrice\":\"0x8f0d180\"}}"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://bsc-dataseed.bnbchain.org/",
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_getBlockByNumber\",\"params\":[\"0x7b18a5a\",false]}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"withdrawalsRoot\":\"0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421\",\"withdrawals\":[],\"hash\":\"0x1ef3113a21176b383121a6d2bb23b7a187578e2e64ef5e2f34b23349db2d25de\",\"parentHash\":\"0x02782ebdaa658741d6756ac35b73022057466283326620355763b40d5b01a24c\",\"sha3Uncles\":\"0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347\",\"miner\":\"0x5cf810ab8c718ac065b45f892a5badab2b2946b9\",\"stateRoot\":\"0xf2a4e7bbee029fb84314398410d3773a92aba1d7be3564c472b972bcf1f20330\",\"transactionsRoot\":\"0xcc2b37d18cdbe8366c88ac182ea621bd29da81cbe5738e65b273866821d37f94\",\"receiptsRoot\":\"0x22788064e6fb5c5a33202f853f4cf42706fb2ced6295c6266cae3afa2a041d02\",\"logsBloom\":\"0xc4b897294c38263a8764ed55bc793037b37aaf210e6650b304bfbf2dc26b9fbaeea874ae900680d6c15a9ff134c243a0d6994aa07d2f39a628a5224101257682ec3f56d377cb65f8998b8f39266989fbbc5ec065214c4d4afacd25eaa40a8c4273ff8b2f673bafe5443928511ef18e25ededd3835d5ce4304ac0f2fac3dfb22d704443420cfd78406f896962314c218367a725e1013c451bf7723fd709338f711e2de917104e023dcc5a85d40a33ba1a288cdf6babf4dcaa266e5bc39ceb8d1de840c4ca3ea03cecdcb10cba2290c6643ed58e90902e989afc9efeef9c44fb1bf89fe4915168f0e947ea278edd93bd611dd0ba6f83c1426675c4ca5e2be12531\",\"difficulty\":\"0x2\",\"number\":\"0x7b18a5a\",\"gasLimit\":\"0x42c1d80\",\"gasUsed\":\"0xc8a06b\",\"timestamp\":\"0x6ad9a223\",\"extraData\":\"0xdb8301070888636462373534386289676f312e32352e3132836c696ed38cc282f8b5831effffb8609661c236fbebe378f783e428536b9cdd7a0047c98d8e7c186ea767877bbb35a70bdcbf5fbcf45b9d27041ff19474e5db12ad1f27b269343ebd7f4c33a33234ad9f9fcb91a0b3e08507add87c933ef16e570f72b5c2490ecec8abaf9aaf73ad16f84c8407b18a58a094cd24e60a9e04f47cfda47809e6a4b4d1cca3d50877d2ead7317d6686c0c59d8407b18a59a002782ebdaa658741d6756ac35b73022057466283326620355763b40d5b01a24c805e6c651cb52ad1172d8666f059937c831c544b1309fd2c4e58cbb6e99983c4a63b8146464c4002d9d69ebc25b93e752f34d5b73f048239a1526e81b8cfb3622e00\",\"mixHash\":\"0x00000000000000000000000000000000000000000000000000000000000002ee\",\"nonce\":\"0x0000000000000000\",\"size\":\"0x384\",\"totalDifficulty\":\"0xf5a249c\",\"baseFeePerGas\":\"0x0\",\"transactions\":[\"0x43ecb53985e4e0423d8e601b114e31f3490343afdb7c3247fa8ab123982965da\",\"0x78531100734bcf267e6737aae326e7ec65436a064dba7d7c153449c2e80a6e97\",\"0xf6de114c815ecd2ab74b15b7ba2b2d86cfbf1c069ae94ed08794ebb23376ddf4\",\"0x2927fabd2f3a72cff169dd95f21bc8d3a4609866a47aabdb88986d2bbea16f0f\",\"0xbc18df722eaa48216798aab57c0538f41aeaa8a1f92bd61198ee690f24c793bd\",\"0xafb7c78c58516027b8ed9d3b1f8102094dc904cf29d1e504ab842c833fa6d116\",\"0xcab9109a3170ee93372ec074ca0e9d25c9327f16a2e356f6083ebd209186a2b3\",\"0x1b10101141a0dae68db2ea4993ea1e5e22f934692d7b8804b02d8f40a9cca40a\",\"0xcf83b7d54d65edb9b2d74340fee1f014511c57dd4ffb2af6b31c9c3b2c5afa56\",\"0xbe31695f9ce5e30a66823e3419e9f524093256e6772f423fe270a1e7281af04f\",\"0xb58265c682b29964457cc38d8dba90c094a2b843b70573038f4e67cb72989074\",\"0xb4cfed45a5e2aadbfb1d6e02d90d9c3fa347fe9b3bb5810ea82003d155d0c319\",\"0x02f761e8db1a06f2ab94c81eee13affadc8e1fee174bca0444ff3dfbf306a597\",\"0xac747627a1249a1ffa760d8193ef244c7c0a9e2e6d66e415faccfdf71bd5603c\",\"0x4e6022c33eb8d1ac0d4beef653a48f72e2565276852df290e8d727a6144975f3\",\"0x86c97f4fb8d2e1ffcfa279164973ed2124aa1129c6a02d7f7a7da5102c0b3c76\",\"0x58057db40522026e965cfd5e39a6a4961e0751618450f6cbacc144114499aa3f\",\"0x6227d0e7a95cdf2a2a340d2836ccd04da30a5248f7b22dbc8af6338973fa3c4e\",\"0x3de7940146d854ec58ddbb5aa402a0e455479606df486585c26893751afb8354\",\"0x2d21030b065b171d4b1a534acd88018c4635e7953605ba9815e7aedc0537079b\",\"0x6f10e0586d8ca839dbd4ca33ce1afa0950fd81366506432b54d561f2727eb4bc\",\"0x1a23e0972973d008c3ecee640f91ad7da42040667b278357cf9bc2858cabef58\",\"0xe767c2435229d764343c814d15dec5c5984c68d0fc12a1edf2dcfc429cedc147\",\"0xd8e4c529f01392b828e896e95f8e2d9f8895cb089d5ecd3100d173ebc234ec84\",\"0x3b230cc4909b6b70c72f6b97355e68e8a4412c12fa12d1f7d46818547fe1ab56\",\"0x26ba50f21327317c8a7262f8a6813dac8620d6a59219727bafbfb36b0b444f3e\",\"0xe348b97f471659cf7ca7b65d65bff17a896e9a36f16bddd80fde1d9f91108325\",\"0xbf131ce37d75a8ded1bc7d13099bdfc658fe9d53a51305135d36469b0b1ac9ad\",\"0xa961dc7ceb3d8541367ebaff3fddc9372d4271395a0b1bca8aee9b34c7d12aa9\",\"0x43bf34ea447139b543f86540f9d7e3ece22d83abfd6232d08928339d71aafce1\",\"0xebdd736a8e161c615208980792ed4bac9b6cc803128c14d6ea8af0cb84054fe1\",\"0xd5e0f364fcacbe9e83a0d6c9aef7260b04891914774931ccbd7360185856e717\",\"0xb882bbeb0f045b91ea1f082a376ba7fca3b22ece5a42addb566ce7f1d9cada43\",\"0xac8dd6baab17f7bc3a34f92a1d6d227cf41e67d41eb5d8dc8138a01f0b47ec4d\",\"0x7011bd0a69d79eada277d9be6730e2d545a74f062220a3779c3e72618b8db989\",\"0x1349073beb9c89f8098c0877d0f58d1df3118d5897bcdbb707550c9cc8a6e699\",\"0x47135eddc0afd414b68c99d062a8ec9caabe87ed7bd7f298229b12fa5e21f988\",\"0x1e0e67bda5771d50ce84fdc2cc8efdde67374febaab688755ccedafd88da1f64\",\"0xfb2d216982a2544d731ad3b834efaf55230a9950c675f7a897d4ebd7e1d68c7c\",\"0x14f0c02cdac5d521375c2d223b7100a59cdf11248c089de370abbd5f11ea16f7\",\"0x7ffb0744040f1b2780a0971be8d461e636f29dde5bbc60b0118d0568b7e149ab\",\"0xc7059d3f9b05873658e71dc725ad72230249a029a71e5035a2d544d57e5ab7f8\",\"0xc402080b69ef7a5b0fcf9301ced3b7c6d5ec6f940e94a8e84fe0a6148f246bc2\",\"0x4c0aa8786f5af9a2dd206f921a56aac8f31eef1f97369ef4af247f8d32a77381\",\"0x7b95f2fd8248d95a423614be6a47c43bb6315c316cae1439e630ebfeabb3d122\",\"0xf84337f0b30cf373c1eec1a96bf0d7c784368b0c14a16509d25feabb7c2455fd\",\"0x784c681a07b01f072d96363528ad0ec691f490444b0e835fb335e205c0c2eb80\",\"0x3a71ec28a94eaefa0775d242090a2eee917e73efaf12469d0637b9357500f298\",\"0x4fccc31aaa4d786dd84d4b8ce41df2a5a7c92b5ad7dd99c38838b6e2bbcaa033\",\"0x27ca3f3805030834fc2c9f93bf26f0d62093d1610cca63202f3410f40e1ff3fe\",\"0x3d6828efaec2a74834576e97e7c645348997a3b23ef233b0968a2b3dadf7971f\",\"0xbae1b9517e1f850fd1e7caa3903ac333c77e5155d0419a52b6a94b6978d8374e\",\"0x9327e63d2e47ebff8fe4ca5c200fce7d70bcfb09be56e8f86f5a03e4f7d2bd89\",\"0xa1b7ae2858b55268e79519f64cc7d45e57073d635f9dbea5899b7074215d043b\",\"0x81f29733c57e7de5a74e9e9c75456eb469dd89644debf9660a7e8d64d0cc6f3d\",\"0x0d1acbc9e4586c319fedc0cc1811fb52e2149cff715480fa511d29a91c29c20c\",\"0xb5eaf1b2c381b9e5a61b877e55093888ef423c849f3153fc97a75a6f4dc1a75b\",\"0x3adebd917bc69d171e1472a7ec06172b6fc593efb556c019890809f5edd4bd14\",\"0x3926730bc29995ce23da40a7572def98a7faa697604ba3be0e39018ec909f103\",\"0x5595540db33acfe6cc5cec3908e283ac065cf432db5cbb7edea6691530871402\",\"0x82299c4a71ff111d85c4bbfcc54e8473b53f3827688c398963828be4dc977b72\",\"0x284ce6b4be97da527053e098aa5b856ee3c9c69f69bcb613f6fafeb47d1e6750\",\"0x29fa9df5eb4714b20018f420f15d25f45071c43c111143f04d76b711602ab692\",\"0x95aa7f5f2d2b52cdeb3f9627f27f1527d0415c775a2c20dbf0ddf988feb95375\",\"0xb31d5144e30e04ce282494745a613ec2c0c66578ee371ed40b874dec7e2bce93\",\"0xaed5c6e67e31ffe73467352c874903c5691994589248f23927f4e30dd0d3f2a2\",\"0x470f9d4e2a743f2c3f4c611d48bff46854dfa1da4cac61bda68f2b8e7b6bfa93\",\"0x2d14740d4d90801c42f7e48946a764215da17f71fcb7ca2163fd47611554a3b0\",\"0x941f07cf788cb2c675160e7890fa56d8ba27eb260b7ee0c028d3aadc8c4dacd8\",\"0xcb4bad4b5f29d1aeb5debf1de6c6d1dd2838f68aadcc9814b1266a970ca507f5\",\"0x2e25e67528ed02a7c543c2a351d8b261c672ff51a47d618dd2d68b9a5e2064b5\",\"0x845b91a191b87f2f97903de1cbf0229ca2104b55f4e1af4aaf29c4fff64cadd6\",\"0x180f3f4416dbcb97e579371fd27d988d03a0722e8ac7261738b8cb3daee2a835\",\"0xc9ac6d1bc5b9996659532bad7b6f66e996c8c33204254406100ce94855cb6ffa\",\"0x2e8ca40d4b8d488a8af2563bd896309fd5d1987efd9cdd422e8ed24cf302bf2e\",\"0x4735a0ede7ef2b2eba79b108138f5adf5c25ab31e8fc7c6a07998219378d8189\"],\"uncles\":[],\"blobGasUsed\":\"0x0\",\"excessBlobGas\":\"0x0\",\"parentBeaconBlockRoot\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"requestsHash\":\"0x00000000000000000000000249d91b1ab0cc6a1591c2e5863e602d7159d36149\",\"milliTimestamp\":\"0x1a162215ba6\"}}"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://mainnet.optimism.io/",
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_getTransactionByHash\",\"params\":[\"0xe348b97f471659cf7ca7b65d65bff17a896e9a36f16bddd80fde1d9f91108325\"]}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"result\":null,\"id\":1}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://bsc-dataseed.bnbchain.org/",
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_blockNumber\",\"params\":[]}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x7b58689\"}"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://bsc-dataseed.bnbchain.org/",
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_call\",\"params\":[{\"to\":\"0x55d398326f99059ff775485246999027b3197955\",\"data\":\"0x95d89b41\"},\"latest\"]}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000045553445400000000000000000000000000000000000000000000000000000000\"}"
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://api.etherscan.io/v2/api?chainid=137&module=proxy&action=eth_getTransactionByHash&txhash=0xe348b97f471659cf7ca7b65d65bff17a896e9a36f16bddd80fde1d9f91108325&apikey=REDACTED"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"status\":\"0\",\"message\":\"NOTOK\",\"result\":\"Max calls per sec rate limit reached (3/sec)\"}"
+   }
+  },
+  {
+   "request": {
+    "method": "POST",
+    "url": "https://bsc-dataseed.bnbchain.org/",
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_call\",\"params\":[{\"to\":\"0x55d398326f99059ff775485246999027b3197955\",\"data\":\"0x313ce567\"},\"latest\"]}"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x0000000000000000000000000000000000000000000000000000000000000012\"}"
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://api.etherscan.io/v2/api?chainid=42161&module=proxy&action=eth_getTransactionByHash&txhash=0xe348b97f471659cf7ca7b65d65bff17a896e9a36f16bddd80fde1d9f91108325&apikey=REDACTED"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://api.etherscan.io/v2/api?chainid=1&module=proxy&action=eth_getTransactionByHash&txhash=0xe348b97f471659cf7ca7b65d65bff17a896e9a36f16bddd80fde1d9f91108325&apikey=REDACTED"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}\n"
+   }
+  },
+  {
+   "request": {
+    "method": "GET",
+    "url": "https://api.etherscan.io/v2/api?chainid=137&module=proxy&action=eth_getTransactionByHash&txhash=0xe348b97f471659cf7ca7b65d65bff17a896e9a36f16bddd80fde1d9f91108325&apikey=REDACTED"
+   },
+   "response": {
+    "status": 200,
+    "headers": {},
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}\n"
+   }
+  }
+ ],
+ "note": "Recorded without API keys; every chain answered."
+}

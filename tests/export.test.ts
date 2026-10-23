@@ -45,6 +45,8 @@ async function full(): Promise<Stores> {
   await s.payments.save(await rematch(await s.payments.load()));
   await saveRoutes(s, [{ routeId: "tp-tron", name: "TP tron", match: { provider: "TP", chain: "tron", token: "USDT" }, deadlineMinutes: 120, graceMinutes: 30,
     expectedLegs: ["instruction", "provider", "chain", "ledger"], fee: { kind: "fixed", amount: "1.00" } },
+  { routeId: "tp-bsc", name: "TP bsc", match: { provider: "TP", chain: "bsc", token: "USDT" }, deadlineMinutes: 120, graceMinutes: 30,
+    expectedLegs: ["instruction", "provider", "chain", "ledger"], fee: { kind: "fixed", amount: "0.01" } },
   { routeId: "default", name: "Any", match: {}, deadlineMinutes: 1440, graceMinutes: 60, expectedLegs: ["instruction", "provider", "chain", "ledger"], fee: { kind: "none" } }], ANA, NOW);
   return s;
 }
@@ -72,9 +74,10 @@ describe("reconciled export", () => {
     const rows = parseCsv(reconciledCsv(await s.payments.load(), inbox));
     expect(Object.keys(rows[0])).toEqual(EXPORT_COLUMNS);
     const by = (id: string) => rows.find((r) => r.instruction_id === id)!;
-    expect(by("INS-2003")).toMatchObject({ reconciliation: "exceptions open" });
+    // Every leg linked, the 0.01 difference explained by the route's fee rule, nothing open.
+    expect(by("INS-2003")).toMatchObject({ reconciliation: "reconciled", open_items: "" });
     expect(by("INS-2001")).toMatchObject({ reconciliation: "exceptions open", provider_payment_id: "AP-2001", provider_status: "DONE",
-      provider_status_meaning: "provider_reports_complete", ledger_entry_id: "L-2001", amount_ledger: "-655.000000", amount_chain: "655.000000", leg_ledger: "linked" });
+      provider_status_meaning: "provider_reports_complete", ledger_entry_id: "L-2001", amount_ledger: "-61.23001201", amount_chain: "61.230012010000000000", leg_ledger: "linked" });
     expect(by("INS-2001").open_items).toMatch(/fee_mismatch/);
     expect(by("INS-2010")).toMatchObject({ reconciliation: "in review" });
     expect(rows.every((r) => r.requested_id === r.payment_id && r.resolution === "current")).toBe(true);
@@ -82,9 +85,9 @@ describe("reconciled export", () => {
 
   it("a fully linked payment with nothing open is reconciled", async () => {
     const s = await fresh();
-    await applyImport(s.payments, "instruction", "i.csv", enc("instruction_id,created_at,amount,chain,token,tx_hash\nINS-1,2026-10-22T05:20:00Z,1999.99,bsc,USDT,0x71a78d3bef17cf469a2296074d9569c57c2b288e394a379b12e6a7108de87c72\n"), "instructions-standard", undefined, NOW);
-    await applyImport(s.payments, "provider", "p.csv", enc("payment_id,our_ref,state,amount,currency,created,hash,kind,parent\nAP-1,INS-1,DONE,1999.99,USDT,2026-10-22T05:35:00Z,,PAYMENT,\n"), "tp", undefined, NOW);
-    await applyImport(s.payments, "ledger", "l.csv", enc("entry_id,booked_at,amount,status,currency,instruction_id\nL-1,2026-10-22T05:40:00Z,-1999.99,POSTED,USDT,INS-1\n"), "payout-ledger-standard", undefined, NOW);
+    await applyImport(s.payments, "instruction", "i.csv", enc("instruction_id,created_at,amount,chain,token,tx_hash\nINS-1,2026-10-22T05:35:00Z,1400,bsc,USDT,0x7c1b18c35118e4aa40eb18f109a954cb6720db82384525dd9e8861a9bc26a7c4\n"), "instructions-standard", undefined, NOW);
+    await applyImport(s.payments, "provider", "p.csv", enc("payment_id,our_ref,state,amount,currency,created,hash,kind,parent\nAP-1,INS-1,DONE,1400,USDT,2026-10-22T05:43:00Z,,PAYMENT,\n"), "tp", undefined, NOW);
+    await applyImport(s.payments, "ledger", "l.csv", enc("entry_id,booked_at,amount,status,currency,instruction_id\nL-1,2026-10-22T05:50:00Z,-1400,POSTED,USDT,INS-1\n"), "payout-ledger-standard", undefined, NOW);
     await s.payments.save(await rematch(await s.payments.load()));
     const rows = parseCsv(reconciledCsv(await s.payments.load(), await syncAll(s, { now: NOW })));
     expect(rows).toHaveLength(1);
@@ -148,7 +151,7 @@ describe("evidence pack", () => {
     const evidence = pack.sections.find((x) => x.heading === "Evidence")!.rows!;
     expect(evidence.find(([k]) => k === "Fee record")![1]).toMatch(/\[source: p\.csv line 3 · tp v1\]$/);
     const timeline = pack.sections.find((x) => x.heading.startsWith("Timeline"))!.lines!;
-    expect(timeline.some((l) => l.includes("source: https://tronscan.org/#/transaction/056fbff6"))).toBe(true);
+    expect(timeline.some((l) => l.includes("source: https://bscscan.com/tx/0xdd30c41d"))).toBe(true);
     const chain = pack.sections.find((x) => x.heading.startsWith("Chain responses"))!.lines!;
     expect(chain[0]).toMatch(/[0-9a-f]{64}/);
     expect(pack.sections.find((x) => x.heading === "Audit log entries")!.lines![0]).toMatch(/system · inbox\.opened/);

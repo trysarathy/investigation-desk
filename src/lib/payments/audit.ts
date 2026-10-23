@@ -37,6 +37,14 @@ export class MemoryAuditLog implements AuditLog {
   async list() { return structuredClone(this.entries); }
 }
 
+// Appends to one file run one at a time (per process), so two writers never take the same number.
+const queues = new Map<string, Promise<unknown>>();
+function serially<T>(key: string, job: () => Promise<T>): Promise<T> {
+  const next = (queues.get(key) ?? Promise.resolve()).then(job, job);
+  queues.set(key, next.catch(() => undefined));
+  return next;
+}
+
 export class FileAuditLog implements AuditLog {
   constructor(private readonly file: string) {}
   async list(): Promise<AuditEntry[]> {
@@ -46,13 +54,16 @@ export class FileAuditLog implements AuditLog {
       return [];
     }
   }
-  async append(drafts: AuditDraft[]) {
-    if (!drafts.length) return [];
-    const start = (await this.list()).length;
-    const added = drafts.map((d, i) => ({ seq: start + i + 1, ...d }));
-    await mkdir(path.dirname(this.file), { recursive: true });
-    await appendFile(this.file, added.map((e) => JSON.stringify(e)).join("\n") + "\n");
-    return added;
+  append(drafts: AuditDraft[]): Promise<AuditEntry[]> {
+    if (!drafts.length) return Promise.resolve([]);
+    return serially(path.resolve(this.file), async () => {
+      // Continue from the last number written, so numbers only ever increase.
+      const last = (await this.list()).at(-1)?.seq ?? 0;
+      const added = drafts.map((d, i) => ({ seq: last + i + 1, ...d }));
+      await mkdir(path.dirname(this.file), { recursive: true });
+      await appendFile(this.file, added.map((e) => JSON.stringify(e)).join("\n") + "\n");
+      return added;
+    });
   }
 }
 

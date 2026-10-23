@@ -8,8 +8,8 @@ import { matchPayments } from "./match";
 import type { PaymentsData, PaymentsStore } from "./store";
 import type { LedgerEntryRecord } from "./types";
 
-export async function refreshMatching(data: PaymentsData, deps: LiveDeps, ledger: LedgerEntryRecord[], now: () => Date = () => new Date()):
-  Promise<PaymentsData> {
+export async function refreshMatching(data: PaymentsData, deps: LiveDeps, ledger: LedgerEntryRecord[], now: () => Date = () => new Date(),
+  opts: { depositAddresses?: { chain: string; address: string }[] } = {}): Promise<PaymentsData> {
   const records = [...data.records.instruction, ...data.records.provider];
   const known = new Map(data.chain.lookups.map((l) => [l.txHash, l]));
   // Settled: found, with every other chain answering "not found". Anything else is asked again.
@@ -23,12 +23,13 @@ export async function refreshMatching(data: PaymentsData, deps: LiveDeps, ledger
   const { instruction: instructions, provider, bank } = data.records;
   // The ledger leg reads the payout ledger and File B (deposits).
   const allLedger = [...(data.records.ledger ?? []), ...ledger];
-  const result = matchPayments({ instructions, provider, bank, chain: chain.transfers, lookups: chain.lookups, ledger: allLedger, assigned: data.paymentIds, redirects: data.paymentRedirects, decisions: data.decisions });
+  const result = matchPayments({ instructions, provider, bank, chain: chain.transfers, lookups: chain.lookups, ledger: allLedger, assigned: data.paymentIds, redirects: data.paymentRedirects, decisions: data.decisions, depositAddresses: opts.depositAddresses });
   return { ...data, chain, paymentIds: result.paymentIds, paymentRedirects: result.redirects, match: { result, at: now().toISOString(), depositLedger: ledger } };
 }
 
-export async function refreshAndSave(store: PaymentsStore, deps: LiveDeps, ledger: LedgerEntryRecord[], now?: () => Date) {
-  const next = await refreshMatching(await store.load(), deps, ledger, now);
+export async function refreshAndSave(store: PaymentsStore, deps: LiveDeps, ledger: LedgerEntryRecord[], now?: () => Date,
+  opts: { depositAddresses?: { chain: string; address: string }[] } = {}) {
+  const next = await refreshMatching(await store.load(), deps, ledger, now, opts);
   await store.save(next);
   return next;
 }

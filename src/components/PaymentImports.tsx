@@ -10,6 +10,7 @@ import { parseCsv } from "@/lib/csv/parse";
 import { FIELDS, type ColumnMapping } from "@/lib/payments/fields";
 import type { ImportLog } from "@/lib/payments/store";
 import type { ImportKind } from "@/lib/payments/types";
+import { useActor } from "./ActingAs";
 import { Status } from "./Status";
 
 const KINDS: { kind: ImportKind; title: string }[] = [
@@ -80,6 +81,7 @@ function parseMapText(t: string): { map?: Record<string, string>; error?: string
 
 function ImportPanel({ kind, title, mappings }: { kind: ImportKind; title: string; mappings: ColumnMapping[] }) {
   const router = useRouter();
+  const actor = useActor();
   const latest = useMemo(() => latestOf(mappings), [mappings]);
   const [selectedId, setSelectedId] = useState(latest[0]?.mappingId ?? "");
   const base = latest.find((m) => m.mappingId === selectedId) ?? latest[0];
@@ -133,7 +135,7 @@ function ImportPanel({ kind, title, mappings }: { kind: ImportKind; title: strin
       const m = changed ? await save() : draft;
       if (!m) return;
       const body = new FormData();
-      body.set("file", file); body.set("mappingId", m.mappingId); body.set("mappingVersion", String(m.version));
+      body.set("file", file); body.set("mappingId", m.mappingId); body.set("mappingVersion", String(m.version)); body.set("actor", actor);
       const res = await fetch(`/api/payments/imports/${kind}`, { method: "POST", body });
       const json = await res.json();
       if (json.error) setMessage({ kind: "error", text: json.error });
@@ -157,7 +159,8 @@ function ImportPanel({ kind, title, mappings }: { kind: ImportKind; title: strin
       <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <input type="file" accept=".csv,text/csv" aria-label={`Choose ${title} CSV`} onChange={(e) => void readHeader(e.target.files?.[0])} />
-          <button className="btn btn-primary" disabled={!file || busy || !!mapError || missingRequired.length > 0} onClick={() => void run()}>
+          <button className="btn btn-primary" disabled={!actor || !file || busy || !!mapError || missingRequired.length > 0} onClick={() => void run()}
+            title={actor ? undefined : "Set Acting as first: imports are audit-logged."}>
             {busy ? "Importing…" : changed ? `Save as v${(base?.version ?? 0) + 1} and import` : `Import with v${draft.version}`}
           </button>
           {changed && <button className="btn" disabled={busy || !!mapError} onClick={() => void save()}>Save as v{(base?.version ?? 0) + 1}</button>}

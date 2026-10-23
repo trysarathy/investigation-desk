@@ -184,6 +184,7 @@ export function ledgerFromFileB(rows: LedgerRow[], fileSha256: string, observedT
     ...(r.txHash ? { txHash: r.txHash.toLowerCase().replace(/^0x/, "") } : {}),
     ...(r.transferIndex !== undefined ? { transferIndex: r.transferIndex } : {}),
     amount: r.amount, currency: r.token, status: r.status, statusMeaning: FILE_B_MEANING[r.status], eventTime: r.creditedAt, observedTime,
+    toAddress: r.toAddress,
     identifiers: [
       { role: "ledger_entry_id", sourceField: "deposit_id", value: r.depositId },
       ...(r.txHash ? [{ role: "tx_hash", sourceField: "tx_hash", value: r.txHash }] : []),

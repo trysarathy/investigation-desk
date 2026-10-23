@@ -25,7 +25,9 @@ export async function rematchData(data: PaymentsData): Promise<PaymentsData> {
   const ledger = ws.fileB ? ledgerFromFileB(ws.fileB.rows, ws.fileB.upload.sha256, ws.fileB.upload.uploadedAt) : [];
   // Without chain keys, the demo workspace replays its recorded chain responses; anything else is looked up live.
   const deps = !liveKeysPresent() && ws.demo ? demoDeps() : liveDeps();
-  return refreshMatching(data, deps, ledger);
+  // File A says which addresses are the company's deposit addresses: transfers into them are inbound.
+  const depositAddresses = (ws.fileA?.rows ?? []).map((r) => ({ chain: r.chain, address: r.address }));
+  return refreshMatching(data, deps, ledger, undefined, { depositAddresses });
 }
 
 /** Re-run matching on what is held, save it, and bring the inbox up to date. */
