@@ -14,6 +14,7 @@
 //                          passed and an expected leg is still not linked.
 //   unmatched_settlement   a provider record no instruction carries, or a bank, fee or return row
 //                          no identifier ties to any payment.
+//   unmatched_ledger_entry a payout-ledger entry no identifier ties to any payment (Medium).
 //   contradiction          after the provider reported complete, a later return, cancellation or
 //                          reversal arrived; or the transfer failed; or the ledger reversed a posting.
 //   D01–D18                deposit investigations, one more family, from the case queue.
@@ -32,7 +33,8 @@ import type {
 } from "./types";
 
 export type PaymentExceptionCode =
-  | "missing_leg" | "duplicate_record" | "amount_mismatch" | "fee_mismatch" | "overdue" | "unmatched_settlement" | "contradiction";
+  | "missing_leg" | "duplicate_record" | "amount_mismatch" | "fee_mismatch" | "overdue" | "unmatched_settlement" | "unmatched_ledger_entry"
+  | "contradiction";
 
 export const EXCEPTION_LABELS: Record<PaymentExceptionCode, string> = {
   missing_leg: "Missing leg",
@@ -41,6 +43,7 @@ export const EXCEPTION_LABELS: Record<PaymentExceptionCode, string> = {
   fee_mismatch: "Fee mismatch",
   overdue: "Overdue",
   unmatched_settlement: "Unmatched settlement",
+  unmatched_ledger_entry: "Unmatched ledger entry",
   contradiction: "Contradiction",
 };
 
@@ -235,8 +238,16 @@ function missingLegs(v: View, recs: Map<string, PaymentRecord>, now: Date, base:
     let confidence: Confidence = "High";
     let why: string;
     if (leg === "chain" && providerComplete) {
-      title = "Missing leg: provider reports complete, but there is no on-chain transfer";
-      why = "provider says complete";
+      // A hash the chains all said they don't have is a fact; no hash at all is only an absence.
+      const hashReported = !!v.ins?.txHash || v.providerHistory.some((r) => r.txHash);
+      if (hashReported) {
+        title = "Missing leg: provider reports complete, but its transaction is on no supported chain";
+        why = "provider says complete; hash not on chain";
+      } else {
+        title = "Missing leg: provider reports complete, but no transaction hash was reported";
+        confidence = "Medium";
+        why = "provider says complete; no hash reported";
+      }
     } else if (laterLinked.length) {
       title = `Missing leg: no ${LEG_NOUN[leg]}, though the ${laterLinked.map((x) => LEG_NOUN[x]).join(" and ")} ${laterLinked.length > 1 ? "are" : "is"} linked`;
       why = `later stage ${laterLinked.join(",")}`;
@@ -261,7 +272,9 @@ function missingLegs(v: View, recs: Map<string, PaymentRecord>, now: Date, base:
     ];
     out.push({
       ...(base("missing_leg", leg) as Pick<PaymentException, "exceptionId" | "family" | "code" | "subject">),
-      title, confidence, evidence, nextStep: MISSING_NEXT[leg], fingerprint: `missing ${leg}: ${why}`, occurredAt: prevAt,
+      title, confidence, evidence,
+      nextStep: why.endsWith("no hash reported") ? "Ask the provider for the on-chain transaction hash; until then the transfer can't be checked." : MISSING_NEXT[leg],
+      fingerprint: `missing ${leg}: ${why}`, occurredAt: prevAt,
     });
   }
   return out;
@@ -298,58 +311,70 @@ function expectedFee(route: RouteSetting, reference: string): string | undefined
 }
 
 function amountRules(v: View, base: (c: PaymentExceptionCode, d?: string) => object, routeEv: ExceptionEvidence): PaymentException[] {
+  // Compare within each asset: the instruction (when it names a token), provider, transfer, ledger
+  // and bank amounts that share an asset. A leg with no asset, or alone in its asset, isn't compared.
   const amounts = amountsOf(v);
-  const ref = amounts[0];
-  if (!ref || !ref.asset) return [];
-  const sameAsset = (a: Amount) => !!a.asset && a.asset.toUpperCase() === ref.asset!.toUpperCase();
-  const feeRows = v.fees.filter((f) => isAmount(f.amount) && (!f.currency || f.currency.toUpperCase() === ref.asset!.toUpperCase()));
-  const feeSum = feeRows.length ? sum(feeRows.map((f) => abs(f.amount))) : undefined;
-  const ruleFee = expectedFee(v.route, ref.amount);
+  const groups = new Map<string, Amount[]>();
+  for (const a of amounts) if (a.asset) groups.set(a.asset.toUpperCase(), [...(groups.get(a.asset.toUpperCase()) ?? []), a]);
+  const evidence: ExceptionEvidence[] = amounts.filter((a) => !a.asset).map((a) => ev(`${a.leg} (not compared: no asset)`, a.record, a.amount));
+  const titles: string[] = [];
+  const prints: string[] = [];
   const out: PaymentException[] = [];
-  const evidence: ExceptionEvidence[] = [];
-  const mismatches: string[] = [];
-  for (const a of amounts.slice(1)) {
-    if (!sameAsset(a)) {
-      evidence.push(ev(`${a.leg} (not compared: ${a.asset ?? "no asset"} vs ${ref.asset})`, a.record, `${a.amount} ${a.asset ?? ""}`.trim()));
+  const feeNotes: ExceptionEvidence[] = [];
+  for (const [asset, members] of groups) {
+    const [ref, ...rest] = members;
+    if (!rest.length) {
+      evidence.push(ev(`${ref.leg} (not compared: no other ${ref.asset} amount)`, ref.record, `${ref.amount} ${ref.asset}`));
       continue;
     }
-    const diff = sub(ref.amount, a.amount);
-    if (eq(diff, "0")) { evidence.push(ev(`${a.leg} (matches)`, a.record, `${a.amount} ${a.asset}`)); continue; }
-    const byRecord = feeSum !== undefined && eq(abs(diff), feeSum);
-    const byRule = !byRecord && ruleFee !== undefined && eq(abs(diff), ruleFee);
-    if (byRecord || byRule) {
-      evidence.push(ev(`${a.leg} (differs by ${abs(diff)}, explained by ${byRecord ? "the fee record" : "the route's fee rule"})`, a.record, `${a.amount} ${a.asset}`));
-      continue;
+    const feeRows = v.fees.filter((f) => isAmount(f.amount) && (!f.currency || f.currency.toUpperCase() === asset));
+    const feeSum = feeRows.length ? sum(feeRows.map((f) => abs(f.amount))) : undefined;
+    const ruleFee = expectedFee(v.route, ref.amount);
+    const mismatches: string[] = [];
+    evidence.push(ev(`${ref.leg} (reference for ${ref.asset})`, ref.record, `${ref.amount} ${ref.asset}`));
+    for (const a of rest) {
+      const diff = sub(ref.amount, a.amount);
+      if (eq(diff, "0")) { evidence.push(ev(`${a.leg} (matches)`, a.record, `${a.amount} ${a.asset}`)); continue; }
+      const byRecord = feeSum !== undefined && eq(abs(diff), feeSum);
+      const byRule = !byRecord && ruleFee !== undefined && eq(abs(diff), ruleFee);
+      if (byRecord || byRule) {
+        evidence.push(ev(`${a.leg} (differs by ${abs(diff)}, explained by ${byRecord ? "the fee record" : "the route's fee rule"})`, a.record, `${a.amount} ${a.asset}`));
+        continue;
+      }
+      mismatches.push(`${a.leg} ${a.amount}`);
+      evidence.push(ev(`${a.leg} (differs by ${diff})`, a.record, `${a.amount} ${a.asset}`));
     }
-    mismatches.push(`${a.leg} ${a.amount}`);
-    evidence.push(ev(`${a.leg} (differs by ${diff})`, a.record, `${a.amount} ${a.asset}`));
+    feeNotes.push(
+      { label: `Fee records linked (${ref.asset})`, value: feeSum !== undefined ? `${feeSum} ${ref.asset} (${feeRows.map((f) => f.providerPaymentId).join(", ")})` : "none" },
+      { label: "Configured fee rule", value: ruleFee !== undefined ? `${ruleFee} ${ref.asset} (${v.route.fee.kind})` : "none" },
+    );
+    if (mismatches.length) {
+      titles.push(`${ref.leg.toLowerCase()} ${ref.amount} ${ref.asset} vs ${mismatches.join(", ")}`);
+      prints.push(`${asset}: ${ref.leg}=${ref.amount} ${mismatches.join(" ")} fees=${feeSum ?? "-"} rule=${ruleFee ?? "-"}`);
+    }
+    if (feeSum !== undefined && ruleFee !== undefined && !eq(feeSum, ruleFee)) {
+      out.push({
+        ...(base("fee_mismatch") as Pick<PaymentException, "exceptionId" | "family" | "code" | "subject">),
+        title: `Fee mismatch: provider charged ${feeSum} ${ref.asset}, the route's rule gives ${ruleFee}`,
+        confidence: "High",
+        evidence: [
+          ...feeRows.map((f) => ev("Fee record", f)),
+          { label: "Configured fee rule", value: `${v.route.fee.kind === "fixed" ? `fixed ${v.route.fee.amount}` : `${(v.route.fee as { bps: number }).bps} bps of ${ref.amount}`} = ${ruleFee} ${ref.asset}` },
+          { label: "Difference", value: sub(feeSum, ruleFee) }, routeEv,
+        ],
+        nextStep: "Check the fee against the provider's agreed pricing; correct the route's fee rule or raise the overcharge with the provider.",
+        fingerprint: `fees ${feeSum} vs rule ${ruleFee}`,
+      });
+    }
   }
-  if (mismatches.length) {
-    out.push({
+  if (titles.length) {
+    out.unshift({
       ...(base("amount_mismatch") as Pick<PaymentException, "exceptionId" | "family" | "code" | "subject">),
-      title: `Amount mismatch: ${ref.leg.toLowerCase()} ${ref.amount} ${ref.asset} vs ${mismatches.join(", ")}`,
+      title: `Amount mismatch: ${titles.join("; ")}`,
       confidence: "High",
-      evidence: [
-        ev(`${ref.leg} (reference)`, ref.record, `${ref.amount} ${ref.asset}`), ...evidence,
-        { label: "Fee records linked", value: feeSum !== undefined ? `${feeSum} ${ref.asset} (${feeRows.map((f) => f.providerPaymentId).join(", ")})` : "none" },
-        { label: "Configured fee rule", value: ruleFee !== undefined ? `${ruleFee} ${ref.asset} (${v.route.fee.kind})` : "none" }, routeEv,
-      ],
+      evidence: [...evidence, ...feeNotes, routeEv],
       nextStep: "Compare with the provider's statement. A difference no fee record or configured fee rule explains needs a correction or a recorded explanation.",
-      fingerprint: `amounts ${ref.leg}=${ref.amount} ${mismatches.join(" ")} fees=${feeSum ?? "-"} rule=${ruleFee ?? "-"}`,
-    });
-  }
-  if (feeSum !== undefined && ruleFee !== undefined && !eq(feeSum, ruleFee)) {
-    out.push({
-      ...(base("fee_mismatch") as Pick<PaymentException, "exceptionId" | "family" | "code" | "subject">),
-      title: `Fee mismatch: provider charged ${feeSum} ${ref.asset}, the route's rule gives ${ruleFee}`,
-      confidence: "High",
-      evidence: [
-        ...feeRows.map((f) => ev("Fee record", f)),
-        { label: "Configured fee rule", value: `${v.route.fee.kind === "fixed" ? `fixed ${v.route.fee.amount}` : `${(v.route.fee as { bps: number }).bps} bps of ${ref.amount}`} = ${ruleFee} ${ref.asset}` },
-        { label: "Difference", value: sub(feeSum, ruleFee) }, routeEv,
-      ],
-      nextStep: "Check the fee against the provider's agreed pricing; correct the route's fee rule or raise the overcharge with the provider.",
-      fingerprint: `fees ${feeSum} vs rule ${ruleFee}`,
+      fingerprint: `amounts ${prints.join(" | ")}`,
     });
   }
   return out;
@@ -364,21 +389,30 @@ function overdueRule(v: View, now: Date, base: (c: PaymentExceptionCode, d?: str
   const outstanding = v.route.expectedLegs.filter((l) => v.p.legs[l].state !== "linked" && v.p.legs[l].state !== "not_applicable");
   const unchecked = v.route.expectedLegs.filter((l) => v.p.legs[l].state === "not_applicable");
   if (!outstanding.length || now.getTime() <= Date.parse(deadline)) return undefined;
+  // A leg whose lookup failed is unknown, not missing: it may already be there.
+  const waiting = outstanding.filter((l) => v.p.legs[l].state !== "unknown");
+  const unknown = outstanding.filter((l) => v.p.legs[l].state === "unknown");
+  const failed = unknown.map((l) => (l === "chain" ? "on-chain" : LEG_NOUN[l])).join(" and ");
   const reached = [...STAGES].reverse().find((l) => v.p.legs[l].state === "linked");
   return {
     ...(base("overdue") as Pick<PaymentException, "exceptionId" | "family" | "code" | "subject">),
-    title: `Overdue: due ${deadline}, still waiting for the ${outstanding.map((l) => LEG_NOUN[l]).join(", ")}`,
-    confidence: "High",
+    title: waiting.length
+      ? `Overdue: due ${deadline}, still waiting for the ${waiting.map((l) => LEG_NOUN[l]).join(", ")}${unknown.length ? ` (the ${failed} lookup failed)` : ""}`
+      : `Overdue: due ${deadline}; not confirmed complete because the ${failed} lookup failed`,
+    confidence: waiting.length ? "High" : "Medium",
     evidence: [
       ev("Instruction", v.ins),
       { label: "Deadline", value: v.ins.dueBy ? `${deadline} (the instruction's due_by)` : `${deadline} (created ${v.ins.eventTime} + ${v.route.deadlineMinutes} minutes, route ${v.route.routeId})` },
       { label: "Checked at", value: now.toISOString() },
       { label: "Stage reached", value: reached ? LEG_NOUN[reached] : "none" },
-      ...outstanding.map((l) => ({ label: `Not linked: ${LEG_NOUN[l]}`, value: v.p.legs[l].state.replace("_", " ") })),
+      ...waiting.map((l) => ({ label: `Not linked: ${LEG_NOUN[l]}`, value: v.p.legs[l].state.replace("_", " ") })),
+      ...unknown.map((l) => { const leg = v.p.legs[l]; return { label: `Unknown: ${LEG_NOUN[l]}`, value: leg.state === "unknown" ? leg.note : "lookup failed" }; }),
       ...unchecked.map((l) => ({ label: `Not checked: ${LEG_NOUN[l]}`, value: `no ${l} records imported` })),
       routeEv,
     ],
-    nextStep: `Chase the ${LEG_NOUN[outstanding[0]]}${v.provider ? ` with ${v.provider.provider}` : ""}: the agreed deadline has passed.`,
+    nextStep: waiting.length
+      ? `Chase the ${LEG_NOUN[waiting[0]]}${v.provider ? ` with ${v.provider.provider}` : ""}: the agreed deadline has passed.`
+      : "Re-run matching once the chain answers: the payment may already be complete.",
     // The deadline and what's outstanding define it; the clock doesn't.
     fingerprint: `overdue ${deadline} outstanding=${outstanding.join(",")}`,
     occurredAt: deadline,
@@ -413,7 +447,8 @@ function contradictionRule(v: View, base: (c: PaymentExceptionCode, d?: string) 
     }
   }
   if (!facts.length) return undefined;
-  const first = facts.map((f) => f.at).filter(Boolean).sort()[0];
+  // Earliest by instant, not by text: offsets differ between sources.
+  const first = facts.filter((f) => f.at).sort((a, b) => Date.parse(a.at!) - Date.parse(b.at!))[0]?.at;
   return {
     ...(base("contradiction") as Pick<PaymentException, "exceptionId" | "family" | "code" | "subject">),
     title: completed
@@ -452,7 +487,25 @@ function unmatchedProviderPayment(v: View, recs: Map<string, PaymentRecord>, bas
 }
 
 function unlinkedExceptions(result: MatchResult, recs: Map<string, PaymentRecord>): PaymentException[] {
-  return result.unlinked
+  const ledger = result.unlinked
+    .map((u) => recs.get(u.recordId))
+    .filter((r): r is LedgerEntryRecord => r?.kind === "ledger" && r.ledger === "payout")
+    .map((r) => ({
+      exceptionId: `EXC-R${sha8(r.recordId)}-unmatched_ledger_entry`, family: "payment" as const, code: "unmatched_ledger_entry" as const,
+      subject: { kind: "record" as const, recordId: r.recordId },
+      title: `Unmatched ledger entry: ${describe(r)}`,
+      // A booking with nothing to tie it may just be missing its identifier: Medium.
+      confidence: "Medium" as const,
+      evidence: [
+        ev("Ledger entry", r),
+        { label: "Why unmatched", value: r.reverses ? `It reverses ${r.reverses}, which no payment's ledger leg carries.`
+          : "No instruction ID, provider payment ID or transfer on it matches an outbound payment." },
+      ],
+      nextStep: "Find the payment this booking belongs to and add its instruction ID or provider payment ID to the ledger export.",
+      fingerprint: `unlinked ledger ${r.recordId}`,
+      occurredAt: r.eventTime,
+    }));
+  return [...ledger, ...result.unlinked
     .map((u) => recs.get(u.recordId))
     .filter((r): r is BankRecord | ProviderRecord => r?.kind === "bank" || r?.kind === "provider")
     .map((r) => ({
@@ -469,7 +522,7 @@ function unlinkedExceptions(result: MatchResult, recs: Map<string, PaymentRecord
       nextStep: r.kind === "bank" ? "Find the payment this bank movement belongs to and add its identifier to the bank export." : "Ask the provider which payment this row belongs to.",
       fingerprint: `unlinked ${r.recordId}`,
       occurredAt: r.eventTime,
-    }));
+    }))];
 }
 
 function duplicateExceptions(result: MatchResult, recs: Map<string, PaymentRecord>): PaymentException[] {

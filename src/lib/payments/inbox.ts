@@ -14,7 +14,7 @@ import type { Confidence } from "../types";
 import type { AuditDraft } from "./audit";
 import type { ExceptionEvidence, ExceptionSubject, PaymentException } from "./exceptions";
 import { DEFAULT_SETTINGS, type ExceptionSettings } from "./settings";
-import type { ReviewDecision, ReviewItem } from "./types";
+import type { PaymentRedirect, ReviewDecision, ReviewItem } from "./types";
 
 export type InboxStatus = "open" | "awaiting_provider" | "under_review" | "closed" | "reopened";
 export const INBOX_STATUSES: InboxStatus[] = ["open", "awaiting_provider", "under_review", "closed", "reopened"];
@@ -25,7 +25,8 @@ export const STATUS_LABELS: Record<InboxStatus, string> = {
 export interface HistoryEntry {
   at: string;
   by: string;
-  action: "opened" | "status" | "owner" | "follow_up" | "note" | "reopened" | "closed_by_system" | "resolved" | "evidence_changed" | "decision";
+  action: "opened" | "status" | "owner" | "follow_up" | "note" | "reopened" | "closed_by_system" | "resolved" | "evidence_changed" | "decision"
+    | "moved" | "held";
   from?: string;
   to?: string;
   why?: string;
@@ -55,6 +56,8 @@ export interface InboxItem {
   evidence: ExceptionEvidence[];
   nextStep: string;
   sample?: boolean;
+  /** Its payment merged into another: the item continues under this ID. */
+  movedTo?: string;
 }
 
 export interface InboxData {
@@ -93,16 +96,31 @@ const audit = (at: string, item: InboxItem, action: string, detail: string, extr
  */
 export function syncInbox(inbox: InboxData, run: ReturnType<typeof candidatesFrom>, opts: {
   now: Date; decisions: ReviewDecision[]; paymentOf: (id: string) => string | undefined;
+  /** Retired payment IDs and where they lead (the match result's redirects). */
+  redirects?: Record<string, PaymentRedirect>;
 }): { inbox: InboxData; audit: AuditDraft[] } {
   const at = opts.now.toISOString();
   const items = structuredClone(inbox.items);
   const log: AuditDraft[] = [];
   const seen = new Set<string>();
   const newContradictions: InboxItem[] = [];
+  const paymentOf = (id: string) => opts.paymentOf(id) ?? id;
+  const moveWhy = (from: string, to: string) => {
+    const r = opts.redirects?.[from];
+    return r?.reason === "held_in_review" ? `${from} is held in review ${r.to.reviewId} on ${to}` : `${from} merged into ${to}`;
+  };
 
   for (const c of run) {
     seen.add(c.itemId);
-    const prev = items[c.itemId];
+    let prev = items[c.itemId];
+    // An item of a payment that merged into this one carries over: status, owner, notes, history.
+    const old = !prev ? carriedFrom(items, c, paymentOf) : undefined;
+    if (old) {
+      const why = `${moveWhy(old.subject.kind === "payment" ? old.subject.paymentId : "", paymentOf(c.subject.kind === "payment" ? c.subject.paymentId : ""))}; this item was ${old.itemId}.`;
+      items[old.itemId] = { ...old, movedTo: c.itemId, history: [...old.history, { at, by: "system", action: "moved", to: c.itemId, why }] };
+      prev = { ...old, itemId: c.itemId, subject: c.subject, movedTo: undefined, history: [...old.history, { at, by: "system", action: "moved", from: old.itemId, why }] };
+      log.push({ at, ...SYSTEM, action: "inbox.moved", subject: c.itemId, detail: why, before: old.itemId, after: c.itemId });
+    }
     if (!prev) {
       const item: InboxItem = { ...c, status: "open", notes: [], history: [{ at, by: "system", action: "opened", why: "Found by the matching run." }],
         firstSeen: at, lastSeen: at, current: true };
@@ -127,9 +145,20 @@ export function syncInbox(inbox: InboxData, run: ReturnType<typeof candidatesFro
     items[c.itemId] = item;
   }
 
-  // Gone this run: close what was open, saying why. Items reopened by a person while not current stay as they are.
+  // Gone this run: close what was open, saying why. Items reopened by a person while not current stay
+  // as they are; items whose payment waits in a review are held, not closed, until it is decided.
   for (const item of Object.values(items)) {
-    if (seen.has(item.itemId) || !item.current) continue;
+    if (seen.has(item.itemId) || !item.current || item.movedTo) continue;
+    const pid = item.subject.kind === "payment" ? item.subject.paymentId : undefined;
+    const redirect = pid ? opts.redirects?.[pid] : undefined;
+    if (pid && redirect?.reason === "held_in_review") {
+      const why = moveWhy(pid, redirect.to.paymentId);
+      if (item.history.at(-1)?.why !== why) {
+        item.history.push({ at, by: "system", action: "held", why });
+        log.push(audit(at, item, "inbox.held", why));
+      }
+      continue;
+    }
     item.current = false;
     if (item.status === "closed") continue;
     const decision = item.kind === "review" ? [...opts.decisions].reverse().find((d) => d.reviewId === item.itemId) : undefined;
@@ -140,7 +169,9 @@ export function syncInbox(inbox: InboxData, run: ReturnType<typeof candidatesFro
       item.history.push({ at, by: "system", action: "resolved", from, to: "closed", why });
       log.push(audit(at, item, "inbox.resolved", why, { before: from, after: "closed" }));
     } else {
-      const why = "The condition is no longer present after the latest matching run.";
+      const why = pid && redirect?.reason === "merged"
+        ? `${pid} merged into ${redirect.to.paymentId}; the condition is not present there.`
+        : "The condition is no longer present after the latest matching run.";
       item.history.push({ at, by: "system", action: "closed_by_system", from, to: "closed", why });
       log.push(audit(at, item, "inbox.closed_by_system", why, { before: from, after: "closed" }));
     }
@@ -149,14 +180,14 @@ export function syncInbox(inbox: InboxData, run: ReturnType<typeof candidatesFro
   // A later contradiction reopens the closed exceptions on its payment.
   for (const contra of newContradictions) {
     if (contra.subject.kind !== "payment") continue;
-    const target = opts.paymentOf(contra.subject.paymentId);
+    const target = paymentOf(contra.subject.paymentId);
     for (const item of Object.values(items)) {
-      if (item.itemId === contra.itemId || item.kind !== "exception" || item.status !== "closed" || item.subject.kind !== "payment") continue;
+      if (item.itemId === contra.itemId || item.movedTo || item.kind !== "exception" || item.status !== "closed" || item.subject.kind !== "payment") continue;
       // Only what a person closed: that judgement is what a later contradiction can overturn. What the
       // system closed because its condition went away reopens by itself if the condition comes back.
       const closing = [...item.history].reverse().find((h) => h.to === "closed");
       if (!closing || closing.by === "system") continue;
-      if (opts.paymentOf(item.subject.paymentId) !== target) continue;
+      if (paymentOf(item.subject.paymentId) !== target) continue;
       const why = `Contradiction ${contra.itemId}: ${contra.title}`;
       item.status = "reopened";
       item.history.push({ at, by: "system", action: "reopened", from: "closed", to: "reopened", why });
@@ -164,6 +195,38 @@ export function syncInbox(inbox: InboxData, run: ReturnType<typeof candidatesFro
     }
   }
   return { inbox: { ...inbox, items }, audit: log };
+}
+
+/** "EXC-<payment>-<rest>" or "REV-<payment>-<leg>": the payment part and the rest. */
+const PAYMENT_SCOPED = /^(EXC|REV)-([0-9A-F]{10})-(.+)$/;
+
+/** The item, of a payment that now resolves to this candidate's payment, that this candidate continues. */
+function carriedFrom(items: Record<string, InboxItem>, c: ReturnType<typeof candidatesFrom>[number], paymentOf: (id: string) => string): InboxItem | undefined {
+  const m = PAYMENT_SCOPED.exec(c.itemId);
+  if (!m || c.subject.kind !== "payment") return undefined;
+  const here = c.subject.paymentId;
+  const target = paymentOf(here);
+  return Object.values(items).find((i) => {
+    if (i.movedTo || i.kind !== c.kind || i.subject.kind !== "payment" || i.subject.paymentId === here) return false;
+    const n = PAYMENT_SCOPED.exec(i.itemId);
+    return !!n && n[1] === m[1] && n[3] === m[3] && paymentOf(i.subject.paymentId) === target;
+  });
+}
+
+/** Where an item ID leads now: itself, or the item it moved to when its payment merged. */
+export function resolveItemId(inbox: InboxData, itemId: string): string | undefined {
+  const seen = new Set<string>();
+  let id = itemId;
+  while (inbox.items[id]?.movedTo && !seen.has(id)) { seen.add(id); id = inbox.items[id].movedTo!; }
+  return inbox.items[id] ? id : undefined;
+}
+
+/** Open contradictions on the same payment as this item (for the banner on every item of that payment). */
+export function openContradictionsFor(inbox: InboxData, item: InboxItem, paymentOf: (id: string) => string | undefined): InboxItem[] {
+  if (item.subject.kind !== "payment") return [];
+  const target = paymentOf(item.subject.paymentId) ?? item.subject.paymentId;
+  return Object.values(inbox.items).filter((i) => i.itemId !== item.itemId && !i.movedTo && i.code === "contradiction" &&
+    i.status !== "closed" && i.subject.kind === "payment" && (paymentOf(i.subject.paymentId) ?? i.subject.paymentId) === target);
 }
 
 // ---- People's actions ----

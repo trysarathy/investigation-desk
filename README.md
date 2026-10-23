@@ -267,20 +267,26 @@ To build and run the image locally: `docker build -t desk-preview . && docker ru
 - **Payout ledger** is a fourth mapped import (`payout-ledger-standard`; same strict validation;
   status kept raw beside a meaning: posted, pending, reversed, failed, or unmapped). The ledger
   leg links on the entry's instruction ID, provider payment ID, or the linked transfer's chain +
-  hash + index, and still reads File B deposits. Entries are grouped by entry ID, so "posted"
+  hash + index, and still reads File B deposits. Ledger legs follow direction: File B deposit
+  rows link only to a transfer into a company deposit address (File A) and that address; payout
+  ledger rows only to everything else. Entries are grouped by entry ID, so "posted"
   then "reversed" is a status history; a `reverses` column attaches a reversal to its entry.
 - **Exception rules**, computed from the matched payments, each with evidence (and the source of
   every fact), a confidence level and a next step:
   - missing leg by stage: High when a later stage is already there, or the provider reports
-    complete with no transfer; Medium once the route's grace has passed, for the stage the
-    payment is stuck at; nothing while in flight;
+    complete with a hash no chain has; Medium when the provider reports complete with no hash,
+    or once the route's grace has passed, for the stage the payment is stuck at; nothing while
+    in flight. Never High on an unknown: a failed chain lookup makes "overdue" Medium and says so;
   - duplicate record (the same record more than once); v1 never reports a duplicate payment;
-  - amount mismatch, exact decimals; a difference is explained only by a linked fee record or
-    the route's configured fee rule; fee mismatch when those two disagree;
+  - amount mismatch, exact decimals, between any legs that share an asset (an instruction
+    without a token doesn't stop the provider vs on-chain check); a difference is explained
+    only by a linked fee record or the route's configured fee rule; fee mismatch when those
+    two disagree;
   - overdue against the instruction's `due_by`, else the route's deadline; a leg with no
     records of its kind imported isn't counted;
   - unmatched settlement: a provider record no instruction carries, or a bank, fee or return
-    row no identifier ties to a payment;
+    row no identifier ties to a payment; unmatched ledger entry (Medium): a payout-ledger entry
+    no identifier ties to a payment;
   - contradiction: after the provider reported complete, a later return, cancellation or
     reversal; or a failed transfer; or a ledger posting later reversed;
   - deposit investigations (D01–D18) from the queue, as one more family.
@@ -289,15 +295,24 @@ To build and run the image locally: `docker build -t desk-preview . && docker ru
 - **Inbox**: filled by every matching run. Status open, awaiting provider, under review,
   closed, reopened; owner, follow-up date, notes; full history. An exception closes by itself
   when its condition goes away, reopens when its evidence changes, and a later contradiction
-  reopens the exceptions a person closed on that payment.
+  reopens the exceptions a person closed on that payment; every item of that payment shows a
+  "new contradiction" banner. When a payment ID merges into another, its items move with it
+  (status, owner, notes, history, a person's close); the old item ID redirects. While a payment
+  waits in a review, its items are held, not closed.
 - **Review resolution in the app**: confirm or reject a candidate, with a required reason. The
   decision (who, when, why) is kept, audit-logged and applied on every later run.
-- **Audit log** (`.data/audit.jsonl`): append-only; inbox changes, review decisions, route
-  changes, system opens/closes/reopens and exports, with actor, time and IP. The actor is the
+- **Audit log** (`.data/audit.jsonl`): append-only, strictly increasing sequence numbers
+  (writes are serialised); imports, "clear records", inbox changes, review decisions, route
+  changes, system opens/closes/reopens/moves and exports, with actor, time and IP. Imports and
+  clearing need an "Acting as" name. The actor is the
   "Acting as" name until sign-in lands (week 5).
 - **Exports**: Inbox → Export reconciled CSV (one row per payment, plus one per retired payment
   ID showing where it leads), and an evidence pack PDF per item. Every ID goes through the same
-  resolver as `/api/payments/resolve`. Both downloads are audit-logged.
+  resolver as `/api/payments/resolve`. Both downloads are audit-logged. The bulk results export
+  uses the same CSV writer, so signed amounts stay numbers there too.
+- **Payout test data**: `tests/fixtures/live/bsc-payout-*.json` are real BNB Chain transfers
+  recorded by `scripts/record-payouts.ts` (no keys needed for the lookups matching makes). None
+  goes to a demo deposit address, so the inbox fixtures never reuse a deposit-demo transfer.
 
 ## Not built yet (by plan)
 

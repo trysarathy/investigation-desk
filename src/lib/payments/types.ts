@@ -137,6 +137,8 @@ export interface LedgerEntryRecord extends RecordBase {
   providerPaymentId?: string;
   /** For a reversal entry: the entry ID it reverses. */
   reverses?: string;
+  /** Deposit ledger (File B) rows: the deposit address credited. */
+  toAddress?: string;
 }
 
 export type PaymentRecord = InstructionRecord | ProviderRecord | BankRecord | ChainTransferRecord | LedgerEntryRecord;

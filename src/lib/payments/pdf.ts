@@ -2,7 +2,7 @@
 // the page and paginated; characters the standard font can't encode are mapped to plain ones, so
 // an unexpected character never stops a pack from rendering.
 
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { PDFDocument, StandardFontEmbedder, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import type { EvidencePack } from "./export";
 
 const PAGE = { w: 595.28, h: 841.89 };
@@ -20,23 +20,45 @@ export function winAnsi(s: string): string {
   }).join("");
 }
 
-function wrap(text: string, font: PDFFont, size: number, width: number): string[] {
+// Character widths at size 1, measured once per font and cached: widths add up (no kerning in
+// these metrics), so a running total measures a line without re-measuring it.
+const widths = new Map<StandardFonts, { embedder: StandardFontEmbedder; cache: Map<string, number> }>();
+function charWidth(font: StandardFonts, c: string): number {
+  let m = widths.get(font);
+  // StandardFonts values are the standard font names the embedder takes.
+  if (!m) { m = { embedder: StandardFontEmbedder.for(font as unknown as Parameters<typeof StandardFontEmbedder.for>[0]), cache: new Map() }; widths.set(font, m); }
+  let w = m.cache.get(c);
+  if (w === undefined) { w = m.embedder.widthOfTextAtSize(c, 1); m.cache.set(c, w); }
+  return w;
+}
+
+/**
+ * Wrap text to a width, in time linear in its length: each character is measured once. Words
+ * wrap at spaces; a word wider than the line (a hash, a URL) is broken by characters.
+ */
+export function wrapLines(text: string, size: number, width: number = WIDTH, font: StandardFonts = StandardFonts.Helvetica): string[] {
   const out: string[] = [];
+  const limit = width / size;
   for (const para of winAnsi(text).split("\n")) {
     let line = "";
-    for (const word of para.split(/(\s+)/)) {
-      const next = line + word;
-      if (font.widthOfTextAtSize(next, size) <= width) { line = next; continue; }
+    let lineW = 0;
+    for (const token of para.split(/(\s+)/)) {
+      if (!token) continue;
+      let tokenW = 0;
+      for (const c of token) tokenW += charWidth(font, c);
+      if (lineW + tokenW <= limit) { line += token; lineW += tokenW; continue; }
       if (line.trim()) out.push(line.trimEnd());
-      // A single word wider than the line (a hash, a URL) is broken by characters.
-      let w = word.trimStart();
-      while (font.widthOfTextAtSize(w, size) > width) {
-        let n = w.length;
-        while (n > 1 && font.widthOfTextAtSize(w.slice(0, n), size) > width) n--;
-        out.push(w.slice(0, n));
-        w = w.slice(n);
+      line = "";
+      lineW = 0;
+      if (/^\s+$/.test(token)) continue;
+      if (tokenW <= limit) { line = token; lineW = tokenW; continue; }
+      // Too wide for any line: break it by characters, carrying the remainder on.
+      for (const c of token) {
+        const cw = charWidth(font, c);
+        if (lineW + cw > limit && line) { out.push(line); line = ""; lineW = 0; }
+        line += c;
+        lineW += cw;
       }
-      line = w;
     }
     out.push(line.trimEnd());
   }
@@ -65,7 +87,7 @@ export async function renderPack(pack: EvidencePack): Promise<Uint8Array> {
     const font = opts.font ?? regular;
     const size = opts.size ?? 9;
     const lead = size * 1.35;
-    for (const line of wrap(s, font, size, opts.width ?? WIDTH)) {
+    for (const line of wrapLines(s, size, opts.width ?? WIDTH, font === bold ? StandardFonts.HelveticaBold : StandardFonts.Helvetica)) {
       ensure(lead);
       page.drawText(line, { x: opts.x ?? MARGIN, y: y - size, size, font, color: opts.color });
       y -= lead;
@@ -83,8 +105,8 @@ export async function renderPack(pack: EvidencePack): Promise<Uint8Array> {
     for (const [k, v] of s.rows ?? []) {
       // Label and value side by side, line by line, so a row can cross a page break cleanly.
       const labelW = 150;
-      const kl = wrap(k, bold, 9, labelW - 8);
-      const vl = wrap(v, regular, 9, WIDTH - labelW);
+      const kl = wrapLines(k, 9, labelW - 8, StandardFonts.HelveticaBold);
+      const vl = wrapLines(v, 9, WIDTH - labelW);
       for (let i = 0; i < Math.max(kl.length, vl.length); i++) {
         ensure(12.2);
         if (kl[i]) page.drawText(kl[i], { x: MARGIN, y: y - 9, size: 9, font: bold });

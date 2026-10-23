@@ -3,7 +3,7 @@ import { ActingAs, ActorLink } from "@/components/ActingAs";
 import { RoutesEditor } from "@/components/RoutesEditor";
 import { Status } from "@/components/Status";
 import { formatTime } from "@/lib/format";
-import { STATUS_LABELS, type InboxItem, type InboxStatus } from "@/lib/payments/inbox";
+import { openContradictionsFor, STATUS_LABELS, type InboxItem, type InboxStatus } from "@/lib/payments/inbox";
 import { paymentsStore, refreshInbox } from "@/lib/payments/live";
 import { resolvePaymentRef } from "@/lib/payments/match";
 import { codeLabel } from "@/lib/payments/view";
@@ -22,7 +22,9 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   const { view = "active", family = "" } = await searchParams;
   const inbox = await refreshInbox();
   const result = (await paymentsStore().load()).match?.result;
-  const all = Object.values(inbox.items);
+  // Items that moved with a merged payment continue under their new ID; only that one is listed.
+  const all = Object.values(inbox.items).filter((i) => !i.movedTo);
+  const paymentOf = (pid: string) => (result ? resolvePaymentRef(result, pid).payment?.paymentId : undefined) ?? pid;
   const counts = Object.fromEntries(VIEWS.map((v) => [v.key, all.filter((i) => v.key === "all" || (v.key === "active" ? i.status !== "closed" : i.status === v.key)).length]));
   const items = all
     .filter((i) => view === "all" || (view === "active" ? i.status !== "closed" : i.status === view))
@@ -63,7 +65,8 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
               {items.map((i) => (
                 <tr key={i.itemId}>
                   <td><Link href={`/inbox/${encodeURIComponent(i.itemId)}`} className="mono">{i.itemId}</Link></td>
-                  <td>{codeLabel(i)}{i.sample && <span className="badge" style={{ marginLeft: 6 }}>Sample</span>}</td>
+                  <td>{codeLabel(i)}{i.sample && <span className="badge" style={{ marginLeft: 6 }}>Sample</span>}
+                    {openContradictionsFor(inbox, i, paymentOf).length > 0 && <span className="badge s-fail" style={{ marginLeft: 6 }}>Contradiction on payment</span>}</td>
                   <td style={{ whiteSpace: "normal", minWidth: 320 }}>{i.title}</td>
                   <td>{subject(i)}</td>
                   <td>{i.confidence ?? "—"}</td>
