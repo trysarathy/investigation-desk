@@ -107,4 +107,20 @@ export const BANK_STANDARD: ColumnMapping = {
   timestampFormat: "iso8601_offset",
 };
 
-export const PRESET_MAPPINGS: ColumnMapping[] = [INSTRUCTIONS_STANDARD, BVNK_TRANSACTION_REPORT, BANK_STANDARD];
+/** The company's payout ledger: what it booked for each payout, and any reversal. */
+export const PAYOUT_LEDGER_STANDARD: ColumnMapping = {
+  mappingId: "payout-ledger-standard",
+  version: 1,
+  kind: "ledger",
+  name: "Payout ledger (standard columns)",
+  createdAt: CREATED,
+  columns: {
+    entry_id: "entry_id", booked_at: "booked_at", amount: "amount", status: "status", currency: "currency",
+    instruction_id: "instruction_id", provider_payment_id: "provider_payment_id", chain: "chain", tx_hash: "tx_hash",
+    transfer_index: "transfer_index", reverses: "reverses",
+  },
+  values: { status: { POSTED: "posted", PENDING: "pending", REVERSED: "reversed", FAILED: "failed" } },
+  timestampFormat: "iso8601_offset",
+};
+
+export const PRESET_MAPPINGS: ColumnMapping[] = [INSTRUCTIONS_STANDARD, BVNK_TRANSACTION_REPORT, BANK_STANDARD, PAYOUT_LEDGER_STANDARD];

@@ -8,10 +8,10 @@ import { createHash } from "node:crypto";
 import { checkAddress, checkTimestamp, customerIdCheck, HASH, readTable, sha256Bytes, type Column, type RowError, type ValidationResult } from "../csv/files";
 import { isDecimal } from "../decimal";
 import { ALL_CHAINS } from "../types";
-import { FIELDS, ROW_TYPES, STATUS_MEANINGS, TIMESTAMP_FORMATS, type ColumnMapping, type FieldSpec } from "./fields";
-import type { BankRecord, Identifier, InstructionRecord, PaymentRecord, ProviderRecord, ProviderRowType, ProviderStatusMeaning } from "./types";
+import { FIELDS, LEDGER_STATUS_MEANINGS, ROW_TYPES, STATUS_MEANINGS, TIMESTAMP_FORMATS, type ColumnMapping, type FieldSpec } from "./fields";
+import type { BankRecord, Identifier, InstructionRecord, LedgerEntryRecord, LedgerStatusMeaning, PaymentRecord, ProviderRecord, ProviderRowType, ProviderStatusMeaning } from "./types";
 
-export { FIELDS, ROW_TYPES, STATUS_MEANINGS, TIMESTAMP_FORMATS, type ColumnMapping, type FieldSpec, type TimestampFormat } from "./fields";
+export { FIELDS, LEDGER_STATUS_MEANINGS, ROW_TYPES, STATUS_MEANINGS, TIMESTAMP_FORMATS, type ColumnMapping, type FieldSpec, type TimestampFormat } from "./fields";
 
 /** Problems that make a mapping unusable. Empty means it can be saved. */
 export function checkMapping(m: ColumnMapping): string[] {
@@ -31,7 +31,9 @@ export function checkMapping(m: ColumnMapping): string[] {
   }
   for (const [raw, v] of Object.entries(m.values?.chain ?? {})) if (!ALL_CHAINS.includes(v)) errs.push(`Chain value "${raw}" maps to unknown chain "${v}".`);
   for (const [raw, v] of Object.entries(m.values?.token ?? {})) if (!["USDT", "USDC"].includes(v)) errs.push(`Token value "${raw}" maps to unknown token "${v}".`);
-  for (const [raw, v] of Object.entries(m.values?.status ?? {})) if (!STATUS_MEANINGS.includes(v)) errs.push(`Status "${raw}" maps to unknown meaning "${v}".`);
+  const meanings: readonly string[] = m.kind === "ledger" ? LEDGER_STATUS_MEANINGS : STATUS_MEANINGS;
+  for (const [raw, v] of Object.entries(m.values?.status ?? {})) if (!meanings.includes(v)) errs.push(`Status "${raw}" maps to unknown meaning "${v}".`);
+  if (m.values?.status && m.kind !== "provider" && m.kind !== "ledger") errs.push("Only provider and ledger mappings have status values.");
   for (const [raw, v] of Object.entries(m.values?.type ?? {})) if (!ROW_TYPES.includes(v)) errs.push(`Row type "${raw}" maps to unknown type "${v}".`);
   for (const [raw, v] of Object.entries(m.values?.direction ?? {})) if (v !== "credit" && v !== "debit") errs.push(`Direction "${raw}" must map to credit or debit.`);
   return errs;
@@ -190,6 +192,17 @@ function buildRecord(m: ColumnMapping, f: Record<string, string | undefined>, ro
     const eventTime = toIso(m, f.event_time!);
     return { ...base, ...content, kind: "provider", eventTime,
       recordId: `prv:${content.provider}:${content.providerPaymentId}:${sha8([content, eventTime])}` } as ProviderRecord;
+  }
+  if (m.kind === "ledger") {
+    const content = {
+      ledger: "payout" as const, entryId: f.entry_id!, amount: f.amount!, status: f.status!,
+      statusMeaning: (m.values?.status?.[f.status!] ?? "unmapped") as LedgerStatusMeaning,
+      ...opt("currency", f.currency), ...opt("instructionId", f.instruction_id), ...opt("providerPaymentId", f.provider_payment_id),
+      ...opt("chain", translate(m.values?.chain, f.chain)), ...opt("txHash", f.tx_hash && canonHash(f.tx_hash)),
+      ...opt("transferIndex", index), ...opt("reverses", f.reverses),
+    };
+    const eventTime = toIso(m, f.booked_at!);
+    return { ...base, ...content, kind: "ledger", eventTime, recordId: `ldp:${content.entryId}:${sha8([content, eventTime])}` } as LedgerEntryRecord;
   }
   const content = {
     bankReference: f.bank_reference!, bookedAt: toIso(m, f.booked_at!), amount: f.amount!, currency: f.currency!,

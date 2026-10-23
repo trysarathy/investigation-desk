@@ -4,6 +4,8 @@ import { CHAIN_NAMES } from "../types";
 import type { EvidenceStatus } from "../types";
 import { describe } from "./match";
 import type { PaymentsData } from "./store";
+import type { InboxItem } from "./inbox";
+import { EXCEPTION_LABELS, type PaymentExceptionCode } from "./exceptions";
 import type { CanonicalPayment, Leg, LegName, PaymentRecord, ProviderRecord, ReviewReason, ReviewTarget, SourceRef } from "./types";
 
 export const LEG_ORDER: LegName[] = ["instruction", "chain", "provider", "bank", "ledger"];
@@ -80,3 +82,10 @@ export function sourceLabel(s: SourceRef): { text: string; href?: string } {
 }
 
 export { describe };
+
+/** The kind and code of an inbox item, in words. */
+export function codeLabel(i: InboxItem): string {
+  if (i.kind === "review") return `Review · ${REVIEW_REASONS[i.code.replace("review:", "") as ReviewReason] ?? i.code}`;
+  if (i.family === "deposit") return `Deposit · ${i.code}`;
+  return EXCEPTION_LABELS[i.code as PaymentExceptionCode] ?? i.code;
+}

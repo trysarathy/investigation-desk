@@ -260,6 +260,45 @@ To build and run the image locally: `docker build -t desk-preview . && docker ru
   review queue.
 - **Ledger leg** joins File B on the linked transfer (chain + hash + index).
 
+## Exceptions, inbox and exports (product direction, chunk 2)
+
+`/inbox`, code in `src/lib/payments/` (`exceptions.ts`, `inbox.ts`, `workflow.ts`, `export.ts`, `pdf.ts`).
+
+- **Payout ledger** is a fourth mapped import (`payout-ledger-standard`; same strict validation;
+  status kept raw beside a meaning: posted, pending, reversed, failed, or unmapped). The ledger
+  leg links on the entry's instruction ID, provider payment ID, or the linked transfer's chain +
+  hash + index, and still reads File B deposits. Entries are grouped by entry ID, so "posted"
+  then "reversed" is a status history; a `reverses` column attaches a reversal to its entry.
+- **Exception rules**, computed from the matched payments, each with evidence (and the source of
+  every fact), a confidence level and a next step:
+  - missing leg by stage: High when a later stage is already there, or the provider reports
+    complete with no transfer; Medium once the route's grace has passed, for the stage the
+    payment is stuck at; nothing while in flight;
+  - duplicate record (the same record more than once); v1 never reports a duplicate payment;
+  - amount mismatch, exact decimals; a difference is explained only by a linked fee record or
+    the route's configured fee rule; fee mismatch when those two disagree;
+  - overdue against the instruction's `due_by`, else the route's deadline; a leg with no
+    records of its kind imported isn't counted;
+  - unmatched settlement: a provider record no instruction carries, or a bank, fee or return
+    row no identifier ties to a payment;
+  - contradiction: after the provider reported complete, a later return, cancellation or
+    reversal; or a failed transfer; or a ledger posting later reversed;
+  - deposit investigations (D01–D18) from the queue, as one more family.
+- **Routes** (Inbox → Routes and deadlines): per provider, chain and token, the deadline, grace,
+  expected legs and fee rule. Versioned and audit-logged. The shipped routes are sample settings.
+- **Inbox**: filled by every matching run. Status open, awaiting provider, under review,
+  closed, reopened; owner, follow-up date, notes; full history. An exception closes by itself
+  when its condition goes away, reopens when its evidence changes, and a later contradiction
+  reopens the exceptions a person closed on that payment.
+- **Review resolution in the app**: confirm or reject a candidate, with a required reason. The
+  decision (who, when, why) is kept, audit-logged and applied on every later run.
+- **Audit log** (`.data/audit.jsonl`): append-only; inbox changes, review decisions, route
+  changes, system opens/closes/reopens and exports, with actor, time and IP. The actor is the
+  "Acting as" name until sign-in lands (week 5).
+- **Exports**: Inbox → Export reconciled CSV (one row per payment, plus one per retired payment
+  ID showing where it leads), and an evidence pack PDF per item. Every ID goes through the same
+  resolver as `/api/payments/resolve`. Both downloads are audit-logged.
+
 ## Not built yet (by plan)
 
 Auth, roles, row-level security, audit log, rule versioning and Settings editing (week 5):

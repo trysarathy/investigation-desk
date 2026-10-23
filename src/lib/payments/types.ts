@@ -6,7 +6,7 @@
 import type { Chain, Token } from "../types";
 
 export type RecordKind = "instruction" | "chain_transfer" | "provider" | "bank" | "ledger";
-export type ImportKind = "instruction" | "provider" | "bank";
+export type ImportKind = "instruction" | "provider" | "bank" | "ledger";
 
 /** Where one observation of a record came from. A record seen twice has two. */
 export type SourceRef =
@@ -116,14 +116,27 @@ export interface ChainTransferRecord extends RecordBase {
   transfersInTx: number;
 }
 
+/** What a ledger status means, kept beside the raw status. */
+export type LedgerStatusMeaning = "posted" | "pending" | "reversed" | "failed" | "unmapped";
+
 export interface LedgerEntryRecord extends RecordBase {
   kind: "ledger";
+  /** The company's payout ledger (mapped import), or File B (the deposit ledger). */
+  ledger: "payout" | "deposit";
   entryId: string;
-  chain: Chain;
+  chain?: Chain;
   txHash?: string;
   transferIndex?: number;
+  /** Signed as the ledger books it. */
   amount: string;
+  currency?: string;
+  /** Raw status, as the ledger wrote it. */
   status: string;
+  statusMeaning: LedgerStatusMeaning;
+  instructionId?: string;
+  providerPaymentId?: string;
+  /** For a reversal entry: the entry ID it reverses. */
+  reverses?: string;
 }
 
 export type PaymentRecord = InstructionRecord | ProviderRecord | BankRecord | ChainTransferRecord | LedgerEntryRecord;
@@ -156,7 +169,11 @@ export type LinkBasis =
   /** Hash given without a transfer index, and the transaction carries exactly one token transfer. */
   | "chain_tx_single_transfer"
   /** A bank row's return-of column names the linked bank record. */
-  | "return_of";
+  | "return_of"
+  /** A ledger entry's reverses column names the linked ledger entry. */
+  | "reverses"
+  /** A person confirmed this record for this leg (see the decision in the audit log). */
+  | "confirmed";
 
 export interface Link {
   recordId: string;
@@ -204,6 +221,29 @@ export interface ReviewItem {
   candidates: Candidate[];
 }
 
+/**
+ * A person's resolution of one review: confirm a candidate for a leg, or reject it. Kept for good
+ * and re-applied on every run. The record key is stable for the thing decided on: a provider
+ * payment ("provider:<provider>:<id>", all its status versions), a ledger entry
+ * ("ledger:<ledger>:<entry id>"), otherwise the exact record (content included), so a changed
+ * record is decided on again.
+ */
+export interface ReviewDecision {
+  decisionId: string;
+  reviewId: string;
+  /** The payment's anchor key when decided ("instruction:<id>" or "provider:<provider>:<id>"). */
+  anchorKey: string;
+  paymentId: string;
+  leg: ReviewTarget;
+  action: "confirm" | "reject";
+  recordKey: string;
+  recordId: string;
+  /** Self-declared until sign-in lands (week 5). */
+  by: string;
+  at: string;
+  why: string;
+}
+
 export interface CanonicalPayment {
   paymentId: string;
   anchor: { kind: RecordKind; recordId: string };
@@ -218,6 +258,8 @@ export interface CanonicalPayment {
   timeline: { recordId: string; kind: RecordKind; eventTime?: string; observedTime: string; label: string }[];
   /** Records linked here that arrived more than once. */
   duplicateRecords: string[];
+  /** Review decisions that shaped this payment. */
+  decisions: ReviewDecision[];
 }
 
 /**

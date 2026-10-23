@@ -1,4 +1,4 @@
-// POST /api/payments/imports/instruction|provider|bank, multipart: "file", "mappingId",
+// POST /api/payments/imports/instruction|provider|bank|ledger, multipart: "file", "mappingId",
 // optional "mappingVersion". Validates with that mapping version, merges the records, then
 // re-runs matching. Roles arrive in week 5: until then anyone with the app can import.
 
@@ -8,7 +8,7 @@ import { paymentsStore, rematch } from "@/lib/payments/live";
 import { applyImport } from "@/lib/payments/store";
 import type { ImportKind } from "@/lib/payments/types";
 
-const KINDS: ImportKind[] = ["instruction", "provider", "bank"];
+const KINDS: ImportKind[] = ["instruction", "provider", "bank", "ledger"];
 const MAX_BYTES = 20 * 1024 * 1024;
 
 export async function POST(req: Request, { params }: { params: Promise<{ kind: string }> }) {
