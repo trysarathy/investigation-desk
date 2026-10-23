@@ -81,7 +81,8 @@ export async function fetchFacts(rawInput: string, ws: Workspace, deps: LiveDeps
   return facts;
 }
 
-async function lookupOne(chain: Chain, hash: string, deps: LiveDeps, raws: RawResponse[]): Promise<ChainLookupResult> {
+/** One chain's answer for one hash. A failure is an error lookup, never "not found". */
+export async function lookupOne(chain: Chain, hash: string, deps: LiveDeps, raws: RawResponse[]): Promise<ChainLookupResult> {
   try {
     return chain === "tron" ? await deps.tron.lookup(hash, raws) : await deps.evm.lookup(chain as EvmChain, hash, raws);
   } catch (e) {

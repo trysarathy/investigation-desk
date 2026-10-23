@@ -209,6 +209,57 @@ the password prompt, then run step 1 from Settings → Data.
 To build and run the image locally: `docker build -t desk-preview . && docker run -p 3000:3000
 -e PREVIEW_USER=demo -e PREVIEW_PASSWORD=choose-one desk-preview`.
 
+## Payment records and three-way matching (product direction, chunk 1)
+
+`/payments`, code in `src/lib/payments/`.
+
+- **Canonical payment:** one payment ID (`PAY-…`, first derived from the instruction ID, or from
+  the provider and its payment ID when there is no instruction) links instruction → on-chain
+  transfer(s) → provider record → bank record → ledger entry → later returns, plus fee rows.
+  Every record keeps its original identifiers (with the column they came from), its event time
+  as the source wrote it, its observed time, every source row (file, line, mapping version) or
+  explorer link plus raw-response SHA-256, and the original row unchanged.
+- **Imports with column mapping:** payment instructions, provider settlement reports and bank
+  records. Mappings are saved and versioned: an edit is the next version and every record names
+  the version that read it. Validation is the Files A/B code: missing required column rejects
+  the file, a bad row is listed with line, column and reason, nothing is trimmed or guessed,
+  an ID that looks like an email is refused, and the same file (SHA-256) is a no-op. A row
+  already held (same identifier, same content) adds a source to that record: a duplicate record,
+  not a second payment. Imports append, since providers send overlapping period reports.
+- **Provider status** is kept raw beside a mapped meaning. `COMPLETE` means "provider reports
+  complete", never "beneficiary credited". A status not in the mapping shows raw as "unmapped".
+- **BVNK** is the first provider format (`src/lib/payments/presets.ts`, with the docs URL for
+  each part). Column names are confirmed against help.bvnk.com; reading "Amount" as the settled
+  amount (vs Transaction Amount, Paid Actual Amount, Required Amount) is not yet. Another
+  provider is another mapping; nothing in the matcher is BVNK specific.
+- **Timestamps** are ISO 8601 with an offset, or Unix seconds or milliseconds as the mapping
+  says. A Unix time outside 2009–2099 in the mapping's unit is a row error (usually the wrong
+  unit). Due and created times compare as instants.
+- **Matching** links on exact identifiers only: merchant reference = instruction ID, or the
+  instruction names the provider payment ID; chain + tx hash + transfer index; the bank row's
+  instruction or provider ID column. A hash with no transfer index links only when that
+  transaction carries exactly one token transfer. Several candidates, identifiers that
+  disagree, a chain that doesn't match, or a record that arrived with different content go to
+  review. Amount, time and address similarity only rank candidates and suggestions. A failed
+  chain lookup leaves the leg unknown, never missing. Bank free text is never parsed.
+  - A hash found on more than one chain goes to review. Found on one chain while another chain
+    didn't answer: unknown, unless the record names the chain it was found on.
+  - An instruction that arrived with conflicting content holds its provider and chain legs in
+    review too. A bank row naming two payments, or a provider ID no payment has, is reviewed.
+    Fee and return rows attach through `relates_to` only where that provider leg is linked, and
+    through a merchant reference only where the instruction and provider legs are both linked;
+    otherwise they wait in a review on the payment. Amounts compare as decimals.
+- **Payment IDs never change once assigned** (kept in `.data/payments.json`, also across "Clear
+  records"). An instruction that arrives for a provider-only payment takes that payment's ID.
+  An ID always stays with the payment that owns it; another payment can only take over an ID
+  nobody is using.
+- **Retired payment IDs never vanish.** An ID no payment carries any more redirects: "X merged
+  into Y", "X is held in review R on Y", or "X is no longer held" after its records were
+  cleared. `/payments/X`, a stale review ID, and `GET /api/payments/resolve?ref=X` all resolve
+  to the current payment. Provider records held in a review show their reserved IDs in the
+  review queue.
+- **Ledger leg** joins File B on the linked transfer (chain + hash + index).
+
 ## Not built yet (by plan)
 
 Auth, roles, row-level security, audit log, rule versioning and Settings editing (week 5):

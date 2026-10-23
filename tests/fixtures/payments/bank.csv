@@ -1,0 +1,4 @@
+bank_reference,booked_at,value_date,amount,currency,direction,instruction_id,provider_payment_id,remittance_info,return_of
+BNK-1,2026-10-21T09:00:00+08:00,2026-10-21,655.00,USD,DBIT,INS-1001,,Funding payout INS-1001,
+BNK-2,2026-10-21T12:00:00+08:00,2026-10-21,999.00,USD,CRDT,,,Settlement INS-1003,
+BNK-3,2026-10-23T09:00:00+08:00,2026-10-23,655.00,USD,CRDT,,,Returned funds,BNK-1
