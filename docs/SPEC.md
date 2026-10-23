@@ -2,6 +2,29 @@
 
 Oct 21, 2026 · @Aashmiin Kaur
 
+## Product direction (23 Oct): Stablecoin payment operations and exception-control platform
+
+**The product is a read-only platform that turns a payment company's separate records into one timeline per payment and flags what doesn't line up.** The deposit investigation desk built in weeks 1–4 becomes one exception family inside it. Source: the research report's #1 idea (C1) \[ASSUMPTION — still to be validated in interviews\].
+
+**Buyer:** COO, controller or head of payment operations at a payment company using several providers. **User:** the payment ops analyst.
+
+### Version 1 scope
+
+| Area | Requirement |
+| --- | --- |
+| Records | Five record types, CSV first with column mapping: payment instructions, on-chain transfers (from our chain adapters), provider settlement reports, bank records, ledger entries |
+| Payment identity | One canonical payment record linking instruction → on-chain transfer(s) → provider record → bank record → ledger entry → later returns. Existing identifiers are kept, never replaced |
+| Matching | Three-way first: instruction ↔ on-chain transfer ↔ provider settlement report. Exact identifiers only for automatic links; anything ambiguous goes to review. Amount, time and address similarity may rank candidates but never auto-link |
+| Exceptions | Missing leg, duplicate record (not duplicate payment), amount or fee mismatch, overdue against an agreed deadline, unmatched settlement, contradiction (a later return or rejection), plus the deposit codes D01–D18 |
+| Inbox | Exceptions created automatically by matching, each with an owner, evidence, next step, and status (open, awaiting provider, under review, closed, reopened) |
+| Export | Reconciled records and a per-exception evidence pack (CSV + PDF) |
+| Provider integration | One, first as a CSV mapping. BVNK's public docs are the first reference format \[ASSUMPTION — a design partner's provider replaces this\] |
+| Limits | Read-only: no custody, signing, routing or money movement. A provider's "completed" status is shown as reported, never as proof the beneficiary was credited |
+
+### Not in version 1
+
+Live provider API connectors, Slack/Zendesk/Intercom, cross-company data sharing, multi-tenant accounts, AI that changes a status or a match.
+
 ## Head-of-product verdict
 
 **Build it, but only as a tool that joins on-chain data with the company's own ledger.** Without the ledger it is a block explorer with nicer sentences, and exchanges already ship self-serve versions of that (Binance.US has a deposit recovery tool where users paste a hash, network and address).
