@@ -7,6 +7,7 @@ import { normaliseInput } from "@/lib/normalise";
 import type { SearchEntry } from "@/lib/view";
 
 const NAV = [
+  { href: "/requests", label: "Requests" },
   { href: "/", label: "Queue" },
   { href: "/inbox", label: "Inbox" },
   { href: "/payments", label: "Payments" },
@@ -35,7 +36,7 @@ export function Shell({ index, workspace, children }: {
     };
     // Pasting a hash, address or customer ref anywhere opens it (spec 5.1).
     const onPaste = (e: ClipboardEvent) => {
-      if (isTyping(e.target)) return;
+      if (isTyping(e.target) || window.location.pathname.startsWith("/pay/")) return;
       const text = e.clipboardData?.getData("text")?.trim();
       if (!text) return;
       const kind = normaliseInput(text).kind;
@@ -50,6 +51,9 @@ export function Shell({ index, workspace, children }: {
       window.removeEventListener("paste", onPaste);
     };
   }, [router]);
+
+  // The sender's payment page is customer-facing: no operator sidebar, search or shortcuts.
+  if (pathname.startsWith("/pay/")) return <>{children}</>;
 
   return (
     <div className="shell">

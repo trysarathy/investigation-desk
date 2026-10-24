@@ -1,0 +1,38 @@
+PASS demo day loaded with 5 requests open rows=4 (REQ-1038 is completed, filtered out of Open)
+PASS persistent demo indicator 
+PASS sender page: amount, token, network, address 
+PASS sender page: QR present 
+PASS A: starts awaiting Awaiting payment
+PASS A: transfer detected Transfer detected
+PASS A: confirming Confirming
+PASS sender sees confirming (same record) Confirming
+PASS A: matched, not completed Matched
+PASS A: engine verdict shown in evidence 
+PASS A: completed only after acknowledgement Completed
+PASS A: acknowledgement in activity with actor 
+PASS sender sees Paid Paid
+PASS duplicate event counted once 1,250.00
+PASS B: needs review Needs review
+PASS B: shortfall 1,000.00 shown 
+PASS B: reply asks for the balance 
+PASS B: sender sees 1,000.00 still due 
+PASS B: decision recorded, request stays unresolved (awaiting balance) Awaiting payment
+PASS C: needs review Needs review
+PASS C: engine says fake token (D06) 
+PASS C: nothing counted 
+PASS C: simulated evidence has no explorer link 
+PASS C: decision recorded, back to awaiting, evidence kept Awaiting payment
+PASS state survives refresh 
+PASS form shows field errors when empty 
+PASS rejects comma amounts 
+PASS non-demo request created with link REQ-1045
+PASS non-demo request has no demo flag 
+PASS reset kept the non-demo request 
+PASS reset restored scenario A to awaiting Awaiting payment
+PASS mobile sender page: no horizontal scroll scrollWidth=390
+PASS mobile inbox: no horizontal scroll scrollWidth=390
+PASS sender link survives a reset 
+PASS mobile detail: no horizontal scroll scrollWidth=390
+PASS keyboard reaches the first copy control Copy contract
+PASS no console or page errors []
+FAILS: 0 of 37
