@@ -1,0 +1,108 @@
+[
+ {
+  "http": 200,
+  "code": null,
+  "title": "Check paused",
+  "detail": "Live lookup by address or customer reference is not built yet; paste a transaction hash. No verdict is given.",
+  "secs": 0.06,
+  "case": "invalid hash (too short)"
+ },
+ {
+  "http": 200,
+  "code": null,
+  "title": "Check paused",
+  "detail": "Live lookup by address or customer reference is not built yet; paste a transaction hash. No verdict is given.",
+  "secs": 0.03,
+  "case": "not a hash: free text"
+ },
+ {
+  "http": 200,
+  "code": null,
+  "title": "Check paused",
+  "detail": "Live lookup by address or customer reference is not built yet; paste a transaction hash. No verdict is given.",
+  "secs": 0.02,
+  "case": "exchange withdrawal id"
+ },
+ {
+  "http": 200,
+  "code": "D13",
+  "title": "Already credited",
+  "detail": "Based on 18 checks at 2026-10-25 00:45 SGT.",
+  "secs": 1.02,
+  "case": "hash with spaces and upper case"
+ },
+ {
+  "http": 200,
+  "code": "D13",
+  "title": "Already credited",
+  "detail": "Based on 18 checks at 2026-10-25 00:45 SGT.",
+  "secs": 0.97,
+  "case": "Tron hash with 0x prefix"
+ },
+ {
+  "http": 200,
+  "code": null,
+  "title": "Check paused",
+  "detail": "Reporting customer: Looks like an email address. Use the pseudonymous customer ID; emails and names are not accepted. No verdict is given.",
+  "secs": 0.02,
+  "case": "customer id is an email"
+ },
+ {
+  "http": 200,
+  "code": "D17",
+  "title": "Sent to another customer's address",
+  "detail": "Based on 18 checks at 2026-10-25 00:45 SGT.",
+  "secs": 0.03,
+  "case": "unknown customer id"
+ },
+ {
+  "http": 200,
+  "code": "D13",
+  "title": "Already credited",
+  "detail": "Based on 18 checks at 2026-10-25 00:45 SGT.",
+  "secs": 0.02,
+  "case": "no customer given (inferred from File A)"
+ },
+ {
+  "http": 200,
+  "code": null,
+  "title": "Check paused",
+  "detail": "Live lookup by address or customer reference is not built yet; paste a transaction hash. No verdict is given.",
+  "secs": 0.02,
+  "case": "Tron address instead of hash"
+ },
+ {
+  "http": 200,
+  "code": null,
+  "title": "Check paused",
+  "detail": "Live lookup by address or customer reference is not built yet; paste a transaction hash. No verdict is given.",
+  "secs": 0.02,
+  "case": "EVM address instead of hash"
+ },
+ {
+  "case": "bulk rows with the wrong chain + an invalid row",
+  "start": {
+   "total": 2,
+   "skipped": 1
+  },
+  "results": [
+   {
+    "line": 2,
+    "statedChain": "tron",
+    "foundChain": "ethereum",
+    "code": "D13",
+    "label": "Already credited",
+    "note": "Found on Ethereum, not on Tron as the row says."
+   },
+   {
+    "line": 3,
+    "statedChain": "ethereum",
+    "foundChain": "tron",
+    "code": "D13",
+    "label": "Already credited",
+    "note": "Found on Tron, not on Ethereum as the row says."
+   }
+  ],
+  "rowErrors": null
+ }
+]

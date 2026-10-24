@@ -1,3 +1,4 @@
+import { tronAddress } from "@/lib/fixtures/gen";
 // Week 4: the ledger join (D12–D18) on uploaded Files A and B, against real recorded chain data.
 // The files go through the same validator and workspace store as an upload from Settings.
 
@@ -67,9 +68,16 @@ describe("ledger join on uploaded files, real chain data", () => {
   });
 
   it("D17 High: the address belonged to another customer at block time", async () => {
-    const { v } = await run(await upload([`${DEST},tron,C-OTHER,2024-01-01T00:00:00Z,`], [], "C-ME"));
+    // The reporting customer has an address of their own (real-data test, 24 Oct: without one, D17 is Medium).
+    const mine = `${tronAddress("C-ME")},tron,C-ME,2024-01-01T00:00:00Z,`;
+    const { v } = await run(await upload([`${DEST},tron,C-OTHER,2024-01-01T00:00:00Z,`, mine], [], "C-ME"));
     expect([v.code, v.confidence]).toEqual(["D17", "High"]);
     expect(JSON.stringify(v.evidence)).not.toContain("C-OTHER");
+  });
+
+  it("D17 Medium when the reporting customer has no address in File A (likely a mistyped customer ID)", async () => {
+    const { v } = await run(await upload([`${DEST},tron,C-OTHER,2024-01-01T00:00:00Z,`], [], "C-ME"));
+    expect([v.code, v.confidence]).toEqual(["D17", "Medium"]);
   });
 
   it("D18 High: the address was retired before the transfer was mined", async () => {

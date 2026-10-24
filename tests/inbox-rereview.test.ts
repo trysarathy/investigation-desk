@@ -228,7 +228,8 @@ describe("import and clear routes (as the app calls them)", () => {
 /** The app's chain source with no keys set; public RPCs answer "not found", keyed APIs must not be called. */
 function keylessDeps(keyed: string[] = []) {
   const transport: Transport = async (req) => {
-    if (/trongrid|etherscan/.test(req.url)) { keyed.push(req.url); throw new Error("a keyed API was called without a key"); }
+    if (/etherscan/.test(req.url) || /TRON-PRO-API-KEY/.test(JSON.stringify(req.headers ?? {}))) { keyed.push(req.url); throw new Error("a keyed API was called with a key that isn't set"); }
+    if (/trongrid/.test(req.url)) return { status: 200, headers: { "content-type": "application/json" }, body: "{}" };
     const body = JSON.parse(req.body ?? "{}");
     const answer = (b: { id?: number }) => ({ jsonrpc: "2.0", id: b.id ?? 1, result: null });
     return { status: 200, headers: { "content-type": "application/json" }, body: JSON.stringify(Array.isArray(body) ? body.map(answer) : answer(body)) };
@@ -263,12 +264,13 @@ describe("a pending 'direction changed' review persists", () => {
 });
 
 describe("missing chain API keys", () => {
-  it("lookups are unknown ('chain lookup unavailable: key not set'), matching finishes", async () => {
+  it("lookups still run keyless (TronGrid without a key, public RPCs for the Etherscan chains); matching finishes", async () => {
     const s = await stores();
     await applyImport(s.payments, "instruction", "i.csv", enc(`${I_HEAD}\nINS-7,2026-10-22T05:35:00Z,5,tron,USDT,,${"cd".repeat(32)},,,\n`), "instructions-standard", undefined, NOW);
     const keyed: string[] = [];
     const d = await refreshMatching(await s.payments.load(), keylessDeps(keyed), [], () => NOW, { depositAddresses: [] });
-    expect(byIns(d, "INS-7").legs.chain).toMatchObject({ state: "unknown", note: expect.stringMatching(/chain lookup unavailable: key not set/) });
+    expect(byIns(d, "INS-7").legs.chain.state).not.toBe("linked");
+    expect(JSON.stringify(byIns(d, "INS-7").legs.chain)).not.toMatch(/key not set/);
     expect(keyed).toEqual([]);
   });
 });

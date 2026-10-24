@@ -1,0 +1,1575 @@
+{
+ "generated_at": "2026-10-24T16:43:35Z",
+ "about": "HELD-OUT set, built after the fixes from transactions the fixes never saw. Real public stablecoin transactions with independently verified expected diagnoses. Cases with uses_sample_company_data=true depend on tests/real-data/SAMPLE-*.csv, a FICTIONAL company's deposit addresses and ledger that reference real transactions.",
+ "cases": [
+  {
+   "id": "H-TRN-01",
+   "category": "normal (credited)",
+   "chain": "tron",
+   "tx_hash": "2bd0b7b1a1b72ce6037d62651a38696014d35ad60e5750f0ac2ac829f6f8649f",
+   "input": "2bd0b7b1a1b72ce6037d62651a38696014d35ad60e5750f0ac2ac829f6f8649f",
+   "customer_id": "SAMPLE-H001",
+   "expected": "D13",
+   "expected_findings": [],
+   "why_this_answer": "Real confirmed USDT transfer (official contract) to an address the sample company assigned to this customer; the sample ledger has a CREDITED row for this tx hash. Nothing is wrong: the product must clear it.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "tron explorer",
+     "url": "https://tronscan.org/#/transaction/2bd0b7b1a1b72ce6037d62651a38696014d35ad60e5750f0ac2ac829f6f8649f"
+    },
+    {
+     "label": "Tronscan API",
+     "url": "https://apilist.tronscanapi.com/api/transaction-info?hash=2bd0b7b1a1b72ce6037d62651a38696014d35ad60e5750f0ac2ac829f6f8649f"
+    }
+   ],
+   "verified_facts": {
+    "status": "SUCCESS",
+    "token_contract": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "from": "TRMnqawwu1bAMRNZszi2udwWZGVESmxfAX",
+    "to": "TYqZn3dNZb7FswEWPehzSi7t2AB7u7XrcC",
+    "amount": "49.820125",
+    "time": "2026-10-24T16:32:33Z",
+    "sender_frozen_now": false
+   }
+  },
+  {
+   "id": "H-TRN-02",
+   "category": "normal (credited)",
+   "chain": "tron",
+   "tx_hash": "309b9f18e427de49e9d38724a5d3a2d0990336c08ee6b187938aae5763cc835c",
+   "input": "309b9f18e427de49e9d38724a5d3a2d0990336c08ee6b187938aae5763cc835c",
+   "customer_id": "SAMPLE-H002",
+   "expected": "D13",
+   "expected_findings": [],
+   "why_this_answer": "Real confirmed USDT transfer (official contract) to an address the sample company assigned to this customer; the sample ledger has a CREDITED row for this tx hash. Nothing is wrong: the product must clear it.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "tron explorer",
+     "url": "https://tronscan.org/#/transaction/309b9f18e427de49e9d38724a5d3a2d0990336c08ee6b187938aae5763cc835c"
+    },
+    {
+     "label": "Tronscan API",
+     "url": "https://apilist.tronscanapi.com/api/transaction-info?hash=309b9f18e427de49e9d38724a5d3a2d0990336c08ee6b187938aae5763cc835c"
+    }
+   ],
+   "verified_facts": {
+    "status": "SUCCESS",
+    "token_contract": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "from": "TENksVGB1xewRqFpCNaSvBmiFFU4ngDevR",
+    "to": "TEuP3VrjHqRELhwTXxbGBYECbWCkYh5Lsv",
+    "amount": "50",
+    "time": "2026-10-24T16:32:33Z",
+    "sender_frozen_now": false
+   }
+  },
+  {
+   "id": "H-TRN-03",
+   "category": "normal (credited)",
+   "chain": "tron",
+   "tx_hash": "67a786ac44968efd2643830f3b14fc29168d5ff88d989c82148cab97dbf7f01e",
+   "input": "67a786ac44968efd2643830f3b14fc29168d5ff88d989c82148cab97dbf7f01e",
+   "customer_id": "SAMPLE-H003",
+   "expected": "D13",
+   "expected_findings": [],
+   "why_this_answer": "Real confirmed USDT transfer (official contract) to an address the sample company assigned to this customer; the sample ledger has a CREDITED row for this tx hash. Nothing is wrong: the product must clear it.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "tron explorer",
+     "url": "https://tronscan.org/#/transaction/67a786ac44968efd2643830f3b14fc29168d5ff88d989c82148cab97dbf7f01e"
+    },
+    {
+     "label": "Tronscan API",
+     "url": "https://apilist.tronscanapi.com/api/transaction-info?hash=67a786ac44968efd2643830f3b14fc29168d5ff88d989c82148cab97dbf7f01e"
+    }
+   ],
+   "verified_facts": {
+    "status": "SUCCESS",
+    "token_contract": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "from": "TUbdWNxnerUJ7PbuVkSeXt57TaBw8scijX",
+    "to": "TQN8QbF8Xb4wvu8AYKRTD81ehEKwDLFGUw",
+    "amount": "1628.16",
+    "time": "2026-10-24T16:32:33Z",
+    "sender_frozen_now": false
+   }
+  },
+  {
+   "id": "H-TRN-04",
+   "category": "normal (credited)",
+   "chain": "tron",
+   "tx_hash": "82c279cb7cef64bfcbc2a043eca98782c921329519381cdd11fdac2fe71f641a",
+   "input": "82c279cb7cef64bfcbc2a043eca98782c921329519381cdd11fdac2fe71f641a",
+   "customer_id": "SAMPLE-H004",
+   "expected": "D13",
+   "expected_findings": [],
+   "why_this_answer": "Real confirmed USDT transfer (official contract) to an address the sample company assigned to this customer; the sample ledger has a CREDITED row for this tx hash. Nothing is wrong: the product must clear it.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "tron explorer",
+     "url": "https://tronscan.org/#/transaction/82c279cb7cef64bfcbc2a043eca98782c921329519381cdd11fdac2fe71f641a"
+    },
+    {
+     "label": "Tronscan API",
+     "url": "https://apilist.tronscanapi.com/api/transaction-info?hash=82c279cb7cef64bfcbc2a043eca98782c921329519381cdd11fdac2fe71f641a"
+    }
+   ],
+   "verified_facts": {
+    "status": "SUCCESS",
+    "token_contract": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "from": "TPvN1UnH9TcDXHxtTz1Gr7RD7UUsiwj4dG",
+    "to": "THGejmt9JRk9st5pg2Ysoob1yneyCFmjFW",
+    "amount": "149.253731",
+    "time": "2026-10-24T16:32:33Z",
+    "sender_frozen_now": false
+   }
+  },
+  {
+   "id": "H-TRN-05",
+   "category": "normal (credited)",
+   "chain": "tron",
+   "tx_hash": "e2e61966676b3d6d99364b9b524d7023f7561d6cae43a1b942f8b998e826f4e2",
+   "input": "e2e61966676b3d6d99364b9b524d7023f7561d6cae43a1b942f8b998e826f4e2",
+   "customer_id": "SAMPLE-H005",
+   "expected": "D13",
+   "expected_findings": [],
+   "why_this_answer": "Real confirmed USDT transfer (official contract) to an address the sample company assigned to this customer; the sample ledger has a CREDITED row for this tx hash. Nothing is wrong: the product must clear it.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "tron explorer",
+     "url": "https://tronscan.org/#/transaction/e2e61966676b3d6d99364b9b524d7023f7561d6cae43a1b942f8b998e826f4e2"
+    },
+    {
+     "label": "Tronscan API",
+     "url": "https://apilist.tronscanapi.com/api/transaction-info?hash=e2e61966676b3d6d99364b9b524d7023f7561d6cae43a1b942f8b998e826f4e2"
+    }
+   ],
+   "verified_facts": {
+    "status": "SUCCESS",
+    "token_contract": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "from": "TY6ZRWXxS2JhACikEh2BpMKsxYK4jJoaid",
+    "to": "TDcnmwJN5FcPhSQ7MvjLyLiwi83AVy8NFV",
+    "amount": "1000",
+    "time": "2026-10-24T16:32:33Z",
+    "sender_frozen_now": false
+   }
+  },
+  {
+   "id": "H-TRN-06",
+   "category": "on-chain, not credited",
+   "chain": "tron",
+   "tx_hash": "20814b528090fed6f127c5ed683dbd1bd1cee583d7788c7a07b898a3deb8b959",
+   "input": "20814b528090fed6f127c5ed683dbd1bd1cee583d7788c7a07b898a3deb8b959",
+   "customer_id": "SAMPLE-H006",
+   "expected": "D12",
+   "expected_findings": [],
+   "why_this_answer": "Real confirmed USDT transfer to this customer's sample deposit address; the sample ledger has no row for it, so it arrived on-chain but was not credited.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "tron explorer",
+     "url": "https://tronscan.org/#/transaction/20814b528090fed6f127c5ed683dbd1bd1cee583d7788c7a07b898a3deb8b959"
+    },
+    {
+     "label": "Tronscan API",
+     "url": "https://apilist.tronscanapi.com/api/transaction-info?hash=20814b528090fed6f127c5ed683dbd1bd1cee583d7788c7a07b898a3deb8b959"
+    }
+   ],
+   "verified_facts": {
+    "status": "SUCCESS",
+    "token_contract": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "from": "TDJd6nKm9NQ3JXAZTwc9snpQVV6qiqPfyY",
+    "to": "TRzM9jkHZRTab34kFrmo1Ltq81T4g6bSDx",
+    "amount": "40",
+    "time": "2026-10-24T16:32:33Z",
+    "sender_frozen_now": false
+   }
+  },
+  {
+   "id": "H-TRN-07",
+   "category": "on-chain, not credited",
+   "chain": "tron",
+   "tx_hash": "8c42a7868f83b26cfeaea439b1c1104f4363fe71353e7c7f6c2cbff4c3258037",
+   "input": "8c42a7868f83b26cfeaea439b1c1104f4363fe71353e7c7f6c2cbff4c3258037",
+   "customer_id": "SAMPLE-H007",
+   "expected": "D12",
+   "expected_findings": [],
+   "why_this_answer": "Real confirmed transfer; the sample ledger row is still PENDING well past confirmations.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "tron explorer",
+     "url": "https://tronscan.org/#/transaction/8c42a7868f83b26cfeaea439b1c1104f4363fe71353e7c7f6c2cbff4c3258037"
+    },
+    {
+     "label": "Tronscan API",
+     "url": "https://apilist.tronscanapi.com/api/transaction-info?hash=8c42a7868f83b26cfeaea439b1c1104f4363fe71353e7c7f6c2cbff4c3258037"
+    }
+   ],
+   "verified_facts": {
+    "status": "SUCCESS",
+    "token_contract": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "from": "TMB35zzwAuH9gJzVKD5ej695LAH1drJxx5",
+    "to": "TAmLSS794ddVJrUVfR5dGPgzXnjgfviEX2",
+    "amount": "1049.82",
+    "time": "2026-10-24T16:32:33Z",
+    "sender_frozen_now": false
+   }
+  },
+  {
+   "id": "H-TRN-08",
+   "category": "on hold",
+   "chain": "tron",
+   "tx_hash": "bb4a47f9a54d3f941eb84d5293a90e0df739b3470791e81e1d33bd5be823f152",
+   "input": "bb4a47f9a54d3f941eb84d5293a90e0df739b3470791e81e1d33bd5be823f152",
+   "customer_id": "SAMPLE-H008",
+   "expected": "D14",
+   "expected_findings": [],
+   "why_this_answer": "Real confirmed transfer; the sample ledger row is HELD (compliance hold).",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "tron explorer",
+     "url": "https://tronscan.org/#/transaction/bb4a47f9a54d3f941eb84d5293a90e0df739b3470791e81e1d33bd5be823f152"
+    },
+    {
+     "label": "Tronscan API",
+     "url": "https://apilist.tronscanapi.com/api/transaction-info?hash=bb4a47f9a54d3f941eb84d5293a90e0df739b3470791e81e1d33bd5be823f152"
+    }
+   ],
+   "verified_facts": {
+    "status": "SUCCESS",
+    "token_contract": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "from": "TBrnKEZ3QFcfK6ards72bDb4msYAuy7ms9",
+    "to": "TBwfJPxg2SoqST9Lo3LKWhSLJTwBZ7wrF6",
+    "amount": "78.6",
+    "time": "2026-10-24T16:32:33Z",
+    "sender_frozen_now": false
+   }
+  },
+  {
+   "id": "H-TRN-09",
+   "category": "rejected by company",
+   "chain": "tron",
+   "tx_hash": "d79558552093f04a954f9cd4fd000eea3e886a52a1f3ddf5938907eaf1bc3982",
+   "input": "d79558552093f04a954f9cd4fd000eea3e886a52a1f3ddf5938907eaf1bc3982",
+   "customer_id": "SAMPLE-H009",
+   "expected": "D16",
+   "expected_findings": [],
+   "why_this_answer": "Real confirmed transfer; the sample ledger row is REJECTED.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "tron explorer",
+     "url": "https://tronscan.org/#/transaction/d79558552093f04a954f9cd4fd000eea3e886a52a1f3ddf5938907eaf1bc3982"
+    },
+    {
+     "label": "Tronscan API",
+     "url": "https://apilist.tronscanapi.com/api/transaction-info?hash=d79558552093f04a954f9cd4fd000eea3e886a52a1f3ddf5938907eaf1bc3982"
+    }
+   ],
+   "verified_facts": {
+    "status": "SUCCESS",
+    "token_contract": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "from": "TXXd5T9Js2KvfGADzKX8KnER1rebz56uq2",
+    "to": "TEtDoyKwNbk6i8LiCcxWYmY4SGVUBTQFy7",
+    "amount": "9627",
+    "time": "2026-10-24T16:32:33Z",
+    "sender_frozen_now": false
+   }
+  },
+  {
+   "id": "H-TRN-10",
+   "category": "another customer's address",
+   "chain": "tron",
+   "tx_hash": "7c3863179154a079754b7ed1cf58a9552cd2e40410ae24ea5223c799c25df085",
+   "input": "7c3863179154a079754b7ed1cf58a9552cd2e40410ae24ea5223c799c25df085",
+   "customer_id": "SAMPLE-H010",
+   "expected": "D17",
+   "expected_findings": [],
+   "why_this_answer": "Real transfer to a sample address assigned to a DIFFERENT customer than the one reporting it.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "tron explorer",
+     "url": "https://tronscan.org/#/transaction/7c3863179154a079754b7ed1cf58a9552cd2e40410ae24ea5223c799c25df085"
+    },
+    {
+     "label": "Tronscan API",
+     "url": "https://apilist.tronscanapi.com/api/transaction-info?hash=7c3863179154a079754b7ed1cf58a9552cd2e40410ae24ea5223c799c25df085"
+    }
+   ],
+   "verified_facts": {
+    "status": "SUCCESS",
+    "token_contract": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "from": "TZ4KZdXM15WwfTMXrvZujP53ME4faDp1pV",
+    "to": "TQxx9U2uwaNy6p2RN3JpZWTar85bQzp1hj",
+    "amount": "448.95",
+    "time": "2026-10-24T16:32:33Z",
+    "sender_frozen_now": false
+   }
+  },
+  {
+   "id": "H-TRN-11",
+   "category": "retired address",
+   "chain": "tron",
+   "tx_hash": "8116ff28c5c9b8d050e74565444ce5f9c178430bbf504682a70f39c4969d1421",
+   "input": "8116ff28c5c9b8d050e74565444ce5f9c178430bbf504682a70f39c4969d1421",
+   "customer_id": "SAMPLE-H012",
+   "expected": "D18",
+   "expected_findings": [],
+   "why_this_answer": "Real transfer that landed one day after the sample company retired the address (and never reassigned it).",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "tron explorer",
+     "url": "https://tronscan.org/#/transaction/8116ff28c5c9b8d050e74565444ce5f9c178430bbf504682a70f39c4969d1421"
+    },
+    {
+     "label": "Tronscan API",
+     "url": "https://apilist.tronscanapi.com/api/transaction-info?hash=8116ff28c5c9b8d050e74565444ce5f9c178430bbf504682a70f39c4969d1421"
+    }
+   ],
+   "verified_facts": {
+    "status": "SUCCESS",
+    "token_contract": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "from": "TTSGAnDe7DVrTpmauTEoA1hvyFih1frTwn",
+    "to": "TCnKJnkkH1TvP549dXAsHR6fu2gHGVN61H",
+    "amount": "5000",
+    "time": "2026-10-24T16:32:33Z",
+    "sender_frozen_now": false
+   }
+  },
+  {
+   "id": "H-TRN-12",
+   "category": "below minimum",
+   "chain": "tron",
+   "tx_hash": "2442696b0369c3ebde0c8eb2db0c3a458aa2ceca9f9ab0b1e2ef77a152d6f467",
+   "input": "2442696b0369c3ebde0c8eb2db0c3a458aa2ceca9f9ab0b1e2ef77a152d6f467",
+   "customer_id": "SAMPLE-H013",
+   "expected": "D08",
+   "expected_findings": [],
+   "why_this_answer": "Real USDT transfer of less than the sample minimum (1 USDT on Tron) to this customer's sample address.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "tron explorer",
+     "url": "https://tronscan.org/#/transaction/2442696b0369c3ebde0c8eb2db0c3a458aa2ceca9f9ab0b1e2ef77a152d6f467"
+    },
+    {
+     "label": "Tronscan API",
+     "url": "https://apilist.tronscanapi.com/api/transaction-info?hash=2442696b0369c3ebde0c8eb2db0c3a458aa2ceca9f9ab0b1e2ef77a152d6f467"
+    }
+   ],
+   "verified_facts": {
+    "status": "SUCCESS",
+    "token_contract": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "from": "TJEM6qCZexWL57hjAqyA9VE7oxhHC3KSVD",
+    "to": "TDk75dbVQdRjvaQmBw2f2ig4e2wVWjZQdm",
+    "amount": "0.101",
+    "time": "2026-10-24T16:32:21Z",
+    "sender_frozen_now": false
+   }
+  },
+  {
+   "id": "H-ETH-01",
+   "category": "normal (credited)",
+   "chain": "ethereum",
+   "tx_hash": "0xd7e6a8d372f1154dbdca714df2459de9b4bedb5e5707f46fe8a628a4a606d3c8",
+   "input": "0xd7e6a8d372f1154dbdca714df2459de9b4bedb5e5707f46fe8a628a4a606d3c8",
+   "customer_id": "SAMPLE-H014",
+   "expected": "D13",
+   "expected_findings": [],
+   "why_this_answer": "Real confirmed USDT transfer (official Tether contract) to the customer's sample deposit address; the sample ledger has a CREDITED row with this hash and log index. Nothing is wrong.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "ethereum explorer",
+     "url": "https://etherscan.io/tx/0xd7e6a8d372f1154dbdca714df2459de9b4bedb5e5707f46fe8a628a4a606d3c8"
+    },
+    {
+     "label": "Blockscout API",
+     "url": "https://eth.blockscout.com/api/v2/transactions/0xd7e6a8d372f1154dbdca714df2459de9b4bedb5e5707f46fe8a628a4a606d3c8"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "token_contract": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "symbol": "USDT",
+    "from": "0x5f9433482b62ced7266d2d04b9c0ecbfc5201c60",
+    "to": "0xe18162fbfd9472cc0bc9b5957877582f7e119cbb",
+    "amount": "300",
+    "time": "2026-10-24T16:15:23Z"
+   }
+  },
+  {
+   "id": "H-ETH-02",
+   "category": "normal (credited)",
+   "chain": "ethereum",
+   "tx_hash": "0xf79fd17fa10355c9c673e0b6b90d6953870349037a495af19f356b470e4c91b8",
+   "input": "0xf79fd17fa10355c9c673e0b6b90d6953870349037a495af19f356b470e4c91b8",
+   "customer_id": "SAMPLE-H015",
+   "expected": "D13",
+   "expected_findings": [],
+   "why_this_answer": "Real confirmed USDT transfer (official Tether contract) to the customer's sample deposit address; the sample ledger has a CREDITED row with this hash and log index. Nothing is wrong.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "ethereum explorer",
+     "url": "https://etherscan.io/tx/0xf79fd17fa10355c9c673e0b6b90d6953870349037a495af19f356b470e4c91b8"
+    },
+    {
+     "label": "Blockscout API",
+     "url": "https://eth.blockscout.com/api/v2/transactions/0xf79fd17fa10355c9c673e0b6b90d6953870349037a495af19f356b470e4c91b8"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "token_contract": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "symbol": "USDT",
+    "from": "0x8f8d1206d1bce12ff892731f8a140ed18b93884e",
+    "to": "0x379bc5d7b2c4afd3ba26039d4522a7be48076249",
+    "amount": "50.24",
+    "time": "2026-10-24T16:15:23Z"
+   }
+  },
+  {
+   "id": "H-ETH-03",
+   "category": "normal (credited)",
+   "chain": "ethereum",
+   "tx_hash": "0x86e31e827e6c5702223ed87ee7d1f962384592ab88d31c42efc45a2de9d59147",
+   "input": "0x86e31e827e6c5702223ed87ee7d1f962384592ab88d31c42efc45a2de9d59147",
+   "customer_id": "SAMPLE-H016",
+   "expected": "D13",
+   "expected_findings": [],
+   "why_this_answer": "Real confirmed USDT transfer (official Tether contract) to the customer's sample deposit address; the sample ledger has a CREDITED row with this hash and log index. Nothing is wrong.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "ethereum explorer",
+     "url": "https://etherscan.io/tx/0x86e31e827e6c5702223ed87ee7d1f962384592ab88d31c42efc45a2de9d59147"
+    },
+    {
+     "label": "Blockscout API",
+     "url": "https://eth.blockscout.com/api/v2/transactions/0x86e31e827e6c5702223ed87ee7d1f962384592ab88d31c42efc45a2de9d59147"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "token_contract": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "symbol": "USDT",
+    "from": "0x7535a8d273c0a6feaefde9b4d2c4853d77975b4e",
+    "to": "0xd47a1bdc6872ad2fd16e50149baa9924c653e624",
+    "amount": "29.666632",
+    "time": "2026-10-24T16:15:23Z"
+   }
+  },
+  {
+   "id": "H-ETH-04",
+   "category": "normal (credited)",
+   "chain": "ethereum",
+   "tx_hash": "0xf8247531709e0248b3e59af972e7f93f74df032b4b0a60a5d43ad3f41dfdd0dd",
+   "input": "0xf8247531709e0248b3e59af972e7f93f74df032b4b0a60a5d43ad3f41dfdd0dd",
+   "customer_id": "SAMPLE-H017",
+   "expected": "D13",
+   "expected_findings": [],
+   "why_this_answer": "Real confirmed USDT transfer (official Tether contract) to the customer's sample deposit address; the sample ledger has a CREDITED row with this hash and log index. Nothing is wrong.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "ethereum explorer",
+     "url": "https://etherscan.io/tx/0xf8247531709e0248b3e59af972e7f93f74df032b4b0a60a5d43ad3f41dfdd0dd"
+    },
+    {
+     "label": "Blockscout API",
+     "url": "https://eth.blockscout.com/api/v2/transactions/0xf8247531709e0248b3e59af972e7f93f74df032b4b0a60a5d43ad3f41dfdd0dd"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "token_contract": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "symbol": "USDT",
+    "from": "0xda2bdcf20b2e610c10a3bcda7965821e75b0fc1c",
+    "to": "0x64cdaa89629fe003eaa31b480d8b63372d109a53",
+    "amount": "62",
+    "time": "2026-10-24T16:15:23Z"
+   }
+  },
+  {
+   "id": "H-ETH-05",
+   "category": "on-chain, not credited",
+   "chain": "ethereum",
+   "tx_hash": "0x608624df7df27856183e4f887a9f6e4dd2e2069c1c22099630e6081cd0dd6dc0",
+   "input": "0x608624df7df27856183e4f887a9f6e4dd2e2069c1c22099630e6081cd0dd6dc0",
+   "customer_id": "SAMPLE-H018",
+   "expected": "D12",
+   "expected_findings": [],
+   "why_this_answer": "Real confirmed USDT transfer to the customer's sample deposit address with no ledger row.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "ethereum explorer",
+     "url": "https://etherscan.io/tx/0x608624df7df27856183e4f887a9f6e4dd2e2069c1c22099630e6081cd0dd6dc0"
+    },
+    {
+     "label": "Blockscout API",
+     "url": "https://eth.blockscout.com/api/v2/transactions/0x608624df7df27856183e4f887a9f6e4dd2e2069c1c22099630e6081cd0dd6dc0"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "token_contract": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "symbol": "USDT",
+    "from": "0x2677b64e3040faffe93c0c9f03ce8dbf10965f08",
+    "to": "0x1edd679e0bead9291cf869dbd4b143a559429107",
+    "amount": "130.53",
+    "time": "2026-10-24T16:15:23Z"
+   }
+  },
+  {
+   "id": "H-ETH-06",
+   "category": "wrong address (not ours)",
+   "chain": "ethereum",
+   "tx_hash": "0x674c428784a735feb30e404e94491bba4d423d3a9b385d95f9e779c1a17c4106",
+   "input": "0x674c428784a735feb30e404e94491bba4d423d3a9b385d95f9e779c1a17c4106",
+   "customer_id": "SAMPLE-H019",
+   "expected": "D07",
+   "expected_findings": [],
+   "why_this_answer": "Real transfer whose destination is not in the sample company's deposit-address list; the reporting customer's own sample address is different and not a look-alike.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "ethereum explorer",
+     "url": "https://etherscan.io/tx/0x674c428784a735feb30e404e94491bba4d423d3a9b385d95f9e779c1a17c4106"
+    },
+    {
+     "label": "Blockscout API",
+     "url": "https://eth.blockscout.com/api/v2/transactions/0x674c428784a735feb30e404e94491bba4d423d3a9b385d95f9e779c1a17c4106"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "token_contract": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "symbol": "USDT",
+    "from": "0x7742f9e39f202ff28c3a75f67bf6dec4ee3feaeb",
+    "to": "0x6cdb7776f6a20b9ed4441b791e9541a6fc04e313",
+    "amount": "146.470901",
+    "time": "2026-10-24T16:15:23Z"
+   }
+  },
+  {
+   "id": "H-ETH-07",
+   "category": "below minimum",
+   "chain": "ethereum",
+   "tx_hash": "0x94fbd03e97f3c16697546d49791c6969a47f090af6c003d537f59194e52509f3",
+   "input": "0x94fbd03e97f3c16697546d49791c6969a47f090af6c003d537f59194e52509f3",
+   "customer_id": "SAMPLE-H021",
+   "expected": "D08",
+   "expected_findings": [],
+   "why_this_answer": "Real USDT transfer below the sample minimum (10 USDT on Ethereum) to the customer's sample address.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "ethereum explorer",
+     "url": "https://etherscan.io/tx/0x94fbd03e97f3c16697546d49791c6969a47f090af6c003d537f59194e52509f3"
+    },
+    {
+     "label": "Blockscout API",
+     "url": "https://eth.blockscout.com/api/v2/transactions/0x94fbd03e97f3c16697546d49791c6969a47f090af6c003d537f59194e52509f3"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "token_contract": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "symbol": "USDT",
+    "from": "0x5f9433482b62ced7266d2d04b9c0ecbfc5201c60",
+    "to": "0xe3478b0bb1a5084567c319096437924948be1964",
+    "amount": "1.016809",
+    "time": "2026-10-24T16:15:23Z"
+   }
+  },
+  {
+   "id": "H-ETH-08",
+   "category": "unsupported token",
+   "chain": "ethereum",
+   "tx_hash": "0xa36bce9537f74676bb3a2075210ccc29915833fecb86f17d33b1bbc144654b56",
+   "input": "0xa36bce9537f74676bb3a2075210ccc29915833fecb86f17d33b1bbc144654b56",
+   "customer_id": "SAMPLE-H022",
+   "expected": "D05",
+   "expected_findings": [],
+   "why_this_answer": "Real USDC (Circle's official contract) sent to a sample deposit address; the sample company accepts only USDT on Ethereum.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "ethereum explorer",
+     "url": "https://etherscan.io/tx/0xa36bce9537f74676bb3a2075210ccc29915833fecb86f17d33b1bbc144654b56"
+    },
+    {
+     "label": "Blockscout API",
+     "url": "https://eth.blockscout.com/api/v2/transactions/0xa36bce9537f74676bb3a2075210ccc29915833fecb86f17d33b1bbc144654b56"
+    },
+    {
+     "label": "Circle's USDC contract addresses",
+     "url": "https://developers.circle.com/stablecoins/usdc-contract-addresses"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "token_contract": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    "symbol": "USDC",
+    "from": "0x6fa5b6d93e2539caea358518d3fe8f75418e5a1d",
+    "to": "0x4118725333498c9436fe9131c72f5c0f3c75af1a",
+    "amount": "22.67825",
+    "time": "2026-10-24T16:15:23Z"
+   }
+  },
+  {
+   "id": "H-BSC-01",
+   "category": "normal (credited)",
+   "chain": "bsc",
+   "tx_hash": "0x8c88341a364cc8d3ba61f8e41921387d453cc9bf0e3622170a96738f24395d54",
+   "input": "0x8c88341a364cc8d3ba61f8e41921387d453cc9bf0e3622170a96738f24395d54",
+   "customer_id": "SAMPLE-H023",
+   "expected": "D13",
+   "expected_findings": [],
+   "why_this_answer": "Real confirmed BSC-USD transfer (the sample company's declared BNB Chain USDT) to the customer's sample address; CREDITED in the sample ledger.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "bsc explorer",
+     "url": "https://bscscan.com/tx/0x8c88341a364cc8d3ba61f8e41921387d453cc9bf0e3622170a96738f24395d54"
+    },
+    {
+     "label": "Receipt via a second RPC",
+     "url": "https://bsc.meowrpc.com"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "token_contract": "0x55d398326f99059ff775485246999027b3197955",
+    "from": "0x3980bd4cd20d30f3ef67160ac147d461f46e6365",
+    "to": "0xbe6f38c0cada80078fcfc0926fdf708a7a2806bc",
+    "amount": "100",
+    "time": "2026-10-24T16:35:20Z"
+   }
+  },
+  {
+   "id": "H-BSC-02",
+   "category": "normal (credited)",
+   "chain": "bsc",
+   "tx_hash": "0x673c50fe88dd69c420bb700b3840754fe104cebcb2041764cf25433c63d2b1df",
+   "input": "0x673c50fe88dd69c420bb700b3840754fe104cebcb2041764cf25433c63d2b1df",
+   "customer_id": "SAMPLE-H024",
+   "expected": "D13",
+   "expected_findings": [],
+   "why_this_answer": "Real confirmed BSC-USD transfer (the sample company's declared BNB Chain USDT) to the customer's sample address; CREDITED in the sample ledger.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "bsc explorer",
+     "url": "https://bscscan.com/tx/0x673c50fe88dd69c420bb700b3840754fe104cebcb2041764cf25433c63d2b1df"
+    },
+    {
+     "label": "Receipt via a second RPC",
+     "url": "https://bsc.meowrpc.com"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "token_contract": "0x55d398326f99059ff775485246999027b3197955",
+    "from": "0x9bb6a22da110c6c9bab745bcaf0ee142ee83af37",
+    "to": "0x8b3eaa844cde95f604ee00676ce0722c37760df5",
+    "amount": "138.77",
+    "time": "2026-10-24T16:35:20Z"
+   }
+  },
+  {
+   "id": "H-BSC-03",
+   "category": "normal (credited)",
+   "chain": "bsc",
+   "tx_hash": "0xe6ee6450b251e921b7bd48b00606b1d41d480719118096d399114bccf4b8b8c6",
+   "input": "0xe6ee6450b251e921b7bd48b00606b1d41d480719118096d399114bccf4b8b8c6",
+   "customer_id": "SAMPLE-H025",
+   "expected": "D13",
+   "expected_findings": [],
+   "why_this_answer": "Real confirmed BSC-USD transfer (the sample company's declared BNB Chain USDT) to the customer's sample address; CREDITED in the sample ledger.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "bsc explorer",
+     "url": "https://bscscan.com/tx/0xe6ee6450b251e921b7bd48b00606b1d41d480719118096d399114bccf4b8b8c6"
+    },
+    {
+     "label": "Receipt via a second RPC",
+     "url": "https://bsc.meowrpc.com"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "token_contract": "0x55d398326f99059ff775485246999027b3197955",
+    "from": "0x6f16759eb726ae103866e0511979fcbd188925ea",
+    "to": "0x8993dbf0c88dbd20b851a1f90d0d831db2071d3e",
+    "amount": "189.08",
+    "time": "2026-10-24T16:35:20Z"
+   }
+  },
+  {
+   "id": "H-BSC-04",
+   "category": "on-chain, not credited",
+   "chain": "bsc",
+   "tx_hash": "0x934744b7697ce9dea67d772b3f6110ede571252ea334adc85fc3657892bc46c3",
+   "input": "0x934744b7697ce9dea67d772b3f6110ede571252ea334adc85fc3657892bc46c3",
+   "customer_id": "SAMPLE-H026",
+   "expected": "D12",
+   "expected_findings": [],
+   "why_this_answer": "Real confirmed BSC-USD transfer to the customer's sample address with no ledger row.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "bsc explorer",
+     "url": "https://bscscan.com/tx/0x934744b7697ce9dea67d772b3f6110ede571252ea334adc85fc3657892bc46c3"
+    },
+    {
+     "label": "Receipt via a second RPC",
+     "url": "https://bsc.meowrpc.com"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "token_contract": "0x55d398326f99059ff775485246999027b3197955",
+    "from": "0x3ff1da71fc9849c9d406bcc7df7c325c3b742045",
+    "to": "0x85b09a8735dc3314d4e5aef36232d93900858392",
+    "amount": "218",
+    "time": "2026-10-24T16:35:20Z"
+   }
+  },
+  {
+   "id": "H-BSC-05",
+   "category": "below minimum",
+   "chain": "bsc",
+   "tx_hash": "0x74eb2f5b5625cc19c8ac58f36c05214fc309b28026be1602e110e397ccc2d1ff",
+   "input": "0x74eb2f5b5625cc19c8ac58f36c05214fc309b28026be1602e110e397ccc2d1ff",
+   "customer_id": "SAMPLE-H027",
+   "expected": "D08",
+   "expected_findings": [],
+   "why_this_answer": "Real BSC-USD transfer below the sample minimum (20 USDT on BNB Chain).",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "bsc explorer",
+     "url": "https://bscscan.com/tx/0x74eb2f5b5625cc19c8ac58f36c05214fc309b28026be1602e110e397ccc2d1ff"
+    },
+    {
+     "label": "Receipt via a second RPC",
+     "url": "https://bsc.meowrpc.com"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "token_contract": "0x55d398326f99059ff775485246999027b3197955",
+    "from": "0x2b7e535c0aa4db0de4703388c51b9776ece53bd8",
+    "to": "0x4a19ad41d1670f3397514763447622c049efe810",
+    "amount": "18.23",
+    "time": "2026-10-24T16:35:20Z"
+   }
+  },
+  {
+   "id": "H-BSC-06",
+   "category": "unsupported token",
+   "chain": "bsc",
+   "tx_hash": "0xa1961cf5a24c78234ae5175a08c1398a012ccedca88f1605b9b53be4d248c066",
+   "input": "0xa1961cf5a24c78234ae5175a08c1398a012ccedca88f1605b9b53be4d248c066",
+   "customer_id": "SAMPLE-H028",
+   "expected": "D05",
+   "expected_findings": [],
+   "why_this_answer": "Real Binance-Peg USDC sent to a sample deposit address; the sample company accepts only BSC-USD on BNB Chain.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "bsc explorer",
+     "url": "https://bscscan.com/tx/0xa1961cf5a24c78234ae5175a08c1398a012ccedca88f1605b9b53be4d248c066"
+    },
+    {
+     "label": "Receipt via a second RPC",
+     "url": "https://bsc.meowrpc.com"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "token_contract": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
+    "from": "0xac4b06862dced061cd5062efa415bcf6a25c36a5",
+    "to": "0xdc2f2a660c160de2f769d0e1f1ca1c147177782f",
+    "amount": "200.00157817",
+    "time": "2026-10-24T16:35:22Z"
+   }
+  },
+  {
+   "id": "H-NET-POL",
+   "category": "wrong network",
+   "chain": "polygon",
+   "tx_hash": "0x25ab82405e4388919ef4dff6bca224bde3888bdf7a4a0e81827f1483ad00d0ba",
+   "input": "0x25ab82405e4388919ef4dff6bca224bde3888bdf7a4a0e81827f1483ad00d0ba",
+   "customer_id": "SAMPLE-H029",
+   "expected": "D04",
+   "expected_findings": [],
+   "why_this_answer": "Real transfer on polygon; the sample company registered this destination as the customer's Ethereum deposit address, so the funds went to the right address on the wrong network.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "polygon explorer",
+     "url": "https://polygonscan.com/tx/0x25ab82405e4388919ef4dff6bca224bde3888bdf7a4a0e81827f1483ad00d0ba"
+    },
+    {
+     "label": "Receipt via a second RPC",
+     "url": "https://polygon-bor-rpc.publicnode.com"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "token_contract": "0xc2132d05d31c914a87c6611c10748aeb04b58e8f",
+    "from": "0x401e1410ad540d128d1c0732d0bcb3571610e733",
+    "to": "0x07964f135f276412b3182a3b2407b8dd45000000",
+    "time": "2026-10-24T16:36:44Z"
+   }
+  },
+  {
+   "id": "H-NET-ARB",
+   "category": "wrong network",
+   "chain": "arbitrum",
+   "tx_hash": "0x99fd41b135766b59c634764ee55367cf327c96da91a16476d316800e5bcb722f",
+   "input": "0x99fd41b135766b59c634764ee55367cf327c96da91a16476d316800e5bcb722f",
+   "customer_id": "SAMPLE-H030",
+   "expected": "D04",
+   "expected_findings": [],
+   "why_this_answer": "Real transfer on arbitrum; the sample company registered this destination as the customer's Ethereum deposit address, so the funds went to the right address on the wrong network.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "arbitrum explorer",
+     "url": "https://arbiscan.io/tx/0x99fd41b135766b59c634764ee55367cf327c96da91a16476d316800e5bcb722f"
+    },
+    {
+     "label": "Receipt via a second RPC",
+     "url": "https://arbitrum.drpc.org"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "token_contract": "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9",
+    "from": "0xafee421482faea92292ed3ffe29371742542ad72",
+    "to": "0x0a412b058a0b705865248c15fc22f58e2cb16857",
+    "time": "2026-10-24T16:37:36Z"
+   }
+  },
+  {
+   "id": "H-NET-BAS",
+   "category": "wrong network",
+   "chain": "base",
+   "tx_hash": "0x941157a3ae30da66510bd1112c5ca64e4ebe6eb3d9387a83d523148f858bc00d",
+   "input": "0x941157a3ae30da66510bd1112c5ca64e4ebe6eb3d9387a83d523148f858bc00d",
+   "customer_id": "SAMPLE-H031",
+   "expected": "D04",
+   "expected_findings": [],
+   "why_this_answer": "Real transfer on base; the sample company registered this destination as the customer's Ethereum deposit address, so the funds went to the right address on the wrong network.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "base explorer",
+     "url": "https://basescan.org/tx/0x941157a3ae30da66510bd1112c5ca64e4ebe6eb3d9387a83d523148f858bc00d"
+    },
+    {
+     "label": "Receipt via a second RPC",
+     "url": "https://base-rpc.publicnode.com"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "token_contract": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+    "from": "0xfd11a5fa14dc5238bfbb78558d4d663cbf52f8f9",
+    "to": "0x307576dd4f73f91bb8c4a2edb762938e8e067d31",
+    "time": "2026-10-24T16:36:47Z"
+   }
+  },
+  {
+   "id": "H-FAIL-T1",
+   "category": "failed (out of energy)",
+   "chain": "tron",
+   "tx_hash": "f81f5672a32c206aaf526dc7b1ce8a2a311e943ca79b1bd1b51d360a6fe7f637",
+   "input": "f81f5672a32c206aaf526dc7b1ce8a2a311e943ca79b1bd1b51d360a6fe7f637",
+   "customer_id": null,
+   "expected": "D03",
+   "expected_findings": [],
+   "why_this_answer": "Tronscan reports contractRet OUT_OF_ENERGY for this USDT transfer call: no tokens moved.",
+   "uses_sample_company_data": false,
+   "sources": [
+    {
+     "label": "tron explorer",
+     "url": "https://tronscan.org/#/transaction/f81f5672a32c206aaf526dc7b1ce8a2a311e943ca79b1bd1b51d360a6fe7f637"
+    },
+    {
+     "label": "Tronscan API",
+     "url": "https://apilist.tronscanapi.com/api/transaction-info?hash=f81f5672a32c206aaf526dc7b1ce8a2a311e943ca79b1bd1b51d360a6fe7f637"
+    }
+   ],
+   "verified_facts": {
+    "status": "OUT_OF_ENERGY",
+    "method": "transfer(address _to,uint256 _value)",
+    "time": "2026-10-24T16:36:42Z"
+   }
+  },
+  {
+   "id": "H-FAIL-T2",
+   "category": "failed (out of energy)",
+   "chain": "tron",
+   "tx_hash": "77a4070752227496d986e0dbe90fea904e4078f9ebef7a7bdf5c4bddf1fb8ca8",
+   "input": "77a4070752227496d986e0dbe90fea904e4078f9ebef7a7bdf5c4bddf1fb8ca8",
+   "customer_id": null,
+   "expected": "D03",
+   "expected_findings": [],
+   "why_this_answer": "Tronscan reports contractRet OUT_OF_ENERGY for this USDT transfer call: no tokens moved.",
+   "uses_sample_company_data": false,
+   "sources": [
+    {
+     "label": "tron explorer",
+     "url": "https://tronscan.org/#/transaction/77a4070752227496d986e0dbe90fea904e4078f9ebef7a7bdf5c4bddf1fb8ca8"
+    },
+    {
+     "label": "Tronscan API",
+     "url": "https://apilist.tronscanapi.com/api/transaction-info?hash=77a4070752227496d986e0dbe90fea904e4078f9ebef7a7bdf5c4bddf1fb8ca8"
+    }
+   ],
+   "verified_facts": {
+    "status": "OUT_OF_ENERGY",
+    "method": "transfer(address _to,uint256 _value)",
+    "time": "2026-10-24T16:36:42Z"
+   }
+  },
+  {
+   "id": "H-FAIL-T3",
+   "category": "failed (out of energy)",
+   "chain": "tron",
+   "tx_hash": "6f83174eba3dc68fa030d4103f91bf36babcb2b5857f8708cfca2d81abdb849a",
+   "input": "6f83174eba3dc68fa030d4103f91bf36babcb2b5857f8708cfca2d81abdb849a",
+   "customer_id": null,
+   "expected": "D03",
+   "expected_findings": [],
+   "why_this_answer": "Tronscan reports contractRet OUT_OF_ENERGY for this USDT transfer call: no tokens moved.",
+   "uses_sample_company_data": false,
+   "sources": [
+    {
+     "label": "tron explorer",
+     "url": "https://tronscan.org/#/transaction/6f83174eba3dc68fa030d4103f91bf36babcb2b5857f8708cfca2d81abdb849a"
+    },
+    {
+     "label": "Tronscan API",
+     "url": "https://apilist.tronscanapi.com/api/transaction-info?hash=6f83174eba3dc68fa030d4103f91bf36babcb2b5857f8708cfca2d81abdb849a"
+    }
+   ],
+   "verified_facts": {
+    "status": "OUT_OF_ENERGY",
+    "method": "transfer(address _to,uint256 _value)",
+    "time": "2026-10-24T16:37:00Z"
+   }
+  },
+  {
+   "id": "H-FAIL-E1",
+   "category": "failed (reverted)",
+   "chain": "ethereum",
+   "tx_hash": "0xe11b57b19da020e05696634024c52c1988f9f886d021c0eb442c431034621a4d",
+   "input": "0xe11b57b19da020e05696634024c52c1988f9f886d021c0eb442c431034621a4d",
+   "customer_id": null,
+   "expected": "D03",
+   "expected_findings": [],
+   "why_this_answer": "Blockscout reports status error (invalid opcode: INVALID) for this USDT transfer call: no tokens moved.",
+   "uses_sample_company_data": false,
+   "sources": [
+    {
+     "label": "ethereum explorer",
+     "url": "https://etherscan.io/tx/0xe11b57b19da020e05696634024c52c1988f9f886d021c0eb442c431034621a4d"
+    },
+    {
+     "label": "Blockscout API",
+     "url": "https://eth.blockscout.com/api/v2/transactions/0xe11b57b19da020e05696634024c52c1988f9f886d021c0eb442c431034621a4d"
+    }
+   ],
+   "verified_facts": {
+    "status": "invalid opcode: INVALID",
+    "method": "transfer",
+    "time": "2026-10-24T16:15:59Z"
+   }
+  },
+  {
+   "id": "H-FAIL-E2",
+   "category": "failed (reverted)",
+   "chain": "ethereum",
+   "tx_hash": "0x2046d9a4ea529ce40761da59d9b5175525461b54fefd961e79a99a7760edd08b",
+   "input": "0x2046d9a4ea529ce40761da59d9b5175525461b54fefd961e79a99a7760edd08b",
+   "customer_id": null,
+   "expected": "D03",
+   "expected_findings": [],
+   "why_this_answer": "Blockscout reports status error (invalid opcode: INVALID) for this USDT transfer call: no tokens moved.",
+   "uses_sample_company_data": false,
+   "sources": [
+    {
+     "label": "ethereum explorer",
+     "url": "https://etherscan.io/tx/0x2046d9a4ea529ce40761da59d9b5175525461b54fefd961e79a99a7760edd08b"
+    },
+    {
+     "label": "Blockscout API",
+     "url": "https://eth.blockscout.com/api/v2/transactions/0x2046d9a4ea529ce40761da59d9b5175525461b54fefd961e79a99a7760edd08b"
+    }
+   ],
+   "verified_facts": {
+    "status": "invalid opcode: INVALID",
+    "method": "transfer",
+    "time": "2026-10-24T16:16:35Z"
+   }
+  },
+  {
+   "id": "H-FAIL-E3",
+   "category": "failed (reverted)",
+   "chain": "ethereum",
+   "tx_hash": "0x0343f10bf83f483be2760aa21eee4e2cd2e1418451afcdadf5d8946ece0e80ec",
+   "input": "0x0343f10bf83f483be2760aa21eee4e2cd2e1418451afcdadf5d8946ece0e80ec",
+   "customer_id": null,
+   "expected": "D03",
+   "expected_findings": [],
+   "why_this_answer": "Blockscout reports status error (invalid opcode: INVALID) for this USDT transfer call: no tokens moved.",
+   "uses_sample_company_data": false,
+   "sources": [
+    {
+     "label": "ethereum explorer",
+     "url": "https://etherscan.io/tx/0x0343f10bf83f483be2760aa21eee4e2cd2e1418451afcdadf5d8946ece0e80ec"
+    },
+    {
+     "label": "Blockscout API",
+     "url": "https://eth.blockscout.com/api/v2/transactions/0x0343f10bf83f483be2760aa21eee4e2cd2e1418451afcdadf5d8946ece0e80ec"
+    }
+   ],
+   "verified_facts": {
+    "status": "invalid opcode: INVALID",
+    "method": "transfer",
+    "time": "2026-10-24T16:17:35Z"
+   }
+  },
+  {
+   "id": "H-FAIL-B1",
+   "category": "failed (reverted)",
+   "chain": "bsc",
+   "tx_hash": "0xae85b1260bccc0e8c97e36cf1f22184f5f318cdfaabf333d061f98e86fd3f720",
+   "input": "0xae85b1260bccc0e8c97e36cf1f22184f5f318cdfaabf333d061f98e86fd3f720",
+   "customer_id": null,
+   "expected": "D03",
+   "expected_findings": [],
+   "why_this_answer": "Receipt status 0 from a second RPC: the call reverted, no tokens moved.",
+   "uses_sample_company_data": false,
+   "sources": [
+    {
+     "label": "bsc explorer",
+     "url": "https://bscscan.com/tx/0xae85b1260bccc0e8c97e36cf1f22184f5f318cdfaabf333d061f98e86fd3f720"
+    },
+    {
+     "label": "Receipt via a second RPC",
+     "url": "https://bsc.meowrpc.com"
+    }
+   ],
+   "verified_facts": {
+    "status": "0x0",
+    "time": "2026-10-24T16:35:29Z"
+   }
+  },
+  {
+   "id": "H-FRZ-TD1",
+   "category": "deposit from a now-frozen sender",
+   "chain": "tron",
+   "tx_hash": "d4333a5d1afce6de010af0987cf94dbde06dafcb223af9f8da7978074027a85f",
+   "input": "d4333a5d1afce6de010af0987cf94dbde06dafcb223af9f8da7978074027a85f",
+   "customer_id": "SAMPLE-H032",
+   "expected": "D09",
+   "expected_findings": [],
+   "why_this_answer": "Real USDT deposit to the customer's sample address from TQgW73vUGtjgxi28x4siBP18SCEYb6zSaW, which Tether has since blacklisted (AddedBlackList); isBlackListed() is true today. Ops must escalate to compliance rather than treat it as a normal deposit.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "tron explorer",
+     "url": "https://tronscan.org/#/transaction/d4333a5d1afce6de010af0987cf94dbde06dafcb223af9f8da7978074027a85f"
+    },
+    {
+     "label": "Tether AddedBlackList event (freeze tx)",
+     "url": "https://tronscan.org/#/transaction/5be3aa04b86d19941a61fbd8699b15b1fa41734109ae28e04006cb04094a453a"
+    }
+   ],
+   "verified_facts": {
+    "status": "SUCCESS",
+    "from": "TQgW73vUGtjgxi28x4siBP18SCEYb6zSaW",
+    "to": "TAHNZpQTU1rKjn5Ct48MFJHahutngpHeP8",
+    "amount": "1706624.25",
+    "sender_frozen_now": true,
+    "time": "2026-10-21T17:41:33Z"
+   }
+  },
+  {
+   "id": "H-FRZ-TD2",
+   "category": "deposit from a now-frozen sender",
+   "chain": "tron",
+   "tx_hash": "2af90352213063d50e4b1475a8aeccadc2d1887060e55e28c48adb6b43193fe5",
+   "input": "2af90352213063d50e4b1475a8aeccadc2d1887060e55e28c48adb6b43193fe5",
+   "customer_id": "SAMPLE-H033",
+   "expected": "D09",
+   "expected_findings": [],
+   "why_this_answer": "Real USDT deposit to the customer's sample address from TU7DZQLBDFkyDCQfWyvUz2URDPWcKzuhTs, which Tether has since blacklisted (AddedBlackList); isBlackListed() is true today. Ops must escalate to compliance rather than treat it as a normal deposit.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "tron explorer",
+     "url": "https://tronscan.org/#/transaction/2af90352213063d50e4b1475a8aeccadc2d1887060e55e28c48adb6b43193fe5"
+    },
+    {
+     "label": "Tether AddedBlackList event (freeze tx)",
+     "url": "https://tronscan.org/#/transaction/264ae2f61a83985c90303411e117b0dbc986cada1fedb484039879587d2555ce"
+    }
+   ],
+   "verified_facts": {
+    "status": "SUCCESS",
+    "from": "TU7DZQLBDFkyDCQfWyvUz2URDPWcKzuhTs",
+    "to": "TFVahAhRv9Jzj9LiLuKCxQ9Ew3g2HsdSrX",
+    "amount": "473210.756535",
+    "sender_frozen_now": true,
+    "time": "2026-10-21T14:39:48Z"
+   }
+  },
+  {
+   "id": "H-FRZ-TD3",
+   "category": "deposit from a now-frozen sender",
+   "chain": "tron",
+   "tx_hash": "75ba3399be1b55d5463fea3e81321861127a7be82c0060b0af9860e8524895d2",
+   "input": "75ba3399be1b55d5463fea3e81321861127a7be82c0060b0af9860e8524895d2",
+   "customer_id": "SAMPLE-H034",
+   "expected": "D09",
+   "expected_findings": [],
+   "why_this_answer": "Real USDT deposit to the customer's sample address from TRZby4r1pJyyPvoKbHLj2GPXn5o2NqbuYz, which Tether has since blacklisted (AddedBlackList); isBlackListed() is true today. Ops must escalate to compliance rather than treat it as a normal deposit.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "tron explorer",
+     "url": "https://tronscan.org/#/transaction/75ba3399be1b55d5463fea3e81321861127a7be82c0060b0af9860e8524895d2"
+    },
+    {
+     "label": "Tether AddedBlackList event (freeze tx)",
+     "url": "https://tronscan.org/#/transaction/5c7985b96702d1c52d632aedf334df9d527110ddf591fa32c13fa279c60e7d6c"
+    }
+   ],
+   "verified_facts": {
+    "status": "SUCCESS",
+    "from": "TRZby4r1pJyyPvoKbHLj2GPXn5o2NqbuYz",
+    "to": "TAbwsi1xgKw6vpQaFF7tLh42pg7jAQJZc3",
+    "amount": "260112",
+    "sender_frozen_now": true,
+    "time": "2026-09-17T09:42:48Z"
+   }
+  },
+  {
+   "id": "H-FRZ-TF1",
+   "category": "frozen sender, transfer reverted",
+   "chain": "tron",
+   "tx_hash": "621a895ddefe168938ff31a3958751f4ad2f643e58078a4653db7f2e602a9a58",
+   "input": "621a895ddefe168938ff31a3958751f4ad2f643e58078a4653db7f2e602a9a58",
+   "customer_id": null,
+   "expected": "D03",
+   "expected_findings": [
+    "D09"
+   ],
+   "why_this_answer": "Sender TMjJMgd42nznKef1Nhqexj54bnAmsab84c was blacklisted by Tether (AddedBlackList) before this USDT transfer, which then reverted (REVERT). Primary answer: transaction failed; the freeze must be flagged too.",
+   "uses_sample_company_data": false,
+   "sources": [
+    {
+     "label": "tron explorer",
+     "url": "https://tronscan.org/#/transaction/621a895ddefe168938ff31a3958751f4ad2f643e58078a4653db7f2e602a9a58"
+    },
+    {
+     "label": "Tether AddedBlackList event (freeze tx)",
+     "url": "https://tronscan.org/#/transaction/d59a69f4c4b6f08332b4453e10480c1777a8cbfe5687f589a2719eb21b7096a7"
+    }
+   ],
+   "verified_facts": {
+    "status": "REVERT",
+    "sender": "TMjJMgd42nznKef1Nhqexj54bnAmsab84c",
+    "sender_frozen_now": true,
+    "time": "2026-10-23T09:16:51Z"
+   }
+  },
+  {
+   "id": "H-FRZ-TF2",
+   "category": "frozen sender, transfer reverted",
+   "chain": "tron",
+   "tx_hash": "22438b405b084bfefb5b66a138680aa11ed2a604e280d370091d089630752d54",
+   "input": "22438b405b084bfefb5b66a138680aa11ed2a604e280d370091d089630752d54",
+   "customer_id": null,
+   "expected": "D03",
+   "expected_findings": [
+    "D09"
+   ],
+   "why_this_answer": "Sender TFrQTEHUQaZu8gXqN5mRqMyos13mBrDGgN was blacklisted by Tether (AddedBlackList) before this USDT transfer, which then reverted (REVERT). Primary answer: transaction failed; the freeze must be flagged too.",
+   "uses_sample_company_data": false,
+   "sources": [
+    {
+     "label": "tron explorer",
+     "url": "https://tronscan.org/#/transaction/22438b405b084bfefb5b66a138680aa11ed2a604e280d370091d089630752d54"
+    },
+    {
+     "label": "Tether AddedBlackList event (freeze tx)",
+     "url": "https://tronscan.org/#/transaction/e185398deb0cb45137bd24dcfa76dc3f0c60f5d04beef36deedf1f8d03a5d3ec"
+    }
+   ],
+   "verified_facts": {
+    "status": "REVERT",
+    "sender": "TFrQTEHUQaZu8gXqN5mRqMyos13mBrDGgN",
+    "sender_frozen_now": true,
+    "time": "2026-10-23T09:48:48Z"
+   }
+  },
+  {
+   "id": "H-FRZ-ED1",
+   "category": "deposit from a now-frozen sender",
+   "chain": "ethereum",
+   "tx_hash": "0x624e8710b046515c0820f847aec5e7228bc765b7ec2d9e0d57290ede8f28b9b0",
+   "input": "0x624e8710b046515c0820f847aec5e7228bc765b7ec2d9e0d57290ede8f28b9b0",
+   "customer_id": "SAMPLE-H035",
+   "expected": "D09",
+   "expected_findings": [],
+   "why_this_answer": "Real USDT deposit to the customer's sample address from 0x655c2189c1f0c6ad7a13b45bba965610fa3ed85d, which the issuer has since blacklisted; the issuer's freeze call returns true today. Ops must escalate to compliance.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "ethereum explorer",
+     "url": "https://etherscan.io/tx/0x624e8710b046515c0820f847aec5e7228bc765b7ec2d9e0d57290ede8f28b9b0"
+    },
+    {
+     "label": "Tether AddedBlackList event (freeze tx)",
+     "url": "https://etherscan.io/tx/0x7d9d96546ede6047cc0b9d4f1d81ae16175534a6145496154dd2ed21872a8020"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "from": "0x655c2189c1f0c6ad7a13b45bba965610fa3ed85d",
+    "to": "0x3370a37ba287fe98725a3b178a1262594af98484",
+    "amount": "1.681162",
+    "token": "USDT",
+    "sender_frozen_now": true,
+    "time": "2026-09-16T10:47:59Z"
+   }
+  },
+  {
+   "id": "H-FRZ-ED2",
+   "category": "deposit from a now-frozen sender",
+   "chain": "ethereum",
+   "tx_hash": "0xfff90e583593f48d44da29a1c113a7e66eb09c419d6f36dedce9e77f6677f7e0",
+   "input": "0xfff90e583593f48d44da29a1c113a7e66eb09c419d6f36dedce9e77f6677f7e0",
+   "customer_id": "SAMPLE-H036",
+   "expected": "D09",
+   "expected_findings": [],
+   "why_this_answer": "Real USDT deposit to the customer's sample address from 0x9144f2bc0c3af2436054cfc3a5a92c29a5fe996f, which the issuer has since blacklisted; the issuer's freeze call returns true today. Ops must escalate to compliance.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "ethereum explorer",
+     "url": "https://etherscan.io/tx/0xfff90e583593f48d44da29a1c113a7e66eb09c419d6f36dedce9e77f6677f7e0"
+    },
+    {
+     "label": "Tether AddedBlackList event (freeze tx)",
+     "url": "https://etherscan.io/tx/0xa550eddcb13493dcd5d3de274a79c1935d679d6866a75faa7e501cfaf14f59c8"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "from": "0x9144f2bc0c3af2436054cfc3a5a92c29a5fe996f",
+    "to": "0x404aefdb62d5f3c62e66ee2cd840b46c6c17f809",
+    "amount": "68500",
+    "token": "USDT",
+    "sender_frozen_now": true,
+    "time": "2024-01-26T04:41:59Z"
+   }
+  },
+  {
+   "id": "H-FRZ-EF1",
+   "category": "frozen sender, transfer reverted",
+   "chain": "ethereum",
+   "tx_hash": "0x156a930a87ab6bbb993509becb626d3e037c9f6ab795be26fdfc63dfcf46861f",
+   "input": "0x156a930a87ab6bbb993509becb626d3e037c9f6ab795be26fdfc63dfcf46861f",
+   "customer_id": null,
+   "expected": "D03",
+   "expected_findings": [
+    "D09"
+   ],
+   "why_this_answer": "Sender 0xf10043bd447feb21b1db993dadbd6444c9913b8b was blacklisted by Tether before this USDT transfer call, which reverted. Primary answer: failed; the freeze must be flagged too.",
+   "uses_sample_company_data": false,
+   "sources": [
+    {
+     "label": "ethereum explorer",
+     "url": "https://etherscan.io/tx/0x156a930a87ab6bbb993509becb626d3e037c9f6ab795be26fdfc63dfcf46861f"
+    },
+    {
+     "label": "Tether AddedBlackList event (freeze tx)",
+     "url": "https://etherscan.io/tx/0xdd083c95bfd209ce91a3d71309767306b26fa7b49ebea8260a29d49246c0844e"
+    }
+   ],
+   "verified_facts": {
+    "status": "Reverted",
+    "sender": "0xf10043bd447feb21b1db993dadbd6444c9913b8b",
+    "sender_frozen_now": true,
+    "time": "2026-10-18T19:11:35Z"
+   }
+  },
+  {
+   "id": "H-FAKE-01",
+   "category": "fake token (symbol USDT)",
+   "chain": "ethereum",
+   "tx_hash": "0x3a59fc2e4fcd1bed5ceab0a791eb2e0210a530498913b7d03de9ee850bbf129f",
+   "input": "0x3a59fc2e4fcd1bed5ceab0a791eb2e0210a530498913b7d03de9ee850bbf129f",
+   "customer_id": "SAMPLE-H037",
+   "expected": "D06",
+   "expected_findings": [],
+   "why_this_answer": "A 'USDT' transfer to the customer's sample deposit address from token contract 0xcD49AC9588125B2d022d9Dfe4e7eD0C0181db85A, which returns symbol() 'USDT' but is not Tether's Ethereum contract (0xdAC17F958D2ee523a2206206994597C13D831ec7 on Tether's official list). Not real USDT; must not be credited.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "ethereum explorer",
+     "url": "https://etherscan.io/tx/0x3a59fc2e4fcd1bed5ceab0a791eb2e0210a530498913b7d03de9ee850bbf129f"
+    },
+    {
+     "label": "Blockscout token page",
+     "url": "https://eth.blockscout.com/token/0xcD49AC9588125B2d022d9Dfe4e7eD0C0181db85A"
+    },
+    {
+     "label": "Tether's official contract list",
+     "url": "https://tether.to/en/supported-protocols"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "token_contract": "0xcd49ac9588125b2d022d9dfe4e7ed0c0181db85a",
+    "symbol": "USDT",
+    "from": "0x6d4951bcdaafc79b480db2b71ead840e9d3c2cd6",
+    "to": "0xb9b9f3d7eb0689993a5ff0b583f64130ddbb63fa",
+    "transfers_in_tx": 171,
+    "time": "2025-08-26T10:49:59Z"
+   }
+  },
+  {
+   "id": "H-FAKE-02",
+   "category": "fake token (symbol USDT)",
+   "chain": "ethereum",
+   "tx_hash": "0xbbcd367ac0bde3dc85e8ee40e586514c0ae4b99b222feea8abd00734c0701001",
+   "input": "0xbbcd367ac0bde3dc85e8ee40e586514c0ae4b99b222feea8abd00734c0701001",
+   "customer_id": "SAMPLE-H038",
+   "expected": "D06",
+   "expected_findings": [],
+   "why_this_answer": "A 'USDT' transfer to the customer's sample deposit address from token contract 0x7dd5F67A25AfB9E73D4966B1ac578dABd9ccC986, which returns symbol() 'USDT' but is not Tether's Ethereum contract (0xdAC17F958D2ee523a2206206994597C13D831ec7 on Tether's official list). Not real USDT; must not be credited.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "ethereum explorer",
+     "url": "https://etherscan.io/tx/0xbbcd367ac0bde3dc85e8ee40e586514c0ae4b99b222feea8abd00734c0701001"
+    },
+    {
+     "label": "Blockscout token page",
+     "url": "https://eth.blockscout.com/token/0x7dd5F67A25AfB9E73D4966B1ac578dABd9ccC986"
+    },
+    {
+     "label": "Tether's official contract list",
+     "url": "https://tether.to/en/supported-protocols"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "token_contract": "0x7dd5f67a25afb9e73d4966b1ac578dabd9ccc986",
+    "symbol": "USDT",
+    "from": "0x98158444e22c73aefc4807a3e2d6decc6193b107",
+    "to": "0x642f824f998460440abab3422a029963a64a9284",
+    "transfers_in_tx": 1,
+    "time": "2023-12-08T09:52:59Z"
+   }
+  },
+  {
+   "id": "H-FAKE-03",
+   "category": "fake token (symbol USDT)",
+   "chain": "ethereum",
+   "tx_hash": "0xdc63b425c4ad27f01164c9474986c914650f9930505362c023c0cdde72bc4e2a",
+   "input": "0xdc63b425c4ad27f01164c9474986c914650f9930505362c023c0cdde72bc4e2a",
+   "customer_id": "SAMPLE-H039",
+   "expected": "D06",
+   "expected_findings": [],
+   "why_this_answer": "A 'USDT' transfer to the customer's sample deposit address from token contract 0x18a2cF4F504d9037a9Ee2e3E61ff44C36EaF60C7, which returns symbol() 'USDT' but is not Tether's Ethereum contract (0xdAC17F958D2ee523a2206206994597C13D831ec7 on Tether's official list). Not real USDT; must not be credited.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "ethereum explorer",
+     "url": "https://etherscan.io/tx/0xdc63b425c4ad27f01164c9474986c914650f9930505362c023c0cdde72bc4e2a"
+    },
+    {
+     "label": "Blockscout token page",
+     "url": "https://eth.blockscout.com/token/0x18a2cF4F504d9037a9Ee2e3E61ff44C36EaF60C7"
+    },
+    {
+     "label": "Tether's official contract list",
+     "url": "https://tether.to/en/supported-protocols"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "token_contract": "0x18a2cf4f504d9037a9ee2e3e61ff44c36eaf60c7",
+    "symbol": "USDT",
+    "from": "0x70f80b8d9e7a5d409bdebd71d95001c09d69dd61",
+    "to": "0x938ac5cd8634aef868792e2c429bc4cb2aa01467",
+    "transfers_in_tx": 68,
+    "time": "2025-08-19T10:03:59Z"
+   }
+  },
+  {
+   "id": "H-FAKE-04",
+   "category": "fake token (symbol USDT)",
+   "chain": "ethereum",
+   "tx_hash": "0x159deb52ebd1b74e8ba8002653527b69fb3ed2c12ea00ddd7c48232f45a49a90",
+   "input": "0x159deb52ebd1b74e8ba8002653527b69fb3ed2c12ea00ddd7c48232f45a49a90",
+   "customer_id": "SAMPLE-H040",
+   "expected": "D06",
+   "expected_findings": [],
+   "why_this_answer": "A 'USDT' transfer to the customer's sample deposit address from token contract 0x94a2a4d842F522Dac0E793f2f9Ad08058997D06d, which returns symbol() 'USDT' but is not Tether's Ethereum contract (0xdAC17F958D2ee523a2206206994597C13D831ec7 on Tether's official list). Not real USDT; must not be credited.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "ethereum explorer",
+     "url": "https://etherscan.io/tx/0x159deb52ebd1b74e8ba8002653527b69fb3ed2c12ea00ddd7c48232f45a49a90"
+    },
+    {
+     "label": "Blockscout token page",
+     "url": "https://eth.blockscout.com/token/0x94a2a4d842F522Dac0E793f2f9Ad08058997D06d"
+    },
+    {
+     "label": "Tether's official contract list",
+     "url": "https://tether.to/en/supported-protocols"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "token_contract": "0x94a2a4d842f522dac0e793f2f9ad08058997d06d",
+    "symbol": "USDT",
+    "from": "0xfb2ad14dc9eea825788837a69c0ab2ba7d896a7d",
+    "to": "0x998ee6cb22bb75e89043c2ffe60d859d39e22aba",
+    "transfers_in_tx": 25,
+    "time": "2025-08-20T10:08:47Z"
+   }
+  },
+  {
+   "id": "H-FAKE-05",
+   "category": "fake token (symbol USDT)",
+   "chain": "ethereum",
+   "tx_hash": "0xe93ae7db2c005dea88c2891435ba0fecbb522c04399a4afb5207ab6f34a161b6",
+   "input": "0xe93ae7db2c005dea88c2891435ba0fecbb522c04399a4afb5207ab6f34a161b6",
+   "customer_id": "SAMPLE-H041",
+   "expected": "D06",
+   "expected_findings": [],
+   "why_this_answer": "A 'USDT' transfer to the customer's sample deposit address from token contract 0xA627c6B66A7C886576B76046C248A97A2Dc41D79, which returns symbol() 'USDT' but is not Tether's Ethereum contract (0xdAC17F958D2ee523a2206206994597C13D831ec7 on Tether's official list). Not real USDT; must not be credited.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "ethereum explorer",
+     "url": "https://etherscan.io/tx/0xe93ae7db2c005dea88c2891435ba0fecbb522c04399a4afb5207ab6f34a161b6"
+    },
+    {
+     "label": "Blockscout token page",
+     "url": "https://eth.blockscout.com/token/0xA627c6B66A7C886576B76046C248A97A2Dc41D79"
+    },
+    {
+     "label": "Tether's official contract list",
+     "url": "https://tether.to/en/supported-protocols"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "token_contract": "0xa627c6b66a7c886576b76046c248a97a2dc41d79",
+    "symbol": "USDT",
+    "from": "0xc9a8bb8a17c46283420dca991a3856c9591e7880",
+    "to": "0xb834d1d6cfbed21e76b86b216bbb6c5bc2fce12e",
+    "transfers_in_tx": 29,
+    "time": "2025-06-26T10:23:35Z"
+   }
+  },
+  {
+   "id": "H-FAKE-06",
+   "category": "fake token (symbol USDT)",
+   "chain": "ethereum",
+   "tx_hash": "0x41d66b5c342f266f3250e4f8e0c1331925a30c91d02568fca806b7d7bf791425",
+   "input": "0x41d66b5c342f266f3250e4f8e0c1331925a30c91d02568fca806b7d7bf791425",
+   "customer_id": "SAMPLE-H042",
+   "expected": "D06",
+   "expected_findings": [],
+   "why_this_answer": "A 'USDT' transfer to the customer's sample deposit address from token contract 0xC0d310cFF7d257d7D0eef1eC08b094a77096B0DD, which returns symbol() 'USDT' but is not Tether's Ethereum contract (0xdAC17F958D2ee523a2206206994597C13D831ec7 on Tether's official list). Not real USDT; must not be credited.",
+   "uses_sample_company_data": true,
+   "sources": [
+    {
+     "label": "ethereum explorer",
+     "url": "https://etherscan.io/tx/0x41d66b5c342f266f3250e4f8e0c1331925a30c91d02568fca806b7d7bf791425"
+    },
+    {
+     "label": "Blockscout token page",
+     "url": "https://eth.blockscout.com/token/0xC0d310cFF7d257d7D0eef1eC08b094a77096B0DD"
+    },
+    {
+     "label": "Tether's official contract list",
+     "url": "https://tether.to/en/supported-protocols"
+    }
+   ],
+   "verified_facts": {
+    "status": "success",
+    "token_contract": "0xc0d310cff7d257d7d0eef1ec08b094a77096b0dd",
+    "symbol": "USDT",
+    "from": "0x8b052a2493a01b3c59c0e4b9d4d7db68b0cd2a5a",
+    "to": "0xd201f87ab29bcfa03d38dfab7d83e6a414d828b3",
+    "transfers_in_tx": 106,
+    "time": "2025-08-27T10:56:11Z"
+   }
+  },
+  {
+   "id": "H-NF-1",
+   "category": "not found (Bitcoin txid)",
+   "chain": "bitcoin",
+   "tx_hash": "d245c0137dc5d602f64d5b44e1fa26cf1a98d17832b4964e7474c7e57532b653",
+   "input": "d245c0137dc5d602f64d5b44e1fa26cf1a98d17832b4964e7474c7e57532b653",
+   "customer_id": null,
+   "expected": "D01",
+   "expected_findings": [],
+   "why_this_answer": "A real Bitcoin transaction id. It is 64 hex characters, like a Tron or EVM hash, but exists on none of the supported chains, so 'not found on any chain' is correct.",
+   "uses_sample_company_data": false,
+   "sources": [
+    {
+     "label": "mempool.space",
+     "url": "https://mempool.space/tx/d245c0137dc5d602f64d5b44e1fa26cf1a98d17832b4964e7474c7e57532b653"
+    }
+   ],
+   "verified_facts": {}
+  },
+  {
+   "id": "H-NF-2",
+   "category": "not found (Bitcoin txid)",
+   "chain": "bitcoin",
+   "tx_hash": "805e80e1d9b2cd6aebb40a4355fb3401c3476522b513a754d9def31f9f5917ec",
+   "input": "805e80e1d9b2cd6aebb40a4355fb3401c3476522b513a754d9def31f9f5917ec",
+   "customer_id": null,
+   "expected": "D01",
+   "expected_findings": [],
+   "why_this_answer": "A real Bitcoin transaction id. It is 64 hex characters, like a Tron or EVM hash, but exists on none of the supported chains, so 'not found on any chain' is correct.",
+   "uses_sample_company_data": false,
+   "sources": [
+    {
+     "label": "mempool.space",
+     "url": "https://mempool.space/tx/805e80e1d9b2cd6aebb40a4355fb3401c3476522b513a754d9def31f9f5917ec"
+    }
+   ],
+   "verified_facts": {}
+  }
+ ]
+}

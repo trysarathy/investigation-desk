@@ -84,8 +84,8 @@ Read-only fetchers in `src/lib/chain/`, one data source per chain (`src/lib/chai
 
 | Chain | Source | Why |
 | --- | --- | --- |
-| Tron | TronGrid V1 (`TRONGRID_API_KEY`) | Spec |
-| Ethereum, Polygon, Arbitrum | Etherscan API V2, free key (`ETHERSCAN_API_KEY`) | Every call we need works on chain IDs 1, 137, 42161 |
+| Tron | TronGrid V1 (`TRONGRID_API_KEY`, optional: keyless works at 3 requests/s) | Spec |
+| Ethereum, Polygon, Arbitrum | Etherscan API V2 with `ETHERSCAN_API_KEY`; without a key, `eth.drpc.org`, `polygon.drpc.org`, `arb1.arbitrum.io/rpc` | Etherscan V2 refuses keyless calls since Oct 2026 |
 | BNB Chain | `https://bsc-dataseed.bnbchain.org` (public RPC) | Etherscan's free plan refuses chain ID 56 |
 | Base | `https://mainnet.base.org` (public RPC) | Refused by the free plan; URL from Base's docs |
 | Optimism | `https://mainnet.optimism.io` (public RPC) | Refused by the free plan; URL confirmed in Optimism's docs |
@@ -109,9 +109,12 @@ fine for development, demos and a first pilot only.
 - **D09** reads `isBlackListed(address)` (USDT) or `isBlacklisted(address)` (USDC) on the
   issuer's official contract, for sender and destination. Selectors are computed with keccak256
   in the tests, not recalled. A failed call makes freeze status unknown, which blocks D02 and D12.
-- **D07b** sender history comes from TronGrid (Tron) and Etherscan's account module (Ethereum),
-  and is only fetched when the look-alike pattern could match. Public RPCs can't list history,
-  so on those chains D07b is off and the case says so.
+- **D07b** sender history comes from TronGrid (Tron) and Etherscan's account module (Ethereum), or
+  Blockscout's public API v2 on Ethereum when no Etherscan key is set. It is only fetched when the
+  look-alike pattern could match (first 3 and last 4 characters). Both poisoning shapes count:
+  dust from the look-alike to the sender, or a forged zero-value / counterfeit-token transfer from
+  the sender to the look-alike, before the payment. Other public-RPC chains can't list history,
+  so there D07b is off and the case says so.
 - **Official contracts on BNB Chain stay unset:** neither Tether's nor Circle's own pages list
   one, so D09 doesn't run there. A company can declare its own BNB Chain token in settings; the
   sample settings declare BSC-USD (`0x55d398326f99059ff775485246999027b3197955`), labelled
@@ -321,3 +324,18 @@ until then uploads and bulk runs are open to anyone with the app, and the live c
 sample company settings. Bulk jobs live in the server process and don't survive a restart.
 Official contracts other than those confirmed on the issuers' pages stay unset; with them
 unset, D06 does not run for those pairs.
+
+## Real-data test (24 Oct 2026)
+
+`tests/real_cases.json` holds 59 real public transactions with the correct answer proven by a
+source other than this product (Tronscan, Blockscout, a second RPC, the issuer's own blacklist
+event, published write-ups). Cases that need company records use **SAMPLE COMPANY DATA**: a
+fictional company's Files A and B in `tests/real-data/` that reference the real transactions.
+`tests/real_cases_holdout.json` is a second set of 52, built after the fixes. 57 cases replay
+offline in `tests/real-cases.test.ts`; re-record with
+`RECORD_REAL=1 NODE_USE_ENV_PROXY=1 npx vitest run tests/real-record.test.ts`.
+Results and the demo are in `demo/` (`demo/REPORT.md`).
+
+Precedence change from that test: **D09 issuer freeze now comes straight after D03**, ahead of
+wrong network, token and address codes. D17 is Medium when the reporting customer has no address
+in File A (most likely a mistyped customer ID).

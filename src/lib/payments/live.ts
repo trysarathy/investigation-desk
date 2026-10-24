@@ -3,7 +3,9 @@
 import "server-only";
 import path from "node:path";
 import { loadCases } from "../bulk/cases";
-import { liveDeps, liveKeysPresent } from "../chain/live";
+import { liveDeps, liveKeysPresent, liveLookupsEnabled } from "../chain/live";
+import { buildFetchers } from "../chain/sources";
+import { MemoryStore } from "../chain/store";
 import { demoDeps } from "../demo/deps";
 import { caseRows, storedCaseRows } from "../view";
 import { workspaceStore } from "../workspace/live";
@@ -25,7 +27,10 @@ export async function rematchData(data: PaymentsData, progress: Pick<RefreshOpts
   const ws = await workspaceStore().load();
   const ledger = ws.fileB ? ledgerFromFileB(ws.fileB.rows, ws.fileB.upload.sha256, ws.fileB.upload.uploadedAt) : [];
   // Without chain keys, the demo workspace replays its recorded chain responses; anything else is looked up live.
-  const deps = !liveKeysPresent() && ws.demo ? demoDeps() : liveDeps();
+  // LIVE_LOOKUPS=off: no outbound chain calls; every lookup is unknown, so links wait instead of guessing.
+  const deps = !liveKeysPresent() && ws.demo ? demoDeps() : liveLookupsEnabled() ? liveDeps()
+    : buildFetchers({ tronKey: "", etherscanKey: "", store: new MemoryStore(), noSpacing: true, sleep: async () => {},
+        transport: async () => { throw new Error("live lookups are off (LIVE_LOOKUPS=off)"); } });
   // File A says which addresses are the company's deposit addresses (and since when): transfers
   // into them are inbound. No File A: undefined, so deposit rows wait instead of being dropped.
   const depositAddresses = ws.fileA?.rows.map((r) => ({ chain: r.chain, address: r.address, assignedAt: r.assignedAt, retiredAt: r.retiredAt }));

@@ -8,14 +8,14 @@ import { sameAddress } from "../address";
 import { explorerTxUrl } from "../catalogue";
 import { officialContractFor } from "../contracts";
 import { compareDecimal, isDecimal } from "../decimal";
-import { looksAlike, pickTransfer } from "../engine/context";
+import { isPoisoning, looksAlike, pickTransfer } from "../engine/context";
 import { normaliseInput } from "../normalise";
 import type {
   Chain, ChainTx, DepositAddressRow, EvmChain, Facts, FreezeCheck, LedgerRow, PriorTransfer, RawResponse, Settings, Token,
 } from "../types";
 import { ALL_CHAINS } from "../types";
 import { formatUnits } from "./abi";
-import { EtherscanSource, type EvmFetcher } from "./evm";
+import { type BlockscoutHistory, EtherscanSource, type EvmFetcher } from "./evm";
 import { ChainApiError } from "./http";
 import type { TronFetcher } from "./tron";
 import type { ChainLookupResult } from "./types";
@@ -32,6 +32,8 @@ export interface Workspace {
 export interface LiveDeps {
   tron: TronFetcher;
   evm: EvmFetcher;
+  /** Keyless Ethereum token history for D07b when no Etherscan key is set. */
+  history?: BlockscoutHistory;
   now?: () => Date;
 }
 
@@ -159,25 +161,31 @@ async function historyFacts(tx: ChainTx, facts: Facts, settings: Settings, deps:
     if (tx.chain === "tron") {
       const rows = await deps.tron.trc20From(transfer.to, Date.parse(tx.blockTime), raws);
       history = rows.map((r) => ({
-        chain: "tron" as const, hash: r.transaction_id, from: r.from, to: r.to, tokenSymbol: r.token_info?.symbol ?? "UNKNOWN",
+        chain: "tron" as const, hash: r.transaction_id, from: r.from, to: r.to, tokenSymbol: r.token_info?.symbol ?? "UNKNOWN", tokenContract: r.token_info?.address,
         amount: r.token_info?.decimals !== undefined && /^\d+$/.test(r.value) ? formatUnits(BigInt(r.value), r.token_info.decimals) : "",
         time: new Date(r.block_timestamp).toISOString(),
       }));
     } else if (tx.chain === "ethereum") {
       const src = deps.evm.source("ethereum");
-      if (!(src instanceof EtherscanSource)) return { senderHistory: [], senderHistoryStatus: "not_supported" };
-      const rows = await src.tokenTransfersFrom(transfer.to, tx.blockNumber, raws);
-      history = rows.map((r) => ({
-        chain: "ethereum" as const, hash: r.hash, from: r.from, to: r.to, tokenSymbol: r.tokenSymbol,
-        amount: /^\d+$/.test(r.value) && /^\d+$/.test(r.tokenDecimal) ? formatUnits(BigInt(r.value), Number(r.tokenDecimal)) : "",
-        time: new Date(Number(r.timeStamp) * 1000).toISOString(),
-      }));
+      if (src instanceof EtherscanSource) {
+        const rows = await src.tokenTransfersFrom(transfer.to, tx.blockNumber, raws);
+        history = rows.map((r) => ({
+          chain: "ethereum" as const, hash: r.hash, from: r.from, to: r.to, tokenSymbol: r.tokenSymbol, tokenContract: r.contractAddress,
+          amount: /^\d+$/.test(r.value) && /^\d+$/.test(r.tokenDecimal) ? formatUnits(BigInt(r.value), Number(r.tokenDecimal)) : "",
+          time: new Date(Number(r.timeStamp) * 1000).toISOString(),
+        }));
+      } else if (deps.history) {
+        const rows = await deps.history.transfersOf(transfer.to, Date.parse(tx.blockTime), raws);
+        history = rows.map((r) => ({ chain: "ethereum" as const, hash: r.hash, from: r.from, to: r.to, tokenSymbol: r.symbol,
+          tokenContract: r.contract, amount: r.amount, time: r.time }));
+      } else {
+        return { senderHistory: [], senderHistoryStatus: "not_supported" };
+      }
     } else {
       return { senderHistory: [], senderHistoryStatus: "not_supported" };
     }
-    // Keep only what D07b reads: transfers from the look-alike to this sender, small enough to be dust.
-    const relevant = history.filter((p) => sameAddress(p.to, transfer.from) &&
-      isDecimal(p.amount) && compareDecimal(p.amount, settings.dustThreshold) <= 0);
+    // Keep only what D07b reads: dust from the look-alike to this sender, or a forged transfer the other way.
+    const relevant = history.filter((p) => isPoisoning(p, transfer, settings));
     return { senderHistory: relevant, senderHistoryStatus: "checked" };
   } catch {
     return { senderHistory: [], senderHistoryStatus: "failed" };

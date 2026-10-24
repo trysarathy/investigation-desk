@@ -94,7 +94,7 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
 
   D06: (ctx) => {
     if (!ctx.transfer) return miss("D06", "No token transfer found.");
-    if (!["USDT", "USDC"].includes(ctx.transfer.tokenSymbol)) return miss("D06", "Token does not claim to be USDT or USDC.");
+    if (!ctx.claimedToken) return miss("D06", "Token does not claim to be USDT or USDC.");
     const company = ctx.officialSource === "company";
     if (!ctx.officialContract) {
       return miss("D06", company || COMPANY_DECLARED_CHAINS.has(ctx.tx!.chain)
@@ -103,7 +103,8 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
     }
     const which = company ? "the company-accepted contract (bridged by Binance, not issued by Tether or Circle)" : "the official one";
     if (!ctx.impersonation) return miss("D06", `Contract matches ${which}.`);
-    return hit("D06", "High", [EV.token], `Symbol ${ctx.transfer.tokenSymbol}, contract differs from ${which}.`);
+    const looks = ctx.lookalikeSymbol ? ` (look-alike characters for ${ctx.claimedToken})` : "";
+    return hit("D06", "High", [EV.token], `Symbol ${ctx.transfer.tokenSymbol}${looks}, contract differs from ${which}.`);
   },
 
   D07: (ctx) => {
@@ -124,13 +125,18 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
       return miss("D07b", "Sender history isn't available on this chain (public RPC), so D07b is off here.");
     }
     if (!ctx.lookalike.prior && hs === "failed") return miss("D07b", "Sender history lookup failed, so the pattern is unknown.");
-    if (!ctx.lookalike.prior) return miss("D07b", "No earlier zero-value or dust transfer from the look-alike address.");
+    if (!ctx.lookalike.prior) return miss("D07b", "No earlier dust or forged transfer between the look-alike address and the sender.");
     return hit("D07b", "Medium", [EV.address, EV.history],
-      "First 4 and last 4 characters match the customer's address, after a dust transfer from it.");
+      "First 3 and last 4 characters match the customer's address, after a dust or forged transfer between it and the sender.");
   },
 
   D17: (ctx) => {
     if (ctx.addrStatus !== "other_customer") return miss("D17", "Destination is not assigned to a different customer.");
+    // A reporting customer with no address in File A is more likely a typo than a misdirected deposit.
+    if (ctx.customerAddresses.length === 0) {
+      return hit("D17", "Medium", [EV.tx, EV.address],
+        `Destination is assigned to another customer (File A line ${ctx.addrOnTxChain!.row}), but the reporting customer has no address in File A: check the customer ID.`);
+    }
     return hit("D17", "High", [EV.tx, EV.address], `Destination is assigned to another customer (File A line ${ctx.addrOnTxChain!.row}).`);
   },
 

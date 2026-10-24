@@ -12,6 +12,7 @@ import { ChainApiError, ChainClient, sha256Hex, type HttpRequest, type HttpRespo
 import { fetchFacts } from "@/lib/chain/investigate";
 import { MemoryStore } from "@/lib/chain/store";
 import { TronFetcher } from "@/lib/chain/tron";
+import { planFor } from "@/lib/chain/sources";
 
 const ok = (body: string, headers: Record<string, string> = {}): HttpResponse => ({ status: 200, headers, body });
 const status = (s: number, headers: Record<string, string> = {}): HttpResponse => ({ status: s, headers, body: "" });
@@ -134,13 +135,18 @@ describe("ChainClient: storage, hashing, redaction, cache", () => {
 });
 
 describe("fetchers", () => {
-  it("without a key: they build (never crash a request), and each call fails as 'key not set' without a request", async () => {
-    const { c, calls } = client([]);
+  it("without keys: Tron is asked keyless (no key header); Etherscan still refuses; buildFetchers routes the Etherscan chains to public RPCs", async () => {
+    const { c, calls } = client([ok("{}")]);
     const tron = new TronFetcher(c, "");
+    expect((await tron.lookup("ab".repeat(32), [])).lookup.result).toBe("not_found");
+    expect(calls).toHaveLength(1);
+    expect(JSON.stringify(calls[0])).not.toMatch(/TRON-PRO-API-KEY/);
     const eth = new EtherscanSource(c, "", "ethereum");
-    await expect(tron.lookup("ab".repeat(32), [])).rejects.toThrow(/chain lookup unavailable: key not set \(TRONGRID_API_KEY\)/);
     await expect(eth.call("eth_getTransactionByHash", ["0x" + "ab".repeat(32)], { ttlSec: 0 }, [])).rejects.toThrow(/chain lookup unavailable: key not set \(ETHERSCAN_API_KEY\)/);
-    expect(calls).toEqual([]);
+    expect(planFor("ethereum", "")).toMatchObject({ kind: "public-rpc", url: "https://eth.drpc.org" });
+    expect(planFor("polygon", "")).toMatchObject({ kind: "public-rpc" });
+    expect(planFor("arbitrum", "")).toMatchObject({ kind: "public-rpc" });
+    expect(planFor("ethereum", "k")).toEqual({ kind: "etherscan" });
   });
 
   it("a chain that fails mid-lookup becomes an error lookup, so the case pauses", async () => {

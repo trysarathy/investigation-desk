@@ -94,9 +94,58 @@ export class EtherscanSource implements EvmSource {
     const r = await recorded(raws, this.client.request({ method: "GET", url: `${ETHERSCAN}?${q}` }, { chain: this.chain, ttlSec: Infinity }));
     const j = JSON.parse(r.body);
     return (Array.isArray(j.result) ? j.result : []) as {
-      hash: string; from: string; to: string; value: string; tokenSymbol: string; tokenDecimal: string; timeStamp: string;
+      hash: string; from: string; to: string; value: string; tokenSymbol: string; tokenDecimal: string; timeStamp: string; contractAddress?: string;
     }[];
   }
+}
+
+/**
+ * Keyless ERC-20 history on Ethereum for D07b, from Blockscout's public API v2 (eth.blockscout.com).
+ * Used when no Etherscan key is set. Newest first; up to three pages of 50.
+ */
+export class BlockscoutHistory {
+  constructor(private readonly client: ChainClient, private readonly base = "https://eth.blockscout.com/api/v2") {}
+
+  async transfersOf(address: string, beforeMs: number, raws: RawResponse[]) {
+    const out: { hash: string; from: string; to: string; symbol: string; contract: string; amount: string; time: string }[] = [];
+    let next: Record<string, string> | undefined;
+    let complete = false;
+    for (let page = 0; page < 3; page++) {
+      const q = new URLSearchParams({ type: "ERC-20", ...(next ?? {}) });
+      const r = await recorded(raws, this.client.request({ method: "GET", url: `${this.base}/addresses/${address}/token-transfers?${q}` },
+        { chain: "ethereum", ttlSec: 60 }));
+      type Item = { transaction_hash?: string; timestamp?: string; from?: { hash?: string }; to?: { hash?: string };
+        total?: { decimals?: string; value?: string }; token?: { symbol?: string; decimals?: string; address_hash?: string; address?: string } };
+      const j = JSON.parse(r.body) as { items?: Item[]; next_page_params?: Record<string, unknown> | null };
+      for (const t of j.items ?? []) {
+        const dec = Number(t.total?.decimals ?? t.token?.decimals);
+        const value = String(t.total?.value ?? "");
+        const time = String(t.timestamp ?? "");
+        out.push({
+          hash: String(t.transaction_hash), from: String(t.from?.hash ?? "").toLowerCase(), to: String(t.to?.hash ?? "").toLowerCase(),
+          symbol: String(t.token?.symbol ?? "UNKNOWN"), contract: String(t.token?.address_hash ?? t.token?.address ?? "").toLowerCase(),
+          amount: /^\d+$/.test(value) && Number.isInteger(dec) ? formatUnits(BigInt(value), dec) : "", time,
+        });
+      }
+      const oldest = out.length ? Date.parse(out[out.length - 1].time) : NaN;
+      if (!j.next_page_params || (Number.isFinite(oldest) && oldest < beforeMs - 30 * 86400_000)) { complete = true; break; }
+      next = Object.fromEntries(Object.entries(j.next_page_params).map(([k, v]) => [k, String(v)]));
+    }
+    // A busy look-alike can have more than 150 transfers after the payment. Then the 30 days before
+    // it were never read, so "no poisoning found" would be a claim we didn't check: report unknown.
+    if (!complete) throw new ChainApiError("blockscout: history longer than 3 pages; not fully read", false);
+    return out.filter((t) => Date.parse(t.time) < beforeMs);
+  }
+}
+
+export function blockscoutClassifyBody(body: string): { retryable: boolean; message: string } | undefined {
+  try {
+    const j = JSON.parse(body);
+    if (j && typeof j.message === "string" && !Array.isArray(j.items)) return { retryable: /too many|rate/i.test(j.message), message: j.message };
+  } catch {
+    return { retryable: false, message: "Blockscout returned non-JSON" };
+  }
+  return undefined;
 }
 
 export class JsonRpcSource implements EvmSource {
@@ -143,14 +192,21 @@ export class EvmFetcher {
     if (!tx) return { lookup: { ...base, result: "not_found" } };
     if (!tx.blockNumber) return { lookup: { ...base, result: "pending" } };
 
-    const receipt = (await src.call("eth_getTransactionReceipt", [txhash], { ttlSec: Infinity }, raws)) as Record<string, unknown> & {
+    const receipt = (await src.call("eth_getTransactionReceipt", [txhash], { ttlSec: 30,
+      ttlFor: (r) => (JSON.parse(r.body).result?.status ? Infinity : 0) }, raws)) as Record<string, unknown> & {
       status?: string; gasUsed?: string; effectiveGasPrice?: string; logs?: { address: string; topics: string[]; data: string; logIndex: string }[];
     };
+    // Some public nodes return null for receipts they no longer hold. A mined transaction always
+    // has a receipt, so a missing one is an unknown, never "failed" (real-data test, 24 Oct 2026:
+    // publicnode returned null for months-old Ethereum receipts and successful payments showed D03).
+    if (!receipt || typeof receipt.status !== "string") {
+      throw new ChainApiError(`${src.kind}: receipt not available from this node`, false);
+    }
     const blockNumber = Number(BigInt(tx.blockNumber));
     const block = (await src.call("eth_getBlockByNumber", [hex(blockNumber), false], { ttlSec: Infinity }, raws)) as { timestamp: string };
     const head = (await src.call("eth_blockNumber", [], { ttlSec: 5 }, raws)) as string | undefined;
 
-    const failed = receipt?.status !== "0x1";
+    const failed = receipt.status === "0x0";
     const fee = (hexToBigInt(receipt?.gasUsed ?? "0") ?? 0n) * (hexToBigInt(receipt?.effectiveGasPrice ?? tx.gasPrice ?? "0") ?? 0n);
     const transfers: TokenTransfer[] = [];
     const logs = (receipt?.logs ?? []).map((l) =>

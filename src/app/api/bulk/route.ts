@@ -2,7 +2,7 @@
 // background and return its id. Progress: GET /api/bulk/{id}.
 
 import { NextResponse } from "next/server";
-import { liveDeps, liveKeysPresent } from "@/lib/chain/live";
+import { liveDeps, liveLookupsEnabled } from "@/lib/chain/live";
 import { validateBulk } from "@/lib/csv/files";
 import { createJob, saveJob } from "@/lib/bulk/jobs";
 import { demoDeps } from "@/lib/demo/deps";
@@ -25,8 +25,8 @@ export async function POST(req: Request) {
   const { ws, missing, data } = await loadWorkspace();
   if (!ws) return NextResponse.json({ error: `Upload ${missing.map((m) => `File ${m}`).join(" and ")} in Settings → Data first.` }, { status: 409 });
   // The demo workspace answers its hashes from recordings, so it runs without keys.
-  if (!liveKeysPresent() && !data.demo) {
-    return NextResponse.json({ error: "Live chain lookups need TRONGRID_API_KEY and ETHERSCAN_API_KEY on the server." }, { status: 409 });
+  if (!liveLookupsEnabled() && !data.demo) {
+    return NextResponse.json({ error: "Live chain lookups are turned off on this server (LIVE_LOOKUPS=off)." }, { status: 409 });
   }
 
   const job = createJob(file.name.slice(0, 200), v.sha256, v.rows.length, v.rowErrors);

@@ -1,0 +1,27 @@
+[
+ {
+  "case": "POISON-1",
+  "expected": "D07b",
+  "shown": "D07"
+ },
+ {
+  "case": "FRZ-TD1",
+  "expected": "D09",
+  "shown": "D09"
+ },
+ {
+  "case": "FAIL-T1",
+  "expected": "D03",
+  "shown": "D03"
+ },
+ {
+  "case": "FAKE-HG",
+  "expected": "D06",
+  "shown": "D06"
+ },
+ {
+  "case": "TRN-01",
+  "expected": "D13",
+  "shown": "D13"
+ }
+]

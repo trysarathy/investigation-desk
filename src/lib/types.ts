@@ -107,6 +107,8 @@ export interface PriorTransfer {
   tokenSymbol: string;
   amount: string;
   time: string;
+  /** Token contract, when the source gives it: a forged transfer uses a counterfeit token. */
+  tokenContract?: string;
 }
 
 // ---- Company data (Files A and B) ----
@@ -299,7 +301,7 @@ export interface Verdict {
 // ---- Raw chain API responses (spec 6.2: stored with fetch time and SHA-256) ----
 
 export interface RawResponse {
-  source: "trongrid" | "etherscan" | "public-rpc";
+  source: "trongrid" | "etherscan" | "public-rpc" | "blockscout";
   chain: Chain;
   /** Request as sent, with any API key removed. */
   request: { method: "GET" | "POST"; url: string; body?: string };

@@ -19,7 +19,9 @@ function isTyping(el: EventTarget | null): boolean {
   return !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
 }
 
-export function Shell({ index, children }: { index: SearchEntry[]; children: React.ReactNode }) {
+export function Shell({ index, workspace, children }: {
+  index: SearchEntry[]; workspace: { name: string; badge: string; title: string }; children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -53,8 +55,8 @@ export function Shell({ index, children }: { index: SearchEntry[]; children: Rea
     <div className="shell">
       <nav className="sidebar" aria-label="Main">
         <div className="workspace">
-          <strong>Sample workspace</strong>
-          <span className="badge" title="Every case, hash and address here is fabricated sample data.">Sample data</span>
+          <strong>{workspace.name}</strong>
+          <span className="badge" title={workspace.title}>{workspace.badge}</span>
         </div>
         {NAV.map((n) => {
           const active = n.href === "/" ? pathname === "/" || pathname.startsWith("/cases") : pathname.startsWith(n.href);
