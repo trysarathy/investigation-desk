@@ -4,9 +4,12 @@
 // already held (same identifier, same content) adds a source to that record: a duplicate
 // record, not a second payment.
 
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import type { RowError } from "../csv/files";
+import { fileLockKey, LockedStore, writeAtomic, type Store } from "../lock";
+
+export { LockedStore, type Store } from "../lock";
 import type { LedgerRow } from "../types";
 import { checkMapping, importWithMapping, type ColumnMapping } from "./mapping";
 import { PRESET_MAPPINGS } from "./presets";
@@ -50,6 +53,8 @@ export interface PaymentsData {
   paymentRedirects?: Record<string, PaymentRedirect>;
   /** Review resolutions made in the app, applied on every run. Kept across Clear records. */
   decisions?: ReviewDecision[];
+  /** Bumped on every saved change, so a match computed on an older snapshot is never saved over newer records. */
+  rev?: number;
 }
 
 /** Remove every imported record, import log and match result. Mappings, assigned payment IDs, redirects and review decisions stay. */
@@ -61,19 +66,22 @@ export const emptyPayments = (): PaymentsData => ({
   mappings: [], imports: [], records: { instruction: [], provider: [], bank: [], ledger: [] }, chain: { transfers: [], lookups: [] },
 });
 
-export interface PaymentsStore {
-  load(): Promise<PaymentsData>;
-  save(data: PaymentsData): Promise<void>;
-}
+export type PaymentsStore = Store<PaymentsData>;
 
-export class MemoryPaymentsStore implements PaymentsStore {
+export class MemoryPaymentsStore extends LockedStore<PaymentsData> {
+  protected readonly lockKey = `memory:${randomUUID()}`;
   private data = emptyPayments();
   async load() { return structuredClone(this.data); }
-  async save(d: PaymentsData) { this.data = structuredClone(d); }
+  protected async write(d: PaymentsData) { this.data = structuredClone(d); }
+  protected revOf(d: PaymentsData) { return d.rev ?? 0; }
+  protected withRev(d: PaymentsData, rev: number) { return { ...d, rev }; }
 }
 
-export class FilePaymentsStore implements PaymentsStore {
-  constructor(private readonly file: string) {}
+export class FilePaymentsStore extends LockedStore<PaymentsData> {
+  protected readonly lockKey: string;
+  constructor(private readonly file: string) { super(); this.lockKey = fileLockKey(file); }
+  protected revOf(d: PaymentsData) { return d.rev ?? 0; }
+  protected withRev(d: PaymentsData, rev: number) { return { ...d, rev }; }
   async load(): Promise<PaymentsData> {
     try {
       const saved = JSON.parse(await readFile(this.file, "utf8")) as Partial<PaymentsData>;
@@ -84,12 +92,7 @@ export class FilePaymentsStore implements PaymentsStore {
       return emptyPayments();
     }
   }
-  async save(d: PaymentsData) {
-    await mkdir(path.dirname(this.file), { recursive: true });
-    const tmp = `${this.file}.tmp`;
-    await writeFile(tmp, JSON.stringify(d));
-    await rename(tmp, this.file);
-  }
+  protected write(d: PaymentsData) { return writeAtomic(this.file, JSON.stringify(d)); }
 }
 
 // ---- Mappings ----
@@ -116,16 +119,16 @@ const comparable = (m: ColumnMapping) => JSON.stringify(stable({ ...m, version: 
  */
 export async function saveMappingVersion(store: PaymentsStore, m: Omit<ColumnMapping, "version" | "createdAt">, now: Date):
   Promise<{ mapping?: ColumnMapping; errors: string[]; unchanged?: boolean }> {
-  const data = await store.load();
-  const latest = findMapping(data, m.mappingId);
-  if (latest && latest.kind !== m.kind) return { errors: [`Mapping ${m.mappingId} reads ${latest.kind} files; it can't change kind.`] };
-  const next: ColumnMapping = { ...m, version: (latest?.version ?? 0) + 1, createdAt: now.toISOString() };
-  const errors = checkMapping(next);
-  if (errors.length) return { errors };
-  if (latest && comparable(latest) === comparable(next)) return { mapping: latest, errors: [], unchanged: true };
-  data.mappings.push(next);
-  await store.save(data);
-  return { mapping: next, errors: [] };
+  return store.update((data) => {
+    const latest = findMapping(data, m.mappingId);
+    if (latest && latest.kind !== m.kind) return [undefined, { errors: [`Mapping ${m.mappingId} reads ${latest.kind} files; it can't change kind.`] }];
+    const next: ColumnMapping = { ...m, version: (latest?.version ?? 0) + 1, createdAt: now.toISOString() };
+    const errors = checkMapping(next);
+    if (errors.length) return [undefined, { errors }];
+    if (latest && comparable(latest) === comparable(next)) return [undefined, { mapping: latest, errors: [], unchanged: true }];
+    data.mappings.push(next);
+    return [data, { mapping: next, errors: [] }];
+  });
 }
 
 // ---- Imports ----
@@ -134,12 +137,17 @@ const SHOWN_ROW_ERRORS = 500;
 
 export async function applyImport(store: PaymentsStore, kind: ImportKind, fileName: string, bytes: Uint8Array,
   mappingId: string, mappingVersion: number | undefined, now: Date): Promise<ImportLog> {
-  const data = await store.load();
+  // Inside the store's lock: the import ID and the merge see every import before this one.
+  return store.update((data) => importInto(data, kind, fileName, bytes, mappingId, mappingVersion, now));
+}
+
+function importInto(data: PaymentsData, kind: ImportKind, fileName: string, bytes: Uint8Array,
+  mappingId: string, mappingVersion: number | undefined, now: Date): [PaymentsData, ImportLog] {
   const mapping = findMapping(data, mappingId, mappingVersion);
   const importId = `IMP-${String(data.imports.length + 1).padStart(4, "0")}`;
   const base = { importId, kind, fileName, mappingId, mappingVersion: mapping?.version ?? mappingVersion ?? 0, at: now.toISOString(),
     newRecords: 0, duplicateRows: 0, notes: [] as string[], ignoredColumns: [] as string[], rowErrors: [] as RowError[] };
-  const finish = async (log: ImportLog) => { data.imports = [log, ...data.imports]; await store.save(data); return log; };
+  const finish = (log: ImportLog): [PaymentsData, ImportLog] => { data.imports = [log, ...data.imports]; return [data, log]; };
 
   if (!mapping || mapping.kind !== kind) {
     return finish({ ...base, sha256: "", outcome: "rejected", acceptedRows: 0, rejectedRows: 0,

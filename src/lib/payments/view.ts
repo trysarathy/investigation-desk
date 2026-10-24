@@ -1,5 +1,6 @@
 // View models for the payments screens. Pure; the server renders them.
 
+import { displayAmount } from "../format";
 import { CHAIN_NAMES } from "../types";
 import type { EvidenceStatus } from "../types";
 import { describe } from "./match";
@@ -63,7 +64,7 @@ export function paymentRow(p: CanonicalPayment, recs: Map<string, PaymentRecord>
   const chainRec = p.timeline.map((t) => recs.get(t.recordId)).find((r) => r?.kind === "chain_transfer");
   return {
     paymentId: p.paymentId, title,
-    amount: anchor && "amount" in anchor ? anchor.amount : undefined,
+    amount: anchor && "amount" in anchor && anchor.amount ? displayAmount(anchor.amount) : undefined,
     asset: anchor?.kind === "instruction" ? anchor.token : anchor?.kind === "provider" ? anchor.currency : undefined,
     chain: chainRec?.kind === "chain_transfer" ? CHAIN_NAMES[chainRec.chain] : anchor?.kind === "instruction" && anchor.chain ? CHAIN_NAMES[anchor.chain] : undefined,
     providerStatus: current ? { raw: current.statusRaw, meaning: current.statusMeaning, provider: current.provider } : undefined,

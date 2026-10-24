@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ActingAs } from "@/components/ActingAs";
+import { MatchProgress } from "@/components/MatchProgress";
 import { PaymentActions } from "@/components/PaymentActions";
 import { PaymentImports } from "@/components/PaymentImports";
 import { Status } from "@/components/Status";
@@ -14,11 +15,17 @@ import { workspaceStore } from "@/lib/workspace/live";
 // Reads the imported records on every request; never pre-render it at build time.
 export const dynamic = "force-dynamic";
 
+const SHOWN = 500;
+
 export default async function PaymentsPage() {
   const data = await paymentsStore().load();
   const result = data.match?.result;
   const recs = recordIndex(data);
-  const rows = (result?.payments ?? []).map((p) => paymentRow(p, recs, result!.reviews.filter((r) => r.paymentId === p.paymentId).length));
+  // A page lists at most SHOWN payments and reviews: an import can hold tens of thousands.
+  const reviewsOf = new Map<string, number>();
+  for (const r of result?.reviews ?? []) reviewsOf.set(r.paymentId, (reviewsOf.get(r.paymentId) ?? 0) + 1);
+  const rows = (result?.payments ?? []).slice(0, SHOWN).map((p) => paymentRow(p, recs, reviewsOf.get(p.paymentId) ?? 0));
+  const reviews = (result?.reviews ?? []).slice(0, SHOWN);
   const held = data.records.instruction.length + data.records.provider.length + data.records.bank.length;
   const ws = await workspaceStore().load();
   const banner = fileABanner({ fileALoaded: !!ws.fileA, depositLedgerRows: ws.fileB?.rows.length ?? 0 });
@@ -30,6 +37,7 @@ export default async function PaymentsPage() {
         <PaymentActions disabled={!held} preview={demoModeOn()} />
       </div>
       <ActingAs />
+      <MatchProgress />
       {banner && <div className="bar bar-amber" role="status">{banner}</div>}
       <p className="muted" style={{ margin: 0 }}>
         One payment ID per payment, linking instruction, on-chain transfer, provider record, bank record and ledger entry.
@@ -40,7 +48,7 @@ export default async function PaymentsPage() {
       {result ? (
         <>
           <p className="faint" style={{ margin: 0 }}>
-            {rows.length} payments · {result.reviews.length} to review · {result.duplicateRecords.length} duplicate records ·{" "}
+            {result.payments.length} payments · {result.reviews.length} to review · {result.duplicateRecords.length} duplicate records ·{" "}
             {result.unlinked.length} unlinked records · matched {formatTime(data.match!.at)}
           </p>
 
@@ -51,7 +59,7 @@ export default async function PaymentsPage() {
                 <table className="table">
                   <thead><tr><th>Review</th><th>Payment</th><th>Leg</th><th>Why</th><th>Detail</th><th>Held payment IDs</th><th className="num">Candidates</th></tr></thead>
                   <tbody>
-                    {result.reviews.map((r) => (
+                    {reviews.map((r) => (
                       <tr key={r.reviewId}>
                         <td className="mono faint">{r.reviewId}</td>
                         <td><Link href={`/payments/${r.paymentId}`} className="mono">{r.paymentId}</Link></td>
@@ -76,6 +84,9 @@ export default async function PaymentsPage() {
             </section>
           )}
 
+          {(result.payments.length > SHOWN || result.reviews.length > SHOWN) && (
+            <p className="faint" style={{ margin: 0 }}>Showing the first {SHOWN} payments and reviews. Find one by its ID with Search, or export the full list from the inbox.</p>
+          )}
           <section className="panel" aria-label="Payments">
             <div className="table-wrap">
               <table className="table">

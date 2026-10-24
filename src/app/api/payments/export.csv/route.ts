@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const who = whoFrom(req, new URL(req.url).searchParams.get("actor"));
-  const err = checkActor(who.actor);
+  const err = checkActor(who.actor, "exporting");
   if (err) return new Response(err, { status: 422 });
   await refreshInbox();
   const data = await paymentsStore().load();

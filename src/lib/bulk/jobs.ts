@@ -3,11 +3,12 @@
 
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { RowError } from "../csv/files";
 import type { BulkResult } from "./types";
 import { dataDir } from "../data-dir";
+import { writeAtomic } from "../lock";
 
 export interface BulkJob {
   id: string;
@@ -34,8 +35,7 @@ export function createJob(filename: string, sha256: string, total: number, skipp
 }
 
 export async function saveJob(job: BulkJob) {
-  await mkdir(DIR(), { recursive: true });
-  await writeFile(path.join(DIR(), `${job.id}.json`), JSON.stringify(job));
+  await writeAtomic(path.join(DIR(), `${job.id}.json`), JSON.stringify(job));
 }
 
 export async function getJob(id: string): Promise<BulkJob | undefined> {

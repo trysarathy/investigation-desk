@@ -23,6 +23,7 @@ import { createHash } from "node:crypto";
 import { nextStep as depositNextStep } from "../catalogue";
 import { SAMPLE_SETTINGS } from "../fixtures";
 import type { Code, Confidence } from "../types";
+import { displayAmount as amt, formatSpan, formatTime } from "../format";
 import { describe } from "./match";
 import { abs, add, eq, isAmount, mulBps, sub, sum } from "./money";
 import { routeFor, type ExceptionSettings, type RouteSetting } from "./settings";
@@ -255,7 +256,7 @@ function missingLegs(v: View, recs: Map<string, PaymentRecord>, now: Date, base:
       // Stuck at an earlier stage: that stage is the exception, not every stage after it.
       continue;
     } else if (prevAt && minutes(prevAt, now) > route.graceMinutes) {
-      title = `Missing leg: no ${LEG_NOUN[leg]} ${minutes(prevAt, now)} minutes after the ${LEG_NOUN[prevStage!]}`;
+      title = `Missing leg: no ${LEG_NOUN[leg]} ${formatSpan(minutes(prevAt, now))} after the ${LEG_NOUN[prevStage!]}`;
       confidence = "Medium";
       why = `grace ${route.graceMinutes} after ${prevStage} ${prevAt}`;
     } else {
@@ -324,7 +325,7 @@ function amountRules(v: View, base: (c: PaymentExceptionCode, d?: string) => obj
   for (const [asset, members] of groups) {
     const [ref, ...rest] = members;
     if (!rest.length) {
-      evidence.push(ev(`${ref.leg} (not compared: no other ${ref.asset} amount)`, ref.record, `${ref.amount} ${ref.asset}`));
+      evidence.push(ev(`${ref.leg} (not compared: no other ${ref.asset} amount)`, ref.record, `${amt(ref.amount)} ${ref.asset}`));
       continue;
     }
     const feeRows = v.fees.filter((f) => isAmount(f.amount) && (!f.currency || f.currency.toUpperCase() === asset));
@@ -332,26 +333,26 @@ function amountRules(v: View, base: (c: PaymentExceptionCode, d?: string) => obj
     const ruleFee = expectedFee(v.route, ref.amount);
     const mismatches: string[] = [];
     const mismatchValues: string[] = [];
-    evidence.push(ev(`${ref.leg} (reference for ${ref.asset})`, ref.record, `${ref.amount} ${ref.asset}`));
+    evidence.push(ev(`${ref.leg} (reference for ${ref.asset})`, ref.record, `${amt(ref.amount)} ${ref.asset}`));
     for (const a of rest) {
       const diff = sub(ref.amount, a.amount);
-      if (eq(diff, "0")) { evidence.push(ev(`${a.leg} (matches)`, a.record, `${a.amount} ${a.asset}`)); continue; }
+      if (eq(diff, "0")) { evidence.push(ev(`${a.leg} (matches)`, a.record, `${amt(a.amount)} ${a.asset}`)); continue; }
       const byRecord = feeSum !== undefined && eq(abs(diff), feeSum);
       const byRule = !byRecord && ruleFee !== undefined && eq(abs(diff), ruleFee);
       if (byRecord || byRule) {
-        evidence.push(ev(`${a.leg} (differs by ${abs(diff)}, explained by ${byRecord ? "the fee record" : "the route's fee rule"})`, a.record, `${a.amount} ${a.asset}`));
+        evidence.push(ev(`${a.leg} (differs by ${amt(abs(diff))}, explained by ${byRecord ? "the fee record" : "the route's fee rule"})`, a.record, `${amt(a.amount)} ${a.asset}`));
         continue;
       }
-      mismatches.push(`${a.leg} ${a.amount}`);
+      mismatches.push(`${a.leg} ${amt(a.amount)}`);
       mismatchValues.push(a.amount);
-      evidence.push(ev(`${a.leg} (differs by ${diff})`, a.record, `${a.amount} ${a.asset}`));
+      evidence.push(ev(`${a.leg} (differs by ${amt(diff)})`, a.record, `${amt(a.amount)} ${a.asset}`));
     }
     feeNotes.push(
-      { label: `Fee records linked (${ref.asset})`, value: feeSum !== undefined ? `${feeSum} ${ref.asset} (${feeRows.map((f) => f.providerPaymentId).join(", ")})` : "none" },
-      { label: "Configured fee rule", value: ruleFee !== undefined ? `${ruleFee} ${ref.asset} (${v.route.fee.kind})` : "none" },
+      { label: `Fee records linked (${ref.asset})`, value: feeSum !== undefined ? `${amt(feeSum)} ${ref.asset} (${feeRows.map((f) => f.providerPaymentId).join(", ")})` : "none" },
+      { label: "Configured fee rule", value: ruleFee !== undefined ? `${amt(ruleFee)} ${ref.asset} (${v.route.fee.kind})` : "none" },
     );
     if (mismatches.length) {
-      titles.push(`${ref.leg.toLowerCase()} ${ref.amount} ${ref.asset} vs ${mismatches.join(", ")}`);
+      titles.push(`${ref.leg.toLowerCase()} ${amt(ref.amount)} ${ref.asset} vs ${mismatches.join(", ")}`);
       // The facts, not the wording: which leg happens to be the reference (instruction before a
       // merge, provider after it) must not change the key, or a person's close would be reopened.
       const values = [...new Set([ref.amount, ...mismatchValues].map((x) => add(x, "0")))].sort();
@@ -360,11 +361,11 @@ function amountRules(v: View, base: (c: PaymentExceptionCode, d?: string) => obj
     if (feeSum !== undefined && ruleFee !== undefined && !eq(feeSum, ruleFee)) {
       out.push({
         ...(base("fee_mismatch") as Pick<PaymentException, "exceptionId" | "family" | "code" | "subject">),
-        title: `Fee mismatch: provider charged ${feeSum} ${ref.asset}, the route's rule gives ${ruleFee}`,
+        title: `Fee mismatch: provider charged ${amt(feeSum)} ${ref.asset}, the route's rule gives ${amt(ruleFee)}`,
         confidence: "High",
         evidence: [
           ...feeRows.map((f) => ev("Fee record", f)),
-          { label: "Configured fee rule", value: `${v.route.fee.kind === "fixed" ? `fixed ${v.route.fee.amount}` : `${(v.route.fee as { bps: number }).bps} bps of ${ref.amount}`} = ${ruleFee} ${ref.asset}` },
+          { label: "Configured fee rule", value: `${v.route.fee.kind === "fixed" ? `fixed ${v.route.fee.amount}` : `${(v.route.fee as { bps: number }).bps} bps of ${amt(ref.amount)}`} = ${amt(ruleFee)} ${ref.asset}` },
           { label: "Difference", value: sub(feeSum, ruleFee) }, routeEv,
         ],
         nextStep: "Check the fee against the provider's agreed pricing; correct the route's fee rule or raise the overcharge with the provider.",
@@ -408,13 +409,13 @@ function overdueRule(v: View, now: Date, base: (c: PaymentExceptionCode, d?: str
   return {
     ...(base("overdue") as Pick<PaymentException, "exceptionId" | "family" | "code" | "subject">),
     title: waiting.length
-      ? `Overdue: due ${deadline}, still waiting for the ${waiting.map((l) => LEG_NOUN[l]).join(", ")}${unknown.length ? ` (${failed})` : ""}`
-      : `Overdue: due ${deadline}; not confirmed complete because ${failed}`,
+      ? `Overdue: due ${formatTime(deadline)}, still waiting for the ${waiting.map((l) => LEG_NOUN[l]).join(", ")}${unknown.length ? ` (${failed})` : ""}`
+      : `Overdue: due ${formatTime(deadline)}; not confirmed complete because ${failed}`,
     confidence: waiting.length ? "High" : "Medium",
     evidence: [
       ev("Instruction", v.ins),
-      { label: "Deadline", value: v.ins.dueBy ? `${deadline} (the instruction's due_by)` : `${deadline} (created ${v.ins.eventTime} + ${v.route.deadlineMinutes} minutes, route ${v.route.routeId})` },
-      { label: "Checked at", value: now.toISOString() },
+      { label: "Deadline", value: v.ins.dueBy ? `${formatTime(deadline)} (the instruction's due_by)` : `${formatTime(deadline)} (created ${formatTime(v.ins.eventTime)} + ${formatSpan(v.route.deadlineMinutes)}, route ${v.route.routeId})` },
+      { label: "Checked at", value: formatTime(now.toISOString()) },
       { label: "Stage reached", value: reached ? LEG_NOUN[reached] : "none" },
       ...waiting.map((l) => ({ label: `Not linked: ${LEG_NOUN[l]}`, value: v.p.legs[l].state.replace("_", " ") })),
       ...unknown.map((l) => { const leg = v.p.legs[l]; return { label: `Unknown: ${LEG_NOUN[l]}`, value: leg.state === "unknown" ? leg.note : "lookup failed" }; }),
@@ -464,7 +465,7 @@ function contradictionRule(v: View, base: (c: PaymentExceptionCode, d?: string) 
   return {
     ...(base("contradiction") as Pick<PaymentException, "exceptionId" | "family" | "code" | "subject">),
     title: completed
-      ? `Contradiction: ${completed.provider} reported ${completed.statusRaw} at ${completed.eventTime}, then ${facts[0].what.charAt(0).toLowerCase()}${facts[0].what.slice(1)}`
+      ? `Contradiction: ${completed.provider} reported ${completed.statusRaw} at ${completed.eventTime ? formatTime(completed.eventTime) : "an unknown time"}, then ${facts[0].what.charAt(0).toLowerCase()}${facts[0].what.slice(1)}`
       : `Contradiction: ${facts[0].what}`,
     confidence: "High",
     evidence: [

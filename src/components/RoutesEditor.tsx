@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { formatTime } from "@/lib/format";
 import type { ExceptionSettings } from "@/lib/payments/settings";
 import { useActor } from "./ActingAs";
 
@@ -21,7 +22,7 @@ export function RoutesEditor({ settings }: { settings: ExceptionSettings }) {
   };
   return (
     <details className="panel" style={{ padding: 16 }}>
-      <summary><strong>Routes and deadlines</strong> <span className="faint">v{settings.version} · {settings.updatedBy} · {settings.updatedAt}</span></summary>
+      <summary><strong>Routes and deadlines</strong> <span className="faint">v{settings.version} · {settings.updatedBy} · {settings.updatedAt ? formatTime(settings.updatedAt) : "never changed"}</span></summary>
       <p className="muted" style={{ margin: "8px 0" }}>
         First route whose provider, chain and token match wins; the last must match anything. <span className="mono">deadlineMinutes</span> applies unless the instruction
         has its own <span className="mono">due_by</span>. <span className="mono">graceMinutes</span>: how long a missing leg may lag its previous stage.

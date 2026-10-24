@@ -260,4 +260,12 @@ textarea.input { height: auto; padding: 8px 12px; resize: vertical; line-height:
   .timeline li { grid-template-columns: 1fr; gap: 4px; }
   .tl-source { text-align: left; }
   .kv { grid-template-columns: 1fr; }
+  .wide-only { display: none; }
 }
+@media (min-width: 761px) { .narrow-only { display: none; } }
+
+/* The inbox as cards on a phone: kind, subject and status first, not just IDs. */
+.cards { list-style: none; margin: 0; padding: 0; }
+.cards li { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
+.cards li:last-child { border-bottom: 0; }
+.cards .meta { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }

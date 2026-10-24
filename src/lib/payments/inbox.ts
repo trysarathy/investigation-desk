@@ -63,6 +63,10 @@ export interface InboxItem {
 export interface InboxData {
   items: Record<string, InboxItem>;
   settings: ExceptionSettings;
+  /** The payments revision the inbox was last synced from (an older sync never overwrites a newer one). */
+  syncedRev?: number;
+  /** When it was last synced. */
+  syncedAt?: string;
 }
 
 export const emptyInbox = (): InboxData => ({ items: {}, settings: structuredClone(DEFAULT_SETTINGS) });
@@ -100,7 +104,14 @@ export function syncInbox(inbox: InboxData, run: ReturnType<typeof candidatesFro
   redirects?: Record<string, PaymentRedirect>;
 }): { inbox: InboxData; audit: AuditDraft[] } {
   const at = opts.now.toISOString();
-  const items = structuredClone(inbox.items);
+  // Copy on write: an item is copied the first time this run changes it, so the caller's inbox is
+  // never changed (a deep copy of every item each run was the slowest step for large inboxes).
+  const items = { ...inbox.items };
+  const copied = new Set<string>();
+  const own = (id: string) => {
+    if (!copied.has(id)) { copied.add(id); items[id] = { ...items[id], history: [...items[id].history] }; }
+    return items[id];
+  };
   const log: AuditDraft[] = [];
   const seen = new Set<string>();
   const newContradictions: InboxItem[] = [];
@@ -110,11 +121,12 @@ export function syncInbox(inbox: InboxData, run: ReturnType<typeof candidatesFro
     return r?.reason === "held_in_review" ? `${from} is held in review ${r.to.reviewId} on ${to}` : `${from} merged into ${to}`;
   };
 
+  const carry = carryIndex(items, paymentOf);
   for (const c of run) {
     seen.add(c.itemId);
     let prev = items[c.itemId];
     // An item of a payment that merged into this one carries over: status, owner, notes, history.
-    const old = !prev ? carriedFrom(items, c, paymentOf) : undefined;
+    const old = !prev ? carriedFrom(carry, c, paymentOf) : undefined;
     if (old) {
       const why = `${moveWhy(old.subject.kind === "payment" ? old.subject.paymentId : "", paymentOf(c.subject.kind === "payment" ? c.subject.paymentId : ""))}; this item was ${old.itemId}.`;
       items[old.itemId] = { ...old, movedTo: c.itemId, history: [...old.history, { at, by: "system", action: "moved", to: c.itemId, why }] };
@@ -147,8 +159,9 @@ export function syncInbox(inbox: InboxData, run: ReturnType<typeof candidatesFro
 
   // Gone this run: close what was open, saying why. Items reopened by a person while not current stay
   // as they are; items whose payment waits in a review are held, not closed, until it is decided.
-  for (const item of Object.values(items)) {
-    if (seen.has(item.itemId) || !item.current || item.movedTo) continue;
+  for (const original of Object.values(items)) {
+    if (seen.has(original.itemId) || !original.current || original.movedTo) continue;
+    const item = own(original.itemId);
     const pid = item.subject.kind === "payment" ? item.subject.paymentId : undefined;
     const redirect = pid ? opts.redirects?.[pid] : undefined;
     if (pid && redirect?.reason === "held_in_review") {
@@ -178,10 +191,12 @@ export function syncInbox(inbox: InboxData, run: ReturnType<typeof candidatesFro
   }
 
   // A later contradiction reopens the closed exceptions on its payment.
+  const closedByPayment = newContradictions.length ? indexByPayment(Object.values(items).filter((i) => i.kind === "exception" && i.status === "closed" && !i.movedTo), paymentOf) : new Map<string, InboxItem[]>();
   for (const contra of newContradictions) {
     if (contra.subject.kind !== "payment") continue;
     const target = paymentOf(contra.subject.paymentId);
-    for (const item of Object.values(items)) {
+    for (const found of closedByPayment.get(target) ?? []) {
+      const item = items[found.itemId];
       if (item.itemId === contra.itemId || item.movedTo || item.kind !== "exception" || item.status !== "closed" || item.subject.kind !== "payment") continue;
       // Only what a person closed: that judgement is what a later contradiction can overturn. What the
       // system closed because its condition went away reopens by itself if the condition comes back.
@@ -189,28 +204,52 @@ export function syncInbox(inbox: InboxData, run: ReturnType<typeof candidatesFro
       if (!closing || closing.by === "system") continue;
       if (paymentOf(item.subject.paymentId) !== target) continue;
       const why = `Contradiction ${contra.itemId}: ${contra.title}`;
-      item.status = "reopened";
-      item.history.push({ at, by: "system", action: "reopened", from: "closed", to: "reopened", why });
+      own(item.itemId).status = "reopened";
+      items[item.itemId].history.push({ at, by: "system", action: "reopened", from: "closed", to: "reopened", why });
       log.push(audit(at, item, "inbox.reopened", why, { before: "closed", after: "reopened" }));
     }
   }
   return { inbox: { ...inbox, items }, audit: log };
 }
 
+/** Payment-scoped items by the payment their subject resolves to now. */
+function indexByPayment(items: InboxItem[], paymentOf: (id: string) => string): Map<string, InboxItem[]> {
+  const ix = new Map<string, InboxItem[]>();
+  for (const i of items) {
+    if (i.subject.kind !== "payment") continue;
+    const k = paymentOf(i.subject.paymentId);
+    ix.set(k, [...(ix.get(k) ?? []), i]);
+  }
+  return ix;
+}
+
 /** "EXC-<payment>-<rest>" or "REV-<payment>-<leg>": the payment part and the rest. */
 const PAYMENT_SCOPED = /^(EXC|REV)-([0-9A-F]{10})-(.+)$/;
 
 /** The item, of a payment that now resolves to this candidate's payment, that this candidate continues. */
-function carriedFrom(items: Record<string, InboxItem>, c: ReturnType<typeof candidatesFrom>[number], paymentOf: (id: string) => string): InboxItem | undefined {
+/**
+ * Items that could carry over to a merged payment, keyed by kind, prefix, code and the payment
+ * their subject resolves to now. Built once per sync (a scan per candidate was quadratic).
+ */
+function carryIndex(items: Record<string, InboxItem>, paymentOf: (id: string) => string) {
+  const ix = new Map<string, InboxItem[]>();
+  for (const i of Object.values(items)) {
+    const n = PAYMENT_SCOPED.exec(i.itemId);
+    if (!n || i.movedTo || i.subject.kind !== "payment") continue;
+    const k = `${i.kind}|${n[1]}|${n[3]}|${paymentOf(i.subject.paymentId)}`;
+    ix.set(k, [...(ix.get(k) ?? []), i]);
+  }
+  return ix;
+}
+
+function carriedFrom(ix: Map<string, InboxItem[]>, c: ReturnType<typeof candidatesFrom>[number], paymentOf: (id: string) => string): InboxItem | undefined {
   const m = PAYMENT_SCOPED.exec(c.itemId);
   if (!m || c.subject.kind !== "payment") return undefined;
   const here = c.subject.paymentId;
-  const target = paymentOf(here);
-  return Object.values(items).find((i) => {
-    if (i.movedTo || i.kind !== c.kind || i.subject.kind !== "payment" || i.subject.paymentId === here) return false;
-    const n = PAYMENT_SCOPED.exec(i.itemId);
-    return !!n && n[1] === m[1] && n[3] === m[3] && paymentOf(i.subject.paymentId) === target;
-  });
+  const list = ix.get(`${c.kind}|${m[1]}|${m[3]}|${paymentOf(here)}`) ?? [];
+  const found = list.find((i) => !i.movedTo && i.subject.kind === "payment" && i.subject.paymentId !== here);
+  if (found) list.splice(list.indexOf(found), 1); // carried once
+  return found;
 }
 
 /** Where an item ID leads now: itself, or the item it moved to when its payment merged. */
@@ -222,6 +261,25 @@ export function resolveItemId(inbox: InboxData, itemId: string): string | undefi
 }
 
 /** Open contradictions on the same payment as this item (for the banner on every item of that payment). */
+/**
+ * The other open items on each item's payment (resolved through merges), indexed once, for lists
+ * that ask per row. Several items on one payment (say Overdue and a Missing leg) are one problem.
+ */
+export function alsoOpenOnPayment(inbox: InboxData, paymentOf: (id: string) => string | undefined): (itemId: string) => InboxItem[] {
+  const resolve = (id: string) => paymentOf(id) ?? id;
+  const open = new Map<string, InboxItem[]>();
+  for (const i of Object.values(inbox.items)) {
+    if (i.movedTo || i.status === "closed" || i.subject.kind !== "payment") continue;
+    const k = resolve(i.subject.paymentId);
+    open.set(k, [...(open.get(k) ?? []), i]);
+  }
+  return (itemId) => {
+    const item = inbox.items[itemId];
+    if (!item || item.subject.kind !== "payment") return [];
+    return (open.get(resolve(item.subject.paymentId)) ?? []).filter((i) => i.itemId !== itemId);
+  };
+}
+
 export function openContradictionsFor(inbox: InboxData, item: InboxItem, paymentOf: (id: string) => string | undefined): InboxItem[] {
   if (item.subject.kind !== "payment") return [];
   const target = paymentOf(item.subject.paymentId) ?? item.subject.paymentId;
