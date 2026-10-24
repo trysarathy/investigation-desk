@@ -31,12 +31,20 @@ export function nextAction(v: RequestView): NextAction {
         : { title: "Wait for the customer to pay", detail: "Share the payment link if they haven't got it.", owner: "Customer" };
     case "transfer_detected":
     case "confirming":
+      // Live transfers don't update on their own yet: their confirmations move only when looked up again.
+      if (v.counted.some((o) => o.source === "live" && o.confirmations < CONFIRMATIONS)) {
+        return { title: "Look the transaction up again", detail: `Confirmations were ${v.maxConfirmations} of ${CONFIRMATIONS} at the last lookup. Paste the same hash under "Record a real transaction" to update them.`, owner: r.owner ?? "Finance ops" };
+      }
       return { title: "Nothing to do yet", detail: `Waiting for ${CONFIRMATIONS} confirmations (${confirmTime()} on Ethereum).`, owner: "No one" };
     case "matched":
       return { title: "Acknowledge the payment", detail: `Credit ${formatUsdc(r.amount)} USDC to ${r.customerRef} for ${r.invoiceRef} in your own system, then acknowledge it here. Until then it isn't completed.`, owner: r.owner ?? "Finance ops" };
     case "needs_review":
-      if (v.review === "flagged") return { title: "Review the flagged transfer", detail: "It doesn't count toward the request. Confirm it isn't a payment, and reply to the customer.", owner: r.owner ?? "Finance ops" };
-      if (v.review === "ambiguous") return { title: "Assign the transfer to the right request", detail: "Several open requests share this address, so the amount alone can't decide it.", owner: r.owner ?? "Finance ops" };
+      if (v.review === "flagged") {
+        return v.flagged.some((f) => /before this request was created/.test(f.problem))
+          ? { title: "Decide whether an earlier transfer is this payment", detail: "It was mined before the request existed. Count it if you know it's a prepayment for this invoice; otherwise mark it as not a payment.", owner: r.owner ?? "Finance ops" }
+          : { title: "Review the flagged transfer", detail: "It doesn't count toward the request. Confirm it isn't a payment, and reply to the customer.", owner: r.owner ?? "Finance ops" };
+      }
+      if (v.review === "ambiguous") return { title: "Confirm which request the transfer pays", detail: "Other requests use this address (open or already completed), so the address and amount alone can't decide it.", owner: r.owner ?? "Finance ops" };
       if (v.review === "short") return { title: `Decide on the ${formatUsdc(v.outstanding)} USDC shortfall`, detail: "Ask for the balance, or accept the payment as settled.", owner: r.owner ?? "Finance ops" };
       return { title: `Decide on the ${formatUsdc(v.outstanding.replace(/^-/, ""))} USDC overpayment`, detail: "Accept it and handle the difference with the customer outside this app.", owner: r.owner ?? "Finance ops" };
     case "completed":
@@ -78,7 +86,7 @@ export function senderStatus(v: RequestView): { title: string; detail: string; t
     case "awaiting_payment":
       return v.review === "short"
         ? { title: `${formatUsdc(v.outstanding)} USDC still due`, detail: `${formatUsdc(v.received)} of ${formatUsdc(v.request.amount)} USDC received.`, tone: "attention" }
-        : { title: "Waiting for your payment", detail: "This page updates by itself when a transfer is seen.", tone: "wait" };
+        : { title: "Waiting for your payment", detail: v.request.demo ? "This page updates by itself when a transfer is seen." : "This page updates once the business records your transfer.", tone: "wait" };
     case "transfer_detected":
       return { title: "Payment seen", detail: "Your transfer is waiting to be included in a block.", tone: "progress" };
     case "confirming":

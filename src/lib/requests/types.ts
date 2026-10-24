@@ -60,6 +60,7 @@ export type DecisionKind =
   | "accept_over"         // over payment: accept; the difference is handled outside the app
   | "dismiss_transfer"    // a flagged transfer is not a payment for this request
   | "assign_transfer"     // an ambiguous transfer belongs to this request
+  | "count_transfer"      // a transfer mined before the request was created is this request's payment
   | "acknowledge";        // the business has credited it
 
 export interface Decision {
@@ -128,6 +129,8 @@ export interface Observation {
   firstSeenAt: string;
   lastUpdatedAt: string;
   attribution: Attribution;
+  /** Earlier attributions, oldest first: a person's assignment never erases what the system decided. */
+  attributionHistory?: Attribution[];
   checks: CheckSnapshot[];
 }
 

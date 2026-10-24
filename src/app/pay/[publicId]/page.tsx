@@ -5,7 +5,7 @@ import { AutoRefresh } from "@/components/requests/AutoRefresh";
 import { CopyButton } from "@/components/requests/Copy";
 import { CONFIRMATIONS } from "@/lib/requests/check";
 import { DEMO_BUSINESS } from "@/lib/requests/demo";
-import { deriveRequest, formatUsdc } from "@/lib/requests/lifecycle";
+import { amountToSend, deriveRequest, formatUsdc } from "@/lib/requests/lifecycle";
 import { eip681, senderStatus } from "@/lib/requests/present";
 import { requestsStore } from "@/lib/requests/service";
 
@@ -31,11 +31,16 @@ export default async function PayPage({ params }: { params: Promise<{ publicId: 
   if (!r) notFound();
   const v = deriveRequest(data, r, CONFIRMATIONS);
   const s = senderStatus(v);
-  const step = { awaiting_payment: 0, transfer_detected: 1, confirming: 2, matched: 3, needs_review: 3, completed: 5 }[v.state];
+  // Progress shows only what really happened: in review, the furthest a counted transfer got.
+  const inBlock = v.counted.some((o) => o.blockNumber !== undefined);
+  const reviewStep = v.received !== "0" ? 3 : inBlock ? 2 : v.counted.length ? 1 : 0;
+  const step = { awaiting_payment: v.received !== "0" ? 3 : 0, transfer_detected: 1, confirming: 2, matched: 3, needs_review: reviewStep, completed: 5 }[v.state];
   const attention = v.state === "needs_review" || (v.state === "awaiting_payment" && v.review === "short");
-  // The amount to send now: the balance after a short payment, else the full amount. The QR says the same.
-  const toSend = v.review === "short" && v.outstanding !== "0" && !v.outstanding.startsWith("-") ? v.outstanding : r.amount;
-  const uri = eip681(r, toSend);
+  // What is still due, counting transfers already confirmed or confirming. Nothing due: no
+  // instructions and no QR, so nobody is invited to pay twice. The QR always asks for the same.
+  const toSend = amountToSend(v);
+  const due = toSend !== "0" && v.state !== "completed";
+  const uri = eip681(r, due ? toSend : r.amount);
   const qr = await QRCode.toString(uri, { type: "svg", margin: 1, errorCorrectionLevel: "M", color: { dark: "#17181c", light: "#ffffff" } });
   const business = r.demo ? DEMO_BUSINESS.replace(/\.$/, "") : "the business";
 
@@ -63,7 +68,7 @@ export default async function PayPage({ params }: { params: Promise<{ publicId: 
           </ol>
         </section>
 
-        {v.state !== "completed" && (
+        {due && (
           <>
             <ol className="pay-steps">
               <li>
@@ -94,8 +99,9 @@ export default async function PayPage({ params }: { params: Promise<{ publicId: 
               </li>
             </ol>
             <p className="pay-warn">
-              Only send USDC on Ethereum. Other tokens, or USDC on other networks, will not arrive here.
-              Blockchain transfers can&apos;t be reversed, so check the first and last characters of the address after you paste it.
+              Send only USDC on Ethereum. USDC on another network, or any other token, won&apos;t count as payment for this invoice
+              and may not be recoverable. Blockchain transfers can&apos;t be reversed, so check the first and last characters of the
+              address after you paste it.
             </p>
             <div className="pay-qr">
               <div dangerouslySetInnerHTML={{ __html: qr }} role="img" aria-label="QR code for this payment request" />
@@ -108,8 +114,10 @@ export default async function PayPage({ params }: { params: Promise<{ publicId: 
         )}
       </article>
       <p className="pay-foot">
-        This page shows what has been seen on the blockchain{r.demo ? " (simulated in this demo)" : ""} and whether {business} has confirmed it.
-        It updates by itself. Questions about this payment go to {business}.
+        {r.demo
+          ? <>This page shows the simulated transfers in this demo and whether {business} has confirmed them. It updates by itself.</>
+          : <>This page shows transfers {business} has recorded for this request, and whether it has confirmed them. It updates by itself once a transfer is recorded.</>}
+        {" "}Questions about this payment go to {business}.
       </p>
     </main>
   );

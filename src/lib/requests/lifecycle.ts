@@ -89,11 +89,17 @@ export function toBaseUnits(a: string, decimals = USDC_DECIMALS): string {
  *  - several candidates: never decided by amount alone. The transfer waits for a person, and an
  *    exact-amount candidate is only offered as a hint.
  */
-export function attribute(data: RequestsData, ev: Pick<TransferEvent, "to" | "amount" | "chain">, at: string): Attribution {
-  const candidates = Object.values(data.requests)
-    .filter((r) => r.chain === ev.chain && sameAddress(r.receivingAddress, ev.to) && !acknowledgement(r))
-    .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
+export function attribute(data: RequestsData, ev: Pick<TransferEvent, "to" | "amount" | "chain" | "demo">, at: string): Attribution {
+  // Demo transfers only ever match demo requests, and real ones only real requests.
+  const sameWorld = Object.values(data.requests).filter((r) => r.chain === ev.chain && r.demo === ev.demo && sameAddress(r.receivingAddress, ev.to));
+  const candidates = sameWorld.filter((r) => !acknowledgement(r)).sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
+  const done = sameWorld.filter((r) => acknowledgement(r));
   if (candidates.length === 0) return { kind: "none", reason: "No open request uses this receiving address.", at };
+  // A customer paying again after a completed request must not silently pay the next one.
+  if (candidates.length === 1 && done.length > 0) {
+    return { kind: "ambiguous", candidates: [candidates[0].id], at,
+      reason: `${candidates[0].id} is the only open request on this address, but ${done.map((r) => r.id).join(", ")} (completed) used it too: this could be a repeat payment.` };
+  }
   if (candidates.length === 1) {
     return { kind: "request", requestId: candidates[0].id, at, by: "System",
       reason: `${candidates[0].id} is the only open request paid to this address.` };
@@ -174,7 +180,7 @@ function withCheck(obs: Observation, data: RequestsData, check: Check): Observat
   const req = obs.attribution.kind === "request" ? data.requests[obs.attribution.requestId] : undefined;
   const snap = check(obs, req, data);
   const last = obs.checks.at(-1);
-  const sig = (c: CheckSnapshot) => JSON.stringify([c.code, c.problem, c.evidence.map((e) => [e.id, e.status, e.value, e.detail])]);
+  const sig = (c: CheckSnapshot) => JSON.stringify([c.code, c.label, c.confidence, c.problem, c.evidence.map((e) => [e.id, e.status, e.value, e.detail])]);
   if (last && sig(last) === sig(snap)) return obs;
   return { ...obs, checks: [...obs.checks, snap] };
 }
@@ -190,6 +196,9 @@ export const acknowledgement = (r: PaymentRequest): Decision | undefined =>
   r.decisions.find((d) => d.kind === "acknowledge" || d.kind === "accept_short" || d.kind === "accept_over");
 
 const dismissed = (r: PaymentRequest, key: string) => r.decisions.some((d) => d.kind === "dismiss_transfer" && d.observationKey === key);
+const counted = (r: PaymentRequest, key: string) => r.decisions.some((d) => d.kind === "count_transfer" && d.observationKey === key);
+/** Only a timing flag can be overridden by a person; a fake token or a failed transaction never counts. */
+export const isTimingProblem = (p: string) => /before this request was created/.test(p);
 
 /** A transfer counts toward the request only if it is a successful transfer of the request's official token, not flagged. */
 export function transferProblem(o: Observation, r: PaymentRequest): string | undefined {
@@ -200,7 +209,7 @@ export function transferProblem(o: Observation, r: PaymentRequest): string | und
       : `${o.tokenSymbol} is not the token requested (USDC).`;
   }
   // A transfer mined before the request existed can't be its payment without a person saying so.
-  if (o.blockTime && Date.parse(o.blockTime) < Date.parse(r.createdAt)) {
+  if (o.blockTime && Date.parse(o.blockTime) < Date.parse(r.createdAt) && !counted(r, o.key)) {
     return `Mined ${o.blockTime.slice(0, 10)}, before this request was created (${r.createdAt.slice(0, 10)}): probably a different payment.`;
   }
   const last = o.checks.at(-1);
@@ -287,12 +296,18 @@ export function deriveRequest(data: RequestsData, r: PaymentRequest, threshold: 
   return { ...base, state: "needs_review", reasons, review: "over" };
 }
 
+/** What the sender still has to send: requested − (confirmed + confirming), in genuine USDC. "0" when nothing is due. */
+export function amountToSend(v: RequestView): string {
+  const due = sub(v.request.amount, add(v.received, v.pending));
+  return due.startsWith("-") || compareDecimal(due, "0") === 0 ? "0" : due;
+}
+
 // ---------- decisions ----------
 
 /** Which decisions make sense in a view. The server enforces the same list. */
 export function allowedDecisions(v: RequestView): DecisionKind[] {
   if (v.state === "completed") return [];
-  if (v.review === "flagged") return ["dismiss_transfer"];
+  if (v.review === "flagged") return v.flagged.some((f) => isTimingProblem(f.problem)) ? ["count_transfer", "dismiss_transfer"] : ["dismiss_transfer"];
   if (v.review === "ambiguous") return ["assign_transfer"];
   if (v.state === "matched") return ["acknowledge"];
   if (v.review === "short") return v.state === "needs_review" ? ["request_balance", "accept_short"] : ["accept_short"];
@@ -315,10 +330,15 @@ export function decide(data: RequestsData, requestId: string, input: DecisionInp
   if (input.kind === "dismiss_transfer") {
     if (!v.flagged.some((f) => f.obs.key === input.observationKey)) return { data, error: "Pick one of this request's flagged transfers." };
   }
+  if (input.kind === "count_transfer") {
+    const f = v.flagged.find((x) => x.obs.key === input.observationKey);
+    if (!f || !isTimingProblem(f.problem)) return { data, error: "Only a transfer flagged for its timing can be counted; a fake token or failed transaction never counts." };
+  }
   if (input.kind === "assign_transfer") {
     const obs = v.ambiguous.find((a) => a.key === input.observationKey);
     if (!obs) return { data, error: "Pick one of the transfers waiting for a request." };
-    const assigned: Observation = { ...obs, attribution: { kind: "request", requestId, by: o.by, at: o.now, reason: `Assigned by ${o.by}: ${note}` } };
+    const assigned: Observation = { ...obs, attributionHistory: [...(obs.attributionHistory ?? []), obs.attribution],
+      attribution: { kind: "request", requestId, by: o.by, at: o.now, reason: `Assigned by ${o.by}: ${note}` } };
     // Re-check against the request it now belongs to: the earlier check had no customer to go on.
     observations[obs.key] = o.check ? withCheck(assigned, { ...data, observations }, o.check) : assigned;
   }
@@ -329,6 +349,7 @@ export function decide(data: RequestsData, requestId: string, input: DecisionInp
     accept_over: `Accepted ${formatUsdc(v.received)} USDC (over by ${formatUsdc(sub(v.received, r.amount))}). ${note}`,
     request_balance: `Waiting for the balance of ${formatUsdc(v.outstanding)} USDC. ${note}`,
     dismiss_transfer: `Marked transfer ${short(input.observationKey?.split(":")[1] ?? "")} as not a payment for this request. ${note}`,
+    count_transfer: `Counted transfer ${short(input.observationKey?.split(":")[1] ?? "")} toward this request although it was mined before the request was created. ${note}`,
     assign_transfer: `Assigned transfer ${short(input.observationKey?.split(":")[1] ?? "")} to ${requestId}. ${note}`,
   };
   const updated: PaymentRequest = { ...r, decisions: [...r.decisions, decision],

@@ -34,13 +34,13 @@ with sync_playwright() as p:
     page.goto(BASE + "/requests"); page.wait_for_load_state("networkidle")
     shot(page, "01-empty")
     page.get_by_role("button", name="Load the demo day").click()
-    page.wait_for_selector("text=REQ-1041"); page.wait_for_timeout(300)
+    page.wait_for_selector("text=DEMO-1041"); page.wait_for_timeout(300)
     shot(page, "02-inbox-demo-day", True)
-    ok("demo day loaded with 5 requests", page.locator(".req-table tbody tr").count() == 4, f"open rows={page.locator('.req-table tbody tr').count()} (REQ-1038 is completed, filtered out of Open)")
+    ok("demo day loaded with 5 requests", page.locator(".req-table tbody tr").count() == 4, f"open rows={page.locator('.req-table tbody tr').count()} (DEMO-1038 is completed, filtered out of Open)")
     ok("persistent demo indicator", page.locator(".demo-flag").count() >= 1)
 
     # ---- Scenario A: routine ----
-    page.goto(BASE + "/requests/REQ-1041"); page.wait_for_load_state("networkidle")
+    page.goto(BASE + "/requests/DEMO-1041"); page.wait_for_load_state("networkidle")
     sender = ctx.new_page(); sender.on("console", lambda m: m.type == "error" and errors.append("sender: " + m.text[:300]))
     pub = page.locator("a:has-text('Sender page')").get_attribute("href")
     sender.goto(BASE + pub); sender.wait_for_load_state("networkidle")
@@ -70,11 +70,11 @@ with sync_playwright() as p:
     before = page.locator(".figure .v").nth(1).inner_text()
     page.goto(BASE + "/requests"); page.wait_for_load_state("networkidle")
     demo_click(page, "Deliver last event again")
-    page.goto(BASE + "/requests/REQ-1041"); page.wait_for_load_state("networkidle")
+    page.goto(BASE + "/requests/DEMO-1041"); page.wait_for_load_state("networkidle")
     ok("duplicate event counted once", page.locator(".figure .v").nth(1).inner_text() == before and "reported again. Ignored" in page.content(), before)
 
     # ---- Scenario B: short payment ----
-    page.goto(BASE + "/requests/REQ-1042"); page.wait_for_load_state("networkidle")
+    page.goto(BASE + "/requests/DEMO-1042"); page.wait_for_load_state("networkidle")
     demo_click(page, re.compile("Brightline Studio sends 3,800.00"))
     demo_click(page, re.compile("Include in a block"))
     demo_click(page, "Add 12 confirmations")
@@ -90,7 +90,7 @@ with sync_playwright() as p:
     ok("B: decision recorded, request stays unresolved (awaiting balance)", wait_state(page, "Awaiting payment") == "Awaiting payment" and "Waiting for the balance of 1,000.00 USDC" in page.content(), state(page))
 
     # ---- Scenario C: look-alike token ----
-    page.goto(BASE + "/requests/REQ-1043"); page.wait_for_load_state("networkidle")
+    page.goto(BASE + "/requests/DEMO-1043"); page.wait_for_load_state("networkidle")
     demo_click(page, re.compile("Orbit Retail sends 2,000.00 look-alike"))
     demo_click(page, re.compile("Include in a block"))
     demo_click(page, "Add 12 confirmations")
@@ -126,7 +126,7 @@ with sync_playwright() as p:
     page.get_by_role("button", name="Reset demo").click(); page.wait_for_timeout(1000)
     page.goto(BASE + "/requests?view=all"); page.wait_for_load_state("networkidle")
     ok("reset kept the non-demo request", real_id in page.content())
-    page.goto(BASE + "/requests/REQ-1041"); page.wait_for_load_state("networkidle")
+    page.goto(BASE + "/requests/DEMO-1041"); page.wait_for_load_state("networkidle")
     ok("reset restored scenario A to awaiting", state(page) == "Awaiting payment", state(page))
 
     # Put scenario C into review again for the phone check (via the same demo API the buttons use).
@@ -143,9 +143,9 @@ with sync_playwright() as p:
     mp.goto(BASE + "/requests"); mp.wait_for_load_state("networkidle"); shot(mp, "12-mobile-inbox", True)
     sw = mp.evaluate("document.documentElement.scrollWidth")
     ok("mobile inbox: no horizontal scroll", sw <= 390, f"scrollWidth={sw}")
-    mp.goto(BASE + "/requests/REQ-1043"); mp.wait_for_load_state("networkidle"); shot(mp, "13-mobile-detail", True)
+    mp.goto(BASE + "/requests/DEMO-1043"); mp.wait_for_load_state("networkidle"); shot(mp, "13-mobile-detail", True)
     ok("sender link survives a reset", mp.goto(BASE + pub).status == 200)
-    mp.goto(BASE + "/requests/REQ-1043"); mp.wait_for_load_state("networkidle")
+    mp.goto(BASE + "/requests/DEMO-1043"); mp.wait_for_load_state("networkidle")
     sw = mp.evaluate("document.documentElement.scrollWidth")
     ok("mobile detail: no horizontal scroll", sw <= 390, f"scrollWidth={sw}")
 

@@ -11,11 +11,17 @@ export class FileRequestsStore extends LockedStore<RequestsData> {
   protected revOf(d: RequestsData) { return d.rev ?? 0; }
   protected withRev(d: RequestsData, rev: number) { return { ...d, rev }; }
   async load(): Promise<RequestsData> {
+    let text: string;
     try {
-      return { ...emptyRequests(), ...(JSON.parse(await readFile(this.file, "utf8")) as Partial<RequestsData>) } as RequestsData;
-    } catch {
-      return emptyRequests();
+      text = await readFile(this.file, "utf8");
+    } catch (e) {
+      // Only a file that doesn't exist yet is an empty store. Any other read error must stop the
+      // write that follows, or it would replace every request with an empty store.
+      if ((e as NodeJS.ErrnoException).code === "ENOENT") return emptyRequests();
+      throw e;
     }
+    // A corrupt file throws here too, for the same reason.
+    return { ...emptyRequests(), ...(JSON.parse(text) as Partial<RequestsData>) } as RequestsData;
   }
   protected async write(d: RequestsData) { await writeAtomic(this.file, JSON.stringify(d)); }
 }

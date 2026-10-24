@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ActingAs, useActor } from "@/components/ActingAs";
 
-type DecisionKind = "request_balance" | "accept_short" | "accept_over" | "dismiss_transfer" | "assign_transfer" | "acknowledge";
+type DecisionKind = "request_balance" | "accept_short" | "accept_over" | "dismiss_transfer" | "assign_transfer" | "count_transfer" | "acknowledge";
 export interface TransferOption { key: string; label: string }
 
 const COPY: Record<DecisionKind, { button: string; hint: string; placeholder: string }> = {
@@ -17,18 +17,24 @@ const COPY: Record<DecisionKind, { button: string; hint: string; placeholder: st
   accept_over: { button: "Accept, handle the difference", hint: "Completes the request; refunds or credits for the difference happen outside this app.", placeholder: "e.g. Refund of the difference agreed with the customer" },
   dismiss_transfer: { button: "Not a payment for this request", hint: "The transfer stays on file with its evidence; it just stops counting against the request.", placeholder: "Why, e.g. counterfeit token; customer told" },
   assign_transfer: { button: "Assign to this request", hint: "Only when you have proof beyond the amount (remittance advice, sender address on file).", placeholder: "Your evidence, e.g. remittance advice received" },
+  count_transfer: { button: "Count it toward this request", hint: "For a payment made before the request existed (a prepayment). Recorded with your reason.", placeholder: "Your evidence, e.g. customer prepaid on our instruction" },
 };
 
-async function post(id: string, actor: string, action: object): Promise<string | null> {
+/** null on success with nothing to say; otherwise { ok, text } so a success message never looks like an error, or the reverse. */
+async function call(id: string, actor: string, action: object): Promise<{ ok: boolean; text?: string }> {
   try {
     const r = await fetch(`/api/requests/${encodeURIComponent(id)}/action`, {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ actor, action }),
     });
     const j = await r.json().catch(() => ({}));
-    return r.ok ? (j.message ?? null) : (j.error ?? `Failed (${r.status}).`);
+    return r.ok ? { ok: true, text: j.message } : { ok: false, text: j.error ?? `Failed (${r.status}).` };
   } catch {
-    return "The server didn't answer. Nothing changed.";
+    return { ok: false, text: "The server didn't answer. Nothing changed." };
   }
+}
+async function post(id: string, actor: string, action: object): Promise<string | null> {
+  const r = await call(id, actor, action);
+  return r.ok ? null : r.text ?? "Failed.";
 }
 
 export function DecisionPanel({ requestId, allowed, flagged, ambiguous }: {
@@ -111,18 +117,16 @@ export function AttachHash({ requestId }: { requestId: string }) {
   return (
     <form style={{ display: "flex", flexDirection: "column", gap: 6 }} onSubmit={async (e) => {
       e.preventDefault(); setBusy(true); setMsg(null);
-      const res = await post(requestId, actor, { kind: "attach_hash", hash });
+      const res = await call(requestId, actor, { kind: "attach_hash", hash });
       setBusy(false);
-      // A successful lookup returns a message too; tell the two apart by re-reading the page.
-      const ok = res === null || /recorded|nothing changed/i.test(res);
-      setMsg(res ? { ok, text: res } : null);
-      if (ok) { setHash(""); router.refresh(); }
+      setMsg(res.text ? { ok: res.ok, text: res.text } : null);
+      if (res.ok) { setHash(""); router.refresh(); }
     }}>
       <div style={{ display: "flex", gap: 8 }}>
         <input className="input mono" style={{ flex: 1, minWidth: 0 }} value={hash} onChange={(e) => setHash(e.target.value)} placeholder="0x… transaction hash" aria-label="Transaction hash" />
         <button className="btn btn-sm" type="submit" disabled={busy || !actor || hash.trim().length < 64}>{busy ? "Looking up…" : "Look up"}</button>
       </div>
-      <div className="field-hint">Real Ethereum, read-only. Records the transfer only if it pays this request's address.</div>
+      <div className="field-hint">Real Ethereum, read-only. Records the transfer only if it pays this request&apos;s address. Look the same hash up again to update its confirmations.</div>
       {msg && <div className={`bar ${msg.ok ? "bar-info" : "bar-red"}`} role="status">{msg.text}</div>}
     </form>
   );

@@ -63,7 +63,7 @@ export class LiveHashProvider implements TransferProvider {
   /** Look a hash up for one request. Returns the transfers into its receiving address, with the facts the engine used. */
   async lookup(hash: string, request: PaymentRequest, data: RequestsData):
     Promise<{ events: TransferEvent[]; facts?: Facts; message?: string }> {
-    const ws = { depositAddresses: requestAddresses(data), ledger: [], ledgerUploadedAt: new Date().toISOString(), customerId: request.customerRef };
+    const ws = { depositAddresses: requestAddresses(data, request), ledger: [], ledgerUploadedAt: new Date().toISOString(), customerId: "request" };
     const facts = await fetchFacts(hash, ws, this.deps, REQUEST_SETTINGS);
     if (facts.input.kind !== "hash") return { events: [], message: "That isn't a transaction hash (64 hex characters, optional 0x)." };
     const eth = facts.lookups.find((l) => l.chain === "ethereum");

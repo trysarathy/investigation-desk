@@ -16,7 +16,7 @@ npx next start            # http://localhost:3000, no keys or network needed
 2. Click **Load the demo day**. If it was used before, click **Reset demo** instead.
 3. Type your name in **Acting as** the first time you are asked.
 4. Open two windows side by side:
-    - left: `/requests/REQ-1041` (the business);
+    - left: `/requests/DEMO-1041` (the business);
     - right: its **Sender page ↗** (the customer).
 
 The pages update by themselves every few seconds.
@@ -48,7 +48,7 @@ action says to credit it in your own system, then acknowledge it here."
 4. Click **Acknowledge payment** → **Completed**. The sender's page turns **Paid**.
 5. Scroll to **Activity**: who did what, and when.
 
-**2:10 Short payment (60 s).** Open **REQ-1042** (Brightline, 4,800.00).
+**2:10 Short payment (60 s).** Open **DEMO-1042** (Brightline, 4,800.00).
 
 1. Click **Brightline Studio sends 3,800.00 USDC**, then **Include in a block**, then
    **Add 12 confirmations**.
@@ -61,7 +61,7 @@ action says to credit it in your own system, then acknowledge it here."
 3. Type a note, "Emailed Brightline", and click **Ask for the balance**. The request stays open.
 4. Optional: click **Brightline sends 1,000.00 USDC**, mine and confirm it → **Matched**.
 
-**3:10 Look-alike token (60 s).** Open **REQ-1043** (Orbit, 2,000.00).
+**3:10 Look-alike token (60 s).** Open **DEMO-1043** (Orbit, 2,000.00).
 
 1. Click **Orbit Retail sends 2,000.00 look-alike "USDC"**, then mine and confirm it.
 2. Point out:

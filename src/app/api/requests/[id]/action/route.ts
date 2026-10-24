@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import { actOnRequest, type RequestAction } from "@/lib/requests/service";
 
 const KINDS = new Set(["decide", "owner", "note", "attach_hash"]);
-const DECISIONS = new Set(["request_balance", "accept_short", "accept_over", "dismiss_transfer", "assign_transfer", "acknowledge"]);
+const DECISIONS = new Set(["request_balance", "accept_short", "accept_over", "dismiss_transfer", "assign_transfer", "count_transfer", "acknowledge"]);
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,7 +20,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!d || typeof d.kind !== "string" || !DECISIONS.has(d.kind)) return NextResponse.json({ error: "Unknown decision." }, { status: 400 });
     if (typeof d.note !== "string") return NextResponse.json({ error: "A note is required (it may be empty only when acknowledging)." }, { status: 400 });
   }
+  const field = { owner: "owner", note: "text", attach_hash: "hash" }[a.kind as "owner" | "note" | "attach_hash"];
+  if (field && typeof a[field] !== "string") return NextResponse.json({ error: `"${field}" must be text.` }, { status: 400 });
+  if (a.kind === "decide") {
+    const d = a.decision as Record<string, unknown>;
+    if (d.observationKey !== undefined && typeof d.observationKey !== "string") return NextResponse.json({ error: "\"observationKey\" must be text." }, { status: 400 });
+  }
   const res = await actOnRequest(id, a as unknown as RequestAction, actor);
-  if (res.error) return NextResponse.json({ error: res.error }, { status: res.error === "No such request." ? 404 : 422 });
+  if (res.error) return NextResponse.json({ error: res.error }, { status: res.error === "No such request." ? 404 : res.error.startsWith("Not possible") ? 409 : 422 });
   return NextResponse.json({ ok: true, message: res.message });
 }

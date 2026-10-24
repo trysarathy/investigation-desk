@@ -1,0 +1,190 @@
+{
+ "checks": [
+  {
+   "check": "demo day loaded with 5 requests",
+   "ok": true,
+   "detail": "open rows=4 (DEMO-1038 is completed, filtered out of Open)"
+  },
+  {
+   "check": "persistent demo indicator",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "sender page: amount, token, network, address",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "sender page: QR present",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "A: starts awaiting",
+   "ok": true,
+   "detail": "Awaiting payment"
+  },
+  {
+   "check": "A: transfer detected",
+   "ok": true,
+   "detail": "Transfer detected"
+  },
+  {
+   "check": "A: confirming",
+   "ok": true,
+   "detail": "Confirming"
+  },
+  {
+   "check": "sender sees confirming (same record)",
+   "ok": true,
+   "detail": "Confirming"
+  },
+  {
+   "check": "A: matched, not completed",
+   "ok": true,
+   "detail": "Matched"
+  },
+  {
+   "check": "A: engine verdict shown in evidence",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "A: completed only after acknowledgement",
+   "ok": true,
+   "detail": "Completed"
+  },
+  {
+   "check": "A: acknowledgement in activity with actor",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "sender sees Paid",
+   "ok": true,
+   "detail": "Paid"
+  },
+  {
+   "check": "duplicate event counted once",
+   "ok": true,
+   "detail": "1,250.00"
+  },
+  {
+   "check": "B: needs review",
+   "ok": true,
+   "detail": "Needs review"
+  },
+  {
+   "check": "B: shortfall 1,000.00 shown",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "B: reply asks for the balance",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "B: sender sees 1,000.00 still due",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "B: decision recorded, request stays unresolved (awaiting balance)",
+   "ok": true,
+   "detail": "Awaiting payment"
+  },
+  {
+   "check": "C: needs review",
+   "ok": true,
+   "detail": "Needs review"
+  },
+  {
+   "check": "C: engine says fake token (D06)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "C: nothing counted",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "C: simulated evidence has no explorer link",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "C: decision recorded, back to awaiting, evidence kept",
+   "ok": true,
+   "detail": "Awaiting payment"
+  },
+  {
+   "check": "state survives refresh",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "form shows field errors when empty",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "rejects comma amounts",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "non-demo request created with link",
+   "ok": true,
+   "detail": "REQ-1001"
+  },
+  {
+   "check": "non-demo request has no demo flag",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "reset kept the non-demo request",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "reset restored scenario A to awaiting",
+   "ok": true,
+   "detail": "Awaiting payment"
+  },
+  {
+   "check": "mobile sender page: no horizontal scroll",
+   "ok": true,
+   "detail": "scrollWidth=390"
+  },
+  {
+   "check": "mobile inbox: no horizontal scroll",
+   "ok": true,
+   "detail": "scrollWidth=390"
+  },
+  {
+   "check": "sender link survives a reset",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "mobile detail: no horizontal scroll",
+   "ok": true,
+   "detail": "scrollWidth=390"
+  },
+  {
+   "check": "keyboard reaches the first copy control",
+   "ok": true,
+   "detail": "Copy contract"
+  },
+  {
+   "check": "no console or page errors",
+   "ok": true,
+   "detail": "[]"
+  }
+ ],
+ "errors": []
+}

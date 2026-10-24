@@ -15,6 +15,8 @@ export function middleware(req: NextRequest) {
   const user = process.env.PREVIEW_USER;
   const password = process.env.PREVIEW_PASSWORD;
   if (!user || !password) return NextResponse.next();
+  // The sender's payment page is customer-facing: it carries its own unguessable link ID.
+  if (req.nextUrl.pathname.startsWith("/pay/")) return NextResponse.next();
   const header = req.headers.get("authorization") ?? "";
   if (header.startsWith("Basic ")) {
     let decoded = "";

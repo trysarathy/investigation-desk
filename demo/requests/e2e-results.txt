@@ -1,4 +1,4 @@
-PASS demo day loaded with 5 requests open rows=4 (REQ-1038 is completed, filtered out of Open)
+PASS demo day loaded with 5 requests open rows=4 (DEMO-1038 is completed, filtered out of Open)
 PASS persistent demo indicator 
 PASS sender page: amount, token, network, address 
 PASS sender page: QR present 
@@ -25,7 +25,7 @@ PASS C: decision recorded, back to awaiting, evidence kept Awaiting payment
 PASS state survives refresh 
 PASS form shows field errors when empty 
 PASS rejects comma amounts 
-PASS non-demo request created with link REQ-1045
+PASS non-demo request created with link REQ-1001
 PASS non-demo request has no demo flag 
 PASS reset kept the non-demo request 
 PASS reset restored scenario A to awaiting Awaiting payment

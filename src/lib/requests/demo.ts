@@ -21,13 +21,13 @@ export const demoPublicId = (id: string) => `demo-${synthHex(`demo:public:${id}`
 
 /** The three scenarios and the requests around them. `send` = what the scenario's customer sends. */
 export const SCENARIOS = [
-  { key: "routine", id: "REQ-1041", customerRef: "Acme Logistics", invoiceRef: "INV-2041", amount: "1250.00",
+  { key: "routine", id: "DEMO-1041", customerRef: "Acme Logistics", invoiceRef: "INV-2041", amount: "1250.00",
     title: "Routine payment", send: { amount: "1250.00", token: "official" as const },
     blurb: "Acme pays the invoice in full. It confirms, matches, and the operator acknowledges it." },
-  { key: "short", id: "REQ-1042", customerRef: "Brightline Studio", invoiceRef: "INV-2042", amount: "4800.00",
+  { key: "short", id: "DEMO-1042", customerRef: "Brightline Studio", invoiceRef: "INV-2042", amount: "4800.00",
     title: "Amount mismatch", send: { amount: "3800.00", token: "official" as const },
     blurb: "Brightline sends 3,800.00 of 4,800.00. The request stays open, with the shortfall shown." },
-  { key: "fake", id: "REQ-1043", customerRef: "Orbit Retail", invoiceRef: "INV-2043", amount: "2000.00",
+  { key: "fake", id: "DEMO-1043", customerRef: "Orbit Retail", invoiceRef: "INV-2043", amount: "2000.00",
     title: "Look-alike token", send: { amount: "2000.00", token: "lookalike" as const },
     blurb: "Orbit's 2,000.00 'USDC' comes from a contract that isn't Circle's. The engine flags a fake token." },
 ] as const;
@@ -39,6 +39,7 @@ const at = (base: number, minutes: number) => new Date(base + minutes * 60_000).
 export function resetDemo(data: RequestsData, now: string, publicId: (id: string) => string): RequestsData {
   const keepReq = Object.fromEntries(Object.entries(data.requests).filter(([, r]) => !r.demo));
   const keepObs = Object.fromEntries(Object.entries(data.observations).filter(([, o]) => !o.demo));
+  const keepNext = data.nextNumber ?? emptyRequests().nextNumber;
   let d: RequestsData = { ...emptyRequests(), ...data, requests: keepReq, observations: keepObs, demoHead: DEMO_HEAD };
   const t0 = Date.parse(now) - 5 * 3600_000;
   const mk = (id: string, customerRef: string, invoiceRef: string, amount: string, minutes: number) => {
@@ -46,17 +47,18 @@ export function resetDemo(data: RequestsData, now: string, publicId: (id: string
       { now: at(t0, minutes), by: DEMO_OPERATOR, demo: true, publicId: publicId(id), tokenContract: OFFICIAL_USDC, id }).data;
   };
   // Earlier today: one already settled, for context.
-  mk("REQ-1038", "Northwind Traders", "INV-2038", "640.00", 0);
+  mk("DEMO-1038", "Northwind Traders", "INV-2038", "640.00", 0);
   for (const [i, s] of SCENARIOS.entries()) mk(s.id, s.customerRef, s.invoiceRef, s.amount, 30 + i * 10);
-  mk("REQ-1044", "Kite Analytics", "INV-2044", "310.50", 90);
+  mk("DEMO-1044", "Kite Analytics", "INV-2044", "310.50", 90);
 
-  // REQ-1038 was paid and acknowledged this morning (simulated, like everything here).
-  const paid = sim.send(d, { to: addr("REQ-1038"), amount: "640.00", tokenContract: OFFICIAL_USDC, tokenSymbol: "USDC", from: addr("customer:northwind"), seq: "seed:REQ-1038" });
+  // DEMO-1038 was paid and acknowledged this morning (simulated, like everything here).
+  const paid = sim.send(d, { to: addr("DEMO-1038"), amount: "640.00", tokenContract: OFFICIAL_USDC, tokenSymbol: "USDC", from: addr("customer:northwind"), seq: "seed:REQ-1038" });
   d = feed(d, paid, at(t0, 40));
   d = feed(d, { ...paid, blockNumber: DEMO_HEAD - 60, blockTime: at(t0, 41), confirmations: 0 }, at(t0, 41));
   d = feed(d, { ...paid, blockNumber: DEMO_HEAD - 60, blockTime: at(t0, 41), confirmations: 60 }, at(t0, 54));
-  d = decide(d, "REQ-1038", { kind: "acknowledge", note: "Credited in the ledger." }, { now: at(t0, 70), by: DEMO_OPERATOR, threshold: CONFIRMATIONS }).data;
-  return { ...d, nextNumber: Math.max(d.nextNumber, 1045) };
+  d = decide(d, "DEMO-1038", { kind: "acknowledge", note: "Credited in the ledger." }, { now: at(t0, 70), by: DEMO_OPERATOR, threshold: CONFIRMATIONS }).data;
+  // Demo requests use their own IDs (DEMO-…), so they can never collide with a business's REQ-… numbers.
+  return { ...d, nextNumber: keepNext };
 }
 
 export function feed(d: RequestsData, ev: TransferEvent, now: string): RequestsData {
@@ -76,9 +78,9 @@ export function demoSend(d: RequestsData, key: ScenarioKey, now: string, n: numb
 
 /** Brightline sends the remaining balance after a short payment. */
 export function demoSendBalance(d: RequestsData, now: string, n: number): { data: RequestsData; error?: string } {
-  const r = d.requests["REQ-1042"];
-  if (!r) return { data: d, error: "Load the demo day first." };
-  const ev = sim.send(d, { to: r.receivingAddress, amount: "1000.00", tokenContract: OFFICIAL_USDC, tokenSymbol: "USDC", from: addr("customer:short"), seq: `REQ-1042:balance:${n}` });
+  const r = d.requests["DEMO-1042"];
+  if (!r || !r.demo) return { data: d, error: "Load the demo day first." };
+  const ev = sim.send(d, { to: r.receivingAddress, amount: "1000.00", tokenContract: OFFICIAL_USDC, tokenSymbol: "USDC", from: addr("customer:short"), seq: `DEMO-1042:balance:${n}` });
   return { data: feed(d, ev, now) };
 }
 

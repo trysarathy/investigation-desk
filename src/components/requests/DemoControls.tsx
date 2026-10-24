@@ -51,7 +51,7 @@ export function DemoControls({ scenarios, waitingForBlock, inBlock, head, compac
             </button>
           </div>
         ))}
-        {(!only || only === "REQ-1042") && (
+        {(!only || only === "DEMO-1042") && (
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
             <span className="muted" style={{ fontSize: 12, flex: "1 1 260px" }}>After a short payment: Brightline sends the remaining balance.</span>
             <button className="btn btn-sm" disabled={!!busy} onClick={() => run("balance", { kind: "send_balance" })}>Brightline sends 1,000.00 USDC</button>

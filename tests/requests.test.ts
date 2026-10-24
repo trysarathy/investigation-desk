@@ -1,13 +1,13 @@
 // Payment requests: lifecycle, matching, duplicates, ambiguity, acknowledgement, demo reset,
 // persistence. Every transfer here is synthetic and goes through the real ingestion code.
 
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { checkObservation, CONFIRMATIONS, OFFICIAL_USDC } from "@/lib/requests/check";
 import { addr, demoAdvance, demoMine, demoRedeliver, demoSend, demoSendBalance, LOOKALIKE_USDC, resetDemo } from "@/lib/requests/demo";
-import { createRequest, decide, deriveRequest, formatUsdc, ingest, normaliseAmount, toBaseUnits, validateRequest } from "@/lib/requests/lifecycle";
+import { amountToSend, createRequest, decide, deriveRequest, formatUsdc, ingest, normaliseAmount, toBaseUnits, validateRequest } from "@/lib/requests/lifecycle";
 import { eip681, replyDraft } from "@/lib/requests/present";
 import { SimulatedProvider } from "@/lib/requests/provider";
 import { FileRequestsStore } from "@/lib/requests/store";
@@ -23,60 +23,60 @@ const sim = new SimulatedProvider();
 describe("routine payment (scenario A)", () => {
   it("detected → confirming → matched, and only an acknowledgement completes it", () => {
     let d = day();
-    expect(view(d, "REQ-1041").state).toBe("awaiting_payment");
+    expect(view(d, "DEMO-1041").state).toBe("awaiting_payment");
     d = demoSend(d, "routine", t(1), 1).data;
-    expect(view(d, "REQ-1041").state).toBe("transfer_detected");
+    expect(view(d, "DEMO-1041").state).toBe("transfer_detected");
     d = demoMine(d, t(2));
-    expect(view(d, "REQ-1041").state).toBe("confirming");
+    expect(view(d, "DEMO-1041").state).toBe("confirming");
     d = demoAdvance(d, CONFIRMATIONS - 1, t(3));
-    expect(view(d, "REQ-1041").state).toBe("confirming");
+    expect(view(d, "DEMO-1041").state).toBe("confirming");
     d = demoAdvance(d, 1, t(4));
-    const v = view(d, "REQ-1041");
+    const v = view(d, "DEMO-1041");
     // Confirmed on-chain for exactly the amount is "matched", not "completed".
     expect(v.state).toBe("matched");
     expect(v.received).toBe("1250");
     expect(v.counted[0].checks.at(-1)?.code).toBe("D12"); // the engine: arrived on-chain, not credited
-    const done = decide(d, "REQ-1041", { kind: "acknowledge", note: "" }, { now: t(5), by: "Mei", threshold: CONFIRMATIONS });
+    const done = decide(d, "DEMO-1041", { kind: "acknowledge", note: "" }, { now: t(5), by: "Mei", threshold: CONFIRMATIONS });
     expect(done.error).toBeUndefined();
-    expect(view(done.data, "REQ-1041").state).toBe("completed");
-    expect(done.data.requests["REQ-1041"].activity.at(-1)?.actor).toBe("Mei");
+    expect(view(done.data, "DEMO-1041").state).toBe("completed");
+    expect(done.data.requests["DEMO-1041"].activity.at(-1)?.actor).toBe("Mei");
   });
 
   it("can't be acknowledged before it is matched", () => {
     let d = day();
-    expect(decide(d, "REQ-1041", { kind: "acknowledge", note: "" }, { now: t(1), by: "Mei", threshold: CONFIRMATIONS }).error).toMatch(/Not possible/);
+    expect(decide(d, "DEMO-1041", { kind: "acknowledge", note: "" }, { now: t(1), by: "Mei", threshold: CONFIRMATIONS }).error).toMatch(/Not possible/);
     d = demoMine(demoSend(d, "routine", t(1), 1).data, t(2));
-    expect(decide(d, "REQ-1041", { kind: "acknowledge", note: "" }, { now: t(3), by: "Mei", threshold: CONFIRMATIONS }).error).toMatch(/Not possible/);
+    expect(decide(d, "DEMO-1041", { kind: "acknowledge", note: "" }, { now: t(3), by: "Mei", threshold: CONFIRMATIONS }).error).toMatch(/Not possible/);
   });
 });
 
 describe("amount mismatch (scenario B)", () => {
   it("a short payment stays unresolved, shows the shortfall, and completes when the balance arrives", () => {
     let d = demoAdvance(demoMine(demoSend(day(), "short", t(1), 1).data, t(2)), CONFIRMATIONS, t(3));
-    let v = view(d, "REQ-1042");
+    let v = view(d, "DEMO-1042");
     expect(v.state).toBe("needs_review");
     expect(v.review).toBe("short");
     expect(v.outstanding).toBe("1000");
     expect(formatUsdc(v.outstanding)).toBe("1,000.00");
     expect(replyDraft(v)).toContain("1,000.00 USDC less than the 4,800.00 USDC due");
-    expect(decide(d, "REQ-1042", { kind: "acknowledge", note: "" }, { now: t(4), by: "Mei", threshold: CONFIRMATIONS }).error).toMatch(/Not possible/);
-    expect(decide(d, "REQ-1042", { kind: "request_balance", note: "" }, { now: t(4), by: "Mei", threshold: CONFIRMATIONS }).error).toMatch(/note is required/);
-    d = decide(d, "REQ-1042", { kind: "request_balance", note: "Emailed the customer." }, { now: t(4), by: "Mei", threshold: CONFIRMATIONS }).data;
-    v = view(d, "REQ-1042");
+    expect(decide(d, "DEMO-1042", { kind: "acknowledge", note: "" }, { now: t(4), by: "Mei", threshold: CONFIRMATIONS }).error).toMatch(/Not possible/);
+    expect(decide(d, "DEMO-1042", { kind: "request_balance", note: "" }, { now: t(4), by: "Mei", threshold: CONFIRMATIONS }).error).toMatch(/note is required/);
+    d = decide(d, "DEMO-1042", { kind: "request_balance", note: "Emailed the customer." }, { now: t(4), by: "Mei", threshold: CONFIRMATIONS }).data;
+    v = view(d, "DEMO-1042");
     expect(v.state).toBe("awaiting_payment");
     expect(v.review).toBe("short");
     d = demoAdvance(demoMine(demoSendBalance(d, t(5), 2).data, t(6)), CONFIRMATIONS, t(7));
-    v = view(d, "REQ-1042");
+    v = view(d, "DEMO-1042");
     expect(v.state).toBe("matched");
     expect(v.received).toBe("4800");
   });
 
   it("an overpayment needs review and is never silently matched", () => {
     let d = day();
-    const ev = sim.send(d, { to: addr("REQ-1044"), amount: "400.00", tokenContract: OFFICIAL_USDC, tokenSymbol: "USDC", from: addr("x"), seq: "over" });
+    const ev = sim.send(d, { to: addr("DEMO-1044"), amount: "400.00", tokenContract: OFFICIAL_USDC, tokenSymbol: "USDC", from: addr("x"), seq: "over" });
     d = ingest(d, ev, t(1), "test", checkObservation(t(1)), CONFIRMATIONS).data;
     d = demoAdvance(demoMine(d, t(2)), CONFIRMATIONS, t(3));
-    const v = view(d, "REQ-1044");
+    const v = view(d, "DEMO-1044");
     expect(v.state).toBe("needs_review");
     expect(v.review).toBe("over");
     expect(v.outstanding).toBe("-89.5");
@@ -86,7 +86,7 @@ describe("amount mismatch (scenario B)", () => {
 describe("look-alike token (scenario C)", () => {
   it("the engine flags a fake token; it never counts toward the request", () => {
     let d = demoAdvance(demoMine(demoSend(day(), "fake", t(1), 1).data, t(2)), CONFIRMATIONS, t(3));
-    const v = view(d, "REQ-1043");
+    const v = view(d, "DEMO-1043");
     expect(v.state).toBe("needs_review");
     expect(v.review).toBe("flagged");
     expect(v.received).toBe("0");
@@ -95,8 +95,8 @@ describe("look-alike token (scenario C)", () => {
     expect(obs.checks.at(-1)?.code).toBe("D06");
     expect(replyDraft(v)).toMatch(/isn't genuine USDC/);
     // Dismissing records a decision; the transfer and its check stay on file.
-    d = decide(d, "REQ-1043", { kind: "dismiss_transfer", note: "Counterfeit token; customer told.", observationKey: obs.key }, { now: t(4), by: "Mei", threshold: CONFIRMATIONS }).data;
-    expect(view(d, "REQ-1043").state).toBe("awaiting_payment");
+    d = decide(d, "DEMO-1043", { kind: "dismiss_transfer", note: "Counterfeit token; customer told.", observationKey: obs.key }, { now: t(4), by: "Mei", threshold: CONFIRMATIONS }).data;
+    expect(view(d, "DEMO-1043").state).toBe("awaiting_payment");
     expect(d.observations[obs.key].checks.at(-1)?.code).toBe("D06");
   });
 });
@@ -104,19 +104,19 @@ describe("look-alike token (scenario C)", () => {
 describe("duplicate events", () => {
   it("the same transfer delivered again counts once", () => {
     let d = demoAdvance(demoMine(demoSend(day(), "routine", t(1), 1).data, t(2)), CONFIRMATIONS, t(3));
-    const before = view(d, "REQ-1041");
+    const before = view(d, "DEMO-1041");
     const r = demoRedeliver(d, t(4));
     d = r.data;
-    const after = view(d, "REQ-1041");
+    const after = view(d, "DEMO-1041");
     expect(after.received).toBe(before.received);
     expect(after.counted).toHaveLength(1);
-    expect(Object.values(d.observations).filter((o) => o.attribution.kind === "request" && o.attribution.requestId === "REQ-1041")).toHaveLength(1);
-    expect(d.requests["REQ-1041"].activity.at(-1)?.kind).toBe("duplicate");
+    expect(Object.values(d.observations).filter((o) => o.attribution.kind === "request" && o.attribution.requestId === "DEMO-1041")).toHaveLength(1);
+    expect(d.requests["DEMO-1041"].activity.at(-1)?.kind).toBe("duplicate");
   });
 
   it("an older event never takes confirmations backwards", () => {
     let d = demoAdvance(demoMine(demoSend(day(), "routine", t(1), 1).data, t(2)), CONFIRMATIONS, t(3));
-    const o = Object.values(d.observations).find((x) => x.attribution.kind === "request" && x.attribution.requestId === "REQ-1041")!;
+    const o = Object.values(d.observations).find((x) => x.attribution.kind === "request" && x.attribution.requestId === "DEMO-1041")!;
     d = ingest(d, { ...o, source: "simulated", confirmations: 2 }, t(4), "test", checkObservation(t(4)), CONFIRMATIONS).data;
     expect(d.observations[o.key].confirmations).toBe(CONFIRMATIONS);
   });
@@ -129,7 +129,7 @@ describe("ambiguous matching", () => {
     for (const [id, inv] of [["REQ-2001", "INV-1"], ["REQ-2002", "INV-2"]]) {
       d = createRequest(d, { customerRef: "C", invoiceRef: inv, amount: "500", receivingAddress: shared }, { now: t(0), by: "Mei", demo: false, publicId: id, tokenContract: OFFICIAL_USDC, id }).data;
     }
-    const ev = { ...sim.send(d, { to: shared, amount: "500.00", tokenContract: OFFICIAL_USDC, tokenSymbol: "USDC", from: addr("y"), seq: "amb" }), blockNumber: 100, blockTime: t(1), confirmations: CONFIRMATIONS };
+    const ev = { ...sim.send(d, { to: shared, amount: "500.00", tokenContract: OFFICIAL_USDC, tokenSymbol: "USDC", from: addr("y"), seq: "amb" }), source: "live" as const, demo: false, blockNumber: 100, blockTime: t(1), confirmations: CONFIRMATIONS };
     d = ingest(d, ev, t(1), "test", checkObservation(t(1)), CONFIRMATIONS).data;
     const a = view(d, "REQ-2001"), b = view(d, "REQ-2002");
     expect([a.state, b.state]).toEqual(["needs_review", "needs_review"]);
@@ -148,7 +148,7 @@ describe("ambiguous matching", () => {
     const shared = addr("shared2");
     d = createRequest(d, { customerRef: "C", invoiceRef: "A", amount: "500", receivingAddress: shared }, { now: t(0), by: "M", demo: false, publicId: "a", tokenContract: OFFICIAL_USDC, id: "REQ-1" }).data;
     d = createRequest(d, { customerRef: "C", invoiceRef: "B", amount: "750", receivingAddress: shared }, { now: t(0), by: "M", demo: false, publicId: "b", tokenContract: OFFICIAL_USDC, id: "REQ-2" }).data;
-    const ev = sim.send(d, { to: shared, amount: "750.00", tokenContract: OFFICIAL_USDC, tokenSymbol: "USDC", from: addr("z"), seq: "amb2" });
+    const ev = { ...sim.send(d, { to: shared, amount: "750.00", tokenContract: OFFICIAL_USDC, tokenSymbol: "USDC", from: addr("z"), seq: "amb2" }), source: "live" as const, demo: false };
     d = ingest(d, ev, t(1), "test", checkObservation(t(1)), CONFIRMATIONS).data;
     const o = Object.values(d.observations)[0];
     expect(o.attribution.kind).toBe("ambiguous");
@@ -166,17 +166,17 @@ describe("demo reset and persistence", () => {
     d = resetDemo(d, NOW, pid);
     expect(d.requests[realId]).toBeDefined();
     expect(d.requests[realId].demo).toBe(false);
-    expect(view(d, "REQ-1041").state).toBe("awaiting_payment");
-    expect(view(d, "REQ-1038").state).toBe("completed");
+    expect(view(d, "DEMO-1041").state).toBe("awaiting_payment");
+    expect(view(d, "DEMO-1038").state).toBe("completed");
     expect(Object.values(d.observations).every((o) => o.demo)).toBe(true);
-    expect(Object.values(d.observations)).toHaveLength(1); // only the seeded REQ-1038 payment
+    expect(Object.values(d.observations)).toHaveLength(1); // only the seeded DEMO-1038 payment
   });
 
   it("state survives a reload from disk", async () => {
     const store = new FileRequestsStore(path.join(mkdtempSync(path.join(tmpdir(), "req-")), "requests.json"));
     await store.update((d) => [demoMine(demoSend(resetDemo(d, NOW, pid), "routine", t(1), 1).data, t(2)), null]);
     const again = await new FileRequestsStore((store as unknown as { file: string }).file).load();
-    expect(view(again, "REQ-1041").state).toBe("confirming");
+    expect(view(again, "DEMO-1041").state).toBe("confirming");
     expect(again.rev).toBeGreaterThan(0);
   });
 });
@@ -191,14 +191,14 @@ describe("request input and payment link", () => {
     expect(toBaseUnits("0.000001")).toBe("1");
     expect(normaliseAmount("1250")).toBe("1250.00");
     const d = day();
-    expect(eip681(d.requests["REQ-1041"])).toBe(`ethereum:${OFFICIAL_USDC}@1/transfer?address=${addr("REQ-1041")}&uint256=1250000000`);
+    expect(eip681(d.requests["DEMO-1041"])).toBe(`ethereum:${OFFICIAL_USDC}@1/transfer?address=${addr("DEMO-1041")}&uint256=1250000000`);
   });
 });
 
 describe("what the pages show stays consistent with the records", () => {
   it("the latest evidence reflects the latest confirmations, and earlier checks are kept", () => {
     const d = demoAdvance(demoMine(demoSend(day(), "fake", t(1), 1).data, t(2)), CONFIRMATIONS, t(3));
-    const obs = view(d, "REQ-1043").flagged[0].obs;
+    const obs = view(d, "DEMO-1043").flagged[0].obs;
     const conf = obs.checks.at(-1)!.evidence.find((e) => e.id === "ev.confirmations")!;
     expect(conf.value).toBe(`${CONFIRMATIONS} of ${CONFIRMATIONS}`);
     expect(obs.checks.length).toBeGreaterThan(1);
@@ -208,13 +208,13 @@ describe("what the pages show stays consistent with the records", () => {
 
   it("after a short payment the payment link asks for the balance, not the full amount", () => {
     const d = demoAdvance(demoMine(demoSend(day(), "short", t(1), 1).data, t(2)), CONFIRMATIONS, t(3));
-    const v = view(d, "REQ-1042");
+    const v = view(d, "DEMO-1042");
     expect(eip681(v.request, v.outstanding)).toMatch(/uint256=1000000000$/);
   });
 
   it("simulated evidence never cites a chain lookup or a freeze check that wasn't made", () => {
     const d = demoAdvance(demoMine(demoSend(day(), "routine", t(1), 1).data, t(2)), CONFIRMATIONS, t(3));
-    const ids = view(d, "REQ-1041").counted[0].checks.at(-1)!.evidence.map((e) => e.id);
+    const ids = view(d, "DEMO-1041").counted[0].checks.at(-1)!.evidence.map((e) => e.id);
     expect(ids).not.toContain("ev.lookup");
     expect(ids).not.toContain("ev.freeze");
     expect(ids).not.toContain("ev.ledger");
@@ -224,12 +224,93 @@ describe("what the pages show stays consistent with the records", () => {
 describe("timing", () => {
   it("a transfer mined before the request was created never counts by itself", () => {
     let d = day();
-    const r = d.requests["REQ-1044"];
+    const r = d.requests["DEMO-1044"];
     const early = new Date(Date.parse(r.createdAt) - 86400_000).toISOString();
     const ev = { ...sim.send(d, { to: r.receivingAddress, amount: r.amount, tokenContract: OFFICIAL_USDC, tokenSymbol: "USDC", from: addr("q"), seq: "early" }), blockNumber: 50, blockTime: early, confirmations: CONFIRMATIONS };
     d = ingest(d, ev, t(1), "test", checkObservation(t(1)), CONFIRMATIONS).data;
-    const v = view(d, "REQ-1044");
+    const v = view(d, "DEMO-1044");
     expect(v.state).toBe("needs_review");
     expect(v.flagged[0].problem).toMatch(/before this request was created/);
+  });
+});
+
+describe("independent review findings (24 Oct)", () => {
+  const real = (d: RequestsData, id: string, customer: string, amount: string, address: string, at = t(0)) =>
+    createRequest(d, { customerRef: customer, invoiceRef: `INV-${id}`, amount, receivingAddress: address }, { now: at, by: "Mei", demo: false, publicId: id, tokenContract: OFFICIAL_USDC, id }).data;
+  const liveLike = (d: RequestsData, to: string, amount: string, seq: string, blockTime = t(5)) =>
+    ({ ...sim.send(d, { to, amount, tokenContract: OFFICIAL_USDC, tokenSymbol: "USDC", from: addr(`s:${seq}`), seq }), source: "live" as const, demo: false, blockNumber: 900, blockTime, confirmations: CONFIRMATIONS });
+
+  it("a shared address with different customers is not 'another customer's address': assigned, it matches", () => {
+    const a = addr("shared-cust");
+    let d = real(real(emptyRequests(), "REQ-1", "Cust C", "500", a), "REQ-2", "Cust D", "500", a);
+    d = ingest(d, liveLike(d, a, "500.00", "x"), t(6), "test", checkObservation(t(6)), CONFIRMATIONS).data;
+    const key = Object.keys(d.observations)[0];
+    d = decide(d, "REQ-2", { kind: "assign_transfer", note: "Remittance advice for INV-REQ-2.", observationKey: key }, { now: t(7), by: "Mei", threshold: CONFIRMATIONS, check: checkObservation(t(7)) }).data;
+    expect(view(d, "REQ-2").state).toBe("matched");
+    expect(d.observations[key].checks.at(-1)?.code).not.toBe("D17");
+    expect(d.observations[key].attributionHistory?.[0].kind).toBe("ambiguous");
+  });
+
+  it("a payment after a completed request on the same address is not silently given to the next one", () => {
+    const a = addr("reuse");
+    let d = real(emptyRequests(), "REQ-1", "Cust C", "500", a);
+    d = ingest(d, liveLike(d, a, "500.00", "first"), t(6), "test", checkObservation(t(6)), CONFIRMATIONS).data;
+    d = decide(d, "REQ-1", { kind: "acknowledge", note: "" }, { now: t(7), by: "Mei", threshold: CONFIRMATIONS }).data;
+    d = real(d, "REQ-2", "Cust D", "500", a, t(8));
+    d = ingest(d, liveLike(d, a, "500.00", "second", t(9)), t(9), "test", checkObservation(t(9)), CONFIRMATIONS).data;
+    const v = view(d, "REQ-2");
+    expect(v.state).toBe("needs_review");
+    expect(v.review).toBe("ambiguous");
+    expect(v.ambiguous[0].attribution.kind === "ambiguous" && v.ambiguous[0].attribution.reason).toMatch(/repeat payment/);
+  });
+
+  it("demo transfers never touch real requests, even on the same address or ID", () => {
+    let d = real(emptyRequests(), "REQ-1042", "Real", "1000", addr("DEMO-1041"));
+    expect(demoSendBalance(d, t(1), 1).error).toBeDefined(); // no demo loaded: refused
+    d = resetDemo(d, NOW, pid);                               // a real REQ-1042 doesn't block the demo
+    d = demoAdvance(demoMine(demoSend(d, "routine", t(1), 1).data, t(2)), CONFIRMATIONS, t(3));
+    expect(view(d, "REQ-1042").received).toBe("0");           // shares DEMO-1041's address, but is real
+    expect(view(d, "DEMO-1041").state).toBe("matched");
+    d = resetDemo(d, NOW, pid);
+    expect(d.requests["REQ-1042"].activity.every((a) => !a.observationKey)).toBe(true);
+  });
+
+  it("the sender is never asked to pay again for money already received or confirming", () => {
+    let d = demoAdvance(demoMine(demoSend(day(), "routine", t(1), 1).data, t(2)), CONFIRMATIONS, t(3));
+    expect(amountToSend(view(d, "DEMO-1041"))).toBe("0");
+    d = demoAdvance(demoMine(demoSend(day(), "short", t(1), 1).data, t(2)), CONFIRMATIONS, t(3));
+    expect(amountToSend(view(d, "DEMO-1042"))).toBe("1000");
+    d = demoMine(demoSendBalance(d, t(4), 2).data, t(5));
+    expect(amountToSend(view(d, "DEMO-1042"))).toBe("0");
+    d = demoAdvance(demoMine(demoSend(day(), "fake", t(1), 1).data, t(2)), CONFIRMATIONS, t(3));
+    expect(amountToSend(view(d, "DEMO-1043"))).toBe("2000"); // a fake token pays nothing
+  });
+
+  it("a prepayment mined before the request can be counted by a person; a fake token can't", () => {
+    const a = addr("prepay");
+    let d = real(emptyRequests(), "REQ-1", "Cust", "500", a, t(10));
+    d = ingest(d, liveLike(d, a, "500.00", "pre", t(0)), t(11), "test", checkObservation(t(11)), CONFIRMATIONS).data;
+    const key = Object.keys(d.observations)[0];
+    expect(view(d, "REQ-1").review).toBe("flagged");
+    d = decide(d, "REQ-1", { kind: "count_transfer", note: "Customer prepaid on our instruction.", observationKey: key }, { now: t(12), by: "Mei", threshold: CONFIRMATIONS }).data;
+    expect(view(d, "REQ-1").state).toBe("matched");
+    const f = demoAdvance(demoMine(demoSend(day(), "fake", t(1), 1).data, t(2)), CONFIRMATIONS, t(3));
+    const fk = view(f, "DEMO-1043").flagged[0].obs.key;
+    expect(decide(f, "DEMO-1043", { kind: "count_transfer", note: "x", observationKey: fk }, { now: t(4), by: "Mei", threshold: CONFIRMATIONS }).error).toBeDefined();
+  });
+
+  it("a corrupt store file stops writes instead of being replaced by an empty store", async () => {
+    const file = path.join(mkdtempSync(path.join(tmpdir(), "req-")), "requests.json");
+    writeFileSync(file, "{not json");
+    const store = new FileRequestsStore(file);
+    await expect(store.update((d) => [d, null])).rejects.toThrow();
+    expect(readFileSync(file, "utf8")).toBe("{not json");
+  });
+
+  it("evidence for a request never cites File A or another customer", () => {
+    const d = demoAdvance(demoMine(demoSend(day(), "routine", t(1), 1).data, t(2)), CONFIRMATIONS, t(3));
+    const ev = view(d, "DEMO-1041").counted[0].checks.at(-1)!.evidence;
+    expect(JSON.stringify(ev)).not.toMatch(/File A|another customer/);
+    expect(ev.find((e) => e.id === "ev.tx")?.source.kind).toBe("none");
   });
 });
