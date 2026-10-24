@@ -339,3 +339,66 @@ Results and the demo are in `demo/` (`demo/REPORT.md`).
 Precedence change from that test: **D09 issuer freeze now comes straight after D03**, ahead of
 wrong network, token and address codes. D17 is Medium when the reporting customer has no address
 in File A (most likely a mistyped customer ID).
+
+## Payment requests (USDC on Ethereum)
+
+A business requests an exact amount of USDC on Ethereum. The sender gets a payment page, transfers
+are matched to the request, and the business acknowledges the payment. Read-only and
+non-custodial: nothing here holds keys or moves funds.
+
+**Why Ethereum.** Circle's official USDC contract is already confirmed in the code for Ethereum.
+The engine checks fake tokens (D06) and issuer freezes (D09) against it there.
+
+| Page | What |
+| --- | --- |
+| `/requests` | Inbox: every request with its state, the next action and the owner |
+| `/requests/new` | Create a request: customer, invoice, amount, receiving address |
+| `/requests/<id>` | Detail page. It shows: requested vs received amounts; each transfer, its source and the engine's check; the evidence; what the data can't tell you; the next action and decisions; the reply draft; the activity history |
+| `/pay/<publicId>` | The sender's page: amount, token, network and address, plus an EIP-681 QR code and live status. Customer-facing, so it has no sidebar |
+
+**States** (derived from the records every time, never stored; `src/lib/requests/types.ts`):
+
+| State | Meaning |
+| --- | --- |
+| Awaiting payment | No valid transfer counts yet, or the business asked for the balance of a short payment |
+| Transfer detected | Seen, not yet in a block |
+| Confirming | In a block, below the 12 confirmations required |
+| Matched | Confirmed, in genuine USDC, for exactly the amount. **Not** completed: the business hasn't said it credited it |
+| Needs review | A person must decide: a short or over payment, a flagged transfer (fake token, failed transaction) or an ambiguous match |
+| Completed | An operator acknowledged it (or accepted a short or over payment, with a reason). Only this makes a request complete |
+
+**Matching** (`src/lib/requests/lifecycle.ts`) is deterministic and conservative:
+
+- Only open requests paid to the transfer's address are candidates.
+- One candidate: the transfer is matched to it.
+- Several candidates (a shared address): never decided by amount alone. A person assigns the
+  transfer, with a reason.
+- A transfer counts only if it is a successful transfer of Circle's contract, and the engine
+  found no problem.
+- A repeat of the same event (chain + hash + log index) counts once.
+- Confirmations never go backwards.
+- Amounts are exact decimal strings throughout.
+
+Every transfer is checked by the existing investigation engine (`src/lib/requests/check.ts`).
+Each check is appended, never replaced. Decisions and activity are append-only.
+
+**Transfer sources** (`src/lib/requests/provider.ts`) share one small interface, so both feed the
+same ingestion:
+
+- `SimulatedProvider`: the demo's chain. Every event is labelled simulated.
+- `LiveHashProvider`: a real Ethereum transaction hash, looked up read-only ("Record a real
+  transaction" on a request).
+
+**Demo.** "Load the demo day" seeds one sample business (Harbor & Pine Supply Co., synthetic)
+with three scenarios: a routine payment, a short payment and a look-alike token. Demo controls
+send, mine and confirm simulated transfers through the real records. "Deliver last event again"
+shows duplicate handling. "Reset demo" removes demo records only. State lives in
+`$DESK_DATA_DIR/requests.json`, so it survives refreshes and restarts. No keys or network needed.
+
+**Not built yet:**
+
+- watching addresses (live detection without pasting a hash);
+- networks other than Ethereum, and tokens other than USDC;
+- unique address generation per request (the business supplies the address);
+- notifications;
+- sign-in.
