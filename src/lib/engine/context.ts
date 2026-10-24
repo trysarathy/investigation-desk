@@ -39,6 +39,10 @@ export interface Ctx {
   officialSource?: "issuer" | "company";
   officialNote?: string;
   impersonation: boolean;
+  /** USDT or USDC when the symbol claims to be one, look-alike characters included. */
+  claimedToken?: Token;
+  /** The symbol uses look-alike characters to pass as claimedToken (e.g. "ÚЅDТ"). */
+  lookalikeSymbol: boolean;
   minimum?: string;
   belowMinimum: boolean;
   freezeHits: FreezeCheck[];
@@ -51,6 +55,23 @@ export interface Ctx {
 
 const TOKENS: Token[] = ["USDT", "USDC"];
 
+// Cyrillic and Greek letters that render like Latin capitals. Counterfeit USDT on Ethereum uses
+// "ÚЅDТ" (U+0055 U+0301, Cyrillic Dze, D, Cyrillic Te) to pass as USDT (Bitquery, real-data test 24 Oct 2026).
+const CONFUSABLE: Record<string, string> = {
+  "А": "A", "В": "B", "С": "C", "Е": "E", "Н": "H", "І": "I", "Ј": "J", "К": "K", "М": "M", "О": "O", "Р": "P", "Ѕ": "S",
+  "Т": "T", "Х": "X", "У": "Y", "Ԁ": "D", "Ꭰ": "D", "Ꮪ": "S", "Ꭲ": "T", "Ꮯ": "C", "Ꮜ": "U", "Ս": "U", "Ц": "U",
+  "Α": "A", "Β": "B", "Ε": "E", "Η": "H", "Ι": "I", "Κ": "K", "Μ": "M", "Ν": "N", "Ο": "O", "Ρ": "P", "Τ": "T", "Χ": "X", "Υ": "Y",
+};
+
+/**
+ * The token a symbol claims to be once look-alike characters are folded away: compatibility
+ * forms (fullwidth letters), accents and Cyrillic/Greek look-alikes. "ÚЅDТ" claims USDT.
+ */
+export function claimedSymbol(symbol: string): string {
+  const folded = symbol.normalize("NFKD").replace(/\p{M}/gu, "").toUpperCase();
+  return [...folded].map((ch) => CONFUSABLE[ch] ?? ch).join("").replace(/[\s\u200b-\u200d\ufeff]/g, "");
+}
+
 export function asDepositChain(chain: string): DepositChain | undefined {
   return (DEPOSIT_CHAINS as string[]).includes(chain) ? (chain as DepositChain) : undefined;
 }
@@ -62,19 +83,28 @@ export function pickTransfer(tx: ChainTx, facts: Facts): TokenTransfer | undefin
     facts.depositAddresses.some((r) => sameAddress(r.address, to) && r.customerId === facts.customerId);
   const isCompany = (to: string) => facts.depositAddresses.some((r) => sameAddress(r.address, to));
   // Batch payouts carry many Transfer events; the one that concerns us is the one to our address.
-  return transfers.find((t) => isCustomers(t.to)) ?? transfers.find((t) => isCompany(t.to)) ?? transfers[0];
+  // Within those, a stablecoin (or a token claiming to be one) beats e.g. WETH routed through the
+  // same address in a swap (real-data test: an MEV-style tx sent WETH, USDC and USDT to one address).
+  const stable = (t: TokenTransfer) => ["USDT", "USDC"].includes(claimedSymbol(t.tokenSymbol));
+  const pick = (ok: (to: string) => boolean) => transfers.find((t) => ok(t.to) && stable(t)) ?? transfers.find((t) => ok(t.to));
+  return pick(isCustomers) ?? pick(isCompany) ?? transfers.find(stable) ?? transfers[0];
 }
 
-/** First 4 and last 4 characters match, but the addresses differ. */
+/**
+ * Same first 3 and last 4 significant characters, but different addresses. EVM compares hex after
+ * "0x"; Tron compares after the fixed leading "T". The spec's first-4 rule missed the largest
+ * real USDT poisoning in the test set (0xbaf4…f8b5 vs 0xbaff…f8b5, 49,999,950 USDT, Dec 2025).
+ * Two unrelated addresses agree on 7 hex characters by chance about once in 268 million pairs.
+ */
 export function looksAlike(a: string, b: string): boolean {
   if (sameAddress(a, b)) return false;
   const norm = (s: string) => {
     const c = canonicalAddress(s);
-    return /^0x/i.test(c) ? c.slice(2).toLowerCase() : c;
+    return /^0x/i.test(c) ? c.slice(2).toLowerCase() : c.replace(/^T/, "");
   };
   const x = norm(a);
   const y = norm(b);
-  return x.slice(0, 4) === y.slice(0, 4) && x.slice(-4) === y.slice(-4);
+  return x.slice(0, 3) === y.slice(0, 3) && x.slice(-4) === y.slice(-4);
 }
 
 /**
@@ -102,6 +132,23 @@ export function addressAtTime(rows: DepositAddressRow[], at: string, customerId?
   return { row: rows[0], status: "unattributed" };
 }
 
+/**
+ * The two poisoning shapes seen in real cases, both before the payment:
+ *   dust in:     the look-alike sends the sender a zero-value or dust transfer (any token)
+ *   forged out:  a transfer "from the sender to the look-alike" that the sender didn't really make:
+ *                zero value, or in a different token contract than the payment (counterfeit)
+ */
+export function isPoisoning(p: PriorTransfer, payment: TokenTransfer, settings: Settings): boolean {
+  const dust = isDecimal(p.amount) && compareDecimal(p.amount, settings.dustThreshold) <= 0;
+  if (sameAddress(p.from, payment.to) && sameAddress(p.to, payment.from)) return dust;
+  if (sameAddress(p.from, payment.from) && sameAddress(p.to, payment.to)) {
+    const zero = isDecimal(p.amount) && compareDecimal(p.amount, "0") === 0;
+    const otherToken = !!p.tokenContract && !sameAddress(p.tokenContract, payment.tokenContract);
+    return zero || otherToken;
+  }
+  return false;
+}
+
 export function buildContext(facts: Facts, settings: Settings): Ctx {
   const tx = facts.tx;
   const transfer = tx ? pickTransfer(tx, facts) : undefined;
@@ -120,9 +167,8 @@ export function buildContext(facts: Facts, settings: Settings): Ctx {
     : undefined;
   const threshold = depositChain ? settings.confirmations[depositChain] : undefined;
 
-  const symbol = transfer && (TOKENS as string[]).includes(transfer.tokenSymbol)
-    ? (transfer.tokenSymbol as Token)
-    : undefined;
+  const claimed = transfer ? claimedSymbol(transfer.tokenSymbol) : undefined;
+  const symbol = claimed && (TOKENS as string[]).includes(claimed) ? (claimed as Token) : undefined;
   const official = tx && symbol ? officialContractFor(tx.chain, symbol, settings) : undefined;
   const officialContract = official?.contract;
   const officialSource = official?.source;
@@ -133,6 +179,7 @@ export function buildContext(facts: Facts, settings: Settings): Ctx {
 
   // An amount that isn't a plain decimal is an unknown fact, never a crash.
   const amountKnown = !!transfer && isDecimal(transfer.amount);
+  const lookalikeSymbol = !!(transfer && symbol && transfer.tokenSymbol !== symbol);
   const minimum = depositChain && symbol && tokenAccepted ? settings.minimums[depositChain][symbol] : undefined;
   const belowMinimum = !!(amountKnown && minimum && compareDecimal(transfer!.amount, minimum) < 0);
 
@@ -149,11 +196,7 @@ export function buildContext(facts: Facts, settings: Settings): Ctx {
   if (transfer && tx && !addrOnTxChain && !addrOtherChain) {
     const assigned = customerAddresses.find((r) => looksAlike(r.address, transfer.to));
     if (assigned) {
-      const prior = facts.senderHistory.find((p) =>
-        sameAddress(p.from, transfer.to) &&
-        sameAddress(p.to, transfer.from) &&
-        isDecimal(p.amount) && compareDecimal(p.amount, settings.dustThreshold) <= 0 &&
-        Date.parse(p.time) < Date.parse(tx.blockTime));
+      const prior = facts.senderHistory.find((p) => Date.parse(p.time) < Date.parse(tx.blockTime) && isPoisoning(p, transfer, settings));
       lookalike = { assigned, prior };
     }
   }
@@ -164,7 +207,8 @@ export function buildContext(facts: Facts, settings: Settings): Ctx {
 
   return {
     facts, settings, tx, transfer, depositChain, addrOnTxChain, addrStatus, addrOtherChain, customerAddresses,
-    confirmations, threshold, amountKnown, tokenAccepted, officialContract, officialSource, officialNote, impersonation, minimum, belowMinimum,
+    confirmations, threshold, amountKnown, tokenAccepted, officialContract, officialSource, officialNote, impersonation,
+    claimedToken: symbol, lookalikeSymbol, minimum, belowMinimum,
     freezeHits, companyTransferCount, ledgerMatch, lookalike, pendingSec,
   };
 }

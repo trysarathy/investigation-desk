@@ -132,9 +132,9 @@ export class TronFetcher {
     }
   }
 
-  /** TRC-20 transfers sent by `address` before `beforeMs` (TronGrid V1; D07b sender history). */
+  /** TRC-20 transfers into or out of `address` before `beforeMs` (TronGrid V1; D07b sender history). */
   async trc20From(address: string, beforeMs: number, raws: RawResponse[]) {
-    const q = new URLSearchParams({ only_from: "true", max_timestamp: String(beforeMs - 1), limit: "50" });
+    const q = new URLSearchParams({ max_timestamp: String(beforeMs - 1), limit: "200" });
     const r = await this.client.request(
       { method: "GET", url: `${BASE}/v1/accounts/${address}/transactions/trc20?${q}`, headers: this.apiKey ? { "TRON-PRO-API-KEY": this.apiKey } : {} },
       { chain: "tron", ttlSec: Infinity },
@@ -145,7 +145,7 @@ export class TronFetcher {
     raws.push(r);
     return (JSON.parse(r.body)?.data ?? []) as {
       transaction_id: string; from: string; to: string; value: string; block_timestamp: number;
-      token_info?: { symbol?: string; decimals?: number };
+      token_info?: { symbol?: string; decimals?: number; address?: string };
     }[];
   }
 

@@ -143,7 +143,7 @@ describe("fetchers", () => {
     expect(JSON.stringify(calls[0])).not.toMatch(/TRON-PRO-API-KEY/);
     const eth = new EtherscanSource(c, "", "ethereum");
     await expect(eth.call("eth_getTransactionByHash", ["0x" + "ab".repeat(32)], { ttlSec: 0 }, [])).rejects.toThrow(/chain lookup unavailable: key not set \(ETHERSCAN_API_KEY\)/);
-    expect(planFor("ethereum", "")).toMatchObject({ kind: "public-rpc", url: "https://ethereum-rpc.publicnode.com" });
+    expect(planFor("ethereum", "")).toMatchObject({ kind: "public-rpc", url: "https://eth.drpc.org" });
     expect(planFor("polygon", "")).toMatchObject({ kind: "public-rpc" });
     expect(planFor("arbitrum", "")).toMatchObject({ kind: "public-rpc" });
     expect(planFor("ethereum", "k")).toEqual({ kind: "etherscan" });

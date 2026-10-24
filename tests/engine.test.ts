@@ -560,8 +560,9 @@ describe("every rule runs; other matches are findings", () => {
     const freezes = [{ chain: "tron" as const, token: "USDT" as const, address: f.tx!.transfers[0].from, role: "sender" as const,
       method: "isBlackListed" as const, frozen: true, blockNumber: 1 }];
     const v = run({ ...f, freezes });
-    expect(v.code).toBe("D06");
-    expect(v.findings.map((x) => `${x.code}/${x.confidence}`)).toEqual(["D09/High"]);
+    // Precedence changed 24 Oct (real-data test): an issuer freeze outranks everything after D03.
+    expect(v.code).toBe("D09");
+    expect(v.findings.map((x) => `${x.code}/${x.confidence}`)).toEqual(["D06/High"]);
   });
 });
 

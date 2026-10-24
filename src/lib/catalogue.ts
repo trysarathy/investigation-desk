@@ -6,9 +6,12 @@ export const RULE_VERSION = "rules-2026-10-22.5";
  * Evaluation order. Every rule runs; the verdict is the first High match in this order (spec
  * "Rule precedence"). D17 and D18 sit with the other address checks. D15 (memo) is out of v1.
  */
+// D09 (issuer freeze) comes straight after D03: a payment touching an address the issuer has frozen
+// is a compliance escalation whatever else is true of it. Real-data test, 24 Oct 2026: USDC from a
+// Circle-blacklisted sender was reported as "unsupported token", with the freeze only a side note.
 export const CATALOGUE_ORDER: Code[] = [
-  "D01", "D02", "D03", "D04", "D05", "D06", "D07", "D07b", "D17", "D18",
-  "D08", "D09", "D10", "D11", "D12", "D13", "D14", "D16",
+  "D01", "D02", "D03", "D09", "D04", "D05", "D06", "D07", "D07b", "D17", "D18",
+  "D08", "D10", "D11", "D12", "D13", "D14", "D16",
 ];
 
 export const VERDICT_LABELS: Record<Code, string> = {

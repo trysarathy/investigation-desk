@@ -127,8 +127,8 @@ export function buildEvidence(ctx: Ctx): Evidence[] {
       status: ctx.impersonation ? "fail" : accepted ? "pass" : "warn",
       value: ctx.impersonation
         ? company
-          ? `Claims to be ${transfer.tokenSymbol}; contract is not the ${COMPANY_CONTRACT_LABEL}`
-          : `Claims to be ${transfer.tokenSymbol}; contract is not the official one`
+          ? `Claims to be ${ctx.claimedToken}${ctx.lookalikeSymbol ? ` (symbol "${transfer.tokenSymbol}" uses look-alike characters)` : ""}; contract is not the ${COMPANY_CONTRACT_LABEL}`
+          : `Claims to be ${ctx.claimedToken}${ctx.lookalikeSymbol ? ` (symbol "${transfer.tokenSymbol}" uses look-alike characters)` : ""}; contract is not the official one`
         : accepted
           ? company
             ? `${transfer.tokenSymbol} at the ${COMPANY_CONTRACT_LABEL}${ctx.officialNote ? ` (${ctx.officialNote})` : ""}`
@@ -217,7 +217,9 @@ export function buildEvidence(ctx: Ctx): Evidence[] {
       label: "Sender history",
       status: p ? "warn" : "info",
       value: p
-        ? `${p.amount} ${p.tokenSymbol} from the look-alike address to the sender at ${formatTime(p.time)}, before the payment`
+        ? sameAddress(p.from, ctx.transfer!.to)
+          ? `${p.amount} ${p.tokenSymbol} from the look-alike address to the sender at ${formatTime(p.time)}, before the payment`
+          : `A forged ${p.amount} ${p.tokenSymbol} transfer from the sender to the look-alike address at ${formatTime(p.time)}, before the payment (zero value or a different token contract)`
         : facts.senderHistoryStatus === "not_supported"
           ? "Not available on this chain (public RPC can't list history)"
           : facts.senderHistoryStatus === "failed"

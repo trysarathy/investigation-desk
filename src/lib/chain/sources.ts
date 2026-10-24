@@ -9,7 +9,7 @@
 // the product still runs with no keys at all. D07b sender history on Ethereum then has no source.
 
 import type { EvmChain } from "../types";
-import { EtherscanSource, etherscanClassifyBody, EvmFetcher, JsonRpcSource, jsonRpcClassifyBody, type EvmSource } from "./evm";
+import { BlockscoutHistory, blockscoutClassifyBody, EtherscanSource, etherscanClassifyBody, EvmFetcher, JsonRpcSource, jsonRpcClassifyBody, type EvmSource } from "./evm";
 import { ChainClient, type Transport } from "./http";
 import type { LiveDeps } from "./investigate";
 import type { ResponseStore } from "./store";
@@ -29,11 +29,16 @@ export const EVM_SOURCES: Record<EvmChain, SourcePlan> = {
   optimism: { kind: "public-rpc", url: "https://mainnet.optimism.io", minIntervalMs: 200 },
 };
 
-/** Keyless fallbacks for the Etherscan chains. All three answered eth_blockNumber on 24 Oct 2026. */
+/**
+ * Keyless fallbacks for the Etherscan chains. Chosen in the real-data test (24 Oct 2026) because
+ * they return receipts for months-old transactions; publicnode's Ethereum and Arbitrum endpoints
+ * did not (null receipts, or "archive requests require a personal token" even for unknown hashes,
+ * which paused every not-found case).
+ */
 export const KEYLESS_RPC: Record<"ethereum" | "polygon" | "arbitrum", string> = {
-  ethereum: "https://ethereum-rpc.publicnode.com",
-  polygon: "https://polygon-bor-rpc.publicnode.com",
-  arbitrum: "https://arbitrum-one-rpc.publicnode.com",
+  ethereum: "https://eth.drpc.org",
+  polygon: "https://polygon.drpc.org",
+  arbitrum: "https://arb1.arbitrum.io/rpc",
 };
 
 export function planFor(chain: EvmChain, etherscanKey: string): SourcePlan {
@@ -69,8 +74,11 @@ export function buildFetchers(o: FetcherOptions): LiveDeps {
           classifyBody: jsonRpcClassifyBody }), plan.url, chain);
   }
   return {
-    tron: new TronFetcher(new ChainClient({ ...common, source: "trongrid", minIntervalMs: spacing(80), classifyBody: tronClassifyBody }), o.tronKey),
+    // Keyless TronGrid allows 3 requests/s and suspends the caller for 5 s past that (seen in the
+    // real-data test: 10–18 s Tron lookups from 429 back-off). 400 ms spacing keeps under it.
+    tron: new TronFetcher(new ChainClient({ ...common, source: "trongrid", minIntervalMs: spacing(o.tronKey ? 80 : 400), classifyBody: tronClassifyBody }), o.tronKey),
     evm: new EvmFetcher(sources),
+    history: new BlockscoutHistory(new ChainClient({ ...common, source: "blockscout", minIntervalMs: spacing(300), classifyBody: blockscoutClassifyBody })),
     now: o.now,
   };
 }
