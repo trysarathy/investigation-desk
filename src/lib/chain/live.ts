@@ -44,7 +44,8 @@ function offlineDeps(dir: string): LiveDeps {
   const recs = readdirSync(dir).filter((f) => f.endsWith(".json"))
     .map((f) => JSON.parse(readFileSync(path.join(dir, f), "utf8")) as Recording)
     .filter((r) => Array.isArray(r.exchanges));
-  offline = buildFetchers({ tronKey: "", etherscanKey: "", store: new MemoryStore(), transport: demoTransport(recs), noSpacing: true });
+  offline = buildFetchers({ tronKey: "", etherscanKey: "", store: new MemoryStore(), transport: demoTransport(recs), noSpacing: true,
+    sleep: async () => {} });
   return offline;
 }
 

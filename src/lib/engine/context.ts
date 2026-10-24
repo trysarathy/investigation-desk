@@ -85,8 +85,10 @@ export function pickTransfer(tx: ChainTx, facts: Facts): TokenTransfer | undefin
   // Batch payouts carry many Transfer events; the one that concerns us is the one to our address.
   // Within those, a stablecoin (or a token claiming to be one) beats e.g. WETH routed through the
   // same address in a swap (real-data test: an MEV-style tx sent WETH, USDC and USDT to one address).
+  const exact = (t: TokenTransfer) => ["USDT", "USDC"].includes(t.tokenSymbol);
   const stable = (t: TokenTransfer) => ["USDT", "USDC"].includes(claimedSymbol(t.tokenSymbol));
-  const pick = (ok: (to: string) => boolean) => transfers.find((t) => ok(t.to) && stable(t)) ?? transfers.find((t) => ok(t.to));
+  const pick = (ok: (to: string) => boolean) =>
+    transfers.find((t) => ok(t.to) && exact(t)) ?? transfers.find((t) => ok(t.to) && stable(t)) ?? transfers.find((t) => ok(t.to));
   return pick(isCustomers) ?? pick(isCompany) ?? transfers.find(stable) ?? transfers[0];
 }
 

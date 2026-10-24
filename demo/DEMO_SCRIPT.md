@@ -82,6 +82,9 @@ OFFLINE_REPLAY_DIR=tests/fixtures/real npx next start
 # then upload the two SAMPLE files in Settings → Data, as above
 ```
 
+The sidebar then says **"Replay mode · Recorded chain data"**. Tell the buyer: "the internet is
+down, so this is replaying the real chain responses I recorded on 24–25 October".
+
 All 57 recorded real cases, including these five, give the same answers with the network cut
 (tested 25 Oct with every outbound connection blocked). Anything not recorded pauses ("Check
 paused") instead of guessing. The two live "waiting for confirmations" cases can't run offline,

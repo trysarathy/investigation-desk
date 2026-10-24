@@ -109,6 +109,7 @@ export class BlockscoutHistory {
   async transfersOf(address: string, beforeMs: number, raws: RawResponse[]) {
     const out: { hash: string; from: string; to: string; symbol: string; contract: string; amount: string; time: string }[] = [];
     let next: Record<string, string> | undefined;
+    let complete = false;
     for (let page = 0; page < 3; page++) {
       const q = new URLSearchParams({ type: "ERC-20", ...(next ?? {}) });
       const r = await recorded(raws, this.client.request({ method: "GET", url: `${this.base}/addresses/${address}/token-transfers?${q}` },
@@ -127,9 +128,12 @@ export class BlockscoutHistory {
         });
       }
       const oldest = out.length ? Date.parse(out[out.length - 1].time) : NaN;
-      if (!j.next_page_params || (Number.isFinite(oldest) && oldest < beforeMs - 30 * 86400_000)) break;
+      if (!j.next_page_params || (Number.isFinite(oldest) && oldest < beforeMs - 30 * 86400_000)) { complete = true; break; }
       next = Object.fromEntries(Object.entries(j.next_page_params).map(([k, v]) => [k, String(v)]));
     }
+    // A busy look-alike can have more than 150 transfers after the payment. Then the 30 days before
+    // it were never read, so "no poisoning found" would be a claim we didn't check: report unknown.
+    if (!complete) throw new ChainApiError("blockscout: history longer than 3 pages; not fully read", false);
     return out.filter((t) => Date.parse(t.time) < beforeMs);
   }
 }

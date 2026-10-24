@@ -3,6 +3,11 @@
 Branch `test-real-data`, 24–25 Oct 2026. Labels: **[VERIFIED]** means I ran it and saw the
 result; **[ASSUMPTION]** and **[GUESS]** mean I didn't. Full tables are in `demo/results/results.md`.
 
+An independent review of this PR (a separate reviewer that hadn't seen the work) found no
+blockers. It re-checked 7 cases on-chain, and all matched. Its four should-fix items are now
+fixed: history read limits, a visible "Replay mode" badge, `LIVE_LOOKUPS=off` covering payments
+matching, and corrections to this report.
+
 **Verdict: ready to demo to a buyer, with caveats.** The verdicts were correct on 111 of 111 real
 transactions after the fixes, including 52 collected afterwards. But the test covered only the
 deposit-investigation part of the product, with sample company records. The payments matching
@@ -59,9 +64,11 @@ All figures in the table are [VERIFIED].
   unsupported token, another customer's address, retired address and wrong address.
 - **Not found (D01): 4 of 4,** using real Bitcoin transaction IDs, which look like hashes.
 - **Waiting for confirmations (D02): 2 of 2,** caught live 1–3 blocks after they were mined.
-- **Address poisoning (D07b): 2 of 2.** These are the documented $50M (Dec 2025) and $39.9K
-  (Aug 2026) losses. The verdict is "wrong address" with the look-alike flag, and the evidence
-  links the actual poisoning transfer.
+- **Address poisoning: 2 of 2 flagged.** These are the documented $50M (Dec 2025) and $39.9K
+  (Aug 2026) losses. Precisely: the verdict is D07 "wrong address" (High), with D07b
+  "look-alike address" attached as a Medium likely cause for the analyst to confirm. That is the
+  spec's design, and the test counts it as correct. The evidence links the actual poisoning
+  transfer.
 - **Evidence is real.** Every explorer link on the 59 pages points at the case's own hash, apart
   from the poisoning pages, which also link the earlier poisoning transfer, as they should. I
   checked that transfer on-chain.
@@ -88,7 +95,7 @@ outage tests.
    keyless, and Ethereum, Polygon and Arbitrum fall back to free public RPCs.
 2. **Wrong confident answer: a successful payment was reported as "Transaction failed" (High).**
    When a node returned no receipt, the code read that as a failure. Public nodes do this for
-   transactions a few months old. Ten real cases hit it, including the $50M poisoning. That
+   transactions a few months old. Eleven real cases hit it, including the $50M poisoning. That
    payment would have been told "your transfer failed, resend". A missing receipt is now an
    unknown that pauses the case, and it is never cached.
    - **Caveat:** my first keyless choice of node (publicnode) is what exposed this. With the
@@ -105,7 +112,9 @@ outage tests.
 4. **Look-alike token symbols weren't treated as fake.** "ÚЅDТ" now counts as claiming to be
    USDT, and the reply says "not genuine USDT".
 5. **A freeze was hidden behind a lesser diagnosis.** USDC from a Circle-blacklisted sender was
-   called "unsupported token". An issuer freeze now ranks straight after "failed".
+   called "unsupported token". In the before run this case was hidden by the receipt bug (it showed
+   D03); the D05 answer appeared in an intermediate run after that fix, which isn't kept in
+   `demo/results/`. An issuer freeze now ranks straight after "failed".
 6. **Slowness.** There were two causes:
    - One public node refused even "not found" lookups, and its 403 errors were retried for about
      15 s.
@@ -133,6 +142,10 @@ outage tests.
 - **Freeze is checked now, not at the time of the payment.** A deposit received before the sender
   was frozen is still escalated as D09. That is defensible for compliance, but a buyer may ask
   [VERIFIED].
+- **Poisoning history has a reading limit.** On Ethereum without a key, the desk reads at most
+  150 transfers of the look-alike address, and only the 30 days before the payment. If it can't
+  reach that far back, the history now says "unknown" instead of "nothing found"; this was fixed
+  after the independent review.
 - **Lookup by address or customer reference isn't built.** Customers often paste an address. The
   desk says this clearly and doesn't guess [VERIFIED].
 - **Company settings are hard-coded sample settings:** confirmations, minimums and accepted
@@ -190,7 +203,10 @@ No names, emails or ID documents: customer pseudonyms only.
 
 ## How to rerun
 
-- `npm test` runs 567 tests, including the 57 recorded real cases, offline.
+- `npm test` runs 516 tests offline. 62 of them replay the 57 recorded real cases, including the
+  outage tests. The 57 network re-recording tests are skipped unless asked for.
+- The 2 live "waiting for confirmations" cases (counted in the 111) were new transactions at the
+  time. They can't be replayed from the repo; their results are in `demo/results/`.
 - `RECORD_REAL=1 NODE_USE_ENV_PROXY=1 npx vitest run tests/real-record.test.ts` re-records the
   real cases.
 - `tests/real-data/tools/` holds the scripts used: case builder, runner, robustness checks and

@@ -6,7 +6,7 @@
 //
 // Without ETHERSCAN_API_KEY (24 Oct 2026: Etherscan V2 now answers every keyless call with
 // "Missing/Invalid API Key"), Ethereum, Polygon and Arbitrum fall back to free public RPCs, so
-// the product still runs with no keys at all. D07b sender history on Ethereum then has no source.
+// the product still runs with no keys at all. D07b sender history on Ethereum then comes from Blockscout.
 
 import type { EvmChain } from "../types";
 import { BlockscoutHistory, blockscoutClassifyBody, EtherscanSource, etherscanClassifyBody, EvmFetcher, JsonRpcSource, jsonRpcClassifyBody, type EvmSource } from "./evm";

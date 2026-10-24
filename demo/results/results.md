@@ -12,6 +12,9 @@ Bulk CSV (57 rows, one upload): before 57/57 rows returned in 309.8 s, all agree
 
 ## Per diagnosis
 
+D07b: the verdict on both poisoning cases is D07 (High) with D07b attached as a Medium likely cause; the scoring counts that as correct, by design of the spec.
+
+
 | Code | Meaning | Before: correct / wrong / needs review | After | Held-out |
 |---|---|---|---|---|
 | D01 | Not found on any chain | 0/2 · 0 wrong · 2 review | 2/2 · 0 wrong · 0 review | 2/2 · 0 wrong · 0 review |

@@ -1679,7 +1679,7 @@
    "expected_findings": [
     "D07"
    ],
-   "why_this_answer": "9 Aug 2026: 39,889.952535 USDT sent to 0x053dc459…da3a instead of 0x053dba72…da3a (same first 4 and last 4), after a forged counterfeit-USDT transfer from the victim to the look-alike 12 seconds after the victim's real test payment. Treat the intended address as this customer's sample deposit address.",
+   "why_this_answer": "9 Aug 2026: 39,889.952535 USDT sent to 0x053dc459…da3a instead of 0x053dba72…da3a (same first 4 and last 4), after a forged counterfeit-USDT transfer from the victim to the look-alike about 3.5 minutes after the victim's real test payment (Bitquery; times checked on-chain). Treat the intended address as this customer's sample deposit address.",
    "uses_sample_company_data": true,
    "sources": [
     {
