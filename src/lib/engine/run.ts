@@ -60,8 +60,10 @@ function fillValues(ctx: Ctx): Record<string, string> {
     if (tx.errorCode) fill.error = tx.errorCode;
   }
   if (transfer) {
-    fill.token = transfer.tokenSymbol;
-    fill.symbol = transfer.tokenSymbol;
+    // A look-alike symbol ("ÚЅDТ") is named as the token it imitates, so the reply reads "not genuine USDT".
+    const named = ctx.lookalikeSymbol && ctx.claimedToken ? ctx.claimedToken : transfer.tokenSymbol;
+    fill.token = named;
+    fill.symbol = named;
     fill.amount = transfer.amount;
     fill.short_addr = truncateMiddle(transfer.to, 6, 6);
   }

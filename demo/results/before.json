@@ -1,0 +1,1693 @@
+{
+ "summary": {
+  "label": "before",
+  "cases": 59,
+  "scored": 59,
+  "correct": 43,
+  "accuracy": 0.729,
+  "normal_cases": 12,
+  "false_alarms_on_normal": 0,
+  "wrong_and_confident": 13,
+  "paused": 3,
+  "median_secs": 17.35,
+  "slowest_secs": 19.71,
+  "bulk": {
+   "rows": 57,
+   "returned": 57,
+   "seconds": 309.8,
+   "agree_with_single": 57
+  },
+  "by_address": {
+   "input": "TSSoZb7K81i7NtoF7PEjDwG8m2gThoK9Zi",
+   "http": 200,
+   "title": "Check paused",
+   "secs": 0.03,
+   "says": "Check paused\\\"}],[\\\"$\\\",\\\"div\\\",null,{\\\"className\\\":\\\"muted\\\",\\\"children\\\":[\\\"Live lookup by address or customer reference is not built yet; paste a transaction hash.\\\",\\\" No verdict is given.\\\"]}]]}]}],[\\\"$\\\",\\\"section\\\",null,{\\\"className\\\":\\\"panel\\\",\\\"childr"
+  },
+  "per_diagnosis": {
+   "D13": {
+    "cases": 12,
+    "correct": 12,
+    "wrong": 0,
+    "needs_review_or_paused": 0
+   },
+   "D12": {
+    "cases": 4,
+    "correct": 4,
+    "wrong": 0,
+    "needs_review_or_paused": 0
+   },
+   "D14": {
+    "cases": 1,
+    "correct": 1,
+    "wrong": 0,
+    "needs_review_or_paused": 0
+   },
+   "D16": {
+    "cases": 1,
+    "correct": 1,
+    "wrong": 0,
+    "needs_review_or_paused": 0
+   },
+   "D17": {
+    "cases": 1,
+    "correct": 1,
+    "wrong": 0,
+    "needs_review_or_paused": 0
+   },
+   "D18": {
+    "cases": 1,
+    "correct": 1,
+    "wrong": 0,
+    "needs_review_or_paused": 0
+   },
+   "D08": {
+    "cases": 3,
+    "correct": 3,
+    "wrong": 0,
+    "needs_review_or_paused": 0
+   },
+   "D07": {
+    "cases": 1,
+    "correct": 1,
+    "wrong": 0,
+    "needs_review_or_paused": 0
+   },
+   "D05": {
+    "cases": 2,
+    "correct": 2,
+    "wrong": 0,
+    "needs_review_or_paused": 0
+   },
+   "D04": {
+    "cases": 3,
+    "correct": 2,
+    "wrong": 0,
+    "needs_review_or_paused": 1
+   },
+   "D03": {
+    "cases": 11,
+    "correct": 11,
+    "wrong": 0,
+    "needs_review_or_paused": 0
+   },
+   "D09": {
+    "cases": 6,
+    "correct": 3,
+    "wrong": 3,
+    "needs_review_or_paused": 0
+   },
+   "D06": {
+    "cases": 7,
+    "correct": 1,
+    "wrong": 6,
+    "needs_review_or_paused": 0
+   },
+   "D07b": {
+    "cases": 2,
+    "correct": 0,
+    "wrong": 2,
+    "needs_review_or_paused": 0
+   },
+   "D01": {
+    "cases": 2,
+    "correct": 0,
+    "wrong": 0,
+    "needs_review_or_paused": 2
+   },
+   "D02": {
+    "cases": 2,
+    "correct": 0,
+    "wrong": 2,
+    "needs_review_or_paused": 0
+   }
+  }
+ },
+ "results": [
+  {
+   "id": "TRN-01",
+   "category": "normal (credited)",
+   "chain": "tron",
+   "expected": "D13",
+   "expected_findings": [],
+   "tx_hash": "5296e24018c9197bbf4e7e844c7152ca494067400a5a06f351c66aad7d3873cb",
+   "http": 200,
+   "secs": 17.41,
+   "got": "D13",
+   "confidence": "High",
+   "title": "Already credited",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://tronscan.org/#/transaction/5296e24018c9197bbf4e7e844c7152ca494067400a5a06f351c66aad7d3873cb",
+    "https://tronscan.org/#/transaction/5296e24018c9197bbf4e7e844c7152ca494067400a5a06f351c66aad7d3873cb"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Already credited\\\",\\\"code\\\":\\\"D13\\\",\\\"terms\\\":[\\\"cs-1058\\\",\\\"c-12107\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"tejcce5lc49r7udrrtpwi3iwybdeqfp9rw\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"0xa5381f3a204aac59d1d5bf86b4f7585e89076daa\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\"]},{\\\"id\\\":\\\"CS-1043\\\",\\\"customerId\\\":\\\"C-10611\\\",\\\"label\\\":\\\"Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b276",
+   "bulk_code": "D13",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "TRN-02",
+   "category": "normal (credited)",
+   "chain": "tron",
+   "expected": "D13",
+   "expected_findings": [],
+   "tx_hash": "0b3dba069b59e51a1172cc94bdb6c75289ba2fd76ba74d9883b76bde2b104085",
+   "http": 200,
+   "secs": 14.76,
+   "got": "D13",
+   "confidence": "High",
+   "title": "Already credited",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://tronscan.org/#/transaction/0b3dba069b59e51a1172cc94bdb6c75289ba2fd76ba74d9883b76bde2b104085",
+    "https://tronscan.org/#/transaction/0b3dba069b59e51a1172cc94bdb6c75289ba2fd76ba74d9883b76bde2b104085"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Already credited\\\",\\\"code\\\":\\\"D13\\\",\\\"terms\\\":[\\\"cs-1058\\\",\\\"c-12107\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"tejcce5lc49r7udrrtpwi3iwybdeqfp9rw\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"0xa5381f3a204aac59d1d5bf86b4f7585e89076daa\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\"]},{\\\"id\\\":\\\"CS-1043\\\",\\\"customerId\\\":\\\"C-10611\\\",\\\"label\\\":\\\"Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b276",
+   "bulk_code": "D13",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "TRN-03",
+   "category": "normal (credited)",
+   "chain": "tron",
+   "expected": "D13",
+   "expected_findings": [],
+   "tx_hash": "73725524743c425b09cc4e4ef4937d4fa4f6c05ae288006f403375cc7a988e02",
+   "http": 200,
+   "secs": 19.39,
+   "got": "D13",
+   "confidence": "High",
+   "title": "Already credited",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://tronscan.org/#/transaction/73725524743c425b09cc4e4ef4937d4fa4f6c05ae288006f403375cc7a988e02",
+    "https://tronscan.org/#/transaction/73725524743c425b09cc4e4ef4937d4fa4f6c05ae288006f403375cc7a988e02"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Already credited\\\",\\\"code\\\":\\\"D13\\\",\\\"terms\\\":[\\\"cs-1058\\\",\\\"c-12107\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"tejcce5lc49r7udrrtpwi3iwybdeqfp9rw\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"0xa5381f3a204aac59d1d5bf86b4f7585e89076daa\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\"]},{\\\"id\\\":\\\"CS-1043\\\",\\\"customerId\\\":\\\"C-10611\\\",\\\"label\\\":\\\"Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b276",
+   "bulk_code": "D13",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "TRN-04",
+   "category": "normal (credited)",
+   "chain": "tron",
+   "expected": "D13",
+   "expected_findings": [],
+   "tx_hash": "69c61d31396152b59c79f22da5da63be5fbe24c6cdb6874c6555ac7e8ab9e7d2",
+   "http": 200,
+   "secs": 18.31,
+   "got": "D13",
+   "confidence": "High",
+   "title": "Already credited",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://tronscan.org/#/transaction/69c61d31396152b59c79f22da5da63be5fbe24c6cdb6874c6555ac7e8ab9e7d2",
+    "https://tronscan.org/#/transaction/69c61d31396152b59c79f22da5da63be5fbe24c6cdb6874c6555ac7e8ab9e7d2"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Already credited\\\",\\\"code\\\":\\\"D13\\\",\\\"terms\\\":[\\\"cs-1058\\\",\\\"c-12107\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"tejcce5lc49r7udrrtpwi3iwybdeqfp9rw\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"0xa5381f3a204aac59d1d5bf86b4f7585e89076daa\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\"]},{\\\"id\\\":\\\"CS-1043\\\",\\\"customerId\\\":\\\"C-10611\\\",\\\"label\\\":\\\"Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b276",
+   "bulk_code": "D13",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "TRN-05",
+   "category": "normal (credited)",
+   "chain": "tron",
+   "expected": "D13",
+   "expected_findings": [],
+   "tx_hash": "4f16489205c3ef79c618feafcc459acb5ca33fdad1c027feeebeea8bbe54b47a",
+   "http": 200,
+   "secs": 19.31,
+   "got": "D13",
+   "confidence": "High",
+   "title": "Already credited",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://tronscan.org/#/transaction/4f16489205c3ef79c618feafcc459acb5ca33fdad1c027feeebeea8bbe54b47a",
+    "https://tronscan.org/#/transaction/4f16489205c3ef79c618feafcc459acb5ca33fdad1c027feeebeea8bbe54b47a"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Already credited\\\",\\\"code\\\":\\\"D13\\\",\\\"terms\\\":[\\\"cs-1058\\\",\\\"c-12107\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"tejcce5lc49r7udrrtpwi3iwybdeqfp9rw\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"0xa5381f3a204aac59d1d5bf86b4f7585e89076daa\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\"]},{\\\"id\\\":\\\"CS-1043\\\",\\\"customerId\\\":\\\"C-10611\\\",\\\"label\\\":\\\"Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b276",
+   "bulk_code": "D13",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "TRN-06",
+   "category": "on-chain, not credited",
+   "chain": "tron",
+   "expected": "D12",
+   "expected_findings": [],
+   "tx_hash": "80f14683768965b813220395fbb0c97673fe238781a6d3ba562dcbc650b7317c",
+   "http": 200,
+   "secs": 17.96,
+   "got": "D12",
+   "confidence": "High",
+   "title": "Arrived on-chain, not credited",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://tronscan.org/#/transaction/80f14683768965b813220395fbb0c97673fe238781a6d3ba562dcbc650b7317c",
+    "https://tronscan.org/#/transaction/80f14683768965b813220395fbb0c97673fe238781a6d3ba562dcbc650b7317c"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\"]},{\\\"id\\\":\\\"CS-1051\\\",\\\"customerId\\\":\\\"C-11307\\\",\\\"label\\\":\\\"Not found on any chain\\\",\\\"code\\\":\\\"D01\\\",\\\"terms\\\":[\\\"cs-1051\\\",\\\"c-11307\\\",\\\"49bb4de64adab743d73f2f92b6c1de5f2e1bbd551e93aa6647348be49e40e526\\\",\\\"twuayvio8zzyu7rmkukpjwlfdjnkzsl4uu\\\",\\\"0xba0518e68d46d8c89f3efd2bbd88fd11ea36023e\\\"]},{\\\"id\\\":\\\"CS-1041\\\",\\\"customerId\\\":\\\"C-10422\\\",\\\"label\\\":",
+   "bulk_code": "D12",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "TRN-07",
+   "category": "on-chain, not credited",
+   "chain": "tron",
+   "expected": "D12",
+   "expected_findings": [],
+   "tx_hash": "fb5526c8dfcb19d73cb36eb6d61d5de633f3c6c9b6d082a9c6d4579a52969b00",
+   "http": 200,
+   "secs": 18.41,
+   "got": "D12",
+   "confidence": "High",
+   "title": "Arrived on-chain, not credited",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://tronscan.org/#/transaction/fb5526c8dfcb19d73cb36eb6d61d5de633f3c6c9b6d082a9c6d4579a52969b00",
+    "https://tronscan.org/#/transaction/fb5526c8dfcb19d73cb36eb6d61d5de633f3c6c9b6d082a9c6d4579a52969b00"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\"]},{\\\"id\\\":\\\"CS-1051\\\",\\\"customerId\\\":\\\"C-11307\\\",\\\"label\\\":\\\"Not found on any chain\\\",\\\"code\\\":\\\"D01\\\",\\\"terms\\\":[\\\"cs-1051\\\",\\\"c-11307\\\",\\\"49bb4de64adab743d73f2f92b6c1de5f2e1bbd551e93aa6647348be49e40e526\\\",\\\"twuayvio8zzyu7rmkukpjwlfdjnkzsl4uu\\\",\\\"0xba0518e68d46d8c89f3efd2bbd88fd11ea36023e\\\"]},{\\\"id\\\":\\\"CS-1041\\\",\\\"customerId\\\":\\\"C-10422\\\",\\\"label\\\":",
+   "bulk_code": "D12",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "TRN-08",
+   "category": "on hold",
+   "chain": "tron",
+   "expected": "D14",
+   "expected_findings": [],
+   "tx_hash": "e033be73d5b3990fc1e8532686b851b76431889ac615ab149c00bc036f4667fa",
+   "http": 200,
+   "secs": 17.07,
+   "got": "D14",
+   "confidence": "High",
+   "title": "On hold",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://tronscan.org/#/transaction/e033be73d5b3990fc1e8532686b851b76431889ac615ab149c00bc036f4667fa",
+    "https://tronscan.org/#/transaction/e033be73d5b3990fc1e8532686b851b76431889ac615ab149c00bc036f4667fa"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "On hold\\\",\\\"code\\\":\\\"D14\\\",\\\"terms\\\":[\\\"cs-1054\\\",\\\"c-11730\\\",\\\"91a8af3163356bd9ceb53efc58dc284ab3f80dae331dae9b3d8808df52274680\\\",\\\"tp1hqxfn9mskylqezafbkn9pz1vc14mwtm\\\",\\\"0x668510000207a2c1f35e631830248ed74e0d0f09\\\",\\\"91a8af3163356bd9ceb53efc58dc284ab3f80dae331dae9b3d8808df52274680\\\",\\\"tp1hqxfn9mskylqezafbkn9pz1vc14mwtm\\\"]},{\\\"id\\\":\\\"CS-1050\\\",\\\"customerId\\\":\\\"C-11263\\\",\\\"label\\\":\\\"Issuer freeze\\\",\\\"code\\\":\\\"D09\\\",\\\"terms\\\":[\\\"cs-1050\\\",\\\"c-11263\\\",\\\"a48defa89cd3e2558592ce35b3ded0de643181112e757a9a8ffdf8176c8c22bd\\\",\\\"tsvuzrqtjkahy6pzqpmkoz6xp5p2zrjkys\\\",\\\"0x8a4c0bfcdb9d072b4bb8957f10ec7eecfd67da11\\\",\\\"a48defa89cd3e2558592ce35b3ded0de643181112e757a9a8ffdf8176c8c22bd\\\",\\\"tsvuzrqtjkahy6pzqpmk",
+   "bulk_code": "D14",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "TRN-09",
+   "category": "rejected by company",
+   "chain": "tron",
+   "expected": "D16",
+   "expected_findings": [],
+   "tx_hash": "841c0edf330920b6fe739e6341855238647a1cf0f67ffebc107bb1169c81a584",
+   "http": 200,
+   "secs": 17.39,
+   "got": "D16",
+   "confidence": "High",
+   "title": "Rejected by company",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://tronscan.org/#/transaction/841c0edf330920b6fe739e6341855238647a1cf0f67ffebc107bb1169c81a584",
+    "https://tronscan.org/#/transaction/841c0edf330920b6fe739e6341855238647a1cf0f67ffebc107bb1169c81a584"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Rejected by company\\\",\\\"code\\\":\\\"D16\\\",\\\"terms\\\":[\\\"cs-1056\\\",\\\"c-11957\\\",\\\"8cc1047f45dff26f340fdbcaa0a9e8f327d2962cfd43f139ee07de597268788b\\\",\\\"tgxlqgqagvl6qeccfxf4ojkx5khlhzbtbw\\\",\\\"0x50fb0cb13de74274ab1fe3d21a8ad97c168e4a17\\\",\\\"8cc1047f45dff26f340fdbcaa0a9e8f327d2962cfd43f139ee07de597268788b\\\",\\\"tgxlqgqagvl6qeccfxf4ojkx5khlhzbtbw\\\"]},{\\\"id\\\":\\\"CS-1054\\\",\\\"customerId\\\":\\\"C-11730\\\",\\\"label\\\":\\\"On hold\\\",\\\"code\\\":\\\"D14\\\",\\\"terms\\\":[\\\"cs-1054\\\",\\\"c-11730\\\",\\\"91a8af3163356bd9ceb53efc58dc284ab3f80dae331dae9b3d8808df52274680\\\",\\\"tp1hqxfn9mskylqezafbkn9pz1vc14mwtm\\\",\\\"0x668510000207a2c1f35e631830248ed74e0d0f09\\\",\\\"91a8af3163356bd9ceb53efc58dc284ab3f80dae331dae9b3d8808df52274680\\\",\\\"tp1hqxfn9mskyl",
+   "bulk_code": "D16",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "TRN-10",
+   "category": "another customer's address",
+   "chain": "tron",
+   "expected": "D17",
+   "expected_findings": [],
+   "tx_hash": "22a490fde1913ac11d0d67009732a02208d2f6c779314bd1cbcc53e27240ccb7",
+   "http": 200,
+   "secs": 18.06,
+   "got": "D17",
+   "confidence": "High",
+   "title": "Sent to another customer's address",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://tronscan.org/#/transaction/22a490fde1913ac11d0d67009732a02208d2f6c779314bd1cbcc53e27240ccb7",
+    "https://tronscan.org/#/transaction/22a490fde1913ac11d0d67009732a02208d2f6c779314bd1cbcc53e27240ccb7"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Sent to another customer's address\\\",\\\"code\\\":\\\"D17\\\",\\\"terms\\\":[\\\"cs-1061\\\",\\\"c-12350\\\",\\\"60712b920ee16c60caea226d6b7115a9434799afb475b8bc8290d6ae1fcb6f43\\\",\\\"tsynx8bm7y5hh2hetitmu6jypjjgdqrpth\\\",\\\"0x8674bccc26fbeab2fa5e08ae8dfee3b6808be6b7\\\",\\\"60712b920ee16c60caea226d6b7115a9434799afb475b8bc8290d6ae1fcb6f43\\\",\\\"tdhyb3dggd6f1imkvq5ljeknvtd6vutpud\\\"]},{\\\"id\\\":\\\"CS-1058\\\",\\\"customerId\\\":\\\"C-12107\\\",\\\"label\\\":\\\"Already credited\\\",\\\"code\\\":\\\"D13\\\",\\\"terms\\\":[\\\"cs-1058\\\",\\\"c-12107\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"tejcce5lc49r7udrrtpwi3iwybdeqfp9rw\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af84",
+   "bulk_code": "D17",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "TRN-11",
+   "category": "retired address",
+   "chain": "tron",
+   "expected": "D18",
+   "expected_findings": [],
+   "tx_hash": "b6f1000eed96be7b2518dbf27495653ead292a6792907617666a8348fd2d80c8",
+   "http": 200,
+   "secs": 17.74,
+   "got": "D18",
+   "confidence": "High",
+   "title": "Sent to a retired address",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://tronscan.org/#/transaction/b6f1000eed96be7b2518dbf27495653ead292a6792907617666a8348fd2d80c8",
+    "https://tronscan.org/#/transaction/b6f1000eed96be7b2518dbf27495653ead292a6792907617666a8348fd2d80c8"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Sent to a retired address\\\",\\\"code\\\":\\\"D18\\\",\\\"terms\\\":[\\\"cs-1062\\\",\\\"c-12412\\\",\\\"0f91779a81569ae4780e7f4b930c507163a687f9e817e08245b85d83a1f01f85\\\",\\\"tllh84jamuzrbzz4a3bftcdzprmupgcwuq\\\",\\\"0x49e64e81285b895a6d08ece77e84f664ee9ff66c\\\",\\\"tr8ebt8aunjvldnkbj8q8bqr4gokkwyrfy\\\",\\\"0f91779a81569ae4780e7f4b930c507163a687f9e817e08245b85d83a1f01f85\\\",\\\"tr8ebt8aunjvldnkbj8q8bqr4gokkwyrfy\\\"]},{\\\"id\\\":\\\"CS-1048\\\",\\\"customerId\\\":\\\"C-11008\\\",\\\"label\\\":\\\"Wrong address\\\",\\\"code\\\":\\\"D07\\\",\\\"terms\\\":[\\\"cs-1048\\\",\\\"c-11008\\\",\\\"05c17b3774b0d3425c4e86e5f40859eadd8fa1b01b5c24b5123f65cda3b9a512\\\",\\\"tu1rp8dwleeafwh8nryxu11olwk76xpmvp\\\",\\\"0x9f7bf9e3bf7c7b25bd584696d1020b9373d48f21\\\",\\\"05c17b3774b0d3425c4e86e5f40859ea",
+   "bulk_code": "D18",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "TRN-12",
+   "category": "below minimum",
+   "chain": "tron",
+   "expected": "D08",
+   "expected_findings": [],
+   "tx_hash": "8964ec180ab72f0c52b1e3291561c0abb9ade9008d0fb3b23d379d1b6e890b5c",
+   "http": 200,
+   "secs": 17.66,
+   "got": "D08",
+   "confidence": "High",
+   "title": "Below minimum deposit",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://tronscan.org/#/transaction/8964ec180ab72f0c52b1e3291561c0abb9ade9008d0fb3b23d379d1b6e890b5c",
+    "https://tronscan.org/#/transaction/8964ec180ab72f0c52b1e3291561c0abb9ade9008d0fb3b23d379d1b6e890b5c"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Below minimum deposit\\\",\\\"code\\\":\\\"D08\\\",\\\"terms\\\":[\\\"cs-1049\\\",\\\"c-11140\\\",\\\"1c1efad8377ad8955729ba8849a7dddfb0cae83a6ba8ea328ed80266b9d93e05\\\",\\\"taned1ybnxabgwbpsz1u3qr4uzafalodbv\\\",\\\"0x3442580a80cb4d6d047dc62c401c03cd854eba5a\\\",\\\"1c1efad8377ad8955729ba8849a7dddfb0cae83a6ba8ea328ed80266b9d93e05\\\",\\\"taned1ybnxabgwbpsz1u3qr4uzafalodbv\\\"]},{\\\"id\\\":\\\"CS-1046\\\",\\\"customerId\\\":\\\"C-10915\\\",\\\"label\\\":\\\"Fake token\\\",\\\"code\\\":\\\"D06\\\",\\\"terms\\\":[\\\"cs-1046\\\",\\\"c-10915\\\",\\\"3298150b1984c1026dbc2ac8fcc6023aa6c1f2a6c782e7332e83f4191d987b13\\\",\\\"tl2zbv47fyj7rofppz2kjv9jvgl5bv162m\\\",\\\"0xecb1d839458f2cabdb1feabc5e65e18e8bf94ae3\\\",\\\"3298150b1984c1026dbc2ac8fcc6023aa6c1f2a6c782e7332e83f4191d987b13\\\",\\\"tl2zbv47f",
+   "bulk_code": "D08",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "ETH-01",
+   "category": "normal (credited)",
+   "chain": "ethereum",
+   "expected": "D13",
+   "expected_findings": [],
+   "tx_hash": "0xf70dab272206053e0e44c35db3891e5d72c3410fc26fcdfc9949193d4ce605da",
+   "http": 200,
+   "secs": 17.58,
+   "got": "D13",
+   "confidence": "High",
+   "title": "Already credited",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://etherscan.io/tx/0xf70dab272206053e0e44c35db3891e5d72c3410fc26fcdfc9949193d4ce605da",
+    "https://etherscan.io/tx/0xf70dab272206053e0e44c35db3891e5d72c3410fc26fcdfc9949193d4ce605da"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Already credited\\\",\\\"code\\\":\\\"D13\\\",\\\"terms\\\":[\\\"cs-1058\\\",\\\"c-12107\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"tejcce5lc49r7udrrtpwi3iwybdeqfp9rw\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"0xa5381f3a204aac59d1d5bf86b4f7585e89076daa\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\"]},{\\\"id\\\":\\\"CS-1043\\\",\\\"customerId\\\":\\\"C-10611\\\",\\\"label\\\":\\\"Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b276",
+   "bulk_code": "D13",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "ETH-02",
+   "category": "normal (credited)",
+   "chain": "ethereum",
+   "expected": "D13",
+   "expected_findings": [],
+   "tx_hash": "0x5dc6d3c4d96add3c2fa7ecaaff2c18fec9ea2ef6dd3279ec7e58370ddfe86ea0",
+   "http": 200,
+   "secs": 17.35,
+   "got": "D13",
+   "confidence": "High",
+   "title": "Already credited",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://etherscan.io/tx/0x5dc6d3c4d96add3c2fa7ecaaff2c18fec9ea2ef6dd3279ec7e58370ddfe86ea0",
+    "https://etherscan.io/tx/0x5dc6d3c4d96add3c2fa7ecaaff2c18fec9ea2ef6dd3279ec7e58370ddfe86ea0"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Already credited\\\",\\\"code\\\":\\\"D13\\\",\\\"terms\\\":[\\\"cs-1058\\\",\\\"c-12107\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"tejcce5lc49r7udrrtpwi3iwybdeqfp9rw\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"0xa5381f3a204aac59d1d5bf86b4f7585e89076daa\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\"]},{\\\"id\\\":\\\"CS-1043\\\",\\\"customerId\\\":\\\"C-10611\\\",\\\"label\\\":\\\"Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b276",
+   "bulk_code": "D13",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "ETH-03",
+   "category": "normal (credited)",
+   "chain": "ethereum",
+   "expected": "D13",
+   "expected_findings": [],
+   "tx_hash": "0xeb2153554f28e07207ee5fac0d41bee3fda2a37aaafc188ffb134339620e2c12",
+   "http": 200,
+   "secs": 18.6,
+   "got": "D13",
+   "confidence": "High",
+   "title": "Already credited",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://etherscan.io/tx/0xeb2153554f28e07207ee5fac0d41bee3fda2a37aaafc188ffb134339620e2c12",
+    "https://etherscan.io/tx/0xeb2153554f28e07207ee5fac0d41bee3fda2a37aaafc188ffb134339620e2c12"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Already credited\\\",\\\"code\\\":\\\"D13\\\",\\\"terms\\\":[\\\"cs-1058\\\",\\\"c-12107\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"tejcce5lc49r7udrrtpwi3iwybdeqfp9rw\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"0xa5381f3a204aac59d1d5bf86b4f7585e89076daa\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\"]},{\\\"id\\\":\\\"CS-1043\\\",\\\"customerId\\\":\\\"C-10611\\\",\\\"label\\\":\\\"Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b276",
+   "bulk_code": "D13",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "ETH-04",
+   "category": "normal (credited)",
+   "chain": "ethereum",
+   "expected": "D13",
+   "expected_findings": [],
+   "tx_hash": "0x3dfa021933824e325e736b1afbc2831ffa296e7088dce619908d2b266d9a453d",
+   "http": 200,
+   "secs": 16.69,
+   "got": "D13",
+   "confidence": "High",
+   "title": "Already credited",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://etherscan.io/tx/0x3dfa021933824e325e736b1afbc2831ffa296e7088dce619908d2b266d9a453d",
+    "https://etherscan.io/tx/0x3dfa021933824e325e736b1afbc2831ffa296e7088dce619908d2b266d9a453d"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Already credited\\\",\\\"code\\\":\\\"D13\\\",\\\"terms\\\":[\\\"cs-1058\\\",\\\"c-12107\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"tejcce5lc49r7udrrtpwi3iwybdeqfp9rw\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"0xa5381f3a204aac59d1d5bf86b4f7585e89076daa\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\"]},{\\\"id\\\":\\\"CS-1043\\\",\\\"customerId\\\":\\\"C-10611\\\",\\\"label\\\":\\\"Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b276",
+   "bulk_code": "D13",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "ETH-05",
+   "category": "on-chain, not credited",
+   "chain": "ethereum",
+   "expected": "D12",
+   "expected_findings": [],
+   "tx_hash": "0x386aa675227e9e49f9ab2daa1bde962f76f30e5b6d02a84b0c9d73c36c6c7c96",
+   "http": 200,
+   "secs": 15.99,
+   "got": "D12",
+   "confidence": "High",
+   "title": "Arrived on-chain, not credited",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://etherscan.io/tx/0x386aa675227e9e49f9ab2daa1bde962f76f30e5b6d02a84b0c9d73c36c6c7c96",
+    "https://etherscan.io/tx/0x386aa675227e9e49f9ab2daa1bde962f76f30e5b6d02a84b0c9d73c36c6c7c96"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\"]},{\\\"id\\\":\\\"CS-1051\\\",\\\"customerId\\\":\\\"C-11307\\\",\\\"label\\\":\\\"Not found on any chain\\\",\\\"code\\\":\\\"D01\\\",\\\"terms\\\":[\\\"cs-1051\\\",\\\"c-11307\\\",\\\"49bb4de64adab743d73f2f92b6c1de5f2e1bbd551e93aa6647348be49e40e526\\\",\\\"twuayvio8zzyu7rmkukpjwlfdjnkzsl4uu\\\",\\\"0xba0518e68d46d8c89f3efd2bbd88fd11ea36023e\\\"]},{\\\"id\\\":\\\"CS-1041\\\",\\\"customerId\\\":\\\"C-10422\\\",\\\"label\\\":",
+   "bulk_code": "D12",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "ETH-06",
+   "category": "wrong address (not ours)",
+   "chain": "ethereum",
+   "expected": "D07",
+   "expected_findings": [],
+   "tx_hash": "0xb72cc77b5d18dacb9891116cec58a3887bdacfc720659382753657ef7424d820",
+   "http": 200,
+   "secs": 15.43,
+   "got": "D07",
+   "confidence": "High",
+   "title": "Wrong address",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://etherscan.io/tx/0xb72cc77b5d18dacb9891116cec58a3887bdacfc720659382753657ef7424d820",
+    "https://etherscan.io/tx/0xb72cc77b5d18dacb9891116cec58a3887bdacfc720659382753657ef7424d820"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Wrong address\\\",\\\"code\\\":\\\"D07\\\",\\\"terms\\\":[\\\"cs-1047\\\",\\\"c-10422\\\",\\\"14e497702e7c2a46aae6a84268785dbfc99d64f6fa33371edfdfd7ab899bf4e4\\\",\\\"tc3vnlzstqbbrancqlhxjz2f3ht5dt3oym\\\",\\\"0xca90edc9d82f01d7a3abb85d3ad527cffce8588e\\\",\\\"14e497702e7c2a46aae6a84268785dbfc99d64f6fa33371edfdfd7ab899bf4e4\\\",\\\"0x1d4e221ed85f128b348fdb2628f950206b5e3485\\\"]},{\\\"id\\\":\\\"CS-1056\\\",\\\"customerId\\\":\\\"C-11957\\\",\\\"label\\\":\\\"Rejected by company\\\",\\\"code\\\":\\\"D16\\\",\\\"terms\\\":[\\\"cs-1056\\\",\\\"c-11957\\\",\\\"8cc1047f45dff26f340fdbcaa0a9e8f327d2962cfd43f139ee07de597268788b\\\",\\\"tgxlqgqagvl6qeccfxf4ojkx5khlhzbtbw\\\",\\\"0x50fb0cb13de74274ab1fe3d21a8ad97c168e4a17\\\",\\\"8cc1047f45dff26f340fdbcaa0a9e8f327d2962cfd43f139ee07de597268788b\\\",\\\"",
+   "bulk_code": "D07",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "ETH-07",
+   "category": "below minimum",
+   "chain": "ethereum",
+   "expected": "D08",
+   "expected_findings": [],
+   "tx_hash": "0xdfda625b602bf5d4f9e38a72c52fc4e7521e4e276eb56191206eb783c8f67f87",
+   "http": 200,
+   "secs": 18.62,
+   "got": "D08",
+   "confidence": "High",
+   "title": "Below minimum deposit",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://etherscan.io/tx/0xdfda625b602bf5d4f9e38a72c52fc4e7521e4e276eb56191206eb783c8f67f87",
+    "https://etherscan.io/tx/0xdfda625b602bf5d4f9e38a72c52fc4e7521e4e276eb56191206eb783c8f67f87"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Below minimum deposit\\\",\\\"code\\\":\\\"D08\\\",\\\"terms\\\":[\\\"cs-1049\\\",\\\"c-11140\\\",\\\"1c1efad8377ad8955729ba8849a7dddfb0cae83a6ba8ea328ed80266b9d93e05\\\",\\\"taned1ybnxabgwbpsz1u3qr4uzafalodbv\\\",\\\"0x3442580a80cb4d6d047dc62c401c03cd854eba5a\\\",\\\"1c1efad8377ad8955729ba8849a7dddfb0cae83a6ba8ea328ed80266b9d93e05\\\",\\\"taned1ybnxabgwbpsz1u3qr4uzafalodbv\\\"]},{\\\"id\\\":\\\"CS-1046\\\",\\\"customerId\\\":\\\"C-10915\\\",\\\"label\\\":\\\"Fake token\\\",\\\"code\\\":\\\"D06\\\",\\\"terms\\\":[\\\"cs-1046\\\",\\\"c-10915\\\",\\\"3298150b1984c1026dbc2ac8fcc6023aa6c1f2a6c782e7332e83f4191d987b13\\\",\\\"tl2zbv47fyj7rofppz2kjv9jvgl5bv162m\\\",\\\"0xecb1d839458f2cabdb1feabc5e65e18e8bf94ae3\\\",\\\"3298150b1984c1026dbc2ac8fcc6023aa6c1f2a6c782e7332e83f4191d987b13\\\",\\\"tl2zbv47f",
+   "bulk_code": "D08",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "ETH-08",
+   "category": "unsupported token",
+   "chain": "ethereum",
+   "expected": "D05",
+   "expected_findings": [],
+   "tx_hash": "0xd202d1bf3acb3052c1f6bc2690728eaa896dc41445658d57b6b93ada1ceda5de",
+   "http": 200,
+   "secs": 17.64,
+   "got": "D05",
+   "confidence": "High",
+   "title": "Unsupported token",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://etherscan.io/tx/0xd202d1bf3acb3052c1f6bc2690728eaa896dc41445658d57b6b93ada1ceda5de",
+    "https://etherscan.io/tx/0xd202d1bf3acb3052c1f6bc2690728eaa896dc41445658d57b6b93ada1ceda5de"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Unsupported token\\\",\\\"code\\\":\\\"D05\\\",\\\"terms\\\":[\\\"cs-1045\\\",\\\"c-10802\\\",\\\"dcb54da22a271c91e4961ff3181b9ee2469b2884cbde264d6a16ead959c11d03\\\",\\\"tujnnrvmpngnw72jwg8gnz4ztwbst514xg\\\",\\\"0x25faa207764baa505cd945391589b8467d388d5c\\\",\\\"dcb54da22a271c91e4961ff3181b9ee2469b2884cbde264d6a16ead959c11d03\\\",\\\"0x25faa207764baa505cd945391589b8467d388d5c\\\"]},{\\\"id\\\":\\\"CS-1061\\\",\\\"customerId\\\":\\\"C-12350\\\",\\\"label\\\":\\\"Sent to another customer's address\\\",\\\"code\\\":\\\"D17\\\",\\\"terms\\\":[\\\"cs-1061\\\",\\\"c-12350\\\",\\\"60712b920ee16c60caea226d6b7115a9434799afb475b8bc8290d6ae1fcb6f43\\\",\\\"tsynx8bm7y5hh2hetitmu6jypjjgdqrpth\\\",\\\"0x8674bccc26fbeab2fa5e08ae8dfee3b6808be6b7\\\",\\\"60712b920ee16c60caea226d6b7115a9434799afb475b8bc82",
+   "bulk_code": "D05",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "BSC-01",
+   "category": "normal (credited)",
+   "chain": "bsc",
+   "expected": "D13",
+   "expected_findings": [],
+   "tx_hash": "0x275afee98ebe7d4f0a45d86c3321d8e334572f3ae194be66f8dc88ca51c9cb7a",
+   "http": 200,
+   "secs": 16.17,
+   "got": "D13",
+   "confidence": "High",
+   "title": "Already credited",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://bscscan.com/tx/0x275afee98ebe7d4f0a45d86c3321d8e334572f3ae194be66f8dc88ca51c9cb7a",
+    "https://bscscan.com/tx/0x275afee98ebe7d4f0a45d86c3321d8e334572f3ae194be66f8dc88ca51c9cb7a"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Already credited\\\",\\\"code\\\":\\\"D13\\\",\\\"terms\\\":[\\\"cs-1058\\\",\\\"c-12107\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"tejcce5lc49r7udrrtpwi3iwybdeqfp9rw\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"0xa5381f3a204aac59d1d5bf86b4f7585e89076daa\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\"]},{\\\"id\\\":\\\"CS-1043\\\",\\\"customerId\\\":\\\"C-10611\\\",\\\"label\\\":\\\"Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b276",
+   "bulk_code": "D13",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "BSC-02",
+   "category": "normal (credited)",
+   "chain": "bsc",
+   "expected": "D13",
+   "expected_findings": [],
+   "tx_hash": "0x8c0140263ea556c8b8d38dfc287bfd179bfc35d28e3f7021d9ddb508189e5e16",
+   "http": 200,
+   "secs": 14.51,
+   "got": "D13",
+   "confidence": "High",
+   "title": "Already credited",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://bscscan.com/tx/0x8c0140263ea556c8b8d38dfc287bfd179bfc35d28e3f7021d9ddb508189e5e16",
+    "https://bscscan.com/tx/0x8c0140263ea556c8b8d38dfc287bfd179bfc35d28e3f7021d9ddb508189e5e16"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Already credited\\\",\\\"code\\\":\\\"D13\\\",\\\"terms\\\":[\\\"cs-1058\\\",\\\"c-12107\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"tejcce5lc49r7udrrtpwi3iwybdeqfp9rw\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"0xa5381f3a204aac59d1d5bf86b4f7585e89076daa\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\"]},{\\\"id\\\":\\\"CS-1043\\\",\\\"customerId\\\":\\\"C-10611\\\",\\\"label\\\":\\\"Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b276",
+   "bulk_code": "D13",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "BSC-03",
+   "category": "normal (credited)",
+   "chain": "bsc",
+   "expected": "D13",
+   "expected_findings": [],
+   "tx_hash": "0x4f99331ec9dc81439ecd5942f38bd9daf0ae18fb1e88c052f0542b6de040d723",
+   "http": 200,
+   "secs": 17.05,
+   "got": "D13",
+   "confidence": "High",
+   "title": "Already credited",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://bscscan.com/tx/0x4f99331ec9dc81439ecd5942f38bd9daf0ae18fb1e88c052f0542b6de040d723",
+    "https://bscscan.com/tx/0x4f99331ec9dc81439ecd5942f38bd9daf0ae18fb1e88c052f0542b6de040d723"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Already credited\\\",\\\"code\\\":\\\"D13\\\",\\\"terms\\\":[\\\"cs-1058\\\",\\\"c-12107\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"tejcce5lc49r7udrrtpwi3iwybdeqfp9rw\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\",\\\"dda391ab121b5d794f706c1188e11b0cf282fb3e4842bcbaeb757e7af841dc4e\\\",\\\"0xa5381f3a204aac59d1d5bf86b4f7585e89076daa\\\",\\\"0xbebb123a0410679241de9ad031fe61cf5f9b6f2d\\\"]},{\\\"id\\\":\\\"CS-1043\\\",\\\"customerId\\\":\\\"C-10611\\\",\\\"label\\\":\\\"Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b276",
+   "bulk_code": "D13",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "BSC-04",
+   "category": "on-chain, not credited",
+   "chain": "bsc",
+   "expected": "D12",
+   "expected_findings": [],
+   "tx_hash": "0xdd8baa4abef024b126534902659009535c55480ff69fdf11a07dc13d0ab858aa",
+   "http": 200,
+   "secs": 17.48,
+   "got": "D12",
+   "confidence": "High",
+   "title": "Arrived on-chain, not credited",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://bscscan.com/tx/0xdd8baa4abef024b126534902659009535c55480ff69fdf11a07dc13d0ab858aa",
+    "https://bscscan.com/tx/0xdd8baa4abef024b126534902659009535c55480ff69fdf11a07dc13d0ab858aa"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\"]},{\\\"id\\\":\\\"CS-1051\\\",\\\"customerId\\\":\\\"C-11307\\\",\\\"label\\\":\\\"Not found on any chain\\\",\\\"code\\\":\\\"D01\\\",\\\"terms\\\":[\\\"cs-1051\\\",\\\"c-11307\\\",\\\"49bb4de64adab743d73f2f92b6c1de5f2e1bbd551e93aa6647348be49e40e526\\\",\\\"twuayvio8zzyu7rmkukpjwlfdjnkzsl4uu\\\",\\\"0xba0518e68d46d8c89f3efd2bbd88fd11ea36023e\\\"]},{\\\"id\\\":\\\"CS-1041\\\",\\\"customerId\\\":\\\"C-10422\\\",\\\"label\\\":",
+   "bulk_code": "D12",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "BSC-05",
+   "category": "below minimum",
+   "chain": "bsc",
+   "expected": "D08",
+   "expected_findings": [],
+   "tx_hash": "0xec932cb4779d954ca8d4a73c38f7607598d04f6a2c6b2e0e4956a8ed3443319c",
+   "http": 200,
+   "secs": 17.96,
+   "got": "D08",
+   "confidence": "High",
+   "title": "Below minimum deposit",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://bscscan.com/tx/0xec932cb4779d954ca8d4a73c38f7607598d04f6a2c6b2e0e4956a8ed3443319c",
+    "https://bscscan.com/tx/0xec932cb4779d954ca8d4a73c38f7607598d04f6a2c6b2e0e4956a8ed3443319c"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Below minimum deposit\\\",\\\"code\\\":\\\"D08\\\",\\\"terms\\\":[\\\"cs-1049\\\",\\\"c-11140\\\",\\\"1c1efad8377ad8955729ba8849a7dddfb0cae83a6ba8ea328ed80266b9d93e05\\\",\\\"taned1ybnxabgwbpsz1u3qr4uzafalodbv\\\",\\\"0x3442580a80cb4d6d047dc62c401c03cd854eba5a\\\",\\\"1c1efad8377ad8955729ba8849a7dddfb0cae83a6ba8ea328ed80266b9d93e05\\\",\\\"taned1ybnxabgwbpsz1u3qr4uzafalodbv\\\"]},{\\\"id\\\":\\\"CS-1046\\\",\\\"customerId\\\":\\\"C-10915\\\",\\\"label\\\":\\\"Fake token\\\",\\\"code\\\":\\\"D06\\\",\\\"terms\\\":[\\\"cs-1046\\\",\\\"c-10915\\\",\\\"3298150b1984c1026dbc2ac8fcc6023aa6c1f2a6c782e7332e83f4191d987b13\\\",\\\"tl2zbv47fyj7rofppz2kjv9jvgl5bv162m\\\",\\\"0xecb1d839458f2cabdb1feabc5e65e18e8bf94ae3\\\",\\\"3298150b1984c1026dbc2ac8fcc6023aa6c1f2a6c782e7332e83f4191d987b13\\\",\\\"tl2zbv47f",
+   "bulk_code": "D08",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "BSC-06",
+   "category": "unsupported token",
+   "chain": "bsc",
+   "expected": "D05",
+   "expected_findings": [],
+   "tx_hash": "0x3d4c0415af8c027e5b6e1431791fa8cd1ca90c7c91fc99ac59d0ef222db073a4",
+   "http": 200,
+   "secs": 15.58,
+   "got": "D05",
+   "confidence": "High",
+   "title": "Unsupported token",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://bscscan.com/tx/0x3d4c0415af8c027e5b6e1431791fa8cd1ca90c7c91fc99ac59d0ef222db073a4",
+    "https://bscscan.com/tx/0x3d4c0415af8c027e5b6e1431791fa8cd1ca90c7c91fc99ac59d0ef222db073a4"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Unsupported token\\\",\\\"code\\\":\\\"D05\\\",\\\"terms\\\":[\\\"cs-1045\\\",\\\"c-10802\\\",\\\"dcb54da22a271c91e4961ff3181b9ee2469b2884cbde264d6a16ead959c11d03\\\",\\\"tujnnrvmpngnw72jwg8gnz4ztwbst514xg\\\",\\\"0x25faa207764baa505cd945391589b8467d388d5c\\\",\\\"dcb54da22a271c91e4961ff3181b9ee2469b2884cbde264d6a16ead959c11d03\\\",\\\"0x25faa207764baa505cd945391589b8467d388d5c\\\"]},{\\\"id\\\":\\\"CS-1061\\\",\\\"customerId\\\":\\\"C-12350\\\",\\\"label\\\":\\\"Sent to another customer's address\\\",\\\"code\\\":\\\"D17\\\",\\\"terms\\\":[\\\"cs-1061\\\",\\\"c-12350\\\",\\\"60712b920ee16c60caea226d6b7115a9434799afb475b8bc8290d6ae1fcb6f43\\\",\\\"tsynx8bm7y5hh2hetitmu6jypjjgdqrpth\\\",\\\"0x8674bccc26fbeab2fa5e08ae8dfee3b6808be6b7\\\",\\\"60712b920ee16c60caea226d6b7115a9434799afb475b8bc82",
+   "bulk_code": "D05",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "NET-POL",
+   "category": "wrong network",
+   "chain": "polygon",
+   "expected": "D04",
+   "expected_findings": [],
+   "tx_hash": "0x5170bfafbd0f1ebe0f401507f8f492846d4d1fb468e5ed2ce1c73c1e99ea9f89",
+   "http": 200,
+   "secs": 1.43,
+   "got": "D04",
+   "confidence": "High",
+   "title": "Wrong network",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://polygonscan.com/tx/0x5170bfafbd0f1ebe0f401507f8f492846d4d1fb468e5ed2ce1c73c1e99ea9f89",
+    "https://polygonscan.com/tx/0x5170bfafbd0f1ebe0f401507f8f492846d4d1fb468e5ed2ce1c73c1e99ea9f89"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Wrong network\\\",\\\"code\\\":\\\"D04\\\",\\\"terms\\\":[\\\"cs-1044\\\",\\\"c-10734\\\",\\\"5b79f5ceeebdc302daaafd66dd485affcecae53a59d211dff2281650a13a01f3\\\",\\\"tdhyb3dggd6f1imkvq5ljeknvtd6vutpud\\\",\\\"0x04acd88cb4567824600160af99b4fd4da06ec048\\\",\\\"5b79f5ceeebdc302daaafd66dd485affcecae53a59d211dff2281650a13a01f3\\\",\\\"0x04acd88cb4567824600160af99b4fd4da06ec048\\\"]},{\\\"id\\\":\\\"CS-1062\\\",\\\"customerId\\\":\\\"C-12412\\\",\\\"label\\\":\\\"Sent to a retired address\\\",\\\"code\\\":\\\"D18\\\",\\\"terms\\\":[\\\"cs-1062\\\",\\\"c-12412\\\",\\\"0f91779a81569ae4780e7f4b930c507163a687f9e817e08245b85d83a1f01f85\\\",\\\"tllh84jamuzrbzz4a3bftcdzprmupgcwuq\\\",\\\"0x49e64e81285b895a6d08ece77e84f664ee9ff66c\\\",\\\"tr8ebt8aunjvldnkbj8q8bqr4gokkwyrfy\\\",\\\"0f91779a81569ae4780e7f4b",
+   "bulk_code": "D04",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "NET-ARB",
+   "category": "wrong network",
+   "chain": "arbitrum",
+   "expected": "D04",
+   "expected_findings": [],
+   "tx_hash": "0x54ab00b5d4440c9ad719f9f5f721d4d18e589352c5beaf6ef9e3c009f3d78495",
+   "http": 200,
+   "secs": 17.58,
+   "got": "PAUSED",
+   "confidence": "Paused",
+   "title": "Check paused: Polygon, Arbitrum not responding",
+   "findings": [],
+   "correct": false,
+   "missing_findings": [],
+   "explorer_links": [],
+   "links_ok": null,
+   "page_text_excerpt": "Check paused: Polygon, Arbitrum not responding No verdict is guessed while a chain is unreachable. Last attempt 2026-10-24 23:50 SGT. Confidence Paused Explanation Template text The check is paused because a chain could not be reached, so no verdict is given. [ lookup ] Evidence Highlighted rows are cited by the verdict Customer instruction Info Reported by SAMPLE-C030 Hash 0x54ab00…f3d78495 0x54ab00b5d4440c9ad719f9f5f721d4d18e589352c5beaf6ef9e3c009f3d78495 Ticket Chain lookup Check Check paused on Polygon, Arbitrum Tron: not found at 2026-10-24 23:50 SGT Ethereum: not found at 2026-10-24 23:50 SGT BNB Chain: not found at 2026-10-24 23:50 SGT Polygon: error (public-rpc HTTP 403) at 2026-10-2",
+   "bulk_code": null,
+   "bulk_state": "paused"
+  },
+  {
+   "id": "NET-BAS",
+   "category": "wrong network",
+   "chain": "base",
+   "expected": "D04",
+   "expected_findings": [],
+   "tx_hash": "0x9ff6bcd0c35a5271c5fa59989816a3ca2203f4b7b7a82b8add7fd6c3c76e095b",
+   "http": 200,
+   "secs": 17.08,
+   "got": "D04",
+   "confidence": "High",
+   "title": "Wrong network",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://basescan.org/tx/0x9ff6bcd0c35a5271c5fa59989816a3ca2203f4b7b7a82b8add7fd6c3c76e095b",
+    "https://basescan.org/tx/0x9ff6bcd0c35a5271c5fa59989816a3ca2203f4b7b7a82b8add7fd6c3c76e095b"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Wrong network\\\",\\\"code\\\":\\\"D04\\\",\\\"terms\\\":[\\\"cs-1044\\\",\\\"c-10734\\\",\\\"5b79f5ceeebdc302daaafd66dd485affcecae53a59d211dff2281650a13a01f3\\\",\\\"tdhyb3dggd6f1imkvq5ljeknvtd6vutpud\\\",\\\"0x04acd88cb4567824600160af99b4fd4da06ec048\\\",\\\"5b79f5ceeebdc302daaafd66dd485affcecae53a59d211dff2281650a13a01f3\\\",\\\"0x04acd88cb4567824600160af99b4fd4da06ec048\\\"]},{\\\"id\\\":\\\"CS-1062\\\",\\\"customerId\\\":\\\"C-12412\\\",\\\"label\\\":\\\"Sent to a retired address\\\",\\\"code\\\":\\\"D18\\\",\\\"terms\\\":[\\\"cs-1062\\\",\\\"c-12412\\\",\\\"0f91779a81569ae4780e7f4b930c507163a687f9e817e08245b85d83a1f01f85\\\",\\\"tllh84jamuzrbzz4a3bftcdzprmupgcwuq\\\",\\\"0x49e64e81285b895a6d08ece77e84f664ee9ff66c\\\",\\\"tr8ebt8aunjvldnkbj8q8bqr4gokkwyrfy\\\",\\\"0f91779a81569ae4780e7f4b",
+   "bulk_code": "D04",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FAIL-T1",
+   "category": "failed (out of energy)",
+   "chain": "tron",
+   "expected": "D03",
+   "expected_findings": [],
+   "tx_hash": "66a11764690c76dd85f9147ecf8b9a6c153507190de53bcfd63e20a14f6e898e",
+   "http": 200,
+   "secs": 19.41,
+   "got": "D03",
+   "confidence": "High",
+   "title": "Transaction failed",
+   "findings": [
+    "D01",
+    "D04"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://tronscan.org/#/transaction/66a11764690c76dd85f9147ecf8b9a6c153507190de53bcfd63e20a14f6e898e",
+    "https://tronscan.org/#/transaction/66a11764690c76dd85f9147ecf8b9a6c153507190de53bcfd63e20a14f6e898e"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\"]},{\\\"id\\\":\\\"CS-1059\\\",\\\"customerId\\\":\\\"C-12230\\\",\\\"label\\\":\\\"Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4",
+   "bulk_code": "D03",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FAIL-T2",
+   "category": "failed (out of energy)",
+   "chain": "tron",
+   "expected": "D03",
+   "expected_findings": [],
+   "tx_hash": "676d5c0a444142f5cba377586b7650d20173bb5a628a32268b33c57519c3727f",
+   "http": 200,
+   "secs": 19.71,
+   "got": "D03",
+   "confidence": "High",
+   "title": "Transaction failed",
+   "findings": [
+    "D01",
+    "D04"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://tronscan.org/#/transaction/676d5c0a444142f5cba377586b7650d20173bb5a628a32268b33c57519c3727f",
+    "https://tronscan.org/#/transaction/676d5c0a444142f5cba377586b7650d20173bb5a628a32268b33c57519c3727f"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\"]},{\\\"id\\\":\\\"CS-1059\\\",\\\"customerId\\\":\\\"C-12230\\\",\\\"label\\\":\\\"Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4",
+   "bulk_code": "D03",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FAIL-T3",
+   "category": "failed (out of energy)",
+   "chain": "tron",
+   "expected": "D03",
+   "expected_findings": [],
+   "tx_hash": "ddf2072ae288713a837e620b7474c914ebe1c948be4e0639a891d6ea380d4895",
+   "http": 200,
+   "secs": 18.97,
+   "got": "D03",
+   "confidence": "High",
+   "title": "Transaction failed",
+   "findings": [
+    "D01",
+    "D04"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://tronscan.org/#/transaction/ddf2072ae288713a837e620b7474c914ebe1c948be4e0639a891d6ea380d4895",
+    "https://tronscan.org/#/transaction/ddf2072ae288713a837e620b7474c914ebe1c948be4e0639a891d6ea380d4895"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\"]},{\\\"id\\\":\\\"CS-1059\\\",\\\"customerId\\\":\\\"C-12230\\\",\\\"label\\\":\\\"Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4",
+   "bulk_code": "D03",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FAIL-E1",
+   "category": "failed (reverted)",
+   "chain": "ethereum",
+   "expected": "D03",
+   "expected_findings": [],
+   "tx_hash": "0x05312625892fd7cf7ba5164b81b28a4421ea92faeb9eb5d6d800c9ba759c6c7f",
+   "http": 200,
+   "secs": 17.91,
+   "got": "D03",
+   "confidence": "High",
+   "title": "Transaction failed",
+   "findings": [
+    "D01",
+    "D04"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://etherscan.io/tx/0x05312625892fd7cf7ba5164b81b28a4421ea92faeb9eb5d6d800c9ba759c6c7f",
+    "https://etherscan.io/tx/0x05312625892fd7cf7ba5164b81b28a4421ea92faeb9eb5d6d800c9ba759c6c7f"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\"]},{\\\"id\\\":\\\"CS-1059\\\",\\\"customerId\\\":\\\"C-12230\\\",\\\"label\\\":\\\"Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4",
+   "bulk_code": "D03",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FAIL-E2",
+   "category": "failed (reverted)",
+   "chain": "ethereum",
+   "expected": "D03",
+   "expected_findings": [],
+   "tx_hash": "0xa7ac8e4487522df3012972b378b7c0939c8a9749a1dec41635fa4b79e2561adb",
+   "http": 200,
+   "secs": 18.59,
+   "got": "D03",
+   "confidence": "High",
+   "title": "Transaction failed",
+   "findings": [
+    "D01",
+    "D04"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://etherscan.io/tx/0xa7ac8e4487522df3012972b378b7c0939c8a9749a1dec41635fa4b79e2561adb",
+    "https://etherscan.io/tx/0xa7ac8e4487522df3012972b378b7c0939c8a9749a1dec41635fa4b79e2561adb"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\"]},{\\\"id\\\":\\\"CS-1059\\\",\\\"customerId\\\":\\\"C-12230\\\",\\\"label\\\":\\\"Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4",
+   "bulk_code": "D03",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FAIL-E3",
+   "category": "failed (reverted)",
+   "chain": "ethereum",
+   "expected": "D03",
+   "expected_findings": [],
+   "tx_hash": "0x2cf7c97ea7996f12a71b358e8782a2380b163053b62be9609d72092ca0197b0c",
+   "http": 200,
+   "secs": 18.9,
+   "got": "D03",
+   "confidence": "High",
+   "title": "Transaction failed",
+   "findings": [
+    "D01",
+    "D04"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://etherscan.io/tx/0x2cf7c97ea7996f12a71b358e8782a2380b163053b62be9609d72092ca0197b0c",
+    "https://etherscan.io/tx/0x2cf7c97ea7996f12a71b358e8782a2380b163053b62be9609d72092ca0197b0c"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\"]},{\\\"id\\\":\\\"CS-1059\\\",\\\"customerId\\\":\\\"C-12230\\\",\\\"label\\\":\\\"Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4",
+   "bulk_code": "D03",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FAIL-B1",
+   "category": "failed (reverted)",
+   "chain": "bsc",
+   "expected": "D03",
+   "expected_findings": [],
+   "tx_hash": "0x52a198d6ce3c7fd93c30f9fa6d80965961209b5e2df02e94f3a0164ac89ffd1b",
+   "http": 200,
+   "secs": 18.16,
+   "got": "D03",
+   "confidence": "High",
+   "title": "Transaction failed",
+   "findings": [
+    "D01",
+    "D04"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://bscscan.com/tx/0x52a198d6ce3c7fd93c30f9fa6d80965961209b5e2df02e94f3a0164ac89ffd1b",
+    "https://bscscan.com/tx/0x52a198d6ce3c7fd93c30f9fa6d80965961209b5e2df02e94f3a0164ac89ffd1b"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\"]},{\\\"id\\\":\\\"CS-1059\\\",\\\"customerId\\\":\\\"C-12230\\\",\\\"label\\\":\\\"Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4",
+   "bulk_code": "D03",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FRZ-TD1",
+   "category": "deposit from a now-frozen sender",
+   "chain": "tron",
+   "expected": "D09",
+   "expected_findings": [],
+   "tx_hash": "241d18a60ab488d03e99405213c51905b9dda4cdefa553a8f87123390b4331f2",
+   "http": 200,
+   "secs": 17.47,
+   "got": "D09",
+   "confidence": "High",
+   "title": "Issuer freeze",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://tronscan.org/#/transaction/241d18a60ab488d03e99405213c51905b9dda4cdefa553a8f87123390b4331f2",
+    "https://tronscan.org/#/transaction/241d18a60ab488d03e99405213c51905b9dda4cdefa553a8f87123390b4331f2"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Issuer freeze\\\",\\\"code\\\":\\\"D09\\\",\\\"terms\\\":[\\\"cs-1050\\\",\\\"c-11263\\\",\\\"a48defa89cd3e2558592ce35b3ded0de643181112e757a9a8ffdf8176c8c22bd\\\",\\\"tsvuzrqtjkahy6pzqpmkoz6xp5p2zrjkys\\\",\\\"0x8a4c0bfcdb9d072b4bb8957f10ec7eecfd67da11\\\",\\\"a48defa89cd3e2558592ce35b3ded0de643181112e757a9a8ffdf8176c8c22bd\\\",\\\"tsvuzrqtjkahy6pzqpmkoz6xp5p2zrjkys\\\"]},{\\\"id\\\":\\\"CS-1049\\\",\\\"customerId\\\":\\\"C-11140\\\",\\\"label\\\":\\\"Below minimum deposit\\\",\\\"code\\\":\\\"D08\\\",\\\"terms\\\":[\\\"cs-1049\\\",\\\"c-11140\\\",\\\"1c1efad8377ad8955729ba8849a7dddfb0cae83a6ba8ea328ed80266b9d93e05\\\",\\\"taned1ybnxabgwbpsz1u3qr4uzafalodbv\\\",\\\"0x3442580a80cb4d6d047dc62c401c03cd854eba5a\\\",\\\"1c1efad8377ad8955729ba8849a7dddfb0cae83a6ba8ea328ed80266b9d93e05\\\",\\\"taned1",
+   "bulk_code": "D09",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FRZ-TF1",
+   "category": "frozen sender, transfer reverted",
+   "chain": "tron",
+   "expected": "D03",
+   "expected_findings": [
+    "D09"
+   ],
+   "tx_hash": "f6973c9c864818871aa63eceb9ab9098e1cd3588abdaa37d044c764852478abd",
+   "http": 200,
+   "secs": 15.14,
+   "got": "D03",
+   "confidence": "High",
+   "title": "Transaction failed",
+   "findings": [
+    "D01",
+    "D04",
+    "D07b"
+   ],
+   "correct": true,
+   "missing_findings": [
+    "D09"
+   ],
+   "explorer_links": [
+    "https://tronscan.org/#/transaction/f6973c9c864818871aa63eceb9ab9098e1cd3588abdaa37d044c764852478abd",
+    "https://tronscan.org/#/transaction/f6973c9c864818871aa63eceb9ab9098e1cd3588abdaa37d044c764852478abd"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\"]},{\\\"id\\\":\\\"CS-1059\\\",\\\"customerId\\\":\\\"C-12230\\\",\\\"label\\\":\\\"Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4",
+   "bulk_code": "D03",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FRZ-TD2",
+   "category": "deposit from a now-frozen sender",
+   "chain": "tron",
+   "expected": "D09",
+   "expected_findings": [],
+   "tx_hash": "15376d47ec702e36335bb1d65bce04750ad47f0f40f29adf7b420f51cba3343b",
+   "http": 200,
+   "secs": 16.16,
+   "got": "D09",
+   "confidence": "High",
+   "title": "Issuer freeze",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://tronscan.org/#/transaction/15376d47ec702e36335bb1d65bce04750ad47f0f40f29adf7b420f51cba3343b",
+    "https://tronscan.org/#/transaction/15376d47ec702e36335bb1d65bce04750ad47f0f40f29adf7b420f51cba3343b"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Issuer freeze\\\",\\\"code\\\":\\\"D09\\\",\\\"terms\\\":[\\\"cs-1050\\\",\\\"c-11263\\\",\\\"a48defa89cd3e2558592ce35b3ded0de643181112e757a9a8ffdf8176c8c22bd\\\",\\\"tsvuzrqtjkahy6pzqpmkoz6xp5p2zrjkys\\\",\\\"0x8a4c0bfcdb9d072b4bb8957f10ec7eecfd67da11\\\",\\\"a48defa89cd3e2558592ce35b3ded0de643181112e757a9a8ffdf8176c8c22bd\\\",\\\"tsvuzrqtjkahy6pzqpmkoz6xp5p2zrjkys\\\"]},{\\\"id\\\":\\\"CS-1049\\\",\\\"customerId\\\":\\\"C-11140\\\",\\\"label\\\":\\\"Below minimum deposit\\\",\\\"code\\\":\\\"D08\\\",\\\"terms\\\":[\\\"cs-1049\\\",\\\"c-11140\\\",\\\"1c1efad8377ad8955729ba8849a7dddfb0cae83a6ba8ea328ed80266b9d93e05\\\",\\\"taned1ybnxabgwbpsz1u3qr4uzafalodbv\\\",\\\"0x3442580a80cb4d6d047dc62c401c03cd854eba5a\\\",\\\"1c1efad8377ad8955729ba8849a7dddfb0cae83a6ba8ea328ed80266b9d93e05\\\",\\\"taned1",
+   "bulk_code": "D09",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FRZ-TD3",
+   "category": "deposit from a now-frozen sender",
+   "chain": "tron",
+   "expected": "D09",
+   "expected_findings": [],
+   "tx_hash": "64e21b285cfefb2fc23346f541ba0e3d4ca530ca14b17c6f22d5e1a77291554c",
+   "http": 200,
+   "secs": 15.96,
+   "got": "D09",
+   "confidence": "High",
+   "title": "Issuer freeze",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://tronscan.org/#/transaction/64e21b285cfefb2fc23346f541ba0e3d4ca530ca14b17c6f22d5e1a77291554c",
+    "https://tronscan.org/#/transaction/64e21b285cfefb2fc23346f541ba0e3d4ca530ca14b17c6f22d5e1a77291554c"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Issuer freeze\\\",\\\"code\\\":\\\"D09\\\",\\\"terms\\\":[\\\"cs-1050\\\",\\\"c-11263\\\",\\\"a48defa89cd3e2558592ce35b3ded0de643181112e757a9a8ffdf8176c8c22bd\\\",\\\"tsvuzrqtjkahy6pzqpmkoz6xp5p2zrjkys\\\",\\\"0x8a4c0bfcdb9d072b4bb8957f10ec7eecfd67da11\\\",\\\"a48defa89cd3e2558592ce35b3ded0de643181112e757a9a8ffdf8176c8c22bd\\\",\\\"tsvuzrqtjkahy6pzqpmkoz6xp5p2zrjkys\\\"]},{\\\"id\\\":\\\"CS-1049\\\",\\\"customerId\\\":\\\"C-11140\\\",\\\"label\\\":\\\"Below minimum deposit\\\",\\\"code\\\":\\\"D08\\\",\\\"terms\\\":[\\\"cs-1049\\\",\\\"c-11140\\\",\\\"1c1efad8377ad8955729ba8849a7dddfb0cae83a6ba8ea328ed80266b9d93e05\\\",\\\"taned1ybnxabgwbpsz1u3qr4uzafalodbv\\\",\\\"0x3442580a80cb4d6d047dc62c401c03cd854eba5a\\\",\\\"1c1efad8377ad8955729ba8849a7dddfb0cae83a6ba8ea328ed80266b9d93e05\\\",\\\"taned1",
+   "bulk_code": "D09",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FRZ-TF2",
+   "category": "frozen sender, transfer reverted",
+   "chain": "tron",
+   "expected": "D03",
+   "expected_findings": [
+    "D09"
+   ],
+   "tx_hash": "276ea8e898baf24bbb4f89f8b8baa7960875858a689f0c208d13136a8a1c4881",
+   "http": 200,
+   "secs": 19.21,
+   "got": "D03",
+   "confidence": "High",
+   "title": "Transaction failed",
+   "findings": [
+    "D01",
+    "D04",
+    "D07b"
+   ],
+   "correct": true,
+   "missing_findings": [
+    "D09"
+   ],
+   "explorer_links": [
+    "https://tronscan.org/#/transaction/276ea8e898baf24bbb4f89f8b8baa7960875858a689f0c208d13136a8a1c4881",
+    "https://tronscan.org/#/transaction/276ea8e898baf24bbb4f89f8b8baa7960875858a689f0c208d13136a8a1c4881"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\"]},{\\\"id\\\":\\\"CS-1059\\\",\\\"customerId\\\":\\\"C-12230\\\",\\\"label\\\":\\\"Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4",
+   "bulk_code": "D03",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FRZ-EF1",
+   "category": "frozen sender, transfer reverted",
+   "chain": "ethereum",
+   "expected": "D03",
+   "expected_findings": [
+    "D09"
+   ],
+   "tx_hash": "0xb914a448d77116304135c4479b66994638ff689e7cb3670d884c93192d4d14be",
+   "http": 200,
+   "secs": 15.78,
+   "got": "D03",
+   "confidence": "High",
+   "title": "Transaction failed",
+   "findings": [
+    "D01",
+    "D04",
+    "D07b"
+   ],
+   "correct": true,
+   "missing_findings": [
+    "D09"
+   ],
+   "explorer_links": [
+    "https://etherscan.io/tx/0xb914a448d77116304135c4479b66994638ff689e7cb3670d884c93192d4d14be",
+    "https://etherscan.io/tx/0xb914a448d77116304135c4479b66994638ff689e7cb3670d884c93192d4d14be"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\"]},{\\\"id\\\":\\\"CS-1059\\\",\\\"customerId\\\":\\\"C-12230\\\",\\\"label\\\":\\\"Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4",
+   "bulk_code": "D03",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FRZ-ED1",
+   "category": "deposit from a now-frozen sender",
+   "chain": "ethereum",
+   "expected": "D09",
+   "expected_findings": [],
+   "tx_hash": "0xf44bd05fff99fe5d87a042a37a23504c86eb986b06566876ac494a6bbc1ebf2e",
+   "http": 200,
+   "secs": 15.91,
+   "got": "D03",
+   "confidence": "High",
+   "title": "Transaction failed",
+   "findings": [
+    "D01",
+    "D04"
+   ],
+   "correct": false,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://etherscan.io/tx/0xf44bd05fff99fe5d87a042a37a23504c86eb986b06566876ac494a6bbc1ebf2e",
+    "https://etherscan.io/tx/0xf44bd05fff99fe5d87a042a37a23504c86eb986b06566876ac494a6bbc1ebf2e"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\"]},{\\\"id\\\":\\\"CS-1059\\\",\\\"customerId\\\":\\\"C-12230\\\",\\\"label\\\":\\\"Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4",
+   "bulk_code": "D03",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FRZ-ED2",
+   "category": "deposit from a now-frozen sender",
+   "chain": "ethereum",
+   "expected": "D09",
+   "expected_findings": [],
+   "tx_hash": "0x9f794188ef40f9e19b583dac657e9a151f2f4484f3b20c89b81716bc63c44b2e",
+   "http": 200,
+   "secs": 18.44,
+   "got": "D03",
+   "confidence": "High",
+   "title": "Transaction failed",
+   "findings": [
+    "D01",
+    "D04"
+   ],
+   "correct": false,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://etherscan.io/tx/0x9f794188ef40f9e19b583dac657e9a151f2f4484f3b20c89b81716bc63c44b2e",
+    "https://etherscan.io/tx/0x9f794188ef40f9e19b583dac657e9a151f2f4484f3b20c89b81716bc63c44b2e"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\"]},{\\\"id\\\":\\\"CS-1059\\\",\\\"customerId\\\":\\\"C-12230\\\",\\\"label\\\":\\\"Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4",
+   "bulk_code": "D03",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FRZ-EF2",
+   "category": "frozen sender, transfer reverted",
+   "chain": "ethereum",
+   "expected": "D03",
+   "expected_findings": [
+    "D09"
+   ],
+   "tx_hash": "0x0372c0f9645111b95b5225e168aa6ad737fe2d33f42e9d0ff29c3d425f8eb927",
+   "http": 200,
+   "secs": 15.44,
+   "got": "D03",
+   "confidence": "High",
+   "title": "Transaction failed",
+   "findings": [
+    "D01",
+    "D04",
+    "D07b"
+   ],
+   "correct": true,
+   "missing_findings": [
+    "D09"
+   ],
+   "explorer_links": [
+    "https://etherscan.io/tx/0x0372c0f9645111b95b5225e168aa6ad737fe2d33f42e9d0ff29c3d425f8eb927",
+    "https://etherscan.io/tx/0x0372c0f9645111b95b5225e168aa6ad737fe2d33f42e9d0ff29c3d425f8eb927"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\"]},{\\\"id\\\":\\\"CS-1059\\\",\\\"customerId\\\":\\\"C-12230\\\",\\\"label\\\":\\\"Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4",
+   "bulk_code": "D03",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FRZ-EC1",
+   "category": "deposit from a now-frozen sender",
+   "chain": "ethereum",
+   "expected": "D09",
+   "expected_findings": [],
+   "tx_hash": "0x44b495cfde89e91375e1821e95a717f409583f1edfb1605c85bda6e96e4af218",
+   "http": 200,
+   "secs": 17.36,
+   "got": "D03",
+   "confidence": "High",
+   "title": "Transaction failed",
+   "findings": [
+    "D01",
+    "D04",
+    "D06"
+   ],
+   "correct": false,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://etherscan.io/tx/0x44b495cfde89e91375e1821e95a717f409583f1edfb1605c85bda6e96e4af218",
+    "https://etherscan.io/tx/0x44b495cfde89e91375e1821e95a717f409583f1edfb1605c85bda6e96e4af218"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\"]},{\\\"id\\\":\\\"CS-1059\\\",\\\"customerId\\\":\\\"C-12230\\\",\\\"label\\\":\\\"Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4",
+   "bulk_code": "D03",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FAKE-01",
+   "category": "fake token (symbol USDT)",
+   "chain": "ethereum",
+   "expected": "D06",
+   "expected_findings": [],
+   "tx_hash": "0x8e3741c3b5abe4e31d5c0af94497854515aa255dd1eb2c262c3b6f1f97acd746",
+   "http": 200,
+   "secs": 13.99,
+   "got": "D03",
+   "confidence": "High",
+   "title": "Transaction failed",
+   "findings": [
+    "D01",
+    "D04"
+   ],
+   "correct": false,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://etherscan.io/tx/0x8e3741c3b5abe4e31d5c0af94497854515aa255dd1eb2c262c3b6f1f97acd746",
+    "https://etherscan.io/tx/0x8e3741c3b5abe4e31d5c0af94497854515aa255dd1eb2c262c3b6f1f97acd746"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\"]},{\\\"id\\\":\\\"CS-1059\\\",\\\"customerId\\\":\\\"C-12230\\\",\\\"label\\\":\\\"Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4",
+   "bulk_code": "D03",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FAKE-02",
+   "category": "fake token (symbol USDT)",
+   "chain": "ethereum",
+   "expected": "D06",
+   "expected_findings": [],
+   "tx_hash": "0x28f178e5dfc0fd580ea96b7c6885f9ad94edda66e81c9727f966d918d4b4082e",
+   "http": 200,
+   "secs": 15.54,
+   "got": "D03",
+   "confidence": "High",
+   "title": "Transaction failed",
+   "findings": [
+    "D01"
+   ],
+   "correct": false,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://etherscan.io/tx/0x28f178e5dfc0fd580ea96b7c6885f9ad94edda66e81c9727f966d918d4b4082e",
+    "https://etherscan.io/tx/0x28f178e5dfc0fd580ea96b7c6885f9ad94edda66e81c9727f966d918d4b4082e"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\"]},{\\\"id\\\":\\\"CS-1059\\\",\\\"customerId\\\":\\\"C-12230\\\",\\\"label\\\":\\\"Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4",
+   "bulk_code": "D03",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FAKE-03",
+   "category": "fake token (symbol USDT)",
+   "chain": "ethereum",
+   "expected": "D06",
+   "expected_findings": [],
+   "tx_hash": "0x9e00a734adee9ccade4d340077d2e525323437678fcd943ab997dc9f4de19e7b",
+   "http": 200,
+   "secs": 15.8,
+   "got": "D03",
+   "confidence": "High",
+   "title": "Transaction failed",
+   "findings": [
+    "D01",
+    "D04"
+   ],
+   "correct": false,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://etherscan.io/tx/0x9e00a734adee9ccade4d340077d2e525323437678fcd943ab997dc9f4de19e7b",
+    "https://etherscan.io/tx/0x9e00a734adee9ccade4d340077d2e525323437678fcd943ab997dc9f4de19e7b"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\"]},{\\\"id\\\":\\\"CS-1059\\\",\\\"customerId\\\":\\\"C-12230\\\",\\\"label\\\":\\\"Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4",
+   "bulk_code": "D03",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FAKE-04",
+   "category": "fake token (symbol USDT)",
+   "chain": "ethereum",
+   "expected": "D06",
+   "expected_findings": [],
+   "tx_hash": "0xf8bb3cb737df43c6836479868c64af75a27b7d5da72d550b6d2492484fe58ed2",
+   "http": 200,
+   "secs": 17.0,
+   "got": "D03",
+   "confidence": "High",
+   "title": "Transaction failed",
+   "findings": [
+    "D01"
+   ],
+   "correct": false,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://etherscan.io/tx/0xf8bb3cb737df43c6836479868c64af75a27b7d5da72d550b6d2492484fe58ed2",
+    "https://etherscan.io/tx/0xf8bb3cb737df43c6836479868c64af75a27b7d5da72d550b6d2492484fe58ed2"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\"]},{\\\"id\\\":\\\"CS-1059\\\",\\\"customerId\\\":\\\"C-12230\\\",\\\"label\\\":\\\"Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4",
+   "bulk_code": "D03",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FAKE-05",
+   "category": "fake token (symbol USDT)",
+   "chain": "ethereum",
+   "expected": "D06",
+   "expected_findings": [],
+   "tx_hash": "0xe79ba088cc0c7958bf9bb21e3b2a63a80ecd98f8c4422b7711096457a0867557",
+   "http": 200,
+   "secs": 16.41,
+   "got": "D03",
+   "confidence": "High",
+   "title": "Transaction failed",
+   "findings": [
+    "D01"
+   ],
+   "correct": false,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://etherscan.io/tx/0xe79ba088cc0c7958bf9bb21e3b2a63a80ecd98f8c4422b7711096457a0867557",
+    "https://etherscan.io/tx/0xe79ba088cc0c7958bf9bb21e3b2a63a80ecd98f8c4422b7711096457a0867557"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\"]},{\\\"id\\\":\\\"CS-1059\\\",\\\"customerId\\\":\\\"C-12230\\\",\\\"label\\\":\\\"Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4",
+   "bulk_code": "D03",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FAKE-06",
+   "category": "fake token (symbol USDT)",
+   "chain": "ethereum",
+   "expected": "D06",
+   "expected_findings": [],
+   "tx_hash": "0x909804df7f566cb0fbf3c10d244b49bf6227783c6cba1c520c259092b894dc4b",
+   "http": 200,
+   "secs": 14.91,
+   "got": "D06",
+   "confidence": "High",
+   "title": "Fake token",
+   "findings": [
+    "D01"
+   ],
+   "correct": true,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://etherscan.io/tx/0x909804df7f566cb0fbf3c10d244b49bf6227783c6cba1c520c259092b894dc4b",
+    "https://etherscan.io/tx/0x909804df7f566cb0fbf3c10d244b49bf6227783c6cba1c520c259092b894dc4b"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Fake token\\\",\\\"code\\\":\\\"D06\\\",\\\"terms\\\":[\\\"cs-1046\\\",\\\"c-10915\\\",\\\"3298150b1984c1026dbc2ac8fcc6023aa6c1f2a6c782e7332e83f4191d987b13\\\",\\\"tl2zbv47fyj7rofppz2kjv9jvgl5bv162m\\\",\\\"0xecb1d839458f2cabdb1feabc5e65e18e8bf94ae3\\\",\\\"3298150b1984c1026dbc2ac8fcc6023aa6c1f2a6c782e7332e83f4191d987b13\\\",\\\"tl2zbv47fyj7rofppz2kjv9jvgl5bv162m\\\"]},{\\\"id\\\":\\\"CS-1044\\\",\\\"customerId\\\":\\\"C-10734\\\",\\\"label\\\":\\\"Wrong network\\\",\\\"code\\\":\\\"D04\\\",\\\"terms\\\":[\\\"cs-1044\\\",\\\"c-10734\\\",\\\"5b79f5ceeebdc302daaafd66dd485affcecae53a59d211dff2281650a13a01f3\\\",\\\"tdhyb3dggd6f1imkvq5ljeknvtd6vutpud\\\",\\\"0x04acd88cb4567824600160af99b4fd4da06ec048\\\",\\\"5b79f5ceeebdc302daaafd66dd485affcecae53a59d211dff2281650a13a01f3\\\",\\\"0x04acd88cb456782",
+   "bulk_code": "D06",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "FAKE-HG",
+   "category": "fake token (look-alike symbol)",
+   "chain": "ethereum",
+   "expected": "D06",
+   "expected_findings": [],
+   "tx_hash": "0xf84dacfeb3a92ae3291120d954b86d89932fe31702103754cad4f8e8ac41a10d",
+   "http": 200,
+   "secs": 16.01,
+   "got": "D03",
+   "confidence": "High",
+   "title": "Transaction failed",
+   "findings": [
+    "D01",
+    "D04"
+   ],
+   "correct": false,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://etherscan.io/tx/0xf84dacfeb3a92ae3291120d954b86d89932fe31702103754cad4f8e8ac41a10d",
+    "https://etherscan.io/tx/0xf84dacfeb3a92ae3291120d954b86d89932fe31702103754cad4f8e8ac41a10d"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\"]},{\\\"id\\\":\\\"CS-1059\\\",\\\"customerId\\\":\\\"C-12230\\\",\\\"label\\\":\\\"Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4",
+   "bulk_code": "D03",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "POISON-1",
+   "category": "address poisoning",
+   "chain": "ethereum",
+   "expected": "D07b",
+   "expected_findings": [
+    "D07"
+   ],
+   "tx_hash": "0xc0514a795f065fce8a3e1238a1ba480e8a792d45f6431ee4ba8d800bedd86a0f",
+   "http": 200,
+   "secs": 17.36,
+   "got": "D03",
+   "confidence": "High",
+   "title": "Transaction failed",
+   "findings": [
+    "D01",
+    "D04"
+   ],
+   "correct": false,
+   "missing_findings": [
+    "D07"
+   ],
+   "explorer_links": [
+    "https://etherscan.io/tx/0xc0514a795f065fce8a3e1238a1ba480e8a792d45f6431ee4ba8d800bedd86a0f",
+    "https://etherscan.io/tx/0xc0514a795f065fce8a3e1238a1ba480e8a792d45f6431ee4ba8d800bedd86a0f"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\"]},{\\\"id\\\":\\\"CS-1059\\\",\\\"customerId\\\":\\\"C-12230\\\",\\\"label\\\":\\\"Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4",
+   "bulk_code": "D03",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "POISON-2",
+   "category": "address poisoning",
+   "chain": "ethereum",
+   "expected": "D07b",
+   "expected_findings": [
+    "D07"
+   ],
+   "tx_hash": "0x374076fa28ed745227c28f42c5054a0bcd024c51ad7a41c17d52e7c6c24980eb",
+   "http": 200,
+   "secs": 16.9,
+   "got": "D03",
+   "confidence": "High",
+   "title": "Transaction failed",
+   "findings": [
+    "D01",
+    "D04"
+   ],
+   "correct": false,
+   "missing_findings": [
+    "D07"
+   ],
+   "explorer_links": [
+    "https://etherscan.io/tx/0x374076fa28ed745227c28f42c5054a0bcd024c51ad7a41c17d52e7c6c24980eb",
+    "https://etherscan.io/tx/0x374076fa28ed745227c28f42c5054a0bcd024c51ad7a41c17d52e7c6c24980eb"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Transaction failed\\\",\\\"code\\\":\\\"D03\\\",\\\"terms\\\":[\\\"cs-1043\\\",\\\"c-10611\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\",\\\"0x3ceb0a0c17d813c11264a0909896ef8870ea0ad9\\\",\\\"7410f30f5a18d707b27664d6a2926b55127ce465725cc4cb70a822161e8e607e\\\",\\\"tf9sdat1r738xevao4zhrljy97nzyabcfq\\\"]},{\\\"id\\\":\\\"CS-1059\\\",\\\"customerId\\\":\\\"C-12230\\\",\\\"label\\\":\\\"Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4",
+   "bulk_code": "D03",
+   "bulk_state": "verdict"
+  },
+  {
+   "id": "NF-1",
+   "category": "not found (Bitcoin txid)",
+   "chain": "bitcoin",
+   "expected": "D01",
+   "expected_findings": [],
+   "tx_hash": "8d8616dea45e550e40983eb3bad63f950773c5e2871fb4642428dd94e2b513af",
+   "http": 200,
+   "secs": 15.48,
+   "got": "PAUSED",
+   "confidence": "Paused",
+   "title": "Check paused: Polygon not responding",
+   "findings": [],
+   "correct": false,
+   "missing_findings": [],
+   "explorer_links": [],
+   "links_ok": null,
+   "page_text_excerpt": "Check paused: Polygon not responding No verdict is guessed while a chain is unreachable. Last attempt 2026-10-24 23:58 SGT. Confidence Paused Explanation Template text The check is paused because a chain could not be reached, so no verdict is given. [ lookup ] Evidence Highlighted rows are cited by the verdict Customer instruction Info Reported by customer Hash 8d8616de…e2b513af 8d8616dea45e550e40983eb3bad63f950773c5e2871fb4642428dd94e2b513af Ticket Chain lookup Check Check paused on Polygon Tron: not found at 2026-10-24 23:58 SGT Ethereum: not found at 2026-10-24 23:58 SGT BNB Chain: not found at 2026-10-24 23:58 SGT Polygon: error (public-rpc HTTP 403) at 2026-10-24 23:58 SGT Base: not fou",
+   "bulk_code": null,
+   "bulk_state": "paused"
+  },
+  {
+   "id": "NF-2",
+   "category": "not found (Bitcoin txid)",
+   "chain": "bitcoin",
+   "expected": "D01",
+   "expected_findings": [],
+   "tx_hash": "9b91a2cea598a14eee1a53fd4d9617eaad34cc9abe34bc07a8f6e18c55ad707a",
+   "http": 200,
+   "secs": 17.12,
+   "got": "PAUSED",
+   "confidence": "Paused",
+   "title": "Check paused: Polygon not responding",
+   "findings": [],
+   "correct": false,
+   "missing_findings": [],
+   "explorer_links": [],
+   "links_ok": null,
+   "page_text_excerpt": "Check paused: Polygon not responding No verdict is guessed while a chain is unreachable. Last attempt 2026-10-24 23:58 SGT. Confidence Paused Explanation Template text The check is paused because a chain could not be reached, so no verdict is given. [ lookup ] Evidence Highlighted rows are cited by the verdict Customer instruction Info Reported by customer Hash 9b91a2ce…55ad707a 9b91a2cea598a14eee1a53fd4d9617eaad34cc9abe34bc07a8f6e18c55ad707a Ticket Chain lookup Check Check paused on Polygon Tron: not found at 2026-10-24 23:58 SGT Ethereum: not found at 2026-10-24 23:58 SGT BNB Chain: not found at 2026-10-24 23:58 SGT Polygon: error (public-rpc HTTP 403) at 2026-10-24 23:59 SGT Base: not fou",
+   "bulk_code": null,
+   "bulk_state": "paused"
+  },
+  {
+   "id": "LIVE-T",
+   "category": "waiting for confirmations (live capture)",
+   "chain": "tron",
+   "expected": "D02",
+   "expected_findings": [],
+   "tx_hash": "54df7da673cd24ee3473667ff39c312ada7c9da7ac0f2c54482497efcf0a6cde",
+   "independent_confirmations_at_check": -150,
+   "http": 200,
+   "secs": 15.14,
+   "got": "D12",
+   "confidence": "High",
+   "title": "Arrived on-chain, not credited",
+   "findings": [
+    "D01"
+   ],
+   "correct": false,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://tronscan.org/#/transaction/54df7da673cd24ee3473667ff39c312ada7c9da7ac0f2c54482497efcf0a6cde",
+    "https://tronscan.org/#/transaction/54df7da673cd24ee3473667ff39c312ada7c9da7ac0f2c54482497efcf0a6cde"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Arrived on-chain, not credited\\\",\\\"code\\\":\\\"D12\\\",\\\"terms\\\":[\\\"cs-1059\\\",\\\"c-12230\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\",\\\"0x8678030fad10c59aad95cf52515f81ebefcfc8ee\\\",\\\"3cdea098260ce5b794a4e5aa1e8b12beca002923e89e4c92bbde007fc62e4317\\\",\\\"tcpcwgnob1rnkjdqnbcyapdyubcprtc7ov\\\"]},{\\\"id\\\":\\\"CS-1051\\\",\\\"customerId\\\":\\\"C-11307\\\",\\\"label\\\":\\\"Not found on any chain\\\",\\\"code\\\":\\\"D01\\\",\\\"terms\\\":[\\\"cs-1051\\\",\\\"c-11307\\\",\\\"49bb4de64adab743d73f2f92b6c1de5f2e1bbd551e93aa6647348be49e40e526\\\",\\\"twuayvio8zzyu7rmkukpjwlfdjnkzsl4uu\\\",\\\"0xba0518e68d46d8c89f3efd2bbd88fd11ea36023e\\\"]},{\\\"id\\\":\\\"CS-1041\\\",\\\"customerId\\\":\\\"C-10422\\\",\\\"label\\\":"
+  },
+  {
+   "id": "LIVE-E",
+   "category": "waiting for confirmations (live capture)",
+   "chain": "ethereum",
+   "expected": "D02",
+   "expected_findings": [],
+   "tx_hash": "0xb8c50f9c464d5348b449a99ca36a1ff22acedf0d70de26092d07f3c279f3535e",
+   "independent_confirmations_at_check": 1,
+   "http": 200,
+   "secs": 15.7,
+   "got": "D05",
+   "confidence": "High",
+   "title": "Unsupported token",
+   "findings": [
+    "D01"
+   ],
+   "correct": false,
+   "missing_findings": [],
+   "explorer_links": [
+    "https://etherscan.io/tx/0xb8c50f9c464d5348b449a99ca36a1ff22acedf0d70de26092d07f3c279f3535e",
+    "https://etherscan.io/tx/0xb8c50f9c464d5348b449a99ca36a1ff22acedf0d70de26092d07f3c279f3535e"
+   ],
+   "links_ok": true,
+   "page_text_excerpt": "Unsupported token\\\",\\\"code\\\":\\\"D05\\\",\\\"terms\\\":[\\\"cs-1045\\\",\\\"c-10802\\\",\\\"dcb54da22a271c91e4961ff3181b9ee2469b2884cbde264d6a16ead959c11d03\\\",\\\"tujnnrvmpngnw72jwg8gnz4ztwbst514xg\\\",\\\"0x25faa207764baa505cd945391589b8467d388d5c\\\",\\\"dcb54da22a271c91e4961ff3181b9ee2469b2884cbde264d6a16ead959c11d03\\\",\\\"0x25faa207764baa505cd945391589b8467d388d5c\\\"]},{\\\"id\\\":\\\"CS-1061\\\",\\\"customerId\\\":\\\"C-12350\\\",\\\"label\\\":\\\"Sent to another customer's address\\\",\\\"code\\\":\\\"D17\\\",\\\"terms\\\":[\\\"cs-1061\\\",\\\"c-12350\\\",\\\"60712b920ee16c60caea226d6b7115a9434799afb475b8bc8290d6ae1fcb6f43\\\",\\\"tsynx8bm7y5hh2hetitmu6jypjjgdqrpth\\\",\\\"0x8674bccc26fbeab2fa5e08ae8dfee3b6808be6b7\\\",\\\"60712b920ee16c60caea226d6b7115a9434799afb475b8bc82"
+  }
+ ]
+}
