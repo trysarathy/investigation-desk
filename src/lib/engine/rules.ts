@@ -132,6 +132,11 @@ export const RULES: Record<Exclude<Code, "D99">, Rule> = {
 
   D17: (ctx) => {
     if (ctx.addrStatus !== "other_customer") return miss("D17", "Destination is not assigned to a different customer.");
+    // A reporting customer with no address in File A is more likely a typo than a misdirected deposit.
+    if (ctx.customerAddresses.length === 0) {
+      return hit("D17", "Medium", [EV.tx, EV.address],
+        `Destination is assigned to another customer (File A line ${ctx.addrOnTxChain!.row}), but the reporting customer has no address in File A: check the customer ID.`);
+    }
     return hit("D17", "High", [EV.tx, EV.address], `Destination is assigned to another customer (File A line ${ctx.addrOnTxChain!.row}).`);
   },
 

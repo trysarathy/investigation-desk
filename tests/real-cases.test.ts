@@ -35,3 +35,35 @@ describe("real cases (recorded, keyless)", () => {
     });
   }
 });
+
+// Robustness on real recordings: a chain that is down or rate-limiting must pause the case or leave
+// the verdict to the chain the transfer is on. It must never turn into a confident wrong answer.
+describe("real cases with a chain down or rate-limited", () => {
+  const run = async (id: string, broken: RegExp, status: number) => {
+    const c = cases.find((x) => x.id === id)!;
+    const rec: Recording = JSON.parse(readFileSync(path.join(__dirname, "fixtures", "real", `${id}.json`), "utf8"));
+    const replay = replayTransport(rec);
+    const transport = async (req: Parameters<typeof replay>[0]) => (broken.test(req.url)
+      ? { status, headers: {}, body: status === 429 ? '{"Error":"request rate exceeded"}' : "upstream error" } : replay(req));
+    const deps = buildFetchers({ tronKey: "", etherscanKey: "", store: new MemoryStore(), transport,
+      now: () => new Date(rec.recordedAt), sleep: async () => {}, noSpacing: true });
+    return investigate(await fetchFacts(c.input!, sampleWorkspace(c.customer_id ?? undefined), deps, SAMPLE_SETTINGS), SAMPLE_SETTINGS);
+  };
+  it("Tron rate-limited (429) on a Tron payment: paused, not 'not found'", async () => {
+    const v = await run("TRN-01", /trongrid/, 429);
+    expect(v.state).toBe("paused");
+    expect(v.pausedChains).toContain("tron");
+  });
+  it("Polygon down (502) on a Bitcoin txid: paused, not D01", async () => {
+    const v = await run("NF-1", /polygon/, 502);
+    expect(v.state).toBe("paused");
+  });
+  it("Tron down on an Ethereum payment: the Ethereum verdict stands", async () => {
+    const v = await run("ETH-01", /trongrid/, 503);
+    expect(v.code).toBe("D13");
+  });
+  it("Ethereum RPC down on an Ethereum payment: paused, never D03", async () => {
+    const v = await run("ETH-01", /drpc/, 503);
+    expect(v.state).toBe("paused");
+  });
+});

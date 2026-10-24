@@ -160,7 +160,7 @@ export function buildEvidence(ctx: Ctx): Evidence[] {
         : ctx.addrOtherChain
           ? `Company deposit address on ${CHAIN_NAMES[ctx.addrOtherChain.chain]}, but funds arrived on ${CHAIN_NAMES[tx.chain]}`
           : ctx.lookalike
-            ? "Not a company address; matches the customer's address on the first 4 and last 4 characters"
+            ? "Not a company address; matches the customer's address on the first 3 and last 4 characters (look-alike)"
             : "Not in the deposit-address list",
       mono: [
         ...(expected && ctx.addrStatus !== "this_customer" && !sameAddress(expected.address, transfer.to) ? [{ label: "Expected", value: expected.address }] : []),

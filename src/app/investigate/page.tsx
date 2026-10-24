@@ -40,7 +40,9 @@ export default async function InvestigatePage({ searchParams }: { searchParams: 
     return <Investigation key={`${view.id}-${facts.checkedAt}-${reporting.customerId ?? ""}`} view={view} />;
   }
 
-  const reason = reporting.error ? reporting.error : input.kind !== "hash"
+  const reason = reporting.error ? reporting.error : input.kind === "unrecognised"
+    ? "This is not a transaction hash (64 hex characters, optional 0x). If it is an exchange withdrawal ID, ask the sending exchange for the on-chain hash."
+    : input.kind !== "hash"
     ? "Live lookup by address or customer reference is not built yet; paste a transaction hash."
     : !liveLookupsEnabled()
       ? "Live chain lookups are turned off on this server (LIVE_LOOKUPS=off)."
