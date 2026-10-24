@@ -1,5 +1,5 @@
 import { BulkRunner } from "@/components/BulkRunner";
-import { liveKeysPresent } from "@/lib/chain/live";
+import { liveLookupsEnabled } from "@/lib/chain/live";
 import { loadWorkspace } from "@/lib/workspace/live";
 
 // Reads the uploaded files and server keys on every request; never pre-render it at build time.
@@ -9,8 +9,8 @@ export default async function BulkPage() {
   const { missing, data } = await loadWorkspace();
   const blocked = missing.length
     ? `Upload ${missing.map((m) => `File ${m}`).join(" and ")} in Settings → Data first, or load the demo workspace there.`
-    : !liveKeysPresent() && !data.demo
-      ? "Bulk runs need TRONGRID_API_KEY and ETHERSCAN_API_KEY on the server."
+    : !liveLookupsEnabled() && !data.demo
+      ? "Live chain lookups are turned off on this server (LIVE_LOOKUPS=off)."
       : undefined;
   return (
     <div className="page">

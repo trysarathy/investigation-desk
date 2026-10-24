@@ -4,7 +4,7 @@ import { Mono } from "@/components/Mono";
 import { Investigation } from "@/components/Investigation";
 import { Status } from "@/components/Status";
 import { fetchFacts } from "@/lib/chain/investigate";
-import { liveDeps, liveKeysPresent } from "@/lib/chain/live";
+import { liveDeps, liveLookupsEnabled } from "@/lib/chain/live";
 import { SAMPLE_SETTINGS } from "@/lib/fixtures";
 import { loadWorkspace } from "@/lib/workspace/live";
 import { parseReportingCustomer } from "@/lib/csv/files";
@@ -34,7 +34,7 @@ export default async function InvestigatePage({ searchParams }: { searchParams: 
   const reporting = parseReportingCustomer(customer);
   const { ws, missing, data } = await loadWorkspace(reporting.customerId);
   const demo = !!data.demo;
-  if (input.kind === "hash" && (liveKeysPresent() || demo) && ws && !reporting.error) {
+  if (input.kind === "hash" && (liveLookupsEnabled() || demo) && ws && !reporting.error) {
     const facts = await fetchFacts(q, ws, demo ? demoDeps() : liveDeps(), SAMPLE_SETTINGS);
     const view = await liveCaseView(facts, demo);
     return <Investigation key={`${view.id}-${facts.checkedAt}-${reporting.customerId ?? ""}`} view={view} />;
@@ -42,8 +42,8 @@ export default async function InvestigatePage({ searchParams }: { searchParams: 
 
   const reason = reporting.error ? reporting.error : input.kind !== "hash"
     ? "Live lookup by address or customer reference is not built yet; paste a transaction hash."
-    : !liveKeysPresent()
-      ? "Live chain lookups need TRONGRID_API_KEY and ETHERSCAN_API_KEY in the server environment."
+    : !liveLookupsEnabled()
+      ? "Live chain lookups are turned off on this server (LIVE_LOOKUPS=off)."
       : `Upload ${missing.map((m) => `File ${m}`).join(" and ")} in Settings → Data first, or load the demo workspace there: without the company's files no address or ledger verdict can be given.`;
 
   return (

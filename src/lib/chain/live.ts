@@ -10,6 +10,14 @@ export function liveKeysPresent(): boolean {
   return !!process.env.TRONGRID_API_KEY && !!process.env.ETHERSCAN_API_KEY;
 }
 
+/**
+ * Live lookups no longer need keys: TronGrid answers keyless, and without an Etherscan key the
+ * Etherscan chains use public RPCs (sources.ts). LIVE_LOOKUPS=off turns live lookups off.
+ */
+export function liveLookupsEnabled(): boolean {
+  return process.env.LIVE_LOOKUPS !== "off";
+}
+
 let deps: { key: string; deps: LiveDeps } | undefined;
 let override: LiveDeps | undefined;
 
