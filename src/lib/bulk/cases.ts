@@ -2,8 +2,9 @@
 // database lands; they appear in the queue and open as live investigations.
 
 import "server-only";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { fileLockKey, withLock, writeAtomic } from "../lock";
 import type { Chain, Code, Confidence } from "../types";
 import { dataDir } from "../data-dir";
 
@@ -33,13 +34,13 @@ export async function loadCases(): Promise<StoredCase[]> {
 }
 
 /** Adds cases, skipping any hash + customer already open, so repeated clicks don't duplicate. */
-export async function addCases(cases: StoredCase[]): Promise<number> {
-  const existing = await loadCases();
-  const key = (c: { txHash: string; customerId?: string }) => `${c.txHash.replace(/^0x/i, "").toLowerCase()}|${c.customerId ?? ""}`;
-  const seen = new Set(existing.map(key));
-  const fresh = cases.filter((c) => !seen.has(key(c)));
-  await mkdir(path.dirname(FILE()), { recursive: true });
-  await writeFile(`${FILE()}.tmp`, JSON.stringify([...fresh, ...existing]));
-  await rename(`${FILE()}.tmp`, FILE());
-  return fresh.length;
+export function addCases(cases: StoredCase[]): Promise<number> {
+  return withLock(fileLockKey(FILE()), async () => {
+    const existing = await loadCases();
+    const key = (c: { txHash: string; customerId?: string }) => `${c.txHash.replace(/^0x/i, "").toLowerCase()}|${c.customerId ?? ""}`;
+    const seen = new Set(existing.map(key));
+    const fresh = cases.filter((c) => !seen.has(key(c)));
+    await writeAtomic(FILE(), JSON.stringify([...fresh, ...existing]));
+    return fresh.length;
+  });
 }

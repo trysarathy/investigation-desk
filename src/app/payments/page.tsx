@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ActingAs } from "@/components/ActingAs";
+import { MatchProgress } from "@/components/MatchProgress";
 import { PaymentActions } from "@/components/PaymentActions";
 import { PaymentImports } from "@/components/PaymentImports";
 import { Status } from "@/components/Status";
@@ -30,6 +31,7 @@ export default async function PaymentsPage() {
         <PaymentActions disabled={!held} preview={demoModeOn()} />
       </div>
       <ActingAs />
+      <MatchProgress />
       {banner && <div className="bar bar-amber" role="status">{banner}</div>}
       <p className="muted" style={{ margin: 0 }}>
         One payment ID per payment, linking instruction, on-chain transfer, provider record, bank record and ledger entry.

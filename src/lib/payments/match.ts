@@ -106,6 +106,19 @@ type InsGroup = Group<InstructionRecord>;
 type ProvGroup = Group<ProviderRecord> & { provider: string; providerPaymentId: string };
 type LedgerGroup = Group<LedgerEntryRecord> & { recordKey: string };
 
+/** Items by key, in input order: joins look up instead of scanning (a scan per record was quadratic). */
+function indexBy<T>(items: T[], keys: (x: T) => (string | undefined)[]): Map<string, T[]> {
+  const ix = new Map<string, T[]>();
+  for (const x of items) {
+    for (const k of new Set(keys(x))) {
+      if (k === undefined) continue;
+      const l = ix.get(k);
+      if (l) l.push(x); else ix.set(k, [x]);
+    }
+  }
+  return ix;
+}
+
 // ---- Similarity: ranks candidates, never links ----
 
 interface Traits { amount?: string; asset?: string; address?: string; chain?: string; time?: string }
@@ -148,6 +161,85 @@ function rank(anchor: PaymentRecord | undefined, pool: PaymentRecord[], max = In
 
 const suggestionsFrom = (anchor: PaymentRecord | undefined, pool: PaymentRecord[]) => rank(anchor, pool).filter((c) => c.score > 0).slice(0, 5);
 
+const canonDecimal = (s?: string) => (s && isDecimal(s) ? `${s.split(".")[0].replace(/^0+(?=\d)/, "")}.${(s.split(".")[1] ?? "").replace(/0+$/, "")}` : undefined);
+const EXACT_POOL = 256;
+const NEAREST_IN_TIME = 50;
+
+/**
+ * Suggestions over one pool, for many anchors. Ranking every anchor against every record was
+ * quadratic and froze large imports. Small pools are still ranked in full. In large ones, the
+ * records ranked for an anchor are those with the same amount or the same destination address
+ * (the strong signals), plus the records closest in time; the best five of those are kept.
+ */
+function suggester(pool: PaymentRecord[]): (anchor: PaymentRecord | undefined, exclude: string) => Candidate[] {
+  if (pool.length <= EXACT_POOL) return (anchor, exclude) => suggestionsFrom(anchor, pool.filter((r) => r.recordId !== exclude));
+  type Timed = { t: number; r: PaymentRecord }[];
+  // The same score as similarity(), on traits worked out once per record; reasons only for the five kept.
+  type Fast = { amount?: string; address?: string; asset?: string; chain?: string; t: number };
+  const fastOf = (r: PaymentRecord): Fast => {
+    const x = traits(r);
+    return { amount: canonDecimal(x.amount), address: x.address ? canonicalAddress(x.address) : undefined, asset: x.asset?.toUpperCase(), chain: x.chain, t: x.time ? Date.parse(x.time) : NaN };
+  };
+  const fast = new Map(pool.map((r) => [r, fastOf(r)]));
+  const score = (a: Fast, b: Fast) => {
+    let n = 0;
+    if (a.amount && a.amount === b.amount) n += 3;
+    if (a.address && a.address === b.address) n += 3;
+    if (a.asset && b.asset && a.asset.startsWith(b.asset.slice(0, 4))) n += 1;
+    if (a.chain && b.chain && a.chain === b.chain) n += 1;
+    const hours = Math.abs(a.t - b.t) / 3_600_000;
+    if (hours <= 1) n += 2; else if (hours <= 24) n += 1;
+    return n;
+  };
+  const timeOf = (r: PaymentRecord) => { const t = traits(r).time; return t ? Date.parse(t) : NaN; };
+  const byAmount = new Map<string, Timed>();
+  const byAddress = new Map<string, Timed>();
+  const all: Timed = [];
+  const push = (m: Map<string, Timed>, k: string | undefined, x: Timed[number]) => { if (k) { const l = m.get(k); if (l) l.push(x); else m.set(k, [x]); } };
+  for (const r of pool) {
+    const t = traits(r);
+    const x = { t: timeOf(r), r };
+    push(byAmount, canonDecimal(t.amount), x);
+    push(byAddress, t.address ? canonicalAddress(t.address) : undefined, x);
+    all.push(x);
+  }
+  // Records without a time sort last; they are reached only through a small amount or address bucket.
+  const order = (l: Timed) => l.sort((a, b) => (Number.isNaN(a.t) ? Infinity : a.t) - (Number.isNaN(b.t) ? Infinity : b.t));
+  order(all);
+  for (const l of [...byAmount.values(), ...byAddress.values()]) order(l);
+  // The k records of a time-sorted list closest to `at` (binary search, then outwards).
+  const nearest = (l: Timed, at: number, k: number, out: Set<PaymentRecord>) => {
+    let lo = 0, hi = l.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (l[mid].t < at) lo = mid + 1; else hi = mid; }
+    let below = lo - 1, above = lo;
+    for (let n = 0; n < k && (below >= 0 || above < l.length); n++) {
+      const up = above < l.length && !Number.isNaN(l[above].t) ? l[above].t - at : Infinity;
+      const down = below >= 0 ? at - l[below].t : Infinity;
+      if (up === Infinity && down === Infinity) break;
+      out.add(down <= up ? l[below--].r : l[above++].r);
+    }
+  };
+  const take = (l: Timed | undefined, at: number, out: Set<PaymentRecord>) => {
+    if (!l) return;
+    if (l.length <= EXACT_POOL || Number.isNaN(at)) for (const x of l.slice(0, EXACT_POOL)) out.add(x.r);
+    else nearest(l, at, NEAREST_IN_TIME, out);
+  };
+  return (anchor, exclude) => {
+    if (!anchor) return [];
+    const a = traits(anchor);
+    const at = a.time ? Date.parse(a.time) : NaN;
+    const picked = new Set<PaymentRecord>();
+    take(byAmount.get(canonDecimal(a.amount) ?? ""), at, picked);
+    if (a.address) take(byAddress.get(canonicalAddress(a.address)), at, picked);
+    if (!Number.isNaN(at)) nearest(all, at, NEAREST_IN_TIME, picked);
+    const fa = fastOf(anchor);
+    const top = [...picked].filter((r) => r.recordId !== exclude).map((r) => ({ r, n: score(fa, fast.get(r)!) })).filter((x) => x.n > 0)
+      .sort((x, y) => y.n - x.n || (x.r.recordId < y.r.recordId ? -1 : 1)).slice(0, 5);
+    const ta = traits(anchor);
+    return top.map(({ r }) => ({ recordId: r.recordId, ...similarity(ta, traits(r)) }));
+  };
+}
+
 // ---- Chain references ----
 
 interface ChainRef { txHash: string; chain?: string; transferIndex?: number; from: string }
@@ -158,8 +250,9 @@ type ChainResolution =
   | { kind: "unknown"; note: string }
   | { kind: "review"; reason: ReviewReason; message: string; candidates: ChainTransferRecord[] };
 
-function resolveChain(ref: ChainRef, chain: ChainTransferRecord[], lookups: ChainLookupSummary[], someRejected = false): ChainResolution {
-  const lookup = lookups.find((l) => l.txHash === ref.txHash);
+/** `chain` holds the transfers of `ref.txHash` (others are ignored); `lookups` is by hash. */
+function resolveChain(ref: ChainRef, chain: ChainTransferRecord[], lookups: Map<string, ChainLookupSummary>, someRejected = false): ChainResolution {
+  const lookup = lookups.get(ref.txHash);
   if (!lookup) return { kind: "unknown", note: `Transaction ${short(ref.txHash)} has not been checked on chain yet.` };
   if (lookup.result === "not_found") return { kind: "missing", note: `Transaction ${short(ref.txHash)} (from ${ref.from}) was not found on any supported chain.` };
   if (lookup.result === "pending") return { kind: "unknown", note: `Transaction ${short(ref.txHash)} is known to a node but not mined yet.` };
@@ -219,6 +312,9 @@ interface Draft {
 export interface DepositAddress { chain: string; address: string; assignedAt?: string; retiredAt?: string }
 
 export function matchPayments(input: MatchInput): MatchResult {
+  const chainByHash = indexBy(input.chain, (c) => [c.txHash]);
+  const lookupByHash = new Map<string, ChainLookupSummary>();
+  for (const l of input.lookups) if (!lookupByHash.has(l.txHash)) lookupByHash.set(l.txHash, l);
   // Reviews are collected per draft and numbered once payment IDs are settled (after step 2).
   const pending: { d: Draft; leg: ReviewTarget; reason: ReviewReason; message: string; candidates: Candidate[]; legRef?: { reviewId: string } }[] = [];
   const reviewed = new Set<string>();
@@ -261,6 +357,9 @@ export function matchPayments(input: MatchInput): MatchResult {
   const provGroups: ProvGroup[] = groupBy(principal, (r) => `${r.provider}\u0000${r.providerPaymentId}`, PROVIDER_FIELDS)
     .map((g) => ({ ...g, provider: g.records[0].provider, providerPaymentId: g.records[0].providerPaymentId }));
   const provRecs = (gs: ProvGroup[]) => gs.map((g) => latest(g.records));
+  const provByRef = indexBy(provGroups, (p) => p.records.map((r) => r.merchantReference));
+  const provById = indexBy(provGroups, (p) => [p.providerPaymentId]);
+  const provPos = new Map(provGroups.map((p, i) => [p, i]));
 
   // 1. Instruction <-> provider. First every exact tie, then decide: a provider payment tied to
   //    two instructions (by either identifier) is contested, and both go to review.
@@ -278,8 +377,8 @@ export function matchPayments(input: MatchInput): MatchResult {
     const yes = confirmed(m, (k) => provGroups.some((p) => provKey(p) === k));
     ties.set(d, {
       namedIds,
-      byRef: provGroups.filter((p) => p.records.some((r) => r.merchantReference === g.key) && !no.has(provKey(p))),
-      byId: provGroups.filter((p) => namedIds.includes(p.providerPaymentId) && !no.has(provKey(p))),
+      byRef: (provByRef.get(g.key) ?? []).filter((p) => !no.has(provKey(p))),
+      byId: [...new Set(namedIds.flatMap((id) => provById.get(id) ?? []))].sort((a, b) => provPos.get(a)! - provPos.get(b)!).filter((p) => !no.has(provKey(p))),
       ...(yes ? { confirmed: { group: provGroups.find((p) => provKey(p) === yes.recordKey)!, by: yes } } : {}),
     });
   }
@@ -290,7 +389,9 @@ export function matchPayments(input: MatchInput): MatchResult {
     t.byRef = t.byRef.filter((p) => !confirmedGroups.has(p));
     t.byId = t.byId.filter((p) => !confirmedGroups.has(p));
   }
-  const claimants = (p: ProvGroup) => drafts.filter((d) => ties.get(d)!.byRef.includes(p) || ties.get(d)!.byId.includes(p));
+  const claimedBy = new Map<ProvGroup, Draft[]>();
+  for (const d of drafts) for (const p of new Set([...ties.get(d)!.byRef, ...ties.get(d)!.byId])) claimedBy.set(p, [...(claimedBy.get(p) ?? []), d]);
+  const claimants = (p: ProvGroup) => claimedBy.get(p) ?? [];
 
   for (const d of drafts) {
     const g = d.ins!;
@@ -464,7 +565,7 @@ export function matchPayments(input: MatchInput): MatchResult {
     const merged: ChainRef = { txHash: a.txHash, chain: a.chain ?? b?.chain, transferIndex: a.transferIndex ?? b?.transferIndex,
       from: b ? `instruction and ${b.from}` : a.from };
     const no = chainRejected.get(d)!;
-    const res = resolveChain(merged, input.chain.filter((c) => !no.has(c.recordId)), input.lookups, no.size > 0);
+    const res = resolveChain(merged, (chainByHash.get(merged.txHash) ?? []).filter((c) => !no.has(c.recordId)), lookupByHash, no.size > 0);
     if (res.kind === "missing") d.legs.chain = { state: "missing", suggestions: [], note: res.note };
     else if (res.kind === "unknown") d.legs.chain = { state: "unknown", note: res.note };
     else if (res.kind === "review") addReview(d, "chain", res.reason, res.message, rank(d.anchor, res.candidates));
@@ -502,12 +603,16 @@ export function matchPayments(input: MatchInput): MatchResult {
   // 4. Bank leg: an exact instruction ID or provider payment ID column. Free text is never parsed.
   //    A row naming both links only when both point to the same payment; otherwise it is reviewed.
   const bankPrincipal = input.bank.filter((b) => !b.returnOf);
-  const providerIdKnown = (id: string) => input.provider.some((r) => r.providerPaymentId === id);
+  const knownProviderIds = new Set(input.provider.map((r) => r.providerPaymentId));
+  const providerIdKnown = (id: string) => knownProviderIds.has(id);
+  // Drafts by the identifiers ledger and bank rows join on (drafts order kept).
+  const draftsByIns = indexBy(drafts, (d) => [d.ins?.key]);
+  const draftsByProvId = indexBy(drafts, (d) => [d.prov?.providerPaymentId, d.ins?.view.providerPaymentId]);
+  const draftsByTx = indexBy(drafts, (d) => [d.chainLink?.record.txHash]);
   const bankHits = new Map<BankRecord, { drafts: Draft[]; problem?: string }>();
   for (const b of bankPrincipal) {
-    const byIns = b.instructionId ? drafts.filter((d) => d.ins?.key === b.instructionId) : [];
-    const byProv = b.providerPaymentId
-      ? drafts.filter((d) => d.prov?.providerPaymentId === b.providerPaymentId || d.ins?.view.providerPaymentId === b.providerPaymentId) : [];
+    const byIns = b.instructionId ? draftsByIns.get(b.instructionId) ?? [] : [];
+    const byProv = b.providerPaymentId ? draftsByProvId.get(b.providerPaymentId) ?? [] : [];
     const involved = [...new Set([...byIns, ...byProv])];
     let problem: string | undefined;
     if (involved.length > 1) {
@@ -531,6 +636,8 @@ export function matchPayments(input: MatchInput): MatchResult {
     bankNo.set(d, rejected(m));
   }
   const bankTaken = new Set([...bankChosen.values()].map((c) => c.record));
+  const bankByDraft = new Map<Draft, BankRecord[]>();
+  for (const b of bankPrincipal) for (const d of bankHits.get(b)!.drafts) bankByDraft.set(d, [...(bankByDraft.get(d) ?? []), b]);
   for (const d of drafts) {
     const chosen = bankChosen.get(d);
     if (chosen) {
@@ -538,7 +645,7 @@ export function matchPayments(input: MatchInput): MatchResult {
       d.legs.bank = { state: "linked", links: [confirmedLink(chosen.record.recordId, chosen.by)] };
       continue;
     }
-    const mine = bankPrincipal.filter((b) => bankHits.get(b)!.drafts.includes(d) && !bankTaken.has(b) && !bankNo.get(d)!.has(b.recordId));
+    const mine = (bankByDraft.get(d) ?? []).filter((b) => !bankTaken.has(b) && !bankNo.get(d)!.has(b.recordId));
     const contested = mine.filter((b) => bankHits.get(b)!.problem);
     if (contested.length) {
       addReview(d, "bank", "conflicting_ids", contested.map((b) => bankHits.get(b)!.problem).join(" "), rank(d.anchor, contested));
@@ -597,12 +704,12 @@ export function matchPayments(input: MatchInput): MatchResult {
     const e = g.view;
     // Every payment the entry's identifiers point to, then only those in the entry's direction.
     const anyBasis = new Map<Draft, Basis>();
-    const byIns = e.instructionId ? drafts.filter((d) => d.ins?.key === e.instructionId) : [];
+    const byIns = e.instructionId ? draftsByIns.get(e.instructionId) ?? [] : [];
     for (const d of byIns) anyBasis.set(d, { basis: "instruction_id", detail: `Ledger ${g.records[0].entryId} names instruction ${e.instructionId}` });
     const byProv = e.providerPaymentId
-      ? drafts.filter((d) => d.prov?.providerPaymentId === e.providerPaymentId || d.ins?.view.providerPaymentId === e.providerPaymentId) : [];
+      ? draftsByProvId.get(e.providerPaymentId) ?? [] : [];
     for (const d of byProv) if (!anyBasis.has(d)) anyBasis.set(d, { basis: "provider_payment_id", detail: `Ledger ${g.records[0].entryId} names provider payment ${e.providerPaymentId}` });
-    const byChain = e.txHash ? drafts.filter((d) => {
+    const byChain = e.txHash ? (draftsByTx.get(e.txHash) ?? []).filter((d) => {
       const t = d.chainLink?.record;
       return !!t && t.txHash === e.txHash && (!e.chain || e.chain === t.chain) &&
         (e.transferIndex === t.transferIndex || (e.transferIndex === undefined && t.transfersInTx <= 1));
@@ -645,7 +752,15 @@ export function matchPayments(input: MatchInput): MatchResult {
     return id;
   };
   const prevLinks = (input.previousLedgerLinks ?? []).map((l) => ({ ...l, paymentId: followRedirects(l.paymentId) }));
-  const undecidedFor = (d: Draft) => principalLedger.filter((g) => ledgerHits.get(g)!.undecided.includes(d) && !ledgerTaken.has(g) && !ledgerNo.get(d)!.has(g.recordKey));
+  const prevLinksOf = indexBy(prevLinks, (l) => [l.paymentId]);
+  const ledgerByKey = new Map(principalLedger.map((g) => [g.recordKey, g]));
+  const ledgerByDraft = new Map<Draft, LedgerGroup[]>();
+  const undecidedByDraft = new Map<Draft, LedgerGroup[]>();
+  for (const g of principalLedger) {
+    for (const d of new Set(ledgerHits.get(g)!.drafts)) ledgerByDraft.set(d, [...(ledgerByDraft.get(d) ?? []), g]);
+    for (const d of new Set(ledgerHits.get(g)!.undecided)) undecidedByDraft.set(d, [...(undecidedByDraft.get(d) ?? []), g]);
+  }
+  const undecidedFor = (d: Draft) => (undecidedByDraft.get(d) ?? []).filter((g) => !ledgerTaken.has(g) && !ledgerNo.get(d)!.has(g.recordKey));
   for (const d of drafts) {
     if (!ledgerGroups.length) { d.legs.ledger = { state: "not_applicable" }; continue; }
     const chosen = ledgerChosen.get(d);
@@ -654,17 +769,17 @@ export function matchPayments(input: MatchInput): MatchResult {
       d.legs.ledger = { state: "linked", links: [confirmedLink(latest(chosen.group.records).recordId, chosen.by)] };
       continue;
     }
-    const mine = principalLedger.filter((g) => ledgerHits.get(g)!.drafts.includes(d) && !ledgerTaken.has(g) && !ledgerNo.get(d)!.has(g.recordKey));
+    const mine = (ledgerByDraft.get(d) ?? []).filter((g) => !ledgerTaken.has(g) && !ledgerNo.get(d)!.has(g.recordKey));
     const contested = mine.filter((g) => ledgerHits.get(g)!.problem);
     // Linked last run, but the transfer now counts the other way (e.g. its address was added to
     // File A): not unlinked silently. A person decides, with both views in front of them.
     const now = direction(d);
-    const flipped = now === "unknown" ? [] : prevLinks.filter((l) => l.paymentId === d.paymentId && l.direction !== now)
-      .map((l) => principalLedger.find((g) => g.recordKey === l.ledgerKey && !mine.includes(g) && !ledgerTaken.has(g) && !ledgerNo.get(d)!.has(g.recordKey)
+    const flipped = now === "unknown" ? [] : (prevLinksOf.get(d.paymentId) ?? []).filter((l) => l.direction !== now)
+      .map((l) => [ledgerByKey.get(l.ledgerKey)].find((g) => !!g && !mine.includes(g) && !ledgerTaken.has(g) && !ledgerNo.get(d)!.has(g.recordKey)
         && !sameDirection(g, d) && ledgerHits.get(g)!.anyBasis.has(d)))
       .filter((g): g is LedgerGroup => !!g);
     if (flipped.length) {
-      const was = prevLinks.find((l) => l.paymentId === d.paymentId && l.ledgerKey === flipped[0].recordKey)!.direction;
+      const was = prevLinksOf.get(d.paymentId)!.find((l) => l.ledgerKey === flipped[0].recordKey)!.direction;
       const t = d.chainLink!.record;
       const view = (x: Direction) => x === "inbound" ? "inbound (a deposit: only the deposit ledger fits)"
         : x === "outbound" ? "outbound (a payout: only the payout ledger fits)" : "unknown (File A not loaded)";
@@ -710,8 +825,10 @@ export function matchPayments(input: MatchInput): MatchResult {
   const ledgerLinks: LedgerLink[] = drafts.filter((d) => d.ledgerLink && d.legs.ledger?.state === "linked")
     .map((d) => ({ ledgerKey: d.ledgerLink!.recordKey, paymentId: d.paymentId, direction: flipPending.get(d) ?? direction(d) }));
   // Reversal entries attach to the payment whose ledger entry they reverse.
+  const byLedgerLink = new Map<string, Draft>();
+  for (const d of drafts) if (d.ledgerLink) { const k = `${d.ledgerLink.records[0].ledger}:${d.ledgerLink.records[0].entryId}`; if (!byLedgerLink.has(k)) byLedgerLink.set(k, d); }
   for (const g of ledgerGroups.filter((x) => x.records.some((r) => r.reverses))) {
-    const target = drafts.find((d) => d.ledgerLink && d.ledgerLink.records[0].entryId === g.view.reverses && d.ledgerLink.records[0].ledger === g.records[0].ledger);
+    const target = byLedgerLink.get(`${g.records[0].ledger}:${g.view.reverses}`);
     if (target) target.returns.push({ recordId: latest(g.records).recordId, basis: "reverses", detail: `Ledger ${g.records[0].entryId} reverses ${g.view.reverses}` });
   }
 
@@ -720,13 +837,23 @@ export function matchPayments(input: MatchInput): MatchResult {
   //    unresolved, the row waits in a review on that payment instead.
   const held = new Map<Draft, { fees: ProviderRecord[]; returns: ProviderRecord[] }>();
   const isProv = (g: ProvGroup | undefined, r: ProviderRecord) => !!g && g.provider === r.provider && g.providerPaymentId === r.relatesTo;
+  // Drafts a fee or return row could relate to, by provider payment; the exact tests below still apply.
+  const draftPos = new Map(drafts.map((d, i) => [d, i]));
+  const pk = (provider: string, id: string) => `${provider}\u0000${id}`;
+  const relIndex = indexBy(drafts, (d) => [
+    d.prov ? pk(d.prov.provider, d.prov.providerPaymentId) : undefined,
+    ...(d.ins?.records.map((x) => (x.providerPaymentId ? pk("*", x.providerPaymentId) : undefined)) ?? []),
+    ...(d.ins ? [...ties.get(d)!.byRef, ...ties.get(d)!.byId].map((g) => pk(g.provider, g.providerPaymentId)) : []),
+  ]);
+  const relatedTo = (r: ProviderRecord) => [...new Set([...(relIndex.get(pk(r.provider, r.relatesTo!)) ?? []), ...(relIndex.get(pk("*", r.relatesTo!)) ?? [])])]
+    .sort((a, b) => draftPos.get(a)! - draftPos.get(b)!);
   for (const r of input.provider.filter((x) => x.type === "fee" || x.type === "return")) {
     const bucket = r.type === "fee" ? "fees" as const : "returns" as const;
     if (r.relatesTo) {
-      const linked = drafts.filter((d) => d.legs.provider?.state === "linked" && isProv(d.prov, r));
+      const linked = relatedTo(r).filter((d) => d.legs.provider?.state === "linked" && isProv(d.prov, r));
       for (const d of linked) d[bucket].push({ recordId: r.recordId, basis: "provider_payment_id", detail: `${r.provider} ${r.type} row relates to ${r.relatesTo}` });
       if (linked.length) continue;
-      const waiting = drafts.filter((d) => d.legs.provider?.state !== "linked" && (
+      const waiting = relatedTo(r).filter((d) => d.legs.provider?.state !== "linked" && (
         isProv(d.prov, r) ||
         d.ins?.records.some((x) => x.providerPaymentId === r.relatesTo) ||
         (d.ins && [...ties.get(d)!.byRef, ...ties.get(d)!.byId].some((g) => isProv(g, r)))));
@@ -738,7 +865,7 @@ export function matchPayments(input: MatchInput): MatchResult {
       continue;
     }
     // Tied only to the instruction: attach when both its instruction and provider legs are linked.
-    for (const d of drafts.filter((x) => x.ins && r.merchantReference === x.ins.key)) {
+    for (const d of (r.merchantReference ? draftsByIns.get(r.merchantReference) ?? [] : []).filter((x) => x.ins && r.merchantReference === x.ins.key)) {
       if (d.legs.instruction?.state === "linked" && d.legs.provider?.state === "linked") {
         d[bucket].push({ recordId: r.recordId, basis: "merchant_reference", detail: `${r.provider} ${r.type} row carries merchant reference ${r.merchantReference}` });
       } else {
@@ -768,9 +895,10 @@ export function matchPayments(input: MatchInput): MatchResult {
         h[bucket].map((r) => ({ recordId: r.recordId, score: 0, reasons: [] })));
     }
   }
+  const bankReturns = indexBy(input.bank, (b) => [b.returnOf]);
   for (const d of drafts) {
     if (d.bankLink) {
-      for (const b of input.bank.filter((x) => x.returnOf === d.bankLink!.bankReference)) {
+      for (const b of bankReturns.get(d.bankLink.bankReference) ?? []) {
         d.returns.push({ recordId: b.recordId, basis: "return_of", detail: `Bank ${b.bankReference} is a return of ${b.returnOf}` });
       }
     }
@@ -817,11 +945,12 @@ export function matchPayments(input: MatchInput): MatchResult {
     chain: input.chain.filter((r) => !insPaid.has(r.recordId) && !reviewed.has(r.recordId)),
     bank: input.bank.filter((r) => !r.returnOf && !linkedAnywhere.has(r.recordId) && !reviewed.has(r.recordId)),
   };
+  const suggest = { instruction: suggester(pool.instruction), provider: suggester(pool.provider), chain: suggester(pool.chain), bank: suggester(pool.bank) };
   for (const p of payments) {
     const anchor = all.get(p.anchor.recordId);
     for (const leg of ["instruction", "provider", "chain", "bank"] as const) {
       const l = p.legs[leg];
-      if (l.state === "missing") l.suggestions = suggestionsFrom(anchor, pool[leg].filter((r) => r.recordId !== p.anchor.recordId));
+      if (l.state === "missing") l.suggestions = suggest[leg](anchor, p.anchor.recordId);
     }
   }
 
@@ -843,23 +972,35 @@ export function matchPayments(input: MatchInput): MatchResult {
   // Retired IDs: every ID ever assigned that no payment carries now gets a redirect to where its
   // records are, or keeps its last known one. Nothing assigned is ever dropped.
   const redirects: Record<string, PaymentRedirect> = { ...(input.redirects ?? {}) };
+  // Lookups for locate(), built once (scans per retired ID were quadratic).
+  const draftByInsKey = new Map<string, Draft>();
+  for (const d of drafts) if (d.ins && !draftByInsKey.has(d.ins.key)) draftByInsKey.set(d.ins.key, d);
+  const provGroupByKey = new Map<string, ProvGroup>();
+  for (const g of provGroups) { const k = `provider:${g.provider}:${g.providerPaymentId}`; if (!provGroupByKey.has(k)) provGroupByKey.set(k, g); }
+  const carrierOf = new Map<ProvGroup, Draft>();
+  for (const d of drafts) if (d.prov && !carrierOf.has(d.prov) && (d.legs.provider?.state === "linked" || !d.ins)) carrierOf.set(d.prov, d);
+  const reviewOfRecord = new Map<string, ReviewItem>();
+  for (const rv of reviews) for (const c of rv.candidates) if (!reviewOfRecord.has(c.recordId)) reviewOfRecord.set(c.recordId, rv);
+  const keysOfId = new Map<string, string[]>();
+  for (const k of Object.keys(assigned)) keysOfId.set(assigned[k], [...(keysOfId.get(assigned[k]) ?? []), k]);
   const locate = (key: string): PaymentRedirect["to"] & { reason: PaymentRedirect["reason"] } | undefined => {
     const [kind, ...rest] = key.split(":");
     if (kind === "instruction") {
-      const d = drafts.find((x) => x.ins?.key === rest.join(":"));
+      const d = draftByInsKey.get(rest.join(":"));
       return d ? { kind: "payment", paymentId: d.paymentId, reason: "merged" } : undefined;
     }
-    const g = provGroups.find((x) => `provider:${x.provider}:${x.providerPaymentId}` === key);
+    const g = provGroupByKey.get(key);
     if (!g) return undefined;
-    const d = drafts.find((x) => x.prov === g && (x.legs.provider?.state === "linked" || !x.ins));
+    const d = carrierOf.get(g);
     if (d) return { kind: "payment", paymentId: d.paymentId, reason: "merged" };
-    const ids = new Set(g.records.map((r) => r.recordId));
-    const rv = reviews.find((x) => x.candidates.some((c) => ids.has(c.recordId)));
+    // The first review (in review order) holding any of its records.
+    const held = g.records.map((r) => reviewOfRecord.get(r.recordId)).filter((x): x is ReviewItem => !!x);
+    const rv = held.sort((a, b) => reviews.indexOf(a) - reviews.indexOf(b))[0];
     return rv ? { kind: "review", reviewId: rv.reviewId, paymentId: rv.paymentId, reason: "held_in_review" } : undefined;
   };
   for (const id of everAssigned) {
     if (carried.has(id)) { delete redirects[id]; continue; }
-    const at = Object.keys(assigned).filter((k) => assigned[k] === id).map(locate).find(Boolean);
+    const at = (keysOfId.get(id) ?? []).map(locate).find(Boolean);
     if (at) {
       const { reason, ...to } = at;
       redirects[id] = { from: id, reason, to } as PaymentRedirect;
@@ -892,8 +1033,22 @@ export function describeRedirect(r: PaymentRedirect): string {
  * Resolve a payment ID or review ID from anywhere (a URL, an export, a review link) to the
  * payment that carries it now, following redirects. `via` lists the redirects followed.
  */
+// Lookups by ID, built once per match result: resolving is called once per inbox item, so a linear
+// scan here made the inbox sync cubic in the number of payments.
+const indexes = new WeakMap<MatchResult, { payments: Map<string, CanonicalPayment>; reviews: Map<string, ReviewItem>; byPaymentLeg: Map<string, ReviewItem> }>();
+function indexOf(result: MatchResult) {
+  let ix = indexes.get(result);
+  if (!ix) {
+    ix = { payments: new Map(result.payments.map((p) => [p.paymentId, p])), reviews: new Map(result.reviews.map((r) => [r.reviewId, r])), byPaymentLeg: new Map() };
+    for (const r of result.reviews) if (!ix.byPaymentLeg.has(`${r.paymentId}:${r.leg}`)) ix.byPaymentLeg.set(`${r.paymentId}:${r.leg}`, r);
+    indexes.set(result, ix);
+  }
+  return ix;
+}
+
 export function resolvePaymentRef(result: MatchResult, ref: string):
   { payment?: CanonicalPayment; review?: ReviewItem; via: PaymentRedirect[] } {
+  const ix = indexOf(result);
   const via: PaymentRedirect[] = [];
   const seen = new Set<string>();
   let id = ref;
@@ -901,22 +1056,22 @@ export function resolvePaymentRef(result: MatchResult, ref: string):
   // A review ID: REV-<payment>-<leg>. Current, or rebuilt from its payment part if that payment moved.
   const rev = /^REV-([0-9A-F]{10})-([a-z]+)$/.exec(ref);
   if (rev) {
-    review = result.reviews.find((r) => r.reviewId === ref);
-    if (review) return { payment: result.payments.find((p) => p.paymentId === review!.paymentId), review, via };
+    review = ix.reviews.get(ref);
+    if (review) return { payment: ix.payments.get(review.paymentId), review, via };
     id = `PAY-${rev[1]}`;
   }
   while (!seen.has(id)) {
     seen.add(id);
-    const payment = result.payments.find((p) => p.paymentId === id);
+    const payment = ix.payments.get(id);
     if (payment) {
-      review ??= rev ? result.reviews.find((r) => r.paymentId === id && r.leg === rev[2]) : undefined;
+      review ??= rev ? ix.byPaymentLeg.get(`${id}:${rev[2]}`) : undefined;
       return { payment, review, via };
     }
     const r = result.redirects?.[id];
     if (!r) break;
     via.push(r);
     if (r.to.kind === "none") break;
-    if (r.to.kind === "review") review = result.reviews.find((x) => x.reviewId === (r.to as { reviewId: string }).reviewId);
+    if (r.to.kind === "review") review = ix.reviews.get((r.to as { reviewId: string }).reviewId);
     id = r.to.paymentId;
   }
   return { payment: undefined, review, via };

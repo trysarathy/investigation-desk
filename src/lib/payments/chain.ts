@@ -62,11 +62,12 @@ export function lookupError(failed: { chain: Chain; error?: string }[]): string 
   ].filter(Boolean).join("; ").replace(/^n/, (c) => c.toUpperCase()) + ".";
 }
 
-export async function fetchTransfers(hashes: string[], deps: LiveDeps, now: () => Date = () => new Date()):
-  Promise<{ transfers: ChainTransferRecord[]; lookups: ChainLookupSummary[] }> {
+export async function fetchTransfers(hashes: string[], deps: LiveDeps, now: () => Date = () => new Date(),
+  onProgress?: (done: number, total: number) => void): Promise<{ transfers: ChainTransferRecord[]; lookups: ChainLookupSummary[] }> {
   const transfers: ChainTransferRecord[] = [];
   const lookups: ChainLookupSummary[] = [];
-  for (const hash of hashes) {
+  for (const [n, hash] of hashes.entries()) {
+    onProgress?.(n, hashes.length);
     const raws = new Map(ALL_CHAINS.map((c) => [c, [] as RawResponse[]]));
     const results = await Promise.all(ALL_CHAINS.map((c) => lookupOne(c, hash, deps, raws.get(c)!)));
     const checkedAt = now().toISOString();

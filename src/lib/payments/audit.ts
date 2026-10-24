@@ -2,8 +2,9 @@
 // there is no update or delete. Until the database lands this is a JSON-lines file under .data/.
 // The actor is self-declared until sign-in (week 5); system actions are logged as "system".
 
-import { appendFile, mkdir, readFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { fileLockKey, withLock } from "../lock";
 
 export interface AuditEntry {
   seq: number;
@@ -37,13 +38,9 @@ export class MemoryAuditLog implements AuditLog {
   async list() { return structuredClone(this.entries); }
 }
 
-// Appends to one file run one at a time (per process), so two writers never take the same number.
-const queues = new Map<string, Promise<unknown>>();
-function serially<T>(key: string, job: () => Promise<T>): Promise<T> {
-  const next = (queues.get(key) ?? Promise.resolve()).then(job, job);
-  queues.set(key, next.catch(() => undefined));
-  return next;
-}
+// The last number written per file, with the file's size then: re-read only if the file changed.
+const g = globalThis as { __deskAuditSeq?: Map<string, { size: number; seq: number }> };
+const lastSeq = (g.__deskAuditSeq ??= new Map());
 
 export class FileAuditLog implements AuditLog {
   constructor(private readonly file: string) {}
@@ -56,12 +53,18 @@ export class FileAuditLog implements AuditLog {
   }
   append(drafts: AuditDraft[]): Promise<AuditEntry[]> {
     if (!drafts.length) return Promise.resolve([]);
-    return serially(path.resolve(this.file), async () => {
+    // Appends to one file run one at a time (the file's lock), so two writers never take the same number.
+    return withLock(fileLockKey(this.file), async () => {
+      const key = path.resolve(this.file);
+      const size = await stat(this.file).then((s) => s.size, () => 0);
+      const cached = lastSeq.get(key);
       // Continue from the last number written, so numbers only ever increase.
-      const last = (await this.list()).at(-1)?.seq ?? 0;
+      const last = cached && cached.size === size ? cached.seq : (await this.list()).at(-1)?.seq ?? 0;
       const added = drafts.map((d, i) => ({ seq: last + i + 1, ...d }));
+      const body = added.map((e) => JSON.stringify(e)).join("\n") + "\n";
       await mkdir(path.dirname(this.file), { recursive: true });
-      await appendFile(this.file, added.map((e) => JSON.stringify(e)).join("\n") + "\n");
+      await appendFile(this.file, body);
+      lastSeq.set(key, { size: size + Buffer.byteLength(body), seq: last + added.length });
       return added;
     });
   }

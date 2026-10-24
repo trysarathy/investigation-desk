@@ -11,6 +11,7 @@ import { FIELDS, type ColumnMapping } from "@/lib/payments/fields";
 import type { ImportLog } from "@/lib/payments/store";
 import type { ImportKind } from "@/lib/payments/types";
 import { useActor } from "./ActingAs";
+import { announceMatch } from "./MatchProgress";
 import { Status } from "./Status";
 
 const KINDS: { kind: ImportKind; title: string }[] = [
@@ -142,6 +143,7 @@ function ImportPanel({ kind, title, mappings }: { kind: ImportKind; title: strin
       else {
         setLog(json as ImportLog);
         if (json.warnings?.length) setMessage({ kind: "info", text: json.warnings.join(" ") });
+        if (json.match) announceMatch();
         router.refresh();
       }
     } catch {
