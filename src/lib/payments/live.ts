@@ -48,6 +48,17 @@ export async function refreshInbox(now = new Date()) {
   return syncAll(stores(), { now, cases: await depositRows(now) });
 }
 
+/**
+ * The inbox for a page view. Deadlines move with the clock, so it is synced when the payments
+ * changed since the last sync or that sync is more than a minute old; otherwise it is read as is
+ * (a sync of a large inbox takes seconds, and every view used to run one).
+ */
+export async function inboxForView(now = new Date()) {
+  const [inbox, data] = await Promise.all([inboxStore().load(), paymentsStore().load()]);
+  const fresh = inbox.syncedRev === (data.rev ?? 0) && !!inbox.syncedAt && now.getTime() - Date.parse(inbox.syncedAt) < 60_000;
+  return { inbox: fresh ? inbox : await refreshInbox(now), data };
+}
+
 /** Who is acting: the name given in the app (self-declared until sign-in) and the caller's IP. */
 export function whoFrom(req: Request, actor: unknown): Who {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || undefined;

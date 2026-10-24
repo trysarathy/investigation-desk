@@ -5,7 +5,7 @@ import { InboxActions, ReviewDecide } from "@/components/InboxActions";
 import { Status } from "@/components/Status";
 import { formatTime } from "@/lib/format";
 import { recordsOf } from "@/lib/payments/exceptions";
-import { openContradictionsFor, resolveItemId, STATUS_LABELS } from "@/lib/payments/inbox";
+import { alsoOpenOnPayment, openContradictionsFor, resolveItemId, STATUS_LABELS } from "@/lib/payments/inbox";
 import { inboxStore, paymentsStore } from "@/lib/payments/live";
 import { describe, describeRedirect, resolvePaymentRef } from "@/lib/payments/match";
 import { codeLabel } from "@/lib/payments/view";
@@ -27,6 +27,7 @@ export default async function InboxItemPage({ params }: { params: Promise<{ item
   const result = data.match?.result;
   const paymentOf = (pid: string) => (result ? resolvePaymentRef(result, pid).payment?.paymentId : undefined) ?? pid;
   const contradictions = openContradictionsFor(inbox, item, paymentOf);
+  const others = alsoOpenOnPayment(inbox, paymentOf)(item.itemId);
   const moved = item.history.filter((h) => h.action === "moved").at(-1);
   const recs = recordsOf(data);
   const resolved = item.subject.kind === "payment" && result ? resolvePaymentRef(result, item.subject.paymentId) : undefined;
@@ -69,6 +70,14 @@ export default async function InboxItemPage({ params }: { params: Promise<{ item
               : <span className="mono">{item.subject.paymentId}</span>}
             {resolved?.via.length ? <span className="muted"> · {resolved.via.map(describeRedirect).join("; ")}</span> : null}
           </p>
+        )}
+        {others.length > 0 && (
+          <div>
+            <p style={{ margin: 0 }}><strong>Also open on this payment: {others.length}</strong></p>
+            <ul style={{ margin: "4px 0 0", paddingLeft: 20 }}>
+              {others.map((o) => <li key={o.itemId}><Link href={`/inbox/${encodeURIComponent(o.itemId)}`}>{o.title}</Link> <span className="faint">· {STATUS_LABELS[o.status]}{o.owner ? ` · ${o.owner}` : ""}</span></li>)}
+            </ul>
+          </div>
         )}
         {item.subject.kind === "case" && <p style={{ margin: 0 }}>Investigation <Link href={item.subject.href} className="mono">{item.subject.caseId}</Link></p>}
       </section>

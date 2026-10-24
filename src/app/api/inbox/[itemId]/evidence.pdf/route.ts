@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request, { params }: { params: Promise<{ itemId: string }> }) {
   const { itemId } = await params;
   const who = whoFrom(req, new URL(req.url).searchParams.get("actor"));
-  const err = checkActor(who.actor);
+  const err = checkActor(who.actor, "exporting");
   if (err) return new Response(err, { status: 422 });
   const at = new Date();
   const pack = evidencePack(itemId, await paymentsStore().load(), await inboxStore().load(), await auditLog().list(), at);

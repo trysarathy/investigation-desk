@@ -5,18 +5,19 @@
 
 import { NextResponse } from "next/server";
 import { demoModeOn } from "@/lib/demo/reset";
+import { requestTooLarge, TOO_LARGE, UPLOAD_MAX_BYTES } from "@/lib/limits";
 import { requestMatch } from "@/lib/payments/jobs";
 import { depositRows, rematchData, stores, whoFrom } from "@/lib/payments/live";
 import { importFile, missingKeyWarnings } from "@/lib/payments/workflow";
 import type { ImportKind } from "@/lib/payments/types";
 
 const KINDS: ImportKind[] = ["instruction", "provider", "bank", "ledger"];
-const MAX_BYTES = 20 * 1024 * 1024;
 
 export async function POST(req: Request, { params }: { params: Promise<{ kind: string }> }) {
   const { kind } = await params;
   if (!KINDS.includes(kind as ImportKind)) return NextResponse.json({ error: "Unknown record kind." }, { status: 404 });
   if (demoModeOn()) return NextResponse.json({ error: "Imports are off on this demo preview, so it never holds real customer data." }, { status: 403 });
+  if (requestTooLarge(req)) return NextResponse.json({ error: TOO_LARGE }, { status: 413 });
   const form = await req.formData().catch(() => undefined);
   const file = form?.get("file");
   const mappingId = form?.get("mappingId");
@@ -24,7 +25,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ kind: s
   if (!(file instanceof File)) return NextResponse.json({ error: "Attach a CSV file in the \"file\" field." }, { status: 400 });
   if (typeof mappingId !== "string" || !mappingId) return NextResponse.json({ error: "Choose a column mapping." }, { status: 400 });
   const version = typeof versionRaw === "string" && /^\d+$/.test(versionRaw) ? Number(versionRaw) : undefined;
-  if (file.size > MAX_BYTES) return NextResponse.json({ error: "File is larger than 20 MB." }, { status: 413 });
+  if (file.size > UPLOAD_MAX_BYTES) return NextResponse.json({ error: TOO_LARGE }, { status: 413 });
   const res = await importFile(stores(), { kind: kind as ImportKind, fileName: file.name.slice(0, 200), bytes: new Uint8Array(await file.arrayBuffer()), mappingId, mappingVersion: version },
     whoFrom(req, form?.get("actor")), new Date(), rematchData, await depositRows(), { deferMatch: true });
   if (res.error || !res.log) return NextResponse.json({ error: res.error }, { status: 422 });

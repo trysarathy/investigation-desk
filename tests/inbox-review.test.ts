@@ -185,7 +185,7 @@ describe("amounts compare whenever two legs share an asset", () => {
       ["provider", "tp", `${P_HEAD}\nAP-1,INS-1,DONE,100,USDT,2026-10-22T05:43:00Z,0x${N4},PAYMENT,\n`],
     ]);
     const e = excs(await s.payments.load()).find((x) => x.code === "amount_mismatch")!;
-    expect(e?.title).toBe("Amount mismatch: provider 100 USDT vs On-chain 593.560000000000000000");
+    expect(e?.title).toBe("Amount mismatch: provider 100 USDT vs On-chain 593.56");
     expect(e.evidence.find((x) => x.label.startsWith("Instruction"))!.label).toBe("Instruction (not compared: no asset)");
   });
 });
@@ -312,7 +312,7 @@ describe("unmatched ledger entry", () => {
     const s = await stores();
     await load(s, [["ledger", "payout-ledger-standard", "entry_id,booked_at,amount,status,currency\nL-9,2026-10-22T05:50:00Z,-5.00,POSTED,USDT\n"]]);
     const e = excs(await s.payments.load()).find((x) => x.code === "unmatched_ledger_entry")!;
-    expect(e).toMatchObject({ confidence: "Medium", title: "Unmatched ledger entry: Payout ledger entry L-9: -5.00 USDT, status POSTED" });
+    expect(e).toMatchObject({ confidence: "Medium", title: "Unmatched ledger entry: Payout ledger entry L-9: -5 USDT, status POSTED" });
   });
 });
 

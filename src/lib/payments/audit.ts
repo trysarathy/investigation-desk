@@ -73,8 +73,8 @@ export class FileAuditLog implements AuditLog {
 export const SYSTEM = { actor: "system", actorKind: "system" as const };
 
 /** A person's name as given in the app. Pseudonymous staff names only: no email addresses. */
-export function checkActor(name: unknown): string | undefined {
-  if (typeof name !== "string" || !name.trim()) return "Say who you are (Acting as) before making changes.";
+export function checkActor(name: unknown, doing = "making changes"): string | undefined {
+  if (typeof name !== "string" || !name.trim()) return `Say who you are (Acting as) before ${doing}.`;
   if (name !== name.trim()) return "Name has leading or trailing spaces.";
   if (/@/.test(name)) return "Use a name, not an email address.";
   if (name.length > 60) return "Name is longer than 60 characters.";

@@ -57,18 +57,25 @@ export interface Stores {
 export interface Who { actor: string; ip?: string }
 
 /** Recompute exceptions from the latest match and bring the inbox up to date. */
+// Lets the event loop turn between long synchronous steps, so other requests keep answering.
+const breathe = () => new Promise<void>((r) => setImmediate(r));
+
 export async function syncAll(stores: Stores, opts: { now: Date; cases?: DepositCaseRow[] }): Promise<InboxData> {
   const data = await stores.payments.load();
+  await breathe();
   // Inside the inbox's lock, so a person's action in the meantime is kept. A sync from an older
   // match than the inbox already reflects (two syncs finishing out of order) changes nothing.
-  const { inbox, audit } = await stores.inbox.update<{ inbox: InboxData; audit: AuditDraft[] }>((inbox) => {
+  const { inbox, audit } = await stores.inbox.update<{ inbox: InboxData; audit: AuditDraft[] }>(async (inbox) => {
     if ((data.rev ?? 0) < (inbox.syncedRev ?? 0)) return [undefined, { inbox, audit: [] }];
+    await breathe();
     const exceptions = computeExceptions({ data, settings: inbox.settings, now: opts.now, cases: opts.cases });
+    await breathe();
     const result = data.match?.result;
     const run = candidatesFrom(exceptions, result?.reviews ?? []);
     const paymentOf = (id: string) => (result ? resolvePaymentRef(result, id).payment?.paymentId : undefined) ?? id;
     const synced = syncInbox(inbox, run, { now: opts.now, decisions: data.decisions ?? [], paymentOf, redirects: result?.redirects });
-    const next = { ...synced.inbox, syncedRev: data.rev ?? 0 };
+    const next = { ...synced.inbox, syncedRev: data.rev ?? 0, syncedAt: opts.now.toISOString() };
+    await breathe();
     return [next, { inbox: next, audit: synced.audit }];
   });
   await stores.audit.append(audit);

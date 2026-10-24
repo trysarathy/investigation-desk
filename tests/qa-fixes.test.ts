@@ -170,3 +170,110 @@ describe("P2 import performance", () => {
     expect((await paymentsStore().load()).records.instruction.filter((r) => r.instructionId?.startsWith("BG-")).length).toBe(5000);
   }, 120_000);
 });
+
+// ---- P3: one upload limit, and a clear 413 ----
+
+describe("P3 upload limit", () => {
+  it("Next's request body cap is the route's limit (plus multipart overhead), not the 10 MB default", async () => {
+    const { UPLOAD_MAX_BYTES, REQUEST_MAX_BYTES } = await import("@/lib/limits");
+    // @ts-expect-error -- the Next config is plain JavaScript, without types
+    const config = (await import("../next.config.mjs")).default as { experimental?: { middlewareClientMaxBodySize?: number } };
+    expect(UPLOAD_MAX_BYTES).toBe(20 * 1024 * 1024);
+    expect(config.experimental?.middlewareClientMaxBodySize).toBe(REQUEST_MAX_BYTES);
+    expect(REQUEST_MAX_BYTES).toBeGreaterThan(UPLOAD_MAX_BYTES);
+  });
+
+  it("an import over the limit gets 413 saying so, before the body is read (never 'Attach a CSV file')", async () => {
+    const { POST } = await import("@/app/api/payments/imports/[kind]/route");
+    const big = new Request("http://desk.test/api/payments/imports/instruction", { method: "POST", body: "x",
+      headers: { ...headers, "content-length": String(25 * 1024 * 1024), "content-type": "multipart/form-data; boundary=x" } });
+    const r = await POST(big, { params: Promise.resolve({ kind: "instruction" }) });
+    expect(r.status).toBe(413);
+    expect((await r.json()).error).toMatch(/larger than the 20 MB upload limit/);
+    // A file just over the limit, with an honest body.
+    const f = new FormData();
+    f.set("file", new File(["a".repeat(20 * 1024 * 1024 + 1)], "big.csv", { type: "text/csv" }));
+    f.set("mappingId", "instructions-standard");
+    f.set("actor", "QA");
+    const r2 = await POST(new Request("http://desk.test/api/payments/imports/instruction", { method: "POST", body: f, headers }), { params: Promise.resolve({ kind: "instruction" }) });
+    expect(r2.status).toBe(413);
+    expect((await r2.json()).error).toMatch(/larger than the 20 MB upload limit/);
+  });
+
+  it("File A/B uploads use the same limit and message", async () => {
+    const { POST } = await import("@/app/api/uploads/[kind]/route");
+    const big = new Request("http://desk.test/api/uploads/A", { method: "POST", body: "x",
+      headers: { "content-length": String(25 * 1024 * 1024), "content-type": "multipart/form-data; boundary=x" } });
+    const r = await POST(big, { params: Promise.resolve({ kind: "A" }) });
+    expect(r.status).toBe(413);
+    expect((await r.json()).error).toMatch(/larger than the 20 MB upload limit/);
+  });
+});
+
+// ---- P4: polish ----
+
+describe("P4 display", () => {
+  it("amounts without meaningless trailing zeros; durations in days and hours; times in SGT", async () => {
+    const { displayAmount, formatSpan, formatTime } = await import("@/lib/format");
+    expect(displayAmount("593.560000000000000000")).toBe("593.56");
+    expect(displayAmount("77.00")).toBe("77");
+    expect(displayAmount("-90.50")).toBe("-90.5");
+    expect(displayAmount("0.000")).toBe("0");
+    expect(displayAmount("100")).toBe("100");
+    expect(displayAmount("n/a")).toBe("n/a");
+    expect(formatSpan(1461)).toBe("1 d 0 h");
+    expect(formatSpan(1399)).toBe("23 h 19 min");
+    expect(formatSpan(45)).toBe("45 min");
+    expect(formatTime("2026-10-23T05:30:00.000Z")).toBe("2026-10-23 13:30 SGT");
+  });
+
+  it("exception titles use them; the CSV export keeps exact values", async () => {
+    const { MemoryPaymentsStore, applyImport } = await import("@/lib/payments/store");
+    const { computeExceptions } = await import("@/lib/payments/exceptions");
+    const { SAMPLE_SETTINGS } = await import("@/lib/fixtures");
+    const { reconciledCsv } = await import("@/lib/payments/export");
+    const store = new MemoryPaymentsStore();
+    const now = new Date("2026-10-23T08:00:00Z");
+    await applyImport(store, "instruction", "i.csv", new TextEncoder().encode(`${I_HEAD}\nINS-1,2026-10-22T05:35:00Z,100.10,tron,USDT,,,,,\nINS-2,2026-10-22T05:35:00Z,5,tron,USDT,,,,,\n`), "instructions-standard", undefined, now);
+    await applyImport(store, "ledger", "l.csv", new TextEncoder().encode("entry_id,booked_at,amount,status,currency,instruction_id\nL-1,2026-10-22T05:50:00Z,-100.000000000000000000,POSTED,USDT,INS-1\n"), "payout-ledger-standard", undefined, now);
+    const data = await refreshMatching(await store.load(), keyless(), [], () => now, { depositAddresses: [] });
+    const settings = { version: 1, updatedAt: "", updatedBy: "", routes: [{ routeId: "default", name: "Any", match: {}, deadlineMinutes: 60, graceMinutes: 60,
+      expectedLegs: ["instruction", "provider", "ledger"] as ("instruction" | "provider" | "ledger")[], fee: { kind: "none" as const } }] };
+    void SAMPLE_SETTINGS;
+    const titles = computeExceptions({ data, settings, now }).map((e) => e.title);
+    expect(titles).toContain("Amount mismatch: instruction 100.1 USDT vs Ledger 100");
+    expect(titles).toContain("Overdue: due 2026-10-22 14:35 SGT, still waiting for the provider record");
+    expect(titles).toContain("Missing leg: no provider record 1 d 2 h after the instruction");
+    expect(titles.join(" ")).not.toMatch(/\d{4}-\d{2}-\d{2}T|minutes/);
+    const csv = reconciledCsv(data, { items: {}, settings } as never);
+    expect(csv).toContain("-100.000000000000000000");
+  });
+
+  it("the export without an actor says 'before exporting'", async () => {
+    const { GET } = await import("@/app/api/payments/export.csv/route");
+    const r = await GET(new Request("http://desk.test/api/payments/export.csv"));
+    expect(r.status).toBe(422);
+    expect(await r.text()).toMatch(/before exporting/);
+  });
+
+  it("has a favicon", async () => {
+    const { existsSync } = await import("node:fs");
+    expect(existsSync(path.join(__dirname, "../src/app/icon.svg"))).toBe(true);
+  });
+});
+
+// ---- P5: several open items on one payment are linked ----
+
+describe("P5 related items", () => {
+  it("each open item knows the other open items on its payment", async () => {
+    const { alsoOpenOnPayment } = await import("@/lib/payments/inbox");
+    const item = (itemId: string, paymentId: string, status = "open") =>
+      ({ itemId, kind: "exception", subject: { kind: "payment", paymentId }, status, history: [], notes: [] }) as never;
+    const inbox = { items: { a: item("a", "PAY-1"), b: item("b", "PAY-1"), c: item("c", "PAY-1", "closed"), d: item("d", "PAY-2"), e: item("e", "PAY-OLD") }, settings: {} } as never;
+    const paymentOf = (id: string) => (id === "PAY-OLD" ? "PAY-1" : id);
+    const ix = alsoOpenOnPayment(inbox, paymentOf);
+    expect(ix("a").map((i: { itemId: string }) => i.itemId).sort()).toEqual(["b", "e"]);
+    expect(ix("d")).toEqual([]);
+    expect(ix("c").map((i: { itemId: string }) => i.itemId).sort()).toEqual(["a", "b", "e"]);
+  });
+});

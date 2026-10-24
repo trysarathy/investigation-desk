@@ -65,6 +65,8 @@ export interface InboxData {
   settings: ExceptionSettings;
   /** The payments revision the inbox was last synced from (an older sync never overwrites a newer one). */
   syncedRev?: number;
+  /** When it was last synced. */
+  syncedAt?: string;
 }
 
 export const emptyInbox = (): InboxData => ({ items: {}, settings: structuredClone(DEFAULT_SETTINGS) });
@@ -259,6 +261,25 @@ export function resolveItemId(inbox: InboxData, itemId: string): string | undefi
 }
 
 /** Open contradictions on the same payment as this item (for the banner on every item of that payment). */
+/**
+ * The other open items on each item's payment (resolved through merges), indexed once, for lists
+ * that ask per row. Several items on one payment (say Overdue and a Missing leg) are one problem.
+ */
+export function alsoOpenOnPayment(inbox: InboxData, paymentOf: (id: string) => string | undefined): (itemId: string) => InboxItem[] {
+  const resolve = (id: string) => paymentOf(id) ?? id;
+  const open = new Map<string, InboxItem[]>();
+  for (const i of Object.values(inbox.items)) {
+    if (i.movedTo || i.status === "closed" || i.subject.kind !== "payment") continue;
+    const k = resolve(i.subject.paymentId);
+    open.set(k, [...(open.get(k) ?? []), i]);
+  }
+  return (itemId) => {
+    const item = inbox.items[itemId];
+    if (!item || item.subject.kind !== "payment") return [];
+    return (open.get(resolve(item.subject.paymentId)) ?? []).filter((i) => i.itemId !== itemId);
+  };
+}
+
 export function openContradictionsFor(inbox: InboxData, item: InboxItem, paymentOf: (id: string) => string | undefined): InboxItem[] {
   if (item.subject.kind !== "payment") return [];
   const target = paymentOf(item.subject.paymentId) ?? item.subject.paymentId;

@@ -40,7 +40,7 @@ export function ActingAs() {
 
 export function ActorLink({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) {
   const actor = useActor();
-  if (!actor) return <span className="faint" title="Set Acting as first: downloads are audit-logged.">{children} (set Acting as)</span>;
+  if (!actor) return <span className="faint" title="Say who you are (Acting as) before exporting: downloads are audit-logged.">{children} (set Acting as)</span>;
   const sep = href.includes("?") ? "&" : "?";
   return <a className={className} href={`${href}${sep}actor=${encodeURIComponent(actor)}`}>{children}</a>;
 }

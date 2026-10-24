@@ -120,7 +120,7 @@ describe("exception rules", () => {
   it("missing leg past the route's grace: Medium, only the stage it is stuck at", () => {
     const e = excFor(excs, data, "INS-2007").filter((x) => x.code === "missing_leg");
     expect(e).toHaveLength(1);
-    expect(e[0]).toMatchObject({ confidence: "Medium", title: "Missing leg: no provider record 180 minutes after the instruction" });
+    expect(e[0]).toMatchObject({ confidence: "Medium", title: "Missing leg: no provider record 3 h 0 min after the instruction" });
   });
 
   it("provider reports complete but reported no hash: raised within grace, as Medium", () => {
@@ -137,7 +137,7 @@ describe("exception rules", () => {
 
   it("amount mismatch: exact decimals, no fee to explain it", () => {
     const e = excFor(excs, data, "INS-2004").find((x) => x.code === "amount_mismatch")!;
-    expect(e).toMatchObject({ confidence: "High", title: "Amount mismatch: instruction 594.56 USDT vs On-chain 593.560000000000000000" });
+    expect(e).toMatchObject({ confidence: "High", title: "Amount mismatch: instruction 594.56 USDT vs On-chain 593.56" });
     expect(e.evidence.find((x) => x.label.startsWith("On-chain"))!.label).toBe("On-chain (differs by 1)");
   });
 
@@ -156,9 +156,9 @@ describe("exception rules", () => {
 
   it("overdue against the instruction's due_by, and against the route's deadline", () => {
     const due = excFor(excs, data, "INS-2007").find((x) => x.code === "overdue")!;
-    expect(due.evidence.find((x) => x.label === "Deadline")!.value).toBe("2026-10-23T07:00:00Z (the instruction's due_by)");
+    expect(due.evidence.find((x) => x.label === "Deadline")!.value).toBe("2026-10-23 15:00 SGT (the instruction's due_by)");
     const route = excFor(excs, data, "INS-2005").find((x) => x.code === "overdue")!;
-    expect(route.evidence.find((x) => x.label === "Deadline")!.value).toMatch(/created 2026-10-22T05:30:00Z \+ 1440 minutes, route default/);
+    expect(route.evidence.find((x) => x.label === "Deadline")!.value).toMatch(/created 2026-10-22 13:30 SGT \+ 1 d 0 h, route default/);
     // Complete payments are never overdue, however old.
     expect(excFor(excs, data, "INS-2001").some((x) => x.code === "overdue")).toBe(false);
   });
@@ -167,7 +167,7 @@ describe("exception rules", () => {
     const um = excs.filter((e) => e.code === "unmatched_settlement");
     expect(um.map((e) => e.title)).toEqual(expect.arrayContaining([
       "Unmatched settlement: TP AP-2009 (DONE) has no instruction",
-      "Unmatched settlement: Bank credit 77.00 USD, reference BNK-9",
+      "Unmatched settlement: Bank credit 77 USD, reference BNK-9",
     ]));
     // Its free text names AP-2009, but free text is never read as a link.
     expect(um.find((e) => e.title.includes("BNK-9"))!.subject.kind).toBe("record");
@@ -180,7 +180,7 @@ describe("exception rules", () => {
     const d = await rematch()(await s.payments.load());
     const e = computeExceptions({ data: d, settings: (await s.inbox.load()).settings, now: NOW }).find((x) => x.code === "contradiction")!;
     expect(e).toMatchObject({ confidence: "High", subject: { paymentId: forIns(d, "INS-2001").paymentId }, occurredAt: "2026-10-22T09:00:00Z" });
-    expect(e.title).toBe("Contradiction: TP reported DONE at 2026-10-22T05:43:00Z, then a return arrived later: TP REFUND AP-2001R: status REFUNDED");
+    expect(e.title).toBe("Contradiction: TP reported DONE at 2026-10-22 13:43 SGT, then a return arrived later: TP REFUND AP-2001R: status REFUNDED");
   });
 
   it("contradiction: the ledger posts, then reverses the same entry", async () => {

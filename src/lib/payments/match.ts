@@ -15,6 +15,7 @@
 import { createHash } from "node:crypto";
 import { canonicalAddress, sameAddress } from "../address";
 import { compareDecimal, isDecimal } from "../decimal";
+import { displayAmount } from "../format";
 import { CHAIN_NAMES, type Chain } from "../types";
 import type {
   BankRecord, Candidate, CanonicalPayment, ChainLookupSummary, ChainTransferRecord, Direction, InstructionRecord, Leg, LegName, Link,
@@ -138,7 +139,7 @@ function similarity(a: Traits, b: Traits): { score: number; reasons: string[] } 
   let score = 0;
   const reasons: string[] = [];
   if (a.amount && b.amount && isDecimal(a.amount) && isDecimal(b.amount) && compareDecimal(a.amount, b.amount) === 0) {
-    score += 3; reasons.push(`same amount (${a.amount})`);
+    score += 3; reasons.push(`same amount (${displayAmount(a.amount)})`);
   }
   if (a.address && b.address && sameAddress(a.address, b.address)) { score += 3; reasons.push("same destination address"); }
   if (a.asset && b.asset && a.asset.toUpperCase().startsWith(b.asset.toUpperCase().slice(0, 4))) { score += 1; reasons.push(`same asset (${b.asset})`); }
@@ -1029,10 +1030,6 @@ export function describeRedirect(r: PaymentRedirect): string {
   }
 }
 
-/**
- * Resolve a payment ID or review ID from anywhere (a URL, an export, a review link) to the
- * payment that carries it now, following redirects. `via` lists the redirects followed.
- */
 // Lookups by ID, built once per match result: resolving is called once per inbox item, so a linear
 // scan here made the inbox sync cubic in the number of payments.
 const indexes = new WeakMap<MatchResult, { payments: Map<string, CanonicalPayment>; reviews: Map<string, ReviewItem>; byPaymentLeg: Map<string, ReviewItem> }>();
@@ -1046,6 +1043,10 @@ function indexOf(result: MatchResult) {
   return ix;
 }
 
+/**
+ * Resolve a payment ID or review ID from anywhere (a URL, an export, a review link) to the
+ * payment that carries it now, following redirects. `via` lists the redirects followed.
+ */
 export function resolvePaymentRef(result: MatchResult, ref: string):
   { payment?: CanonicalPayment; review?: ReviewItem; via: PaymentRedirect[] } {
   const ix = indexOf(result);
@@ -1083,7 +1084,7 @@ const label = (d: Draft) => (d.ins ? `instruction ${d.ins.key}` : d.prov ? `${d.
 export function describe(r: PaymentRecord): string {
   switch (r.kind) {
     case "instruction":
-      return `Instruction ${r.instructionId}: ${r.amount}${r.token ? ` ${r.token}` : ""}${r.chain ? ` on ${chainName(r.chain)}` : ""}`;
+      return `Instruction ${r.instructionId}: ${displayAmount(r.amount)}${r.token ? ` ${r.token}` : ""}${r.chain ? ` on ${chainName(r.chain)}` : ""}`;
     case "provider":
       return `${r.provider} ${r.typeRaw ?? r.type} ${r.providerPaymentId}: status ${r.statusRaw}` +
         (r.statusMeaning === "provider_reports_complete" && r.type === "principal" ? " (provider reports complete; not proof of beneficiary credit)" :
@@ -1091,11 +1092,11 @@ export function describe(r: PaymentRecord): string {
     case "chain_transfer":
       return r.transferIndex === undefined
         ? `${chainName(r.chain)} transaction ${short(r.txHash)}: ${r.txStatus}, no token transfer`
-        : `${chainName(r.chain)} transfer ${r.amount} ${r.token} to ${r.to} (${r.txStatus})`;
+        : `${chainName(r.chain)} transfer ${displayAmount(r.amount ?? "")} ${r.token} to ${r.to} (${r.txStatus})`;
     case "bank":
-      return `Bank ${r.direction} ${r.amount} ${r.currency}, reference ${r.bankReference}${r.returnOf ? ` (return of ${r.returnOf})` : ""}`;
+      return `Bank ${r.direction} ${displayAmount(r.amount)} ${r.currency}, reference ${r.bankReference}${r.returnOf ? ` (return of ${r.returnOf})` : ""}`;
     case "ledger":
-      return `${r.ledger === "payout" ? "Payout ledger" : "Deposit ledger"} entry ${r.entryId}: ${r.amount}${r.currency ? ` ${r.currency}` : ""}, status ${r.status}` +
+      return `${r.ledger === "payout" ? "Payout ledger" : "Deposit ledger"} entry ${r.entryId}: ${displayAmount(r.amount)}${r.currency ? ` ${r.currency}` : ""}, status ${r.status}` +
         (r.statusMeaning === "unmapped" ? " (status not in the mapping)" : "") + (r.reverses ? ` (reverses ${r.reverses})` : "");
   }
 }

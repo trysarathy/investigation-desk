@@ -4,10 +4,9 @@
 import { NextResponse } from "next/server";
 import { validateFileA, validateFileB } from "@/lib/csv/files";
 import { demoModeOn } from "@/lib/demo/reset";
+import { requestTooLarge, TOO_LARGE, UPLOAD_MAX_BYTES } from "@/lib/limits";
 import { workspaceStore } from "@/lib/workspace/live";
 import { applyUpload } from "@/lib/workspace/store";
-
-const MAX_BYTES = 20 * 1024 * 1024;
 
 export async function POST(req: Request, { params }: { params: Promise<{ kind: string }> }) {
   const { kind } = await params;
@@ -15,10 +14,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ kind: s
   if (demoModeOn()) {
     return NextResponse.json({ error: "Uploads are off on this demo preview, so it never holds real customer data. Use the demo workspace." }, { status: 403 });
   }
+  if (requestTooLarge(req)) return NextResponse.json({ error: TOO_LARGE }, { status: 413 });
   const form = await req.formData().catch(() => undefined);
   const file = form?.get("file");
   if (!(file instanceof File)) return NextResponse.json({ error: "Attach a CSV file in the \"file\" field." }, { status: 400 });
-  if (file.size > MAX_BYTES) return NextResponse.json({ error: "File is larger than 20 MB." }, { status: 413 });
+  if (file.size > UPLOAD_MAX_BYTES) return NextResponse.json({ error: TOO_LARGE }, { status: 413 });
   const bytes = new Uint8Array(await file.arrayBuffer());
   const name = file.name.slice(0, 200);
   const record = kind === "A"

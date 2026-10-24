@@ -29,3 +29,18 @@ export function formatDuration(seconds: number): string {
   if (mins < 90) return `about ${mins} minutes`;
   return `about ${Math.round(mins / 60)} hours`;
 }
+
+/** An amount for reading: trailing zeros after the point dropped (593.560000 → 593.56). Exports keep the exact value. */
+export function displayAmount(amount: string): string {
+  if (!/^-?\d+\.\d+$/.test(amount)) return amount;
+  const trimmed = amount.replace(/0+$/, "").replace(/\.$/, "");
+  return /^-?0$/.test(trimmed) ? "0" : trimmed;
+}
+
+/** A span of minutes for a sentence: "45 min", "23 h 19 min", "1 d 0 h". */
+export function formatSpan(minutes: number): string {
+  const m = Math.max(0, Math.floor(minutes));
+  if (m < 60) return `${m} min`;
+  if (m < 24 * 60) return `${Math.floor(m / 60)} h ${m % 60} min`;
+  return `${Math.floor(m / 1440)} d ${Math.floor((m % 1440) / 60)} h`;
+}
