@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
+import { AddressChecker } from "@/components/requests/AddressChecker";
 import { AutoRefresh } from "@/components/requests/AutoRefresh";
 import { CopyButton } from "@/components/requests/Copy";
 import { CONFIRMATIONS } from "@/lib/requests/check";
-import { DEMO_BUSINESS } from "@/lib/requests/demo";
+import { DEMO_BUSINESS, lookalikeOf } from "@/lib/requests/demo";
+import { ISSUER } from "@/lib/requests/types";
+import { compareDecimal } from "@/lib/decimal";
 import { amountToSend, deriveRequest, formatUsdc } from "@/lib/requests/lifecycle";
 import { eip681, senderStatus } from "@/lib/requests/present";
 import { requestsStore } from "@/lib/requests/service";
@@ -42,17 +45,18 @@ export default async function PayPage({ params }: { params: Promise<{ publicId: 
   const due = toSend !== "0" && v.state !== "completed";
   const uri = eip681(r, due ? toSend : r.amount);
   const qr = await QRCode.toString(uri, { type: "svg", margin: 1, errorCorrectionLevel: "M", color: { dark: "#17181c", light: "#ffffff" } });
-  const business = r.demo ? DEMO_BUSINESS.replace(/\.$/, "") : "the business";
+  const business = r.demo ? DEMO_BUSINESS : "the business";
+  const t = r.token;
 
   return (
     <main className="pay">
       {v.state !== "completed" && <AutoRefresh ms={4000} />}
-      {r.demo && <span className="demo-flag" title="This page belongs to a demo. The business, address and any transfers shown are synthetic.">Demo · synthetic business data · no real payment</span>}
+      {r.demo && <span className="demo-badge" title="This page belongs to a demo. The business, address and any transfers shown are fictional. Don't send real money.">Demo data · don&apos;t send real money</span>}
       <article className="pay-card" aria-labelledby="pay-amount">
         <header className="pay-top">
           <div className="pay-for">{r.invoiceRef} · payment to {business}</div>
-          <div className="pay-amount" id="pay-amount">{formatUsdc(r.amount)}<small>USDC</small></div>
-          <div className="pay-net"><span className="badge">Token: USDC</span><span className="badge">Network: Ethereum</span></div>
+          <div className="pay-amount" id="pay-amount">{formatUsdc(r.amount)}<small>{t}</small></div>
+          <div className="pay-net"><span className="badge">Token: {t}</span><span className="badge">Network: Ethereum</span></div>
         </header>
 
         <section className="pay-status" aria-live="polite" style={{ borderTop: 0, borderBottom: "1px solid var(--border)" }}>
@@ -75,16 +79,16 @@ export default async function PayPage({ params }: { params: Promise<{ publicId: 
                 <span className="pay-n">1</span>
                 <div>
                   <div className="pay-k">Send exactly</div>
-                  <div className="pay-v amount">{formatUsdc(toSend)} USDC{toSend !== r.amount ? " (the remaining balance)" : ""}</div>
+                  <div className="pay-v amount" data-testid="send-exactly">{formatUsdc(toSend)} {t}{compareDecimal(toSend, r.amount) !== 0 ? " (the remaining balance)" : ""}</div>
                 </div>
               </li>
               <li>
                 <span className="pay-n">2</span>
                 <div>
                   <div className="pay-k">Using the Ethereum network</div>
-                  <div className="pay-v">USDC on Ethereum</div>
+                  <div className="pay-v">{t} on Ethereum</div>
                   <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-                    Circle&apos;s USDC contract: <span className="mono">{r.tokenContract.slice(0, 10)}…{r.tokenContract.slice(-8)}</span>{" "}
+                    {ISSUER[t]}&apos;s {t} contract: <span className="mono">{r.tokenContract.slice(0, 10)}…{r.tokenContract.slice(-8)}</span>{" "}
                     <CopyButton text={r.tokenContract} label="Copy contract" className="btn btn-sm" />
                   </div>
                 </div>
@@ -95,13 +99,14 @@ export default async function PayPage({ params }: { params: Promise<{ publicId: 
                   <div className="pay-k">To this address</div>
                   <Address value={r.receivingAddress} />
                   <div style={{ marginTop: 8 }}><CopyButton text={r.receivingAddress} label="Copy address" /></div>
+                  <div className="faint" style={{ fontSize: 12, marginTop: 6 }}>Copy it from here, never from your wallet&apos;s history: scammers plant look-alike addresses there.</div>
                 </div>
               </li>
             </ol>
+            <AddressChecker publicId={r.publicId} demoLookalike={r.demo && r.id === "DEMO-1046" ? lookalikeOf(r.receivingAddress) : undefined} />
             <p className="pay-warn">
-              Send only USDC on Ethereum. USDC on another network, or any other token, won&apos;t count as payment for this invoice
-              and may not be recoverable. Blockchain transfers can&apos;t be reversed, so check the first and last characters of the
-              address after you paste it.
+              Send only {t} on Ethereum. {t} on another network (such as Tron), or any other token, won&apos;t count as payment for this
+              invoice and may not be recoverable. Blockchain transfers can&apos;t be reversed.
             </p>
             <div className="pay-qr">
               <div dangerouslySetInnerHTML={{ __html: qr }} role="img" aria-label="QR code for this payment request" />

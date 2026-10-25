@@ -1,78 +1,88 @@
 "use client";
 
 // The demo's simulated provider, as buttons. Each one writes simulated transfer events through the
-// same ingestion and matching the app uses for real ones; the pages then re-read those records.
+// same ingestion, matching and auto-mark rule the app uses for real ones; the pages then re-read
+// those records. Nothing here touches a real chain.
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-export interface ScenarioStatus {
-  key: "routine" | "short" | "fake";
-  id: string;
-  title: string;
-  blurb: string;
-  sendLabel: string;
-  sent: boolean;
+async function demo(body: object): Promise<string | null> {
+  try {
+    const r = await fetch("/api/requests/demo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    return r.ok ? null : (await r.json().catch(() => ({}))).error ?? `Failed (${r.status}).`;
+  } catch {
+    return "The server didn't answer. Nothing changed.";
+  }
+}
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Case (a): Acme's payment arrives, confirms and is marked paid, in about four seconds, through the real logic. */
+export function PlayPayment({ disabled }: { disabled?: boolean }) {
+  const router = useRouter();
+  const [step, setStep] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const play = async () => {
+    setError(null);
+    const steps: [string, object][] = [
+      ["Payment sent…", { kind: "send", scenario: "a" }],
+      ["In a block…", { kind: "mine" }],
+      ["Confirming…", { kind: "advance", blocks: 6 }],
+      ["Confirmed", { kind: "advance", blocks: 6 }],
+    ];
+    for (const [label, body] of steps) {
+      setStep(label);
+      const e = await demo(body);
+      router.refresh();
+      if (e) { setError(e); break; }
+      await pause(1000);
+    }
+    setStep(null);
+    setTimeout(() => router.refresh(), 600);
+  };
+  return (
+    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+      <button className="btn btn-primary" disabled={disabled || !!step} onClick={play} data-testid="play-payment">
+        {step ?? "▶ Play Acme's payment"}
+      </button>
+      <span className="faint" style={{ fontSize: 12 }}>Simulated transfer, through the real matching logic. About 4 seconds.</span>
+      {error && <div className="bar bar-red" role="alert">{error}</div>}
+    </div>
+  );
 }
 
-export function DemoControls({ scenarios, waitingForBlock, inBlock, head, compact, only }: {
-  scenarios: ScenarioStatus[]; waitingForBlock: number; inBlock: number; head?: number; compact?: boolean; only?: string;
-}) {
+/** Reload the demo day: rebuilds the same fictional records. Two clicks, no browser dialog. */
+export function ReloadDemo({ label = "Reload demo day" }: { label?: string }) {
   const router = useRouter();
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const run = async (label: string, body: object) => {
-    setBusy(label); setError(null);
-    try {
-      const r = await fetch("/api/requests/demo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-      if (!r.ok) setError((await r.json().catch(() => ({}))).error ?? `Failed (${r.status}).`);
-      router.refresh();
-      // A second read a moment later, in case a background refresh that started earlier lands last.
-      setTimeout(() => router.refresh(), 1000);
-    } catch {
-      setError("The server didn't answer. Nothing changed.");
-    } finally {
-      setBusy(null);
-    }
-  };
-  const shown = only ? scenarios.filter((s) => s.id === only) : scenarios;
+  const [arm, setArm] = useState(false);
+  const [busy, setBusy] = useState(false);
   return (
-    <section className="panel" aria-label="Demo controls">
-      <div className="panel-h">
-        <h2>Demo controls <span className="faint" style={{ fontWeight: 400 }}>· simulated transfers, no real chain</span></h2>
-        {head !== undefined && <span className="faint mono">simulated block {head.toLocaleString("en-US")}</span>}
-      </div>
-      <div className="panel-b">
-        {shown.map((s) => (
-          <div key={s.key} style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", justifyContent: "space-between" }}>
-            {!compact && <div style={{ minWidth: 220, flex: "1 1 260px" }}><strong>{s.title}</strong> <span className="mono faint">{s.id}</span><div className="muted" style={{ fontSize: 12 }}>{s.blurb}</div></div>}
-            <button className="btn btn-sm" disabled={!!busy} onClick={() => run(s.key, { kind: "send", scenario: s.key })}>
-              {busy === s.key ? "Sending…" : s.sendLabel}
-            </button>
-          </div>
-        ))}
-        {(!only || only === "DEMO-1042") && (
-          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-            <span className="muted" style={{ fontSize: 12, flex: "1 1 260px" }}>After a short payment: Brightline sends the remaining balance.</span>
-            <button className="btn btn-sm" disabled={!!busy} onClick={() => run("balance", { kind: "send_balance" })}>Brightline sends 1,000.00 USDC</button>
-          </div>
-        )}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", borderTop: "1px solid var(--border)", paddingTop: 10, marginTop: 2 }}>
-          <button className="btn btn-sm btn-primary" disabled={!!busy || waitingForBlock === 0} onClick={() => run("mine", { kind: "mine" })}
-            title="Puts every simulated transfer that is waiting into the next block">
-            Include in a block{waitingForBlock ? ` (${waitingForBlock} waiting)` : ""}
-          </button>
-          <button className="btn btn-sm" disabled={!!busy || inBlock === 0} onClick={() => run("adv", { kind: "advance", blocks: 12 })}>Add 12 confirmations</button>
-          <button className="btn btn-sm" disabled={!!busy || inBlock + waitingForBlock === 0} onClick={() => run("dup", { kind: "redeliver" })}
-            title="Delivers the most recent simulated event again, unchanged. It must count once.">Deliver last event again</button>
-          <span style={{ flex: 1 }} />
-          <button className="btn btn-sm" disabled={!!busy} onClick={() => { if (confirm("Reset the demo? Only demo records are removed; anything else stays.")) void run("reset", { kind: "reset" }); }}>
-            Reset demo
-          </button>
-        </div>
-        {error && <div className="bar bar-red" role="alert">{error}</div>}
-      </div>
-    </section>
+    <button className="btn btn-sm" disabled={busy} data-testid="reload-demo"
+      title="Rebuilds the demo week exactly as it starts. Only demo data is removed."
+      onClick={async () => {
+        if (!arm) { setArm(true); setTimeout(() => setArm(false), 4000); return; }
+        setBusy(true);
+        await demo({ kind: "reset" });
+        setArm(false); setBusy(false);
+        router.push("/requests");
+        router.refresh();
+      }}>
+      {busy ? "Reloading…" : arm ? "Click again to reload" : label}
+    </button>
+  );
+}
+
+/** For the sceptic: deliver the last simulated event again. It must count once. */
+export function RedeliverButton({ requestId }: { requestId?: string }) {
+  const router = useRouter();
+  const [msg, setMsg] = useState<string | null>(null);
+  return (
+    <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+      <button className="btn btn-sm" onClick={async () => { const e = await demo({ kind: "redeliver", requestId }); setMsg(e ?? "Delivered again: see Activity. It still counts once."); router.refresh(); }}>
+        Deliver the last event again
+      </button>
+      {msg && <span className="faint" style={{ fontSize: 12 }} role="status">{msg}</span>}
+    </span>
   );
 }
 
@@ -80,9 +90,9 @@ export function LoadDemoButton({ label = "Load the demo day" }: { label?: string
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   return (
-    <button className="btn btn-primary" disabled={busy} onClick={async () => {
+    <button className="btn btn-primary" disabled={busy} data-testid="load-demo" onClick={async () => {
       setBusy(true);
-      await fetch("/api/requests/demo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: "reset" }) }).catch(() => {});
+      await demo({ kind: "reset" });
       setBusy(false);
       router.refresh();
     }}>{busy ? "Loading…" : label}</button>

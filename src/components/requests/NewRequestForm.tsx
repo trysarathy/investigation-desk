@@ -7,14 +7,14 @@ import { ActingAs, useActor } from "@/components/ActingAs";
 const FIELDS = [
   { k: "customerRef", label: "Customer", placeholder: "e.g. Acme Logistics or C-10422", hint: "A name or reference. No emails or ID numbers." },
   { k: "invoiceRef", label: "Invoice", placeholder: "e.g. INV-2045", hint: "Shown to the sender, so they know what they're paying." },
-  { k: "amount", label: "Amount (USDC)", placeholder: "1250.00", hint: "Exact. Digits and one point, up to 6 decimal places." },
+  { k: "amount", label: "Amount", placeholder: "1250.00", hint: "Exact. Digits and one point, up to 6 decimal places." },
   { k: "receivingAddress", label: "Receiving address", placeholder: "0x…", hint: "Your Ethereum address for this payment. A separate address per request lets us match by address, not amount." },
 ] as const;
 
 export function NewRequestForm() {
   const actor = useActor();
   const router = useRouter();
-  const [v, setV] = useState<Record<string, string>>({});
+  const [v, setV] = useState<Record<string, string>>({ token: "USDC" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,8 +47,14 @@ export function NewRequestForm() {
             </div>
           </div>
         ))}
-        <span className="muted">Token and network</span>
-        <div><strong>USDC on Ethereum</strong> <span className="faint">· Circle&apos;s contract 0xA0b8…eB48. The only option in this version.</span></div>
+        <label htmlFor="token">Token</label>
+        <div>
+          <select id="token" className="input" value={v.token} onChange={(e) => setV({ ...v, token: e.target.value })}>
+            <option value="USDC">USDC (Circle)</option>
+            <option value="USDT">USDT (Tether)</option>
+          </select>
+          <div className="field-hint">On Ethereum. Only the issuer&apos;s official contract counts; look-alike tokens are blocked.</div>
+        </div>
       </div>
       <div style={{ display: "flex", gap: 12, alignItems: "center", padding: "12px 16px", borderTop: "1px solid var(--border)", flexWrap: "wrap" }}>
         <button className="btn btn-primary" type="submit" disabled={busy || !actor}>{busy ? "Creating…" : "Create request"}</button>

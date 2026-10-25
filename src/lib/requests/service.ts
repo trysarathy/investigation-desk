@@ -6,9 +6,13 @@ import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { liveDeps, liveLookupsEnabled } from "../chain/live";
 import { dataDir } from "../data-dir";
-import { checkObservation, CONFIRMATIONS, OFFICIAL_USDC } from "./check";
-import { demoAdvance, demoMine, demoPublicId, demoRedeliver, demoSend, demoSendBalance, resetDemo, type ScenarioKey } from "./demo";
-import { addNote, createRequest, decide, deriveRequest, ingest, setOwner, validateRequest, type DecisionInput, type NewRequestInput, type RequestView } from "./lifecycle";
+import { isDemoMode } from "../mode";
+import { checkObservation, CONFIRMATIONS, OFFICIAL } from "./check";
+import { demoAdvance, demoMine, demoPublicId, demoRedeliver, demoSend, resetDemo } from "./demo";
+import {
+  addNote, assignUnmatched, createRequest, decide, deriveRequest, ingest, recordAddressCheck, setOwner, validateRequest,
+  type DecisionInput, type NewRequestInput, type RequestView,
+} from "./lifecycle";
 import { LiveHashProvider } from "./provider";
 import { FileRequestsStore } from "./store";
 import type { RequestsData } from "./types";
@@ -27,7 +31,9 @@ export async function createPaymentRequest(input: NewRequestInput, by: string): 
   const errors = validateRequest(input);
   if (Object.keys(errors).length) return { errors };
   return requestsStore().update((d) => {
-    const { data, request } = createRequest(d, input, { now: nowIso(), by, demo: false, publicId: newPublicId(), tokenContract: OFFICIAL_USDC });
+    // In demo mode a request made during the demo is demo data too: labelled, offline, and cleared by "Load the demo day".
+    const demo = isDemoMode();
+    const { data, request } = createRequest(d, input, { now: nowIso(), by, demo, publicId: newPublicId(), tokenContract: OFFICIAL[input.token ?? "USDC"], autoMarkPaid: demo });
     return [data, { id: request.id }];
   });
 }
@@ -55,6 +61,7 @@ export async function actOnRequest(id: string, action: RequestAction, by: string
 
 /** Live provider: look a real hash up read-only and feed what it finds through the same ingestion. */
 async function attachHash(id: string, hash: string, by: string): Promise<{ error?: string; message?: string }> {
+  if (isDemoMode()) return { error: "Demo mode is offline: live lookups are off. Restart with DEMO_MODE=off for live mode." };
   if (!liveLookupsEnabled() && !process.env.OFFLINE_REPLAY_DIR) return { error: "Live chain lookups are turned off on this server (LIVE_LOOKUPS=off)." };
   const store = requestsStore();
   const snapshot = await store.load();
@@ -75,13 +82,31 @@ async function attachHash(id: string, hash: string, by: string): Promise<{ error
   });
 }
 
+/** A person confirms which open request an unidentified payment pays. */
+export async function confirmUnmatched(key: string, requestId: string, note: string, by: string): Promise<{ error?: string }> {
+  return requestsStore().update((d) => {
+    const now = nowIso();
+    const res = assignUnmatched(d, key, requestId, note, { now, by, threshold: CONFIRMATIONS, check: checkObservation(now) });
+    return res.error ? [undefined, { error: res.error }] : [res.data, {}];
+  });
+}
+
+/** The sender's address checker on the payment page. Records the verdict on the request (look-alikes in full). */
+export async function checkSenderAddress(publicId: string, address: string): Promise<{ error?: string; result?: string }> {
+  return requestsStore().update((d): [RequestsData | undefined, { error?: string; result?: string }] => {
+    const r = Object.values(d.requests).find((x) => x.publicId === publicId);
+    if (!r) return [undefined, { error: "No such payment request." }];
+    const res = recordAddressCheck(d, r.id, address.slice(0, 100), nowIso());
+    return [res.data, { result: res.result }];
+  });
+}
+
 export type DemoAction =
   | { kind: "reset" }
-  | { kind: "send"; scenario: ScenarioKey }
-  | { kind: "send_balance" }
+  | { kind: "send"; scenario: "a" }
   | { kind: "mine" }
   | { kind: "advance"; blocks: number }
-  | { kind: "redeliver" };
+  | { kind: "redeliver"; requestId?: string };
 
 export async function demoAction(a: DemoAction): Promise<{ error?: string }> {
   return requestsStore().update((d) => {
@@ -89,11 +114,10 @@ export async function demoAction(a: DemoAction): Promise<{ error?: string }> {
     const n = Object.keys(d.observations).length + 1;
     switch (a.kind) {
       case "reset": return [resetDemo(d, now, demoPublicId), {}];
-      case "send": { const r = demoSend(d, a.scenario, now, n); return r.error ? [undefined, { error: r.error }] : [r.data, {}]; }
-      case "send_balance": { const r = demoSendBalance(d, now, n); return r.error ? [undefined, { error: r.error }] : [r.data, {}]; }
+      case "send": { const r = demoSend(d, "a", now, n); return r.error ? [undefined, { error: r.error }] : [r.data, {}]; }
       case "mine": return [demoMine(d, now), {}];
       case "advance": return [demoAdvance(d, Math.max(1, Math.min(64, Math.floor(a.blocks) || 1)), now), {}];
-      case "redeliver": { const r = demoRedeliver(d, now); return r.error ? [undefined, { error: r.error }] : [r.data, {}]; }
+      case "redeliver": { const r = demoRedeliver(d, now, typeof a.requestId === "string" ? a.requestId : undefined); return r.error ? [undefined, { error: r.error }] : [r.data, {}]; }
     }
   });
 }

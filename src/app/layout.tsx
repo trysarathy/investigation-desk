@@ -8,10 +8,12 @@ import "./globals.css";
 import { Shell } from "@/components/Shell";
 import { searchIndex } from "@/lib/view";
 import { loadWorkspace } from "@/lib/workspace/live";
+import { DEMO_ACTOR, isDemoMode } from "@/lib/mode";
+import { DEMO_BUSINESS } from "@/lib/requests/demo";
 
 export const metadata: Metadata = {
-  title: "Investigation desk",
-  description: "Stablecoin payment investigation desk (prototype, sample data)",
+  title: isDemoMode() ? "Stablecoin payment requests · Demo" : "Investigation desk",
+  description: "Get paid in stablecoins without the mess (prototype)",
 };
 
 // Applies the saved theme before first paint so dark mode never flashes light.
@@ -19,19 +21,22 @@ const themeScript = `try{var t=localStorage.getItem("desk.theme");if(t==="light"
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // The sidebar must not call uploaded data "fabricated" (real-data test, 24 Oct 2026).
+  const demoMode = isDemoMode();
   const { data } = await loadWorkspace();
-  const workspace = process.env.OFFLINE_REPLAY_DIR
+  const workspace = demoMode
+    ? { name: DEMO_BUSINESS, badge: "Demo data", title: "A fictional business. Every customer, message, address and transaction here is demo data, and the transfers are simulated." }
+    : process.env.OFFLINE_REPLAY_DIR
     ? { name: "Replay mode", badge: "Recorded chain data", title: "Offline: chain answers are recorded real responses (24–25 Oct 2026), not live lookups. Files A and B are the uploaded files." }
     : data.demo || (!data.fileA && !data.fileB)
     ? { name: "Workspace", badge: "Sample deposit cases", title: "The deposit cases in the queue are fabricated samples. Payment requests carry their own label: demo ones say so on every page." }
     : { name: "Your workspace", badge: "Uploaded files", title: "Chain data is looked up live. Files A and B are the files uploaded in Settings → Data. The sample cases in the queue stay fabricated." };
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning {...(demoMode ? { "data-demo-actor": DEMO_ACTOR } : {})}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
-        <Shell index={searchIndex()} workspace={workspace}>{children}</Shell>
+        <Shell index={demoMode ? [] : searchIndex()} workspace={workspace} demoMode={demoMode}>{children}</Shell>
       </body>
     </html>
   );

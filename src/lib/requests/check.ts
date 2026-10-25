@@ -4,10 +4,11 @@
 
 import { VERDICT_LABELS } from "../catalogue";
 import { investigate } from "../engine/run";
-import { SAMPLE_SETTINGS, USDC_ETHEREUM } from "../fixtures";
+import { SAMPLE_SETTINGS, USDC_ETHEREUM, USDT_ETHEREUM } from "../fixtures";
 import { normaliseInput } from "../normalise";
 import type { ChainTx, DepositAddressRow, Evidence, Facts, Settings } from "../types";
-import type { CheckSnapshot, Observation, PaymentRequest, RequestsData } from "./types";
+import { sameAddress } from "../address";
+import type { CheckSnapshot, Observation, PaymentRequest, RequestsData, RequestToken } from "./types";
 
 /**
  * The sample business's settings for requests: the deposit settings, plus Circle's official
@@ -21,6 +22,9 @@ export const REQUEST_SETTINGS: Settings = {
 };
 export const CONFIRMATIONS = REQUEST_SETTINGS.confirmations.ethereum;
 export const OFFICIAL_USDC = USDC_ETHEREUM.toLowerCase();
+export const OFFICIAL_USDT = USDT_ETHEREUM.toLowerCase();
+/** The issuer's contract for each token a request can ask for, on Ethereum. */
+export const OFFICIAL: Record<RequestToken, string> = { USDC: OFFICIAL_USDC, USDT: OFFICIAL_USDT };
 
 // What the engine's verdict means for a request. These need a person; the rest don't. D17/D18
 // (another customer's or a retired address) don't apply: a request's address belongs to the request.
@@ -32,7 +36,10 @@ const REQUEST_CUSTOMER = "request";
  * held by the request since the start of time (when it was mined is judged by our own rule, not
  * the engine's File A logic). Not matched: the destination as a company address with no customer.
  */
-export function requestAddresses(data: RequestsData, request?: PaymentRequest, to?: string): DepositAddressRow[] {
+export function requestAddresses(data: RequestsData, request?: PaymentRequest, to?: string, chain: Observation["chain"] = "ethereum"): DepositAddressRow[] {
+  // A transfer to one of the business's own wallets (a treasury address, an old Tron wallet): that wallet.
+  const wallet = to ? (data.wallets ?? []).find((w) => w.chain === chain && sameAddress(w.address, to)) : undefined;
+  if (wallet) return [{ row: 2, address: wallet.address, chain: wallet.chain, customerId: REQUEST_CUSTOMER, assignedAt: "1970-01-01T00:00:00Z" }];
   const address = request?.receivingAddress ?? to;
   if (!address) return [];
   return [{ row: 2, address, chain: "ethereum" as const, customerId: REQUEST_CUSTOMER, assignedAt: "1970-01-01T00:00:00Z" }];
@@ -42,17 +49,17 @@ export function requestAddresses(data: RequestsData, request?: PaymentRequest, t
 export function factsFor(obs: Observation, request: PaymentRequest | undefined, data: RequestsData, now: string): Facts | undefined {
   if (obs.blockNumber === undefined) return undefined;
   const tx: ChainTx = {
-    chain: "ethereum", hash: obs.hash, status: obs.status, blockNumber: obs.blockNumber, blockTime: obs.blockTime ?? now, isBatch: false,
+    chain: obs.chain, hash: obs.hash, status: obs.status, blockNumber: obs.blockNumber, blockTime: obs.blockTime ?? now, isBatch: false,
     errorCode: obs.status === "failed" ? "REVERTED (receipt status 0)" : undefined,
     transfers: [{ logIndex: obs.logIndex, tokenContract: obs.tokenContract, tokenSymbol: obs.tokenSymbol, from: obs.from, to: obs.to, amount: obs.amount }],
   };
   return {
     input: normaliseInput(obs.hash), customerId: request ? REQUEST_CUSTOMER : undefined, checkedAt: now,
-    lookups: [{ chain: "ethereum", result: "found", fetchedAt: obs.lastUpdatedAt, sourceUrl: "", rawBody: "" }],
+    lookups: [{ chain: obs.chain, result: "found", fetchedAt: obs.lastUpdatedAt, sourceUrl: "", rawBody: "" }],
     // Confirmations as the engine counts them: blocks on top of the one holding the transfer.
     tx, currentBlock: obs.blockNumber + obs.confirmations,
     freezes: [], freezeStatus: "not_supported", senderHistory: [], senderHistoryStatus: "not_supported",
-    depositAddresses: requestAddresses(data, request, obs.to), ledger: [], ledgerUploadedAt: now,
+    depositAddresses: requestAddresses(data, request, obs.to, obs.chain), ledger: [], ledgerUploadedAt: now,
   };
 }
 
@@ -61,14 +68,16 @@ export function factsFor(obs: Observation, request: PaymentRequest | undefined, 
  * row (a request's "ledger" is the business's acknowledgement, shown separately), and for a
  * simulated transfer the cross-chain lookup and the freeze row, because no chain was asked.
  */
-function keepEvidence(e: Evidence[], obs: Observation, request?: PaymentRequest): Evidence[] {
+function keepEvidence(e: Evidence[], obs: Observation, data: RequestsData, request?: PaymentRequest): Evidence[] {
   return e
     .filter((x) => x.id !== "ev.ledger" && x.id !== "ev.input" && (obs.source === "live" || (x.id !== "ev.lookup" && x.id !== "ev.freeze")))
     .map((x) => {
       // The engine words the address row for deposit files ("File A line N"); say what is true for a request.
       if (x.id === "ev.address") {
+        const wallet = (data.wallets ?? []).find((w) => w.chain === obs.chain && sameAddress(w.address, obs.to));
         return { ...x, detail: undefined, mono: undefined, source: { kind: "none" as const },
-          value: request ? `Paid to ${request.id}'s receiving address` : "Paid to a receiving address that no single open request claims" };
+          value: wallet ? `Paid to ${wallet.label}` : request && sameAddress(request.receivingAddress, obs.to) ? `Paid to ${request.id}'s receiving address`
+            : request ? "Paid to an address that isn't this request's" : "Paid to a receiving address that no single open request claims" };
       }
       // A simulated transfer has no public record: never store an explorer link for it.
       if (obs.source === "simulated" && x.source.kind === "explorer") return { ...x, source: { kind: "none" as const } };
@@ -86,12 +95,12 @@ export function checkObservation(now: string, factsOverride?: Facts) {
     const v = investigate(facts, REQUEST_SETTINGS);
     if (v.state === "paused") {
       return { at: now, code: null, label: "Check paused", confidence: null, problem: false,
-        summary: `A chain didn't answer (${v.pausedChains.join(", ")}). Nothing is concluded until it does.`, evidence: keepEvidence(v.evidence, obs, request) };
+        summary: `A chain didn't answer (${v.pausedChains.join(", ")}). Nothing is concluded until it does.`, evidence: keepEvidence(v.evidence, obs, data, request) };
     }
     const winner = v.checks.find((c) => c.code === v.code);
     return {
       at: now, code: v.code, label: VERDICT_LABELS[v.code], confidence: v.confidence, problem: PROBLEM.has(v.code),
-      summary: winner?.reason ?? (v.code === "D99" ? "No rule matched with enough confidence; a person should look." : ""), evidence: keepEvidence(v.evidence, obs, request), ruleVersion: v.ruleVersion, settingsVersion: v.settingsVersion,
+      summary: winner?.reason ?? (v.code === "D99" ? "No rule matched with enough confidence; a person should look." : ""), evidence: keepEvidence(v.evidence, obs, data, request), ruleVersion: v.ruleVersion, settingsVersion: v.settingsVersion,
     };
   };
 }

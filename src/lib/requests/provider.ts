@@ -21,14 +21,20 @@ export interface TransferProvider {
 
 /** Deterministic synthetic hex, so a demo replays identically: sha256(label) cut to `bytes`. */
 export const synthHex = (label: string, bytes: number) => `0x${createHash("sha256").update(label).digest("hex").slice(0, bytes * 2)}`;
+/**
+ * A demo transaction hash: eight leading zeros, then synthetic hex. Valid in form, but no real
+ * transaction hash starts like that in practice, so it reads as fictional at a glance.
+ */
+export const demoTxHash = (label: string) => `0x00000000${synthHex(label, 28).slice(2)}`;
 
 export class SimulatedProvider implements TransferProvider {
   readonly source = "simulated" as const;
   readonly label = "Simulated provider (demo)";
 
   /** A customer broadcasts a transfer: seen, not yet in a block. */
-  send(data: RequestsData, o: { to: string; amount: string; tokenContract: string; tokenSymbol: string; from: string; seq: string }): TransferEvent {
-    return { source: "simulated", demo: true, chain: "ethereum", hash: synthHex(`sim-tx:${o.seq}`, 32), logIndex: 0, from: o.from, to: o.to,
+  send(data: RequestsData, o: { to: string; amount: string; tokenContract: string; tokenSymbol: string; from: string; seq: string; chain?: TransferEvent["chain"] }): TransferEvent {
+    const hash = demoTxHash(`sim-tx:${o.seq}`);
+    return { source: "simulated", demo: true, chain: o.chain ?? "ethereum", hash: o.chain === "tron" ? hash.slice(2) : hash, logIndex: 0, from: o.from, to: o.to,
       tokenContract: o.tokenContract, tokenSymbol: o.tokenSymbol, amount: o.amount, status: "success", confirmations: 0 };
   }
 
@@ -43,7 +49,9 @@ export class SimulatedProvider implements TransferProvider {
   /** `n` more blocks: every simulated transfer in a block gains confirmations. */
   advance(data: RequestsData, n: number): { head: number; events: TransferEvent[] } {
     const head = (data.demoHead ?? 0) + n;
-    const events = Object.values(data.observations).filter((o) => o.source === "simulated" && o.blockNumber !== undefined)
+    // Only transfers still confirming: settled ones stay as they are, so their records don't fill with block noise.
+    const events = Object.values(data.observations).filter((o) => o.source === "simulated" && o.blockNumber !== undefined
+      && o.confirmations < (REQUEST_SETTINGS.confirmations[o.chain] ?? 12))
       .map((o) => ({ ...eventOf(o), confirmations: head - (o.blockNumber as number) }));
     return { head, events };
   }

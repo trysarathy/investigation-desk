@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { QueueTable } from "@/components/QueueTable";
+import { isDemoMode } from "@/lib/mode";
 import { LEDGER_UPLOADED_AT, SAMPLE_SETTINGS } from "@/lib/fixtures";
 import { FIXTURE_NOW, formatTime } from "@/lib/format";
 import { CHAIN_NAMES } from "@/lib/types";
@@ -13,6 +15,8 @@ type Search = Promise<Record<string, string | string[] | undefined>>;
  *   ?down=tron     chain API down (any chain id)
  */
 export default async function QueuePage({ searchParams }: { searchParams: Search }) {
+  // Demo mode opens on the payment-requests overview: the queue is hidden, not removed.
+  if (isDemoMode()) redirect("/requests");
   const sp = await searchParams;
   const down = parseDown(sp.down);
   const state = typeof sp.state === "string" ? sp.state : undefined;

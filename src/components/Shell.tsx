@@ -20,8 +20,15 @@ function isTyping(el: EventTarget | null): boolean {
   return !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
 }
 
-export function Shell({ index, workspace, children }: {
-  index: SearchEntry[]; workspace: { name: string; badge: string; title: string }; children: React.ReactNode;
+/** Demo mode: only the payment-requests flow. The other pages are hidden, not removed. */
+const DEMO_NAV = [
+  { href: "/requests", label: "At a glance" },
+  { href: "/requests/all", label: "All requests" },
+  { href: "/requests/new", label: "New request" },
+];
+
+export function Shell({ index, workspace, demoMode, children }: {
+  index: SearchEntry[]; workspace: { name: string; badge: string; title: string }; demoMode?: boolean; children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -36,7 +43,7 @@ export function Shell({ index, workspace, children }: {
     };
     // Pasting a hash, address or customer ref anywhere opens it (spec 5.1).
     const onPaste = (e: ClipboardEvent) => {
-      if (isTyping(e.target) || window.location.pathname.startsWith("/pay/")) return;
+      if (demoMode || isTyping(e.target) || window.location.pathname.startsWith("/pay/")) return;
       const text = e.clipboardData?.getData("text")?.trim();
       if (!text) return;
       const kind = normaliseInput(text).kind;
@@ -44,13 +51,13 @@ export function Shell({ index, workspace, children }: {
       e.preventDefault();
       router.push(`/investigate?q=${encodeURIComponent(text)}`);
     };
-    window.addEventListener("keydown", onKey);
+    if (!demoMode) window.addEventListener("keydown", onKey);
     window.addEventListener("paste", onPaste);
     return () => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("paste", onPaste);
     };
-  }, [router]);
+  }, [router, demoMode]);
 
   // The sender's payment page is customer-facing: no operator sidebar, search or shortcuts.
   if (pathname.startsWith("/pay/")) return <>{children}</>;
@@ -62,18 +69,27 @@ export function Shell({ index, workspace, children }: {
           <strong>{workspace.name}</strong>
           <span className="badge" title={workspace.title}>{workspace.badge}</span>
         </div>
-        {NAV.map((n) => {
-          const active = n.href === "/" ? pathname === "/" || pathname.startsWith("/cases") : pathname.startsWith(n.href);
+        {(demoMode ? DEMO_NAV : NAV).map((n) => {
+          const active = n.href === "/" ? pathname === "/" || pathname.startsWith("/cases")
+            : demoMode ? (n.href === "/requests" ? pathname === "/requests" || (pathname.startsWith("/requests/") && !pathname.startsWith("/requests/all") && !pathname.startsWith("/requests/new")) : pathname.startsWith(n.href))
+            : pathname.startsWith(n.href);
           return (
             <Link key={n.href} href={n.href} className="nav-link" aria-current={active ? "page" : undefined}>
               {n.label}
             </Link>
           );
         })}
-        <button type="button" className="nav-link" style={{ border: 0, background: "transparent", cursor: "pointer", textAlign: "left" }} onClick={() => setOpen(true)}>
-          Search <span className="kbd">⌘K</span>
-        </button>
+        {!demoMode && (
+          <button type="button" className="nav-link" style={{ border: 0, background: "transparent", cursor: "pointer", textAlign: "left" }} onClick={() => setOpen(true)}>
+            Search <span className="kbd">⌘K</span>
+          </button>
+        )}
         <div className="sidebar-foot">
+          {demoMode && (
+            <div className="mode-note" title="Demo mode: fictional data, simulated transfers, no network needed. For live mode, restart the server with DEMO_MODE=off.">
+              <strong>Demo mode</strong> · offline<br />Live mode: start with <span className="mono">DEMO_MODE=off</span>
+            </div>
+          )}
           <ThemeToggle />
         </div>
       </nav>
