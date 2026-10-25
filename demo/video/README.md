@@ -17,6 +17,8 @@ is fictional (labelled "Demo data" once). The app shots are real captures of thi
 ## Build everything (one command)
 
 ```bash
+# 0. the approved narration
+mkdir -p $W && cp demo/video/lines.json $W/
 # 1. app in demo mode on :3300, then capture the UI elements once
 DESK_DATA_DIR=$W/data npx next start -p 3300 &
 python3 demo/video/src/capture_elements.py $W/el
