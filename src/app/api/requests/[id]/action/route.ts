@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import { actOnRequest, type RequestAction } from "@/lib/requests/service";
 
 const KINDS = new Set(["decide", "owner", "note", "attach_hash"]);
-const DECISIONS = new Set(["request_balance", "accept_short", "accept_over", "dismiss_transfer", "assign_transfer", "count_transfer", "acknowledge"]);
+const DECISIONS = new Set(["request_balance", "accept_short", "accept_over", "dismiss_transfer", "assign_transfer", "count_transfer", "accept_other_network", "refund_excess", "acknowledge"]);
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

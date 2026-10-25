@@ -1,114 +1,113 @@
 import Link from "next/link";
 import { AutoRefresh } from "@/components/requests/AutoRefresh";
-import { DemoControls, LoadDemoButton } from "@/components/requests/DemoControls";
-import { StatePill } from "@/components/requests/StatePill";
-import { formatTime } from "@/lib/format";
-import { formatUsdc, unattributed } from "@/lib/requests/lifecycle";
-import { nextAction } from "@/lib/requests/present";
+import { LoadDemoButton, PlayPayment, ReloadDemo } from "@/components/requests/DemoControls";
+import { DemoBadge, TonePill } from "@/components/requests/StatePill";
+import { isDemoMode } from "@/lib/mode";
+import { formatUsdc } from "@/lib/requests/lifecycle";
+import { verdict } from "@/lib/requests/present";
 import { loadRequests } from "@/lib/requests/service";
-import { STATE_LABELS, STATE_MEANING, type RequestState } from "@/lib/requests/types";
-import { demoStatus, lastActivity, sortViews, STATE_ORDER } from "@/lib/requests/ui";
+import { formatMinutes, glance, MINUTES_PER_AUTO_MATCH, MINUTES_PER_EXCEPTION } from "@/lib/requests/ui";
 
 export const dynamic = "force-dynamic";
 
-const VIEWS: { key: string; label: string; match: (s: RequestState) => boolean }[] = [
-  { key: "open", label: "Open", match: (s) => s !== "completed" },
-  ...STATE_ORDER.map((s) => ({ key: s, label: STATE_LABELS[s], match: (x: RequestState) => x === s })),
-  { key: "all", label: "All", match: () => true },
-];
-
-export default async function RequestsInbox({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
-  const { view = "open" } = await searchParams;
+/** The first screen: what the product does, in one line, and this week at a glance. */
+export default async function AtAGlance() {
   const { data, views } = await loadRequests();
-  const demo = demoStatus(data);
-  const active = VIEWS.find((v) => v.key === view) ?? VIEWS[0];
-  const shown = sortViews(views.filter((v) => active.match(v.state)));
-  const loose = unattributed(data);
-  const empty = views.length === 0;
+  const demoMode = isDemoMode();
+  const g = glance(data, views, Date.now());
+  const acme = views.find((v) => v.request.id === "DEMO-1041");
+  const acmeTone = acme ? verdict(data, acme) : undefined;
+  const fern = views.find((v) => v.request.id === "DEMO-1046" && v.request.demo);
+  const fernTone = fern ? verdict(data, fern) : undefined;
+  const hasDemo = views.some((v) => v.request.demo);
 
   return (
-    <div className="page">
+    <div className="page glance">
       <AutoRefresh ms={5000} />
-      <div className="page-head">
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <h1 style={{ margin: 0 }}>Payment requests</h1>
-          {demo.hasDemo && <span className="demo-flag" title="Every business, customer, address and transfer in the demo is synthetic. Transfers come from a simulated provider.">Demo · synthetic business data</span>}
+      <section className="hero" aria-label="What this does">
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
+          <h1>Get paid in stablecoins without the mess.</h1>
+          {hasDemo && <DemoBadge />}
         </div>
-        <Link className="btn btn-primary" href="/requests/new">New request</Link>
-      </div>
+        <p className="hero-sub">Every request tells the sender exactly what to send, where and on which network. Every payment is matched, checked and explained for you.</p>
+        {hasDemo && (
+          <ul className="outcomes" aria-label="Outcomes">
+            <li><strong>{g.paidAuto} of {g.arrived} payments</strong><span>that arrived this week were matched and marked paid with no one touching them</span></li>
+            <li><strong>Minutes, not hours</strong><span>per exception: the evidence, the likely cause and the customer reply are ready when you open it <em>(demo estimate)</em></span></li>
+            <li><strong>Before it&apos;s sent</strong><span>the payment page catches look-alike scam addresses while the customer can still stop</span></li>
+          </ul>
+        )}
+      </section>
 
-      {empty ? (
+      {views.length === 0 ? (
         <section className="panel" style={{ padding: 32, display: "flex", flexDirection: "column", gap: 12, alignItems: "flex-start" }}>
           <h2 style={{ margin: 0, fontSize: 16 }}>No payment requests yet</h2>
           <p className="muted" style={{ margin: 0, maxWidth: 560 }}>
-            Create a request to get a payment link for your customer. Or load the demo: a sample business&apos;s day of USDC invoice
-            payments, with simulated transfers you control.
+            {demoMode ? "Load the demo: a fictional business's week of stablecoin invoice payments, with every kind of problem a finance team meets. All demo data, all offline."
+              : "Create a request to get a payment link for your customer. Or load the demo: a fictional business's week, with simulated transfers."}
           </p>
-          <div style={{ display: "flex", gap: 8 }}><Link className="btn" href="/requests/new">New request</Link><LoadDemoButton /></div>
+          <div style={{ display: "flex", gap: 8 }}><LoadDemoButton /><Link className="btn" href="/requests/new">New request</Link></div>
         </section>
       ) : (
         <>
-          {demo.hasDemo && <DemoControls scenarios={demo.scenarios} waitingForBlock={demo.waitingForBlock} inBlock={demo.inBlock} head={demo.head} />}
-          <nav className="chips" aria-label="Filter by state">
-            {VIEWS.map((v) => (
-              <Link key={v.key} href={`/requests?view=${v.key}`} className="chip" aria-pressed={active.key === v.key}>
-                {v.label} <span className="count">{views.filter((x) => v.match(x.state)).length}</span>
-              </Link>
-            ))}
-          </nav>
-          {shown.length === 0 ? (
-            <section className="panel" style={{ padding: 16 }}><span className="muted">Nothing in &ldquo;{active.label}&rdquo;.</span> <Link href="/requests?view=all">Show all requests</Link></section>
-          ) : (
-            <>
-              <section className="panel req-table">
-                <div className="table-wrap">
-                  <table className="table">
-                    <thead><tr><th>Request</th><th>Customer</th><th style={{ textAlign: "right" }}>Requested</th><th style={{ textAlign: "right" }}>Received</th><th>State</th><th>Next</th><th>Owner</th><th>Updated</th></tr></thead>
-                    <tbody>
-                      {shown.map((v) => {
-                        const r = v.request;
-                        const short = v.review === "short" && v.state !== "completed";
-                        return (
-                          <tr key={r.id}>
-                            <td><Link href={`/requests/${r.id}`} className="mono">{r.id}</Link> <span className="faint">{r.invoiceRef}</span></td>
-                            <td>{r.customerRef}</td>
-                            <td className="amount" style={{ textAlign: "right" }}>{formatUsdc(r.amount)}</td>
-                            <td className="amount" style={{ textAlign: "right", color: short ? "var(--amber)" : undefined }}>{v.received === "0" && v.pending === "0" ? <span className="faint">—</span> : formatUsdc(v.received)}{v.pending !== "0" && <span className="faint"> +{formatUsdc(v.pending)}</span>}</td>
-                            <td><StatePill state={v.state} /></td>
-                            <td className="muted" style={{ whiteSpace: "normal", minWidth: 200 }}>{nextAction(v).title}</td>
-                            <td className={v.request.owner ? "" : "faint"}>{v.request.owner ?? "—"}</td>
-                            <td className="faint">{formatTime(lastActivity(v))}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-              <div className="req-cards">
-                {shown.map((v) => (
-                  <Link key={v.request.id} href={`/requests/${v.request.id}`} className="panel req-card" style={{ color: "inherit" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><span className="mono">{v.request.id}</span><StatePill state={v.state} /></div>
-                    <div><strong>{v.request.customerRef}</strong> <span className="faint">{v.request.invoiceRef}</span></div>
-                    <div className="amount">{formatUsdc(v.received)} of {formatUsdc(v.request.amount)} USDC</div>
-                    <div className="muted" style={{ fontSize: 12 }}>{nextAction(v).title}</div>
-                  </Link>
-                ))}
+          <section className="kpis" aria-label="This week">
+            <div className="kpi"><span className="k">Requests sent</span><span className="v">{g.sent}</span><span className="s">this week</span></div>
+            <div className="kpi kpi-paid"><span className="k">Paid automatically</span><span className="v">{g.paidAuto}</span><span className="s">of {g.arrived} payments that arrived</span></div>
+            <div className="kpi kpi-attention"><span className="k">Need attention</span><span className="v">{g.attention.length}</span><span className="s">listed below, most urgent first</span></div>
+            <div className="kpi"><span className="k">Received this week</span><span className="v v-sm">{g.received.map((x) => <span key={x}>{x}</span>)}</span>
+              <span className="s">of {g.requested.join(" + ")} requested{g.toRefund !== "0" ? ` · incl. ${formatUsdc(g.toRefund)} USDC to refund` : ""}</span></div>
+            <div className="kpi kpi-estimate"><span className="k">Time saved · demo estimate</span><span className="v">~{formatMinutes(g.minutesSaved)}</span>
+              <span className="s">{g.paidAuto} auto-matched × {MINUTES_PER_AUTO_MATCH} min + {g.attention.length} explained × {MINUTES_PER_EXCEPTION} min</span></div>
+          </section>
+
+          {acme && acmeTone && (
+            <section className="panel" aria-label="Live: a routine payment">
+              <div className="panel-b" style={{ flexDirection: "row", alignItems: "center", gap: 16, flexWrap: "wrap", padding: "10px 16px" }}>
+                <span className="eyebrow">Arriving now</span>
+                <TonePill tone={acmeTone.tone} label={acmeTone.status} />
+                <Link href={`/requests/${acme.request.id}`}><strong>{acme.request.customerRef}</strong> <span className="faint">{acme.request.invoiceRef}</span></Link>
+                <span className="amount">{formatUsdc(acme.request.amount)} {acme.request.token}</span>
+                <span className="muted" style={{ flex: "1 1 200px" }}>{acmeTone.title}</span>
+                {acme.state === "awaiting_payment" && acme.request.demo && <PlayPayment />}
               </div>
-            </>
-          )}
-          {loose.length > 0 && (
-            <section className="panel">
-              <div className="panel-h"><h2>Transfers no open request claims</h2><span className="faint">{loose.length}</span></div>
-              <ul className="activity">
-                {loose.map((o) => <li key={o.key}><span className="mono faint">{o.hash.slice(0, 12)}…</span><span>{formatUsdc(o.amount)} {o.tokenSymbol} to {o.to.slice(0, 8)}…{o.to.slice(-4)}: {o.attribution.reason}</span></li>)}
-              </ul>
+              {fern && fernTone && fernTone.tone === "waiting" && (
+                <div className="panel-b" style={{ flexDirection: "row", alignItems: "center", gap: 16, flexWrap: "wrap", padding: "10px 16px", borderTop: "1px solid var(--border)" }}>
+                  <span className="eyebrow">About to pay</span>
+                  <TonePill tone={fernTone.tone} label={fernTone.status} />
+                  <Link href={`/requests/${fern.request.id}`}><strong>{fern.request.customerRef}</strong> <span className="faint">{fern.request.invoiceRef}</span></Link>
+                  <span className="amount">{formatUsdc(fern.request.amount)} {fern.request.token}</span>
+                  <span className="muted" style={{ flex: "1 1 200px" }}>&ldquo;I&apos;ll use the address from last time.&rdquo;</span>
+                  <a className="btn" href={`/pay/${fern.request.publicId}`} target="_blank" rel="noreferrer" data-testid="fernhill-sender">Open their payment page ↗</a>
+                </div>
+              )}
             </section>
           )}
-          <details className="panel">
-            <summary style={{ padding: "12px 16px", cursor: "pointer" }} className="muted">What each state means</summary>
-            <dl className="kv">{STATE_ORDER.map((s) => <div key={s} style={{ display: "contents" }}><dt><StatePill state={s} /></dt><dd className="muted">{STATE_MEANING[s]}</dd></div>)}</dl>
-          </details>
+
+          <section className="panel" aria-labelledby="attn-h">
+            <div className="panel-h"><h2 id="attn-h">Needs attention</h2><span className="faint">{g.attention.length ? "most urgent first" : "nothing"}</span></div>
+            {g.attention.length === 0 ? <div className="panel-b muted">Nothing needs a person right now.</div> : (
+              <ul className="attn">
+                {g.attention.map((a) => (
+                  <li key={a.href}>
+                    <Link href={a.href} className="attn-row" data-testid="attention-item">
+                      <TonePill tone={a.tone} label={a.status} />
+                      <span className="attn-who"><strong>{a.who}</strong> <span className="faint">{a.ref}</span></span>
+                      <span className="attn-title">{a.title}</span>
+                      <span className="amount attn-amt">{a.amount}</span>
+                      <span className="attn-go" aria-hidden>→</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <Link className="btn" href="/requests/all">All requests</Link>
+            <Link className="btn" href="/requests/new">New request</Link>
+            <span style={{ flex: 1 }} />
+            {hasDemo && <ReloadDemo />}
+          </div>
         </>
       )}
     </div>

@@ -11,7 +11,9 @@ const EVENT = "desk-actor";
 export function useActor(): string {
   const [actor, setActor] = useState("");
   useEffect(() => {
-    const read = () => { try { setActor(localStorage.getItem(KEY) ?? ""); } catch { /* storage blocked: stays empty */ } };
+    // In demo mode the layout names a default (the fictional finance-ops lead), so the demo never stops to ask.
+    const fallback = () => document.documentElement.dataset.demoActor ?? "";
+    const read = () => { try { setActor(localStorage.getItem(KEY) || fallback()); } catch { setActor(fallback()); } };
     read();
     window.addEventListener(EVENT, read);
     return () => window.removeEventListener(EVENT, read);

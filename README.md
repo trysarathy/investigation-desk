@@ -340,6 +340,45 @@ Precedence change from that test: **D09 issuer freeze now comes straight after D
 wrong network, token and address codes. D17 is Medium when the reporting customer has no address
 in File A (most likely a mistyped customer ID).
 
+## Customer demo (demo mode, the default)
+
+```
+npm ci && npm run build && npx next start      # http://localhost:3000 → At a glance → Load the demo day
+```
+
+`DEMO_MODE` is **on unless set to `off`**. In demo mode:
+
+- the navigation shows only the payment-requests flow (At a glance, All requests, New request). The
+  older pages (Queue, Inbox, Payments, Bulk, Settings, Search) are hidden, not removed, and still open
+  by URL;
+- everything runs offline on fictional **Demo data** (Northwind Pay Pte Ltd and its customers), and
+  live chain lookups are off;
+- **Load the demo day** / **Reload demo day** rebuilds the same records every time, and removes only demo
+  records.
+
+For live mode, run `DEMO_MODE=off npx next start`: every page, plus real Ethereum lookups by hash.
+
+The seven cases, the three-minute script and the answers to hard questions are in
+`demo/REQUESTS_DEMO.md` and `demo/WHAT_TO_SAY.md`. The browser tests for every case are in
+`tests/e2e/demo_cases.py`.
+
+What changed in the request model for the demo:
+
+- **USDT as well as USDC** on Ethereum. Only the issuer's contract counts.
+- **Auto-mark rule**: a request can be marked paid by the rule when the payment is exact, in the genuine
+  token, sent to its own address and fully confirmed. It's recorded as a decision by "Auto-match rule".
+  It's on for demo requests and off for live ones.
+- **Wrong network**: a transfer looked up from a hash the customer gave (for example on Tron) is recorded
+  against the request and never counts. If it landed in one of the business's own wallets, a person can
+  count it.
+- **Unidentified payments** (money at an address no open request uses) get scored suggestions: the exact
+  amount, a known sender and timing. A person confirms; the system's earlier "unidentified" stays in the
+  history.
+- **Duplicate payments**: a payment after a request was marked paid reopens it as "paid twice", with a
+  refund instruction drafted. The app never sends money.
+- **Address checker** on the sender page: a look-alike address (same first or last 4 characters,
+  different in between) is stopped, and the attempt is recorded for the business.
+
 ## Payment requests (USDC on Ethereum)
 
 A business requests an exact amount of USDC on Ethereum. The sender gets a payment page, transfers
