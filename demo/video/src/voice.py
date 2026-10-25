@@ -57,7 +57,15 @@ def transcribe(f):
     words = [{"w": w.word.strip(), "s": round(w.start, 3), "e": round(w.end, 3)} for s in segs for w in s.words]
     return {"file": str(f), "text": " ".join(x["w"] for x in words), "words": words}
 # Spacing and hyphens don't change the sound ("look-alike" / "look -a -like"), so they compare equal.
-norm = lambda s: re.sub(r"[^a-z0-9]", "", s.lower())
+# Numbers the recogniser writes as digits ("$860") are compared as the words that were spoken.
+def spoken(s):
+    from num2words import num2words
+    def w(m):
+        n = m.group(2).replace(",", "")
+        return num2words(float(n) if "." in n else int(n)) + (" dollars" if m.group(1) else "")
+    s = re.sub(r"(\d)\s+,(\d)", r"\1,\2", s)   # the recogniser sometimes writes "$2 ,180"
+    return re.sub(r"(\$)?(\d[\d,]*(?:\.\d+)?)", w, s)
+norm = lambda s: re.sub(r"[^a-z0-9]", "", spoken(s).lower().replace(" and ", " "))
 
 ONLY = set(int(x) for x in os.environ.get("ONLY", "").split(",") if x)
 old = {}
