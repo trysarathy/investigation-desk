@@ -69,14 +69,19 @@ export function factsFor(obs: Observation, request: PaymentRequest | undefined, 
  * simulated transfer the cross-chain lookup and the freeze row, because no chain was asked.
  */
 function keepEvidence(e: Evidence[], obs: Observation, data: RequestsData, request?: PaymentRequest): Evidence[] {
-  return e
+  // The engine judges a transfer on the network it was made on. A request is Ethereum only: say so first.
+  const network: Evidence[] = request && obs.chain !== request.chain
+    ? [{ id: "ev.network", label: "Network", status: "fail", value: `${obs.chain === "tron" ? "Tron" : obs.chain}: this request is Ethereum only`, source: { kind: "none" } } as Evidence]
+    : [];
+  return [...network, ...e]
     .filter((x) => x.id !== "ev.ledger" && x.id !== "ev.input" && (obs.source === "live" || (x.id !== "ev.lookup" && x.id !== "ev.freeze")))
     .map((x) => {
       // The engine words the address row for deposit files ("File A line N"); say what is true for a request.
       if (x.id === "ev.address") {
         const wallet = (data.wallets ?? []).find((w) => w.chain === obs.chain && sameAddress(w.address, obs.to));
-        return { ...x, detail: undefined, mono: undefined, source: { kind: "none" as const },
-          value: wallet ? `Paid to ${wallet.label}` : request && sameAddress(request.receivingAddress, obs.to) ? `Paid to ${request.id}'s receiving address`
+        const elsewhere = request && !sameAddress(request.receivingAddress, obs.to);
+        return { ...x, detail: undefined, mono: undefined, source: { kind: "none" as const }, ...(elsewhere && obs.chain !== request.chain ? { status: "warn" as const } : {}),
+          value: wallet ? `Paid to ${wallet.label}${elsewhere ? ", not this request's address" : ""}` : request && sameAddress(request.receivingAddress, obs.to) ? "Paid to this invoice's own address"
             : request ? "Paid to an address that isn't this request's" : "Paid to a receiving address that no single open request claims" };
       }
       // A simulated transfer has no public record: never store an explorer link for it.

@@ -21,6 +21,15 @@ import type { Evidence } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
+/** 4950.00 → 4,950.00 inside engine text, so every amount on the page reads the same way. Leaves hex alone. */
+const commas = (s: string) => s
+  // Amounts only (always written with decimals): never years, block numbers or IDs.
+  .replace(/(?<![\w.,-])(\d{4,})(\.\d+)(?![\w])/g, (_, i: string, f: string) => i.replace(/\B(?=(\d{3})+(?!\d))/g, ",") + f)
+  // The engine's "2026-10-24 20:32 SGT" in the same style as every other date on the page.
+  .replace(/\b(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::\d{2})?(?: SGT|\+08:00)?/g, (_, d: string, hm: string) => friendlyTime(new Date(`${d}T${hm}:00+08:00`).toISOString()))
+  .replace(/, minimum \d+(\.\d+)?/g, "")
+  .replace(/allowlist/gi, "official contract list");
+
 const NET: Record<string, string> = { ethereum: "Ethereum", tron: "Tron" };
 
 function TxRef({ o }: { o: Observation }) {
@@ -29,19 +38,9 @@ function TxRef({ o }: { o: Observation }) {
     : <span className="mono" title="A fictional demo transaction: there is no public record to link to.">{shortHash(o.hash)}</span>;
 }
 
-/** Suggested notes for the demo's decisions, so the presenter doesn't type mid-demo. Editable. Demo only. */
-const DEMO_NOTES: Partial<Record<string, Partial<Record<DecisionKind, string>>>> = {
-  "DEMO-1042": { request_balance: "Sent Priya the top-up request for the 50.00 USDC (drafted reply).", accept_short: "We absorb the 50.00 USDC exchange fee for this customer." },
-  "DEMO-1043": { dismiss_transfer: "Counterfeit USDT (not Tether's contract). Told Daniel; invoice stays open." },
-  "DEMO-1044": { accept_other_network: "Treasury confirmed 3,200 USDT arrived in our old Tron wallet.", dismiss_transfer: "Customer will be refunded on Tron; asked them to repay on Ethereum." },
-  "DEMO-1047": { refund_excess: "Kestrel confirmed the refund address by email. Refund instruction sent to treasury.", accept_over: "Kestrel asked to keep it as credit for INV-1052." },
-};
-
 function evidenceSource(e: Evidence, o: Observation) {
   const s = e.source;
   if (s.kind === "explorer") return o.source === "live" ? <a href={s.url} target="_blank" rel="noreferrer">Explorer ↗</a> : <span className="faint">Demo transfer</span>;
-  if (s.kind === "settings") return <span className="faint">Token list</span>;
-  if (s.kind === "addresses") return <span className="faint">Your addresses</span>;
   return null;
 }
 
@@ -151,7 +150,6 @@ export default async function RequestDetail({ params, searchParams }: { params: 
               </div>
             )}
             <ul className="points" data-testid="evidence-points">{vd.points.map((p) => <li key={p}>{p}</li>)}</ul>
-            {sug && <Link className="btn btn-primary" href={paymentHref(sug.obs)} style={{ alignSelf: "flex-start" }}>Review the suggested payment →</Link>}
           </section>
 
           <section className={`next tone-next-${vd.tone}`} aria-label="Next step" data-testid="next-step">
@@ -159,11 +157,13 @@ export default async function RequestDetail({ params, searchParams }: { params: 
             <h2>{next.title}</h2>
             <div className="muted">{next.detail}</div>
             {ordered.length > 0 && (
-              <DecisionPanel requestId={r.id} allowed={ordered} suggestedNote={r.demo && ordered[0] ? DEMO_NOTES[r.id]?.[ordered[0]] : undefined}
+              <DecisionPanel requestId={r.id} allowed={ordered} blockedLabel={blockedPaid ? `Mark paid · blocked: ${vd.title.replace(/^This /, "this ").replace(/^this isn't/, "not")}` : undefined}
                 flagged={v.flagged.map((f) => ({ key: f.obs.key, label: label(f.obs) }))}
                 ambiguous={v.ambiguous.map((o) => ({ key: o.key, label: label(o) }))} />
             )}
-            {blockedPaid && <div><button className="btn" disabled title={`It can't be marked paid: ${vd.title.replace(/^Blocked: /, "")}.`}>Mark paid</button> <span className="faint" style={{ fontSize: 12 }}>Blocked: a counterfeit or failed transfer can never mark the invoice paid.</span></div>}
+            {sug && <Link className="btn btn-primary" href={paymentHref(sug.obs)} style={{ alignSelf: "flex-start" }} data-testid="review-suggested">Review the suggested payment →</Link>}
+            {ordered.length === 0 && !sug && next.link === "sender" && <div><a className="btn btn-primary" href={`/pay/${r.publicId}`} target="_blank" rel="noreferrer">Open their payment page ↗</a></div>}
+
             {r.id === "DEMO-1041" && r.demo && v.state === "awaiting_payment" && <PlayPayment />}
           </section>
 
@@ -185,19 +185,21 @@ export default async function RequestDetail({ params, searchParams }: { params: 
             <section className="panel">
               <div className="panel-h">
                 <h2>Evidence <span className="faint" style={{ fontWeight: 400 }}>· {shortHash(focus.hash)}</span></h2>
-                <span className="faint" style={{ fontSize: 12 }} title="The investigation engine's rule that matched, and how sure it is.">Checked by rule <span className="code">{focusCheck.code}</span> {focusCheck.label}{focusCheck.confidence ? ` · ${focusCheck.confidence} confidence` : ""}</span>
+                {focusCheck.problem || v.flagged.some((f) => f.obs.key === focus.key)
+                  ? <span className="faint" style={{ fontSize: 12 }} title="The investigation engine's rule that decided, and how sure it is.">{focusCheck.problem ? <>{focusCheck.label} check failed <span className="faint">(rule {focusCheck.code}{focusCheck.confidence ? `, ${focusCheck.confidence.toLowerCase()} confidence` : ""})</span></> : "A check failed"}</span>
+                  : <span className="s-pass" style={{ fontSize: 12 }}>All checks passed</span>}
               </div>
               <ol className="timeline">
                 {focusCheck.evidence.map((e) => (
                   <li key={e.id}>
                     <div className="tl-label" style={{ display: "flex", flexDirection: "column", gap: 4 }}><span>{e.label}</span><span className={`status s-${e.status}`} style={{ fontSize: 12 }}><Status status={e.status} /></span></div>
-                    <div className="tl-value"><span>{e.value}</span>{e.detail && <span className="tl-detail">{e.detail}</span>}</div>
+                    <div className="tl-value"><span>{commas(e.value)}</span>{e.detail && <span className="tl-detail">{commas(e.detail)}</span>}</div>
                     <div className="tl-source">{evidenceSource(e, focus)}</div>
                   </li>
                 ))}
               </ol>
               <div className="faint" style={{ padding: "8px 16px", fontSize: 12, borderTop: "1px solid var(--border)" }}>
-                Checked {friendlyTime(focusCheck.at)} ({focusCheck.ruleVersion}). Earlier checks are kept, never overwritten: {focus.checks.length} on file.
+                Checked {friendlyTime(focusCheck.at)}. Every check is kept; none is overwritten.
               </div>
             </section>
           )}
@@ -215,8 +217,8 @@ export default async function RequestDetail({ params, searchParams }: { params: 
             ))}
           </section>
 
-          <section className="panel">
-            <div className="panel-h"><h2>What this can&apos;t tell you</h2></div>
+          <details className="panel">
+            <summary className="panel-h"><h2>What this can&apos;t tell you</h2></summary>
             <ul className="panel-b" style={{ margin: 0, paddingLeft: 32 }}>
               <li>Whether your accounting system was updated: this demo isn&apos;t connected to one.</li>
               {transfers.some((o) => o.source === "simulated") && <li>These are simulated demo transfers: no blockchain was asked, and the issuer&apos;s freeze list and the sender&apos;s history were not checked.</li>}
@@ -224,22 +226,25 @@ export default async function RequestDetail({ params, searchParams }: { params: 
               {v.ambiguous.length > 0 && <li>The chain can&apos;t say which invoice a transfer was meant for when requests share an address.</li>}
               {transfers.some((o) => o.source === "live") && <li>Who the sender is: the chain shows addresses, not people.</li>}
             </ul>
-          </section>
+          </details>
 
-          <section className="panel">
-            <div className="panel-h"><h2>Activity</h2><span className="faint">kept in full, newest first</span></div>
+          <details className="panel">
+            <summary className="panel-h"><h2>Activity <span className="faint" style={{ fontWeight: 400 }}>· {r.activity.length} {r.activity.length === 1 ? "entry" : "entries"}, kept in full</span></h2></summary>
             <ol className="activity" data-testid="activity">
               {[...r.activity].reverse().map((a, i) => (
                 <li key={i}><span className="faint">{friendlyTime(a.at)}<br /><span className="who">{a.actor}</span></span><span>{a.text}</span></li>
               ))}
             </ol>
-          </section>
+          </details>
         </div>
 
         <aside className="side">
           <div className="figures figures-2" role="group" aria-label="Amounts">
             <div className="figure"><span className="k">Requested</span><span className="v">{formatUsdc(r.amount)} <span className="amount-unit">{r.token}</span></span></div>
-            <div className="figure"><span className="k">Received</span><span className="v">{formatUsdc(v.received)}</span></div>
+            <div className="figure"><span className="k">Received</span><span className="v">{formatUsdc(v.received)}</span>
+              {v.flagged.length > 0 && <span className="faint" style={{ fontSize: 12 }}>{v.flagged.map((f) => `${formatUsdc(f.obs.amount)} ${f.obs.tokenSymbol} not counted`).join(", ")}</span>}
+              {sug && <span className="faint" style={{ fontSize: 12 }}>{formatUsdc(sug.obs.amount)} waiting for you to confirm the match</span>}
+              {v.duplicate && v.state !== "completed" && <span className="faint" style={{ fontSize: 12 }}>incl. {formatUsdc(v.outstanding.replace(/^-/, ""))} to refund</span>}</div>
             {v.pending !== "0" && <div className="figure"><span className="k">Confirming</span><span className="v">{formatUsdc(v.pending)}</span></div>}
             <div className="figure"><span className="k">{over ? "Extra" : "Outstanding"}</span><span className={`v${v.state !== "completed" && v.outstanding !== "0" && (v.review === "short" || over) ? " short" : ""}`}>{v.state === "completed" && !over ? "0.00" : formatUsdc(v.outstanding.replace(/^-/, ""))}</span></div>
           </div>
@@ -252,7 +257,6 @@ export default async function RequestDetail({ params, searchParams }: { params: 
                 <dt>Network</dt><dd>Ethereum only</dd>
                 <dt>To</dt><dd className="mono" style={{ wordBreak: "break-all", fontSize: 12 }}>{r.receivingAddress}</dd>
                 <dt>Sent</dt><dd>{friendlyTime(r.createdAt)}</dd>
-                <dt>Rule</dt><dd>{r.autoMarkPaid ? "Marked paid automatically when exact" : "Marked paid by a person"}</dd>
               </dl>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <CopyButton text={link} label="Copy link" />
@@ -261,16 +265,16 @@ export default async function RequestDetail({ params, searchParams }: { params: 
             </div>
           </section>
 
-          <section className="panel">
-            <div className="panel-h"><h2>Case</h2></div>
+          <details className="panel">
+            <summary className="panel-h"><h2>Owner and internal note</h2></summary>
             <div className="panel-b"><OwnerAndNote requestId={r.id} owner={r.owner} /></div>
-          </section>
+          </details>
 
           {r.demo && transfers.length > 0 && (
-            <section className="panel">
-              <div className="panel-h"><h2>Try to break it</h2><span className="faint">demo</span></div>
+            <details className="panel" data-testid="demo-tools">
+              <summary className="panel-h"><h2>Demo tools</h2></summary>
               <div className="panel-b"><span className="muted" style={{ fontSize: 13 }}>Payment providers resend events. A repeat must never count twice.</span><RedeliverButton requestId={r.id} /></div>
-            </section>
+            </details>
           )}
 
           {!demoMode && v.state !== "completed" && (

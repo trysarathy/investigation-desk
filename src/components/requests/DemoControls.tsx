@@ -5,6 +5,7 @@
 // those records. Nothing here touches a real chain.
 
 import { useRouter } from "next/navigation";
+import { refreshAfterChange } from "./AutoRefresh";
 import { useState } from "react";
 
 async function demo(body: object): Promise<string | null> {
@@ -33,12 +34,12 @@ export function PlayPayment({ disabled }: { disabled?: boolean }) {
     for (const [label, body] of steps) {
       setStep(label);
       const e = await demo(body);
-      router.refresh();
+      refreshAfterChange(router);
       if (e) { setError(e); break; }
       await pause(1000);
     }
     setStep(null);
-    setTimeout(() => router.refresh(), 600);
+    refreshAfterChange(router);
   };
   return (
     <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -64,8 +65,7 @@ export function ReloadDemo({ label = "Reload demo day" }: { label?: string }) {
         setBusy(true);
         await demo({ kind: "reset" });
         setArm(false); setBusy(false);
-        router.push("/requests");
-        router.refresh();
+        if (window.location.pathname === "/requests") refreshAfterChange(router); else window.location.assign("/requests");
       }}>
       {busy ? "Reloading…" : arm ? "Click again to reload" : label}
     </button>
@@ -78,7 +78,7 @@ export function RedeliverButton({ requestId }: { requestId?: string }) {
   const [msg, setMsg] = useState<string | null>(null);
   return (
     <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-      <button className="btn btn-sm" onClick={async () => { const e = await demo({ kind: "redeliver", requestId }); setMsg(e ?? "Delivered again: see Activity. It still counts once."); router.refresh(); }}>
+      <button className="btn btn-sm" onClick={async () => { const e = await demo({ kind: "redeliver", requestId }); setMsg(e ?? "Delivered again: see Activity. It still counts once."); refreshAfterChange(router); }}>
         Deliver the last event again
       </button>
       {msg && <span className="faint" style={{ fontSize: 12 }} role="status">{msg}</span>}
@@ -94,7 +94,7 @@ export function LoadDemoButton({ label = "Load the demo day" }: { label?: string
       setBusy(true);
       await demo({ kind: "reset" });
       setBusy(false);
-      router.refresh();
+      refreshAfterChange(router);
     }}>{busy ? "Loading…" : label}</button>
   );
 }

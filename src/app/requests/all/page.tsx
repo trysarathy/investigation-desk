@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 const FILTERS: { key: string; label: string; tones: Tone[] }[] = [
   { key: "all", label: "All", tones: ["blocked", "attention", "progress", "waiting", "paid"] },
   { key: "attention", label: "Needs attention", tones: ["attention", "blocked"] },
-  { key: "progress", label: "On its way", tones: ["progress"] },
+  { key: "progress", label: "Arriving", tones: ["progress"] },
   { key: "waiting", label: "Awaiting payment", tones: ["waiting"] },
   { key: "paid", label: "Paid", tones: ["paid"] },
 ];
@@ -30,6 +30,7 @@ export default async function AllRequests({ searchParams }: { searchParams: Prom
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}><h1 style={{ margin: 0 }}>All requests</h1>{views.some((v) => v.request.demo) && <DemoBadge />}</div>
         <Link className="btn btn-primary" href="/requests/new">New request</Link>
       </div>
+      <p className="muted" style={{ margin: 0 }}>Every request, including earlier ones (the at-a-glance numbers cover this week only).</p>
       <nav className="chips" aria-label="Filter">
         {FILTERS.map((x) => (
           <Link key={x.key} href={`/requests/all?view=${x.key}`} className="chip" aria-pressed={f.key === x.key}>

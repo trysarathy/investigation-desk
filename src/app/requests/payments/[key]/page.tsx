@@ -21,10 +21,7 @@ export default async function UnidentifiedPayment({ params }: { params: Promise<
   const wallet = walletOf(data, o.chain, o.to, o.demo);
   const suggestions = o.attribution.kind === "none" ? suggestMatches(data, o, CONFIRMATIONS) : [];
   const top = suggestions[0];
-  const note = top ? [
-    ...top.signals.filter((s) => s.ok).map((s) => s.label),
-    ...(top.request.messages?.length ? [`${top.request.customerRef} emailed that they paid ${top.request.invoiceRef}`] : []),
-  ].join("; ") + "." : "";
+  const note = "";
 
   return (
     <div className="page case">
@@ -64,17 +61,17 @@ export default async function UnidentifiedPayment({ params }: { params: Promise<
             <section key={s.request.id} className="panel" data-testid="suggestion">
               <div className="panel-h">
                 <h2>{i === 0 ? "Suggested match" : "Also possible"}: {s.request.customerRef} <span className="faint" style={{ fontWeight: 400 }}>{s.request.invoiceRef} · {formatUsdc(s.request.amount)} {s.request.token}</span></h2>
-                <span className={`score score-${s.confidence.toLowerCase()}`} title="A score out of 100 from the signals below, not a probability." data-testid="score">{s.confidence} · {s.score}/100</span>
+                <span className={`score score-${s.confidence.toLowerCase()}`} title={`Score ${s.score}/100 from the signals below. Not a probability: a person confirms.`} data-testid="score">{s.confidence} match · {s.signals.filter((x) => x.ok).length} of {s.signals.length} signals</span>
               </div>
               <ul className="signals">
                 {s.signals.map((x) => (
-                  <li key={x.label} className={x.ok ? "ok" : "no"}><span aria-hidden>{x.ok ? "✓" : "–"}</span><span>{x.label}</span><span className="faint">{x.ok ? `+${x.points}` : "0"}</span></li>
+                  <li key={x.label} className={x.ok ? "ok" : "no"}><span aria-hidden>{x.ok ? "✓" : "–"}</span><span>{x.label}</span><span /></li>
                 ))}
               </ul>
               {i === 0 && (
                 <div className="panel-b" style={{ borderTop: "1px solid var(--border)" }}>
                   <ConfirmMatch obsKey={o.key} requestId={s.request.id} label={`Confirm: this pays ${s.request.invoiceRef}`} suggestedNote={note} />
-                  <Link href={`/requests/${s.request.id}`} className="faint" style={{ fontSize: 12 }}>Open {s.request.invoiceRef} first</Link>
+                  <Link href={`/requests/${s.request.id}`} style={{ fontSize: 12 }}>See {s.request.invoiceRef} and {s.request.customerRef}&apos;s message</Link>
                 </div>
               )}
             </section>

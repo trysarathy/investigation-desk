@@ -50,7 +50,7 @@ export interface Verdict {
 export function suggestedForRequest(data: RequestsData, r: PaymentRequest): { obs: Observation; s: MatchSuggestion } | undefined {
   for (const obs of unattributed(data).filter((o) => o.demo === r.demo)) {
     const top = suggestMatches(data, obs, CONFIRMATIONS)[0];
-    if (top && top.request.id === r.id && top.confidence !== "Low") return { obs, s: top };
+    if (top && top.request.id === r.id && top.confidence !== "Weak") return { obs, s: top };
   }
   return undefined;
 }
@@ -67,7 +67,7 @@ export function verdict(data: RequestsData, v: RequestView): Verdict {
       if (a.by === AUTO_RULE) {
         return { tone: "paid", status: "Paid", title: "Paid. Matched and marked paid automatically",
           summary: `Exactly ${amt(r.amount, t)} from ${issuerContract} arrived at this invoice's own address and reached ${CONFIRMATIONS} confirmations. The matching rule marked it paid. No one had to touch it.`,
-          points: [`Requested ${amt(r.amount, t)}, received ${amt(v.received, t)}`, `Genuine ${t}: from ${issuerContract}`, `Paid to ${r.id}'s own address, so no guesswork about which invoice`, `${CONFIRMATIONS} confirmations: final for practical purposes`] };
+          points: [`Requested ${amt(r.amount, t)}, received ${amt(v.received, t)}`, `Genuine ${t}: from ${issuerContract}`, "Paid to this invoice's own address, so there's no guessing which invoice it pays", `${CONFIRMATIONS} confirmations: final for practical purposes`] };
       }
       const what = a.kind === "refund_excess" ? "Paid; the extra is being refunded" : a.kind === "accept_other_network" ? "Paid on another network, counted by a person"
         : a.kind === "accept_short" ? "Settled short, accepted by a person" : a.kind === "accept_over" ? "Paid; the extra is kept as credit" : "Paid. Marked by a person";
@@ -85,26 +85,27 @@ export function verdict(data: RequestsData, v: RequestView): Verdict {
     case "awaiting_payment": {
       if (poisoned.length) {
         const c = poisoned.at(-1)!;
-        return { tone: "attention", status: "Scam stopped", title: "A look-alike address was stopped before the customer sent",
+        return { tone: "progress", status: "Scam stopped", title: "A look-alike address was stopped before the customer sent",
           summary: `${r.customerRef}'s sender pasted ${shortAddr(c.address)} into the payment page. It starts and ends like this invoice's address (${shortAddr(r.receivingAddress)}) but is a different address. That is the pattern of an address-poisoning scam. The page told them not to send. Nothing was lost.`,
           points: [`This invoice's address: ${r.receivingAddress}`, `Pasted address: ${c.address}`, "Same first and last characters, different in between: made to fool a quick check", "Nothing has been sent yet"] };
       }
       const sug = suggestedForRequest(data, r);
       if (sug) {
-        return { tone: "attention", status: "Possible match", title: `A payment that's probably this one arrived at another address`,
-          summary: `Nothing has reached ${r.id}'s own address. But ${amt(sug.obs.amount, sug.obs.tokenSymbol)} with no reference arrived at ${walletOf(data, sug.obs.chain, sug.obs.to, sug.obs.demo)?.label ?? "another Northwind address"}, and the evidence points to this invoice (score ${sug.s.score}/100). A person needs to confirm it.`,
+        const n = sug.s.signals.filter((x) => x.ok).length;
+        return { tone: "attention", status: "Suggested match", title: `A payment that's probably this one arrived at another address`,
+          summary: `Nothing has reached this invoice's own address. But ${amt(sug.obs.amount, sug.obs.tokenSymbol)} with no reference arrived at ${walletOf(data, sug.obs.chain, sug.obs.to, sug.obs.demo)?.label ?? "another of the business's addresses"}, and the evidence points to this invoice (${sug.s.confidence.toLowerCase()} match: ${n} of ${sug.s.signals.length} signals). A person needs to confirm it.`,
           points: sug.s.signals.filter((x) => x.ok).map((x) => x.label) };
       }
       if (v.review === "short") {
         return { tone: "waiting", status: "Waiting for balance", title: `Waiting for the remaining ${amt(v.outstanding, t)}`, summary: v.reasons.join(" "), points: v.reasons };
       }
-      return { tone: "waiting", status: "Awaiting payment", title: "Waiting for the customer to pay", summary: `Nothing has arrived at ${r.id}'s address yet.`, points: v.reasons };
+      return { tone: "waiting", status: "Awaiting payment", title: "Waiting for the customer to pay", summary: "Nothing has arrived at this invoice's address yet.", points: v.reasons };
     }
     case "needs_review": {
       if (v.review === "flagged") {
         const f = v.flagged.at(-1)!;
         if (f.kind === "counterfeit") {
-          return { tone: "blocked", status: "Blocked", title: `Blocked: this isn't real ${t}`,
+          return { tone: "blocked", status: "Blocked", title: `This isn't real ${t}`,
             summary: `${amt(f.obs.amount, f.obs.tokenSymbol)} arrived, but from a contract ${ISSUER[t]} doesn't control. Anyone can create a token and call it ${t}; only the contract address proves it's real. This one has no value, so it can't pay the invoice, and the invoice can't be marked paid with it.`,
             points: [`Real ${t} on Ethereum comes only from ${ISSUER[t]}'s contract: ${OFFICIAL[t]}`, `This token came from: ${f.obs.tokenContract}`, `Same name, different contract: a counterfeit`, `${r.invoiceRef} is still unpaid: ${amt(r.amount, t)} due`] };
         }
@@ -112,10 +113,10 @@ export function verdict(data: RequestsData, v: RequestView): Verdict {
           const w = walletOf(data, f.obs.chain, f.obs.to, f.obs.demo);
           const net = f.obs.chain === "tron" ? "Tron" : f.obs.chain;
           return { tone: "attention", status: "Wrong network", title: `Paid on the wrong network (${net})`,
-            summary: `${r.customerRef} sent ${amt(f.obs.amount, f.obs.tokenSymbol)} on ${net}. This request is Ethereum only, so nothing arrived at its address. Ethereum and ${net} are separate networks: money sent on one never shows up on the other.`,
-            points: [`Requested: ${amt(r.amount, t)} on Ethereum`, `Sent: ${amt(f.obs.amount, f.obs.tokenSymbol)} on ${net}, to ${f.obs.to}`, f.obs.tokenSymbol === t ? `Genuine ${t} on ${net} (${ISSUER[t]}'s ${net} contract)` : `Token: ${f.obs.tokenSymbol}`, w ? `That address is ${w.label}` : "That address is not one of the business's wallets"],
+            summary: `${r.customerRef} sent ${amt(f.obs.amount, f.obs.tokenSymbol)} on ${net}, but this request is Ethereum only. They are separate networks, so nothing arrived at the request's address.`,
+            points: [`Sent: ${amt(f.obs.amount, f.obs.tokenSymbol)} on ${net}, to ${f.obs.to}${f.obs.tokenSymbol === t ? ` (genuine ${t}, ${ISSUER[t]}'s ${net} contract)` : ""}`],
             recoverable: w
-              ? { answer: "Yes", text: `It went to ${w.label}. The business controls that wallet, so the money isn't lost: it's in the business's own wallet, on ${net}. Treasury can confirm it and either count it for this invoice or refund it.` }
+              ? { answer: "Yes", text: `It went to ${w.label}, which the business controls. The money isn't lost: treasury can confirm it, then count it for this invoice or refund it.` }
               : { answer: "No", text: `The address isn't one of the business's wallets, so the business can't move it. Only whoever controls ${shortAddr(f.obs.to)} can. The customer should contact the platform they sent from.` } };
         }
         if (f.kind === "failed") return { tone: "blocked", status: "Blocked", title: "The transaction failed: no money moved", summary: f.problem, points: v.reasons };
@@ -126,7 +127,7 @@ export function verdict(data: RequestsData, v: RequestView): Verdict {
         const cause = shortfallCause(data, v);
         return { tone: "attention", status: "Short payment", title: `Short by ${amt(v.outstanding, t)}`,
           summary: `${r.customerRef} sent ${amt(v.received, t)} of the ${amt(r.amount, t)} due. The invoice stays open until the rest arrives, or someone accepts it as settled.`,
-          points: [`Requested ${amt(r.amount, t)}`, `Received ${amt(v.received, t)}, genuine ${t}, ${CONFIRMATIONS} confirmations`, `Short by ${amt(v.outstanding, t)}`],
+          points: [`Received ${amt(v.received, t)} in genuine ${t}, fully confirmed`],
           cause: cause ? { text: cause.cause, basis: cause.basis } : undefined };
       }
       if (v.review === "over") {
@@ -145,7 +146,7 @@ export function verdict(data: RequestsData, v: RequestView): Verdict {
   }
 }
 
-export interface NextAction { title: string; detail: string; owner: string; primary?: DecisionKind }
+export interface NextAction { title: string; detail: string; owner: string; primary?: DecisionKind; link?: "sender" }
 
 /** The one thing to do next, and who does it. */
 export function nextAction(v: RequestView, data?: RequestsData): NextAction {
@@ -153,7 +154,11 @@ export function nextAction(v: RequestView, data?: RequestsData): NextAction {
   const ops = r.owner ?? "Finance ops";
   switch (v.state) {
     case "awaiting_payment": {
-      if (lookalikeChecks(r).length) return { title: `Warn ${r.customerRef} that their wallet history may be poisoned`, detail: "Send the security note below, so they copy the address from the payment page next time, never from their history.", owner: ops };
+      if (lookalikeChecks(r).length) return { title: `Warn ${r.customerRef} that their wallet history may be poisoned`, detail: "Copy the security note below and send it, so they copy the address from the payment page, never from their history.", owner: ops };
+      // The customer's own words can be the risk signal: reusing an old address is how look-alike scams catch people.
+      if (r.messages?.some((m) => /(address|wallet) from (last time|before)|old address|same address/i.test(m.text))) {
+        return { title: `${r.customerRef} says they'll reuse an old address: make sure they check it`, detail: "Old addresses in a wallet's history are where look-alike scams hide. Their payment page checks the address before they send.", owner: ops, link: "sender" };
+      }
       const sug = data && suggestedForRequest(data, r);
       if (sug) return { title: "Confirm the suggested match", detail: `Open the unidentified payment, check the evidence and confirm it pays ${r.invoiceRef}.`, owner: ops };
       return v.review === "short"
@@ -176,7 +181,7 @@ export function nextAction(v: RequestView, data?: RequestsData): NextAction {
         if (f.kind === "wrong_network") {
           const w = data && walletOf(data, f.obs.chain, f.obs.to, f.obs.demo);
           return w
-            ? { title: `Ask treasury to confirm the ${amt(f.obs.amount, f.obs.tokenSymbol)} in ${w.label.replace(/ \(.*\)$/, "")}, then count it`, detail: "Once treasury confirms it's there, count it as payment for this invoice. Then send the customer the reply below so they use Ethereum next time.", owner: ops, primary: "accept_other_network" }
+            ? { title: `Ask treasury to confirm the ${amt(f.obs.amount, f.obs.tokenSymbol)} arrived, then count it`, detail: "Once treasury confirms it's there, count it as payment for this invoice. Then send the customer the reply below so they use Ethereum next time.", owner: ops, primary: "accept_other_network" }
             : { title: "Tell the customer the business can't recover it", detail: "Send the reply below. The invoice stays unpaid until they pay on Ethereum.", owner: ops, primary: "dismiss_transfer" };
         }
         return { title: "Send the customer the reply, then close this transfer", detail: `It can't count toward the invoice. Mark it as not a payment (it stays on file with its evidence) and tell ${r.customerRef} what happened.`, owner: ops, primary: "dismiss_transfer" };
@@ -205,7 +210,8 @@ export function replyDraft(v: RequestView, data: RequestsData, o: { business: st
   const hi = greeting(r), bye = signoff(r, o.business);
   const tx = v.counted.at(-1) ?? v.flagged.at(-1)?.obs;
   const ref = tx ? ` (transaction ${shortHash(tx.hash)})` : "";
-  const link = o.link ? `\n\nYour payment page shows what's due and updates by itself: ${o.link}` : "";
+  const shown = o.link && r.demo ? `https://pay.northwind.example/${r.publicId}` : o.link;
+  const link = shown ? `\n\nYour payment page shows what's due and updates by itself: ${shown}` : "";
   const body = (() => {
     switch (v.state) {
       case "awaiting_payment": {
@@ -280,7 +286,7 @@ export function senderStatus(v: RequestView): { title: string; detail: string; t
     case "completed":
       return { title: "Paid", detail: "The business has confirmed this payment. Thank you.", tone: "done" };
     case "needs_review":
-      if (v.review === "short") return { title: `${amt(v.outstanding, t)} still due`, detail: `${amt(v.received, t)} of ${amt(v.request.amount, t)} received. The business is reviewing it.`, tone: "attention" };
+      if (v.review === "short") return { title: `${amt(v.outstanding, t)} still due`, detail: `${amt(v.received, t)} of ${amt(v.request.amount, t)} received. Please send the remaining ${amt(v.outstanding, t)}.`, tone: "attention" };
       if (v.review === "over") return { title: "Received, more than requested", detail: "The business will contact you about the difference.", tone: "attention" };
       if (v.review === "flagged") {
         const f = v.flagged.at(-1)!;

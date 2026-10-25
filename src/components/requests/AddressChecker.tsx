@@ -5,7 +5,8 @@
 // a glance at the first and last characters misses. The check is also recorded for the business.
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { refreshAfterChange } from "./AutoRefresh";
+import { useEffect, useRef, useState } from "react";
 
 type Result = "match" | "lookalike" | "different" | "invalid";
 
@@ -21,6 +22,9 @@ export function AddressChecker({ publicId, demoLookalike }: { publicId: string; 
   const [value, setValue] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false);
+  const out = useRef<HTMLDivElement>(null);
+  // Make sure the verdict is seen, even on a short screen.
+  useEffect(() => { if (result) out.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [result]);
   const check = async (address: string) => {
     if (!address.trim()) return;
     setBusy(true);
@@ -28,7 +32,7 @@ export function AddressChecker({ publicId, demoLookalike }: { publicId: string; 
       const r = await fetch(`/api/pay/${encodeURIComponent(publicId)}/check`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ address }) });
       const j = await r.json().catch(() => ({}));
       setResult(r.ok ? j.result : "invalid");
-      router.refresh();
+      refreshAfterChange(router);
     } catch { setResult(null); }
     setBusy(false);
   };
@@ -49,7 +53,7 @@ export function AddressChecker({ publicId, demoLookalike }: { publicId: string; 
         </button>
       )}
       {t && (
-        <div className={`check-result check-${t.tone}`} role="alert" data-testid="check-result">
+        <div ref={out} className={`check-result check-${t.tone}`} role="alert" data-testid="check-result">
           <strong>{t.title}</strong>
           <span>{t.body}</span>
         </div>

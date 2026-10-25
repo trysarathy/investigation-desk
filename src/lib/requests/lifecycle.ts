@@ -183,12 +183,13 @@ export function ingest(data: RequestsData, ev: TransferEvent, now: string, actor
     }
     let next: Observation = { ...prev, blockNumber: block, blockTime: prev.blockTime ?? ev.blockTime, confirmations,
       status: ev.blockNumber !== undefined ? ev.status : prev.status, lastUpdatedAt: now };
-    const crossed = prev.confirmations < threshold && confirmations >= threshold;
+    const need = prev.chain === "tron" ? 20 : threshold; // Tron needs 20 (the business's setting), Ethereum 12
+    const crossed = prev.confirmations < need && confirmations >= need;
     for (const id of owners) {
       note(id, { at: now, actor, kind: "confirmations", observationKey: key,
         text: prev.blockNumber === undefined && block !== undefined
-          ? `Included in block ${block.toLocaleString("en-US")} (${confirmations} of ${threshold} confirmations).`
-          : crossed ? `Confirmed: ${threshold} of ${threshold} confirmations.` : `${Math.min(confirmations, threshold)} of ${threshold} confirmations.` });
+          ? `Included in block ${block.toLocaleString("en-US")} (${Math.min(confirmations, need)} of ${need} confirmations).`
+          : crossed ? `Confirmed: ${need} of ${need} confirmations.` : `${Math.min(confirmations, need)} of ${need} confirmations.` });
     }
     next = withCheck(next, { ...data, requests }, check);
     const out = { ...data, requests, observations: { ...data.observations, [key]: next } };
@@ -495,7 +496,7 @@ export function decide(data: RequestsData, requestId: string, input: DecisionInp
 // ---------- unidentified payments ----------
 
 export interface MatchSignal { label: string; points: number; ok: boolean }
-export interface MatchSuggestion { request: PaymentRequest; score: number; confidence: "High" | "Medium" | "Low"; signals: MatchSignal[] }
+export interface MatchSuggestion { request: PaymentRequest; score: number; confidence: "Strong" | "Possible" | "Weak"; signals: MatchSignal[] }
 
 /**
  * Which open request an unidentified payment most likely pays, scored from evidence a person can
@@ -520,7 +521,7 @@ export function suggestMatches(data: RequestsData, obs: Observation, threshold: 
       { label: after ? `Paid after ${r.invoiceRef} was sent` : `Paid before ${r.invoiceRef} was sent`, points: after ? 10 : 0, ok: after },
     ];
     const score = signals.reduce((s, x) => s + x.points, 0);
-    return { request: r, score, confidence: (score >= 80 ? "High" : score >= 50 ? "Medium" : "Low") as MatchSuggestion["confidence"], signals };
+    return { request: r, score, confidence: (score >= 80 ? "Strong" : score >= 50 ? "Possible" : "Weak") as MatchSuggestion["confidence"], signals };
   });
   // Only suggestions with real evidence (the amount or the sender), never timing alone.
   return out.filter((s) => s.score >= 40).sort((a, b) => b.score - a.score || (a.request.createdAt < b.request.createdAt ? -1 : 1)).slice(0, 3);

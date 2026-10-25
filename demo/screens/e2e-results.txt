@@ -1,0 +1,15 @@
+PASS at a glance: proposition, numbers, 5 reasons, old pages hidden
+PASS a. Acme routine: plays, matched and marked paid automatically; sender sees Paid
+PASS b. Brightline short: shortfall, likely cause (fees), top-up reply, sender asked for 50.00
+PASS c. Orbit counterfeit USDT: blocked, explained, can't be marked paid, reply; closing keeps evidence
+PASS d. Meridian wrong network: explained, recoverable (own Tron wallet), next step; counted after confirming
+PASS e. Unidentified: suggested match with score + evidence; a person confirms; then paid
+PASS f. Fernhill look-alike: sender page warns before sending; ops sees it with a security reply
+PASS g. Kestrel duplicate: detected, refund instruction and reply drafted; recorded
+PASS a repeated event counts once
+PASS reload demo day: identical state every time
+PASS no horizontal scroll at 1280x720 and on a phone
+PASS pages load in under 1 s
+PASS no dead links
+PASS no console or page errors
+FAILS: 0 of 14

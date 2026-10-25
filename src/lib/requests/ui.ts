@@ -37,20 +37,24 @@ export function glance(data: RequestsData, views: RequestView[], now: number) {
   const attention: AttentionItem[] = [];
   for (const o of unattributed(data).filter((x) => week.some((v) => v.request.demo === x.demo) || !x.demo)) {
     const top = suggestMatches(data, o, CONFIRMATIONS)[0];
-    attention.push({ href: paymentHref(o), who: top ? `Probably ${top.request.customerRef}` : "Unknown sender", ref: top ? top.request.invoiceRef : "No reference",
-      amount: `${formatUsdc(o.amount)} ${o.tokenSymbol}`, status: "Unidentified", tone: "attention",
-      title: top ? `Arrived with no reference. Suggested match: ${top.request.invoiceRef} (score ${top.score}/100)` : "Arrived with no reference. No likely match" });
+    attention.push({ href: paymentHref(o), who: "No reference", ref: "", amount: `${formatUsdc(o.amount)} ${o.tokenSymbol}`, status: "Unidentified", tone: "attention",
+      title: top ? `Arrived with no reference. Suggested match: ${top.request.customerRef} ${top.request.invoiceRef} (${top.confidence.toLowerCase()}, ${top.signals.filter((s) => s.ok).length} of ${top.signals.length} signals)` : "Arrived with no reference. No likely match" });
   }
   for (const v of week) {
     const vd = verdict(data, v);
     if (vd.tone !== "attention" && vd.tone !== "blocked") continue;
-    if (vd.status === "Possible match") continue; // listed once, as the unidentified payment
+    if (vd.status === "Suggested match") continue; // listed once, as the unidentified payment
     attention.push({ href: `/requests/${v.request.id}`, who: v.request.customerRef, ref: v.request.invoiceRef, amount: `${formatUsdc(v.request.amount)} ${v.request.token}`, status: vd.status, tone: vd.tone, title: vd.title });
   }
   attention.sort((a, b) => TONE_ORDER.indexOf(a.tone) - TONE_ORDER.indexOf(b.tone));
   const minutes = auto.length * MINUTES_PER_AUTO_MATCH + attention.length * MINUTES_PER_EXCEPTION;
+  // Payments that arrived: requests something was paid toward (counted or not), plus unidentified ones.
+  const arrived = week.filter((v) => v.counted.length + v.flagged.length > 0).length + unattributed(data).filter((o) => o.demo === (week[0]?.request.demo ?? o.demo)).length;
+  const toRefund = week.filter((v) => v.duplicate && v.state !== "completed").reduce((s, v) => add(s, v.outstanding.replace(/^-/, "")), "0");
   return {
     sent: week.length,
+    arrived,
+    toRefund,
     paidAuto: auto.length,
     paid: week.filter((v) => v.state === "completed").length,
     attention,

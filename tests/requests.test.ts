@@ -149,7 +149,7 @@ describe("the demo week: seven cases", () => {
     const again = resetDemo(d0, NOW, pid);
     expect(JSON.stringify(again)).toBe(JSON.stringify(d0));
     const g = glance(d0, Object.values(d0.requests).map((r) => deriveRequest(d0, r, CONFIRMATIONS)), Date.parse(NOW));
-    expect([g.sent, g.paidAuto, g.attention.length]).toEqual([18, 11, 5]);
+    expect([g.sent, g.arrived, g.paidAuto, g.attention.length]).toEqual([18, 16, 11, 5]);
     expect(g.attention.map((a) => a.status).sort()).toEqual(["Blocked", "Paid twice", "Short payment", "Unidentified", "Wrong network"]);
   });
 
@@ -193,7 +193,7 @@ describe("the demo week: seven cases", () => {
     const s = suggestMatches(d0, o, CONFIRMATIONS);
     expect(s).toHaveLength(1); // weak, timing-only suggestions are not shown
     expect(s[0].request.id).toBe("DEMO-1045");
-    expect([s[0].score, s[0].confidence]).toEqual([100, "High"]);
+    expect([s[0].score, s[0].confidence]).toEqual([100, "Strong"]);
     expect(nextAction(view(d0, "DEMO-1045"), d0).title).toBe("Confirm the suggested match");
     expect(assignUnmatched(d0, o.key, "DEMO-1045", "", { now: t(1), by: "Mei", threshold: CONFIRMATIONS }).error).toMatch(/note/);
     expect(assignUnmatched(d0, o.key, "DEMO-1043", "x", { now: t(1), by: "Mei", threshold: CONFIRMATIONS }).error).toMatch(/isn't USDT/);

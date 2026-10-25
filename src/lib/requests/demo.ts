@@ -70,7 +70,9 @@ export function resetDemo(data: RequestsData, now: string, publicId: (id: string
   const keepObs = Object.fromEntries(Object.entries(data.observations).filter(([, o]) => !o.demo));
   const keepNext = data.nextNumber ?? emptyRequests().nextNumber;
   const N = Date.parse(now);
-  const ago = (hours: number) => iso(N - hours * HOUR);
+  // A few minutes' jitter per value, from the value itself, so timestamps don't all share one minute (still deterministic).
+  const jitter = (h: number) => ((Math.round(h * 997) % 23) - 11) * 60_000;
+  const ago = (hours: number) => iso(N - hours * HOUR + jitter(hours));
   let d: RequestsData = {
     ...emptyRequests(), ...data, requests: keepReq, observations: keepObs, demoHead: DEMO_HEAD,
     wallets: [
@@ -89,15 +91,21 @@ export function resetDemo(data: RequestsData, now: string, publicId: (id: string
       { now: ago(createdHoursAgo), by: DEMO_OPERATOR, demo: true, publicId: publicId(id), tokenContract: OFFICIAL[token], id, autoMarkPaid: true, messages }).data;
   };
   /** A transfer seen, mined and confirmed at `hoursAgo`, through the real ingestion. */
-  const pay = (seq: string, ev: Omit<TransferEvent, "source" | "demo" | "hash" | "logIndex" | "status" | "confirmations">, hoursAgo: number, o: { claimedFor?: string; by?: string } = {}) => {
+  const pay = (seq: string, ev: Omit<TransferEvent, "source" | "demo" | "hash" | "logIndex" | "status" | "confirmations">, hoursAgo: number, o: { claimedFor?: string; by?: string; lookedUpHoursAgo?: number } = {}) => {
     const seen = sim.send(d, { to: ev.to, amount: ev.amount, tokenContract: ev.tokenContract, tokenSymbol: ev.tokenSymbol, from: ev.from, seq: `demo:${seq}`, chain: ev.chain });
     block += 37;
     const need = ev.chain === "tron" ? 20 : CONFIRMATIONS;
-    const t = N - hoursAgo * HOUR;
+    const t = N - hoursAgo * HOUR + jitter(Math.round(hoursAgo) + 0.5); // same jitter within an hour keeps gaps like "4 minutes apart" exact
     const actor = o.by ?? sim.label;
-    if (!o.claimedFor) d = ingest(d, seen, iso(t), actor, checkObservation(iso(t)), CONFIRMATIONS).data;
+    if (o.claimedFor) {
+      // Found later from the hash the customer emailed: already in a block and fully confirmed when looked up.
+      const at = iso(N - (o.lookedUpHoursAgo ?? hoursAgo) * HOUR);
+      d = ingest(d, { ...seen, blockNumber: block, blockTime: iso(t + 15_000), confirmations: need + 4000 }, at, actor, checkObservation(at), CONFIRMATIONS, { claimedFor: o.claimedFor }).data;
+      return;
+    }
+    d = ingest(d, seen, iso(t), actor, checkObservation(iso(t)), CONFIRMATIONS).data;
     const mined = { ...seen, blockNumber: block, blockTime: iso(t + 15_000), confirmations: 0 };
-    d = ingest(d, mined, iso(t + 15_000), actor, checkObservation(iso(t + 15_000)), CONFIRMATIONS, { claimedFor: o.claimedFor }).data;
+    d = ingest(d, mined, iso(t + 15_000), actor, checkObservation(iso(t + 15_000)), CONFIRMATIONS).data;
     d = ingest(d, { ...mined, confirmations: need }, iso(t + 3 * 60_000), actor, checkObservation(iso(t + 3 * 60_000)), CONFIRMATIONS).data;
   };
   const official = (token: RequestToken) => ({ tokenContract: OFFICIAL[token], tokenSymbol: token, chain: "ethereum" as const });
@@ -118,7 +126,7 @@ export function resetDemo(data: RequestsData, now: string, publicId: (id: string
     { at: ago(3), from: "Priya Nair, Accounts, Brightline Studio", channel: "Email",
       text: "Hi, we sent the payment yesterday. Why is invoice INV-1042 still showing as unpaid?" },
   ]);
-  pay("brightline", { ...official("USDC"), from: EXCHANGE_WALLET, to: addr("DEMO-1042"), amount: "4950.00" }, 22);
+  pay("brightline", { ...official("USDC"), from: EXCHANGE_WALLET, to: addr("DEMO-1042"), amount: "4950.00" }, 21);
 
   // (c) Orbit: 7,500 "USDT" from a counterfeit contract.
   mk("DEMO-1043", "Orbit Retail", "7500.00", "USDT", 49, [
@@ -134,15 +142,15 @@ export function resetDemo(data: RequestsData, now: string, publicId: (id: string
     { at: ago(4), from: "Aisha Rahman, Meridian Travel", channel: "Email",
       text: `Payment for INV-1044 was made yesterday, 3,200 USDT. Transaction: ${tronHash}. Can you confirm receipt?` },
   ]);
-  pay("meridian-tron", { tokenContract: USDT_TRON, tokenSymbol: "USDT", chain: "tron", from: tronAddr("meridian:wallet"), to: OLD_TRON_WALLET, amount: "3200.00" }, 3.5,
-    { claimedFor: "DEMO-1044", by: `Hash lookup by ${DEMO_OPERATOR}` });
+  pay("meridian-tron", { tokenContract: USDT_TRON, tokenSymbol: "USDT", chain: "tron", from: tronAddr("meridian:wallet"), to: OLD_TRON_WALLET, amount: "3200.00" }, 22,
+    { claimedFor: "DEMO-1044", by: `Hash lookup by ${DEMO_OPERATOR}`, lookedUpHoursAgo: 3.5 });
 
   // (e) Kite: an open invoice, and 2,180.00 USDC that arrived at the main address with no reference.
   mk("DEMO-1045", "Kite Analytics", "2180.00", "USDC", 70, [
     { at: ago(1.5), from: "Accounts payable, Kite Analytics", channel: "Email",
-      text: "Hi Northwind, we paid INV-1045 on Tuesday. Please confirm receipt. Thanks!" },
+      text: "Hi Northwind, we paid INV-1045 yesterday. Please confirm receipt. Thanks!" },
   ]);
-  pay("kite-1045", { ...official("USDC"), from: addr("kite:treasury"), to: TREASURY, amount: "2180.00" }, 26);
+  pay("kite-1045", { ...official("USDC"), from: addr("kite:treasury"), to: TREASURY, amount: "2180.00" }, 21);
 
   // (f) Fernhill: open, about to pay. The payment page's address checker is the case.
   mk("DEMO-1046", "Fernhill Foods", "860.00", "USDC", 6, [
@@ -153,10 +161,10 @@ export function resetDemo(data: RequestsData, now: string, publicId: (id: string
   // (g) Kestrel: the same 1,980.00 USDC paid twice by an AP run, four minutes apart.
   mk("DEMO-1047", "Kestrel Freight", "1980.00", "USDC", 30, [
     { at: ago(1), from: "Kestrel Freight AP team", channel: "Email",
-      text: "Our payment run on Monday may have paid INV-1047 twice. Can you check, and refund if so?" },
+      text: "Yesterday's payment run may have paid INV-1047 twice. Can you check, and refund if so?" },
   ]);
-  pay("kestrel-1", { ...official("USDC"), from: addr("kestrel:ap"), to: addr("DEMO-1047"), amount: "1980.00" }, 25);
-  pay("kestrel-2", { ...official("USDC"), from: addr("kestrel:ap"), to: addr("DEMO-1047"), amount: "1980.00" }, 25 - 4 / 60);
+  pay("kestrel-1", { ...official("USDC"), from: addr("kestrel:ap"), to: addr("DEMO-1047"), amount: "1980.00" }, 20);
+  pay("kestrel-2", { ...official("USDC"), from: addr("kestrel:ap"), to: addr("DEMO-1047"), amount: "1980.00" }, 20 - 4 / 60);
 
   // (a) Acme: sent this morning, not yet paid. The presenter plays the payment live.
   mk("DEMO-1041", "Acme Logistics", "1250.00", "USDC", 2);

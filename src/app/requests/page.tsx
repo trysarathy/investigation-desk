@@ -17,6 +17,8 @@ export default async function AtAGlance() {
   const g = glance(data, views, Date.now());
   const acme = views.find((v) => v.request.id === "DEMO-1041");
   const acmeTone = acme ? verdict(data, acme) : undefined;
+  const fern = views.find((v) => v.request.id === "DEMO-1046" && v.request.demo);
+  const fernTone = fern ? verdict(data, fern) : undefined;
   const hasDemo = views.some((v) => v.request.demo);
 
   return (
@@ -30,8 +32,8 @@ export default async function AtAGlance() {
         <p className="hero-sub">Every request tells the sender exactly what to send, where and on which network. Every payment is matched, checked and explained for you.</p>
         {hasDemo && (
           <ul className="outcomes" aria-label="Outcomes">
-            <li><strong>{g.paidAuto} of {g.sent}</strong><span>payments this week matched and marked paid with no one touching them</span></li>
-            <li><strong>Minutes, not hours</strong><span>per exception: the cause, the evidence and the customer reply are ready when you open it <em>(demo estimate)</em></span></li>
+            <li><strong>{g.paidAuto} of {g.arrived} payments</strong><span>that arrived this week were matched and marked paid with no one touching them</span></li>
+            <li><strong>Minutes, not hours</strong><span>per exception: the evidence, the likely cause and the customer reply are ready when you open it <em>(demo estimate)</em></span></li>
             <li><strong>Before it&apos;s sent</strong><span>the payment page catches look-alike scam addresses while the customer can still stop</span></li>
           </ul>
         )}
@@ -50,12 +52,12 @@ export default async function AtAGlance() {
         <>
           <section className="kpis" aria-label="This week">
             <div className="kpi"><span className="k">Requests sent</span><span className="v">{g.sent}</span><span className="s">this week</span></div>
-            <div className="kpi kpi-paid"><span className="k">Paid automatically</span><span className="v">{g.paidAuto}</span><span className="s">no one touched them</span></div>
-            <div className="kpi kpi-attention"><span className="k">Need attention</span><span className="v">{g.attention.length}</span><span className="s">each with a cause and a reply ready</span></div>
-            <div className="kpi"><span className="k">Value requested</span><span className="v v-sm">{g.requested.map((x) => <span key={x}>{x}</span>)}</span><span className="s">received: {g.received.join(" · ")}</span></div>
-            <div className="kpi"><span className="k">Time saved</span><span className="v">~{formatMinutes(g.minutesSaved)}</span>
-              <span className="s" title={`Demo estimate: ${MINUTES_PER_AUTO_MATCH} min per payment matched automatically (checking an explorer, matching, marking paid by hand) and ${MINUTES_PER_EXCEPTION} min per exception explained (tracing it, finding the cause, writing the reply). Your numbers will differ.`}>
-                demo estimate <span className="info" aria-hidden>ⓘ</span></span></div>
+            <div className="kpi kpi-paid"><span className="k">Paid automatically</span><span className="v">{g.paidAuto}</span><span className="s">of {g.arrived} payments that arrived</span></div>
+            <div className="kpi kpi-attention"><span className="k">Need attention</span><span className="v">{g.attention.length}</span><span className="s">listed below, most urgent first</span></div>
+            <div className="kpi"><span className="k">Received this week</span><span className="v v-sm">{g.received.map((x) => <span key={x}>{x}</span>)}</span>
+              <span className="s">of {g.requested.join(" + ")} requested{g.toRefund !== "0" ? ` · incl. ${formatUsdc(g.toRefund)} USDC to refund` : ""}</span></div>
+            <div className="kpi kpi-estimate"><span className="k">Time saved · demo estimate</span><span className="v">~{formatMinutes(g.minutesSaved)}</span>
+              <span className="s">{g.paidAuto} auto-matched × {MINUTES_PER_AUTO_MATCH} min + {g.attention.length} explained × {MINUTES_PER_EXCEPTION} min</span></div>
           </section>
 
           {acme && acmeTone && (
@@ -68,6 +70,16 @@ export default async function AtAGlance() {
                 <span className="muted" style={{ flex: "1 1 200px" }}>{acmeTone.title}</span>
                 {acme.state === "awaiting_payment" && acme.request.demo && <PlayPayment />}
               </div>
+              {fern && fernTone && fernTone.tone === "waiting" && (
+                <div className="panel-b" style={{ flexDirection: "row", alignItems: "center", gap: 16, flexWrap: "wrap", padding: "10px 16px", borderTop: "1px solid var(--border)" }}>
+                  <span className="eyebrow">About to pay</span>
+                  <TonePill tone={fernTone.tone} label={fernTone.status} />
+                  <Link href={`/requests/${fern.request.id}`}><strong>{fern.request.customerRef}</strong> <span className="faint">{fern.request.invoiceRef}</span></Link>
+                  <span className="amount">{formatUsdc(fern.request.amount)} {fern.request.token}</span>
+                  <span className="muted" style={{ flex: "1 1 200px" }}>&ldquo;I&apos;ll use the address from last time.&rdquo;</span>
+                  <a className="btn" href={`/pay/${fern.request.publicId}`} target="_blank" rel="noreferrer" data-testid="fernhill-sender">Open their payment page ↗</a>
+                </div>
+              )}
             </section>
           )}
 
@@ -91,7 +103,7 @@ export default async function AtAGlance() {
           </section>
 
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <Link className="btn" href="/requests/all">All {views.length} requests</Link>
+            <Link className="btn" href="/requests/all">All requests</Link>
             <Link className="btn" href="/requests/new">New request</Link>
             <span style={{ flex: 1 }} />
             {hasDemo && <ReloadDemo />}

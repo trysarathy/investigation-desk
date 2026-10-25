@@ -111,7 +111,7 @@ export default async function PayPage({ params }: { params: Promise<{ publicId: 
             <div className="pay-qr">
               <div dangerouslySetInnerHTML={{ __html: qr }} role="img" aria-label="QR code for this payment request" />
               <div className="muted" style={{ fontSize: 12, lineHeight: 1.5 }}>
-                QR in the standard Ethereum payment-request format (EIP-681). Some wallets don&apos;t read token requests or the amount from it,
+                <span title="A standard Ethereum payment request (EIP-681).">Scan with your wallet.</span> Not every wallet reads the amount or token from a QR code,
                 so check the amount, token and network before you confirm.
               </div>
             </div>

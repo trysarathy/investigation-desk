@@ -50,7 +50,7 @@ with sync_playwright() as p:
         expect(page.locator("h1")).to_have_text("Get paid in stablecoins without the mess.")
         page.locator(".kpis").wait_for(state="visible")
         body = page.inner_text("body")
-        for s in ["Requests sent", "Paid automatically", "Need attention", "Value requested", "Time saved", "demo estimate", "Demo data"]:
+        for s in ["Requests sent", "Paid automatically", "Need attention", "Received this week", "Time saved", "demo estimate", "Demo data"]:
             assert s in body, f"missing {s!r}"
         assert page.locator("[data-testid=attention-item]").count() == 5, page.locator("[data-testid=attention-item]").count()
         for s in ["Blocked", "Unidentified", "Short payment", "Wrong network", "Paid twice"]:
@@ -92,6 +92,7 @@ with sync_playwright() as p:
         expect(page.locator("[data-testid=send-exactly]")).to_have_text("50.00 USDC (the remaining balance)")
         page.screenshot(path=str(OUT / "b-brightline-sender.png"), full_page=True)
         go(page, BASE + "/requests/DEMO-1042")
+        page.fill("[aria-label='Decision note']", "Emailed Priya the top-up request.")
         page.click("[data-testid=decide-request_balance]")
         expect(page.locator("[data-testid=verdict]")).to_contain_text("Waiting for the remaining 50.00 USDC")
     check("b. Brightline short: shortfall, likely cause (fees), top-up reply, sender asked for 50.00", case_b)
@@ -99,12 +100,16 @@ with sync_playwright() as p:
     def case_c():
         go(page, BASE + "/requests/DEMO-1043")
         v = text(page, "[data-testid=verdict]")
-        assert "Blocked: this isn't real USDT" in v and "0xdac17f958d2ee523a2206206994597c13d831ec7" in v, v
-        assert page.locator("button:has-text('Mark paid')").first.is_disabled(), "Mark paid must be disabled"
+        assert "This isn't real USDT" in v and "0xdac17f958d2ee523a2206206994597c13d831ec7" in v, v
         r = text(page, "[data-testid=reply]")
         assert "Hi Daniel" in r and "isn't real USDT" in r, r
         expect(page.locator("body")).to_contain_text("Fake token")
         page.screenshot(path=str(OUT / "c-orbit-counterfeit.png"), full_page=True)
+        assert page.input_value("[aria-label='Decision note']") == "", "notes must not be pre-filled"
+        page.click("[data-testid=decide-dismiss_transfer]")
+        expect(page.locator(".bar-red")).to_contain_text("Add a note first")
+        assert page.locator("[data-testid=mark-paid-blocked]").is_disabled(), "Mark paid must be locked"
+        page.fill("[aria-label='Decision note']", "Counterfeit; told Daniel.")
         page.click("[data-testid=decide-dismiss_transfer]")
         expect(page.locator("[data-testid=verdict]")).to_contain_text("Waiting for the customer to pay")
         expect(page.locator("body")).to_contain_text("Closed: not a payment")
@@ -118,6 +123,8 @@ with sync_playwright() as p:
         assert "Ask treasury to confirm" in text(page, "[data-testid=next-step]")
         assert "Tron" in text(page, "[data-testid=reply]")
         page.screenshot(path=str(OUT / "d-meridian-wrong-network.png"), full_page=True)
+        expect(page.locator(".timeline")).to_contain_text("this request is Ethereum only")
+        page.fill("[aria-label='Decision note']", "Treasury confirmed it in the old Tron wallet.")
         page.click("[data-testid=decide-accept_other_network]")
         expect(page.locator("[data-testid=verdict]")).to_contain_text("Paid on another network, counted by a person")
     check("d. Meridian wrong network: explained, recoverable (own Tron wallet), next step; counted after confirming", case_d)
@@ -126,10 +133,13 @@ with sync_playwright() as p:
         go(page, BASE + "/requests")
         page.click("[data-testid=attention-item]:has-text('Unidentified')")
         expect(page.locator("[data-testid=verdict]")).to_contain_text("Most likely Kite Analytics' INV-1045")
-        expect(page.locator("[data-testid=score]").first).to_have_text("High · 100/100")
+        expect(page.locator("[data-testid=score]").first).to_have_text("Strong match · 4 of 4 signals")
         assert page.locator("[data-testid=suggestion]").count() == 1, "weak suggestions must not show"
         assert "paid from before" in page.inner_text("body")
         page.screenshot(path=str(OUT / "e-unidentified.png"), full_page=True)
+        page.click("[data-testid=confirm-match]")
+        expect(page.locator(".bar-red")).to_contain_text("Add a note first")
+        page.fill("[aria-label='Why this match']", "Exact amount from Kite's usual wallet; Kite emailed that they paid.")
         page.click("[data-testid=confirm-match]")
         page.wait_for_url(re.compile(r"/requests/DEMO-1045$"))
         expect(page.locator("[data-testid=verdict]")).to_contain_text("Matched: waiting to be marked paid")
@@ -139,8 +149,8 @@ with sync_playwright() as p:
     check("e. Unidentified: suggested match with score + evidence; a person confirms; then paid", case_e)
 
     def case_f():
-        go(page, BASE + "/requests/DEMO-1046")
-        href = page.get_attribute("[data-testid=sender-link]", "href")
+        go(page, BASE + "/requests")
+        href = page.get_attribute("[data-testid=fernhill-sender]", "href")
         go(page, BASE + href)
         page.click("[data-testid=demo-paste-lookalike]")
         expect(page.locator("[data-testid=check-result]")).to_contain_text("Stop: don't send to this address")
@@ -162,6 +172,7 @@ with sync_playwright() as p:
         assert "Refund 1,980.00 USDC" in text(page, "[data-testid=refund]")
         assert "twice" in text(page, "[data-testid=reply]")
         page.screenshot(path=str(OUT / "g-kestrel-duplicate.png"), full_page=True)
+        page.fill("[aria-label='Decision note']", "Kestrel confirmed the refund address by email.")
         page.click("[data-testid=decide-refund_excess]")
         expect(page.locator("[data-testid=verdict]")).to_contain_text("Paid; the extra is being refunded")
     check("g. Kestrel duplicate: detected, refund instruction and reply drafted; recorded", case_g)
@@ -169,7 +180,10 @@ with sync_playwright() as p:
     def duplicate_event():
         go(page, BASE + "/requests/DEMO-1041")
         before = page.locator("[data-testid=activity] li").count()
+        page.click("[data-testid=demo-tools] summary")
         page.click("text=Deliver the last event again")
+        expect(page.locator("[data-testid=demo-tools]")).to_contain_text("It still counts once")
+        go(page, BASE + "/requests/DEMO-1041")
         expect(page.locator("[data-testid=activity]")).to_contain_text("Ignored: it counts once")
         assert "1,250.00" in text(page, ".figures")
     check("a repeated event counts once", duplicate_event)

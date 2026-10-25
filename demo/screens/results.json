@@ -1,0 +1,72 @@
+[
+ {
+  "check": "at a glance: proposition, numbers, 5 reasons, old pages hidden",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "a. Acme routine: plays, matched and marked paid automatically; sender sees Paid",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "b. Brightline short: shortfall, likely cause (fees), top-up reply, sender asked for 50.00",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "c. Orbit counterfeit USDT: blocked, explained, can't be marked paid, reply; closing keeps evidence",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "d. Meridian wrong network: explained, recoverable (own Tron wallet), next step; counted after confirming",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "e. Unidentified: suggested match with score + evidence; a person confirms; then paid",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "f. Fernhill look-alike: sender page warns before sending; ops sees it with a security reply",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "g. Kestrel duplicate: detected, refund instruction and reply drafted; recorded",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "a repeated event counts once",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "reload demo day: identical state every time",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "no horizontal scroll at 1280x720 and on a phone",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "pages load in under 1 s",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "no dead links",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "no console or page errors",
+  "ok": true,
+  "detail": ""
+ }
+]

@@ -87,7 +87,7 @@ export function Shell({ index, workspace, demoMode, children }: {
         <div className="sidebar-foot">
           {demoMode && (
             <div className="mode-note" title="Demo mode: fictional data, simulated transfers, no network needed. For live mode, restart the server with DEMO_MODE=off.">
-              <strong>Demo mode</strong> · offline<br />Live mode: start with <span className="mono">DEMO_MODE=off</span>
+              <strong>Demo mode</strong> · offline, fictional data
             </div>
           )}
           <ThemeToggle />
