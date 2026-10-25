@@ -23,7 +23,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const workspace = process.env.OFFLINE_REPLAY_DIR
     ? { name: "Replay mode", badge: "Recorded chain data", title: "Offline: chain answers are recorded real responses (24–25 Oct 2026), not live lookups. Files A and B are the uploaded files." }
     : data.demo || (!data.fileA && !data.fileB)
-    ? { name: "Sample workspace", badge: "Sample data", title: "Every case, hash and address here is fabricated sample data." }
+    ? { name: "Workspace", badge: "Sample deposit cases", title: "The deposit cases in the queue are fabricated samples. Payment requests carry their own label: demo ones say so on every page." }
     : { name: "Your workspace", badge: "Uploaded files", title: "Chain data is looked up live. Files A and B are the files uploaded in Settings → Data. The sample cases in the queue stay fabricated." };
   return (
     <html lang="en" suppressHydrationWarning>
