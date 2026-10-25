@@ -1,0 +1,68 @@
+{
+ "format": {
+  "duration": 118.43,
+  "size": "1080x1920",
+  "audio": true
+ },
+ "loudness": {
+  "integrated_LUFS": -14.0,
+  "true_peak_dBFS": -1.4,
+  "first_frame_vs_average_dB": -56.6
+ },
+ "fade_in": {
+  "audio_first_10ms_dBFS": -90.1,
+  "audio_at_0_3s_dBFS": -29.2,
+  "video_frame0_luma": 0.0,
+  "video_frame9_luma": 13.9
+ },
+ "silences_over_1s": [],
+ "transcript": {
+  "script_words": 257,
+  "heard_words": 258,
+  "match_ratio": 0.9942,
+  "differences": [],
+  "benign_spacing_differences": [
+   [
+    "replace",
+    "alike",
+    "a like"
+   ]
+  ]
+ },
+ "caption_sync": {
+  "captions_checked": 47,
+  "of": 47,
+  "max_offset_s": 0.123,
+  "worst_caption": "short, or meant for someone else.",
+  "over_0_3s": []
+ },
+ "ocr": {
+  "seconds": 118,
+  "seconds_without_text": [],
+  "demo_data_appearances": 1,
+  "demo_data_seconds": [
+   60,
+   61,
+   62,
+   63
+  ],
+  "end_card_ok": true
+ },
+ "designed_dips": [],
+ "black_frames": [],
+ "glitch_frames": [],
+ "ok": {
+  "format": true,
+  "loudness": true,
+  "fade_in": true,
+  "silences": true,
+  "transcript": true,
+  "caption_sync": true,
+  "text_every_second": true,
+  "demo_data_once": true,
+  "end_card": true,
+  "no_black_frames": true,
+  "no_glitch_frames": true
+ },
+ "all_ok": true
+}

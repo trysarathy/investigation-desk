@@ -1,15 +1,16 @@
 """Writes script_final.md from the full film's timeline: narration and captions with timecodes.
-Usage: write_script.py <timeline.json> <out.md>"""
+Usage: write_script.py <timeline.json> <out.md> [voice name]"""
 import json, sys
 
 tl = json.load(open(sys.argv[1]))
 tc = lambda s: f"{int(s // 60)}:{s % 60:05.2f}"
-SECTION = {"hook": "Hook", "problem": "The problem", "why": "Why it matters", "solution": "The solution", "glance": "a. At a glance",
-           "acme": "b. Routine payment (Acme)", "brightline": "c. Short payment (Brightline)", "orbit": "d. Counterfeit token (Orbit)",
-           "lookalike": "e. Look-alike address (Fernhill)", "unidentified": "f. Unidentified payment (Kite)", "outcome": "Outcome", "end": "End card"}
+SECTION = {"hook": "1. Hook", "pain": "2. Maya's problem", "wrong": "3. What goes wrong", "turn": "4. The turn: Clearline",
+           "prevent": "5. Before anyone pays (customer's view)", "auto": "6. When the payment is right (Maya's view)",
+           "wrongpay": "7. When something's wrong (Maya's view)", "outcome": "8. Outcome", "end": "9. End card"}
+VOICE = sys.argv[3] if len(sys.argv) > 3 else 'Piper "Cori" (en_GB, high)'
 out = [f"# Clearline product film: final script\n",
-       f"Duration {tc(tl['duration'])} · 1920×1080 · 30 fps · voice: Piper \"Cori\" (en_GB, high) · music: original, generated for this film.\n",
-       "Times are from the start of the film. The voice says \"fifty dollars\" and \"U S D T\"; the captions show \"50.00 USDC\" and \"USDT\".\n"]
+       f"Duration {tc(tl['duration'])} · 1920×1080 · 30 fps · voice: {VOICE} · music: original, generated for this film.\n",
+       "One-liner: **Get paid in digital dollars without the detective work.** All companies, people and amounts are fictional (labelled \"Demo data\" once, on the first app scene). Times are from the start of the film.\n"]
 sec = None
 for l in tl["lines"]:
     if l["section"] != sec:

@@ -3,10 +3,10 @@
 
     check_film.py <film.mp4> <timeline.json> <out_dir> [--min 100 --max 120]
 
-Checks: duration/size/audio stream; loudness (-14 LUFS +/-1, true peak); not full level on frame 1;
+Checks: duration/size/audio stream; loudness (-14 LUFS +/-1, true peak); fade-in from silence/black within 0.3 s;
 silences; the final audio transcribed and compared word by word with the script; caption timing
 against the spoken words; 1-fps contact sheet + OCR (text on screen every second, "Demo data" shown
-once, end card text); black frames.
+once, end card text); black frames; one-frame glitches. Text size is checked separately (check_text.py).
 """
 import json, pathlib, re, subprocess, sys
 import numpy as np
@@ -36,6 +36,14 @@ first = float(np.sqrt(np.mean(pcm[:1600] ** 2)) + 1e-9); body = float(np.sqrt(np
 rep["loudness"] = {"integrated_LUFS": I, "true_peak_dBFS": TP, "first_frame_vs_average_dB": round(20 * np.log10(first / body), 1)}
 ok["loudness"] = abs(I + 14) <= 1 and TP <= -1.0 and first < body * 0.1
 
+# 2b. Fade-in from silence: the first 10 ms are silent and the picture starts black; both are up within 0.3 s.
+db = lambda x: 20 * np.log10(float(np.sqrt(np.mean(x ** 2))) + 1e-9)
+a_start, a_03 = db(pcm[:480]), db(pcm[int(0.25 * 48000):int(0.35 * 48000)])
+g0 = subprocess.run(["ffmpeg", "-v", "error", "-i", film, "-vf", "scale=64:36", "-frames:v", "12", "-pix_fmt", "rgb24", "-f", "rawvideo", "-"], capture_output=True).stdout
+fl = np.frombuffer(g0, np.uint8).reshape(-1, 36 * 64 * 3).mean(1)   # RGB as viewers see it (a gray conversion misreads frame 0)
+rep["fade_in"] = {"audio_first_10ms_dBFS": round(a_start, 1), "audio_at_0_3s_dBFS": round(a_03, 1), "video_frame0_luma": round(float(fl[0]), 1), "video_frame9_luma": round(float(fl[9]), 1)}
+ok["fade_in"] = bool(a_start < -50 and a_03 > -45 and fl[0] <= fl.min() + 0.5 and fl[0] < 20 and fl[9] > fl[0] + 3)
+
 # 3. Silences (anything quieter than -50 dB for over 1 s, outside the first/last second)
 sd = run("ffmpeg", "-hide_banner", "-i", film, "-af", "silencedetect=noise=-50dB:d=1", "-f", "null", "-").stderr
 sil = [(float(a), float(b)) for a, b in re.findall(r"silence_start: ([\d.]+).*?silence_end: ([\d.]+)", sd, re.S)]
@@ -56,8 +64,8 @@ hw = norm(" ".join(h["w"] for h in heard))
 import difflib
 sm = difflib.SequenceMatcher(a=script, b=hw, autojunk=False)
 diffs = [(op, " ".join(script[a0:a1]), " ".join(hw[b0:b1])) for op, a0, a1, b0, b1 in sm.get_opcodes() if op != "equal"]
-# Benign: compound-word splits the recogniser makes ("clear line", "top up", "look alike").
-benign = lambda d: d[1].replace(" ", "") == d[2].replace(" ", "")
+# Benign: compound-word splits and apostrophes the recogniser drops ("look alike", "scammer's" / "scammers").
+benign = lambda d: d[1].replace(" ", "").replace("'", "") == d[2].replace(" ", "").replace("'", "")
 real = [d for d in diffs if not benign(d)]
 rep["transcript"] = {"script_words": len(script), "heard_words": len(hw), "match_ratio": round(sm.ratio(), 4), "differences": real, "benign_spacing_differences": [d for d in diffs if benign(d)]}
 (out / "transcript.txt").write_text(" ".join(h["w"] for h in heard))
@@ -117,19 +125,25 @@ ok["end_card"] = end_ok
 (out / "ocr.json").write_text(json.dumps(ocr, indent=1))
 # contact sheet: 6 columns, 320px wide thumbnails
 from PIL import Image, ImageDraw
-th = [Image.open(f).resize((320, 180)) for f in frames]
-cols = 6; rows = -(-len(th) // cols)
-sheet = Image.new("RGB", (cols * 320, rows * 196), (10, 12, 17))
+tw, tht = (320, 180) if v["width"] >= v["height"] else (135, 240)
+th = [Image.open(f).resize((tw, tht)) for f in frames]
+cols = 6 if tw == 320 else 12; rows = -(-len(th) // cols)
+sheet = Image.new("RGB", (cols * tw, rows * (tht + 16)), (10, 12, 17))
 d = ImageDraw.Draw(sheet)
 for k, im in enumerate(th):
-    x, y = (k % cols) * 320, (k // cols) * 196
-    sheet.paste(im, (x, y)); d.text((x + 6, y + 181), f"{k}s", fill=(160, 166, 178))
+    x, y = (k % cols) * tw, (k // cols) * (tht + 16)
+    sheet.paste(im, (x, y)); d.text((x + 6, y + tht + 1), f"{k}s", fill=(160, 166, 178))
 sheet.save(out / "contact_sheet.png")
 
 # 6. Black frames
 bd = run("ffmpeg", "-hide_banner", "-i", film, "-vf", "blackdetect=d=0.2:pix_th=0.05", "-an", "-f", "null", "-").stderr
 blacks = [(float(a), float(b)) for a, b in re.findall(r"black_start:([\d.]+) black_end:([\d.]+)", bd)]
 blacks = [b for b in blacks if b[0] > 0.9 and b[1] < dur - 1.3]   # the fade from/to black at the ends is intended
+# The film dips through black between scenes (0.3 s out, 0.3 s in) so two scenes never overlap: a black
+# stretch of at most 0.6 s centred on a scene boundary is that designed dip, anything else is a fault.
+cuts = [s["from"] for s in tl["scenes"][1:]]
+rep["designed_dips"] = [b for b in blacks if b[1] - b[0] <= 0.6 and any(b[0] - 0.35 <= c <= b[1] + 0.35 for c in cuts)]
+blacks = [b for b in blacks if b not in rep["designed_dips"]]
 rep["black_frames"] = blacks; ok["no_black_frames"] = not blacks
 
 # 7. Glitch frames: a single frame much darker (or emptier) than both neighbours = a render hiccup.
