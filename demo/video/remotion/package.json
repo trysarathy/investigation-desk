@@ -1,0 +1,8 @@
+{
+  "name": "clearline-film",
+  "private": true,
+  "type": "module",
+  "description": "The Clearline product film (Remotion). Assets (screenshots, timeline, audio) are generated into a public dir; see demo/video/README.md.",
+  "dependencies": { "remotion": "4.0.300", "@remotion/cli": "4.0.300", "react": "18.3.1", "react-dom": "18.3.1" },
+  "devDependencies": { "@types/react": "18.3.12", "typescript": "5.6.3" }
+}
