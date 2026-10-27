@@ -44,12 +44,12 @@ export function Partners() {
 
   return (
     <section id="design-partners" className="scroll-mt-24 border-y border-line bg-panel/40">
-      <div className="mx-auto grid max-w-6xl gap-14 px-5 py-24 sm:px-8 sm:py-32 md:grid-cols-[1fr_1.1fr] md:gap-16">
+      <div className="mx-auto grid max-w-6xl gap-14 px-5 py-20 sm:px-8 sm:py-24 md:grid-cols-[1fr_1.1fr] md:gap-16">
         <Reveal>
           <Eyebrow>Design partners</Eyebrow>
           <SectionTitle>Help shape Clearline.</SectionTitle>
           <p className="mt-6 max-w-md text-[17px] leading-relaxed text-muted">
-            We're working with a small number of early teams that receive stablecoin payments. Tell us a little about yours.
+            We're working with a small number of early teams that receive stablecoin payments. Prefer to write rather than book a call? Tell us a little about yours here.
           </p>
           <ul className="mt-10 space-y-6">
             {perks.map(([t, b]) => (

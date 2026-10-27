@@ -3,7 +3,7 @@ import { Eyebrow, PrimaryButton, Reveal, SectionTitle } from "./ui";
 
 export function Demo() {
   return (
-    <section id="demo" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-24 sm:px-8 sm:py-32">
+    <section id="demo" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-20 sm:px-8 sm:py-24">
       <Reveal className="mx-auto max-w-2xl text-center">
         <Eyebrow>Demo</Eyebrow>
         <SectionTitle>See it in 60 seconds.</SectionTitle>
@@ -23,7 +23,7 @@ export function Demo() {
 export function BuiltFor() {
   return (
     <section id="built-for" className="border-y border-line bg-panel/40">
-      <div className="mx-auto grid max-w-6xl gap-12 px-5 py-24 sm:px-8 sm:py-28 md:grid-cols-2 md:gap-16">
+      <div className="mx-auto grid max-w-6xl gap-12 px-5 py-20 sm:px-8 sm:py-24 md:grid-cols-2 md:gap-16">
         <Reveal>
           <Eyebrow>Built for</Eyebrow>
           <SectionTitle>Finance and operations teams that get paid in stablecoins directly.</SectionTitle>
@@ -50,7 +50,7 @@ const trust = [
 
 export function Trust() {
   return (
-    <section id="trust" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-24 sm:px-8 sm:py-32">
+    <section id="trust" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-20 sm:px-8 sm:py-24">
       <Reveal className="max-w-2xl">
         <Eyebrow>Trust and safety</Eyebrow>
         <SectionTitle>Careful with money, by design.</SectionTitle>
@@ -65,9 +65,9 @@ export function Trust() {
       </div>
       <Reveal delay={0.1} className="mt-6 rounded-2xl border border-line p-6 text-[14.5px] leading-relaxed text-muted sm:flex sm:items-center sm:justify-between sm:gap-8">
         <p>
-          <span className="font-semibold text-fg">52 of 52.</span> In our own tests on 52 real past transactions the rules hadn't been tuned on, Clearline gave the right verdict every time.
+          <span className="font-semibold text-fg">52 of 52.</span> In our own test, Clearline's checks (real token, right network, right address) gave the right answer on 52 real public USDC and USDT transfers we hadn't used while building the rules. The right answers were confirmed on block explorers. Automatic matching hasn't been tested on real data yet.
         </p>
-        <p className="mt-3 flex-none text-[12.5px] text-faint sm:mt-0">Our own demo test, not a customer result.</p>
+        <p className="mt-3 flex-none text-[12.5px] text-faint sm:mt-0">Our own small test, not a customer result.</p>
       </Reveal>
     </section>
   );
@@ -76,15 +76,16 @@ export function Trust() {
 const faqs = [
   { q: "What are stablecoins?", a: "Digital dollars. A stablecoin like USDC (issued by Circle) or USDT (issued by Tether) is meant to be worth one US dollar each, and moves between accounts on a blockchain in seconds, any day of the week." },
   { q: "Does Clearline hold my money?", a: "No. Clearline is read-only. It reads public blockchain records and your invoice list, and never holds, moves or has access to funds or wallet keys." },
-  { q: "Which networks and tokens?", a: "Today the demo checks USDC and USDT on Ethereum, Tron and BNB Chain, and recognises payments sent on Polygon, Base, Arbitrum or Optimism instead. Design partners will shape what comes next." },
+  { q: "Which networks and tokens?", a: "Payment pages: USDC on Ethereum today. Checking a transfer someone reports: USDC and USDT on Ethereum, Tron and BNB Chain, including spotting payments sent on Polygon, Base, Arbitrum or Optimism instead. Design partners will shape what comes next." },
+  { q: "Is it AI?", a: "The verdict (paid, short, counterfeit, wrong network) comes from fixed, written rules, and every verdict shows the evidence it used. An AI-written explanation is being built, but it hasn't been tested on real data, so nothing on this page relies on it." },
+  { q: "How do my invoices get in?", a: "Today you create a payment request in Clearline for each invoice. Connecting your accounting software is something we'll shape with design partners." },
   { q: "Is it live?", a: "Not yet. It's a working demo running on fictional data. We're now looking for a small number of design partners to try it on their own payments." },
   { q: "How much does it cost?", a: "Free for design partners during the pilot. Pricing comes later, and we'll agree it with you before anything changes." },
-  { q: "Who's behind it?", a: "Clearline is built by Aashmiin Kaur, an accountancy student at Singapore Management University, as an independent pre-launch project." },
 ];
 
 export function Faq() {
   return (
-    <section id="faq" className="mx-auto max-w-3xl scroll-mt-24 px-5 py-24 sm:px-8 sm:py-32">
+    <section id="faq" className="mx-auto max-w-3xl scroll-mt-24 px-5 py-20 sm:px-8 sm:py-24">
       <Reveal>
         <Eyebrow>FAQ</Eyebrow>
         <SectionTitle>Questions, answered plainly.</SectionTitle>

@@ -129,10 +129,11 @@ export function Header() {
           <a href="/#how-it-works" className="hover:text-fg">How it works</a>
           <a href="/#demo" className="hover:text-fg">Demo</a>
           <a href="/#trust" className="hover:text-fg">Safety</a>
+          <a href="/#design-partners" className="hover:text-fg">Design partners</a>
           <a href="/#faq" className="hover:text-fg">FAQ</a>
         </nav>
-        <a href="/#design-partners" className="inline-flex h-9 items-center rounded-full bg-fg px-4 text-[13.5px] font-semibold text-ink transition hover:bg-white">
-          Become a design partner
+        <a href={bookHref().startsWith("#") ? "/" + bookHref() : bookHref()} className="inline-flex h-9 items-center rounded-full bg-fg px-4 text-[13.5px] font-semibold text-ink transition hover:bg-white">
+          Book a call
         </a>
       </div>
     </header>

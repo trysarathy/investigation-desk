@@ -5,7 +5,7 @@ const stroke = { fill: "none", stroke: "currentColor", strokeWidth: 2.2, strokeL
 const problems = [
   {
     title: "Paid too little",
-    body: "Fees come off along the way, so 5,000 becomes 4,950. The invoice stays open.",
+    body: "An exchange takes its withdrawal fee, so 5,000 becomes 4,950. The invoice stays open.",
     icon: (
       <svg viewBox="0 0 48 48" className="h-12 w-12" aria-hidden="true">
         <rect x="8" y="10" width="32" height="28" rx="6" {...stroke} />
@@ -16,7 +16,7 @@ const problems = [
   },
   {
     title: "Wrong network",
-    body: "The right digital dollars, sent down a different road, to a place nobody is watching.",
+    body: "Sent on Tron instead of Ethereum: it arrived, but not where anyone is looking.",
     icon: (
       <svg viewBox="0 0 48 48" className="h-12 w-12" aria-hidden="true">
         <path d="M8 38c8-6 10-14 16-20s10-8 16-8" {...stroke} opacity="0.35" />
@@ -51,7 +51,7 @@ const problems = [
 
 export function Problem() {
   return (
-    <section id="problem" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-24 sm:px-8 sm:py-32">
+    <section id="problem" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-20 sm:px-8 sm:py-24">
       <div className="grid gap-12 md:grid-cols-[1fr_1.1fr] md:gap-16">
         <Reveal>
           <Eyebrow>The problem</Eyebrow>
@@ -71,7 +71,7 @@ export function Problem() {
         </Reveal>
       </div>
 
-      <ul className="mt-16 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <ul className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {problems.map((p, i) => (
           <li key={p.title}>
             <Reveal delay={0.08 * i} className="h-full rounded-2xl border border-line bg-panel/60 p-6 transition hover:border-line-strong">

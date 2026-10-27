@@ -6,8 +6,8 @@ export const metadata: Metadata = { title: "Demo", description: "Watch Clearline
 
 const shots = [
   { name: "request", w: 1036, h: 1252, small: 518, caption: "1 · The customer sees exactly how to pay", alt: "A customer payment page for a fictional invoice: send exactly 860.00 USDC on Ethereum to the address shown." },
-  { name: "auto-paid", w: 1680, h: 570, small: 840, caption: "2 · A correct payment ticks itself off", alt: "A fictional invoice marked paid automatically after the exact USDC amount arrived and reached 12 confirmations." },
-  { name: "fake-explained", w: 1680, h: 1006, small: 840, caption: "3 · A problem, explained, with the reply drafted", alt: "A fictional case explaining that 7,500 USDT came from a counterfeit contract, so the invoice can't be marked paid." },
+  { name: "auto-paid", w: 1504, h: 582, small: 752, caption: "2 · A correct payment ticks itself off", alt: "A fictional invoice marked paid automatically after the exact USDC amount arrived and reached 12 confirmations." },
+  { name: "fake-explained", w: 1504, h: 572, small: 752, caption: "3 · A problem, explained, with the reply drafted", alt: "A fictional case explaining that 7,500 USDT came from a counterfeit contract, so it can't pay the invoice." },
 ];
 
 export default function DemoPage() {
