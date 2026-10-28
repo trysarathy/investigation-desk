@@ -2,7 +2,7 @@
 
 ## Update, 28 Oct 2026: new positioning ("in your books")
 
-**What changed (slides 1, 3 and 4, plus question 1 on slide 6; slides 2 and 5 are unchanged):**
+**What changed (slides 1, 3 and 4, plus question 1 on slide 6 and slide 2's source line; slide 5 is unchanged):**
 
 - **Slide 1, problem:** the letterbox analogy is replaced by two sourced numbers.
   - Real stablecoin payments are growing, an estimated ~60% between businesses (Bessemer's estimate).
@@ -40,7 +40,7 @@ Dropped from the old slides, because they are not in the new source list:
 - **Where the QR leads:** the QR on slide 4 opens the 60-second video on GitHub, on the `pitch-deck` branch. That link breaks once the branch is merged and deleted.
 - **Your repo is public:** anyone with the link can see the video and the decks in it, not only mentors.
 - **Slide 6 wording:** question 1 now asks about "the wrong-payments gap", to match slide 3. That is the only change on slide 6.
-- **The four wrong-payment cases (slides 1 and 2):** they come from the product's demo cases. Only counterfeit USDT and wrong network are also seen in real transactions (demo/REPORT.md). How often each happens is not measured. Slide 2's footer (unchanged) still says "All four appear in my tests on real transactions". demo/REPORT.md only shows fake USDT (13) and wrong network (6), so that footer may need softening.
+- **The four wrong-payment cases (slides 1 and 2):** they come from the product's demo cases. Only counterfeit USDT and wrong network are also seen in real transactions (demo/REPORT.md). How often each happens is not measured. Slide 2's footer and notes now say the same: fake USDT (13) and wrong network (6) are from real transactions (demo/REPORT.md); short payments and missing references are demo cases.
 
 **Rebuild:**
 

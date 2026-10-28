@@ -52,7 +52,7 @@ foot(s, "$400B, ~60% B2B (60% is Bessemer's estimate): Bessemer Venture Partners
 s = new("""
 When a payment doesn't match, it's usually one of these four, and each one needs someone to investigate by hand: look up the transfer, find the invoice, work out what went wrong, and write to the customer. While that happens the customer waits, and if nobody checks carefully, a business can accept fake digital dollars as if they were real.
 SOURCES / LABELS:
-- The four problems are real [VERIFIED]: my tests on real transactions include 13 counterfeit-USDT and 6 wrong-network transfers (demo/REPORT.md); short payments and missing references are standard cases.
+- Fake USDT and wrong network [VERIFIED]: my tests on real transactions include 13 counterfeit-USDT and 6 wrong-network transfers (demo/REPORT.md). Short payments and missing references [demo cases]: from demo/REQUESTS_DEMO.md, not yet seen in real data.
 - "Hours lost" [ESTIMATE ◦]: untested. My guess is 15–30 minutes per odd payment, and the demo's 20-minute figure is a demo estimate, not a measurement. How often each problem happens is unknown.
 - Fake digital dollars [VERIFIED]: anyone can create a token with the same name; only the real issuer's contract counts (ERC-20 standard).
 """)
@@ -67,7 +67,7 @@ for k, (ic, lab) in enumerate(items):
     text(s, x + 0.2, 3.95, cw - 0.4, 0.9, lab, size=22, bold=True, align=PP_ALIGN.CENTER)
 box(s, M, 5.4, W - 2 * M, 0.9, fill=CARD, line=ACC)
 text(s, M + 0.35, 5.4, W - 2 * M - 0.7, 0.9, [[("The cost: hours lost", {}), mk("◦"), (", customers waiting, and the risk of accepting fake money.", {})]], size=20, anchor=MSO_ANCHOR.MIDDLE)
-foot(s, "All four appear in my tests on real transactions (e.g. 13 fake-USDT, 6 wrong-network). How often they happen, and how long each takes, are not yet measured.")
+foot(s, "Fake USDT (13) and wrong-network (6) payments appear in my tests on real transactions; short payments and missing references are demo cases. Frequency and time per case: not yet measured.")
 
 # 3 ---------------------------------------------------------------- THE GAP
 s = new("""
