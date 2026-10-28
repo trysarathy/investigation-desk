@@ -42,7 +42,7 @@ export function BuiltFor() {
 }
 
 const trust = [
-  { title: "Read-only", body: "Clearline reads public blockchain records and your invoices. It never holds, moves or touches money, and never asks for wallet keys." },
+  { title: "Never touches money", body: "Clearline reads public blockchain records and your invoices. It never holds or moves money, and never asks for wallet keys. The only thing it writes is a posting to your books, and only when a person approves." },
   { title: "Shows its evidence", body: "Every verdict lists what it checked: amount, token contract, address, confirmations. Inferences are labelled as inferences." },
   { title: "A person decides", body: "It can block an obvious mistake, like counting a counterfeit as paid. Replies are drafts: you edit and send them yourself." },
   { title: "Your data, your call", body: "Today's demo runs on fictional data. Design-partner pilots use only what you choose to share, only for the pilot, deleted when you ask." },
@@ -75,11 +75,13 @@ export function Trust() {
 
 const faqs = [
   { q: "What are stablecoins?", a: "Digital dollars. A stablecoin like USDC (issued by Circle) or USDT (issued by Tether) is meant to be worth one US dollar each, and moves between accounts on a blockchain in seconds, any day of the week." },
-  { q: "Does Clearline hold my money?", a: "No. Clearline is read-only. It reads public blockchain records and your invoice list, and never holds, moves or has access to funds or wallet keys." },
+  { q: "Does Clearline hold my money?", a: "No. Clearline reads public blockchain records and your invoice list, and never holds, moves or has access to funds or wallet keys. The one thing it writes is a payment posted to your books, and only after a person approves it." },
   { q: "Which networks and tokens?", a: "Payment pages: USDC on Ethereum today. Checking a transfer someone reports: USDC and USDT on Ethereum, Tron and BNB Chain, including spotting payments sent on Polygon, Base, Arbitrum or Optimism instead. Design partners will shape what comes next." },
   { q: "Is it AI?", a: "The verdict (paid, short, counterfeit, wrong network) comes from fixed, written rules, and every verdict shows the evidence it used. An AI-written explanation is being built, but it hasn't been tested on real data, so nothing on this page relies on it." },
-  { q: "How do my invoices get in?", a: "Today you create a payment request in Clearline for each invoice. Connecting your accounting software is something we'll shape with design partners." },
-  { q: "Is it live?", a: "Not yet. It's a working demo running on fictional data. We're now looking for a small number of design partners to try it on their own payments." },
+  { q: "How do my invoices get in?", a: "Today you create a payment request in Clearline for each invoice. Once a payment is approved, Clearline posts it back to the invoice in your accounting system (see the next question)." },
+  { q: "Which accounting tools?", a: "Xero first: the connection is built and has been tested in demo mode with a fictional company, and the first live test, with Xero's demo company, is next. QuickBooks Online comes next, and NetSuite is on the roadmap. Before connecting anything, we'll ask which one you use." },
+  { q: "Don't other tools already do this?", a: "Some do parts of it. Crypto accounting tools such as Bitwave and Request Finance already sync stablecoin payments to accounting systems. Clearline focuses on businesses paid straight into their own wallet, and on the payments that arrive wrong (short, wrong network, counterfeit, no reference) and getting those into the books correctly. Whether that's where the pain is, we're testing with design partners." },
+  { q: "Is it live?", a: "Not yet. It's a working demo running on fictional data, with no customers yet. We're now looking for a small number of design partners to try it on their own payments." },
   { q: "How much does it cost?", a: "Free for design partners during the pilot. Pricing comes later, and we'll agree it with you before anything changes." },
 ];
 

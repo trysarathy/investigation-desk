@@ -1,8 +1,8 @@
 import { BrowserFrame, Eyebrow, Reveal, SectionTitle, Shot } from "./ui";
 
-function Step({ n, title, body, points, children, flip = false }: { n: string; title: string; body: string; points: string[]; children: React.ReactNode; flip?: boolean }) {
+function Step({ n, title, body, points, children, flip = false, wide = false }: { n: string; title: string; body: string; points: string[]; children: React.ReactNode; flip?: boolean; wide?: boolean }) {
   return (
-    <div className="grid items-start gap-10 md:grid-cols-2 md:gap-14">
+    <div className={`grid items-start gap-10 md:gap-14 ${wide ? (flip ? "md:grid-cols-[1.35fr_1fr]" : "md:grid-cols-[1fr_1.35fr]") : "md:grid-cols-2"}`}>
       <Reveal className={flip ? "md:order-2" : ""}>
         <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-accent">{n}</p>
         <h3 className="mt-3 text-balance text-[clamp(26px,3.2vw,36px)] font-semibold leading-[1.1] tracking-[-0.025em]">{title}</h3>
@@ -31,7 +31,7 @@ export function HowItWorks() {
           <Eyebrow>How it works</Eyebrow>
           <SectionTitle>Every payment explains itself.</SectionTitle>
           <p className="mt-6 text-[17px] leading-relaxed text-muted">
-            You create a payment request for each invoice in Clearline. From there, three moments, from your customer's screen to your finance team's.
+            You create a payment request for each invoice in Clearline. From there, four moments, from your customer's screen to your books.
           </p>
         </Reveal>
 
@@ -88,6 +88,29 @@ export function HowItWorks() {
                 <Shot name="fake-reply" w={1456} h={922} small={728} sizes="(min-width: 768px) 540px, 92vw" alt="A drafted reply to the fictional customer explaining that the tokens weren't real USDT and how to pay with genuine USDT." className="block h-auto w-full" />
               </BrowserFrame>
             </div>
+          </Step>
+
+          <Step
+            flip
+            wide
+            n="Step 4 · In your books"
+            title="Approve once, and it's in your books."
+            body="When a person approves, the payment posts to its invoice in your accounting system, with the transaction hash, token, network and USD value. Xero comes first. A short payment posts as a partial payment with a note, so the invoice stays open for the rest."
+            points={["Counterfeit and wrong-network payments are never posted", "Nothing is written to your books until a person approves", "Every posting, and every refusal, is kept in an audit log"]}
+          >
+            <figure>
+              <div className="space-y-4">
+                <BrowserFrame label="Clearline · In your books · demo data">
+                  <Shot name="books-posted" w={1312} h={632} small={656} sizes="(min-width: 768px) 640px, 92vw" alt="Clearline's 'In your books' panel for a fictional invoice, INV-1041: paid exactly 1,250.00 USDC, one payment applied to the invoice, approved by a fictional finance person. The posted line shows 1,250.00 USD with the token, network, transaction hash and date." className="block h-auto w-full" />
+                </BrowserFrame>
+                <BrowserFrame label="Clearline · In your books · demo data">
+                  <Shot name="books-partial" w={1312} h={762} small={656} sizes="(min-width: 768px) 640px, 92vw" alt="Clearline's 'In your books' panel for a fictional invoice, INV-1042: short by 50.00 USDC, so it will post as a partial payment of 4,950.00 with a note on the invoice, once a person presses 'Approve and post to the books'." className="block h-auto w-full" />
+                </BrowserFrame>
+              </div>
+              <figcaption className="mt-4 text-[13px] leading-relaxed text-faint">
+                Clearline&apos;s own posting screen in demo mode, for a fictional company (Northwind Pay). This is not Xero&apos;s screen. Xero connection: built and tested in demo mode; the first live test, with Xero&apos;s demo company, is next.
+              </figcaption>
+            </figure>
           </Step>
         </div>
       </div>

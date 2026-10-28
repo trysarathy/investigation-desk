@@ -58,4 +58,6 @@ Add UTM tags to every link you share. The form saves the first tags a visitor ar
 - **Words:** the approved film script (`demo/video/script_final.md`), the 6-slide mentor brief, and `demo/REQUESTS_DEMO.md`.
 - **Screenshots:** the real app in demo mode (dark theme, 2x), fictional company "Northwind Pay". Captured with `pitch/src/capture_shots.py`, plus fresh hero and phone shots.
 - **Film:** `pitch/demo_live_60s.mp4`, re-encoded to 1280p (2.5 MB).
+- **"Why now" figures:** only the facts in `website/SOURCES.md`, each with its source link and the quoted line. Add nothing there that isn't in that file.
+- **"In your books" screenshots:** Clearline's own posting panel in demo mode (fictional company), not Xero's screen.
 - **"52 of 52":** the held-out real-transaction test reported in `pitch/NOTE.md`. It's labelled on the page as our own test.

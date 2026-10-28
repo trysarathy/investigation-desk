@@ -147,7 +147,7 @@ export function Footer() {
         <div>
           <Logo />
           <p className="mt-4 max-w-sm text-[14px] leading-relaxed text-muted">
-            A smart cashier for stablecoin payments. Working demo, seeking design partners.
+            Stablecoin payments, matched, explained and in your books. Working demo, seeking design partners.
           </p>
           <p className="mt-4 text-[13px] text-faint">Built by {site.founder}, SMU.</p>
         </div>
