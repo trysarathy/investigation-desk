@@ -140,3 +140,11 @@ Aashmiin only reads the briefings. Claude handles leads, first emails, follow-up
 - Domain switch: when SEND_MODE = domain and DOMAIN_READY = TRUE, stop ALL cold email from personal
   Gmail (first emails and follow-ups) and use the domain ramp (20 → 35 → 50/day). Replies to people
   who wrote in may still go from Gmail.
+
+## Accounting question (from 28 Oct 2026)
+- Positioning: "Stablecoin payments, matched, explained and in your books."
+- Ask, word for word (`gtm.lean.ACCOUNTING_QUESTION`): "After a stablecoin payment is matched, how does it get
+  into your accounting system today, and how long does that take?"
+- Where: in the D4 follow-up (built into `gtm.lean.followup`), in every call (prompts/CALL_SCRIPT.md, question 5),
+  and in every call-prep brief's 5 questions. First emails (D0) stay as they are: one question only.
+- Record the answer word for word in the Calls tab; the weekly wrap groups answers by accounting system.

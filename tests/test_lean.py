@@ -103,5 +103,18 @@ class LeanTests(unittest.TestCase):
         self.assertIn("reply \"no\"", body)
 
 
+class AccountingQuestionTests(unittest.TestCase):
+    def test_d4_asks_the_accounting_question_word_for_word(self):
+        body = lean.followup("D4", "Hi team,", "https://www.linkedin.com/in/x")
+        self.assertIn("after a stablecoin payment is matched, how does it get into your accounting system today, "
+                      "and how long does that take?", body)
+        self.assertEqual(body.count("http"), 1)
+
+    def test_call_script_has_it(self):
+        import pathlib
+        script = (pathlib.Path(__file__).parent.parent / "prompts" / "CALL_SCRIPT.md").read_text()
+        self.assertIn(lean.ACCOUNTING_QUESTION, script.replace("**", ""))
+
+
 if __name__ == "__main__":
     unittest.main()
