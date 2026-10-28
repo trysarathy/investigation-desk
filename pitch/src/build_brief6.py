@@ -33,7 +33,7 @@ SOURCES / LABELS:
 """)
 topline(s)
 head(s, "Real stablecoin payments are growing, an estimated ~60% between businesses")
-stats = [("$400B", [("real-world stablecoin payments in 2025, about 60% between businesses", {}), mk("◦")]),
+stats = [("~$400B", [("real-world stablecoin payments in 2025, about 60% between businesses", {}), mk("◦")]),
          ("$350–550B", [("of the $28–62T moved in stablecoins in 2025 was real payments; the rest is mostly trading", {})])]
 cw = (W - 2 * M - 0.4) / 2
 for k, (big, line) in enumerate(stats):
@@ -46,18 +46,18 @@ text(s, M + 0.4, 4.45, W - 2 * M - 0.8, 1.85,
      [[("The pain: ", {"bold": True, "color": ACC2}), ("some payments arrive wrong: too little, the wrong network, a fake token, or no invoice number.", {})],
       [("Someone has to match each one to its invoice and get it into the books by hand.", {"bold": True}), mk("†")]],
      size=22, anchor=MSO_ANCHOR.MIDDLE, spacing=8)
-foot(s, "$400B, ~60% B2B (60% is Bessemer's estimate): Bessemer Venture Partners, Apr 2026.  $350–550B of $28–62T: Reap, Aug 2026, citing BIS, BCG × Allium and McKinsey.")
+foot(s, "~$400B, ~60% B2B (60% is Bessemer's estimate): Bessemer Venture Partners, Apr 2026.  $350–550B of $28–62T: Reap, Aug 2026, citing BIS, BCG × Allium and McKinsey.")
 
 # 2 ---------------------------------------------------------------- WHY IT HURTS
 s = new("""
-When a payment doesn't match, it's usually one of these four, and each one needs someone to investigate by hand: look up the transfer, find the invoice, work out what went wrong, and write to the customer. While that happens the customer waits, and if nobody checks carefully, a business can accept fake digital dollars as if they were real.
+When a payment doesn't match, it's usually one of these four. Without a tool, someone has to look up the transfer, find the invoice, work out what went wrong, and write to the customer, while the customer waits; and if nobody checks carefully, a business can accept fake digital dollars as if they were real. Clearline names the problem in plain English and drafts the reply, so the odd payment is explained rather than chased.
 SOURCES / LABELS:
 - Fake USDT and wrong network [VERIFIED]: my tests on real transactions include 13 counterfeit-USDT and 6 wrong-network transfers (demo/REPORT.md). Short payments and missing references [demo cases]: from demo/REQUESTS_DEMO.md, not yet seen in real data.
-- "Hours lost" [ESTIMATE ◦]: untested. My guess is 15–30 minutes per odd payment, and the demo's 20-minute figure is a demo estimate, not a measurement. How often each problem happens is unknown.
+- Time per odd payment and how often each problem happens: not measured, so no figure is given.
 - Fake digital dollars [VERIFIED]: anyone can create a token with the same name; only the real issuer's contract counts (ERC-20 standard).
 """)
 topline(s)
-head(s, "Every odd payment means detective work")
+head(s, "Odd payments are explained, not chased")
 items = [("short", "Paid a little too little"), ("road", "Sent the wrong way"), ("fake", "Fake digital dollars"), ("nolabel", "No invoice number")]
 cw = (W - 2 * M - 3 * 0.35) / 4
 for k, (ic, lab) in enumerate(items):
@@ -66,7 +66,7 @@ for k, (ic, lab) in enumerate(items):
     img(s, A / f"icons/{ic}.png", x + (cw - 1.8) / 2, 1.95, w=1.8)
     text(s, x + 0.2, 3.95, cw - 0.4, 0.9, lab, size=22, bold=True, align=PP_ALIGN.CENTER)
 box(s, M, 5.4, W - 2 * M, 0.9, fill=CARD, line=ACC)
-text(s, M + 0.35, 5.4, W - 2 * M - 0.7, 0.9, [[("The cost: hours lost", {}), mk("◦"), (", customers waiting, and the risk of accepting fake money.", {})]], size=20, anchor=MSO_ANCHOR.MIDDLE)
+text(s, M + 0.35, 5.4, W - 2 * M - 0.7, 0.9, [[("Without a tool: customers waiting, and the risk of accepting fake money.", {})]], size=20, anchor=MSO_ANCHOR.MIDDLE)
 foot(s, "Fake USDT (13) and wrong-network (6) payments appear in my tests on real transactions; short payments and missing references are demo cases. Frequency and time per case: not yet measured.")
 
 # 3 ---------------------------------------------------------------- THE GAP
@@ -97,7 +97,7 @@ s = new("""
 Clearline asks for each payment clearly, matches it to its invoice, checks it's genuine, explains anything that went wrong in plain English, and posts it to your accounting system when you approve. On approval, the payment posts to the invoice in Xero with the transaction hash, token, network and USD value. A short payment posts as a partial payment with a note. Counterfeit and wrong-network payments are never posted. Every posting is in an audit log. It only reads the blockchain: it never holds or moves money.
 STATUS (exactly this): Xero connection built and checked in automated tests; posting rules tested in demo mode with a fictional company; first live test with Xero's demo company is next. QuickBooks next, NetSuite on the roadmap. 0 customers, working demo.
 SCREENSHOT: Clearline's own "In your books" panel, in demo mode, with a fictional company (Northwind Pay) and fictional people. It is not Xero's interface.
-VIDEO: the 60-second demo plays on this slide in PowerPoint (click it); in a PDF, scan the QR code (github.com/trysarathy/investigation-desk, pitch/demo_live_60s.mp4). The video was recorded before the "In your books" step, so it shows steps 1–3 only.
+VIDEO: the 60-second demo plays on this slide in PowerPoint (click it); in a PDF, scan the QR code, which opens the demo page of the public website (grand-paletas-14bbf8.netlify.app/demo/). The video was recorded before the "In your books" step, so it shows steps 1–3 only; the caption under it says so.
 """)
 topline(s)
 text(s, M, 0.62, W - 2 * M, 0.7, "Stablecoin payments, matched, explained and in your books.", size=28, bold=True, name="Title")
@@ -123,9 +123,9 @@ text(s, sx + 0.25, Y4 + 0.1, sbw - 0.5, sbh - 0.2, [[("Where it is today", {"bol
 vx = sx + sbw + 0.3; vw = W - M - vx; vh = vw * 9 / 16
 mv = s.shapes.add_movie(VIDEO, Inches(vx), Inches(Y4), Inches(vw), Inches(vh), poster_frame_image=str(A / "demo_poster.png"), mime_type="video/mp4")
 mv.name = "Demo video (60 s)"
-text(s, vx, Y4 + vh + 0.05, vw, 0.35, "▶ 60-second demo", size=16, bold=True, color=ACC2, align=PP_ALIGN.CENTER)
+text(s, vx, Y4 + vh + 0.05, vw, 0.7, [[("▶ 60-second demo", {"bold": True, "color": ACC2})], [("Film shows steps 1–3;", {"size": 11, "bold": False, "color": MUTED})], [("step 4 coming in the next cut", {"size": 11, "bold": False, "color": MUTED})]], size=16, align=PP_ALIGN.CENTER)
 qs = 0.9
-img(s, IL / "demo_qr.png", vx + (vw - qs) / 2, Y4 + vh + 0.42, w=qs)
+img(s, IL / "demo_qr.png", vx + (vw - qs) / 2, Y4 + vh + 0.8, w=qs)
 foot(s, "The screenshot is Clearline's own panel, not Xero's. It reads payments only and never holds or moves money; it writes to the books only when a person approves.", key=False)
 
 # 5 ---------------------------------------------------------------- HOW GOOD IT IS SO FAR
@@ -162,7 +162,7 @@ for k, q in enumerate(qs_):
     text(s, M + 0.8, y, W - 2 * M - 0.8, 0.8, q, size=26, bold=True, anchor=MSO_ANCHOR.MIDDLE)
 box(s, M, 4.85, W - 2 * M, 1.5, fill=CARD, line=LINE)
 text(s, M + 0.4, 4.85, 5.6, 1.5, [[("Thank you for reading.", {"bold": True, "color": WHITE, "size": 24})], [("Happy to show the demo in 15 minutes.", {})]], size=20, color=MUTED, anchor=MSO_ANCHOR.MIDDLE, spacing=4)
-text(s, M + 6.1, 4.85, W - 2 * M - 6.4, 1.5, [[("Aashmiin Kaur", {"bold": True, "color": WHITE})], [("aashmiin@gmail.com", {})], [("linkedin.com/in/aashmiin-kaur-479665391", {})]], size=20, color=MUTED, anchor=MSO_ANCHOR.MIDDLE)
+text(s, M + 6.1, 4.85, W - 2 * M - 6.4, 1.5, [[("Aashmiin Kaur", {"bold": True, "color": WHITE})], [("grand-paletas-14bbf8.netlify.app", {})], [("linkedin.com/in/aashmiin-kaur-479665391", {})]], size=20, color=MUTED, anchor=MSO_ANCHOR.MIDDLE)
 
 prs.save(OUT)
 print("saved", OUT, len(prs.slides._sldIdLst), "slides")
