@@ -2,10 +2,10 @@
 
 ## Update, 28 Oct 2026: new positioning ("in your books")
 
-**What changed (slides 1, 3 and 4 only; slides 2, 5 and 6 are unchanged):**
+**What changed (slides 1, 3 and 4, plus question 1 on slide 6; slides 2 and 5 are unchanged):**
 
 - **Slide 1, problem:** the letterbox analogy is replaced by two sourced numbers.
-  - Real stablecoin payments are growing, and most are between businesses.
+  - Real stablecoin payments are growing, an estimated ~60% between businesses (Bessemer's estimate).
   - The pain is that payments arrive wrong, and someone has to match them and get them into the books by hand (marked † as my belief).
 - **Slide 3, gap:** "nobody explains the mess" is gone, because it was too strong.
   - It now says plainly that the big platforms (Stripe, Circle, Coinbase) are becoming one-stop shops.
@@ -13,8 +13,9 @@
   - What still looks manual: a small business paid straight into its own wallet, the payments that arrive wrong, and posting them correctly. This is marked as a hypothesis I'm testing in calls.
 - **Slide 4, solution:** the headline is now "Stablecoin payments, matched, explained and in your books."
   - It has the four steps: Ask, Match, Explain, In your books.
+  - Step 4 reads "Posted to your books on approval (Xero first)".
   - It shows Clearline's own "In your books" panel, captioned "demo mode, fictional company". The screenshot is Clearline's own panel, not Xero's interface.
-  - A status box reads: Xero built and tested in demo mode, QuickBooks next, 0 customers.
+  - A status box reads: Xero connection built and checked in automated tests; posting rules tested in demo mode with a fictional company; first live test with Xero's demo company is next. QuickBooks next, NetSuite on the roadmap. 0 customers, working demo.
   - The 60-second video and QR are kept. The video predates the books step, so it shows steps 1–3 only (this is said in the speaker notes).
 - Every slide with a number has a source line, and the speaker notes carry the full quotes and links.
 
@@ -28,7 +29,7 @@
 | Bitwave syncs stablecoin payments to ERPs (NetSuite, Xero, QuickBooks, Sage) | bitwave.io/request-a-demo-stablecoin-b2b-payments | [VERIFIED] |
 | Request Finance syncs to QuickBooks Online, Xero, NetSuite | help.request.finance/en/articles/13038304-accounting-integrations-overview | [VERIFIED] |
 | The wedge (small businesses paid directly; wrong payments and posting them) | none yet: to test in customer calls | [ASSUMPTION] † |
-| Status: Xero built and tested in demo mode, QuickBooks next, 0 customers | the agreed status wording for the new story (not re-tested for this update) | as stated |
+| Status: Xero connection built and checked in automated tests; posting rules tested in demo mode with a fictional company; first live test with Xero's demo company is next. QuickBooks next, NetSuite on the roadmap. 0 customers, working demo. | the agreed status wording for the new story (not re-tested for this update) | as stated |
 
 Dropped from the old slides, because they are not in the new source list:
 - the McKinsey/Artemis US$226B figure;
@@ -38,7 +39,8 @@ Dropped from the old slides, because they are not in the new source list:
 **Check before sending:**
 - **Where the QR leads:** the QR on slide 4 opens the 60-second video on GitHub, on the `pitch-deck` branch. That link breaks once the branch is merged and deleted.
 - **Your repo is public:** anyone with the link can see the video and the decks in it, not only mentors.
-- **Slide 6 wording:** question 1 still asks about "the direct-payment gap", which still fits the new gap slide.
+- **Slide 6 wording:** question 1 now asks about "the wrong-payments gap", to match slide 3. That is the only change on slide 6.
+- **The four wrong-payment cases (slides 1 and 2):** they come from the product's demo cases. Only counterfeit USDT and wrong network are also seen in real transactions (demo/REPORT.md). How often each happens is not measured. Slide 2's footer (unchanged) still says "All four appear in my tests on real transactions". demo/REPORT.md only shows fake USDT (13) and wrong network (6), so that footer may need softening.
 
 **Rebuild:**
 

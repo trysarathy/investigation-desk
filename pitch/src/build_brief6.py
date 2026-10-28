@@ -24,15 +24,15 @@ def foot(s, t, key=True):
 
 # 1 ---------------------------------------------------------------- THE PROBLEM
 s = new("""
-Real businesses are starting to pay each other in stablecoins (digital dollars: tokens designed to stay worth one US dollar). It's still small next to all the trading, but real payments roughly doubled in 2025 and most are between businesses. The pain: some payments arrive wrong (too little, on the wrong network, a fake token, no invoice number), and someone in finance has to match each one to its invoice and type it into the accounting system by hand.
+Real businesses are starting to pay each other in stablecoins (digital dollars: tokens designed to stay worth one US dollar). It's still small next to all the trading, but real payments roughly doubled in 2025, and an estimated ~60% are between businesses. The pain: some payments arrive wrong (too little, on the wrong network, a fake token, no invoice number), and someone in finance has to match each one to its invoice and type it into the accounting system by hand.
 SOURCES / LABELS:
 - ~$400B of real-world stablecoin payments in 2025, ~60% B2B [VERIFIED; the 60% is Bessemer's estimate ◦]: Bessemer Venture Partners, "Stablecoins: from DeFi primitive to global financial infrastructure", 22 Apr 2026. bvp.com/atlas/stablecoins-from-defi-primitive-to-global-financial-infrastructure
 - Only ~$350–550B of the $28–62T in stablecoin transfers in 2025 were real-economy payments; the rest is trading and moving funds between wallets and exchanges [VERIFIED]: Reap, "Stablecoin Statistics & Data 2026", 14 Aug 2026, citing BIS, BCG × Allium, McKinsey. reap.global/blog/stablecoin-statistics-2026
-- The four ways a payment arrives wrong are real [VERIFIED]: my tests on real transactions include counterfeit-USDT and wrong-network transfers (demo/REPORT.md).
+- The four ways a payment arrives wrong come from the product's demo cases (demo/REQUESTS_DEMO.md), not from measured customer data. Two of them, counterfeit USDT and wrong network, also appear in my tests on real transactions (e.g. 13 fake-USDT, 6 wrong-network; demo/REPORT.md). How often each happens is not yet measured.
 - "Matched and posted by hand" [BELIEF †]: how much time this takes, and how often, is not yet measured.
 """)
 topline(s)
-head(s, "Real stablecoin payments are growing, and most are between businesses")
+head(s, "Real stablecoin payments are growing, an estimated ~60% between businesses")
 stats = [("$400B", [("real-world stablecoin payments in 2025, about 60% between businesses", {}), mk("◦")]),
          ("$350–550B", [("of the $28–62T moved in stablecoins in 2025 was real payments; the rest is mostly trading", {})])]
 cw = (W - 2 * M - 0.4) / 2
@@ -95,7 +95,7 @@ foot(s, "Bessemer Venture Partners, Apr 2026 (one-stop shops).  Bitwave: bitwave
 # 4 ---------------------------------------------------------------- WHAT I BUILT
 s = new("""
 Clearline asks for each payment clearly, matches it to its invoice, checks it's genuine, explains anything that went wrong in plain English, and posts it to your accounting system when you approve. On approval, the payment posts to the invoice in Xero with the transaction hash, token, network and USD value. A short payment posts as a partial payment with a note. Counterfeit and wrong-network payments are never posted. Every posting is in an audit log. It only reads the blockchain: it never holds or moves money.
-STATUS (exactly this): Xero is built and tested in demo mode with a fictional company; the first live test with Xero's demo company is next. QuickBooks Online is next; NetSuite is on the roadmap. 0 customers. Working demo.
+STATUS (exactly this): Xero connection built and checked in automated tests; posting rules tested in demo mode with a fictional company; first live test with Xero's demo company is next. QuickBooks next, NetSuite on the roadmap. 0 customers, working demo.
 SCREENSHOT: Clearline's own "In your books" panel, in demo mode, with a fictional company (Northwind Pay) and fictional people. It is not Xero's interface.
 VIDEO: the 60-second demo plays on this slide in PowerPoint (click it); in a PDF, scan the QR code (github.com/trysarathy/investigation-desk, pitch/demo_live_60s.mp4). The video was recorded before the "In your books" step, so it shows steps 1–3 only.
 """)
@@ -103,7 +103,7 @@ topline(s)
 text(s, M, 0.62, W - 2 * M, 0.7, "Stablecoin payments, matched, explained and in your books.", size=28, bold=True, name="Title")
 text(s, M, 1.32, W - 2 * M, 0.6, "Clearline asks for each payment clearly, matches it to its invoice, checks it's genuine, explains anything that went wrong in plain English, and posts it to your accounting system when you approve.", size=18, color=MUTED)
 steps = [("Ask", "A payment page per invoice"), ("Match", "Correct ones tick themselves off"),
-         ("Explain", "Wrong ones explained, reply drafted"), ("In your books", "Posted to Xero on approval")]
+         ("Explain", "Wrong ones explained, reply drafted"), ("In your books", "Posted to your books on approval (Xero first)")]
 cw = (W - 2 * M - 3 * 0.25) / 4
 for k, (nm, d) in enumerate(steps):
     x = M + k * (cw + 0.25)
@@ -114,11 +114,12 @@ sw = 5.2; sh = sw * 632 / 1312
 Y4 = 3.82
 img(s, A / "shots" / "books_posted.png", M, Y4, w=sw)
 text(s, M, Y4 + sh + 0.06, sw, 0.35, "Step 4 in Clearline · demo mode, fictional company", size=16, color=MUTED, align=PP_ALIGN.CENTER)
-sx = M + sw + 0.35; sbw = 3.7; sbh = sh
+sx = M + sw + 0.35; sbw = 4.15; sbh = 2.95
 box(s, sx, Y4, sbw, sbh, fill=CARD, line=LINE)
-text(s, sx + 0.3, Y4, sbw - 0.6, sbh, [[("Where it is today", {"bold": True, "color": ACC2, "size": 20})],
-     [("✓  Xero: built and tested in demo mode", {})], [("→  QuickBooks: next", {})], [("0 customers", {"bold": True, "color": WHITE})]],
-     size=18, anchor=MSO_ANCHOR.MIDDLE, spacing=10)
+text(s, sx + 0.25, Y4 + 0.1, sbw - 0.5, sbh - 0.2, [[("Where it is today", {"bold": True, "color": ACC2, "size": 18})],
+     [("Xero connection built and checked in automated tests", {})], [("Posting rules tested in demo mode (fictional company)", {})],
+     [("Next: first live test with Xero's demo company", {})], [("Then QuickBooks; NetSuite on the roadmap", {})], [("0 customers, working demo", {"bold": True, "color": WHITE})]],
+     size=15, anchor=MSO_ANCHOR.MIDDLE, spacing=3)
 vx = sx + sbw + 0.3; vw = W - M - vx; vh = vw * 9 / 16
 mv = s.shapes.add_movie(VIDEO, Inches(vx), Inches(Y4), Inches(vw), Inches(vh), poster_frame_image=str(A / "demo_poster.png"), mime_type="video/mp4")
 mv.name = "Demo video (60 s)"
@@ -154,7 +155,7 @@ Any one of these would help, even a one-line reply, and I'd especially like to h
 """)
 topline(s)
 head(s, "Three questions I'd love your view on")
-qs_ = ["Does the direct-payment gap seem real to you?", "What would you test first?", "Is there anyone you'd suggest I speak to?"]
+qs_ = ["Does the wrong-payments gap seem real to you?", "What would you test first?", "Is there anyone you'd suggest I speak to?"]
 for k, q in enumerate(qs_):
     y = 1.75 + k * 0.95
     text(s, M, y, 0.7, 0.8, str(k + 1), size=34, bold=True, color=ACC, anchor=MSO_ANCHOR.MIDDLE)
