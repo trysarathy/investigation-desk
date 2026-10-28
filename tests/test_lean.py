@@ -64,6 +64,12 @@ class LeanTests(unittest.TestCase):
         self.assertEqual(d0, 8)  # 20 total - 12 follow-ups
         self.assertEqual(fu + d0, 20)
 
+    def test_raised_caps_50_first_inside_75(self):
+        leads = [lead(f"N{i}", f"n{i}@n{i}.io") for i in range(60)]
+        vs = guard.check([queued(f"N{i}") for i in range(60)], leads, [], [],
+                         lean_settings(current_send_cap=75, first_email_cap=50, daily_cap=75), START)
+        self.assertEqual(sum(v.allow for v in vs), 50)
+
     def test_replies_go_first_and_count(self):
         leads = [lead(f"N{i}", f"n{i}@n{i}.io") for i in range(10)] + [lead("R", "r@r.io")]
         cands = [{"lead_id": "R", "step": "REPLY", "thread_id": "t1"}] + [queued(f"N{i}") for i in range(10)]

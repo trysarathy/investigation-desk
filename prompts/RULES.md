@@ -105,15 +105,15 @@ Positive = yes or more info (notes start with "positive").
 
 ## LEAN MODE (active while SEND_MODE = gmail_personal and LEAN_START is set) — overrides the sections above
 Aashmiin only reads the briefings. Claude handles leads, first emails, follow-ups and replies.
-- Leads: research every weekday, 20–40 new qualified leads/day. Buyers first, evidence naming
+- Leads: research every weekday, 50–70 new qualified leads/day (three runs) so supply matches the send cap; never pad, send fewer if supply is short. Buyers first, evidence naming
   USDT/USDC, sendable verified emails only (VERIFIED-PUBLIC or VERIFIED-TOOL), dedupe, score.
-- First emails: up to FIRST_EMAIL_CAP (10) per weekday from aashmiin@gmail.com, highest-scoring
+- First emails: up to FIRST_EMAIL_CAP (50) per weekday from aashmiin@gmail.com, highest-scoring
   Tier 1/2 BUYERS first, one per company. Plain text (`gtm.lean.first_email` template): one sourced
   first line, the research sentence, one question, the not-selling line, signature with her LinkedIn
   URL as the ONLY link, and the opt-out line. No attachments, no other links, no images, no tracking.
-- Week 1 (7 days from LEAN_START): the evening run queues tomorrow's 10 in the Approval Queue
+- Week 1 (7 days from LEAN_START): the evening run queues tomorrow's batch (up to FIRST_EMAIL_CAP) in the Approval Queue
   (queue_date = tomorrow, queued_at = today, status queued) and emails Aashmiin the evening summary
-  showing all 10 in full. They go out from 9:00 their time unless she replies HOLD to that summary
+  showing every queued email in full. They go out from 9:00 their time unless she replies HOLD to that summary
   email (then add tomorrow's date to HOLD_DATES and set those rows' status to hold).
 - From week 2: first emails go without the evening queue only if WEEK1_SPOTCHECK_PASSED = TRUE and
   bounce < 2% with no complaints; otherwise keep the week-1 process. The Sunday verifier sets the flag.
@@ -124,10 +124,13 @@ Aashmiin only reads the briefings. Claude handles leads, first emails, follow-up
   them, ask who handles incoming payments. Pricing, data, legal, complaints, unsubscribes, anything
   sensitive, and anyone in her mentors / warm network / SMU / investors → draft only, flag to her.
   Unsubscribe = no reply, straight to Do-not-contact.
-- Caps (enforced by the guard): ≤ 20 Gmail sends per day in TOTAL (replies, then follow-ups, then
-  first emails); ≤ 10 first emails; never bulk, never attachments, never Do-not-contact.
+- Caps (enforced by the guard, read from Settings): ≤ CURRENT_SEND_CAP (75) Gmail sends per day in TOTAL
+  (replies, then follow-ups, then first emails); ≤ FIRST_EMAIL_CAP (50) first emails. Aashmiin raised
+  these from 20/10 on 2026-10-28, accepting the risk to her personal Gmail account. Auto-throttle to
+  THROTTLE_CAP (20) still applies; the 1,000-in-30-days bulk line still stops sending until
+  BULK_CONFIRMED. Never attachments, never Do-not-contact.
 - Timing: the hourly sender sends only between 9:00 and 17:00 on a weekday in the recipient's time
-  zone (`python -m gtm.cli guard ... --now <UTC time>`), at most 3 emails per hourly run, so sends
+  zone (`python -m gtm.cli guard ... --now <UTC time>`), at most 8 emails per hourly run, so sends
   are spread across the day.
 - Kill switch: Settings PAUSE = TRUE, or a reply from Aashmiin containing PAUSE to any Clearline
   briefing/summary email → set PAUSE = TRUE in Settings and stop everything. HOLD = only tomorrow's
