@@ -1,5 +1,12 @@
 # 6-slide mentor brief: note
 
+## Follow-up fixes, 28 Oct 2026 (after review)
+
+- **Slide 2:** title is now "Odd payments are explained, not chased". The unsourced "hours lost" figure is gone from the slide and the notes; the box reads "Without a tool: customers waiting, and the risk of accepting fake money."
+- **Slide 4:** a caption under the video says "Film shows steps 1–3; step 4 coming in the next cut". The QR now opens the public website's demo page, https://grand-paletas-14bbf8.netlify.app/demo/ (the video isn't on `main`, so a GitHub link would break when `pitch-deck` is deleted). The QR was decoded from the rendered slide to check it.
+- **Slide 6:** the personal Gmail address is replaced by the website (grand-paletas-14bbf8.netlify.app); LinkedIn stays.
+- **"~$400B"** everywhere (slide 1 figure and footer).
+
 ## Update, 28 Oct 2026: new positioning ("in your books")
 
 **What changed (slides 1, 3 and 4, plus question 1 on slide 6 and slide 2's source line; slide 5 is unchanged):**
@@ -37,7 +44,7 @@ Dropped from the old slides, because they are not in the new source list:
 - the wallet-warning examples.
 
 **Check before sending:**
-- **Where the QR leads:** the QR on slide 4 opens the 60-second video on GitHub, on the `pitch-deck` branch. That link breaks once the branch is merged and deleted.
+- **Where the QR leads:** fixed; it now opens the public website's demo page (see the follow-up fixes above). That Netlify site must stay up, and should be redeployed with the latest build.
 - **Your repo is public:** anyone with the link can see the video and the decks in it, not only mentors.
 - **Slide 6 wording:** question 1 now asks about "the wrong-payments gap", to match slide 3. That is the only change on slide 6.
 - **The four wrong-payment cases (slides 1 and 2):** they come from the product's demo cases. Only counterfeit USDT and wrong network are also seen in real transactions (demo/REPORT.md). How often each happens is not measured. Slide 2's footer and notes now say the same: fake USDT (13) and wrong network (6) are from real transactions (demo/REPORT.md); short payments and missing references are demo cases.
