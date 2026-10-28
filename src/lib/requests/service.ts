@@ -109,6 +109,16 @@ export type DemoAction =
   | { kind: "redeliver"; requestId?: string };
 
 export async function demoAction(a: DemoAction): Promise<{ error?: string }> {
+  const res = await demoRequestsAction(a);
+  // The demo books follow the demo day: rebuilt from the demo requests every time it loads.
+  if (a.kind === "reset" && !res.error) {
+    const { resetAccountingDemo } = await import("../accounting/service");
+    await resetAccountingDemo();
+  }
+  return res;
+}
+
+async function demoRequestsAction(a: DemoAction): Promise<{ error?: string }> {
   return requestsStore().update((d) => {
     const now = nowIso();
     const n = Object.keys(d.observations).length + 1;

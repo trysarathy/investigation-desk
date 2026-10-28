@@ -473,3 +473,7 @@ details.panel:not([open]) > summary.panel-h { border-bottom: 0; }
 .btn-locked { color: var(--red); background: var(--red-soft); border-color: transparent; opacity: 1 !important; cursor: not-allowed; }
 .kpi-estimate { background: var(--panel-2); }
 .kpi-estimate .v { color: var(--text-2); font-size: 18px; }
+
+/* In your books: tone of the posting panel */
+[data-testid="posting-lines"] td { white-space: normal; cursor: default; }
+[data-testid="posting-lines"] tbody tr:hover { background: transparent; }

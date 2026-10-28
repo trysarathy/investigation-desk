@@ -12,6 +12,15 @@ npm test           # engine fixture tests
 npm run build
 ```
 
+## Accounting sync ("In your books")
+
+Every payment request made from an invoice shows *In your books* on its page: the exact lines that
+will post to the accounting system (payment with tx hash, token, network and USD value; fee
+write-off; overpayment; note), or why nothing will (counterfeit, wrong network, no reference). A
+person approves, Clearline posts, and every posting and every refused approval is kept in the audit log at `/books`.
+Xero first, QuickBooks Online next, NetSuite designed. Rules and setup: `docs/ACCOUNTING_SYNC.md`.
+Tests: `tests/accounting.test.ts`. Screenshots: `demo/screenshots/books/`.
+
 ## Layout
 
 | Path | What |

@@ -12,6 +12,7 @@ const NAV = [
   { href: "/inbox", label: "Inbox" },
   { href: "/payments", label: "Payments" },
   { href: "/bulk", label: "Bulk" },
+  { href: "/books", label: "Books" },
   { href: "/settings", label: "Settings" },
 ];
 
@@ -25,6 +26,7 @@ const DEMO_NAV = [
   { href: "/requests", label: "At a glance" },
   { href: "/requests/all", label: "All requests" },
   { href: "/requests/new", label: "New request" },
+  { href: "/books", label: "Books" },
 ];
 
 export function Shell({ index, workspace, demoMode, children }: {
