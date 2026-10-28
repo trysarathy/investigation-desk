@@ -14,6 +14,9 @@ from .model import ROLE_LOCALS, SUPPORT_LOCALS, email_local
 
 GATEWAY_HINTS = ("via gateway", "not direct", "converts", "local currency")
 LARGE_HINTS = ("large listed", "large company", "large exchange", "low reply odds")
+# Evidence that doesn't actually show stablecoin receipt: the lead can't be Tier 1 on it.
+WEAK_EVIDENCE_HINTS = ("no public evidence", "acceptance not confirmed", "not named", "evidence weak",
+                       "evidence from third-party", "evidence is outbound", "no page states", "confirm whether it receives")
 
 
 def is_personal(email: str, contact_name: str) -> bool:
@@ -35,7 +38,8 @@ def score(lead: dict, engagement: str = "") -> int:
         fit -= 8
 
     evidence = 0
-    if (lead.get("evidence_url") or "").startswith("http"):
+    weak = any(h in notes for h in WEAK_EVIDENCE_HINTS)
+    if (lead.get("evidence_url") or "").startswith("http") and not weak:
         evidence += 15
     if (lead.get("first_line_source") or "").startswith("http"):
         evidence += 8
