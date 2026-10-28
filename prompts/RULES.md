@@ -102,3 +102,38 @@ Positive = yes or more info (notes start with "positive").
   (she sets it only after a professional confirms the bulk duties, e.g. subject labelling).
 - Lead supply must match: new first emails/day ≈ cap minus follow-ups due. Never pad: no evidence,
   no lead. If supply is short, send fewer emails and say so.
+
+## LEAN MODE (active while SEND_MODE = gmail_personal and LEAN_START is set) — overrides the sections above
+Aashmiin only reads the briefings. Claude handles leads, first emails, follow-ups and replies.
+- Leads: research every weekday, 20–40 new qualified leads/day. Buyers first, evidence naming
+  USDT/USDC, sendable verified emails only (VERIFIED-PUBLIC or VERIFIED-TOOL), dedupe, score.
+- First emails: up to FIRST_EMAIL_CAP (10) per weekday from aashmiin@gmail.com, highest-scoring
+  Tier 1/2 BUYERS first, one per company. Plain text (`gtm.lean.first_email` template): one sourced
+  first line, the research sentence, one question, the not-selling line, signature with her LinkedIn
+  URL as the ONLY link, and the opt-out line. No attachments, no other links, no images, no tracking.
+- Week 1 (7 days from LEAN_START): the evening run queues tomorrow's 10 in the Approval Queue
+  (queue_date = tomorrow, queued_at = today, status queued) and emails Aashmiin the evening summary
+  showing all 10 in full. They go out from 9:00 their time unless she replies HOLD to that summary
+  email (then add tomorrow's date to HOLD_DATES and set those rows' status to hold).
+- From week 2: first emails go without the evening queue only if WEEK1_SPOTCHECK_PASSED = TRUE and
+  bounce < 2% with no complaints; otherwise keep the week-1 process. The Sunday verifier sets the flag.
+- Follow-ups: D4 and D11 in the same Gmail thread (send_message with replyThreadId), only if D0 was
+  sent and the person hasn't replied, unsubscribed or bounced.
+- Replies (automatic, in the person's thread): "yes" → BOOKING_LINK (if Settings has none, draft
+  only and flag); "not interested" → short thank-you, then Do-not-contact; "wrong person" → thank
+  them, ask who handles incoming payments. Pricing, data, legal, complaints, unsubscribes, anything
+  sensitive, and anyone in her mentors / warm network / SMU / investors → draft only, flag to her.
+  Unsubscribe = no reply, straight to Do-not-contact.
+- Caps (enforced by the guard): ≤ 20 Gmail sends per day in TOTAL (replies, then follow-ups, then
+  first emails); ≤ 10 first emails; never bulk, never attachments, never Do-not-contact.
+- Timing: the hourly sender sends only between 9:00 and 17:00 on a weekday in the recipient's time
+  zone (`python -m gtm.cli guard ... --now <UTC time>`), at most 3 emails per hourly run, so sends
+  are spread across the day.
+- Kill switch: Settings PAUSE = TRUE, or a reply from Aashmiin containing PAUSE to any Clearline
+  briefing/summary email → set PAUSE = TRUE in Settings and stop everything. HOLD = only tomorrow's
+  queued first emails.
+- Briefing and summary are emailed to aashmiin@gmail.com (they don't count toward the cap) so her
+  reply (PAUSE / HOLD) is readable by the next run: search `from:aashmiin@gmail.com subject:Clearline`.
+- Domain switch: when SEND_MODE = domain and DOMAIN_READY = TRUE, stop ALL cold email from personal
+  Gmail (first emails and follow-ups) and use the domain ramp (20 → 35 → 50/day). Replies to people
+  who wrote in may still go from Gmail.

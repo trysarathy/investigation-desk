@@ -131,6 +131,12 @@ class Settings:
     placement_ok: bool = False                 # latest Gmail + Outlook inbox-placement test landed in inbox
     bulk_confirmed: bool = False               # professional confirmed Spam Control Act bulk duties are met
     throttle_cap: int = 20
+    # Lean mode (personal Gmail until the domain is ready)
+    first_email_cap: int = 10                  # new first emails per weekday
+    lean_start: str = ""                       # YYYY-MM-DD: first sending day of lean mode
+    week1_spotcheck_passed: bool = False       # set by the weekly verifier after week 1
+    hold_dates: tuple[str, ...] = ()           # days whose queued first emails Aashmiin put on HOLD
+    linkedin_url: str = "https://www.linkedin.com/in/aashmiin-kaur-479665391"
 
     @property
     def effective_daily_cap(self) -> int:
@@ -164,4 +170,9 @@ class Settings:
             placement_ok=truthy(kv.get("PLACEMENT_OK", "false")),
             bulk_confirmed=truthy(kv.get("BULK_CONFIRMED", "false")),
             throttle_cap=num("THROTTLE_CAP", 20),
+            first_email_cap=num("FIRST_EMAIL_CAP", 10),
+            lean_start=kv.get("LEAN_START", ""),
+            week1_spotcheck_passed=truthy(kv.get("WEEK1_SPOTCHECK_PASSED", "false")),
+            hold_dates=tuple(d.strip() for d in kv.get("HOLD_DATES", "").split(",") if d.strip()),
+            linkedin_url=kv.get("LINKEDIN_URL", "") or "https://www.linkedin.com/in/aashmiin-kaur-479665391",
         )

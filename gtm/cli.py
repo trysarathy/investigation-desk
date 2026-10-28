@@ -16,7 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from . import autonomy, guard, merge, metrics, score, volume
@@ -36,7 +36,8 @@ def cmd_guard(a) -> int:
     s.autonomy_level = lvl
     cands = read_csv(a.candidates)
     today = date.fromisoformat(a.today) if a.today else None
-    verdicts = guard.check(cands, t["leads"], t["touches"], t["dnc"], s, today)
+    now = datetime.fromisoformat(a.now.replace("Z", "+00:00")) if getattr(a, "now", None) else None
+    verdicts = guard.check(cands, t["leads"], t["touches"], t["dnc"], s, today, now)
     for c, v in zip(cands, verdicts):
         c["guard"] = v.label
         c["guard_reasons"] = "; ".join(v.reasons)
@@ -118,7 +119,7 @@ def cmd_metrics(a) -> int:
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="gtm")
     sub = p.add_subparsers(dest="cmd", required=True)
-    g = sub.add_parser("guard"); g.add_argument("--dir", default="work"); g.add_argument("--candidates", required=True); g.add_argument("--today")
+    g = sub.add_parser("guard"); g.add_argument("--dir", default="work"); g.add_argument("--candidates", required=True); g.add_argument("--today"); g.add_argument("--now", help="UTC time, e.g. 2026-10-29T01:00:00Z: enforces the 9-17 recipient window")
     sub.add_parser("level").add_argument("--dir", default="work")
     sub.add_parser("score").add_argument("--dir", default="work")
     m = sub.add_parser("merge"); m.add_argument("--dir", default="work"); m.add_argument("--incoming", required=True); m.add_argument("--out")

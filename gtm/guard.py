@@ -18,9 +18,9 @@ Rules (from the founder's brief):
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
-from . import volume
+from . import lean, volume
 from .model import (
     SENDABLE_LABELS, STRICT_COUNTRIES, SUPPORT_LOCALS, Settings, domain_of, email_local, parse_date,
 )
@@ -80,8 +80,11 @@ def needs_human(settings: Settings, tier: str, step: str) -> bool:
 
 
 def check(candidates: list[dict], leads: list[dict], touches: list[dict], dnc: list[dict],
-          settings: Settings, today: date | None = None) -> list[Verdict]:
+          settings: Settings, today: date | None = None, now_utc: datetime | None = None) -> list[Verdict]:
     today = today or date.today()
+    lean_mode = settings.send_mode != "domain" and bool(settings.lean_start)
+    h = volume._health(touches)
+    policy = lean.first_email_policy(settings, today, h["bounce"], h["complaints"])
     lead_by_id = {l.get("id"): l for l in leads}
     dnc_emails, dnc_domains = _dnc_sets(dnc)
 
@@ -104,7 +107,7 @@ def check(candidates: list[dict], leads: list[dict], touches: list[dict], dnc: l
         email = (c.get("email") or lead.get("email") or "").strip().lower()
         step = (c.get("step") or "D0").upper()
         v = Verdict(c.get("lead_id", ""), email, step)
-        v.needs_approval = needs_human(settings, lead.get("tier", ""), step)
+        v.needs_approval = False if lean_mode else needs_human(settings, lead.get("tier", ""), step)
 
         if settings.pause:
             v.block("PAUSE is on")
@@ -117,8 +120,19 @@ def check(candidates: list[dict], leads: list[dict], touches: list[dict], dnc: l
             v.block("lead stage is Do not contact")
 
         thread = [t for t in touches if (t.get("email") or "").strip().lower() == email]
+        if step == "REPLY":
+            # an answer to someone who wrote to us (booking link, thank-you, who-is-the-right-person)
+            if not (c.get("thread_id") or "").strip():
+                v.block("a reply must go in the person's own thread")
+            out.append(v)
+            continue
         if any((t.get("status") or "").lower() in STOP_STATUSES for t in thread):
             v.block("person replied, bounced or unsubscribed: stop the sequence")
+        via = (c.get("via") or ("tool" if settings.send_mode == "domain" else "gmail")).lower()
+        if via == "gmail" and not lean.gmail_cold_allowed(settings):
+            v.block("domain is live: no cold email from personal Gmail")
+        if now_utc is not None and not lean.in_send_window(lead.get("country", ""), now_utc):
+            v.block("outside 9:00-17:00 on a weekday in the recipient's time zone: wait")
 
         if step == "D0":
             if any((t.get("step") or "").upper() == "D0" and (t.get("status") or "").lower() in SENT_STATUSES for t in thread):
@@ -137,6 +151,13 @@ def check(candidates: list[dict], leads: list[dict], touches: list[dict], dnc: l
                 v.block("US contact: add POSTAL_ADDRESS in Settings first (CAN-SPAM)")
             if email_local(email) in SUPPORT_LOCALS:
                 v.block("support inbox: low reply odds, use LinkedIn")
+            if lean_mode and policy == "queue_with_hold":
+                qd = parse_date(c.get("queue_date") or c.get("queued_on"))
+                created = parse_date(c.get("queued_at") or c.get("created"))
+                if (c.get("status") or "").lower() == "hold" or today.isoformat() in settings.hold_dates:
+                    v.block("on HOLD: Aashmiin replied HOLD to the evening summary")
+                elif not qd or qd != today or (created and created >= today):
+                    v.block("week-1 rule: first emails must be queued the evening before (HOLD window)")
             last = recent_domain.get(dom)
             if dom and last and (today - last).days < settings.same_company_days:
                 v.block(f"someone at {dom} was emailed on {last}: wait {settings.same_company_days} days")
@@ -165,9 +186,26 @@ def check(candidates: list[dict], leads: list[dict], touches: list[dict], dnc: l
 
     # Volume: follow-ups first (existing threads), then first emails, until today's cap is used.
     planned = 0
-    order = [v for v in out if v.step in FOLLOWUP_GAP] + [v for v in out if v.step not in FOLLOWUP_GAP]
+    d0_today = sum(1 for t in touches if (t.get("step") or "").upper() == "D0"
+                   and (t.get("status") or "").lower() in SENT_STATUSES and parse_date(t.get("date")) == today)
+    planned_d0 = 0
+    planned_gmail_replies = 0
+    order = ([v for v in out if v.step == "REPLY"] + [v for v in out if v.step in FOLLOWUP_GAP]
+             + [v for v in out if v.step not in FOLLOWUP_GAP and v.step != "REPLY"])
     for v in order:
         if not v.allow:
+            continue
+        if v.step == "REPLY" and settings.send_mode == "domain":
+            # replies to people who wrote in still go from personal Gmail, under the Gmail cap
+            gm_today = sum(1 for t in touches if (t.get("step") or "").upper() == "REPLY"
+                           and (t.get("status") or "").lower() in SENT_STATUSES and parse_date(t.get("date")) == today)
+            if gm_today + planned_gmail_replies >= settings.current_send_cap:
+                v.block(f"Gmail cap reached ({settings.current_send_cap})")
+            else:
+                planned_gmail_replies += 1
+            continue
+        if v.step == "D0" and lean_mode and d0_today + planned_d0 >= settings.first_email_cap:
+            v.block(f"first-email cap reached ({settings.first_email_cap}/day)")
             continue
         if vol.sent_today + planned >= vol.cap:
             v.block(f"daily cap reached ({vol.cap}): " + "; ".join(vol.reasons))
@@ -175,6 +213,8 @@ def check(candidates: list[dict], leads: list[dict], touches: list[dict], dnc: l
             v.block(f"30-day line reached ({settings.similar_30d_cap}): confirm Spam Control Act bulk duties, then set BULK_CONFIRMED")
         else:
             planned += 1
+            if v.step == "D0":
+                planned_d0 += 1
     # Rotate new first emails across inboxes (follow-ups keep their thread's inbox).
     firsts = [v for v in out if v.allow and v.step == "D0"]
     fu_load: dict[str, int] = {}
@@ -190,4 +230,4 @@ def check(candidates: list[dict], leads: list[dict], touches: list[dict], dnc: l
 
 
 def truthy_approved(t: dict) -> bool:
-    return str(t.get("approved", "")).strip().lower() in {"true", "yes", "1", "y", "auto", "approved"}
+    return str(t.get("approved", "")).strip().lower() in {"true", "yes", "1", "y", "auto", "approved", "auto-nohold"}
