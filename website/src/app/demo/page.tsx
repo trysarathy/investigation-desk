@@ -18,6 +18,7 @@ export default function DemoPage() {
         <h1 className="text-center text-[clamp(32px,5vw,52px)] font-semibold tracking-[-0.03em]">Clearline in 60 seconds</h1>
         <p className="mx-auto mt-4 max-w-xl text-center text-[17px] text-muted">The real product, running on a fictional company. Captions are built in.</p>
         <DemoVideo className="mx-auto mt-10 max-w-5xl" />
+        <p className="mt-3 text-center text-[13px] text-faint">Film shows steps 1–3; step 4 coming in the next cut.</p>
         <div className="mt-20 grid gap-10 md:grid-cols-3">
           {shots.map((s) => (
             <figure key={s.name}>

@@ -1,8 +1,15 @@
 # Sources for the Clearline story
 
-Only these facts are used in the website, mentor brief, film and emails. Each was checked against
-the page text on 28 Oct 2026 (the pages' full text is kept alongside this file). Labels: [VERIFIED]
+The market facts ("Why now", competitors) used in the website, mentor brief, film and emails come only
+from this file. Each was checked against the page text on 28 Oct 2026; the text of the two pages quoted
+below is saved in `website/sources/` (`bessemer_page_text.txt`, `reap_page_text.txt`). Labels: [VERIFIED]
 = the quoted line is on the cited page.
+
+Clearline's own test figures come from a second source, `demo/REPORT.md` (real-data test, 24–25 Oct 2026),
+not from this file:
+- **52 / 52** held-out real transfers given the right verdict (site: "52 of 52" box). [VERIFIED in REPORT.md]
+- **13 of 13** fake USDT tokens caught (12 named exactly "USDT", one "ÚЅDТ" in Cyrillic). [VERIFIED in REPORT.md]
+Both are our own small test on public transfers, not a customer result.
 
 ## Why now
 

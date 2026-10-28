@@ -11,7 +11,8 @@ export function Demo() {
       </Reveal>
       <Reveal delay={0.1} className="mx-auto mt-12 max-w-4xl">
         <DemoVideo />
-        <p className="mt-4 text-center text-[13px]">
+        <p className="mt-3 text-center text-[13px] text-faint">Film shows steps 1–3; step 4 coming in the next cut.</p>
+        <p className="mt-2 text-center text-[13px]">
           <a href="/demo/" className="text-accent hover:underline">Open the demo page</a>
           <span className="text-faint"> · full screen, plus screenshots</span>
         </p>
@@ -78,7 +79,7 @@ const faqs = [
   { q: "Does Clearline hold my money?", a: "No. Clearline reads public blockchain records and your invoice list, and never holds, moves or has access to funds or wallet keys. The one thing it writes is a payment posted to your books, and only after a person approves it." },
   { q: "Which networks and tokens?", a: "Payment pages: USDC on Ethereum today. Checking a transfer someone reports: USDC and USDT on Ethereum, Tron and BNB Chain, including spotting payments sent on Polygon, Base, Arbitrum or Optimism instead. Design partners will shape what comes next." },
   { q: "Is it AI?", a: "The verdict (paid, short, counterfeit, wrong network) comes from fixed, written rules, and every verdict shows the evidence it used. An AI-written explanation is being built, but it hasn't been tested on real data, so nothing on this page relies on it." },
-  { q: "How do my invoices get in?", a: "Today you create a payment request in Clearline for each invoice. Once a payment is approved, Clearline posts it back to the invoice in your accounting system (see the next question)." },
+  { q: "How do my invoices get in?", a: "Today you create a payment request in Clearline for each invoice, or import open invoices from Xero (built; first live test next). Once a payment is approved, Clearline posts it back to the invoice in your accounting system (see the next question)." },
   { q: "Which accounting tools?", a: "Xero first. The connection is built and checked in automated tests; posting rules tested in demo mode with a fictional company; first live test with Xero's demo company is next. QuickBooks Online comes next, and NetSuite is on the roadmap. Before connecting anything, we'll ask which one you use." },
   { q: "Don't other tools already do this?", a: "Some do parts of it. Crypto accounting tools such as Bitwave and Request Finance already sync crypto payments and bills to accounting systems. Clearline focuses on businesses paid straight into their own wallet, and on the payments that arrive wrong (short, wrong network, counterfeit, no reference) and getting those into the books correctly. Whether that's where the pain is, we're testing with design partners." },
   { q: "Is it live?", a: "Not yet. It's a working demo running on fictional data, with no customers yet. We're now looking for a small number of design partners to try it on their own payments." },

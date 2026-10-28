@@ -95,7 +95,7 @@ export function HowItWorks() {
             wide
             n="Step 4 · In your books"
             title="Approve once, and it's in your books."
-            body="When a person approves, the payment posts to its invoice in your accounting system, with the transaction hash, token, network and USD value. Xero comes first; nothing has been posted to a real Xero organisation yet. A short payment posts as a partial payment with a note, so the invoice stays open for the rest."
+            body="When a person approves, the payment posts to its invoice in your accounting system, with the transaction hash, token, network and USD value. Xero comes first; nothing has been posted to a real Xero organisation yet. A short payment posts as a partial payment with a note, unless you accept it as settled; otherwise the invoice stays open for the rest."
             points={["Counterfeit and wrong-network payments are never posted", "Nothing is written to your books until a person approves", "Every posting is kept in an audit log."]}
           >
             <figure>
