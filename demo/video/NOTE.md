@@ -1,10 +1,11 @@
 # Clearline film: delivery note
 
-1. **What's here:** a 1:58 story film (Maya, a fictional finance manager), a 34 s cut, a vertical version, a thumbnail and the final script. Every check passes on all three renders (results below).
+1. **What's here:** a 2:09 story film (Maya, a fictional finance manager), a 34 s cut, a vertical version, a thumbnail and the final script. Every check passes on all three renders (results below).
 2. **Voice:** Piper "Cori" (British, female, calm). The ElevenLabs key wasn't reachable: `~/investigation-desk` on the Mac had only `.env.example`, no `.env`. To swap, run `set -a; . ./.env; set +a; bash demo/video/src/make_film.sh <work_dir> elevenlabs` where the key is. Default voice is George (warm British narrator). Everything downstream re-times itself to the new voice.
 3. **Claims kept accurate:** Clearline *warns* before the money moves; it can't block a wallet. "Correct payments need no one." All data is fictional, labelled "Demo data" once (0:59–1:04). No real customers or QRE.
 4. **Honest limits:** in the vertical version the app screenshots are about 2% of frame height, because phone width limits how far they can zoom. Captions and story text there still meet 3%. Piper is clear but synthetic; ElevenLabs will sound more premium. "Clearline" still needs an IPOS/USPTO trademark search before any public use.
-5. **The 9 feedback points:** all fixed, as listed below.
+5. **"In your books" (added later):** a 10.8 s moment at 1:40–1:51, just before the outcome. Chapter "04 · In your books", then Clearline's own panel in demo mode: "Ready to post" → "Posted" (with the tick) → the posted line (amount, USDC, network, transaction). Narration (line 30 in `lines.json`): "Once Maya approves, Clearline posts it to the invoice in her books, with the amount, digital dollar, network and transaction, and a full audit trail." On screen it is labelled "Demo books · fictional company". It never shows Xero's interface or logo, and it never says "Xero": nothing has been posted to a real Xero organisation yet. The 30 s cut has no room for it and is unchanged.
+6. **The 9 feedback points:** all fixed, as listed below.
 
 | # | Feedback | Fix |
 |---|---|---|

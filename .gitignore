@@ -6,3 +6,6 @@ next-env.d.ts
 .env.*
 !.env.example
 .data/
+
+# Piper voice model (114 MB): copied in for rendering only, never committed
+demo/video/src/voices/*.onnx*

@@ -28,5 +28,6 @@
  ["outcome","Payments check themselves."],
  ["outcome","Problems explain themselves."],
  ["end","Clearline."],
- ["end","A working demo. I'd really welcome your feedback."]
+ ["end","A working demo. I'd really welcome your feedback."],
+ ["books","Once Maya approves, Clearline posts it to the invoice in her books, with the amount, digital dollar, network and transaction, and a full audit trail."]
 ]

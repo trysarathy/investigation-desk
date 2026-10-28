@@ -6,7 +6,7 @@ tl = json.load(open(sys.argv[1]))
 tc = lambda s: f"{int(s // 60)}:{s % 60:05.2f}"
 SECTION = {"hook": "1. Hook", "pain": "2. Maya's problem", "wrong": "3. What goes wrong", "turn": "4. The turn: Clearline",
            "prevent": "5. Before anyone pays (customer's view)", "auto": "6. When the payment is right (Maya's view)",
-           "wrongpay": "7. When something's wrong (Maya's view)", "outcome": "8. Outcome", "end": "9. End card"}
+           "wrongpay": "7. When something's wrong (Maya's view)", "books": "8. In your books (Maya's view, demo books)", "outcome": "9. Outcome", "end": "10. End card"}
 VOICE = sys.argv[3] if len(sys.argv) > 3 else 'Piper "Cori" (en_GB, high)'
 out = [f"# Clearline product film: final script\n",
        f"Duration {tc(tl['duration'])} · 1920×1080 · 30 fps · voice: {VOICE} · music: original, generated for this film.\n",

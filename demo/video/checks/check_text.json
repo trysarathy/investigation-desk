@@ -99,6 +99,24 @@
    "smallest_text_px": 54.0
   },
   {
+   "element": "b_head_posted",
+   "smallest_font_css": 11,
+   "shown_scale": 3.21,
+   "smallest_text_px": 35.4
+  },
+  {
+   "element": "b_head_ready",
+   "smallest_font_css": 11,
+   "shown_scale": 3.21,
+   "smallest_text_px": 35.4
+  },
+  {
+   "element": "b_lines_posted",
+   "smallest_font_css": 12,
+   "shown_scale": 3.0,
+   "smallest_text_px": 36.0
+  },
+  {
    "element": "c_addr",
    "smallest_font_css": 12,
    "shown_scale": 3.0,
