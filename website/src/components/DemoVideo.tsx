@@ -29,6 +29,7 @@ export function DemoVideo({ className = "" }: { className?: string }) {
         aria-label="Clearline demo film, 60 seconds, captions built in. All companies and amounts are fictional."
       >
         {started && <source src="/media/clearline-demo-60s.mp4" type="video/mp4" />}
+        {started && <source src="/media/clearline-demo-60s.webm" type="video/webm" />}
       </video>
       {!started && (
         <button

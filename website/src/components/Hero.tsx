@@ -16,7 +16,7 @@ export function Hero() {
         </div>
 
         <h1 style={{ ["--d" as string]: "0.05s" }} className="rise mx-auto mt-6 max-w-4xl text-balance text-center text-[clamp(38px,6.2vw,68px)] font-semibold leading-[1.0] tracking-[-0.04em]">
-          Get paid in digital dollars <span className="bg-gradient-to-r from-[#c3ccff] via-accent to-[#7f92ff] bg-clip-text text-transparent">without the detective work.</span>
+          Stablecoin payments, matched, explained <span className="bg-gradient-to-r from-[#c3ccff] via-accent to-[#7f92ff] bg-clip-text text-transparent">and in your books.</span>
         </h1>
 
         <p style={{ ["--d" as string]: "0.12s" }} className="rise mx-auto mt-6 max-w-2xl text-pretty text-center text-[clamp(16.5px,1.9vw,19px)] leading-relaxed text-muted">
@@ -31,7 +31,7 @@ export function Hero() {
           </SecondaryButton>
         </div>
         <p className="mx-auto mt-5 max-w-xl text-balance text-center text-[13.5px] text-faint">
-          For finance teams paid in stablecoins (digital dollars such as USDC): every payment matched to its invoice, every problem explained.
+          For finance teams paid in stablecoins (digital dollars such as USDC): every payment matched to its invoice, every problem explained, nothing posted to your books until a person approves.
         </p>
 
         <div style={{ ["--d" as string]: "0.25s" }} className="rise relative mx-auto mt-10 max-w-5xl sm:mt-12">

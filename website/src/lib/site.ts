@@ -8,11 +8,11 @@ export const site = {
   contactEmail: process.env.NEXT_PUBLIC_CONTACT_EMAIL || "",
   linkedin: "https://www.linkedin.com/in/aashmiin-kaur-479665391",
   founder: "Aashmiin Kaur",
-  headline: "Get paid in digital dollars without the detective work.",
+  headline: "Stablecoin payments, matched, explained and in your books.",
   subline:
-    "Clearline is a smart cashier for stablecoin payments. It tells customers exactly how to pay, ticks off correct payments automatically, and explains the wrong ones in plain English, with the reply drafted.",
+    "Clearline asks for each payment clearly, matches it to its invoice, checks it's genuine, explains anything that went wrong in plain English, and posts it to your accounting system when you approve.",
   description:
-    "Clearline is a smart cashier for stablecoin payments: it tells customers exactly how to pay, ticks off correct payments automatically, and explains the wrong ones in plain English. Working demo, seeking design partners.",
+    "Clearline asks for each stablecoin payment clearly, matches it to its invoice, checks it's genuine, explains anything that went wrong in plain English, and posts it to your accounting system when you approve. Working demo, seeking design partners.",
 };
 
 /** Where "Book a 15-minute call" goes: the booking page if set, otherwise the design-partner form. */
