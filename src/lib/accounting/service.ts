@@ -33,7 +33,7 @@ export async function adapterFor(acct: AccountingData, now: () => string): Promi
   if (p === "demo") return new DemoBooksAdapter(acct.demoBooks ?? (acct.demoBooks = emptyDemoBooks()), now);
   if (p === "xero") {
     const t = await loadTokens();
-    if (!t) throw new Error("Xero isn't connected. Connect it in Settings → Accounting.");
+    if (!t) throw new Error("Xero isn't connected. Connect it on the Books page (/books).");
     return new XeroAdapter({ tenantId: t.tenantId, accessToken: async () => (await accessToken()).token });
   }
   if (p === "quickbooks") {

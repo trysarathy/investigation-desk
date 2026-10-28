@@ -111,7 +111,7 @@ describe("posting rules", () => {
     expect(deriveRequest(reqData, reqData.requests.R1, CONFIRMATIONS).duplicate).toBe(true);
     reqData = decideAs(reqData, "R1", "refund_excess", "Kestrel asked for the refund.");
     const plan = planPosting(reqData, acct, "R1", opts);
-    expect(plan.lines.map((l) => [l.kind, l.amount, l.accountCode])).toEqual([["payment", "1980.00", "090"], ["overpayment", "1980.00", "801"]]);
+    expect(plan.lines.map((l) => [l.kind, l.amount, l.accountCode])).toEqual([["payment", "1980.00", "090"], ["overpayment", "1980.00", "090"]]); // received into the wallet's bank account, never a liability code
     expect(totalOf(plan.lines, "payment")).toBe("1980");
     expect(plan.lines[1].description).toMatch(/refund.*paid twice/);
     const res = await post(reqData, acct, new DemoBooksAdapter(books, () => t(11)));
@@ -232,6 +232,43 @@ describe("approval, idempotency and audit", () => {
     expect(planPosting(reqData, res.acct, "R1", opts).status).toBe("ready"); // still to post
   });
 
+  it("a failure on the second line records the first as posted, and a retry never posts it again", async () => {
+    const { reqData: d0, acct, books, link } = invoiced("1000.00");
+    const reqData = decideAs(put(d0, tx(addr("R1"), "1200.00", "a")), "R1", "refund_excess");
+    const plan = planPosting(reqData, acct, "R1", opts);
+    expect(plan.lines.map((l) => l.kind)).toEqual(["payment", "overpayment"]);
+    // An adapter that posts the payment for real, then fails on the overpayment.
+    const real = new DemoBooksAdapter(books, () => t(10));
+    let calls = 0;
+    const flaky: BooksAdapter = { provider: "xero", listOpenInvoices: async () => [], post: async (l, lines, key) => {
+      const { PartialPostError } = await import("@/lib/accounting/types");
+      const first = await real.post(l, [lines[0]], `${key}-first`);
+      calls++;
+      throw new PartialPostError("Xero 503 on line 2", first);
+    } };
+    const res = await post(reqData, acct, flaky);
+    expect(res.error).toMatch(/503/);
+    expect(res.acct.audit.map((e) => e.kind)).toEqual(["approved", "posted", "failed"]);
+    // The retry plan holds only the overpayment: the payment is already in the books.
+    const retry = planPosting(reqData, res.acct, "R1", opts);
+    expect(retry.lines.map((l) => l.kind)).toEqual(["overpayment"]);
+    await post(reqData, res.acct, new DemoBooksAdapter(books, () => t(12)));
+    expect(books.entries.filter((e) => e.externalType === "Payment")).toHaveLength(1);
+    expect(calls).toBe(1);
+    expect(link.invoiceNumber).toBe("INV-R1");
+  });
+
+  it("payment lines never add up to more than arrived (cents round down), and an exact payment closes the invoice", () => {
+    const { reqData: d0, acct } = invoiced("1000.00");
+    let reqData = put(d0, tx(addr("R1"), "333.335", "a"));
+    reqData = put(reqData, tx(addr("R1"), "333.335", "b", { blockTime: t(6) }), t(7));
+    const short = planPosting(reqData, acct, "R1", opts).lines.filter((l) => l.kind === "payment");
+    expect(short.map((l) => l.amount)).toEqual(["333.33", "333.34"]); // 666.67 posted for 666.67 received
+    const { reqData: e0, acct: a2 } = invoiced("315.405");
+    const exact = planPosting(put(e0, tx(addr("R1"), "315.405", "c")), a2, "R1", opts).lines;
+    expect(exact.map((l) => [l.kind, l.amount])).toEqual([["payment", "315.41"]]); // closes the invoice it was raised for
+  });
+
   it("importing an invoice makes a linked request, once", () => {
     const inv = { invoiceId: "X-1", invoiceNumber: "INV-9", contactId: "C", contactName: "Orbit", currency: "USD", amountDue: "750.00", status: "AUTHORISED" };
     const o = { now: t(0), by: "Mei", demo: false, publicId: "p", receivingAddress: addr("x"), token: "USDC" as const, tokenContract: OFFICIAL_USDC, provider: "xero" as const };
@@ -252,7 +289,10 @@ describe("Xero and QuickBooks request shapes", () => {
     expect(xeroBody(link, pay)).toEqual({ path: "/Payments", body: { Payments: [{ Invoice: { InvoiceID: "inv-guid" }, Account: { Code: "090" }, Date: "2026-10-24", Amount: 4950, Reference: "USDC on Ethereum · tx 0xabc · @1.00 USD" }] } });
     expect(xeroBody(link, { ...pay, kind: "fee_writeoff", amount: "50.00", accountCode: "404" }).path).toBe("/CreditNotes");
     expect(xeroBody(link, { ...pay, kind: "fee_writeoff", amount: "50.00", accountCode: "404" }).body).toMatchObject({ CreditNotes: [{ Type: "ACCRECCREDIT", Contact: { ContactID: "contact-guid" }, LineItems: [{ UnitAmount: 50, AccountCode: "404" }] }] });
-    expect(xeroBody(link, { ...pay, kind: "overpayment", amount: "1980.00", accountCode: "801" }).body).toMatchObject({ BankTransactions: [{ Type: "RECEIVE-OVERPAYMENT", BankAccount: { Code: "801" } }] });
+    const over = xeroBody(link, { ...pay, kind: "overpayment", amount: "1980.00", accountCode: "090", description: "Overpayment to refund: 1,980.00 USDC" }).body as { BankTransactions: { BankAccount: { Code: string }; Reference: string }[] };
+    expect(over).toMatchObject({ BankTransactions: [{ Type: "RECEIVE-OVERPAYMENT", BankAccount: { Code: "090" } }] });
+    expect(over.BankTransactions[0].Reference).toMatch(/^To refund · /);
+    expect((xeroBody(link, { ...pay, kind: "overpayment", amount: "5.00", accountCode: "090", description: "Overpayment kept as customer credit" }).body as typeof over).BankTransactions[0].Reference).toMatch(/^Customer credit · /);
     expect(xeroBody(link, { ...pay, kind: "note", amount: "0", description: "Short by 50.00" })).toEqual({ path: "/Invoices/inv-guid/History", body: { HistoryRecords: [{ Details: "Short by 50.00" }] } });
     expect(xeroReference({ ...pay, txHash: "0x" + "a".repeat(400) }).length).toBeLessThanOrEqual(255);
   });

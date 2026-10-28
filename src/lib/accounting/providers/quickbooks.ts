@@ -9,6 +9,7 @@
 // server environment, and QBO_WRITEOFF_ITEM_ID (a service item mapped to the fee expense account).
 // [ASSUMPTION] Built against the documented API shapes; not yet run against a sandbox company.
 
+import { PartialPostError } from "../types";
 import type { BooksAdapter, BooksInvoice, InvoiceLink, PostedLine, PostingLine } from "../types";
 import type { Fetch } from "./xero";
 
@@ -67,6 +68,7 @@ export class QuickBooksAdapter implements BooksAdapter {
   async post(link: InvoiceLink, lines: PostingLine[], idempotencyKey: string): Promise<PostedLine[]> {
     const out: PostedLine[] = [];
     const note = lines.find((l) => l.kind === "note")?.description;
+    try {
     for (const [i, l] of lines.entries()) {
       const key = `${idempotencyKey}-${i}`;
       if (l.kind === "note") { out.push({ ...l, externalId: `note:${link.invoiceId}:${key}`, externalType: "PrivateNote" }); continue; }
@@ -80,6 +82,10 @@ export class QuickBooksAdapter implements BooksAdapter {
       } else {
         out.push({ ...l, externalId: String((res.Payment as Record<string, unknown>)?.Id), externalType: l.kind === "payment" ? "Payment" : "UnappliedPayment" });
       }
+    }
+    } catch (e) {
+      if (out.length) throw new PartialPostError(e instanceof Error ? e.message : String(e), out);
+      throw e;
     }
     return out;
   }

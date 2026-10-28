@@ -7,7 +7,7 @@ import { createRequest, deriveRequest } from "../requests/lifecycle";
 import type { RequestsData, RequestToken } from "../requests/types";
 import { addDemoInvoice, DemoBooksAdapter, emptyDemoBooks } from "./providers/demo";
 import { planPosting, type PlanOptions } from "./rules";
-import type { AccountingData, AuditEntry, BooksAdapter, BooksInvoice, InvoiceLink, PostingPlan } from "./types";
+import { PartialPostError, type AccountingData, type AuditEntry, type BooksAdapter, type BooksInvoice, type InvoiceLink, type PostingPlan } from "./types";
 
 const auditId = (seed: string) => `AUD-${createHash("sha256").update(seed).digest("hex").slice(0, 10)}`;
 
@@ -47,6 +47,10 @@ export async function approveAndPost(
     return { acct: next, plan, posted: next.audit[next.audit.length - 1] };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    // Lines that did reach the books before the failure are recorded as posted, so a retry never posts them again.
+    if (e instanceof PartialPostError && e.posted.length) {
+      next = appendAudit(next, { ...base, kind: "posted", reason: `Part of the plan posted before a failure: ${e.posted.length} of ${plan.lines.length} line(s).`, idempotencyKey: plan.idempotencyKey, lines: e.posted });
+    }
     next = appendAudit(next, { ...base, kind: "failed", reason: msg, idempotencyKey: plan.idempotencyKey, planned: plan.lines });
     return { acct: next, plan, error: `Posting failed: ${msg}` };
   }

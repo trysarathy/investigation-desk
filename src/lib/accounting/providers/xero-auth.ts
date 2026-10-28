@@ -2,13 +2,13 @@
 //
 // Setup (once): create a free app at developer.xero.com, add the redirect URI
 // <your Clearline URL>/api/accounting/xero/callback, and set XERO_CLIENT_ID and XERO_CLIENT_SECRET in
-// the server's environment (never in the repo). Connect from Settings → Accounting and choose the
+// the server's environment (never in the repo). Connect from the Books page (/books) and choose the
 // Xero Demo Company. Tokens are kept server-side in the data directory, never sent to the browser.
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { dataDir } from "../../data-dir";
-import { writeAtomic } from "../../lock";
+import { fileLockKey, withLock, writeAtomic } from "../../lock";
 import type { Fetch } from "./xero";
 
 export const XERO_AUTHORIZE = "https://login.xero.com/identity/connect/authorize";
@@ -61,9 +61,14 @@ export async function loadTokens(): Promise<XeroTokens | undefined> {
 }
 
 /** A fresh access token, refreshed (and saved) when it has less than a minute left. */
-export async function accessToken(fetchFn: Fetch = fetch as unknown as Fetch, now = Date.now()): Promise<{ token: string; tenantId: string }> {
+export function accessToken(fetchFn: Fetch = fetch as unknown as Fetch, now = Date.now()): Promise<{ token: string; tenantId: string }> {
+  // One refresh at a time: Xero replaces the refresh token on every use, so two at once would lose it.
+  return withLock(fileLockKey(tokenFile()), () => refreshIfNeeded(fetchFn, now));
+}
+
+async function refreshIfNeeded(fetchFn: Fetch, now: number): Promise<{ token: string; tenantId: string }> {
   const t = await loadTokens();
-  if (!t) throw new Error("Xero isn't connected. Connect it in Settings → Accounting.");
+  if (!t) throw new Error("Xero isn't connected. Connect it on the Books page (/books).");
   if (t.expiresAt - now > 60_000) return { token: t.accessToken, tenantId: t.tenantId };
   const r = await tokenRequest({ grant_type: "refresh_token", refresh_token: t.refreshToken }, fetchFn);
   const next: XeroTokens = { ...t, accessToken: r.access_token, refreshToken: r.refresh_token, expiresAt: now + r.expires_in * 1000 };

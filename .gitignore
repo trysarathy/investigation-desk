@@ -7,3 +7,7 @@ next-env.d.ts
 !.env.example
 .data/
 demo/video/src/voices/*.onnx*
+
+# Build output (never commit)
+website/out/
+out/
