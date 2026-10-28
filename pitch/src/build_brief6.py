@@ -24,26 +24,35 @@ def foot(s, t, key=True):
 
 # 1 ---------------------------------------------------------------- THE PROBLEM
 s = new("""
-Companies are starting to get paid in digital dollars (stablecoins: tokens designed to stay worth one US dollar). A bank transfer usually arrives with a reference such as "Invoice 1043"; a digital-dollar payment arrives with no note at all, so someone in finance has to work out who paid and what for. Maya is a fictional finance manager, and the message is illustrative, from the demo's fictional data.
+Real businesses are starting to pay each other in stablecoins (digital dollars: tokens designed to stay worth one US dollar). It's still small next to all the trading, but real payments roughly doubled in 2025, and an estimated ~60% are between businesses. The pain: some payments arrive wrong (too little, on the wrong network, a fake token, no invoice number), and someone in finance has to match each one to its invoice and type it into the accounting system by hand.
 SOURCES / LABELS:
-- No reference on a digital-dollar payment [VERIFIED]: a token transfer records only the sender, the receiver and the amount (ERC-20 standard, eips.ethereum.org/EIPS/eip-20).
-- Blockchain transfers can't be reversed by the receiver [VERIFIED, general knowledge]. That is why "hard to send back".
-- "Companies are starting to get paid" [VERIFIED, context]: McKinsey with Artemis (2026) estimate about US$226B a year of business stablecoin payments, still only about 0.01% of business payments.
+- ~$400B of real-world stablecoin payments in 2025, ~60% B2B [VERIFIED; the 60% is Bessemer's estimate ◦]: Bessemer Venture Partners, "Stablecoins: from DeFi primitive to global financial infrastructure", 22 Apr 2026. bvp.com/atlas/stablecoins-from-defi-primitive-to-global-financial-infrastructure
+- Only ~$350–550B of the $28–62T in stablecoin transfers in 2025 were real-economy payments; the rest is trading and moving funds between wallets and exchanges [VERIFIED]: Reap, "Stablecoin Statistics & Data 2026", 14 Aug 2026, citing BIS, BCG × Allium, McKinsey. reap.global/blog/stablecoin-statistics-2026
+- The four ways a payment arrives wrong come from the product's demo cases (demo/REQUESTS_DEMO.md), not from measured customer data. Two of them, counterfeit USDT and wrong network, also appear in my tests on real transactions (e.g. 13 fake-USDT, 6 wrong-network; demo/REPORT.md). How often each happens is not yet measured.
+- "Matched and posted by hand" [BELIEF †]: how much time this takes, and how often, is not yet measured.
 """)
 topline(s)
-head(s, "Getting paid in digital dollars is like cash through the letterbox, with no note")
-img(s, IL / "letterbox.png", M - 0.1, 2.0, w=6.6)
-box(s, 7.3, 2.0, W - M - 7.3, 2.1)
-text(s, 7.6, 2.0, W - M - 7.9, 2.1, [[("“We paid yesterday. Why is our invoice still unpaid?”", {"size": 24, "color": WHITE})], [("A customer, to Maya, a finance manager (fictional)", {"size": 18, "color": MUTED})]],
-     size=24, anchor=MSO_ANCHOR.MIDDLE, spacing=6)
-text(s, 7.3, 4.45, W - M - 7.3, 1.7, "A bank transfer says which invoice it pays. A digital-dollar payment says nothing, so Maya has to find out.", size=20, color=MUTED)
-foot(s, "Digital dollars = stablecoins (e.g. USDC, USDT). A digital-dollar transfer records sender, receiver and amount only (ERC-20 standard).", key=False)
+head(s, "Real stablecoin payments are growing, an estimated ~60% between businesses")
+stats = [("$400B", [("real-world stablecoin payments in 2025, about 60% between businesses", {}), mk("◦")]),
+         ("$350–550B", [("of the $28–62T moved in stablecoins in 2025 was real payments; the rest is mostly trading", {})])]
+cw = (W - 2 * M - 0.4) / 2
+for k, (big, line) in enumerate(stats):
+    x = M + k * (cw + 0.4)
+    box(s, x, 2.0, cw, 2.2)
+    text(s, x + 0.35, 2.12, cw - 0.7, 0.75, big, size=40, bold=True, color=ACC2)
+    text(s, x + 0.35, 2.92, cw - 0.7, 1.2, [line], size=20, color=MUTED)
+box(s, M, 4.45, W - 2 * M, 1.85, fill=CARD, line=ACC)
+text(s, M + 0.4, 4.45, W - 2 * M - 0.8, 1.85,
+     [[("The pain: ", {"bold": True, "color": ACC2}), ("some payments arrive wrong: too little, the wrong network, a fake token, or no invoice number.", {})],
+      [("Someone has to match each one to its invoice and get it into the books by hand.", {"bold": True}), mk("†")]],
+     size=22, anchor=MSO_ANCHOR.MIDDLE, spacing=8)
+foot(s, "$400B, ~60% B2B (60% is Bessemer's estimate): Bessemer Venture Partners, Apr 2026.  $350–550B of $28–62T: Reap, Aug 2026, citing BIS, BCG × Allium and McKinsey.")
 
 # 2 ---------------------------------------------------------------- WHY IT HURTS
 s = new("""
 When a payment doesn't match, it's usually one of these four, and each one needs someone to investigate by hand: look up the transfer, find the invoice, work out what went wrong, and write to the customer. While that happens the customer waits, and if nobody checks carefully, a business can accept fake digital dollars as if they were real.
 SOURCES / LABELS:
-- The four problems are real [VERIFIED]: my tests on real transactions include 13 counterfeit-USDT and 6 wrong-network transfers (demo/REPORT.md); short payments and missing references are standard cases.
+- Fake USDT and wrong network [VERIFIED]: my tests on real transactions include 13 counterfeit-USDT and 6 wrong-network transfers (demo/REPORT.md). Short payments and missing references [demo cases]: from demo/REQUESTS_DEMO.md, not yet seen in real data.
 - "Hours lost" [ESTIMATE ◦]: untested. My guess is 15–30 minutes per odd payment, and the demo's 20-minute figure is a demo estimate, not a measurement. How often each problem happens is unknown.
 - Fake digital dollars [VERIFIED]: anyone can create a token with the same name; only the real issuer's contract counts (ERC-20 standard).
 """)
@@ -58,57 +67,66 @@ for k, (ic, lab) in enumerate(items):
     text(s, x + 0.2, 3.95, cw - 0.4, 0.9, lab, size=22, bold=True, align=PP_ALIGN.CENTER)
 box(s, M, 5.4, W - 2 * M, 0.9, fill=CARD, line=ACC)
 text(s, M + 0.35, 5.4, W - 2 * M - 0.7, 0.9, [[("The cost: hours lost", {}), mk("◦"), (", customers waiting, and the risk of accepting fake money.", {})]], size=20, anchor=MSO_ANCHOR.MIDDLE)
-foot(s, "All four appear in my tests on real transactions (e.g. 13 fake-USDT, 6 wrong-network). How often they happen, and how long each takes, are not yet measured.")
+foot(s, "Fake USDT (13) and wrong-network (6) payments appear in my tests on real transactions; short payments and missing references are demo cases. Frequency and time per case: not yet measured.")
 
 # 3 ---------------------------------------------------------------- THE GAP
 s = new("""
-Checkout pages from companies like Stripe and HitPay handle this well, because the customer pays through their page, so the amount and the invoice are already known. But many business customers send money directly from their own account, and I haven't found anything that explains those messy payments in plain English. This is my belief, not something I've proven yet.
+I'm not the first to connect stablecoins to accounting. The big platforms are becoming one-stop shops, and crypto accounting tools like Bitwave and Request Finance already sync payments to Xero, QuickBooks and NetSuite. What I think is still manual is narrower: a small business that is paid straight into its own wallet, when a payment arrives wrong, and getting that payment into the books correctly. That is a hypothesis I'm testing in customer calls, not something I've proven.
 SOURCES / LABELS:
-- Stripe: stablecoin payments in invoices, payment links and checkout, settling in local currency — docs.stripe.com/crypto/stablecoins. US businesses only for now; not yet Singapore; USDC only; up to US$10,000 per payment.
-- HitPay + Triple-A: stablecoin acceptance offered to 20,000+ Singapore merchants, Oct 2025 — fintechnews.sg.
-- Wallets that warn about scam addresses: MetaMask (2026, KuCoin News), Trust Wallet (Mar 2026), Safe + Blockaid (Sep 2024).
-- Accounting tools that match payments to invoices: Request Finance (eco.com), Bitwave (bitwave.io).
-- "Many business customers send directly" and "nobody explains the mess" [BELIEF †]: untested. This is the first thing I need to check with finance teams.
+- Big platforms vertically integrating [VERIFIED]: Bessemer Venture Partners, 22 Apr 2026: "Large companies like Stripe, Circle, and Coinbase are leveraging their distribution to become one-stop shops." Bessemer also writes that promising early-stage startups "will navigate outside the paths of Stripe, Circle, and Coinbase".
+- Bitwave [VERIFIED, checked 28 Oct 2026]: supports stablecoin invoices and accounts receivable and syncs payments with ERPs "(NetSuite, Xero, QuickBooks, Sage, and more)". bitwave.io/request-a-demo-stablecoin-b2b-payments
+- Request Finance [VERIFIED, checked 28 Oct 2026]: syncs bills (crypto and fiat) to QuickBooks Online, Xero and NetSuite. help.request.finance/en/articles/13038304-accounting-integrations-overview
+- The wedge (small businesses paid directly into their own wallet; the wrong payments and posting them correctly) [ASSUMPTION †]: to test in customer calls.
 """)
 topline(s)
-head(s, "Checkout pages solve it, but only when customers use them")
-paths = [("A", "Pays through a checkout page", "e.g. Stripe, HitPay", "Handled  ✓", MUTED, LINE, WHITE),
-         ("B", "Sends directly from their own account", "", "Nobody explains the mess  ✗", ACC2, ACC, RED)]
-for k, (n, lab, eg, res, col, line, rc) in enumerate(paths):
-    y = 2.05 + k * 1.6
-    box(s, M, y, W - 2 * M, 1.35, line=line)
-    text(s, M + 0.3, y, 0.8, 1.35, n, size=36, bold=True, color=col, anchor=MSO_ANCHOR.MIDDLE)
-    text(s, M + 1.1, y, 6.6, 1.35, [[(lab, {"color": WHITE})]] + ([[(eg, {"color": MUTED, "size": 20, "bold": False})]] if eg else []), size=22, bold=True, anchor=MSO_ANCHOR.MIDDLE)
-    text(s, M + 7.6, y, 0.6, 1.35, "→", size=32, color=col, anchor=MSO_ANCHOR.MIDDLE)
-    text(s, M + 8.3, y, 3.7, 1.35, [[(res, {"color": rc})]], size=22, bold=True, anchor=MSO_ANCHOR.MIDDLE)
-pill(s, M + 7.95, 3.65 + 1.35 + 0.12, "← The gap I'm exploring", color=ACC, size=20, w=3.6)
-text(s, M, 5.75, W - 2 * M, 0.9, [[("Wallets warn about scam addresses; accounting tools match clean payments. The messy direct payments are left.", {}), mk("†")]], size=20, color=MUTED)
-foot(s, "Stripe: docs.stripe.com · HitPay: fintechnews.sg · wallets and accounting tools: sources in the speaker notes.")
+head(s, "What already exists, and what still looks manual")
+rows = [("Big platforms", "Stripe, Circle, Coinbase", "Becoming one-stop shops", MUTED, LINE, WHITE),
+        ("Crypto accounting tools", "e.g. Bitwave, Request Finance", "Already sync to Xero, QuickBooks and NetSuite  ✓", MUTED, LINE, WHITE),
+        ("A small business paid straight into its own wallet", "", "Wrong payments, and posting them correctly: still by hand  †", ACC2, ACC, RED)]
+for k, (lab, eg, res, col, line, rc) in enumerate(rows):
+    y = 1.75 + k * 1.35
+    box(s, M, y, W - 2 * M, 1.18, line=line)
+    text(s, M + 0.35, y, 6.2, 1.18, [[(lab, {"color": WHITE})]] + ([[(eg, {"color": MUTED, "size": 20, "bold": False})]] if eg else []), size=22, bold=True, anchor=MSO_ANCHOR.MIDDLE)
+    text(s, M + 6.65, y, 0.6, 1.18, "→", size=32, color=col, anchor=MSO_ANCHOR.MIDDLE)
+    text(s, M + 7.3, y, W - 2 * M - 7.55, 1.18, [[(res, {"color": rc})]], size=21, bold=True, anchor=MSO_ANCHOR.MIDDLE)
+pill(s, M + 6.65, 1.75 + 2 * 1.35 + 1.18 + 0.15, "↑ A hypothesis I'm testing in calls", color=ACC, size=20, w=5.4)
+foot(s, "Bessemer Venture Partners, Apr 2026 (one-stop shops).  Bitwave: bitwave.io · Request Finance: help.request.finance (both checked 28 Oct 2026).")
 
 # 4 ---------------------------------------------------------------- WHAT I BUILT
 s = new("""
-Clearline is a smart cashier for digital-dollar payments. It gives each invoice a clear "how to pay" page, watches the money that arrives, ticks off correct payments automatically, and when one is wrong, explains why in plain English and drafts the reply to the customer. It only reads payment information: it never holds or moves money, and a person makes every decision that isn't routine.
-VIDEO: the 60-second demo plays on this slide in PowerPoint (click it). In a PDF, scan the QR code, which opens the video on GitHub (github.com/trysarathy/investigation-desk, file pitch/demo_live_60s.mp4), or open the copy attached to my email. A 2-minute version is available too.
-LABELS: real screenshots from the working app; all demo data is fictional [VERIFIED]. I built it myself with AI coding tools.
+Clearline asks for each payment clearly, matches it to its invoice, checks it's genuine, explains anything that went wrong in plain English, and posts it to your accounting system when you approve. On approval, the payment posts to the invoice in Xero with the transaction hash, token, network and USD value. A short payment posts as a partial payment with a note. Counterfeit and wrong-network payments are never posted. Every posting is in an audit log. It only reads the blockchain: it never holds or moves money.
+STATUS (exactly this): Xero connection built and checked in automated tests; posting rules tested in demo mode with a fictional company; first live test with Xero's demo company is next. QuickBooks next, NetSuite on the roadmap. 0 customers, working demo.
+SCREENSHOT: Clearline's own "In your books" panel, in demo mode, with a fictional company (Northwind Pay) and fictional people. It is not Xero's interface.
+VIDEO: the 60-second demo plays on this slide in PowerPoint (click it); in a PDF, scan the QR code (github.com/trysarathy/investigation-desk, pitch/demo_live_60s.mp4). The video was recorded before the "In your books" step, so it shows steps 1–3 only.
 """)
 topline(s)
-head(s, "Clearline: a smart cashier for digital-dollar payments")
-steps = [("request_head.png", "The customer sees exactly how to pay"), ("auto_head.png", "Correct payments tick themselves off"), ("fake_head.png", "A problem is explained, with the reply drafted")]
-rowh = 1.35
-for k, (f, cap) in enumerate(steps):
-    y = 1.8 + k * (rowh + 0.25)
-    text(s, M, y, 0.6, rowh, "①②③"[k], size=30, bold=True, color=ACC, anchor=MSO_ANCHOR.MIDDLE)
-    text(s, M + 0.65, y, 2.75, rowh, cap, size=20, bold=True, anchor=MSO_ANCHOR.MIDDLE)
-    w, h = fit(A / "shots" / f, 5.2, rowh)
-    img(s, A / "shots" / f, M + 3.55, y + (rowh - h) / 2, w=w)
-vx = M + 3.55 + 5.2 + 0.4; vw = W - M - vx; vh = vw * 9 / 16
-mv = s.shapes.add_movie(VIDEO, Inches(vx), Inches(1.75), Inches(vw), Inches(vh), poster_frame_image=str(A / "demo_poster.png"), mime_type="video/mp4")
+text(s, M, 0.62, W - 2 * M, 0.7, "Stablecoin payments, matched, explained and in your books.", size=28, bold=True, name="Title")
+text(s, M, 1.32, W - 2 * M, 0.6, "Clearline asks for each payment clearly, matches it to its invoice, checks it's genuine, explains anything that went wrong in plain English, and posts it to your accounting system when you approve.", size=18, color=MUTED)
+steps = [("Ask", "A payment page per invoice"), ("Match", "Correct ones tick themselves off"),
+         ("Explain", "Wrong ones explained, reply drafted"), ("In your books", "Posted to your books on approval (Xero first)")]
+cw = (W - 2 * M - 3 * 0.25) / 4
+for k, (nm, d) in enumerate(steps):
+    x = M + k * (cw + 0.25)
+    box(s, x, 2.08, cw, 1.52, line=(ACC if k == 3 else LINE))
+    text(s, x + 0.2, 2.08, cw - 0.4, 1.52, [[("①②③④"[k] + " ", {"color": ACC}), (nm, {"color": ACC2 if k == 3 else WHITE})], [(d, {"size": 18, "bold": False, "color": MUTED})]],
+         size=21, bold=True, anchor=MSO_ANCHOR.MIDDLE, spacing=2)
+sw = 5.2; sh = sw * 632 / 1312
+Y4 = 3.82
+img(s, A / "shots" / "books_posted.png", M, Y4, w=sw)
+text(s, M, Y4 + sh + 0.06, sw, 0.35, "Step 4 in Clearline · demo mode, fictional company", size=16, color=MUTED, align=PP_ALIGN.CENTER)
+sx = M + sw + 0.35; sbw = 4.15; sbh = 2.95
+box(s, sx, Y4, sbw, sbh, fill=CARD, line=LINE)
+text(s, sx + 0.25, Y4 + 0.1, sbw - 0.5, sbh - 0.2, [[("Where it is today", {"bold": True, "color": ACC2, "size": 18})],
+     [("Xero connection built and checked in automated tests", {})], [("Posting rules tested in demo mode (fictional company)", {})],
+     [("Next: first live test with Xero's demo company", {})], [("Then QuickBooks; NetSuite on the roadmap", {})], [("0 customers, working demo", {"bold": True, "color": WHITE})]],
+     size=15, anchor=MSO_ANCHOR.MIDDLE, spacing=3)
+vx = sx + sbw + 0.3; vw = W - M - vx; vh = vw * 9 / 16
+mv = s.shapes.add_movie(VIDEO, Inches(vx), Inches(Y4), Inches(vw), Inches(vh), poster_frame_image=str(A / "demo_poster.png"), mime_type="video/mp4")
 mv.name = "Demo video (60 s)"
-text(s, vx, 1.75 + vh + 0.1, vw, 0.4, "▶ 60-second demo", size=18, bold=True, color=ACC2, align=PP_ALIGN.CENTER)
-qs = 1.25
-img(s, IL / "demo_qr.png", vx + (vw - qs) / 2, 1.75 + vh + 0.6, w=qs)
-text(s, vx, 1.75 + vh + 0.6 + qs + 0.05, vw, 0.4, "Scan to watch", size=18, color=MUTED, align=PP_ALIGN.CENTER)
-foot(s, "Real screenshots of the working app. All demo data is fictional. It reads payments only; it never holds or moves money.", key=False)
+text(s, vx, Y4 + vh + 0.05, vw, 0.35, "▶ 60-second demo", size=16, bold=True, color=ACC2, align=PP_ALIGN.CENTER)
+qs = 0.9
+img(s, IL / "demo_qr.png", vx + (vw - qs) / 2, Y4 + vh + 0.42, w=qs)
+foot(s, "The screenshot is Clearline's own panel, not Xero's. It reads payments only and never holds or moves money; it writes to the books only when a person approves.", key=False)
 
 # 5 ---------------------------------------------------------------- HOW GOOD IT IS SO FAR
 s = new("""
@@ -137,7 +155,7 @@ Any one of these would help, even a one-line reply, and I'd especially like to h
 """)
 topline(s)
 head(s, "Three questions I'd love your view on")
-qs_ = ["Does the direct-payment gap seem real to you?", "What would you test first?", "Is there anyone you'd suggest I speak to?"]
+qs_ = ["Does the wrong-payments gap seem real to you?", "What would you test first?", "Is there anyone you'd suggest I speak to?"]
 for k, q in enumerate(qs_):
     y = 1.75 + k * 0.95
     text(s, M, y, 0.7, 0.8, str(k + 1), size=34, bold=True, color=ACC, anchor=MSO_ANCHOR.MIDDLE)
