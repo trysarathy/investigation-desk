@@ -52,7 +52,7 @@ the result.
   invoice. Point at the label: "an inference, not a fact".
 - **Reply:** a polite top-up request, ready to copy.
 
-> "That was a 20-minute investigation. Now it's a copy and paste."
+> "That's often a 20-minute investigation (my guess, which the interviews will test). Now it's a copy and paste."
 
 Optional: click **Sender page ↗**. The customer's page now asks for exactly **50.00 USDC**.
 

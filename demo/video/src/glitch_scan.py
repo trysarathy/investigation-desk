@@ -25,6 +25,8 @@ for k in range(1, len(frames) - 1):
     # Glitches can come in neighbouring frames, so also compare with the median of a 5-frame window.
     win = frames[max(0, k - 2): k + 3]
     med = np.median(np.stack(win), axis=0); mrow = np.abs(x - med).mean(axis=1).max()
-    if (dev > 3 * neigh + 6) or dark or (band > 40 and np.abs(a - b).mean(axis=1).max() < 12) or mrow > 25:
+    # ...but only if this frame stands out from the window: in a camera pan every frame differs from the median.
+    others = max(np.abs(w - med).mean(axis=1).max() for j, w in enumerate(win) if j != min(k, 2))
+    if (dev > 3 * neigh + 6) or dark or (band > 40 and np.abs(a - b).mean(axis=1).max() < 12) or (mrow > 25 and mrow > 2.5 * others):
         bad.append(num(files[k]))
 print(json.dumps(bad))

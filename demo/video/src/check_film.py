@@ -56,8 +56,15 @@ m = WhisperModel("small.en", device="cpu", compute_type="int8")
 audio16 = np.frombuffer(subprocess.run(["ffmpeg", "-v", "error", "-i", film, "-ac", "1", "-ar", "16000", "-f", "s16le", "-"], capture_output=True).stdout, np.int16).astype(np.float32) / 32768
 segs, _ = m.transcribe(audio16, beam_size=5, word_timestamps=True, language="en", vad_filter=True)  # VAD: no invented words over music-only stretches
 heard = [{"w": w.word.strip(), "s": w.start, "e": w.end} for s in segs for w in s.words]
+def spoken(s):
+    from num2words import num2words
+    def w(m):
+        n = m.group(2).replace(",", "")
+        return num2words(float(n) if "." in n else int(n)) + (" dollars" if m.group(1) else "")
+    s = re.sub(r"(\d)\s+,(\d)", r"\1,\2", s)   # the recogniser sometimes writes "$2 ,180"
+    return re.sub(r"(\$)?(\d[\d,]*(?:\.\d+)?)", w, s)
 def norm(s):
-    s = s.lower().replace("$50", "fifty dollars").replace("u s d t", "usdt").replace("clear line", "clearline").replace("-", " ")
+    s = spoken(s).lower().replace(",", " ").replace(" and ", " ").replace("u s d t", "usdt").replace("clear line", "clearline").replace("-", " ")
     return re.sub(r"[^a-z0-9' ]", "", s).split()
 script = [w for l in tl["lines"] for w in norm(l["spoken"])]
 hw = norm(" ".join(h["w"] for h in heard))
@@ -93,11 +100,24 @@ if vpath.exists():
         return None
     line_starts = {round(l["from"], 2) for l in tl["lines"]}
     by_text = {o[1]: o for o in offs}
+    def after_pause(t0):   # speech resuming after >= 0.25 s of silence near t0: the waveform gives the exact time
+        win = int(vsr * 0.01); k0 = int(max(0, t0 - 0.7) * vsr); quiet = 0
+        for k in range(k0, min(len(vx) - win, int((t0 + 0.7) * vsr)), win):
+            loud = np.sqrt(np.mean(vx[k:k + win] ** 2)) > 0.01
+            if not loud: quiet += 1
+            elif quiet >= 25: return k / vsr
+            else: quiet = 0
+        return None
     for c in tl["captions"]:
         if any(abs(c["from"] - ls_) < 0.6 for ls_ in line_starts):
             on = v_onset(c["from"])
+            if on is not None: by_text[c["text"]] = (round(on - c["from"], 3), c["text"])
+        else:
+            # Mid-line: the recogniser's time, or, where the word follows a pause, the waveform's; the closer of the two.
+            on = after_pause(c["from"])
             if on is not None:
-                by_text[c["text"]] = (round(on - c["from"], 3), c["text"])
+                w_off = round(on - c["from"], 3)
+                if c["text"] not in by_text or abs(w_off) < abs(by_text[c["text"]][0]): by_text[c["text"]] = (w_off, c["text"])
     offs = list(by_text.values())
 worst = max(offs, key=lambda x: abs(x[0])) if offs else (None, None)
 rep["caption_sync"] = {"captions_checked": len(offs), "of": len(tl["captions"]), "max_offset_s": worst[0], "worst_caption": worst[1],
@@ -141,8 +161,12 @@ blacks = [(float(a), float(b)) for a, b in re.findall(r"black_start:([\d.]+) bla
 blacks = [b for b in blacks if b[0] > 0.9 and b[1] < dur - 1.3]   # the fade from/to black at the ends is intended
 # The film dips through black between scenes (0.3 s out, 0.3 s in) so two scenes never overlap: a black
 # stretch of at most 0.6 s centred on a scene boundary is that designed dip, anything else is a fault.
-cuts = [s["from"] for s in tl["scenes"][1:]]
+cuts = [s["from"] for s in tl["scenes"][1:]] if "scenes" in tl else [d["from"] + 0.3 for d in tl.get("dips", [])] + ([tl["end"]] if tl.get("end") else [])
 rep["designed_dips"] = [b for b in blacks if b[1] - b[0] <= 0.6 and any(b[0] - 0.35 <= c <= b[1] + 0.35 for c in cuts)]
+# The live demo's page changes show a chapter card (text on black): designed, and OCR confirms the text.
+cards = [(d["from"], d["to"] + 0.35) for d in tl.get("dips", []) if d.get("label")]
+rep["chapter_cards"] = [b for b in blacks if any(a0 - 0.1 <= b[0] and b[1] <= a1 + 0.1 for a0, a1 in cards)]
+rep["designed_dips"] += rep["chapter_cards"]
 blacks = [b for b in blacks if b not in rep["designed_dips"]]
 rep["black_frames"] = blacks; ok["no_black_frames"] = not blacks
 

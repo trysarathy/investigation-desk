@@ -1,0 +1,104 @@
+{
+ "format": {
+  "duration": 122.77,
+  "size": "1920x1080",
+  "audio": true
+ },
+ "loudness": {
+  "integrated_LUFS": -14.0,
+  "true_peak_dBFS": -1.5,
+  "first_frame_vs_average_dB": -56.9
+ },
+ "fade_in": {
+  "audio_first_10ms_dBFS": -89.6,
+  "audio_at_0_3s_dBFS": -13.5,
+  "video_frame0_luma": 1.5,
+  "video_frame9_luma": 26.1
+ },
+ "silences_over_1s": [],
+ "transcript": {
+  "script_words": 240,
+  "heard_words": 240,
+  "match_ratio": 1.0,
+  "differences": [],
+  "benign_spacing_differences": []
+ },
+ "caption_sync": {
+  "captions_checked": 39,
+  "of": 40,
+  "max_offset_s": 0.08,
+  "worst_caption": "in groups that are easy to check.",
+  "over_0_3s": []
+ },
+ "ocr": {
+  "seconds": 123,
+  "seconds_without_text": [],
+  "demo_data_appearances": 1,
+  "demo_data_seconds": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "end_card_ok": true
+ },
+ "designed_dips": [
+  [
+   112.667,
+   113.033
+  ],
+  [
+   18.5333,
+   20.2667
+  ],
+  [
+   51.2,
+   53.0
+  ],
+  [
+   66.8667,
+   68.6
+  ],
+  [
+   88.4333,
+   90.1667
+  ]
+ ],
+ "chapter_cards": [
+  [
+   18.5333,
+   20.2667
+  ],
+  [
+   51.2,
+   53.0
+  ],
+  [
+   66.8667,
+   68.6
+  ],
+  [
+   88.4333,
+   90.1667
+  ]
+ ],
+ "black_frames": [],
+ "glitch_frames": [],
+ "ok": {
+  "format": true,
+  "loudness": true,
+  "fade_in": true,
+  "silences": true,
+  "transcript": true,
+  "caption_sync": true,
+  "text_every_second": true,
+  "demo_data_once": true,
+  "end_card": true,
+  "no_black_frames": true,
+  "no_glitch_frames": true
+ },
+ "all_ok": true
+}

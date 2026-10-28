@@ -1,0 +1,66 @@
+[
+ [
+  "intro",
+  "This is Clearline, running on a fictional business called Northwind Pay. Everything you'll see is demo data."
+ ],
+ [
+  "glance",
+  "Each morning, Maya opens one page. Most payments have already ticked themselves off."
+ ],
+ [
+  "glance",
+  "The few that need a person are listed here, each with what went wrong."
+ ],
+ [
+  "request",
+  "It starts before anyone pays. Fernhill Foods owes eight hundred and sixty dollars, and this is the page their finance team sees."
+ ],
+ [
+  "request",
+  "Exactly how much to send, on which network, and to which account number, in groups that are easy to check."
+ ],
+ [
+  "lookalike",
+  "Fernhill says they'll reuse the account number from last time. That's exactly how scammers catch people."
+ ],
+ [
+  "lookalike",
+  "They paste it here to check, and Clearline warns them before the money moves."
+ ],
+ [
+  "auto",
+  "Now a correct payment. Acme Logistics sends exactly what it owes."
+ ],
+ [
+  "auto",
+  "Clearline checks the amount, the digital dollar and the account, and ticks the invoice off by itself."
+ ],
+ [
+  "fake",
+  "Orbit Retail says it paid in full. Something arrived, but it isn't real."
+ ],
+ [
+  "fake",
+  "Anyone can create a token with the same name. Clearline explains, in plain English, why this one doesn't count."
+ ],
+ [
+  "fake",
+  "It can't be marked paid by mistake, and the reply to Orbit is already written."
+ ],
+ [
+  "unid",
+  "Last, a payment with no invoice number. Two thousand, one hundred and eighty dollars arrived with no reference."
+ ],
+ [
+  "unid",
+  "Clearline suggests Kite Analytics, and shows why: the exact amount, from a wallet Kite has paid from before."
+ ],
+ [
+  "unid",
+  "It never matches on a guess. Maya adds a short note, and confirms."
+ ],
+ [
+  "close",
+  "Correct payments tick themselves off. Problems explain themselves. That's Clearline."
+ ]
+]
