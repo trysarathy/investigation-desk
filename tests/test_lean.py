@@ -109,6 +109,17 @@ class AccountingQuestionTests(unittest.TestCase):
         self.assertIn("after a stablecoin payment is matched, how does it get into your accounting system today, "
                       "and how long does that take?", body)
         self.assertEqual(body.count("http"), 1)
+        self.assertEqual(body.count("?"), 1)  # one nudge, one question
+
+    def test_every_followup_has_the_opt_out(self):
+        for step in ("D4", "D11"):
+            self.assertIn('reply "no"', lean.followup(step, "Hi team,", "https://www.linkedin.com/in/x"))
+
+    def test_call_script_names_clearline_up_front(self):
+        import pathlib
+        script = (pathlib.Path(__file__).parent.parent / "prompts" / "CALL_SCRIPT.md").read_text()
+        opening = script.split("Questions")[0]
+        self.assertIn("Clearline", opening)
 
     def test_call_script_has_it(self):
         import pathlib

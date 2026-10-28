@@ -87,12 +87,15 @@ def first_email(greeting: str, first_line: str, question: str, close: str, linke
             + SIGNATURE.format(linkedin=linkedin))
 
 
+OPT_OUT = "If you'd rather not hear from me, just reply \"no\" and I won't email again."
+
+
 def followup(step: str, greeting: str, linkedin: str) -> str:
+    """D4: one short nudge with one question (the accounting question). D11: a polite close. Both carry the opt-out."""
     if step == "D4":
         body = ("Just bringing this back to the top of your inbox. Even a two-line reply would help: "
-                "when a stablecoin payment arrives wrong, who sorts it out on your side, and how long does it take? "
-                f"And {ACCOUNTING_QUESTION[0].lower()}{ACCOUNTING_QUESTION[1:]}")
+                f"{ACCOUNTING_QUESTION[0].lower()}{ACCOUNTING_QUESTION[1:]}")
     else:
         body = ("I'll leave it here after this one. If someone else on your team handles incoming payments, "
                 "I'd be grateful for their name. Thank you either way.")
-    return f"{greeting}\n\n{body}\n\nAashmiin\n{linkedin}"
+    return f"{greeting}\n\n{body}\n\nAashmiin\n{linkedin}\n\n{OPT_OUT}"

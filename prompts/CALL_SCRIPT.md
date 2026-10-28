@@ -4,8 +4,10 @@ Clearline story for context (don't pitch it on the call): stablecoin payments, m
 your books. We are learning whether the payments that arrive wrong, and getting them into the books, are
 a real, frequent, costly problem.
 
-Open (1 min): thank them; "I'm a student researching how businesses handle stablecoin payments. I'm not
-selling anything. Is it OK if I take notes?"
+Open (1 min), honest about who you are: thank them; "I'm a student at SMU, and I'm also building a small
+tool in this area called Clearline. Today I'm only here to learn how you handle stablecoin payments, not to
+sell you anything. Is it OK if I take notes?" If they ask what Clearline does, tell them plainly in one
+sentence, then go back to their story.
 
 Questions (ask in this order; follow the answers, don't read them like a form):
 1. Walk me through the last stablecoin payment you received, from invoice to "paid".
@@ -18,7 +20,8 @@ Questions (ask in this order; follow the answers, don't read them like a form):
 6. What have you tried to fix it (tools, spreadsheets, a gateway)? Why that, why not something else?
 7. If this went away tomorrow, what would it be worth to you?
 
-Close (1 min): "Who else should I talk to?" and "Could I show you a 5-minute demo in two weeks?"
+Close (1 min): "Who else should I talk to?" Then, only if the problem sounded Strong: "Would you like to see
+what I'm building, in a 5-minute demo in two weeks? Completely fine if not."
 
 Score the problem after the call (Calls tab):
 - Strong: happens monthly or more, costs hours or money, and they have tried to fix it.

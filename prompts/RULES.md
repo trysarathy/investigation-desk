@@ -64,7 +64,8 @@ warm network. Never mention or use QRE/QCDAO contacts or materials.
   fake tokens, no invoice reference) / one question / "I'm not selling anything. 15 minutes of
   your experience would help me a lot." / close_line / signature + opt-out line
   ("If you'd rather not hear from me, reply "no" and I won't email again.").
-- D4: one short nudge in the thread. D11: last, polite close-the-loop in the thread.
+- D4: one short nudge in the thread, with one question: the accounting question. D11: last, polite
+  close-the-loop in the thread. Both carry the opt-out line (`gtm.lean.OPT_OUT`).
 - Language: Spanish for Argentina/Mexico/Colombia leads marked so; Japanese/Korean flagged leads go
   to Aashmiin, not auto.
 
@@ -146,5 +147,9 @@ Aashmiin only reads the briefings. Claude handles leads, first emails, follow-up
 - Ask, word for word (`gtm.lean.ACCOUNTING_QUESTION`): "After a stablecoin payment is matched, how does it get
   into your accounting system today, and how long does that take?"
 - Where: in the D4 follow-up (built into `gtm.lean.followup`), in every call (prompts/CALL_SCRIPT.md, question 5),
-  and in every call-prep brief's 5 questions. First emails (D0) stay as they are: one question only.
+  and in every call-prep brief (CALL_SCRIPT.md has 7 questions; the brief may trim to 5 but always keeps it). First emails (D0) stay as they are: one question only.
 - Record the answer word for word in the Calls tab; the weekly wrap groups answers by accounting system.
+- Calls: say up front that Aashmiin is building Clearline (prompts/CALL_SCRIPT.md). Offer a demo only at the
+  end, only if the problem sounded Strong.
+- Positioning line for calls and replies: "Stablecoin payments, matched, explained and in your books": once a
+  person approves, posted to the invoice in their accounting system (Xero first, QuickBooks next).
