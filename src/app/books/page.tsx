@@ -38,6 +38,7 @@ export default async function BooksPage() {
       {demo && provider === "demo" && books && (
         <section className="panel">
           <div className="panel-h"><h2>{books.orgName}</h2><span className="faint">Simulated books: fictional company, no connection to any real accounting system</span></div>
+          <div className="table-wrap">
           <table className="table" style={{ width: "100%" }} data-testid="demo-invoices">
             <thead><tr><th style={{ textAlign: "left" }}>Invoice</th><th style={{ textAlign: "left" }}>Customer</th><th style={{ textAlign: "right" }}>Total</th><th style={{ textAlign: "right" }}>Paid</th><th style={{ textAlign: "right" }}>Written off</th><th style={{ textAlign: "right" }}>Due</th><th style={{ textAlign: "left" }}>Status</th></tr></thead>
             <tbody>
@@ -54,6 +55,7 @@ export default async function BooksPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </section>
       )}
 
@@ -62,12 +64,12 @@ export default async function BooksPage() {
         {audit.length === 0 && <div className="panel-b muted">Nothing posted yet.</div>}
         <ol style={{ listStyle: "none", margin: 0, padding: 0 }} data-testid="audit-log">
           {audit.slice(0, 200).map((e) => (
-            <li key={e.id} style={{ padding: "8px 16px", borderTop: "1px solid var(--border)", display: "grid", gridTemplateColumns: "150px 110px minmax(0,1fr)", gap: 12, fontSize: 13 }}>
+            <li key={e.id} className="audit-row">
               <span className="faint">{friendlyTime(e.at)}</span>
               <span><span className="badge">{KIND[e.kind]}</span></span>
               <span>
                 {e.requestId && <Link href={`/requests/${e.requestId}`}>{e.invoiceNumber ?? e.requestId}</Link>} {e.requestId && "· "}
-                <span className="muted">{e.by}: {e.reason}</span>
+                <span className="muted">{e.reason.startsWith(e.by) ? e.reason : `${e.by}: ${e.reason}`}</span>
                 {e.lines?.length ? <div className="faint" style={{ fontSize: 12 }}>{e.lines.map((l) => `${l.externalType} ${l.kind === "note" ? "" : formatUsdc(l.amount)}`).join(" · ")}</div> : null}
               </span>
             </li>

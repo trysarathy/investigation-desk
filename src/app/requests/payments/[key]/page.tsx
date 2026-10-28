@@ -7,7 +7,7 @@ import { CONFIRMATIONS } from "@/lib/requests/check";
 import { formatUsdc, suggestMatches, walletOf } from "@/lib/requests/lifecycle";
 import { shortAddr, shortHash } from "@/lib/requests/present";
 import { requestsStore } from "@/lib/requests/service";
-import { friendlyTime } from "@/lib/requests/ui";
+import { friendlyTime, possessive } from "@/lib/requests/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +48,7 @@ export default async function UnidentifiedPayment({ params }: { params: Promise<
               </>
             ) : (
               <>
-                <h2>{top ? `Most likely ${top.request.customerRef}${top.request.customerRef.endsWith("s") ? "'" : "'s"} ${top.request.invoiceRef}` : "No likely match"}</h2>
+                <h2>{top ? `Most likely ${possessive(top.request.customerRef)} ${top.request.invoiceRef}` : "No likely match"}</h2>
                 <p>
                   {formatUsdc(o.amount)} {o.tokenSymbol} arrived at {wallet?.label ?? shortAddr(o.to)}. No open request uses that address, and a blockchain
                   transfer carries no invoice number, so the address can&apos;t say which invoice this pays. {top ? "The evidence below points to one invoice. A person confirms it: the product never matches on a guess." : "Nothing in the records points to an invoice yet."}
@@ -71,7 +71,7 @@ export default async function UnidentifiedPayment({ params }: { params: Promise<
               {i === 0 && (
                 <div className="panel-b" style={{ borderTop: "1px solid var(--border)" }}>
                   <ConfirmMatch obsKey={o.key} requestId={s.request.id} label={`Confirm: this pays ${s.request.invoiceRef}`} suggestedNote={note} />
-                  <Link href={`/requests/${s.request.id}`} style={{ fontSize: 12 }}>See {s.request.invoiceRef} and {s.request.customerRef}&apos;s message</Link>
+                  <Link href={`/requests/${s.request.id}`} style={{ fontSize: 12 }}>See {s.request.invoiceRef} and {possessive(s.request.customerRef)} message</Link>
                 </div>
               )}
             </section>

@@ -87,3 +87,6 @@ export function friendlyTime(iso: string, now = Date.now()): string {
     : `${d.getUTCDate()} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()]}`;
   return `${when} ${hm} SGT`;
 }
+
+/** "Kite Analytics'" and "Acme's": one rule for names on every page. */
+export const possessive = (name: string) => `${name}${/s$/i.test(name.trim()) ? "'" : "'s"}`;

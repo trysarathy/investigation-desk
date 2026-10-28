@@ -9,7 +9,7 @@ import { isDemoMode } from "../mode";
 import { CONFIRMATIONS, OFFICIAL } from "../requests/check";
 import { requestsStore } from "../requests/service";
 import type { RequestToken } from "../requests/types";
-import { approveAndPost, importInvoice, seedDemoBooks } from "./engine";
+import { approveAndPost, importInvoice, lines, seedDemoBooks } from "./engine";
 import { DemoBooksAdapter, emptyDemoBooks } from "./providers/demo";
 import { NetSuiteAdapter } from "./providers/netsuite";
 import { QuickBooksAdapter } from "./providers/quickbooks";
@@ -17,7 +17,7 @@ import { XeroAdapter } from "./providers/xero";
 import { accessToken, loadTokens, xeroConfigured } from "./providers/xero-auth";
 import { planPosting } from "./rules";
 import { FileAccountingStore } from "./store";
-import type { AccountingData, BooksAdapter, BooksProvider, PostingPlan } from "./types";
+import { PROVIDER_LABEL, type AccountingData, type BooksAdapter, type BooksProvider, type PostingPlan } from "./types";
 
 export const accountingStore = () => new FileAccountingStore(path.join(dataDir(), "accounting.json"));
 const nowIso = () => new Date().toISOString();
@@ -70,7 +70,7 @@ export async function approvePosting(requestId: string, by: string, expectedKey?
     }
     const res = await approveAndPost(reqData, acct, requestId, { threshold: CONFIRMATIONS, by, now, adapter, expectedKey });
     if (res.error && res.acct === acct) return [undefined, { error: res.error }];
-    return [res.acct, res.error ? { error: res.error } : { message: `Posted ${res.plan.lines.length} line(s) to ${adapter.provider === "demo" ? "the demo books" : adapter.provider}.` }];
+    return [res.acct, res.error ? { error: res.error } : { message: `Posted ${lines(res.plan.lines.length)} to ${adapter.provider === "demo" ? "the demo books" : PROVIDER_LABEL[adapter.provider]}.` }];
   });
 }
 

@@ -6,6 +6,8 @@ import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/500.css";
 import "./globals.css";
 import { Shell } from "@/components/Shell";
+import { RenderStamp } from "@/components/requests/AutoRefresh";
+import { randomUUID } from "node:crypto";
 import { searchIndex } from "@/lib/view";
 import { loadWorkspace } from "@/lib/workspace/live";
 import { DEMO_ACTOR, isDemoMode } from "@/lib/mode";
@@ -36,6 +38,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
+        <RenderStamp stamp={randomUUID()} />
         <Shell index={demoMode ? [] : searchIndex()} workspace={workspace} demoMode={demoMode}>{children}</Shell>
       </body>
     </html>

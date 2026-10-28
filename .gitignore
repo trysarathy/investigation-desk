@@ -11,3 +11,4 @@ demo/video/src/voices/*.onnx*
 # Build output (never commit)
 website/out/
 out/
+tests/e2e/qa_results.json

@@ -32,7 +32,7 @@ export function AddressChecker({ publicId, demoLookalike }: { publicId: string; 
       const r = await fetch(`/api/pay/${encodeURIComponent(publicId)}/check`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ address }) });
       const j = await r.json().catch(() => ({}));
       setResult(r.ok ? j.result : "invalid");
-      refreshAfterChange(router);
+      refreshAfterChange(router, { reload: false });
     } catch { setResult(null); }
     setBusy(false);
   };
