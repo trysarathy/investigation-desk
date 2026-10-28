@@ -64,6 +64,11 @@ def gmail_cold_allowed(s: Settings) -> bool:
     return not (s.send_mode == "domain" and s.domain_ready)
 
 
+# The accounting question (added 28 Oct 2026 with the "in your books" positioning). Asked in the D4
+# follow-up and on every call, word for word, so answers can be compared across calls.
+ACCOUNTING_QUESTION = ("After a stablecoin payment is matched, how does it get into your accounting system today, "
+                       "and how long does that take?")
+
 SIGNATURE = (
     "Best regards,\n"
     "Aashmiin Kaur\n"
@@ -85,7 +90,8 @@ def first_email(greeting: str, first_line: str, question: str, close: str, linke
 def followup(step: str, greeting: str, linkedin: str) -> str:
     if step == "D4":
         body = ("Just bringing this back to the top of your inbox. Even a two-line reply would help: "
-                "when a stablecoin payment arrives wrong, who sorts it out on your side, and how long does it take?")
+                "when a stablecoin payment arrives wrong, who sorts it out on your side, and how long does it take? "
+                f"And {ACCOUNTING_QUESTION[0].lower()}{ACCOUNTING_QUESTION[1:]}")
     else:
         body = ("I'll leave it here after this one. If someone else on your team handles incoming payments, "
                 "I'd be grateful for their name. Thank you either way.")
