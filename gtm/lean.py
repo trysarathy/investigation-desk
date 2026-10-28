@@ -80,19 +80,22 @@ SIGNATURE = (
 def first_email(greeting: str, first_line: str, question: str, close: str, linkedin: str) -> str:
     """The D0 template: plain text, one sourced first line, an opt-out, no link except LinkedIn."""
     return (f"{greeting}\n\n{first_line}\n\n"
-            "I'm Aashmiin, a student at SMU in Singapore, researching what happens when stablecoin payments "
+            "I'm Aashmiin, a student at SMU in Singapore, building a small tool in this area (Clearline) and researching what happens when stablecoin payments "
             "arrive wrong: short after fees, on the wrong network, a fake token, or with no invoice reference.\n\n"
             f"{question}\n\n"
-            f"I'm not selling anything. 15 minutes of your experience would help me a lot. {close}\n\n"
+            f"I'm not asking you to buy anything. 15 minutes of your experience would help me a lot. {close}\n\n"
             + SIGNATURE.format(linkedin=linkedin))
 
 
+OPT_OUT = "If you'd rather not hear from me, just reply \"no\" and I won't email again."
+
+
 def followup(step: str, greeting: str, linkedin: str) -> str:
+    """D4: one short nudge with one question (the accounting question). D11: a polite close. Both carry the opt-out."""
     if step == "D4":
         body = ("Just bringing this back to the top of your inbox. Even a two-line reply would help: "
-                "when a stablecoin payment arrives wrong, who sorts it out on your side, and how long does it take? "
-                f"And {ACCOUNTING_QUESTION[0].lower()}{ACCOUNTING_QUESTION[1:]}")
+                f"{ACCOUNTING_QUESTION[0].lower()}{ACCOUNTING_QUESTION[1:]}")
     else:
         body = ("I'll leave it here after this one. If someone else on your team handles incoming payments, "
                 "I'd be grateful for their name. Thank you either way.")
-    return f"{greeting}\n\n{body}\n\nAashmiin\n{linkedin}"
+    return f"{greeting}\n\n{body}\n\nAashmiin\n{linkedin}\n\n{OPT_OUT}"
