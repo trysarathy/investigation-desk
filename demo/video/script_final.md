@@ -1,6 +1,6 @@
 # Clearline product film: final script
 
-Duration 1:58.44 · 1920×1080 · 30 fps · voice: Piper "Cori" (en_GB, high) · music: original, generated for this film.
+Duration 2:09.27 · 1920×1080 · 30 fps · voice: Piper "Cori" (en_GB, high) · music: original, generated for this film.
 
 One-liner: **Get paid in digital dollars without the detective work.** All companies, people and amounts are fictional (labelled "Demo data" once, on the first app scene). Times are from the start of the film.
 
@@ -64,21 +64,27 @@ One-liner: **Get paid in digital dollars without the detective work.** All compa
 | 1:31.97–1:36.57 | It refuses to count them, and the reply to the customer is already written. |
 | 1:37.07–1:39.66 | Detective work, done in seconds. |
 
-## 8. Outcome
+## 8. In your books (Maya's view, demo books)
 
 | Time | Narration |
 |---|---|
-| 1:40.76–1:43.07 | Maya closes her laptop on time. |
-| 1:43.35–1:45.58 | Customers know exactly how to pay. |
-| 1:45.86–1:47.38 | Payments check themselves. |
-| 1:47.66–1:49.80 | Problems explain themselves. |
+| 1:40.76–1:50.49 | Once Maya approves, Clearline posts it to the invoice in her books, with the amount, digital dollar, network and transaction, and a full audit trail. |
 
-## 9. End card
+## 9. Outcome
 
 | Time | Narration |
 |---|---|
-| 1:50.80–1:51.60 | Clearline. |
-| 1:51.88–1:55.44 | A working demo. I'd really welcome your feedback. |
+| 1:51.59–1:53.90 | Maya closes her laptop on time. |
+| 1:54.18–1:56.41 | Customers know exactly how to pay. |
+| 1:56.69–1:58.21 | Payments check themselves. |
+| 1:58.49–2:00.63 | Problems explain themselves. |
+
+## 10. End card
+
+| Time | Narration |
+|---|---|
+| 2:01.63–2:02.43 | Clearline. |
+| 2:02.71–2:06.27 | A working demo. I'd really welcome your feedback. |
 
 ## Captions (as shown on screen)
 
@@ -125,9 +131,13 @@ One-liner: **Get paid in digital dollars without the detective work.** All compa
 | 1:33.88 | 1:34.75 | and the reply to |
 | 1:34.75 | 1:37.12 | the customer is already written. |
 | 1:37.12 | 1:40.81 | Detective work, done in seconds. |
-| 1:40.81 | 1:43.40 | Maya closes her laptop on time. |
-| 1:43.40 | 1:45.88 | Customers know exactly how to pay. |
-| 1:45.88 | 1:47.68 | Payments check themselves. |
-| 1:47.68 | 1:50.82 | Problems explain themselves. |
-| 1:50.82 | 1:51.93 | Clearline. |
-| 1:51.93 | 1:55.74 | A working demo. I'd really welcome your feedback. |
+| 1:40.81 | 1:43.20 | Once Maya approves, Clearline posts it |
+| 1:43.20 | 1:44.88 | to the invoice in her books, |
+| 1:44.88 | 1:49.10 | with the amount, digital dollar, network and transaction, |
+| 1:49.10 | 1:51.64 | and a full audit trail. |
+| 1:51.64 | 1:54.23 | Maya closes her laptop on time. |
+| 1:54.23 | 1:56.71 | Customers know exactly how to pay. |
+| 1:56.71 | 1:58.51 | Payments check themselves. |
+| 1:58.51 | 2:01.65 | Problems explain themselves. |
+| 2:01.65 | 2:02.76 | Clearline. |
+| 2:02.76 | 2:06.57 | A working demo. I'd really welcome your feedback. |

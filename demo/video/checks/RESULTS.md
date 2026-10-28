@@ -15,6 +15,6 @@
 | No glitch frames | ✅ | ✅ | ✅ |
 | Text ≥ 3% of frame height (16:9) | ✅ smallest 35.4 px / 32.4 | same timeline | see note: app shots ≈2% on vertical |
 
-- **full**: 118.43 s, 1920x1080, -14.0 LUFS / TP -1.4, transcript match 0.9942, worst caption offset 0.123 s, glitches repaired before encode and none left.
-- **30s**: 33.9 s, 1920x1080, -14.0 LUFS / TP -1.6, transcript match 0.9645, worst caption offset -0.04 s, glitches repaired before encode and none left.
-- **vertical**: 118.43 s, 1080x1920, -14.0 LUFS / TP -1.4, transcript match 0.9942, worst caption offset 0.123 s, glitches repaired before encode and none left.
+- **full**: 129.27 s (with "In your books" at 1:40–1:51), 1920x1080, -14.0 LUFS / TP -1.5, transcript match 0.9947, worst caption offset -0.1 s, glitches repaired before encode and none left.
+- **30s** (unchanged: its timeline is identical, no room for the new moment): 33.9 s, 1920x1080, -14.0 LUFS / TP -1.6, transcript match 0.9645, worst caption offset -0.04 s, glitches repaired before encode and none left.
+- **vertical**: 129.27 s, 1080x1920, -14.0 LUFS / TP -1.5, transcript match 0.9947, worst caption offset -0.1 s, glitches repaired before encode and none left.

@@ -16,8 +16,10 @@ lines = json.load(open(W / "lines.json"))
 words = [json.loads(l) for l in open(W / "vo/words.jsonl")]
 el = json.load(open(EL / "elements.json"))
 
+# Line 30 ("In your books") was added after the film was approved, so it sits at the end of lines.json (the
+# approved takes keep their numbers) and plays just before the outcome (line 24).
 # The 30-second cut: hook -> Maya's pain -> reveal -> the scam warning -> the invoice ticking itself off -> end card.
-ORDER = {"full": list(range(len(lines))), "short": [0, 1, 3, 13, 14, 17, 19, 28]}[CUT]
+ORDER = {"full": list(range(24)) + [30] + list(range(24, 30)), "short": [0, 1, 3, 13, 14, 17, 19, 28]}[CUT]
 
 def dur(i):
     with wave.open(str(W / f"vo/{i:02d}.wav")) as f: return f.getnframes() / f.getframerate()
@@ -31,7 +33,7 @@ def onset(i):
 
 # Pauses: a breath between lines, longer between sections, a held beat before the reveal and before each case.
 PAUSE_BEFORE = {2: 0.7, 3: 0.4, 5: 0.5, 6: 0.4, 7: 0.8, 12: 1.0, 13: 0.8, 14: 0.4, 15: 0.9, 16: 0.3, 17: 0.5, 18: 0.7,
-                19: 1.1, 21: 1.1, 23: 0.5, 24: 1.1, 28: 1.0}
+                19: 1.1, 21: 1.1, 23: 0.5, 30: 1.1, 24: 1.1, 28: 1.0}
 if CUT == "short":
     PAUSE_BEFORE = {3: 0.5, 13: 0.7, 14: 0.3, 17: 0.6, 19: 0.8, 28: 0.8}
 LEAD, GAP, TAIL = 0.5, 0.28, 3.0 if CUT == "full" else 2.6
@@ -132,6 +134,14 @@ if has(21):
         {"at": ls(21), "el": E("o_title"), "note": "Fake digital dollars", "red": True},
         {"at": wt(22, "refuses") - 0.1, "el": E("o_blocked"), "note": "Refused: it can't be counted", "red": True},
         {"at": wt(22, "reply") - 0.1, "el": E("o_reply"), "note": "The reply, already written"}])
+if has(30):
+    # In your books (demo books, fictional company): ready to post -> approved -> posted, with what was recorded.
+    scene("focus", 30, 30, view="Maya's view", bg="el/a_bg.png", chapter=["04", "In your books"], items=[
+        {"at": ls(30), "el": E("b_head_ready"), "note": "Ready to post: Maya approves"},
+        {"at": wt(30, "invoice") - 0.1, "el": E("b_head_posted"), "note": "Posted to the invoice", "tick": True},
+        {"at": wt(30, "amount") - 0.1, "el": E("b_lines_posted"), "note": "Amount, digital dollar, network, transaction"}])
+    scenes[-1]["demoLabel"] = [round(scenes[-1]["from"] + 0.6, 3), round(le(30) + 0.6, 3)]
+    scenes[-1]["demoText"] = "Demo books · fictional company"
 if has(24): scene("outcome", 24, 27, laptop=ls(24), lines=[{"at": ls(i), "text": lines[i][1]} for i in (25, 26, 27)])
 if has(28): scene("end", 28, 28, at=ls(28))
 

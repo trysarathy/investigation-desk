@@ -68,6 +68,18 @@ with sync_playwright() as p:
     go("/requests/DEMO-1041")
     el("a_head_after", page.locator(".page-head h1").locator(".."))
     el("a_verdict_title", page.locator("[data-testid=verdict] h2"), "display:inline-block;align-self:flex-start;width:max-content")
+    # In your books (demo books, fictional company): the same invoice, ready to post, then posted once approved.
+    # Needs the accounting-sync feature; skipped on builds without the books panel.
+    if page.locator("[data-testid=books-panel]").count():
+        books = page.locator("[data-testid=books-panel]")
+        el("b_head_ready", books.locator(".panel-h"), "width:max-content;gap:32px")
+        page.click("[data-testid=approve-posting]")
+        page.wait_for_function("document.querySelector('[data-testid=books-status]')?.textContent === 'Posted'"); time.sleep(0.6)
+        go("/requests/DEMO-1041")
+        books = page.locator("[data-testid=books-panel]")
+        el("b_head_posted", books.locator(".panel-h"), "width:max-content;gap:32px")
+        page.add_style_tag(content="[data-testid=posting-lines] td .faint { display: none !important; }")   # the books' internal payment ID (12 px)
+        el("b_lines_posted", books.locator("[data-testid=posting-lines]").last, "width:540px")
     # Something's wrong: Orbit's fake digital dollars.
     go("/requests/DEMO-1043"); full("o_bg")
     el("o_title", page.locator("[data-testid=verdict] h2"), "display:inline-block;align-self:flex-start;width:max-content")

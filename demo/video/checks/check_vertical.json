@@ -1,25 +1,25 @@
 {
  "format": {
-  "duration": 118.43,
+  "duration": 129.27,
   "size": "1080x1920",
   "audio": true
  },
  "loudness": {
   "integrated_LUFS": -14.0,
-  "true_peak_dBFS": -1.4,
-  "first_frame_vs_average_dB": -56.6
+  "true_peak_dBFS": -1.5,
+  "first_frame_vs_average_dB": -55.1
  },
  "fade_in": {
-  "audio_first_10ms_dBFS": -90.1,
-  "audio_at_0_3s_dBFS": -29.2,
+  "audio_first_10ms_dBFS": -88.6,
+  "audio_at_0_3s_dBFS": -26.9,
   "video_frame0_luma": 0.0,
   "video_frame9_luma": 13.9
  },
  "silences_over_1s": [],
  "transcript": {
-  "script_words": 257,
-  "heard_words": 258,
-  "match_ratio": 0.9942,
+  "script_words": 282,
+  "heard_words": 283,
+  "match_ratio": 0.9947,
   "differences": [],
   "benign_spacing_differences": [
    [
@@ -30,14 +30,14 @@
   ]
  },
  "caption_sync": {
-  "captions_checked": 47,
-  "of": 47,
-  "max_offset_s": 0.123,
-  "worst_caption": "short, or meant for someone else.",
+  "captions_checked": 51,
+  "of": 51,
+  "max_offset_s": -0.1,
+  "worst_caption": "as digital dollars.",
   "over_0_3s": []
  },
  "ocr": {
-  "seconds": 118,
+  "seconds": 129,
   "seconds_without_text": [],
   "demo_data_appearances": 1,
   "demo_data_seconds": [

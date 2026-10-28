@@ -285,9 +285,10 @@ const Start: React.FC<{ s: any }> = ({ s }) => { const t = useT(); return <Absol
 const soft = (src: string) => src.replace(/\.png$/, "_soft.jpg");
 
 /** One real app element, large, over a dimmed copy of its page. */
-const Element: React.FC<{ e: any; a: number; red?: boolean; tick?: number }> = ({ e, a, red, tick = 0 }) => {
+const Element: React.FC<{ e: any; a: number; red?: boolean; tick?: number; tickable?: boolean }> = ({ e, a, red, tick = 0, tickable }) => {
   const { W, CH, vertical } = useL();
-  const maxW = vertical ? W - 80 : W - 220, maxH = CH - 260;
+  // On the phone layout, leave room on the right for the tick badge so it isn't cut off by the frame edge.
+  const maxW = vertical ? W - (tickable ? 160 : 80) : W - 220, maxH = CH - 260;
   // As large as the stage allows, up to the capture's native sharpness (3x), never below the 3%-text scale.
   const fit = Math.min(maxW / e.css[0], maxH / e.css[1]);
   const s = Math.max(Math.min(e.scale, fit), Math.min(3.0, fit));
@@ -322,7 +323,7 @@ const Focus: React.FC<{ s: any }> = ({ s }) => {
       <div style={{ opacity: elA }}>
         <ViewLabel text={view} a={elA} />
         <Content style={{ flexDirection: "column", gap: 36 }}>
-          <Element e={it.el} a={a} red={it.red} tick={tick} />
+          <Element e={it.el} a={a} red={it.red} tick={tick} tickable={!!it.tick} />
           {it.note && <div style={{ fontSize: 46, fontWeight: 600, color: it.red ? C.red : it.tick ? C.green : C.accent2, opacity: rise(t, at(cur) + 0.25, 0.4) * a }}>{it.note}</div>}
         </Content>
       </div>
@@ -423,12 +424,12 @@ const CaptionBand: React.FC<{ caps: StoryTimeline["captions"] }> = ({ caps }) =>
   );
 };
 
-const DemoBadge: React.FC<{ win?: [number, number] }> = ({ win }) => {
+const DemoBadge: React.FC<{ win?: [number, number]; text?: string }> = ({ win, text = "Demo data · fictional company" }) => {
   const t = useT(); const { vertical } = useL();
   if (!win) return null;
   const a = span(t, win[0], win[1], 0.4);
   return <div style={{ position: "absolute", top: vertical ? 70 : 44, right: vertical ? 50 : 60, opacity: a, fontFamily: FONT, fontSize: 34, color: C.muted,
-    border: `1px dashed ${C.faint}`, borderRadius: 999, padding: "6px 18px", background: "#0b0e14cc" }}>Demo data · fictional company</div>;
+    border: `1px dashed ${C.faint}`, borderRadius: 999, padding: "6px 18px", background: "#0b0e14cc" }}>{text}</div>;
 };
 
 export const Story: React.FC<{ timeline: StoryTimeline }> = ({ timeline }) => {
@@ -445,7 +446,7 @@ export const Story: React.FC<{ timeline: StoryTimeline }> = ({ timeline }) => {
   return (
     <AbsoluteFill style={{ background: C.bg }}>
       <AbsoluteFill style={{ opacity: vis }}><S s={s} /></AbsoluteFill>
-      <DemoBadge win={s.demoLabel} />
+      <DemoBadge win={s.demoLabel} text={s.demoText} />
       <CaptionBand caps={timeline.captions} />
       <AbsoluteFill style={{ background: "#000", opacity: Math.max(fadeIn, fadeOut), pointerEvents: "none" }} />
     </AbsoluteFill>

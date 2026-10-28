@@ -31,7 +31,7 @@ bash "$HERE/render.sh" "$W" full  StoryVertical "$OUT/product_film_vertical.mp4"
 VN=$([ "$ENGINE" = piper ] && echo 'Piper "Cori" (en_GB, high)' || echo "ElevenLabs ${VOICE_ID:-George}")
 python3 "$HERE/write_script.py" "$W/full/timeline.json" "$OUT/script_final.md" "$VN"
 python3 "$HERE/check_text.py" "$REM/src/Story.tsx" "$W/el/elements.json" "$W/full/timeline.json" > "$OUT/check_text.json"
-python3 "$HERE/check_film.py" "$OUT/product_film_full.mp4"     "$W/full/timeline.json"  "$OUT/check_full"     --min 100 --max 125
+python3 "$HERE/check_film.py" "$OUT/product_film_full.mp4"     "$W/full/timeline.json"  "$OUT/check_full"     --min 100 --max 135
 python3 "$HERE/check_film.py" "$OUT/product_film_30s.mp4"      "$W/short/timeline.json" "$OUT/check_30s"      --min 28  --max 40
-python3 "$HERE/check_film.py" "$OUT/product_film_vertical.mp4" "$W/full/timeline.json"  "$OUT/check_vertical" --min 100 --max 125
+python3 "$HERE/check_film.py" "$OUT/product_film_vertical.mp4" "$W/full/timeline.json"  "$OUT/check_vertical" --min 100 --max 135
 echo "done: $OUT"

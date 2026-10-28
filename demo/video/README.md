@@ -8,8 +8,8 @@ is fictional (labelled "Demo data" once). The app shots are real captures of thi
 
 | File | What |
 |---|---|
-| `product_film_full.mp4` | 16:9, 1920×1080, ~2:00 |
-| `product_film_30s.mp4` | 16:9 cut: hook → pain → reveal → scam warning → auto-tick → end card |
+| `product_film_full.mp4` | 16:9, 1920×1080, ~2:09 |
+| `product_film_30s.mp4` | 16:9 cut: hook → pain → reveal → scam warning → auto-tick → end card (no "In your books" moment: no room) |
 | `product_film_vertical.mp4` | 1080×1920, same story, re-laid out for phones |
 | `thumbnail.png` | 1920×1080 |
 | `script_final.md` | narration + captions with timecodes |
