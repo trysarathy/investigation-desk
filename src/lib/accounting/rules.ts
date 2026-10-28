@@ -40,6 +40,13 @@ export function cmp(a: string, b: string): -1 | 0 | 1 {
 const min = (a: string, b: string) => (cmp(a, b) <= 0 ? a : b);
 const positive = (a: string) => cmp(a, "0") > 0;
 
+/** Round down to cents: a posted payment must never be more than what arrived. */
+export function floorCents(a: string): string {
+  const [i, f = ""] = a.replace(/^-/, "").split(".");
+  const s = BigInt(i + (f + "00").slice(0, 2)).toString().padStart(3, "0");
+  return `${s.slice(0, -2)}.${s.slice(-2)}`;
+}
+
 /** Round a decimal to 2 places, half up (accounting systems post cents). */
 export function toCents(a: string): string {
   const neg = a.startsWith("-");
@@ -130,16 +137,24 @@ export function planPosting(data: RequestsData, acct: AccountingData, requestId:
   const day = (x: Observation) => (x.blockTime ?? x.firstSeenAt).slice(0, 10);
 
   // One payment line per transfer, applied until the invoice is covered; the rest is excess.
+  // Cents: each payment line is the rounded-down running total minus what earlier lines posted, so the
+  // lines never add up to more than arrived; when the invoice is fully covered the last line closes it exactly.
   let remaining = r.amount;
+  let applied = "0";
+  let postedCents = "0.00";
   const excess: { obs: Observation; amount: string }[] = [];
   for (const x of confirmed) {
     const rate = rates.get(x.key)!;
     const apply = positive(remaining) ? min(x.amount, remaining) : "0";
     if (positive(apply)) {
+      applied = add(applied, apply);
+      const upTo = cmp(applied, r.amount) === 0 ? toCents(r.amount) : floorCents(applied);
+      const cents = toCents(sub(upTo, postedCents));
+      postedCents = upTo;
       lines.push({
-        kind: "payment", amount: toCents(apply), accountCode: accounts.walletAccountCode, observationKey: x.key,
+        kind: "payment", amount: cents, accountCode: accounts.walletAccountCode, observationKey: x.key,
         txHash: x.hash, token: r.token, network: net, tokenAmount: x.amount, usdRate: rate.rate, usdRateSource: rate.source, date: day(x),
-        description: `${formatUsdc(x.amount)} ${r.token} on ${net}, tx ${x.hash}. USD value ${toCents(apply)} at ${rate.rate} (${rate.source}).`,
+        description: `${formatUsdc(x.amount)} ${r.token} on ${net}, tx ${x.hash}. USD value ${cents} at ${rate.rate} (${rate.source}).`,
       });
       remaining = sub(remaining, apply);
     }
@@ -185,7 +200,9 @@ export function planPosting(data: RequestsData, acct: AccountingData, requestId:
     for (const e of excess) {
       const rate = rates.get(e.obs.key)!;
       lines.push({
-        kind: "overpayment", amount: toCents(e.amount), accountCode: refund || !keep ? accounts.overpaymentAccountCode : accounts.walletAccountCode,
+        // The excess landed in the wallet, so it is received into the wallet's (bank) account either way;
+        // whether it is refunded or kept as credit is recorded in the reference.
+        kind: "overpayment", amount: floorCents(e.amount), accountCode: accounts.walletAccountCode,
         observationKey: e.obs.key, txHash: e.obs.hash, token: r.token, network: net, tokenAmount: e.amount, usdRate: rate.rate, usdRateSource: rate.source, date: day(e.obs),
         description: `${refund || !keep ? "Overpayment to refund" : "Overpayment kept as customer credit"}: ${formatUsdc(e.amount)} ${r.token}, tx ${e.obs.hash}${v.duplicate ? " (the same invoice paid twice)" : ""}.`,
       });

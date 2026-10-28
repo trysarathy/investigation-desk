@@ -115,14 +115,14 @@ export interface AccountSettings {
   walletAccountCode: string;
   /** Expense account for accepted shortfalls (fees). */
   feeAccountCode: string;
-  /** Liability account for overpayments that are due back to the customer. */
-  overpaymentAccountCode: string;
+  /** Not used for posting: overpayments are received into the wallet account (Xero requires a bank
+   * account there). Kept so older data files still load. */
+  overpaymentAccountCode?: string;
 }
 
 export const DEFAULT_ACCOUNTS: AccountSettings = {
   walletAccountCode: "090",       // a bank/clearing account for the USDC wallet
   feeAccountCode: "404",          // Bank Fees in Xero's default chart
-  overpaymentAccountCode: "801",  // a current liability: "Customer overpayments to refund"
 };
 
 /** A fictional organisation's books, used in demo mode only. Mirrors what a Xero org would hold. */
@@ -179,6 +179,11 @@ export interface BooksInvoice {
   currency: string;
   amountDue: string;
   status: string;
+}
+
+/** Thrown by an adapter when some lines posted and a later one failed: `posted` is what is in the books. */
+export class PartialPostError extends Error {
+  constructor(message: string, readonly posted: PostedLine[]) { super(message); }
 }
 
 /**

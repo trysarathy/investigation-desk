@@ -25,7 +25,7 @@ approves, posted to the company's accounting system.
 | Exact | One payment: tx hash, token, network, USD value and rate source in the reference | Paid |
 | Short, no decision or balance requested | Partial payment + a note on the invoice | Open for the shortfall |
 | Short, accepted as settled | Payment + **separate** fee write-off line (fee account) | Paid |
-| Over | Nothing until a person decides; then the invoice amount + a **separate** overpayment line (refund or credit) | Paid |
+| Over | Nothing until a person decides; then the invoice amount + a **separate** overpayment line received into the wallet account, marked "To refund" or "Customer credit" | Paid |
 | Duplicate (paid twice) | One payment + one overpayment marked for refund. Never two payments | Paid |
 | Same transfer delivered twice | Nothing new (one line per transfer, ever) | Unchanged |
 | Wrong network | **Never posted**, even if a person accepts it (post by hand) | Unchanged |
@@ -63,9 +63,13 @@ from par stops automatic posting.
    `XERO_CLIENT_ID=…` and `XERO_CLIENT_SECRET=…`.
 3. Start with `DEMO_MODE=off npm run dev`, open `/books`, click *Connect Xero*, and choose the
    **Demo Company** (Xero's free sample organisation).
-4. Set the account codes (`accounts` in `.data/accounting.json`): wallet account (a bank account in
-   the Demo Company), fee account (`404 Bank Fees`), overpayment account.
+4. Set the account codes (`accounts` in `.data/accounting.json`, no screen yet): `walletAccountCode` = the code of a **bank** account in the Demo Company (payments and overpayments are received into it; Xero rejects anything else), `feeAccountCode` = `404 Bank Fees`. Overpayments are received into the wallet account and marked "To refund" or "Customer credit" in the reference.
 5. *Import invoices* on `/books`, pay one with test USDC, approve, and check the invoice in Xero.
 
 [ASSUMPTION] Xero introduced granular scopes for apps created from 2026; if the connection is refused
 for scope reasons, set `XERO_SCOPES` (see `providers/xero-auth.ts`).
+
+## Failures and rounding
+- If an adapter fails part-way (line 1 posted, line 2 failed), the lines that posted are recorded as posted in the audit log, so a retry posts only what's left.
+- Payment lines are rounded **down** to cents against the running total, so the books never show more received than arrived; a payment that covers the invoice exactly closes it.
+- The Xero token refresh runs inside a file lock (Xero replaces the refresh token on each use).

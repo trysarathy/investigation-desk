@@ -5,6 +5,7 @@
 import { createHash } from "node:crypto";
 import { add, sub } from "../../payments/money";
 import { cmp, toCents } from "../rules";
+import { PartialPostError } from "../types";
 import type { BooksAdapter, BooksInvoice, DemoBooks, DemoInvoice, InvoiceLink, PostedLine, PostingLine } from "../types";
 
 export const DEMO_ORG = "Northwind Pay Pte Ltd (demo books, fictional)";
@@ -45,6 +46,7 @@ export class DemoBooksAdapter implements BooksAdapter {
     const inv = this.books.invoices[link.invoiceId];
     if (!inv) throw new Error(`Invoice ${link.invoiceNumber} isn't in the demo books.`);
     const out: PostedLine[] = [];
+    try {
     lines.forEach((l, i) => {
       const lineKey = `${idempotencyKey}-${i}`;
       const existing = this.books.entries.find((e) => e.reference.endsWith(`[${lineKey}]`));
@@ -71,6 +73,10 @@ export class DemoBooksAdapter implements BooksAdapter {
         out.push({ ...l, externalId, externalType: "HistoryNote" });
       }
     });
+    } catch (e) {
+      if (out.length) throw new PartialPostError(e instanceof Error ? e.message : String(e), out);
+      throw e;
+    }
     return out;
   }
 }

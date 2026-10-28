@@ -8,6 +8,7 @@
 // Every write carries an Idempotency-Key header, so a retried posting never creates a second record.
 // The access token comes from the OAuth connection (see ./xero-auth.ts); this file never stores it.
 
+import { PartialPostError } from "../types";
 import type { BooksAdapter, BooksInvoice, InvoiceLink, PostedLine, PostingLine } from "../types";
 
 export const XERO_API = "https://api.xero.com/api.xro/2.0";
@@ -44,7 +45,7 @@ export function xeroBody(link: InvoiceLink, l: PostingLine) {
         path: "/BankTransactions",
         body: { BankTransactions: [{
           Type: "RECEIVE-OVERPAYMENT", Contact: { ContactID: link.contactId }, BankAccount: { Code: l.accountCode }, Date: l.date,
-          Reference: xeroReference(l), LineAmountTypes: "NoTax", LineItems: [{ Description: l.description.slice(0, 4000), LineAmount: num(l.amount) }],
+          Reference: `${/refund/i.test(l.description) ? "To refund" : "Customer credit"} · ${xeroReference(l)}`.slice(0, 255), LineAmountTypes: "NoTax", LineItems: [{ Description: l.description.slice(0, 4000), LineAmount: num(l.amount) }],
         }] },
       };
     case "note":
@@ -84,6 +85,7 @@ export class XeroAdapter implements BooksAdapter {
 
   async post(link: InvoiceLink, lines: PostingLine[], idempotencyKey: string): Promise<PostedLine[]> {
     const out: PostedLine[] = [];
+    try {
     for (const [i, l] of lines.entries()) {
       const key = `${idempotencyKey}-${i}`;
       const { path, body } = xeroBody(link, l);
@@ -101,6 +103,10 @@ export class XeroAdapter implements BooksAdapter {
       } else {
         out.push({ ...l, externalId: `history:${link.invoiceId}:${key}`, externalType: "HistoryNote" });
       }
+    }
+    } catch (e) {
+      if (out.length) throw new PartialPostError(e instanceof Error ? e.message : String(e), out);
+      throw e;
     }
     return out;
   }
