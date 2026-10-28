@@ -409,7 +409,7 @@ textarea.input { height: auto; padding: 8px 12px; resize: vertical; line-height:
 .case .page-head h1 { font-size: 20px; }
 .message { border: 1px solid var(--border); border-left: 3px solid var(--text-3); background: var(--panel); border-radius: var(--radius); padding: 10px 14px; display: flex; flex-direction: column; gap: 4px; }
 .message-h { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--text-2); flex-wrap: wrap; }
-.message p { margin: 0; font-size: 14px; line-height: 1.5; }
+.message p { margin: 0; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
 
 .verdict { display: flex; flex-direction: column; gap: 8px; padding: 16px 18px; border-radius: var(--radius); border: 1px solid var(--border); border-left-width: 4px; background: var(--panel); }
 .verdict h2 { margin: 0; font-size: 18px; line-height: 1.3; }
@@ -477,3 +477,10 @@ details.panel:not([open]) > summary.panel-h { border-bottom: 0; }
 /* In your books: tone of the posting panel */
 [data-testid="posting-lines"] td { white-space: normal; cursor: default; }
 [data-testid="posting-lines"] tbody tr:hover { background: transparent; }
+
+/* Books audit log: three columns on desktop; on a phone the time and badge share a line and the detail gets the full width. */
+.audit-row { padding: 8px 16px; border-top: 1px solid var(--border); display: grid; grid-template-columns: 150px 110px minmax(0, 1fr); gap: 12px; font-size: 13px; }
+@media (max-width: 720px) {
+  .audit-row { grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; }
+  .audit-row > :last-child { grid-column: 1 / -1; }
+}

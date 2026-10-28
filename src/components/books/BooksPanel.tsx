@@ -25,6 +25,7 @@ const STATUS: Record<PlanStatus, { label: string; tone: string }> = {
 
 function Lines({ lines }: { lines: (PostingLine & { externalId?: string; externalType?: string })[] }) {
   return (
+    <div className="table-wrap">
     <table className="table" style={{ width: "100%", fontSize: 13 }} data-testid="posting-lines">
       <thead><tr><th style={{ textAlign: "left" }}>Line</th><th style={{ textAlign: "right" }}>USD</th><th style={{ textAlign: "left" }}>Account</th><th style={{ textAlign: "left" }}>Detail</th></tr></thead>
       <tbody>
@@ -41,6 +42,7 @@ function Lines({ lines }: { lines: (PostingLine & { externalId?: string; externa
         ))}
       </tbody>
     </table>
+    </div>
   );
 }
 

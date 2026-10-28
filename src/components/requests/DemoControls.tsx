@@ -34,7 +34,7 @@ export function PlayPayment({ disabled }: { disabled?: boolean }) {
     for (const [label, body] of steps) {
       setStep(label);
       const e = await demo(body);
-      refreshAfterChange(router);
+      refreshAfterChange(router, { reload: false });
       if (e) { setError(e); break; }
       await pause(1000);
     }

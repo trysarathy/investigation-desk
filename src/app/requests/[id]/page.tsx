@@ -7,6 +7,7 @@ import { CopyButton } from "@/components/requests/Copy";
 import { PlayPayment, RedeliverButton } from "@/components/requests/DemoControls";
 import { AttachHash, DecisionPanel, OwnerAndNote } from "@/components/requests/RequestActions";
 import { BooksPanel } from "@/components/books/BooksPanel";
+import { loadAccounting } from "@/lib/accounting/service";
 import { DemoBadge, TonePill } from "@/components/requests/StatePill";
 import { explorerTxUrl } from "@/lib/catalogue";
 import { isDemoMode } from "@/lib/mode";
@@ -101,6 +102,7 @@ export default async function RequestDetail({ params, searchParams }: { params: 
   const msg = r.messages?.at(-1);
   const over = v.outstanding.startsWith("-");
   const blockedPaid = vd.tone === "blocked";
+  const linkedToBooks = !!(await loadAccounting()).links[r.id];
 
   return (
     <div className="page case">
@@ -223,7 +225,7 @@ export default async function RequestDetail({ params, searchParams }: { params: 
           <details className="panel">
             <summary className="panel-h"><h2>What this can&apos;t tell you</h2></summary>
             <ul className="panel-b" style={{ margin: 0, paddingLeft: 32 }}>
-              <li>Whether your accounting system was updated: this demo isn&apos;t connected to one.</li>
+              {!linkedToBooks && <li>Whether your accounting system was updated: this request isn&apos;t linked to an invoice in your books.</li>}
               {transfers.some((o) => o.source === "simulated") && <li>These are simulated demo transfers: no blockchain was asked, and the issuer&apos;s freeze list and the sender&apos;s history were not checked.</li>}
               {vd.cause && <li>Why the customer sent less. The cause above is the most likely explanation from the evidence; only the customer can confirm it.</li>}
               {v.ambiguous.length > 0 && <li>The chain can&apos;t say which invoice a transfer was meant for when requests share an address.</li>}

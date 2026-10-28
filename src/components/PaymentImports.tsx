@@ -155,9 +155,9 @@ function ImportPanel({ kind, title, mappings }: { kind: ImportKind; title: strin
     <section className="panel" aria-label={title}>
       <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
         <h2>{title}</h2>
-        <label className="muted" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <label className="muted" style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0, maxWidth: "100%" }}>
           Mapping
-          <select value={selectedId} onChange={(e) => choose(e.target.value)} aria-label={`${title} mapping`}>
+          <select style={{ minWidth: 0, maxWidth: "100%" }} value={selectedId} onChange={(e) => choose(e.target.value)} aria-label={`${title} mapping`}>
             {latest.map((m) => <option key={m.mappingId} value={m.mappingId}>{m.name} · v{m.version}</option>)}
           </select>
         </label>

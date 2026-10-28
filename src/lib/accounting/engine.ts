@@ -3,7 +3,7 @@
 // systems. The only write to the books is `approveAndPost`, and it posts only a "ready" plan.
 
 import { createHash } from "node:crypto";
-import { createRequest, deriveRequest } from "../requests/lifecycle";
+import { createRequest, deriveRequest, formatUsdc } from "../requests/lifecycle";
 import type { RequestsData, RequestToken } from "../requests/types";
 import { addDemoInvoice, DemoBooksAdapter, emptyDemoBooks } from "./providers/demo";
 import { planPosting, type PlanOptions } from "./rules";
@@ -40,7 +40,7 @@ export async function approveAndPost(
     const error = "The plan changed since you looked at it. Check the new lines and approve again.";
     return { acct: appendAudit(acct, { ...base, kind: "refused", reason: `Not posted: ${error}`, idempotencyKey: plan.idempotencyKey }), plan, error };
   }
-  let next = appendAudit(acct, { ...base, kind: "approved", reason: `${o.by} approved ${plan.lines.length} line(s): ${plan.reasons.join(" ")}`, idempotencyKey: plan.idempotencyKey, planned: plan.lines });
+  let next = appendAudit(acct, { ...base, kind: "approved", reason: `${o.by} approved ${lines(plan.lines.length)}: ${plan.reasons.join(" ")}`, idempotencyKey: plan.idempotencyKey, planned: plan.lines });
   try {
     const lines = await o.adapter.post(link, plan.lines, plan.idempotencyKey);
     next = appendAudit(next, { ...base, kind: "posted", reason: plan.reasons.join(" "), idempotencyKey: plan.idempotencyKey, lines });
@@ -49,7 +49,7 @@ export async function approveAndPost(
     const msg = e instanceof Error ? e.message : String(e);
     // Lines that did reach the books before the failure are recorded as posted, so a retry never posts them again.
     if (e instanceof PartialPostError && e.posted.length) {
-      next = appendAudit(next, { ...base, kind: "posted", reason: `Part of the plan posted before a failure: ${e.posted.length} of ${plan.lines.length} line(s).`, idempotencyKey: plan.idempotencyKey, lines: e.posted });
+      next = appendAudit(next, { ...base, kind: "posted", reason: `Part of the plan posted before a failure: ${e.posted.length} of ${lines(plan.lines.length)}.`, idempotencyKey: plan.idempotencyKey, lines: e.posted });
     }
     next = appendAudit(next, { ...base, kind: "failed", reason: msg, idempotencyKey: plan.idempotencyKey, planned: plan.lines });
     return { acct: next, plan, error: `Posting failed: ${msg}` };
@@ -57,6 +57,9 @@ export async function approveAndPost(
 }
 
 /** Make a payment request from an invoice in the books, and link the two. */
+/** "1 line", "2 lines": audit text reads as a sentence. */
+export const lines = (n: number) => `${n} line${n === 1 ? "" : "s"}`;
+
 export function importInvoice(
   reqData: RequestsData, acct: AccountingData, inv: BooksInvoice,
   o: { now: string; by: string; demo: boolean; publicId: string; receivingAddress: string; token: RequestToken; tokenContract: string; provider: AccountingData["provider"]; id?: string; autoMarkPaid?: boolean },
@@ -69,7 +72,7 @@ export function importInvoice(
     { now: o.now, by: o.by, demo: o.demo, publicId: o.publicId, tokenContract: o.tokenContract, id: o.id, autoMarkPaid: o.autoMarkPaid });
   const link: InvoiceLink = { provider: o.provider, invoiceId: inv.invoiceId, invoiceNumber: inv.invoiceNumber, contactId: inv.contactId, contactName: inv.contactName, currency: inv.currency, amountDue: inv.amountDue, linkedAt: o.now, demo: o.demo };
   const linked = appendAudit({ ...acct, links: { ...acct.links, [request.id]: link } },
-    { at: o.now, by: o.by, provider: o.provider, kind: "imported", requestId: request.id, invoiceNumber: inv.invoiceNumber, reason: `Payment request ${request.id} made from ${inv.invoiceNumber} (${inv.amountDue} ${inv.currency} due).`, demo: o.demo });
+    { at: o.now, by: o.by, provider: o.provider, kind: "imported", requestId: request.id, invoiceNumber: inv.invoiceNumber, reason: `Payment request ${request.id} made from ${inv.invoiceNumber} (${formatUsdc(inv.amountDue)} ${inv.currency} due).`, demo: o.demo });
   return { reqData: data, acct: linked, requestId: request.id };
 }
 
@@ -91,7 +94,7 @@ export async function seedDemoBooks(reqData: RequestsData, acct: AccountingData,
   for (const r of demoRequests) {
     const inv = addDemoInvoice(books, { invoiceNumber: r.invoiceRef, contactName: r.customerRef, total: r.amount });
     next.links[r.id] = { provider: "demo", invoiceId: inv.invoiceId, invoiceNumber: inv.invoiceNumber, contactName: r.customerRef, currency: "USD", amountDue: r.amount, linkedAt: r.createdAt, demo: true };
-    next = appendAudit(next, { at: r.createdAt, by: o.operator, provider: "demo", kind: "imported", requestId: r.id, invoiceNumber: r.invoiceRef, reason: `Payment request ${r.id} made from ${r.invoiceRef} (${r.amount} USD due).`, demo: true });
+    next = appendAudit(next, { at: r.createdAt, by: o.operator, provider: "demo", kind: "imported", requestId: r.id, invoiceNumber: r.invoiceRef, reason: `Payment request ${r.id} made from ${r.invoiceRef} (${formatUsdc(r.amount)} USD due).`, demo: true });
   }
   // Routine, exactly-paid requests that were marked paid: posted shortly after, as if approved then.
   for (const r of demoRequests) {

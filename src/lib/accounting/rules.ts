@@ -58,7 +58,8 @@ export function toCents(a: string): string {
   return neg && out !== "0.00" ? `-${out}` : out;
 }
 
-const shortHash = (h: string) => (h.length > 14 ? `${h.slice(0, 8)}…${h.slice(-4)}` : h);
+// Same short form as every other page (0x + 8, …, last 6), so one transfer reads the same everywhere.
+const shortHash = (h: string) => (h.length > 17 ? `${h.slice(0, 10)}…${h.slice(-6)}` : h);
 
 /** What already went into the books for a request, from the audit log. */
 export function postedFor(acct: AccountingData, requestId: string): PostedLine[] {
