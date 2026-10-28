@@ -20,6 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
+from . import volume
 from .model import (
     SENDABLE_LABELS, STRICT_COUNTRIES, SUPPORT_LOCALS, Settings, domain_of, email_local, parse_date,
 )
@@ -37,6 +38,7 @@ class Verdict:
     allow: bool = True
     needs_approval: bool = True
     reasons: list[str] = field(default_factory=list)
+    inbox: str = ""
 
     def block(self, why: str) -> None:
         self.allow = False
@@ -83,9 +85,7 @@ def check(candidates: list[dict], leads: list[dict], touches: list[dict], dnc: l
     lead_by_id = {l.get("id"): l for l in leads}
     dnc_emails, dnc_domains = _dnc_sets(dnc)
 
-    first = _first_sends(touches)
-    sent_today = sum(1 for t in first if parse_date(t.get("date")) == today)
-    sent_30d = sum(1 for t in first if (d := parse_date(t.get("date"))) and today - d < timedelta(days=30))
+    vol = volume.daily_cap(settings, touches, today)
 
     # company -> last date any first email or follow-up went to it
     recent_domain: dict[str, date] = {}
@@ -98,7 +98,6 @@ def check(candidates: list[dict], leads: list[dict], touches: list[dict], dnc: l
             recent_domain[dom] = max(recent_domain.get(dom, d), d)
 
     out: list[Verdict] = []
-    planned_first = 0
     planned_domains: set[str] = set()
     for c in candidates:
         lead = lead_by_id.get(c.get("lead_id"), {})
@@ -144,12 +143,6 @@ def check(candidates: list[dict], leads: list[dict], touches: list[dict], dnc: l
             if dom in planned_domains:
                 v.block(f"another person at {dom} is already in today's batch")
             if v.allow:
-                if sent_today + planned_first >= settings.effective_daily_cap:
-                    v.block(f"daily cap reached ({settings.effective_daily_cap})")
-                elif sent_30d + planned_first >= settings.similar_30d_cap:
-                    v.block(f"30-day cap reached ({settings.similar_30d_cap})")
-            if v.allow:
-                planned_first += 1
                 planned_domains.add(dom)
         elif step in FOLLOWUP_GAP:
             d0 = [t for t in thread if (t.get("step") or "").upper() == "D0" and (t.get("status") or "").lower() in SENT_STATUSES]
@@ -165,9 +158,34 @@ def check(candidates: list[dict], leads: list[dict], touches: list[dict], dnc: l
                     v.block("no thread id: follow-up must reply in the same thread")
             if any((t.get("step") or "").upper() == step and (t.get("status") or "").lower() in SENT_STATUSES for t in thread):
                 v.block(f"{step} already sent")
+            v.inbox = next(((t.get("inbox") or "") for t in d0 if t.get("inbox")), "")
         else:
             v.block(f"unknown step {step}")
         out.append(v)
+
+    # Volume: follow-ups first (existing threads), then first emails, until today's cap is used.
+    planned = 0
+    order = [v for v in out if v.step in FOLLOWUP_GAP] + [v for v in out if v.step not in FOLLOWUP_GAP]
+    for v in order:
+        if not v.allow:
+            continue
+        if vol.sent_today + planned >= vol.cap:
+            v.block(f"daily cap reached ({vol.cap}): " + "; ".join(vol.reasons))
+        elif settings.similar_30d_cap and vol.sent_30d + planned >= settings.similar_30d_cap and not settings.bulk_confirmed:
+            v.block(f"30-day line reached ({settings.similar_30d_cap}): confirm Spam Control Act bulk duties, then set BULK_CONFIRMED")
+        else:
+            planned += 1
+    # Rotate new first emails across inboxes (follow-ups keep their thread's inbox).
+    firsts = [v for v in out if v.allow and v.step == "D0"]
+    fu_load: dict[str, int] = {}
+    for v in out:
+        if v.allow and v.step in FOLLOWUP_GAP and v.inbox:
+            fu_load[v.inbox] = fu_load.get(v.inbox, 0) + 1
+    for v, inbox in zip(firsts, volume.assign_inboxes(settings, touches, len(firsts), today, fu_load)):
+        v.inbox = inbox
+        if settings.send_mode == "domain" and not inbox:
+            v.block("no inbox has room left today")
+    check.last_volume = vol
     return out
 
 

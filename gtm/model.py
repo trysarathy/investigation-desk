@@ -25,7 +25,7 @@ LEAD_COLS = [
 ]
 TOUCH_COLS = [
     "date", "lead_id", "company", "domain", "email", "channel", "step", "subject", "status",
-    "thread_id", "approved", "notes",
+    "thread_id", "approved", "notes", "inbox",
 ]
 DNC_COLS = ["value", "kind", "reason", "date"]
 QUEUE_COLS = [
@@ -120,9 +120,21 @@ class Settings:
     same_company_days: int = 7
     postal_address: str = ""
     booking_link: str = ""
+    # Volume plan (separate domain, several inboxes, ramp). Defaults = the safe personal-Gmail mode.
+    send_mode: str = "gmail_personal"          # gmail_personal | domain
+    inboxes: tuple[str, ...] = ()              # sending inboxes on the domain, rotated
+    per_inbox_cap: int = 20
+    ramp_start: str = ""                       # YYYY-MM-DD: first day of warm-up week
+    ramp_caps: tuple[int, ...] = (0, 20, 35, 50)  # week 1, 2, 3, 4+ (emails/day, first + follow-ups)
+    domain_ready: bool = False                 # SPF, DKIM, DMARC set and verified
+    unsubscribe_ready: bool = False            # one-click unsubscribe link in every email
+    placement_ok: bool = False                 # latest Gmail + Outlook inbox-placement test landed in inbox
+    bulk_confirmed: bool = False               # professional confirmed Spam Control Act bulk duties are met
+    throttle_cap: int = 20
 
     @property
     def effective_daily_cap(self) -> int:
+        """Simple cap for personal-Gmail mode. Domain mode uses gtm.volume.daily_cap()."""
         return max(0, min(self.daily_cap, self.current_send_cap or self.daily_cap))
 
     @classmethod
@@ -142,4 +154,14 @@ class Settings:
             same_company_days=num("SAME_COMPANY_DAYS", 7),
             postal_address=kv.get("POSTAL_ADDRESS", ""),
             booking_link=kv.get("BOOKING_LINK", ""),
+            send_mode=(kv.get("SEND_MODE", "gmail_personal") or "gmail_personal").lower(),
+            inboxes=tuple(i.strip().lower() for i in kv.get("INBOXES", "").split(",") if "@" in i),
+            per_inbox_cap=num("PER_INBOX_CAP", 20),
+            ramp_start=kv.get("RAMP_START", ""),
+            ramp_caps=tuple(int(x) for x in (kv.get("RAMP_CAPS", "0,20,35,50") or "0,20,35,50").split(",") if x.strip().isdigit()) or (0, 20, 35, 50),
+            domain_ready=truthy(kv.get("DOMAIN_READY", "false")),
+            unsubscribe_ready=truthy(kv.get("UNSUBSCRIBE_READY", "false")),
+            placement_ok=truthy(kv.get("PLACEMENT_OK", "false")),
+            bulk_confirmed=truthy(kv.get("BULK_CONFIRMED", "false")),
+            throttle_cap=num("THROTTLE_CAP", 20),
         )

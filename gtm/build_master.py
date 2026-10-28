@@ -30,6 +30,16 @@ SETTINGS = [
     ("OWNER_TZ", "Asia/Singapore", ""),
     ("FOLLOWUP_DAYS", "4,11", "follow-ups go in the same thread"),
     ("MASTER_REPO", "https://github.com/trysarathy/clearline-gtm", "guard script lives here"),
+    ("SEND_MODE", "gmail_personal", "gmail_personal = send from aashmiin@gmail.com via the Gmail connector (cap above). domain = separate domain inboxes through the sending tool, with the ramp below"),
+    ("INBOXES", "", "domain inboxes, comma-separated, e.g. aashmiin@getclearline.com,a.kaur@getclearline.com"),
+    ("PER_INBOX_CAP", "20", "max emails per inbox per day (first + follow-ups)"),
+    ("RAMP_START", "", "YYYY-MM-DD: first day of warm-up week (week 1 = warm-up only)"),
+    ("RAMP_CAPS", "0,20,35,50", "emails/day for week 1, 2, 3, 4+ (first + follow-ups combined)"),
+    ("DOMAIN_READY", "FALSE", "TRUE only after SPF, DKIM and DMARC pass"),
+    ("UNSUBSCRIBE_READY", "FALSE", "TRUE only after a one-click unsubscribe link is in every email"),
+    ("PLACEMENT_OK", "FALSE", "TRUE when the latest Gmail + Outlook inbox-placement test landed in the inbox; needed for each step up"),
+    ("BULK_CONFIRMED", "FALSE", "TRUE only after a professional confirms Spam Control Act bulk duties; sending stops at 1,000 in 30 days until then"),
+    ("THROTTLE_CAP", "20", "auto-throttle level: bounce >3%, any complaint, or reply <1% over 100 sends"),
 ]
 
 DASHBOARD = [
@@ -45,6 +55,8 @@ DASHBOARD = [
     ("Strong problems", '=COUNTIF(Calls!F2:F5000,"Strong")', "problem_score on calls"),
     ("Design partners", '=COUNTIF(Leads!D2:D5000,"Design partner")', ""),
     ("Paying", '=COUNTIF(Leads!D2:D5000,"Paying")', ""),
+    ("Emails sent today (all steps)", '=COUNTIFS(Touches!A2:A5000,TEXT(TODAY(),"yyyy-mm-dd"),Touches!I2:I5000,"sent")', "first + follow-ups"),
+    ("Emails sent, last 30 days", '=COUNTIFS(Touches!A2:A5000,">="&TEXT(TODAY()-29,"yyyy-mm-dd"),Touches!I2:I5000,"sent")', "Spam Control Act bulk line = 1,000"),
     ("Waiting for your approval", "=COUNTIFS('Approval Queue'!O2:O5000,\"queued\")", ""),
     ("PAUSE", "=Settings!B2", ""),
     ("Autonomy level allowed", "=Settings!B3", ""),

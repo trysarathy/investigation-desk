@@ -76,3 +76,29 @@ status drafted/queued/sent/replied/bounced/unsubscribed, thread_id, approved yes
 ## Reply classes
 yes / more info / wrong person / not interested / out of office / complaint / legal / other.
 Positive = yes or more info (notes start with "positive").
+
+## Volume (target: 50 emails/day, first emails + follow-ups combined, reached safely)
+- Run `python -m gtm.cli volume --dir work` first. Its `cap_today` is the most that may go out
+  today across ALL steps; the guard enforces it. Follow-ups are served first, new first emails fill
+  what's left. Put every `alerts` line at the TOP of the report to Aashmiin.
+- SEND_MODE = gmail_personal (now): send from aashmiin@gmail.com with the Gmail connector,
+  cap = CURRENT_SEND_CAP (5). Do not raise it while on personal Gmail.
+- SEND_MODE = domain (after she buys the domain): separate domain, 2–3 inboxes, warm-up always on,
+  ≤ PER_INBOX_CAP (20) per inbox per day, rotated (the guard assigns `inbox`). Ramp from
+  RAMP_START: week 1 warm-up only (0 from the system), week 2 = 20/day, week 3 = 35/day, week 4+ =
+  50/day. A step up only if bounce < 2%, no spam complaint, and PLACEMENT_OK = TRUE (a Gmail +
+  Outlook inbox-placement test landed in the inbox). Nothing goes out until DOMAIN_READY and
+  UNSUBSCRIBE_READY are TRUE.
+- In domain mode the domain inboxes are NOT the Gmail connector: the evening run writes tomorrow's
+  guard-ALLOWed first emails (with inbox, subject, body, first line, source) to a Drive file
+  "Clearline send batch <date>.csv" for the sending tool; Aashmiin imports it (that is her approval).
+  The sending tool runs the D4/D11 steps, warm-up, rotation and the one-click unsubscribe link.
+- Every email: honest sender name and company, working one-click unsubscribe link (domain mode) or
+  the reply-"no" line (personal mode). Unsubscribes and hard "no"s go to Do-not-contact THE SAME DAY.
+- Auto-throttle: bounce > 3%, any spam complaint, or reply rate < 1% over the last 100 sends → the
+  cap drops to THROTTLE_CAP (20) automatically. Tell Aashmiin immediately.
+- Bulk line: the Singapore Spam Control Act treats >1,000 similar messages in 30 days as bulk. At
+  900 sent in 30 days, alert her. At 1,000 the guard stops all sending until BULK_CONFIRMED = TRUE
+  (she sets it only after a professional confirms the bulk duties, e.g. subject labelling).
+- Lead supply must match: new first emails/day ≈ cap minus follow-ups due. Never pad: no evidence,
+  no lead. If supply is short, send fewer emails and say so.
