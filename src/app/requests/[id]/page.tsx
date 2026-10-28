@@ -6,6 +6,7 @@ import { AutoRefresh } from "@/components/requests/AutoRefresh";
 import { CopyButton } from "@/components/requests/Copy";
 import { PlayPayment, RedeliverButton } from "@/components/requests/DemoControls";
 import { AttachHash, DecisionPanel, OwnerAndNote } from "@/components/requests/RequestActions";
+import { BooksPanel } from "@/components/books/BooksPanel";
 import { DemoBadge, TonePill } from "@/components/requests/StatePill";
 import { explorerTxUrl } from "@/lib/catalogue";
 import { isDemoMode } from "@/lib/mode";
@@ -166,6 +167,8 @@ export default async function RequestDetail({ params, searchParams }: { params: 
 
             {r.id === "DEMO-1041" && r.demo && v.state === "awaiting_payment" && <PlayPayment />}
           </section>
+
+          <BooksPanel data={data} requestId={r.id} />
 
           {reply && (
             <section className="panel" data-testid="reply">

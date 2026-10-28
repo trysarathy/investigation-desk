@@ -1,0 +1,4 @@
+User-Agent: *
+Allow: /
+
+Sitemap: https://clearline-site.vercel.app/sitemap.xml
