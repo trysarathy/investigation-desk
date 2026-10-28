@@ -143,7 +143,8 @@ describe("posting rules", () => {
     const plan = planPosting(reqData, acct, "R1", opts);
     expect(plan.status).toBe("never");
     expect(plan.reasons.join(" ")).toMatch(/never posted: it isn't genuine USDT/);
-    await post(reqData, acct, new DemoBooksAdapter(books, () => t(10)));
+    const res = await post(reqData, acct, new DemoBooksAdapter(books, () => t(10)));
+    expect(res.acct.audit.at(-1)).toMatchObject({ kind: "refused" });
     expect(books.entries).toHaveLength(0);
     expect(Object.values(books.invoices)[0].status).toBe("AUTHORISED");
   });
@@ -216,6 +217,7 @@ describe("approval, idempotency and audit", () => {
     const changed = decideAs(reqData, "R1", "accept_short");
     const res = await post(changed, acct, new DemoBooksAdapter(books, () => t(10)), "R1", seen.idempotencyKey);
     expect(res.error).toMatch(/plan changed/);
+    expect(res.acct.audit.at(-1)).toMatchObject({ kind: "refused" });
     expect(books.entries).toHaveLength(0);
   });
 

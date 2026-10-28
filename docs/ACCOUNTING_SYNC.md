@@ -16,7 +16,7 @@ approves, posted to the company's accounting system.
 4. **Approval.** A person clicks *Approve and post*. The button sends the plan's key; if the plan
    changed since the page loaded, the server refuses and shows the new plan.
 5. **Post.** The adapter writes the lines to the accounting system with an idempotency key per line.
-6. **Audit.** Every approval, posting, failure and refusal is appended to the audit log (`/books`).
+6. **Audit.** Every approval, posting, failure and refused approval (plan not ready, plan changed, books not connected) is appended to the audit log (`/books`). A counterfeit or wrong-network payment shows "Never posted" on its page; it is logged when someone tries to approve it.
 
 ## Posting rules (all tested in `tests/accounting.test.ts`)
 

@@ -61,7 +61,13 @@ export async function approvePosting(requestId: string, by: string, expectedKey?
   return accountingStore().update(async (acct): Promise<[AccountingData | undefined, R]> => {
     const now = nowIso();
     let adapter: BooksAdapter;
-    try { adapter = await adapterFor(acct, nowIso); } catch (e) { return [undefined, { error: (e as Error).message }]; }
+    try { adapter = await adapterFor(acct, nowIso); } catch (e) {
+      // Logged too: an approval that couldn't reach the books is a refusal on record.
+      const error = (e as Error).message;
+      const entry = { id: `AUD-${randomBytes(5).toString("hex")}`, at: now, kind: "refused" as const, by, provider: acct.provider, requestId,
+        invoiceNumber: acct.links[requestId]?.invoiceNumber, reason: `Not posted: ${error}`, demo: false };
+      return [{ ...acct, audit: [...acct.audit, entry] }, { error }];
+    }
     const res = await approveAndPost(reqData, acct, requestId, { threshold: CONFIRMATIONS, by, now, adapter, expectedKey });
     if (res.error && res.acct === acct) return [undefined, { error: res.error }];
     return [res.acct, res.error ? { error: res.error } : { message: `Posted ${res.plan.lines.length} line(s) to ${adapter.provider === "demo" ? "the demo books" : adapter.provider}.` }];

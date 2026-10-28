@@ -80,7 +80,7 @@ export async function BooksPanel({ data, requestId }: { data: RequestsData; requ
           </>
         )}
         <div className="faint" style={{ fontSize: 12 }}>
-          Clearline only reads the blockchain. It writes to {where} only when a person approves, and keeps every posting and refusal in the <Link href="/books">audit log</Link>.
+          Clearline only reads the blockchain. It writes to {where} only when a person approves, and keeps every posting and every refused approval in the <Link href="/books">audit log</Link>.
         </div>
       </div>
     </section>

@@ -37,7 +37,8 @@ export async function approveAndPost(
   }
   if (o.expectedKey && o.expectedKey !== plan.idempotencyKey) {
     // What the person approved isn't what would post now (a transfer arrived, a decision changed): show them again.
-    return { acct, plan, error: "The plan changed since you looked at it. Check the new lines and approve again." };
+    const error = "The plan changed since you looked at it. Check the new lines and approve again.";
+    return { acct: appendAudit(acct, { ...base, kind: "refused", reason: `Not posted: ${error}`, idempotencyKey: plan.idempotencyKey }), plan, error };
   }
   let next = appendAudit(acct, { ...base, kind: "approved", reason: `${o.by} approved ${plan.lines.length} line(s): ${plan.reasons.join(" ")}`, idempotencyKey: plan.idempotencyKey, planned: plan.lines });
   try {
