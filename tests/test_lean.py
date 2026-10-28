@@ -101,6 +101,8 @@ class LeanTests(unittest.TestCase):
         self.assertEqual(body.count("http"), 1)
         self.assertIn("linkedin.com", body)
         self.assertIn("reply \"no\"", body)
+        self.assertIn("(Clearline)", body)  # honest sender: names what she's building
+        self.assertNotIn("not selling", body)
 
 
 class AccountingQuestionTests(unittest.TestCase):
