@@ -14,8 +14,10 @@ promise is backed by shipped code.
 the first night (target: 90%).
 
 **Inputs.**
-- Product roadmap tab: take the top 1-2 rows by priority with status `next` (or `bug` from QA),
-  skipping any marked `needs decision` or `blocked`.
+- Product roadmap tab (columns: item, why, status, PR / link, owner, target week, notes): at most 2
+  rows owned by "Product" with status `bug`, `next` or `todo` and no PR or branch linked yet, in that
+  order, earliest target week first. Never touch `building`, `PR open`, `in review`, `shipped`,
+  `blocked`, `needs decision` or `proposed` rows, or rows owned by Aashmiin.
 - QA's latest `Clearline product health` email and open `qa-fix/*` PRs.
 - Call notes and specs the row links to (from product-manager once hired; until then, the row text).
 
