@@ -9,14 +9,14 @@ minutes before the hour or half hour, because the scheduler is busiest on the ex
 
 | Time | Employee | Scheduled task | Change from today |
 |---|---|---|---|
-| 22:53 | qa-tester | "Clearline nightly product QA" | was 02:13 |
-| 23:27 | lead-engineer | "Clearline lead engineer nightly" | new |
-| 00:27 | research-analyst | "Clearline nightly LinkedIn + targets builder" | was 01:37; adds competitor/regulation watch |
-| 01:27 | sdr | "Clearline LinkedIn daily pack" (+ follow-up check) | was 07:49 weekdays; now nightly, Mon-Fri |
+| 22:53 | qa-tester | "Clearline nightly product QA (qa-tester)" | live (was 02:13) |
+| 23:27 | lead-engineer | "Clearline lead engineer nightly (lead-engineer)" | live, **needs a click**: add Gmail + Google Sheets connectors and choose Auto (see below) |
+| 00:27 | research-analyst | "Clearline nightly LinkedIn + targets builder (research-analyst)" | live (was 01:37); adds competitor/regulation watch |
+| 01:27 | sdr | "Clearline LinkedIn daily pack (sdr, night)" + follow-up check | live (was 07:49 weekdays), Mon-Fri |
 | every hour at :49 | sdr | "Clearline sender" | unchanged: sends only 9:00-17:00 in each recipient's time zone, so US/EU follow-ups go out overnight SGT within the caps |
-| 02:27 | content-marketer (week 2) | "Clearline marketing daily" | was 10:37 weekdays |
-| 03:27 | devops (week 2) | "Clearline devops nightly" | new in week 2 |
-| 07:27 | chief-of-staff | "Clearline daily briefing" | was 08:24 weekdays; now every day |
+| 02:27 | content-marketer (week 2) | "Clearline marketing daily" | still 10:37 weekdays; moves when content-marketer is hired |
+| 03:27 | devops (week 2) | "Clearline devops nightly" | created in week 2 |
+| 07:27 | chief-of-staff | "Clearline daily briefing (chief-of-staff)" | live (was 08:24 weekdays), every day |
 
 ## Daytime and weekly (unchanged)
 
@@ -31,10 +31,13 @@ minutes before the hour or half hour, because the scheduler is busiest on the ex
 | Sun 17:38 | chief-of-staff | "Clearline weekly wrap" |
 | 1st of month 10:17 | chief-of-staff | "Clearline monthly update" |
 
-## Approval mode
+## Approval mode and connectors
 
-The existing tasks run in **Auto** mode (no clicks). A task created by a session takes that session's
-mode. If one shows "needs approval" in the scheduled-tasks list, open it and choose Auto. The one-off
+Every task above runs in **Auto** mode (no clicks) with the Gmail, Google Sheets/Drive/Docs/Calendar and
+Notion connectors, except the new **lead-engineer** task: tasks created from a coding session get no
+connectors and no mode. Open claude.ai → Scheduled tasks → "Clearline lead engineer nightly
+(lead-engineer)" → Edit: add the Gmail and Google Sheets connectors and set the mode to Auto. Until then
+it can't read the Product roadmap tab or check PAUSE in Gmail. The one-off
 "Day-1 sending review + ramp decision" is tied to Aashmiin's MacBook Air: it runs only if the Mac is on.
 
 ## What never happens overnight
