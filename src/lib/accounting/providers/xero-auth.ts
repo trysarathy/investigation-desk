@@ -15,11 +15,25 @@ export const XERO_AUTHORIZE = "https://login.xero.com/identity/connect/authorize
 export const XERO_TOKEN = "https://identity.xero.com/connect/token";
 export const XERO_CONNECTIONS = "https://api.xero.com/connections";
 /**
- * Scopes: read contacts and invoices, write payments, credit notes and bank transactions.
- * [ASSUMPTION] Apps created after Xero's 2026 scope change may need the granular scopes instead
- * (accounting.invoices, accounting.payments, accounting.banktransactions); set XERO_SCOPES to override.
+ * Scopes. Apps created on or after 2 March 2026 get Xero's granular scopes only, so the broad
+ * `accounting.transactions` is no longer requested. Each endpoint `providers/xero.ts` calls, and its scope:
+ *   GET /Invoices (import open invoices)            accounting.invoices (covers read)
+ *   PUT /CreditNotes (fee write-off)                accounting.invoices (credit notes sit under invoices)
+ *   PUT /CreditNotes/{id}/Allocations               accounting.invoices [ASSUMPTION: a credit-note sub-resource]
+ *   PUT /Invoices/{id}/History (note)               accounting.invoices [ASSUMPTION: an invoice sub-resource]
+ *   PUT /Payments (payment)                         accounting.payments
+ *   PUT /BankTransactions (overpayment received)    accounting.banktransactions
+ *   Contact IDs read from invoices                  accounting.contacts.read
+ * Credit notes need write on `accounting.invoices`, which includes reading invoices, so no separate
+ * `accounting.invoices.read`. `openid profile email` identify the user; `offline_access` gives the
+ * refresh token. Older apps still on broad scopes (allowed until September 2027) can set XERO_SCOPES.
+ * Sources: devblog.xero.com/upcoming-changes-to-xero-accounting-api-scopes-705c5a9621a0, apideck.com/blog/xero-scopes.
  */
-export const DEFAULT_SCOPES = "openid profile email offline_access accounting.transactions accounting.contacts.read";
+export const DEFAULT_SCOPES =
+  "openid profile email offline_access accounting.invoices accounting.payments accounting.banktransactions accounting.contacts.read";
+
+/** The scope string sent to Xero: XERO_SCOPES when set, otherwise DEFAULT_SCOPES. */
+export const xeroScopes = () => process.env.XERO_SCOPES || DEFAULT_SCOPES;
 
 export interface XeroTokens { accessToken: string; refreshToken: string; expiresAt: number; tenantId: string; tenantName: string }
 
@@ -29,7 +43,7 @@ const clientSecret = () => process.env.XERO_CLIENT_SECRET ?? "";
 export const xeroConfigured = () => !!clientId() && !!clientSecret();
 
 export function authorizeUrl(redirectUri: string, state: string): string {
-  const q = new URLSearchParams({ response_type: "code", client_id: clientId(), redirect_uri: redirectUri, scope: process.env.XERO_SCOPES || DEFAULT_SCOPES, state });
+  const q = new URLSearchParams({ response_type: "code", client_id: clientId(), redirect_uri: redirectUri, scope: xeroScopes(), state });
   return `${XERO_AUTHORIZE}?${q}`;
 }
 

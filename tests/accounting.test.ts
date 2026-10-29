@@ -7,6 +7,7 @@ import { approveAndPost, importInvoice, seedDemoBooks } from "@/lib/accounting/e
 import { addDemoInvoice, DemoBooksAdapter, emptyDemoBooks } from "@/lib/accounting/providers/demo";
 import { qboBodies, QuickBooksAdapter } from "@/lib/accounting/providers/quickbooks";
 import { XeroAdapter, xeroBody, xeroReference, type Fetch } from "@/lib/accounting/providers/xero";
+import { authorizeUrl, DEFAULT_SCOPES, xeroScopes } from "@/lib/accounting/providers/xero-auth";
 import { cmp, planPosting, toCents, totalOf, type PriceSource } from "@/lib/accounting/rules";
 import { emptyAccounting, type AccountingData, type BooksAdapter, type InvoiceLink, type PostingLine } from "@/lib/accounting/types";
 import { checkObservation, CONFIRMATIONS, OFFICIAL_USDC, OFFICIAL_USDT } from "@/lib/requests/check";
@@ -37,7 +38,8 @@ const tx = (to: string, amount: string, seq: string, o: Partial<TransferEvent> =
 const put = (d: RequestsData, ev: TransferEvent, at = t(6)) => ingest(d, ev, at, "test", checkObservation(at), CONFIRMATIONS).data;
 const decideAs = (d: RequestsData, id: string, kind: Parameters<typeof decide>[2]["kind"], note = "Checked with the customer.", observationKey?: string) =>
   decide(d, id, { kind, note, observationKey }, { now: t(9), by: "Mei", threshold: CONFIRMATIONS, check: checkObservation(t(9)) }).data;
-const post = (reqData: RequestsData, acct: AccountingData, adapter: BooksAdapter, id = "R1", expectedKey?: string) =>
+/** Approve as a person on the page would: by the key of the plan shown (the current one unless given). */
+const post = (reqData: RequestsData, acct: AccountingData, adapter: BooksAdapter, id = "R1", expectedKey = planPosting(reqData, acct, id, opts).idempotencyKey) =>
   approveAndPost(reqData, acct, id, { ...opts, by: "Mei", now: t(10), adapter, expectedKey });
 
 describe("posting rules", () => {
@@ -210,6 +212,18 @@ describe("approval, idempotency and audit", () => {
     expect(books.entries).toHaveLength(1);
   });
 
+  it("approval without the plan key is refused and recorded, and nothing posts", async () => {
+    const { reqData: d0, acct, books } = invoiced("1000.00");
+    const reqData = put(d0, tx(addr("R1"), "1000.00", "a"));
+    expect(planPosting(reqData, acct, "R1", opts).status).toBe("ready");
+    const res = await post(reqData, acct, new DemoBooksAdapter(books, () => t(10)), "R1", "");
+    expect(res.error).toMatch(/plan key missing/i);
+    expect(res.acct.audit.at(-1)).toMatchObject({ kind: "refused", by: "Mei", requestId: "R1" });
+    expect(res.acct.audit.at(-1)?.reason).toMatch(/plan key missing/i);
+    expect(books.entries).toHaveLength(0);
+    expect(Object.values(books.invoices)[0]).toMatchObject({ amountDue: "1000.00" });
+  });
+
   it("approval is for the plan the person saw: a changed plan must be approved again", async () => {
     const { reqData: d0, acct, books } = invoiced("5000.00");
     const reqData = put(d0, tx(addr("R1"), "4950.00", "a"));
@@ -331,6 +345,27 @@ describe("Xero and QuickBooks request shapes", () => {
     const out = await q.post(link, [pay], "k");
     expect(out[0]).toMatchObject({ externalId: "77", externalType: "Payment" });
     expect(urls[0]).toMatch(/sandbox-quickbooks\.api\.intuit\.com\/v3\/company\/123\/payment\?minorversion=75&requestid=k-0/);
+  });
+});
+
+describe("Xero scopes", () => {
+  const SCOPES = "openid profile email offline_access accounting.invoices accounting.payments accounting.banktransactions accounting.contacts.read";
+  it("requests Xero's granular scopes by default, not the broad accounting.transactions", () => {
+    expect(DEFAULT_SCOPES).toBe(SCOPES);
+    expect(DEFAULT_SCOPES).not.toMatch(/accounting\.transactions/);
+    const prev = process.env.XERO_SCOPES;
+    delete process.env.XERO_SCOPES;
+    try {
+      expect(xeroScopes()).toBe(SCOPES);
+      expect(new URL(authorizeUrl("http://localhost:3000/cb", "s")).searchParams.get("scope")).toBe(SCOPES);
+    } finally { if (prev !== undefined) process.env.XERO_SCOPES = prev; }
+  });
+  it("XERO_SCOPES still overrides the default (for older apps on broad scopes)", () => {
+    const prev = process.env.XERO_SCOPES;
+    process.env.XERO_SCOPES = "openid offline_access accounting.transactions";
+    try {
+      expect(new URL(authorizeUrl("http://localhost:3000/cb", "s")).searchParams.get("scope")).toBe("openid offline_access accounting.transactions");
+    } finally { if (prev === undefined) delete process.env.XERO_SCOPES; else process.env.XERO_SCOPES = prev; }
   });
 });
 

@@ -55,7 +55,7 @@ export async function planFor(requestId: string): Promise<{ plan: PostingPlan; a
 }
 
 /** Approve the plan a person saw (by its key) and post it. */
-export async function approvePosting(requestId: string, by: string, expectedKey?: string): Promise<{ error?: string; message?: string }> {
+export async function approvePosting(requestId: string, by: string, expectedKey: string): Promise<{ error?: string; message?: string }> {
   const reqData = await requestsStore().load();
   type R = { error?: string; message?: string };
   return accountingStore().update(async (acct): Promise<[AccountingData | undefined, R]> => {
