@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="330" viewBox="0 0 800 330" font-family="Inter, sans-serif"><defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5b6272"/></marker></defs><rect width="800" height="330" fill="#fff"/>
+<rect x="290" y="10" width="220" height="102" rx="7" fill="#fff" stroke="#6e7df0"/><rect x="290" y="10" width="220" height="24" rx="7" fill="#eef0ff" stroke="#6e7df0"/><text x="300" y="27" font-size="12.5" font-weight="700">Payment request</text>
+<text x="300" y="52" font-size="11" fill="#3a404d">invoice ref · exact amount</text>
+<text x="300" y="70" font-size="11" fill="#3a404d">token + issuer contract (fixed)</text>
+<text x="300" y="88" font-size="11" fill="#3a404d">network · receiving address</text>
+<text x="300" y="106" font-size="11" fill="#3a404d">random public ID for the payer</text>
+<rect x="10" y="190" width="220" height="102" rx="7" fill="#fff" stroke="#6e7df0"/><rect x="10" y="190" width="220" height="24" rx="7" fill="#eef0ff" stroke="#6e7df0"/><text x="20" y="207" font-size="12.5" font-weight="700">Observed transfer</text>
+<text x="20" y="232" font-size="11" fill="#3a404d">key = chain:hash:logIndex</text>
+<text x="20" y="250" font-size="11" fill="#3a404d">token contract · amount</text>
+<text x="20" y="268" font-size="11" fill="#3a404d">confirmations · attribution</text>
+<text x="20" y="286" font-size="11" fill="#3a404d">simulated or live</text>
+<rect x="290" y="190" width="220" height="84" rx="7" fill="#fff" stroke="#6e7df0"/><rect x="290" y="190" width="220" height="24" rx="7" fill="#eef0ff" stroke="#6e7df0"/><text x="300" y="207" font-size="12.5" font-weight="700">Decision (append-only)</text>
+<text x="300" y="232" font-size="11" fill="#3a404d">kind, e.g. accept_short</text>
+<text x="300" y="250" font-size="11" fill="#3a404d">by (typed name today)</text>
+<text x="300" y="268" font-size="11" fill="#3a404d">note (required)</text>
+<rect x="570" y="10" width="220" height="66" rx="7" fill="#fff" stroke="#6e7df0"/><rect x="570" y="10" width="220" height="24" rx="7" fill="#eef0ff" stroke="#6e7df0"/><text x="580" y="27" font-size="12.5" font-weight="700">Invoice link</text>
+<text x="580" y="52" font-size="11" fill="#3a404d">accounting system · invoice ID</text>
+<text x="580" y="70" font-size="11" fill="#3a404d">invoice number · USD only</text>
+<rect x="570" y="190" width="220" height="84" rx="7" fill="#fff" stroke="#6e7df0"/><rect x="570" y="190" width="220" height="24" rx="7" fill="#eef0ff" stroke="#6e7df0"/><text x="580" y="207" font-size="12.5" font-weight="700">Posting audit entry</text>
+<text x="580" y="232" font-size="11" fill="#3a404d">approved · posted · failed · refused</text>
+<text x="580" y="250" font-size="11" fill="#3a404d">plan lines · idempotency key</text>
+<text x="580" y="268" font-size="11" fill="#3a404d">who and when</text>
+<rect x="10" y="10" width="220" height="66" rx="7" fill="#fff" stroke="#6e7df0"/><rect x="10" y="10" width="220" height="24" rx="7" fill="#eef0ff" stroke="#6e7df0"/><text x="20" y="27" font-size="12.5" font-weight="700">Check snapshot (append-only)</text>
+<text x="20" y="52" font-size="11" fill="#3a404d">verdict code · confidence</text>
+<text x="20" y="70" font-size="11" fill="#3a404d">evidence items · rule version</text>
+<g stroke="#5b6272" stroke-width="1.4" fill="none" marker-end="url(#a)"><line x1="345" y1="130" x2="150" y2="188"/><line x1="400" y1="130" x2="400" y2="188"/><line x1="510" y1="50" x2="568" y2="50"/><line x1="680" y1="94" x2="680" y2="188"/><line x1="120" y1="188" x2="120" y2="96"/></g>
+<g font-size="10.5" fill="#5b6272"><text x="200" y="156">attributed to</text><text x="406" y="165">many</text><text x="518" y="44">linked</text><text x="686" y="145">many</text><text x="126" y="145">re-checks</text></g></svg>
