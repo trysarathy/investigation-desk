@@ -1,27 +1,21 @@
 ---
 title: "Clearline"
 author: "Aashmiin Kaur, founder"
-date: "29 October 2026 · one-page summary of the white paper (v0.1)"
+date: "29 October 2026 · one-page summary of the working paper (v0.2)"
 ---
 
-**The problem.** Stablecoins now carry real commerce: about US\$400 billion of real-economy payments in 2025, an estimated 60% of them business-to-business (Bessemer, April 2026). But a blockchain transfer is not a completed business payment. Payments arrive short, on the wrong network, in counterfeit tokens, with no invoice reference, twice, or to a look-alike address. Finance teams sort this out by hand with block explorers and spreadsheets, after the money has moved.
+**The problem.** Real-economy stablecoin payments reached an estimated US\$350–550 billion in 2025 (BCG; about US\$390 billion per McKinsey/Artemis), roughly 1% of gross stablecoin transfers (Reap, August 2026). But a blockchain transfer is not a completed business payment. Payments arrive short, on the wrong network, in counterfeit tokens, without a reference, twice, or to a look-alike address. Finance teams sort them out by hand, after the money has moved.
 
-**The product.** Clearline is a read-only layer between "money moved" and "invoice closed" for businesses paid straight into their own wallets:
+**The product.** Clearline is a read-only layer for businesses paid straight into their own wallets: (1) a payment page per invoice with the exact amount, the issuer's token contract, the network, and an address checker that warns the payer about look-alike addresses; (2) deterministic checks with evidence; (3) conservative matching, never decided by amount alone; (4) plain-English explanations and replies; (5) accounting entries that post only after a person approves (Xero connection in testing). Counterfeit, failed and wrong-network payments are never posted. Clearline never holds funds or wallet keys.
 
-1. **Instruction:** a payment page per invoice with the exact amount, the issuer's token contract, the network and an address checker that stops look-alike addresses.
-2. **Verification:** deterministic checks with evidence (genuine token, network, failed, confirmations, issuer freeze).
-3. **Matching:** conservative attribution; never decided by amount alone; a person confirms uncertain matches with a reason.
-4. **Explanation:** plain-English cause, next step and customer reply, built from the records.
-5. **Accounting:** prepares the entries and, after a person approves, posts them (Xero connection in testing). Counterfeit, failed and wrong-network payments are never posted.
+**What works, and what doesn't yet.** All seven payment situations play through to the books in the demo with a fictional company. Live mode is thinner: someone pastes the transaction ID; nothing watches addresses or polls confirmations; correct payments are marked paid by a person; with one shared treasury address most payments need a person to assign them; payment pages are Ethereum only. Xero has not run on a live organisation, and its permissions need updating to Xero's 2026 granular scopes. There is no sign-in, and Xero tokens are stored unencrypted.
 
-Clearline never holds funds or wallet keys. Staying read-only is also our regulatory position; we have not yet taken legal advice on it.
+**Evidence.** 46 tests cover Clearline's own request and accounting code. The checking engine it reuses, from an earlier product, was correct on 59/59 and 52/52 real public transactions with sample company data. **No customers or customer calls yet**; outreach began 29 October 2026.
 
-**Evidence so far.** Working demo with seven payment situations, played end to end through to the books (113/113 browser checks). 573 automated tests pass. On real public transactions, the checking engine was correct on 59/59 cases after fixes and 52/52 on a held-out set. **Not yet:** customers (0), customer calls (0; outreach began 29 Oct 2026), a live Xero run (the Demo Company test is next), automatic detection (today someone pastes the transaction ID; nothing watches addresses), payment pages beyond Ethereum (Tron is next), sign-in, and encrypted storage of accounting tokens.
+**Competition.** HitPay already gives Singapore merchants stablecoin acceptance through a licensed partner; Stripe supports USDC but not USDT and caps transactions at US\$10,000; Request Finance offers crypto invoicing, and its protocol logs payment references on-chain. Our untested hypothesis: the gap is businesses whose payers send plain transfers to the business's own wallet.
 
-**Market and competition.** Real payments are only about 0.6–2% of stablecoin transfer volume (Reap, citing BIS, BCG and McKinsey). Processors (Stripe, Coinbase, HitPay) put themselves in the middle; crypto accounting tools (Bitwave, Request Finance, TRES, Cryptio) already sync to ERPs. Our hypothesis: the unserved user is the small or mid-sized business paid directly, where the cost sits in exceptions and in bad payment instructions.
+**Business (hypotheses).** First buyers in Singapore and Hong Kong; Tron payment pages come first. Pilot US\$300 for 30 days, then US\$200/month. A bottom-up guess (500–2,000 businesses) gives US\$1.2–4.8M a year: a small business unless it grows into partners, more regions or a shared standard.
 
-**Business.** First buyer (hypothesis): finance lead or founder at a Singapore or Hong Kong business invoicing in USD and paid in USDC/USDT. Founding pilot US\$300 for 30 days, then US\$200/month (untested). Path: wedge (exceptions and booking), then network (payer-side verification, sender history), then an open, signed payment-instruction and receipt format that wallets and auditors can verify.
+**Biggest risks.** Unproven demand; processors or Request Finance solving it first; licensing if anything ever touches funds; unsettled accounting treatment of stablecoins; one founder.
 
-**Biggest risks.** Demand is unproven; processors or accounting tools may absorb the problem; licensing if any feature ever touches funds; fragile public chain data; security maturity of a one-founder product.
-
-**Next 90 days.** Xero Demo Company live test; fix sign-in and token encryption; address watching on Ethereum; 20 customer calls; 3 paid pilots measured on real exceptions.
+**Next 90 days.** Tron pages; address watching and confirmation polling; sign-in, encrypted tokens and granular Xero scopes; the Xero Demo Company test; 20 customer calls; 3 paid pilots measured on real exceptions.

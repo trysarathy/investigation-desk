@@ -20,5 +20,5 @@ end
 -- keep headings with what follows (titlesec's own protection does not cover longtable)
 function Header(el)
   local n = el.level == 1 and 8 or 5
-  return { pandoc.RawBlock("latex", "\\needspace{" .. n .. "\\baselineskip}"), el }
+  return { pandoc.RawBlock("latex", "\\par\\vspace{0pt plus " .. n .. "\\baselineskip}\\penalty-250\\vspace{0pt plus -" .. n .. "\\baselineskip}"), el }
 end

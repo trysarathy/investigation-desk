@@ -1,7 +1,7 @@
 ---
 title: "Clearline"
 author: "Aashmiin Kaur, founder"
-date: "Working paper, version 0.1, 29 October 2026"
+date: "Working paper, version 0.2, 29 October 2026"
 ---
 
 <!--
@@ -10,394 +10,320 @@ EDITING NOTES (not printed)
 - Claim labels: {{V}} = verified (source in the footnote that follows), {{V:path}} = product claim
   proven by that file or test, {{A}} = assumption / hypothesis, {{G}} = guess.
   The clean copy hides the labels; the review copy prints them.
-- Keep every number sourced. Keep every product claim true of the code on the branch named in CLAIMS_AUDIT.md.
+- Product claims are pinned to commits listed in CLAIMS_AUDIT.md. Keep them true of those commits.
 -->
 
 ::: {.statusbox}
-**Status, stated plainly.** Clearline is a working product in demo mode, built by one founder. It has **no customers** and no customer conversations yet; outreach began on 29 October 2026. Live mode checks real Ethereum transactions when someone gives it the transaction ID. The Xero connection is built and tested against recorded API shapes but has not yet run on a live Xero organisation. Every number in this paper has a source, and every product claim maps to a file or test (see the claims audit that accompanies it).
+**Status, stated plainly.** This is a working paper about an early product built by one founder. Clearline works end to end in demo mode with a fictional company. It has no customers and no customer conversations yet; outreach began on 29 October 2026. In live mode it checks a real Ethereum transaction when someone pastes its ID; it does not yet watch wallets. The Xero connection is built and tested against recorded API shapes, but has not run on a live Xero organisation. Every market and regulatory figure has a source; guesses and assumptions are marked. Product claims refer to `main` at commit `9af0200` unless a footnote names an unmerged pull request.
 :::
 
-# 1. Abstract
+# Abstract {.unnumbered}
 
-Stablecoins now move real money between businesses. Bessemer estimates about US\$400 billion of real-economy stablecoin payments in 2025, most of them business-to-business.{{V}}[^bvp] Yet a transfer on a blockchain is not a completed business payment. A transfer says that a token balance changed. A payment means the right amount, of the genuine asset, on the agreed network, for a specific invoice, recorded correctly in the books. Between those two sits a layer that nobody clearly owns: telling the payer exactly what to send, checking what arrived, matching it to the invoice, explaining what went wrong, and posting the result to the accounting system.
+Stablecoins now carry real commerce: estimates of real-economy stablecoin payments in 2025 range from about US\$350 billion to US\$550 billion.{{V}}[^reap] Yet a blockchain transfer is not a completed business payment. A transfer says that a token balance changed. A payment means the right amount, of the genuine asset, on the agreed network, for a specific invoice, recorded correctly in the books. Between the two sits a layer nobody clearly owns: telling the payer exactly what to send, checking what arrived, matching it to the invoice, explaining what went wrong, and posting the result to the accounting system.
 
-Clearline is that layer for businesses paid directly into their own wallets. It issues a precise payment request for each invoice, checks each incoming transfer with deterministic rules, matches it to its invoice with evidence, explains failures in plain English, and prepares the accounting entries, which post only after a person approves. It is read-only on-chain and never holds funds. This paper describes the problem, the design, the evidence so far, what is not built, and the risks. It also proposes an open format for payment instructions and receipt evidence that wallets and accounting tools could share.
+Clearline aims to be that layer for businesses paid directly into their own wallets. It issues a precise payment request per invoice, checks each incoming transfer with deterministic rules, matches it to its invoice with evidence, explains failures in plain English, and prepares accounting entries that post only after a person approves. It is read-only on-chain and never holds funds. This paper sets out the problem, the design, what works today and what does not, the competition, and the risks. It ends with the open questions that only customers can answer.
 
-# 2. The problem: a transfer is not a payment
+# 1. The problem: a transfer is not a payment
 
-## 2.1 Two different things
+A blockchain records **transfers**: token *X* moved from address *A* to address *B* in block *n*. A business needs **payments**: customer *C* settled invoice *I* in full, in money the business can use. The second needs facts the chain does not hold:
 
-A blockchain records **transfers**: token *X* moved from address *A* to address *B* in block *n*. A business needs **payments**: customer *C* settled invoice *I* in full, on time, in money the business can use. The second needs facts the chain does not hold:
-
-- **Which invoice?** A USDC or USDT transfer on Ethereum carries no invoice reference. The transfer itself has no field for one.
+- **Which invoice?** A USDC or USDT transfer on Ethereum has no field for an invoice reference.
 - **Is it the genuine asset?** Anyone can deploy a token contract named "USDT". Only the issuer's contract makes it real.
 - **Is it complete?** A transfer can be short (an exchange took its fee out), over, or sent twice.
-- **Did it arrive where we can use it?** The same address format exists on several networks. A transfer sent on the wrong one may never reach the business.
-- **Is it final, and is it ours?** It needs enough confirmations, from a sender who is not frozen by the issuer, to an address the business actually controls.
+- **Did it arrive where the business can use it?** The same `0x` address exists on every EVM network, so a payer can send on the wrong one.
+- **Is it final?** It must be past the point where the chain can reorganise.
 
-A finance team must answer all five before it can close the invoice. Today that work is done by hand, and it is done after the money has already moved, when mistakes are hardest to fix.
+| Failure | Example | Consequence |
+|----|---------|----------|
+| **Short payment** | 4,950 USDC arrives for a 5,000 invoice | Invoice left open, or closed wrongly |
+| **Wrong network** | USDC sent on Polygon or BNB Chain to the `0x` address issued for Ethereum | Recoverable if the business controls that address with an ordinary key, because the same key works on every EVM chain; often not recoverable if the address is a smart-contract wallet (such as a Safe) or an exchange deposit address |
+| **Counterfeit token** | A token named "USDT" from a contract Tether does not control | Worthless tokens credited as payment |
+| **Missing reference** | 2,180 USDC to a general treasury address | Unapplied cash; the customer is chased for money they paid |
+| **Look-alike address** | Funds sent to an address that shares its first and last characters with the real one | Funds go to a scammer |
+| **Duplicate** | The same amount arrives twice, minutes apart | Refund owed; books overstated |
 
-## 2.2 How payments go wrong
+These are real. In December 2025 a user sent 49,999,950 USDT to an address matching the intended one in its first three and last four characters, minutes after a small test payment to the right address.{{V}}[^poison] That loss came from the payer's own wallet history, not from a business invoice; a payee-side tool such as Clearline would only have helped if the payer had used the payee's payment page. Among real public transactions collected to test Clearline's checking engine, 13 were counterfeit tokens posing as USDT, one spelled with look-alike Cyrillic and accented letters ("ÚЅDТ").{{V:demo/REPORT.md}} That count reflects how the cases were chosen, not how common counterfeits are.
 
-| Failure | What the chain shows | Why it is hard to see | Consequence |
-|-----|-------|-------|-------|
-| **Short payment** | 4,950 USDC arrives for a 5,000 invoice | The amount looks "about right" | Invoice left open, or closed wrongly |
-| **Wrong network** | USDT sent on Tron to an address issued for Ethereum | The payer's wallet says "sent" | Money may be unrecoverable, or sits in a wallet nobody checks |
-| **Counterfeit token** | A token named "USDT" from a contract Tether does not control | The name and amount look correct | Worthless tokens credited as payment |
-| **Missing reference** | 2,180 USDC to a general address with no memo | Nothing links it to an invoice | Unapplied cash; the customer is chased for money they paid |
-| **Look-alike address** | Funds sent to an address that shares the first and last characters with the real one | People check only the ends of a 42-character address | Funds go to a scammer before anyone looks |
-| **Duplicate** | The same amount arrives twice, minutes apart | Each transfer is valid on its own | Over-collection, refund owed, books overstated |
+**How finance teams cope today.** We have not measured this with any customer. Our working picture, which the first customer calls are designed to test, is a block explorer, a spreadsheet and an email thread for each exception.{{A}} We guess 10 to 30 minutes per exception.{{G}} The larger cost is risk: a counterfeit credited as payment, or a weak audit trail for how each receipt was verified.
 
-These are not hypothetical. On 19 December 2025, a user sent 49,999,950 USDT to an address that matched the intended one in its first three and last four characters, minutes after a small test payment to the right address.{{V}}[^poison] The transaction is public on Etherscan.{{V}}[^poisontx] In Clearline's own test of real public transactions (section 8), 13 counterfeit tokens calling themselves USDT appeared among the cases collected, one spelled with Cyrillic letters ("ÚЅDТ") to pass a visual check.{{V:demo/REPORT.md}} That count reflects how the test cases were chosen, not how common counterfeits are.
+# 2. Market context
 
-## 2.3 How finance teams handle it today
+**Size, with care.** Total stablecoin market capitalisation was US\$308.0 billion on 13 August 2026, according to DefiLlama data reported by Reap; USDT holds about 59% of supply and USDC about 23%; by network, Ethereum carries about 49% of supply and Tron about 31%.{{V}}[^reap] Estimates of real-economy payments for goods and services in 2025 (US\$350–550 billion, BCG; about US\$390 billion, McKinsey/Artemis) are about 1% of gross stablecoin transfers (US\$28–62 trillion or more, depending on the method: about US\$28 trillion per the BIS, more than US\$62 trillion per BCG with Allium).{{V}}[^reap] Most transfer volume is not commerce. McKinsey puts the business-to-business payment base at about US\$226 billion a year.{{V}}[^reap] Bessemer estimates that 60% of 2025's real-world stablecoin payments were B2B.{{V}}[^bvp]
 
-We have not yet measured this with any customer. Our working picture, which the first customer calls are designed to test, is this:{{A}} a customer emails "we paid yesterday, why is the invoice still open?"; someone opens a block explorer, finds the transfer, works out which invoice it was meant for, checks the token contract and the network, and then updates the invoice in the accounting system by hand, with a note copied from the explorer. Each exception takes a person's time and judgement. We guess 10 to 30 minutes per exception;{{G}} the pilots will measure it.
+**Adoption is early.** In a mid-2025 EY-Parthenon survey of 350 corporate and financial-institution decision-makers, reported by Reap, only about 13% of organisations had used stablecoins (8% of corporates). Among the use cases, paying suppliers cross-border (62%) and accepting cross-border payments (53%) led.{{V}}[^reap] Reap calls these figures a directional snapshot taken before the GENIUS Act was signed.
 
-The larger cost is risk, not time. A counterfeit token credited as payment is a loss. A look-alike address caught after the transfer is usually a loss. A wrong-network payment may be recoverable only if the business happens to control the same key on that network. And an auditor will ask how each stablecoin receipt was verified; a spreadsheet of explorer links is weak evidence.
-
-# 3. Market context
-
-## 3.1 Supply and real payments
-
-Stablecoins are large and growing. The supply of fiat-backed stablecoins exceeded US\$273 billion in March 2026,{{V}}[^bvp] and total stablecoin market capitalisation was US\$308.0 billion on 13 August 2026, according to DefiLlama data reported by Reap.{{V}}[^reap] Tether's USDT holds about 59% of supply and Circle's USDC about 23%. By network, Ethereum carries about 49% of stablecoin supply and Tron about 31%.{{V}}[^reap]
-
-Payment use is real but small next to total activity. Bessemer reports that real-world stablecoin payment volume doubled in 2025 to about US\$400 billion, of which an estimated 60% was business-to-business.{{V}}[^bvp] Reap, citing the BIS, BCG with Allium, and McKinsey, puts genuine real-economy payments at about US\$350–550 billion out of US\$28–62 trillion of stablecoin transfers in 2025.{{V}}[^reap] On those figures, **real payments are roughly 0.6% to 2% of transfer volume**; the rest is trading and moving funds between wallets and exchanges. Any claim about "stablecoin volume" should be read with that ratio in mind. Clearline's market is the small slice that is real commerce.
-
-## 3.2 What businesses use stablecoins for
-
-In a mid-2025 EY-Parthenon survey of 350 corporate and financial-institution decision-makers, reported by Reap, the leading use cases were paying suppliers cross-border (62%) and accepting cross-border payments (53%).{{V}}[^reap] Reap describes these figures as a directional snapshot taken before the GENIUS Act was signed; we did not open the original EY-Parthenon report.
-
-## 3.3 Regulation
-
-Rules are now being written for issuers and intermediaries in all four markets most relevant to Clearline's first customers.
+**Regulation is arriving.** Clearline's first customers are expected to be in Singapore and Hong Kong;{{A}} US and EU rules matter because they shape the main stablecoins.
 
 | Jurisdiction | Status (checked 29 October 2026) |
-|----|-----------------|
-| **United States** | The GENIUS Act became Public Law 119-27 on 18 July 2025.{{V}}[^genius] It takes effect on 18 January 2027. On 21 October 2026 the OCC finalised its implementing rule for issuers under its supervision; Treasury's anti-money-laundering and sanctions rules are a separate rulemaking.{{V}}[^occ] |
-| **European Union** | MiCA's rules for e-money tokens and asset-referenced tokens have applied since 30 June 2024.{{V}}[^eba] The transitional period for crypto-asset service providers ended on 1 July 2026.{{V}}[^fsma] |
-| **Hong Kong** | The Stablecoins Ordinance came into operation on 1 August 2025.{{V}}[^hkord] The HKMA granted the first issuer licences, to HSBC and Anchorpoint Financial, on 10 April 2026.{{V}}[^hklic] |
-| **Singapore** | On 1 September 2026, MAS consulted on draft amendments to the Payment Services Act for single-currency stablecoins, including a stand-alone issuance licence. Comments closed on 16 October 2026; no date has been set for enactment.{{V}}[^gd] |
+|---|------------|
+| **Singapore** | On 1 September 2026, MAS consulted on draft Payment Services Act amendments for single-currency stablecoins, with a stand-alone issuance licence. Comments closed on 16 October 2026; no enactment date is set. Stablecoins not regulated by MAS stay lawful, and intermediating them falls under the existing digital payment token regime.{{V}}[^gd] |
+| **Hong Kong** | The Stablecoins Ordinance came into operation on 1 August 2025.{{V}}[^hkord] The first issuer licences went to HSBC and Anchorpoint Financial on 10 April 2026.{{V}}[^hklic] |
+| **United States** | The GENIUS Act became Public Law 119-27 on 18 July 2025{{V}}[^genius] and takes effect on 18 January 2027; the OCC finalised its issuer rule on 21 October 2026.{{V}}[^occ] |
+| **European Union** | MiCA's rules for e-money tokens have applied since 30 June 2024;{{V}}[^eba] the transitional period for crypto-asset service providers ended on 1 July 2026.{{V}}[^fsma] |
 
-This regulation targets issuers and the firms that hold or transmit stablecoins. None of it closes the gap in section 2: a regulated stablecoin can still be sent short, on the wrong network, to a look-alike address, or without a reference. Our hypothesis is that regulatory clarity will bring more conventional businesses to accept stablecoins, and that those businesses will expect the same controls they have for bank receipts.{{A}}
+These rules target issuers and intermediaries. A regulated stablecoin can still be sent short, on the wrong network or to a look-alike address. Our hypothesis is that clearer rules bring conventional businesses that expect bank-like controls on receipts.{{A}}
 
-# 4. Why existing solutions leave a gap
+# 3. Competition and alternatives
 
-Clearline enters a crowded field. The fair question is what each kind of product already does.
+**Processors.** Stripe accepts USDC, USDP and USDG (not USDT), caps each customer transaction at US\$10,000, settles to the Stripe balance in local currency, and lists businesses in the US with a private preview in the EU, Hong Kong, Mexico and Switzerland; Singapore is not listed.{{V}}[^stripe] Stripe also owns Bridge, a stablecoin infrastructure company, since February 2025.{{V}}[^bridge] HitPay lets Singapore merchants accept USDT, USDC and PYUSD across ERC-20, TRC-20, Solana, Polygon and Arbitrum; its MAS-licensed partner Triple-A handles and converts the stablecoins, and merchants receive fiat.{{V}}[^hitpay] BVNK and others offer similar infrastructure; we have not reviewed them in detail. **For a business happy to have a processor in the middle, HitPay already solves much of this problem in Singapore.** Clearline is for businesses whose customers pay them directly and who want to keep the stablecoins, or whose payers will not use a checkout.{{A}}
 
-| Category | Examples | What they do well | What they leave to the business |
-|----|----|---------|---------|
-| **Processors and checkout** | Stripe, Coinbase Payments, HitPay | A hosted checkout. The processor receives the stablecoin and handles conversion and settlement. Stripe settles stablecoin payments to the merchant's Stripe balance in local currency;{{V}}[^stripe] HitPay's Singapore merchants receive fiat from its MAS-licensed partner Triple-A.{{V}}[^hitpay] | A processor in the middle, with its own fees, coverage and onboarding. Stripe lists the US, with private previews in the EU, Hong Kong, Mexico and Switzerland; Singapore is not listed.{{V}}[^stripe] Not designed for B2B customers who pay straight to the supplier's own wallet. |
-| **Wallet security** | Safe{Wallet} with Blockaid | Warns the *sender* before they sign a transaction to a suspicious address, including look-alike addresses.{{V}}[^safe] | Protects the payer, not the payee's books. Does not say which invoice a receipt pays. |
-| **Crypto accounting and sub-ledgers** | Bitwave, Request Finance, TRES, Cryptio | Mature tools that sync on-chain activity to ERPs. Bitwave supports stablecoin invoices and accounts receivable and syncs with NetSuite, Xero, QuickBooks and Sage;{{V}}[^bitwave] Request Finance syncs to QuickBooks Online, Xero and NetSuite;{{V}}[^request] TRES lists native NetSuite, QuickBooks and Xero integrations;{{V}}[^tres] Cryptio integrates with NetSuite.{{V}}[^cryptio] | These are real competitors. "Nobody connects stablecoins to accounting" is false. Our working view, not yet tested against their products, is that they are built for crypto-native finance teams with many wallets and assets, and start after the money arrives.{{A}} |
+**Payer-side controls.** Safe{Wallet} with Blockaid warns a sender before they sign a transaction to a suspicious or look-alike address.{{V}}[^safe] Institutional payers using Fireblocks can send only to whitelisted destination addresses approved by an admin group.{{V}}[^fireblocks] These controls protect the payer well. They do not tell the payee which invoice a receipt pays.
 
-**The platforms are integrating vertically.** Bessemer writes that Stripe, Circle and Coinbase are "leveraging their distribution to become one-stop shops", and that the most promising early-stage startups "will navigate outside the paths of Stripe, Circle, and Coinbase".{{V}}[^bvp]
+**Invoicing and crypto accounting.** Request Finance lets a supplier send an invoice denominated in fiat and be paid in crypto or fiat to the supplier's wallet, with reconciliation and accounting export.{{V}}[^rfar] It syncs with QuickBooks Online, Xero and NetSuite.{{V}}[^request] Its underlying protocol, Request Network, solves the matching problem on-chain: the payer pays through a smart contract that logs a `paymentReference` derived from the request, and the balance is the sum of payment events with that reference, so partial payments are supported.{{V}}[^rnpn] Bitwave,{{V}}[^bitwave] TRES{{V}}[^tres] and Cryptio{{V}}[^cryptio] sync on-chain activity to ERPs. **"Nobody connects stablecoins to accounting" is false.**
 
-**Where Clearline sits.** Clearline is for the business whose customers pay *directly* into its own wallet, with no processor in the middle. That business keeps custody and pays no processing spread, but inherits all six failure modes in section 2.2. Our hypothesis about the wedge is specific:{{A}}
+**Where Clearline stands.** Request Network's approach works when the payer pays through its contract. Our hypothesis is that many B2B payers send a plain token transfer from an exchange, a treasury wallet or a custody platform, with no reference, and that the exceptions on that path are where the cost sits.{{A}} Clearline's design choice is to work with plain transfers: it needs no special contract on the payer's side. The price of that choice is that matching has to come from the address, the amount and the sender's history (section 4). Whether this beats Request Finance for any real customer is unproven and is the first thing the customer calls must test.
 
-1. **It starts before the payment.** Each invoice gets a precise instruction (exact amount, the issuer's token contract, the network and the address), and the payer can check the address they are about to use. Prevention is cheaper than investigation.
-2. **It is built around exceptions.** The happy path is easy for everyone. The value is in diagnosing the short, counterfeit, wrong-network, unreferenced and duplicate payments, with evidence a person can verify.
-3. **It refuses to book what it cannot verify.** Counterfeit, failed and wrong-network transfers never post. Nothing posts without a person's approval.
-4. **It is neutral and read-only.** It holds no funds and favours no issuer, chain or processor.
+Bessemer's view is that Stripe, Circle and Coinbase are becoming one-stop shops, and that early-stage startups should "navigate outside the paths of Stripe, Circle, and Coinbase".{{V}}[^bvp]
 
-Multi-chain coverage is a design goal, not a current fact: payment requests work on Ethereum only today (section 5.2). Whether this wedge is valuable enough to pay for is the main open question (section 10).
+# 4. Design
 
-# 5. Design: how Clearline works
+## 4.1 Principles
 
-## 5.1 Principles
-
-- **Read-only on-chain.** Clearline has no wallet, no private keys and no signing code. It reads public data.{{V:src/lib/chain/}}
-- **Deterministic first.** Every verdict comes from explicit rules over explicit evidence. AI may word an explanation; it never decides one.
-- **Evidence with every verdict.** Each check stores what it found, where it found it, and which rule version decided.{{V:src/lib/requests/types.ts}}
+- **Read-only on-chain.** No wallet, no private keys, no signing code.{{V:src/lib/chain/}}
+- **Deterministic first.** Rules decide verdicts from explicit evidence. AI may word an explanation; it never decides one.{{V:src/lib/ai/validate.ts}}
 - **A person approves anything that changes the books.**{{V:src/lib/accounting/engine.ts}}
-- **Never overwrite history.** Decisions, activity and checks are appended; a person's choice never erases what the system concluded earlier.{{V:src/lib/requests/lifecycle.ts}}
-- **Derive state; don't store it.** A request's status is recomputed from its records every time, so it cannot drift from them.{{V:src/lib/requests/types.ts}}
+- **Keep history.** Decisions, activity, check snapshots and the posting audit are appended, never edited. Requests and transfer records are updated in place as facts arrive, but each transfer keeps its earlier attributions.{{V:src/lib/requests/lifecycle.ts}}
 
 ![Where Clearline sits. The chain records the transfer; Clearline supplies the layer between "money moved" and "invoice closed".](build/gap.pdf){width=100%}
 
-![Architecture today. One deployment serves one company. Clearline reads the chain and writes to the books only after approval.](build/architecture.pdf){width=94%}
+## 4.2 The five steps
 
-## 5.2 Payment requests: the instruction
+1. **Instruction.** Each invoice gets a payment page: exact amount, token, the issuer's token contract, network, receiving address and an EIP-681 QR code.{{V:src/lib/requests/present.ts}}[^eip681] An address checker *warns* the payer if an address they paste matches the real one at the start or end but differs in between; it helps only if the payer uses it.{{V:src/lib/requests/lifecycle.ts}}
+2. **Verification.** Each transfer is checked: did it succeed, on which network, to which address, from the issuer's own contract, how many confirmations, and is the sender or the business's own address frozen by the issuer.{{V:src/lib/requests/lifecycle.ts}} If a data source does not answer, the check pauses and concludes nothing.{{V:src/lib/engine/run.ts}}
+3. **Matching.** A transfer is attributed to a request only when exactly one open request uses its receiving address. Several candidates are never decided by amount alone; a person assigns the transfer with a written reason.{{V:src/lib/requests/lifecycle.ts}}
+4. **Explanation.** Templates built from the records say what happened, the likely cause (labelled as an inference), the next step and a reply to the customer.{{V:src/lib/requests/present.ts}}
+5. **Accounting.** Clearline prepares the entries and, after a person approves, posts them (Xero connection in testing). Counterfeit, failed and wrong-network transfers are never posted. Each line carries an idempotency key, and every approval, posting, failure and refusal goes into an audit log.{{V:src/lib/accounting/rules.ts}} Appendix A has the posting rules.
 
-A payment request is created for one invoice, either by hand or by importing an open invoice from the accounting system. It fixes, at creation:{{V:src/lib/requests/lifecycle.ts}}
+![Architecture today. One deployment serves one company. Clearline reads the chain and writes to the books only after approval.](build/architecture.pdf){width=100%}
 
-- the **amount** as an exact decimal string (never a floating-point number), at most six decimal places, which is the precision of USDC and USDT on Ethereum;
-- the **token**, USDC or USDT, and the **issuer's official contract** for it;
-- the **network**, Ethereum;
-- the **receiving address**, which is the business's own wallet. Clearline never generates or holds addresses;
-- a random public identifier for the payer's link, so links cannot be guessed from invoice numbers.
+## 4.3 Live today vs demo only
 
-The payer sees a page with the amount, token, network and the address split into groups for checking, plus a QR code in the EIP-681 format, the Ethereum standard for encoding a token transfer as a URL.{{V:src/lib/requests/present.ts}}[^eip681] The page also has an **address checker**: the payer pastes the address their wallet is about to use, and Clearline answers *match*, *look-alike (stop)*, *different* or *invalid*. A look-alike is an address that shares the first four or last four hex characters with the real one but differs elsewhere, which is the pattern address-poisoning relies on.{{V:src/lib/requests/lifecycle.ts}} Only the verdict is stored, plus the pasted address when it is a look-alike, as evidence of an attack.
+The demo is more complete than live mode. This table is the honest boundary.
 
-**Coverage today:** payment requests support USDC and USDT on **Ethereum only**.{{V:src/lib/requests/types.ts}} Tron, which carries about 31% of stablecoin supply,{{V}}[^reap] is the most important gap and is next on the roadmap.
+| Capability | Demo (simulated transfers) | Live today |
+|-----|-----|---------|
+| Detecting a payment | Automatic | A person pastes the transaction ID; nothing watches addresses{{V:src/lib/requests/provider.ts}} |
+| Confirmations | Advance automatically | No polling: a payment pasted before 12 confirmations stays "confirming" until someone pastes it again{{V:src/lib/requests/service.ts}} |
+| Marking a correct payment paid | Automatic rule | A person marks it paid{{V:src/lib/requests/service.ts}} |
+| Attributing a pasted payment | n/a | Pasting from a request's page does not tie the payment to that request; if several open requests share one wallet address, the payment is "ambiguous" and a person assigns it{{V:src/lib/requests/service.ts}} |
+| Unidentified payment suggestions | Scored suggestions | Not reachable: a live lookup keeps only transfers to the request's own address{{V:src/lib/requests/provider.ts}} |
+| Wrong-network payment | Recorded and explained | A hash found on another network returns a message; nothing is recorded{{V:src/lib/requests/provider.ts}} |
+| Issuer-freeze check | n/a | Runs only when someone looks a hash up; never re-checked on its own{{V:src/lib/chain/investigate.ts}} |
+| Counterfeit labelling | Shown | A fake token whose symbol does not contain the requested token's name is labelled "wrong token" rather than "counterfeit"; it is still never counted or posted{{V:src/lib/requests/lifecycle.ts}} |
+| Payment pages | Ethereum, USDC and USDT | Ethereum, USDC and USDT. No Tron{{V:src/lib/requests/types.ts}} |
+| Accounting | Fictional demo books | Xero built, not yet run live; QuickBooks built, not run on a sandbox; NetSuite designed only{{V:docs/ACCOUNTING_SYNC.md}} |
 
-## 5.3 Detection and verification
+## 4.4 The matching premise
 
-**How a transfer reaches Clearline.** In demo mode, a simulated provider generates transfers, clearly labelled as simulated, and they flow through the same code as live ones. In live mode, **a person pastes the transaction ID (hash)**, often from the customer's email, and Clearline looks it up read-only on Ethereum.{{V:src/lib/requests/provider.ts}} Clearline does **not** yet watch addresses for incoming transfers; that is the first item on the roadmap. Each transfer is stored once under the key `chain:hash:logIndex`, so a repeated delivery of the same event never creates a second payment, and confirmations never go backwards.{{V:src/lib/requests/lifecycle.ts}}
+Matching is easy if every invoice has its own address. Most businesses do not create a new wallet per invoice; many publish one treasury address.{{A}} There are three known ways to tie a plain transfer to an invoice:
 
-**The checks.** Each transfer is run through a rules engine with a fixed evaluation order; the verdict is the first rule that matches with high confidence.{{V:src/lib/catalogue.ts}} For a payment request, a transfer counts only if all of these hold:{{V:src/lib/requests/lifecycle.ts}}
+| Approach | How it works | Trade-off |
+|----|-------|------|
+| **Address per invoice** | Derive a fresh deposit address for each invoice from one HD wallet or a custody provider | Exact matching; needs custody tooling and sweeping funds, which Clearline must not do itself |
+| **Unique amount** | Ask for 1,250.37 instead of 1,250.00 | Cheap; breaks when an exchange deducts a fee |
+| **Payment reference** | The payer pays through a contract that logs a reference (Request Network) or a token that supports one (the ERC-7699 proposal){{V}}[^erc7699] | Exact; needs the payer's cooperation |
 
-| Check | Rule | Can a person override it? |
-|----|----------|-------|
-| Succeeded | The transaction did not revert | No |
-| Network | Sent on the request's network | No (a person may count it only if it landed in the business's own wallet on that network; it is still never posted automatically) |
-| Address | Sent to the request's receiving address | Only by assigning an unidentified payment, with a note |
-| Genuine token | Token contract equals the issuer's contract fixed on the request. A transfer whose symbol claims to be the token, from any other contract, is marked counterfeit | No |
-| Timing | Mined after the request was created | Yes, with a note |
-| Engine findings | For example an issuer freeze on the sender, read from Tether's or Circle's own contract | No |
-| Confirmations | 12 blocks on Ethereum (a sample setting; not yet editable) | n/a |
+Clearline today accepts whatever address the business supplies, and matches by address, then by evidence (exact amount, a sender address this customer has used before, no other open request for that amount) for a person to confirm.{{V:src/lib/requests/lifecycle.ts}} **With one shared treasury address, most live payments would need a person to assign them.** The plan is to support addresses issued per invoice by the business's own custody provider (read-only on Clearline's side), and to test unique amounts with pilots.{{A}}
 
-If a chain data source does not answer, the check **pauses** and concludes nothing; a missing receipt is never read as a failure.{{V:src/lib/engine/run.ts, src/lib/chain/evm.ts}} Every re-check is appended as a snapshot with its rule version, so the record shows how a verdict evolved.
+## 4.5 Finality and valuation
 
-## 5.4 Matching
+Clearline waits for 12 confirmations on Ethereum, a sample setting that cannot yet be changed, and does not handle chain reorganisations.{{V:src/lib/requests/check.ts}} Ethereum's `finalized` block tag, reached after about two epochs (12–13 minutes), is the better standard and is planned.{{V}}[^finality]
 
-Attribution, deciding which request a transfer belongs to, is deterministic and conservative:{{V:src/lib/requests/lifecycle.ts}}
+USDC and USDT are booked at par into a bank-type account, and every line says "no price feed connected"; a price more than 0.5% from par blocks automatic posting.{{V:src/lib/accounting/rules.ts}} Whether a stablecoin is cash, a cash equivalent, a financial asset or an intangible is an **open accounting question**. In the US, the FASB proposed on 18 August 2026 to show how some stablecoins can meet the existing cash-equivalent definition, depending on redemption rights and reserves; comments close on 19 November 2026 and nothing is final.{{V}}[^fasb] Under IFRS and SFRS(I) we have not found settled guidance specific to stablecoins.{{A}} Par valuation into a bank account is therefore a default each customer's accountant must accept, not a rule we can assert.
 
-- Only open requests on the same network, whose receiving address is the transfer's destination, are candidates.
-- One candidate: the address identifies the request.
-- Several candidates sharing an address: **never decided by amount alone**. The transfer waits for a person; an exact-amount match is shown only as a hint.
-- A transfer to the address of a request already paid: flagged as a possible duplicate.
+# 5. Trust, security and compliance
 
-For a payment with no usable reference (for example, sent to a general treasury address), Clearline suggests up to three open requests, scored out of 100 from evidence a person can check: the exact amount owed (40 points), a sender address this customer has paid from before (35), no other open request for the same amount (15), and paid after the invoice was sent (10). Scores of 80 or more are labelled *Strong*, 50 or more *Possible*. The score is not a probability, timing alone never produces a suggestion, and a person must confirm the match with a written reason.{{V:src/lib/requests/lifecycle.ts}}
+**Never holds funds.** If Clearline received, held or forwarded funds, it would become a party to the payment and in Singapore would likely need a licence for digital payment token services.{{A}} HitPay shows the boundary: its licensed partner handles the stablecoins and HitPay itself does not.{{V}}[^hitpay] We have not yet taken legal advice and will before the first paying customer.
 
-Each request moves through derived states: *awaiting payment*, *payment seen*, *confirming*, *matched*, *needs attention* and *paid*. Only a decision reaches *paid*: either a person's, or, where the business has switched it on, an automatic rule that marks exact, genuine, fully confirmed payments as paid. **That automatic rule is on only in demo mode today**; in live mode a person marks each payment paid.{{V:src/lib/requests/service.ts}}
+**Sanctions.** Clearline does not screen counterparties against OFAC or UN lists or use blockchain-analytics providers such as Chainalysis or TRM. The issuer-freeze check is weak protection for receipts: a transfer from a frozen sender fails on-chain and never arrives.{{A}} The real risks are the business's own address being frozen, which Clearline checks only when a hash is looked up, and receiving tainted funds, which it does not detect. Our position: screening stays the business's responsibility for now; integrating an analytics provider is on the roadmap, and the paper does not claim compliance screening.
 
-![Request states. "Paid" is reached only by a decision: a person's, or the automatic rule (demo only today).](build/states.pdf){width=92%}
-
-## 5.5 Explanation
-
-For every request, Clearline writes what happened, the likely cause, the one next action, and a reply to the customer, built from the records by templates.{{V:src/lib/requests/present.ts}} Two rules govern this text: a **likely cause** is labelled as an inference, not a fact (for example, "a 1.0% shortfall from an exchange's withdrawal wallet: likely fees deducted"), and replies state only facts from the records and make no promise of timing or credit.
-
-There is also an **optional AI explanation** path on the transaction-investigation pages. A language model (Claude) writes a short paragraph about a verdict the rules have already decided. Its output is rejected, and the template used instead, if any sentence fails to cite a real evidence ID, or if it contains a number, address, hash, date or token name not in the evidence, or banned words such as "guaranteed", "refund" or "fraud".{{V:src/lib/ai/validate.ts}} This path is **off by default and has not been tested on real data**.{{V:demo/REPORT.md}}
-
-## 5.6 Accounting
-
-Clearline imports open sales invoices, turns each into a payment request, and after payment builds a **posting plan**: the exact lines that would go into the books.{{V:docs/ACCOUNTING_SYNC.md}} A person reviews and approves the plan; the server refuses the approval if the plan changed since the page was loaded, so what is approved is exactly what posts. Each line posts with an idempotency key, so a retry never posts twice, and every approval, posting, failure and refusal is appended to an audit log.{{V:src/lib/accounting/engine.ts}}
-
-| Case | What posts | Invoice after |
-|-----|-----------|----|
-| Exact | One payment, with tx hash, token, network and USD value in the reference | Paid |
-| Short | A partial payment and a note | Open for the shortfall |
-| Short, accepted as settled | The payment plus a separate fee write-off line | Paid |
-| Over, or paid twice | Nothing until a person decides; then the invoice amount once, and the excess as a separate overpayment line (refund or credit) | Paid |
-| Same transfer reported twice | Nothing new | Unchanged |
-| Counterfeit, failed or wrong-network | **Never posted** | Unchanged |
-| No reference | Nothing until a person confirms the invoice | |
-| Non-USD invoice, or token more than 0.5% off its peg | Blocked; post by hand | |
-
-USDC and USDT are valued at par, and every line says so ("no price feed connected"); a price source can be plugged in, and a reading more than 0.5% from par stops automatic posting. Payment lines are rounded *down* to the cent, so the books never show more received than arrived.{{V:src/lib/accounting/rules.ts}} All rules in this table are covered by automated tests.{{V:tests/accounting.test.ts}}
-
-**Status of each accounting system.** *Xero:* built and tested in automated tests against recorded API shapes; it has **not yet run against a live Xero organisation**, and the test with Xero's Demo Company is next. *QuickBooks Online:* built against the documented API shapes, not yet run on a sandbox. *NetSuite:* interface designed only.{{V:docs/ACCOUNTING_SYNC.md}} The accurate summary is: **Clearline prepares the entries and, after a person approves, posts them (Xero connection in testing).**
-
-![One payment, end to end. In live mode today, step 5 is a person pasting the transaction ID; in the demo it is automatic.](build/sequence.pdf){width=86%}
-
-## 5.7 Data model
-
-Every state shown to a user is derived from five append-only record types: the request, the observed transfer, the check snapshot, the decision (with its required note) and the posting audit entry.
-
-![Core records. Decisions, activity, check snapshots and audit entries are only ever appended.](build/datamodel.pdf){width=86%}
-
-# 6. Trust and security model
-
-## 6.1 What Clearline can touch
-
-| Area | Access |
-|---|-----------|
-| Blockchain | **Read-only.** Looks up transactions, token metadata and issuer freeze lists through public or keyed read APIs. There is no code path that can move funds.{{V:src/lib/chain/}} |
-| Funds | **None.** The receiving address is the business's own; Clearline only reads it. |
-| Accounting system | Reads open sales invoices. Writes **only** when a person approves a plan in the *ready* state.{{V:src/lib/accounting/engine.ts}} The Xero scopes requested are the ones needed to read contacts and write transactions; this is the minimum for posting payments, not read-only access.{{V:src/lib/accounting/providers/xero-auth.ts}} |
-
-**Why read-only matters.** If Clearline received, held or forwarded customer funds, it would become a third party in the payment and, in Singapore, would likely need a Payment Services Act licence for digital payment token services.{{A}} The market already shows the boundary: HitPay states that its Singapore stablecoin payments are processed by Triple-A, which is licensed by MAS for digital payment token services, and that HitPay itself does not handle, convert or hold stablecoins.{{V}}[^hitpay] Staying read-only is a design choice and a regulatory position. We have not taken legal advice on it yet, and will before the first paying customer.
-
-## 6.2 Threat model
-
-| Threat | Mitigation today | Residual risk |
-|-----|--------|------|
-| **Counterfeit tokens** | Token contract must equal the issuer's, fixed at request creation; counterfeits cannot be marked paid and are never posted{{V:src/lib/requests/lifecycle.ts}} | Depends on the official contract list being correct |
-| **Poisoned (look-alike) addresses** | Address checker on the payment page; look-alike diagnosis on investigations{{V:src/lib/requests/lifecycle.ts}} | Works only if the payer uses the checker |
-| **Impersonation of the business** (a fake payment page or invoice) | Random payment-link IDs | **Not solved.** A scammer can still send a convincing fake page. Signed instructions (section 7) are the planned answer |
-| **Replay and duplicates** | One record per `chain:hash:logIndex`; one idempotency key per posting line; approval tied to the exact plan{{V:tests/accounting.test.ts}} | Low |
-| **Insider error** | A written reason for every decision; nothing posts without approval; append-only history | **High until sign-in exists**: the actor is a typed name |
-| **Data-source failure** | Checks pause and conclude nothing; a missing receipt is never read as a failure{{V:demo/REPORT.md}} | Free public data sources are fragile; paid ones are planned |
-| **Server compromise** | Secrets in environment variables, not in the code | **High:** see known gaps |
-
-## 6.3 Known gaps, and the planned fix
-
-These are the gaps a security reviewer would find first. We list them because a pilot customer should know them before agreeing to one.{{V:docs/enterprise/SECURITY_OVERVIEW.md (PR 30)}}
+**Known gaps and planned fixes.**{{V:docs/enterprise/SECURITY_OVERVIEW.md}}[^pr30]
 
 | Gap today | Planned fix |
-|------|------|
-| **No sign-in.** The user types their name; the only gate is an optional shared password (HTTP Basic authentication) | Sign-in with email and a one-time code, then SSO; roles |
-| **Xero tokens stored unencrypted** on the server's disk | Encrypt with a key from the host's secret manager; restrict file access; add a "Disconnect" that revokes the token |
-| **Audit log is append-only in the application, not tamper-evident**: anyone with server access could edit it | Hash-chained entries, exported daily |
-| **Data in JSON files, one process** | A managed, encrypted database in the customer's chosen region |
-| **Deletion is manual** | Per-record and whole-workspace deletion, logged. Until then, pilot data is deleted by hand within 10 business days of a request |
-| **No penetration test or SOC 2 report** | An independent penetration test before the first customer with real volume; SOC 2 only when customers require it |
+|------|-----|
+| No sign-in: the user types a name; the only gate is an optional shared password | Email sign-in with a one-time code, then SSO and roles |
+| Xero tokens stored unencrypted on the server's disk | Encrypt with the host's secret manager; add "Disconnect" that revokes the token |
+| Xero scopes: the code requests the older broad `accounting.transactions` scope, but Xero apps created on or after 2 March 2026 must use granular scopes{{V}}[^xero] | A separate pull request updates the scopes; the live Xero test must use them |
+| The audit log is append-only in the application, not tamper-evident | Hash-chained entries, exported daily |
+| JSON files, one process; deletion is manual | A managed, encrypted database; logged deletion. Until then, pilot data is deleted by hand within 10 business days of a request |
+| The posting function accepts approval without the plan key; only the web route requires it | Make the key mandatory in the function itself{{V:src/lib/accounting/engine.ts}} |
+| No penetration test or SOC 2 report | A penetration test before the first customer with real volume |
 
-## 6.4 Data retention
+**Data and AI.** Clearline stores invoice and customer references, amounts, addresses, transfer records and typed user names; no keys or identity documents. AI explanations are optional and off in the Docker image, but the code switches them on whenever an Anthropic API key is present, and the verdict's evidence (with customer IDs removed) is then sent to Anthropic's API.{{V:src/lib/ai/anthropic.ts}} For pilots, AI stays off unless the customer agrees in writing; no zero-retention agreement is in place.
 
-Clearline stores invoice references, customer references, amounts, addresses, transaction records and the names typed by users. It stores no private keys and no identity documents. There is no automatic retention schedule yet; pilot data is deleted on request, by hand, and confirmed in writing.{{V:docs/enterprise/SECURITY_OVERVIEW.md (PR 30)}} Each pilot can run in a dedicated deployment, including in the customer's own cloud account.
+**Liability.** When Clearline is wrong, a person has still approved the posting, and no funds moved through Clearline. Our intended terms limit liability to fees paid and require the customer to approve every posting;{{A}} professional indemnity insurance is needed before real volume. This has not been reviewed by a lawyer.
 
-# 7. Toward an open standard
+# 6. Toward an open standard
 
-The deepest problem in section 2 is that a payment instruction and a payment receipt are not linked by anything both sides can verify. The invoice says one thing in a PDF; the chain records another; the payer's wallet knows neither. EIP-681 already defines how to encode a token transfer as a URL, and Clearline uses it for QR codes.{{V:src/lib/requests/present.ts}} What is missing is a **signed instruction** the payer's wallet can verify, and a **receipt** the payee's auditor can verify.
+The deeper fix is a payment instruction that the payer's wallet can verify and a receipt that the payee's auditor can verify. Prior art is mixed. EIP-681 encodes a token transfer as a URL, and Clearline uses it;{{V}}[^eip681] Solana Pay adds a `reference` key to a transfer so the payee can find it;{{V}}[^solpay] Request Network logs a reference on-chain.{{V}}[^rnpn] The cautionary case is Bitcoin's BIP70: signed payment requests tied to the web's certificate system, which "never saw widespread adoption", brought outside security dependencies, and were removed from Bitcoin Core in 2019.{{V}}[^bip70] The lesson we take is to start from what wallets already read (EIP-681), add a signature only where a wallet team will verify it, and publish nothing as a "standard" until real customers use the instruction.{{A}}
 
-We propose a small, open format with two objects (draft; not built):
+# 7. Evidence so far
 
-```json
-{
-  "instruction": {
-    "version": "0.1",
-    "issuer": { "name": "Northwind Pay Pte Ltd", "domain": "northwind.example" },
-    "invoice": "INV-1042",
-    "amount": { "value": "5000000000", "decimals": 6 },
-    "asset": { "chain": "eip155:1", "contract": "0xA0b8...eB48", "symbol": "USDC" },
-    "payTo": "0x...",
-    "expires": "2026-11-30T00:00:00Z",
-    "nonce": "f3b1...",
-    "signature": "signed with a key published at the issuer's domain"
-  },
-  "receipt": {
-    "instructionHash": "sha256 of the instruction",
-    "transfer": { "chain": "eip155:1", "tx": "0x...", "logIndex": 7, "block": 21480123 },
-    "checks": [ { "rule": "genuine_token", "result": "pass", "ruleVersion": "2026-10-22.5" } ],
-    "verdict": "exact",
-    "evidence": [ { "source": "rpc", "sha256": "raw response hash" } ],
-    "booked": { "system": "xero", "reference": "payment id" }
-  }
-}
-```
+**Clearline-specific evidence.** The payment-request and accounting code has 23 request-lifecycle tests and 23 accounting tests, of which 10 cover posting rules and 4 check the Xero and QuickBooks request shapes.{{V:tests/accounting.test.ts}} In the demo, all seven payment situations (routine, short, counterfeit, wrong network, unidentified, look-alike, duplicate) play through to the books in a browser, 113 of 113 checks, three runs in a row.{{V:demo/QA_REPORT.md}}[^pr31] Matching has been tested only on simulated data.
 
-*(Sample data. The contract shown is abbreviated; the business is the fictional one used in Clearline's demo.)*
+**Evidence from the earlier product.** Clearline grew out of a deposit-investigation tool for crypto businesses, whose checking engine Clearline reuses. That engine was tested on real public transactions on six networks against answers proven by sources outside the product, with fictional sample company records: 59 of 59 correct after fixes (43 before), and 52 of 52 on a set built afterwards; an independent reviewer re-checked 7 cases on-chain.{{V:demo/REPORT.md}} The full test suite, mostly that earlier product, has 573 passing tests.{{V:npm test on qa-polish}} This shows the rules behave as designed on a small, chosen sample. It does not show accuracy on a real business's payments.
 
-**What each side gains.** A wallet that reads the instruction can check the signature against the business's domain, refuse an address that does not match, and warn on a look-alike, which addresses impersonation and poisoning at the moment of payment. An accountant or auditor who receives the receipt can re-run the checks from public data and the stored response hashes, without trusting Clearline.
+**Customers.** None, and no customer calls have been held. The first outreach emails were sent on 29 October 2026.
 
-**Why openness matters.** The format is only useful if wallets read it, and wallets will read it only if many businesses issue it. A proprietary format would be a feature; an open one can become infrastructure. Each wallet that supports it makes every issuing business safer, and each issuing business makes wallet support more valuable. That two-sided effect is the long-term reason to build Clearline as a neutral layer rather than another checkout.
+# 8. Business model
 
-**Honest limits.** Clearline already keeps most of the receipt's ingredients internally (requests, transfer keys, check snapshots with rule versions, and SHA-256 hashes of raw chain responses on investigation pages).{{V:src/lib/view.ts}} The signed instruction does not exist yet. Adoption is the hard part: payment-URL standards like EIP-681 exist, and Clearline's own payment page tells payers that not every wallet reads the amount or token from a QR code.{{V:src/app/pay/[publicId]/page.tsx}} We would publish the draft, seek comment from wallet teams, and only push it once real customers use the instruction.
+**First buyer (hypothesis).** The founder or finance lead of a small or mid-sized business in Singapore or Hong Kong that invoices in USD and is paid in USDT or USDC directly to its own wallet: Web3 service firms, agencies, exporters.{{A}} Much of that B2B USDT is probably on Tron, which is why Tron payment pages are the first change on the roadmap.{{A}}
 
-# 8. Evidence so far
+**Price (untested).** A founding pilot at US\$300 for 30 days, then US\$200 a month.{{A}}
 
-**What is built and tested.**
+**Size, bottom-up (all hypotheses).** If 500–2,000 businesses in Singapore and Hong Kong are paid directly in stablecoins often enough to care,{{G}} at US\$2,400 a year that is US\$1.2–4.8 million in annual revenue. That is a small business, not a venture-scale one. Scale would need more regions, a higher price for larger teams, payment-company partners paying per exception,{{G}} or the network and standard described above. We state this plainly rather than quote a top-down market size.
 
-| Evidence | Result |
-|-------|-------|
-| Real public transactions, checked by the transaction-investigation engine against answers proven by sources outside the product (explorers, a second data provider, issuers' own blacklist events) | **59 of 59** correct after fixes (43 of 59 before), and **52 of 52** on a held-out set built afterwards; 0 false alarms on 12 normal payments; 0 wrong answers with high confidence, down from 13{{V:demo/REPORT.md}} |
-| Coverage of those cases | Tron, Ethereum, BNB Chain, Polygon, Arbitrum and Base: failed transfers 21/21, issuer freezes 11/11, counterfeit USDT 13/13, wrong network 6/6, address poisoning 2/2{{V:demo/REPORT.md}} |
-| Automated tests | **573 passing** (57 network re-recording tests skipped), run on 29 October 2026, including 23 posting-rule and Xero/QuickBooks request-shape tests and 62 replays of recorded real cases{{V:npm test on qa-polish (PR 31), run 29 Oct 2026}} |
-| End-to-end demo | 113 of 113 browser checks pass, three runs in a row; all seven payment situations (routine, short, counterfeit, wrong network, unidentified, look-alike, duplicate) play through to the books{{V:demo/QA_REPORT.md (PR 31)}} |
+**Unit economics (guesses).** Chain data from a paid provider, perhaps US\$50–300 a month per deployment at pilot volumes;{{G}} hosting of one container per customer; support time per exception that we have not measured. Reaching customers at US\$200 a month cannot rely on a sales team; it needs founder-led outreach now and partners (accountants, payment companies) later.{{A}} The cost to win a customer is unknown.
 
-**What is not yet tested or built.** The real-data test covered the investigation engine, not payment-request matching: matching has been tested only on simulated data. The Xero adapter has not run on a live organisation; QuickBooks has not run on a sandbox. The AI explanation has not been tested on real data. Address watching, Tron payment requests, a month-end report, sign-in and a database do not exist yet. All accuracy figures come from tests the builder designed; an independent reviewer re-checked 7 cases on-chain, and all matched.{{V:demo/REPORT.md}} A small sample with known answers shows the rules work as designed. It does not show accuracy on a real business's mix of payments.
+# 9. Risks and open questions
 
-**Customers.** None. No customer calls have been held. The first outreach emails were sent on 29 October 2026. The founding pilot offer and its price are untested hypotheses.{{A}}
+| Risk | What we would do |
+|-----|-----|
+| **No demand**: exceptions are rare or cheap | Measure in the first 20 calls; change the wedge or stop |
+| **Processors absorb it** (HitPay, Stripe) | Serve only businesses that keep custody; be useful to processors |
+| **Request Finance or others already solve it** | Test their products against real cases before building more |
+| **Live product is thin** (table 4.3) | Address watching, confirmation polling and Tron before the first live pilot |
+| **Licensing** if a feature touches funds | Keep "never holds funds"; legal advice before charging |
+| **Security maturity** | Fix sign-in, token encryption and Xero scopes first |
+| **Accounting treatment** is unsettled | Let the customer's accountant set the policy; make account mapping configurable |
+| **Single founder** | Narrow scope; partner for security and sales once there is revenue |
 
-# 9. Business model and path
+**Questions only customers can answer.** How many exceptions does a business see each month, and who handles them? Do payers use one treasury address or per-invoice addresses? Is Tron or Ethereum the main network? Would a finance team connect its books to a young product, and pay US\$200 a month to do so?
 
-**Who pays first.** Our hypothesis is that the first buyer is the founder or finance lead of a small or mid-sized business in Singapore or Hong Kong that invoices in USD and is paid in USDC or USDT directly to its own wallet: Web3 service firms, agencies, exporters and B2B software companies.{{A}} They feel the pain in exceptions and month-end, and they cannot use a processor or do not want one. This must be confirmed in customer calls before anything else is built.
-
-**Pricing hypothesis.** A founding pilot at US\$300 for 30 days, then US\$200 a month.{{A}} The pilot is deliberately paid: a business that pays has the problem. Both numbers are placeholders to be tested, not a validated price. Longer term, two models are possible: a subscription per finance team priced by payment volume, or a per-exception fee embedded in payment companies' products.{{G}} We do not yet know which customers will prefer.
-
-**The path: wedge, network, standard.**
-
-1. **Wedge (now):** exception handling and booking for businesses paid directly. Success is measured in hours saved and errors caught per month, in pilots.
-2. **Network (later):** every payment page teaches a payer to verify before sending. Repeated payments build a history of known sender addresses per customer, which makes matching better for every business on the network.{{A}}
-3. **Standard (much later):** publish the instruction and receipt format, and work with wallets to read it (section 7).
-
-**What would change the plan.** If calls show that exceptions are rare or cheap, the wedge is wrong. If the main pain is on Tron, Tron comes first. If buyers want a processor, Clearline is the wrong product for them and we should say so.
-
-# 10. Risks and open questions
-
-| Risk | Why it matters | What we would do |
-|----|------|------|
-| **Checkout tools absorb the problem** | If most businesses move to processors, direct payments shrink | Stay neutral and focus on businesses that keep custody; make the receipt format useful to processors too |
-| **Crypto accounting tools add exception handling** | Bitwave, Request Finance and others already have ERP sync and customers | Compete on prevention (the instruction) and on depth of exception handling; test this claim against their products early |
-| **Licensing boundary** | Any feature that touches funds (refunds, conversion, sweeping) could make Clearline a licensable intermediary | Keep the "never holds funds" line; take legal advice before the first paying customer |
-| **Data access** | Free public chain data is fragile; detection without a pasted hash needs address watching and paid data providers | Paid providers with a fallback per chain; budget for them in pricing |
-| **Accuracy limits** | Rules tested on a small sample; matching untested on real payments | Measure on each pilot's real cases and publish the error rate |
-| **Security maturity** | No sign-in, unencrypted tokens; a security review would stop a pilot | Fix the known gaps (section 6.3) before the first live pilot |
-| **Single founder** | Execution and continuity risk | Narrow scope; hire or partner for security and sales once there is revenue |
-| **Demand** | Zero customers; the problem's cost is not measured | The first 20 customer calls are the most important work |
-
-**Open questions we cannot answer yet.** How many exceptions does a typical business see per month? Who owns the problem: finance, operations or the founder? Will businesses connect their books to a young product? Is Ethereum-first right, given Tron's share of supply? Is US\$200 a month too much for a small team, or too little to build a business on?
-
-# 11. Roadmap (12 to 24 months)
-
-Each phase begins only when the evidence from the one before supports it.
+# 10. Roadmap (12 to 24 months)
 
 | When | What | Gate to move on |
-|--|---------|----|
-| **Months 0–3** | Xero Demo Company live test. Fix the security gaps for pilots (sign-in, encrypted tokens). Address watching on Ethereum, so correct payments are detected without a pasted hash. First paid pilots | 3 paying pilots; exceptions measured on real data |
-| **Months 3–6** | Payment requests on Tron. QuickBooks sandbox and first live run. Editable settings (confirmations, accepted tokens). Tamper-evident audit log. Database. A month-end report | Pilots renew; matching accuracy published from real cases |
-| **Months 6–12** | More networks (BNB Chain, Base, Polygon, Arbitrum). Non-USD invoices with a price source. Independent penetration test. Publish the draft instruction and receipt format | 20 paying customers; one wallet team engaged on the format |
-| **Months 12–24** | NetSuite. Signed instructions verified by at least one wallet. SOC 2 if customers require it | Revenue that supports a team |
+|--|--------|----|
+| **Months 0–3** | Payment pages on Tron. Address watching and confirmation polling on Ethereum and Tron. Sign-in, encrypted tokens, granular Xero scopes; Xero Demo Company live test. 20 customer calls | 3 paying pilots; exceptions measured on real data |
+| **Months 3–6** | Per-invoice addresses from the customer's custody provider. QuickBooks sandbox. Editable settings, `finalized` finality. Tamper-evident audit; database; month-end report | Pilots renew; matching accuracy published from real cases |
+| **Months 6–12** | More networks; non-USD invoices; sanctions screening through an analytics provider; penetration test | 20 paying customers |
+| **Months 12–24** | NetSuite. A draft instruction format, only if a wallet team will verify it | Revenue that supports a team |
 
-# 12. Conclusion
+# 11. Conclusion
 
-Stablecoins already move hundreds of billions of dollars of real commerce, and regulation is making them more ordinary. The money moves well. What does not yet work well is everything a business needs after the transfer: knowing the payment is genuine, complete, on the right network, for a specific invoice, and correctly in the books. Clearline is a narrow attempt to make that layer reliable for businesses paid straight into their own wallets: precise instructions, deterministic checks, conservative matching, plain explanations, and accounting entries that post only with a person's approval, all without ever holding funds.
-
-The product works in demo and on real public transactions. It has no customers yet, and its accounting connection has not yet run live. The next proof is not more code: it is whether real finance teams have this problem often enough to pay to solve it.
+Stablecoins already carry hundreds of billions of dollars of commerce, and regulation is making them more ordinary. The money moves well; what a business needs after the transfer does not yet work well. Clearline is a narrow attempt at that layer for businesses paid straight into their own wallets: precise instructions, deterministic checks, conservative matching, plain explanations and entries that post only with a person's approval, without ever holding funds. The product works in demo, live mode is thin, and the accounting connection has not run live. The next proof is not more code; it is whether real finance teams have this problem often enough to pay for it.
 
 \clearpage
 
-# Appendix A. Glossary
+# Appendix A. Implementation detail {.unnumbered}
+
+## A.1 Payment requests
+
+A request fixes, at creation: the amount as an exact decimal string with at most six decimal places (the precision of USDC and USDT on Ethereum); the token and the issuer's official contract; the network (Ethereum); the receiving address, which is the business's own; and a random public identifier for the payer's link.{{V:src/lib/requests/lifecycle.ts}} The address checker returns *match*, *look-alike*, *different* or *invalid*. A look-alike shares the first four or last four hex characters with the real address. Only the verdict is kept, plus the pasted address when it is a look-alike; the last 20 checks are kept per request.{{V:src/lib/requests/lifecycle.ts}}
+
+## A.2 Verification rules
+
+Each transfer is stored once under `chain:hash:logIndex`, so a repeated event never creates a second payment, and confirmations never go backwards.{{V:src/lib/requests/lifecycle.ts}} A transfer counts toward a request only if all of these hold:{{V:src/lib/requests/lifecycle.ts}}
+
+| Check | Rule | Can a person override it? |
+|---|-------|------|
+| Succeeded | The transaction did not revert | No |
+| Network | Sent on the request's network | Only if it landed in the business's own wallet there; never posted automatically |
+| Address | Sent to the request's receiving address | By assigning the payment, with a note |
+| Genuine token | Contract equals the issuer's contract fixed on the request | No |
+| Timing | Mined after the request was created | Yes, with a note |
+| Engine findings | For example an issuer freeze | No |
+| Confirmations | 12 on Ethereum (sample setting) | n/a |
+
+## A.3 Matching and states
+
+For a payment with no usable reference, Clearline suggests up to three open requests, scored out of 100: exact amount owed (40), a sender address this customer has paid from before (35), no other open request for the amount (15), paid after the invoice (10). *Strong* is 80 or more, *Possible* 50 or more. The score is not a probability, and a person confirms with a written reason.{{V:src/lib/requests/lifecycle.ts}} States are derived from the records every time: *awaiting payment*, *payment seen*, *confirming*, *matched*, *needs attention*, *paid*.{{V:src/lib/requests/types.ts}}
+
+![Request states. "Paid" is reached only by a decision: a person's, or the automatic rule (demo only today).](build/states.pdf){width=96%}
+
+## A.4 Explanation and AI
+
+Explanations and replies come from templates over the records; a likely cause is labelled as an inference; replies state only facts from the records and promise no timing or credit.{{V:src/lib/requests/present.ts}} On the investigation pages, an optional language model (Claude) can word a verdict the rules already decided. Its output is rejected, and the template used, if a sentence cites no evidence ID, or if it contains a number, address, hash, date or token name not in the evidence, or words such as "guaranteed", "refund" or "fraud".{{V:src/lib/ai/validate.ts}} This path has not been tested on real data.{{V:demo/REPORT.md}}
+
+## A.5 Posting rules
+
+| Case | What posts | Invoice after |
+|----|---------|----|
+| Exact | One payment, with tx hash, token, network and USD value in the reference | Paid |
+| Short | A partial payment and a note | Open for the shortfall |
+| Short, accepted as settled | The payment plus a separate fee write-off line | Paid |
+| Over, or paid twice | Nothing until a person decides; then the invoice amount once, and the excess as a separate overpayment line | Paid |
+| Same transfer reported twice | Nothing new | Unchanged |
+| Counterfeit, failed, wrong token or wrong network | **Never posted** | Unchanged |
+| No reference | Nothing until a person confirms the invoice | |
+| Non-USD invoice, or price more than 0.5% from par | Blocked; post by hand | |
+
+Payment lines are rounded down to the cent, so the books never show more received than arrived. The approval is refused if the plan changed since the page loaded.{{V:tests/accounting.test.ts}}
+
+![One payment, end to end. In live mode today, step 5 is a person pasting the transaction ID; in the demo it is automatic.](build/sequence.pdf){width=96%}
+
+## A.6 Records
+
+![Core records. Check snapshots, decisions and the posting audit are append-only; requests and transfers are updated as facts arrive.](build/datamodel.pdf){width=96%}
+
+## A.7 Threat model
+
+| Threat | Mitigation today | Residual risk |
+|----|-------|------|
+| Counterfeit tokens | Issuer's contract fixed at request creation; never counted or posted | Depends on the official contract list |
+| Look-alike addresses | Checker on the payment page | Only if the payer uses it |
+| Impersonation of the business | Random payment-link IDs | **Not solved**: a fake page or invoice is still possible |
+| Replay and duplicates | One record per `chain:hash:logIndex`; one idempotency key per line | Low |
+| Insider error | A written reason for every decision; approval before posting | **High until sign-in exists** |
+| Data-source failure | Checks pause; a missing receipt is never read as a failure{{V:src/lib/chain/evm.ts}} | Free data sources are fragile |
+| Server compromise | Secrets in environment variables | **High**: see section 5 |
+
+# Appendix B. Worked examples {.unnumbered}
+
+All use Clearline's demo: a **fictional** company, Northwind Pay Pte Ltd, its fictional customers and simulated transfers, through the same code as live transfers.{{V:src/lib/requests/demo.ts}}
+
+| Case | What arrived | What Clearline concludes and does |
+|---|-------|---------|
+| **a. Routine** | Exact amount of genuine USDC to the invoice's address | Matched after 12 confirmations; marked paid by the demo's automatic rule; one payment line posts on approval |
+| **b. Short** | 4,950.00 of 5,000.00 USDC from an exchange's withdrawal wallet | Short by 50.00 (1.0%); likely cause, labelled an inference: exchange fee. Drafts a request for the balance |
+| **c. Counterfeit** | 7,500 "USDT" from a contract Tether does not control | Cannot be marked paid; never posted; drafts a non-accusing reply |
+| **d. Wrong network** | 3,200 USDT on Tron to the business's old Tron wallet, for an Ethereum request | A person may count it after treasury confirms; never posted automatically |
+| **e. Unidentified** | 2,180.00 USDC to the main address, no reference | Suggests INV-1045 with score 100 (*Strong*); a person confirms |
+| **f. Look-alike** | Nothing yet: the payer pastes an address from their history | "Stop: don't send to this address" |
+| **g. Duplicate** | 1,980.00 USDC twice, four minutes apart | One payment and one overpayment marked for refund; refund instruction drafted for treasury |
+
+# Appendix C. Glossary {.unnumbered}
 
 | Term | Plain meaning |
-|---|----------|
+|---|---------|
 | **Stablecoin** | A token designed to hold a steady value, usually US\$1. USDC (Circle) and USDT (Tether) are the largest |
-| **Token contract** | The program on the blockchain that defines a token. Only the issuer's contract makes a USDC or USDT genuine |
-| **Network (chain)** | A blockchain such as Ethereum or Tron. The same token exists separately on several networks |
-| **Transaction ID (hash)** | A unique identifier for a blockchain transaction, used to look it up |
-| **Confirmations** | The number of blocks added after the one that holds a transaction. More confirmations mean it is harder to reverse |
-| **Address poisoning** | A scam: the attacker sends a tiny transfer from an address that looks like a real one, hoping the victim later copies it from their history |
-| **Counterfeit token** | A token that copies a real token's name, from a different contract. It has no value |
-| **Wrong-network payment** | A transfer sent on a different network from the one requested |
-| **Issuer freeze** | A block the issuer places on an address, so its tokens cannot move |
-| **Posting** | Writing an entry into the accounting system, for example a payment against an invoice |
-| **Idempotency key** | A unique label on a write, so that sending it twice has the same effect as sending it once |
-| **Read-only** | Able to look, not to act. Clearline reads the blockchain and never signs or sends a transaction |
-| **EIP-681** | An Ethereum standard for writing a payment request as a URL, used in QR codes |
+| **Token contract** | The program on the blockchain that defines a token. Only the issuer's contract makes a token genuine |
+| **Network (chain)** | A blockchain such as Ethereum or Tron. EVM networks share the same address format |
+| **Transaction ID (hash)** | A unique identifier used to look up a transaction |
+| **Confirmations / finality** | Blocks added after a transaction; "finalized" means validators have made it practically irreversible |
+| **Address poisoning** | A scam that plants a look-alike address in a victim's history, hoping they copy it later |
+| **Idempotency key** | A label on a write, so sending it twice has the same effect as once |
+| **Read-only** | Able to look, not to act |
 
-# Appendix B. Worked examples
+*Sources are given as footnotes. The full list, with every product claim mapped to a file or test, is in CLAIMS_AUDIT.md.*
 
-All examples use Clearline's demo: a **fictional** company, Northwind Pay Pte Ltd, its fictional customers, and simulated transfers. They run through the same code as live transfers.{{V:src/lib/requests/demo.ts}}
-
-| Case | What arrived | What Clearline concludes | What it does |
-|----|-----|-----|-----|
-| **a. Routine** (Acme Logistics) | Exact amount of genuine USDC to the invoice's address | Matched; 12 confirmations | Marked paid by the demo's automatic rule; one payment line posts on approval |
-| **b. Short** (Brightline Studio) | 4,950.00 of 5,000.00 USDC, from an exchange's withdrawal wallet | Short by 50.00 USDC (1.0%). Likely cause, labelled an inference: fees deducted by the exchange | Drafts a polite request for the balance; partial payment and note, or payment plus fee write-off if accepted as settled |
-| **c. Counterfeit** (Orbit Retail) | 7,500 "USDT" from a contract Tether does not control | Not genuine USDT | Cannot be marked paid; never posted; drafts a non-accusing reply |
-| **d. Wrong network** (Meridian Travel) | 3,200 USDT on Tron, to the business's old Tron wallet, for an Ethereum request | Wrong network, but in the business's own wallet | Treasury confirms, then a person may count it; never posted automatically |
-| **e. Unidentified** (Kite Analytics) | 2,180.00 USDC to the main address, no reference | Suggests INV-1045: exact amount (40), known sender (35), unique amount (15), after the invoice (10) = 100, *Strong* | A person confirms with a reason; then it posts as exact |
-| **f. Look-alike** (Fernhill Foods) | Nothing yet: the payer pastes an address from their wallet history | Look-alike: same first and last four characters | "Stop: don't send to this address", before any money moves |
-| **g. Duplicate** (Kestrel Freight) | 1,980.00 USDC twice, four minutes apart | Paid twice | Drafts a refund instruction for treasury and a reply; posts one payment and one overpayment marked for refund |
-
-**Example posting plan (case g, after the refund decision).** Two lines post, each with its own idempotency key:{{V:tests/accounting.test.ts}}
-
-| Line | Amount (USD) | Account | Reference |
-|--|--|---|--------|
-| Payment | 1,980.00 | Wallet (bank) account | 1,980.00 USDC on Ethereum, tx hash, valued at par (no price feed connected) |
-| Overpayment | 1,980.00 | Wallet (bank) account | Overpayment to refund: the same invoice paid twice |
-
-# Appendix C. References
-
-All web sources were opened on 29 October 2026. Product claims are mapped to files and tests in the accompanying claims audit.
-
-[^bvp]: Bessemer Venture Partners, C. Birnbaum, E. Kaplan and B. Nydick, "Stablecoins: from DeFi primitive to global financial infrastructure", 22 April 2026. <https://www.bvp.com/atlas/stablecoins-from-defi-primitive-to-global-financial-infrastructure>
-[^reap]: Reap, "Stablecoin Statistics & Data 2026: All You Need To Know", 14 August 2026, citing BIS, BCG × Allium, McKinsey, DefiLlama and EY-Parthenon. <https://reap.global/blog/stablecoin-statistics-2026>
-[^poison]: Cointelegraph, "Address poisoning: copy-paste mistake leads to \$50M USDT loss", 20 December 2025. <https://cointelegraph.com/news/address-poisoning-copy-paste-mistake-50m-usdt-loss>
-[^poisontx]: Etherscan, transaction 0xc0514a79…6a0f. <https://etherscan.io/tx/0xc0514a795f065fce8a3e1238a1ba480e8a792d45f6431ee4ba8d800bedd86a0f>
-[^genius]: U.S. Government Publishing Office, Public Law 119-27, "An act to provide for the regulation of payment stablecoins", 18 July 2025. <https://www.govinfo.gov/metadata/pkg/PLAW-119publ27/mods.xml>
-[^occ]: Decrypt, "OCC finalizes GENIUS Act stablecoin rules ahead of January deadline", 21 October 2026. <https://decrypt.co/381502/occ-finalizes-genius-act-stablecoin-rules-ahead-of-january-deadline>
+[^bvp]: Bessemer Venture Partners, "Stablecoins: from DeFi primitive to global financial infrastructure", 22 April 2026. <https://www.bvp.com/atlas/stablecoins-from-defi-primitive-to-global-financial-infrastructure>
+[^reap]: Reap, "Stablecoin Statistics & Data 2026", 14 August 2026, reporting BCG × Allium, McKinsey/Artemis, BIS, DefiLlama and EY-Parthenon. <https://reap.global/blog/stablecoin-statistics-2026>
+[^poison]: Cointelegraph, 20 December 2025. <https://cointelegraph.com/news/address-poisoning-copy-paste-mistake-50m-usdt-loss>; transaction: <https://etherscan.io/tx/0xc0514a795f065fce8a3e1238a1ba480e8a792d45f6431ee4ba8d800bedd86a0f>
+[^genius]: U.S. GPO, Public Law 119-27, 18 July 2025. <https://www.govinfo.gov/metadata/pkg/PLAW-119publ27/mods.xml>
+[^occ]: Decrypt, 21 October 2026. <https://decrypt.co/381502/occ-finalizes-genius-act-stablecoin-rules-ahead-of-january-deadline>
 [^eba]: European Banking Authority, "Asset-referenced and e-money tokens (MiCA)". <https://eba.europa.eu/regulation-and-policy/asset-referenced-and-e-money-tokens-mica>
-[^fsma]: FSMA (Belgium), "Crypto-asset service providers: end of the transitional period", 25 June 2026. <https://www.fsma.be/en/news/crypto-assets-service-providers-end-transitional-period>
-[^hkord]: Hong Kong Government News, "Stablecoins laws effective Aug 1", 6 June 2025. <https://www.news.gov.hk/eng/2025/06/20250606/20250606_140750_137.html>
+[^fsma]: FSMA (Belgium), 25 June 2026. <https://www.fsma.be/en/news/crypto-assets-service-providers-end-transitional-period>
+[^hkord]: Hong Kong Government News, 6 June 2025. <https://www.news.gov.hk/eng/2025/06/20250606/20250606_140750_137.html>
 [^hklic]: Charltons, "HKMA Issues First Stablecoin Issuer Licences", April 2026. <https://www.charltonslaw.com/hkma-issues-first-stablecoin-issuer-licences/>
-[^gd]: Gibson Dunn, "Singapore Publishes Draft Legislation to Implement Its Stablecoin Framework", September 2026. <https://www.gibsondunn.com/singapore-publishes-draft-legislation-to-implement-its-stablecoin-framework/>
+[^gd]: Gibson Dunn, September 2026. <https://www.gibsondunn.com/singapore-publishes-draft-legislation-to-implement-its-stablecoin-framework/>
 [^stripe]: Stripe Docs, "Stablecoin payments". <https://docs.stripe.com/crypto/stablecoins>
+[^bridge]: Stripe, "Stripe completes Bridge acquisition", 4 February 2025. <https://stripe.com/us/newsroom/news/stripe-completes-bridge-acquisition>
 [^hitpay]: HitPay, "Accept Crypto". <https://hitpayapp.com/crypto-payment-gateway-hitpay>
-[^safe]: Safe, "Safe{Wallet} gets even safer: introducing Blockaid integration", 16 September 2024. <https://safe.global/blog/safe-wallet-gets-even-safer-introducing-blockaid-integration>
-[^bitwave]: Bitwave, "Stablecoin B2B payments". <https://www.bitwave.io/request-a-demo-stablecoin-b2b-payments>
+[^safe]: Safe, Blockaid integration, 16 September 2024. <https://safe.global/blog/safe-wallet-gets-even-safer-introducing-blockaid-integration>
+[^fireblocks]: Fireblocks Developers, "Manage Destination Addresses". <https://developers.fireblocks.com/docs/whitelist-addresses>
+[^rfar]: Request Finance, "Accounts receivable". <https://www.request.finance/accounts-receivable>
 [^request]: Request Finance Help Center, "Accounting integrations overview". <https://help.request.finance/en/articles/13038304-accounting-integrations-overview>
+[^rnpn]: Request Network Docs, "How payment networks work". <https://docs.request.network/advanced/protocol-overview/how-payment-networks-work>
+[^bitwave]: Bitwave, "Stablecoin B2B payments". <https://www.bitwave.io/request-a-demo-stablecoin-b2b-payments>
 [^tres]: TRES Finance, "Crypto accounting". <https://tres.finance/lpp/crypto-accounting>
-[^cryptio]: Cryptio, "Cryptio: the obvious choice for NetSuite users", 15 January 2026. <https://blog.cryptio.co/cryptio-the-obvious-choice-for-netsuite-users>
-[^eip681]: Ethereum Improvement Proposals, ERC-681, "URL Format for Transaction Requests". <https://ercs.ethereum.org/ERCS/erc-681>
+[^cryptio]: Cryptio, 15 January 2026. <https://blog.cryptio.co/cryptio-the-obvious-choice-for-netsuite-users>
+[^eip681]: ERC-681, "URL Format for Transaction Requests". <https://ercs.ethereum.org/ERCS/erc-681>
+[^erc7699]: ERC-7699, "ERC-20 Transfer Reference Extension" (a proposal). <https://ercs.ethereum.org/ERCS/erc-7699>
+[^finality]: Tatum Docs, "EVM block finality and confidence". <https://docs.tatum.io/docs/evm-block-finality-and-confidence>
+[^fasb]: Crowe, "FASB proposes cash equivalents guidance for stablecoins", 25 August 2026. <https://www.crowe.com/insights/take-into-account/fasb-proposes-cash-equivalents-guidance-for-stablecoins>
+[^xero]: Xero Developer, "Granular scopes" FAQ. <https://developer.xero.com/faq/granular-scopes>
+[^solpay]: Solana Pay specification, version 1. <https://solana.com/docs/tools/solana-pay/specification/version1>
+[^bip70]: Bitcoin Optech, "BIP70 payment protocol". <https://bitcoinops.org/en/topics/bip70-payment-protocol/>
+[^pr30]: `docs/enterprise/SECURITY_OVERVIEW.md` on branch `enterprise-pack` (pull request 30, commit `7c493e3`, not merged).
+[^pr31]: `demo/QA_REPORT.md` and the 573-test run on branch `qa-polish` (pull request 31, commit `12abf33`, not merged), run on 29 October 2026.

@@ -67,11 +67,11 @@ def variant(md, review):
         return " [ASSUMPTION]{.atag}" if kind == "A" else " [GUESS]{.gtag}"
     out = MARK.sub(sub, md)
     if review:
-        out = out.replace(":::\n\n# 1. Abstract",
+        out = out.replace(":::\n\n# Abstract {.unnumbered}",
             "\n**Review copy.** Every important claim carries a label: "
             "[VERIFIED]{.vtag} with its source (a footnote, or the file or test in the repository that proves it), "
             "[ASSUMPTION]{.atag} for a hypothesis we have not yet tested, and [GUESS]{.gtag} for an estimate with no evidence behind it.\n"
-            ":::\n\n# 1. Abstract", 1)
+            ":::\n\n# Abstract {.unnumbered}", 1)
     return out
 
 
@@ -80,23 +80,30 @@ def pdf(md_text, out, subtitle, footer_note):
     tmp.write_text(md_text)
     vars_tex = BUILD / (out.stem + "-vars.tex")
     vars_tex.write_text(f"\\newcommand{{\\CLsubtitle}}{{{subtitle}}}\n\\newcommand{{\\CLvariant}}{{{footer_note}}}\n")
-    run(["pandoc", tmp, "-o", out, "--pdf-engine=xelatex", "--lua-filter", "filters.lua",
+    tex = BUILD / (out.stem + ".tex")
+    run(["pandoc", tmp, "-s", "-o", tex, "--lua-filter", "filters.lua",
          "-H", vars_tex, "-H", "style.tex", "-V", "fontfamily=fontspec", "-V", "mainfont=Inter", "-V", "monofont=DejaVu Sans Mono", "-V", "fontsize=10pt",
          "-V", "geometry:a4paper,top=20mm,bottom=22mm,left=22mm,right=22mm", "-V", "colorlinks=true",
-         "-V", "linkcolor=accent", "-V", "urlcolor=accent", 
-         "--resource-path", str(HERE)])
+         "-V", "linkcolor=accent", "-V", "urlcolor=accent"])
+    # Tables print their header once. A repeated longtable header (\\endhead) can be stranded on its own
+    # at the top of a page just before a heading; \\endfirsthead avoids that.
+    tex.write_text(tex.read_text().replace("\\endhead", "\\endfirsthead"))
+    for _ in range(2):
+        subprocess.run(["xelatex", "-interaction=nonstopmode", "-halt-on-error", f"-output-directory={BUILD}", str(tex)],
+                       check=True, cwd=HERE, stdout=subprocess.DEVNULL)
+    (BUILD / (out.stem + ".pdf")).replace(out)
 
 
 def main():
     if "--no-diagrams" not in sys.argv:
         diagrams()
     md = footnotes(references(SRC.read_text()))
-    sub = "From a stablecoin transfer to a settled invoice"
+    sub = "From a stablecoin transfer to a settled invoice: a working paper"
     pdf(variant(md, False), HERE / "Clearline_Whitepaper.pdf", sub, "")
     pdf(variant(md, True), HERE / "Clearline_Whitepaper_review.pdf", sub, " \\textperiodcentered{} REVIEW COPY: claims labelled")
     es = (HERE / "EXECUTIVE_SUMMARY.md")
     if es.exists():
-        pdf(es.read_text(), HERE / "EXECUTIVE_SUMMARY.pdf", "Executive summary", "")
+        pdf(es.read_text(), HERE / "EXECUTIVE_SUMMARY.pdf", "Executive summary of the working paper", "")
 
 
 if __name__ == "__main__":

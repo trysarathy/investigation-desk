@@ -27,7 +27,7 @@
 <text x="258" y="106">2 Payment page: amount, contract, network, QR</text>
 <text x="258" y="142">3 Address checker: match or STOP (look-alike)</text>
 <text x="428" y="190">4 Transfer to the business's own wallet</text>
-<rect x="430" y="208" width="290" height="22" rx="4" fill="#eaf7f0" stroke="#2f7d5b"/><text x="575" y="223" text-anchor="middle" fill="#2f7d5b" font-weight="600">Funds go straight to the business, never via Clearline</text>
+<rect x="430" y="206" width="300" height="24" rx="4" fill="#eaf7f0" stroke="#2f7d5b"/><text x="580" y="222" text-anchor="middle" fill="#2f7d5b" font-weight="600">Funds never pass through Clearline</text>
 <text x="88" y="238">5 Paste tx hash (live today)</text>
 <text x="258" y="274">6 Read-only lookup: receipt, logs, token contract</text>
 <text x="258" y="304">7 Transfer facts (raw response hashed)</text>
