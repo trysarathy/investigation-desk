@@ -25,7 +25,7 @@ export interface PostResult { acct: AccountingData; plan: PostingPlan; error?: s
  */
 export async function approveAndPost(
   reqData: RequestsData, acct: AccountingData, requestId: string,
-  o: PlanOptions & { by: string; now: string; adapter: BooksAdapter; expectedKey?: string },
+  o: PlanOptions & { by: string; now: string; adapter: BooksAdapter; expectedKey: string },
 ): Promise<PostResult> {
   const plan = planPosting(reqData, acct, requestId, o);
   const link = acct.links[requestId];
@@ -35,7 +35,12 @@ export async function approveAndPost(
     const why = plan.status === "posted" ? "Already in the books: nothing new to post." : plan.reasons.join(" ");
     return { acct: appendAudit(acct, { ...base, kind: "refused", reason: `Not posted (${plan.status.replace("_", " ")}): ${why}` }), plan, error: why };
   }
-  if (o.expectedKey && o.expectedKey !== plan.idempotencyKey) {
+  if (!o.expectedKey) {
+    // No key means nobody showed which plan was approved: never post "whatever the plan is now".
+    const error = "Plan key missing: approve the plan shown on the page.";
+    return { acct: appendAudit(acct, { ...base, kind: "refused", reason: `Not posted: ${error}`, idempotencyKey: plan.idempotencyKey }), plan, error };
+  }
+  if (o.expectedKey !== plan.idempotencyKey) {
     // What the person approved isn't what would post now (a transfer arrived, a decision changed): show them again.
     const error = "The plan changed since you looked at it. Check the new lines and approve again.";
     return { acct: appendAudit(acct, { ...base, kind: "refused", reason: `Not posted: ${error}`, idempotencyKey: plan.idempotencyKey }), plan, error };
@@ -103,7 +108,9 @@ export async function seedDemoBooks(reqData: RequestsData, acct: AccountingData,
     const ack = v.acknowledgedBy;
     if (!ack || r.decisions.some((d) => d.kind !== "acknowledge")) continue;
     const at = new Date(Date.parse(ack.at) + 12 * 60_000).toISOString();
-    const res = await approveAndPost(reqData, next, r.id, { threshold: o.threshold, by: o.operator, now: at, adapter: new DemoBooksAdapter(books, () => at) });
+    // The demo operator approves the plan as it stands, by its key, like a person on the page would.
+    const expectedKey = planPosting(reqData, next, r.id, { threshold: o.threshold }).idempotencyKey;
+    const res = await approveAndPost(reqData, next, r.id, { threshold: o.threshold, by: o.operator, now: at, adapter: new DemoBooksAdapter(books, () => at), expectedKey });
     next = { ...res.acct, demoBooks: books };
   }
   next.audit.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));

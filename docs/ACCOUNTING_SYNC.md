@@ -66,8 +66,15 @@ from par stops automatic posting.
 4. Set the account codes (`accounts` in `.data/accounting.json`, no screen yet): `walletAccountCode` = the code of a **bank** account in the Demo Company (payments and overpayments are received into it; Xero rejects anything else), `feeAccountCode` = `404 Bank Fees`. Overpayments are received into the wallet account and marked "To refund" or "Customer credit" in the reference.
 5. *Import invoices* on `/books`, pay one with test USDC, approve, and check the invoice in Xero.
 
-[ASSUMPTION] Xero introduced granular scopes for apps created from 2026; if the connection is refused
-for scope reasons, set `XERO_SCOPES` (see `providers/xero-auth.ts`).
+Scopes: Xero apps created on or after 2 March 2026 get granular scopes only, so Clearline requests
+`openid profile email offline_access accounting.invoices accounting.payments accounting.banktransactions accounting.contacts.read`
+(the endpoint-by-endpoint map is in `providers/xero-auth.ts`). `accounting.invoices` covers invoices and
+credit notes; `accounting.payments` covers payments; `accounting.banktransactions` covers bank transactions
+([Xero dev blog](https://devblog.xero.com/upcoming-changes-to-xero-accounting-api-scopes-705c5a9621a0),
+[Apideck](https://apideck.com/blog/xero-scopes)).
+[ASSUMPTION] Credit-note allocations and invoice history notes are covered by `accounting.invoices`
+(neither source names them). An older app still on broad scopes (allowed until September 2027) can set
+`XERO_SCOPES`, e.g. to `openid profile email offline_access accounting.transactions accounting.contacts.read`.
 
 ## Failures and rounding
 - If an adapter fails part-way (line 1 posted, line 2 failed), the lines that posted are recorded as posted in the audit log, so a retry posts only what's left.
