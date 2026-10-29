@@ -1,0 +1,132 @@
+/* Clearline working paper. Brand from /website: ink #0a0c11, accent #6e7df0 / #8ea2ff, good #5fd3a0,
+   warn #f5b85c, bad #f28b82; printed on white with darker tints for contrast. Fonts are bundled in fonts/. */
+
+@font-face { font-family: "Newsreader"; font-weight: 400; src: url(fonts/newsreader-latin-400-normal.woff2) format("woff2"); }
+@font-face { font-family: "Newsreader"; font-weight: 400; font-style: italic; src: url(fonts/newsreader-latin-400-italic.woff2) format("woff2"); }
+@font-face { font-family: "Newsreader"; font-weight: 500; src: url(fonts/newsreader-latin-500-normal.woff2) format("woff2"); }
+@font-face { font-family: "Newsreader"; font-weight: 600; src: url(fonts/newsreader-latin-600-normal.woff2) format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 400; src: url(fonts/inter-latin-400-normal.woff2) format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 400; font-style: italic; src: url(fonts/inter-latin-400-italic.woff2) format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 500; src: url(fonts/inter-latin-500-normal.woff2) format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 600; src: url(fonts/inter-latin-600-normal.woff2) format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 700; src: url(fonts/inter-latin-700-normal.woff2) format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 400; src: url(fonts/inter-cyrillic-400-normal.woff2) format("woff2"); unicode-range: U+0400-04FF; }
+@font-face { font-family: "Inter"; font-weight: 600; src: url(fonts/inter-cyrillic-600-normal.woff2) format("woff2"); unicode-range: U+0400-04FF; }
+@font-face { font-family: "JetBrains Mono"; font-weight: 400; src: url(fonts/jetbrains-mono-latin-400-normal.woff2) format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 600; src: url(fonts/jetbrains-mono-latin-600-normal.woff2) format("woff2"); }
+
+:root {
+  --ink: #0a0c11; --body: #23272f; --muted: #5b6272; --faint: #8a93a3; --rule: #dfe2e8;
+  --accent: #6e7df0; --accent-deep: #4a57c9; --accent-bg: #f3f4ff;
+  --good: #2f8a60; --good-bg: #eaf6f0; --warn: #b07418; --warn-bg: #fff6e6; --bad: #b5463c; --bad-bg: #fdefee;
+  --code-bg: #f6f7fa;
+}
+
+@page { size: A4; margin: 17mm 19mm 18mm 19mm; }
+@page :first { margin-top: 15mm; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { margin: 0; font-family: "Inter", sans-serif; font-size: 9.1pt; line-height: 1.48; color: var(--body); font-feature-settings: "cv11", "ss01", "tnum" 0; hyphens: manual; }
+
+h1, h2, h3, .serif { font-family: "Newsreader", Georgia, serif; color: var(--ink); font-weight: 600; letter-spacing: -0.01em; }
+h2 { font-size: 21pt; line-height: 1.1; margin: 0 0 3mm; break-after: avoid; }
+h2 .num { color: var(--accent); font-weight: 500; margin-right: 2.5mm; }
+h3 { font-size: 12.5pt; margin: 4.5mm 0 1.5mm; break-after: avoid; }
+p { margin: 0 0 2.4mm; }
+a { color: var(--accent-deep); text-decoration: none; }
+strong { color: var(--ink); font-weight: 600; }
+em { font-style: italic; }
+section { break-before: page; }
+section.flow { break-before: auto; margin-top: 6mm; }
+.kicker + h2 { margin-top: 0; }
+.kicker { break-after: avoid; }
+.lede { font-family: "Newsreader", serif; font-size: 12.6pt; line-height: 1.42; color: var(--ink); margin-bottom: 3.5mm; }
+.kicker { font-size: 7.6pt; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-deep); font-weight: 600; margin-bottom: 1.5mm; }
+ul, ol { margin: 0 0 2.4mm; padding-left: 5mm; }
+li { margin-bottom: 0.8mm; }
+code { font-family: "JetBrains Mono", monospace; font-size: 0.86em; background: var(--code-bg); padding: 0.2mm 1mm; border-radius: 1mm; color: #303644; }
+
+/* ---------- page 1 ---------- */
+.cover-brand { display: flex; align-items: baseline; gap: 3mm; margin-bottom: 2mm; }
+.cover-brand .mark { width: 10mm; height: 1.6mm; background: var(--accent); border-radius: 1mm; }
+.cover-brand .meta { font-size: 7.8pt; color: var(--muted); letter-spacing: 0.04em; }
+.cover h1 { font-size: 34pt; line-height: 1; margin: 1mm 0 1.5mm; }
+.cover .thesis { font-family: "Newsreader", serif; font-size: 14.5pt; line-height: 1.3; color: var(--ink); margin: 0 0 3mm; max-width: 150mm; }
+.cover .thesis em { color: var(--accent-deep); font-style: italic; }
+.cover figure.gap { margin: 0 0 2.5mm; }
+.cover figure.gap svg { width: 100%; height: auto; }
+.cover .cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5mm; font-size: 8.55pt; line-height: 1.47; }
+.cover .cols h3 { font-size: 10.5pt; margin: 0 0 1.2mm; }
+.cover .cols p { margin-bottom: 1.6mm; }
+.status { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0; border: 1px solid var(--rule); border-radius: 2.5mm; margin-top: 3.5mm; font-size: 8.2pt; line-height: 1.42; overflow: hidden; }
+.status > div { padding: 2.6mm 3.2mm; }
+.status > div + div { border-left: 1px solid var(--rule); }
+.status .t { font-size: 7.2pt; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700; margin-bottom: 1mm; }
+.status .built { background: var(--good-bg); } .status .built .t { color: var(--good); }
+.status .next { background: var(--accent-bg); } .status .next .t { color: var(--accent-deep); }
+.status .ask { background: var(--warn-bg); } .status .ask .t { color: var(--warn); }
+.status ul { padding-left: 3.6mm; margin: 0; } .status li { margin-bottom: 0.6mm; }
+.founder { margin-top: 3.5mm; border: 1.4px dashed var(--accent); border-radius: 2.5mm; padding: 3mm 4mm; color: var(--accent-deep); font-family: "Newsreader", serif; font-size: 11pt; font-style: italic; text-align: center; background: #fbfbff; }
+
+/* ---------- figures ---------- */
+figure { margin: 3mm 0 3.5mm; break-inside: avoid; }
+figure svg { width: 100%; height: auto; max-height: 112mm; display: block; margin: 0 auto; }
+figure.sm svg { max-height: 74mm; }
+figure.md svg { max-height: 84mm; }
+figcaption { font-size: 7.9pt; color: var(--muted); margin-top: 1.4mm; line-height: 1.4; }
+figcaption b { color: var(--ink); font-weight: 600; }
+
+/* ---------- callouts ---------- */
+.callout { border-left: 3px solid var(--bad); background: var(--bad-bg); padding: 3mm 4mm; border-radius: 0 2mm 2mm 0; margin: 3.5mm 0; break-inside: avoid; }
+.callout .big { font-family: "Newsreader", serif; font-size: 20pt; color: var(--bad); line-height: 1; font-weight: 600; }
+.callout.info { border-left-color: var(--accent); background: var(--accent-bg); }
+.callout.info .big { color: var(--accent-deep); }
+.callout.good { border-left-color: var(--good); background: var(--good-bg); }
+.pull { font-family: "Newsreader", serif; font-size: 14.5pt; line-height: 1.3; color: var(--ink); border-top: 1.5px solid var(--ink); border-bottom: 1px solid var(--rule); padding: 3mm 0; margin: 4mm 0; break-inside: avoid; }
+.pull .by { display: block; font-family: "Inter", sans-serif; font-size: 7.6pt; color: var(--muted); margin-top: 1.5mm; letter-spacing: 0.04em; }
+.story { font-family: "Newsreader", serif; font-size: 10.6pt; line-height: 1.5; color: #2a2f38; border-left: 2px solid var(--rule); padding-left: 4mm; margin: 2mm 0 3.5mm; }
+.story p { margin-bottom: 2mm; }
+.steps { counter-reset: s; list-style: none; padding: 0; margin: 2mm 0 3mm; }
+.steps > li { counter-increment: s; position: relative; padding-left: 9mm; margin-bottom: 2mm; }
+.steps > li::before { content: counter(s); position: absolute; left: 0; top: -0.3mm; width: 5.6mm; height: 5.6mm; border-radius: 50%; background: var(--accent); color: white; font-weight: 700; font-size: 8pt; display: flex; align-items: center; justify-content: center; }
+.two { column-count: 2; column-gap: 6mm; }
+.two > div { display: contents; }
+.two h3:first-child { margin-top: 0; }
+.note { font-size: 8pt; color: var(--muted); }
+
+/* ---------- tables ---------- */
+table { width: 100%; border-collapse: collapse; font-size: 7.95pt; line-height: 1.4; margin: 2.5mm 0 3.5mm; break-inside: auto; }
+thead th { text-align: left; font-weight: 600; color: var(--ink); border-bottom: 1.4px solid var(--ink); padding: 1.4mm 2mm 1.4mm 0; font-size: 7.6pt; letter-spacing: 0.02em; }
+tbody td { border-bottom: 1px solid var(--rule); padding: 1.5mm 2mm 1.5mm 0; vertical-align: top; }
+tbody tr { break-inside: avoid; }
+td.k { font-weight: 600; color: var(--ink); }
+.small { font-size: 7.6pt; }
+
+/* ---------- code ---------- */
+.excerpt { margin: 2.5mm 0 3.5mm; break-inside: avoid; }
+.excerpt .head { display: flex; justify-content: space-between; align-items: baseline; font-size: 7.6pt; color: var(--muted); margin-bottom: 1mm; gap: 3mm; }
+.excerpt .head b { color: var(--ink); font-size: 8.6pt; }
+.excerpt .head .path { font-family: "JetBrains Mono", monospace; font-size: 7pt; }
+pre { margin: 0; background: var(--code-bg); border: 1px solid #e7e9ef; border-radius: 2mm; padding: 2.2mm 3mm; font-family: "JetBrains Mono", monospace; font-size: 6.85pt; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; color: #2a3040; }
+pre .cm { color: #7a8294; font-style: normal; }
+pre .st { color: #2f7d5b; }
+pre .kw { color: #4a57c9; font-weight: 600; }
+pre .nu { color: #b07418; }
+.excerpt .why { font-size: 8.4pt; margin-top: 1.4mm; color: var(--body); }
+
+/* ---------- references and claim labels ---------- */
+sup.ref { font-size: 6.3pt; color: var(--accent-deep); font-weight: 600; margin-left: 0.3mm; }
+ol.refs { font-size: 7.6pt; line-height: 1.42; padding-left: 6mm; }
+ol.refs li { margin-bottom: 1.1mm; overflow-wrap: anywhere; }
+.c { display: none; }
+body.review .c { display: inline; font-size: 6pt; font-weight: 700; letter-spacing: 0.04em; padding: 0.1mm 0.9mm; border-radius: 0.8mm; margin-left: 0.6mm; vertical-align: 0.5pt; white-space: nowrap; }
+body.review .c.v { color: var(--good); background: var(--good-bg); }
+body.review .c.a { color: var(--warn); background: var(--warn-bg); }
+body.review .c.g { color: var(--bad); background: var(--bad-bg); }
+body.review .c .src { font-family: "JetBrains Mono", monospace; font-weight: 400; }
+.review-banner { display: none; }
+body.review .review-banner { display: block; font-size: 7.8pt; color: var(--warn); border: 1px solid var(--warn); border-radius: 1.5mm; padding: 1.5mm 2.5mm; margin-bottom: 2.5mm; }
+
+/* ---------- appendix ---------- */
+.appendix h2 { font-size: 17pt; }
+.audit td { font-size: 7.3pt; }
+.audit td:nth-child(3) { font-family: "JetBrains Mono", monospace; font-size: 6.7pt; overflow-wrap: anywhere; }

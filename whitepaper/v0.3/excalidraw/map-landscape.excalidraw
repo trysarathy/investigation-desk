@@ -1,0 +1,757 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {
+      "angle": 0,
+      "strokeColor": "#6e7df0",
+      "backgroundColor": "#eef0ff",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": {
+        "type": 2
+      },
+      "seed": 313900072,
+      "version": 1,
+      "versionNonce": 1912046205,
+      "isDeleted": false,
+      "boundElements": [
+        {
+          "type": "text",
+          "id": "t-1c"
+        },
+        {
+          "type": "arrow",
+          "id": "e-1n"
+        },
+        {
+          "type": "arrow",
+          "id": "e-1o"
+        },
+        {
+          "type": "arrow",
+          "id": "e-1p"
+        },
+        {
+          "type": "arrow",
+          "id": "e-1q"
+        },
+        {
+          "type": "arrow",
+          "id": "e-1r"
+        }
+      ],
+      "updated": 1793232000000,
+      "link": null,
+      "locked": false,
+      "id": "n-1b",
+      "type": "ellipse",
+      "x": 430,
+      "y": 230,
+      "width": 260,
+      "height": 120
+    },
+    {
+      "angle": 0,
+      "strokeColor": "#0a0c11",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": null,
+      "seed": 67174862,
+      "version": 1,
+      "versionNonce": 809374347,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1793232000000,
+      "link": null,
+      "locked": false,
+      "type": "text",
+      "fontSize": 22,
+      "fontFamily": 1,
+      "text": "Getting paid\nin stablecoins",
+      "originalText": "Getting paid\nin stablecoins",
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": "n-1b",
+      "lineHeight": 1.25,
+      "autoResize": true,
+      "id": "t-1c",
+      "x": 440,
+      "y": 262.5,
+      "width": 240,
+      "height": 55
+    },
+    {
+      "angle": 0,
+      "strokeColor": "#8a93a3",
+      "backgroundColor": "#f3f4f7",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": {
+        "type": 3
+      },
+      "seed": 372128580,
+      "version": 1,
+      "versionNonce": 1610519795,
+      "isDeleted": false,
+      "boundElements": [
+        {
+          "type": "text",
+          "id": "t-1e"
+        },
+        {
+          "type": "arrow",
+          "id": "e-1n"
+        }
+      ],
+      "updated": 1793232000000,
+      "link": null,
+      "locked": false,
+      "id": "n-1d",
+      "type": "rectangle",
+      "x": 10,
+      "y": 20,
+      "width": 410,
+      "height": 150
+    },
+    {
+      "angle": 0,
+      "strokeColor": "#0a0c11",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": null,
+      "seed": 1003206628,
+      "version": 1,
+      "versionNonce": 659690886,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1793232000000,
+      "link": null,
+      "locked": false,
+      "type": "text",
+      "fontSize": 15,
+      "fontFamily": 1,
+      "text": "Processors and checkout\nStripe · HitPay · Coinbase\nCovers: checkout, conversion,\nsettlement into fiat\nLeaves: a processor in the middle",
+      "originalText": "Processors and checkout\nStripe · HitPay · Coinbase\nCovers: checkout, conversion,\nsettlement into fiat\nLeaves: a processor in the middle",
+      "textAlign": "left",
+      "verticalAlign": "middle",
+      "containerId": "n-1d",
+      "lineHeight": 1.25,
+      "autoResize": true,
+      "id": "t-1e",
+      "x": 20,
+      "y": 48.125,
+      "width": 390,
+      "height": 93.75
+    },
+    {
+      "angle": 0,
+      "strokeColor": "#8a93a3",
+      "backgroundColor": "#f3f4f7",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": {
+        "type": 3
+      },
+      "seed": 1019412288,
+      "version": 1,
+      "versionNonce": 964546373,
+      "isDeleted": false,
+      "boundElements": [
+        {
+          "type": "text",
+          "id": "t-1g"
+        },
+        {
+          "type": "arrow",
+          "id": "e-1o"
+        }
+      ],
+      "updated": 1793232000000,
+      "link": null,
+      "locked": false,
+      "id": "n-1f",
+      "type": "rectangle",
+      "x": 700,
+      "y": 20,
+      "width": 410,
+      "height": 150
+    },
+    {
+      "angle": 0,
+      "strokeColor": "#0a0c11",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": null,
+      "seed": 524076341,
+      "version": 1,
+      "versionNonce": 2143071155,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1793232000000,
+      "link": null,
+      "locked": false,
+      "type": "text",
+      "fontSize": 15,
+      "fontFamily": 1,
+      "text": "Wallet security\nSafe + Blockaid · Fireblocks\nCovers: warns or limits the payer\nbefore they send\nLeaves: which invoice a receipt pays",
+      "originalText": "Wallet security\nSafe + Blockaid · Fireblocks\nCovers: warns or limits the payer\nbefore they send\nLeaves: which invoice a receipt pays",
+      "textAlign": "left",
+      "verticalAlign": "middle",
+      "containerId": "n-1f",
+      "lineHeight": 1.25,
+      "autoResize": true,
+      "id": "t-1g",
+      "x": 710,
+      "y": 48.125,
+      "width": 390,
+      "height": 93.75
+    },
+    {
+      "angle": 0,
+      "strokeColor": "#8a93a3",
+      "backgroundColor": "#f3f4f7",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": {
+        "type": 3
+      },
+      "seed": 308033765,
+      "version": 1,
+      "versionNonce": 239500999,
+      "isDeleted": false,
+      "boundElements": [
+        {
+          "type": "text",
+          "id": "t-1i"
+        },
+        {
+          "type": "arrow",
+          "id": "e-1p"
+        }
+      ],
+      "updated": 1793232000000,
+      "link": null,
+      "locked": false,
+      "id": "n-1h",
+      "type": "rectangle",
+      "x": 10,
+      "y": 395,
+      "width": 410,
+      "height": 150
+    },
+    {
+      "angle": 0,
+      "strokeColor": "#0a0c11",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": null,
+      "seed": 1123512765,
+      "version": 1,
+      "versionNonce": 1674275166,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1793232000000,
+      "link": null,
+      "locked": false,
+      "type": "text",
+      "fontSize": 15,
+      "fontFamily": 1,
+      "text": "Invoicing and crypto accounting\nRequest Finance · Bitwave · TRES · Cryptio\nCovers: invoices, ERP sync, references\nwhen the payer uses them\nLeaves (our view): plain transfers",
+      "originalText": "Invoicing and crypto accounting\nRequest Finance · Bitwave · TRES · Cryptio\nCovers: invoices, ERP sync, references\nwhen the payer uses them\nLeaves (our view): plain transfers",
+      "textAlign": "left",
+      "verticalAlign": "middle",
+      "containerId": "n-1h",
+      "lineHeight": 1.25,
+      "autoResize": true,
+      "id": "t-1i",
+      "x": 20,
+      "y": 423.125,
+      "width": 390,
+      "height": 93.75
+    },
+    {
+      "angle": 0,
+      "strokeColor": "#8a93a3",
+      "backgroundColor": "#f3f4f7",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": {
+        "type": 3
+      },
+      "seed": 1137993157,
+      "version": 1,
+      "versionNonce": 1403845863,
+      "isDeleted": false,
+      "boundElements": [
+        {
+          "type": "text",
+          "id": "t-1k"
+        },
+        {
+          "type": "arrow",
+          "id": "e-1q"
+        }
+      ],
+      "updated": 1793232000000,
+      "link": null,
+      "locked": false,
+      "id": "n-1j",
+      "type": "rectangle",
+      "x": 700,
+      "y": 395,
+      "width": 410,
+      "height": 150
+    },
+    {
+      "angle": 0,
+      "strokeColor": "#0a0c11",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": null,
+      "seed": 2013823440,
+      "version": 1,
+      "versionNonce": 1638078100,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1793232000000,
+      "link": null,
+      "locked": false,
+      "type": "text",
+      "fontSize": 15,
+      "fontFamily": 1,
+      "text": "Issuers and banks\nCircle · Tether · licensed issuers\nCovers: the money itself:\nmint, redeem, freeze\nLeaves: what a receipt was for",
+      "originalText": "Issuers and banks\nCircle · Tether · licensed issuers\nCovers: the money itself:\nmint, redeem, freeze\nLeaves: what a receipt was for",
+      "textAlign": "left",
+      "verticalAlign": "middle",
+      "containerId": "n-1j",
+      "lineHeight": 1.25,
+      "autoResize": true,
+      "id": "t-1k",
+      "x": 710,
+      "y": 423.125,
+      "width": 390,
+      "height": 93.75
+    },
+    {
+      "angle": 0,
+      "strokeColor": "#3b9a6f",
+      "backgroundColor": "#e6f5ed",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": {
+        "type": 3
+      },
+      "seed": 1200682428,
+      "version": 1,
+      "versionNonce": 1275467476,
+      "isDeleted": false,
+      "boundElements": [
+        {
+          "type": "text",
+          "id": "t-1m"
+        },
+        {
+          "type": "arrow",
+          "id": "e-1r"
+        }
+      ],
+      "updated": 1793232000000,
+      "link": null,
+      "locked": false,
+      "id": "n-1l",
+      "type": "rectangle",
+      "x": 300,
+      "y": 570,
+      "width": 520,
+      "height": 100
+    },
+    {
+      "angle": 0,
+      "strokeColor": "#0a0c11",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": null,
+      "seed": 1401372848,
+      "version": 1,
+      "versionNonce": 907099475,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1793232000000,
+      "link": null,
+      "locked": false,
+      "type": "text",
+      "fontSize": 15,
+      "fontFamily": 1,
+      "text": "The gap Clearline fills\nA plain transfer into the business's own wallet,\nchecked, matched, explained and booked",
+      "originalText": "The gap Clearline fills\nA plain transfer into the business's own wallet,\nchecked, matched, explained and booked",
+      "textAlign": "left",
+      "verticalAlign": "middle",
+      "containerId": "n-1l",
+      "lineHeight": 1.25,
+      "autoResize": true,
+      "id": "t-1m",
+      "x": 310,
+      "y": 591.875,
+      "width": 500,
+      "height": 56.25
+    },
+    {
+      "angle": 0,
+      "strokeColor": "#5b6272",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": {
+        "type": 2
+      },
+      "seed": 1741390596,
+      "version": 1,
+      "versionNonce": 893585097,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1793232000000,
+      "link": null,
+      "locked": false,
+      "id": "e-1n",
+      "type": "arrow",
+      "x": 519.1095114542925,
+      "y": 233.04539095419304,
+      "width": 99.10951145429249,
+      "height": 138.04539095419304,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -41.43151839123033,
+          -74.85476330801049
+        ],
+        [
+          -99.10951145429249,
+          -138.04539095419304
+        ]
+      ],
+      "lastCommittedPoint": null,
+      "startBinding": {
+        "elementId": "n-1b",
+        "focus": 0,
+        "gap": 4
+      },
+      "endBinding": {
+        "elementId": "n-1d",
+        "focus": 0,
+        "gap": 4
+      },
+      "startArrowhead": null,
+      "endArrowhead": null,
+      "elbowed": false
+    },
+    {
+      "angle": 0,
+      "strokeColor": "#5b6272",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": {
+        "type": 2
+      },
+      "seed": 1209987381,
+      "version": 1,
+      "versionNonce": 1010305666,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1793232000000,
+      "link": null,
+      "locked": false,
+      "id": "e-1o",
+      "type": "arrow",
+      "x": 600.8904885457075,
+      "y": 233.04539095419304,
+      "width": 99.10951145429249,
+      "height": 138.04539095419304,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          41.431518391230384,
+          -74.85476330801049
+        ],
+        [
+          99.10951145429249,
+          -138.04539095419304
+        ]
+      ],
+      "lastCommittedPoint": null,
+      "startBinding": {
+        "elementId": "n-1b",
+        "focus": 0,
+        "gap": 4
+      },
+      "endBinding": {
+        "elementId": "n-1f",
+        "focus": 0,
+        "gap": 4
+      },
+      "startArrowhead": null,
+      "endArrowhead": null,
+      "elbowed": false
+    },
+    {
+      "angle": 0,
+      "strokeColor": "#5b6272",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": {
+        "type": 2
+      },
+      "seed": 1094268010,
+      "version": 1,
+      "versionNonce": 20762360,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1793232000000,
+      "link": null,
+      "locked": false,
+      "id": "e-1p",
+      "type": "arrow",
+      "x": 516.0775820311203,
+      "y": 346.47168024570243,
+      "width": 96.0775820311203,
+      "height": 123.52831975429757,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -40.145268841796906,
+          67.90356601229797
+        ],
+        [
+          -96.0775820311203,
+          123.52831975429757
+        ]
+      ],
+      "lastCommittedPoint": null,
+      "startBinding": {
+        "elementId": "n-1b",
+        "focus": 0,
+        "gap": 4
+      },
+      "endBinding": {
+        "elementId": "n-1h",
+        "focus": 0,
+        "gap": 4
+      },
+      "startArrowhead": null,
+      "endArrowhead": null,
+      "elbowed": false
+    },
+    {
+      "angle": 0,
+      "strokeColor": "#5b6272",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": {
+        "type": 2
+      },
+      "seed": 1540037687,
+      "version": 1,
+      "versionNonce": 1495581278,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1793232000000,
+      "link": null,
+      "locked": false,
+      "id": "e-1q",
+      "type": "arrow",
+      "x": 603.9224179688797,
+      "y": 346.47168024570243,
+      "width": 96.0775820311203,
+      "height": 123.52831975429757,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          40.145268841796906,
+          67.90356601229797
+        ],
+        [
+          96.0775820311203,
+          123.52831975429757
+        ]
+      ],
+      "lastCommittedPoint": null,
+      "startBinding": {
+        "elementId": "n-1b",
+        "focus": 0,
+        "gap": 4
+      },
+      "endBinding": {
+        "elementId": "n-1j",
+        "focus": 0,
+        "gap": 4
+      },
+      "startArrowhead": null,
+      "endArrowhead": null,
+      "elbowed": false
+    },
+    {
+      "angle": 0,
+      "strokeColor": "#3b9a6f",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": {
+        "type": 2
+      },
+      "seed": 1151696739,
+      "version": 1,
+      "versionNonce": 132163636,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1793232000000,
+      "link": null,
+      "locked": false,
+      "id": "e-1r",
+      "type": "arrow",
+      "x": 560,
+      "y": 350,
+      "width": 0,
+      "height": 220,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          110
+        ],
+        [
+          0,
+          220
+        ]
+      ],
+      "lastCommittedPoint": null,
+      "startBinding": {
+        "elementId": "n-1b",
+        "focus": 0,
+        "gap": 4
+      },
+      "endBinding": {
+        "elementId": "n-1l",
+        "focus": 0,
+        "gap": 4
+      },
+      "startArrowhead": null,
+      "endArrowhead": "arrow",
+      "elbowed": false
+    }
+  ],
+  "appState": {
+    "viewBackgroundColor": "#ffffff",
+    "gridSize": null
+  },
+  "files": {}
+}
