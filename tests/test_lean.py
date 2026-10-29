@@ -85,6 +85,11 @@ class LeanTests(unittest.TestCase):
         self.assertTrue(vs[1].allow, vs[1].reasons)
         self.assertTrue(lean.in_send_window("United Kingdom", datetime(2026, 10, 29, 10, 0, tzinfo=timezone.utc)))
         self.assertFalse(lean.in_send_window("Singapore", datetime(2026, 10, 31, 3, 0, tzinfo=timezone.utc)))  # Saturday
+        # 01:52 UTC on a Thursday is 03:52 in Moldova: must not send.
+        self.assertFalse(lean.in_send_window("Moldova", datetime(2026, 10, 29, 1, 52, tzinfo=timezone.utc)))
+        self.assertTrue(lean.in_send_window("Iceland", datetime(2026, 10, 29, 10, 0, tzinfo=timezone.utc)))
+        # Unknown country is blocked, never sent on Singapore time.
+        self.assertFalse(lean.in_send_window("Atlantis", datetime(2026, 10, 29, 3, 0, tzinfo=timezone.utc)))
 
     def test_domain_live_stops_gmail_cold_but_not_replies(self):
         s = lean_settings(send_mode="domain", domain_ready=True)

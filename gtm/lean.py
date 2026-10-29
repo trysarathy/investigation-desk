@@ -26,6 +26,13 @@ TZ_OFFSET = {
     "australia": 10, "new zealand": 12, "japan": 9, "taiwan": 8, "philippines": 8, "indonesia": 7,
     "thailand": 7, "malaysia": 8, "argentina": -3, "brazil": -3, "mexico": -6, "chile": -4, "peru": -5,
     "georgia": 4, "pakistan": 5, "bangladesh": 6, "sri lanka": 5.5, "nepal": 5.75,
+    # Added 29 Oct 2026: these defaulted to Singapore time and were nearly sent at 02:00-04:00 local.
+    "iceland": 0, "moldova": 2, "hungary": 1, "romania": 2, "bulgaria": 2, "greece": 2, "croatia": 1,
+    "slovenia": 1, "slovakia": 1, "luxembourg": 1, "ukraine": 2, "serbia": 1, "liechtenstein": 1,
+    "monaco": 1, "andorra": 0, "kazakhstan": 5, "vietnam": 7, "south korea": 9, "korea": 9,
+    "china": 8, "macau": 8, "mauritius": 4, "uganda": 3, "rwanda": 2, "tanzania": 3, "morocco": 1,
+    "uruguay": -3, "paraguay": -3, "colombia": -5, "costa rica": -6, "panama": -5,
+    "el salvador": -6, "south africa": 2,
 }
 SEND_START, SEND_END = time(9, 0), time(17, 0)
 
@@ -39,9 +46,14 @@ def offset_for(country: str) -> float | None:
 
 
 def in_send_window(country: str, now_utc: datetime) -> bool:
-    """True if it's a weekday between 9:00 and 17:00 for the recipient. Unknown country -> Singapore time."""
+    """True if it's a weekday between 9:00 and 17:00 for the recipient.
+
+    Unknown country -> False (blocked), so a missing time zone can never send at night. Add the country
+    to TZ_OFFSET to unblock it. (Offsets are winter time; within an hour during summer time.)"""
     off = offset_for(country)
-    local = now_utc.astimezone(timezone(timedelta(hours=off if off is not None else 8)))
+    if off is None:
+        return False
+    local = now_utc.astimezone(timezone(timedelta(hours=off)))
     return local.weekday() < 5 and SEND_START <= local.time() < SEND_END
 
 
