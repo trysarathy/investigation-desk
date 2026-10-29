@@ -15,10 +15,10 @@ money, without your approval.
 | Engineering | **qa-tester** | Tests `main` + open PRs nightly, e2e demo flows, fixes small failures on a branch | Nights with `main` green | Week 1 ✅ |
 | Research | **research-analyst** | Leads with evidence, targets, LinkedIn list, competitor/regulation watch | Qualified leads/day, spot-check accuracy | Week 1 ✅ |
 | Sales | **sdr** | GTM OS: queue, guarded sends, follow-ups, replies, LinkedIn pack, partner drafts | Calls booked/week, reply rate | Week 1 ✅ |
-| Product | product-manager | Call notes → specs and the roadmap; Friday ship review | Roadmap items with a customer quote | Week 2 |
-| Sales | ae-assistant | Call prep, call summaries, proposals, follow-up drafts | Calls → pilots offered | Week 2 |
-| Marketing | content-marketer | LinkedIn company posts, SEO pages, case studies (drafts) | Posts/pages approved per week | Week 2 |
-| Engineering | devops | Builds, deployments (Vercel preview on `website`), config fixes | Deploys green | Week 2 |
+| Product | **product-manager** | Call notes → specs and the roadmap; Friday ship review | Roadmap items with a customer quote | Week 2 ✅ |
+| Sales | **ae-assistant** | Call prep, call summaries, proposals, follow-up drafts | Calls → pilots offered | Week 2 ✅ |
+| Marketing | **content-marketer** | LinkedIn company posts, SEO pages, case studies (drafts) | Posts/pages approved per week | Week 2 ✅ |
+| Engineering | **devops** | Builds, deployments (Vercel preview on `website`), config fixes | Deploys green | Week 2 ✅ |
 | Design | designer | Screens, website, decks via artifacts | Assets shipped | Week 3 |
 | Marketing | video-producer | Demo films/clips with the existing Remotion pipeline (`demo/video`, branch `demo-video`) | Clips approved | Week 3 |
 | Customer | delivery-specialist | Runs paying customers' close packs and reconciliation, QA before sending | On-time, error-free deliveries | Week 3 |
@@ -68,8 +68,9 @@ call (you) → ae-assistant: summary + quotes → product-manager: roadmap row +
 | Daily 23:00-07:30 | Night shift (below) | engineering, research, sales, marketing | Nothing |
 | Daily 07:30 | Briefing + approval queue | chief-of-staff | 15 minutes |
 | Weekdays | Sends, replies, research, LinkedIn pack, partners | sdr, research-analyst | Your calls; LinkedIn by hand |
+| Weekdays 18:07 | Call summaries, follow-up and proposal drafts | ae-assistant | Send the drafts you like |
 | Weekdays 18:24 | Evening summary with tomorrow's emails in full | sdr | Skim; reply HOLD if needed |
-| Fri 17:13 | Ship review: PRs, what to merge, next week's build | product-manager (today: "Clearline Friday ship review") | Merge |
+| Fri 17:13 | Ship review: PRs, what to merge, next week's build | product-manager | Merge |
 | Sun 17:38 | Weekly report + spot check + mentor update draft | chief-of-staff | Read |
 | 1st of month | Investor-style update draft | chief-of-staff | Edit and send yourself |
 
@@ -77,8 +78,8 @@ call (you) → ae-assistant: summary + quotes → product-manager: roadmap row +
 
 Exact times are in `company/NIGHT_SHIFT.md`, with the scheduled task behind each slot and which ones
 still need a click from you. In short: 23:00 qa-tester, 23:30 lead-engineer, 00:30 research-analyst,
-01:30 sdr (LinkedIn pack + follow-up check), 02:30 content-marketer (week 2), 03:30 devops (week 2),
-07:30 chief-of-staff briefing. Follow-ups to the US/EU keep sending overnight from the hourly sender,
+01:30 sdr (LinkedIn pack + follow-up check), 02:30 content-marketer, 03:30 devops, 07:07 ae-assistant
+(call prep), 07:30 chief-of-staff briefing. Follow-ups to the US/EU keep sending overnight from the hourly sender,
 inside each recipient's 9:00-17:00 and the daily caps.
 
 Overnight, nobody: emails new people beyond the queue you saw; writes to customers, mentors or
