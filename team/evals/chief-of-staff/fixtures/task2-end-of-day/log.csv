@@ -1,0 +1,9 @@
+timestamp,agent,action,lead_id,details
+2026-11-04 07:31,chief-of-staff,briefing sent,,"map: 1=SEND:follow-up draft to Northwind Remit r-1101 (first 2026-11-04); 2=POST:LinkedIn draft 'wrong network' (first 2026-11-03); 3=MENTOR:advisor update draft Doc 'Clearline advisor update 2026-11-01 (DRAFT)' for you to send (first 2026-11-02); D1=BOOKING_LINK A/B; D2=Tron memo-less matching A/B/C"
+2026-11-04 10:51,sdr,partner drafts,,"2 Gmail drafts: Meridian Crypto Accounting (SG) d-2201, Northgate Audit Partners (HK) d-2202"
+2026-11-04 14:10,github,merged,,"PR #38 merged by aashmiin (accounting sync partial failure + overpayment account)"
+2026-11-04 16:49,sdr,reply,L-0902,"Kestrel Pay positive reply; BOOKING_LINK empty -> drafted reply proposing Fri 11:00; Aashmiin confirmed by calendar invite"
+2026-11-04 18:07,ae-assistant,call summary,L-0790,"Tidewater Commodities (held 16:00): Weak - pays suppliers in USDT, receives fiat. Calls tab updated. Follow-up DRAFT r-1102 in Gmail"
+2026-11-04 18:07,ae-assistant,needs notes,L-0812,"Mesa Digital call held 11:00: no notes in Calls tab, Doc or Notion -> listed for Aashmiin"
+2026-11-04 18:25,sdr,evening summary sent,,"queue 2026-11-05: 6 going (guard ALLOW), 2 not going. Email 'Clearline evening summary 2026-11-04'"
+2026-11-04 18:26,sdr,queued,L-0970,"late add: Kowloon Bay Electronics (HK) D0 queued for 2026-11-05 after re-scoring (guard ALLOW)"

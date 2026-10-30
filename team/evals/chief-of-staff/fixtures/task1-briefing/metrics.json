@@ -1,0 +1,5 @@
+{"source": "python3 -m gtm.cli metrics --dir work, run 2026-11-05 07:20 SGT (FICTIONAL)",
+ "leads_total": 233, "leads_added_7d": 141, "first_emails_sent": 61, "bounce_pct": 1.6,
+ "reply_pct": 3.3, "positive_reply_pct": 1.6, "calls_booked": 3, "calls_held": 1,
+ "strong_problems": 0, "design_partners": 0, "paying": 0,
+ "emails_sent_last_30d_all_steps": 104, "opportunities_offered": 0, "finance_income_paid_usd": 0}

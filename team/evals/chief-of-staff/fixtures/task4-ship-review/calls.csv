@@ -1,0 +1,5 @@
+date,lead_id,company,person,status,problem_score,pain_quotes,current_workaround,volume_per_month,next_step,notes_link
+2026-11-04,L-0790,Tidewater Commodities,Wei Jie Koh,held,Weak,"""Our auditor wants a CSV of every USDT payment with the invoice it matched""",bank statements,~10 outbound,send one-pager,https://docs.google.com/document/d/FICTIONAL-tidewater
+2026-11-04,L-0812,Mesa Digital LLC,Chris Alvarez,held,,,,,,
+2026-11-05,L-0855,Northwind Remit,Daniel Lim,held,Strong,"""Short USDT payments are the worst: we can't tell which invoice they belong to, and the shortfall sits in suspense until month-end"" / ""Can it post the shortfall to a fees account once we approve?""","spreadsheet + Xero manual journals, 2 days at month-end",~300 inbound USDT,pilot offer (her note: 'offer founding pilot'),https://docs.google.com/document/d/FICTIONAL-northwind-notes
+2026-11-06,L-0902,Kestrel Pay,Hannah Price,held,Strong,"""Half our USDC arrives without the invoice number, so someone guesses from the amount""",ops team matches by amount in a sheet,~120 inbound USDC,send pilot proposal draft,https://docs.google.com/document/d/FICTIONAL-kestrel-notes

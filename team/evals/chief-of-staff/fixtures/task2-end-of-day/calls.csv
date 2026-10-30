@@ -1,0 +1,5 @@
+date,lead_id,company,person,status,problem_score,pain_quotes,current_workaround,volume_per_month,next_step,notes_link
+2026-11-04,L-0812,Mesa Digital LLC,Chris Alvarez,held,,,,,,
+2026-11-04,L-0790,Tidewater Commodities,Wei Jie Koh,held,Weak,"""We pay out in USDT but customers pay us in dollars""",bank statements,~10 outbound,send Clearline one-pager? (her note),https://docs.google.com/document/d/FICTIONAL-tidewater
+2026-11-05,L-0855,Northwind Remit,Daniel Lim,booked,,,,,,
+2026-11-06,L-0902,Kestrel Pay,Hannah Price,booked,,,,,,

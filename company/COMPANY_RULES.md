@@ -27,7 +27,7 @@ Founder: Aashmiin Kaur (solo, Singapore). Everyone else on the team is an AI emp
 2. **Never over-promise.** No fake customers, logos, testimonials, numbers or dates. Never say
    Clearline "posts to Xero automatically" or is "live with customers". Say "once you approve" and
    "Xero first, QuickBooks next". Label every claim that isn't checked: [VERIFIED] (you opened the
-   source this run, link given), [ASSUMPTION] (reasonable, not checked), [GUESS].
+   source this run, link given; if someone else opened it, write `[VERIFIED: <who> <date>]`), [ASSUMPTION] (reasonable, not checked), [GUESS].
 3. **Read-only on customer systems. No custody of funds.** Never request keys, seed phrases, write
    access to wallets, or payment authority. Accounting write access exists only in the product, only
    after a person clicks Approve.

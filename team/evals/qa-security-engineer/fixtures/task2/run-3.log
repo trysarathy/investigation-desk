@@ -1,0 +1,50 @@
+$ npx vitest run    # branch fee-tolerance @ 4b1e9c2, CI runner "shared-small" (2 vCPU), 2026-10-27 23:19 SGT
+
+ RUN  v3.2.7 /work/investigation-desk
+
+ ✓ tests/engine.test.ts (145 tests) 131ms
+ ✓ tests/real-cases.test.ts (62 tests) 412ms
+ ✓ tests/live.test.ts (55 tests) 160ms
+ ✓ tests/ai.test.ts (33 tests) 61ms
+ ✓ tests/inbox.test.ts (31 tests) 344ms
+ ✓ tests/chain.test.ts (28 tests) 58ms
+ ✓ tests/payments.test.ts (24 tests) 83ms
+ ✓ tests/accounting.test.ts (23 tests) 96ms
+ ❯ tests/requests.test.ts (23 tests | 1 failed) 104ms
+   × the demo week: seven cases > b. Brightline: short by 50.00, likely cause fees (labelled as an inference), polite top-up reply 9ms
+     → expected 'matched' to be 'needs_review' // Object.is equality
+ ✓ tests/polish.test.ts (22 tests) 118ms
+ ✓ tests/csv.test.ts (20 tests) 47ms
+ ✓ tests/payments-review.test.ts (20 tests) 74ms
+ ✓ tests/inbox-review.test.ts (15 tests) 190ms
+ ✓ tests/ledger.test.ts (14 tests) 71ms
+ ✓ tests/qa-fixes.test.ts (12 tests) 8650ms
+ ✓ tests/inbox-rereview.test.ts (11 tests) 530ms
+ ✓ tests/payments-redirects.test.ts (7 tests) 115ms
+ ✓ tests/export.test.ts (6 tests) 240ms
+ ✓ tests/real-rules.test.ts (6 tests) 12ms
+ ✓ tests/bulk.test.ts (5 tests) 75ms
+ ↓ tests/real-record.test.ts (57 tests | 57 skipped)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/requests.test.ts > the demo week: seven cases > b. Brightline: short by 50.00, likely cause fees (labelled as an inference), polite top-up reply
+AssertionError: expected 'matched' to be 'needs_review' // Object.is equality
+
+- Expected
++ Received
+
+- needs_review
++ matched
+
+ ❯ tests/requests.test.ts:162:31
+    160|   it("b. Brightline: short by 50.00, likely cause fees (labelled as an inference), polite top-up reply", () => {
+    161|     const v = view(day(), "DEMO-1042");
+    162|     expect(v.state).toBe("needs_review");
+       |                               ^
+    163|     expect(v.review).toBe("short");
+
+ Test Files  1 failed | 19 passed | 1 skipped (21)
+      Tests  1 failed | 561 passed | 57 skipped (619)
+   Start at  23:19:30
+   Duration  15.10s
