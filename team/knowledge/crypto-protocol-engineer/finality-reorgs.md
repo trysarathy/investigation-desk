@@ -53,7 +53,7 @@ Source: `github.com/ethereum-optimism/docs/main/pages/stack/transactions/transac
   batch is posted to and finalized on Ethereum. [ASSUMPTION: search summary of
   docs.arbitrum.io/how-arbitrum-works/deep-dives/finality and the batch-poster page; not opened]
 - Measured 2026-10-29 [VERIFIED on-chain]: latest 519,309,788; safe −1,669 blocks (≈ 8 min);
-  finalized −3,338 blocks (≈ 16.5 min). The node exposes L1-derived `safe`/`finalized` tags: use them.
+  finalized −3,338 blocks (the time this represents is unverified: at ~0.25 s/block that is ≈ 14 min, and Arbitrum finality really follows L1 finality of the batch, ~13-20 min [ASSUMPTION]; use the tags, not a block count). The node exposes L1-derived `safe`/`finalized` tags: use them.
 - Block numbers are ~0.25 s apart; "12 confirmations" on Arbitrum is 3 seconds of sequencer trust and
   means nothing about L1 settlement. **Never port an Ethereum block count to an L2.**
 

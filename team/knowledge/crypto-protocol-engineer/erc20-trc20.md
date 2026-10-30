@@ -81,7 +81,7 @@ Genuine USDT, really sent, to `0xbaff…f8b5`: a poisoned look-alike of `0xbaf4�
 | Ethereum | USDC | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` | 6 | `src/lib/fixtures/index.ts` comment: confirmed on Circle's page in week 3 [ASSUMPTION: not re-opened; developers.circle.com blocked in this session] |
 | Tron | USDT | `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t` (hex `41a614f803b6fd780986a42c78ec9c7f77e6ded13c`) | 6 | TronGrid `triggerconstantcontract decimals()` → 6, name "Tether USD", symbol "USDT", contract name `TetherToken` (`/wallet/getcontract`) [VERIFIED on-chain] |
 | Arbitrum | USDC | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` | 6 | arb1.arbitrum.io `eth_call` → "USDC", "USD Coin", 6, `isBlacklisted(0x0)` answers [VERIFIED on-chain; issuer listing ASSUMPTION] |
-| Arbitrum | USDT0 | `0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9` | 6 | symbol **"USD₮0"** (U+20AE), name "USD₮0"; no `isBlackListed`/`isBlacklisted` selector [VERIFIED on-chain] |
+| Arbitrum | USDT0 | `0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9` | 6 | symbol **"USD₮0"** (U+20AE), name "USD₮0"; no `isBlackListed`/`isBlacklisted` selector [VERIFIED on-chain]; may still be freezable under other names (`isBlocked`?) [ASSUMPTION], see issuer-controls.md |
 | Base | USDC | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` | 6 | mainnet.base.org `eth_call` → "USDC", 6, `isBlacklisted` answers [VERIFIED on-chain] |
 | OP Mainnet | USDC | `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` | 6 | mainnet.optimism.io → "USDC", 6, `isBlacklisted` answers [VERIFIED on-chain] |
 | OP Mainnet | USDT (bridged) | `0x94b008aA00579c1307B0EF2c499aD98a8ce58e58` | 6 | → "USDT", "Tether USD", 6; **no** blacklist or `paused()` function: a bridged token, not Tether's own contract [VERIFIED on-chain] |

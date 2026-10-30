@@ -71,7 +71,7 @@ Measured 2026-10-29 [VERIFIED on-chain]:
   `isBlacklisted` and `paused()` all revert. Issued by Binance, not Tether/Circle (SPEC section 3, week 3
   finding). D09 is "not available on this chain", correctly a known gap, not a missing fact.
 - OP Mainnet "USDT" `0x94b0…8e58`: no blacklist or pause functions: a bridged standard token.
-- Arbitrum USDT0 `0xFd08…Cbb9` ("USD₮0"): no `isBlackListed`/`isBlacklisted`/`paused()` selector. USDT0
+- Arbitrum USDT0 `0xFd08…Cbb9` ("USD₮0"): no `isBlackListed`/`isBlacklisted`/`paused()` selector, **but that only rules out Tether's older function names**. The newer USDT0 (OFT) contract is believed to expose a block-list under different names (e.g. `isBlocked`) [ASSUMPTION: grader 2026-10-30, not checked on-chain]. Treat USDT0 as freezable until its verified source is read. USDT0
   is an omnichain (LayerZero OFT) USDT [ASSUMPTION: from public descriptions, not opened]; whatever freeze
   mechanism it has is not the Tether ABI. Don't call D09 "checked" there.
 - USDC on Arbitrum, Base, OP: native Circle FiatToken (answers `isBlacklisted`, `paused`) [VERIFIED

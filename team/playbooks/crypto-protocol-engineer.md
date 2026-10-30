@@ -92,6 +92,9 @@ Split into PRs: (a) config + fetcher + tests, (b) settings/UI, (c) request suppo
 Output: a short report (facts table, cause, fix/PR or explanation), Log row; `RISK:` if money could have
 been credited or posted wrongly.
 
+- **Any workaround you give ops or Aashmiin** ("use dismiss transfer", "re-run matching") must be checked against the real code or replayed on the fixture first. If the app refuses it, say so and open a `bug` row instead.
+- **Test expectations that contradict the spec** (e.g. `tests/real_cases.json` vs the rule order in docs/SPEC.md): flag the conflict in your output; never silently pick one. Use the catalogue's exact rule names.
+
 ## §5 Responding to a QA red `main` (trigger: QA email RED on main, or §0 baseline red)
 1. Read the failing test names and output; reproduce on fresh `main` locally. Classify: real / flaky
    (re-run 3×, compare) / environment (network, keys, Node version).
