@@ -10,7 +10,7 @@ Everything arrives from aashmiin@gmail.com, with a subject starting "Clearline".
 | 07:45 | 10 | **Call prep.** Read the brief for each call today: who they are, the people, likely objections, the demo path. | Prep Docs from sales-closer-assistant (ae-assistant until week 2) |
 | Midday | 10 | **LinkedIn by hand.** Send today's connection notes and follow-up DMs, approve your founder post. Mark each row sent in the LinkedIn list tab. | "Clearline LinkedIn pack" from revops-crm-agent; post drafts from content |
 | After each call | 5 | **Call notes.** 3-5 lines in the Calls tab: their pain in their words, how they do it today, volume, next step. Everything downstream (follow-up, proposal, roadmap) is built from these. | Follow-up draft appears the same evening |
-| 18:30 | 10 | **End of day.** Skim it, send the follow-up drafts you like, and read tomorrow's first emails (in full). Reply `HOLD` to stop tomorrow's batch; do nothing to let it go. | "Clearline end of day <date>" from chief-of-staff |
+| ~18:30 | 10 | **End of day** (arrives around 18:27). Skim it, send the follow-up drafts you like, and read tomorrow's first emails (in full). Reply `HOLD` to stop tomorrow's batch; do nothing to let it go. | "Clearline end of day <date>" from chief-of-staff |
 | Any time | 10 | **Merges.** Merge only what QA marked green and the ship review lists as ready. You're the only one who merges. | PRs on investigation-desk |
 
 ## Once a week (instead of that day's merges and end-of-day skim)
