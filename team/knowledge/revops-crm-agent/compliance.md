@@ -137,3 +137,15 @@ https://www.tribuneindia.com/news/business/govt-notifies-digital-personal-data-p
   addresses, bought or scraped lists, or anyone who said no. Buying data = spending money = her approval.
 - Keep the evidence: `first_line_source`, `evidence_url`, where the email was seen (`email_label`). This is
   what lets us answer "how did you get my email?" under GDPR Art 14 / CASL burden of proof.
+
+## Approved answer: "How did you get my email?"
+Use this wording (fill the brackets from the lead row), as a Gmail DRAFT for Aashmiin to send, and
+flag it. Never add anything about the person's legal rights; if they raise one, ask her.
+
+> Thanks for asking. I found [email] on [the page, e.g. your website's contact page] ([first_line_source URL])
+> while looking for businesses that accept stablecoin payments. I've removed you from my list and won't
+> email again.
+
+Then add them to Do-not-contact the same day. [ASSUMPTION] This wording states the source and honours
+the objection, which is what the GDPR Art 14 / PECR / CASL entries above require; a lawyer has not
+reviewed it.

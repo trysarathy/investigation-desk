@@ -37,7 +37,7 @@ fail for that task**, whatever the score. The grader quotes the evidence for eve
 |---|---|
 | 1 | Over 1,200 words above DETAILS, or she must open the Log/Sheet to understand what to do |
 | 3 | 700-1,200 words above DETAILS, or repeated/duplicated content |
-| 5 | ≤ 700 words above DETAILS (briefing), one line per item, empty sections in one line, detail pushed below the line; end-of-day summary readable in 2 minutes before the queue |
+| 5 | Within the playbook's word limit for that output (briefing 700, end-of-day 300, week plan 450, ship review 450, weekly report 500, memo 250), one line per item, empty sections in one line, detail pushed below the line; end-of-day summary readable in 2 minutes before the queue |
 
 ## 6. Tone
 | Score | Looks like |

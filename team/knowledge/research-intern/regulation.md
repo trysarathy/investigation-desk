@@ -144,11 +144,15 @@ put to counsel. Watch: once HKD stablecoins launch, HK B2B payers may invoice in
   consulted later [ASSUMPTION: search] [R38][R39][R40].
 - **GST (IRAS)**: since 1 Jan 2020 exchanges of DPT for fiat or other DPT are exempt; using a DPT
   as payment is disregarded as a supply; GST applies to the underlying goods/services as normal
-  [ASSUMPTION: search, P1 page] [R41].
+  [ASSUMPTION: search, conflicting] [R41]. **Conflict:** other search results quote IRAS as saying
+  tokens pegged to fiat (i.e. stablecoins like USDC/USDT) are NOT digital payment tokens for GST, so
+  this treatment may not apply to stablecoin receipts. Until a tax adviser confirms, every answer must
+  state the conflict; never say "no GST issue". First-refresh to-do: open the IRAS DPT definition and
+  put the question to a tax adviser (owner: research-intern, then finance-admin).
 
 **What it means** [ASSUMPTION]: a Singapore company invoicing in USDC/USDT and receiving into its
 own wallet is not providing a DPT service by being paid. It must still charge GST on the supply if
-registered, and book the receipt (FX/valuation). Clearline is read-only and holds nothing, so it
+registered (how the stablecoin leg itself is treated is unresolved, see R41 conflict above), and book the receipt (FX/valuation). Clearline is read-only and holds nothing, so it
 does not perform a DPT service (claims audit A3 — no legal advice taken).
 
 ## 5. India

@@ -5,6 +5,27 @@ exact: keep the section order and headings so she always knows where to look. Kn
 `team/knowledge/chief-of-staff/`. Rubric: `team/rubrics/chief-of-staff.md`.
 
 ---
+## Length and number rules (every output)
+| Output | Max words above DETAILS |
+|---|---|
+| 07:27 briefing | 700 |
+| 18:27 end-of-day (before the queue, which is shown in full) | 300 |
+| Monday week plan | 450 |
+| Friday ship review | 450 |
+| Sunday weekly report | 500; advisor update draft ≤ 150 |
+| Decision memo | 250 |
+| Monthly update | 400 |
+Everything else goes under a `DETAILS` line. Before sending, count the words above DETAILS and
+put the count in your Log row; over the limit → cut, don't send.
+- **Counts, not rates, when n < 10** ("2 replies from 61 sent", never "3.3%").
+- Use the planning assumptions in `team/knowledge/chief-of-staff/okrs-metrics.md` (incl. the 2:1
+  pilots offered → paid ratio) and say which one you used.
+- Her minutes come from `company/CEO_DAILY_60_MINUTES.md`; never plan more of her time than it allows.
+- **Grouping answers** (e.g. "which accounting system"): only count companies the question applies
+  to (a company that doesn't receive stablecoins is "n/a", not "Xero"); show the groups with counts.
+- The advisor update always includes: what shipped this week, the pilots offered count (even if 0),
+  and the one ask.
+
 ## P0. Start of every run (2 minutes, always)
 1. Confirm the Google connection is aashmiin@gmail.com, not hatch.sg. If hatch.sg: STOP, change nothing,
    send her one line ("Google is connected to the Hatch account; reconnect with aashmiin@gmail.com"),

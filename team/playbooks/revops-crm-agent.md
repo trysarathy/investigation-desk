@@ -26,12 +26,23 @@ Every playbook starts with **P0**. All times SGT. "Guard" = `python3 -m gtm.cli 
 
 ---
 
+**Pre-guard checklist (logged, every queue build, until `gtm/guard.py` covers these):** before the
+guard, check each candidate by hand and log one line per BLOCK: (1) not a mentor, SMU staff,
+investor or warm contact (names in COMPANY_RULES rule 6, including Dr Catalin Burlacu); (2) tier
+1 or 2 only, never tier 3, never a vendor; (3) first line's source dated within 12 months and
+re-opened today. The guard does not check these yet.
+
+**Legal questions:** never assert anyone's legal rights in a note, draft or reply ("he has a right
+to…"). "How did you get my email?" → answer only from `compliance.md`'s approved wording (public
+source + opt-out), and put any legal point to Aashmiin as a question. **Logs:** every Log row has
+a real SGT timestamp and a link; simulated or replayed runs keep events in time order.
+
 ## P1. Evening queue build + summary (weekdays 18:24, for the next sending weekday)
 **Trigger:** schedule. **Inputs:** work/*.csv, LinkedIn list, Approval Queue, Opportunities, Calendar.
 1. Close today: run P3 (reply triage) for anything unprocessed, P9 (bounces/unsubscribes), CRM hygiene
    checks (`crm-hygiene.md` end). 
 2. Capacity: `cap_today` for tomorrow from `volume` (`--today <tomorrow>`), minus follow-ups due tomorrow
-   (P4 list) and a reserve of ~5 for replies = room for first emails; never above FIRST_EMAIL_CAP.
+   (P4 list) and a reply reserve = the number of REPLY rows sent yesterday, minimum 3, maximum 10 (state the number you used) = room for first emails; never above FIRST_EMAIL_CAP.
 3. Candidate pool: Leads with stage Researched/Approved, BUYER, Tier 1/2, email_label VERIFIED-*, no
    Touches. Sort by tier, score, priority.
 4. **Pre-guard exclusions (the guard misses these):** mentors / SMU staff / investors / warm network /
