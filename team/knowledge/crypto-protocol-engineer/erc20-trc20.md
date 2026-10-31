@@ -43,9 +43,12 @@ A receipt log: `{address, topics[], data, logIndex, blockNumber, blockHash, tran
 - `topics[0]` = Transfer topic; `topics[1]` = from (left-padded to 32 bytes: last 20 bytes = address);
   `topics[2]` = to; `data` = uint256 value (32 bytes, big-endian) in **base units**.
 - `logIndex` = position in the **block** (not the transaction). It changes if the transaction is
-  re-included in a different block after a reorg. `removed: true` is set by nodes on logs removed by a
-  reorg in subscriptions/filters. [ASSUMPTION: Ethereum JSON-RPC log object semantics, from
-  `ethereum/execution-apis`; the `removed` field is visible in the repo's recorded receipts]
+  re-included in a different block after a reorg. The Log schema has a boolean `removed` field, and for
+  `eth_subscribe("logs")` "Removed logs (due to chain reorgs) are pushed with `removed: true`."
+  [VERIFIED: raw.githubusercontent.com/ethereum/execution-apis/main/src/schemas/receipt.yaml and
+  .../src/eth/subscribe.yaml, 2026-10-31]. The spec states the reorg meaning for subscriptions only; for
+  `eth_getFilterChanges` the same behaviour is client practice [ASSUMPTION]. A plain receipt fetched after
+  a reorg is simply absent or different: never rely on `removed` alone.
 - Amount = value / 10^decimals, done with integers (`formatUnits` in `abi.ts`), never floats.
 
 Worked example (real, recorded in `tests/fixtures/real/POISON-1.json`, Ethereum block 24,047,560,

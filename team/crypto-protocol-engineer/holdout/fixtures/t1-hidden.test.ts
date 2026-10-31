@@ -11,7 +11,7 @@ import { fetchFacts } from "@/lib/chain/investigate";
 import type { TronFetcher } from "@/lib/chain/tron";
 import { investigate } from "@/lib/engine/run";
 import { SAMPLE_SETTINGS, USDC_ETHEREUM } from "@/lib/fixtures";
-import type { EvmChain, Settings } from "@/lib/types";
+import type { EvmChain, RawResponse, Settings } from "@/lib/types";
 
 const fx = JSON.parse(readFileSync(path.join(__dirname, "t1-router-receipt.json"), "utf8"));
 const A = fx.addresses;
@@ -22,10 +22,16 @@ const abiString = (s: string) => {
 };
 const word = (n: number) => "0x" + n.toString(16).padStart(64, "0");
 
+// Each stubbed call leaves a RawResponse, as the real sources do (the fetcher reads fetchedAt from it).
+const raw = (method: string, params: unknown[]): RawResponse => ({ source: "public-rpc", chain: "ethereum", status: 200,
+  request: { method: "POST", url: "https://rpc.example.invalid", body: JSON.stringify({ method, params }) },
+  fetchedAt: "2026-10-25T09:00:00.000Z", sha256: "0".repeat(64), body: "{}" });
+
 function source(logs: unknown[]): EvmSource {
   return {
     kind: "public-rpc",
-    async call(method, params) {
+    async call(method, params, _opts, raws) {
+      raws.push(raw(method, params));
       if (method === "eth_getTransactionByHash") return fx.rpc.eth_getTransactionByHash;
       if (method === "eth_getTransactionReceipt") return { ...fx.rpc.eth_getTransactionReceipt, logs };
       if (method === "eth_getBlockByNumber") return fx.rpc.eth_getBlockByNumber;
@@ -39,7 +45,7 @@ function source(logs: unknown[]): EvmSource {
     },
   };
 }
-const empty: EvmSource = { kind: "public-rpc", async call() { return null; } };
+const empty: EvmSource = { kind: "public-rpc", async call(method, params, _o, raws) { raws.push(raw(method, params)); return null; } };
 
 function deps(logs: unknown[]) {
   const sources: Partial<Record<EvmChain, EvmSource>> = { ethereum: source(logs), bsc: empty, polygon: empty, base: empty, arbitrum: empty, optimism: empty };

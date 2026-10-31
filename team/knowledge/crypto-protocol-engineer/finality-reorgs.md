@@ -49,12 +49,16 @@ Source: `github.com/ethereum-optimism/docs/main/pages/stack/transactions/transac
   varies with batch posting; don't assume a constant.
 
 ## Arbitrum One (Nitro)
-- Soft finality from the sequencer feed (trust in the sequencer's honesty/uptime); hard finality once the
-  batch is posted to and finalized on Ethereum. [ASSUMPTION: search summary of
-  docs.arbitrum.io/how-arbitrum-works/deep-dives/finality and the batch-poster page; not opened]
+- Soft finality from the sequencer feed: sub-second, "provisional and rely on the Sequencer's integrity
+  and availability". Hard finality: the batch is posted to and finalized on the parent chain, "~2 epochs,
+  roughly 12–15 minutes" for an Ethereum parent; full settlement (assertion confirmed, withdrawals) takes
+  a challenge period "on the order of days". The node's `safe`/`finalized` heads are the last L2 block
+  whose batch sits at or before L1 `safe`/`finalized`; "If you index at `finalized`, you will never observe
+  a reorg." [VERIFIED: raw.githubusercontent.com/OffchainLabs/arbitrum-docs/master/content/docs/how-arbitrum-works/deep-dives/finality.mdx
+  and .../reference/finality-and-reorgs.mdx, 2026-10-31]
 - Measured 2026-10-29 [VERIFIED on-chain]: latest 519,309,788; safe −1,669 blocks (≈ 8 min);
-  finalized −3,338 blocks (the time this represents is unverified: at ~0.25 s/block that is ≈ 14 min, and Arbitrum finality really follows L1 finality of the batch, ~13-20 min [ASSUMPTION]; use the tags, not a block count). The node exposes L1-derived `safe`/`finalized` tags: use them.
-- Block numbers are ~0.25 s apart; "12 confirmations" on Arbitrum is 3 seconds of sequencer trust and
+  finalized −3,338 blocks (≈ 14 min at the nominal 250 ms block time, but blocks can come faster under load, up to 8/s, so the count is not a clock; Arbitrum `finalized` follows L1 finality of the batch, ~12–15 min per the docs [VERIFIED: arbitrum-docs finality.mdx and priority-gas-auction/pga.mdx, 2026-10-31]; use the tags, not a block count). The node exposes L1-derived `safe`/`finalized` tags: use them.
+- Block numbers are ~0.25 s apart (nominal 250 ms on Arbitrum One [VERIFIED: arbitrum-docs pga.mdx, 2026-10-31]); "12 confirmations" on Arbitrum is 3 seconds of sequencer trust and
   means nothing about L1 settlement. **Never port an Ethereum block count to an L2.**
 
 ## BNB Smart Chain
@@ -65,14 +69,22 @@ Source: BEP-126 "Fast Finality Mechanism", `github.com/bnb-chain/BEPs/master/BEP
   waited ~2/3 × 21 = 14 blocks for probabilistic finality. [VERIFIED]
 - Measured 2026-10-29 [VERIFIED on-chain]: latest 130,444,004, safe = latest, finalized = latest − 1.
   `finalized` is cheap to read and almost real-time: prefer it to a block count.
-- Later BEPs (590/648/667) and "0.65 s finality" are from a BNB Chain blog summary [ASSUMPTION: search
-  summary, not opened].
+- Later BEPs [VERIFIED: raw.githubusercontent.com/bnb-chain/BEPs/master/BEPs/BEP-590.md, BEP-648.md,
+  BEP-667.md, BEP-619.md, 2026-10-31]: BEP-590 (Enabled) extends vote-inclusion rules; BEP-648 (Enabled)
+  lets nodes justify from the in-memory vote pool once ⅔+ votes arrive, without waiting for the next
+  header; BEP-619 (Enabled) cut the block interval to 0.45 s; BEP-667 (**Draft**) proposes voting every
+  N blocks and gives today's average finality as **900 ms** at 0.45 s blocks. **Correction:** the
+  "0.65 s finality" figure from the blog summary appears in none of these BEPs; quote ~0.9 s (BEP-667) or
+  just "finalized tag, about a second", and finality rules/thresholds are unchanged from BEP-126.
 
 ## Polygon PoS
-- Heimdall v2 milestones: finalized when 2/3+ of validators agree; "deterministic finality … 2 to 5
-  seconds"; read it with `eth_getBlockByNumber("finalized")`; checkpoints still go to Ethereum every ≥256
-  blocks. [ASSUMPTION: search summary of docs.polygon.technology/pos/concepts/finality; not opened. No
-  Polygon RPC was reachable to measure.]
+- Heimdall v2 milestones: validators propose up to 10 recent block hashes; "Once 2/3+ of the network
+  agrees, the milestone is finalized, and all transactions up to that milestone are considered final, with
+  no chance of reorganization"; finality "is deterministic even before a checkpoint is submitted to L1"
+  [VERIFIED: raw.githubusercontent.com/0xPolygon/heimdall-v2/develop/x/milestone/README.md, 2026-10-31].
+  Still unverified: "2 to 5 seconds", that Bor serves milestones as `eth_getBlockByNumber("finalized")`,
+  and checkpoints every ≥256 blocks [ASSUMPTION: search summary of docs.polygon.technology/pos/concepts/finality;
+  not opened. No Polygon RPC was reachable to measure.]
 - Polygon historically had deep reorgs before milestones; treat any pre-2025 confirmation advice (e.g. 128
   or 256 blocks) as obsolete but don't rely on the new numbers until opened. [ASSUMPTION]
 
@@ -131,6 +143,8 @@ finality guarantee [VERIFIED as cited in docs/SPEC.md section 3].
 - https://github.com/ethereum-optimism/docs/blob/main/pages/stack/transactions/transaction-finality.mdx, accessed 2026-10-29 [VERIFIED]
 - https://github.com/bnb-chain/BEPs/blob/master/BEPs/BEP126.md, accessed 2026-10-29 [VERIFIED]
 - https://github.com/tronprotocol/documentation-en/blob/master/docs/mechanism-algorithm/dpos.md, accessed 2026-10-29 [VERIFIED]
-- https://docs.arbitrum.io/how-arbitrum-works/deep-dives/finality (search summary only) [ASSUMPTION]
-- https://docs.polygon.technology/pos/concepts/finality/finality (search summary only) [ASSUMPTION]
+- https://raw.githubusercontent.com/OffchainLabs/arbitrum-docs/master/content/docs/how-arbitrum-works/deep-dives/finality.mdx , .../reference/finality-and-reorgs.mdx , .../priority-gas-auction/pga.mdx (source of docs.arbitrum.io), accessed 2026-10-31 [VERIFIED]
+- https://raw.githubusercontent.com/bnb-chain/BEPs/master/BEPs/BEP-590.md , BEP-619.md , BEP-648.md , BEP-667.md , accessed 2026-10-31 [VERIFIED]
+- https://raw.githubusercontent.com/0xPolygon/heimdall-v2/develop/x/milestone/README.md , accessed 2026-10-31 [VERIFIED]
+- https://docs.polygon.technology/pos/concepts/finality/finality (search summary only; timing and RPC-tag claims) [ASSUMPTION]
 - On-chain block-tag reads: arb1.arbitrum.io, mainnet.base.org, mainnet.optimism.io, bsc-dataseed.bnbchain.org, api.trongrid.io (2026-10-29) [VERIFIED]

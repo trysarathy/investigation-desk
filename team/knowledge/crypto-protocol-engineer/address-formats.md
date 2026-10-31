@@ -9,7 +9,11 @@ Accessed 2026-10-29.
   business controls **that key** there. For a **smart-contract wallet** (Safe, ERC-4337 account, exchange
   deposit contract) the same address on another chain may be undeployed, deployed by someone else, or
   deployable only with the original factory/salt: "same address" does not mean "same owner".
-  [ASSUMPTION: general EVM account model; no single spec page opened]
+  Derivation facts [VERIFIED: raw.githubusercontent.com/ethereum/ethereum-org-website/dev/public/content/developers/docs/accounts/index.md, 2026-10-31]:
+  EOA address = "the last 20 bytes of the Keccak-256 hash of the public key" with `0x`; a `CREATE`
+  contract address "comes from the creator's address and ... the nonce"; `CREATE2` from creator, salt and
+  creation-code hash. That the same key gives the same address on every EVM chain, and the
+  smart-wallet consequences, follow from this [ASSUMPTION: inference, not stated on the page].
 - **EIP-55 mixed-case checksum** (ERC-55, status Final) [VERIFIED:
   `raw.githubusercontent.com/ethereum/ERCs/master/ERCS/erc-55.md`]: hash the lower-case hex (no `0x`)
   with keccak-256; for each hex *letter* at position i, upper-case it if the i-th nibble of the hash is ≥ 8.

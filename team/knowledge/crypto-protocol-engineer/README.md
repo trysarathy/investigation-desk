@@ -30,6 +30,13 @@ addresses are on-chain-checked or carried from the repo's earlier verification, 
 the issuers' own pages**; provider limits and prices are search summaries. First job when network access
 allows: open those pages and flip the labels.
 
+Update 2026-10-31: the Arbitrum finality docs (OffchainLabs/arbitrum-docs), BNB BEP-590/619/648/667,
+Polygon Heimdall v2 milestones (0xPolygon/heimdall-v2), the JSON-RPC `removed` log flag
+(ethereum/execution-apis), ethereum.org account-address derivation and the Tron TIP index were read from
+their official GitHub repos and relabelled. One fact corrected: BNB "0.65 s finality" is not in any BEP;
+BEP-667 states ~900 ms. Still blocked: issuer pages, Etherscan/provider docs, Polygon docs site, USDT0
+source (Everdawn-Labs repos are private), arXiv/USENIX. Open list: `team/UNVERIFIED.md`.
+
 ## Refresh checklist
 1. Re-run `npx vitest run` and update test counts in `codebase-map.md`.
 2. `git log` since last refresh on `src/lib/{chain,engine,requests,accounting,payments}`: update the map
