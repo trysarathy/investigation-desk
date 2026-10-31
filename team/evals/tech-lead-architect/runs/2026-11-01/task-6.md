@@ -201,5 +201,5 @@ if D5.1 is on `main`.
 2026-11-06 06:2x | tech-lead-architect | gate PR #61 6161bbb | held: ADR 0002 breach (second tz seam, ?? 'UTC'), required stored field, no CSRF on new route, conflict, no QA PASS | <#61 link>
 2026-11-06 06:2x | tech-lead-architect | gate PR #62 6262ccc | held: ci failure on head; verdicts on 6262bbb; TransferEvent contract breach (source 'watch', watchedAt) | <#62 link>
 2026-11-06 06:2x | tech-lead-architect | RISK: PR #61 adds silent UTC fallback in posting (rules.ts) that would undo #51's blocked rule | PR #61 6161bbb | diff rules.ts
-2026-11-06 06:3x | tech-lead-architect | summary | gate: merged none | held #61, #62 | queued #60 ; blocked: D4.1 (#62 fix), D5.2 (#61 redo + posting spec), D6.2/D7.1 at risk ; need decided: merge #60, posting spec ; metrics: fit-first-time 0/0 merged today (3 PRs needed integration fixes: #61, #62), lesson: two tasks touched accounting/types.ts on one night
+2026-11-06 06:3x | tech-lead-architect | summary | gate: merged none | held #61, #62 | queued #60 ; blocked: D4.1 (#62 fix), D5.2 (#61 redo + posting spec), D6.2/D7.1 at risk ; need decided: merge #60, posting spec ; metrics: fit-first-time 0/0 merged today (2 of 3 PRs need integration fixes: #61, #62), lesson: two tasks touched accounting/types.ts on one night
 ```
