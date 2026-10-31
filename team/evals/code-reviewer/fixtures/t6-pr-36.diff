@@ -1,4 +1,7 @@
-### docs/ACCOUNTING_SYNC.md
+diff --git a/docs/ACCOUNTING_SYNC.md b/docs/ACCOUNTING_SYNC.md
+index f3192fc..2bc45b8 100644
+--- a/docs/ACCOUNTING_SYNC.md
++++ b/docs/ACCOUNTING_SYNC.md
 @@ -66,8 +66,15 @@ from par stops automatic posting.
  4. Set the account codes (`accounts` in `.data/accounting.json`, no screen yet): `walletAccountCode` = the code of a **bank** account in the Demo Company (payments and overpayments are received into it; Xero rejects anything else), `feeAccountCode` = `404 Bank Fees`. Overpayments are received into the wallet account and marked "To refund" or "Customer credit" in the reference.
  5. *Import invoices* on `/books`, pay one with test USDC, approve, and check the invoice in Xero.
@@ -17,7 +20,10 @@
  
  ## Failures and rounding
  - If an adapter fails part-way (line 1 posted, line 2 failed), the lines that posted are recorded as posted in the audit log, so a retry posts only what's left.
-### src/lib/accounting/engine.ts
+diff --git a/src/lib/accounting/engine.ts b/src/lib/accounting/engine.ts
+index c63b6c1..87e557b 100644
+--- a/src/lib/accounting/engine.ts
++++ b/src/lib/accounting/engine.ts
 @@ -25,7 +25,7 @@ export interface PostResult { acct: AccountingData; plan: PostingPlan; error?: s
   */
  export async function approveAndPost(
@@ -52,7 +58,10 @@
      next = { ...res.acct, demoBooks: books };
    }
    next.audit.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
-### src/lib/accounting/providers/xero-auth.ts
+diff --git a/src/lib/accounting/providers/xero-auth.ts b/src/lib/accounting/providers/xero-auth.ts
+index 8f5104c..7b18bd9 100644
+--- a/src/lib/accounting/providers/xero-auth.ts
++++ b/src/lib/accounting/providers/xero-auth.ts
 @@ -15,11 +15,25 @@ export const XERO_AUTHORIZE = "https://login.xero.com/identity/connect/authorize
  export const XERO_TOKEN = "https://identity.xero.com/connect/token";
  export const XERO_CONNECTIONS = "https://api.xero.com/connections";
@@ -92,7 +101,10 @@
    return `${XERO_AUTHORIZE}?${q}`;
  }
  
-### src/lib/accounting/service.ts
+diff --git a/src/lib/accounting/service.ts b/src/lib/accounting/service.ts
+index fdbc3b1..3039778 100644
+--- a/src/lib/accounting/service.ts
++++ b/src/lib/accounting/service.ts
 @@ -55,7 +55,7 @@ export async function planFor(requestId: string): Promise<{ plan: PostingPlan; a
  }
  
@@ -102,7 +114,10 @@
    const reqData = await requestsStore().load();
    type R = { error?: string; message?: string };
    return accountingStore().update(async (acct): Promise<[AccountingData | undefined, R]> => {
-### tests/accounting.test.ts
+diff --git a/tests/accounting.test.ts b/tests/accounting.test.ts
+index 59397f1..82fb195 100644
+--- a/tests/accounting.test.ts
++++ b/tests/accounting.test.ts
 @@ -7,6 +7,7 @@ import { approveAndPost, importInvoice, seedDemoBooks } from "@/lib/accounting/e
  import { addDemoInvoice, DemoBooksAdapter, emptyDemoBooks } from "@/lib/accounting/providers/demo";
  import { qboBodies, QuickBooksAdapter } from "@/lib/accounting/providers/quickbooks";
