@@ -55,6 +55,8 @@ from par stops automatic posting.
 | QuickBooks Online | Built against documented shapes; not yet run on a sandbox | Payment, CreditMemo + linking payment, unapplied Payment |
 | NetSuite | Interface designed (`providers/netsuite.ts`), not built | customerPayment, creditMemo |
 
+**Pilots (Aashmiin's decision, 31 Oct 2026):** a pilot delivers matching, explanations and a Xero-ready import file that the customer's accountant reviews and imports. Live posting to a customer's Xero is switched on only after the Xero sandbox tests pass and Aashmiin approves.
+
 ### Connect Xero (about 10 minutes)
 
 1. Sign in at developer.xero.com → *New app* → *Web app*. Redirect URI:
