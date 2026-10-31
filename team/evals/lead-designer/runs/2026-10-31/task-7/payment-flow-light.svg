@@ -3,7 +3,7 @@
 <defs><marker id="m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6e7df0"/></marker><marker id="w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#a8670f"/></marker><marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5b6272"/></marker></defs>
 <rect width="900" height="470" fill="#ffffff"/>
 <rect x="228" y="16" width="656" height="330" rx="12" fill="#f7f8ff" stroke="#6e7df0" stroke-width="1.4"/>
-<text x="246" y="40" font-size="12" font-weight="700" fill="#6e7df0" letter-spacing="1">CLEARLINE · READ-ONLY, NEVER HOLDS FUNDS</text>
+<text x="246" y="40" font-size="12" font-weight="700" fill="#5b6272" letter-spacing="1">CLEARLINE · READ-ONLY, NEVER HOLDS FUNDS</text>
 <rect x="16" y="60" width="190" height="92" rx="8" fill="#f4f5f8" stroke="#a3abba" stroke-width="1.2"/>
 <text x="30" y="86" font-size="15" font-weight="600" fill="#0a0c11">1 Customer pays</text>
 <text x="30" y="107" font-size="13" fill="#5b6272">USDC or USDT,</text>
@@ -38,12 +38,12 @@
 <polyline points="436,106 468,106" fill="none" stroke="#6e7df0" stroke-width="2" marker-end="url(#m)"/>
 <polyline points="660,106 692,106" fill="none" stroke="#6e7df0" stroke-width="2" marker-end="url(#m)"/>
 <polyline points="781,152 781,250 586,250 586,368" fill="none" stroke="#6e7df0" stroke-width="2" marker-end="url(#m)"/>
-<text x="598" y="242" font-size="13" font-weight="600" fill="#6e7df0">checks pass, matched</text>
+<text x="598" y="242" font-size="13" font-weight="600" fill="#5b6272">checks pass, matched</text>
 <polyline points="565,170 565,212" fill="none" stroke="#a8670f" stroke-width="2" stroke-dasharray="6 4"/>
 <polyline points="712,152 712,212 362,212 362,224" fill="none" stroke="#a8670f" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#w)"/>
-<text x="376" y="204" font-size="13" font-weight="600" fill="#a8670f">something is wrong</text>
+<text x="376" y="204" font-size="13" font-weight="600" fill="#5b6272">something is wrong</text>
 <polyline points="362,330 362,354 500,354 500,368" fill="none" stroke="#a8670f" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#w)"/>
 <polyline points="662,412 738,412" fill="none" stroke="#6e7df0" stroke-width="2.5" marker-end="url(#m)"/>
-<text x="670" y="404" font-size="12" font-weight="600" fill="#6e7df0">approve</text>
+<text x="670" y="404" font-size="12" font-weight="600" fill="#5b6272">approve</text>
 <g font-size="12" fill="#5b6272"><line x1="16" y1="190" x2="46" y2="190" stroke="#6e7df0" stroke-width="2"/><text x="54" y="194">payment checks out</text><line x1="16" y1="214" x2="46" y2="214" stroke="#a8670f" stroke-width="2" stroke-dasharray="6 4"/><text x="54" y="218">problem: explained first</text><text x="16" y="250">NetSuite: designed,</text><text x="16" y="266">not built</text></g>
 </svg>
