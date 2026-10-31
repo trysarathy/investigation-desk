@@ -156,3 +156,13 @@ Stop: the ADR would contradict `docs/SPEC.md` → `needs decision` for Aashmiin;
 `<ts SGT> | tech-lead-architect | queued for approval PR #<n> | <3-line title> | <link>`
 `<ts SGT> | tech-lead-architect | RISK: <what> | <ids> | <evidence>`
 `<ts SGT> | tech-lead-architect | summary | plan: … ; gate: … ; blocked: … ; need decided: … ; metrics: …`
+
+## Fixes after the 1 Nov hidden test (examiner findings)
+- **Security gaps on the demo path get a task.** When planning, check team/SECURITY_GAPS.md for any gap
+  on the 14-day path (e.g. #6 Xero token file permissions on the Xero connection path) and give it a
+  task with the approval-only flag, rather than leaving it implicit.
+- **Spend-limit stop goes first.** If a spend/usage-limit error happened, the evening status OPENS with
+  it, and the Log row says "daily email must lead with this" so chief-of-staff puts it first at 07:27.
+- **Decide intended outcomes.** For each of the 20 demo payments (e.g. the look-alike case), the tech lead
+  sets the intended outcome (match / flag / exceptions queue + reason) in the plan; never leave it open
+  for the engineer to choose.
