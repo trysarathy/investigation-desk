@@ -2,7 +2,7 @@
 <title id="t">How one stablecoin payment flows through Clearline</title><desc id="d">A customer pays on-chain. Clearline reads the transfer read-only and never holds funds, checks it is genuine (token contract, network, address, confirmations) and matches it to the invoice. If something is wrong, it explains it in plain English and drafts a reply. Either way, nothing is posted until a person approves; then the payment is posted to the invoice in Xero. QuickBooks is next and not built; NetSuite is designed, not built.</desc>
 <defs><marker id="m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6e7df0"/></marker><marker id="w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#a8670f"/></marker><marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5b6272"/></marker></defs>
 <rect width="900" height="470" fill="#ffffff"/>
-<rect x="228" y="16" width="656" height="320" rx="12" fill="#f7f8ff" stroke="#6e7df0" stroke-width="1.4"/>
+<rect x="228" y="16" width="656" height="330" rx="12" fill="#f7f8ff" stroke="#6e7df0" stroke-width="1.4"/>
 <text x="246" y="40" font-size="12" font-weight="700" fill="#6e7df0" letter-spacing="1">CLEARLINE · READ-ONLY, NEVER HOLDS FUNDS</text>
 <rect x="16" y="60" width="190" height="92" rx="8" fill="#f4f5f8" stroke="#a3abba" stroke-width="1.2"/>
 <text x="30" y="86" font-size="15" font-weight="600" fill="#0a0c11">1 Customer pays</text>
@@ -21,27 +21,29 @@
 <text x="708" y="86" font-size="15" font-weight="600" fill="#0a0c11">4 Matches</text>
 <text x="708" y="107" font-size="13" fill="#5b6272">to its invoice:</text>
 <text x="708" y="125" font-size="13" fill="#5b6272">amount, reference</text>
-<rect x="470" y="226" width="232" height="92" rx="8" fill="#ffffff" stroke="#a8670f" stroke-width="1.6" stroke-dasharray="6 4"/>
-<text x="484" y="252" font-size="15" font-weight="600" fill="#0a0c11">Explains what's wrong</text>
-<text x="484" y="273" font-size="13" fill="#5b6272">in plain English,</text>
-<text x="484" y="291" font-size="13" fill="#5b6272">and drafts a reply</text>
-<rect x="246" y="370" width="232" height="84" rx="8" fill="#f4f5f8" stroke="#0a0c11" stroke-width="2"/>
-<text x="260" y="396" font-size="15" font-weight="600" fill="#0a0c11">5 A person approves</text>
-<text x="260" y="417" font-size="13" fill="#5b6272">nothing is posted before this</text>
-<rect x="560" y="370" width="252" height="84" rx="8" fill="#eaf7f0" stroke="#2f7d5b" stroke-width="1.6"/>
-<text x="574" y="396" font-size="15" font-weight="600" fill="#2f7d5b">6 Posted to the invoice in Xero</text>
-<text x="574" y="417" font-size="13" fill="#5b6272">QuickBooks next (not built)</text>
+<rect x="246" y="226" width="232" height="104" rx="8" fill="#ffffff" stroke="#a8670f" stroke-width="1.6" stroke-dasharray="6 4"/>
+<text x="260" y="252" font-size="15" font-weight="600" fill="#0a0c11">Explains what's wrong</text>
+<text x="260" y="273" font-size="13" fill="#5b6272">short, fake, wrong network,</text>
+<text x="260" y="291" font-size="13" fill="#5b6272">no reference: in plain English,</text>
+<text x="260" y="309" font-size="13" fill="#5b6272">with a draft reply</text>
+<rect x="430" y="370" width="232" height="84" rx="8" fill="#f4f5f8" stroke="#0a0c11" stroke-width="2"/>
+<text x="444" y="396" font-size="15" font-weight="600" fill="#0a0c11">5 A person approves</text>
+<text x="444" y="417" font-size="13" fill="#5b6272">nothing is posted before this</text>
+<rect x="740" y="360" width="144" height="100" rx="8" fill="#eaf7f0" stroke="#2f7d5b" stroke-width="1.6"/>
+<text x="754" y="386" font-size="15" font-weight="600" fill="#2f7d5b">6 Posted in Xero</text>
+<text x="754" y="407" font-size="13" fill="#5b6272">to the invoice</text>
+<text x="754" y="425" font-size="13" fill="#5b6272">QuickBooks next</text>
+<text x="754" y="443" font-size="13" fill="#5b6272">(not built)</text>
 <polyline points="206,106 244,106" fill="none" stroke="#6e7df0" stroke-width="2" marker-end="url(#m)"/>
 <polyline points="436,106 468,106" fill="none" stroke="#6e7df0" stroke-width="2" marker-end="url(#m)"/>
 <polyline points="660,106 692,106" fill="none" stroke="#6e7df0" stroke-width="2" marker-end="url(#m)"/>
-<polyline points="781,152 781,200 420,200 420,368" fill="none" stroke="#6e7df0" stroke-width="2" marker-end="url(#m)"/>
-<text x="440" y="192" font-size="13" font-weight="600" fill="#6e7df0">all checks pass, invoice matched</text>
-<polyline points="565,170 565,224" fill="none" stroke="#a8670f" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#w)"/>
-<polyline points="840,152 840,272 704,272" fill="none" stroke="#a8670f" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#w)"/>
-<text x="716" y="296" font-size="13" font-weight="600" fill="#a8670f">something is wrong</text>
-<text x="716" y="313" font-size="13" font-weight="600" fill="#a8670f">(short, fake, wrong network…)</text>
-<polyline points="530,318 530,345 450,345 450,368" fill="none" stroke="#a8670f" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#w)"/>
-<polyline points="478,412 558,412" fill="none" stroke="#6e7df0" stroke-width="2.5" marker-end="url(#m)"/>
-<text x="486" y="404" font-size="12" font-weight="600" fill="#6e7df0">approve</text>
+<polyline points="781,152 781,250 586,250 586,368" fill="none" stroke="#6e7df0" stroke-width="2" marker-end="url(#m)"/>
+<text x="598" y="242" font-size="13" font-weight="600" fill="#6e7df0">checks pass, matched</text>
+<polyline points="565,170 565,212" fill="none" stroke="#a8670f" stroke-width="2" stroke-dasharray="6 4"/>
+<polyline points="712,152 712,212 362,212 362,224" fill="none" stroke="#a8670f" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#w)"/>
+<text x="376" y="204" font-size="13" font-weight="600" fill="#a8670f">something is wrong</text>
+<polyline points="362,330 362,354 500,354 500,368" fill="none" stroke="#a8670f" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#w)"/>
+<polyline points="662,412 738,412" fill="none" stroke="#6e7df0" stroke-width="2.5" marker-end="url(#m)"/>
+<text x="670" y="404" font-size="12" font-weight="600" fill="#6e7df0">approve</text>
 <g font-size="12" fill="#5b6272"><line x1="16" y1="190" x2="46" y2="190" stroke="#6e7df0" stroke-width="2"/><text x="54" y="194">payment checks out</text><line x1="16" y1="214" x2="46" y2="214" stroke="#a8670f" stroke-width="2" stroke-dasharray="6 4"/><text x="54" y="218">problem: explained first</text><text x="16" y="250">NetSuite: designed,</text><text x="16" y="266">not built</text></g>
 </svg>
