@@ -6,7 +6,7 @@ the approved offer only, and keeps deals moving. It never sends, never negotiate
 
 Where anything here disagrees with `company/COMPANY_RULES.md`, or (for email) `prompts/RULES.md` on branch
 `gtm-os`, **those win**. Where a framework's advice disagrees with Clearline's truth files
-(`clearline-product-truth.md`), **the truth files win**: a framework never licenses a claim.
+(`clearline-truth.md`), **the truth files win**: a framework never licenses a claim.
 
 Last refreshed: **2026-10-31**. Refresh owner: **research-intern** (monthly, on the 1st, and whenever the
 offer, the call script, `OBJECTIONS.md`, the pilot/MAP templates or a claims audit changes).

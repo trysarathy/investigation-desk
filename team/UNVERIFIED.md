@@ -106,43 +106,47 @@ of **public** github.com repos works from this environment, even though github.c
 
 ## revops-crm-agent
 
+**8 verified, 1 corrected, 23 still unverified (31 Oct)** (23 includes two items split out of partly verified rows: UK GDPR from PECR, Workspace limit from Gmail limits). Verified 2026-10-31 from primary text: PECR (ico.org.uk),
+Italy art. 130 (garanteprivacy.it), Spain LSSI art. 21 (boe.es), CASL (laws-lois.justice.gc.ca), RBI nine-month
+realisation (rbi.org.in), Gmail sender guidelines + FAQ (support.google.com), RFC 8058, RFC 3463, Postmaster Tools.
+Corrected: Gmail personal sending limit wording (deliverability.md §2). The Workspace ~2,000/day half of that row
+is split out below. Blocked hosts 2026-10-31: www.ftc.gov, uscode.house.gov, law.cornell.edu, www.govinfo.gov,
+eur-lex.europa.eu (bot check), gesetze-im-internet.de, ris.bka.gv.at (503), wetten.overheid.nl, www.cnil.fr,
+irishstatutebook.ie, legislation.gov.uk, www.pdpc.gov.sg, www.imda.gov.sg, sso.agc.gov.sg section text (403; TOC
+only), www.legislation.gov.au, www.acma.gov.au, www.meity.gov.in, egazette.gov.in, trai.gov.in,
+taxinformation.cbic.gov.in, knowledge.workspace.google.com, www.linkedin.com (linkedin.com = reCAPTCHA),
+crtc.gc.ca (403), vendor sites.
+
 ### Outward-facing (anything in an email, invoice or proposal)
-| File | Claim (≤ 15 words) | Primary source to open | Why it matters |
+| File | Claim (≤ 15 words) | Primary source to open | Why still unverified |
 |---|---|---|---|
-| compliance.md §1 | CAN-SPAM: no B2B exemption; postal address; opt-out honoured within 10 business days | https://www.ftc.gov/business-guidance/resources/can-spam-act-compliance-guide-business ; 15 USC 7704 | Outward: governs every US email |
-| compliance.md §1 | CAN-SPAM penalties per email, inflation-adjusted (> $16,000) | https://www.ftc.gov (civil penalty adjustments) | Outward |
-| compliance.md §2 | PECR: corporate subscribers emailable without consent; sole traders need consent | https://ico.org.uk (PECR electronic mail marketing guide) | Outward |
-| compliance.md §3 | GDPR Recital 47 / Art 21 / Art 14 / Art 3(2) as summarised | https://eur-lex.europa.eu/eli/reg/2016/679/oj | Outward |
-| compliance.md §3 | ePrivacy Art 13: consent for natural persons; legal persons left to Member States | https://eur-lex.europa.eu/eli/dir/2002/58/oj | Outward |
-| compliance.md §3 | Germany UWG §7(2): consent needed, no B2B exemption | https://www.gesetze-im-internet.de/uwg_2004/__7.html | Outward |
-| compliance.md §3 | Austria TKG 2021 §174: consent incl. B2B | https://www.ris.bka.gv.at (TKG 2021) | Outward |
-| compliance.md §3 | Italy art. 130 / Spain LSSI art. 21: consent even for company addresses | https://www.garanteprivacy.it ; https://www.boe.es (LSSI) | Outward |
-| compliance.md §3 | Netherlands B2B rule conflicts between sources | Telecommunicatiewet art 11.7 (wetten.overheid.nl) | Outward |
-| compliance.md §3 | France, Ireland allow role-relevant B2B email with opt-out | https://www.cnil.fr ; Irish S.I. 336/2011 | Outward |
-| compliance.md §4 | PDPA BCI exclusion; Spam Control Act bulk thresholds 100/1,000/10,000, `<ADV>` | https://sso.agc.gov.sg/Act/SCA2007 ; pdpc.gov.sg ; imda.gov.sg | Outward: sets our 1,000/30-day stop |
-| compliance.md §5 | CASL conspicuous-publication test; unsubscribe within 10 business days | https://laws-lois.justice.gc.ca (S.C. 2010, c. 23) ; crtc.gc.ca | Outward |
-| compliance.md §6 | Spam Act 2003 inferred consent; unsubscribe honoured within 5 working days | https://www.legislation.gov.au/C2004A01214/latest/text ; acma.gov.au | Outward |
-| compliance.md §7 | DPDP Rules notified 13 Nov 2025; phases 13 Nov 2026 / 13 May 2027 | https://www.meity.gov.in (DPDP Rules 2025 gazette) | Outward |
-| compliance.md §7 | DPDP is consent-based, no business-contact carve-out | DPDP Act 2023 text, meity.gov.in | Outward |
-| compliance.md §7 | TRAI telecom-marketing rules cover calls/SMS, not email | https://www.trai.gov.in (TCCCPR 2018) | Outward |
-| proposals-invoices.md | CGST Rule 46 invoice fields for export of services | https://cbic-gst.gov.in (CGST Rules, Rule 46) | Outward: on every invoice (CA to confirm) |
-| proposals-invoices.md | LUT endorsement wording "SUPPLY MEANT FOR EXPORT UNDER LETTER OF UNDERTAKING…" | CGST Rule 46 / LUT circular, cbic-gst.gov.in | Outward |
-| proposals-invoices.md | FEMA/RBI time limit for realising export proceeds | https://rbi.org.in (Master Direction on export of goods and services) | Outward |
-| proposals-invoices.md | Under LUT, tax payable if not paid in forex within allowed period | https://gstcouncil.gov.in LUT master circular | Outward |
-| cold-email-craft.md §1 | Reply-rate benchmarks (Instantly, Belkins); B2B ~1.5–7% | instantly.ai, belkins.io benchmark reports | Outward if quoted in content |
-| deliverability.md | Gmail bulk-sender rules (SPF/DKIM/DMARC, one-click unsubscribe, spam rate) | https://support.google.com/a/answer/81126 | Outward: affects whether emails land |
-| deliverability.md | RFC 8058 one-click List-Unsubscribe | https://datatracker.ietf.org/doc/html/rfc8058 | Outward |
+| compliance.md §1 | CAN-SPAM: no B2B exemption; postal address; opt-out honoured within 10 business days | https://www.ftc.gov/business-guidance/resources/can-spam-act-compliance-guide-business ; 15 USC 7704 | www.ftc.gov, uscode, cornell, govinfo blocked |
+| compliance.md §1 | CAN-SPAM penalties per email, inflation-adjusted (> $16,000) | https://www.ftc.gov (civil penalty adjustments) | www.ftc.gov blocked |
+| compliance.md §2 | UK GDPR legitimate-interest / Art 14 / Art 21 points | https://www.legislation.gov.uk (UK GDPR) | legislation.gov.uk blocked (PECR part verified) |
+| compliance.md §3 | GDPR Recital 47 / Art 21 / Art 14 / Art 3(2) as summarised | https://eur-lex.europa.eu/eli/reg/2016/679/oj | eur-lex bot-check page, no text |
+| compliance.md §3 | ePrivacy Art 13: consent for natural persons; legal persons left to Member States | https://eur-lex.europa.eu/eli/dir/2002/58/oj | eur-lex bot-check page |
+| compliance.md §3 | Germany UWG §7(2): consent needed, no B2B exemption | https://www.gesetze-im-internet.de/uwg_2004/__7.html | host blocked |
+| compliance.md §3 | Austria TKG 2021 §174: consent incl. B2B | https://www.ris.bka.gv.at (TKG 2021) | 503 |
+| compliance.md §3 | Netherlands B2B rule conflicts between sources | Telecommunicatiewet art 11.7 (wetten.overheid.nl) | host blocked (RULES.md treats NL as strict anyway) |
+| compliance.md §3 | France, Ireland allow role-relevant B2B email with opt-out | https://www.cnil.fr ; Irish S.I. 336/2011 | www.cnil.fr, irishstatutebook.ie blocked |
+| compliance.md §4 | PDPA BCI exclusion; Spam Control Act bulk thresholds 100/1,000/10,000, `<ADV>`, 10 business days | https://sso.agc.gov.sg/Act/SCA2007 ; pdpc.gov.sg ; imda.gov.sg | SSO showed TOC only (s 6, s 11 exist); text/PDF 403; pdpc/imda blocked. Sets our 1,000/30-day stop |
+| compliance.md §6 | Spam Act 2003 inferred consent; unsubscribe honoured within 5 working days | https://www.legislation.gov.au/C2004A01214/latest/text ; acma.gov.au | both blocked |
+| compliance.md §7 | DPDP Rules notified 13 Nov 2025; phases 13 Nov 2026 / 13 May 2027 | https://www.meity.gov.in (DPDP Rules 2025 gazette) | meity, egazette blocked |
+| compliance.md §7 | DPDP is consent-based, no business-contact carve-out | DPDP Act 2023 text, meity.gov.in | blocked |
+| compliance.md §7 | TRAI telecom-marketing rules cover calls/SMS, not email | https://www.trai.gov.in (TCCCPR 2018) | blocked |
+| proposals-invoices.md | CGST Rule 46 invoice fields for export of services | CGST Rules, Rule 46 (taxinformation.cbic.gov.in) | blocked; cbic-gst.gov.in has no Rules text (CA to confirm) |
+| proposals-invoices.md | LUT endorsement wording "SUPPLY MEANT FOR EXPORT UNDER LETTER OF UNDERTAKING…" | CGST Rule 46 | blocked |
+| proposals-invoices.md | Under LUT, tax payable if not paid in forex within allowed period | CGST Rule 96A(1) | LUT circular opened but does not state it; Rule 96A unread |
+| cold-email-craft.md §1 | Reply-rate benchmarks (Instantly, Belkins); B2B ~1.5–7% | instantly.ai, belkins.io benchmark reports | blocked; vendor data at best |
 
 ### Internal only
-| File | Claim (≤ 15 words) | Primary source to open | Why it matters |
+| File | Claim (≤ 15 words) | Primary source to open | Why still unverified |
 |---|---|---|---|
-| deliverability.md | Gmail sending limits (personal account per-day cap) | https://support.google.com/mail/answer/22839 | Internal: daily cap setting |
-| deliverability.md | New-mailbox ramp: ~150/day, risk above ~300 (vendor advice) | vendor blogs (trulyinbox.com) | Internal |
-| deliverability.md | Warm-up services common; watch bounces/complaints | vendor sources | Internal |
-| deliverability.md | Soft vs hard bounce by RFC 3463 codes | https://datatracker.ietf.org/doc/html/rfc3463 | Internal |
-| deliverability.md | Postmaster Tools needs a verified own domain | https://support.google.com/mail/answer/9981691 | Internal |
-| linkedin-manual.md §2 | LinkedIn User Agreement 8.2 bans bots/scrapers; graduated enforcement | https://www.linkedin.com/legal/user-agreement | Internal (why we never automate) |
-| linkedin-manual.md §3 | Unofficial invite/note limits and character limits | https://www.linkedin.com/help | Internal |
+| deliverability.md §2 | Google Workspace sending limit ~2,000/day | https://support.google.com/a/answer/166852 | redirects to knowledge.workspace.google.com, blocked |
+| deliverability.md | New-mailbox ramp: ~150/day, risk above ~300 (vendor advice) | vendor blogs (trulyinbox.com) | no primary exists; vendor host blocked |
+| deliverability.md | Warm-up services common; watch bounces/complaints | vendor sources | no primary exists |
+| linkedin-manual.md §2 | LinkedIn User Agreement 8.2 bans bots/scrapers; graduated enforcement | https://www.linkedin.com/legal/user-agreement | www blocked; apex = reCAPTCHA |
+| linkedin-manual.md §3 | Unofficial invite/note limits and character limits | https://www.linkedin.com/help | blocked; LinkedIn does not publish them |
 
 ## crypto-protocol-engineer
 
