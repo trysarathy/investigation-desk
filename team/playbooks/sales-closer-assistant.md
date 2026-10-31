@@ -3,6 +3,15 @@
 Every playbook starts with **P0**. Every outward artefact passes **the outward check (P0.4)** before it is
 saved. All times SGT.
 
+## Fixes from qualification (31 Oct)
+- MEDDPICC has its own **Partner** row (the customer's auditor or accountant). Mark **Metrics** "Known"
+  only when a baseline number exists in her notes.
+- Every prep brief keeps call-script Q6 ("what have you tried?") and one security objection; every
+  demo path includes the month-end posting step (as it works today: Xero in testing, posts only on approval).
+- Colleague verification is written `[VERIFIED: <who> <date>]`. A holding draft does not count toward
+  `followup_minutes`; only the real follow-up draft does.
+- Product facts come from `company/PRODUCT_FACTS.md`.
+
 ## P0. Start of every run
 1. Read Settings `PAUSE`; search Gmail `from:aashmiin@gmail.com to:aashmiin@gmail.com subject:Clearline
    newer_than:3d` for PAUSE. If PAUSE: write one Log row `sales-closer-assistant | stopped: PAUSE on` and stop.

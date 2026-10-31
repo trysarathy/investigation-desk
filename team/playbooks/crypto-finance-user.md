@@ -11,7 +11,7 @@ many are buyers.
 one-line "Basis:" (Calls rows used: n, of which buyers: m; public sources used: k; release/commit tested).
 
 **LOG**: one row (timestamp SGT, agent `crypto-finance-user`, action, ids, details beginning with the
-banner, report path, counts). Hand-off notes as separate Log rows ("for product-manager: …").
+banner, report path, counts). Hand-off notes as separate Log rows ("for product-manager: …"). **Every Log row, note and hand-off you write, with no exception, also starts with the banner** `SIMULATED FEEDBACK — NOT EVIDENCE OF CUSTOMER DEMAND`. Labels: `[VERIFIED]` only for a primary page you opened this run; a page someone else opened is `[VERIFIED: <who> <date>]`, never `[VERIFIED: pack]`; a trait you infer is `[GUESS: persona judgement]`.
 
 **Global stop conditions**: any request whose destination is outreach, website, deck, investor/advisor
 update, post or case study (→ P6); PAUSE; a secret seen (stop, don't copy, `RISK:`); the app won't build
