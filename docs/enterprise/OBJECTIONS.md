@@ -10,7 +10,8 @@ Say what's true, including the gaps:
 - **Gaps today:** no individual sign-in (a shared password gate at most), data and Xero tokens stored as plain
   JSON, no SOC 2, no penetration test, one-person operation.
 - **What we offer instead:** run it on your own infrastructure, or a dedicated container in your region with an IP
-  allow-list; AI off; Xero tested on the Demo Company first; deletion in 10 business days.
+  allow-list; AI off; no live Xero connection in the pilot (a Xero-ready import file your accountant reviews and
+  imports); deletion in 10 business days.
 - If your policy requires SOC 2 or SSO before any vendor touches finance data, **we're not ready for you yet**, and
   it's better to say so now. We'd like to come back when we are.
 
@@ -21,7 +22,7 @@ Say what's true, including the gaps:
   overpayment line, never two payments for a duplicate). That took 18 diagnosis rules and their tests
   (`src/lib/engine/rules.ts`, `tests/`), tested on 52 held-out real transfers.
 - Honest view: if you have an engineering team and stablecoins are core to your business, building can make sense.
-  The pilot is US$300; it's a cheap way to see the edge cases before you decide.
+  The founding pilot is US$300 for 30 days; it's a cheap way to see the edge cases before you decide.
 
 ## "Our gateway does this." (CoinGate, NOWPayments, BitPay, Coinbase Commerce)
 - **Where they're enough:** if every customer pays through the gateway's checkout, the gateway already creates the
@@ -43,18 +44,18 @@ Say what's true, including the gaps:
 - They are broader, more mature and certified in ways we aren't [ASSUMPTION about their certifications: check
   each one's trust page].
 - **Where we're different (a hypothesis we're testing):** a smaller business paid directly into its own wallet, and
-  the payments that arrive wrong: explained in plain English, with the customer reply drafted, and posted to the
-  books correctly. Priced for a small finance team.
+  the payments that arrive wrong: explained in plain English, with the customer reply drafted, and prepared for the
+  books correctly (in a pilot, as a Xero-ready import file your accountant reviews). Priced for a small finance team.
 - If you already use one of them and it handles your wrong payments, keep it.
 
 ## "What about pricing?"
-- Pilot: **US$300 for 30 days**, then **US$200/month**, pilot fee credited against months 2–4, cancel any time.
+- Founding pilot: **US$300 for 30 days, then US$200/month** (first 10 businesses). Cancel any time.
   Enterprise pricing on request.
 - Why pay for a pilot: it's priced so both sides take the success criteria seriously, and it's refunded if we miss
-  "every payment matched or explained" or "zero wrong postings" for reasons on our side.
+  "every payment matched or explained" or "zero wrong entries in the Xero import file" for reasons on our side.
 - Use `ROI_CALCULATOR.md` with their numbers. Honest: below roughly 20–25 payments a month it may not pay for
   itself on time alone [GUESS, from the calculator's assumed inputs].
-- Our website says pilots are free; that's out of date and is being corrected (`CLAIMS_AUDIT.md`).
+- Older website copy said pilots are free; that's wrong and is being corrected (PR #40 on `website-fixes`).
 
 ## "You're a student / a solo founder."
 - True. Clearline is built and run by one person, a university student in Singapore, with 0 customers so far.
