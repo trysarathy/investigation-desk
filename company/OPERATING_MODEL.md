@@ -44,7 +44,9 @@ merge time:
   **no required status check**, so nothing auto-merges until Aashmiin adds "Require status checks:
   ci".
 - CI (`ci` check) is green on the PR's head commit;
-- both `CODE REVIEW: APPROVE <head sha>` and `QA: PASS <head sha>` exist, and no unlifted BLOCK;
+- both `CODE REVIEW: APPROVE <head sha>` (signed `— code-reviewer ·`) and `QA: PASS <head sha>` (signed
+  `— qa-security-engineer ·`) exist for the current head sha, and no unlifted BLOCK. Every agent posts
+  from Aashmiin's GitHub account, so the signature and the sha are what count, never the account;
 - the diff is under ~300 changed lines;
 - nothing in the approval-only list below is touched.
 If CI or protection isn't set up, devops-engineer fixes that first and nothing auto-merges until it is.
