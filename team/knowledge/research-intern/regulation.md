@@ -8,6 +8,15 @@ Label key (see `research-method.md`): `[VERIFIED]` = page opened on the date sho
 (on 2026-10-29 this build's network blocked page fetches; promote at the next refresh);
 `[ASSUMPTION]` = our reasoning. Source IDs `[R#]` are listed at the bottom.
 
+**Primary-source re-check 2026-10-31:** only the FIU-IND item below could be opened. Still blocked by
+this environment's network policy (CONNECT 403): congress.gov, govinfo.gov, occ.gov,
+federalregister.gov, fincen.gov, esma.europa.eu, eba.europa.eu, elegislation.gov.hk, hkma.gov.hk,
+mas.gov.sg, iras.gov.sg, sso.agc.gov.sg (403), incometaxindia.gov.in, fca.org.uk,
+bankofengland.co.uk, circle.com, binance.com, tether.io (tether.to/news redirects there),
+theblock.co. eur-lex.europa.eu answers with a bot challenge (no text). home.treasury.gov and
+rbi.org.in load, but the GENIUS NPRMs and an RBI stablecoin statement could not be located on them.
+Everything else in this file keeps its old label.
+
 ## 0. One-screen summary (as of 29 Oct 2026)
 
 | Jurisdiction | Status | What it means for a business that *receives* USDC/USDT | Next date to watch |
@@ -137,7 +146,7 @@ put to counsel. Watch: once HKD stablecoins launch, HK B2B payers may invoice in
   limited circumstances [ASSUMPTION: search] [R36][R37].
 - **Stablecoin framework**: MAS published draft PSA amendments for consultation on **1 Sep 2026**,
   closing **16 Oct 2026**; no enactment date; non-MAS stablecoins stay lawful under the DPT regime
-  [VERIFIED] (claims audit R7, Gibson Dunn) [R38]. Reported scope: single-currency stablecoins
+  [ASSUMPTION: secondary, Gibson Dunn via claims audit R7] [R38]. Reported scope: single-currency stablecoins
   pegged to SGD or a G10 currency issued in Singapore; full HQLA reserves, segregated; par
   redemption within a set period; no interest to holders; only licensees may use the label
   "MAS-regulated stablecoin"; openness to recognising foreign-issued coins; subsidiary legislation
@@ -161,8 +170,12 @@ does not perform a DPT service (claims audit A3 — no legal advice taken).
   (s.194S) above ₹50,000 (specified persons) or ₹10,000 (others) a year; Income Tax Act 2025
   (from 1 Apr 2026) carries these forward with renumbered sections [ASSUMPTION: search, secondary;
   sources conflict on details] [R42][R43].
-- **FIU-IND**: VDA service providers must register under the PMLA, including offshore platforms
-  serving Indian users; 54 registered by May 2026 (one secondary source) [ASSUMPTION: search, weak] [R44].
+- **FIU-IND**: VDA service providers (exchange VDA↔fiat or VDA↔VDA, transfer, safekeeping, issuer-offer
+  services, for or on behalf of others) are PMLA reporting entities and must register with FIU-IND;
+  failure to register is itself non-compliance (s.13(2) PMLA) [VERIFIED: FIU-IND notice F.No.
+  9-8/2023/COMPL/FIU-IND of 04.07.2023, https://fiuindia.gov.in/pdfs/downloads/VDASP04072023.pdf ,
+  2026-10-31]. "Including offshore platforms serving Indian users" and "54 registered by May 2026"
+  [ASSUMPTION: search, weak] [R44] (no registered-VDA-SP list found on fiuindia.gov.in).
 - **RBI**: Governor Malhotra urges a "cautious" approach (monetary sovereignty, capital flows,
   dollarisation); a government working group is to take the final view; a Reuters-attributed
   report says the stance "leans toward prohibition" (unconfirmed) [ASSUMPTION: search] [R45][R44].

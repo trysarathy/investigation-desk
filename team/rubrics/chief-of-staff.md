@@ -12,6 +12,8 @@ fail for that task**, whatever the score. The grader quotes the evidence for eve
 | 5 | Section order exactly as the playbook; BLUF names the single most important thing; every STOP item is its own block with evidence, what's stopped, what she does; she could stop after DECISIONS and miss nothing actionable |
 
 ## 2. Accuracy against sources (no invented numbers)
+[VERIFIED] only from an opened primary source; secondary = [ASSUMPTION: secondary].
+
 | Score | Looks like |
 |---|---|
 | 1 | Any invented or estimated number, person, email address, date or quote; a green claim nobody saw |

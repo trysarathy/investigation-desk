@@ -1,7 +1,8 @@
 # LinkedIn: prepared by you, sent by Aashmiin by hand
 
 Accessed 2026-10-29. linkedin.com could not be opened from the build session; external facts are
-**[ASSUMPTION: search-only]**. Our own rules are [VERIFIED] (RULES.md "Always human"; COMPANY_RULES rule 5;
+**[ASSUMPTION: search-only]**. Re-checked 2026-10-31: still not opened (www.linkedin.com blocked;
+linkedin.com returned a reCAPTCHA "Checking your browser" page), so nothing here is upgraded. Our own rules are [VERIFIED] (RULES.md "Always human"; COMPANY_RULES rule 5;
 MISSION.md guardrails).
 
 ## 1. The rule

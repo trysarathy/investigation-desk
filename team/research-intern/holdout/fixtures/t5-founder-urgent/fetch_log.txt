@@ -1,0 +1,8 @@
+# Fetch log, 31 Oct 2026 SGT
+07:43  GET https://blockpulse.example/stablecoins-beat-visa     -> OK, opened: stat_article_1_OPENED.md
+07:43  GET https://fintechdigest.example/b2b-stablecoins-31t    -> FAILED. Snippet: stat_article_2_SNIPPET.md
+07:44  GET https://linkedin.com/posts/...                        -> NOT ATTEMPTED (LinkedIn is off-limits). Text pasted by Aashmiin: stat_post_3_PASTED.md
+07:44  GET https://research.vantorx.example/2025-stablecoin-report.pdf -> FAILED (403). Landing-page snippet: origin_report_SNIPPET.md
+07:45  GET https://chainlens.example/adjusted-volume            -> OK, opened: chainlens_dashboard_OPENED.md
+07:45  GET https://corridorpartners.example/b2b-stablecoin-payments-2026 -> FAILED. Snippet: corridor_report_SNIPPET.md
+07:46  GET https://northgate.example/team/dana-whitlock         -> OK, opened: northgate_site_OPENED.md

@@ -1,0 +1,6 @@
+# FICTIONAL TEST FIXTURE - Company HQ "Calls" tab summary, as of 2026-11-12 14:00 SGT
+metric,value,source note
+learning calls held (cumulative since 1 Sep),33,"Calls tab rows type=learning call status=held"
+demos held,3,"Pelagic Remit 5 Nov, Ardent Freight 10 Nov, Halden Payroll 11 Nov"
+learning calls booked (future),4,
+companies spoken to (distinct),31,"2 companies had both a learning call and a demo"

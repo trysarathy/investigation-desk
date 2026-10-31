@@ -1,0 +1,72 @@
+diff --git a/website/src/app/page.tsx b/website/src/app/page.tsx
+index 29b6e17..1a9dd5e 100644
+--- a/website/src/app/page.tsx
++++ b/website/src/app/page.tsx
+@@ -2,6 +2,7 @@ import { Hero } from "@/components/Hero";
+ import { HowItWorks } from "@/components/HowItWorks";
+ import { Partners } from "@/components/Partners";
+ import { Problem } from "@/components/Problem";
++import { ProofBand } from "@/components/ProofBand";
+ import { WhyNow } from "@/components/WhyNow";
+ import { BuiltFor, Demo, Faq, FinalCta, Trust } from "@/components/Sections";
+ import { Footer, Header, Motion } from "@/components/ui";
+@@ -12,6 +13,7 @@ export default function Home() {
+       <Header />
+       <main id="main">
+         <Hero />
++        <ProofBand />
+         <Demo />
+         <Problem />
+         <HowItWorks />
+diff --git a/website/src/components/ProofBand.tsx b/website/src/components/ProofBand.tsx
+new file mode 100644
+index 0000000..8eca3b5
+--- /dev/null
++++ b/website/src/components/ProofBand.tsx
+@@ -0,0 +1,46 @@
++import { Reveal } from "./ui";
++
++// Three figures, each with its label and source line on the band itself (no footnote hunting).
++// Every figure is our own test (demo/REPORT.md, 24-25 Oct 2026) or a product fact on main; see website/SOURCES.md.
++// Market figures (US$226B, 300+) stay off the site until they are in SOURCES.md with the quoted line.
++const figures = [
++  {
++    figure: "52 of 52",
++    label: "real USDC and USDT transfers given the right verdict: real token, right network, right address.",
++    source: "Our own test on transfers we hadn’t used to build the rules, 24–25 Oct 2026. Not a customer result.",
++  },
++  {
++    figure: "13 of 13",
++    label: "fake USDT tokens caught, including one spelled with look-alike Cyrillic letters.",
++    source: "Same test, same caveat.",
++  },
++  {
++    figure: "3 networks",
++    label: "Tron, Ethereum and BNB Chain, for checking any USDT or USDC payment by its transaction hash.",
++    source: "What the product does today. Payment pages are Ethereum-only for now.",
++  },
++];
++
++export function ProofBand() {
++  return (
++    <section aria-labelledby="proof-h" className="mx-auto max-w-6xl px-5 pt-20 sm:px-8 sm:pt-24">
++      <Reveal>
++        <h2 id="proof-h" className="text-[13px] font-semibold uppercase tracking-[0.14em] text-accent">What we’ve shown so far</h2>
++      </Reveal>
++      <ul className="mt-6 grid border-y border-line sm:grid-cols-3">
++        {figures.map((f, i) => (
++          <li key={f.figure} className={`py-7 sm:px-7 sm:py-9 ${i ? "border-t border-line sm:border-l sm:border-t-0" : "sm:pl-0"}`}>
++            <Reveal delay={0.06 * i}>
++              <p className="text-[clamp(30px,4.6vw,52px)] font-semibold leading-[1.05] tracking-[-0.03em] text-fg">{f.figure}</p>
++              <p className="mt-3 text-[15.5px] leading-relaxed text-muted">{f.label}</p>
++              <p className="mt-3 text-[12.5px] leading-relaxed text-faint">{f.source}</p>
++            </Reveal>
++          </li>
++        ))}
++      </ul>
++      <Reveal delay={0.1}>
++        <p className="mt-4 text-[12.5px] text-faint">Automatic matching to invoices has not been tested on real data yet.</p>
++      </Reveal>
++    </section>
++  );
++}

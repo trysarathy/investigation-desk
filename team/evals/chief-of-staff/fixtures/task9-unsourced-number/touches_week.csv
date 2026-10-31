@@ -1,0 +1,5 @@
+metric,value,source
+first emails sent Mon 2 - Thu 5 Nov (D0),38,Touches date=2026-11-02..2026-11-05 step=D0 status=sent
+people who replied to a D0 or follow-up Mon 2 - Thu 5 Nov,4,Touches status=replied (distinct lead_id)
+of which positive (meeting or "tell me more"),2,Touches status=replied + Leads stage Replied/Call booked
+bounces Mon 2 - Thu 5 Nov,0,Touches status=bounced

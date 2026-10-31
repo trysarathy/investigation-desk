@@ -1,0 +1,2 @@
+date,lead_id,company,person,status,problem_score,pain_quotes,current_workaround,volume_per_month,next_step,notes_link,accounting_answer
+2026-10-28,L305,Northpier Studio Ltd,Grace Okafor (COO),held,Strong,"""Every short payment is an afternoon gone""; ""our accountant keeps asking for the hash""",Etherscan + Xero by hand,about 35 (USDC on Ethereum),Pilot proposal by email,https://docs.example/northpier-notes,"""I copy each one into Xero at month end with the hash in the reference, it's maybe a day of work"""

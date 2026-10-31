@@ -1,0 +1,13 @@
+# FICTIONAL TEST FIXTURE - Company HQ extracts, 18 Nov 2026
+tab,item,value,notes
+Opportunities,Pelagic Remit,proposal sent,"SGD 2,000 / 3 months; ~1,900 USDT receipts/mo (Tron + Ethereum); needs NetSuite"
+Opportunities,Ardent Freight,demo done,"Xero user; asked to revisit in Dec; ~300 receipts/mo"
+Opportunities,Halden Payroll,demo done,"QuickBooks user; asked 'when will QuickBooks work?'"
+Calls,Pelagic demo 5 Nov,notes,"CFO: 'month-end takes 4 days because of crypto receipts'; ERP = NetSuite; they export CSV from NetSuite today"
+Goals & metrics,Design partners signed by 15 Dec,target 2,actual 0
+Finance,cash (SGD),17900,"burn ~2,300/mo"
+Decisions log,D-019 (14 Oct),"Wedge = Xero-first SMB/mid-market; NetSuite later","decided by Aashmiin"
+Product roadmap,R-50 NetSuite sync,designed not built,
+Product roadmap,R-44 QuickBooks,PR #219 green,awaiting merge
+Calendar,Thu 19 Nov,"09:00-12:00 SMU class; 14:00 learning call; 16:00 free",
+Calendar,Fri 20 Nov,"08:00-11:30 travel (flight, no wifi)",

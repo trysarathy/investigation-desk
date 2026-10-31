@@ -41,7 +41,7 @@ Flags for `check_before_sending` (they lower the score in `gtm/score.py`): `via 
 - The token named is a look-alike or bridged token presented as USDT/USDC with no network named;
   or the site asks payers to send to an address that changes between pages.
 - Page is a scam pattern: guaranteed returns, "investment plans", no company registration, no
-  physical address, domain registered recently [ASSUMPTION: check via whois only if quick].
+  physical address, domain registered recently [ASSUMPTION: check via whois only if quick; rdap.org blocked from this environment on 31 Oct].
 - Sanctions or enforcement news about the company (search "<company> sanction OR fraud OR
   enforcement"); gambling or adult services in jurisdictions where that is unlawful.
 - The company is a mentor's, SMU's, an investor's, her warm network's, or QRE/QCDAO's → never a lead.
@@ -56,10 +56,10 @@ company hasn't published.
 
 | Token | Chain | Contract | Status |
 |---|---|---|---|
-| USDT | Ethereum | `0xdAC17F958D2ee523a2206206994597C13D831ec7` | Recorded in Clearline `src/lib/fixtures/index.ts` (main) as checked against issuer sources; also search-reported [L1]. [ASSUMPTION until re-opened today] |
-| USDT | Tron | `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t` | Recorded in the same file as checked; not confirmed by today's search [ASSUMPTION until re-opened today] |
-| USDC | Ethereum | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` | Recorded as confirmed on Circle's contract page in week 3; search-reported [L2]. [ASSUMPTION until re-opened today] |
-| Others (Base, Solana, Polygon, BNB Chain) | — | Take only from Circle's/Tether's own pages | Unset. Circle says bridged USDC (e.g. USDC.e) is not issued by Circle [ASSUMPTION: search] [L3]; BNB Chain "USDT" is Binance-Peg, not Tether-issued (product code note) |
+| USDT | Ethereum | `0xdAC17F958D2ee523a2206206994597C13D831ec7` | Listed by Tether as the Ethereum USD₮ contract [VERIFIED: https://tether.to/en/supported-protocols/ , 2026-10-31] |
+| USDT | Tron | `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t` | Listed by Tether as the Tron USD₮ contract [VERIFIED: https://tether.to/en/supported-protocols/ , 2026-10-31] |
+| USDC | Ethereum | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` | Listed by Circle as Ethereum mainnet USDC [VERIFIED: https://developers.circle.com/stablecoins/usdc-contract-addresses , 2026-10-31] |
+| Others (Base, Solana, Polygon, BNB Chain) | — | Take only from Circle's/Tether's own pages | Unset. Circle's address page lists only Circle-issued native USDC and says the bridged `USDC.e` on X Layer "is not issued or backed by Circle" [VERIFIED: https://developers.circle.com/stablecoins/usdc-contract-addresses , 2026-10-31]; treat any address not on that page as not Circle-issued. BNB Chain "USDT" is Binance-Peg, not Tether-issued (product code note); consistent with Tether's page, which lists only XAU₮ on BNB Smart Chain [VERIFIED: https://tether.to/en/supported-protocols/ , 2026-10-31] |
 
 An on-chain hit supports E1/E2 evidence; it never replaces a page the company published.
 

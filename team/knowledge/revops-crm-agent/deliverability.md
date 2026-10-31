@@ -1,30 +1,35 @@
 # Deliverability: keeping Aashmiin's Gmail out of spam
 
-Accessed 2026-10-29. See README for labels. Primary Google pages could not be opened from the build
-session (host blocked); every Google fact below is **[ASSUMPTION: search-only]** until research-intern opens
-the URL and upgrades it.
+Accessed 2026-10-29; re-checked against primary sources 2026-10-31. See README for labels. Google's
+sender-guideline, FAQ, sending-limit and Postmaster pages and RFC 8058/3463 were opened on 2026-10-31 and are
+[VERIFIED]; vendor advice stays [ASSUMPTION: secondary].
 
 ## 1. Google's sender requirements (in force from 1 February 2024)
-Source: Google, "Email sender guidelines", https://support.google.com/mail/answer/81126 (also
-https://support.google.com/a/answer/81126) [ASSUMPTION: search-only]; secondary summaries:
+Source: Google, "Email sender guidelines", https://support.google.com/a/answer/81126 [VERIFIED:
+https://support.google.com/a/answer/81126, 2026-10-31] and Google's "Email sender guidelines FAQ"
+[VERIFIED: https://support.google.com/a/answer/14229414, 2026-10-31]; secondary summaries (not needed now):
 https://mailsuite.com/blog/google-sender-guidelines/ , https://help.close.com/docs/requirements-for-bulk-email-senders ,
-https://hunter.io/blog/is-gmail-killing-email-outreach/ [ASSUMPTION: search-only].
+https://hunter.io/blog/is-gmail-killing-email-outreach/ [ASSUMPTION: secondary].
 
-**All senders to Gmail accounts** (search results quote: "All email senders who send emails to Gmail
-accounts must meet the requirements in this section"):
+**All senders to Gmail accounts** (Google: "Starting February 1, 2024, all email senders who send email to
+Gmail accounts must meet the requirements in this section"). Google's FAQ adds that the guidelines apply only
+to mail sent **to personal Gmail accounts** (@gmail.com/@googlemail.com), not to mail sent to Google
+Workspace accounts:
 - SPF **or** DKIM authentication for the sending domain.
 - Valid forward and reverse DNS (PTR) for sending IPs; TLS for transmission.
 - Messages formatted per RFC 5322; don't impersonate Gmail in the From header.
-- **Spam rate reported in Postmaster Tools below 0.3%**; secondary sources say Google recommends staying
-  below **0.1%** and never reaching 0.3%.
+- **Spam rate reported in Postmaster Tools below 0.3%**; Google's own page also says "Keep spam rates
+  reported in Postmaster Tools below 0.10% and avoid ever reaching a spam rate of 0.30% or higher".
 
-**Bulk senders** (about **5,000+ messages a day to personal Gmail accounts**), in addition:
+**Bulk senders** (Google FAQ: "any email sender that sends close to 5,000 messages or more to personal
+Gmail accounts within a 24-hour period"; all mail from the same primary domain counts), in addition:
 - SPF **and** DKIM **and** DMARC (a policy of at least `p=none`), with the From domain aligned to SPF or
   DKIM.
 - **One-click unsubscribe** for marketing and subscribed mail: `List-Unsubscribe` and
   `List-Unsubscribe-Post: List-Unsubscribe=One-Click` headers (RFC 8058,
-  https://datatracker.ietf.org/doc/html/rfc8058 [ASSUMPTION: search-only]) **plus** a clearly visible
-  unsubscribe link in the body; honour unsubscribes **within 2 days**.
+  [VERIFIED: https://datatracker.ietf.org/doc/html/rfc8058, 2026-10-31]; RFC 8058 also says the message
+  MUST carry a valid DKIM signature covering both headers) **plus** a clearly visible unsubscribe link in
+  the body. Google's FAQ "recommend[s] that you fulfill unsubscribe requests within **48 hours**".
 
 **What it means for Clearline today** [ASSUMPTION]:
 - We send ≤ 75/day from `aashmiin@gmail.com`, far below the 5,000/day bulk threshold, so the bulk-only
@@ -37,14 +42,20 @@ accounts must meet the requirements in this section"):
   RFC 8058 header (`UNSUBSCRIBE_READY`) and the domain needs SPF/DKIM/DMARC (`DOMAIN_READY`).
 
 ## 2. Personal Gmail sending limits
-Source: Google, "Gmail sending limits", https://support.google.com/mail/answer/22839 [ASSUMPTION:
-search-only]; secondary: https://overloop.com/blog/gmail-sending-limits ,
-https://trulyinbox.com/blog/gmail-sending-limit-per-day [ASSUMPTION: search-only].
-- A personal Gmail account can send to about **500 recipients per day** (To + Cc + Bcc counted); going over
-  gives a temporary block ("You have reached a limit for sending mail") for up to ~24 h. Google Workspace is
-  ~2,000/day.
+Source: Google, "Limits for sending & getting mail", https://support.google.com/mail/answer/22839
+[VERIFIED: https://support.google.com/mail/answer/22839, 2026-10-31]; secondary:
+https://overloop.com/blog/gmail-sending-limits , https://trulyinbox.com/blog/gmail-sending-limit-per-day
+[ASSUMPTION: secondary].
+- Google: "You may see this message if you send an email to a total of more than **500 recipients in a single
+  email** and or more than **500 emails sent in a day**", and "you should be able to send emails again within
+  **1 to 24 hours**". (corrected 2026-10-31: was "about 500 recipients per day (To + Cc + Bcc counted) ...
+  block for up to ~24 h"; the page does not describe To/Cc/Bcc counting.) The same page warns that many
+  invalid or bounced addresses can also stop sending for about 24 hours. Google Workspace ~2,000/day
+  [ASSUMPTION: search-only; Google's Workspace limits page redirects to knowledge.workspace.google.com,
+  blocked 2026-10-31].
 - That ceiling is **not** a safe cold-email volume. Vendors suggest a "safe zone" far below it (one cites
-  ~150/day and rising risk above ~300) [ASSUMPTION: search-only, vendor advice]. Our 75/day cap was set by
+  ~150/day and rising risk above ~300) [ASSUMPTION: secondary, trulyinbox.com vendor advice; no primary
+  source exists; host blocked 2026-10-31]. Our 75/day cap was set by
   Aashmiin knowing the risk (RULES.md LEAN MODE). Never raise it; never use Cc/Bcc to multiply recipients.
 - A Gmail block or suspension would also cut off her briefings, replies and calendar invites. Protecting the
   account matters more than any day's volume.
@@ -62,8 +73,8 @@ https://trulyinbox.com/blog/gmail-sending-limit-per-day [ASSUMPTION: search-only
 
 ## 4. Warm-up (domain mode only; not active)
 - Industry practice: a new domain/inbox starts with low daily volume and rises over weeks while watching
-  bounces, complaints and inbox placement; many teams also run a warm-up service [ASSUMPTION: search-only,
-  vendor sources, e.g. https://www.warmy.io/guides/google-yahoo-sender-requirements/].
+  bounces, complaints and inbox placement; many teams also run a warm-up service [ASSUMPTION: secondary,
+  vendor sources, no primary source exists, e.g. https://www.warmy.io/guides/google-yahoo-sender-requirements/].
 - Our rule is fixed in code (`gtm/volume.py`): week 1 = 0 from the system, week 2 = 20/day, week 3 = 35,
   week 4+ = 50, ≤ 20 per inbox, step up only with bounce < 2%, no complaint and `PLACEMENT_OK` (a Gmail +
   Outlook seed test landed in the inbox). Buying the domain/inboxes/tool is spending money: Aashmiin decides
@@ -75,7 +86,10 @@ https://trulyinbox.com/blog/gmail-sending-limit-per-day [ASSUMPTION: search-only
   re-check the source page: a bounce on a VERIFIED-PUBLIC address means the page is stale or we misread it.
   Log it; if it happened to a VERIFIED address, add a Spot checks row (it may be a factual error).
 - **Soft bounce** (temporary, 4.x.x, mailbox full, greylisting): note it; do not resend the same day; if it
-  repeats on the next attempt, treat as hard. [ASSUMPTION: standard SMTP practice, RFC 3463 codes]
+  repeats on the next attempt, treat as hard. [VERIFIED: https://datatracker.ietf.org/doc/html/rfc3463,
+  2026-10-31: class 4.X.X = "Persistent Transient Failure", 5.X.X = "Permanent Failure"; the "retry once then
+  treat as hard" rule is our practice, ASSUMPTION. `550` itself is an SMTP reply code (RFC 5321), the
+  `5.1.1` part is the RFC 3463 enhanced code.]
 - **Thresholds** (code): bounce > 3% over ≥ 20 first emails → auto-throttle to 20/day and autonomy level 1;
   week-2 direct sending and every ramp step need bounce < 2%. Our own target: < 2%.
 - Small numbers mislead: 2 bounces in 11 sends is 18% but below the 20-send minimum the code uses. Report
@@ -90,5 +104,7 @@ https://trulyinbox.com/blog/gmail-sending-limit-per-day [ASSUMPTION: search-only
 
 ## 7. Monitoring
 - Daily: sends by step, bounces (hard/soft), replies, complaints, unsubscribes, 30-day total vs 1,000.
-- Postmaster Tools needs a verified own domain, so it does not apply to `@gmail.com` [ASSUMPTION]. In domain
+- Postmaster Tools shows data only for a domain you have verified via a DNS TXT/CNAME record, so it does not
+  apply to `@gmail.com` [VERIFIED: https://support.google.com/mail/answer/9981691, 2026-10-31; the gmail.com
+  conclusion is our inference]. In domain
   mode, add the domain to Postmaster Tools before ramp week 2.

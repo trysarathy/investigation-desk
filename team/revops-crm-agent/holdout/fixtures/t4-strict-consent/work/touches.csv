@@ -1,0 +1,3 @@
+date,lead_id,company,domain,email,channel,step,subject,status,thread_id,approved,notes,inbox
+2026-10-28,L201,FICTIONAL Dijkstra Payments B.V.,dijkstrapay.example,sanne.devries@dijkstrapay.example,email,D0,Quick question about stablecoin payments,sent,thr-201,auto-nohold,"sent 09:12 SGT (02:12 Amsterdam); country blank at send time",
+2026-11-02,L201,FICTIONAL Dijkstra Payments B.V.,dijkstrapay.example,sanne.devries@dijkstrapay.example,email,D0,Re: Quick question about stablecoin payments,replied,thr-201,auto-nohold,positive: more info,

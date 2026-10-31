@@ -17,6 +17,7 @@ of a feature or date; tax/legal advice stated as fact; an extra link, attachment
   exclusion stated with its rule; alerts at the top; compliant alternative offered for any refused request.
 
 ## 2. Personalisation quality and truthfulness
+- [VERIFIED] only from an opened primary source; secondary = [ASSUMPTION: secondary] (a directory's "verified" badge is secondary).
 - **1**: generic or pitched copy; invented or unsourced facts; template altered.
 - **3**: template used, first lines sourced and ≤ 18 words, but questions generic or the close repetitive.
 - **5**: each first line a specific, re-checked fact (source + date) ≤ 18 words; one sharp workflow question

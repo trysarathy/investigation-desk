@@ -1,0 +1,50 @@
+diff --git a/src/middleware.ts b/src/middleware.ts
+index 8e20cb8..7c82f9a 100644
+--- a/src/middleware.ts
++++ b/src/middleware.ts
+@@ -15,8 +15,10 @@ export function middleware(req: NextRequest) {
+   const user = process.env.PREVIEW_USER;
+   const password = process.env.PREVIEW_PASSWORD;
+   if (!user || !password) return NextResponse.next();
+-  // The sender's payment page is customer-facing: it carries its own unguessable link ID.
+-  if (req.nextUrl.pathname.startsWith("/pay/")) return NextResponse.next();
++  // The sender's payment page is customer-facing: it carries its own unguessable link ID. Its
++  // address checker (POST /api/pay/<id>/check) is public too, or senders get a password prompt.
++  const p = req.nextUrl.pathname;
++  if (p.startsWith("/pay") || p.startsWith("/api/pay")) return NextResponse.next();
+   const header = req.headers.get("authorization") ?? "";
+   if (header.startsWith("Basic ")) {
+     let decoded = "";
+diff --git a/tests/middleware.test.ts b/tests/middleware.test.ts
+new file mode 100644
+index 0000000..602e1bb
+--- /dev/null
++++ b/tests/middleware.test.ts
+@@ -0,0 +1,27 @@
++// The preview password gate: everything asks for it, except the sender's payment page and its checker.
++
++import { afterEach, beforeEach, describe, expect, it } from "vitest";
++import { NextRequest } from "next/server";
++import { middleware } from "@/middleware";
++
++const at = (path: string, auth?: string) =>
++  middleware(new NextRequest(new URL(path, "http://desk.test"), { method: "POST", headers: auth ? { authorization: auth } : {} }));
++
++describe("preview password", () => {
++  beforeEach(() => { process.env.PREVIEW_USER = "demo"; process.env.PREVIEW_PASSWORD = "FICTIONAL-preview-pw"; });
++  afterEach(() => { delete process.env.PREVIEW_USER; delete process.env.PREVIEW_PASSWORD; });
++
++  it("asks for it on the app", () => {
++    expect(at("/requests").status).toBe(401);
++    expect(at("/api/requests").status).toBe(401);
++  });
++
++  it("lets the sender's page and its address checker through", () => {
++    expect(at("/pay/AbCdEfGhIjKl").status).toBe(200);
++    expect(at("/api/pay/AbCdEfGhIjKl/check").status).toBe(200);
++  });
++
++  it("accepts the right password", () => {
++    expect(at("/requests", `Basic ${btoa("demo:FICTIONAL-preview-pw")}`).status).toBe(200);
++  });
++});

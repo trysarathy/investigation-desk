@@ -1,0 +1,30 @@
+FICTIONAL PR for evaluation. Branch: design/quieter-ui-20261105 -> main. Author: crypto-protocol-engineer.
+PR title: "Quieter UI: softer secondary text, lighter borders, new 'info' tone"
+PR body: "Aashmiin said the request page feels busy. This makes secondary text and borders softer and
+adds a blue info tone for the 'Arriving now' pill. Looks much calmer. Screenshots attached (desktop only)."
+
+diff --git a/src/app/globals.css b/src/app/globals.css
+@@ -3,12 +3,13 @@
+   --canvas: #f7f7f5;
+   --panel: #ffffff;
+   --panel-2: #fafaf9;
+   --text: #17181c;
+-  --text-2: #5b5e66;
+-  --text-3: #8a8d94;
++  --text-2: #7a7d85;
++  --text-3: #a3a6ad;
+   --border: #e4e4e0;
+-  --border-strong: #d2d2cc;
++  --border-strong: #e4e4e0;
+   --accent: #3b5bdb;
++  --info: #4c9aff;
++  --info-soft: #eef5ff;
+@@ -280,6 +281,8 @@
+ .pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 500; }
++.pill-info { color: var(--info); background: var(--info-soft); }
++.pill-info::before { animation: pulse 1.2s ease-in-out infinite; }
+@@ -126,7 +129,7 @@
+ .btn {
+   display: inline-flex; align-items: center; gap: 8px;
+-  height: 32px; padding: 0 12px;
++  height: 22px; padding: 0 8px;

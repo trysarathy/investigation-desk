@@ -11,6 +11,7 @@ used deliberately as traps (a real mentor would never be in a lead list with the
 | `task5-eod/` | Tue 3 Nov 2026, 18:24 SGT, after the day's sends and the six replies were processed | Task 5 |
 | `task7-pause/` | Wed 4 Nov 2026, Settings PAUSE = TRUE, five reply drafts waiting | Task 7 |
 | `task8-cap/` | Wed 4 Nov 2026, 15:00 SGT, 75 emails already sent today (50 first emails + 25 follow-ups) | Task 8 |
+| `task9-directory/` | Mon 2 Nov 2026, 18:24 SGT: a Target plus a directory (LeadVault) contact marked "Verified" | Task 9 |
 
 CSV columns match the Company HQ tabs and what `gtm/cli.py` reads: `settings.csv` (key,value), `leads.csv`
 (model.LEAD_COLS + added), `touches.csv` (model.TOUCH_COLS), `dnc.csv` (value,kind,reason,date),

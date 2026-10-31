@@ -1,0 +1,113 @@
+{
+ "_note": "SYNTHETIC fixture for holdout T3. Real: USDT TRC-20 contract TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t (hex 41a614f8...), Transfer topic, TronGrid response shapes (checked live 31 Oct 2026). Fictional: every other address, both tx hashes, the customer, the key.",
+ "customer": {
+  "name": "Harbourline OTC Pte Ltd (fictional prospect, pilot not signed)",
+  "customerId": "C-30118"
+ },
+ "addresses": {
+  "deposit": "TVFrTYUbf7ftmLHDe28QzhMTobnuek69Dj",
+  "depositHex": "41d3905000000000000000000000000000000c0ffe",
+  "payer": "TQf6Qa4qqbQbz8bhXpPmdmJYXjosmmyPdb",
+  "payerHex": "41a11ce500000000000000000000000000000beef0",
+  "usdt": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
+ },
+ "payment": {
+  "gettransactioninfobyid": {
+   "id": "00000000b1ac1157e00000000000000000000000000000000000000000000a01",
+   "fee": 13844850,
+   "blockNumber": 87296570,
+   "blockTimeStamp": 1792563123000,
+   "contractResult": [
+    "0000000000000000000000000000000000000000000000000000000000000001"
+   ],
+   "contract_address": "41a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+   "receipt": {
+    "energy_usage_total": 64285,
+    "net_usage": 345,
+    "result": "SUCCESS"
+   },
+   "log": [
+    {
+     "address": "a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+     "topics": [
+      "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+      "000000000000000000000000a11ce500000000000000000000000000000beef0",
+      "000000000000000000000000d3905000000000000000000000000000000c0ffe"
+     ],
+     "data": "000000000000000000000000000000000000000000000000000000044eaf9900"
+    }
+   ]
+  },
+  "ledgerRow": {
+   "depositId": "DEP-88412",
+   "txHash": "00000000b1ac1157e00000000000000000000000000000000000000000000a01",
+   "chain": "tron",
+   "token": "USDT",
+   "toAddress": "TVFrTYUbf7ftmLHDe28QzhMTobnuek69Dj",
+   "amount": "18500.000000",
+   "status": "CREDITED",
+   "creditedAt": "2026-10-21T06:14:40Z",
+   "customerId": "C-30118"
+  }
+ },
+ "freezeNow": {
+  "request": {
+   "url": "https://api.trongrid.io/wallet/triggerconstantcontract",
+   "body": {
+    "owner_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "contract_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "function_selector": "isBlackListed(address)",
+    "parameter": "000000000000000000000000d3905000000000000000000000000000000c0ffe",
+    "visible": true
+   }
+  },
+  "fetchedAt": "2026-10-31T01:05:12Z",
+  "response": {
+   "result": {
+    "result": true
+   },
+   "energy_used": 1043,
+   "constant_result": [
+    "0000000000000000000000000000000000000000000000000000000000000001"
+   ]
+  }
+ },
+ "blacklistEvent": {
+  "source": "GET https://api.trongrid.io/v1/contracts/TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t/events?event_name=AddedBlackList",
+  "data": [
+   {
+    "block_number": 87533532,
+    "block_timestamp": 1793274009000,
+    "contract_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "event_index": 0,
+    "event_name": "AddedBlackList",
+    "result": {
+     "0": "0xd3905000000000000000000000000000000c0ffe",
+     "_user": "0xd3905000000000000000000000000000000c0ffe"
+    },
+    "result_type": {
+     "_user": "address"
+    },
+    "event": "AddedBlackList(address indexed _user)",
+    "transaction_id": "00000000b1ac1157e00000000000000000000000000000000000000000000b02"
+   }
+  ]
+ },
+ "clearlineRecheck": {
+  "at": "2026-10-31T01:05:13Z",
+  "verdict": "D09",
+  "label": "Issuer freeze",
+  "reason": "deposit frozen by the issuer.",
+  "freezes": [
+   {
+    "chain": "tron",
+    "token": "USDT",
+    "address": "TVFrTYUbf7ftmLHDe28QzhMTobnuek69Dj",
+    "role": "deposit",
+    "method": "isBlackListed",
+    "frozen": true,
+    "blockNumber": 87578433
+   }
+  ]
+ }
+}

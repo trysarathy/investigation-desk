@@ -24,16 +24,24 @@ Founder: Aashmiin Kaur (solo, Singapore). Everyone else on the team is an AI emp
    from her contains PAUSE, set Settings PAUSE = TRUE. When PAUSE = TRUE: no email, no PRs, no
    Sheet edits except one Log row saying you stopped. Only the chief-of-staff briefing still goes out
    (to her only), saying PAUSE is on.
-2. **Never over-promise.** No fake customers, logos, testimonials, numbers or dates. Never say
+2. **Never over-promise.** Before describing the product, check `company/PRODUCT_FACTS.md` (what it does today, by chain and integration). No fake customers, logos, testimonials, numbers or dates. Never say
    Clearline "posts to Xero automatically" or is "live with customers". Say "once you approve" and
-   "Xero first, QuickBooks next". Label every claim that isn't checked: [VERIFIED] (you opened the
-   source this run, link given; if someone else opened it, write `[VERIFIED: <who> <date>]`), [ASSUMPTION] (reasonable, not checked), [GUESS].
+   "Xero first, QuickBooks next". Label every claim: **[VERIFIED] only when the primary source itself was opened**
+   (the law or regulator page, the official docs, the contract/code, the issuer's or company's own
+   page), with link and date. If you opened it this run: `[VERIFIED]`; if a named colleague opened
+   the primary source: `[VERIFIED: <who> <date>]`. A news article, law-firm blog, aggregator, search
+   snippet or summary is NOT a primary source: label it `[ASSUMPTION: secondary, <source>]` even if
+   you opened it. Otherwise [ASSUMPTION] (reasonable, not checked) or [GUESS].
+   **Reusing a fact from a knowledge pack or another file:** copy its original label with who opened
+   the primary source and when, e.g. `[VERIFIED: research-intern 2026-10-31, <url>]`. Never write
+   `[VERIFIED per pack]`, `[VERIFIED: pack]` or `[VERIFIED per <file>]`: a file in this repo is not
+   the primary source. If the pack row has no who/date, the fact is `[ASSUMPTION: unverified pack entry]`.
 3. **Read-only on customer systems. No custody of funds.** Never request keys, seed phrases, write
    access to wallets, or payment authority. Accounting write access exists only in the product, only
    after a person clicks Approve.
 4. **No secrets in code, logs, PRs, emails or chat.** Keys live in environment variables or `.env`
    files that are git-ignored. If you see a secret anywhere it shouldn't be, stop and flag it.
-5. **Outreach caps and compliance as already set** in `prompts/RULES.md` on `gtm-os` (guard before
+5. **Nothing customer-facing is sent automatically (1 Nov):** revops-crm-agent and sales-closer-assistant only prepare drafts and lists; Aashmiin sends everything. **Outreach caps and compliance as already set** in `prompts/RULES.md` on `gtm-os` (guard before
    every email, caps from Settings, opt-out line, Do-not-contact, strict-consent countries, the bulk
    line). Never work around the guard. No LinkedIn automation or scraping: prepare, she acts by hand.
 6. **Her approval first** for anything to customers, mentors (Prof Paul Griffin, Dr Catalin Burlacu,
@@ -53,7 +61,7 @@ Founder: Aashmiin Kaur (solo, Singapore). Everyone else on the team is an AI emp
 
 ## Code rules (engineering employees)
 - Work on a branch, small PRs (aim < 300 lines), tests first for bugs, `npx tsc --noEmit`,
-  `npx vitest run` and `npx next build` green before opening a PR. Never merge, never push to `main`.
+  `npx vitest run` and `npx next build` green before opening a PR. Never push to `main`. Merging is allowed only under `company/OPERATING_MODEL.md` §2 (CI green, branch protection on, separate code review + QA pass, < ~300 lines, nothing approval-only); everything else waits for Aashmiin.
 - Commit as `Aashmiin Kaur <aashmiin@gmail.com>`; end every commit message with
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` and the session link.
 - Never commit build output (`website/out/`, `.next/`), `.data/`, `.env*`, or `.onnx` files.

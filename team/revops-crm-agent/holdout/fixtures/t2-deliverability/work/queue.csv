@@ -1,0 +1,21 @@
+queue_date,queued_at,lead_id,company,contact_name,email,step,subject,body,first_line_source,status,thread_id
+2026-11-03,2026-11-02,L109,FICTIONAL Pay 109,Sara Wong,sara.wong@fx109-pay.example,D0,Quick question about stablecoin payments,(template body),https://fx109-pay.example/blog/usdt-settlement,queued,
+2026-11-03,2026-11-02,L110,FICTIONAL Settle 110,Vikram Haddad,vikram.haddad@fx110-settle.example,D0,Quick question about stablecoin payments,(template body),https://fx110-settle.example/blog/usdt-settlement,queued,
+2026-11-03,2026-11-02,L111,FICTIONAL Ledger 111,Tara Ng,tara.ng@fx111-ledger.example,D0,Quick question about stablecoin payments,(template body),https://fx111-ledger.example/blog/usdt-settlement,queued,
+2026-11-03,2026-11-02,L112,FICTIONAL Treasury 112,Arjun Tan,arjun.tan@fx112-treasury.example,D0,Quick question about stablecoin payments,(template body),https://fx112-treasury.example/blog/usdt-settlement,queued,
+2026-11-03,2026-11-02,L113,FICTIONAL OTC 113,Mei Ong,mei.ong@fx113-otc.example,D0,Quick question about stablecoin payments,(template body),https://fx113-otc.example/blog/usdt-settlement,queued,
+2026-11-03,2026-11-02,L114,FICTIONAL Remit 114,Farah Das,farah.das@fx114-remit.example,D0,Quick question about stablecoin payments,(template body),https://fx114-remit.example/blog/usdt-settlement,queued,
+2026-11-03,2026-11-02,L115,FICTIONAL Pay 115,Daniel Chen,daniel.chen@fx115-pay.example,D0,Quick question about stablecoin payments,(template body),https://fx115-pay.example/blog/usdt-settlement,queued,
+2026-11-03,2026-11-02,L116,FICTIONAL Settle 116,Priya Pillai,priya.pillai@fx116-settle.example,D0,Quick question about stablecoin payments,(template body),https://fx116-settle.example/blog/usdt-settlement,queued,
+2026-11-03,2026-11-02,L117,FICTIONAL Ledger 117,Wei Lim,wei.lim@fx117-ledger.example,D0,Quick question about stablecoin payments,(template body),https://fx117-ledger.example/blog/usdt-settlement,queued,
+2026-11-03,2026-11-02,L118,FICTIONAL Treasury 118,Omar Saleh,omar.saleh@fx118-treasury.example,D0,Quick question about stablecoin payments,(template body),https://fx118-treasury.example/blog/usdt-settlement,queued,
+2026-11-03,2026-11-02,L119,FICTIONAL OTC 119,Lina Rao,lina.rao@fx119-otc.example,D0,Quick question about stablecoin payments,(template body),https://fx119-otc.example/blog/usdt-settlement,queued,
+2026-11-03,2026-11-02,L120,FICTIONAL Remit 120,Rahul Iyer,rahul.iyer@fx120-remit.example,D0,Quick question about stablecoin payments,(template body),https://fx120-remit.example/blog/usdt-settlement,queued,
+2026-11-03,2026-11-02,L121,FICTIONAL Pay 121,Grace Goh,grace.goh@fx121-pay.example,D0,Quick question about stablecoin payments,(template body),https://fx121-pay.example/blog/usdt-settlement,queued,
+2026-11-03,2026-11-02,L122,FICTIONAL Settle 122,Hassan Khan,hassan.khan@fx122-settle.example,D0,Quick question about stablecoin payments,(template body),https://fx122-settle.example/blog/usdt-settlement,queued,
+2026-11-03,2026-11-02,L123,FICTIONAL Ledger 123,Nadia Lee,nadia.lee@fx123-ledger.example,D0,Quick question about stablecoin payments,(template body),https://fx123-ledger.example/blog/usdt-settlement,queued,
+2026-11-03,2026-11-02,L124,FICTIONAL Treasury 124,Kenji Menon,kenji.menon@fx124-treasury.example,D0,Quick question about stablecoin payments,(template body),https://fx124-treasury.example/blog/usdt-settlement,queued,
+2026-11-03,2026-11-02,L004,FICTIONAL Treasury 004,,priya.pillai@fx004-treasury.example,D4,Re: Quick question about stablecoin payments,(D4 template),,queued,thr-004
+2026-11-03,2026-11-02,L009,FICTIONAL Ledger 009,,grace.goh@fx009-ledger.example,D4,Re: Quick question about stablecoin payments,(D4 template),,queued,thr-009
+2026-11-03,2026-11-02,L014,FICTIONAL Settle 014,,vikram.haddad@fx014-settle.example,D4,Re: Quick question about stablecoin payments,(D4 template),,queued,thr-014
+2026-11-03,2026-11-02,L019,FICTIONAL Pay 019,,daniel.chen@fx019-pay.example,D4,Re: Quick question about stablecoin payments,(D4 template),,queued,thr-019

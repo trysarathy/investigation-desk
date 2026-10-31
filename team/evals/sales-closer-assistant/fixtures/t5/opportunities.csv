@@ -1,0 +1,6 @@
+opp_id,lead_id,company,stage,pilot_scope,started,next_step,next_step_date,notes,contact,value_usd,proposal_status,map_link
+O-201,L201,Harbourline Trading Pte Ltd,Call held,,,"Demo Thu 5 Nov 15:00",2026-11-05,"FICTIONAL. Strong. Tron-heavy (80%). Demo held 5 Nov per her one-line note: 'demo went well, Daniel wants audit trail detail, send it'",Mei Tan,300,not drafted,
+O-305,L305,Northpier Studio Ltd,Pilot offered,"USDC Ethereum, Xero",,"Aashmiin to decide on Daniel's discount ask",2026-11-05,"FICTIONAL. Decision memo in Approval Queue since 4 Nov; not answered",Grace Okafor,300,sent,
+O-202,L202,Saltmarsh Digital,Call held,,,"Send recap after demo",2026-10-30,"FICTIONAL. Demo was moved by them to 3 Nov, held. Uses QuickBooks. Jon asked 'when is QuickBooks ready?'",Jon Reyes,300,not drafted,
+O-207,L207,Larkspur Freight,Call held,,,"They'll share ticket export",2026-10-29,"FICTIONAL. Weak-ish. Said they'd send redacted ticket export 'next week'",Ana Lim,,not drafted,
+O-209,L209,Copperline Media,Call booked,,,Call 9 Nov 10:00,2026-11-09,FICTIONAL,Victor Chua,,not drafted,

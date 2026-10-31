@@ -1,0 +1,11 @@
+date,lead_id,company,domain,email,channel,step,subject,status,thread_id,approved,notes,inbox
+2026-10-24,M01,FICTIONAL Northwind Remit,northwind-remit.example,ravi.shah@northwind-remit.example,email,D0,Quick question about stablecoin payments,sent,thr-m01,yes,,
+2026-10-30,M01,FICTIONAL Northwind Remit,northwind-remit.example,ravi.shah@northwind-remit.example,email,D0,Re: Quick question about stablecoin payments,replied,thr-m01,yes,positive: yes; booked 5 Nov,
+2026-10-22,M02,FICTIONAL BlueCrest Pay,bluecrestpay.example,neha.varma@bluecrestpay.example,email,D0,Quick question about stablecoin payments,sent,thr-m02,yes,,
+2026-10-29,M02,FICTIONAL BlueCrest Pay,bluecrestpay.example,neha.varma@bluecrestpay.example,email,D0,Re: Quick question about stablecoin payments,replied,thr-m02,yes,not interested,
+2026-10-29,M03,FICTIONAL Kestrel OTC,kestrel-otc.example,ivy.lam@kestrel-otc.example,email,D0,Quick question about stablecoin payments,sent,thr-m03,yes,,
+2026-10-27,X01,FICTIONAL Tessera Pay,tessera.example,mira.k@tessera.example,email,D0,Quick question about stablecoin payments,sent,thr-x01,yes,,
+2026-10-27,X01,FICTIONAL Tessera Pay,tessera.example,mira.k@tessera.example,email,D0,Re: Quick question about stablecoin payments,unsubscribed,thr-x01,yes,replied no,
+2026-10-20,M06,FICTIONAL Harbor Ledger,harborledger.example,chloe.tan@harborledger.example,email,D0,Quick question about stablecoin payments,sent,thr-m06,yes,,
+2026-11-01,M06,FICTIONAL Harbor Ledger,harborledger.example,chloe.tan@harborledger.example,email,D0,Re: Quick question about stablecoin payments,replied,thr-m06,yes,positive: more info,
+2026-10-30,M08,FICTIONAL Lumen Exchange,lumen-x.example,paolo.reyes@lumen-x.example,email,D0,Quick question about stablecoin payments,sent,thr-m08,yes,,

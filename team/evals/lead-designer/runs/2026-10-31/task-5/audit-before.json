@@ -1,0 +1,511 @@
+[
+  {
+    "url": "http://127.0.0.1:3410/section.html",
+    "viewport": "desktop-1280",
+    "screenshot": "section.html-desktop-1280.png",
+    "overflow": {
+      "scrollWidth": 1280,
+      "clientWidth": 1280,
+      "offenders": []
+    },
+    "contrastFails": [
+      {
+        "fg": "#4a505a",
+        "bg": "#0a0c11",
+        "size": 16,
+        "weight": 700,
+        "ratio": 2.4,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 3,
+        "sample": "CIRCLE"
+      },
+      {
+        "fg": "#5a6170",
+        "bg": "#11141b",
+        "size": 13,
+        "weight": 400,
+        "ratio": 2.96,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Checked against the official contract."
+      }
+    ],
+    "contrastAll": [
+      {
+        "fg": "#4a505a",
+        "bg": "#0a0c11",
+        "size": 16,
+        "weight": 700,
+        "ratio": 2.4,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 3,
+        "sample": "CIRCLE"
+      },
+      {
+        "fg": "#5a6170",
+        "bg": "#11141b",
+        "size": 13,
+        "weight": 400,
+        "ratio": 2.96,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Checked against the official contract."
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#11141b",
+        "size": 13.3333,
+        "weight": 400,
+        "ratio": 5.95,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "ⓘ"
+      },
+      {
+        "fg": "#f28b82",
+        "bg": "#11141b",
+        "size": 15.5,
+        "weight": 400,
+        "ratio": 7.71,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Not matched"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#11141b",
+        "size": 15.5,
+        "weight": 400,
+        "ratio": 7.98,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 5,
+        "sample": "We watch your address and read each USDC or USDT transfer: t"
+      },
+      {
+        "fg": "#8ea2ff",
+        "bg": "#0a0c11",
+        "size": 13,
+        "weight": 600,
+        "ratio": 8.16,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "How matching works"
+      },
+      {
+        "fg": "#5fd3a0",
+        "bg": "#11141b",
+        "size": 15.5,
+        "weight": 400,
+        "ratio": 9.93,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Matched"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#11141b",
+        "size": 16,
+        "weight": 700,
+        "ratio": 15.88,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "1. Read the chain"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 52,
+        "weight": 700,
+        "ratio": 16.86,
+        "need": 3,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Every payment, matched in seconds."
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "ⓘ",
+        "w": 20,
+        "h": 20,
+        "inline": false,
+        "spacingOk": false
+      },
+      {
+        "text": "⧉",
+        "w": 20,
+        "h": 20,
+        "inline": false,
+        "spacingOk": false
+      }
+    ],
+    "focus": [
+      {
+        "el": "ⓘ",
+        "outline": "none",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "⧉",
+        "outline": "none",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "ⓘ",
+        "outline": "none",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "⧉",
+        "outline": "none",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "ⓘ",
+        "outline": "none",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "⧉",
+        "outline": "none",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "ⓘ",
+        "outline": "none",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "⧉",
+        "outline": "none",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "ⓘ",
+        "outline": "none",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "⧉",
+        "outline": "none",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      }
+    ],
+    "axe": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 6,
+        "sample": [
+          ".card:nth-child(1) > .hint",
+          ".card:nth-child(2) > .hint",
+          ".card:nth-child(3) > .hint"
+        ]
+      },
+      {
+        "id": "target-size",
+        "impact": "serious",
+        "help": "All touch targets must be 24px large, or leave sufficient space",
+        "nodes": 2,
+        "sample": [
+          "button[title=\"info\"]",
+          "button[title=\"copy\"]"
+        ]
+      }
+    ]
+  },
+  {
+    "url": "http://127.0.0.1:3410/section.html",
+    "viewport": "phone-390",
+    "screenshot": "section.html-phone-390.png",
+    "overflow": {
+      "scrollWidth": 1132,
+      "clientWidth": 390,
+      "offenders": [
+        "DIV.card",
+        "STRONG.",
+        "P.",
+        "SPAN.ok",
+        "SPAN.no"
+      ]
+    },
+    "contrastFails": [
+      {
+        "fg": "#4a505a",
+        "bg": "#0a0c11",
+        "size": 16,
+        "weight": 700,
+        "ratio": 2.4,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 3,
+        "sample": "CIRCLE"
+      },
+      {
+        "fg": "#5a6170",
+        "bg": "#11141b",
+        "size": 13,
+        "weight": 400,
+        "ratio": 2.96,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Checked against the official contract."
+      }
+    ],
+    "contrastAll": [
+      {
+        "fg": "#4a505a",
+        "bg": "#0a0c11",
+        "size": 16,
+        "weight": 700,
+        "ratio": 2.4,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 3,
+        "sample": "CIRCLE"
+      },
+      {
+        "fg": "#5a6170",
+        "bg": "#11141b",
+        "size": 13,
+        "weight": 400,
+        "ratio": 2.96,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Checked against the official contract."
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#11141b",
+        "size": 13.3333,
+        "weight": 400,
+        "ratio": 5.95,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "ⓘ"
+      },
+      {
+        "fg": "#f28b82",
+        "bg": "#11141b",
+        "size": 15.5,
+        "weight": 400,
+        "ratio": 7.71,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Not matched"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#11141b",
+        "size": 15.5,
+        "weight": 400,
+        "ratio": 7.98,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 5,
+        "sample": "We watch your address and read each USDC or USDT transfer: t"
+      },
+      {
+        "fg": "#8ea2ff",
+        "bg": "#0a0c11",
+        "size": 13,
+        "weight": 600,
+        "ratio": 8.16,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "How matching works"
+      },
+      {
+        "fg": "#5fd3a0",
+        "bg": "#11141b",
+        "size": 15.5,
+        "weight": 400,
+        "ratio": 9.93,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Matched"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#11141b",
+        "size": 16,
+        "weight": 700,
+        "ratio": 15.88,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "1. Read the chain"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 30,
+        "weight": 700,
+        "ratio": 16.86,
+        "need": 3,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Every payment, matched in seconds."
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "ⓘ",
+        "w": 20,
+        "h": 20,
+        "inline": false,
+        "spacingOk": false
+      },
+      {
+        "text": "⧉",
+        "w": 20,
+        "h": 20,
+        "inline": false,
+        "spacingOk": false
+      }
+    ],
+    "focus": [
+      {
+        "el": "ⓘ",
+        "outline": "none",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "⧉",
+        "outline": "none",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "ⓘ",
+        "outline": "none",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "⧉",
+        "outline": "none",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "ⓘ",
+        "outline": "none",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "⧉",
+        "outline": "none",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "ⓘ",
+        "outline": "none",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "⧉",
+        "outline": "none",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "ⓘ",
+        "outline": "none",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "⧉",
+        "outline": "none",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      }
+    ],
+    "axe": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 6,
+        "sample": [
+          ".card:nth-child(1) > .hint",
+          ".card:nth-child(2) > .hint",
+          ".card:nth-child(3) > .hint"
+        ]
+      },
+      {
+        "id": "target-size",
+        "impact": "serious",
+        "help": "All touch targets must be 24px large, or leave sufficient space",
+        "nodes": 2,
+        "sample": [
+          "button[title=\"info\"]",
+          "button[title=\"copy\"]"
+        ]
+      }
+    ]
+  },
+  {
+    "reducedMotion": {
+      "path": "/section.html",
+      "runningAnimations": [
+        "pulse on pulse"
+      ],
+      "scrollBehavior": "auto"
+    }
+  }
+]

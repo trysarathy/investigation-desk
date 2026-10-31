@@ -1,0 +1,22 @@
+diff --git a/website/src/components/Partners.tsx b/website/src/components/Partners.tsx
+index 2d461d4..72220c1 100644
+--- a/website/src/components/Partners.tsx
++++ b/website/src/components/Partners.tsx
+@@ -10,7 +10,7 @@ const perks = [
+   ["Free during the pilot", "No cost, no commitment. Leave whenever you like."],
+ ];
+ 
+-const field = "mt-2 block w-full rounded-xl border border-line-strong bg-ink px-4 py-3 text-[15px] text-fg placeholder:text-faint focus:border-accent focus:outline-none";
++const field = "mt-2 block w-full rounded-xl border border-faint/70 bg-ink px-4 py-3 text-[15px] text-fg placeholder:text-faint focus:border-accent";
+ 
+ type Status = "idle" | "sending" | "sent" | "error";
+ 
+@@ -89,7 +89,7 @@ export function Partners() {
+                 <legend className="text-[14px] font-medium">How do customers pay you in stablecoins?</legend>
+                 <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                   {["Checkout page", "Direct transfer", "Both", "Not sure"].map((o, i) => (
+-                    <label key={o} className="flex cursor-pointer items-center justify-center rounded-xl border border-line-strong px-3 py-3 text-center text-[14px] text-muted has-[:checked]:border-accent has-[:checked]:bg-accent/10 has-[:checked]:text-fg">
++                    <label key={o} className="flex cursor-pointer items-center justify-center rounded-xl border border-faint/70 px-3 py-3 text-center text-[14px] text-muted has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent has-[:checked]:border-accent has-[:checked]:bg-accent/10 has-[:checked]:text-fg">
+                       <input type="radio" name="how_customers_pay" value={o} required={i === 0} className="sr-only" />
+                       {o}
+                     </label>

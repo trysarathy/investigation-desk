@@ -7,16 +7,20 @@ is a **draft for her**: you never send it, never put their addresses on a draft 
 mention QRE/QCDAO.
 
 ## What good practice says
-- **Monthly, on time, good news or bad.** Secondary write-ups of YC practice stress sending every month
-  regardless of news [ASSUMPTION S18].
-- **Structure (YC-style, as summarised):** KPIs (revenue, burn, cash), growth vs last period,
-  3-5 highlights, 1-3 lowlights, 1-3 asks [ASSUMPTION S18].
-- **Aaron Harris (YC):** report growth (revenue or users), cash/burn, what you need from investors and a
-  qualitative read; put metrics and asks high; make it shorter; adding metrics is fine, **dropping the
-  ones you missed is not** [ASSUMPTION S17: search summary of his essay].
+- **Monthly.** Aaron Harris: "Send updates monthly. It's a hell of a forcing function" [VERIFIED S17:
+  https://blog.aaronkharris.com/investor-updates, 2026-10-31]. "On time, good news or bad" is our rule, not a quote.
+- **Structure:** key metrics with growth rates first (revenue or users, cash/burn), then asks, then a short
+  qualitative recap at the bottom [VERIFIED S17 for metrics → asks → qualitative; S18 (Visible.vc,
+  secondary, opened 2026-10-31) summarises Harris the same way, recap last]. Corrected 2026-10-31: was
+  "3-5 highlights, 1-3 lowlights, 1-3 asks [S18]": those counts are **not** in S18 or S17; treat them as
+  our house format, not a YC rule.
+- **Aaron Harris (YC):** report "your growth (in revenue or users), your cash/burn, what you need from
+  investors and a qualitative measure of how things are going"; "Put the asks higher up"; "Make it
+  shorter"; "Adding new things because they're important is good. Removing things because you can't hit
+  your milestones is bad." [VERIFIED S17: https://blog.aaronkharris.com/investor-updates, 2026-10-31]
 - **Lines, not dots:** Mark Suster's point is that investors judge a founder by a series of data points
   over time, so brief, regular progress notes before you need anything build the relationship
-  [ASSUMPTION S19]. For advisors this is the main purpose: they see the line of progress, and the asks
+  [ASSUMPTION S19: bothsidesofthetable.com unreachable 2026-10-31]. For advisors this is the main purpose: they see the line of progress, and the asks
   land with context.
 - **Board practice:** GitLab links every pre-read in the agenda and its cover email to the board
   "includes any highlights or asks" [VERIFIED S6]. Our cover line = BLUF + asks.

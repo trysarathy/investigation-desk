@@ -1,0 +1,49 @@
+6c6
+<           --hint:#5a6170; --line:rgb(255 255 255 / .08); }
+---
+>           --line:rgb(255 255 255 / .08); }
+11c11
+<   .steps { display:grid; grid-template-columns: repeat(3, 360px); gap:16px; }
+---
+>   .steps { display:grid; grid-template-columns: 1fr; gap:16px; }
+14c14
+<   .card .hint { color:var(--hint); font-size:13px; }
+---
+>   .card .hint { color:var(--faint); font-size:13px; }
+15a16
+>   .card h3 { display:inline; font-size:18px; font-weight:600; margin:0; }
+17,18c18,20
+<   .icon-btn { width:20px; height:20px; border:0; background:transparent; color:var(--faint); cursor:pointer; }
+<   .icon-btn:focus { outline:none; }
+---
+>   .icon-btn { width:24px; height:24px; border-radius:6px; border:0; background:transparent; color:var(--faint); cursor:pointer; }
+>   .icon-btn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+>   @media (min-width:768px){ .steps { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+21a24
+> @media (prefers-reduced-motion: reduce){ .pulse { animation:none; } }
+25c28
+<   <h2>Every payment, matched in seconds.</h2>
+---
+>   <h2>Every payment checked, matched and explained.</h2>
+27c30
+<     <div class="card"><span class="pulse"></span> <strong>1. Read the chain</strong>
+---
+>     <div class="card"><span class="pulse" aria-hidden="true"></span> <h3>1. Read the chain</h3>
+30,31c33,34
+<       <div class="tools"><button class="icon-btn" title="info">ⓘ</button><button class="icon-btn" title="copy">⧉</button></div></div>
+<     <div class="card"><strong>2. Match the invoice</strong>
+---
+>       <div class="tools"><button class="icon-btn" aria-label="What the contract check covers">ⓘ</button><button class="icon-btn" aria-label="Copy the official contract address">⧉</button></div></div>
+>     <div class="card"><h3>2. Match the invoice</h3>
+33,34c36,37
+<       <p class="hint">99.9% of payments match automatically.</p></div>
+<     <div class="card"><strong>3. You approve</strong>
+---
+>       <p class="hint">Anything that doesn't match is explained in plain English.</p></div>
+>     <div class="card"><h3>3. You approve</h3>
+36c39
+<       <p class="hint">Then it posts to Xero, QuickBooks and NetSuite.</p></div>
+---
+>       <p class="hint">Then it posts to Xero. QuickBooks is next.</p></div>
+38d40
+<   <div class="logos" aria-label="Used by"><span>CIRCLE</span><span>XERO</span><span>STRIPE</span></div>

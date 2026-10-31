@@ -1,0 +1,9 @@
+# Fetch log for this run (what the research environment could open). Times SGT, 31 Oct 2026.
+10:07  GET https://www.congress.gov/bill/119th-congress/senate-bill/1582/text   -> FAILED (403, blocked)
+10:07  GET https://www.govinfo.gov/ (Public Law 119-27)                          -> FAILED (403, blocked)
+10:08  GET https://coinwiredaily.example/genius-act-usdt-ban                     -> FAILED (timeout). Search snippet only: src_a
+10:08  GET https://hartwell-lane-law.example/insights/genius-act-timeline        -> OK, page opened: src_b
+10:09  GET https://x.example/stablecoinsteve/status/1849                         -> FAILED (login wall). Snippet only: src_c
+10:09  src_d is a paraphrase of the statute from a public-law summary saved to the team Drive by
+       research-intern on 2026-09-12 (not re-opened this run)
+10:10  GET https://www.mas.gov.sg/news/media-releases/2023/...stablecoin-framework  -> FAILED (403). Snippet only: src_e

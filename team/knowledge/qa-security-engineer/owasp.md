@@ -101,7 +101,7 @@ allow-list at the host.
   xero-node README]; the README also refers to a "< 60 days refresh token" [VERIFIED, same]. Scopes
   requested: `accounting.transactions accounting.contacts.read` + OIDC + `offline_access` — broader
   than reading invoices and posting payments needs (whitepaper audit P12). No revoke/disconnect.
-- **Logging PII**: `audit.jsonl` holds actor names and IPs (personal data under PDPA [ASSUMPTION]),
+- **Logging PII**: `audit.jsonl` holds actor names and IPs (personal data under PDPA [ASSUMPTION: sso.agc.gov.sg 403 and pdpc.gov.sg unreachable 2026-10-31]),
   `requests.json` holds customer references and look-alike addresses; validators refuse emails in
   actor names, customer refs and Files A/B. AI gets evidence with customer IDs scrubbed
   (`ai/explain.ts` `aiInput`). No `console.log` of request bodies in `src/` (grep, 29 Oct).
