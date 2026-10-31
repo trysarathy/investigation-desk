@@ -31,7 +31,7 @@ export function Hero() {
           </SecondaryButton>
         </div>
         <p className="mx-auto mt-5 max-w-xl text-balance text-center text-[13.5px] text-faint">
-          For finance teams paid in stablecoins (digital dollars such as USDC): every payment matched to its invoice, every problem explained, nothing posted to your books until a person approves.
+          For finance teams paid in stablecoins (digital dollars such as USDC): payments matched to their invoices, wrong ones explained, nothing posted to your books until a person approves.
         </p>
 
         <div style={{ ["--d" as string]: "0.25s" }} className="rise relative mx-auto mt-10 max-w-5xl sm:mt-12">
@@ -57,7 +57,7 @@ export function Hero() {
                 height={898}
                 fetchPriority="high"
                 decoding="async"
-                alt="Clearline's at-a-glance view for a fictional company: 11 of 16 payments that arrived were matched and marked paid automatically, and 5 need attention, each with the problem named: not real USDT, no reference, short by 50 USDC, wrong network, paid twice."
+                alt="Clearline's at-a-glance view for a fictional company: in the demo, 11 of 16 payments that arrived were matched and marked paid automatically, and 5 need attention, each with the problem named: not real USDT, no reference, short by 50 USDC, wrong network, paid twice."
                 className="block h-auto w-full"
               />
             </picture>

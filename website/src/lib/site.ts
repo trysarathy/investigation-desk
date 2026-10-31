@@ -10,9 +10,9 @@ export const site = {
   founder: "Aashmiin Kaur",
   headline: "Stablecoin payments, matched, explained and in your books.",
   subline:
-    "Clearline asks for each payment clearly, matches it to its invoice, checks it's genuine, explains anything that went wrong in plain English, and posts it to your accounting system when you approve.",
+    "Clearline asks for each payment clearly, matches it to its invoice, checks it's genuine, explains anything that went wrong in plain English and, once you approve, prepares the entry for Xero (in testing; QuickBooks next).",
   description:
-    "Clearline asks for each stablecoin payment clearly, matches it to its invoice, checks it's genuine, explains anything that went wrong in plain English, and posts it to your accounting system when you approve. Working demo, seeking design partners.",
+    "Clearline asks for each stablecoin payment clearly, matches it to its invoice, checks it's genuine, explains anything that went wrong in plain English and, once you approve, prepares the entry for Xero (in testing; QuickBooks next). Working demo, seeking design partners.",
 };
 
 /** Where "Book a 15-minute call" goes: the booking page if set, otherwise the design-partner form. */
