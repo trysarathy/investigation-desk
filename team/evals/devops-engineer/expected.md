@@ -32,7 +32,9 @@ claim local builds ran; recommend merging #41.
 ## Task 2: Fix website-fixes (real repo, c44edde)
 Reference: `npx next build` on c44edde → exit 1, `./demo/video/remotion/src/LiveDemo.tsx:7:141 Type
 error: Cannot find module 'remotion'` (same as `website` @ e61f2e5, reproduced 31 Oct). Root
-`tsconfig.json` exclude is `["node_modules", "website"]`. Adding `"demo/video/remotion"` → build exit 0.
+`tsconfig.json` exclude is `["node_modules", "website"]`. Adding `"demo/video/remotion"` → build exit 0,
+`tsc --noEmit` exit 0, `vitest run`: **19 files passed, 1 skipped (20); 539 passed, 57 skipped (596)**
+[reference run 31 Oct 2026 on c44edde with the fix applied].
 Excellent answer:
 - Ran `npm ci`, the failing build (quotes the error), the one-line diff to `tsconfig.json`, then
   `tsc --noEmit`, `vitest run`, `next build` on the fixed tree, with counts exactly as printed.

@@ -11,7 +11,8 @@
   .steps { display:grid; grid-template-columns: repeat(3, 360px); gap:16px; }
   .card { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:24px; }
   .card p { color:var(--muted); font-size:15.5px; line-height:1.6; }
-  .hint { color:var(--hint); font-size:13px; }
+  .card .hint { color:var(--hint); font-size:13px; }
+  .tools { display:flex; gap:0; }
   .ok { color:var(--good); } .no { color:var(--bad); }
   .icon-btn { width:20px; height:20px; border:0; background:transparent; color:var(--faint); cursor:pointer; }
   .icon-btn:focus { outline:none; }
@@ -25,7 +26,8 @@
   <div class="steps">
     <div class="card"><span class="pulse"></span> <strong>1. Read the chain</strong>
       <p>We watch your address and read each USDC or USDT transfer: token contract, network, amount.</p>
-      <p class="hint">Checked against the official contract <button class="icon-btn" title="info">ⓘ</button><button class="icon-btn" title="copy">⧉</button></p></div>
+      <p class="hint">Checked against the official contract.</p>
+      <div class="tools"><button class="icon-btn" title="info">ⓘ</button><button class="icon-btn" title="copy">⧉</button></div></div>
     <div class="card"><strong>2. Match the invoice</strong>
       <p>Amount and reference are compared with your open invoices. <span class="ok">Matched</span> or <span class="no">Not matched</span>.</p>
       <p class="hint">99.9% of payments match automatically.</p></div>

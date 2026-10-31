@@ -52,6 +52,9 @@ function pageContrast() {
     if (r.width === 0 || r.height === 0 || cs.visibility === "hidden" || cs.display === "none" || parseFloat(cs.opacity) === 0) continue;
     if (el.closest("[aria-hidden=true], .sr-only")) continue;
     let fg = parse(cs.color); if (!fg) continue;
+    // ancestor opacity fades the text toward the background: fold it into the text alpha
+    let op = 1; for (let n = el; n; n = n.parentElement) op *= parseFloat(getComputedStyle(n).opacity);
+    fg = { ...fg, a: fg.a * op };
     if (cs.webkitTextFillColor && cs.webkitTextFillColor.includes("rgba(0, 0, 0, 0)")) continue; // gradient-clipped text: check by eye
     const { c: bg, hasImage } = bgOf(el);
     if (fg.a < 1) fg = blend(fg, bg);

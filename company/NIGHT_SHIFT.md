@@ -19,7 +19,7 @@ and set the mode to Auto. Every other task already has its connectors and runs i
 | 00:27 nightly | research-intern | "Clearline nightly targets + LinkedIn list + watch" | live |
 | 01:27 Mon-Fri | revops-crm-agent | "Clearline LinkedIn daily pack + follow-up check" | live |
 | 02:27 Mon-Fri | content-marketer (rebuilt in week 3) | "Clearline marketing daily" | live |
-| 03:27 nightly | devops (rebuilt in week 2) | "Clearline devops nightly" | **click needed**: Gmail, Google Sheets |
+| 03:27 nightly | devops (→ devops-engineer once its golden tasks pass) | "Clearline devops nightly" | **click needed**: Gmail, Google Sheets |
 | every hour at :49 | revops-crm-agent | "Clearline sender" | live. Sends only 9:00-17:00 in each recipient's time zone. First emails go out only if that evening's end-of-day email reached her |
 
 ## Day
@@ -41,6 +41,7 @@ and set the mode to Auto. Every other task already has its connectors and runs i
 | Fri 17:13 | chief-of-staff (until product-manager is rebuilt) | "Clearline Friday ship review" | live |
 | Sun 15:47 | research-intern | "Clearline weekly market brief" | **click needed**: Gmail, Sheets, Docs, Drive |
 | Sun 17:38 | chief-of-staff | "Clearline weekly report + spot check + advisor draft" | live |
+| Sun 20:47 | devops-engineer | "Clearline weekly uptime + backup report" | **proposed**: after golden tasks pass and Aashmiin approves |
 | Sun 21:47 | qa-security-engineer | "Clearline weekly security review" | **click needed**: Gmail, Google Sheets |
 | 1st 09:43 | research-intern | "Clearline monthly knowledge refresh + evals" (refreshes every pack, re-runs every golden task, opens a PR with the scores) | **click needed**: Gmail, Google Sheets |
 | 1st 10:17 | chief-of-staff | "Clearline monthly update draft" | live |
