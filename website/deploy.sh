@@ -20,4 +20,5 @@ mkdir -p .deploy/clearline-site
 find .deploy/clearline-site -mindepth 1 -maxdepth 1 ! -name .vercel -exec rm -rf {} +
 cp -R out/. .deploy/clearline-site/
 cd .deploy/clearline-site
-npx --yes vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN"
+# Pinned: vercel is not in package-lock.json; 65.5.0 was the latest on npm (`npm view vercel version`) on 28 Oct 2026.
+npx --yes vercel@65.5.0 deploy --prod --yes --token "$VERCEL_TOKEN"

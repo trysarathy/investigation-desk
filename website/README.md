@@ -60,4 +60,4 @@ Add UTM tags to every link you share. The form saves the first tags a visitor ar
 - **Film:** `pitch/demo_live_60s.mp4`, re-encoded to 1280p (2.5 MB).
 - **"Why now" figures:** only the facts in `website/SOURCES.md`, each with its source link and the quoted line. Add nothing there that isn't in that file.
 - **"In your books" screenshots:** Clearline's own posting panel in demo mode (fictional company), not Xero's screen.
-- **"52 of 52":** the held-out real-transaction test reported in `pitch/NOTE.md`. It's labelled on the page as our own test.
+- **"52 of 52":** the held-out real-transaction test reported in `demo/REPORT.md` (also summarised in `pitch/NOTE.md`). It's labelled on the page as our own test.

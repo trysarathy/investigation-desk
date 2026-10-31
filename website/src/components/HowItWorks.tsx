@@ -29,7 +29,7 @@ export function HowItWorks() {
       <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
         <Reveal className="max-w-2xl">
           <Eyebrow>How it works</Eyebrow>
-          <SectionTitle>Every payment explains itself.</SectionTitle>
+          <SectionTitle>When a payment is wrong, Clearline says why in plain English.</SectionTitle>
           <p className="mt-6 text-[17px] leading-relaxed text-muted">
             You create a payment request for each invoice in Clearline. From there, four moments, from your customer's screen to your books.
           </p>
@@ -65,12 +65,12 @@ export function HowItWorks() {
           <Step
             flip
             n="Step 2 · When it's right"
-            title="Correct payments tick themselves off."
-            body="Right amount, genuine USDC, right address, enough confirmations: the invoice is marked paid, with the reasons written down. Nobody has to chase it, and every decision can be reviewed."
+            title="Correct payments are checked and ready to mark paid once you approve."
+            body="Right amount, genuine USDC, right address, enough confirmations: the invoice is ready to mark paid in one click once you approve, with the reasons written down. Nobody has to chase it, and every decision can be reviewed."
             points={["Checks the token is the real one, from the issuer's own contract", "Waits for confirmations before calling it paid", "Every decision keeps its evidence"]}
           >
             <BrowserFrame label="Finance view · demo data">
-              <Shot name="auto-paid" w={1504} h={582} small={752} sizes="(min-width: 768px) 540px, 92vw" alt="A fictional invoice marked paid automatically: exactly 1,250.00 USDC from Circle's USDC contract arrived and reached 12 confirmations, so the matching rule marked it paid." className="block h-auto w-full" />
+              <Shot name="auto-paid" w={1504} h={582} small={752} sizes="(min-width: 768px) 540px, 92vw" alt="In the demo, a fictional invoice marked paid automatically: exactly 1,250.00 USDC from Circle's USDC contract arrived and reached 12 confirmations, so the matching rule marked it paid." className="block h-auto w-full" />
             </BrowserFrame>
           </Step>
 
@@ -95,7 +95,7 @@ export function HowItWorks() {
             wide
             n="Step 4 · In your books"
             title="Approve once, and it's in your books."
-            body="When a person approves, the payment posts to its invoice in your accounting system, with the transaction hash, token, network and USD value. Xero comes first; nothing has been posted to a real Xero organisation yet. A short payment posts as a partial payment with a note, so the invoice stays open for the rest."
+            body="When a person approves, the payment posts to its invoice in your accounting system, with the transaction hash, token, network and USD value. Xero comes first; nothing has been posted to a real Xero organisation yet. A short payment posts as a partial payment with a note, unless you accept it as settled; otherwise the invoice stays open for the rest."
             points={["Counterfeit and wrong-network payments are never posted", "Nothing is written to your books until a person approves", "Every posting is kept in an audit log."]}
           >
             <figure>
