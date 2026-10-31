@@ -1,0 +1,16 @@
+exec(open(__import__('os').path.join(__import__('os').path.dirname(__file__),'cr.py')).read().split('P=[')[0])
+print("white on L green", f"{C('#ffffff','#1f7a3d'):.2f}", "white on D green", f"{C('#ffffff','#5cc98a'):.2f}", "D canvas on D green", f"{C('#111215','#5cc98a'):.2f}")
+print("L green vs accent (track done/now)", f"{C('#1f7a3d','#3b5bdb'):.2f}", "D", f"{C('#5cc98a','#6b86f0'):.2f}")
+print("L green bar vs panel-2", f"{C('#1f7a3d','#fafaf9'):.2f}", "L border bar vs panel-2", f"{C('#e4e4e0','#fafaf9'):.2f}")
+print("L accent vs panel-2", f"{C('#3b5bdb','#fafaf9'):.2f}", "amber vs panel-2",f"{C('#8a5a00','#fafaf9'):.2f}")
+print("L pay-n accent/accent-soft", f"{C('#3b5bdb','#edf1fd'):.2f}", "D", f"{C('#6b86f0','#1e2440'):.2f}")
+print("L text-3 on panel (faint anti-scam)",f"{C('#8a8d94','#ffffff'):.2f}","D",f"{C('#767982','#18191d'):.2f}")
+print("L track text-3 on panel-2",f"{C('#8a8d94','#fafaf9'):.2f}","D",f"{C('#767982','#1d1e23'):.2f}")
+print("L pay-foot on canvas",f"{C('#8a8d94','#f7f7f5'):.2f}","D",f"{C('#767982','#111215'):.2f}")
+print("L text-2 badge on panel-2",f"{C('#5b5e66','#fafaf9'):.2f}")
+panel=hx('#11141b'); ink=hx('#0a0c11')
+for a in [0.14,0.2,0.25,0.3,0.32,0.35,0.4]:
+    b=blend((255,255,255),a,panel); print(f"website border white/{a} over panel: vs panel {cr(b,panel):.2f} vs ink-field {cr(b,ink):.2f}")
+print("ink vs panel",f"{cr(ink,panel):.2f}")
+# Neon green slide request on white
+print("#39ff14 on white",f"{C('#39ff14','#ffffff'):.2f}", "white on #00c853",f"{C('#ffffff','#00c853'):.2f}")

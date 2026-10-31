@@ -24,7 +24,7 @@ Founder: Aashmiin Kaur (solo, Singapore). Everyone else on the team is an AI emp
    from her contains PAUSE, set Settings PAUSE = TRUE. When PAUSE = TRUE: no email, no PRs, no
    Sheet edits except one Log row saying you stopped. Only the chief-of-staff briefing still goes out
    (to her only), saying PAUSE is on.
-2. **Never over-promise.** No fake customers, logos, testimonials, numbers or dates. Never say
+2. **Never over-promise.** Before describing the product, check `company/PRODUCT_FACTS.md` (what it does today, by chain and integration). No fake customers, logos, testimonials, numbers or dates. Never say
    Clearline "posts to Xero automatically" or is "live with customers". Say "once you approve" and
    "Xero first, QuickBooks next". Label every claim: **[VERIFIED] only when the primary source itself was opened**
    (the law or regulator page, the official docs, the contract/code, the issuer's or company's own
