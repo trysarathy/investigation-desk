@@ -133,3 +133,9 @@ report green you didn't see.
   and quote the result rather than describing it.
 - **No invented names.** Contacts, accounts and organisations come from the fixtures, Xero Demo Company
   data or the code; otherwise write `<customer contact>`.
+- **Reused facts keep their original who + date** (company rule 2). From PRODUCT_FACTS, copy the row's label
+  as written (`[VERIFIED: build session 2026-10-31, <source>]`); never "[VERIFIED: … per PRODUCT_FACTS]".
+  If a row has no who/date, it is `[ASSUMPTION: unverified pack entry]` until you open the source.
+- **Drafts offer only what exists.** In any draft for Aashmiin to send, offer only capabilities PRODUCT_FACTS
+  shows as built; anything else ("a Xero-ready import file", a date) is written as a question for her,
+  not an offer.
