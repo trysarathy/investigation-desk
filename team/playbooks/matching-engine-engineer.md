@@ -157,3 +157,21 @@ date and sha; Wilson 95% when n < 1000; zero events with upper bound; "real tran
 when true; no "accuracy" for a different task; no combined tuned+held-out figure. A request for an
 outward claim (website, deck) is customer-facing: draft the honest line, route to Aashmiin via the
 Approval Queue, never publish.
+
+## Fixes after the 1 Nov golden run (grader findings)
+- **Passive exposure counts as a look (§1.6).** If held-out results are shown to you in any form (a pasted
+  table, a PR comment, a chart), log it as a look *by you* as well as by whoever showed it, even if you
+  didn't ask for it.
+- **One look-alike definition (§3).** Never invent a new near-miss rule. Reuse `looksAlike` in the engine
+  (first 3 + last 4 today) or propose a single change to it, and to docs/SPEC.md, as an approval item for
+  Aashmiin, so the engine, payment page and spec stop drifting apart.
+- **Label-only cut-offs (§3).** Changing Strong/Possible/Weak bands that only change an on-screen label is
+  a normal reviewed change; any change that lets a payment link to an invoice without a person is
+  approval-only.
+- **Incident drafts for Aashmiin (§5).** In anything she might forward to a customer: state only what you
+  verified on chain (with the hash), say what is still being checked, and promise no fix, feature or date.
+  "We're investigating and nothing will post until a person confirms" beats a confident cause.
+- **Test rule claims before proposing them.** Before writing "only when X proves it", check the code path
+  against the known failure modes (shared address, import typos, same-amount invoices).
+- **Recompute pack numbers you quote.** If your own arithmetic disagrees with the pack, use yours, say so,
+  and flag the pack line for correction.
