@@ -12,7 +12,7 @@ apply via PRs once Aashmiin approves.
 
 | # | File:line (branch) | Line today | Why it over-promises | True-today rewrite |
 |---|---|---|---|---|
-| 1 | `website/src/components/Partners.tsx:10` (website-fixes) | "Free during the pilot. No cost, no commitment." | The approved offer is US$300 for 30 days, then US$200/month [VERIFIED: gtm-os `gtm/offer.py` per QA claims audit; `docs/enterprise/OBJECTIONS.md`] | "Founding pilot: US$300 for 30 days, then US$200/month. First 10 businesses. Cancel any time." *(needs her price decision first)* |
+| 1 | `website/src/components/Partners.tsx:10` (website-fixes) | "Free during the pilot. No cost, no commitment." | The approved offer is US$300 for 30 days, then US$200/month [VERIFIED: gtm-os `gtm/offer.py` per QA claims audit; `docs/enterprise/OBJECTIONS.md`] | "Founding pilot: US$300 for 30 days, then US$200/month. First 10 businesses. Cancel any time." *(decided 31 Oct; PR #40)* |
 | 2 | `website/src/components/HowItWorks.tsx:68` + `website/src/app/demo/page.tsx:9` (website-fixes); `pitch/src/build_deck.py:135`, `build_deck10.py:66`, `build_brief.py:82`, `build_brief6.py:105` (pitch-deck) | "Correct payments tick themselves off." / "Checked and marked paid automatically" | Auto-mark-paid is on **only in demo mode** (`autoMarkPaid: demo`, `src/lib/requests/service.ts:36`); no live address watching yet [VERIFIED: code] | "Correct payments are checked and ready to mark paid in one click, with the reasons written down." (or keep the line but label it "in the demo") |
 | 3 | `website/src/components/HowItWorks.tsx:32` | "Every payment explains itself." | Only problems get an explanation, and only on supported chains/pages (payment pages are Ethereum-only) [VERIFIED: PRODUCT_FACTS] | "When a payment is wrong, Clearline says why in plain English." |
 | 4 | `website/src/components/Hero.tsx:34` | "every payment matched to its invoice, every problem explained" | "Every" is not true: ambiguous payments go to a person; Tron payment pages aren't built [VERIFIED: docs/SPEC.md "Matching"; PRODUCT_FACTS] | "payments matched to their invoices, wrong ones explained, nothing posted to your books until a person approves." |
@@ -26,6 +26,17 @@ penetration test"), `DATA_PROCESSING_TERMS_TEMPLATE.md:52`, `whitepaper/Clearlin
 `pitch/TALK_TRACK_5MIN.md:14` ("zero customers"), "Paid in seconds" (labelled general knowledge),
 `website/src/components/Sections.tsx:68` ("52 of 52… in our own test", scoped correctly).
 `docs/enterprise/PILOT_PROPOSAL_TEMPLATE.md:28` "[100%]" is a target placeholder: keep it bracketed.
+
+### Status, 31 Oct 2026: Aashmiin decided; every row above now has an open PR (none merged)
+| # | PR (base branch) |
+|---|---|
+| 1 Price on website | [#40](https://github.com/trysarathy/investigation-desk/pull/40) (`website-fixes`): Partners perk and FAQ now "Founding pilot: US$300 for 30 days, then US$200/month", first 10 businesses |
+| 2 "Tick themselves off" | Website [#40](https://github.com/trysarathy/investigation-desk/pull/40): product-flow copy "ready to mark paid once you approve"; demo captions/alt text kept but labelled "in the demo". Deck/briefs [#41](https://github.com/trysarathy/investigation-desk/pull/41) (`pitch-deck`): cards and talk track rewritten, `.pptx`/`.pdf` regenerated |
+| 3 "Every payment explains itself" | [#40](https://github.com/trysarathy/investigation-desk/pull/40) |
+| 4 Hero "every payment… every problem" | [#40](https://github.com/trysarathy/investigation-desk/pull/40) |
+| 5 site.ts "posts it to your accounting system" | [#40](https://github.com/trysarathy/investigation-desk/pull/40); same line in brief 6 fixed in [#41](https://github.com/trysarathy/investigation-desk/pull/41) |
+| 6 WHAT_TO_SAY vs OBJECTIONS pricing | [#43](https://github.com/trysarathy/investigation-desk/pull/43) (`main`, also marks SPEC.md's old US$1,500 pricing superseded) and [#44](https://github.com/trysarathy/investigation-desk/pull/44) (`enterprise-pack`) |
+| 7 Pilot Xero step | Decision: Xero-ready import file the customer's accountant reviews and imports; live posting only after sandbox tests pass and she approves. [#44](https://github.com/trysarathy/investigation-desk/pull/44) (proposal, action plan, one-pager, objections, security overview, DPA), [#45](https://github.com/trysarathy/investigation-desk/pull/45) (`whitepaper` HARD_QUESTIONS Q8), [#43](https://github.com/trysarathy/investigation-desk/pull/43) (ACCOUNTING_SYNC, WHAT_TO_SAY) |
 
 ## B. The 7 lines from crypto-finance-user's mock call
 

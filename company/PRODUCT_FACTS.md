@@ -17,9 +17,10 @@ checks it weekly against the code. Last checked 2026-10-31 against `main`.
 | Custody, keys, moving funds | **Never**. Read-only on chain | [VERIFIED: company/COMPANY_RULES.md rule 3] |
 | Offer | Founding pilot US$300 for 30 days, then US$200/month, first 10 businesses, paid by invoice. Nothing else (no credits, discounts or free trials) without her approval | [VERIFIED: Settings/Decisions as used by every scheduled task] |
 
-**Known conflicts to fix (Aashmiin's decision):**
-- The website on `website-fixes` says "Free during the pilot"; `demo/WHAT_TO_SAY.md` says pricing isn't set. Both contradict the offer above.
-- The whitepaper's HARD_QUESTIONS says connecting a customer's real Xero is "not yet" possible, while the pilot template includes a Xero step.
+**Known conflicts (Aashmiin decided 31 Oct 2026; each now has an open PR, not merged until she reviews):**
+- Price: the website said "Free during the pilot"; `demo/WHAT_TO_SAY.md` said pricing isn't set. Decision: "Founding pilot: US$300 for 30 days, then US$200/month" (first 10 businesses). Fixes: website [#40](https://github.com/trysarathy/investigation-desk/pull/40) (into `website-fixes`), docs on main [#43](https://github.com/trysarathy/investigation-desk/pull/43), deck notes [#41](https://github.com/trysarathy/investigation-desk/pull/41) (into `pitch-deck`), enterprise pack [#44](https://github.com/trysarathy/investigation-desk/pull/44) (into `enterprise-pack`).
+- Pilot Xero step: the whitepaper's HARD_QUESTIONS said a customer's real Xero is "not yet", while the pilot template had a live Xero step. Decision: a pilot delivers matching, explanations and a **Xero-ready import file that the customer's accountant reviews and imports**; live posting to a customer's Xero is switched on only after the Xero sandbox tests pass and Aashmiin approves. Fixes: enterprise pack [#44](https://github.com/trysarathy/investigation-desk/pull/44), whitepaper [#45](https://github.com/trysarathy/investigation-desk/pull/45) (into `whitepaper`), docs on main [#43](https://github.com/trysarathy/investigation-desk/pull/43), website FAQ [#40](https://github.com/trysarathy/investigation-desk/pull/40).
+- Still open after these PRs: the enterprise pack's refund promise ("we refund the pilot fee" if criteria are missed) needs her call; #44 removed "pilot fee credited against months 2–4" pending her confirmation.
 
 Say it like this: "Clearline checks USDT/USDC payments on Tron, Ethereum and BNB Chain; payment
 pages are Ethereum-only for now; Xero is in testing and posts only once you approve."
