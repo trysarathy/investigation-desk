@@ -1,0 +1,6 @@
+# FICTIONAL TEST FIXTURE - Company HQ "Log" tab extracts, 18 Nov 2026
+timestamp_sgt,agent,action,ids,details
+2026-11-18 17:05,crypto-protocol-engineer,estimate,R-50,"NetSuite sync estimate: 3-5 weeks [GUESS]. Unknowns: no NetSuite sandbox account (needs Aashmiin to request one, SuiteCloud developer programme, free but approval takes ? days [ASSUMPTION]); NetSuite journal entry API not yet tested; currently 2 roadmap rows/night max. If we start NetSuite, QuickBooks (R-44) pauses."
+2026-11-18 17:20,product-manager,comment,R-50,"Recommend NO. One wedge at a time: Xero first. NetSuite is enterprise; Pelagic is 1 logo."
+2026-11-18 17:31,revops-crm-agent,comment,Pelagic,"Recommend YES, commit to 15 Dec. First paying pilot, big logo for outreach. Competitor will win otherwise."
+2026-11-18 17:44,qa-security-engineer,note,R-44,"QuickBooks PR #219 now green after fix; ready for her review."
