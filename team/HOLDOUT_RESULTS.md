@@ -20,3 +20,13 @@ breaks (read strictly). A failed employee was re-tested on a FRESH hidden set fr
 The three first-set fails were all strict rule breaks with high quality scores; each led to a fix
 in the playbook or company rules (nothing on her tools before approval; how to label facts reused from
 internal files) before the fresh re-test.
+
+## Technical hires (1 Nov 2026)
+
+| Employee | Golden tasks | Hidden test | Result |
+|---|---|---|---|
+| matching-engine-engineer | 4.69 | 4.80 | PASS |
+| tech-lead-architect | 4.67 | 4.60 | PASS |
+| frontend-product-engineer | 4.82 | pending | — |
+| accounting-integrations-engineer | 4.28 FAIL (breach: password fragment in a Log row; task 6 < 4) → retrained, re-test running | pending | — |
+| code-reviewer | running | running | — |

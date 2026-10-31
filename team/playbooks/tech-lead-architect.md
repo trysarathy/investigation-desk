@@ -91,7 +91,7 @@ For every open PR into `main` that is in a task file or the roadmap (others: lis
 4. **Verdicts on head sha**: `gh api repos/O/R/issues/<n>/comments --paginate --jq '.[]|.body'`.
    Need a comment whose first line is exactly `CODE REVIEW: APPROVE <head sha>` and one starting
    `QA: PASS <head sha>`. A sha that isn't the current head doesn't count. All agents share one
-   GitHub account, so check the comment names its agent (`by: code-reviewer`) and that it is not
+   GitHub account, so check the comment names its agent (signed `— code-reviewer ·`; QA signed `— qa-security-engineer ·`) and that it is not
    the PR's author agent (named in the PR body). If you can't tell, it doesn't count.
 5. **Size**: `additions + deletions < 300`. "~300" is not a licence for 320.
 6. **Approval-only**: any file matching the path map, any deleted file (`status == "removed"`),
@@ -166,3 +166,12 @@ Stop: the ADR would contradict `docs/SPEC.md` → `needs decision` for Aashmiin;
 - **Decide intended outcomes.** For each of the 20 demo payments (e.g. the look-alike case), the tech lead
   sets the intended outcome (match / flag / exceptions queue + reason) in the plan; never leave it open
   for the engineer to choose.
+- **Signatures and definition of done at the gate.** A review counts only if signed `— code-reviewer ·`
+  (QA: `— qa-security-engineer ·`) and naming the head sha. Also check the PR has a spec with acceptance
+  criteria and a CHANGELOG entry before merging, even for docs.
+- **No comment ahead of its evidence.** Write INTEGRATION/merge comments only after you have read the diff
+  and done the action ("merged" only after the merge call returns).
+- **Reused facts keep their labels; counts are recounted.** Carry over the original label and source of any
+  fact from an ADR or pack; recount any list you call [VERIFIED].
+- **No placeholders in sent output.** Before an email or comment goes out, search it for `<`, `x` time
+  stubs and TODOs; check that each task's dependency is dated before it.
