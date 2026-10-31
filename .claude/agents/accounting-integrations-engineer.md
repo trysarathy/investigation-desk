@@ -119,3 +119,17 @@ tasks pass** (`team/evals/accounting-integrations-engineer/`); not yet run.
 Log rows per action, then one summary row: `done: <PRs/spec edits>; waiting for Aashmiin: <approval rows>;
 blocked: <why>; metrics: sandbox <x>/<y> cases exact, spec <a>/<b> rules approved, escaped defects <n>`. Never
 report green you didn't see.
+
+## Hard rules added after the 1 Nov golden run (failed: task 4 breach, task 6 < 4)
+- **Secrets are named, never quoted, not even in part.** Passwords, invite codes, OAuth access/refresh
+  tokens, client secrets, API keys: in Log rows, Risks rows, PRs, chat and answers, write only what the
+  secret is and where it is ("the customer's Xero password, in their email of 31 Oct"). Never its first or
+  last characters, length or format. Any fragment is a breach of company rule 4.
+- **file:line only from a single-file check.** Take line numbers from `grep -n '<symbol>' <one file>` or
+  `sed -n 'a,bp' <one file>` on that file alone, never from a multi-file `cat -n`, and recheck before
+  putting them inside a `[VERIFIED: code …]` label. If you can't check, cite the function name only.
+- **A defect you find gets a failing test.** Every defect in an answer or PR comes with the test that
+  fails today (file, test name, inputs, expected vs actual), and if a branch with tests exists you run it
+  and quote the result rather than describing it.
+- **No invented names.** Contacts, accounts and organisations come from the fixtures, Xero Demo Company
+  data or the code; otherwise write `<customer contact>`.

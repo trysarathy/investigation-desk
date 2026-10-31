@@ -1,0 +1,60 @@
+diff --git a/src/lib/csv/cell.ts b/src/lib/csv/cell.ts
+index 2762821..99bddfb 100644
+--- a/src/lib/csv/cell.ts
++++ b/src/lib/csv/cell.ts
+@@ -3,11 +3,17 @@
+ 
+ const AMOUNT = /^-?\d+(\.\d+)?$/;
+ 
++// Characters a spreadsheet skips or folds before it reads a formula: zero-width space and BOM in front,
++// and full-width forms (＝ ＋ － ＠) that NFKC folds to = + - @.
++const INVISIBLE_LEAD = /^[\u200B\uFEFF]+/;
++
+ /** A spreadsheet must never execute a cell: values starting with = + - @ or a control are quoted as text. */
+ export function csvCell(v: string | number | boolean | undefined | null): string {
+   let s = v === undefined || v === null ? "" : String(v);
+-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
++  const probe = s.replace(INVISIBLE_LEAD, "").normalize("NFKC");
++  if (/^[=+\-@\t\r]/.test(probe)) s = `'${s}`;
++  // ';' is a separator in many locales, so a cell holding one is quoted too.
++  return /[",;\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+ }
+ 
+ /** Exact amounts (signed too) as numbers; everything else through csvCell. */
+diff --git a/tests/csv-cell-fullwidth.test.ts b/tests/csv-cell-fullwidth.test.ts
+new file mode 100644
+index 0000000..e0d6a7e
+--- /dev/null
++++ b/tests/csv-cell-fullwidth.test.ts
+@@ -0,0 +1,30 @@
++// Security gap #7 (team/SECURITY_GAPS.md): full-width signs, a zero-width space or BOM before '=',
++// and ';' must not let a spreadsheet run a cell from an export.
++
++import { describe, expect, it } from "vitest";
++import { csvCell } from "@/lib/csv/cell";
++
++describe("csv cell: look-alike formula starts are neutralised", () => {
++  it("full-width equals ＝ is neutralised", () => {
++    expect(csvCell("＝1+1")).not.toBe("=1+1");
++  });
++  it("full-width plus ＋ and minus － are neutralised", () => {
++    expect(csvCell("＋1")).not.toBe("+1");
++    expect(csvCell("－1")).not.toBe("-1");
++  });
++  it("full-width at ＠ is neutralised", () => {
++    expect(csvCell("＠SUM(A1)")).not.toBe("@SUM(A1)");
++  });
++  it("a zero-width space before = is neutralised", () => {
++    expect(csvCell("​=1+1")).not.toMatch(/^=/);
++  });
++  it("a BOM before = is neutralised", () => {
++    expect(csvCell("﻿=1+1")).not.toMatch(/^=/);
++  });
++  it("a cell containing ';' is quoted", () => {
++    expect(csvCell("ref;=1+1")).toContain("=1+1");
++  });
++  it("ordinary text is unchanged", () => {
++    expect(csvCell("INV-1042")).toBe("INV-1042");
++  });
++});

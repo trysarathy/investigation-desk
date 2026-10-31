@@ -1,0 +1,114 @@
+diff --git a/src/app/api/demo/reset/route.ts b/src/app/api/demo/reset/route.ts
+index 393cefd..c78440f 100644
+--- a/src/app/api/demo/reset/route.ts
++++ b/src/app/api/demo/reset/route.ts
+@@ -1,10 +1,15 @@
+ // POST: reset the demo workspace (sample Files A and B; created cases and bulk runs cleared).
++// Demo mode only: on a live server the reset would delete the customer's files, cases and bulk runs.
+ 
+ import { NextResponse } from "next/server";
+ import { resetDemoWorkspace } from "@/lib/demo/reset";
++import { isDemoMode } from "@/lib/mode";
+ import { workspaceStore } from "@/lib/workspace/live";
+ 
+ export async function POST() {
++  if (!isDemoMode()) {
++    return NextResponse.json({ error: "This server is in live mode (DEMO_MODE=off), so the demo workspace can't be loaded here. Nothing was changed." }, { status: 403 });
++  }
+   await resetDemoWorkspace(workspaceStore());
+   return NextResponse.json({ ok: true });
+ }
+diff --git a/src/components/DemoPanel.tsx b/src/components/DemoPanel.tsx
+index 8f190b9..f85fc5d 100644
+--- a/src/components/DemoPanel.tsx
++++ b/src/components/DemoPanel.tsx
+@@ -12,16 +12,21 @@ export function DemoPanel({ active, preview, steps }: { active: boolean; preview
+   const router = useRouter();
+   const [busy, setBusy] = useState(false);
+   const [done, setDone] = useState(false);
++  const [error, setError] = useState<string>();
+ 
+   const reset = async () => {
+     setBusy(true);
+     setDone(false);
++    setError(undefined);
+     const res = await fetch("/api/demo/reset", { method: "POST" }).catch(() => undefined);
+     setBusy(false);
+     if (res?.ok) {
+       setDone(true);
+       router.refresh();
++      return;
+     }
++    const body = await res?.json().catch(() => undefined) as { error?: string } | undefined;
++    setError(body?.error ?? "The demo workspace couldn't be loaded. Nothing was changed.");
+   };
+ 
+   return (
+@@ -41,6 +46,7 @@ export function DemoPanel({ active, preview, steps }: { active: boolean; preview
+           </button>
+           <a className="btn" href="/api/demo/bulk.csv">Download demo bulk file</a>
+           {done && <span role="status"><Status status="pass" label="Reset: sample files loaded; demo cases and bulk runs cleared" /></span>}
++          {error && <span role="alert" className="muted">{error}</span>}
+         </div>
+       </div>
+       {active && (
+diff --git a/tests/demo-reset-guard.test.ts b/tests/demo-reset-guard.test.ts
+new file mode 100644
+index 0000000..b7c2c25
+--- /dev/null
++++ b/tests/demo-reset-guard.test.ts
+@@ -0,0 +1,54 @@
++// Security gap #1 (team/SECURITY_GAPS.md): POST /api/demo/reset must never wipe a live workspace.
++
++import { afterEach, beforeEach, describe, expect, it } from "vitest";
++import { existsSync } from "node:fs";
++import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
++import { tmpdir } from "node:os";
++import path from "node:path";
++import { POST } from "@/app/api/demo/reset/route";
++
++const saved = { DESK_DATA_DIR: process.env.DESK_DATA_DIR, DEMO_MODE: process.env.DEMO_MODE };
++let dir = "";
++
++beforeEach(async () => {
++  dir = await mkdtemp(path.join(tmpdir(), "desk-reset-"));
++  process.env.DESK_DATA_DIR = dir;
++  await writeFile(path.join(dir, "cases.json"), JSON.stringify({ cases: [{ id: "CS-1" }] }));
++  await mkdir(path.join(dir, "bulk"));
++  await writeFile(path.join(dir, "bulk", "run-1.json"), "{}");
++});
++
++afterEach(async () => {
++  for (const [k, v] of Object.entries(saved)) {
++    if (v === undefined) delete process.env[k];
++    else process.env[k] = v;
++  }
++  await rm(dir, { recursive: true, force: true });
++});
++
++describe("POST /api/demo/reset", () => {
++  it("is refused in live mode and leaves the live workspace, cases and bulk runs alone", async () => {
++    process.env.DEMO_MODE = "off";
++    const res = await POST();
++    expect(res.status).toBe(403);
++    expect((await res.json()).error).toMatch(/live mode/);
++    expect(existsSync(path.join(dir, "cases.json"))).toBe(true);
++    expect(existsSync(path.join(dir, "bulk", "run-1.json"))).toBe(true);
++    expect(existsSync(path.join(dir, "workspace.json"))).toBe(false);
++  });
++
++  it.each(["0", "false", "no", "live", " OFF "])("DEMO_MODE=%j is live mode too, and is refused", async (v) => {
++    process.env.DEMO_MODE = v;
++    expect((await POST()).status).toBe(403);
++    expect(existsSync(path.join(dir, "cases.json"))).toBe(true);
++  });
++
++  it("still resets in demo mode: sample files loaded, demo cases and bulk runs cleared", async () => {
++    process.env.DEMO_MODE = "on";
++    const res = await POST();
++    expect(res.status).toBe(200);
++    expect(existsSync(path.join(dir, "workspace.json"))).toBe(true);
++    expect(existsSync(path.join(dir, "cases.json"))).toBe(false);
++    expect(existsSync(path.join(dir, "bulk"))).toBe(false);
++  });
++});

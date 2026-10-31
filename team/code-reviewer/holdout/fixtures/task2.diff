@@ -1,0 +1,91 @@
+diff --git a/src/lib/accounting/rules.ts b/src/lib/accounting/rules.ts
+index 8e44062..9c05f1d 100644
+--- a/src/lib/accounting/rules.ts
++++ b/src/lib/accounting/rules.ts
+@@ -16,6 +16,7 @@
+ 
+ import { createHash } from "node:crypto";
+ import { compareDecimal } from "../decimal";
++import { orgDay } from "../format";
+ import { add, sub } from "../payments/money";
+ import { deriveRequest, formatUsdc } from "../requests/lifecycle";
+ import type { Observation, RequestsData } from "../requests/types";
+@@ -134,7 +135,8 @@ export function planPosting(data: RequestsData, acct: AccountingData, requestId:
+   const lastDecision = (k: string) => [...r.decisions].reverse().find((d) => d.kind === k);
+   const lines: PostingLine[] = [];
+   const net = NETWORK[r.chain] ?? r.chain;
+-  const day = (x: Observation) => (x.blockTime ?? x.firstSeenAt).slice(0, 10);
++  // Post on the organisation's calendar day, not the UTC day (a payment at 01:30 SGT is that day's payment).
++  const day = (x: Observation) => orgDay(x.blockTime ?? x.firstSeenAt);
+ 
+   // One payment line per transfer, applied until the invoice is covered; the rest is excess.
+   // Cents: each payment line is the rounded-down running total minus what earlier lines posted, so the
+diff --git a/src/lib/format.ts b/src/lib/format.ts
+index 2021439..24fde84 100644
+--- a/src/lib/format.ts
++++ b/src/lib/format.ts
+@@ -23,6 +23,13 @@ export function formatTime(iso: string): string {
+   return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} SGT`;
+ }
+ 
++/** The calendar day (YYYY-MM-DD) an instant falls on in the organisation's timezone, for posting dates. */
++export function orgDay(iso: string): string {
++  const d = new Date(iso);
++  const p = (n: number) => String(n).padStart(2, "0");
++  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
++}
++
+ export function formatDuration(seconds: number): string {
+   if (seconds < 90) return "about a minute";
+   const mins = Math.round(seconds / 60);
+diff --git a/tests/posting-date.test.ts b/tests/posting-date.test.ts
+new file mode 100644
+index 0000000..e461c50
+--- /dev/null
++++ b/tests/posting-date.test.ts
+@@ -0,0 +1,45 @@
++// Posting dates follow the organisation's calendar day, not UTC (bug/xero-posting-date-timezone).
++// Pilot organisations are in Singapore.
++process.env.TZ = "Asia/Singapore";
++
++import { describe, expect, it } from "vitest";
++import { orgDay } from "@/lib/format";
++import { addDemoInvoice, emptyDemoBooks } from "@/lib/accounting/providers/demo";
++import { planPosting } from "@/lib/accounting/rules";
++import { emptyAccounting, type AccountingData, type InvoiceLink } from "@/lib/accounting/types";
++import { checkObservation, CONFIRMATIONS, OFFICIAL_USDC } from "@/lib/requests/check";
++import { addr } from "@/lib/requests/demo";
++import { createRequest, ingest } from "@/lib/requests/lifecycle";
++import { SimulatedProvider } from "@/lib/requests/provider";
++import { emptyRequests, type TransferEvent } from "@/lib/requests/types";
++
++const sim = new SimulatedProvider();
++
++function paidAt(blockTime: string) {
++  const id = "R1";
++  const d0 = createRequest(emptyRequests(), { customerRef: "Acme", invoiceRef: "INV-R1", amount: "500.00", receivingAddress: addr(id), token: "USDC" },
++    { now: "2026-10-30T00:00:00.000Z", by: "Mei", demo: false, publicId: id, tokenContract: OFFICIAL_USDC, id }).data;
++  const books = emptyDemoBooks();
++  const inv = addDemoInvoice(books, { invoiceNumber: "INV-R1", contactName: "Acme", total: "500.00" });
++  const link: InvoiceLink = { provider: "demo", invoiceId: inv.invoiceId, invoiceNumber: "INV-R1", contactId: "C-1", contactName: "Acme", currency: "USD", amountDue: "500.00", linkedAt: "2026-10-30T00:00:00.000Z", demo: false };
++  const acct: AccountingData = { ...emptyAccounting(), links: { [id]: link }, demoBooks: books };
++  const ev: TransferEvent = { ...sim.send(emptyRequests(), { to: addr(id), amount: "500.00", tokenContract: OFFICIAL_USDC, tokenSymbol: "USDC", from: addr("from:a"), seq: "a" }),
++    source: "live", demo: false, blockNumber: 900, blockTime, confirmations: CONFIRMATIONS };
++  const at = new Date(Date.parse(blockTime) + 60_000).toISOString();
++  return planPosting(ingest(d0, ev, at, "test", checkObservation(at), CONFIRMATIONS).data, acct, id, { threshold: CONFIRMATIONS });
++}
++
++describe("posting date", () => {
++  it("a payment at 01:30 SGT on 1 Nov posts on 1 Nov, not on the UTC day (31 Oct)", () => {
++    const plan = paidAt("2026-10-31T17:30:00.000Z");
++    expect(plan.lines[0]).toMatchObject({ kind: "payment", date: "2026-11-01" });
++  });
++
++  it("a payment in the SGT afternoon keeps its day", () => {
++    expect(paidAt("2026-10-31T06:00:00.000Z").lines[0].date).toBe("2026-10-31");
++  });
++
++  it("orgDay pads months and days", () => {
++    expect(orgDay("2026-01-04T20:00:00.000Z")).toBe("2026-01-05");
++  });
++});

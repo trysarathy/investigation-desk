@@ -1,0 +1,60 @@
+diff --git a/src/middleware.ts b/src/middleware.ts
+index 8e20cb8..f110cf2 100644
+--- a/src/middleware.ts
++++ b/src/middleware.ts
+@@ -15,8 +15,10 @@ export function middleware(req: NextRequest) {
+   const user = process.env.PREVIEW_USER;
+   const password = process.env.PREVIEW_PASSWORD;
+   if (!user || !password) return NextResponse.next();
+-  // The sender's payment page is customer-facing: it carries its own unguessable link ID.
+-  if (req.nextUrl.pathname.startsWith("/pay/")) return NextResponse.next();
++  // The sender's payment page and its look-alike-address checker are customer-facing: each carries
++  // its own unguessable link ID, so the payer never needs the preview password (security gap #3).
++  const p = req.nextUrl.pathname;
++  if (p.startsWith("/pay/") || p.startsWith("/api/pay")) return NextResponse.next();
+   const header = req.headers.get("authorization") ?? "";
+   if (header.startsWith("Basic ")) {
+     let decoded = "";
+diff --git a/tests/preview-gate.test.ts b/tests/preview-gate.test.ts
+new file mode 100644
+index 0000000..dd0dc56
+--- /dev/null
++++ b/tests/preview-gate.test.ts
+@@ -0,0 +1,37 @@
++// Security gap #3 (team/SECURITY_GAPS.md): the payer's address check must work behind the preview
++// password, like the payment page itself; everything else still asks for the password.
++
++import { afterEach, beforeEach, describe, expect, it } from "vitest";
++import { NextRequest } from "next/server";
++import { middleware } from "@/middleware";
++
++const saved = { PREVIEW_USER: process.env.PREVIEW_USER, PREVIEW_PASSWORD: process.env.PREVIEW_PASSWORD };
++beforeEach(() => { process.env.PREVIEW_USER = "u"; process.env.PREVIEW_PASSWORD = "p"; });
++afterEach(() => {
++  for (const [k, v] of Object.entries(saved)) {
++    if (v === undefined) delete process.env[k];
++    else process.env[k] = v;
++  }
++});
++
++const call = (path: string, method = "GET", auth?: string) =>
++  middleware(new NextRequest(`http://desk.test${path}`, { method, headers: auth ? { authorization: `Basic ${btoa(auth)}` } : {} }));
++
++describe("preview password gate", () => {
++  it("POST /api/pay/<publicId>/check is reachable without the preview password, like /pay/<publicId>", () => {
++    expect(call("/pay/abc123").status).not.toBe(401);
++    expect(call("/api/pay/abc123/check", "POST").status).not.toBe(401);
++  });
++
++  it("everything else under /api still needs the preview password", () => {
++    expect(call("/api/requests").status).toBe(401);
++    expect(call("/api/accounting/DEMO-1042", "POST").status).toBe(401);
++    expect(call("/api/demo/reset", "POST").status).toBe(401);
++  });
++
++  it("pages still need the preview password, and the right one lets you in", () => {
++    expect(call("/settings").status).toBe(401);
++    expect(call("/settings", "GET", "u:wrong").status).toBe(401);
++    expect(call("/settings", "GET", "u:p").status).not.toBe(401);
++  });
++});

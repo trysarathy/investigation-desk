@@ -92,3 +92,9 @@ auto-merge.**" · unverified items.
 
 ## §7 Log line formats
 `accounting-integrations-engineer | <action> | <ids> | <details with links>`; RISK rows start `RISK:`.
+
+## Checks before any answer, PR or Log row (added 1 Nov)
+1. Secrets: search your draft for any password, code or token fragment; replace with a description.
+2. Line numbers: re-run `grep -n` on each cited file alone.
+3. Each defect has its failing test written down (and run, if the branch exists).
+4. Every name comes from a source; otherwise a placeholder.

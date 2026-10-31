@@ -1,0 +1,66 @@
+diff --git a/src/lib/accounting/rules.ts b/src/lib/accounting/rules.ts
+index 8e44062..0e30866 100644
+--- a/src/lib/accounting/rules.ts
++++ b/src/lib/accounting/rules.ts
+@@ -16,7 +16,7 @@
+ 
+ import { createHash } from "node:crypto";
+ import { compareDecimal } from "../decimal";
+-import { add, sub } from "../payments/money";
++import { add, sub, usdAt } from "../payments/money";
+ import { deriveRequest, formatUsdc } from "../requests/lifecycle";
+ import type { Observation, RequestsData } from "../requests/types";
+ import type { AccountingData, AccountSettings, PostedLine, PostingLine, PostingPlan } from "./types";
+@@ -149,7 +149,9 @@ export function planPosting(data: RequestsData, acct: AccountingData, requestId:
+     if (positive(apply)) {
+       applied = add(applied, apply);
+       const upTo = cmp(applied, r.amount) === 0 ? toCents(r.amount) : floorCents(applied);
+-      const cents = toCents(sub(upTo, postedCents));
++      // Value the line at the token's USD price (par needs no conversion).
++      const tokenCents = toCents(sub(upTo, postedCents));
++      const cents = rate.rate === "1.00" ? tokenCents : usdAt(tokenCents, rate.rate);
+       postedCents = upTo;
+       lines.push({
+         kind: "payment", amount: cents, accountCode: accounts.walletAccountCode, observationKey: x.key,
+diff --git a/src/lib/payments/money.ts b/src/lib/payments/money.ts
+index e51379d..4ecbbcd 100644
+--- a/src/lib/payments/money.ts
++++ b/src/lib/payments/money.ts
+@@ -58,6 +58,11 @@ export function mulBps(a: string, bps: number): string {
+   return format({ v: p.v * BigInt(bps), scale: p.scale + 4 });
+ }
+ 
++/** USD value of a token amount at a price, in cents (e.g. 1000 USDC at 0.998 = "998.00"). */
++export function usdAt(amount: string, rate: string): string {
++  return (Number(amount) * Number(rate)).toFixed(2);
++}
++
+ export function sum(values: string[]): string {
+   return values.reduce((acc, v) => add(acc, v), "0");
+ }
+diff --git a/tests/accounting.test.ts b/tests/accounting.test.ts
+index 59397f1..e86a0ba 100644
+--- a/tests/accounting.test.ts
++++ b/tests/accounting.test.ts
+@@ -269,6 +269,21 @@ describe("approval, idempotency and audit", () => {
+     expect(exact.map((l) => [l.kind, l.amount])).toEqual([["payment", "315.41"]]); // closes the invoice it was raised for
+   });
+ 
++  it("a token slightly off par posts at its USD value, not its token amount", () => {
++    const { reqData: d0, acct } = invoiced("1000.00");
++    const reqData = put(d0, tx(addr("R1"), "1000.00", "a"));
++    const price: PriceSource = () => ({ rate: "0.998", source: "test feed" });
++    const [l] = planPosting(reqData, acct, "R1", { ...opts, price }).lines;
++    expect(l).toMatchObject({ kind: "payment", amount: "998.00", tokenAmount: "1000.00", usdRate: "0.998" });
++    expect(l.description).toContain("USD value 998.00 at 0.998");
++  });
++
++  it("par still posts the token amount unchanged", () => {
++    const { reqData: d0, acct } = invoiced("250.00");
++    const [l] = planPosting(put(d0, tx(addr("R1"), "250.00", "a")), acct, "R1", opts).lines;
++    expect(l.amount).toBe("250.00");
++  });
++
+   it("importing an invoice makes a linked request, once", () => {
+     const inv = { invoiceId: "X-1", invoiceNumber: "INV-9", contactId: "C", contactName: "Orbit", currency: "USD", amountDue: "750.00", status: "AUTHORISED" };
+     const o = { now: t(0), by: "Mei", demo: false, publicId: "p", receivingAddress: addr("x"), token: "USDC" as const, tokenContract: OFFICIAL_USDC, provider: "xero" as const };
