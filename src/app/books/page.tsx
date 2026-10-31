@@ -32,6 +32,8 @@ export default async function BooksPage() {
         </div>
         {!demo && (xero.connected
           ? <span className="badge">Xero connected: {xero.org}</span>
+          // Full page navigation on purpose: an API route that redirects to Xero OAuth, not a page.
+          // eslint-disable-next-line @next/next/no-html-link-for-pages
           : <a className="btn btn-primary" href="/api/accounting/xero/connect">{xero.configured ? "Connect Xero" : "Connect Xero (set up the app first)"}</a>)}
       </div>
 
