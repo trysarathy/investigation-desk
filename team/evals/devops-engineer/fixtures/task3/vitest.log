@@ -1,0 +1,6 @@
+# FICTIONAL: `npx vitest run` on payment-terms @ 0718293
+ ✓ tests/requests.test.ts (88 tests)
+ × tests/requests-terms.test.ts > net 14 terms set the due date 14 days after issue
+   → expected 2026-11-16 to equal 2026-11-17
+ Test Files  1 failed | 20 passed | 1 skipped (22)
+      Tests  1 failed | 570 passed | 57 skipped (628)
