@@ -1,0 +1,91 @@
+diff --git a/src/app/globals.css b/src/app/globals.css
+index c45bf0c..a3bd0f8 100644
+--- a/src/app/globals.css
++++ b/src/app/globals.css
+@@ -477,3 +477,11 @@ details.panel:not([open]) > summary.panel-h { border-bottom: 0; }
+ /* In your books: tone of the posting panel */
+ [data-testid="posting-lines"] td { white-space: normal; cursor: default; }
+ [data-testid="posting-lines"] tbody tr:hover { background: transparent; }
++
++/* ---- Posted confirmation (Books panel) ---- */
++.bar-paid { background: var(--green-soft); color: var(--green); border-color: color-mix(in srgb, var(--green) 35%, transparent); }
++.posted-notice { align-items: flex-start; flex-wrap: wrap; font-size: 13px; line-height: 1.5; }
++.posted-notice strong { font-weight: 600; }
++.posted-tick { font-weight: 600; }
++.posted-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
++.posted-link { color: var(--text); text-decoration: underline; text-underline-offset: 2px; display: inline-flex; align-items: center; min-height: 24px; }
+diff --git a/src/components/books/ApprovePosting.tsx b/src/components/books/ApprovePosting.tsx
+index 2bdf1c5..d57121b 100644
+--- a/src/components/books/ApprovePosting.tsx
++++ b/src/components/books/ApprovePosting.tsx
+@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
+ import { useState } from "react";
+ import { useActor } from "@/components/ActingAs";
+ import { refreshAfterChange } from "@/components/requests/AutoRefresh";
++import { JUST_POSTED } from "./PostedNotice";
+ 
+ export function ApprovePosting({ requestId, planKey, label }: { requestId: string; planKey: string; label: string }) {
+   const actor = useActor();
+@@ -21,6 +22,7 @@ export function ApprovePosting({ requestId, planKey, label }: { requestId: strin
+         method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ actor, key: planKey }),
+       });
+       const j = await r.json().catch(() => ({}));
++      if (r.ok) { try { sessionStorage.setItem(JUST_POSTED, requestId); } catch { /* ignore */ } }
+       setMsg(r.ok ? { ok: true, text: j.message ?? "Posted." } : { ok: false, text: j.error ?? `Failed (${r.status}).` });
+       refreshAfterChange(router);
+     } catch {
+diff --git a/src/components/books/BooksPanel.tsx b/src/components/books/BooksPanel.tsx
+index ef6b962..ee990bf 100644
+--- a/src/components/books/BooksPanel.tsx
++++ b/src/components/books/BooksPanel.tsx
+@@ -11,6 +11,7 @@ import { shortHash } from "@/lib/requests/present";
+ import type { RequestsData } from "@/lib/requests/types";
+ import { friendlyTime } from "@/lib/requests/ui";
+ import { ApprovePosting } from "./ApprovePosting";
++import { PostedNotice } from "./PostedNotice";
+ 
+ const KIND: Record<LineKind, string> = { payment: "Payment", fee_writeoff: "Fee write-off", overpayment: "Overpayment", note: "Note on invoice" };
+ const STATUS: Record<PlanStatus, { label: string; tone: string }> = {
+@@ -61,6 +62,9 @@ export async function BooksPanel({ data, requestId }: { data: RequestsData; requ
+         <span className="badge" data-testid="books-status">{st.label}</span>
+       </div>
+       <div className="panel-b">
++        {plan.status === "posted" && lastPosted && (
++          <PostedNotice requestId={requestId} where={where} lines={posted.length} by={lastPosted.by} when={friendlyTime(lastPosted.at)} />
++        )}
+         {plan.reasons.map((r, i) => <div key={i} className={i === 0 ? undefined : "muted"}>{r}</div>)}
+         {plan.lines.length > 0 && (
+           <>
+diff --git a/src/components/books/PostedNotice.tsx b/src/components/books/PostedNotice.tsx
+new file mode 100644
+index 0000000..d748e1e
+--- /dev/null
++++ b/src/components/books/PostedNotice.tsx
+@@ -0,0 +1,27 @@
++"use client";
++
++// The lasting confirmation after a posting: stays in the panel (no timer), announced politely, and
++// takes focus only when it replaces the Approve button the person just pressed.
++
++import Link from "next/link";
++import { useEffect, useRef } from "react";
++
++export const JUST_POSTED = "clearline.justPosted";
++
++export function PostedNotice({ requestId, where, lines, by, when }: { requestId: string; where: string; lines: number; by: string; when: string }) {
++  const ref = useRef<HTMLDivElement>(null);
++  useEffect(() => {
++    try {
++      if (sessionStorage.getItem(JUST_POSTED) === requestId) { sessionStorage.removeItem(JUST_POSTED); ref.current?.focus(); }
++    } catch { /* storage blocked: no focus move, the notice is still there */ }
++  }, [requestId]);
++  return (
++    <div ref={ref} tabIndex={-1} role="status" className="bar bar-paid posted-notice" data-testid="posted-notice">
++      <span aria-hidden="true" className="posted-tick">✓</span>
++      <span className="posted-text">
++        <strong>Posted to {where}</strong> · {lines} {lines === 1 ? "line" : "lines"} · approved by {by}, {when}
++      </span>
++      <Link href="/books" className="posted-link">Audit log</Link>
++    </div>
++  );
++}

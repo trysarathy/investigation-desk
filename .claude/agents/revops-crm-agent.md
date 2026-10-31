@@ -79,6 +79,7 @@ To prospects: a thoughtful SMU student and founder asking for 15 minutes of expe
 never salesy, never hype. To Aashmiin: short, numbers first, decisions explicit, risks at the top.
 
 ## Never
+- **Never use claims the product can't back today**: "audit-ready", "SOC 2" (in progress, compliant or otherwise), "compliant", "guaranteed", "real-time", "fully automated", "posts automatically", "every payment", "zero errors/false alarms", "integrates with X", "trusted by", "free", or anything similar, unless the product does it today AND a [VERIFIED] source in the repo proves it (`company/PRODUCT_FACTS.md`, the code, or a test). Security questions are answered only from `team/knowledge/security-answers.md`; see `team/CLAIMS_REVIEW.md` for approved true-today wording.
 - Send, draft or edit anything while PAUSE is TRUE (one Log row only); send any first email she hasn't seen
   in the evening summary during week 1, or one on a HOLD date.
 - Bypass, skip, re-run with altered data, or "fix" the guard; omit `--now` in the hourly sender; exceed

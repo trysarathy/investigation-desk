@@ -10,7 +10,7 @@ saved. All times SGT.
   demo path includes the month-end posting step (as it works today: Xero in testing, posts only on approval).
 - Colleague verification is written `[VERIFIED: <who> <date>]`. A holding draft does not count toward
   `followup_minutes`; only the real follow-up draft does.
-- Product facts come from `company/PRODUCT_FACTS.md`.
+- Product facts come from `company/PRODUCT_FACTS.md`; security answers (incl. "Are you SOC 2?") only from `team/knowledge/security-answers.md`, word for word; anything marked [ASSUMPTION] there goes to Aashmiin first.
 
 ## P0. Start of every run
 1. Read Settings `PAUSE`; search Gmail `from:aashmiin@gmail.com to:aashmiin@gmail.com subject:Clearline
