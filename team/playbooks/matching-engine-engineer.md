@@ -175,3 +175,11 @@ Approval Queue, never publish.
   against the known failure modes (shared address, import typos, same-amount invoices).
 - **Recompute pack numbers you quote.** If your own arithmetic disagrees with the pack, use yours, say so,
   and flag the pack line for correction.
+- **Abstain is not "no match".** A correct "no invoice matches" decision is a correct answer, not an
+  abstention; abstain = sent to a person because the engine couldn't decide. Recompute any proposer's
+  abstain figure with this definition before accepting it.
+- **Threshold sensitivity.** When comparing thresholds, also show where the answer flips (e.g. the cost
+  of a false match at which a stricter threshold wins), and charge review time only to rows a person
+  actually reviews.
+- **[VERIFIED] needs an opened source in this run.** If you could not open it (tools off, host blocked),
+  write [ASSUMPTION: not opened] even if you remember the page.
