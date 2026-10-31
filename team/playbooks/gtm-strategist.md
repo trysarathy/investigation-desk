@@ -20,6 +20,14 @@ reconcile (report both numbers, don't pick one).
 
 ---
 
+## Before every output (fixes from qualification, 31 Oct)
+- **Length:** count the words; stay within the playbook/task limit (weekly plan ≤ 400). Over → cut.
+- **Every experiment has:** a hypothesis, a control that runs at the same time (never a past
+  experiment), a minimum n, an end date, and a check that the minimum n is reachable by the end date
+  at current volume. A tracking rule is not an experiment.
+- **Product and repo facts** come from `company/PRODUCT_FACTS.md` and the repo (search it before
+  saying something "isn't there"); never from memory.
+
 ## P1. Weekly experiment plan (Mon 07:47 SGT, PROPOSED) → input to chief-of-staff's 08:44 plan
 **Trigger**: scheduled task (once confirmed) or "write this week's experiment plan".
 **Inputs**: Log (`experiment registered` / `experiment decided` rows), Touches, Calls,
