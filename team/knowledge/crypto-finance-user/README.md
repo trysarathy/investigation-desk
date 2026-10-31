@@ -22,20 +22,19 @@ Last full refresh: **2026-10-31**. Next: 1 Dec 2026.
 - **Calls tab: 1 row** (2026-10-30, fractional CFO via a mentor, scored Weak, *advisor, not a buyer*).
   No buyer interviews yet. The persona is therefore built mostly from public material.
 - **Network on 2026-10-31:** opened pages from docs.stripe.com, nowpayments.io, tether.to,
-  developers.circle.com, cryptio.co (marketing pages only), ledgible.io and en.wikipedia.org. **Blocked:**
+  cryptio.co (marketing pages only), ledgible.io and en.wikipedia.org (developers.circle.com also opened, background only). **Blocked:**
   nngroup.com, fasb.org, ifrs.org, aicpa-cima.com, pcaobus.org, central.xero.com, quickbooks.intuit.com,
   docs.oracle.com, support.cryptio.co, reddit.com, trustpilot.com, community.xero.com, jobstobedone.org,
   momtestbook.com, sec.gov, Big Four sites. WebFetch failed for every host; pages were opened with curl.
-- **Source count** (distinct external URLs cited): **35**.
-  - Primary opened this run, `[VERIFIED]`: **8** — Stripe stablecoin payments; Stripe automatic
+- **Source count** (distinct external URLs cited across the pack): **44**.
+  - Primary opened this run, `[VERIFIED]`: **7** — Stripe stablecoin payments; Stripe automatic
     reconciliation; NOWPayments best integration practices; NOWPayments payment exceptions; NOWPayments
-    refund policy; Tether supported protocols; Cryptio payments use-case page; Circle USDC contract
-    addresses (background only).
+    refund policy; Tether supported protocols; Cryptio payments use-case page.
   - Secondary opened, `[ASSUMPTION: secondary]`: **4** — Ledgible on ASU 2023-08; Wikipedia heuristic
     evaluation, cognitive walkthrough, outcome-driven innovation.
-  - Search-level only, `[ASSUMPTION: secondary, search]`: **23** — FASB/Deloitte, IFRS agenda decision and
-    EY, AICPA (3), PCAOB (3), Xero (2), Intuit, Oracle (2), Cryptio help centre (2), Cryptoworth, KoinX,
-    TRES, SurferCloud, Upwork, AurPay, BoomFi, OpenNode, Mom Test and JTBD summaries, severity-scale papers.
+  - Not opened (search-level or blocked), `[ASSUMPTION: secondary, search]`: **33** — including blocked primary pages (IFRS agenda
+    decision, AICPA, PCAOB, Intuit, Oracle NetSuite, Xero, Cryptio help centre, NN/g, jobstobedone.org)
+    and secondary write-ups (Deloitte, EY, CPA societies, vendor blogs, public posts, book summaries).
   - Internal primary: the Calls tab row and 8 repo documents.
 - **Not yet in the pack:** a real r/Accounting or Xero Community thread from a finance team (none found
   reachable), the primary standards texts, and any buyer interview.

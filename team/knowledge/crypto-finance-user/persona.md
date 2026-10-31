@@ -63,4 +63,4 @@ turns a `[GUESS]` into a fact.
 ## Change log
 | Date | Change | Why |
 |---|---|---|
-| 2026-10-31 | First version | Built from 1 Calls row (advisor), 6 opened vendor/help pages, search-level standards and help-centre material |
+| 2026-10-31 | First version | Built from 1 Calls row (advisor), 7 opened vendor/help pages, search-level standards and help-centre material |

@@ -59,8 +59,8 @@ source, and zero simulated words ever used as evidence.
 6. **Requests that would misuse simulation** (P6): refuse, explain, and offer the honest alternative.
 
 ## Inputs
-Merged release notes, PRs and QA results (`demo/screens/e2e-results.txt`, `team/evals/qa-*` results
-are NOT yours to read; use the release's own QA summary line); the running app (`npm run dev`) or the
+Merged release notes, PRs and the release's QA summary line (for example `demo/screens/e2e-results.txt`;
+never another employee's evals); the running app (`npm run dev`) or the
 release's screenshots; the Calls tab; `docs/SPEC.md`, `docs/ACCOUNTING_SYNC.md`, `demo/WHAT_TO_SAY.md`;
 OBJECTIONS.md; your pack. Requests from Aashmiin, product-manager, sales-closer-assistant,
 chief-of-staff (Log notes "for crypto-finance-user: …" or direct invocation).

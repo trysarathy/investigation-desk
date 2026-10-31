@@ -33,76 +33,91 @@ of **public** github.com repos works from this environment, even though github.c
 
 ## research-intern
 
+5 verified, 5 corrected, 55 still unverified (31 Oct)
+
+Re-check of 2026-10-31 after the allowlist was widened. **Verified** (primary page opened, relabelled
+`[VERIFIED: <url>, 2026-10-31]`): USDT/USDC share quote (DefiLlama API), Ledgible pricing and GL
+integrations, official USDT (Eth, Tron) and USDC (Eth) addresses, Circle's bridged-USDC.e statement,
+funding-tracker pages. **Corrected** (primary contradicted the pack, fixed with a "corrected 2026-10-31:
+was X" note): 28 Oct supply (US$303.3bn, not 299.1bn; USDT 60.0%), 2 Oct supply (US$308.3bn, not
+314.5bn), 13 Aug supply/shares (US$300.9bn, not 308.0bn; was a VERIFIED-via-Reap row, not in this
+register), NOWPayments/CoinGate fees (1%, not ~0.5–1%), Circle CPN audience ("financial institutions
+and enterprises"). The Circle CPN row is split: audience corrected, launch date still open below.
+Partly verified rows stay below with the open part named.
+
+**Hosts still blocked from this environment (CONNECT 403 unless noted):** allium.so, fireblocks.com,
+mastercard.com, bitwave.io, taxbit.com, integral.xyz, cryptoworth.com, bitpay.com, coinbase.com,
+shopify.com, stripe.com (docs.stripe.com loads), circle.com (developers.circle.com loads),
+mas.gov.sg, occ.gov, congress.gov, govinfo.gov, federalregister.gov, fincen.gov, eba.europa.eu,
+esma.europa.eu, binance.com, elegislation.gov.hk, hkma.gov.hk, iras.gov.sg, incometaxindia.gov.in,
+fca.org.uk, bankofengland.co.uk, bvnk.com, triple-a.io, theblock.co, tether.io (tether.to/news
+redirects there), blog.cryptio.co, request.finance, rdap.org, defillama.com (403; its API
+stablecoins.llama.fi loads). tres.finance: Cloudflare block page. eur-lex.europa.eu: bot challenge,
+no text. Loads but item not found there: home.treasury.gov, rbi.org.in, fiuindia.gov.in (no VDA SP
+list), lukka.tech (no Blox), coinshift.xyz (JS-only, no sunset notice).
+
 ### Outward-facing
-| File | Claim (≤ 15 words) | Primary source to open | Why it matters |
+| File | Claim (≤ 15 words) | Primary source to open | Why still unverified (31 Oct) |
 |---|---|---|---|
-| market.md §1 | Supply ~US$299.1bn on 28 Oct 2026; USDT ~US$181.8bn, USDC ~US$71.3bn | https://defillama.com/stablecoins | Outward: "market size" line for sales/content |
-| market.md §1 | Supply fell from ~US$314.5bn (2 Oct); USDC −US$4.7bn in 30 days | https://defillama.com/stablecoins | Outward |
-| market.md §1 | Allium Q3 2026: supply +0.4% to US$305bn at 30 Sep | Allium Q3 2026 report (allium.so) | Outward |
-| market.md §2 | ~US$482bn payments Jan–Sep 2026, +45% y/y; Sep record ~US$72bn | Allium Q3 2026 report (allium.so) | Outward |
-| market.md §2 | Allium earlier: US$401–527bn payments Jan–Aug 2026 | Allium report (allium.so) | Outward |
-| market.md §2 | Business-received ~58–64% of payments; +37% to US$246bn in nine months | Allium report (allium.so) | Outward |
-| market.md §3 | Fireblocks survey: 49% use stablecoins for payments; LatAm 71%, NA 39% | https://www.fireblocks.com (State of Stablecoins 2025) | Outward |
-| market.md §3 | Mastercard cited ≥US$350bn digital-currency payments in 2025 (BVNK announcement) | Mastercard press release, 17 Mar 2026 (mastercard.com) | Outward |
-| market.md §4 | LatAm leads cross-border use; much SG/HK B2B USDT is on Tron | Fireblocks report; claims audit A6 | Outward (ICP pitch) |
-| market.md §5 | "USDT about 60% of supply, USDC about 24% (DefiLlama, Oct 2026)" | https://defillama.com/stablecoins | Outward: approved quote line |
-| competitors.md #1 | Cryptio features, 400+ enterprises, US$45m Series B 12 Mar 2026 | https://cryptio.co , Cryptio press release | Outward (battlecards) |
-| competitors.md #2 | Bitwave AR/AP flow, SOC 1/2, tokens, BVNK partner, RLUSD to Ripple | https://www.bitwave.io/solutions/stablecoin-b2b-payments-enterprise-ar-ap | Outward |
-| competitors.md #3 | Ledgible: enterprise GL integrations; custom enterprise pricing | https://ledgible.io/pricing/ | Outward |
-| competitors.md #4 | TaxBit: 1099-DA, CARF/DAC8 filing; first CARF/DAC8 season 2026 | https://www.taxbit.com | Outward |
-| competitors.md #6 | Coinshift ops product sunset 31 Mar 2026; csUSDL >US$100m TVL | https://coinshift.xyz | Outward ("no longer a competitor") |
-| competitors.md #7 | Integral: Web3 bookkeeping; pricing not public (~US$500/month per a competitor) | https://integral.xyz | Outward |
-| competitors.md #8 | TRES: multi-source reconciliation, ERC-4626 pricing, SOC 1/2 Type 2 | https://tres.finance | Outward |
-| competitors.md #9 | Cryptoworth: QBO integration; from US$99/month | https://cryptoworth.com | Outward |
-| competitors.md #10 | Lukka: 100+ chains, SOC 1/2 Type II, acquired Blox accounting | https://lukka.tech | Outward |
-| competitors.md #11 | BitPay: QuickBooks on Business plans; USDC/GUSD since 2018; fees 1% or tiered | https://support.bitpay.com/hc/en-us/articles/201895853 , bitpay.com/pricing | Outward |
-| competitors.md #12 | Coinbase/Shopify USDC on Base, 34 countries, local-currency settlement | Coinbase or Shopify announcement, Jun 2025 | Outward |
-| competitors.md #13 | Stripe stablecoin fee 1.5% | https://docs.stripe.com/crypto/stablecoins (pricing page) | Outward |
-| competitors.md #14 | Circle CPN Managed Payments launched 8 Apr 2026; for financial institutions | https://circle.com/pressroom | Outward |
-| competitors.md #15 | Triple-A MAS licence history | https://www.mas.gov.sg (Financial Institutions Directory) | Outward |
-| competitors.md #16 | Bridge conditional OCC trust-bank approval, Feb 2026 | https://www.occ.gov (news releases) | Outward |
-| competitors.md #17 | BVNK 130+ countries, ~US$30bn; Mastercard to buy for ≤US$1.8bn | Mastercard / BVNK press release, 17 Mar 2026 | Outward |
-| competitors.md #19 | NOWPayments/CoinGate fees ~0.5–1% | https://nowpayments.io , https://coingate.com pricing | Outward |
-| competitors.md "Others" | Jeeves, Noah, Hifi funding Sep–Oct 2026 | each company's own release | Outward |
-| regulation.md §1 | GENIUS Act effective earlier of 18 Jan 2027 or 120 days after final rules | https://www.congress.gov (Public Law 119-27 text) | Outward |
-| regulation.md §1 | OCC final rule 21 Oct 2026, effective 18 Jan 2027, PPSIs/foreign issuers/custody | https://www.occ.gov/news-issuances/news-releases/2026/nr-occ-2026-92.html | Outward |
-| regulation.md §1 | Treasury NPRMs (Apr, 17 Aug 2026); FinCEN/OFAC AML NPRM pending | https://home.treasury.gov , https://www.fincen.gov | Outward |
-| regulation.md §1 | Key statutory provisions (law-firm summaries) | Public Law 119-27 text (congress.gov / govinfo.gov) | Outward |
-| regulation.md §1 | Tether USAT launched 27 Jan 2026 via Anchorage Digital Bank | https://tether.to (news) | Outward |
-| regulation.md §1 | Bridge conditional OCC approval (12 vs 17 Feb 2026) | https://www.occ.gov | Outward |
-| regulation.md §2 | Rest of MiCA (incl. CASPs) applied from 30 Dec 2024 | https://eur-lex.europa.eu/eli/reg/2023/1114/oj (Art 149) | Outward |
-| regulation.md §2 | EMT duties: authorised issuer, par redemption, no interest, recovery plans | MiCA Title IV, eur-lex | Outward |
-| regulation.md §2 | "Significant" EMT/ART thresholds (>10m holders, >€5bn); EBA supervises | MiCA Art 43/56, eur-lex; https://www.eba.europa.eu | Outward |
-| regulation.md §2 | USDC/EURC issued in EU by Circle Mint Europe SAS (EMI, 1 Jul 2024) | https://www.circle.com (pressroom); ACPR register | Outward |
-| regulation.md §2 | USDT not MiCA-authorised; Tether did not seek authorisation | ESMA interim MiCA register (esma.europa.eu) | Outward |
-| regulation.md §2 | ESMA: CASPs restrict non-compliant stablecoins by end-Q1 2025 | https://www.esma.europa.eu (statement on non-MiCA ARTs/EMTs) | Outward |
-| regulation.md §2 | Binance ended EEA spot USDT trading 31 Mar 2025 | Binance announcement (binance.com) | Outward |
-| regulation.md §2 | Self-custody USDT holding by EU residents not illegal | MiCA text, eur-lex | Outward |
-| regulation.md §2 | ESMA end-of-transition statement; ~17% of registrants CASP-authorised by May 2026 | ESMA statement PDF R25; ESMA CASP register | Outward |
-| regulation.md §3 | HK Stablecoins Ordinance passage date 21 May 2025 | https://www.elegislation.gov.hk (Cap. 656) | Outward |
-| regulation.md §3 | Only licensees may offer FRS to the HK public | Cap. 656, elegislation.gov.hk; https://www.hkma.gov.hk | Outward |
-| regulation.md §3 | USDT/USDC unlicensed in HK; professional investors only | https://www.hkma.gov.hk (licensee register) | Outward |
-| regulation.md §3 | AML/CFT guideline for issuers incl. travel rule | https://www.hkma.gov.hk | Outward |
-| regulation.md §3 | Details of first HK licences (HSBC, Anchorpoint) | https://www.hkma.gov.hk press release 10 Apr 2026 | Outward |
-| regulation.md §4 | Circle Singapore holds an MPI licence | https://www.mas.gov.sg (FI Directory) | Outward |
-| regulation.md §4 | FSMA DTSP: overseas-only firms need licence, no transition | https://www.mas.gov.sg (DTSP response/guidelines) | Outward |
-| regulation.md §4 | Draft SG stablecoin law scope: MAS-regulated label, foreign-coin recognition | https://www.mas.gov.sg consultation, Sep 2026 | Outward |
-| regulation.md §4 | IRAS: DPT used as payment disregarded for GST (sources conflict) | https://www.iras.gov.sg (GST on digital payment tokens) | Outward |
-| regulation.md §5 | Income Tax Act 2025 carries VDA tax/TDS with renumbered sections | https://incometaxindia.gov.in | Outward |
-| regulation.md §5 | FIU-IND registration for VDA SPs; 54 registered by May 2026 | https://fiuindia.gov.in | Outward |
-| regulation.md §5 | India stablecoin stance "leans toward prohibition" (Reuters-attributed) | https://rbi.org.in ; Reuters original | Outward |
-| regulation.md §5 | FEMA: stablecoins are VDAs; export-realisation questions | https://rbi.org.in (FEMA master directions) | Outward |
-| regulation.md §6 | UK regime: issuer rules, £350k capital; BoE for systemic issuers | https://www.fca.org.uk/publication/policy/ps26-10.pdf ; bankofengland.co.uk | Outward |
-| regulation.md §6 | PS26/18: hybrid/algorithmic tokens not "qualifying stablecoins" | https://www.fca.org.uk/publication/policy/ps26-18.pdf | Outward |
-| regulation.md §6 | UK regime in force 25 Oct 2027; window 30 Sep 2026–28 Feb 2027 | https://www.fca.org.uk | Outward |
-| lead-evidence.md §6 | Official USDT (Eth, Tron) and USDC (Eth) contract addresses | https://tether.to/en/supported-protocols/ ; https://developers.circle.com/stablecoins/usdc-contract-addresses | Outward (lead evidence, customer pages) |
-| lead-evidence.md §6 | Bridged USDC (USDC.e) is not issued by Circle | https://www.circle.com/multi-chain-usdc | Outward |
+| market.md §1 | Allium Q3 2026: supply +0.4% to US$305bn at 30 Sep | Allium Q3 2026 report (allium.so) | allium.so blocked |
+| market.md §2 | ~US$482bn payments Jan–Sep 2026, +45% y/y; Sep record ~US$72bn | Allium Q3 2026 report (allium.so) | allium.so blocked |
+| market.md §2 | Allium earlier: US$401–527bn payments Jan–Aug 2026 | Allium report (allium.so) | allium.so blocked |
+| market.md §2 | Business-received ~58–64% of payments; +37% to US$246bn in nine months | Allium report (allium.so) | allium.so blocked |
+| market.md §3 | Fireblocks survey: 49% use stablecoins for payments; LatAm 71%, NA 39% | https://www.fireblocks.com (State of Stablecoins 2025) | fireblocks.com blocked |
+| market.md §3 | Mastercard cited ≥US$350bn digital-currency payments in 2025 (BVNK announcement) | Mastercard press release, 17 Mar 2026 (mastercard.com) | mastercard.com blocked |
+| market.md §4 | LatAm leads cross-border use; much SG/HK B2B USDT is on Tron | Fireblocks report; claims audit A6 | fireblocks.com blocked; Tron half has no primary source (internal audit inference) |
+| competitors.md #1 | Cryptio Series B US$45m 12 Mar 2026; "30+ countries"; 50+ tx types; 1-year terms | Cryptio press release (blog.cryptio.co) | Partly verified (features, ERPs, 400+, logos, pricing not public, SOC on cryptio.co); rest not on cryptio.co, blog.cryptio.co blocked |
+| competitors.md #2 | Bitwave AR/AP flow, SOC 1/2, tokens, BVNK partner, RLUSD to Ripple | https://www.bitwave.io/solutions/stablecoin-b2b-payments-enterprise-ar-ap | bitwave.io blocked |
+| competitors.md #4 | TaxBit: 1099-DA, CARF/DAC8 filing; first CARF/DAC8 season 2026 | https://www.taxbit.com | taxbit.com blocked |
+| competitors.md #6 | Coinshift ops product sunset 31 Mar 2026; csUSDL >US$100m TVL | https://coinshift.xyz | Partly verified (site now shows only iUSPC); no sunset notice or TVL on the JS-only site |
+| competitors.md #7 | Integral: Web3 bookkeeping; pricing not public (~US$500/month per a competitor) | https://integral.xyz | integral.xyz blocked |
+| competitors.md #8 | TRES: multi-source reconciliation, ERC-4626 pricing, SOC 1/2 Type 2 | https://tres.finance | Cloudflare block page |
+| competitors.md #9 | Cryptoworth: QBO integration; from US$99/month | https://cryptoworth.com | cryptoworth.com blocked |
+| competitors.md #10 | Lukka acquired Blox accounting | https://lukka.tech | Partly verified (100+ chains, SOC 1/2 Type I/II); Blox not found on lukka.tech |
+| competitors.md #11 | BitPay: QuickBooks on Business plans; USDC/GUSD since 2018; fees 1% or tiered | https://support.bitpay.com/hc/en-us/articles/201895853 , bitpay.com/pricing | bitpay.com blocked |
+| competitors.md #12 | Coinbase/Shopify USDC on Base, 34 countries, local-currency settlement | Coinbase or Shopify announcement, Jun 2025 | coinbase.com, shopify.com blocked |
+| competitors.md #13 | Stripe stablecoin fee 1.5% | https://stripe.com/pricing | docs.stripe.com opened: no fee stated; stripe.com blocked |
+| competitors.md #14 | Circle CPN Managed Payments launched 8 Apr 2026 | https://circle.com/pressroom | circle.com blocked (function/audience verified on developers.circle.com) |
+| competitors.md #15 | Triple-A MAS licence history | https://www.mas.gov.sg (Financial Institutions Directory) | mas.gov.sg, triple-a.io blocked |
+| competitors.md #16 | Bridge conditional OCC trust-bank approval, Feb 2026 | https://www.occ.gov (news releases) | occ.gov blocked |
+| competitors.md #17 | BVNK 130+ countries, ~US$30bn; Mastercard to buy for ≤US$1.8bn | Mastercard / BVNK press release, 17 Mar 2026 | mastercard.com, bvnk.com blocked |
+| competitors.md "Others" | Jeeves, Noah, Hifi (and dtcpay) funding Sep–Oct 2026 | each company's own release | Company sites blocked; NAUT tracker opened (secondary). NAUT dates dtcpay's extension 18 Sep, not 28 Oct |
+| regulation.md §1 | GENIUS Act effective earlier of 18 Jan 2027 or 120 days after final rules | https://www.congress.gov (Public Law 119-27 text) | congress.gov, govinfo.gov blocked |
+| regulation.md §1 | OCC final rule 21 Oct 2026, effective 18 Jan 2027, PPSIs/foreign issuers/custody | https://www.occ.gov/news-issuances/news-releases/2026/nr-occ-2026-92.html | occ.gov, federalregister.gov blocked |
+| regulation.md §1 | Treasury NPRMs (Apr, 17 Aug 2026); FinCEN/OFAC AML NPRM pending | https://home.treasury.gov , https://www.fincen.gov | home.treasury.gov loads but releases not locatable (archive paging/search did not work); fincen.gov, federalregister.gov blocked |
+| regulation.md §1 | Key statutory provisions (law-firm summaries) | Public Law 119-27 text (congress.gov / govinfo.gov) | congress.gov, govinfo.gov blocked |
+| regulation.md §1 | Tether USAT launched 27 Jan 2026 via Anchorage Digital Bank | https://tether.to (news) | tether.to/news redirects to tether.io, blocked |
+| regulation.md §1 | Bridge conditional OCC approval (12 vs 17 Feb 2026) | https://www.occ.gov | occ.gov blocked |
+| regulation.md §2 | Rest of MiCA (incl. CASPs) applied from 30 Dec 2024 | https://eur-lex.europa.eu/eli/reg/2023/1114/oj (Art 149) | eur-lex bot challenge, no text |
+| regulation.md §2 | EMT duties: authorised issuer, par redemption, no interest, recovery plans | MiCA Title IV, eur-lex | eur-lex bot challenge |
+| regulation.md §2 | "Significant" EMT/ART thresholds (>10m holders, >€5bn); EBA supervises | MiCA Art 43/56, eur-lex; https://www.eba.europa.eu | eur-lex bot challenge; eba.europa.eu blocked |
+| regulation.md §2 | USDC/EURC issued in EU by Circle Mint Europe SAS (EMI, 1 Jul 2024) | https://www.circle.com (pressroom); ACPR register | circle.com, ACPR blocked (Circle docs name "Circle SAS (CIRCLE_FR)", no EMI date) |
+| regulation.md §2 | USDT not MiCA-authorised; Tether did not seek authorisation | ESMA interim MiCA register (esma.europa.eu) | esma.europa.eu blocked |
+| regulation.md §2 | ESMA: CASPs restrict non-compliant stablecoins by end-Q1 2025 | https://www.esma.europa.eu (statement on non-MiCA ARTs/EMTs) | esma.europa.eu blocked |
+| regulation.md §2 | Binance ended EEA spot USDT trading 31 Mar 2025 | Binance announcement (binance.com) | binance.com blocked |
+| regulation.md §2 | Self-custody USDT holding by EU residents not illegal | MiCA text, eur-lex | eur-lex bot challenge |
+| regulation.md §2 | ESMA end-of-transition statement; ~17% of registrants CASP-authorised by May 2026 | ESMA statement PDF R25; ESMA CASP register | esma.europa.eu blocked |
+| regulation.md §3 | HK Stablecoins Ordinance passage date 21 May 2025 | https://www.elegislation.gov.hk (Cap. 656) | elegislation.gov.hk blocked |
+| regulation.md §3 | Only licensees may offer FRS to the HK public | Cap. 656, elegislation.gov.hk; https://www.hkma.gov.hk | both blocked |
+| regulation.md §3 | USDT/USDC unlicensed in HK; professional investors only | https://www.hkma.gov.hk (licensee register) | hkma.gov.hk blocked |
+| regulation.md §3 | AML/CFT guideline for issuers incl. travel rule | https://www.hkma.gov.hk | hkma.gov.hk blocked |
+| regulation.md §3 | Details of first HK licences (HSBC, Anchorpoint) | https://www.hkma.gov.hk press release 10 Apr 2026 | hkma.gov.hk blocked |
+| regulation.md §4 | Circle Singapore holds an MPI licence | https://www.mas.gov.sg (FI Directory) | mas.gov.sg blocked (Circle docs name "Circle Singapore", no licence type) |
+| regulation.md §4 | FSMA DTSP: overseas-only firms need licence, no transition | https://www.mas.gov.sg (DTSP response/guidelines) | mas.gov.sg blocked |
+| regulation.md §4 | Draft SG stablecoin law scope: MAS-regulated label, foreign-coin recognition | https://www.mas.gov.sg consultation, Sep 2026 | mas.gov.sg blocked |
+| regulation.md §4 | IRAS: DPT used as payment disregarded for GST (sources conflict) | https://www.iras.gov.sg (GST on digital payment tokens) | iras.gov.sg blocked |
+| regulation.md §5 | Income Tax Act 2025 carries VDA tax/TDS with renumbered sections | https://incometaxindia.gov.in | incometaxindia.gov.in blocked |
+| regulation.md §5 | FIU-IND: offshore platforms covered; 54 registered by May 2026 | https://fiuindia.gov.in | Partly verified (registration duty, 04.07.2023 notice); no registered list on the site |
+| regulation.md §5 | India stablecoin stance "leans toward prohibition" (Reuters-attributed) | https://rbi.org.in ; Reuters original | rbi.org.in loads, no such statement located; Reuters is secondary |
+| regulation.md §5 | FEMA: stablecoins are VDAs; export-realisation questions | https://rbi.org.in (FEMA master directions) | rbi.org.in loads, no RBI text on stablecoins located (claim is a vendor-blog reading) |
+| regulation.md §6 | UK regime: issuer rules, £350k capital; BoE for systemic issuers | https://www.fca.org.uk/publication/policy/ps26-10.pdf ; bankofengland.co.uk | fca.org.uk, bankofengland.co.uk blocked |
+| regulation.md §6 | PS26/18: hybrid/algorithmic tokens not "qualifying stablecoins" | https://www.fca.org.uk/publication/policy/ps26-18.pdf | fca.org.uk blocked |
+| regulation.md §6 | UK regime in force 25 Oct 2027; window 30 Sep 2026–28 Feb 2027 | https://www.fca.org.uk | fca.org.uk blocked |
 
 ### Internal only
-| File | Claim (≤ 15 words) | Primary source to open | Why it matters |
+| File | Claim (≤ 15 words) | Primary source to open | Why still unverified (31 Oct) |
 |---|---|---|---|
-| funding-news-sources.md | Tracker URLs (NAUT 13 startups US$316.1m; stablecoin.nyc; recentfunding) exist and list deals | naut.so, stablecoin.nyc, recentfunding.com | Internal: lead discovery only, confirm each deal at source |
-| lead-evidence.md §4 | Recent domain registration as scam signal (whois) | whois/RDAP of the domain | Internal |
+| lead-evidence.md §4 | Recent domain registration as scam signal (whois) | whois/RDAP of the domain | rdap.org blocked; a heuristic, checked per lead |
 
 ## revops-crm-agent
 

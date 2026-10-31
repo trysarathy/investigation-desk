@@ -2,7 +2,7 @@
 
 Offer pitched on every call: founding pilot US$300 for 30 days, then US$200/month.
 
-## Call 1: Kestrel Labs (dev studio, 6 staff, Vietnam-based founders, entity in Singapore) - 21 Oct
+## Call 1: Kestrel Labs (dev studio, 6 staff, Singapore) - 21 Oct
 - Invoices 3 clients in USDC; ~12 incoming payments a month.
 - "Honestly $200 a month is a lot for 12 payments. I check them myself in 20 minutes."
 - Pain: one short payment in September took a week to chase. Otherwise fine.
