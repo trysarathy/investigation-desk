@@ -18,10 +18,10 @@ line). Nothing to approve except the merge.
   instructions shown), `demo-3241…` (Confirming: done, done, now, upcoming ×2), `demo-5c9c…`
   (50.00 USDC still due: done ×3, `attn`, upcoming).
 - Playwright at 1280×800 and 390×844, `colorScheme` light **and** dark: rendered colour of each named
-  element against its real opaque background (`t1/measure.json`), plus the pack's
+  element against its real opaque background (`t-1/measure.json`), plus the pack's
   `screen-audit.cjs` with axe-core 4.10.2 (light). Every ratio below re-checked with
   `node team/knowledge/lead-designer/tools/contrast.mjs <fg> <bg>`.
-- Screenshots (12): `t1/pay-{236f90,3241d6,5c9c02}-{light,dark}-{1280,390}.png`. I read the 390 ones.
+- Screenshots (12): `t-1/pay-{236f90,3241d6,5c9c02}-{light,dark}-{1280,390}.png`. I read the 390 ones.
 
 ## Findings (measured), ranked
 
@@ -82,7 +82,7 @@ if it wraps to two lines I keep the wrap rather than shrink the type); keyboard 
 --noEmit`, `npx vitest run`, `npx next build` counts in the PR body; update `brand-system.md`,
 `tokens.dtcg.json`, `accessibility.md` (A1 closed, add P2/P4) in the same PR. Roadmap row (status
 `review`) and Log row drafted:
-`2026-10-31 | lead-designer | review | /pay @ 8decb27 | 3 pages × 2 widths × 2 themes, 3 High, 4 Medium; t1/`
+`2026-10-31 | lead-designer | review | /pay @ 8decb27 | 3 pages × 2 widths × 2 themes, 3 High, 4 Medium; t-1/`
 
 ## Checklist (abridged)
 G1-G5 pass (demo badge present on every shot; no claims added). G6 **fail** (P1, P3-P6). G7 fail (P7).
