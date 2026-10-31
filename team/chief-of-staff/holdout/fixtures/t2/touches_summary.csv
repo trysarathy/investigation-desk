@@ -1,0 +1,13 @@
+# FICTIONAL TEST FIXTURE - computed from Company HQ "Touches" tab, sends dated 2026-11-02..2026-11-08
+metric,value,how computed
+emails with status sent (all steps),298,count rows status in {sent,replied,bounced,unsubscribed}
+of which first emails (D0),231,step = D0
+rows status replied,9,status = replied
+replied with notes starting "positive",3,notes LIKE 'positive%'
+replied "not interested",3,
+replied "out of office",2,
+replied "wrong person",1,
+bounced,8,status = bounced
+unsubscribed / reply "no",4,moved to Do-not-contact (4 rows dated this week)
+spam complaints,0,
+last 100 sends: replies,0.9%? see note,"last 100 sends (by timestamp) contain 1 reply that is not out-of-office -> 1/100 = 1.0%; counting OOO replies it is 2/100"
