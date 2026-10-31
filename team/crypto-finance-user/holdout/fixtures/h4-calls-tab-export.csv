@@ -1,0 +1,4 @@
+call_id,date,company,role,type,notes_by_founder
+C-001,2026-10-08,Pelican Freight Forwarding (fictional),AR lead,discovery 25 min,"Get paid USDT on Tron by 3 Asian customers, ~15/month. Biggest issue: customers send on wrong network or short after exchange fee; she chases on WhatsApp. Reconciles in Excel weekly. Uses Xero. Said 'not urgent, it's 3 customers'. No budget discussion."
+C-002,2026-10-15,Aurum Studio Labs (fictional),founder/CEO,coffee chat 10 min,"Small agency, gets USDC occasionally. Accountant handles it at year-end. Didn't seem to feel pain. Asked if we do invoicing."
+C-003,2026-10-22,Nimbus Payroll Asia (fictional),finance manager,discovery 40 min,"~200 inbound USDC/month from clients. Month-end: 2 days matching wallet tx to invoices because clients don't put references. Auditor asked last year for rate source and wallet ownership proof, painful. Uses NetSuite (we don't have it). Interested in a pilot 'if it works with NetSuite'."

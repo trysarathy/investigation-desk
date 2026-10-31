@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How matching works · Clearline (FICTIONAL draft)</title>
+<style>
+  :root { --ink:#0a0c11; --panel:#11141b; --fg:#eceef4; --muted:#a3abba; --faint:#8a93a3; --accent:#8ea2ff; --good:#5fd3a0; --bad:#f28b82;
+          --hint:#5a6170; --line:rgb(255 255 255 / .08); }
+  body { margin:0; background:var(--ink); color:var(--fg); font-family: Inter, system-ui, sans-serif; }
+  .wrap { max-width:1152px; margin:0 auto; padding:80px 20px; }
+  .eyebrow { color:var(--accent); font-size:13px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; }
+  h2 { font-size:clamp(30px,4.6vw,52px); letter-spacing:-.03em; line-height:1.05; margin:12px 0 24px; }
+  .steps { display:grid; grid-template-columns: repeat(3, 360px); gap:16px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:24px; }
+  .card p { color:var(--muted); font-size:15.5px; line-height:1.6; }
+  .hint { color:var(--hint); font-size:13px; }
+  .ok { color:var(--good); } .no { color:var(--bad); }
+  .icon-btn { width:20px; height:20px; border:0; background:transparent; color:var(--faint); cursor:pointer; }
+  .icon-btn:focus { outline:none; }
+  .pulse { animation: pulse 1.4s ease-in-out infinite; display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--good); }
+  @keyframes pulse { 50% { transform: scale(1.8); opacity:.4; } }
+  .logos { display:flex; gap:32px; opacity:.5; margin-top:48px; font-weight:700; color:var(--faint); }
+</style></head>
+<body><main class="wrap">
+  <p class="eyebrow">How matching works</p>
+  <h2>Every payment, matched in seconds.</h2>
+  <div class="steps">
+    <div class="card"><span class="pulse"></span> <strong>1. Read the chain</strong>
+      <p>We watch your address and read each USDC or USDT transfer: token contract, network, amount.</p>
+      <p class="hint">Checked against the official contract <button class="icon-btn" title="info">ⓘ</button><button class="icon-btn" title="copy">⧉</button></p></div>
+    <div class="card"><strong>2. Match the invoice</strong>
+      <p>Amount and reference are compared with your open invoices. <span class="ok">Matched</span> or <span class="no">Not matched</span>.</p>
+      <p class="hint">99.9% of payments match automatically.</p></div>
+    <div class="card"><strong>3. You approve</strong>
+      <p>Nothing reaches your books until a person approves it.</p>
+      <p class="hint">Then it posts to Xero, QuickBooks and NetSuite.</p></div>
+  </div>
+  <div class="logos" aria-label="Used by"><span>CIRCLE</span><span>XERO</span><span>STRIPE</span></div>
+</main></body></html>
