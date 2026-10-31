@@ -1,0 +1,84 @@
+{
+ "_note": "SYNTHETIC fixture for holdout T4. Real (checked live on mainnet.base.org 31 Oct 2026): USDbC 0xd9aA...b6CA symbol USDbC, 6 decimals, isBlacklisted() reverts; native USDC 0x8335...2913 symbol USDC, 6 decimals, isBlacklisted() answers; Base serves 'safe' and 'finalized' block tags. Fictional: payer, deposit, tx hash, block numbers, provider B.",
+ "invoice": {
+  "id": "INV-3310",
+  "customer": "Larkspur Studio (fictional)",
+  "amount": "2500.00",
+  "asked": "USDC on Base"
+ },
+ "workspace": {
+  "depositAddresses": [
+   {
+    "row": 2,
+    "address": "0x4b1d00000000000000000000000000000ba5e001",
+    "chain": "ethereum",
+    "customerId": "C-4410",
+    "assignedAt": "2026-03-01T00:00:00Z"
+   }
+  ]
+ },
+ "pmProposedSettings": {
+  "officialContracts": {
+   "base": {
+    "USDC": "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA"
+   }
+  },
+  "note": "PM draft, unreviewed: 'add Base USDC, copied from the token list in our wallet app'"
+ },
+ "providerA": {
+  "name": "https://mainnet.base.org (official public RPC)",
+  "fetchedAt": "2026-10-29T20:14:05Z",
+  "eth_getTransactionByHash": {
+   "hash": "0x00000000ba5e0000000000000000000000000000000000000000000000000d04",
+   "blockNumber": "0x32bed57",
+   "blockHash": "0x00000000ba5eb10c0000000000000000000000000000000000000000000000a1",
+   "from": "0x0b5e000000000000000000000000000000a11ce0",
+   "to": "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca",
+   "input": "0xa9059cbb0000000000000000000000004b1d00000000000000000000000000000ba5e001000000000000000000000000000000000000000000000000000000009502f900"
+  },
+  "eth_getTransactionReceipt": {
+   "status": "0x1",
+   "blockNumber": "0x32bed57",
+   "blockHash": "0x00000000ba5eb10c0000000000000000000000000000000000000000000000a1",
+   "gasUsed": "0xb4a2",
+   "effectiveGasPrice": "0x4c4b40",
+   "logs": [
+    {
+     "address": "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca",
+     "topics": [
+      "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+      "0x0000000000000000000000000b5e000000000000000000000000000000a11ce0",
+      "0x0000000000000000000000004b1d00000000000000000000000000000ba5e001"
+     ],
+     "data": "0x000000000000000000000000000000000000000000000000000000009502f900",
+     "logIndex": "0x3"
+    }
+   ]
+  },
+  "eth_blockNumber": "0x32bed6d",
+  "safe": "0x32bed5b",
+  "finalized": "0x32beaf5",
+  "eth_getBlockByNumber": {
+   "number": "0x32bed57",
+   "timestamp": "0x6ae3a8e1"
+  }
+ },
+ "providerB": {
+  "name": "https://rpc-b.example.invalid (third-party indexer, fictional)",
+  "fetchedAt": "2026-10-29T20:14:06Z",
+  "eth_getTransactionByHash": null,
+  "eth_blockNumber": "0x32bed34"
+ },
+ "tokenFacts": {
+  "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca": {
+   "symbol": "USDbC",
+   "decimals": 6,
+   "isBlacklisted": "execution reverted"
+  },
+  "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913": {
+   "symbol": "USDC",
+   "decimals": 6,
+   "isBlacklisted(0x0)": "0x0000...0000 (false)"
+  }
+ }
+}
