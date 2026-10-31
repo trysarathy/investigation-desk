@@ -127,12 +127,12 @@ footer(s, "¹ ERC-20 standard (eips.ethereum.org/EIPS/eip-20). Real cases in our
 
 # ---------------------------------------------------------------- 4. Solution
 s = new("""
-SAY: Clearline is a smart cashier for digital-dollar payments. Before anyone pays, it tells the customer exactly what to send, on which network and to which address. When a payment arrives correctly, it ticks the invoice off by itself. When something is wrong, it explains why in plain English and drafts the reply to the customer. It never moves money; a person makes every decision that isn't routine.
+SAY: Clearline is a smart cashier for digital-dollar payments. Before anyone pays, it tells the customer exactly what to send, on which network and to which address. When a payment arrives correctly, it checks it and has the invoice ready to mark paid once you approve. When something is wrong, it explains why in plain English and drafts the reply to the customer. It never moves money; a person makes every decision that isn't routine.
 LABELS: these are product capabilities, [VERIFIED] in the working demo (demo/REQUESTS_DEMO.md, "Working now" column). Real-world accuracy of the payment-matching side — not yet tested on real data (demo/REPORT.md).
 """)
 title(s, "A smart cashier for digital-dollar payments", "It does the checking a finance person does today, and shows its work.")
 outs = [("howtopay", "Customers know exactly how to pay", "Amount, network and address on one page"),
-        ("ticked", "Correct payments tick themselves off", "Checked and marked paid automatically"),
+        ("ticked", "Correct payments, ready to mark paid", "Once you approve, with the reasons written down"),
         ("explains", "Problems explain themselves", "The cause in plain English, and the reply drafted")]
 cw = (W - 2 * M - 2 * 0.4) / 3
 for k, (ic, h1, h2) in enumerate(outs):
@@ -270,7 +270,7 @@ footer(s, "None of these is tested yet. Three early calls with vendor teams, on 
 
 # ---------------------------------------------------------------- 10. Business model
 s = new("""
-SAY: I haven't tested pricing, so these are two hypotheses. Direct: a monthly subscription per finance team, priced by payment volume. Embedded: a gateway or custodian pays per exception Clearline handles for its merchants. The interviews will tell me which one people would actually pay for: I'll ask what an exception costs them today in staff time.
+SAY: The founding pilot price is set: US$300 for 30 days, then US$200 a month, for the first 10 businesses. Beyond the pilot I haven't tested pricing, so these are two hypotheses. Direct: a monthly subscription per finance team, priced by payment volume. Embedded: a gateway or custodian pays per exception Clearline handles for its merchants. The interviews will tell me which one people would actually pay for: I'll ask what an exception costs them today in staff time.
 LABELS: both models and all prices [ASSUMPTION]/[GUESS], untested.
 """)
 title(s, "Business model: two hypotheses, both untested")

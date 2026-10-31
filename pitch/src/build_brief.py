@@ -79,7 +79,7 @@ To understand the problem properly, I built a working version myself, with AI co
 LABELS: all three steps work in the demo today, on fictional data [VERIFIED: demo/REQUESTS_DEMO.md]. The payment-matching side has not yet been tested on real data (demo/REPORT.md).
 """)
 head(s, "To explore it, I built a smart cashier")
-steps = [("howtopay", "The customer sees exactly how to pay"), ("ticked", "Correct payments tick themselves off"), ("explains", "Problems are explained, with the reply drafted")]
+steps = [("howtopay", "The customer sees exactly how to pay"), ("ticked", "Correct payments: ready to mark paid once you approve"), ("explains", "Problems are explained, with the reply drafted")]
 cw = (W - 2 * M - 2 * 0.6) / 3
 for k, (ic, t) in enumerate(steps):
     x = M + k * (cw + 0.6)
@@ -201,7 +201,8 @@ pill(s, M, 5.55, "Happy to walk you through the demo in 15 minutes if useful", c
 s = new("""
 This is very rough, and I'm including it only in case you're curious; none of it is tested. I'd rather get the problem right first.
 SOURCES / LABELS:
-- Two pricing ideas [ASSUMPTION/GUESS]: a monthly fee per finance team (S$300–800, ASSUMPTION), or a fee per exception paid by a payment company (S$1–3, GUESS).
+- Set (Aashmiin's decision, 31 Oct 2026): founding pilot US$300 for 30 days, then US$200/month, first 10 businesses.
+- Beyond the pilot, two pricing ideas [ASSUMPTION/GUESS]: a monthly fee per finance team (S$300–800, ASSUMPTION), or a fee per exception paid by a payment company (S$1–3, GUESS).
 - Size, Singapore only [mixed]: 300+ Web3 companies (VERIFIED: Singapore EDB, "Singapore: the onchain state", undated) × ~50% paid directly in stablecoins (GUESS) × S$6,000/year (ASSUMPTION) = about S$0.9M/year if every one bought. That's a ceiling for a test market; no wider market size is claimed.
 - Main risks [ASSUMPTION]: checkout tools absorb the problem; licensing (read-only, but unconfirmed); getting access to companies' payment and invoice data; I'm a solo founder without payments-operations experience.
 """)

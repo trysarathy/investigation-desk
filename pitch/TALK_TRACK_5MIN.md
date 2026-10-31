@@ -6,7 +6,7 @@ About 30 seconds a slide. Speak the lines below, and don't read the slide. The d
 |---|---|---|
 | 0:00 | **1 Title** | "I'm Aashmiin, a second-year SMU accountancy student. This is Clearline, a working demo. I'm here for honest feedback, not to sell." |
 | 0:20 | **2 Paid in seconds, checked for hours** | "When a business is paid in stablecoins, the money arrives in seconds. When something's off, a finance person spends a long time finding out which of these four it was. 'Hours' is my assumption; interviews will test it." |
-| 0:55 | **3 Smart cashier** | "Clearline tells the customer exactly how to pay, ticks off correct payments by itself, and explains problems in plain English with the reply drafted. It never touches the money." |
+| 0:55 | **3 Smart cashier** | "Clearline tells the customer exactly how to pay, has correct payments ready to mark paid once you approve, and explains problems in plain English with the reply drafted. It never touches the money." |
 | 1:20 | **4 Demo** | "This is the real app on fictional data." Point at 1, 2, 3. *Optional: click the video (60 s).* |
 | 1:50 | **5 Why now** | "Singapore is writing its stablecoin rules now. McKinsey and Artemis estimate about US$226 billion a year of business stablecoin payments, though that's still tiny. And Singapore is a top-five sender." |
 | 2:25 | **6 Direct payments are the gap** | Point at the two lanes. "Checkout pages handle their own payments. Direct transfers from exchanges and company wallets land on a person." Then the table: "Every piece exists somewhere; nobody I've found handles the exception and the reply. That's a belief, not a finding." |

@@ -94,16 +94,16 @@ foot(s, "Bessemer Venture Partners, Apr 2026 (one-stop shops).  Bitwave: bitwave
 
 # 4 ---------------------------------------------------------------- WHAT I BUILT
 s = new("""
-Clearline asks for each payment clearly, matches it to its invoice, checks it's genuine, explains anything that went wrong in plain English, and posts it to your accounting system when you approve. On approval, the payment posts to the invoice in Xero with the transaction hash, token, network and USD value. A short payment posts as a partial payment with a note. Counterfeit and wrong-network payments are never posted. Every posting is in an audit log. It only reads the blockchain: it never holds or moves money.
-STATUS (exactly this): Xero connection built and checked in automated tests; posting rules tested in demo mode with a fictional company; first live test with Xero's demo company is next. QuickBooks next, NetSuite on the roadmap. 0 customers, working demo.
+Clearline asks for each payment clearly, matches it to its invoice, checks it's genuine, explains anything that went wrong in plain English and, once you approve, prepares the entry for Xero (in testing; QuickBooks next). In demo mode, on approval the payment posts to the invoice in Xero with the transaction hash, token, network and USD value. A short payment posts as a partial payment with a note. Counterfeit and wrong-network payments are never posted. Every posting is in an audit log. It only reads the blockchain: it never holds or moves money.
+STATUS (exactly this): Xero connection built and checked in automated tests; posting rules tested in demo mode with a fictional company; first live test with Xero's demo company is next. QuickBooks next, NetSuite on the roadmap. 0 customers, working demo. In a pilot: a Xero-ready import file the customer's accountant reviews and imports; live posting to a customer's Xero only after the Xero sandbox tests pass and Aashmiin approves.
 SCREENSHOT: Clearline's own "In your books" panel, in demo mode, with a fictional company (Northwind Pay) and fictional people. It is not Xero's interface.
 VIDEO: the 60-second demo plays on this slide in PowerPoint (click it); in a PDF, scan the QR code (github.com/trysarathy/investigation-desk, pitch/demo_live_60s.mp4). The video was recorded before the "In your books" step, so it shows steps 1–3 only.
 """)
 topline(s)
 text(s, M, 0.62, W - 2 * M, 0.7, "Stablecoin payments, matched, explained and in your books.", size=28, bold=True, name="Title")
-text(s, M, 1.32, W - 2 * M, 0.6, "Clearline asks for each payment clearly, matches it to its invoice, checks it's genuine, explains anything that went wrong in plain English, and posts it to your accounting system when you approve.", size=18, color=MUTED)
-steps = [("Ask", "A payment page per invoice"), ("Match", "Correct ones tick themselves off"),
-         ("Explain", "Wrong ones explained, reply drafted"), ("In your books", "Posted to your books on approval (Xero first)")]
+text(s, M, 1.32, W - 2 * M, 0.6, "Clearline asks for each payment clearly, matches it to its invoice, checks it's genuine, explains anything that went wrong in plain English and, once you approve, prepares the entry for Xero (in testing; QuickBooks next).", size=18, color=MUTED)
+steps = [("Ask", "A payment page per invoice"), ("Match", "Correct ones ready to mark paid once you approve"),
+         ("Explain", "Wrong ones explained, reply drafted"), ("In your books", "Xero entry prepared on approval (in testing)")]
 cw = (W - 2 * M - 3 * 0.25) / 4
 for k, (nm, d) in enumerate(steps):
     x = M + k * (cw + 0.25)
