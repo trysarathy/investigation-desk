@@ -1,0 +1,5 @@
+# FICTIONAL TEST FIXTURE - Company HQ "Approval Queue" tab, open items 2026-11-03 07:27 SGT
+id,queued_by,type,to,summary,deadline
+AQ-301,revops-crm-agent,first emails batch,46 new leads,"Batch for 3 Nov (shown in full in end-of-day 2 Nov)",2026-11-03 09:00
+AQ-302,content-marketer,LinkedIn post,her profile,"Post: 'Clearline now syncs payments straight into Xero' (draft)",2026-11-03 12:00
+AQ-303,revops-crm-agent,proposal draft,Korvanta Trade (FICTIONAL),"Pilot proposal SGD 2,000/3 months",2026-11-06

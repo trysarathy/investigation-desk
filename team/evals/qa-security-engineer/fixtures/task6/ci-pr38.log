@@ -1,0 +1,25 @@
+PR #38 books-polish @ 9d02e11 — CI 2026-10-29 13:41 SGT
+$ npx tsc --noEmit
+(no output, exit 0)
+$ npx vitest run      (run 1 of 3)
+ ❯ tests/accounting.test.ts (23 tests | 1 failed) 101ms
+   × posting rules > counterfeit: never posted 7ms
+     → expected 'ready' to be 'never' // Object.is equality
+ Test Files  1 failed | 19 passed | 1 skipped (21)
+      Tests  1 failed | 561 passed | 57 skipped (619)
+$ npx vitest run      (run 2 of 3)
+   × posting rules > counterfeit: never posted 6ms
+     → expected 'ready' to be 'never' // Object.is equality
+      Tests  1 failed | 561 passed | 57 skipped (619)
+$ npx vitest run      (run 3 of 3)
+   × posting rules > counterfeit: never posted 7ms
+     → expected 'ready' to be 'never' // Object.is equality
+      Tests  1 failed | 561 passed | 57 skipped (619)
+$ npx next build
+ ✓ Compiled successfully
+$ git diff --stat origin/main...origin/books-polish
+ src/components/books/BooksPanel.tsx | 64 ++++++++++++++++++-------
+ src/lib/accounting/rules.ts         |  3 +-
+$ git diff origin/main...origin/books-polish -- src/lib/accounting/rules.ts
+-  const neverKinds = new Set(["counterfeit", "wrong_network", "failed", "wrong_token"]);
++  const neverKinds = new Set(["wrong_network", "failed", "wrong_token"]); // counterfeit shown as a review instead

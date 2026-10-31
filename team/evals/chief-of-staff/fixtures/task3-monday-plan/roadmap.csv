@@ -1,0 +1,7 @@
+item,why (revenue link),status,PR / link,owner,target week,notes
+"Accounting sync fixes (overpayment account, partial failure, rounding)",Safe to run for paying pilots,shipped,https://github.com/trysarathy/investigation-desk/pull/38,Product,W1,Merged 4 Nov; rounding fix #42 merged 6 Nov
+Month-end receivables report (PDF/CSV),The paid pilot deliverable,shipped,https://github.com/trysarathy/investigation-desk/pull/41,Product,W1,Merged 6 Nov
+Tron USDT payment requests,Most leads are paid on TRC-20,in review,https://github.com/trysarathy/investigation-desk/pull/40,Product,W1,QA RED (decimals) 6 Nov
+Tron memo-less payments: match by amount only?,Tron payers often omit the reference,needs decision,,Product,W2,lead-engineer asks: amount-only with 'needs review' flag?
+Short payment: show likely invoice + post shortfall to a fees account (once approved),Northwind (Strong) needs it to pilot,proposed,,Product,W2,"Quote (Northwind call 5 Nov): 'Can it show which invoice a short USDT payment belongs to and post the shortfall to a fees account?' Spec in notes link"
+Auditor CSV export of matched payments,Asked by 1 call (Tidewater, Weak),proposed,,Product,W2,1 Weak call only

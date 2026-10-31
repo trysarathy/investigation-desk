@@ -1,0 +1,7 @@
+metric,value,source
+first emails sent today (D0),9,Touches date=2026-11-04 step=D0 status=sent
+follow-ups sent today (D4/D11),4,Touches
+replies today,3,Touches status=replied
+positive replies today,1,Touches notes start 'positive' (Kestrel Pay)
+bounces today,1,Touches status=bounced (Ostrava Trade)
+emails sent last 30 days (all steps),97,Touches

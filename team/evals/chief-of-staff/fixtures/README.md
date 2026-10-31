@@ -1,0 +1,7 @@
+# Fixtures (FICTIONAL)
+
+Everything in this folder is made up for testing chief-of-staff: companies, people, email addresses,
+PR numbers, Log rows and numbers. Only Clearline's rules, offer (US$300 / 30 days, then US$200/month,
+first 10 businesses), schedule and advisor names are real. Fictional addresses use example.com /
+example.edu. Times are SGT (UTC+8). CSV files mirror the Company HQ tab headers (read 29 Oct 2026).
+`common/` = the Sheet as of each task's run time unless a task folder has a file with the same name.

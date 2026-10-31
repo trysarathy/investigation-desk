@@ -1,0 +1,3 @@
+lead_id,company,stage,pilot_scope,started,next_step,next_step_date,notes,price_usd,offered_date,status (offered/accepted/invoiced/paid/declined),invoice_no,reason_in_their_words
+L-0855,Northwind Remit,pilot discussion,,,offer founding pilot at follow-up,2026-11-13,,,,,,
+L-0902,Kestrel Pay,proposal drafted,"USDC on Ethereum, QuickBooks",,Aashmiin to review proposal draft,2026-11-09,Proposal DRAFT (not sent),,,,,

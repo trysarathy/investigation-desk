@@ -1,0 +1,91 @@
+{
+  "_about": "REAL public Ethereum data (recorded 2026-10-24, repo tests/fixtures/real/POISON-1.json). The 'company' is a FICTIONAL sample company: its File A row below is SAMPLE COMPANY DATA from tests/real-data/SAMPLE-file-a-deposit-addresses.csv, which treats the victim's intended address as customer SAMPLE-C045's deposit address.",
+  "case": {
+    "reporting_customer": "SAMPLE-C045",
+    "customer_says": "I sent 49,999,950 USDT to my deposit address on 19 Dec 2025 and it never arrived.",
+    "tx_hash": "0xc0514a795f065fce8a3e1238a1ba480e8a792d45f6431ee4ba8d800bedd86a0f"
+  },
+  "receipt": {
+    "transactionHash": "0xc0514a795f065fce8a3e1238a1ba480e8a792d45f6431ee4ba8d800bedd86a0f",
+    "blockNumber": "0x16eefc8",
+    "blockHash": "0x3ab3d7082b5ec243dd1ff9b90c011566b2b4c5405d9c28fa4c227543f08b9e0f",
+    "from": "0xcb80784ef74c98a89b6ab8d96ebe890859600819",
+    "to": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "status": "0x1",
+    "logs": [
+      {
+        "address": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+        "topics": [
+          "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          "0x000000000000000000000000cb80784ef74c98a89b6ab8d96ebe890859600819",
+          "0x000000000000000000000000baff2f13638c04b10f8119760b2d2ae86b08f8b5"
+        ],
+        "data": "0x00000000000000000000000000000000000000000000000000002d7985422f80",
+        "blockHash": "0x3ab3d7082b5ec243dd1ff9b90c011566b2b4c5405d9c28fa4c227543f08b9e0f",
+        "blockNumber": "0x16eefc8",
+        "blockTimestamp": "0x6945702b",
+        "transactionHash": "0xc0514a795f065fce8a3e1238a1ba480e8a792d45f6431ee4ba8d800bedd86a0f",
+        "transactionIndex": "0x52",
+        "logIndex": "0x128",
+        "removed": false
+      }
+    ]
+  },
+  "head_at_check": {
+    "eth_blockNumber": "0x190c083",
+    "note": "recorded with the receipt"
+  },
+  "file_a_rows_for_customer": [
+    {
+      "address": "0xbaf4b1af7e3b560d937da0458514552b6495f8b5",
+      "chain": "ethereum",
+      "customer_id": "SAMPLE-C045",
+      "assigned_at": "2025-01-01T00:00:00Z",
+      "retired_at": ""
+    }
+  ],
+  "transfers_between_sender_and_destination_before_the_payment": [
+    {
+      "tx_hash": "0x9780f38b63f761ccfb8fde3b2c27630646baace1f06b2959a3874849937288bd",
+      "time": "2025-12-19T15:20:35.000000Z",
+      "block": 24047499,
+      "log_index": 665,
+      "from": "0xbaff2f13638c04b10f8119760b2d2ae86b08f8b5",
+      "to": "0xcb80784ef74c98a89b6ab8d96ebe890859600819",
+      "token_contract": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "token_symbol": "USDT",
+      "value_base_units": "5000",
+      "decimals": "6"
+    },
+    {
+      "tx_hash": "0x2733bf1d559657be6ef29de0456095a1c9a99d57fe351c55ad1cbe316d2b1405",
+      "time": "2025-12-19T15:12:11.000000Z",
+      "block": 24047457,
+      "log_index": 480,
+      "from": "0xcb80784ef74c98a89b6ab8d96ebe890859600819",
+      "to": "0xbaff2f13638c04b10f8119760b2d2ae86b08f8b5",
+      "token_contract": "0xfa2c55c4f26ebc569ace8f86bd09221265c49124",
+      "token_symbol": "U\u200d\u200d\u2063S\u200eD\u2063\u200f\u200f\u200e\u2063T\u200d\u200e",
+      "value_base_units": "50000000000000000000",
+      "decimals": "18"
+    },
+    {
+      "tx_hash": "0xfc1ea6df1228546a9634dd26cf1bf602f1f7fcb0540752c8c95def0743c091be",
+      "time": "2025-12-19T15:10:11.000000Z",
+      "block": 24047447,
+      "log_index": 344,
+      "from": "0xcb80784ef74c98a89b6ab8d96ebe890859600819",
+      "to": "0xbaff2f13638c04b10f8119760b2d2ae86b08f8b5",
+      "token_contract": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "token_symbol": "USDT",
+      "value_base_units": "0",
+      "decimals": "6"
+    }
+  ],
+  "settings": {
+    "dustThreshold": "1",
+    "confirmations": {
+      "ethereum": 12
+    }
+  }
+}

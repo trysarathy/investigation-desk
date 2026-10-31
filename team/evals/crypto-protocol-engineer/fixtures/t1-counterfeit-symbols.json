@@ -1,0 +1,47 @@
+{
+  "_about": "REAL public Ethereum data, recorded from eth.blockscout.com API v2 on 2026-10-24 (tests/fixtures/real/POISON-1.json in the repo). Token symbols are exactly as the contracts return them; JSON \\u escapes show the invisible characters. Official USDT on Ethereum: 0xdac17f958d2ee523a2206206994597c13d831ec7.",
+  "tokens": [
+    {
+      "contract": "0x6b278d3582e7a6ed76d7f2f8b7eb827447888c91",
+      "symbol_as_returned": "U\u200f\u2063\u200bS\u2063\u200d\u200f\u2063D\u200f\u2063\u200b\u200b\u2063\u200fT",
+      "example_tx": "0x4a7de120210fe79fc77b237c44091a18468fa7201187299cc1231df9c0afba20",
+      "decimals": "18"
+    },
+    {
+      "contract": "0x3877bd8266fd6dcdfa893f3ed244ba8837ef4cd2",
+      "symbol_as_returned": "U\u200d\u2063\u200c\u200e\u2063S\u200d\u2063\u200cD\u200b\u2063\u200eT\u200b",
+      "example_tx": "0xd39ce6b2fa0f106152dfd4c63eb37362a9d992d6c5bd62088eef5698cbbb998c",
+      "decimals": "18"
+    },
+    {
+      "contract": "0x43ab3d04a695d00233d88d99b2272a1c79233daa",
+      "symbol_as_returned": "U\u200fS\u2063\u200d\u200b\u200b\u2063\u200bD\u200c\u2063\u200fT\u200c",
+      "example_tx": "0x13480cb66c6fde7386e980980cff5af1f460af5a8520b4d235e64d07ac5d0e4a",
+      "decimals": "18"
+    },
+    {
+      "contract": "0xc200b4b7c36ca1a42d1670a824da8d9606184338",
+      "symbol_as_returned": "U\u200f\u200c\u2063\u200dS\u200e\u2063D\u200c\u200e\u2063\u200e\u200e\u03a4",
+      "example_tx": "0x3f7d4aa7eb48ab16e00f8c83508f6e2b3c2aa78d6631ba33b506ee6ff6142926",
+      "decimals": "18"
+    },
+    {
+      "contract": "0xcefacfcf7192f2b776b171ff064257a7ae40ffed",
+      "symbol_as_returned": "US\u200e\u200d\u2063\u200cD\u200d\u200d\u2063\u03a4\u200f\u200c\u200c",
+      "example_tx": "0x9f9d1839d4402f05981230a69d29d05b302910590ff74b552a60787f2cbe85de",
+      "decimals": "18"
+    },
+    {
+      "contract": "0x77820cbab0f1ddb836b257d4f1df0cad0f05a0a6",
+      "symbol_as_returned": "U\u200e\u2063\u200c\u200e\u2063S\u200d\u2063\u200fD\u2063\u200f\u200b\u2063T\u200d",
+      "example_tx": "0x866eb8856ce5a017bd2091bc0ded086d472015564ffdd5d21358f20f73cda1a3",
+      "decimals": "18"
+    },
+    {
+      "contract": "0xfa2c55c4f26ebc569ace8f86bd09221265c49124",
+      "symbol_as_returned": "U\u200d\u200d\u2063S\u200eD\u2063\u200f\u200f\u200e\u2063T\u200d\u200e",
+      "example_tx": "0x112c6e97c1bd36a5ce6008aa35b683c927adfab838f38a87da632147e12b86ec",
+      "decimals": "18"
+    }
+  ]
+}

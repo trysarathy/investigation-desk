@@ -1,0 +1,10 @@
+date,lead_id,company,domain,email,channel,step,subject,status,thread_id,approved,notes,inbox
+2026-10-23,L203,Vega Exchange OTC Pte Ltd,vega-otc.example,hannah.lim@vega-otc.example,email,D0,Quick question about stablecoin payments,sent,t-203,yes,,
+2026-10-27,L203,Vega Exchange OTC Pte Ltd,vega-otc.example,hannah.lim@vega-otc.example,email,D4,Re: Quick question about stablecoin payments,sent,t-203,auto,,
+2026-10-29,L202,Sunda Travel PT,sundatravel.example,ayu.pratiwi@sundatravel.example,email,D0,Quick question about stablecoin payments,sent,t-202,yes,,
+2026-10-31,L202,Sunda Travel PT,sundatravel.example,ayu.pratiwi@sundatravel.example,email,inbound,Re: Quick question about stablecoin payments,replied,t-202,,"positive: more info, asked for a call next week",
+2026-10-30,L201,Marlow Shipping Ltd,marlowshipping.example,ben.carter@marlowshipping.example,email,D0,Quick question about stablecoin payments,sent,t-201,yes,,
+2026-10-30,L204,Bright Coast Sdn Bhd,brightcoast.example,nur.aziz@brightcoast.example,email,D0,Quick question about stablecoin payments,bounced,t-204,yes,hard bounce 550 user unknown,
+2026-10-30,L205,Pinecrest Media Pty Ltd,pinecrest-media.example,chloe.martin@pinecrest-media.example,email,D0,Quick question about stablecoin payments,sent,t-205,yes,,
+2026-10-30,L207,Gale Fintech Ltd,galefintech.example,mark.ellis@galefintech.example,email,D0,Quick question about stablecoin payments,sent,t-207,yes,,
+2026-10-30,L208,Harbor Cloud Pte Ltd,harborcloud.example,ravi.shankar@harborcloud.example,email,D0,Quick question about stablecoin payments,sent,t-208,yes,,

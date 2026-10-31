@@ -1,0 +1,26 @@
+$ git log --oneline origin/main..origin/fee-tolerance
+4b1e9c2 Payments from an exchange that arrive within 1% short count as paid in full (withdrawal fees), so they tick off automatically
+e01a7d3 Copy: shorter reasons on the request page
+
+$ git show 4b1e9c2 --stat
+ src/lib/requests/lifecycle.ts | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+$ git show 4b1e9c2 -- src/lib/requests/lifecycle.ts
+@@ -4,7 +4,7 @@
+ import { sameAddress } from "../address";
+ import { compareDecimal, isDecimal } from "../decimal";
+-import { add, sub } from "../payments/money";
++import { add, mulBps, sub } from "../payments/money";
+@@ -341,7 +341,13 @@ export function deriveRequest(data: RequestsData, r: PaymentRequest, threshold: number): RequestView {
+   const received = confirmed.reduce((s, o) => add(s, o.amount), "0");
+   const pending = confirming.reduce((s, o) => add(s, o.amount), "0");
+   const outstanding = sub(r.amount, received);
+-  const cmp = compareDecimal(received.replace(/^-/, ""), r.amount);
++  // Exchanges take their withdrawal fee from the amount: from an exchange, within 1% short is paid in full.
++  const fromExchange = confirmed.some((o) => senderLabel(data, o.from)?.kind === "exchange");
++  const shortBy = sub(r.amount, received);
++  const cmp = fromExchange && !shortBy.startsWith("-") && compareDecimal(shortBy, mulBps(r.amount, 100)) <= 0
++    ? 0
++    : compareDecimal(received.replace(/^-/, ""), r.amount);
+   const maxConfirmations = Math.max(0, ...confirming.map((o) => o.confirmations));
