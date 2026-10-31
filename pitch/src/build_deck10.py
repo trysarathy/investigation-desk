@@ -58,12 +58,12 @@ foot(s, "¹ A token transfer records sender, receiver and amount: no invoice ref
 
 # ================================================================ 3. Solution (old 4)
 s = new("""
-SAY: Clearline is a smart cashier for digital-dollar payments. Before anyone pays, it tells the customer exactly what to send, on which network and to which address. When a payment arrives correctly, it ticks the invoice off by itself; when something is wrong, it explains why in plain English and drafts the reply. It never holds or moves money, and a person makes every decision that isn't routine.
+SAY: Clearline is a smart cashier for digital-dollar payments. Before anyone pays, it tells the customer exactly what to send, on which network and to which address. When a payment arrives correctly, it checks it and has the invoice ready to mark paid once you approve; when something is wrong, it explains why in plain English and drafts the reply. It never holds or moves money, and a person makes every decision that isn't routine.
 SOURCES / LABELS: the three outcomes are product capabilities [VERIFIED in the working demo], demo/REQUESTS_DEMO.md, "Working now" column. Real-world accuracy of the payment-matching side is not yet tested on real data (demo/REPORT.md).
-FROM OLD SLIDE 4 (moved here): the third outcome's full wording "Problems explain themselves" + "the reply drafted"; subtitle "It does the checking a finance person does today, and shows its work"; card details "amount, network and address on one page" / "checked and marked paid automatically" / "the cause in plain English, and the reply drafted"; footer "runs on fictional data; reads payments, never holds or moves money".
+FROM OLD SLIDE 4 (moved here): the third outcome's full wording "Problems explain themselves" + "the reply drafted"; subtitle "It does the checking a finance person does today, and shows its work"; card details "amount, network and address on one page" / "checked, then marked paid once you approve" / "the cause in plain English, and the reply drafted"; footer "runs on fictional data; reads payments, never holds or moves money".
 """)
 title(s, "Clearline is a smart cashier for digital dollars")
-outs = [("howtopay", "Customers know exactly how to pay"), ("ticked", "Correct payments tick themselves off"), ("explains", "Problems explain themselves, reply drafted")]
+outs = [("howtopay", "Customers know exactly how to pay"), ("ticked", "Correct ones: ready to mark paid on approval"), ("explains", "Problems explain themselves, reply drafted")]
 cw = (W - 2 * M - 2 * 0.4) / 3
 for k, (ic, h1) in enumerate(outs):
     x = M + k * (cw + 0.4)
@@ -165,7 +165,7 @@ foot(s, "Examples and sources for each row in the speaker notes (docs.stripe.com
 
 # ================================================================ 7. Business model & market (old 10 + 11)
 s = new("""
-SAY: I haven't tested pricing, so these are two hypotheses. Direct: a monthly subscription per finance team, priced by payment volume; embedded: a gateway or custodian pays per exception handled for its merchants. Bottom-up, the Singapore test market is deliberately small: 300-plus Web3 companies, about half paid directly in stablecoins, about 6,000 Singapore dollars a year each, is a ceiling of about 0.9 million a year. It grows beyond Singapore through Southeast Asia and India and through gateways, and I'll size that only after the interviews.
+SAY: The founding pilot price is set: US$300 for 30 days, then US$200 a month, for the first 10 businesses. Beyond the pilot I haven't tested pricing, so these are two hypotheses. Direct: a monthly subscription per finance team, priced by payment volume; embedded: a gateway or custodian pays per exception handled for its merchants. Bottom-up, the Singapore test market is deliberately small: 300-plus Web3 companies, about half paid directly in stablecoins, about 6,000 Singapore dollars a year each, is a ceiling of about 0.9 million a year. It grows beyond Singapore through Southeast Asia and India and through gateways, and I'll size that only after the interviews.
 SOURCES / LABELS:
 - Both models and both prices [ASSUMPTION]/[GUESS], untested; they're placeholders for the interviews, not quotes. Direct S$300–800/month [ASSUMPTION]; embedded S$1–3 per exception [GUESS].
 - 300+ Web3 companies in Singapore [VERIFIED]: Singapore EDB, "Singapore: the onchain state" (edb.gov.sg; undated, counting method not stated).

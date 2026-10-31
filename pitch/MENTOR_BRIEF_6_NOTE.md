@@ -13,7 +13,7 @@
   - What still looks manual: a small business paid straight into its own wallet, the payments that arrive wrong, and posting them correctly. This is marked as a hypothesis I'm testing in calls.
 - **Slide 4, solution:** the headline is now "Stablecoin payments, matched, explained and in your books."
   - It has the four steps: Ask, Match, Explain, In your books.
-  - Step 4 reads "Posted to your books on approval (Xero first)".
+  - Step 4 reads "Xero entry prepared on approval (in testing)".
   - It shows Clearline's own "In your books" panel, captioned "demo mode, fictional company". The screenshot is Clearline's own panel, not Xero's interface.
   - A status box reads: Xero connection built and checked in automated tests; posting rules tested in demo mode with a fictional company; first live test with Xero's demo company is next. QuickBooks next, NetSuite on the roadmap. 0 customers, working demo.
   - The 60-second video and QR are kept. The video predates the books step, so it shows steps 1–3 only (this is said in the speaker notes).
