@@ -68,7 +68,7 @@ address" (no address watching), "AI decides" (code decides; AI writes sentences,
 | Xero built, never run against a real org (enterprise #11, P13) | Tests mock fetch (`accounting.test.ts` "Xero and QuickBooks request shapes") [VERIFIED]; real-org status is founder's status |
 | 0 customers | Founder's status; not provable from code — keep labelled so |
 | Counterfeit can't be marked paid (enterprise #9) | `transferIssue`, `neverKinds`; tests `requests.test.ts` c. Orbit, `accounting.test.ts` "counterfeit: never posted" [VERIFIED] |
-| Xero tokens plain JSON, "default file permissions" | `writeAtomic` passes no mode (`lock.ts`): file mode = 0666 minus umask [ASSUMPTION: typical umask 022 → world-readable 0644] |
+| Xero tokens plain JSON, "default file permissions" | `writeAtomic` passes no mode (`lock.ts`): file mode = 0666 minus umask [ASSUMPTION: typical umask 022 → world-readable 0644; needs `umask` on the deploy host (Dockerfile runs as `USER node`, umask not set), not checkable from here 2026-10-31] |
 
 ### D. Security pack statements to keep true as code changes
 Every time one of these files changes, re-check the matching SECURITY_OVERVIEW row:

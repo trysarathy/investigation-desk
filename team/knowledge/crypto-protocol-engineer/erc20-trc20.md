@@ -14,8 +14,12 @@ page https://eips.ethereum.org/EIPS/eip-20) [VERIFIED].
   `transfer` and `transferFrom`) [VERIFIED]. Consequence: on tokens whose `transferFrom` accepts a
   zero amount with zero allowance, anyone can make the *genuine* contract emit
   `Transfer(victim → lookalike, 0)`; and anyone can deploy a token that emits any `Transfer` they like.
-  That is the basis of zero-value and forged-transfer poisoning [ASSUMPTION: the standard permits it;
-  the repo's POISON-2 real case shows a forged counterfeit-token transfer "from" a victim].
+  That is the basis of zero-value and forged-transfer poisoning [the standard permits it; the repo's
+  POISON-2 real case shows a forged counterfeit-token transfer "from" a victim]. For **USDC** it is
+  confirmed in source: FiatToken `transferFrom` only requires `value <= allowed[from][msg.sender]` (0 ≤ 0
+  passes) plus not-paused/not-blacklisted, and `_transfer` emits `Transfer` [VERIFIED:
+  github.com/circlefin/stablecoin-evm `contracts/v1/FiatTokenV1.sol` L258-321, git clone 2026-10-31]. For
+  Ethereum USDT still [ASSUMPTION: Etherscan source not readable].
 - `decimals()` is **OPTIONAL** ("can be used to improve usability … interfaces and other contracts MUST
   NOT expect these values to be present"). `name()` and `symbol()` are OPTIONAL too. [VERIFIED]
 - `transferFrom(_from, _to, _value)`: "used for a withdraw workflow, allowing contracts to transfer
@@ -47,7 +51,10 @@ A receipt log: `{address, topics[], data, logIndex, blockNumber, blockHash, tran
   `eth_subscribe("logs")` "Removed logs (due to chain reorgs) are pushed with `removed: true`."
   [VERIFIED: raw.githubusercontent.com/ethereum/execution-apis/main/src/schemas/receipt.yaml and
   .../src/eth/subscribe.yaml, 2026-10-31]. The spec states the reorg meaning for subscriptions only; for
-  `eth_getFilterChanges` the same behaviour is client practice [ASSUMPTION]. A plain receipt fetched after
+  `eth_newFilter`/`eth_getFilterChanges`, geth documents "In case logs are removed (chain reorg)
+  previously returned logs are returned again but with the removed property set to true" [VERIFIED:
+  github.com/ethereum/go-ethereum `eth/filters/api.go` NewFilter comment, git clone 2026-10-31]; other
+  clients not checked. A plain receipt fetched after
   a reorg is simply absent or different: never rely on `removed` alone.
 - Amount = value / 10^decimals, done with integers (`formatUnits` in `abi.ts`), never floats.
 
@@ -71,7 +78,8 @@ Genuine USDT, really sent, to `0xbaff…f8b5`: a poisoned look-alike of `0xbaf4�
 - A failed (`status 0x0`) tx emits **no logs**; Clearline recovers the intended transfer from
   `transfer(address,uint256)` call data only to explain D03, never to count it. [VERIFIED in code]
 - Fee-on-transfer / rebasing tokens: the Transfer value is what moved; balance deltas may differ.
-  USDT has a fee mechanism (`basisPointsRate`, `maximumFee`) set to 0 today [ASSUMPTION for Ethereum;
+  USDT has a fee mechanism (`basisPointsRate`, `maximumFee`) set to 0 today [ASSUMPTION for Ethereum:
+  no Ethereum RPC and no Etherscan reachable on 2026-10-31;
   the Tron USDT ABI exposes `calcFee`, `basisPointsRate`, `maximumFee`, `setParams`: VERIFIED on-chain
   ABI, see §6]. If Tether ever sets a fee, the received amount < sent amount: compare the Transfer
   `value` to the invoice, which the code already does.
@@ -80,17 +88,18 @@ Genuine USDT, really sent, to `0xbaff…f8b5`: a poisoned look-alike of `0xbaf4�
 
 | Chain | Token | Contract | `decimals()` | Evidence |
 |---|---|---|---|---|
-| Ethereum | USDT | `0xdAC17F958D2ee523a2206206994597C13D831ec7` | 6 | Recorded `eth_call 0x313ce567` in `tests/fixtures/real/POISON-1.json` (eth.drpc.org, 2026-10-24) [VERIFIED from recording] |
-| Ethereum | USDC | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` | 6 | `src/lib/fixtures/index.ts` comment: confirmed on Circle's page in week 3 [ASSUMPTION: not re-opened; developers.circle.com blocked in this session] |
+| Ethereum | USDT | `0xdAC17F958D2ee523a2206206994597C13D831ec7` | 6 | Recorded `eth_call 0x313ce567` in `tests/fixtures/real/POISON-1.json` (eth.drpc.org, 2026-10-24) [VERIFIED from recording]; address on Tether's list [VERIFIED: https://tether.to/en/supported-protocols/, 2026-10-31] |
+| Ethereum | USDC | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` | 6 | Address on Circle's list [VERIFIED: https://developers.circle.com/stablecoins/usdc-contract-addresses, 2026-10-31]; decimals 6 per `src/lib/fixtures/index.ts` (Circle's page states no decimals; no Ethereum RPC reachable to re-read) |
 | Tron | USDT | `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t` (hex `41a614f803b6fd780986a42c78ec9c7f77e6ded13c`) | 6 | TronGrid `triggerconstantcontract decimals()` → 6, name "Tether USD", symbol "USDT", contract name `TetherToken` (`/wallet/getcontract`) [VERIFIED on-chain] |
-| Arbitrum | USDC | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` | 6 | arb1.arbitrum.io `eth_call` → "USDC", "USD Coin", 6, `isBlacklisted(0x0)` answers [VERIFIED on-chain; issuer listing ASSUMPTION] |
-| Arbitrum | USDT0 | `0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9` | 6 | symbol **"USD₮0"** (U+20AE), name "USD₮0"; no `isBlackListed`/`isBlacklisted` selector [VERIFIED on-chain]; may still be freezable under other names (`isBlocked`?) [ASSUMPTION], see issuer-controls.md |
-| Base | USDC | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` | 6 | mainnet.base.org `eth_call` → "USDC", 6, `isBlacklisted` answers [VERIFIED on-chain] |
-| OP Mainnet | USDC | `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` | 6 | mainnet.optimism.io → "USDC", 6, `isBlacklisted` answers [VERIFIED on-chain] |
+| Arbitrum | USDC | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` | 6 | arb1.arbitrum.io `eth_call` → "USDC", "USD Coin", 6, `isBlacklisted(0x0)` answers [VERIFIED on-chain]; on Circle's list [VERIFIED: https://developers.circle.com/stablecoins/usdc-contract-addresses, 2026-10-31] |
+| Arbitrum | USDT0 | `0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9` | 6 | symbol **"USD₮0"** (U+20AE), name "USD₮0"; no `isBlackListed`/`isBlacklisted` selector, **but freezable via `isBlocked(address)` `0xfbac3951` / `addToBlockedList` / `destroyBlockedFunds`** in the proxy's implementation; `decimals()` re-read = 6 [VERIFIED on-chain, arb1.arbitrum.io, 2026-10-31; corrected: was "may still be freezable (`isBlocked`?)"], see issuer-controls.md §3 |
+| Base | USDC | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` | 6 | mainnet.base.org `eth_call` → "USDC", 6, `isBlacklisted` answers [VERIFIED on-chain]; on Circle's list [VERIFIED: https://developers.circle.com/stablecoins/usdc-contract-addresses, 2026-10-31] |
+| OP Mainnet | USDC | `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` | 6 | mainnet.optimism.io → "USDC", 6, `isBlacklisted` answers [VERIFIED on-chain]; on Circle's list ("OP Mainnet") [VERIFIED: https://developers.circle.com/stablecoins/usdc-contract-addresses, 2026-10-31] |
 | OP Mainnet | USDT (bridged) | `0x94b008aA00579c1307B0EF2c499aD98a8ce58e58` | 6 | → "USDT", "Tether USD", 6; **no** blacklist or `paused()` function: a bridged token, not Tether's own contract [VERIFIED on-chain] |
 | BNB Chain | BSC-USD (Binance-Peg USDT) | `0x55d398326f99059fF775485246999027B3197955` | **18** | bsc-dataseed → symbol "USDT", name "Tether USD", **18 decimals**, no freeze function [VERIFIED on-chain] |
 | BNB Chain | Binance-Peg USDC | `0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d` | **18** | → "USDC", "USD Coin", **18** [VERIFIED on-chain] |
-| Polygon | USDC / USDT | not checked | — | No reachable Polygon RPC in this session [could not verify] |
+| Polygon PoS | USDC | `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359` | not read | On Circle's list [VERIFIED: https://developers.circle.com/stablecoins/usdc-contract-addresses, 2026-10-31]; decimals not read (polygon-rpc.com "tenant disabled", other Polygon RPCs blocked, 2026-10-31) |
+| Polygon PoS | USDT | — | — | Not on Tether's list [VERIFIED: https://tether.to/en/supported-protocols/, 2026-10-31] |
 
 **Rules that follow:**
 1. Decimals are per contract, not per symbol. "USDT has 6 decimals" is false on BNB Chain (18). A request
@@ -147,5 +156,7 @@ See `issuer-controls.md`. In short: USDT (TetherToken) exposes `isBlackListed`, 
 ## Sources
 - ERC-20: https://raw.githubusercontent.com/ethereum/ERCs/master/ERCS/erc-20.md (accessed 2026-10-29) [VERIFIED]
 - TRON docs (account, resource, contracts, HTTP API): https://github.com/tronprotocol/documentation-en/tree/master/docs (accessed 2026-10-29) [VERIFIED]
-- On-chain: TronGrid `https://api.trongrid.io/wallet/getcontract`, `/wallet/triggerconstantcontract`; `https://arb1.arbitrum.io/rpc`, `https://mainnet.base.org`, `https://mainnet.optimism.io`, `https://bsc-dataseed.bnbchain.org` `eth_call` (2026-10-29) [VERIFIED]
+- On-chain: TronGrid `https://api.trongrid.io/wallet/getcontract`, `/wallet/triggerconstantcontract`; `https://arb1.arbitrum.io/rpc`, `https://mainnet.base.org`, `https://mainnet.optimism.io`, `https://bsc-dataseed.bnbchain.org` `eth_call` (2026-10-29; Arbitrum USDT0 re-read 2026-10-31) [VERIFIED]
+- Issuer lists: https://developers.circle.com/stablecoins/usdc-contract-addresses , https://tether.to/en/supported-protocols/ (2026-10-31) [VERIFIED]
+- github.com/circlefin/stablecoin-evm `contracts/v1/FiatTokenV1.sol`; github.com/ethereum/go-ethereum `eth/filters/api.go` (git clone, 2026-10-31) [VERIFIED]
 - Repo recordings: `tests/fixtures/real/POISON-1.json`, `TRN-01.json`, `NET-ARB.json` (recorded 2026-10-24)

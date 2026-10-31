@@ -123,8 +123,7 @@ function table() {
   return ["| Surface | Foreground | Background | Ratio | Needs | Result | Used for |", "|---|---|---|---|---|---|---|", ...rows].join("\n");
 }
 
-if (process.argv[2] && process.argv[3]) {
-  console.log(ratio(hex(process.argv[2]), hex(process.argv[3])).toFixed(2) + ":1");
-} else if (import.meta.url === `file://${process.argv[1]}`) {
-  console.log(table());
+if (import.meta.url === `file://${process.argv[1]}`) {
+  if (process.argv[2] && process.argv[3]) console.log(ratio(hex(process.argv[2]), hex(process.argv[3])).toFixed(2) + ":1");
+  else console.log(table());
 }

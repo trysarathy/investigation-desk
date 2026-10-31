@@ -1,0 +1,3 @@
+lead_id,company,domain,country,segment,contact_name,contact_role,email,evidence_url,evidence_date,stage,tier,notes
+L201,Harbourline Trading Pte Ltd,harbourline.example,Singapore,Commodity trading / exporter,Mei Tan,Financial Controller,mei.tan@harbourline.example,https://harbourline.example/payments,2026-09-14,Call booked,1,"FICTIONAL. Payments page lists USDT TRC-20 and ERC-20"
+L202,Saltmarsh Digital,saltmarsh.example,Hong Kong,Web3 agency,Jon Reyes,Head of Finance,jon.reyes@saltmarsh.example,https://saltmarsh.example/blog/we-now-accept-usdc,2026-06-02,Call held,1,"FICTIONAL. Strong on 27 Oct"

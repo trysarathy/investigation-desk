@@ -1,8 +1,8 @@
 # Confirmations, finality and reorgs, per chain
 
-Accessed 2026-10-29. [VERIFIED] = source opened or measured on-chain while writing. Docs sites
-(ethereum.org, docs.arbitrum.io, docs.polygon.technology, docs.bnbchain.org) were blocked from this
-session; where only a search summary was available the claim is labelled [ASSUMPTION: search summary].
+Accessed 2026-10-29 (Polygon and Tron docs re-opened 2026-10-31). [VERIFIED] = source opened or measured
+on-chain while writing. Docs sites were blocked on 2026-10-29; where only a search summary was available
+the claim is labelled [ASSUMPTION: search summary].
 
 ## Vocabulary
 - **Inclusion**: the tx is in *a* block. Probabilistic until finality.
@@ -82,14 +82,22 @@ Source: BEP-126 "Fast Finality Mechanism", `github.com/bnb-chain/BEPs/master/BEP
   agrees, the milestone is finalized, and all transactions up to that milestone are considered final, with
   no chance of reorganization"; finality "is deterministic even before a checkpoint is submitted to L1"
   [VERIFIED: raw.githubusercontent.com/0xPolygon/heimdall-v2/develop/x/milestone/README.md, 2026-10-31].
-  Still unverified: "2 to 5 seconds", that Bor serves milestones as `eth_getBlockByNumber("finalized")`,
-  and checkpoints every ≥256 blocks [ASSUMPTION: search summary of docs.polygon.technology/pos/concepts/finality;
-  not opened. No Polygon RPC was reachable to measure.]
-- Polygon historically had deep reorgs before milestones; treat any pre-2025 confirmation advice (e.g. 128
-  or 256 blocks) as obsolete but don't rely on the new numbers until opened. [ASSUMPTION]
+- Polygon's docs: "deterministic finality is now achieved in 2 to 5 seconds, thanks to 1 to 2 second
+  block times in Heimdall"; "Milestones typically finalize a transaction within 2 to 5 seconds"; use
+  `eth_getBlockByNumber` with the `"finalized"` tag to get the latest finalized block, and "Finalized blocks
+  are considered irreversible"; a tx is final when its block ≤ that block [VERIFIED: https://docs.polygon.technology/pos/concepts/finality/finality, 2026-10-31].
+- Checkpoints to Ethereum are separate from milestones: they "cover a contiguous range of Bor blocks (the
+  length is a governance-set parameter, not a fixed cadence)" [VERIFIED: same page]. Corrected 2026-10-31:
+  was "checkpoints every ≥256 blocks". Don't wait for a checkpoint to treat a Polygon tx as final.
+- Pre-milestone advice (wait 128 or 256 blocks) is superseded by the `finalized` tag: the page makes
+  milestone finality the rule and does not mention block counts [VERIFIED: same page; "obsolete" is our
+  reading]. No Polygon RPC was reachable to measure the lag (polygon-rpc.com "tenant disabled").
 
 ## Tron (DPoS)
-Source: TRON docs `mechanism-algorithm/dpos.md` (github.com/tronprotocol/documentation-en, master) [VERIFIED].
+Source: TRON docs `mechanism-algorithm/dpos.md` (github.com/tronprotocol/documentation-en, master) [VERIFIED];
+re-checked on developers.tron.network/docs/concensus 2026-10-31: ≥ 19 distinct active SRs, "typically in about
+1 minute", and the node "does not calculate solidification by counting down a fixed number of confirmations"
+[VERIFIED].
 - 27 Super Representatives produce blocks in turn every 3 s; epochs of 6 h with a maintenance period
   that skips 2 slots. [VERIFIED]
 - "A block becomes an **irreversible block** (commonly referred to as a **solidified block**) when it is
@@ -117,7 +125,7 @@ Two gates, because the cost of being wrong differs:
 | BNB Chain | 15 blocks (current default) | tx block ≤ `finalized` | `eth_getBlockByNumber("finalized")` | seconds |
 | Base / OP | `safe` | `finalized` | `eth_getBlockByNumber` tags | ~20-30 min |
 | Arbitrum | `safe` | `finalized` | tags (L1-derived) | ~15-20 min |
-| Polygon PoS | `finalized` (milestones) | `finalized` | tag | seconds [ASSUMPTION] |
+| Polygon PoS | `finalized` (milestones) | `finalized` | tag | 2-5 s per Polygon docs [VERIFIED 2026-10-31; not measured] |
 
 Plus, for every gate: (1) re-read the receipt at gate time and check `blockHash` still equals the
 canonical block at that number (`eth_getBlockByNumber(n).hash`); (2) if the tx is gone or moved, treat
@@ -146,5 +154,6 @@ finality guarantee [VERIFIED as cited in docs/SPEC.md section 3].
 - https://raw.githubusercontent.com/OffchainLabs/arbitrum-docs/master/content/docs/how-arbitrum-works/deep-dives/finality.mdx , .../reference/finality-and-reorgs.mdx , .../priority-gas-auction/pga.mdx (source of docs.arbitrum.io), accessed 2026-10-31 [VERIFIED]
 - https://raw.githubusercontent.com/bnb-chain/BEPs/master/BEPs/BEP-590.md , BEP-619.md , BEP-648.md , BEP-667.md , accessed 2026-10-31 [VERIFIED]
 - https://raw.githubusercontent.com/0xPolygon/heimdall-v2/develop/x/milestone/README.md , accessed 2026-10-31 [VERIFIED]
-- https://docs.polygon.technology/pos/concepts/finality/finality (search summary only; timing and RPC-tag claims) [ASSUMPTION]
+- https://docs.polygon.technology/pos/concepts/finality/finality , opened 2026-10-31 [VERIFIED]
+- https://developers.tron.network/docs/concensus ("solidified — once at least 19 distinct active SRs have each produced a block at that height or above, typically in about 1 minute"; code uses `SOLIDIFIED_THRESHOLD = 70`), opened 2026-10-31 [VERIFIED]
 - On-chain block-tag reads: arb1.arbitrum.io, mainnet.base.org, mainnet.optimism.io, bsc-dataseed.bnbchain.org, api.trongrid.io (2026-10-29) [VERIFIED]

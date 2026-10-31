@@ -57,8 +57,9 @@ Source: TRON docs `mechanism-algorithm/account.md` [VERIFIED].
 - Ed25519 public keys, base58, 32 bytes (typically 43-44 chars). SPL tokens live in **associated token
   accounts** derived from (owner, mint); a payment goes to the ATA, not the wallet address; transfers are
   instructions inside a tx, identified by signature, not by EVM-style logs. USDC mint
-  `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` [ASSUMPTION: third-party listing via search; Circle's page
-  not opened]. Adding Solana is a new adapter and a new matching key (signature + instruction index), not
+  `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` [VERIFIED: https://developers.circle.com/stablecoins/usdc-contract-addresses,
+  2026-10-31]. Tether's Solana USD₮ is `Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB` [VERIFIED:
+  https://tether.to/en/supported-protocols/, 2026-10-31]. Adding Solana is a new adapter and a new matching key (signature + instruction index), not
   a config change.
 
 ## Look-alikes (poisoning) vs checksum
