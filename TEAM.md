@@ -86,6 +86,6 @@ from an examiner who never saw their files (`team/HOLDOUT_RESULTS.md`):
 | accounting-integrations-engineer | Xero, then QuickBooks; docs/POSTING_RULES.md (her sign-off) | 4.48 | 4.80 | live |
 | matching-engine-engineer | invoice matching, confidence, docs/MATCHING_EVALS.md | 4.69 | 4.80 | live |
 | frontend-product-engineer | the five controller screens | 4.82 | 4.80 | live |
-| code-reviewer | reviews every PR; never writes code | 4.85 | re-testing | not yet scheduled |
+| code-reviewer | reviews every PR; never writes code | 4.85 | 4.40 (3rd set, after 2 fails + retraining) | live |
 
 Reorganisation, schedules and pauses: `company/OPERATING_MODEL.md` §6 and `company/NIGHT_SHIFT.md`.

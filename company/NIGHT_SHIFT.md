@@ -20,14 +20,14 @@ and set the mode to Auto. Every other task already has its connectors and runs i
 | 23:47 daily | accounting-integrations-engineer | "Clearline nightly build (accounting-integrations-engineer)" | **click needed**: Sheets, Auto |
 | 00:17 daily | matching-engine-engineer | "Clearline nightly build (matching-engine-engineer)" | **click needed**: Sheets, Auto |
 | 00:47 daily | frontend-product-engineer | "Clearline nightly build (frontend-product-engineer)" | **click needed**: Sheets, Auto |
-| 02:47 daily | code-reviewer | (created once its fresh hidden test passes) | not scheduled |
+| 02:47 daily | code-reviewer | "Clearline nightly code review (code-reviewer)" | **click needed**: Sheets, Auto |
 | 03:27 daily | devops-engineer | "Clearline nightly deploy check" (ruleset + CI) | **click needed**: Gmail, Sheets, Auto |
 | 04:17 daily | qa-security-engineer | "Clearline nightly QA on PRs + product health" | live |
 | 05:47 daily | crypto-finance-user | "Clearline release test as a finance user" (only if main changed) | **click needed**: Sheets, Auto |
 | 06:17 daily | tech-lead-architect | "Clearline morning integration check + merge gate" | **click needed**: Gmail, Sheets, Auto |
 
 Builders work only the tasks in `team/plan/tasks-<date>.md` and exit fast when they have none. Nothing
-merges until main's ruleset requires the `ci` check AND code-reviewer is live.
+merges until main's ruleset requires the `ci` check.
 
 ## Day
 

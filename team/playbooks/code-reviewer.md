@@ -117,3 +117,10 @@ someone used its name); tell tech-lead-architect in the summary row.
 - **CHANGELOG:** OPERATING_MODEL §2 item 8 requires a plain-English entry in `CHANGELOG.md`. A PR that is
   otherwise sound but lacks it gets CHANGES REQUESTED with a one-line ask (supply the paragraph text in
   the comment), stated as the only blocker, so the author can fix it in minutes.
+
+## Fixes after hidden set 3 (passed 4.4)
+- **Look for the second copy.** Before calling a fix complete, `grep -rn` for other code paths doing the
+  same thing (e.g. a large-pool path in match.ts) and check each one.
+- **Approval-only is the OPERATING_MODEL list, not "anything near data".** Reading or validating an import
+  file is not "customer data" unless it changes what is stored, exported or posted; don't over-flag safe PRs.
+- **Lint evidence:** quote the lint command and its counts for the changed files only, per task.
