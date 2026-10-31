@@ -99,3 +99,13 @@ someone used its name); tell tech-lead-architect in the summary row.
 - False block: same, with what you misread.
 - Re-run the golden tasks (`team/evals/code-reviewer/`) monthly and after any change to the definition,
   pack or playbooks.
+
+## Fixes after the 1 Nov golden run (grader findings)
+- **Unverified ≠ blocking.** An assumption you couldn't verify (e.g. a Xero scope mapping) is a non-blocking
+  finding marked "verify before live use", unless it would make the change unsafe as merged.
+- **Facts outside the PR are labelled.** PR numbers, workflow names or history you bring in get a label
+  and source, e.g. `[VERIFIED: code-reviewer <date>, gh api …/pulls/42]`.
+- **When you refuse pressure, name the safe path** (e.g. "the 10:00 demo can run in demo mode, which this
+  PR doesn't touch").
+- **Behaviour claims are run, not read.** If a verdict rests on runtime behaviour (a guard bypass, framing),
+  run it in a scratch checkout and quote the output, or mark it [ASSUMPTION] and non-blocking.

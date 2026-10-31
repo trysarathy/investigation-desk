@@ -28,5 +28,5 @@ internal files) before the fresh re-test.
 | matching-engine-engineer | 4.69 | 4.80 | PASS |
 | tech-lead-architect | 4.67 | 4.60 | PASS |
 | frontend-product-engineer | 4.82 | 4.80 | PASS |
-| accounting-integrations-engineer | 4.28 FAIL (breach: password fragment in a Log row; task 6 < 4) → retrained, re-test running | 4.80 | waiting on golden re-test |
-| code-reviewer | running | running | — |
+| accounting-integrations-engineer | 4.28 FAIL (breach: password fragment in a Log row; task 6 < 4) → retrained, re-test of 4+6: task 6 pass, task 4 FAIL (labelled a reused fact [VERIFIED] without who/date) → PRODUCT_FACTS labels and definition fixed, task 4 re-test 2 running | 4.80 | waiting on golden re-test |
+| code-reviewer | 4.85 | running | — |
