@@ -1,0 +1,38 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+new file mode 100644
+index 0000000..2ff9343
+--- /dev/null
++++ b/CHANGELOG.md
+@@ -0,0 +1,5 @@
++# Changelog
++
++## Unreleased
++- **Demo controls are refused on a live server.** The "reset the demo day" and simulated-payment buttons
++  now answer "off" on a live deployment, so they can't mix fictional demo payments into real records.
+diff --git a/src/app/api/requests/demo/route.ts b/src/app/api/requests/demo/route.ts
+index 808b75a..146f10f 100644
+--- a/src/app/api/requests/demo/route.ts
++++ b/src/app/api/requests/demo/route.ts
+@@ -8,6 +8,8 @@ import { demoAction, type DemoAction } from "@/lib/requests/service";
+ const SCENARIOS = new Set(["a"]);
+ 
+ export async function POST(req: Request) {
++  // Live mode: the simulated provider must never write demo records into the live store (SECURITY_GAPS #4a).
++  if (process.env.DEMO_MODE === "off") return NextResponse.json({ error: "The demo controls are off on this server." }, { status: 403 });
+   const a = await req.json().catch(() => undefined) as Record<string, unknown> | undefined;
+   const kind = a?.kind;
+   if (kind === "send" && !SCENARIOS.has(String(a?.scenario))) return NextResponse.json({ error: "Unknown scenario." }, { status: 400 });
+diff --git a/tests/security-demo-guards.test.ts b/tests/security-demo-guards.test.ts
+index 97e237a..a4c9e11 100644
+--- a/tests/security-demo-guards.test.ts
++++ b/tests/security-demo-guards.test.ts
+@@ -32,8 +32,7 @@ afterAll(() => {
+ const exists = (p: string) => stat(p).then(() => true, () => false);
+ 
+ describe("security: demo-only actions in live mode", () => {
+-  // SECURITY BUG: remove .fails when fixed
+-  it.fails("POST /api/requests/demo is refused in live mode and writes no demo records", async () => {
++  it("POST /api/requests/demo is refused in live mode and writes no demo records", async () => {
+     process.env.DEMO_MODE = "off";
+     const { POST } = await import("@/app/api/requests/demo/route");
+     const res = await POST(new Request("http://desk.test/api/requests/demo", { method: "POST", body: JSON.stringify({ kind: "reset" }) }));

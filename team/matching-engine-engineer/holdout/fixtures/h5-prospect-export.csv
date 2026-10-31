@@ -1,0 +1,13 @@
+row,received_at_sgt,chain,token_symbol,token_contract,from_address,to_address,amount,payer_name,payer_email,open_invoices_for_payer,ops_suggested_invoice
+1,2026-10-02 10:14,ethereum,USDC,0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48,0x7a1f...c3d0,0x51e2...9ab4,12000.00,Kestrel Studio Pte Ltd,ap@kestrel.example,TG-2201 (12000.00),TG-2201
+2,2026-10-03 16:02,ethereum,USDC,0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48,0x7a1f...c3d0,0x51e2...9ab4,4500.00,Kestrel Studio Pte Ltd,ap@kestrel.example,TG-2207 (9000.00),TG-2207
+3,2026-10-05 09:40,tron,USDT,TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t,TQx9...k2Lm,TJr4...8vWq,8000.00,Larkspur Media,finance@larkspur.example,TG-2210 (3000.00); TG-2211 (5000.00),TG-2210
+4,2026-10-06 11:21,ethereum,USDC,0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48,0x93cc...0e17,0x51e2...9ab4,2500.00,Orchid Labs,pay@orchid.example,TG-2214 (2500.00); TG-2215 (2500.00),
+5,2026-10-08 14:55,bsc,USDT,0x55d398326f99059ff775485246999027b3197955,0x93cc...0e17,0x51e2...9ab4,2500.00,Orchid Labs,pay@orchid.example,TG-2214 (2500.00); TG-2215 (2500.00),TG-2215
+6,2026-10-09 08:03,ethereum,USDT,0x3f1a2b4c5d6e7f8091a2b3c4d5e6f7081920a1b2,0x1d4e...77a9,0x51e2...9ab4,6000.00,Pinecone Ventures,ar@pinecone.example,TG-2219 (6000.00),TG-2219
+7,2026-10-12 19:30,ethereum,USDC,0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48,0x7a1f...c3d0,0x51e2...9ab4,12030.00,Kestrel Studio Pte Ltd,ap@kestrel.example,TG-2224 (12000.00),TG-2224
+8,2026-10-14 12:12,ethereum,USDC,0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48,0x0bb2...e5f1,0x51e3...9ab4,1800.00,Unknown,,,
+9,2026-10-15 07:45,tron,USDT,TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t,TQx9...k2Lm,TJr4...8vWq,3000.00,Larkspur Media,finance@larkspur.example,TG-2230 (3000.00); TG-2231 (3000.00),
+10,2026-10-18 15:20,ethereum,USDC,0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48,0x93cc...0e17,0x51e2...9ab4,999.50,Orchid Labs,pay@orchid.example,TG-2236 (1000.00),TG-2236
+11,2026-10-21 10:05,ethereum,USDC,0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48,0x7a1f...c3d0,0x51e2...9ab4,4500.00,Kestrel Studio Pte Ltd,ap@kestrel.example,TG-2207 (9000.00; 4500.00 received),TG-2207
+12,2026-10-27 17:48,ethereum,USDC,0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48,0x1d4e...77a9,0x51e2...9ab4,7500.00,Pinecone Ventures,ar@pinecone.example,TG-2240 (7500.00),TG-2240

@@ -1,0 +1,21 @@
+--- a/src/lib/accounting/types.ts
++++ b/src/lib/accounting/types.ts
+@@ export interface PostingLine {
+   kind: LineKind;
+-  /** USD amount, exact decimal string. "0" for a note. */
+-  amount: string;
++  /** USD amount in integer cents. 0 for a note. */
++  amountCents: number;
+@@
+--- a/src/lib/accounting/providers/xero.ts
++++ b/src/lib/accounting/providers/xero.ts
+-const num = (s: string) => Number(s); // Xero's JSON takes numbers; amounts are already rounded to cents
++const num = (c: number) => c / 100; // cents -> Xero number
+@@
+--- a/src/lib/accounting/rules.ts
++++ b/src/lib/accounting/rules.ts
+ export function idempotencyKeyFor(requestId: string, lines: PostingLine[]): string {
+-  const canon = lines.map((l) => [l.kind, l.amount, l.observationKey ?? "", l.accountCode ?? ""].join("|")).join(";");
++  const canon = lines.map((l) => [l.kind, String(l.amountCents), l.observationKey ?? "", l.accountCode ?? ""].join("|")).join(";");
+@@ (planPosting) tokenAmount -> cents now uses Math.round(Number(tokenAmount) * 100)
++      amountCents: Math.round(Number(usd) * 100),

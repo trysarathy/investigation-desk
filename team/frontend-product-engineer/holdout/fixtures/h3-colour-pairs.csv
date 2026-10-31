@@ -1,0 +1,12 @@
+id,mode,foreground_token,foreground_hex,background_token,background_hex,where_used,text_size_weight
+P1,light,--text-3,#8a8d94,--panel,#ffffff,".faint timestamps and IDs in inbox rows","12px / 400"
+P2,light,--text-3,#8a8d94,--canvas,#f7f7f5,".eyebrow section labels on the page background","11px / 600 uppercase"
+P3,light,--text-3,#8a8d94,--panel-2,#fafaf9,"table header cells (th)","12px / 500"
+P4,light,--text-2,#5b5e66,--panel-2,#fafaf9,".demo-badge text 'Demo data'","11px / 500"
+P5,light,--amber,#8a5a00,--amber-soft,#fdf3dc,"warning badge text","12px / 500"
+P6,light,--accent-text,#ffffff,--accent,#3b5bdb,"primary button label (Approve)","13px / 500"
+P7,light,--green,#1f7a3d,--green-soft,#e9f5ec,"'Paid' pill text","12px / 500"
+P8,dark,--text-3,#767982,--panel,#18191d,".faint timestamps and IDs in inbox rows","12px / 400"
+P9,dark,--text-3,#767982,--panel-2,#1d1e23,"table header cells (th)","12px / 500"
+P10,dark,--text-3,#767982,--canvas,#111215,".eyebrow section labels","11px / 600 uppercase"
+P11,light,--border-strong,#d2d2cc,--panel-2,#fafaf9,".demo-badge dashed border (non-text)","1px dashed"
