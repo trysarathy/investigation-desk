@@ -18,7 +18,7 @@ n beside every number. Rules: `team/knowledge/matching-engine-engineer/metrics.m
 | Tuning (`tests/real_cases.json`), replayed by `npx vitest run` | **57** recorded (of 59; 2 are live captures) | **57/57** expected code + findings | 93.7%-100% | 2026-11-01, my run on 0c7d9f1 | yes |
 | Tuning, before the 24-25 Oct fixes | 59 | 43/59 | 60.4%-82.6% | 2026-10-24, live app (`demo/results/results.md`) | no |
 | Held-out (`tests/real_cases_holdout.json`) | **52** | **52/52** expected code + findings | 93.1%-100% | one run, label `holdout2`, 2026-10-25 ~00:53 SGT, live app, no keys (`demo/results/holdout-after.json`) | **no** (no recordings) |
-| Held-out: false alarms on normal (credited) payments | 12 | 0/12 | 0%-24.3% (exact one-sided upper 22.1%) | same run | no |
+| Held-out: false alarms on normal (credited) payments | 12 | 0/12 | 0%-24.2% (exact one-sided upper 22.1%) | same run | no |
 | Held-out: wrong **and** High confidence | 52 | 0/52 | 0%-6.9% (exact one-sided upper 5.6%) | same run | no |
 
 Intervals: [VERIFIED: computed 2026-11-01, Wilson formula as in statsmodels `proportion_confint`].
