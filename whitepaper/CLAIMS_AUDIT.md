@@ -59,7 +59,7 @@ Labels: **V** = verified, **A** = assumption (written as a hypothesis), **G** = 
 | G2 | 500–2,000 target businesses in SG/HK; US$1.2–4.8M a year | G | Arithmetic on a guess | |
 | G3 | Chain data US$50–300/month per deployment | G | none | |
 | G4 | Per-exception partner pricing | G | none | |
-| P0 | Pricing: US$300 for 30 days, then US$200/month | A | `gtm/offer.py` in the separate GTM repo, per the enterprise claims audit | Untested |
+| P0 | Pricing: founding pilot US$300 for 30 days, then US$200/month, first 10 businesses | A | Aashmiin's decision, 31 Oct 2026 (also `gtm/offer.py` in the separate GTM repo) | Set, but untested with buyers |
 
 ## 2. Product claims
 

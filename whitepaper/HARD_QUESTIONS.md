@@ -51,7 +51,9 @@ own matching has been tested only on simulated data. The real measure will be pi
 
 **8. Would you let a pilot customer connect their Xero today?**
 Not yet. There's no sign-in, Xero tokens are stored unencrypted, the audit log isn't tamper-evident, and the Xero
-permissions need updating to granular scopes. All of these come before the first live pilot. *(Section 5.)*
+permissions need updating to granular scopes. So a pilot doesn't connect their Xero: it delivers matching,
+explanations and a Xero-ready import file that their accountant reviews and imports. Live posting to a customer's Xero
+is switched on only after the Xero sandbox tests pass and I approve it. *(Section 5.)*
 
 **9. Are you a regulated payment business?**
 No. Clearline never receives, holds or moves funds. My assumption, not yet checked by a lawyer, is that this keeps it
