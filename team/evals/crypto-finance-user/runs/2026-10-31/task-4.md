@@ -47,7 +47,7 @@ I am playing a simulated controller. Nothing I say is a customer view.
 
 **Buyer (habit/alternative):** One more. Stripe takes USDC on Ethereum and Base and settles it to my Stripe balance in SGD. Why wouldn't I put Stripe on the invoice and never see a wrong payment? *(O7 [VERIFIED: pack, docs.stripe.com opened 2026-10-31]. For this buyer it's a real alternative: both of their networks are in Stripe's list.)*
 
-**Buyer (competitor):** And Bitwave or Request Finance already sync to NetSuite. *(O4 [INTERNAL: OBJECTIONS.md, VERIFIED by Aashmiin's doc 28 Oct 2026].)*
+**Buyer (competitor):** And Bitwave or Request Finance already sync to NetSuite. *(O4 [INTERNAL: OBJECTIONS.md, which itself labels this VERIFIED 28 Oct 2026; I did not open bitwave.io or help.request.finance this run].)*
 
 **Buyer (close):** Send me your security pack and the NetSuite docs and I'll take a look. *(Polite brush-off. No next step with a date was asked for in the planned lines.)*
 
