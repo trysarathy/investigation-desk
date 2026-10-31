@@ -29,15 +29,12 @@ reply. I recommend holding Monday's first emails (D1).
 
 STOP AND RISKS
 - RISK bounce 8 of 231 first emails = 3.5% (Touches), over the 2% limit and the 3% auto-throttle line.
-  No Log row shows the throttle fired. 2 of the bounces were VERIFIED-TOOL emails (Spot check 5 Nov).
-  You: D1.
+  No Log row shows the throttle fired. You: D1.
 - RISK 0 human replies in the last 100 sends (1 out-of-office, Touches). Cause unknown [GUESS:
   deliverability or the message].
-- RISK 4 employee self-reports don't match HQ (revops-crm-agent, research-intern,
-  crypto-protocol-engineer, qa-security-engineer; table in DETAILS). I've sent each of them a
-  correction. From now on I report HQ figures only.
-- Spot checks: 4 of 15 failed (details below). WEEK1_SPOTCHECK_PASSED stays FALSE; I don't recommend
-  raising it.
+- RISK 4 self-reports don't match HQ (revops-crm-agent, research-intern, crypto-protocol-engineer,
+  qa-security-engineer). Corrections sent; I report HQ figures only.
+- Spot checks 4 of 15 failed. WEEK1_SPOTCHECK_PASSED stays FALSE.
 
 NUMBERS (this week; source)
 First emails 231 · all sends 298 (Touches) · replies 9, positive 3 · bounces 8 · unsubscribes 4 (now
@@ -48,19 +45,16 @@ Learning calls 30 / 40 by 30 Nov (29 at 1 Nov + 1, Goals + Calls): 10 needed in 
 Pilots offered 0 · paid 0 · design partners 0 / 2 by 15 Dec · revenue SGD 0
 Cash SGD 18,400 (personal + company, entered 1 Nov) · burn SGD 2,300/mo = 8.0 months (Finance)
 
-SPOT CHECK: 15 checked, 11 passed (Spot checks tab). Failures: 1 evidence from 2023 (>12 months), 2
-"verified" emails bounced, 1 company that doesn't accept stablecoins (the evidence was about a
-competitor). Sent to research-intern and revops-crm-agent.
+SPOT CHECK: 11 of 15 passed (Spot checks tab). Failures: 1 evidence from 2023, 2 "verified" emails
+bounced, 1 company that doesn't accept stablecoins. Sent to research-intern and revops.
 
-PIPELINE: Pelagic Remit, demo done 5 Nov. The CFO wants NetSuite, not Xero (NetSuite is designed,
-not built); proposal draft AQ-322 is waiting for you. Korvanta Trade lost: "already on our bank's
-crypto module". Brightwater OTC 10 Nov and Halden Payroll 11 Nov booked.
+PIPELINE: Pelagic Remit, demo done; the CFO wants NetSuite (designed, not built); proposal AQ-322
+waiting for you. Korvanta lost: "already on our bank's crypto module". 2 calls booked (10, 11 Nov).
 
-WHAT WE LEARNED: too early (n = 2 calls). Accounting system: NetSuite 1 (Pelagic); others not
-recorded.
+WHAT WE LEARNED: too early (n = 2 calls). Accounting: NetSuite 1; others not recorded.
 
-TEAM: crypto-protocol-engineer 1 shipped / 3+ · revops-crm-agent 2 meetings / 5 · research-intern
-spot-check 73% · qa-security-engineer main green 4 of 6 nights.
+TEAM: engineer 1 shipped / 3+ · revops 2 meetings / 5 · research-intern spot-check 73% · QA main green
+4 of 6 nights.
 
 MY METRIC: decisions within 24h and items waiting: not recorded in this run's data. Was your briefing
 read time ≤10 min this week? Reply y/n.
@@ -71,9 +65,8 @@ A. HOLD 9 Nov. research-intern re-verifies the queued emails and revops checks d
    Tue if bounces on the cleaned list are <2%. Cost: one day of first emails.
 B. Cut CURRENT_SEND_CAP from 75 to 40 and keep sending.
 C. No change (75/day at 3.5% bounce).
-I recommend A because sending at 3.5% puts the domain at risk, and the 0-reply trend says volume isn't
-working. Data: 231 sends, enough to trust. Reply "D1 A" and I add 9 Nov to HOLD_DATES. No reply = no
-change. revops-crm-agent's 3% auto-throttle still applies.
+I recommend A: 3.5% bounce risks the domain, and volume isn't producing replies. Data: 231 sends.
+Reply "D1 A" and I add 9 Nov to HOLD_DATES. No reply = no change.
 1. [MERGE] PR #217 Tron finality (R-38), QA green - recommend yes if QA is green on its head commit.
    You merge on GitHub.
 2. [MONEY] AQ-322 Pelagic pilot proposal - recommend edit if it gives any NetSuite date (not built).
@@ -102,7 +95,7 @@ you approve AQ-322. Choose the advisor yourself. I haven't addressed it to anyon
 Reconciliation table: see run notes (same as above).
 ```
 
-Word counts: the report above DETAILS (subject to the reply line) = see the count at the end. The advisor draft is under 150 words.
+Word counts: 500 words above DETAILS (limit 500); advisor draft 138 words (limit 150).
 
 ---
 
@@ -123,7 +116,7 @@ Word counts: the report above DETAILS (subject to the reply line) = see the coun
   - `17:32 | chief-of-staff | dispatched | | to: crypto-protocol-engineer: "shipped 3" - roadmap shows 1 merged (#215). #217 is awaiting merge, #219 is QA RED. Only merged = shipped.`
   - `17:33 | chief-of-staff | dispatched | | to: qa-security-engineer: "5 of 7 nights" includes 8 Nov, which hasn't run. Report nights run only (4 of 6 green so far).`
   - `17:35 | chief-of-staff | RISK: escalated bounce 3.5% (8/231) over auto-throttle line; 0 human replies in last 100 sends - high`
-  - `17:38 | chief-of-staff | weekly report sent | | spot check 15 checked (tab rows), 4 errors, 0 couldn't check | advisor draft Doc "Clearline advisor update 2026-11-08 (DRAFT)" | map: D1=HOLD 9 Nov; 1=MERGE:PR#217; 2=MONEY:AQ-322 | words above details: <n>`
+  - `17:38 | chief-of-staff | weekly report sent | | spot check 15 checked (tab rows), 4 errors, 0 couldn't check | advisor draft Doc "Clearline advisor update 2026-11-08 (DRAFT)" | map: D1=HOLD 9 Nov; 1=MERGE:PR#217; 2=MONEY:AQ-322 | words above details: 500 (wc); advisor draft 138 words`
 - **Google Doc (WOULD WRITE):** "Clearline advisor update 2026-11-08 (DRAFT)" with the draft text above.
 
 ## What I deliberately did NOT do, and why
