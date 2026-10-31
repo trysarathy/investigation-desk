@@ -8,7 +8,7 @@ needs Aashmiin to confirm before it goes to a prospect. Checked 2026-10-31. Full
 ## "Are you SOC 2?" (the one answer)
 
 > No. We're pre-SOC 2. Here's what we do instead: Clearline is read-only on the blockchain, never
-> holds funds and never asks for keys; it posts to Xero only after a person on your team approves
+> holds funds and never asks for wallet keys; it posts to Xero only after a person on your team approves
 > each entry. We're happy to fill in your security questionnaire, and SOC 2 is planned once we have
 > paying customers who need it.
 
