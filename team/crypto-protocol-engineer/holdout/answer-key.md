@@ -133,11 +133,11 @@ Push or merge.
 **Excellent answer contains**
 - Evidence. The payment was mined in block 87,296,570 at 21 Oct 06:12:03Z, and the ledger credited it at
   06:14:40Z. `AddedBlackList` for the **deposit** address `TVFrTYUb…` came in block 87,533,532 at 29 Oct
-  11:40:09Z. Converting the event's `0x d39050…c0ffe` gives `41d39050…` and then `TVFr…`, so it is the
+  11:40:09Z. Converting the event's `0xd39050…c0ffe` gives `41d39050…` and then `TVFr…`, so it is the
   same address. Today's `isBlackListed` returns true. It proves the address is frozen **now**, and it was
-  **not** frozen when the payment was received (the event came 8 days later, and a frozen recipient can
-  still receive USDT, so even the event timing is the real proof). It does not prove anything about the
-  sender.
+  **not** frozen when the payment was received. The proof is the event's timing (8 days later), not the
+  successful receipt: Tether's `transfer` checks the sender only, so a blacklisted address can still
+  receive USDT [ASSUMPTION, contract source not read]. It proves nothing about the sender.
 - What it means. Tether's Tron USDT blocks transfers **out of** a blacklisted address, so the 18,500 USDT
   cannot be moved by Harbourline. Tether can also destroy the balance (`destroyBlackFunds`)
   [ASSUMPTION/unverified]. Release only via Tether. Nobody at Clearline can say it is "safe".
