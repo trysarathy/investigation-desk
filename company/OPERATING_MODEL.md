@@ -26,21 +26,31 @@ timezone, and fix QuickBooks the same way; (2) the reorg dismiss bug; (3) the se
 2. Tests written first and failing (or the existing `it.fails` test switched to `it`).
 3. The fix.
 4. All checks green: CI (install, typecheck, lint, tests, build) on the PR.
-5. **Code review by a separate agent** (not the author), using `team/playbooks/code-review.md`,
-   recorded as a PR comment starting `CODE REVIEW: APPROVE` or `CODE REVIEW: CHANGES REQUESTED`.
-6. **qa-security-engineer passes it**, recorded as a PR comment starting `QA: PASS`.
+5. **Code review by code-reviewer** (a separate agent; never the author), using
+   `team/playbooks/code-review.md`, recorded as a PR comment whose first line is
+   `CODE REVIEW: APPROVE <head sha>`, `CODE REVIEW: CHANGES REQUESTED <head sha>` or
+   `CODE REVIEW: BLOCK <head sha>`. A BLOCK stops the PR until code-reviewer lifts it.
+6. **qa-security-engineer passes it**, recorded as a PR comment `QA: PASS <head sha>`.
 7. A demo-mode check and a real-mode check where relevant (stated in the PR with what was run).
 8. A one-paragraph plain-English changelog entry in `CHANGELOG.md`.
 
-**Auto-merge** (by the author agent, using `gh api .../pulls/<n>/merge` with merge method "squash")
-happens only when ALL of these are true, checked at merge time:
-- branch protection is on for `main` and CI is green on the PR's head commit;
-- both a `CODE REVIEW: APPROVE` and a `QA: PASS` comment exist for that head commit;
+**Who merges:** tech-lead-architect's morning run (06:17 SGT) is the merge gate. It merges
+(`gh api -X PUT .../pulls/<n>/merge -f merge_method=squash`) only when ALL of these are true, checked at
+merge time:
+- **Protection is on.** `gh api repos/trysarathy/investigation-desk/rules/branches/main` lists all of
+  `pull_request`, `non_fast_forward`, `deletion` AND `required_status_checks` including `ci`.
+  (main uses a repository ruleset, so the old `branches/main/protection` endpoint returns 404 even
+  when protection is on: never use it as the test.) As of 1 Nov the ruleset has the first three but
+  **no required status check**, so nothing auto-merges until Aashmiin adds "Require status checks:
+  ci".
+- CI (`ci` check) is green on the PR's head commit;
+- both `CODE REVIEW: APPROVE <head sha>` and `QA: PASS <head sha>` exist, and no unlifted BLOCK;
 - the diff is under ~300 changed lines;
 - nothing in the approval-only list below is touched.
+If CI or protection isn't set up, devops-engineer fixes that first and nothing auto-merges until it is.
 
 **Approval-only (never auto-merge, always her click):** anything touching keys, wallets, auth,
-secrets, permissions, posting to Xero/QuickBooks, money amounts, customer data, pricing, production or
+secrets, permissions, Xero/QuickBooks posting rules and posting, money amounts, customer data, pricing, production or
 deploy settings, or deletions. These go to the Approval Queue tab with a 3-line summary and the risk.
 Note: the UTC posting-date fix touches posting to Xero/QuickBooks, so it is approval-only.
 
@@ -68,3 +78,22 @@ number becomes a roadmap row (`proposed`) with a screenshot or reproduction.
 ## 5. Her daily email (chief-of-staff, 07:27 SGT, ≤ 300 words)
 What was built and merged (plain English); what needs her approval; research worth acting on;
 today's customer work for her: who to contact, with the draft ready.
+
+## 6. The technical team (reorganised 1 Nov 2026)
+**Nightly technical team:** tech-lead-architect (plan 21:17, merge gate 06:17), crypto-protocol-engineer,
+accounting-integrations-engineer, matching-engine-engineer, frontend-product-engineer, code-reviewer,
+qa-security-engineer, devops-engineer, lead-designer. Builders work ONLY the tasks tech-lead-architect
+assigned in `team/plan/tasks-<YYYY-MM-DD>.md` and exit quickly when they have none.
+**Still running:** chief-of-staff (daily email, Sunday scorecards), research-intern (Monday technical
+and regulation research only), sales-closer-assistant (call-prep drafts for Aashmiin only),
+revops-crm-agent's one weekday evening drafting run (drafts into the Approval Queue; sends nothing).
+**Paused to save spend:** gtm-strategist, content-marketer, revops hourly/LinkedIn/partner runs,
+research-intern's lead and target research.
+**The 14-day target** (Day 1 = 1 Nov, Day 14 = 14 Nov 2026) is owned by tech-lead-architect:
+`docs/PLAN_14_DAY.md`, reported every evening as done / in progress / blocked.
+
+## 7. Cost
+Keep runs efficient: read only what the task needs, exit early when there is nothing to do, one
+agent per task. If any run hits a spend or usage-limit error: finish the current task safely (push
+the branch, no half-merged state), stop, write a Log row starting "RISK: spend limit", and the next
+daily email says so first.
