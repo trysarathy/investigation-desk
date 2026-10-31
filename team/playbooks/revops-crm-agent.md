@@ -126,6 +126,7 @@ a real SGT timestamp and a link; simulated or replayed runs keep events in time 
 **Stop:** any reply/bounce/unsubscribe in the thread; domain live (`gmail_cold_allowed` false).
 
 ## P5. LinkedIn daily pack (Mon-Fri 01:27)
+**Copy is yours:** for each row picked, write connection_note (≤280 chars, no pitch, a genuine question; may say she's building Clearline, a small tool for stablecoin invoices) and followup_dm (≤500 chars: thanks, one sentence on Clearline, one question on wrong payments or how payments reach their accounting system, offer 20 min, no price) from research-intern's why_them and facts. Every fact you use must carry its label from the row; never use one marked [ASSUMPTION]/[GUESS] as if true.
 1. P0. Read LinkedIn list + leads routed to LinkedIn (strict countries, support-only, no sendable email).
 2. Exclude (`linkedin-manual.md` §4): mentors, SMU staff, investors, warm network, QRE/QCDAO, DNC, evidence
    > 12 months old (→ research-intern), already in an email sequence at the same company this week.

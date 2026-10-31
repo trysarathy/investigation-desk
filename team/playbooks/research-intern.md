@@ -34,11 +34,9 @@ Steps
    b. include only if the result shows name + role + company + linkedin.com/in URL together;
       never open the profile to collect more;
    c. dedupe by linkedin_url and name+company against the whole tab; skip DNC companies;
-   d. write why_them (one line + source URL), connection_note (≤280 chars, no pitch, a genuine
-      question; may say she's building Clearline, a small tool for stablecoin invoices),
-      followup_dm (≤500 chars: thanks, one sentence on Clearline, one question on wrong payments or
-      how payments reach their accounting system, offer 20 min, no price), status "to send",
-      day_added, tier.
+   d. write why_them (one line + source URL, labelled) and the facts a note could use (role, recent
+      public activity, company evidence), status "to send", day_added, tier. **Leave connection_note
+      and followup_dm empty**: revops-crm-agent writes them (research-intern never drafts outreach).
 4. Rows with status "accepted" and no DM → "dm ready".
 5. **Research watch** (max 5, last 7 days): competitors (launches, pricing, funding) and regulation
    (MAS, MiCA, HK, FCA, US federal/state, India, accounting standards). Each: date, one line,
