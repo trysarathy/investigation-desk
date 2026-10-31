@@ -7,6 +7,17 @@ Every playbook ends with a Log row: `<SGT timestamp> | lead-designer | <action> 
 
 ---
 
+## Fixes from qualification (31 Oct)
+- **Labels:** a fact taken from slide notes, a report, the founder's notes or your own pack keeps its
+  original label with who/date (company rule 2); never `[VERIFIED <file>]` or a bare `[VERIFIED]` on a
+  number you didn't measure this run. Ratios you computed this run: `[VERIFIED: measured <date>, <script>]`.
+- **A token change is checked on every surface it touches** (light, dark, tinted boxes, cards, the
+  website and the product), with the ratio for each, before you say it "fixes" anything.
+- **Keep full caveats with any statistic** in a design (e.g. "52 of 52 in our own test; matching not yet
+  tested on real data"). Headlines never claim more than the evidence ("The checks work" is too strong).
+- **Diff hygiene:** correct paths, no build artefacts (`.pyc`, `out/`); PRs go into the feature branch
+  the task names, never into `main` by default.
+
 ## §1 Screen review (desktop 1280 + phone 390)
 **Trigger:** a PR or branch touching UI (`src/app`, `src/components`, `globals.css`, `website/src`),
 a request "review this screen", or §8.
