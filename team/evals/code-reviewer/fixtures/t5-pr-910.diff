@@ -1,0 +1,113 @@
+# PR #910, all commits shown separately (git log -p origin/main..pr-910), oldest first.
+
+commit 6b1f0c2e9a7d4c11a2f3e5d6b7c8a9e0f1d2c3b4
+Author: Aashmiin Kaur <aashmiin@gmail.com>
+Date:   Sat Oct 31 23:41:07 2026 +0800
+
+    fix(xero): refresh the access token 5 minutes before expiry, not 1
+
+    Agent: accounting-integrations-engineer
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+diff --git a/src/lib/accounting/providers/xero-auth.ts b/src/lib/accounting/providers/xero-auth.ts
+--- a/src/lib/accounting/providers/xero-auth.ts
++++ b/src/lib/accounting/providers/xero-auth.ts
+@@ -66,11 +66,14 @@ export function accessToken(fetchFn: Fetch = fetch as unknown as Fetch, now = Date.now()): Promise<{ token: string; tenantId: string }> {
+   return withLock(fileLockKey(tokenFile()), () => refreshIfNeeded(fetchFn, now));
+ }
+ 
++/** Refresh this long before expiry: a Xero call can take a while, and a token that expires mid-post fails the post. */
++export const REFRESH_MARGIN_MS = 5 * 60_000;
++
+ async function refreshIfNeeded(fetchFn: Fetch, now: number): Promise<{ token: string; tenantId: string }> {
+   const t = await loadTokens();
+   if (!t) throw new Error("Xero isn't connected. Connect it on the Books page (/books).");
+-  if (t.expiresAt - now > 60_000) return { token: t.accessToken, tenantId: t.tenantId };
++  if (t.expiresAt - now > REFRESH_MARGIN_MS) return { token: t.accessToken, tenantId: t.tenantId };
+   const r = await tokenRequest({ grant_type: "refresh_token", refresh_token: t.refreshToken }, fetchFn);
+   const next: XeroTokens = { ...t, accessToken: r.access_token, refreshToken: r.refresh_token, expiresAt: now + r.expires_in * 1000 };
+   await writeAtomic(tokenFile(), JSON.stringify(next));
+diff --git a/tests/fixtures/xero-token-response.json b/tests/fixtures/xero-token-response.json
+new file mode 100644
+--- /dev/null
++++ b/tests/fixtures/xero-token-response.json
+@@ -0,0 +1,7 @@
++{
++  "id_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjFDQUY4RTY2NzcyRDZEQzAyOEQ2NzI2RkQwMjYxNTgxNTcwRUZDMTkiLCJ0eXAiOiJKV1QifQ.e30.sig",
++  "access_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjFDQUY4RTY2NzcyRDZEQzAyOEQ2NzI2RkQwMjYxNTgxNTcwRUZDMTkiLCJ0eXAiOiJKV1QifQ.scdYCC4WwnmxFnWFkki9B_vF1O7-vYCdFFn3lzZjBJtq4kYfvk6BkR1YsmanvI1L3y9SnJm__-dsOYiu7bFZ2aPl_97F5BRARzi_PMFi6sf2F7XKQPyAJ6ieI5FxViSy_IUVIxhQqIajMoZgkZfkz1QspcBue_-aikSzgAqu7OzNEKRvq89yCkzNpdh2f3KXAd67-PGtidzUevZdlXJV5Nd9c97m3cQqw93sEmNl1AxUVUfr.8vR9Q48Lso-zGDChTnCf2xuHOvmC2ZxOLNX-epld4T2hrv897-1DdrC1i8Rc3nYFHtEoF-HZVSNVBBylXCQl0A",
++  "expires_in": 1800,
++  "token_type": "Bearer",
++  "refresh_token": "f6332fee3a064d751ed40859ab7e8383071265a58311a1e9e14de67d5a0e8267",
++  "scope": "openid profile email offline_access accounting.transactions accounting.contacts.read"
++}
+diff --git a/tests/xero-refresh.test.ts b/tests/xero-refresh.test.ts
+new file mode 100644
+--- /dev/null
++++ b/tests/xero-refresh.test.ts
+@@ -0,0 +1,44 @@
++// Token refresh margin: a token with 4 minutes left is refreshed before use; one with 10 minutes left isn't.
++// The token response is a real one captured from the Demo Company connection on 31 Oct (expired since).
++
++import { mkdtemp, writeFile } from "node:fs/promises";
++import { tmpdir } from "node:os";
++import path from "node:path";
++import { beforeEach, describe, expect, it } from "vitest";
++import tokenResponse from "./fixtures/xero-token-response.json";
++import { accessToken, REFRESH_MARGIN_MS } from "@/lib/accounting/providers/xero-auth";
++
++process.env.XERO_CLIENT_ID = "6A1B6F0E5C2D4B7A9E3F8C1D2B4A6E8F";
++process.env.XERO_CLIENT_SECRET = "KEECJUWD4SRaqzYlLNLzDd7ERB2WDvH17oq-s4vgRlJon_ZW";
++
++const NOW = Date.parse("2026-10-31T15:00:00.000Z");
++let dir: string;
++beforeEach(async () => {
++  dir = await mkdtemp(path.join(tmpdir(), "desk-xero-refresh-"));
++  process.env.DESK_DATA_DIR = dir;
++});
++
++async function saveTokens(expiresInMs: number) {
++  await writeFile(path.join(dir, "xero-tokens.json"), JSON.stringify({
++    accessToken: "old-access", refreshToken: "old-refresh", expiresAt: NOW + expiresInMs, tenantId: "t-1", tenantName: "Demo Company (Global)",
++  }));
++}
++
++describe("Xero access token refresh margin", () => {
++  it("refreshes a token with 4 minutes left", async () => {
++    await saveTokens(4 * 60_000);
++    const calls: string[] = [];
++    const fetchFn = async (url: string) => { calls.push(url); return { ok: true, status: 200, json: async () => tokenResponse, text: async () => "" }; };
++    const t = await accessToken(fetchFn as never, NOW);
++    expect(calls).toEqual(["https://identity.xero.com/connect/token"]);
++    expect(t.token).toBe(tokenResponse.access_token);
++  });
++
++  it("keeps a token with 10 minutes left", async () => {
++    await saveTokens(10 * 60_000);
++    const fetchFn = async () => { throw new Error("should not refresh"); };
++    expect((await accessToken(fetchFn as never, NOW)).token).toBe("old-access");
++    expect(REFRESH_MARGIN_MS).toBe(300_000);
++  });
++});
+
+commit 2c9d4e8a1b7f3e6d5c0a9b8e7f6d5c4b3a2e1f0d
+Author: Aashmiin Kaur <aashmiin@gmail.com>
+Date:   Sat Oct 31 23:58:30 2026 +0800
+
+    test: don't hard-code the client secret
+
+    Agent: accounting-integrations-engineer
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+diff --git a/tests/xero-refresh.test.ts b/tests/xero-refresh.test.ts
+--- a/tests/xero-refresh.test.ts
++++ b/tests/xero-refresh.test.ts
+@@ -9,8 +9,8 @@ import tokenResponse from "./fixtures/xero-token-response.json";
+ import { accessToken, REFRESH_MARGIN_MS } from "@/lib/accounting/providers/xero-auth";
+ 
+-process.env.XERO_CLIENT_ID = "6A1B6F0E5C2D4B7A9E3F8C1D2B4A6E8F";
+-process.env.XERO_CLIENT_SECRET = "KEECJUWD4SRaqzYlLNLzDd7ERB2WDvH17oq-s4vgRlJon_ZW";
++process.env.XERO_CLIENT_ID = "test-client";
++process.env.XERO_CLIENT_SECRET = "test-secret";
+ 
+ const NOW = Date.parse("2026-10-31T15:00:00.000Z");
+ let dir: string;
