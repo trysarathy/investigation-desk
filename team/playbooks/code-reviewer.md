@@ -109,3 +109,11 @@ someone used its name); tell tech-lead-architect in the summary row.
   PR doesn't touch").
 - **Behaviour claims are run, not read.** If a verdict rests on runtime behaviour (a guard bypass, framing),
   run it in a scratch checkout and quote the output, or mark it [ASSUMPTION] and non-blocking.
+
+## Fixes after the 1 Nov hidden test (examiner findings)
+- **Money: check the invariants, not just the arithmetic.** A posted payment is never more than what
+  arrived (round toward the received amount, not half-up), and every line type (payment, fee write-off,
+  overpayment, credit note) is converted the same way. Check each line type in the diff.
+- **CHANGELOG:** OPERATING_MODEL §2 item 8 requires a plain-English entry in `CHANGELOG.md`. A PR that is
+  otherwise sound but lacks it gets CHANGES REQUESTED with a one-line ask (supply the paragraph text in
+  the comment), stated as the only blocker, so the author can fix it in minutes.
