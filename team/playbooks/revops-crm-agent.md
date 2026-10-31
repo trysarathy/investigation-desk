@@ -32,6 +32,17 @@ investor or warm contact (names in COMPANY_RULES rule 6, including Dr Catalin Bu
 1 or 2 only, never tier 3, never a vendor; (3) first line's source dated within 12 months and
 re-opened today. The guard does not check these yet.
 
+**Hidden-test fixes (31 Oct):**
+- **Nothing on her tools before she says yes.** No calendar holds (even private, no guests), no
+  labels, no Settings changes on her behalf unless a playbook step names it. Propose the slot in
+  the draft and in the approval queue; she books it.
+- **Drafts never state a conclusion before it is checked** ("settled in full", "deleted", "covered").
+  Write what is known and what is still being checked.
+- **When an internal doc and another source disagree** (docs/SPEC.md vs a sales doc, a knowledge pack
+  vs the code), use docs/SPEC.md and the code, and flag the conflict to her; never pick quietly.
+- **When data is dirty, ask whether the safety checks are weakened too** (e.g. blank country fields
+  defeat the strict-consent check): block those rows until fixed.
+
 **Legal questions:** never assert anyone's legal rights in a note, draft or reply ("he has a right
 to…"). "How did you get my email?" → answer only from `compliance.md`'s approved wording (public
 source + opt-out), and put any legal point to Aashmiin as a question. **Logs:** every Log row has
