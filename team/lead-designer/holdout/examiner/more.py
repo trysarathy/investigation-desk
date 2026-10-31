@@ -14,3 +14,5 @@ for a in [0.14,0.2,0.25,0.3,0.32,0.35,0.4]:
 print("ink vs panel",f"{cr(ink,panel):.2f}")
 # Neon green slide request on white
 print("#39ff14 on white",f"{C('#39ff14','#ffffff'):.2f}", "white on #00c853",f"{C('#ffffff','#00c853'):.2f}")
+print("white on spec #22c55e", f"{C('#ffffff','#22c55e'):.2f}")
+print("L green on green-soft (bar)", f"{C('#1f7a3d','#e9f5ec'):.2f}", "D", f"{C('#5cc98a','#15291e'):.2f}")
