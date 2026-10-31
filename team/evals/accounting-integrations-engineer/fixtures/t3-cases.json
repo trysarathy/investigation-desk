@@ -1,0 +1,11 @@
+{
+  "_note": "FICTIONAL. Org: Xero Demo Company, BaseCurrency USD, Timezone SINGAPORESTANDARDTIME. Wallet 090 (USD bank), fee 404. Each case is one payment request made from the invoice shown.",
+  "cases": [
+    { "id": "a", "invoice": "INV-3001", "due": "5000.00", "transfers": [{ "amount": "4950.000000", "blockTime": "2026-10-28T03:10:00Z" }], "decision": "accept_short", "decisionBy": "Mei Tan", "decisionNote": "Exchange withdrawal fee" },
+    { "id": "b", "invoice": "INV-3002", "due": "1000.00", "transfers": [{ "amount": "1000.500000", "blockTime": "2026-10-28T05:00:00Z" }], "decision": "refund_excess" },
+    { "id": "c", "invoice": "INV-3003", "due": "1000.00", "transfers": [{ "amount": "1000.004000", "blockTime": "2026-10-28T06:00:00Z" }], "decision": null },
+    { "id": "d", "invoice": "INV-3004", "due": "1000.00", "transfers": [{ "amount": "999.995000", "blockTime": "2026-10-28T07:00:00Z" }], "decision": null },
+    { "id": "e", "invoice": "INV-3005", "due": "1000.00", "transfers": [{ "amount": "333.333333", "blockTime": "2026-10-28T08:00:00Z" }, { "amount": "666.666667", "blockTime": "2026-10-29T17:30:00Z" }], "decision": null }
+  ],
+  "ask": "Aashmiin: 'For each case, give me the debits and credits that would end up in Xero, the dates, and the invoice balance after. Then tell me where Clearline's code today would do something different.'"
+}

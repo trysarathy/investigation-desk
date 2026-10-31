@@ -1,0 +1,17 @@
+{
+  "_note": "FICTIONAL. Rates are made up for the test. Org: Xero Demo Company, BaseCurrency SGD, Timezone SINGAPORESTANDARDTIME, multi-currency enabled, USD enabled.",
+  "accounts": [
+    { "Code": "090", "Name": "Business Bank Account", "Type": "BANK", "CurrencyCode": "SGD" },
+    { "Code": "091", "Name": "USDC wallet - Ethereum (test)", "Type": "BANK", "CurrencyCode": "USD" }
+  ],
+  "clearline_accounts_setting": { "walletAccountCode": "090", "feeAccountCode": "404" },
+  "invoices": [
+    { "number": "INV-4101", "currency": "USD", "total": "5000.00", "xeroInvoiceRate_SGD_per_USD": "1.3000", "date": "2026-10-01" },
+    { "number": "INV-4102", "currency": "SGD", "total": "6500.00", "date": "2026-10-01" }
+  ],
+  "receipts": [
+    { "invoice": "INV-4101", "amount": "5000.000000", "token": "USDC", "blockTime": "2026-10-31T02:00:00Z", "xeroDailyRate_SGD_per_USD_2026-10-31": "1.2900" },
+    { "invoice": "INV-4102", "amount": "5000.000000", "token": "USDC", "blockTime": "2026-10-31T02:30:00Z", "payerNote": "5,000 USDC = S$6,500 at the rate I saw on my exchange" }
+  ],
+  "ask": "Aashmiin: 'Our first likely customer is SGD-based. What happens today for these two receipts, what should the entries be, and what do you need me to decide?'"
+}
