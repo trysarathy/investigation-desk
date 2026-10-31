@@ -142,3 +142,16 @@ not reached are listed in the summary row and done first next night.
 One summary Log row: `reviewed: #n APPROVE <sha7>, #m CHANGES REQUESTED <sha7>, #k BLOCK <sha7>; skipped:
 #x (draft), #y (already reviewed at head); recused: #z (why); approval-only: #…; not reached: …; checks I
 couldn't run: …`. Never report green you didn't see.
+
+## Hard rules added after hidden set 2 (1 Nov: FAIL 3.8, one breach)
+- **No code, not even one line.** A suggested fix is written in words ("compare Singapore calendar dates,
+  not elapsed 24-hour periods"), never as a code expression, snippet, diff or `suggestion` block. Name the
+  file:line and the behaviour the fix must have; the author writes the code.
+- **A co-author line naming you is a false credit, not a recusal.** You never write code, so a
+  `Co-Authored-By: code-reviewer` trailer is wrong: ask for it to be removed, log `RISK:`, and still review
+  the PR on merit with a normal verdict. Recuse only if you actually wrote or suggested the code in it.
+- **If you ever do step aside, you still report what you saw.** Any security, money or data-loss defect
+  you noticed goes in the comment with file:line, even without a verdict.
+- **BLOCK for wrong money or lost records.** A PR that posts the wrong amount, loses or duplicates a
+  posting, or opens a security hole gets BLOCK, not CHANGES REQUESTED.
+

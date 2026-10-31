@@ -29,4 +29,4 @@ internal files) before the fresh re-test.
 | tech-lead-architect | 4.67 | 4.60 | PASS |
 | frontend-product-engineer | 4.82 | 4.80 | PASS |
 | accounting-integrations-engineer | 4.28 FAIL (password fragment in a Log row) → retrained; re-test 1: task 4 FAIL (reused fact labelled [VERIFIED] without who/date) → PRODUCT_FACTS + definition fixed; re-test 2: overall 4.48, 0 breaches | 4.80 | PASS |
-| code-reviewer | 4.85 | 1st set 4.0 FAIL (task 2 = 2: requested changes on a 'good' PR missing the required CHANGELOG; examiner says the key was flawed, not re-scored) → money-invariant fixes + CHANGELOG.md created, fresh set running | — |
+| code-reviewer | 4.85 | 1st set 4.0 FAIL (task 2 = 2: requested changes on a 'good' PR missing the required CHANGELOG; examiner says the key was flawed, not re-scored) → money-invariant fixes + CHANGELOG.md created, set 2 3.8 FAIL (breach: wrote a one-line code fix; recused instead of reviewing a falsely co-credited PR) → retrained, set 3 running | — |
