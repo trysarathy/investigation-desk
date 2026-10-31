@@ -1,0 +1,74 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 2a61a84..2977382 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -4,5 +4,8 @@ Plain-English notes for every merged change, newest first (company/OPERATING_MOD
+ Each entry: date, PR link, one paragraph a finance controller can understand: what changed, why, and
+ anything they need to do.
+ 
++## 2026-11-03
++- **The payer's address warning works on a password-protected preview** ([#64](https://github.com/trysarathy/investigation-desk/pull/64)). On a preview with a password, the payment page opened but its check of the payer's address was refused, so the warning about look-alike (poisoned) addresses silently did not appear. The check now works without the password, like the payment page itself. The README says so.
++
+ ## 2026-11-01
+ - **CHANGELOG started.** From today every merged pull request adds an entry here.
+diff --git a/README.md b/README.md
+index 50ec633..ca35ef5 100644
+--- a/README.md
++++ b/README.md
+@@ -192,7 +192,8 @@ NODE_USE_ENV_PROXY=1 npx vite-node --config vitest.config.mts scripts/record-liv
+ A shareable link for a call, with **no real customer data**: set `DEMO_MODE=1`. The server
+ then seeds the demo workspace on first load, refuses uploads (403), and the reset button stays.
+ Add `PREVIEW_USER` and `PREVIEW_PASSWORD` to put the whole app behind a browser password
+-prompt. Leave `ANTHROPIC_API_KEY` unset (the image also sets `AI_EXPLANATIONS=off`): template
++prompt. The payer's page `/pay/<publicId>` and its address check stay open without the
++password, so a payer's look-alike-address warning keeps working on a protected preview. Leave `ANTHROPIC_API_KEY` unset (the image also sets `AI_EXPLANATIONS=off`): template
+ text only, so nothing is sent to a model. Chain keys are optional. Without them, only the
+ recorded demo hashes give verdicts, and any other hash pauses rather than guessing.
+ 
+diff --git a/src/middleware.ts b/src/middleware.ts
+index 8e20cb8..06bbd97 100644
+--- a/src/middleware.ts
++++ b/src/middleware.ts
+@@ -15,8 +15,10 @@ export function middleware(req: NextRequest) {
+   const user = process.env.PREVIEW_USER;
+   const password = process.env.PREVIEW_PASSWORD;
+   if (!user || !password) return NextResponse.next();
+-  // The sender's payment page is customer-facing: it carries its own unguessable link ID.
+-  if (req.nextUrl.pathname.startsWith("/pay/")) return NextResponse.next();
++  // The sender's payment page is customer-facing: it carries its own unguessable link ID, and so
++  // does the address check that page calls (the look-alike address warning).
++  const path = req.nextUrl.pathname;
++  if (path.startsWith("/pay/") || path.startsWith("/api/pay")) return NextResponse.next();
+   const header = req.headers.get("authorization") ?? "";
+   if (header.startsWith("Basic ")) {
+     let decoded = "";
+diff --git a/tests/preview-gate.test.ts b/tests/preview-gate.test.ts
+new file mode 100644
+index 0000000..6b65818
+--- /dev/null
++++ b/tests/preview-gate.test.ts
+@@ -0,0 +1,24 @@
++// The preview password gate (src/middleware.ts): the payer's page and its address check are open,
++// everything else asks for the password.
++
++import { NextRequest } from "next/server";
++import { afterEach, beforeEach, describe, expect, it } from "vitest";
++import { middleware } from "@/middleware";
++
++const req = (path: string, method = "GET") => new NextRequest(new URL(path, "http://localhost:3000"), { method });
++
++describe("preview password gate", () => {
++  beforeEach(() => { process.env.PREVIEW_USER = "u"; process.env.PREVIEW_PASSWORD = "p"; });
++  afterEach(() => { delete process.env.PREVIEW_USER; delete process.env.PREVIEW_PASSWORD; });
++
++  it("lets the payer's address check through without the password, like /pay/<publicId>", () => {
++    expect(middleware(req("/pay/abc123")).status).not.toBe(401);
++    expect(middleware(req("/api/pay/abc123/check", "POST")).status).not.toBe(401);
++  });
++
++  it("still asks for the password on the rest of the app", () => {
++    expect(middleware(req("/")).status).toBe(401);
++    expect(middleware(req("/requests")).status).toBe(401);
++    expect(middleware(req("/api/requests", "POST")).status).toBe(401);
++  });
++});
