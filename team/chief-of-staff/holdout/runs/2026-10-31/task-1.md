@@ -24,7 +24,7 @@ Subject: Clearline briefing 2026-11-03 - 1 RISK - main RED - 3 runs missing
 BLUF: main is RED (duplicate payment matched to two invoices) and the fix isn't ready. Pelagic wants
 a demo on their own data Thu 10:00, so main must be green by Wednesday night (D2). Today's 09:00
 Pelagic follow-up is stopped, per your 23:48 reply.
-Your time today: 3 approvals, 2 decisions, 2 calls. About 15 min.
+Today: 3 approvals, 2 decisions, 2 calls. About 15 min.
 
 1. STOP AND RISKS
 - RISK main RED (qa-security-engineer 22:53; https://github.com/trysarathy/investigation-desk/actions/runs/881).
@@ -33,7 +33,7 @@ Your time today: 3 approvals, 2 decisions, 2 calls. About 15 min.
   merges to main until GREEN. You: D2.
 - Pelagic D4 follow-up queued for 09:00 (revops-crm-agent 01:27, L-0412). My Log note tells revops
   not to send it and to make no Pelagic outreach until you say. You: nothing. (Only PAUSE guarantees
-  the stop, and it would also stop the 46 first emails. I don't recommend it.)
+  it, but it also stops the 46 first emails: not recommended.)
 - I read "pause on Pelagic" as Pelagic only; PAUSE stays FALSE. Meant everything? Reply PAUSE.
 - No Log row: content-marketer 02:27, devops 03:27, ae-assistant 07:07 (the last two may be the known
   connectors gap). Effect: no deploy check, no Ardent prep Doc. You: nothing.
