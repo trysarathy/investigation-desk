@@ -12,13 +12,13 @@ Subject: `Clearline 14-day status Day 5 (5 Nov)`
 ```
 Day 5 of 14. Targets: 1 blocked · 2 in progress · 3 in progress · 4 blocked · 5 in progress · 6 not started
 Done today: branch rule now requires `ci` (your Decisions log 4 Nov; I read it 21:18). Merged at 06:17: #51 reorg dismiss, #53 exceptions list view.
-In progress: #57 20 fixtures: CI green on 9e1d204 but review is on an older commit (3c77a10), tests run on demo books not the Xero Demo Company, assertions PR not opened. Not "R1 done". T2 wrong-network fixed on a branch, look-alike state undecided, no PR. T4 risky rows: branch, 3 copy changes requested, no PR. T6 preview: green 20:05, red 17:40, so not yet "green twice".
+In progress: #57 fixtures: CI green on 9e1d204, but review is on older 3c77a10, tests use demo books not the Xero Demo Company, assertions PR not opened. Not "R1 done". T2 wrong-network fixed on a branch, look-alike state undecided, no PR. T4 risky rows: branch, 3 copy changes requested, no PR. T6 preview: green 20:05, red 17:40, so not yet "green twice".
 Blocked: #52 posting date: Aashmiin, approve ADR 0002 + merge #52 (Approval Queue). Xero connect: Aashmiin, click Connect for the Demo Company. Day 14 at risk if both slip past Day 6.
 Needs you (Approval Queue): 2+ items, top: PR #52 posting date in the org's timezone.
-Risks: RISK: spend limit 21:29 (org usage limit until 6 Nov 08:00); tomorrow's task file not written; builders have no tasks tonight. RISK: preview memory setting changed outside a PR (deploy setting, approval-only). RISK: accounting engineer stopped at spend limit; T3 branch untested.
+Risks: RISK: spend limit 21:29 (usage limit until 6 Nov 08:00); no task file, builders idle tonight. RISK: preview memory setting changed outside a PR (deploy setting, approval-only). RISK: accounting engineer stopped at spend limit; T3 branch untested.
 Tonight's tasks: none (spend limit).
 ```
-(About 190 words in the body. Metrics: not measured this run.)
+(Under 200 words in the body. Metrics: not measured this run.)
 
 ## 2. Log rows (Company HQ Log tab)
 ```

@@ -106,4 +106,4 @@ We will separate the approval proof from the books idempotency key.
    - The ADR and the code go in separate PRs.
    - An HMAC env-var PR is approval-only (secrets, auth) and can never go through the gate.
    - Option B also keeps the two jobs mixed, and secret rotation risks duplicate Xero records.
-4. **Log**: `RISK:`-free Log rows for "ADR 0004 proposed" and "queued for approval ADR 0004".
+4. **Log**: Log rows for "ADR 0004 proposed" and "queued for approval ADR 0004".
