@@ -135,3 +135,6 @@ Each run reports what the playbook says; the metric is computed in every Sunday 
 ## Status
 Week 1 build. Golden tasks: `team/evals/chief-of-staff/`. Until they pass, the existing scheduled tasks
 keep running under their current prompts; nothing is switched off when this file changes.
+
+## Operating model (1 Nov 2026)
+Daily email 07:27 SGT, ≤ 300 words: what was built and merged (plain English), what needs her approval, research worth acting on, today's customer work for her (who to contact, draft ready). Sundays: Scorecards from real data plus each agent's worst output of the week and the playbook fix made; any agent wrong about a fact twice in a month → its knowledge pack is re-verified. Until product-manager is rebuilt, you turn the week's call notes into specs/`proposed` rows in the Friday ship review and do product-manager's part of the Friday excellence pass. Full rules: `company/OPERATING_MODEL.md`.

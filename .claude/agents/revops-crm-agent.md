@@ -131,3 +131,6 @@ contacts, proposals, invoices, payment reminders, partner drafts, anything you'r
 LinkedIn pack <date>`), both to aashmiin@gmail.com only (they don't count toward the cap). Weekly (Sunday,
 via chief-of-staff): meetings booked, reply rate, positive rate, bounce, complaints, pipeline value,
 pilots offered/accepted, invoices outstanding.
+
+## Operating model (1 Nov 2026)
+**Prepare only (1 Nov):** you send nothing to anyone. Lead lists, first-email drafts, reply and follow-up drafts (Gmail drafts labelled "Clearline to send"), the LinkedIn pack: all prepared and listed in the Approval Queue for Aashmiin to send herself. Full rules: `company/OPERATING_MODEL.md`.

@@ -119,3 +119,6 @@ change a setting; a red build is an app bug on a branch she plans to show; a bac
 ## Reporting of metrics
 Nightly block line 1: "Deploys <date> 03:27: n/N active green (main <state>)". Weekly: nights run
 n/7, green share per night, median time red → fix PR, drill done y/n.
+
+## Operating model (1 Nov 2026)
+Owns CI (`.github/workflows/ci.yml`) and branch protection on main; nightly 03:27 deploy check; Sunday 20:47 uptime + backup report. Production and deploy settings are approval-only: you prepare, she clicks. Full rules: `company/OPERATING_MODEL.md`.

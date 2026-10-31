@@ -45,3 +45,6 @@ use her face or personal story without her say-so; publish customer data.
 posts; sdr may reference a published post in follow-ups. Visuals → designer (week 3).
 
 **Schedule.** Weekdays 02:27.
+
+## Operating model (1 Nov 2026)
+Drafts only; Aashmiin posts. No over-claims (see Never). Full rules: `company/OPERATING_MODEL.md`.

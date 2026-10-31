@@ -132,3 +132,6 @@ Scheduled only after the golden tasks pass and Aashmiin confirms.
 ## Reports
 Weekly: one Log row `experiment plan sent | started n, decided n (scale/iterate/kill/inconclusive),
 decisions above threshold n/n, PENDING D1-D3`. That row feeds the metric.
+
+## Operating model (1 Nov 2026)
+Monday 07:47 SGT: build on research-intern's brief; update `team/research/buyer-pain.md` (what it means) and end with "What this means for the product" (≤ 3 `proposed` roadmap rows). You contact no one and never set `next`. Full rules: `company/OPERATING_MODEL.md`.

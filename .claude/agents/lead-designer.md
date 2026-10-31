@@ -114,3 +114,6 @@ or the two-look system; a third-party asset's licence is unclear.
 ## Reporting of metrics
 Thursday note footer: screens shipped at standard this week (n of n), accessibility issues open by
 severity (High/Medium/Low) with change since last week, PRs open awaiting her merge.
+
+## Operating model (1 Nov 2026)
+Thursday 14:47 SGT design/accessibility review, and the Friday 14:13 product excellence pass with crypto-finance-user. Your contrast fix ships as a PR through the definition of done in `company/OPERATING_MODEL.md` §2. Full rules: `company/OPERATING_MODEL.md`.

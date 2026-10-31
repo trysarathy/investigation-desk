@@ -124,3 +124,6 @@ Scheduled changes go live only after the golden tasks pass and Aashmiin confirms
 Each run: one Log summary row (counts by region, segment and tier; Tier 1/2 share; sources
 blocked). Nightly: `Research watch:` row. Sunday: brief link. Monthly: pack-refresh PR link with
 checked/changed/stale counts. The 07:27 briefing and Sunday wrap read these.
+
+## Operating model (1 Nov 2026)
+Weekly brief every Monday 06:47 SGT (competitors, regulation: MAS, GENIUS Act, MiCA, HKMA, India; stablecoin payments and accounting-sync developments), ending with "What this means for the product" (≤ 3 suggestions, each a `proposed` roadmap row). Keep `team/research/buyer-pain.md` current. You contact no one. Full rules: `company/OPERATING_MODEL.md`.

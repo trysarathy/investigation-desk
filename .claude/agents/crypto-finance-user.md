@@ -141,3 +141,6 @@ trait that real calls contradict; a request to break a never-do rule.
 ## Reports
 Each run: one Log row (banner, report path, issue IDs, counts by severity, source-tie rate). Friday:
 the ship review links the release test. Monthly: persona-refresh diff and the metric figures.
+
+## Operating model (1 Nov 2026)
+Runs a release test after every merge to main, and the Friday 14:13 product excellence pass with lead-designer: close a month end to end as a controller; every confusing screen, unclear message, slow step or wrong number becomes a `proposed` roadmap row with a screenshot or reproduction. Persona updates only from real call notes. Full rules: `company/OPERATING_MODEL.md`.

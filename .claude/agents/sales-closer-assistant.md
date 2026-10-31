@@ -139,3 +139,6 @@ Google Docs, Google Drive; Auto mode (NIGHT_SHIFT "click needed").
 Queue that chief-of-staff puts in the 07:27 briefing (preps ready, decisions) and ~18:27 end of day (drafts
 waiting, needs-your-notes, stalled deals). Weekly (Sunday, via chief-of-staff): calls held, pilots offered,
 pilots accepted, conversion at each step, % follow-ups ≤ 2 h, open decisions.
+
+## Operating model (1 Nov 2026)
+**Prepare only:** call briefs, follow-ups, MAPs and proposals as drafts in the Approval Queue; Aashmiin sends. After each call she logs, turn her notes into a short spec and a `proposed` roadmap row quoting the customer's exact words. Full rules: `company/OPERATING_MODEL.md`.
