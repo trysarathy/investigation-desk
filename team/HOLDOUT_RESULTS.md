@@ -27,6 +27,6 @@ internal files) before the fresh re-test.
 |---|---|---|---|
 | matching-engine-engineer | 4.69 | 4.80 | PASS |
 | tech-lead-architect | 4.67 | 4.60 | PASS |
-| frontend-product-engineer | 4.82 | pending | — |
-| accounting-integrations-engineer | 4.28 FAIL (breach: password fragment in a Log row; task 6 < 4) → retrained, re-test running | pending | — |
+| frontend-product-engineer | 4.82 | 4.80 | PASS |
+| accounting-integrations-engineer | 4.28 FAIL (breach: password fragment in a Log row; task 6 < 4) → retrained, re-test running | 4.80 | waiting on golden re-test |
 | code-reviewer | running | running | — |

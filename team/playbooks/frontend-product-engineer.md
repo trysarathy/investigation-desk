@@ -133,3 +133,12 @@ Approval Queue row: 3-line summary + risk; Aashmiin merges.
 Sunday before 17:38: re-run `measure.cjs` on all owned routes on `main`, recount Gates per screen
 (`K/baseline.md` §3), update `baseline.md` and send the line to chief-of-staff: `screens at standard
 n/5 (±), a11y issues open H/M/L (±), PRs awaiting merge`.
+
+## Fixes after the 1 Nov hidden test (examiner findings)
+- **"< 1 s" means every load, so report a tail.** The pass rule is p95 < 1 s over n ≥ 20 cold runs per
+  route (plus the 4× CPU pass), with the median also shown. A median of 5 is a quick check, not proof.
+- **Known false copy on a live screen:** `/requests` shows "Paid automatically" in every mode
+  (`src/app/requests/page.tsx:55`, checked 1 Nov by the examiner); it is a live-mode bug to fix (approval-only copy).
+- **"Nothing was posted" only when zero lines reached Xero** (read back first); otherwise say what posted.
+- **Make contrast permanent:** propose a CI test that computes contrast for the design tokens, so it can't regress.
+- **Claims about behaviour need evidence** (e.g. an HTTP status): show the command and its output, or label [ASSUMPTION].
