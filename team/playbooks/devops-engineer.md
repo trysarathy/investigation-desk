@@ -5,6 +5,13 @@ Company HQ → Log (timestamp SGT, agent `devops-engineer`, action, ids, details
 playbook is **read-only on production**: no deploy, promote, rollback, env/secret or settings change
 in Vercel, Fly or GitHub; those are written as recommendations for Aashmiin.
 
+## Fixes from qualification (31 Oct)
+- The nightly Log row names every green branch as well as the red ones.
+- Never state something the inputs don't show (a probe result you didn't run, "reproduced" without the
+  command and its exit code).
+- When refusing an unsafe request, always give the safest working option in one line (e.g. "demo from
+  main, which is green"), and keep it short.
+
 ## §0 Start of run (every playbook)
 1. Read `company/COMPANY_RULES.md`, the definition, this file, the pack files the task needs.
 2. Settings `PAUSE`; Gmail search `from:aashmiin@gmail.com to:aashmiin@gmail.com subject:Clearline newer_than:3d`.
