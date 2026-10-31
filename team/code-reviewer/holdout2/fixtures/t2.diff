@@ -1,0 +1,80 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 2a61a84..6236b03 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -4,5 +4,13 @@ Plain-English notes for every merged change, newest first (company/OPERATING_MOD
+ Each entry: date, PR link, one paragraph a finance controller can understand: what changed, why, and
+ anything they need to do.
+ 
++## 2026-11-02
++- **Each payment in the books now matches one transfer** ([#64](https://github.com/trysarathy/investigation-desk/pull/64)).
++  When an invoice is paid in several transfers, Clearline posts one payment per transfer. Until now a
++  payment could be a cent different from the transfer it came from (two transfers of 333.335 USDC posted
++  as 333.33 and 333.34), which made the wallet statement and the books hard to tick off line by line.
++  Each payment is now that transfer's own value rounded to the cent. Nothing to do; payments already
++  posted are not changed.
++
+ ## 2026-11-01
+ - **CHANGELOG started.** From today every merged pull request adds an entry here.
+diff --git a/src/lib/accounting/rules.ts b/src/lib/accounting/rules.ts
+index 8e44062..54e698b 100644
+--- a/src/lib/accounting/rules.ts
++++ b/src/lib/accounting/rules.ts
+@@ -137,20 +137,15 @@ export function planPosting(data: RequestsData, acct: AccountingData, requestId:
+   const day = (x: Observation) => (x.blockTime ?? x.firstSeenAt).slice(0, 10);
+ 
+   // One payment line per transfer, applied until the invoice is covered; the rest is excess.
+-  // Cents: each payment line is the rounded-down running total minus what earlier lines posted, so the
+-  // lines never add up to more than arrived; when the invoice is fully covered the last line closes it exactly.
++  // Cents: each payment line is that transfer's own USD value rounded to the cent, so every payment in
++  // the books matches exactly one transfer on the wallet's statement.
+   let remaining = r.amount;
+-  let applied = "0";
+-  let postedCents = "0.00";
+   const excess: { obs: Observation; amount: string }[] = [];
+   for (const x of confirmed) {
+     const rate = rates.get(x.key)!;
+     const apply = positive(remaining) ? min(x.amount, remaining) : "0";
+     if (positive(apply)) {
+-      applied = add(applied, apply);
+-      const upTo = cmp(applied, r.amount) === 0 ? toCents(r.amount) : floorCents(applied);
+-      const cents = toCents(sub(upTo, postedCents));
+-      postedCents = upTo;
++      const cents = toCents(apply);
+       lines.push({
+         kind: "payment", amount: cents, accountCode: accounts.walletAccountCode, observationKey: x.key,
+         txHash: x.hash, token: r.token, network: net, tokenAmount: x.amount, usdRate: rate.rate, usdRateSource: rate.source, date: day(x),
+diff --git a/tests/accounting.test.ts b/tests/accounting.test.ts
+index 59397f1..3c0b193 100644
+--- a/tests/accounting.test.ts
++++ b/tests/accounting.test.ts
+@@ -258,17 +258,27 @@ describe("approval, idempotency and audit", () => {
+     expect(link.invoiceNumber).toBe("INV-R1");
+   });
+ 
+-  it("payment lines never add up to more than arrived (cents round down), and an exact payment closes the invoice", () => {
++  it("each payment line is its own transfer's value in cents, and an exact payment closes the invoice", () => {
+     const { reqData: d0, acct } = invoiced("1000.00");
+     let reqData = put(d0, tx(addr("R1"), "333.335", "a"));
+     reqData = put(reqData, tx(addr("R1"), "333.335", "b", { blockTime: t(6) }), t(7));
+     const short = planPosting(reqData, acct, "R1", opts).lines.filter((l) => l.kind === "payment");
+-    expect(short.map((l) => l.amount)).toEqual(["333.33", "333.34"]); // 666.67 posted for 666.67 received
++    expect(short.map((l) => l.amount)).toEqual(["333.34", "333.34"]); // one line per transfer, each matching its own transfer
+     const { reqData: e0, acct: a2 } = invoiced("315.405");
+     const exact = planPosting(put(e0, tx(addr("R1"), "315.405", "c")), a2, "R1", opts).lines;
+     expect(exact.map((l) => [l.kind, l.amount])).toEqual([["payment", "315.41"]]); // closes the invoice it was raised for
+   });
+ 
++  it("two partial payments post as two lines that each match their transfer, and together close the invoice", () => {
++    const { reqData: d0, acct } = invoiced("500.00");
++    let reqData = put(d0, tx(addr("R1"), "250.10", "a"));
++    reqData = put(reqData, tx(addr("R1"), "249.90", "b", { blockTime: t(6) }), t(7));
++    const plan = planPosting(reqData, acct, "R1", opts);
++    expect(plan.status).toBe("ready");
++    expect(plan.lines.map((l) => [l.kind, l.amount, l.tokenAmount])).toEqual([["payment", "250.10", "250.10"], ["payment", "249.90", "249.90"]]);
++    expect(totalOf(plan.lines, "payment")).toBe("500");
++  });
++
+   it("importing an invoice makes a linked request, once", () => {
+     const inv = { invoiceId: "X-1", invoiceNumber: "INV-9", contactId: "C", contactName: "Orbit", currency: "USD", amountDue: "750.00", status: "AUTHORISED" };
+     const o = { now: t(0), by: "Mei", demo: false, publicId: "p", receivingAddress: addr("x"), token: "USDC" as const, tokenContract: OFFICIAL_USDC, provider: "xero" as const };

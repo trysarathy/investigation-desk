@@ -1,0 +1,128 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 2a61a84..8410104 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -4,5 +4,12 @@ Plain-English notes for every merged change, newest first (company/OPERATING_MOD
+ Each entry: date, PR link, one paragraph a finance controller can understand: what changed, why, and
+ anything they need to do.
+ 
++## 2026-11-02
++- **The demo buttons can no longer wipe a live workspace** ([#66](https://github.com/trysarathy/investigation-desk/pull/66)).
++  "Reset the demo" and "Load the demo day" are for the demo only. On a live deployment they could still
++  be triggered, and one click (or one request from another website) replaced the uploaded files and
++  deleted saved cases and bulk runs, or put fictional demo payments into the live list. In live mode both
++  are now refused and nothing is changed. Demo mode works as before. Nothing to do.
++
+ ## 2026-11-01
+ - **CHANGELOG started.** From today every merged pull request adds an entry here.
+diff --git a/src/app/api/demo/reset/route.ts b/src/app/api/demo/reset/route.ts
+index 393cefd..90c6c7f 100644
+--- a/src/app/api/demo/reset/route.ts
++++ b/src/app/api/demo/reset/route.ts
+@@ -1,10 +1,12 @@
+ // POST: reset the demo workspace (sample Files A and B; created cases and bulk runs cleared).
++// Demo only: on a live deployment this would wipe the customer's files, cases and bulk runs.
+ 
+ import { NextResponse } from "next/server";
+-import { resetDemoWorkspace } from "@/lib/demo/reset";
++import { liveMode, resetDemoWorkspace } from "@/lib/demo/reset";
+ import { workspaceStore } from "@/lib/workspace/live";
+ 
+ export async function POST() {
++  if (liveMode()) return NextResponse.json({ error: "Resetting the workspace is only available in demo mode." }, { status: 403 });
+   await resetDemoWorkspace(workspaceStore());
+   return NextResponse.json({ ok: true });
+ }
+diff --git a/src/app/api/requests/demo/route.ts b/src/app/api/requests/demo/route.ts
+index 808b75a..2585818 100644
+--- a/src/app/api/requests/demo/route.ts
++++ b/src/app/api/requests/demo/route.ts
+@@ -3,11 +3,13 @@
+ // JSON: { kind: "reset" | "send" (+ scenario "a": Acme pays) | "mine" | "advance" (+ blocks) | "redeliver" }
+ 
+ import { NextResponse } from "next/server";
++import { liveMode } from "@/lib/demo/reset";
+ import { demoAction, type DemoAction } from "@/lib/requests/service";
+ 
+ const SCENARIOS = new Set(["a"]);
+ 
+ export async function POST(req: Request) {
++  if (liveMode()) return NextResponse.json({ error: "The demo day is only available in demo mode." }, { status: 403 });
+   const a = await req.json().catch(() => undefined) as Record<string, unknown> | undefined;
+   const kind = a?.kind;
+   if (kind === "send" && !SCENARIOS.has(String(a?.scenario))) return NextResponse.json({ error: "Unknown scenario." }, { status: 400 });
+diff --git a/src/lib/demo/reset.ts b/src/lib/demo/reset.ts
+index 299c822..dea8b31 100644
+--- a/src/lib/demo/reset.ts
++++ b/src/lib/demo/reset.ts
+@@ -22,5 +22,8 @@ export async function resetDemoWorkspace(store: WorkspaceStore, now = new Date()
+   await rm(path.join(dataDir, "bulk"), { recursive: true, force: true });
+ }
+ 
++/** DEMO_MODE=off: a live deployment. The demo-only routes (reset the workspace, seed the demo day) refuse. */
++export const liveMode = () => process.env.DEMO_MODE === "off";
++
+ /** DEMO_MODE=1: the shared preview. It seeds itself and refuses uploads, so it never holds real data. */
+ export const demoModeOn = () => process.env.DEMO_MODE === "1";
+diff --git a/tests/security-demo-reset.test.ts b/tests/security-demo-reset.test.ts
+new file mode 100644
+index 0000000..771b3c9
+--- /dev/null
++++ b/tests/security-demo-reset.test.ts
+@@ -0,0 +1,56 @@
++// SECURITY_GAPS #1 and #4(a): the demo-only routes worked on a live deployment. One POST to
++// /api/demo/reset wiped the live workspace, cases and bulk runs; /api/requests/demo seeded fictional
++// records into the live payment-requests store. Written failing first (it.fails on
++// security/demo-reset-guard and security/demo-guards-live); switched to it with the fix.
++
++import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
++import { tmpdir } from "node:os";
++import path from "node:path";
++import { afterEach, beforeEach, describe, expect, it } from "vitest";
++
++const saved = { dir: process.env.DESK_DATA_DIR, mode: process.env.DEMO_MODE };
++let dir: string;
++beforeEach(async () => {
++  dir = await mkdtemp(path.join(tmpdir(), "desk-reset-"));
++  process.env.DESK_DATA_DIR = dir;
++  await writeFile(path.join(dir, "cases.json"), JSON.stringify({ cases: [{ id: "CASE-1" }] }));
++  await mkdir(path.join(dir, "bulk"));
++  await writeFile(path.join(dir, "bulk", "run-1.json"), "{}");
++});
++afterEach(() => {
++  if (saved.dir === undefined) delete process.env.DESK_DATA_DIR; else process.env.DESK_DATA_DIR = saved.dir;
++  if (saved.mode === undefined) delete process.env.DEMO_MODE; else process.env.DEMO_MODE = saved.mode;
++});
++
++const exists = (p: string) => stat(p).then(() => true, () => false);
++const post = (url: string, body?: unknown) => new Request(url, { method: "POST", headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
++
++describe("demo-only routes in live mode", () => {
++  it("POST /api/demo/reset is refused in live mode and leaves the live workspace, cases and bulk runs alone", async () => {
++    process.env.DEMO_MODE = "off";
++    const { POST } = await import("@/app/api/demo/reset/route");
++    const res = await POST();
++    expect(res.status).toBe(403);
++    expect(await exists(path.join(dir, "cases.json")), "cases.json deleted").toBe(true);
++    expect(await exists(path.join(dir, "bulk", "run-1.json")), "bulk runs deleted").toBe(true);
++    expect(await exists(path.join(dir, "workspace.json")), "workspace replaced").toBe(false);
++  });
++
++  it("POST /api/requests/demo is refused in live mode and writes no demo records", async () => {
++    process.env.DEMO_MODE = "off";
++    const { POST } = await import("@/app/api/requests/demo/route");
++    const res = await POST(post("http://desk.test/api/requests/demo", { kind: "reset" }));
++    expect(res.status).toBe(403);
++    const text = await readFile(path.join(dir, "requests.json"), "utf8").catch(() => "");
++    expect(text, "demo requests written into the live store").not.toMatch(/DEMO-/);
++  });
++
++  it("in demo mode both routes still work", async () => {
++    delete process.env.DEMO_MODE;
++    const { POST: reset } = await import("@/app/api/demo/reset/route");
++    expect((await reset()).status).toBe(200);
++    expect(await exists(path.join(dir, "cases.json"))).toBe(false);
++    const { POST: day } = await import("@/app/api/requests/demo/route");
++    expect((await day(post("http://desk.test/api/requests/demo", { kind: "reset" }))).status).toBe(200);
++  });
++});
