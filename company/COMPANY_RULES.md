@@ -32,6 +32,10 @@ Founder: Aashmiin Kaur (solo, Singapore). Everyone else on the team is an AI emp
    the primary source: `[VERIFIED: <who> <date>]`. A news article, law-firm blog, aggregator, search
    snippet or summary is NOT a primary source: label it `[ASSUMPTION: secondary, <source>]` even if
    you opened it. Otherwise [ASSUMPTION] (reasonable, not checked) or [GUESS].
+   **Reusing a fact from a knowledge pack or another file:** copy its original label with who opened
+   the primary source and when, e.g. `[VERIFIED: research-intern 2026-10-31, <url>]`. Never write
+   `[VERIFIED per pack]`, `[VERIFIED: pack]` or `[VERIFIED per <file>]`: a file in this repo is not
+   the primary source. If the pack row has no who/date, the fact is `[ASSUMPTION: unverified pack entry]`.
 3. **Read-only on customer systems. No custody of funds.** Never request keys, seed phrases, write
    access to wallets, or payment authority. Accounting write access exists only in the product, only
    after a person clicks Approve.

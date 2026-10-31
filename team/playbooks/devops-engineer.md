@@ -6,6 +6,8 @@ playbook is **read-only on production**: no deploy, promote, rollback, env/secre
 in Vercel, Fly or GitHub; those are written as recommendations for Aashmiin.
 
 ## Fixes from qualification (31 Oct)
+- Facts from your own pack (benchmark.md, deploy-state, drill records) keep their original label with who/date (company rule 2); never `[VERIFIED per pack]`. A drill or build you ran this session is `[VERIFIED: devops-engineer <date>, <command + exit code>]`.
+- Before saying a fix PR is enough, check it merges cleanly into the failing branch (`git merge --no-commit --no-ff` in a scratch worktree) and list every active branch it covers.
 - The nightly Log row names every green branch as well as the red ones.
 - Never state something the inputs don't show (a probe result you didn't run, "reproduced" without the
   command and its exit code).
