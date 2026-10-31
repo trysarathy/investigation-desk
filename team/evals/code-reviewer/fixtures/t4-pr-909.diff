@@ -1,0 +1,79 @@
+diff --git a/src/lib/accounting/rules.ts b/src/lib/accounting/rules.ts
+index 8e44062..afccc03 100644
+--- a/src/lib/accounting/rules.ts
++++ b/src/lib/accounting/rules.ts
+@@ -28,6 +28,8 @@ export const parPrice: PriceSource = (token) => ({ rate: "1.00", source: `par: 1
+ 
+ /** How far from par a dollar stablecoin may trade before posting stops for a person to check: 0.5%. */
+ export const DEPEG_LIMIT = "0.005";
++/** A shortfall under half a cent is rounding (6-decimal tokens against a 2-decimal invoice), not a short payment. */
++export const SUB_CENT_TOLERANCE = 0.005;
+ 
+ const NETWORK: Record<string, string> = { ethereum: "Ethereum", tron: "Tron" };
+ 
+@@ -169,7 +171,15 @@ export function planPosting(data: RequestsData, acct: AccountingData, requestId:
+ 
+   if (cmp(received, r.amount) < 0) {
+     const shortfall = sub(r.amount, received);
+-    if (has("accept_short")) {
++    const shortBy = Number(r.amount) - Number(received);
++    if (shortBy <= SUB_CENT_TOLERANCE) {
++      // Sub-cent dust: close the invoice instead of leaving a fraction of a cent open for a person to chase.
++      lines.push({
++        kind: "fee_writeoff", amount: shortBy.toFixed(2), accountCode: accounts.feeAccountCode, date: day(lastObs),
++        description: `Rounding difference of ${shortBy} ${r.token} written off.`,
++      });
++      reasons.push(`Short by less than half a cent (${shortBy} ${r.token}): written off as rounding, and the invoice closes.`);
++    } else if (has("accept_short")) {
+       const d = lastDecision("accept_short")!;
+       lines.push({
+         kind: "fee_writeoff", amount: toCents(shortfall), accountCode: accounts.feeAccountCode, date: day(lastObs),
+diff --git a/tests/accounting-rounding.test.ts b/tests/accounting-rounding.test.ts
+new file mode 100644
+index 0000000..a18ffa2
+--- /dev/null
++++ b/tests/accounting-rounding.test.ts
+@@ -0,0 +1,43 @@
++import { describe, expect, it } from "vitest";
++import { planPosting } from "@/lib/accounting/rules";
++import { emptyAccounting, type AccountingData, type InvoiceLink } from "@/lib/accounting/types";
++import { checkObservation, CONFIRMATIONS, OFFICIAL_USDC } from "@/lib/requests/check";
++import { addr } from "@/lib/requests/demo";
++import { createRequest, ingest } from "@/lib/requests/lifecycle";
++import { SimulatedProvider } from "@/lib/requests/provider";
++import { emptyRequests, type RequestsData, type TransferEvent } from "@/lib/requests/types";
++
++const NOW = "2026-10-25T09:00:00.000Z";
++const sim = new SimulatedProvider();
++const opts = { threshold: CONFIRMATIONS };
++
++function invoiced(amount: string) {
++  const reqData = createRequest(emptyRequests(), { customerRef: "Acme", invoiceRef: "INV-R1", amount, receivingAddress: addr("R1"), token: "USDC" },
++    { now: NOW, by: "Mei", demo: false, publicId: "R1", tokenContract: OFFICIAL_USDC, id: "R1" }).data;
++  const link: InvoiceLink = { provider: "xero", invoiceId: "inv-guid", invoiceNumber: "INV-R1", contactId: "c", contactName: "Acme", currency: "USD", amountDue: amount, linkedAt: NOW, demo: false };
++  const acct: AccountingData = { ...emptyAccounting(), provider: "xero", links: { R1: link } };
++  return { reqData, acct };
++}
++
++function paid(d: RequestsData, amount: string): RequestsData {
++  const ev: TransferEvent = { ...sim.send(emptyRequests(), { to: addr("R1"), amount, tokenContract: OFFICIAL_USDC, tokenSymbol: "USDC", from: addr("from:a"), seq: "a" }),
++    source: "live", demo: false, blockNumber: 900, blockTime: "2026-10-25T10:00:00.000Z", confirmations: CONFIRMATIONS };
++  return ingest(d, ev, "2026-10-25T10:01:00.000Z", "test", checkObservation("2026-10-25T10:01:00.000Z"), CONFIRMATIONS).data;
++}
++
++describe("sub-cent rounding", () => {
++  it("a shortfall under half a cent closes the invoice as rounding", () => {
++    const { reqData, acct } = invoiced("1000.00");
++    const plan = planPosting(paid(reqData, "999.999"), acct, "R1", opts);
++    expect(plan.status).toBe("ready");
++    expect(plan.leavesOpen).toBe(false);
++    expect(plan.reasons.join(" ")).toMatch(/rounding/);
++  });
++
++  it("a real shortfall still waits for a person", () => {
++    const { reqData, acct } = invoiced("5000.00");
++    const plan = planPosting(paid(reqData, "4950.00"), acct, "R1", opts);
++    expect(plan.leavesOpen).toBe(true);
++    expect(plan.lines.map((l) => l.kind)).toEqual(["payment", "note"]);
++  });
++});

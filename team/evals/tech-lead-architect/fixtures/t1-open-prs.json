@@ -1,0 +1,13 @@
+[
+  {"number": 50, "base": "main", "head": "docs/architecture-plan-adr", "head_sha": "a11c0de", "title": "docs: ARCHITECTURE, PLAN_14_DAY, ADR 0001/0002", "author_agent": "tech-lead-architect", "additions": 410, "deletions": 0,
+   "checks": {"ci": "success"}, "comments": ["CODE REVIEW: CHANGES REQUESTED a11c0de\nby: code-reviewer\nToo big for one review: split ADRs from the plan."]},
+  {"number": 51, "base": "main", "head": "fix/posting-date-org-timezone", "head_sha": "b2f7e91", "title": "fix(accounting): posting date in org timezone, PR (a) of ADR 0002 (R12)", "author_agent": "accounting-integrations-engineer", "additions": 121, "deletions": 38,
+   "files": ["src/lib/accounting/rules.ts", "tests/posting-date-timezone.test.ts", "CHANGELOG.md"],
+   "checks": {"ci": "success"}, "comments": ["CODE REVIEW: APPROVE b2f7e91\nby: code-reviewer", "QA: PASS b2f7e91\nby: qa-security-engineer"]},
+  {"number": 52, "base": "main", "head": "fix/dismiss-while-confirming-reorg", "head_sha": "c3d4e5f", "title": "fix(requests): dismiss a reorged ghost while confirming (R13)", "author_agent": "crypto-protocol-engineer", "additions": 88, "deletions": 12,
+   "files": ["src/lib/requests/lifecycle.ts", "tests/reorg-dismiss.test.ts", "CHANGELOG.md"],
+   "checks": {"ci": "failure"}, "comments": []},
+  {"number": 53, "base": "main", "head": "docs/scenario-catalogue", "head_sha": "d9e8f70", "title": "docs: 20-payment scenario catalogue + fixture schema (R18, D2.3)", "author_agent": "matching-engine-engineer", "additions": 190, "deletions": 0,
+   "files": ["docs/SCENARIOS.md", "tests/fixtures/scenarios/schema.json"],
+   "checks": {"ci": "success"}, "comments": ["CODE REVIEW: APPROVE d9e8f70\nby: code-reviewer", "QA: PASS d9e8f70\nby: qa-security-engineer"]}
+]

@@ -1,0 +1,36 @@
+{
+  "_note": "FICTIONAL fixture. 06:17 SGT Fri 6 Nov 2026 (Day 6). Branch rule: PR required + required check ci (strict). origin/main = 1a2b3c4 and includes #51 (orgTimeZone?: string on PlanOptions; Xero plan with no zone -> blocked).",
+  "prs": [
+    {"number": 60, "head_sha": "6060aaa", "additions": 214, "deletions": 9, "author_agent": "accounting-integrations-engineer", "task": "T2026-11-05-1 (D3.1)",
+     "title": "feat(xero): read Organisation Timezone, map to IANA, add accounting.settings.read scope",
+     "diff_summary": [
+       "src/lib/accounting/providers/xero.ts: + async organisation(): GET /Organisation -> {Timezone}",
+       "src/lib/accounting/providers/xero-zones.ts (new): XERO_TO_IANA table from CLDR windowsZones (137 entries) + 4 explicit",
+       "src/lib/accounting/providers/xero-auth.ts: DEFAULT_SCOPES += ' accounting.settings.read'",
+       "src/lib/accounting/types.ts: XeroConnection gains optional orgZone?: {xeroTimezone: string; ianaTimeZone: string; readAt: string}",
+       "src/lib/accounting/service.ts: planFor() passes orgTimeZone: conn.orgZone?.ianaTimeZone",
+       "tests/xero-zones.test.ts: SINGAPORESTANDARDTIME->Asia/Singapore, EASTERNSTANDARDTIME->America/New_York, 'MARSSTANDARDTIME' -> undefined"],
+     "check_runs_head": [{"name": "ci", "conclusion": "success", "head_sha": "6060aaa"}],
+     "comments": ["CODE REVIEW: APPROVE 6060aaa\nby: code-reviewer", "QA: PASS 6060aaa\nby: qa-security-engineer"], "mergeable": true},
+    {"number": 61, "head_sha": "6161bbb", "additions": 188, "deletions": 14, "author_agent": "frontend-product-engineer", "task": "T2026-11-05-3 (D5.2 account-code settings)",
+     "title": "feat(books): account code settings on /books",
+     "diff_summary": [
+       "src/lib/accounting/types.ts: AccountSettings gains timezone: string   // required",
+       "src/lib/accounting/rules.ts: const tz = o.orgTimeZone ?? accounts.timezone ?? 'UTC'",
+       "src/app/books/page.tsx: form for walletAccountCode, feeAccountCode, timezone (free text, default 'UTC')",
+       "src/app/api/accounting/settings/route.ts (new): POST saves accounts; no Origin check",
+       "tests/books-settings.test.ts"],
+     "check_runs_head": [{"name": "ci", "conclusion": "success", "head_sha": "6161bbb"}],
+     "comments": ["CODE REVIEW: APPROVE 6161bbb\nby: code-reviewer"], "mergeable": false, "mergeable_note": "conflicts with main in src/lib/accounting/rules.ts and types.ts"},
+    {"number": 62, "head_sha": "6262ccc", "additions": 142, "deletions": 3, "author_agent": "crypto-protocol-engineer", "task": "T2026-11-05-2 (D4.1 watcher route)",
+     "title": "feat(requests): Check for payments on a watched address",
+     "diff_summary": [
+       "src/lib/requests/types.ts: TransferEvent.source: 'simulated' | 'live' | 'watch'; + watchedAt?: string",
+       "src/lib/requests/service.ts: checkWatched(address) -> fetch token transfers -> ingest()",
+       "src/app/api/requests/watch/route.ts (new)",
+       "tests/watch-route.test.ts"],
+     "check_runs": [{"name": "ci", "conclusion": "success", "head_sha": "6262bbb"}, {"name": "ci", "conclusion": "failure", "head_sha": "6262ccc", "failed_test": "tests/accounting.test.ts > posting > a live transfer posts once (source 'watch' not handled in planPosting filter)"}],
+     "comments": ["CODE REVIEW: APPROVE 6262bbb\nby: code-reviewer", "QA: PASS 6262bbb\nby: qa-security-engineer"], "mergeable": true}
+  ],
+  "task_file_contract_excerpt": "T2026-11-05-2 interface: watcher emits TransferEvent exactly like LiveHashProvider (source:'live', real blockTime); no new fields. T2026-11-05-3: AccountSettings additions optional with defaults; the posting date zone comes only from the Xero connection (ADR 0002)."
+}
