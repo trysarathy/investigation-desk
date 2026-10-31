@@ -1,11 +1,7 @@
-// Examiner's own WCAG 2.x contrast measurement. Usage: node contrast.mjs
-// Composites rgba / color-mix(in srgb, X p%, transparent) over the surface underneath.
-const hex = h => { h = h.replace('#',''); return [0,2,4].map(i => parseInt(h.slice(i,i+2),16)); };
-const lin = c => { c/=255; return c<=0.03928? c/12.92 : Math.pow((c+0.055)/1.055,2.4); };
-const L = rgb => 0.2126*lin(rgb[0])+0.7152*lin(rgb[1])+0.0722*lin(rgb[2]);
-export const ratio = (a,b) => { const [x,y]=[L(a),L(b)].sort((p,q)=>q-p); return (x+0.05)/(y+0.05); };
-export const mix = (fg, p, bg) => fg.map((c,i)=>Math.round(c*p + bg[i]*(1-p)));
-const r = (a,b) => ratio(typeof a==='string'?hex(a):a, typeof b==='string'?hex(b):b).toFixed(2);
+// Examiner's own WCAG 2.x contrast measurement of the real tokens. Usage: node contrast.mjs
+// Sources: src/app/globals.css (product, light + dark) and website/src/app/globals.css on origin/website-fixes.
+// Composites color-mix(in srgb, X p%, transparent) / rgba / opacity over the surface underneath.
+import { hex, ratio, mix, r } from './wcag.mjs';
 const light = { canvas:'#f7f7f5', panel:'#ffffff', panel2:'#fafaf9', text:'#17181c', text2:'#5b5e66', text3:'#8a8d94', border:'#e4e4e0', borderStrong:'#d2d2cc', accent:'#3b5bdb', accentText:'#ffffff', accentSoft:'#edf1fd', green:'#1f7a3d', greenSoft:'#e9f5ec', amber:'#8a5a00', amberSoft:'#fdf3dc', red:'#b42318', redSoft:'#fdecea', focus:'#3b5bdb' };
 const dark  = { canvas:'#111215', panel:'#18191d', panel2:'#1d1e23', text:'#ececee', text2:'#a4a7ae', text3:'#767982', border:'#2a2b31', borderStrong:'#383a41', accent:'#6b86f0', accentText:'#0d1020', accentSoft:'#1e2440', green:'#5cc98a', greenSoft:'#15291e', amber:'#e8b45a', amberSoft:'#2e2512', red:'#f1877d', redSoft:'#351a18', focus:'#8aa0f5' };
 const surfaces = ['canvas','panel','panel2','accentSoft','amberSoft','greenSoft','redSoft'];
