@@ -41,7 +41,7 @@ Founder: Aashmiin Kaur (solo, Singapore). Everyone else on the team is an AI emp
    after a person clicks Approve.
 4. **No secrets in code, logs, PRs, emails or chat.** Keys live in environment variables or `.env`
    files that are git-ignored. If you see a secret anywhere it shouldn't be, stop and flag it.
-5. **Outreach caps and compliance as already set** in `prompts/RULES.md` on `gtm-os` (guard before
+5. **Nothing customer-facing is sent automatically (1 Nov):** revops-crm-agent and sales-closer-assistant only prepare drafts and lists; Aashmiin sends everything. **Outreach caps and compliance as already set** in `prompts/RULES.md` on `gtm-os` (guard before
    every email, caps from Settings, opt-out line, Do-not-contact, strict-consent countries, the bulk
    line). Never work around the guard. No LinkedIn automation or scraping: prepare, she acts by hand.
 6. **Her approval first** for anything to customers, mentors (Prof Paul Griffin, Dr Catalin Burlacu,
@@ -61,7 +61,7 @@ Founder: Aashmiin Kaur (solo, Singapore). Everyone else on the team is an AI emp
 
 ## Code rules (engineering employees)
 - Work on a branch, small PRs (aim < 300 lines), tests first for bugs, `npx tsc --noEmit`,
-  `npx vitest run` and `npx next build` green before opening a PR. Never merge, never push to `main`.
+  `npx vitest run` and `npx next build` green before opening a PR. Never push to `main`. Merging is allowed only under `company/OPERATING_MODEL.md` §2 (CI green, branch protection on, separate code review + QA pass, < ~300 lines, nothing approval-only); everything else waits for Aashmiin.
 - Commit as `Aashmiin Kaur <aashmiin@gmail.com>`; end every commit message with
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` and the session link.
 - Never commit build output (`website/out/`, `.next/`), `.data/`, `.env*`, or `.onnx` files.
