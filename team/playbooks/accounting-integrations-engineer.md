@@ -98,3 +98,5 @@ auto-merge.**" · unverified items.
 2. Line numbers: re-run `grep -n` on each cited file alone.
 3. Each defect has its failing test written down (and run, if the branch exists).
 4. Every name comes from a source; otherwise a placeholder.
+5. Timing sentences in drafts ("before Monday") are written as questions for Aashmiin, like offers.
+6. Guard tests get adversarial neighbours (API call fails, field missing, scope not granted), not just the happy path.
