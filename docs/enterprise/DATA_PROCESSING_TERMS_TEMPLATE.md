@@ -15,7 +15,8 @@ Clearline service under the Agreement and the Customer's documented instructions
 ## 2. Purpose
 To create payment requests for the Customer's invoices, read public blockchain data about payments to the
 Customer's receiving addresses, match and check those payments, explain exceptions, and, only on a person's
-approval, post payments to the Customer's accounting system. No other purpose. No sale of data, no marketing,
+approval, prepare entries for the Customer's accounting system (during the pilot, a Xero-ready import file the
+Customer's accountant reviews and imports; no live posting). No other purpose. No sale of data, no marketing,
 no model training.
 
 ## 3. Data categories

@@ -12,13 +12,14 @@ Shared by both sides; update the Status column as we go. Owner names are people,
 | 6 | Data processing terms reviewed (both sides' counsel) | [legal] | Aashmiin | [date] | |
 | 7 | Pilot proposal signed; invoice US$300 sent and paid | [approver] | Aashmiin | [date] | |
 | 8 | Setup: deploy, shared password / IP allow-list, receiving addresses, open invoices | [ops contact] | Aashmiin | Day 1 | |
-| 9 | Xero: connect Demo Company, test postings, customer checks them; then connect live org | [Xero admin] | Aashmiin | Day 3–7 | |
+| 9 | Xero: Clearline sends a Xero-ready import file of approved payments; your accountant reviews and imports it (no live connection to your Xero in this pilot) | [accountant] | Aashmiin | Day 3–7, then weekly | |
 | 10 | Weekly 20-minute check-in: exceptions, timings, issues | [finance lead] | Aashmiin | Weekly | |
 | 11 | Day-15 midpoint: are we on track for the criteria? | [finance lead] | Aashmiin | Day 15 | |
 | 12 | Month-end report delivered | | Aashmiin | Day 30 | |
 | 13 | Day-30 review against criteria; continue / stop decision | [approver] | Aashmiin | Day 30 | |
-| 14 | If stop: data deleted, Xero app revoked, written confirmation | [IT contact] | Aashmiin | Day 30 + 10 business days | |
-| 15 | If continue: monthly plan from day 31 (US$200/month, pilot fee credited months 2–4) | [approver] | Aashmiin | Day 31 | |
+| 14 | If stop: data deleted, written confirmation | [IT contact] | Aashmiin | Day 30 + 10 business days | |
+| 15 | If continue: monthly plan from day 31 (US$200/month) | [approver] | Aashmiin | Day 31 | |
 
 **Risks we both watch:** no sign-in yet (access is by a shared password); transfers recorded by hand because
-address watching isn't built; first live Xero run happens in this pilot; one-person support.
+address watching isn't built; no live posting to your Xero until our Xero sandbox tests pass and Aashmiin
+approves (an import file your accountant reviews until then); one-person support.

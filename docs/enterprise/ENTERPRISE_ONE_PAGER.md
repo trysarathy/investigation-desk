@@ -27,6 +27,8 @@ system by hand. [ASSUMPTION: how often, and how many hours it costs, is not yet 
 - **Marking paid:** in live mode a person confirms each matched payment (the automatic rule is demo-only today).
 - **Month-end report:** prepared by the founder from Clearline's records and audit log, as a spreadsheet.
 - **Xero setup:** account codes are set in a config file by the founder; there's no settings screen yet.
+- **Getting entries into Xero:** during a pilot you get a Xero-ready import file that your accountant reviews and
+  imports. Live posting to your Xero is switched on only after our Xero sandbox tests pass and Aashmiin approves.
 - **Deletion and offboarding:** done by hand, confirmed in writing (`SECURITY_OVERVIEW.md` §5).
 
 ## Roadmap (not built)
@@ -35,11 +37,10 @@ SSO · encrypted token storage and a database · QuickBooks Online live test · 
 non-USD invoices · SOC 2 when customers need it.
 
 ## The pilot
-- **US$300 for 30 days**, then **US$200/month** if you continue; the pilot fee is credited against months 2–4.
-  Cancel any time. **Enterprise pricing on request** (self-hosting, multiple entities, security review support).
+- **Founding pilot: US$300 for 30 days, then US$200/month** (first 10 businesses). Cancel any time. **Enterprise pricing on request** (self-hosting, multiple entities, security review support).
 - A **paid pilot with written success criteria** agreed on day 1 (see `PILOT_PROPOSAL_TEMPLATE.md`), for example:
-  every stablecoin payment in the period matched or explained; time to post per payment down by an agreed amount;
-  zero wrong postings.
+  every stablecoin payment in the period matched or explained; time to get each payment into the books down by an agreed
+  amount; zero wrong entries in the Xero import file.
 - Invoiced by the founder's sole proprietorship in India (bank transfer, PayPal or Wise).
 - Who you work with: one founder, a university student in Singapore. 0 customers today; you'd be one of the first.
 
