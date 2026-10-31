@@ -7,7 +7,7 @@ import { site } from "@/lib/site";
 const perks = [
   ["Early access", "Use Clearline on your own payments before anyone else."],
   ["A direct line to the founder", "Your problems shape what gets built next."],
-  ["Free during the pilot", "No cost, no commitment. Leave whenever you like."],
+  ["Founding pilot: US$300 for 30 days", "Then US$200/month. First 10 businesses. Cancel any time."],
 ];
 
 const field = "mt-2 block w-full rounded-xl border border-line-strong bg-ink px-4 py-3 text-[15px] text-fg placeholder:text-faint focus:border-accent focus:outline-none";
