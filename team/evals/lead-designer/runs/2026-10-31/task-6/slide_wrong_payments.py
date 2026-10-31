@@ -18,13 +18,13 @@ def foot(s, sources):
 s = new("""
 SAY: Most stablecoin payments arrive fine. The work is in the few that don't: paid short, sent on the wrong network, a counterfeit token, or no invoice reference. That's where I've focused. In my own test, the checks gave the right answer on 52 of 52 real public transfers I hadn't used while building the rules. I don't yet know how long these take a finance team; my guess is 15 to 30 minutes each, and that's one of the first things I want to check with you and with finance teams.
 LABELS:
-- "Most stablecoin payments arrive fine; the work is in the ones that don't" [ASSUMPTION]: our own view, not measured. Marked ◦ on the subtitle.
-- Four problem types (short, wrong network, counterfeit token, no reference) [VERIFIED: docs/SPEC.md and the demo cases; ERC-20 transfers carry no invoice reference, eips.ethereum.org/EIPS/eip-20].
+- "Most arrive fine. The work is in the ones that don't" [ASSUMPTION]: our own view, not measured. Marked ◦ on the subtitle.
+- Four problem types (short, wrong network, counterfeit token, no reference): the same four as slide 2 of this brief (build_brief.py, opened 31 Oct 2026). "No reference": an ERC-20 transfer records sender, receiver and amount only (eips.ethereum.org/EIPS/eip-20, cited on slide 2; not reopened this run, so [ASSUMPTION] until re-checked).
 - "52 of 52" [VERIFIED]: website/src/components/Sections.tsx lines 66-71 on pitch-deck: real public USDC/USDT transfers not used while building the rules; right answers confirmed on block explorers. Our own small test, not a customer result. Covers the checks (real token, right network, right address), not automatic matching, which hasn't been tested on real data.
 - "15-30 minutes per problem payment" [GUESS]: docs/SPEC.md section 1, not measured. Marked † on the slide.
 """)
 head(s, [("The wrong payments are the hard part", {})])
-text(s, M, 1.38, W - 2 * M, 0.5, [[("Most stablecoin payments arrive fine; the work is in the ones that don't", {}), ("◦", {"color": ACC2, "bold": True})]], size=20, color=MUTED, name="Subtitle")
+text(s, M, 1.38, W - 2 * M, 0.5, [[("Most arrive fine. The work is in the ones that don't", {}), ("◦", {"color": ACC2, "bold": True})]], size=20, color=MUTED, name="Subtitle")
 items = [("short", "Paid short"), ("road", "Wrong network"), ("fake", "Counterfeit token"), ("nolabel", "No reference")]
 gap = 0.35; cw = (W - 2 * M - 3 * gap) / 4
 for k, (ic, lab) in enumerate(items):
@@ -35,10 +35,10 @@ for k, (ic, lab) in enumerate(items):
 half = (W - 2 * M - gap) / 2
 box(s, M, 4.45, half, 1.8)
 text(s, M + 0.35, 4.6, half - 0.7, 0.7, "52 of 52", size=40, bold=True)
-text(s, M + 0.35, 5.35, half - 0.7, 0.85, "real public transfers checked correctly in our own test, not a customer result", size=18, color=MUTED)
+text(s, M + 0.35, 5.35, half - 0.7, 0.85, "real public transfers checked right. Our own test, not a customer result", size=18, color=MUTED)
 box(s, M + half + gap, 4.45, half, 1.8)
 text(s, M + half + gap + 0.35, 4.6, half - 0.7, 0.7, [[("15–30 min", {}), ("†", {"color": ACC2})]], size=40, bold=True)
-text(s, M + half + gap + 0.35, 5.35, half - 0.7, 0.85, "per problem payment: our guess, not yet measured", size=18, color=MUTED)
+text(s, M + half + gap + 0.35, 5.35, half - 0.7, 0.85, "per problem payment. Our guess, not measured", size=18, color=MUTED)
 foot(s, "52 of 52: own test of real public USDC/USDT transfers not used to build the rules (clearline website, Trust section). 15–30 min: untested guess (Clearline spec §1).")
 # ---- end slide ------------------------------------------------------------------------------------
 
