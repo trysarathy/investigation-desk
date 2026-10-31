@@ -1,0 +1,2542 @@
+[
+  {
+    "url": "http://127.0.0.1:3400/",
+    "viewport": "desktop-1280",
+    "screenshot": "home-desktop-1280.png",
+    "overflow": {
+      "scrollWidth": 1280,
+      "clientWidth": 1280,
+      "offenders": []
+    },
+    "contrastFails": [],
+    "contrastAll": [
+      {
+        "fg": "#8a93a3",
+        "bg": "#11141b",
+        "size": 12,
+        "weight": 400,
+        "ratio": 5.95,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 7,
+        "sample": "Clearline · at a glance · demo data"
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#11141b",
+        "size": 13,
+        "weight": 500,
+        "ratio": 5.95,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "A day in finance"
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#11141b",
+        "size": 17,
+        "weight": 400,
+        "ratio": 5.95,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "1 ·"
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#11141b",
+        "size": 12.5,
+        "weight": 400,
+        "ratio": 5.95,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Maya is a fictional finance manager, the same one as in our "
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#11141b",
+        "size": 14,
+        "weight": 400,
+        "ratio": 5.95,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "(optional)"
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#0a0c11",
+        "size": 13.5,
+        "weight": 400,
+        "ratio": 6.32,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "For finance teams paid in stablecoins (digital dollars such "
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#0a0c11",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.32,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 5,
+        "sample": "· full screen, plus screenshots"
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#0a0c11",
+        "size": 12.5,
+        "weight": 400,
+        "ratio": 6.32,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 13,
+        "sample": "Source:"
+      },
+      {
+        "fg": "#8ea2ff",
+        "bg": "#11141b",
+        "size": 13.5,
+        "weight": 400,
+        "ratio": 7.69,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "privacy notice"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#11141b",
+        "size": 15.5,
+        "weight": 400,
+        "ratio": 7.98,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Checkout pages and payment gateways usually handle payments "
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#11141b",
+        "size": 14,
+        "weight": 400,
+        "ratio": 7.98,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 4,
+        "sample": "Checkout page"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#11141b",
+        "size": 13.5,
+        "weight": 400,
+        "ratio": 7.98,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "I agree that Clearline can use these details to contact me a"
+      },
+      {
+        "fg": "#8ea2ff",
+        "bg": "#0a0c11",
+        "size": 13,
+        "weight": 600,
+        "ratio": 8.16,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 12,
+        "sample": "Demo"
+      },
+      {
+        "fg": "#8ea2ff",
+        "bg": "#0a0c11",
+        "size": 13,
+        "weight": 400,
+        "ratio": 8.16,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Open the demo page"
+      },
+      {
+        "fg": "#f28b82",
+        "bg": "#0a0c11",
+        "size": 13,
+        "weight": 600,
+        "ratio": 8.19,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": true,
+        "count": 1,
+        "sample": "Look-alike address check"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 14,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 11,
+        "sample": "How it works"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 13,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Working demo · early access"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 19,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Clearline asks for each payment clearly, matches it to its i"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 17,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 11,
+        "sample": "The real product, running on a fictional company. Captions a"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 15,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 7,
+        "sample": "An exchange takes its withdrawal fee, so 5,000 becomes 4,950"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 16,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": true,
+        "count": 1,
+        "sample": "Scammers plant addresses that start and end like yours in pe"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 15.5,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 17,
+        "sample": "of real-economy stablecoin payments in 2025, about 60% of th"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 14.5,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "In our own test, Clearline's checks (real token, right netwo"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#11141b",
+        "size": 17,
+        "weight": 400,
+        "ratio": 15.88,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 4,
+        "sample": "Maya runs finance at a small company that gets paid in digit"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#11141b",
+        "size": 15.5,
+        "weight": 600,
+        "ratio": 15.88,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Alongside your existing tools."
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#11141b",
+        "size": 14,
+        "weight": 500,
+        "ratio": 15.88,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 6,
+        "sample": "Name"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 17,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Clearline"
+      },
+      {
+        "fg": "#0a0c11",
+        "bg": "#eceef4",
+        "size": 13.5,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Book a call"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 68,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 3,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Stablecoin payments, matched, explained"
+      },
+      {
+        "fg": "#0a0c11",
+        "bg": "#eceef4",
+        "size": 15,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Book a 15-minute call"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 15,
+        "weight": 500,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Watch the 60-second demo"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 52,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 3,
+        "pass": true,
+        "bgImage": false,
+        "count": 9,
+        "sample": "See it in 60 seconds."
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 18,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 8,
+        "sample": "Paid too little"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 36,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 3,
+        "pass": true,
+        "bgImage": false,
+        "count": 4,
+        "sample": "Your customer sees exactly how to pay."
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 32,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 3,
+        "pass": true,
+        "bgImage": true,
+        "count": 1,
+        "sample": "A warning before the money moves."
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 38,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 3,
+        "pass": true,
+        "bgImage": false,
+        "count": 4,
+        "sample": "~$400B"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 14.5,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "52 of 52."
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 16,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Early access"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 17,
+        "weight": 500,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 9,
+        "sample": "What are stablecoins?"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 14,
+        "weight": 500,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Product"
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "How it works",
+        "w": 86,
+        "h": 21,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Demo",
+        "w": 39,
+        "h": 21,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Safety",
+        "w": 43,
+        "h": 21,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Design partners",
+        "w": 106,
+        "h": 21,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "FAQ",
+        "w": 27,
+        "h": 21,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Open the demo page",
+        "w": 129,
+        "h": 16,
+        "inline": true,
+        "spacingOk": true
+      },
+      {
+        "text": "Bessemer Venture Partners, Apr 2026",
+        "w": 224,
+        "h": 15,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Reap, Aug 2026, citing BIS, BCG × Allium and McKin",
+        "w": 330,
+        "h": 15,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "EY-Parthenon 2025 survey of 350 decision-makers, v",
+        "w": 361,
+        "h": 15,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Bessemer Venture Partners, Apr 2026",
+        "w": 224,
+        "h": 15,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "INPUT",
+        "w": 16,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "privacy notice",
+        "w": 90,
+        "h": 16,
+        "inline": true,
+        "spacingOk": true
+      },
+      {
+        "text": "How it works",
+        "w": 86,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Demo",
+        "w": 39,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Design partners",
+        "w": 106,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "LinkedIn",
+        "w": 56,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Privacy notice",
+        "w": 94,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      }
+    ],
+    "focus": [
+      {
+        "el": "Skip to content",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(10, 12, 17)"
+      },
+      {
+        "el": "Clearline",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(236, 238, 244)"
+      },
+      {
+        "el": "How it works",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Demo",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Safety",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Design partners",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "FAQ",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Book a call",
+        "outline": "2px solid rgb(10, 12, 17)",
+        "boxShadow": false,
+        "border": "rgb(10, 12, 17)"
+      },
+      {
+        "el": "Book a 15-minute call",
+        "outline": "2px solid rgb(10, 12, 17)",
+        "boxShadow": false,
+        "border": "rgb(10, 12, 17)"
+      },
+      {
+        "el": "Watch the 60-second demo",
+        "outline": "2px solid rgb(236, 238, 244)",
+        "boxShadow": false,
+        "border": "rgba(255, 255, 255, 0.14)"
+      },
+      {
+        "el": "Play the 60-second demo film (with sound",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(236, 238, 244)"
+      },
+      {
+        "el": "Open the demo page",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(142, 162, 255)"
+      },
+      {
+        "el": "Bessemer Venture Partners, Apr 2026",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "Reap, Aug 2026, citing BIS, BCG × Allium",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "EY-Parthenon 2025 survey of 350 decision",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      }
+    ],
+    "axe": []
+  },
+  {
+    "url": "http://127.0.0.1:3400/demo/",
+    "viewport": "desktop-1280",
+    "screenshot": "demo-desktop-1280.png",
+    "overflow": {
+      "scrollWidth": 1280,
+      "clientWidth": 1280,
+      "offenders": []
+    },
+    "contrastFails": [],
+    "contrastAll": [
+      {
+        "fg": "#8a93a3",
+        "bg": "#11141b",
+        "size": 12,
+        "weight": 400,
+        "ratio": 5.95,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "demo data"
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#0a0c11",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.32,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Built by"
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#0a0c11",
+        "size": 12.5,
+        "weight": 400,
+        "ratio": 6.32,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "© 2026"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 14,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 11,
+        "sample": "How it works"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 17,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "The real product, running on a fictional company. Captions a"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 15,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "1 · The customer sees exactly how to pay"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 17,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Clearline"
+      },
+      {
+        "fg": "#0a0c11",
+        "bg": "#eceef4",
+        "size": 13.5,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Book a call"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 52,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 3,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Clearline in 60 seconds"
+      },
+      {
+        "fg": "#0a0c11",
+        "bg": "#eceef4",
+        "size": 15,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Book a 15-minute call"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 14,
+        "weight": 500,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Product"
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "How it works",
+        "w": 86,
+        "h": 21,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Demo",
+        "w": 39,
+        "h": 21,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Safety",
+        "w": 43,
+        "h": 21,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Design partners",
+        "w": 106,
+        "h": 21,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "FAQ",
+        "w": 27,
+        "h": 21,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "How it works",
+        "w": 86,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Demo",
+        "w": 39,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Design partners",
+        "w": 106,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "LinkedIn",
+        "w": 56,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Privacy notice",
+        "w": 94,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      }
+    ],
+    "focus": [
+      {
+        "el": "Skip to content",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(10, 12, 17)"
+      },
+      {
+        "el": "Clearline",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(236, 238, 244)"
+      },
+      {
+        "el": "How it works",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Demo",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Safety",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Design partners",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "FAQ",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Book a call",
+        "outline": "2px solid rgb(10, 12, 17)",
+        "boxShadow": false,
+        "border": "rgb(10, 12, 17)"
+      },
+      {
+        "el": "Play the 60-second demo film (with sound",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(236, 238, 244)"
+      },
+      {
+        "el": "Book a 15-minute call",
+        "outline": "2px solid rgb(10, 12, 17)",
+        "boxShadow": false,
+        "border": "rgb(10, 12, 17)"
+      },
+      {
+        "el": "Clearline",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(236, 238, 244)"
+      },
+      {
+        "el": "How it works",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Demo",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Design partners",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "LinkedIn",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      }
+    ],
+    "axe": []
+  },
+  {
+    "url": "http://127.0.0.1:3400/privacy/",
+    "viewport": "desktop-1280",
+    "screenshot": "privacy-desktop-1280.png",
+    "overflow": {
+      "scrollWidth": 1280,
+      "clientWidth": 1280,
+      "offenders": []
+    },
+    "contrastFails": [],
+    "contrastAll": [
+      {
+        "fg": "#8a93a3",
+        "bg": "#0a0c11",
+        "size": 14,
+        "weight": 400,
+        "ratio": 6.32,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Last updated 28 October 2026"
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#0a0c11",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.32,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Built by"
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#0a0c11",
+        "size": 12.5,
+        "weight": 400,
+        "ratio": 6.32,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "© 2026"
+      },
+      {
+        "fg": "#8ea2ff",
+        "bg": "#0a0c11",
+        "size": 16,
+        "weight": 400,
+        "ratio": 8.16,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "LinkedIn"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 14,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 11,
+        "sample": "How it works"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 16,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 11,
+        "sample": "Clearline is a pre-launch project run by"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 17,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Clearline"
+      },
+      {
+        "fg": "#0a0c11",
+        "bg": "#eceef4",
+        "size": 13.5,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Book a call"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 44,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 3,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Privacy notice"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 18,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 7,
+        "sample": "Who we are"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 14,
+        "weight": 500,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Product"
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "How it works",
+        "w": 86,
+        "h": 21,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Demo",
+        "w": 39,
+        "h": 21,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Safety",
+        "w": 43,
+        "h": 21,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Design partners",
+        "w": 106,
+        "h": 21,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "FAQ",
+        "w": 27,
+        "h": 21,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "LinkedIn",
+        "w": 64,
+        "h": 20,
+        "inline": true,
+        "spacingOk": true
+      },
+      {
+        "text": "How it works",
+        "w": 86,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Demo",
+        "w": 39,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Design partners",
+        "w": 106,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "LinkedIn",
+        "w": 56,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Privacy notice",
+        "w": 94,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      }
+    ],
+    "focus": [
+      {
+        "el": "Skip to content",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(10, 12, 17)"
+      },
+      {
+        "el": "Clearline",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(236, 238, 244)"
+      },
+      {
+        "el": "How it works",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Demo",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Safety",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Design partners",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "FAQ",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Book a call",
+        "outline": "2px solid rgb(10, 12, 17)",
+        "boxShadow": false,
+        "border": "rgb(10, 12, 17)"
+      },
+      {
+        "el": "LinkedIn",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(142, 162, 255)"
+      },
+      {
+        "el": "Clearline",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(236, 238, 244)"
+      },
+      {
+        "el": "How it works",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Demo",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Design partners",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "LinkedIn",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Privacy notice",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      }
+    ],
+    "axe": []
+  },
+  {
+    "url": "http://127.0.0.1:3400/",
+    "viewport": "phone-390",
+    "screenshot": "home-phone-390.png",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "offenders": [
+        "DIV.drift pointer-events-none absolute -top-",
+        "DIV.pointer-events-none absolute left-1/2 to"
+      ]
+    },
+    "contrastFails": [],
+    "contrastAll": [
+      {
+        "fg": "#8a93a3",
+        "bg": "#11141b",
+        "size": 12,
+        "weight": 400,
+        "ratio": 5.95,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 7,
+        "sample": "Clearline · at a glance · demo data"
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#11141b",
+        "size": 13,
+        "weight": 500,
+        "ratio": 5.95,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "A day in finance"
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#11141b",
+        "size": 17,
+        "weight": 400,
+        "ratio": 5.95,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "1 ·"
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#11141b",
+        "size": 12.5,
+        "weight": 400,
+        "ratio": 5.95,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Maya is a fictional finance manager, the same one as in our "
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#11141b",
+        "size": 14,
+        "weight": 400,
+        "ratio": 5.95,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "(optional)"
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#0a0c11",
+        "size": 13.5,
+        "weight": 400,
+        "ratio": 6.32,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "For finance teams paid in stablecoins (digital dollars such "
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#0a0c11",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.32,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 5,
+        "sample": "· full screen, plus screenshots"
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#0a0c11",
+        "size": 12.5,
+        "weight": 400,
+        "ratio": 6.32,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 13,
+        "sample": "Source:"
+      },
+      {
+        "fg": "#8ea2ff",
+        "bg": "#11141b",
+        "size": 13.5,
+        "weight": 400,
+        "ratio": 7.69,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "privacy notice"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#11141b",
+        "size": 15.5,
+        "weight": 400,
+        "ratio": 7.98,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Checkout pages and payment gateways usually handle payments "
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#11141b",
+        "size": 14,
+        "weight": 400,
+        "ratio": 7.98,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 4,
+        "sample": "Checkout page"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#11141b",
+        "size": 13.5,
+        "weight": 400,
+        "ratio": 7.98,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "I agree that Clearline can use these details to contact me a"
+      },
+      {
+        "fg": "#8ea2ff",
+        "bg": "#0a0c11",
+        "size": 13,
+        "weight": 600,
+        "ratio": 8.16,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 12,
+        "sample": "Demo"
+      },
+      {
+        "fg": "#8ea2ff",
+        "bg": "#0a0c11",
+        "size": 13,
+        "weight": 400,
+        "ratio": 8.16,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Open the demo page"
+      },
+      {
+        "fg": "#f28b82",
+        "bg": "#0a0c11",
+        "size": 13,
+        "weight": 600,
+        "ratio": 8.19,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": true,
+        "count": 1,
+        "sample": "Look-alike address check"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 13,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Working demo · early access"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 16.5,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Clearline asks for each payment clearly, matches it to its i"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 17,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 11,
+        "sample": "The real product, running on a fictional company. Captions a"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 15,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 7,
+        "sample": "An exchange takes its withdrawal fee, so 5,000 becomes 4,950"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 16,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": true,
+        "count": 1,
+        "sample": "Scammers plant addresses that start and end like yours in pe"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 15.5,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 17,
+        "sample": "of real-economy stablecoin payments in 2025, about 60% of th"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 14.5,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "In our own test, Clearline's checks (real token, right netwo"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 14,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 6,
+        "sample": "Stablecoin payments, matched, explained and in your books. W"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#11141b",
+        "size": 17,
+        "weight": 400,
+        "ratio": 15.88,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 4,
+        "sample": "Maya runs finance at a small company that gets paid in digit"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#11141b",
+        "size": 15.5,
+        "weight": 600,
+        "ratio": 15.88,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Alongside your existing tools."
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#11141b",
+        "size": 14,
+        "weight": 500,
+        "ratio": 15.88,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 6,
+        "sample": "Name"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 17,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Clearline"
+      },
+      {
+        "fg": "#0a0c11",
+        "bg": "#eceef4",
+        "size": 13.5,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Book a call"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 38,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 3,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Stablecoin payments, matched, explained"
+      },
+      {
+        "fg": "#0a0c11",
+        "bg": "#eceef4",
+        "size": 15,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Book a 15-minute call"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 15,
+        "weight": 500,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Watch the 60-second demo"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 30,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 3,
+        "pass": true,
+        "bgImage": false,
+        "count": 9,
+        "sample": "See it in 60 seconds."
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 18,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 8,
+        "sample": "Paid too little"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 26,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 3,
+        "pass": true,
+        "bgImage": false,
+        "count": 4,
+        "sample": "Your customer sees exactly how to pay."
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 24,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 3,
+        "pass": true,
+        "bgImage": true,
+        "count": 1,
+        "sample": "A warning before the money moves."
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 28,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 3,
+        "pass": true,
+        "bgImage": false,
+        "count": 4,
+        "sample": "~$400B"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 14.5,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "52 of 52."
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 16,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Early access"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 17,
+        "weight": 500,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 9,
+        "sample": "What are stablecoins?"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 14,
+        "weight": 500,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Product"
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "Open the demo page",
+        "w": 129,
+        "h": 16,
+        "inline": true,
+        "spacingOk": true
+      },
+      {
+        "text": "Bessemer Venture Partners, Apr 2026",
+        "w": 224,
+        "h": 15,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Bessemer Venture Partners, Apr 2026",
+        "w": 224,
+        "h": 15,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "INPUT",
+        "w": 16,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "How it works",
+        "w": 86,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Demo",
+        "w": 39,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Design partners",
+        "w": 106,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "LinkedIn",
+        "w": 56,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Privacy notice",
+        "w": 94,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      }
+    ],
+    "focus": [
+      {
+        "el": "Skip to content",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(10, 12, 17)"
+      },
+      {
+        "el": "Clearline",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(236, 238, 244)"
+      },
+      {
+        "el": "Book a call",
+        "outline": "2px solid rgb(10, 12, 17)",
+        "boxShadow": false,
+        "border": "rgb(10, 12, 17)"
+      },
+      {
+        "el": "Book a 15-minute call",
+        "outline": "2px solid rgb(10, 12, 17)",
+        "boxShadow": false,
+        "border": "rgb(10, 12, 17)"
+      },
+      {
+        "el": "Watch the 60-second demo",
+        "outline": "2px solid rgb(236, 238, 244)",
+        "boxShadow": false,
+        "border": "rgba(255, 255, 255, 0.14)"
+      },
+      {
+        "el": "Play the 60-second demo film (with sound",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(236, 238, 244)"
+      },
+      {
+        "el": "Open the demo page",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(142, 162, 255)"
+      },
+      {
+        "el": "Bessemer Venture Partners, Apr 2026",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "Reap, Aug 2026, citing BIS, BCG × Allium",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "EY-Parthenon 2025 survey of 350 decision",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "Bessemer Venture Partners, Apr 2026",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "INPUT",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(142, 162, 255)"
+      },
+      {
+        "el": "INPUT",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(142, 162, 255)"
+      },
+      {
+        "el": "INPUT",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(142, 162, 255)"
+      },
+      {
+        "el": "INPUT",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      }
+    ],
+    "axe": []
+  },
+  {
+    "url": "http://127.0.0.1:3400/demo/",
+    "viewport": "phone-390",
+    "screenshot": "demo-phone-390.png",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "offenders": []
+    },
+    "contrastFails": [],
+    "contrastAll": [
+      {
+        "fg": "#8a93a3",
+        "bg": "#11141b",
+        "size": 12,
+        "weight": 400,
+        "ratio": 5.95,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "demo data"
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#0a0c11",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.32,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Built by"
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#0a0c11",
+        "size": 12.5,
+        "weight": 400,
+        "ratio": 6.32,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "© 2026"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 17,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "The real product, running on a fictional company. Captions a"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 15,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "1 · The customer sees exactly how to pay"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 14,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 6,
+        "sample": "Stablecoin payments, matched, explained and in your books. W"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 17,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Clearline"
+      },
+      {
+        "fg": "#0a0c11",
+        "bg": "#eceef4",
+        "size": 13.5,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Book a call"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 32,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 3,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Clearline in 60 seconds"
+      },
+      {
+        "fg": "#0a0c11",
+        "bg": "#eceef4",
+        "size": 15,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Book a 15-minute call"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 14,
+        "weight": 500,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Product"
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "How it works",
+        "w": 86,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Demo",
+        "w": 39,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Design partners",
+        "w": 106,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "LinkedIn",
+        "w": 56,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Privacy notice",
+        "w": 94,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      }
+    ],
+    "focus": [
+      {
+        "el": "Skip to content",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(10, 12, 17)"
+      },
+      {
+        "el": "Clearline",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(236, 238, 244)"
+      },
+      {
+        "el": "Book a call",
+        "outline": "2px solid rgb(10, 12, 17)",
+        "boxShadow": false,
+        "border": "rgb(10, 12, 17)"
+      },
+      {
+        "el": "Play the 60-second demo film (with sound",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(236, 238, 244)"
+      },
+      {
+        "el": "Book a 15-minute call",
+        "outline": "2px solid rgb(10, 12, 17)",
+        "boxShadow": false,
+        "border": "rgb(10, 12, 17)"
+      },
+      {
+        "el": "Clearline",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(236, 238, 244)"
+      },
+      {
+        "el": "How it works",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Demo",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Design partners",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "LinkedIn",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Privacy notice",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Skip to content",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(10, 12, 17)"
+      },
+      {
+        "el": "Clearline",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(236, 238, 244)"
+      },
+      {
+        "el": "Book a call",
+        "outline": "2px solid rgb(10, 12, 17)",
+        "boxShadow": false,
+        "border": "rgb(10, 12, 17)"
+      }
+    ],
+    "axe": []
+  },
+  {
+    "url": "http://127.0.0.1:3400/privacy/",
+    "viewport": "phone-390",
+    "screenshot": "privacy-phone-390.png",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "offenders": []
+    },
+    "contrastFails": [],
+    "contrastAll": [
+      {
+        "fg": "#8a93a3",
+        "bg": "#0a0c11",
+        "size": 14,
+        "weight": 400,
+        "ratio": 6.32,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Last updated 28 October 2026"
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#0a0c11",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.32,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Built by"
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#0a0c11",
+        "size": 12.5,
+        "weight": 400,
+        "ratio": 6.32,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "© 2026"
+      },
+      {
+        "fg": "#8ea2ff",
+        "bg": "#0a0c11",
+        "size": 16,
+        "weight": 400,
+        "ratio": 8.16,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "LinkedIn"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 16,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 11,
+        "sample": "Clearline is a pre-launch project run by"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#0a0c11",
+        "size": 14,
+        "weight": 400,
+        "ratio": 8.47,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 6,
+        "sample": "Stablecoin payments, matched, explained and in your books. W"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 17,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Clearline"
+      },
+      {
+        "fg": "#0a0c11",
+        "bg": "#eceef4",
+        "size": 13.5,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Book a call"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 32,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 3,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Privacy notice"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 18,
+        "weight": 600,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 7,
+        "sample": "Who we are"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 14,
+        "weight": 500,
+        "ratio": 16.86,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Product"
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "LinkedIn",
+        "w": 64,
+        "h": 20,
+        "inline": true,
+        "spacingOk": true
+      },
+      {
+        "text": "How it works",
+        "w": 86,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Demo",
+        "w": 39,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Design partners",
+        "w": 106,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "LinkedIn",
+        "w": 56,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Privacy notice",
+        "w": 94,
+        "h": 17,
+        "inline": false,
+        "spacingOk": true
+      }
+    ],
+    "focus": [
+      {
+        "el": "Skip to content",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(10, 12, 17)"
+      },
+      {
+        "el": "Clearline",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(236, 238, 244)"
+      },
+      {
+        "el": "Book a call",
+        "outline": "2px solid rgb(10, 12, 17)",
+        "boxShadow": false,
+        "border": "rgb(10, 12, 17)"
+      },
+      {
+        "el": "LinkedIn",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(142, 162, 255)"
+      },
+      {
+        "el": "Clearline",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(236, 238, 244)"
+      },
+      {
+        "el": "How it works",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Demo",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Design partners",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "LinkedIn",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Privacy notice",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(163, 171, 186)"
+      },
+      {
+        "el": "Skip to content",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(10, 12, 17)"
+      },
+      {
+        "el": "Clearline",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(236, 238, 244)"
+      },
+      {
+        "el": "Book a call",
+        "outline": "2px solid rgb(10, 12, 17)",
+        "boxShadow": false,
+        "border": "rgb(10, 12, 17)"
+      },
+      {
+        "el": "LinkedIn",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(142, 162, 255)"
+      }
+    ],
+    "axe": []
+  },
+  {
+    "reducedMotion": {
+      "path": "/",
+      "runningAnimations": [],
+      "scrollBehavior": "auto"
+    }
+  }
+]

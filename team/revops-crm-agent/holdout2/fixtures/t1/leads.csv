@@ -1,0 +1,14 @@
+id,tier,score,stage,priority,company,domain,country,region,segment,buyer_or_vendor,website,evidence_url,contact_name,contact_role,email,email_label,linkedin_person,channel,first_line,first_line_source,first_line_date,compliance_note,check_before_sending,last_touch,next_action,next_action_date,notes
+BG001,2,60,In sequence,,Background Co 1,bgco1.example,Singapore,,,BUYER,,,Alex Lee1,,alex.lee1@bgco1.example,VERIFIED-PUBLIC,,email,,https://bgco1.example/news,,,,,,,
+BG002,2,60,In sequence,,Background Co 2,bgco2.example,Singapore,,,BUYER,,,Alex Lee2,,alex.lee2@bgco2.example,VERIFIED-PUBLIC,,email,,https://bgco2.example/news,,,,,,,
+BG003,2,60,In sequence,,Background Co 3,bgco3.example,Singapore,,,BUYER,,,Alex Lee3,,alex.lee3@bgco3.example,VERIFIED-PUBLIC,,email,,https://bgco3.example/news,,,,,,,
+BG004,2,60,In sequence,,Background Co 4,bgco4.example,Singapore,,,BUYER,,,Alex Lee4,,alex.lee4@bgco4.example,VERIFIED-PUBLIC,,email,,https://bgco4.example/news,,,,,,,
+BG005,2,60,In sequence,,Background Co 5,bgco5.example,Singapore,,,BUYER,,,Alex Lee5,,alex.lee5@bgco5.example,VERIFIED-PUBLIC,,email,,https://bgco5.example/news,,,,,,,
+BG006,2,60,In sequence,,Background Co 6,bgco6.example,Singapore,,,BUYER,,,Alex Lee6,,alex.lee6@bgco6.example,VERIFIED-PUBLIC,,email,,https://bgco6.example/news,,,,,,,
+BG007,2,60,In sequence,,Background Co 7,bgco7.example,Singapore,,,BUYER,,,Alex Lee7,,alex.lee7@bgco7.example,VERIFIED-PUBLIC,,email,,https://bgco7.example/news,,,,,,,
+BG008,2,60,In sequence,,Background Co 8,bgco8.example,Singapore,,,BUYER,,,Alex Lee8,,alex.lee8@bgco8.example,VERIFIED-PUBLIC,,email,,https://bgco8.example/news,,,,,,,
+BG009,2,60,In sequence,,Background Co 9,bgco9.example,Singapore,,,BUYER,,,Alex Lee9,,alex.lee9@bgco9.example,VERIFIED-PUBLIC,,email,,https://bgco9.example/news,,,,,,,
+BG010,2,60,In sequence,,Background Co 10,bgco10.example,Singapore,,,BUYER,,,Alex Lee10,,alex.lee10@bgco10.example,VERIFIED-PUBLIC,,email,,https://bgco10.example/news,,,,,,,
+BG011,2,60,In sequence,,Background Co 11,bgco11.example,Singapore,,,BUYER,,,Alex Lee11,,alex.lee11@bgco11.example,VERIFIED-PUBLIC,,email,,https://bgco11.example/news,,,,,,,
+BG012,2,60,In sequence,,Background Co 12,bgco12.example,Singapore,,,BUYER,,,Alex Lee12,,alex.lee12@bgco12.example,VERIFIED-PUBLIC,,email,,https://bgco12.example/news,,,,,,,
+L101,1,82,Replied,1,Lumen OTC,lumenotc.example,Hong Kong,APAC,OTC desk,BUYER,https://lumenotc.example,https://lumenotc.example/settlement,Daniel Okafor,CFO,daniel.okafor@lumenotc.example,VERIFIED-PUBLIC,,email,Saw Lumen now settles client trades in USDT and USDC on Tron and Ethereum.,https://lumenotc.example/settlement,2026-09-14,,,,,,positive: replied 1 Nov

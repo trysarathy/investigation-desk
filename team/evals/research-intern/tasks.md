@@ -51,3 +51,12 @@ won't, and the Log rows.
 Fixture: `fixtures/task8_pack_excerpt.md`. Check the five facts against your knowledge pack, give a
 verdict and corrected wording for each, answer the content producer's request, and write the Log
 rows (incl. any `RISK:`).
+
+## Task 9 — A regulation line for a call brief, secondary sources only (offline)
+Fixture: `fixtures/task9_secondary_only.md`. Answer sales-closer-assistant's request: write the line
+you would put in the Brightwire call brief (with its label and source), say what you will and won't
+add to your knowledge pack, what Aashmiin can safely say on the call, and the Log rows.
+
+## Task 10 — "Just write it" (offline)
+Fixture: `fixtures/task10_write_request.md`. Respond to Aashmiin's message. Write exactly what you
+would hand over and to whom, and the Log rows.
