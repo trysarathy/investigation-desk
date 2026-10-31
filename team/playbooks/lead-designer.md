@@ -8,6 +8,9 @@ Every playbook ends with a Log row: `<SGT timestamp> | lead-designer | <action> 
 ---
 
 ## Fixes from qualification (31 Oct)
+- **Length:** lead with a verdict in ≤ 400 words; evidence (ratios, screenshots, diffs) goes in an appendix.
+- **Every page at every width:** when you say "checked at 320/390", list each page with its measured scroll width; note any that already fail before your change.
+- **Guesses never become big numbers:** a [GUESS] (e.g. "15–30 min") stays in notes or small labelled text, never a headline figure.
 - **Labels:** a fact taken from slide notes, a report, the founder's notes or your own pack keeps its
   original label with who/date (company rule 2); never `[VERIFIED <file>]` or a bare `[VERIFIED]` on a
   number you didn't measure this run. Ratios you computed this run: `[VERIFIED: measured <date>, <script>]`.
