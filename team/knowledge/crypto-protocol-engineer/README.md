@@ -40,8 +40,8 @@ source (Everdawn-Labs repos are private), arXiv/USENIX. Open list: `team/UNVERIF
 Update 2026-10-31 (wider allowlist): opened Circle's USDC address page, Tether's supported-protocols page,
 docs.polygon.technology finality, docs.etherscan.io rate limits + changelog, developers.tron.network rate
 limits + consensus, docs.infura.io pricing and the arXiv poisoning paper; read USDT0 on-chain (Arbitrum
-RPC), FiatToken and geth source via git clone. Corrected: **USDT0 is freezable** (`isBlocked`,
-`addToBlockedList`, `destroyBlockedFunds`); Polygon checkpoints are governance-set length, not "every
+RPC), FiatToken and geth source via git clone. Confirmed: **USDT0 is freezable** (`isBlocked`,
+`addToBlockedList`, `destroyBlockedFunds`). Corrected: Polygon checkpoints are governance-set length, not "every
 ≥256 blocks"; TronGrid publishes no fixed QPS/penalty (429 or 403, don't hard-code); Tether lists XAU₮ on
 BNB Chain (no USD₮). Still blocked: etherscan.io web, every Ethereum/Polygon RPC, docs.usdt0.to,
 tether.io, circle.com, alchemy.com, quicknode.com, wallet docs, mas.gov.sg/sso.agc.gov.sg.

@@ -24,6 +24,12 @@ Suster and "completed staff work" items come from search-result summaries and ar
 [ASSUMPTION] until someone opens them. **Refresh task:** when those hosts are allowed, open each one,
 confirm the wording, and change the label.
 
+Refresh 31 Oct 2026: S17 (Harris's own blog) opened and [VERIFIED]; S18, S13, S20 opened but are
+secondary (Visible.vc, Wikipedia), so they stay [ASSUMPTION: secondary]. S18 did not contain the
+"3-5 highlights / 1-3 lowlights / 1-3 asks" counts once attributed to it: corrected in
+`investor-advisor-updates.md`. Still unreachable: aboutamazon.com, sec.gov, bothsidesofthetable.com,
+armypubs.army.mil, e-publishing.af.mil, ycombinator.com.
+
 ## Source register
 | # | Source | URL | Accessed | Label |
 |---|---|---|---|---|
@@ -39,14 +45,14 @@ confirm the wording, and change the label.
 | S10 | 37signals Employee Handbook, "How We Work" (daily "What did you work on today?", Monday "What will you be working on this week?", kickoffs and heartbeats) | https://github.com/basecamp/handbook/blob/master/how-we-work.md | 2026-10-29 | [VERIFIED] |
 | S11 | PostHog Handbook, "Communication" (written, async first; write for the busy reader with a summary first) | https://github.com/PostHog/posthog.com/blob/master/contents/handbook/company/communication.md | 2026-10-29 | [VERIFIED] |
 | S12 | PostHog Handbook, "Setting quarterly goals" (reflection on last period before new goals; "what single thing would move the needle the most") | https://github.com/PostHog/posthog.com/blob/master/contents/handbook/company/goal-setting.md | 2026-10-29 | [VERIFIED] |
-| S13 | US Army Regulation AR 25-50 origin of BLUF ("putting the main point at the beginning ... and using the active voice"), via search summaries citing Wikipedia "BLUF (communication)" | https://en.wikipedia.org/wiki/BLUF_(communication) | 2026-10-29 | [ASSUMPTION] not opened (host blocked) |
-| S14 | US Air Force "Tongue and Quill" ("get your bottom line up front (most of the time)"), via the same search | https://en.wikipedia.org/wiki/BLUF_(communication) | 2026-10-29 | [ASSUMPTION] not opened |
-| S15 | Amazon 2016 Letter to Shareholders (Type 1/Type 2 decisions; decide with ~70% of the information; disagree and commit; high-velocity decisions) | https://www.aboutamazon.com/news/company-news/2016-letter-to-shareholders | 2026-10-29 | [ASSUMPTION] not opened (host blocked); wording from secondary summaries |
-| S16 | Amazon 2017 Letter to Shareholders (six-page narratively structured memos, read silently at the start of meetings; great memos are written and re-written) | https://www.aboutamazon.com/news/company-news/2017-letter-to-shareholders | 2026-10-29 | [ASSUMPTION] not opened |
-| S17 | Aaron Harris (YC), "Investor Updates" essay (growth, cash/burn, asks high, shorter; don't drop metrics you miss) | https://blog.aaronkharris.com/investor-updates | 2026-10-29 | [ASSUMPTION] not opened |
-| S18 | Visible.vc, "Tips from YC: Using Asks, Metrics, and a Recap to Power Your Investor Updates" (secondary) | https://visible.vc/blog/tips-from-yc-using-asks-metrics-and-a-recap-to-power-your-investor-updates/ | 2026-10-29 | [ASSUMPTION] not opened |
-| S19 | Mark Suster, "Invest in Lines, Not Dots" (2010) (relationships judged over a series of updates) | https://bothsidesofthetable.com/ (blog home; exact post URL not confirmed; summary seen at https://timberry.bplans.com/mark-suster-be-a-line-not-a-dot) | 2026-10-29 | [ASSUMPTION] not opened |
-| S20 | "Completed staff work" doctrine (1940s; the chief only approves or disapproves a finished recommendation) | https://en.wikipedia.org/wiki/Completed_staff_work | 2026-10-29 | [ASSUMPTION] not opened |
+| S13 | US Army Regulation AR 25-50 origin of BLUF ("putting the main point at the beginning ... and using the active voice"), quoted on Wikipedia "BLUF (communication)" | https://en.wikipedia.org/wiki/BLUF_(communication) | 2026-10-31 | [ASSUMPTION: secondary, Wikipedia opened; quote matches; AR 25-50 itself unreachable] |
+| S14 | US Air Force "Tongue and Quill" ("get your bottom line up front (most of the time)"), via the same search | https://en.wikipedia.org/wiki/BLUF_(communication) | 2026-10-31 | [ASSUMPTION] not on that Wikipedia page; AF Handbook 33-337 unreachable |
+| S15 | Amazon 2016 Letter to Shareholders (Type 1/Type 2 decisions; decide with ~70% of the information; disagree and commit; high-velocity decisions) | https://www.aboutamazon.com/news/company-news/2016-letter-to-shareholders | 2026-10-31 | [ASSUMPTION] still unreachable (aboutamazon.com, sec.gov); wording from secondary summaries |
+| S16 | Amazon 2017 Letter to Shareholders (six-page narratively structured memos, read silently at the start of meetings; great memos are written and re-written) | https://www.aboutamazon.com/news/company-news/2017-letter-to-shareholders | 2026-10-31 | [ASSUMPTION] still unreachable |
+| S17 | Aaron Harris (YC), "Investor Updates" essay (growth, cash/burn, asks high, shorter, monthly; "Removing things because you can't hit your milestones is bad") | https://blog.aaronkharris.com/investor-updates | 2026-10-31 | [VERIFIED] (author's own blog) |
+| S18 | Visible.vc, "Tips from YC: Using Asks, Metrics, and a Recap to Power Your Investor Updates" (Matt Preuss, 2019; summarises Harris: metrics first, asks near the top, recap last, monthly). Does **not** contain "3-5 highlights / 1-3 lowlights / 1-3 asks" | https://visible.vc/blog/tips-from-yc-using-asks-metrics-and-a-recap-to-power-your-investor-updates/ | 2026-10-31 | [ASSUMPTION: secondary, Visible.vc, opened] |
+| S19 | Mark Suster, "Invest in Lines, Not Dots" (2010) (relationships judged over a series of updates) | https://bothsidesofthetable.com/ (blog home; exact post URL not confirmed; summary seen at https://timberry.bplans.com/mark-suster-be-a-line-not-a-dot) | 2026-10-31 | [ASSUMPTION] still unreachable (bothsidesofthetable.com, medium.com) |
+| S20 | "Completed staff work" doctrine (US Army origin; the chief only approves or disapproves a finished recommendation) | https://en.wikipedia.org/wiki/Completed_staff_work | 2026-10-31 | [ASSUMPTION: secondary, Wikipedia opened; no primary memo opened] |
 | I1 | Company HQ Sheet, all tab headers + Goals, Decisions log, Risks, Org chart, Settings, Dashboard, Read me values | Sheet id 1NhxrAIX-VfU2P43GbjYVtHk82LGpbRcwv6sVuNG6gdA | 2026-10-29 | [VERIFIED] (read via Sheets connector) |
 | I2 | `prompts/RULES.md`, `gtm/metrics.py`, `gtm/model.py`, `gtm/build_master.py`, `prompts/SCHEDULED_TASKS.md` on `gtm-os` | `git show origin/gtm-os:<path>` | 2026-10-29 | [VERIFIED] |
 | I3 | `company/*.md`, `AGENTS.md`, `team/*.md`, `.claude/agents/*.md` in this repo | repo | 2026-10-29 | [VERIFIED] |

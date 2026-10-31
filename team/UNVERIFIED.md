@@ -149,68 +149,76 @@ crtc.gc.ca (403), vendor sites.
 | linkedin-manual.md §3 | Unofficial invite/note limits and character limits | https://www.linkedin.com/help | blocked; LinkedIn does not publish them |
 
 ## crypto-protocol-engineer
+16 verified, 3 corrected, 16 still unverified (31 Oct)
+
+Verified 31 Oct on primary sources: Circle's USDC list (Ethereum, Arbitrum, Base, OP, Polygon PoS, Solana; no Tron), Tether's
+supported-protocols list (Ethereum and Tron USD₮; legacy chains deprecated), USDT0 freeze functions on-chain (`isBlocked`,
+`addToBlockedList`, `destroyBlockedFunds`; LayerZero OFT adapter), Tron USDT transfer *to* a blacklisted address not blocked
+(simulated), arXiv poisoning figures, Polygon finality docs, Etherscan rate limits/changelog, Infura pricing, geth `removed` on
+filters, FiatToken zero-amount `transferFrom`, ERC-681 optional `pay-`, Tron solidification (developers.tron.network). Corrected:
+Polygon checkpoints are a governance-set length (was "every ≥256 blocks"); TronGrid publishes no fixed QPS/penalty, 429 or 403
+(was "~15 QPS, 403 + 30 s"); Tether lists XAU₮ (no USD₮) on BNB Chain (was "neither issuer lists BNB Chain").
 
 ### Outward-facing (payment pages, security claims, content)
-| File | Claim (≤ 15 words) | Primary source to open | Why it matters |
+| File | Claim (≤ 15 words) | Primary source to open | Why still open |
 |---|---|---|---|
-| issuer-controls.md §4; erc20-trc20.md §4 | Ethereum USDT `0xdAC1…1ec7` is Tether's listed contract | https://tether.to/en/supported-protocols/ | Outward: "genuine USDT" verdicts |
-| issuer-controls.md §4; erc20-trc20.md §4 | Ethereum USDC `0xA0b8…eB48` is Circle's listed contract | https://developers.circle.com/stablecoins/usdc-contract-addresses | Outward |
-| issuer-controls.md §3/§4; erc20-trc20.md §4 | Arbitrum/Base/OP USDC addresses are on Circle's list | https://developers.circle.com/stablecoins/usdc-contract-addresses | Outward |
-| issuer-controls.md §4 | Circle wound down USDC on Tron | https://developers.circle.com ; Circle blog | Outward |
-| issuer-controls.md §3; erc20-trc20.md §4 | USDT0 is a LayerZero OFT and may freeze via other names (`isBlocked`) | https://usdt0.to docs; verified source on arbiscan.io | Outward: D09 "checked" claim |
-| issuer-controls.md §2 | Tether blocks transfers *from* but not *to* blacklisted addresses | Verified TetherToken source, https://etherscan.io/address/0xdac17f958d2ee523a2206206994597c13d831ec7#code | Outward (freeze explanation) |
-| issuer-controls.md §2 | Ethereum TetherToken event indexing may differ from Tron | Same Etherscan verified source | Internal/outward (log filters) |
-| issuer-controls.md §4 | Tether discontinued Omni, Kusama, BCH SLP, EOS, Algorand (2023–2025) | https://tether.to/en/news | Outward |
-| erc20-trc20.md §3 | Ethereum USDT fee params (`basisPointsRate`, `maximumFee`) exist, set to 0 | Etherscan verified source + `eth_call` | Outward (amount received) |
-| address-formats.md (Solana) | Solana USDC mint `EPjF…Dt1v` | https://developers.circle.com/stablecoins/usdc-contract-addresses | Outward (v1.1) |
-| attack-patterns.md A1 | USENIX 2025: ~270m poisoning attempts, ~17m victims, ≥US$83.8m lost | https://arxiv.org/abs/2501.16681 ; usenix.org | Outward: content/sales statistic |
-| finality-reorgs.md (Polygon) | Polygon milestones "2 to 5 seconds", `finalized` tag, checkpoints every ≥256 blocks | https://docs.polygon.technology/pos/concepts/finality/finality | Outward if quoted as wait times |
-| finality-reorgs.md (Polygon) | Pre-milestone advice (128/256 blocks) obsolete | same | Internal |
-| secure-read-only-architecture.md | Holding/forwarding funds would need a SG DPT licence (whitepaper) | https://www.mas.gov.sg (PS Act DPT service definition) | Outward (legal positioning) |
+| issuer-controls.md §2 | Ethereum TetherToken does not block transfers *to* blacklisted addresses (Tron verified) | Etherscan verified source of `0xdAC1…1ec7`, or an Ethereum RPC `eth_call` simulation | etherscan.io 403; every Ethereum RPC blocked |
+| issuer-controls.md §2 | Ethereum TetherToken event indexing may differ from Tron | same | same |
+| erc20-trc20.md §3 | Ethereum USDT `basisPointsRate`/`maximumFee` exist and are 0 | Ethereum RPC `eth_call` | no Ethereum RPC reachable |
+| issuer-controls.md §3 | USDT0 block events, and whether `isBlocked` also stops the recipient | https://docs.usdt0.to ; verified source on arbiscan.io | docs.usdt0.to, arbiscan.io unreachable; repos private |
+| issuer-controls.md §4 | Circle's announcement winding down USDC on Tron (absence from list verified) | https://www.circle.com/blog | circle.com unreachable |
+| issuer-controls.md §4 | Dates of Tether's legacy-chain exits (2023-2025, Aug 2025 revision) | https://tether.io/news/tether-provides-update-on-transition-plan-for-legacy-blockchains/ | tether.io unreachable |
+| erc20-trc20.md §4 | Polygon PoS USDC decimals (address verified on Circle's list) | Polygon RPC `decimals()` | polygon-rpc.com "tenant disabled"; others blocked |
+| secure-read-only-architecture.md | Holding/forwarding funds would need a SG DPT licence (whitepaper) | https://sso.agc.gov.sg/Act/PSA2019 ; https://www.mas.gov.sg | sso.agc.gov.sg 403; mas.gov.sg unreachable |
 
 ### Internal only
-| File | Claim (≤ 15 words) | Primary source to open | Why it matters |
+| File | Claim (≤ 15 words) | Primary source to open | Why still open |
 |---|---|---|---|
-| providers.md | Etherscan V2 free tier 3/s, 100k/day, 1,000-record cap from 1 Jul 2026 | https://docs.etherscan.io (rate limits, changelog) | Internal: provider choice |
-| providers.md | Etherscan paid plans from ~US$49/month | https://etherscan.io/apis | Internal |
-| providers.md | TronGrid keyed ~15 QPS; 403 + 30 s penalty | https://developers.tron.network/reference/rate-limits | Internal |
-| providers.md | Alchemy 30M CU, Infura 3M credits/day, QuickNode trial and $49 | docs.alchemy.com, infura.io, quicknode.com/pricing | Internal |
-| providers.md | All three offer safe/finalized tags, archive, webhooks | provider docs | Internal |
-| erc20-trc20.md §2 | `removed: true` also delivered via `eth_getFilterChanges` (spec states subscriptions only) | client docs (geth.ethereum.org) | Internal |
-| erc20-trc20.md §1 | Genuine tokens accept zero-amount `transferFrom` with zero allowance | Etherscan verified sources (USDT, USDC) | Internal (poisoning detection) |
-| eip-681.md | `pay-` optional in practice; Tron `tron:` URI conventions vary per wallet | wallet docs (MetaMask, TronLink) | Internal |
-| address-formats.md | Same key → same EOA on every EVM chain (inference from ethereum.org) | https://ethereum.org/developers/docs/accounts | Internal |
-| address-formats.md | Tron hex body pasted as `0x…` is a valid EVM address | inference; no page | Internal |
+| providers.md | Etherscan paid plans from ~US$49/month | https://etherscan.io/api/pricing | 403 |
+| providers.md | Etherscan error text "Max rate limit reached" | docs.etherscan.io error pages | not on the pages opened |
+| providers.md | Alchemy 30M CU/month (`eth_call` 26 CU); QuickNode trial and $49 | alchemy.com docs/pricing, quicknode.com/pricing | both unreachable |
+| providers.md | All three offer safe/finalized tags and webhooks (Infura archive verified) | provider docs | Alchemy/QuickNode unreachable; Infura tag pages not read |
+| erc20-trc20.md §1 | Ethereum USDT accepts zero-amount `transferFrom` with zero allowance (USDC verified) | Etherscan verified source | etherscan.io 403 |
+| eip-681.md | Wallets accept plain `ethereum:`; Tron `tron:` URI conventions vary per wallet | MetaMask, TronLink docs | metamask.io, docs.tronlink.org unreachable |
+| address-formats.md | Same key → same EOA on every EVM chain | inference from ethereum.org (derivation verified) | no page states it |
+| address-formats.md | Tron hex body pasted as `0x…` is a valid EVM address | inference; no page | no page states it |
 
 ## qa-security-engineer
+1 verified, 0 corrected, 5 still unverified (31 Oct)
+
+Verified 31 Oct: the CMU address-poisoning paper cited in SPEC (arXiv 2501.16681, abstract and PDF). Nothing contradicted.
 
 ### Outward-facing
-| File | Claim (≤ 15 words) | Primary source to open | Why it matters |
+| File | Claim (≤ 15 words) | Primary source to open | Why still open |
 |---|---|---|---|
-| edge-case-catalogue.md (sources) | Address-poisoning pattern as cited in SPEC (Elliptic, arXiv 2501.16681) | https://arxiv.org/abs/2501.16681 ; elliptic.co | Outward via the security pack |
-| owasp.md (logging) | Actor names and IPs are personal data under Singapore PDPA | https://sso.agc.gov.sg/Act/PDPA2012 ; pdpc.gov.sg | Outward (security pack, privacy claims) |
+| edge-case-catalogue.md (sources) | Elliptic's address-poisoning write-up as cited in SPEC (arXiv half verified) | elliptic.co (exact post from SPEC) | elliptic.co unreachable |
+| owasp.md (logging) | Actor names and IPs are personal data under Singapore PDPA | https://sso.agc.gov.sg/Act/PDPA2012 ; pdpc.gov.sg | sso.agc.gov.sg 403; pdpc.gov.sg unreachable |
 
 ### Internal only
-| File | Claim (≤ 15 words) | Primary source to open | Why it matters |
+| File | Claim (≤ 15 words) | Primary source to open | Why still open |
 |---|---|---|---|
-| owasp.md (uploads) | Need for the remaining File Upload cheat-sheet controls | (judgement; the cheat sheet itself is verified) | Internal |
-| security-pack-and-claims.md | Typical umask 022 → token file world-readable 0644 | `umask` on the deploy host | Internal |
-| secrets-and-supply-chain.md | No runtime PostCSS, so postcss advisories are low practical risk | `next` build output / code search | Internal |
+| owasp.md (uploads) | Need for the remaining File Upload cheat-sheet controls | (judgement; the cheat sheet itself is verified) | judgement, not a fact |
+| security-pack-and-claims.md | Typical umask 022 → token file world-readable 0644 | `umask` on the deploy host | needs the host (Dockerfile sets no umask) |
+| secrets-and-supply-chain.md | No runtime PostCSS, so postcss advisories are low practical risk | Next build output | grep of `src/`, config clean; Next bundle not inspected |
 
 ## chief-of-staff
+1 verified, 1 corrected, 7 still unverified (31 Oct)
+
+Verified 31 Oct: S17 Aaron Harris essay on his own blog (monthly; growth, cash/burn, asks high, shorter; "Removing things because
+you can't hit your milestones is bad"). Corrected: the "3-5 highlights, 1-3 lowlights, 1-3 asks" counts are not in S18 (Visible.vc,
+opened) or S17; now labelled house format. S18 is secondary and only corroborates S17, so it is no longer listed.
 
 ### Outward-facing (investor and advisor updates)
-| File | Claim (≤ 15 words) | Primary source to open | Why it matters |
+| File | Claim (≤ 15 words) | Primary source to open | Why still open |
 |---|---|---|---|
-| investor-advisor-updates.md; okrs-metrics.md (S17) | Aaron Harris: never drop a missed metric; growth, cash, asks | https://blog.aaronkharris.com/investor-updates | Outward: shapes investor updates |
-| investor-advisor-updates.md (S18) | YC update format: 3-5 highlights, 1-3 lowlights, 1-3 asks; monthly | https://visible.vc/blog/tips-from-yc-using-asks-metrics-and-a-recap-to-power-your-investor-updates/ | Outward |
-| investor-advisor-updates.md (S19) | Suster "Invest in Lines, Not Dots" (2010) | https://bothsidesofthetable.com (exact post) | Outward |
+| investor-advisor-updates.md (S19) | Suster "Invest in Lines, Not Dots" (2010) | https://bothsidesofthetable.com (exact post) | bothsidesofthetable.com, medium.com unreachable |
 
 ### Internal only
-| File | Claim (≤ 15 words) | Primary source to open | Why it matters |
+| File | Claim (≤ 15 words) | Primary source to open | Why still open |
 |---|---|---|---|
-| briefing-craft.md; README S13 | BLUF origin in AR 25-50 | https://en.wikipedia.org/wiki/BLUF_(communication) (then AR 25-50 itself) | Internal |
-| briefing-craft.md; README S14 | Tongue and Quill: "bottom line up front (most of the time)" | same; AF Handbook 33-337 | Internal |
-| briefing-craft.md; README S15 | Amazon 2016 letter: Type 1/2 decisions, ~70% information | https://www.aboutamazon.com/news/company-news/2016-letter-to-shareholders | Internal |
-| briefing-craft.md; README S16 | Amazon 2017 letter: six-page memos read silently | https://www.aboutamazon.com/news/company-news/2017-letter-to-shareholders | Internal |
-| briefing-craft.md; README S20 | Completed staff work doctrine (1940s) | https://en.wikipedia.org/wiki/Completed_staff_work | Internal |
+| briefing-craft.md; README S13 | BLUF origin in AR 25-50 | AR 25-50 (armypubs.army.mil) | only Wikipedia (secondary) opened; armypubs unreachable |
+| briefing-craft.md; README S14 | Tongue and Quill: "bottom line up front (most of the time)" | AF Handbook 33-337 (e-publishing.af.mil) | not on the Wikipedia page; host unreachable |
+| briefing-craft.md; README S15 | Amazon 2016 letter: Type 1/2 decisions, ~70% information | https://www.aboutamazon.com/news/company-news/2016-letter-to-shareholders | aboutamazon.com, sec.gov unreachable |
+| briefing-craft.md; README S16 | Amazon 2017 letter: six-page memos read silently | https://www.aboutamazon.com/news/company-news/2017-letter-to-shareholders | same |
+| briefing-craft.md; README S20 | Completed staff work: rough draft fine, half-baked not; 1940s US/Canadian | original memo (primary) | only Wikipedia (secondary) opened; it lacks those two details |
+| briefing-craft.md §6 | Typical reading speed 200-250 words per minute | a reading-speed study | no source opened |

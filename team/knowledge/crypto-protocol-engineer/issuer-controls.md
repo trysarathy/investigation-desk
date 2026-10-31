@@ -81,8 +81,8 @@ Measured 2026-10-29 [VERIFIED on-chain]:
   finding). D09 is "not available on this chain", correctly a known gap, not a missing fact.
 - OP Mainnet "USDT" `0x94b0…8e58`: no blacklist or pause functions: a bridged standard token.
 - Arbitrum USDT0 `0xFd08…Cbb9` ("USD₮0"): no `isBlackListed`/`isBlacklisted`/`paused()`/`pause()` selector,
-  **but it is freezable** under different names (corrected 2026-10-31: was "believed to expose" an
-  unchecked `isBlocked`). It is an EIP-1967 proxy, implementation `0x3263cd783823d04a6b9819517e0e6840d37ca3f4`
+  **but it is freezable** under different names (confirmed 2026-10-31: was an unchecked "believed to
+  expose `isBlocked`"). It is an EIP-1967 proxy, implementation `0x3263cd783823d04a6b9819517e0e6840d37ca3f4`
   (admin `0x553ec478…1b4a`); the implementation bytecode contains the selectors for
   `isBlocked(address)` `0xfbac3951`, `addToBlockedList(address)` `0x3c7c9b90`,
   `removeFromBlockedList(address)` `0x1a14f449` and `destroyBlockedFunds(address)` `0x0e27a385`, and
