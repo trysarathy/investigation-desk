@@ -50,13 +50,13 @@ Live tools OFF: WOULD DRAFT / WOULD WRITE only. **Nothing is sent. I do not repl
 >
 > Thank you, and thanks Grace. I'm glad the proposal looks useful.
 >
-> On price: the founding pilot is the same for each of the first 10 businesses: US$300 for 30 days, then US$200/month. I'd like to keep it the same for everyone, so I'm not able to offer 30% off. If the price itself is what's holding things up, rather than the approval, please tell me, and I'll think about it properly.
+> On price: the founding pilot is the same for each of the first 10 businesses: US$300 for 30 days, then US$200/month. I'd like to keep it the same for everyone, so I'm not able to offer 30% off. Can I ask whether it's the amount itself that's the concern, or getting it through approval?
 >
 > On 16 November: I can't put that in writing, and I'd rather be straight with you now than miss it later. Two honest points:
 > - Clearline doesn't post to Xero automatically. It prepares each posting and writes it to your books only once a person approves it. That's deliberate.
 > - The Xero connection is built and tested, but it hasn't yet run against a real Xero organisation. Your pilot would be its first live run, starting on Xero's Demo Company so you can check the test postings before anything touches your books.
 >
-> Since your auditors start on 1 December, it would help to know what they need to see for each stablecoin receipt. If it's evidence per payment (transaction hash, token, network, amount, and who approved it), that may be something we can look at together.
+> Since your auditors start on 1 December, it would help to know what they need to see for each stablecoin receipt. I'd like to understand that properly before we talk about timing.
 >
 > If January suits you better, that's completely fine too.
 >

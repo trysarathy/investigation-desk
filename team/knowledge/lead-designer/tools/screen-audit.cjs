@@ -54,6 +54,7 @@ function pageContrast() {
     let fg = parse(cs.color); if (!fg) continue;
     // ancestor opacity fades the text toward the background: fold it into the text alpha
     let op = 1; for (let n = el; n; n = n.parentElement) op *= parseFloat(getComputedStyle(n).opacity);
+    if (op === 0) continue; // not shown (e.g. scroll-reveal not yet triggered)
     fg = { ...fg, a: fg.a * op };
     if (cs.webkitTextFillColor && cs.webkitTextFillColor.includes("rgba(0, 0, 0, 0)")) continue; // gradient-clipped text: check by eye
     const { c: bg, hasImage } = bgOf(el);

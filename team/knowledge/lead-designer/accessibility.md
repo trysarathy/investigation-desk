@@ -141,6 +141,8 @@ Both in scratch worktrees, removed afterwards. Screenshots: `screens/website/*.p
 | Product `/requests/DEMO-1043` @ 1280 · 390 | none · none | 38 / 9 · 38 / 9 | color-contrast ×23 · ×25; link-in-text-block ×1 | 15/15 · 15/15 |
 | Product `/requests/all` @ 1280 · 390 | none · none | 21 / 4 · 21 / 4 | color-contrast ×68 · ×25; **aria-allowed-attr ×5 (critical)** | 15/15 · 15/15 |
 
+Method note: this run used `screen-audit.cjs` before ancestor-`opacity` handling was added (same day, after a fixture test showed a 50%-opacity logo strip slipping through). axe-core, which does account for opacity, independently found 0 contrast violations on the website, so the website result stands; the product failures are on fully opaque text.
+
 Reduced motion: with `prefers-reduced-motion: reduce`, **0** running animations and
 `scroll-behavior: auto` on both the website home and the product (`document.getAnimations()`).
 Hero gradient text (skipped by the script): darkest stop `#7f92ff` on ink = 6.95:1, and 4.49:1 at

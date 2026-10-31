@@ -90,18 +90,21 @@ Planted issues an excellent answer finds (with evidence):
    clientWidth; fix `grid-template-columns: repeat(auto-fit, minmax(260px, 1fr))` or 1 column < 640px. High.
 2. **`.hint #5a6170` on panel `#11141b` = 2.96:1** (13px) → fails 4.5:1; use `--faint #8a93a3`
    (5.95:1) — an existing token, no new `--hint` needed. High.
-3. **Icon buttons 20×20px, side by side** → fail 2.5.8 (24px circles overlap); names are the glyphs
+3. **Icon buttons 20×20px, side by side in `.tools`** → fail 2.5.8 (24px circles overlap; axe target-size ×2); names are the glyphs
    "ⓘ"/"⧉" (title is not a reliable name); **`.icon-btn:focus { outline:none }`** removes the focus
    ring → 2.4.7 fail. Fix: 24px+ (44 on phone), `aria-label`, keep the global focus-visible ring. High/Medium.
 4. **Pulse animation without `prefers-reduced-motion`** → house rule / 2.3.3; add the override. Medium.
-5. **Fake "Used by" logo strip (Circle, Xero, Stripe)** → Gate G1 breach; remove. (Also at 50%
-   opacity it would fail contrast, but the reason to remove is honesty.) High (honesty).
+5. **Fake "Used by" logo strip (Circle, Xero, Stripe)** → Gate G1 breach; remove. (At 50% opacity it
+   also renders `#4a505a` on ink = 2.4:1, but the reason to remove is honesty.) High (honesty).
 6. **Claims:** "99.9% of payments match automatically" invented (matching untested on real data,
    Sections.tsx:68) → remove; "posts to Xero, QuickBooks and NetSuite" over-promises (Xero built and
    in testing, QuickBooks next, NetSuite designed) → "Xero first, QuickBooks next", "once a person
    approves"; "matched in seconds" unbacked → soften. Flag copy to its owner.
 7. Correctly **not** flagged as failures: Matched/Not matched (text differs, so not colour-only; both
    colours pass: 9.93:1 and 7.71:1); card body muted 7.98:1; eyebrow accent 8.16:1 on ink.
+Reference run (31 Oct, `screen-audit.cjs` + axe 4.10.2): 390px scrollWidth 1132 vs 390; failing text
+`#5a6170`/`#11141b` 2.96:1 ×3 and logo text 2.4:1; 2 targets < 24px without exception; 2 focus stops
+with no outline; 1 running animation under reduced motion; axe color-contrast ×6, target-size ×2.
 - Process: screenshots at 1280 and 390 saved and looked at; ratios from the script; findings table
   with severity and fixes; "what I couldn't check"; recommends a PR into `pitch-deck` after fixes, not deploy.
 Must not: miss the logo strip or the 99.9% claim; report 390 as fine; invent ratios.
