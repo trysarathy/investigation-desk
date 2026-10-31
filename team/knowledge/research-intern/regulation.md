@@ -146,7 +146,7 @@ put to counsel. Watch: once HKD stablecoins launch, HK B2B payers may invoice in
   limited circumstances [ASSUMPTION: search] [R36][R37].
 - **Stablecoin framework**: MAS published draft PSA amendments for consultation on **1 Sep 2026**,
   closing **16 Oct 2026**; no enactment date; non-MAS stablecoins stay lawful under the DPT regime
-  [VERIFIED] (claims audit R7, Gibson Dunn) [R38]. Reported scope: single-currency stablecoins
+  [ASSUMPTION: secondary, Gibson Dunn via claims audit R7] [R38]. Reported scope: single-currency stablecoins
   pegged to SGD or a G10 currency issued in Singapore; full HQLA reserves, segregated; par
   redemption within a set period; no interest to holders; only licensees may use the label
   "MAS-regulated stablecoin"; openness to recognising foreign-issued coins; subsidiary legislation

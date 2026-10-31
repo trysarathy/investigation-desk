@@ -36,5 +36,17 @@ The app keeps all state as JSON files under `DESK_DATA_DIR` until the database l
    crypto-protocol-engineer: exclude it from backups (re-authorise Xero after a restore) to keep secrets
    out of archives.
 
+## Scratch drill, 31 Oct 2026 (runbooks §4) [VERIFIED: run this session]
+Scratch export of `main` @ 8decb27, `npm ci` + `next build` exit 0, `DESK_DATA_DIR=<scratch>/live
+npx next start -p 3471`, `POST /api/requests/demo {"kind":"reset"}` → `{"ok":true}` (FICTIONAL
+Northwind Pay demo day). Data dir held 2 files (`accounting.json` 44,986 B, `requests.json` 101,248 B;
+19 requests; no `xero-tokens.json`). Server stopped → `tar -czf` (16,079 B) → data dir deleted →
+restored to a new dir → `sha256sum -c`: 2/2 OK → app started on the restored dir: `/requests/all`
+HTTP 200, page shows "Northwind"; `requests.json` still holds 19 requests (page count not checked). **Restore + start: 6.9 s. RPO = time since the last
+backup (here 0: backup taken after the last write).**
+Result: **drill done (scratch) = yes**. Live store drill: not applicable (no live store exists).
+Lesson: the server must be stopped (or writes paused) for a consistent copy; the files are rewritten
+whole by the app, so a copy mid-write could be torn [ASSUMPTION: write pattern not audited].
+
 None of 1–5 is done by devops-engineer on a live host: each is a recommendation with cost for her.
 devops-engineer may run the drill on a scratch copy with FICTIONAL data at any time.

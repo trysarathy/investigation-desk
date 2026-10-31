@@ -58,7 +58,7 @@ payments-matching, product-core-and-trust, add-product-spec, spec-direction) all
 - Time red → fix PR: `website` red 28 Oct 01:13 UTC; PR #33 created 29 Oct 01:46 UTC = **24 h 33 min**.
   `demo-video` red 28 Oct 15:29 UTC; PR #32 created 28 Oct 18:27 UTC = **2 h 58 min**
   [VERIFIED: gh api status `updated_at` and PR `created_at`].
-- Backup restore drill done: **no** (nothing to restore yet; see `backups.md`).
+- Backup restore drill done: **yes on a scratch copy** (31 Oct, restore + start 6.9 s, 2/2 files match); no live store exists (`backups.md`).
 
 ## Cause of the 8 reds [VERIFIED: tree inspection of all 8 + local reproduction on `website`]
 All 8 red branches contain `demo/video/remotion/` (7–9 files) and their root `tsconfig.json`
