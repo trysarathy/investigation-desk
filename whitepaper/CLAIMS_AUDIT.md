@@ -92,7 +92,7 @@ Labels: **V** = verified, **A** = assumption (written as a hypothesis), **G** = 
 | P17 | Clearline-specific tests: 23 request + 23 accounting (10 posting rules, 4 request shapes) | `tests/requests.test.ts`, `tests/accounting.test.ts` | **Fixed** wording |
 | P18 | 573 passing tests overall, mostly the earlier product | `npx vitest run` on `qa-polish` @ `12abf33`, 29 Oct 2026 | PR #31 |
 | P19 | 113/113 e2e ×3; seven demo flows | `demo/QA_REPORT.md` on `qa-polish` | PR #31 |
-| P20 | Earlier product: 59/59 (43 before), 52/52 held-out; sample company data; 7 re-checked independently | `demo/REPORT.md`; `tests/real_cases*.json` | Now attributed to the earlier deposit-investigation product |
+| P20 | Earlier product's checking engine tested on recorded real public transfers; sample company data; 7 re-checked independently | `demo/REPORT.md`; `tests/real_cases*.json` | Now attributed to the earlier deposit-investigation product. 1 Nov 2026: its accuracy figures are no longer quoted (they measured deposit diagnosis, not invoice matching); invoice-matching accuracy will be measured on 20 replayed real transfers, not yet measured |
 | P21 | 13 counterfeit "USDT" incl. "ÚЅDТ" (Cyrillic and accented letters) | `demo/REPORT.md`; case FAKE-HG | **Fixed** wording |
 | P22 | Security gaps | `docs/enterprise/SECURITY_OVERVIEW.md` (PR #30); `src/middleware.ts`; `src/components/ActingAs.tsx` | |
 | P23 | Demo cases a–g | `src/lib/requests/demo.ts` | Fictional company |

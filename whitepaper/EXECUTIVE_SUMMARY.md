@@ -10,7 +10,7 @@ date: "29 October 2026 · one-page summary of the working paper (v0.2)"
 
 **What works, and what doesn't yet.** All seven payment situations play through to the books in the demo with a fictional company. Live mode is thinner: someone pastes the transaction ID; nothing watches addresses or polls confirmations; correct payments are marked paid by a person; with one shared treasury address most payments need a person to assign them; payment pages are Ethereum only. Xero has not run on a live organisation, and its permissions need updating to Xero's 2026 granular scopes. There is no sign-in, and Xero tokens are stored unencrypted.
 
-**Evidence.** 46 tests cover Clearline's own request and accounting code. The checking engine it reuses, from an earlier product, was correct on 59/59 and 52/52 real public transactions with sample company data. **No customers or customer calls yet**; outreach began 29 October 2026.
+**Evidence.** 46 tests cover Clearline's own request and accounting code. The checking engine it reuses, from an earlier product, is tested on recorded real public transfers with sample company data; invoice-matching accuracy will be measured on 20 replayed real transfers (not yet measured). **No customers or customer calls yet**; outreach began 29 October 2026.
 
 **Competition.** HitPay already gives Singapore merchants stablecoin acceptance through a licensed partner; Stripe supports USDC but not USDT and caps transactions at US\$10,000; Request Finance offers crypto invoicing, and its protocol logs payment references on-chain. Our untested hypothesis: the gap is businesses whose payers send plain transfers to the business's own wallet.
 
