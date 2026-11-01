@@ -47,6 +47,8 @@ side and the AI explanations have not been tested on real data.
 
 All figures in the table are [VERIFIED].
 
+**Deposit diagnosis, not invoice matching (added 1 Nov 2026):** these results measure whether each transfer got the expected D-code verdict, with fictional sample company records. Invoice-to-payment matching has never been measured on real data. Do not quote these figures as a matching or accuracy claim in public or sales material.
+
 ## What works reliably [VERIFIED]
 
 - **Normal payments are never flagged.** All 24 credited payments, across Tron, Ethereum and
