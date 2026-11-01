@@ -4,14 +4,13 @@
 import Link from "next/link";
 import { activeProvider, loadAccounting, planOptionsFor } from "@/lib/accounting/service";
 import { planPosting, postedFor } from "@/lib/accounting/rules";
-import { PROVIDER_LABEL, type LineKind, type PlanStatus, type PostingLine } from "@/lib/accounting/types";
+import { LINE_KIND_LABEL as KIND, PROVIDER_LABEL, type PlanStatus, type PostingLine } from "@/lib/accounting/types";
 import { formatUsdc } from "@/lib/requests/lifecycle";
 import { shortHash } from "@/lib/requests/present";
 import type { RequestsData } from "@/lib/requests/types";
 import { friendlyTime } from "@/lib/requests/ui";
 import { ApprovePosting } from "./ApprovePosting";
 
-const KIND: Record<LineKind, string> = { payment: "Payment", fee_writeoff: "Fee write-off", overpayment: "Overpayment", note: "Note on invoice" };
 const STATUS: Record<PlanStatus, { label: string; tone: string }> = {
   not_linked: { label: "Not from the books", tone: "waiting" },
   waiting: { label: "Nothing to post yet", tone: "waiting" },
@@ -63,7 +62,7 @@ export async function BooksPanel({ data, requestId }: { data: RequestsData; requ
         {plan.reasons.map((r, i) => <div key={i} className={i === 0 ? undefined : "muted"}>{r}</div>)}
         {plan.lines.length > 0 && (
           <>
-            <div className="faint" style={{ fontSize: 12, marginTop: 4 }}>{plan.status === "ready" ? "What will post when you approve:" : "What will post once decided:"}</div>
+            <div className="faint" style={{ fontSize: 12, marginTop: 4 }}>{plan.status === "ready" ? "What will post when you approve:" : plan.status === "blocked" ? "Not yet posted (record these by hand):" : "What will post once decided:"}</div>
             <Lines lines={plan.lines} />
           </>
         )}

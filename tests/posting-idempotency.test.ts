@@ -252,6 +252,8 @@ describe("posting to Xero is idempotent across retries (roadmap #2)", () => {
     xero.onGet(() => [503, { Title: "Service Unavailable" }]);
     const second = await xero.run(reqData, acct, 30);
     expect(second.error).toMatch(/Not posted: an earlier attempt ended without a clear answer/);
+    expect(second.error).not.toMatch(/503|Service Unavailable|\{/); // plain words for the person; Xero's raw reply stays in the audit
+    expect(second.acct.audit.at(-1)?.reason).toMatch(/503/);
     expect(second.acct.audit.at(-1)?.kind).toBe("refused");
     expect(xero.sent.filter((s) => s.attempt === 2)).toEqual([]);
 
@@ -344,9 +346,8 @@ describe("posting to Xero is idempotent across retries (roadmap #2)", () => {
   });
 
   // Code review of 09d7e8c (probe P7): a credit note Xero made is re-used only for exactly its own amount.
-  const SHORTFALL_CHANGED = "A credit note for 50.00 was already made in Xero for this invoice, but the shortfall is now 30.00. "
-    + "Clearline won't post anything more for this invoice, so it can't make a mismatched write-off. "
-    + "In Xero, adjust or void that credit note, then record the remaining lines below by hand.";
+  const SHORTFALL_CHANGED = "A credit note for 50.00 is already in Xero for this invoice but the shortfall is now 30.00: "
+    + "void or adjust it in Xero, then record the lines listed under 'Not yet posted' by hand (Payment 20.00, Fee write-off 30.00).";
 
   it("(n) credit note 50.00 made, allocation 429, then 20.00 more arrives: nothing posts, a person checks", async () => {
     const { reqData, acct } = shortAccepted();
@@ -368,7 +369,8 @@ describe("posting to Xero is idempotent across retries (roadmap #2)", () => {
     // As if the credit note had been made for 30.00 when the shortfall was smaller; the shortfall is now 50.00.
     const audit = first.acct.audit.map((e) => (e.made ? { ...e, made: Object.fromEntries(Object.entries(e.made).map(([k, m]) => [k, { ...m, amount: "30.00" }])) } : e));
     const second = await xero.run(reqData, { ...first.acct, audit }, 30);
-    expect(second.error).toMatch(/A credit note for 30\.00 was already made in Xero for this invoice, but the shortfall is now 50\.00\./);
+    expect(second.error).toBe("A credit note for 30.00 is already in Xero for this invoice but the shortfall is now 50.00: "
+      + "void or adjust it in Xero, then record the lines listed under 'Not yet posted' by hand (Fee write-off 50.00).");
     expect(xero.sent.filter((s) => s.attempt === 2)).toEqual([]);
   });
 
@@ -395,5 +397,19 @@ describe("posting to Xero is idempotent across retries (roadmap #2)", () => {
       a = again.acct;
     }
     expect(xero.sent.filter((s) => s.attempt > 1)).toEqual([]); // the 20.00 payment waits too: recorded by hand
+  });
+
+  it("(r) the plan the panel shows is already blocked: no Approve, one sentence naming only the not-yet-posted lines", async () => {
+    const { planPosting } = await import("@/lib/accounting/rules");
+    const { reqData, acct } = shortAccepted();
+    const xero = stubXero();
+    xero.fail(1, "Allocations", "reject");
+    const first = await xero.run(reqData, acct, 11); // payment 4,950.00 posted; credit note 50.00 made, not allocated
+    const more = put(reqData, tx("20.00", "b", 20));
+    const plan = planPosting(more, first.acct, "R1", { ...opts, orgTimeZone: "Asia/Singapore" });
+    expect(plan.status).toBe("blocked"); // the panel offers Approve only for "ready"
+    expect(plan.reasons).toEqual([SHORTFALL_CHANGED]);
+    expect(plan.lines.map((l) => [l.kind, l.amount])).toEqual([["payment", "20.00"], ["fee_writeoff", "30.00"]]);
+    expect(plan.reasons[0]).not.toMatch(/4,?950/); // never the payment already in the books
   });
 });

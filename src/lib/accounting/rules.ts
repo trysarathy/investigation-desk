@@ -20,7 +20,7 @@ import { add, sub } from "../payments/money";
 import { deriveRequest, formatUsdc } from "../requests/lifecycle";
 import type { Observation, RequestsData } from "../requests/types";
 import { isIanaZone, localDate } from "./timezone";
-import type { AccountingData, AccountSettings, PostedLine, PostingLine, PostingPlan } from "./types";
+import { LINE_KIND_LABEL, type AccountingData, type AccountSettings, type MadeRecord, type PostedLine, type PostingLine, type PostingPlan } from "./types";
 
 /** USD value of one token at a moment. Dollar stablecoins default to par, and say so. */
 export interface UsdRate { rate: string; source: string }
@@ -81,6 +81,26 @@ export function idempotencyKeyFor(requestId: string, lines: PostingLine[]): stri
 export function lineKey(requestId: string, l: PostingLine, invoiceId: string): string {
   const identity = l.kind === "fee_writeoff" ? "shortfall" : l.kind === "note" ? "note" : l.observationKey ?? "";
   return `clearline-${createHash("sha256").update(`line;${requestId};${invoiceId};${l.kind};${identity}`).digest("hex").slice(0, 32)}`;
+}
+
+/** Records the books made on earlier attempts for lines that didn't finish (a credit note not yet allocated). */
+export function madeFor(acct: AccountingData, requestId: string): Record<string, MadeRecord> {
+  return Object.assign({}, ...acct.audit.filter((e) => e.requestId === requestId && e.made).map((e) => e.made));
+}
+
+/** A record the books already made is re-used only for exactly the amount and currency it was made for. */
+export const sameAs = (m: MadeRecord, l: PostingLine, currency: string) => compareDecimal(m.amount, l.amount) === 0 && m.currency.toUpperCase() === currency.toUpperCase();
+
+/** One sentence when a line's record was already made for a different amount: the plan is blocked, a person finishes it. */
+function madeDiffers(acct: AccountingData, requestId: string, todo: PostingLine[], currency: string): string | undefined {
+  const made = madeFor(acct, requestId);
+  const l = todo.find((x) => x.key && made[x.key] && !sameAs(made[x.key], x, currency));
+  if (!l) return undefined;
+  const m = made[l.key!];
+  const cur = (c: string) => (m.currency.toUpperCase() === currency.toUpperCase() ? "" : ` ${c}`);
+  const names = todo.map((x) => (x.kind === "note" ? LINE_KIND_LABEL.note : `${LINE_KIND_LABEL[x.kind]} ${x.amount}`)).join(", ");
+  return `A credit note for ${m.amount}${cur(m.currency)} is already in Xero for this invoice but the shortfall is now ${l.amount}${cur(currency)}: `
+    + `void or adjust it in Xero, then record the lines listed under 'Not yet posted' by hand (${names}).`;
 }
 
 export interface PlanOptions {
@@ -250,6 +270,9 @@ export function planPosting(data: RequestsData, acct: AccountingData, requestId:
   if (todo.length === 0 && already.length) return plan("posted", [...reasons, "Everything that can be posted for this invoice is in the books."], [], leavesOpen);
   // Something new would post, but its date can't be known: block, and never return undated lines.
   if (dateProblem) return plan("blocked", [...reasons, dateProblem]);
+  // A credit note already made for another amount: post nothing more; show the lines a person records by hand.
+  const differs = madeDiffers(acct, requestId, todo, link.currency);
+  if (differs) return plan("blocked", [differs], todo, leavesOpen);
   if (already.length) reasons.push("Some of this was posted before; only the new lines below will post.");
   return plan(status, reasons, todo, leavesOpen);
 }

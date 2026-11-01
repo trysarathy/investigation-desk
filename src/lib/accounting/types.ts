@@ -31,6 +31,9 @@ export interface InvoiceLink {
   demo: boolean;
 }
 
+/** What people call each kind of line (the books panel, and messages that name lines). */
+export const LINE_KIND_LABEL: Record<LineKind, string> = { payment: "Payment", fee_writeoff: "Fee write-off", overpayment: "Overpayment", note: "Note on invoice" };
+
 /** What each posted line represents. */
 export type LineKind =
   | "payment"        // a transfer applied to the invoice

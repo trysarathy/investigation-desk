@@ -150,7 +150,7 @@ export class XeroAdapter implements BooksAdapter {
    * the invoice's AmountPaid / AmountCredited to equal what Clearline recorded. Anything unclear throws.
    */
   async readBack(link: InvoiceLink, l: PostingLine, recorded: PostedLine[]): Promise<PostedLine | undefined> {
-    const cantTell = (why: string) => new Error(`Clearline can't confirm from Xero whether the ${l.kind.replace("_", " ")} on ${link.invoiceNumber} reached the books (${why}). Check the invoice in Xero.`);
+    const cantTell = (why: string) => Object.assign(new Error(`Clearline can't confirm from Xero whether the ${l.kind.replace("_", " ")} on ${link.invoiceNumber} reached the books (${why}). Check the invoice in Xero.`), { plain: true });
     if (l.kind === "note") {
       const hist = ((await this.call("GET", `/Invoices/${link.invoiceId}/History`)).HistoryRecords as Record<string, unknown>[] | undefined) ?? [];
       return hist.some((h) => h.Details === l.description.slice(0, 2500)) ? { ...l, externalId: `history:${link.invoiceId}:${l.key}`, externalType: "HistoryNote" } : undefined;
