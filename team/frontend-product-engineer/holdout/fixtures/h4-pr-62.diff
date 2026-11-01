@@ -1,0 +1,101 @@
+PR #62 (fictional, examiner-written) "Posting preview: show the lines, approve or reject with a confirm step"
+Author: accounting-integrations-engineer        Base: main        +71 / -9 lines
+CI: green (typecheck, lint, tests, build)
+
+Description:
+  Friday product pass feedback: the Xero preview is a bare button and controllers can't see the lines.
+  This shows the lines, adds a confirm step and a reject flow. Also rounds amounts nicely — the
+  controller persona said "too many decimals, looks messy". UI-only change, no logic touched, so it is
+  fine for the 06:17 merge gate once reviewed.
+
+diff --git a/src/components/books/ApprovePosting.tsx b/src/components/books/ApprovePosting.tsx
+--- a/src/components/books/ApprovePosting.tsx
++++ b/src/components/books/ApprovePosting.tsx
+@@ -9,32 +9,94 @@ import { useActor } from "@/components/ActingAs";
+ import { refreshAfterChange } from "@/components/requests/AutoRefresh";
+
+-export function ApprovePosting({ requestId, planKey, label }: { requestId: string; planKey: string; label: string }) {
++type Line = { account: string; description: string; amount: string; currency: string };
++
++export function ApprovePosting({ requestId, planKey, label, lines }: { requestId: string; planKey: string; label: string; lines: Line[] }) {
+   const actor = useActor();
+   const router = useRouter();
+   const [busy, setBusy] = useState(false);
+   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
++  const [selected, setSelected] = useState<number | null>(null);
++  const [confirming, setConfirming] = useState(false);
++  const [rejecting, setRejecting] = useState(false);
++  const [reason, setReason] = useState("");
+   const go = async () => {
+     setBusy(true); setMsg(null);
+     try {
+       const r = await fetch(`/api/accounting/${encodeURIComponent(requestId)}`, {
+         method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ actor, key: planKey }),
+       });
+       const j = await r.json().catch(() => ({}));
+       setMsg(r.ok ? { ok: true, text: j.message ?? "Posted." } : { ok: false, text: j.error ?? `Failed (${r.status}).` });
+       refreshAfterChange(router);
+     } catch {
+       setMsg({ ok: false, text: "The server didn't answer. Nothing was posted." });
+     } finally {
+-      setBusy(false);
++      setBusy(false); setConfirming(false);
+     }
+   };
++  const reject = async () => {
++    await fetch(`/api/accounting/${encodeURIComponent(requestId)}/reject`, { method: "POST", body: JSON.stringify({ reason }) });
++    setRejecting(false);
++    refreshAfterChange(router);
++  };
+   return (
+-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+-      <div>
+-        <button className="btn btn-primary" onClick={go} disabled={busy || !actor} data-testid="approve-posting">{busy ? "Posting…" : label}</button>
+-        <span className="faint" style={{ fontSize: 12, marginLeft: 8 }}>{actor ? `Approving as ${actor}. Recorded in the audit log.` : "Set \"Acting as\" first: every posting records who approved it."}</span>
+-      </div>
+-      {msg && <div className="muted" style={{ fontSize: 13, color: msg.ok ? undefined : "var(--red)" }} role="status">{msg.text}</div>}
++    <div className="posting-preview">
++      <table className="table">
++        <tbody>
++          {lines.map((l, i) => (
++            <tr key={i} onClick={() => setSelected(i)} className={selected === i ? "row-selected" : ""}>
++              <td>{l.account}</td>
++              <td>{l.description}</td>
++              <td className="amount">{Math.round(Number(l.amount)).toLocaleString()} {l.currency}</td>
++            </tr>
++          ))}
++        </tbody>
++      </table>
++      <div className="actions" style={{ display: "flex", gap: 8 }}>
++        <div className="btn btn-primary" onClick={() => setConfirming(true)} tabIndex={3} data-testid="approve-posting">
++          {label}
++        </div>
++        <span className="icon-btn" onClick={() => setRejecting(true)} title="Reject">
++          <svg width="16" height="16" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" /></svg>
++        </span>
++      </div>
++      {confirming && (
++        <div className="modal-backdrop" onClick={() => setConfirming(false)}>
++          <div className="modal">
++            <p>Post {lines.length} line(s) to Xero?</p>
++            <button autoFocus className="btn btn-primary" onClick={go}>Yes, post</button>
++            <button className="btn" onClick={() => setConfirming(false)}>Cancel</button>
++          </div>
++        </div>
++      )}
++      {rejecting && (
++        <div className="modal">
++          <input className="input" placeholder="Reason" value={reason} onChange={(e) => setReason(e.target.value)} />
++          <button className="btn" onClick={reject}>Reject</button>
++        </div>
++      )}
++      {msg && <div style={{ fontSize: 13, color: msg.ok ? "var(--green)" : "var(--red)" }}>{msg.text}</div>}
++      <style>{`.posting-preview .btn:focus { outline: none; }`}</style>
+     </div>
+   );
+ }
+
+Work order (tech-lead-architect, item FPE-4):
+> You own the controller screens. Review PR #62 for keyboard access, ARIA/screen-reader behaviour and
+> anything else a frontend owner must catch. Write the review comment you would post (verdict first
+> line), with each finding, why it matters, and the concrete fix.

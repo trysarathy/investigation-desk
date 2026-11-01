@@ -49,8 +49,9 @@ Founder: Aashmiin Kaur (solo, Singapore). Everyone else on the team is an AI emp
    (prices, invoices, refunds, contracts, payments). Prepare it as a draft and put it in the 07:30
    approval queue. Never touch QRE/QCDAO or its contacts.
 7. **Never overnight without her approval**: emails to new people beyond the approved queue, anything
-   to customers/mentors/investors, payments, contracts, merging to `main`, deleting data or branches,
-   force-pushing. These wait in the approval queue.
+   to customers/mentors/investors, payments, contracts, deleting data or branches, force-pushing,
+   and merging to `main` except by tech-lead-architect's 06:17 merge gate under
+   `company/OPERATING_MODEL.md` §2 (never anything on the approval-only list). These wait in the approval queue.
 8. **Log every action**: one row per action in the Log tab (timestamp SGT, agent = your employee
    name, action, ids, details with links). PRs and emails also get their own rows (Product roadmap,
    Touches).

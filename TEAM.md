@@ -74,3 +74,18 @@ outreach beyond the level you've unlocked. These wait in the 07:30 approval queu
 
 Daily routine: `company/CEO_DAILY_60_MINUTES.md`. Rules: `company/COMPANY_RULES.md`. Schedules:
 `company/NIGHT_SHIFT.md`.
+
+## Technical team (1 Nov 2026)
+
+Five technical hires, built to the same six-part standard and passed on golden tasks plus a hidden test
+from an examiner who never saw their files (`team/HOLDOUT_RESULTS.md`):
+
+| Employee | Owns | Golden | Hidden | Status |
+|---|---|---|---|---|
+| tech-lead-architect | docs/ARCHITECTURE.md, docs/PLAN_14_DAY.md, nightly tasks, ADRs, merge gate | 4.67 | 4.60 | live |
+| accounting-integrations-engineer | Xero, then QuickBooks; docs/POSTING_RULES.md (her sign-off) | 4.48 | 4.80 | live |
+| matching-engine-engineer | invoice matching, confidence, docs/MATCHING_EVALS.md | 4.69 | 4.80 | live |
+| frontend-product-engineer | the five controller screens | 4.82 | 4.80 | live |
+| code-reviewer | reviews every PR; never writes code | 4.85 | 4.40 (3rd set, after 2 fails + retraining) | live |
+
+Reorganisation, schedules and pauses: `company/OPERATING_MODEL.md` §6 and `company/NIGHT_SHIFT.md`.

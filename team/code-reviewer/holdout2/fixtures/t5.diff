@@ -1,0 +1,110 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 2a61a84..e1977b9 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -4,5 +4,11 @@ Plain-English notes for every merged change, newest first (company/OPERATING_MOD
+ Each entry: date, PR link, one paragraph a finance controller can understand: what changed, why, and
+ anything they need to do.
+ 
++## 2026-11-02
++- **Tidy-up: one place for Singapore times on screen** ([#67](https://github.com/trysarathy/investigation-desk/pull/67)).
++  The two pieces of code that turn a timestamp into Singapore time ("2026-10-31 15:30 SGT" and
++  "Today 09:05 SGT") now share one helper, so they can't drift apart. Nothing changes on screen and
++  there is nothing to do.
++
+ ## 2026-11-01
+ - **CHANGELOG started.** From today every merged pull request adds an entry here.
+diff --git a/src/lib/format.ts b/src/lib/format.ts
+index 2021439..862c768 100644
+--- a/src/lib/format.ts
++++ b/src/lib/format.ts
+@@ -16,11 +16,32 @@ export function formatAge(fromIso: string, nowIso: string): string {
+   return `${Math.floor(hours / 24)}d`;
+ }
+ 
++// Every time on screen is Singapore time (SGT, UTC+8, no daylight saving), the pilot region.
++const SGT_OFFSET_MS = 8 * 3600_000;
++const DAY_MS = 86_400_000;
++const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
++const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
++const pad2 = (n: number) => String(n).padStart(2, "0");
++
++/** The wall-clock fields of an instant in Singapore. */
++function sgt(ms: number) {
++  const d = new Date(ms + SGT_OFFSET_MS);
++  return { y: d.getUTCFullYear(), mo: d.getUTCMonth(), d: d.getUTCDate(), wd: d.getUTCDay(), hm: `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}` };
++}
++
++/** "2026-10-31 15:30 SGT". */
+ export function formatTime(iso: string): string {
+-  // Display in Singapore time, the pilot region, with the offset written out.
+-  const d = new Date(Date.parse(iso) + 8 * 3600_000);
+-  const p = (n: number) => String(n).padStart(2, "0");
+-  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} SGT`;
++  const t = sgt(Date.parse(iso));
++  return `${t.y}-${pad2(t.mo + 1)}-${pad2(t.d)} ${t.hm} SGT`;
++}
++
++/** "Today 09:05 SGT", "Yesterday 14:32 SGT", "Mon 11:20 SGT", or "3 Oct 11:20 SGT". */
++export function friendlyTime(iso: string, now = Date.now()): string {
++  const ms = Date.parse(iso);
++  const t = sgt(ms);
++  const daysAgo = Math.floor((now - ms) / DAY_MS);
++  const when = daysAgo === 0 ? "Today" : daysAgo === 1 ? "Yesterday" : daysAgo > 1 && daysAgo < 7 ? WEEKDAYS[t.wd] : `${t.d} ${MONTHS[t.mo]}`;
++  return `${when} ${t.hm} SGT`;
+ }
+ 
+ export function formatDuration(seconds: number): string {
+diff --git a/src/lib/requests/ui.ts b/src/lib/requests/ui.ts
+index 52495ae..23dbe7f 100644
+--- a/src/lib/requests/ui.ts
++++ b/src/lib/requests/ui.ts
+@@ -76,14 +76,5 @@ export function demoStatus(data: RequestsData) {
+   };
+ }
+ 
+-/** "Today 09:05 SGT", "Yesterday 14:32 SGT", "Mon 11:20 SGT", or "3 Oct 11:20 SGT": the pilot region's time. */
+-export function friendlyTime(iso: string, now = Date.now()): string {
+-  const sg = (ms: number) => new Date(ms + 8 * 3600_000);
+-  const d = sg(Date.parse(iso)), n = sg(now);
+-  const day = (x: Date) => Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate());
+-  const diff = Math.round((day(n) - day(d)) / 86_400_000);
+-  const hm = `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+-  const when = diff === 0 ? "Today" : diff === 1 ? "Yesterday" : diff > 1 && diff < 7 ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getUTCDay()]
+-    : `${d.getUTCDate()} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()]}`;
+-  return `${when} ${hm} SGT`;
+-}
++/** Kept here for the pages that import it from the request helpers; it lives in lib/format now. */
++export { friendlyTime } from "../format";
+diff --git a/tests/format.test.ts b/tests/format.test.ts
+new file mode 100644
+index 0000000..28bcf03
+--- /dev/null
++++ b/tests/format.test.ts
+@@ -0,0 +1,26 @@
++// The SGT display helpers, now in one place (lib/format). These pin today's output so the move
++// changes nothing on screen.
++
++import { describe, expect, it } from "vitest";
++import { formatTime, friendlyTime } from "@/lib/format";
++import { friendlyTime as fromRequests } from "@/lib/requests/ui";
++
++const NOW = Date.parse("2026-10-31T07:00:00Z"); // Sat 31 Oct, 15:00 SGT
++
++describe("SGT display helpers", () => {
++  it("formatTime writes the Singapore date and time", () => {
++    expect(formatTime("2026-10-31T07:30:00Z")).toBe("2026-10-31 15:30 SGT");
++    expect(formatTime("2026-12-31T16:05:00.000Z")).toBe("2027-01-01 00:05 SGT"); // past midnight in Singapore
++  });
++
++  it("friendlyTime says today, yesterday, the weekday, or the date", () => {
++    expect(friendlyTime("2026-10-31T01:05:00Z", NOW)).toBe("Today 09:05 SGT");
++    expect(friendlyTime("2026-10-30T06:32:00Z", NOW)).toBe("Yesterday 14:32 SGT");
++    expect(friendlyTime("2026-10-26T03:20:00Z", NOW)).toBe("Mon 11:20 SGT");
++    expect(friendlyTime("2026-10-03T03:20:00Z", NOW)).toBe("3 Oct 11:20 SGT");
++  });
++
++  it("the request pages still get the same function", () => {
++    expect(fromRequests).toBe(friendlyTime);
++  });
++});

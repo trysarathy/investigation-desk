@@ -1,0 +1,2007 @@
+[
+  {
+    "route": "/requests",
+    "finalUrl": "/requests",
+    "status": 200,
+    "n": 5,
+    "cpu": 1,
+    "median": {
+      "ttfb": 15.600000000093132,
+      "dcl": 79.20000000018626,
+      "load": 147.5,
+      "lcp": 188
+    },
+    "max": {
+      "load": 218.5,
+      "lcp": 428
+    },
+    "runs": [
+      {
+        "ttfb": 23,
+        "dcl": 102.80000000004657,
+        "load": 147.5,
+        "lcp": 428,
+        "finalUrl": "/requests",
+        "status": 200
+      },
+      {
+        "ttfb": 15.600000000093132,
+        "dcl": 79.20000000018626,
+        "load": 218.5,
+        "lcp": 188,
+        "finalUrl": "/requests",
+        "status": 200
+      },
+      {
+        "ttfb": 15.300000000046566,
+        "dcl": 100.4000000001397,
+        "load": 156.20000000018626,
+        "lcp": 416,
+        "finalUrl": "/requests",
+        "status": 200
+      },
+      {
+        "ttfb": 18.300000000046566,
+        "dcl": 42.89999999990687,
+        "load": 132.60000000009313,
+        "lcp": 116,
+        "finalUrl": "/requests",
+        "status": 200
+      },
+      {
+        "ttfb": 11.5,
+        "dcl": 40.60000000009313,
+        "load": 139.80000000004657,
+        "lcp": 116,
+        "finalUrl": "/requests",
+        "status": 200
+      }
+    ],
+    "a11y": [
+      {
+        "width": 1280,
+        "hscroll": {
+          "sw": 1280,
+          "cw": 1280
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 18,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": "label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          }
+        ],
+        "keyboard": {
+          "focusables": 17,
+          "stops": 17,
+          "unique": 15,
+          "focusInvisible": [],
+          "invisibleCount": 0,
+          "trap": false,
+          "reachedEnd": true
+        }
+      },
+      {
+        "width": 390,
+        "hscroll": {
+          "sw": 390,
+          "cw": 390
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 19,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": "label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "route": "/requests/all",
+    "finalUrl": "/requests/all",
+    "status": 200,
+    "n": 5,
+    "cpu": 1,
+    "median": {
+      "ttfb": 15.600000000093132,
+      "dcl": 84.5,
+      "load": 128.19999999995343,
+      "lcp": 412
+    },
+    "max": {
+      "load": 152.29999999981374,
+      "lcp": 420
+    },
+    "runs": [
+      {
+        "ttfb": 15.600000000093132,
+        "dcl": 80.5,
+        "load": 124.20000000018626,
+        "lcp": 412,
+        "finalUrl": "/requests/all",
+        "status": 200
+      },
+      {
+        "ttfb": 33.39999999990687,
+        "dcl": 97.19999999995343,
+        "load": 144.5,
+        "lcp": 412,
+        "finalUrl": "/requests/all",
+        "status": 200
+      },
+      {
+        "ttfb": 14.199999999953434,
+        "dcl": 79.0999999998603,
+        "load": 124,
+        "lcp": 408,
+        "finalUrl": "/requests/all",
+        "status": 200
+      },
+      {
+        "ttfb": 16.5999999998603,
+        "dcl": 150.39999999990687,
+        "load": 152.29999999981374,
+        "lcp": 416,
+        "finalUrl": "/requests/all",
+        "status": 200
+      },
+      {
+        "ttfb": 14.100000000093132,
+        "dcl": 84.5,
+        "load": 128.19999999995343,
+        "lcp": 420,
+        "finalUrl": "/requests/all",
+        "status": 200
+      }
+    ],
+    "a11y": [
+      {
+        "width": 1280,
+        "hscroll": {
+          "sw": 1280,
+          "cw": 1280
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "aria-allowed-attr",
+            "impact": "critical",
+            "nodes": 5,
+            "sample": [
+              {
+                "target": "a[href=\"/requests/all?view=all\"]",
+                "summary": "  ARIA attribute is not allowed: aria-pressed=\"true\""
+              },
+              {
+                "target": "a[href=\"/requests/all?view=attention\"]",
+                "summary": "  ARIA attribute is not allowed: aria-pressed=\"false\""
+              },
+              {
+                "target": "a[href=\"/requests/all?view=progress\"]",
+                "summary": "  ARIA attribute is not allowed: aria-pressed=\"false\""
+              }
+            ]
+          },
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 68,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": "label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          }
+        ],
+        "keyboard": {
+          "focusables": 30,
+          "stops": 30,
+          "unique": 29,
+          "focusInvisible": [],
+          "invisibleCount": 0,
+          "trap": false,
+          "reachedEnd": true
+        }
+      },
+      {
+        "width": 390,
+        "hscroll": {
+          "sw": 390,
+          "cw": 390
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "aria-allowed-attr",
+            "impact": "critical",
+            "nodes": 5,
+            "sample": [
+              {
+                "target": "a[href=\"/requests/all?view=all\"]",
+                "summary": "  ARIA attribute is not allowed: aria-pressed=\"true\""
+              },
+              {
+                "target": "a[href=\"/requests/all?view=attention\"]",
+                "summary": "  ARIA attribute is not allowed: aria-pressed=\"false\""
+              },
+              {
+                "target": "a[href=\"/requests/all?view=progress\"]",
+                "summary": "  ARIA attribute is not allowed: aria-pressed=\"false\""
+              }
+            ]
+          },
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 25,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": "label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "route": "/requests/all?view=attention",
+    "finalUrl": "/requests/all?view=attention",
+    "status": 200,
+    "n": 5,
+    "cpu": 1,
+    "median": {
+      "ttfb": 13.700000000186265,
+      "dcl": 40.199999999953434,
+      "load": 126.80000000004657,
+      "lcp": 100
+    },
+    "max": {
+      "load": 135.60000000009313,
+      "lcp": 120
+    },
+    "runs": [
+      {
+        "ttfb": 15.399999999906868,
+        "dcl": 40.199999999953434,
+        "load": 123.5,
+        "lcp": 100,
+        "finalUrl": "/requests/all?view=attention",
+        "status": 200
+      },
+      {
+        "ttfb": 13.700000000186265,
+        "dcl": 85,
+        "load": 133.80000000004657,
+        "lcp": 120,
+        "finalUrl": "/requests/all?view=attention",
+        "status": 200
+      },
+      {
+        "ttfb": 15.199999999953434,
+        "dcl": 42.199999999953434,
+        "load": 126.80000000004657,
+        "lcp": 100,
+        "finalUrl": "/requests/all?view=attention",
+        "status": 200
+      },
+      {
+        "ttfb": 11.899999999906868,
+        "dcl": 32.5999999998603,
+        "load": 111,
+        "lcp": 92,
+        "finalUrl": "/requests/all?view=attention",
+        "status": 200
+      },
+      {
+        "ttfb": 11.199999999953434,
+        "dcl": 38.10000000009313,
+        "load": 135.60000000009313,
+        "lcp": 112,
+        "finalUrl": "/requests/all?view=attention",
+        "status": 200
+      }
+    ],
+    "a11y": [
+      {
+        "width": 1280,
+        "hscroll": {
+          "sw": 1280,
+          "cw": 1280
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "aria-allowed-attr",
+            "impact": "critical",
+            "nodes": 5,
+            "sample": [
+              {
+                "target": "a[href=\"/requests/all?view=all\"]",
+                "summary": "  ARIA attribute is not allowed: aria-pressed=\"false\""
+              },
+              {
+                "target": "a[href=\"/requests/all?view=attention\"]",
+                "summary": "  ARIA attribute is not allowed: aria-pressed=\"true\""
+              },
+              {
+                "target": "a[href=\"/requests/all?view=progress\"]",
+                "summary": "  ARIA attribute is not allowed: aria-pressed=\"false\""
+              }
+            ]
+          },
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 27,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": "label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          }
+        ],
+        "keyboard": {
+          "focusables": 16,
+          "stops": 16,
+          "unique": 15,
+          "focusInvisible": [],
+          "invisibleCount": 0,
+          "trap": false,
+          "reachedEnd": true
+        }
+      },
+      {
+        "width": 390,
+        "hscroll": {
+          "sw": 390,
+          "cw": 390
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "aria-allowed-attr",
+            "impact": "critical",
+            "nodes": 5,
+            "sample": [
+              {
+                "target": "a[href=\"/requests/all?view=all\"]",
+                "summary": "  ARIA attribute is not allowed: aria-pressed=\"false\""
+              },
+              {
+                "target": "a[href=\"/requests/all?view=attention\"]",
+                "summary": "  ARIA attribute is not allowed: aria-pressed=\"true\""
+              },
+              {
+                "target": "a[href=\"/requests/all?view=progress\"]",
+                "summary": "  ARIA attribute is not allowed: aria-pressed=\"false\""
+              }
+            ]
+          },
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 18,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": "label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "route": "/requests/DEMO-1043",
+    "finalUrl": "/requests/DEMO-1043",
+    "status": 200,
+    "n": 5,
+    "cpu": 1,
+    "median": {
+      "ttfb": 15.300000000046566,
+      "dcl": 69.60000000009313,
+      "load": 126.5999999998603,
+      "lcp": 132
+    },
+    "max": {
+      "load": 162.30000000004657,
+      "lcp": 412
+    },
+    "runs": [
+      {
+        "ttfb": 15.300000000046566,
+        "dcl": 72,
+        "load": 121.4000000001397,
+        "lcp": 412,
+        "finalUrl": "/requests/DEMO-1043",
+        "status": 200
+      },
+      {
+        "ttfb": 11,
+        "dcl": 34.5999999998603,
+        "load": 126.5999999998603,
+        "lcp": 116,
+        "finalUrl": "/requests/DEMO-1043",
+        "status": 200
+      },
+      {
+        "ttfb": 15.300000000046566,
+        "dcl": 71.80000000004657,
+        "load": 162.30000000004657,
+        "lcp": 412,
+        "finalUrl": "/requests/DEMO-1043",
+        "status": 200
+      },
+      {
+        "ttfb": 14.699999999953434,
+        "dcl": 46.300000000046566,
+        "load": 138,
+        "lcp": 132,
+        "finalUrl": "/requests/DEMO-1043",
+        "status": 200
+      },
+      {
+        "ttfb": 17.100000000093132,
+        "dcl": 69.60000000009313,
+        "load": 115.89999999990687,
+        "lcp": 120,
+        "finalUrl": "/requests/DEMO-1043",
+        "status": 200
+      }
+    ],
+    "a11y": [
+      {
+        "width": 1280,
+        "hscroll": {
+          "sw": 1280,
+          "cw": 1280
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 23,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": "label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          },
+          {
+            "id": "link-in-text-block",
+            "impact": "serious",
+            "nodes": 1,
+            "sample": [
+              {
+                "target": ".faint > a[href$=\"books\"]",
+                "summary": "  The link has insufficient color contrast of 1.7:1 with the surrounding text. (Minimum contrast is 3:1, link text: #3b5bdb, surrounding text: #8a8d94)"
+              }
+            ]
+          }
+        ],
+        "keyboard": {
+          "focusables": 21,
+          "stops": 17,
+          "unique": 15,
+          "focusInvisible": [],
+          "invisibleCount": 0,
+          "trap": false,
+          "reachedEnd": true
+        }
+      },
+      {
+        "width": 390,
+        "hscroll": {
+          "sw": 390,
+          "cw": 390
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 25,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": "label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          },
+          {
+            "id": "link-in-text-block",
+            "impact": "serious",
+            "nodes": 1,
+            "sample": [
+              {
+                "target": ".faint > a[href$=\"books\"]",
+                "summary": "  The link has insufficient color contrast of 1.7:1 with the surrounding text. (Minimum contrast is 3:1, link text: #3b5bdb, surrounding text: #8a8d94)"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "route": "/requests/DEMO-1042",
+    "finalUrl": "/requests/DEMO-1042",
+    "status": 200,
+    "n": 5,
+    "cpu": 1,
+    "median": {
+      "ttfb": 14.700000000186265,
+      "dcl": 75.10000000009313,
+      "load": 119.30000000004657,
+      "lcp": 412
+    },
+    "max": {
+      "load": 154.69999999995343,
+      "lcp": 420
+    },
+    "runs": [
+      {
+        "ttfb": 13.600000000093132,
+        "dcl": 73.60000000009313,
+        "load": 117.5,
+        "lcp": 412,
+        "finalUrl": "/requests/DEMO-1042",
+        "status": 200
+      },
+      {
+        "ttfb": 12.5,
+        "dcl": 75.10000000009313,
+        "load": 119.30000000004657,
+        "lcp": 412,
+        "finalUrl": "/requests/DEMO-1042",
+        "status": 200
+      },
+      {
+        "ttfb": 16.600000000093132,
+        "dcl": 88.5,
+        "load": 154.69999999995343,
+        "lcp": 420,
+        "finalUrl": "/requests/DEMO-1042",
+        "status": 200
+      },
+      {
+        "ttfb": 15.5,
+        "dcl": 80.10000000009313,
+        "load": 135.69999999995343,
+        "lcp": 408,
+        "finalUrl": "/requests/DEMO-1042",
+        "status": 200
+      },
+      {
+        "ttfb": 14.700000000186265,
+        "dcl": 73.60000000009313,
+        "load": 114.10000000009313,
+        "lcp": 400,
+        "finalUrl": "/requests/DEMO-1042",
+        "status": 200
+      }
+    ],
+    "a11y": [
+      {
+        "width": 1280,
+        "hscroll": {
+          "sw": 1280,
+          "cw": 1280
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 30,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": "label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          },
+          {
+            "id": "link-in-text-block",
+            "impact": "serious",
+            "nodes": 1,
+            "sample": [
+              {
+                "target": ".faint:nth-child(5) > a[href$=\"books\"]",
+                "summary": "  The link has insufficient color contrast of 1.7:1 with the surrounding text. (Minimum contrast is 3:1, link text: #3b5bdb, surrounding text: #8a8d94)"
+              }
+            ]
+          }
+        ],
+        "keyboard": {
+          "focusables": 23,
+          "stops": 19,
+          "unique": 17,
+          "focusInvisible": [],
+          "invisibleCount": 0,
+          "trap": false,
+          "reachedEnd": true
+        }
+      },
+      {
+        "width": 390,
+        "hscroll": {
+          "sw": 390,
+          "cw": 390
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 32,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": "label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          },
+          {
+            "id": "link-in-text-block",
+            "impact": "serious",
+            "nodes": 1,
+            "sample": [
+              {
+                "target": ".faint:nth-child(5) > a[href$=\"books\"]",
+                "summary": "  The link has insufficient color contrast of 1.7:1 with the surrounding text. (Minimum contrast is 3:1, link text: #3b5bdb, surrounding text: #8a8d94)"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "route": "/requests/DEMO-1047",
+    "finalUrl": "/requests/DEMO-1047",
+    "status": 200,
+    "n": 5,
+    "cpu": 1,
+    "median": {
+      "ttfb": 14.800000000046566,
+      "dcl": 71.69999999995343,
+      "load": 163.20000000018626,
+      "lcp": 164
+    },
+    "max": {
+      "load": 183.5999999998603,
+      "lcp": 416
+    },
+    "runs": [
+      {
+        "ttfb": 15,
+        "dcl": 48.39999999990687,
+        "load": 168.0999999998603,
+        "lcp": 136,
+        "finalUrl": "/requests/DEMO-1047",
+        "status": 200
+      },
+      {
+        "ttfb": 15.099999999860302,
+        "dcl": 126.39999999990687,
+        "load": 183.5999999998603,
+        "lcp": 164,
+        "finalUrl": "/requests/DEMO-1047",
+        "status": 200
+      },
+      {
+        "ttfb": 14.800000000046566,
+        "dcl": 71.69999999995343,
+        "load": 129,
+        "lcp": 416,
+        "finalUrl": "/requests/DEMO-1047",
+        "status": 200
+      },
+      {
+        "ttfb": 13.300000000046566,
+        "dcl": 83,
+        "load": 137.69999999995343,
+        "lcp": 416,
+        "finalUrl": "/requests/DEMO-1047",
+        "status": 200
+      },
+      {
+        "ttfb": 14.800000000046566,
+        "dcl": 45,
+        "load": 163.20000000018626,
+        "lcp": 132,
+        "finalUrl": "/requests/DEMO-1047",
+        "status": 200
+      }
+    ],
+    "a11y": [
+      {
+        "width": 1280,
+        "hscroll": {
+          "sw": 1280,
+          "cw": 1280
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 30,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": "label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          },
+          {
+            "id": "link-in-text-block",
+            "impact": "serious",
+            "nodes": 1,
+            "sample": [
+              {
+                "target": ".faint:nth-child(4) > a[href$=\"books\"]",
+                "summary": "  The link has insufficient color contrast of 1.7:1 with the surrounding text. (Minimum contrast is 3:1, link text: #3b5bdb, surrounding text: #8a8d94)"
+              }
+            ]
+          }
+        ],
+        "keyboard": {
+          "focusables": 23,
+          "stops": 19,
+          "unique": 17,
+          "focusInvisible": [],
+          "invisibleCount": 0,
+          "trap": false,
+          "reachedEnd": true
+        }
+      },
+      {
+        "width": 390,
+        "hscroll": {
+          "sw": 400,
+          "cw": 390
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 32,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": "label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          },
+          {
+            "id": "link-in-text-block",
+            "impact": "serious",
+            "nodes": 1,
+            "sample": [
+              {
+                "target": ".faint:nth-child(4) > a[href$=\"books\"]",
+                "summary": "  The link has insufficient color contrast of 1.7:1 with the surrounding text. (Minimum contrast is 3:1, link text: #3b5bdb, surrounding text: #8a8d94)"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "route": "/requests/DEMO-1040",
+    "finalUrl": "/requests/DEMO-1040",
+    "status": 200,
+    "n": 5,
+    "cpu": 1,
+    "median": {
+      "ttfb": 14.200000000186265,
+      "dcl": 75.60000000009313,
+      "load": 131.0999999998603,
+      "lcp": 408
+    },
+    "max": {
+      "load": 143.10000000009313,
+      "lcp": 424
+    },
+    "runs": [
+      {
+        "ttfb": 15.300000000046566,
+        "dcl": 85.5,
+        "load": 143.10000000009313,
+        "lcp": 408,
+        "finalUrl": "/requests/DEMO-1040",
+        "status": 200
+      },
+      {
+        "ttfb": 15.100000000093132,
+        "dcl": 75.69999999995343,
+        "load": 135.60000000009313,
+        "lcp": 408,
+        "finalUrl": "/requests/DEMO-1040",
+        "status": 200
+      },
+      {
+        "ttfb": 14.200000000186265,
+        "dcl": 75.60000000009313,
+        "load": 127,
+        "lcp": 424,
+        "finalUrl": "/requests/DEMO-1040",
+        "status": 200
+      },
+      {
+        "ttfb": 13.299999999813735,
+        "dcl": 74.29999999981374,
+        "load": 131.0999999998603,
+        "lcp": 416,
+        "finalUrl": "/requests/DEMO-1040",
+        "status": 200
+      },
+      {
+        "ttfb": 11.399999999906868,
+        "dcl": 66.30000000004657,
+        "load": 121.19999999995343,
+        "lcp": 404,
+        "finalUrl": "/requests/DEMO-1040",
+        "status": 200
+      }
+    ],
+    "a11y": [
+      {
+        "width": 1280,
+        "hscroll": {
+          "sw": 1280,
+          "cw": 1280
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 24,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": "label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          },
+          {
+            "id": "link-in-text-block",
+            "impact": "serious",
+            "nodes": 1,
+            "sample": [
+              {
+                "target": ".faint:nth-child(5) > a[href$=\"books\"]",
+                "summary": "  The link has insufficient color contrast of 1.7:1 with the surrounding text. (Minimum contrast is 3:1, link text: #3b5bdb, surrounding text: #8a8d94)"
+              }
+            ]
+          }
+        ],
+        "keyboard": {
+          "focusables": 19,
+          "stops": 15,
+          "unique": 13,
+          "focusInvisible": [],
+          "invisibleCount": 0,
+          "trap": false,
+          "reachedEnd": true
+        }
+      },
+      {
+        "width": 390,
+        "hscroll": {
+          "sw": 390,
+          "cw": 390
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 26,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": "label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          },
+          {
+            "id": "link-in-text-block",
+            "impact": "serious",
+            "nodes": 1,
+            "sample": [
+              {
+                "target": ".faint:nth-child(5) > a[href$=\"books\"]",
+                "summary": "  The link has insufficient color contrast of 1.7:1 with the surrounding text. (Minimum contrast is 3:1, link text: #3b5bdb, surrounding text: #8a8d94)"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "route": "/requests/payments/ethereum%3A0x00000000cded9c52d13ea63f66672c9b77ec60ae2a834598e03ec719044a5260%3A0",
+    "finalUrl": "/requests/payments/ethereum%3A0x00000000cded9c52d13ea63f66672c9b77ec60ae2a834598e03ec719044a5260%3A0",
+    "status": 200,
+    "n": 5,
+    "cpu": 1,
+    "median": {
+      "ttfb": 13.800000000046566,
+      "dcl": 37.5,
+      "load": 138.80000000004657,
+      "lcp": 124
+    },
+    "max": {
+      "load": 148.10000000009313,
+      "lcp": 412
+    },
+    "runs": [
+      {
+        "ttfb": 17.399999999906868,
+        "dcl": 37.5,
+        "load": 138.80000000004657,
+        "lcp": 132,
+        "finalUrl": "/requests/payments/ethereum%3A0x00000000cded9c52d13ea63f66672c9b77ec60ae2a834598e03ec719044a5260%3A0",
+        "status": 200
+      },
+      {
+        "ttfb": 11.199999999953434,
+        "dcl": 34.5,
+        "load": 136.19999999995343,
+        "lcp": 116,
+        "finalUrl": "/requests/payments/ethereum%3A0x00000000cded9c52d13ea63f66672c9b77ec60ae2a834598e03ec719044a5260%3A0",
+        "status": 200
+      },
+      {
+        "ttfb": 11,
+        "dcl": 67.19999999995343,
+        "load": 124.79999999981374,
+        "lcp": 104,
+        "finalUrl": "/requests/payments/ethereum%3A0x00000000cded9c52d13ea63f66672c9b77ec60ae2a834598e03ec719044a5260%3A0",
+        "status": 200
+      },
+      {
+        "ttfb": 18,
+        "dcl": 76.0999999998603,
+        "load": 145.0999999998603,
+        "lcp": 412,
+        "finalUrl": "/requests/payments/ethereum%3A0x00000000cded9c52d13ea63f66672c9b77ec60ae2a834598e03ec719044a5260%3A0",
+        "status": 200
+      },
+      {
+        "ttfb": 13.800000000046566,
+        "dcl": 32.800000000046566,
+        "load": 148.10000000009313,
+        "lcp": 124,
+        "finalUrl": "/requests/payments/ethereum%3A0x00000000cded9c52d13ea63f66672c9b77ec60ae2a834598e03ec719044a5260%3A0",
+        "status": 200
+      }
+    ],
+    "a11y": [
+      {
+        "width": 1280,
+        "hscroll": {
+          "sw": 1280,
+          "cw": 1280
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 7,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": "label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          }
+        ],
+        "keyboard": {
+          "focusables": 9,
+          "stops": 9,
+          "unique": 8,
+          "focusInvisible": [],
+          "invisibleCount": 0,
+          "trap": false,
+          "reachedEnd": true
+        }
+      },
+      {
+        "width": 390,
+        "hscroll": {
+          "sw": 390,
+          "cw": 390
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 9,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": "label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          },
+          {
+            "id": "link-in-text-block",
+            "impact": "serious",
+            "nodes": 1,
+            "sample": [
+              {
+                "target": ".faint > a[href$=\"requests\"]",
+                "summary": "  The link has insufficient color contrast of 1.7:1 with the surrounding text. (Minimum contrast is 3:1, link text: #3b5bdb, surrounding text: #8a8d94)"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "route": "/books",
+    "finalUrl": "/books",
+    "status": 200,
+    "n": 5,
+    "cpu": 1,
+    "median": {
+      "ttfb": 14.100000000093132,
+      "dcl": 93.10000000009313,
+      "load": 147.39999999990687,
+      "lcp": 408
+    },
+    "max": {
+      "load": 166.5,
+      "lcp": 424
+    },
+    "runs": [
+      {
+        "ttfb": 17.9000000001397,
+        "dcl": 98.20000000018626,
+        "load": 156.80000000004657,
+        "lcp": 424,
+        "finalUrl": "/books",
+        "status": 200
+      },
+      {
+        "ttfb": 13.5,
+        "dcl": 93.10000000009313,
+        "load": 143.70000000018626,
+        "lcp": 416,
+        "finalUrl": "/books",
+        "status": 200
+      },
+      {
+        "ttfb": 10.900000000139698,
+        "dcl": 110,
+        "load": 166.5,
+        "lcp": 404,
+        "finalUrl": "/books",
+        "status": 200
+      },
+      {
+        "ttfb": 14.100000000093132,
+        "dcl": 77.60000000009313,
+        "load": 137.30000000004657,
+        "lcp": 404,
+        "finalUrl": "/books",
+        "status": 200
+      },
+      {
+        "ttfb": 14.199999999953434,
+        "dcl": 90.89999999990687,
+        "load": 147.39999999990687,
+        "lcp": 408,
+        "finalUrl": "/books",
+        "status": 200
+      }
+    ],
+    "a11y": [
+      {
+        "width": 1280,
+        "hscroll": {
+          "sw": 1280,
+          "cw": 1280
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 67,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": "label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          }
+        ],
+        "keyboard": {
+          "focusables": 67,
+          "stops": 67,
+          "unique": 24,
+          "focusInvisible": [],
+          "invisibleCount": 0,
+          "trap": false,
+          "reachedEnd": true
+        }
+      },
+      {
+        "width": 390,
+        "hscroll": {
+          "sw": 743,
+          "cw": 390
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 67,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": "label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "route": "/inbox",
+    "finalUrl": "/inbox",
+    "status": 200,
+    "n": 5,
+    "cpu": 1,
+    "median": {
+      "ttfb": 14.099999999860302,
+      "dcl": 82.69999999995343,
+      "load": 137.5999999998603,
+      "lcp": 408
+    },
+    "max": {
+      "load": 153.60000000009313,
+      "lcp": 420
+    },
+    "runs": [
+      {
+        "ttfb": 17.600000000093132,
+        "dcl": 151.30000000004657,
+        "load": 153.60000000009313,
+        "lcp": 420,
+        "finalUrl": "/inbox",
+        "status": 200
+      },
+      {
+        "ttfb": 12.600000000093132,
+        "dcl": 82.69999999995343,
+        "load": 138.30000000004657,
+        "lcp": 408,
+        "finalUrl": "/inbox",
+        "status": 200
+      },
+      {
+        "ttfb": 15.299999999813735,
+        "dcl": 81.5,
+        "load": 130.79999999981374,
+        "lcp": 400,
+        "finalUrl": "/inbox",
+        "status": 200
+      },
+      {
+        "ttfb": 12.399999999906868,
+        "dcl": 98.79999999981374,
+        "load": 137.5999999998603,
+        "lcp": 396,
+        "finalUrl": "/inbox",
+        "status": 200
+      },
+      {
+        "ttfb": 14.099999999860302,
+        "dcl": 81.30000000004657,
+        "load": 124.5,
+        "lcp": 408,
+        "finalUrl": "/inbox",
+        "status": 200
+      }
+    ],
+    "a11y": [
+      {
+        "width": 1280,
+        "hscroll": {
+          "sw": 1280,
+          "cw": 1280
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "aria-allowed-attr",
+            "impact": "critical",
+            "nodes": 11,
+            "sample": [
+              {
+                "target": "nav[aria-label=\"Status\"] > .chip[href=\"/inbox?view=active\"]",
+                "summary": "  ARIA attribute is not allowed: aria-pressed=\"true\""
+              },
+              {
+                "target": "a[href=\"/inbox?view=open\"]",
+                "summary": "  ARIA attribute is not allowed: aria-pressed=\"false\""
+              },
+              {
+                "target": "a[href=\"/inbox?view=awaiting_provider\"]",
+                "summary": "  ARIA attribute is not allowed: aria-pressed=\"false\""
+              }
+            ]
+          },
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 52,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": ".sidebar-foot > label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          }
+        ],
+        "keyboard": {
+          "focusables": 59,
+          "stops": 57,
+          "unique": 56,
+          "focusInvisible": [],
+          "invisibleCount": 0,
+          "trap": false,
+          "reachedEnd": true
+        }
+      },
+      {
+        "width": 390,
+        "hscroll": {
+          "sw": 390,
+          "cw": 390
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "aria-allowed-attr",
+            "impact": "critical",
+            "nodes": 11,
+            "sample": [
+              {
+                "target": "nav[aria-label=\"Status\"] > .chip[href=\"/inbox?view=active\"]",
+                "summary": "  ARIA attribute is not allowed: aria-pressed=\"true\""
+              },
+              {
+                "target": "a[href=\"/inbox?view=open\"]",
+                "summary": "  ARIA attribute is not allowed: aria-pressed=\"false\""
+              },
+              {
+                "target": "a[href=\"/inbox?view=awaiting_provider\"]",
+                "summary": "  ARIA attribute is not allowed: aria-pressed=\"false\""
+              }
+            ]
+          },
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 64,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": ".sidebar-foot > label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "route": "/payments",
+    "finalUrl": "/payments",
+    "status": 200,
+    "n": 5,
+    "cpu": 1,
+    "median": {
+      "ttfb": 12.700000000186265,
+      "dcl": 37.199999999953434,
+      "load": 136,
+      "lcp": 104
+    },
+    "max": {
+      "load": 149.10000000009313,
+      "lcp": 120
+    },
+    "runs": [
+      {
+        "ttfb": 12.100000000093132,
+        "dcl": 35.5,
+        "load": 136,
+        "lcp": 104,
+        "finalUrl": "/payments",
+        "status": 200
+      },
+      {
+        "ttfb": 16.4000000001397,
+        "dcl": 43.5,
+        "load": 137.5,
+        "lcp": 104,
+        "finalUrl": "/payments",
+        "status": 200
+      },
+      {
+        "ttfb": 12.399999999906868,
+        "dcl": 37.39999999990687,
+        "load": 123.69999999995343,
+        "lcp": 104,
+        "finalUrl": "/payments",
+        "status": 200
+      },
+      {
+        "ttfb": 18.300000000046566,
+        "dcl": 37.199999999953434,
+        "load": 127.60000000009313,
+        "lcp": 92,
+        "finalUrl": "/payments",
+        "status": 200
+      },
+      {
+        "ttfb": 12.700000000186265,
+        "dcl": 34,
+        "load": 149.10000000009313,
+        "lcp": 120,
+        "finalUrl": "/payments",
+        "status": 200
+      }
+    ],
+    "a11y": [
+      {
+        "width": 1280,
+        "hscroll": {
+          "sw": 1280,
+          "cw": 1280
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 3,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": ".sidebar-foot > label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": ".input",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          }
+        ],
+        "keyboard": {
+          "focusables": 83,
+          "stops": 18,
+          "unique": 18,
+          "focusInvisible": [],
+          "invisibleCount": 0,
+          "trap": false,
+          "reachedEnd": true
+        }
+      },
+      {
+        "width": 390,
+        "hscroll": {
+          "sw": 407,
+          "cw": 390
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 4,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": ".sidebar-foot > label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": ".input",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "route": "/",
+    "finalUrl": "/requests",
+    "status": 200,
+    "n": 5,
+    "cpu": 1,
+    "median": {
+      "ttfb": 34.0999999998603,
+      "dcl": 81.0999999998603,
+      "load": 93.9000000001397,
+      "lcp": 108
+    },
+    "max": {
+      "load": 109.80000000004657,
+      "lcp": 140
+    },
+    "runs": [
+      {
+        "ttfb": 28,
+        "dcl": 66.70000000018626,
+        "load": 70.70000000018626,
+        "lcp": 80,
+        "finalUrl": "/requests",
+        "status": 200
+      },
+      {
+        "ttfb": 34.0999999998603,
+        "dcl": 72.69999999995343,
+        "load": 74.39999999990687,
+        "lcp": 80,
+        "finalUrl": "/requests",
+        "status": 200
+      },
+      {
+        "ttfb": 37.700000000186265,
+        "dcl": 87.80000000004657,
+        "load": 93.9000000001397,
+        "lcp": 108,
+        "finalUrl": "/requests",
+        "status": 200
+      },
+      {
+        "ttfb": 24.399999999906868,
+        "dcl": 81.0999999998603,
+        "load": 109.80000000004657,
+        "lcp": 140,
+        "finalUrl": "/requests",
+        "status": 200
+      },
+      {
+        "ttfb": 34.699999999953434,
+        "dcl": 86.30000000004657,
+        "load": 94.80000000004657,
+        "lcp": 128,
+        "finalUrl": "/requests",
+        "status": 200
+      }
+    ],
+    "a11y": [
+      {
+        "width": 1280,
+        "hscroll": {
+          "sw": 1280,
+          "cw": 1280
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 18,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": "label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          }
+        ],
+        "keyboard": {
+          "focusables": 17,
+          "stops": 17,
+          "unique": 15,
+          "focusInvisible": [],
+          "invisibleCount": 0,
+          "trap": false,
+          "reachedEnd": true
+        }
+      },
+      {
+        "width": 390,
+        "hscroll": {
+          "sw": 390,
+          "cw": 390
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 19,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": "label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "route": "/pay/demo-88bc5c3fed34fcfa",
+    "finalUrl": "/pay/demo-88bc5c3fed34fcfa",
+    "status": 200,
+    "n": 5,
+    "cpu": 1,
+    "median": {
+      "ttfb": 12.400000000139698,
+      "dcl": 41.699999999953434,
+      "load": 120.30000000004657,
+      "lcp": 136
+    },
+    "max": {
+      "load": 174.80000000004657,
+      "lcp": 404
+    },
+    "runs": [
+      {
+        "ttfb": 10.800000000046566,
+        "dcl": 48.89999999990687,
+        "load": 174.80000000004657,
+        "lcp": 136,
+        "finalUrl": "/pay/demo-88bc5c3fed34fcfa",
+        "status": 200
+      },
+      {
+        "ttfb": 11.800000000046566,
+        "dcl": 41.39999999990687,
+        "load": 110.10000000009313,
+        "lcp": 392,
+        "finalUrl": "/pay/demo-88bc5c3fed34fcfa",
+        "status": 200
+      },
+      {
+        "ttfb": 15.300000000046566,
+        "dcl": 41.4000000001397,
+        "load": 120.30000000004657,
+        "lcp": 104,
+        "finalUrl": "/pay/demo-88bc5c3fed34fcfa",
+        "status": 200
+      },
+      {
+        "ttfb": 15.699999999953434,
+        "dcl": 46.39999999990687,
+        "load": 115.89999999990687,
+        "lcp": 404,
+        "finalUrl": "/pay/demo-88bc5c3fed34fcfa",
+        "status": 200
+      },
+      {
+        "ttfb": 12.400000000139698,
+        "dcl": 41.699999999953434,
+        "load": 140,
+        "lcp": 100,
+        "finalUrl": "/pay/demo-88bc5c3fed34fcfa",
+        "status": 200
+      }
+    ],
+    "a11y": [
+      {
+        "width": 1280,
+        "hscroll": {
+          "sw": 1280,
+          "cw": 1280
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 7,
+            "sample": [
+              {
+                "target": ".attn",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": ".track > li:nth-child(2)",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": ".track > li:nth-child(3)",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              }
+            ]
+          }
+        ],
+        "keyboard": {
+          "focusables": 3,
+          "stops": 3,
+          "unique": 3,
+          "focusInvisible": [],
+          "invisibleCount": 0,
+          "trap": false,
+          "reachedEnd": true
+        }
+      },
+      {
+        "width": 390,
+        "hscroll": {
+          "sw": 390,
+          "cw": 390
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 7,
+            "sample": [
+              {
+                "target": ".attn",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": ".track > li:nth-child(2)",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": ".track > li:nth-child(3)",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "route": "/requests/NOPE-1",
+    "finalUrl": "/requests/NOPE-1",
+    "status": 200,
+    "n": 5,
+    "cpu": 1,
+    "median": {
+      "ttfb": 14.199999999953434,
+      "dcl": 33,
+      "load": 125.0999999998603,
+      "lcp": 148
+    },
+    "max": {
+      "load": 127.5,
+      "lcp": 156
+    },
+    "runs": [
+      {
+        "ttfb": 11.199999999953434,
+        "dcl": 29.199999999953434,
+        "load": 127.5,
+        "lcp": 152,
+        "finalUrl": "/requests/NOPE-1",
+        "status": 200
+      },
+      {
+        "ttfb": 15.199999999953434,
+        "dcl": 68.89999999990687,
+        "load": 125.0999999998603,
+        "lcp": 148,
+        "finalUrl": "/requests/NOPE-1",
+        "status": 200
+      },
+      {
+        "ttfb": 12.5,
+        "dcl": 31.699999999953434,
+        "load": 121.89999999990687,
+        "lcp": 120,
+        "finalUrl": "/requests/NOPE-1",
+        "status": 200
+      },
+      {
+        "ttfb": 16.899999999906868,
+        "dcl": 35.199999999953434,
+        "load": 125.30000000004657,
+        "lcp": 156,
+        "finalUrl": "/requests/NOPE-1",
+        "status": 200
+      },
+      {
+        "ttfb": 14.199999999953434,
+        "dcl": 33,
+        "load": 88.29999999981374,
+        "lcp": 140,
+        "finalUrl": "/requests/NOPE-1",
+        "status": 200
+      }
+    ],
+    "a11y": [
+      {
+        "width": 1280,
+        "hscroll": {
+          "sw": 1280,
+          "cw": 1280
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 3,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": "label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          }
+        ],
+        "keyboard": {
+          "focusables": 6,
+          "stops": 6,
+          "unique": 6,
+          "focusInvisible": [],
+          "invisibleCount": 0,
+          "trap": false,
+          "reachedEnd": true
+        }
+      },
+      {
+        "width": 390,
+        "hscroll": {
+          "sw": 390,
+          "cw": 390
+        },
+        "demoLabel": true,
+        "axe": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodes": 3,
+            "sample": [
+              {
+                "target": ".mode-note",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 8.3pt (11px), font weight: normal). Expected"
+              },
+              {
+                "target": "label",
+                "summary": "  Element has insufficient color contrast of 3.18 (foreground color: #8a8d94, background color: #fafaf9, font size: 9.8pt (13px), font weight: normal). Expected"
+              },
+              {
+                "target": "select",
+                "summary": "  Element has insufficient color contrast of 3.32 (foreground color: #8a8d94, background color: #ffffff, font size: 9.8pt (13px), font weight: normal). Expected"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]

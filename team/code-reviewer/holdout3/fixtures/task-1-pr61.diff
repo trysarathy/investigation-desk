@@ -1,0 +1,83 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 2a61a84..e7c19c1 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -4,5 +4,8 @@ Plain-English notes for every merged change, newest first (company/OPERATING_MOD
+ Each entry: date, PR link, one paragraph a finance controller can understand: what changed, why, and
+ anything they need to do.
+ 
++## 2026-11-03
++- **Files saved with old Mac line endings are refused with a clear message** ([#61](https://github.com/trysarathy/investigation-desk/pull/61)). Some older spreadsheet exports end each line with a carriage return only. The importer used to read such a file as one long row and then complain about missing columns, which was confusing. It now says which line has the problem and how to re-save the file ("CSV UTF-8"). Nothing in a file is changed or guessed; the file is simply not read until it is saved in the standard format.
++
+ ## 2026-11-01
+ - **CHANGELOG started.** From today every merged pull request adds an entry here.
+diff --git a/src/lib/csv/parse.ts b/src/lib/csv/parse.ts
+index 07acfe2..22f2eb0 100644
+--- a/src/lib/csv/parse.ts
++++ b/src/lib/csv/parse.ts
+@@ -43,6 +43,8 @@ export function parseCsv(text: string): CsvParseResult {
+   let line = 1;
+   let recordLine = 1;
+   let error: string | undefined;
++  // Line of the first carriage return that isn't followed by a line feed (outside quotes).
++  let bareCrLine: number | undefined;
+ 
+   const endCell = () => {
+     cells.push(cell);
+@@ -84,6 +86,10 @@ export function parseCsv(text: string): CsvParseResult {
+       endCell();
+     } else if (ch === "\r" && text[i + 1] === "\n") {
+       // CRLF line ending; the \n ends the record.
++    } else if (ch === "\r") {
++      // A lone CR (classic Mac line endings) would otherwise run every line into one record.
++      bareCrLine ??= line;
++      cell += ch;
+     } else if (ch === "\n") {
+       endRecord();
+       line++;
+@@ -97,6 +103,10 @@ export function parseCsv(text: string): CsvParseResult {
+     out.fileErrors.push(`Unterminated quoted value starting on line ${recordLine}.`);
+     return out;
+   }
++  if (bareCrLine !== undefined) {
++    out.fileErrors.push(`Line ${bareCrLine} ends with a carriage return only (old Mac line endings). Save the file as "CSV UTF-8" and upload it again.`);
++    return out;
++  }
+   // A final newline is normal; anything after the last newline is a record.
+   if (cell !== "" || cells.length > 0) endRecord();
+ 
+diff --git a/tests/csv.test.ts b/tests/csv.test.ts
+index debc596..9294f39 100644
+--- a/tests/csv.test.ts
++++ b/tests/csv.test.ts
+@@ -179,3 +179,30 @@ describe("bulk CSV", () => {
+     expect(validateBulk(bytes(tooMany)).fileErrors).toEqual(["File has 1001 rows; the limit is 1000."]);
+   });
+ });
++
++describe("line endings", () => {
++  it("refuses a file with classic Mac (CR-only) line endings instead of reading it as one row", () => {
++    const p = parseCsv("a,b\r1,2\r3,4\r");
++    expect(p.fileErrors).toEqual(['Line 1 ends with a carriage return only (old Mac line endings). Save the file as "CSV UTF-8" and upload it again.']);
++    expect(p.records).toEqual([]);
++  });
++
++  it("names the first CR-only line when a file mixes LF and CR", () => {
++    expect(parseCsv("a,b\n1,2\n3,4\r5,6\n").fileErrors[0]).toMatch(/^Line 3 ends with a carriage return only/);
++  });
++
++  it("still reads CRLF files, and keeps a CR inside a quoted value as text", () => {
++    const crlf = parseCsv("a,b\r\n1,2\r\n");
++    expect(crlf.fileErrors).toEqual([]);
++    expect(crlf.records).toEqual([{ line: 2, cells: ["1", "2"] }]);
++    const quoted = parseCsv('a,b\n"x\ry",2\n');
++    expect(quoted.fileErrors).toEqual([]);
++    expect(quoted.records[0].cells).toEqual(["x\ry", "2"]);
++  });
++
++  it("an upload with CR-only line endings gets the same file error", () => {
++    const r = validateFileA(bytes(`${A_HEAD}\r${EVM},bsc,C-9,2024-01-01T00:00:00Z,\r`));
++    expect(r.fileErrors).toEqual(['Line 1 ends with a carriage return only (old Mac line endings). Save the file as "CSV UTF-8" and upload it again.']);
++    expect(r.rows).toEqual([]);
++  });
++});

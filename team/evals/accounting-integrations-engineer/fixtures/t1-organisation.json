@@ -1,0 +1,21 @@
+{
+  "_note": "FICTIONAL test data in the shape of Xero's GET /Organisation and a Clearline request. Not a real organisation.",
+  "xero_get_organisation": {
+    "Organisations": [{
+      "OrganisationID": "00000000-0000-0000-0000-0000000000d1",
+      "Name": "Demo Company (SG)",
+      "IsDemoCompany": true,
+      "Class": "DEMO",
+      "BaseCurrency": "SGD",
+      "CountryCode": "SG",
+      "Timezone": "SINGAPORESTANDARDTIME",
+      "FinancialYearEndDay": 31,
+      "FinancialYearEndMonth": 12,
+      "PeriodLockDate": "2026-09-30"
+    }]
+  },
+  "request": { "id": "R-77", "invoice": "INV-2210", "invoiceCurrency": "USD", "amount": "2400.00", "token": "USDC", "chain": "ethereum" },
+  "transfer": { "hash": "0x7e1d…a9c4", "logIndex": 41, "amount": "2400.000000", "blockTime": "2026-10-31T23:59:12Z", "confirmations": 64, "genuine": true },
+  "accounts": { "walletAccountCode": "090", "feeAccountCode": "404" },
+  "ask": "tech-lead-architect, team/plan/tasks-2026-11-01.md: 'accounting-integrations-engineer: plan the UTC posting-date fix (OPERATING_MODEL order item 1). Tell me what date posts today and what should post for this receipt, and the PR plan.'"
+}

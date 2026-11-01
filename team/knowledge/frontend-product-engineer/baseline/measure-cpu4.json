@@ -1,0 +1,474 @@
+[
+  {
+    "route": "/requests",
+    "finalUrl": "/requests",
+    "status": 200,
+    "n": 5,
+    "cpu": 4,
+    "median": {
+      "ttfb": 13,
+      "dcl": 209.69999999995343,
+      "load": 515.5,
+      "lcp": 308
+    },
+    "max": {
+      "load": 630.8000000000466,
+      "lcp": 596
+    },
+    "runs": [
+      {
+        "ttfb": 13,
+        "dcl": 407.20000000018626,
+        "load": 407.80000000004657,
+        "lcp": 596,
+        "finalUrl": "/requests",
+        "status": 200
+      },
+      {
+        "ttfb": 13.100000000093132,
+        "dcl": 209.69999999995343,
+        "load": 515.5,
+        "lcp": 240,
+        "finalUrl": "/requests",
+        "status": 200
+      },
+      {
+        "ttfb": 11.599999999860302,
+        "dcl": 126.5999999998603,
+        "load": 520.1999999999534,
+        "lcp": 136,
+        "finalUrl": "/requests",
+        "status": 200
+      },
+      {
+        "ttfb": 16.5999999998603,
+        "dcl": 287.80000000004657,
+        "load": 630.8000000000466,
+        "lcp": 308,
+        "finalUrl": "/requests",
+        "status": 200
+      },
+      {
+        "ttfb": 11,
+        "dcl": 134.79999999981374,
+        "load": 352.0999999998603,
+        "lcp": 500,
+        "finalUrl": "/requests",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "route": "/requests/all",
+    "finalUrl": "/requests/all",
+    "status": 200,
+    "n": 5,
+    "cpu": 4,
+    "median": {
+      "ttfb": 13.899999999906868,
+      "dcl": 153.29999999981374,
+      "load": 396.5,
+      "lcp": 520
+    },
+    "max": {
+      "load": 529.6000000000931,
+      "lcp": 664
+    },
+    "runs": [
+      {
+        "ttfb": 17.600000000093132,
+        "dcl": 116.69999999995343,
+        "load": 375.60000000009313,
+        "lcp": 244,
+        "finalUrl": "/requests/all",
+        "status": 200
+      },
+      {
+        "ttfb": 13.599999999860302,
+        "dcl": 148.5999999998603,
+        "load": 487,
+        "lcp": 596,
+        "finalUrl": "/requests/all",
+        "status": 200
+      },
+      {
+        "ttfb": 12.5,
+        "dcl": 153.29999999981374,
+        "load": 396.5,
+        "lcp": 520,
+        "finalUrl": "/requests/all",
+        "status": 200
+      },
+      {
+        "ttfb": 13.899999999906868,
+        "dcl": 196.69999999995343,
+        "load": 529.6000000000931,
+        "lcp": 664,
+        "finalUrl": "/requests/all",
+        "status": 200
+      },
+      {
+        "ttfb": 16.200000000186265,
+        "dcl": 355.9000000001397,
+        "load": 356.70000000018626,
+        "lcp": 276,
+        "finalUrl": "/requests/all",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "route": "/requests/DEMO-1043",
+    "finalUrl": "/requests/DEMO-1043",
+    "status": 200,
+    "n": 5,
+    "cpu": 4,
+    "median": {
+      "ttfb": 14.900000000139698,
+      "dcl": 455.60000000009313,
+      "load": 456.80000000004657,
+      "lcp": 636
+    },
+    "max": {
+      "load": 712.6000000000931,
+      "lcp": 748
+    },
+    "runs": [
+      {
+        "ttfb": 14.900000000139698,
+        "dcl": 455.60000000009313,
+        "load": 456.80000000004657,
+        "lcp": 652,
+        "finalUrl": "/requests/DEMO-1043",
+        "status": 200
+      },
+      {
+        "ttfb": 18,
+        "dcl": 432.69999999995343,
+        "load": 434.19999999995343,
+        "lcp": 616,
+        "finalUrl": "/requests/DEMO-1043",
+        "status": 200
+      },
+      {
+        "ttfb": 15,
+        "dcl": 435.89999999990687,
+        "load": 436.79999999981374,
+        "lcp": 636,
+        "finalUrl": "/requests/DEMO-1043",
+        "status": 200
+      },
+      {
+        "ttfb": 11.899999999906868,
+        "dcl": 564.0999999998603,
+        "load": 564.3999999999069,
+        "lcp": 748,
+        "finalUrl": "/requests/DEMO-1043",
+        "status": 200
+      },
+      {
+        "ttfb": 12.399999999906868,
+        "dcl": 579.6000000000931,
+        "load": 712.6000000000931,
+        "lcp": 300,
+        "finalUrl": "/requests/DEMO-1043",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "route": "/requests/DEMO-1042",
+    "finalUrl": "/requests/DEMO-1042",
+    "status": 200,
+    "n": 5,
+    "cpu": 4,
+    "median": {
+      "ttfb": 13.300000000046566,
+      "dcl": 165.69999999995343,
+      "load": 358.80000000004657,
+      "lcp": 520
+    },
+    "max": {
+      "load": 442.10000000009313,
+      "lcp": 572
+    },
+    "runs": [
+      {
+        "ttfb": 13.100000000093132,
+        "dcl": 169.60000000009313,
+        "load": 361.5,
+        "lcp": 544,
+        "finalUrl": "/requests/DEMO-1042",
+        "status": 200
+      },
+      {
+        "ttfb": 10.5,
+        "dcl": 324.4000000001397,
+        "load": 351.70000000018626,
+        "lcp": 520,
+        "finalUrl": "/requests/DEMO-1042",
+        "status": 200
+      },
+      {
+        "ttfb": 14.5,
+        "dcl": 165.69999999995343,
+        "load": 358.80000000004657,
+        "lcp": 496,
+        "finalUrl": "/requests/DEMO-1042",
+        "status": 200
+      },
+      {
+        "ttfb": 13.300000000046566,
+        "dcl": 122.80000000004657,
+        "load": 442.10000000009313,
+        "lcp": 120,
+        "finalUrl": "/requests/DEMO-1042",
+        "status": 200
+      },
+      {
+        "ttfb": 17.5,
+        "dcl": 156,
+        "load": 353.9000000001397,
+        "lcp": 572,
+        "finalUrl": "/requests/DEMO-1042",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "route": "/books",
+    "finalUrl": "/books",
+    "status": 200,
+    "n": 5,
+    "cpu": 4,
+    "median": {
+      "ttfb": 12.399999999906868,
+      "dcl": 351.30000000004657,
+      "load": 403.19999999995343,
+      "lcp": 564
+    },
+    "max": {
+      "load": 528,
+      "lcp": 708
+    },
+    "runs": [
+      {
+        "ttfb": 10,
+        "dcl": 351.30000000004657,
+        "load": 352.30000000004657,
+        "lcp": 584,
+        "finalUrl": "/books",
+        "status": 200
+      },
+      {
+        "ttfb": 12.399999999906868,
+        "dcl": 173.5,
+        "load": 528,
+        "lcp": 708,
+        "finalUrl": "/books",
+        "status": 200
+      },
+      {
+        "ttfb": 9,
+        "dcl": 404.89999999990687,
+        "load": 407.89999999990687,
+        "lcp": 528,
+        "finalUrl": "/books",
+        "status": 200
+      },
+      {
+        "ttfb": 14.599999999860302,
+        "dcl": 209.5,
+        "load": 400.69999999995343,
+        "lcp": 268,
+        "finalUrl": "/books",
+        "status": 200
+      },
+      {
+        "ttfb": 12.599999999860302,
+        "dcl": 400.5,
+        "load": 403.19999999995343,
+        "lcp": 564,
+        "finalUrl": "/books",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "route": "/inbox",
+    "finalUrl": "/inbox",
+    "status": 200,
+    "n": 5,
+    "cpu": 4,
+    "median": {
+      "ttfb": 16.0999999998603,
+      "dcl": 416.69999999995343,
+      "load": 416.79999999981374,
+      "lcp": 544
+    },
+    "max": {
+      "load": 485,
+      "lcp": 644
+    },
+    "runs": [
+      {
+        "ttfb": 16.800000000046566,
+        "dcl": 411.69999999995343,
+        "load": 412.19999999995343,
+        "lcp": 536,
+        "finalUrl": "/inbox",
+        "status": 200
+      },
+      {
+        "ttfb": 15.599999999860302,
+        "dcl": 396.5,
+        "load": 398.39999999990687,
+        "lcp": 544,
+        "finalUrl": "/inbox",
+        "status": 200
+      },
+      {
+        "ttfb": 13.300000000046566,
+        "dcl": 468,
+        "load": 468,
+        "lcp": 644,
+        "finalUrl": "/inbox",
+        "status": 200
+      },
+      {
+        "ttfb": 16.0999999998603,
+        "dcl": 416.69999999995343,
+        "load": 416.79999999981374,
+        "lcp": 168,
+        "finalUrl": "/inbox",
+        "status": 200
+      },
+      {
+        "ttfb": 16.600000000093132,
+        "dcl": 481.10000000009313,
+        "load": 485,
+        "lcp": 600,
+        "finalUrl": "/inbox",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "route": "/payments",
+    "finalUrl": "/payments",
+    "status": 200,
+    "n": 5,
+    "cpu": 4,
+    "median": {
+      "ttfb": 15.400000000139698,
+      "dcl": 460.79999999981374,
+      "load": 497.39999999990687,
+      "lcp": 560
+    },
+    "max": {
+      "load": 827.8000000000466,
+      "lcp": 880
+    },
+    "runs": [
+      {
+        "ttfb": 14.699999999953434,
+        "dcl": 460.79999999981374,
+        "load": 460.89999999990687,
+        "lcp": 560,
+        "finalUrl": "/payments",
+        "status": 200
+      },
+      {
+        "ttfb": 16.399999999906868,
+        "dcl": 185.80000000004657,
+        "load": 464.30000000004657,
+        "lcp": 560,
+        "finalUrl": "/payments",
+        "status": 200
+      },
+      {
+        "ttfb": 16.699999999953434,
+        "dcl": 151.5,
+        "load": 827.8000000000466,
+        "lcp": 148,
+        "finalUrl": "/payments",
+        "status": 200
+      },
+      {
+        "ttfb": 15.400000000139698,
+        "dcl": 659.4000000001397,
+        "load": 660,
+        "lcp": 880,
+        "finalUrl": "/payments",
+        "status": 200
+      },
+      {
+        "ttfb": 12.899999999906868,
+        "dcl": 481.60000000009313,
+        "load": 497.39999999990687,
+        "lcp": 680,
+        "finalUrl": "/payments",
+        "status": 200
+      }
+    ]
+  },
+  {
+    "route": "/pay/demo-88bc5c3fed34fcfa",
+    "finalUrl": "/pay/demo-88bc5c3fed34fcfa",
+    "status": 200,
+    "n": 5,
+    "cpu": 4,
+    "median": {
+      "ttfb": 12.699999999953434,
+      "dcl": 120.80000000004657,
+      "load": 437.80000000004657,
+      "lcp": 232
+    },
+    "max": {
+      "load": 611.5,
+      "lcp": 760
+    },
+    "runs": [
+      {
+        "ttfb": 10.300000000046566,
+        "dcl": 209.9000000001397,
+        "load": 611.5,
+        "lcp": 212,
+        "finalUrl": "/pay/demo-88bc5c3fed34fcfa",
+        "status": 200
+      },
+      {
+        "ttfb": 13.300000000046566,
+        "dcl": 162.20000000018626,
+        "load": 585.5,
+        "lcp": 760,
+        "finalUrl": "/pay/demo-88bc5c3fed34fcfa",
+        "status": 200
+      },
+      {
+        "ttfb": 12.699999999953434,
+        "dcl": 86.69999999995343,
+        "load": 409.5,
+        "lcp": 232,
+        "finalUrl": "/pay/demo-88bc5c3fed34fcfa",
+        "status": 200
+      },
+      {
+        "ttfb": 12.699999999953434,
+        "dcl": 120.80000000004657,
+        "load": 437.80000000004657,
+        "lcp": 604,
+        "finalUrl": "/pay/demo-88bc5c3fed34fcfa",
+        "status": 200
+      },
+      {
+        "ttfb": 22.800000000046566,
+        "dcl": 84.60000000009313,
+        "load": 387.9000000001397,
+        "lcp": 204,
+        "finalUrl": "/pay/demo-88bc5c3fed34fcfa",
+        "status": 200
+      }
+    ]
+  }
+]
