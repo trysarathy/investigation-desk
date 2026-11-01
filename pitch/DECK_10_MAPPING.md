@@ -44,8 +44,8 @@ The key is in each slide's footer. The full [VERIFIED]/[ASSUMPTION]/[GUESS] labe
 | 11 Market | 300+ × ~50% × S$6k = S$0.9M ceiling | **7** bottom row (marked † / ◦) |
 | 11 | "Grows beyond Singapore" | **7** one line, marked ◦ |
 | 11 | Calculation detail; "no top-down market size" | **7** notes + footer |
-| 12 Traction | 7 · 52/52 · 3 · 0 + "Next: 10" + the key question | **8** slide |
-| 12 | 43/59 → 59/59 → 52/52 detail; caveats | **8** footer + notes |
+| 12 Traction | 7 · Not yet (matching accuracy) · 3 · 0 + "Next: 10" + the key question | **8** slide |
+| 12 | Real-data testing line (no accuracy figure); caveats | **8** footer + notes |
 | 12 | Decision rule (direct → finance teams; checkout → gateway plug-in) | **8** notes (say it aloud) |
 | 13 Team | Degree, CS50 + AI tools, BD roles, SMU BIG, missing payments-ops experience | **9** slide (tighter) |
 | 13 | "Founder · builds the product and talks to customers"; full BD role names | **9** notes |
