@@ -353,7 +353,7 @@ in quotes, unchanged).
 | R4 / C15 / C17 value and FX | ☑ 2026-11-01 | | | Decision 4: "Stablecoin valued at par to USD, then Xero's own FX rate to the organisation's base currency. A depeg above 0.5% is an exception (no posting)." (Price source: Q-FX1, Q-FX2; non-USD invoices: Q-C15b) |
 | R5 finality | ☑ 2026-11-01 (Ethereum) | | ☐ other chains (Q-F1) | Decision 5: "Post only at chain finality — Ethereum 'finalized' block tag — never on a fixed confirmation count." |
 | R6 Demo Company / sandbox only until you switch live on | ☐ | ☐ | ☐ | |
-| R7 Never twice; corrections are new approved entries | ☐ | ☐ | ☐ | |
+| R7 Never twice; corrections are new approved entries | ☑ 2026-11-01 ("never twice" part) | | ☐ corrections part not yet stated | Her words, 1 Nov: "Every post to Xero must be idempotent" and "a retry after a partial post never creates a duplicate credit note." The "corrections are new approved entries" half is still unsigned. |
 | C1 Exact | ☐ | ☐ | ☐ | |
 | C2 Partial (now via the exceptions queue) | ☐ | ☐ | ☐ | Q-R1 |
 | C3 Shortfall accepted (and Q-C3 GST) | ☑ 2026-11-01 | | | Decision 2: "No automatic GST on shortfalls. An accepted shortfall posts to a customer-chosen account and is flagged for the accountant." (Account choice: Q-SF1; flag: Q-SF2) |
@@ -368,7 +368,7 @@ in quotes, unchanged).
 | C13 Refunds recorded by a person (Q-C13) | ☐ | ☐ | ☐ | |
 | C14 Multi-invoice split by a person | ☐ | ☐ | ☐ | |
 | C16 No reference / not final → wait | ☐ | ☐ | ☐ | |
-| Build order: D1, then D19 (partial-post idempotency, roadmap priority 2), D6, D8/D16, D2/D3/D20, D13, D17, D4 | ☐ | ☐ | ☐ | |
+| Build order: D1, then D19 (partial-post idempotency, roadmap priority 2), D6, D8/D16, D2/D3/D20, D13, D17, D4 | ☑ 2026-11-01 (first two) | | | Her build order, 1 Nov: "1. UTC posting-date fix … 2. Idempotent Xero posting … 3. Reorg dismiss bug … 4. Honest copy … 5. The 20 test payments … 6. Payment status + ETA … 7. Then continue docs/PLAN_14_DAY.md in order." The order after D19 follows the plan. |
 
 Signed: Aashmiin Kaur, 2026-11-01 SGT, for the five rows marked ☑ (recorded by accounting-integrations-engineer).
 Remaining rows: ____________________ Date: __________ SGT
