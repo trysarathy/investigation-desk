@@ -17,6 +17,9 @@ import type { BooksAdapter, BooksInvoice, InvoiceLink, MadeRecord, PostedLine, P
 
 export const XERO_API = "https://api.xero.com/api.xro/2.0";
 
+/** The currency Clearline posts in: only USD invoices are imported (engine `importInvoice`). */
+export const POSTING_CURRENCY = "USD";
+
 export type Fetch = (url: string, init: { method: string; headers: Record<string, string>; body?: string }) =>
   Promise<{ ok: boolean; status: number; json(): Promise<unknown>; text(): Promise<string> }>;
 
@@ -39,7 +42,7 @@ export function xeroBody(link: InvoiceLink, l: PostingLine) {
       return {
         path: "/CreditNotes",
         body: { CreditNotes: [{
-          Type: "ACCRECCREDIT", Contact: { ContactID: link.contactId }, Date: l.date, Status: "AUTHORISED", CurrencyCode: "USD", LineAmountTypes: "NoTax",
+          Type: "ACCRECCREDIT", Contact: { ContactID: link.contactId }, Date: l.date, Status: "AUTHORISED", CurrencyCode: POSTING_CURRENCY, LineAmountTypes: "NoTax",
           Reference: `Shortfall on ${link.invoiceNumber}`.slice(0, 255),
           LineItems: [{ Description: l.description.slice(0, 4000), Quantity: 1, UnitAmount: num(l.amount), AccountCode: l.accountCode }],
         }] },
@@ -119,7 +122,7 @@ export class XeroAdapter implements BooksAdapter {
         if (l.kind === "fee_writeoff") {
           // Two calls. Once the credit note exists it is never created again: a failed allocation is retried against it.
           const creditNoteId = l.madeId ?? idOf(await this.call("PUT", path, body, key), "CreditNotes", "CreditNoteID");
-          made[key] = { id: creditNoteId, amount: l.amount, currency: "USD" }; // xeroBody sends CurrencyCode USD
+          made[key] = { id: creditNoteId, amount: l.amount, currency: POSTING_CURRENCY }; // the CurrencyCode xeroBody sent
           await this.call("PUT", `/CreditNotes/${creditNoteId}/Allocations`,
             { Allocations: [{ Invoice: { InvoiceID: link.invoiceId }, Amount: num(l.amount), Date: l.date }] }, `${key}-alloc`);
           delete made[key];

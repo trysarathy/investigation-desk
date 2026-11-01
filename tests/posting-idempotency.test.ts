@@ -344,7 +344,9 @@ describe("posting to Xero is idempotent across retries (roadmap #2)", () => {
   });
 
   // Code review of 09d7e8c (probe P7): a credit note Xero made is re-used only for exactly its own amount.
-  const SHORTFALL_CHANGED = /A credit note for 50\.00 was already made in Xero for this invoice, but the shortfall is now 30\.00\. Check the credit note in Xero before approving again\./;
+  const SHORTFALL_CHANGED = "A credit note for 50.00 was already made in Xero for this invoice, but the shortfall is now 30.00. "
+    + "Clearline won't post anything more for this invoice, so it can't make a mismatched write-off. "
+    + "In Xero, adjust or void that credit note, then record the remaining lines below by hand.";
 
   it("(n) credit note 50.00 made, allocation 429, then 20.00 more arrives: nothing posts, a person checks", async () => {
     const { reqData, acct } = shortAccepted();
@@ -352,7 +354,7 @@ describe("posting to Xero is idempotent across retries (roadmap #2)", () => {
     xero.fail(1, "Allocations", "reject");
     const first = await xero.run(reqData, acct, 11);
     const second = await xero.run(put(reqData, tx("20.00", "b", 20)), first.acct, 30);
-    expect(second.error).toMatch(SHORTFALL_CHANGED);
+    expect(second.error).toBe(SHORTFALL_CHANGED);
     expect(second.acct.audit.at(-1)?.kind).toBe("refused");
     expect(xero.sent.filter((s) => s.attempt === 2)).toEqual([]); // no allocation of 30.00 against the 50.00 credit note
     expect(second.acct.audit.flatMap((e) => (e.kind === "posted" ? e.lines ?? [] : [])).some((l) => l.kind === "fee_writeoff")).toBe(false);
@@ -376,5 +378,22 @@ describe("posting to Xero is idempotent across retries (roadmap #2)", () => {
     xero.fail(1, "Allocations", "reject");
     const first = await xero.run(reqData, acct, 11);
     expect(Object.values(first.acct.audit.at(-1)?.made ?? {})).toEqual([{ id: "creditnotes-1", amount: "50.00", currency: "USD" }]);
+  });
+
+  it("(q) after that refusal every later approval is refused too, and the message never invites approving again", async () => {
+    const { reqData, acct } = shortAccepted();
+    const xero = stubXero();
+    xero.fail(1, "Allocations", "reject");
+    const first = await xero.run(reqData, acct, 11);
+    const more = put(reqData, tx("20.00", "b", 20));
+    let a = (await xero.run(more, first.acct, 30)).acct;
+    for (const minute of [40, 60]) {
+      const again = await xero.run(more, a, minute);
+      expect(again.error).toBe(SHORTFALL_CHANGED);
+      expect(again.error).not.toMatch(/approv/i);
+      expect(again.acct.audit.at(-1)?.kind).toBe("refused");
+      a = again.acct;
+    }
+    expect(xero.sent.filter((s) => s.attempt > 1)).toEqual([]); // the 20.00 payment waits too: recorded by hand
   });
 });

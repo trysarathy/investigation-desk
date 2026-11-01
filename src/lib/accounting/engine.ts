@@ -42,7 +42,9 @@ function madeDiffers(acct: AccountingData, requestId: string, lines: PostingLine
   if (!l) return undefined;
   const m = made[l.key!];
   const cur = (c: string) => (m.currency.toUpperCase() === currency.toUpperCase() ? "" : ` ${c}`);
-  return `A credit note for ${m.amount}${cur(m.currency)} was already made in Xero for this invoice, but the shortfall is now ${l.amount}${cur(currency)}. Check the credit note in Xero before approving again.`;
+  return `A credit note for ${m.amount}${cur(m.currency)} was already made in Xero for this invoice, but the shortfall is now ${l.amount}${cur(currency)}. `
+    + "Clearline won't post anything more for this invoice, so it can't make a mismatched write-off. "
+    + "In Xero, adjust or void that credit note, then record the remaining lines below by hand.";
 }
 
 /**
