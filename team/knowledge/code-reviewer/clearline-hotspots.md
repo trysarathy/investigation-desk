@@ -124,3 +124,13 @@ lint errors). Read the check runs for the head sha with
 `gh api repos/trysarathy/investigation-desk/commits/<sha>/check-runs`. A diff that edits the workflow,
 skips tests (`it.skip`, `describe.skip`, `.only`), or changes `vitest.config.mts` excludes is a finding;
 weakening a required check is BLOCK (production/deploy settings, approval-only).
+
+## Idempotent posting (added 1 Nov after the Task 2 review)
+- Idempotency test stubs must model Xero's **6-minute key expiry** (Xero keeps a key 6 minutes from the
+  first call with it; max 128 characters; only POST/PUT/PATCH honour it; a 429 is not cached; key reuse is
+  counted per app) [VERIFIED: code-reviewer 2026-11-01, developer.xero.com/documentation/guides/idempotent-requests/idempotency (page-data JSON)].
+  A stub that never forgets keys hides every late-retry duplicate.
+- A two-call line (credit note + allocation) is never "nothing made" once its first call succeeded.
+- Only a 4xx answer to the creating call means "nothing made"; a 200 with an unreadable body, a 5xx or a
+  timeout is "unknown" and needs a read-back before any retry outside the window.
+- The window is measured from the earliest attempt that sent that line's key.
