@@ -12,7 +12,7 @@
 import { formatDuration } from "../format";
 import { REQUEST_SETTINGS } from "./check";
 import { AUTO_RULE, formatUsdc, walletOf, type RequestView } from "./lifecycle";
-import { lookalikeChecks, suggestedForRequest } from "./present";
+import { lookalikeChecks, reusesOldAddress, suggestedForRequest } from "./present";
 import { sub } from "../payments/money";
 import type { RequestsData } from "./types";
 
@@ -87,7 +87,7 @@ export function paymentStatus(data: RequestsData, v: RequestView): PaymentStatus
     }
   }
   if (v.review === "ambiguous") return s("ambiguous", "A payment could be for this invoice or another one: confirm which invoice it pays.", "Confirm which request it pays.");
-  const seen = "Payment seen but not confirming yet: we can't say how long that takes, and there's nothing to do.";
+  const seen = "Payment seen, waiting for the network to pick it up: nothing to do yet.";
   if (v.state === "transfer_detected") return s("seen", seen, "Nothing to do yet.");
   if (v.state === "confirming") {
     // Any counted transfer not in a block yet: its timing isn't predictable, so no pace at all.
@@ -95,10 +95,10 @@ export function paymentStatus(data: RequestsData, v: RequestView): PaymentStatus
     const c = v.counted.filter((x) => x.confirmations < CONFIRMATIONS_FOR(x.chain));
     const x = c.reduce((a, b) => (b.confirmations < a.confirmations ? b : a), c[0]);
     const need = CONFIRMATIONS_FOR(x.chain), net = NET[x.chain] ?? x.chain, pace = confirmPace(x.chain);
-    const usual = pace ? `${net} usually takes ${pace} for ${need} confirmations` : "we can't say how long it will take";
+    const usual = pace ? `${net} usually takes ${pace}` : "we can't say how long it will take";
     return x.source === "live"
-      ? s("confirming", `Confirming (${x.confirmations} of ${need}): ${usual}; look the payment up again to update it.`, "Look the transaction up again.")
-      : s("confirming", `Confirming (${x.confirmations} of ${need}): ${usual}; in the demo, blocks move when you click.`, "Nothing to do yet.");
+      ? s("confirming", `Confirming (${x.confirmations} of ${need} at the last check): ${usual}; look the payment up again to update it.`, "Look the transaction up again.")
+      : s("confirming", `Confirming (${x.confirmations} of ${need}): ${usual}; in the demo, it moves on when you click.`, "Nothing to do yet.");
   }
   if (v.state === "matched") return s("ready", "Confirmed and checked for the exact amount: mark it paid.", "Mark it paid.");
   if (v.review === "short") {
@@ -114,5 +114,8 @@ export function paymentStatus(data: RequestsData, v: RequestView): PaymentStatus
   }
   if (lookalikeChecks(r).length) return s("lookalike", "A look-alike address was stopped before the customer paid: warn them to copy the address from the payment page.", "Send the customer the security note.");
   if (suggestedForRequest(data, r)) return s("suggested", "A payment that's probably this one arrived at another address: confirm the match.", "Confirm the suggested match.");
-  return s("waiting", "Waiting for payment: nothing has arrived yet.", "Share the payment link if the customer hasn't got it.");
+  if (reusesOldAddress(r)) {
+    return s("waiting", `Waiting for payment, and ${r.customerRef} says they'll reuse an old address: make sure they check it on the payment page before sending.`, "Ask the customer to check the address on the payment page.");
+  }
+  return s("waiting", "Waiting for payment: nothing has arrived yet, so there's nothing to do until the customer pays.", "Share the payment link if the customer hasn't got it.");
 }

@@ -55,6 +55,9 @@ export function suggestedForRequest(data: RequestsData, r: PaymentRequest): { ob
   return undefined;
 }
 
+/** The customer says they'll pay to an address from their history: how look-alike scams catch people. */
+export const reusesOldAddress = (r: PaymentRequest) => !!r.messages?.some((m) => /(address|wallet) from (last time|before)|old address|same address/i.test(m.text));
+
 export const lookalikeChecks = (r: PaymentRequest) => (r.addressChecks ?? []).filter((c) => c.result === "lookalike");
 
 export function verdict(data: RequestsData, v: RequestView): Verdict {
@@ -156,7 +159,7 @@ export function nextAction(v: RequestView, data?: RequestsData): NextAction {
     case "awaiting_payment": {
       if (lookalikeChecks(r).length) return { title: `Warn ${r.customerRef} that their wallet history may be poisoned`, detail: "Copy the security note below and send it, so they copy the address from the payment page, never from their history.", owner: ops };
       // The customer's own words can be the risk signal: reusing an old address is how look-alike scams catch people.
-      if (r.messages?.some((m) => /(address|wallet) from (last time|before)|old address|same address/i.test(m.text))) {
+      if (reusesOldAddress(r)) {
         return { title: `${r.customerRef} says they'll reuse an old address: make sure they check it`, detail: "Old addresses in a wallet's history are where look-alike scams hide. Their payment page checks the address before they send.", owner: ops, link: "sender" };
       }
       const sug = data && suggestedForRequest(data, r);
