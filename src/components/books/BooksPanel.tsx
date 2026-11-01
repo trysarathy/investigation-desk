@@ -2,10 +2,9 @@
 // won't), the approve button, and what has already been posted, with the accounting system's IDs.
 
 import Link from "next/link";
-import { activeProvider, loadAccounting } from "@/lib/accounting/service";
+import { activeProvider, loadAccounting, planOptionsFor } from "@/lib/accounting/service";
 import { planPosting, postedFor } from "@/lib/accounting/rules";
 import { PROVIDER_LABEL, type LineKind, type PlanStatus, type PostingLine } from "@/lib/accounting/types";
-import { CONFIRMATIONS } from "@/lib/requests/check";
 import { formatUsdc } from "@/lib/requests/lifecycle";
 import { shortHash } from "@/lib/requests/present";
 import type { RequestsData } from "@/lib/requests/types";
@@ -46,7 +45,7 @@ function Lines({ lines }: { lines: (PostingLine & { externalId?: string; externa
 
 export async function BooksPanel({ data, requestId }: { data: RequestsData; requestId: string }) {
   const acct = await loadAccounting();
-  const plan = planPosting(data, acct, requestId, { threshold: CONFIRMATIONS });
+  const plan = planPosting(data, acct, requestId, planOptionsFor(acct));
   if (plan.status === "not_linked") return null;
   const link = acct.links[requestId];
   const provider = activeProvider(acct);

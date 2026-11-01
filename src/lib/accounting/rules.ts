@@ -19,6 +19,7 @@ import { compareDecimal } from "../decimal";
 import { add, sub } from "../payments/money";
 import { deriveRequest, formatUsdc } from "../requests/lifecycle";
 import type { Observation, RequestsData } from "../requests/types";
+import { isIanaZone, localDate } from "./timezone";
 import type { AccountingData, AccountSettings, PostedLine, PostingLine, PostingPlan } from "./types";
 
 /** USD value of one token at a moment. Dollar stablecoins default to par, and say so. */
@@ -73,7 +74,11 @@ export function idempotencyKeyFor(requestId: string, lines: PostingLine[]): stri
 export interface PlanOptions {
   threshold: number;
   price?: PriceSource;
+  /** The accounting organisation's IANA timezone (e.g. "Asia/Singapore"). Missing or invalid → the plan is blocked. */
+  orgTimeZone?: string;
 }
+
+export const NO_TIMEZONE_REASON = "Clearline couldn't read your organisation's timezone, so it won't guess the posting date. Reconnect your accounting system or post this one by hand.";
 
 /** Apply the posting rules to one request. */
 export function planPosting(data: RequestsData, acct: AccountingData, requestId: string, o: PlanOptions): PostingPlan {
@@ -119,10 +124,17 @@ export function planPosting(data: RequestsData, acct: AccountingData, requestId:
     return plan("waiting", reasons);
   }
 
+  // Posting date (R2): the block time's calendar date in the organisation's own timezone. Unknown → no post.
+  const zone = o.orgTimeZone;
+  if (!isIanaZone(zone)) return plan("blocked", [...reasons, NO_TIMEZONE_REASON]);
+  const undated = confirmed.find((x) => !x.blockTime);
+  if (undated) return plan("blocked", [...reasons, `Clearline doesn't know the block time of ${shortHash(undated.hash)}, so it won't guess the posting date. Post this one by hand.`]);
+  const day = (x: Observation) => localDate(x.blockTime!, zone);
+
   // Price check: dollar stablecoins at (or near) par only.
   const rates = new Map<string, ReturnType<PriceSource>>();
   for (const x of confirmed) {
-    const p = price(r.token, x.blockTime ?? x.firstSeenAt);
+    const p = price(r.token, x.blockTime!);
     rates.set(x.key, p);
     const off = sub(p.rate, "1").replace(/^-/, "");
     if (cmp(off, DEPEG_LIMIT) > 0) {
@@ -134,7 +146,6 @@ export function planPosting(data: RequestsData, acct: AccountingData, requestId:
   const lastDecision = (k: string) => [...r.decisions].reverse().find((d) => d.kind === k);
   const lines: PostingLine[] = [];
   const net = NETWORK[r.chain] ?? r.chain;
-  const day = (x: Observation) => (x.blockTime ?? x.firstSeenAt).slice(0, 10);
 
   // One payment line per transfer, applied until the invoice is covered; the rest is excess.
   // Cents: each payment line is the rounded-down running total minus what earlier lines posted, so the

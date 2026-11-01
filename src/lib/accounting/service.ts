@@ -10,12 +10,12 @@ import { CONFIRMATIONS, OFFICIAL } from "../requests/check";
 import { requestsStore } from "../requests/service";
 import type { RequestToken } from "../requests/types";
 import { approveAndPost, importInvoice, seedDemoBooks } from "./engine";
-import { DemoBooksAdapter, emptyDemoBooks } from "./providers/demo";
+import { DEMO_ORG_TIMEZONE, DemoBooksAdapter, emptyDemoBooks } from "./providers/demo";
 import { NetSuiteAdapter } from "./providers/netsuite";
 import { QuickBooksAdapter } from "./providers/quickbooks";
 import { XeroAdapter } from "./providers/xero";
 import { accessToken, loadTokens, xeroConfigured } from "./providers/xero-auth";
-import { planPosting } from "./rules";
+import { planPosting, type PlanOptions } from "./rules";
 import { FileAccountingStore } from "./store";
 import type { AccountingData, BooksAdapter, BooksProvider, PostingPlan } from "./types";
 
@@ -25,6 +25,15 @@ const nowIso = () => new Date().toISOString();
 /** The accounting system in use. Demo mode always uses the demo books, whatever is configured. */
 export function activeProvider(acct: AccountingData): BooksProvider {
   return isDemoMode() ? "demo" : acct.provider === "demo" ? "demo" : acct.provider;
+}
+
+/**
+ * Plan options for the active accounting system: the confirmation threshold and the organisation's
+ * IANA timezone. Demo books use the demo organisation's stated zone. A real system's zone is not read
+ * yet (ADR 0002 PR (b)), so its plans are blocked rather than dated in UTC.
+ */
+export function planOptionsFor(acct: AccountingData): PlanOptions {
+  return { threshold: CONFIRMATIONS, orgTimeZone: activeProvider(acct) === "demo" ? DEMO_ORG_TIMEZONE : undefined };
 }
 
 export async function adapterFor(acct: AccountingData, now: () => string): Promise<BooksAdapter> {
@@ -51,7 +60,7 @@ export async function loadAccounting(): Promise<AccountingData> {
 
 export async function planFor(requestId: string): Promise<{ plan: PostingPlan; acct: AccountingData }> {
   const [reqData, acct] = await Promise.all([requestsStore().load(), accountingStore().load()]);
-  return { plan: planPosting(reqData, acct, requestId, { threshold: CONFIRMATIONS }), acct };
+  return { plan: planPosting(reqData, acct, requestId, planOptionsFor(acct)), acct };
 }
 
 /** Approve the plan a person saw (by its key) and post it. */
@@ -68,7 +77,7 @@ export async function approvePosting(requestId: string, by: string, expectedKey?
         invoiceNumber: acct.links[requestId]?.invoiceNumber, reason: `Not posted: ${error}`, demo: false };
       return [{ ...acct, audit: [...acct.audit, entry] }, { error }];
     }
-    const res = await approveAndPost(reqData, acct, requestId, { threshold: CONFIRMATIONS, by, now, adapter, expectedKey });
+    const res = await approveAndPost(reqData, acct, requestId, { ...planOptionsFor(acct), by, now, adapter, expectedKey });
     if (res.error && res.acct === acct) return [undefined, { error: res.error }];
     return [res.acct, res.error ? { error: res.error } : { message: `Posted ${res.plan.lines.length} line(s) to ${adapter.provider === "demo" ? "the demo books" : adapter.provider}.` }];
   });

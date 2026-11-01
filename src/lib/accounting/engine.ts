@@ -5,7 +5,7 @@
 import { createHash } from "node:crypto";
 import { createRequest, deriveRequest } from "../requests/lifecycle";
 import type { RequestsData, RequestToken } from "../requests/types";
-import { addDemoInvoice, DemoBooksAdapter, emptyDemoBooks } from "./providers/demo";
+import { addDemoInvoice, DEMO_ORG_TIMEZONE, DemoBooksAdapter, emptyDemoBooks } from "./providers/demo";
 import { planPosting, type PlanOptions } from "./rules";
 import { PartialPostError, type AccountingData, type AuditEntry, type BooksAdapter, type BooksInvoice, type InvoiceLink, type PostingPlan } from "./types";
 
@@ -100,7 +100,7 @@ export async function seedDemoBooks(reqData: RequestsData, acct: AccountingData,
     const ack = v.acknowledgedBy;
     if (!ack || r.decisions.some((d) => d.kind !== "acknowledge")) continue;
     const at = new Date(Date.parse(ack.at) + 12 * 60_000).toISOString();
-    const res = await approveAndPost(reqData, next, r.id, { threshold: o.threshold, by: o.operator, now: at, adapter: new DemoBooksAdapter(books, () => at) });
+    const res = await approveAndPost(reqData, next, r.id, { threshold: o.threshold, orgTimeZone: DEMO_ORG_TIMEZONE, by: o.operator, now: at, adapter: new DemoBooksAdapter(books, () => at) });
     next = { ...res.acct, demoBooks: books };
   }
   next.audit.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));

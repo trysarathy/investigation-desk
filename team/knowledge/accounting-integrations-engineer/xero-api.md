@@ -1,5 +1,9 @@
 # Xero Accounting API: what we use and what it says
 
+**Update 2026-11-01 (later run):** developer.xero.com was reachable with curl (WebFetch still refused); the
+Organisation and OAuth scopes pages were opened and the lines that rely on them are re-labelled below. The
+other pages listed next are still unopened.
+
 **Source situation on 2026-11-01:** `developer.xero.com` is **blocked** in this session (DNS refused by the
 network policy), so the human-readable docs pages (OAuth 2.0 overview, limits, Payments, Invoices, Bank
 Transactions, Manual Journals, Accounts, Organisation, Currencies, Demo Company) were **not opened**. The
@@ -32,13 +36,16 @@ invoices, repeating invoices"), `accounting.transactions.read`, `accounting.cont
 `accounting.reports.read`, `accounting.attachments(.read)`, `accounting.budgets.read`, `paymentservices`
 [VERIFIED: Xero OpenAPI 19.1.0 opened 2026-11-01]. `offline_access` (for a refresh token) is not in the spec list
 [ASSUMPTION: standard OIDC; the code requests it].
-- **We need `accounting.settings.read`** to read `GET /Organisation` (Timezone, BaseCurrency, lock dates) and
+- **We need `accounting.settings.read`** ("View your organisation settings", GET only; resources include
+  Organisation and Accounts; status not "Deprecated") [VERIFIED: accounting-integrations-engineer 2026-11-01, https://developer.xero.com/documentation/guides/oauth2/scopes/] to read `GET /Organisation` (Timezone, BaseCurrency, lock dates) and
   `GET /Accounts` (to validate account codes). The code doesn't request it today (codebase-map D6).
 - Granular scopes: for apps created **on or after 2 March 2026**, `accounting.transactions` is split into
   `accounting.invoices`, `accounting.payments`, `accounting.banktransactions`, `accounting.manualjournals`;
   existing apps must move before 13 Sep 2027 [ASSUMPTION: secondary, search summary of
   devblog.xero.com "Upcoming changes to Xero Accounting API scopes" and apideck.com/blog/xero-scopes; not
-  in spec 19.1.0]. Aashmiin's developer app will be new, so plan for granular scopes:
+  in spec 19.1.0]. Xero's scopes page: "Since March 2026, all new and existing Web and PKCE apps have been
+  assigned granular scopes"; broad scopes "will remain available until September 2027"; `accounting.transactions`
+  is "Deprecated", `accounting.invoices`/`payments`/`banktransactions` are "New" [VERIFIED: accounting-integrations-engineer 2026-11-01, https://developer.xero.com/documentation/guides/oauth2/scopes/]. Aashmiin's developer app will be new, so plan for granular scopes:
   `openid profile email offline_access accounting.invoices accounting.payments accounting.banktransactions
   accounting.contacts.read accounting.settings.read` (set `XERO_SCOPES`). Confirm on the scopes page.
 
@@ -48,6 +55,9 @@ Fields we need [VERIFIED: Xero OpenAPI 19.1.0 opened 2026-11-01, `components.sch
   `SINGAPORESTANDARDTIME`, `NEWZEALANDSTANDARDTIME`, `EASTERNSTANDARDTIME`, `UTC` (132 values). The spec's own
   example response has `Timezone: NEWZEALANDSTANDARDTIME`, `BaseCurrency: NZD`. **Not IANA.** We must map it
   (see `timezone-cutoff.md`).
+- Xero's docs page confirms `Timezone` (values: Xero's `Timezone.xsd`), `IsDemoCompany` "Boolean to describe if
+  organisation is a demo company.", `PeriodLockDate`/`EndOfYearLockDate` "Shown if set", and the example
+  `"Timezone": "NEWZEALANDSTANDARDTIME"` for "Demo Company (NZ)" [VERIFIED: accounting-integrations-engineer 2026-11-01, https://developer.xero.com/documentation/api/accounting/organisation].
 - `BaseCurrency` (CurrencyCode), `CountryCode`, `IsDemoCompany` (boolean: "if organisation is a demo company"),
   `Class` (includes `DEMO`), `FinancialYearEndDay`, `FinancialYearEndMonth`, `PeriodLockDate`,
   `EndOfYearLockDate` ("Shown if set"), `OrganisationStatus`.

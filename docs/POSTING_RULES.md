@@ -308,20 +308,23 @@ else is an exception for a person. CLR is a clearing account: the accountant dec
 moved or classified (decision 1).
 
 ## 7. QuickBooks and NetSuite
-QuickBooks uses the same lines; records as shown per case. Its date rule needs the company timezone, whose API location
-is not yet verified; until then QuickBooks must be configured with it and refuse to post without it. Not offered until
+QuickBooks uses the same lines; records as shown per case. Its date rule needs the company timezone: QBO's `CompanyInfo`
+entity has `DefaultTimeZone` (string, "Default time zone for the company") [VERIFIED: accounting-integrations-engineer
+2026-11-01, Intuit's own SDK schema https://raw.githubusercontent.com/intuit/QuickBooks-V3-Java-SDK/develop/ipp-v3-java-data/src/main/xsd/Finance.xsd];
+its value format (IANA or Windows name) is not stated there [ASSUMPTION: read it from a sandbox company]. Until it is
+read, a QuickBooks plan has no zone and is blocked. Not offered until
 its sandbox tests pass. NetSuite: design only; the same lines map to customerPayment / creditMemo.
 
 ## 8. Where today's code differs (every difference)
 Code read on `main` @ `0c7d9f1`, 2026-11-01. "Approved rule" = the rule as signed in §9; "proposed" = still DRAFT.
 | # | Code today | Rule (status) | Effect | Fix (plan task) | Approval-only? |
 |---|---|---|---|---|---|
-| D1 | Posting date is the UTC date (`rules.ts:137`) | R2 (DRAFT, with ADR 0002) | 00:00-07:59 SGT receipts book to the previous day/month | ADR 0002 PR (a)+(b): D2.1, D3.1 | yes |
+| D1 | Posting date is the UTC date (`rules.ts:137`). **Branch `bug/xero-posting-date-timezone-v2` (PR (a), not merged):** date = block time in `PlanOptions.orgTimeZone`; no/invalid zone → `blocked`; demo books use `DEMO_ORG_TIMEZONE`; Xero/QBO have no zone until PR (b), so their plans are blocked | R2 (DRAFT, with ADR 0002) | 00:00-07:59 SGT receipts book to the previous day/month | ADR 0002 PR (a)+(b): D2.1, D3.1 | yes |
 | D2 | Over by < 0.01 → `overpayment 0.00` line + `needs_decision` (probe) | R3d (**Approved**) | A pointless decision; a zero-value Xero record | Excess that rounds to 0.00 is not a line: D5.4 | yes |
 | D3 | Short by ≤ 0.01 → partial payment, invoice left open 0.01 (probe: 999.995 → `payment 999.99` + note) | R3d (**Approved**) | Books and Clearline disagree; invoice never closes | Rounding line Dr RND ≤ 0.01: D5.4 | yes |
 | D4 | No price source: `service.ts` never passes `price`, so `parPrice` always; depeg stop inert | R4.2 (**Approved**; source Q-FX1) | A depegged token would post at 1.00 | Wire the chosen source; unknown → exception: D9.3 | yes |
 | D4b | With a price given, the line records the feed price as `usdRate` while the amount is at par | R4.1, R4.4 (**Approved**) | Line says "@0.997" but posts at 1.00 | `usdRate` 1.00 (par) + a separate peg-check field: D9.3 | yes |
-| D5 | Missing block time → uses first-seen time | R2 (DRAFT) | Wrong date possible | Don't post without block time: D2.1 | yes |
+| D5 | Missing block time → uses first-seen time. **Branch `bug/xero-posting-date-timezone-v2`:** → `blocked` | R2 (DRAFT) | Wrong date possible | Don't post without block time: D2.1 | yes |
 | D6 | Never reads Xero Organisation (timezone, base currency, lock date, `IsDemoCompany`); scope `accounting.settings.read` not requested | R2, R6, C15 | Can't do R2/C15; could post to a real org | D3.1 (Organisation + scope) | yes (auth + posting) |
 | D7 | Overpayment label in a `Reference` Xero ignores for RECEIVE-OVERPAYMENT | C5 | Label lost | Superseded by Q-C5 | yes |
 | D8 | `walletAccountCode` default `090` (a bank account "My Savings" in Xero's spec examples), one account for all, never validated | §2 CLR (**Approved**) | Receipts would post to a bank account, against decision 1 | `clearingAccountCode` per org, no default, validated via `GET /Accounts`: D4.4 + UI D5.2 | yes |

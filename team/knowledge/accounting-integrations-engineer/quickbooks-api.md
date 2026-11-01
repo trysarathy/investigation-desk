@@ -51,9 +51,12 @@ Everything else below is [ASSUMPTION] until the Intuit docs pages are opened.
 
 ## Timezone and dates
 - `TxnDate` is a plain date; the company's timezone setting must be used to compute it, exactly as for Xero
-  (the bug-branch test checks `TxnDate` too). Where QBO exposes the company timezone (CompanyInfo or
-  Preferences) **was not verified** [ASSUMPTION: open the Intuit Preferences and CompanyInfo entity pages
-  first]. Until then the QBO adapter must take the timezone from configuration and refuse to post without it.
+  (the bug-branch test checks `TxnDate` too). QBO exposes it as **`CompanyInfo.DefaultTimeZone`** (`xs:string`,
+  "Default time zone for the company"; also on `Company`); `Preferences` has no timezone field (only
+  `TimeActivity.TimeZone`, the timezone of a time entry) [VERIFIED: accounting-integrations-engineer 2026-11-01, https://raw.githubusercontent.com/intuit/QuickBooks-V3-Java-SDK/develop/ipp-v3-java-data/src/main/xsd/Finance.xsd]. The value's format is not documented in
+  that schema [ASSUMPTION: check `GET /companyinfo/<realmId>` in a sandbox]. developer.intuit.com's entity pages
+  are a JavaScript app and returned no readable content to curl on 2026-11-01. Until the zone is read, a QBO plan
+  has no zone and is **blocked** (`planPosting` refuses without a valid IANA `orgTimeZone`).
 
 ## Sandbox
 - A sandbox company is created from the Intuit developer dashboard; development keys only work there

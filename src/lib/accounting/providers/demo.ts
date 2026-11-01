@@ -9,6 +9,8 @@ import { PartialPostError } from "../types";
 import type { BooksAdapter, BooksInvoice, DemoBooks, DemoInvoice, InvoiceLink, PostedLine, PostingLine } from "../types";
 
 export const DEMO_ORG = "Northwind Pay Pte Ltd (demo books, fictional)";
+/** The demo organisation's stated timezone (a Singapore company, fictional). Demo posting dates use it, never the server's zone. */
+export const DEMO_ORG_TIMEZONE = "Asia/Singapore";
 
 const idFor = (seed: string) => {
   const h = createHash("sha256").update(seed).digest("hex");

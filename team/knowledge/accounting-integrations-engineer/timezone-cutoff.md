@@ -26,23 +26,31 @@ The failing tests are on `bug/xero-posting-date-timezone` (17 `it.fails`, see `c
 
 ## Where the organisation's timezone comes from
 - **Xero:** `GET /Organisation` → `Timezone`, an enum of **Windows zone names upper-cased without spaces**, e.g.
-  `SINGAPORESTANDARDTIME` [VERIFIED: Xero OpenAPI 19.1.0 opened 2026-11-01]. Requires scope
-  `accounting.settings.read` (not requested today).
+  `SINGAPORESTANDARDTIME` [VERIFIED: Xero OpenAPI 19.1.0 opened 2026-11-01]. Xero's docs page lists `Timezone` on
+  the Organisation and links its values to Xero's `Timezone.xsd` [VERIFIED: accounting-integrations-engineer 2026-11-01, https://developer.xero.com/documentation/api/accounting/organisation]. Requires scope
+  `accounting.settings.read` ("View your organisation settings", GET only; not deprecated by the granular-scope change)
+  [VERIFIED: accounting-integrations-engineer 2026-11-01, https://developer.xero.com/documentation/guides/oauth2/scopes/] (not requested today).
 - **Mapping to IANA:** Unicode CLDR `windowsZones.xml` maps `Singapore Standard Time` (territory 001) →
   `Asia/Singapore`, `Eastern Standard Time` (001) → `America/New_York`
   [VERIFIED: https://raw.githubusercontent.com/unicode-org/cldr/main/common/supplemental/windowsZones.xml
   opened 2026-11-01]. Xero's enum strips spaces and upper-cases, and has a few odd forms (`UTC+12`, `UTC02`,
-  `EASTERNSTANDARDTIME(MEXICO)`), so build the table by normalising CLDR names the same way
-  (`name.replace(/\s/g, "").toUpperCase()`), keep the generated table in the repo with its CLDR source and date,
-  and **refuse to post on an unmapped value** (unknown pauses; never fall back to UTC).
-- **QuickBooks:** company timezone location not verified (`quickbooks-api.md`). Configuration until then.
+  `EASTERNSTANDARDTIME(MEXICO)`), so build the table by normalising CLDR names the same way: remove spaces, dots
+  **and hyphens** (`UTC-02` → `UTC02`), upper-case. Done in `src/lib/accounting/windows-zones.ts` (generated, with
+  source and sha256): **139 of Xero's 141** enum values map; `KAMCHATKASTANDARDTIME` and `MIDATLANTICSTANDARDTIME`
+  are not in current CLDR and stay unmapped → plan blocked [VERIFIED: accounting-integrations-engineer 2026-11-01,
+  https://raw.githubusercontent.com/unicode-org/cldr/main/common/supplemental/windowsZones.xml and Xero OpenAPI 19.1.0,
+  script run on both]. **Refuse to post on an unmapped value** (unknown pauses; never fall back to UTC).
+- **QuickBooks:** `CompanyInfo.DefaultTimeZone` (string, "Default time zone for the company") [VERIFIED: accounting-integrations-engineer 2026-11-01, https://raw.githubusercontent.com/intuit/QuickBooks-V3-Java-SDK/develop/ipp-v3-java-data/src/main/xsd/Finance.xsd].
+  Value format not stated (IANA or Windows?) [ASSUMPTION: read it from a sandbox company]; accept it only if it is a
+  valid IANA zone or maps via the Windows table, else blocked.
 - Cache the org timezone with the connection (it rarely changes) but re-read it on every connect and at least
   daily; log a change.
 
 ## Computing the date
 `new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(blockTime))`
-gives `YYYY-MM-DD` in the zone (the bug-branch test uses exactly this as its oracle). Node ships full ICU
-[ASSUMPTION: Node 18+ default; check `Intl.supportedValuesOf("timeZone")` in CI]. Daylight saving is handled by
+gives `YYYY-MM-DD` in the zone (the bug-branch test uses exactly this as its oracle). Every IANA zone in the
+Windows table is accepted by this Node's Intl [VERIFIED: accounting-integrations-engineer 2026-11-01, test
+`tests/org-timezone.test.ts` "every IANA zone in the table is one this Node runtime knows"]. Daylight saving is handled by
 the IANA zone (the New York case).
 
 ## Which instant

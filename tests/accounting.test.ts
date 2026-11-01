@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 import { approveAndPost, importInvoice, seedDemoBooks } from "@/lib/accounting/engine";
-import { addDemoInvoice, DemoBooksAdapter, emptyDemoBooks } from "@/lib/accounting/providers/demo";
+import { addDemoInvoice, DEMO_ORG_TIMEZONE, DemoBooksAdapter, emptyDemoBooks } from "@/lib/accounting/providers/demo";
 import { qboBodies, QuickBooksAdapter } from "@/lib/accounting/providers/quickbooks";
 import { XeroAdapter, xeroBody, xeroReference, type Fetch } from "@/lib/accounting/providers/xero";
 import { cmp, planPosting, toCents, totalOf, type PriceSource } from "@/lib/accounting/rules";
@@ -19,7 +19,7 @@ import { USDT_TRON } from "@/lib/fixtures";
 const NOW = "2026-10-25T09:00:00.000Z";
 const t = (m: number) => new Date(Date.parse(NOW) + m * 60_000).toISOString();
 const sim = new SimulatedProvider();
-const opts = { threshold: CONFIRMATIONS };
+const opts = { threshold: CONFIRMATIONS, orgTimeZone: DEMO_ORG_TIMEZONE };
 
 /** A request made from an invoice in the (demo) books, and the books holding that invoice. */
 function invoiced(amount = "1000.00", id = "R1", token: "USDC" | "USDT" = "USDC") {
