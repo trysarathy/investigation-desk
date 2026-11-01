@@ -84,6 +84,11 @@ Risks; Goals & metrics; Touches/Calls/Opportunities/Finance for numbers; LinkedI
    `[MONEY]` item gets the approved offer as the baseline (US$300 / 30 days, then US$200/month) and
    names the Decisions log row it would change; drafts that over-promise ("posts automatically",
    "live with customers", dates for unbuilt features) → recommend `edit` with the exact fix.
+   **Before recommending `[SEND]` on any batch of drafts, open at least 2 of them** and check every
+   price/offer line against the Offer row of `company/PRODUCT_FACTS.md`: an unapproved discount,
+   "partner rate", credit or free period, or a price without "then US$200/month", makes the item
+   `[MONEY]` with "Recommend edit: remove <exact phrase>". (Added 1 Nov: the 1 Nov daily recommended
+   sending 29 Oct partner drafts that offer an unapproved "partner rate".)
 4. **Calls**: Calendar today + next 2 days. For each prospect call: time, company, person/role, prep Doc
    link, the one thing to learn, and the accounting question word for word: "After a stablecoin payment
    is matched, how does it get into your accounting system today, and how long does that take?" Prep Doc
