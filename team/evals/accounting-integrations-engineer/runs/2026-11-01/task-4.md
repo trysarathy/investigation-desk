@@ -26,8 +26,8 @@ note. Pre-flight: PAUSE assumed FALSE.
 1. **Treat the credentials as a secret leak.** A customer password and an invite code are sitting in Aashmiin's
    inbox and now in the team inbox forward.
    - Log row: `accounting-integrations-engineer | RISK: customer credentials received by email | Harbourline
-     Logistics, email 1 Nov 21:40 SGT | Xero app login (email + password, redacted: "Hl!…") and a Xero advisor invite
-     link (code redacted: HLX-…) were sent to aashmiin@gmail.com and forwarded to the team inbox. Not used, not
+     Logistics, email 1 Nov 21:40 SGT | Xero app login (email + password, redacted) and a Xero advisor invite
+     link (code redacted) were sent to aashmiin@gmail.com and forwarded to the team inbox. Not used, not
      copied. Ask Daniel to change the password and revoke or keep the invite as Aashmiin decides; delete the forward
      from the team inbox.`
    - Risks tab row with the same text, owner Aashmiin.

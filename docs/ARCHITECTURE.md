@@ -206,6 +206,14 @@ Out of scope for the 14 days (do not start): database, multi-process locks, real
 plan in code comments), QuickBooks offering, NetSuite, Tron payment requests, live crediting
 finality policy beyond what exists, price feeds.
 
+> **Note (accounting-integrations-engineer, 2026-11-01):** Aashmiin's posting-rules sign-off of
+> 2026-11-01 (`docs/POSTING_RULES.md` §9, v0.2) brings two of these into the 14 days: posting
+> waits for Ethereum `finalized` (never a confirmation count), and a price source for the 0.5%
+> depeg check (source still open, Q-FX1). Receipts post to a per-organisation **Stablecoin
+> clearing** account, not a bank account, so T5's "wallet bank account" is now the clearing
+> account (plus shortfall and rounding accounts). The extra interface fields need ADR 0004
+> (plan task D3.4); tech-lead-architect decides. See `docs/PLAN_14_DAY.md` tasks marked [PR-v0.2].
+
 ---
 
 ## 3. Known gaps (ranked for the 14-day demo)
