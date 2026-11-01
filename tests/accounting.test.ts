@@ -215,7 +215,7 @@ describe("approval, idempotency and audit", () => {
     const reqData = put(d0, tx(addr("R1"), "4950.00", "a"));
     const seen = planPosting(reqData, acct, "R1", opts);
     const changed = decideAs(reqData, "R1", "accept_short");
-    const res = await post(changed, acct, new DemoBooksAdapter(books, () => t(10)), "R1", seen.idempotencyKey);
+    const res = await post(changed, acct, new DemoBooksAdapter(books, () => t(10)), "R1", seen.approvalKey);
     expect(res.error).toMatch(/plan changed/);
     expect(res.acct.audit.at(-1)).toMatchObject({ kind: "refused" });
     expect(books.entries).toHaveLength(0);

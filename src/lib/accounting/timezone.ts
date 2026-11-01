@@ -26,9 +26,14 @@ export function windowsToIana(name: string | undefined): string | undefined {
   return Object.prototype.hasOwnProperty.call(WINDOWS_TO_IANA, key) ? WINDOWS_TO_IANA[key] : undefined;
 }
 
-/** A zone as an accounting system may write it: an IANA name, or a Windows name. Unknown → undefined. */
+/**
+ * A zone as an accounting system may write it: a full Area/City IANA name, or a Windows name. Unknown →
+ * undefined. Legacy abbreviations that Node still accepts are refused: "EST" is a fixed UTC−5 with no
+ * daylight saving (America/Panama), so a New York company would post summer receipts on the wrong day.
+ */
 export function anyZoneToIana(name: string | undefined): string | undefined {
-  return isIanaZone(name) ? name : windowsToIana(name);
+  const areaCity = !!name && /^(Africa|America|Antarctica|Arctic|Asia|Atlantic|Australia|Europe|Indian|Pacific)\/[A-Za-z0-9_+\-/]+$/.test(name);
+  return areaCity && isIanaZone(name) ? name : windowsToIana(name);
 }
 
 /** The calendar date (YYYY-MM-DD) of an instant in an IANA zone. */

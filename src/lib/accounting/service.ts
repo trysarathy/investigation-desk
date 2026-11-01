@@ -9,7 +9,7 @@ import { isDemoMode } from "../mode";
 import { CONFIRMATIONS, OFFICIAL } from "../requests/check";
 import { requestsStore } from "../requests/service";
 import type { RequestToken } from "../requests/types";
-import { approveAndPost, importInvoice, orgTimeZoneFor, refreshOrgTimeZone, seedDemoBooks } from "./engine";
+import { approveAndPost, importInvoice, noTimeZoneReasonFor, orgTimeZoneFor, refreshOrgTimeZone, seedDemoBooks } from "./engine";
 import { DemoBooksAdapter, emptyDemoBooks } from "./providers/demo";
 import { NetSuiteAdapter } from "./providers/netsuite";
 import { QuickBooksAdapter } from "./providers/quickbooks";
@@ -33,7 +33,8 @@ export function activeProvider(acct: AccountingData): BooksProvider {
  * No zone → plans are blocked rather than dated in UTC.
  */
 export function planOptionsFor(acct: AccountingData): PlanOptions {
-  return { threshold: CONFIRMATIONS, orgTimeZone: orgTimeZoneFor(acct, activeProvider(acct)) };
+  const p = activeProvider(acct);
+  return { threshold: CONFIRMATIONS, orgTimeZone: orgTimeZoneFor(acct, p), noTimeZoneReason: noTimeZoneReasonFor(acct, p) };
 }
 
 export async function adapterFor(acct: AccountingData, now: () => string): Promise<BooksAdapter> {
@@ -63,7 +64,7 @@ export async function planFor(requestId: string): Promise<{ plan: PostingPlan; a
   return { plan: planPosting(reqData, acct, requestId, planOptionsFor(acct)), acct };
 }
 
-/** Approve the plan a person saw (by its key) and post it. */
+/** Approve the plan a person saw (by its approval key, which covers the posting dates) and post it. */
 export async function approvePosting(requestId: string, by: string, expectedKey?: string): Promise<{ error?: string; message?: string }> {
   const reqData = await requestsStore().load();
   type R = { error?: string; message?: string };
@@ -80,12 +81,13 @@ export async function approvePosting(requestId: string, by: string, expectedKey?
     const z = await refreshOrgTimeZone(acct, adapter, now);
     if (z.error) {
       const entry = { id: `AUD-${randomBytes(5).toString("hex")}`, at: now, kind: "refused" as const, by, provider: adapter.provider, requestId,
-        invoiceNumber: acct.links[requestId]?.invoiceNumber, reason: `Not posted: ${z.error}`, demo: false };
+        invoiceNumber: acct.links[requestId]?.invoiceNumber, reason: `Not posted: ${z.error}${z.detail ? ` (${z.detail})` : ""}`, demo: false };
       return [{ ...z.acct, audit: [...z.acct.audit, entry] }, { error: z.error }];
     }
     const res = await approveAndPost(reqData, z.acct, requestId, { ...planOptionsFor(z.acct), by, now, adapter, expectedKey });
-    if (res.error && res.acct === acct) return [undefined, { error: res.error }];
-    return [res.acct, res.error ? { error: res.error } : { message: `Posted ${res.plan.lines.length} line(s) to ${adapter.provider === "demo" ? "the demo books" : adapter.provider}.` }];
+    const error = res.error && z.changed ? `${z.changed} ${res.error}` : res.error;
+    if (error && res.acct === acct) return [undefined, { error }];
+    return [res.acct, error ? { error } : { message: `Posted ${res.plan.lines.length} line(s) to ${adapter.provider === "demo" ? "the demo books" : adapter.provider}.` }];
   });
 }
 

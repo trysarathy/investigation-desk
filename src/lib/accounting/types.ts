@@ -80,6 +80,12 @@ export interface PostingPlan {
   leavesOpen: boolean;
   /** Deterministic key for this exact plan: a retry with the same key never posts twice. */
   idempotencyKey: string;
+  /**
+   * What a person approves: the idempotency key plus every line's posting date. The idempotency key
+   * leaves dates out (so a retry after a zone change can't post twice), so an approval is bound to the
+   * dates the person saw by this key instead (R2, ADR 0002).
+   */
+  approvalKey: string;
 }
 
 /** One line as the accounting system recorded it. */

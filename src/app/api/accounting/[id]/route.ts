@@ -1,5 +1,6 @@
 // POST /api/accounting/<requestId>: approve the posting plan a person saw, and post it.
-// JSON: { actor, key }  (key = the plan's idempotency key, so a plan that changed must be approved again)
+// JSON: { actor, key }  (key = the plan's approval key: its lines and their posting dates, so a plan that
+// changed, including a date moved by a timezone change, must be approved again)
 
 import { NextResponse } from "next/server";
 import { approvePosting } from "@/lib/accounting/service";

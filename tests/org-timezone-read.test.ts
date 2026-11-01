@@ -3,7 +3,7 @@
 // and re-reading it just before posting.
 
 import { describe, expect, it } from "vitest";
-import { approveAndPost, orgTimeZoneFor, refreshOrgTimeZone } from "@/lib/accounting/engine";
+import { approveAndPost, connectOrgTimeZone, noTimeZoneReasonFor, orgTimeZoneFor, refreshOrgTimeZone } from "@/lib/accounting/engine";
 import { DEMO_ORG_TIMEZONE, DemoBooksAdapter, emptyDemoBooks } from "@/lib/accounting/providers/demo";
 import { QuickBooksAdapter } from "@/lib/accounting/providers/quickbooks";
 import { XeroAdapter, type Fetch } from "@/lib/accounting/providers/xero";
@@ -61,6 +61,11 @@ describe("QuickBooks: CompanyInfo DefaultTimeZone", () => {
     const win = fakeFetch(() => ({ body: { CompanyInfo: { DefaultTimeZone: "Singapore Standard Time" } } }));
     expect((await qbo(win.fn).readOrgTimeZone(NOW)).ianaTimeZone).toBe("Asia/Singapore");
   });
+  it("legacy abbreviations Node still accepts are refused (\"EST\" would be fixed UTC-5, no daylight saving)", async () => {
+    for (const DefaultTimeZone of ["EST", "PST", "MST", "EST5EDT", "Etc/GMT+5"]) {
+      expect((await qbo(fakeFetch(() => ({ body: { CompanyInfo: { DefaultTimeZone } } })).fn).readOrgTimeZone(NOW)).ianaTimeZone).toBeUndefined();
+    }
+  });
   it("missing or junk DefaultTimeZone → no zone", async () => {
     for (const body of [{ CompanyInfo: {} }, { CompanyInfo: { DefaultTimeZone: "Somewhere/Nowhere" } }, {}]) {
       expect((await qbo(fakeFetch(() => ({ body })).fn).readOrgTimeZone(NOW)).ianaTimeZone).toBeUndefined();
@@ -81,38 +86,99 @@ describe("which zone a plan uses, and the re-read before posting", () => {
     const acct = emptyAccounting();
     expect(await refreshOrgTimeZone(acct, new DemoBooksAdapter(emptyDemoBooks(), () => NOW), NOW)).toEqual({ acct });
   });
-  it("read fails → error, stored zone untouched", async () => {
+  it("read fails → plain error (the system's message only in detail), stored zone untouched", async () => {
     const acct = stored("xero", "Asia/Singapore");
     const r = await refreshOrgTimeZone(acct, xero(fakeFetch(() => ({ status: 403 })).fn), NOW);
-    expect(r.error).toMatch(/couldn't read your organisation's timezone from Xero/);
+    expect(r.error).toBe("Clearline couldn't read your organisation's timezone from Xero, so it won't guess the posting date. Reconnect Xero (Clearline needs permission to read organisation settings) or post this one by hand.");
+    expect(r.detail).toMatch(/403/);
     expect(r.acct).toBe(acct);
   });
-  it("zone changed since the plan was shown → kept, but the person must approve again", async () => {
+  it("zone changed → the new zone is kept and noted (the approval key, not this, refuses a moved date)", async () => {
     const r = await refreshOrgTimeZone(stored("xero", "Asia/Singapore"), xero(fakeFetch(() => org("EASTERNSTANDARDTIME")).fn), NOW);
-    expect(r.error).toMatch(/approve again/);
+    expect(r.error).toBeUndefined();
+    expect(r.changed).toMatch(/has changed \(now America\/New_York\)/);
     expect(r.acct.orgTimeZone?.ianaTimeZone).toBe("America/New_York");
   });
-  it("same zone → no error, read time updated", async () => {
+  it("same zone → nothing to note, read time updated", async () => {
     const r = await refreshOrgTimeZone(stored("xero", "Asia/Singapore"), xero(fakeFetch(() => org("SINGAPORESTANDARDTIME")).fn), "2026-11-02T00:00:00.000Z");
-    expect(r.error).toBeUndefined();
+    expect(r.error ?? r.changed).toBeUndefined();
     expect(r.acct.orgTimeZone).toMatchObject<Partial<OrgTimeZone>>({ ianaTimeZone: "Asia/Singapore", readAt: "2026-11-02T00:00:00.000Z" });
   });
-  it("end to end: a 07:30 SGT 1 Nov receipt posts to Xero dated 2026-11-01 with the zone read from Xero", async () => {
-    const d0 = createRequest(emptyRequests(), { customerRef: "Acme", invoiceRef: "INV-R1", amount: "1000.00", receivingAddress: addr("R1"), token: "USDC" },
-      { now: "2026-10-25T09:00:00.000Z", by: "Mei", demo: false, publicId: "R1", tokenContract: OFFICIAL_USDC, id: "R1" }).data;
-    const ev: TransferEvent = { ...new SimulatedProvider().send(emptyRequests(), { to: addr("R1"), amount: "1000.00", tokenContract: OFFICIAL_USDC, tokenSymbol: "USDC", from: addr("from:a"), seq: "a" }),
-      source: "live", demo: false, blockNumber: 900, blockTime: "2026-10-31T23:30:00.000Z", confirmations: CONFIRMATIONS };
-    const reqData = ingest(d0, ev, NOW, "test", checkObservation(NOW), CONFIRMATIONS).data;
-    const link: InvoiceLink = { provider: "xero", invoiceId: "inv-guid", invoiceNumber: "INV-R1", contactId: "c", contactName: "Acme", currency: "USD", amountDue: "1000.00", linkedAt: NOW, demo: false };
-    const acct0: AccountingData = { ...emptyAccounting(), provider: "xero", links: { R1: link } };
+  it("the plan's reason says why there is no zone: never read vs not recognised", () => {
+    expect(noTimeZoneReasonFor(emptyAccounting(), "xero")).toMatch(/hasn't been able to read .* from Xero.*Reconnect Xero/);
+    const unknown = stored("xero", undefined);
+    expect(noTimeZoneReasonFor(unknown, "xero")).toMatch(/isn't one Clearline recognises yet.*Post this one by hand/);
+    expect(noTimeZoneReasonFor(unknown, "xero")).not.toMatch(/Reconnect|approve again/);
+    expect(noTimeZoneReasonFor(stored("xero", "Asia/Singapore"), "xero")).toBeUndefined();
+    expect(noTimeZoneReasonFor(emptyAccounting(), "demo")).toBeUndefined();
+  });
+});
+
+// One 1,000.00 request paid at 07:30 SGT on 1 Nov (2026-10-31T23:30Z): 1 Nov in Singapore, 31 Oct in New York.
+function paidRequest() {
+  const d0 = createRequest(emptyRequests(), { customerRef: "Acme", invoiceRef: "INV-R1", amount: "1000.00", receivingAddress: addr("R1"), token: "USDC" },
+    { now: "2026-10-25T09:00:00.000Z", by: "Mei", demo: false, publicId: "R1", tokenContract: OFFICIAL_USDC, id: "R1" }).data;
+  const ev: TransferEvent = { ...new SimulatedProvider().send(emptyRequests(), { to: addr("R1"), amount: "1000.00", tokenContract: OFFICIAL_USDC, tokenSymbol: "USDC", from: addr("from:a"), seq: "a" }),
+    source: "live", demo: false, blockNumber: 900, blockTime: "2026-10-31T23:30:00.000Z", confirmations: CONFIRMATIONS };
+  const reqData = ingest(d0, ev, NOW, "test", checkObservation(NOW), CONFIRMATIONS).data;
+  const link: InvoiceLink = { provider: "xero", invoiceId: "inv-guid", invoiceNumber: "INV-R1", contactId: "c", contactName: "Acme", currency: "USD", amountDue: "1000.00", linkedAt: NOW, demo: false };
+  return { reqData, acct: { ...emptyAccounting(), provider: "xero", links: { R1: link } } as AccountingData };
+}
+const withZone = (acct: AccountingData, source: string, ianaTimeZone?: string): AccountingData =>
+  ({ ...acct, orgTimeZone: { provider: "xero", source, ianaTimeZone, readAt: NOW } });
+
+describe("an approval is bound to the posting dates the person saw (review finding, 1b)", () => {
+  it("the approval key changes with the dates; the idempotency key doesn't", () => {
+    const { reqData, acct } = paidRequest();
+    const sg = planPosting(reqData, acct, "R1", { threshold: CONFIRMATIONS, orgTimeZone: "Asia/Singapore" });
+    const ny = planPosting(reqData, acct, "R1", { threshold: CONFIRMATIONS, orgTimeZone: "America/New_York" });
+    expect(sg.lines[0].date).toBe("2026-11-01");
+    expect(ny.lines[0].date).toBe("2026-10-31");
+    expect(sg.idempotencyKey).toBe(ny.idempotencyKey);
+    expect(sg.approvalKey).not.toBe(ny.approvalKey);
+  });
+  it("reproduction: shown dated 1 Nov (Singapore), zone since stored as New York, approved with the old key → refused, nothing sent", async () => {
+    const { reqData, acct } = paidRequest();
+    const seen = planPosting(reqData, withZone(acct, "SINGAPORESTANDARDTIME", "Asia/Singapore"), "R1", { threshold: CONFIRMATIONS, orgTimeZone: "Asia/Singapore" });
+    const nowNy = withZone(acct, "EASTERNSTANDARDTIME", "America/New_York");
+    const { fn, calls } = fakeFetch(() => ({ body: { Payments: [{ PaymentID: "pay-1" }] } }));
+    const res = await approveAndPost(reqData, nowNy, "R1", { threshold: CONFIRMATIONS, orgTimeZone: orgTimeZoneFor(nowNy, "xero"), by: "Mei", now: NOW, adapter: xero(fn), expectedKey: seen.approvalKey });
+    expect(res.error).toMatch(/plan changed .* approve again/);
+    expect(calls).toEqual([]);
+    expect(res.acct.audit.at(-1)).toMatchObject({ kind: "refused" });
+  });
+  it("end to end: a 07:30 SGT 1 Nov receipt posts to Xero dated 2026-11-01, approved with the key the person saw", async () => {
+    const { reqData, acct: acct0 } = paidRequest();
     expect(planPosting(reqData, acct0, "R1", { threshold: CONFIRMATIONS, orgTimeZone: orgTimeZoneFor(acct0, "xero") }).status).toBe("blocked");
     const { fn, calls } = fakeFetch((url) => (url.endsWith("/Organisation") ? org("SINGAPORESTANDARDTIME") : { body: { Payments: [{ PaymentID: "pay-1" }] } }));
     const adapter = xero(fn);
     const z = await refreshOrgTimeZone(acct0, adapter, NOW);
-    expect(z.error).toMatch(/approve again/); // first read: Clearline had no zone, so the person sees the dated plan first
-    const res = await approveAndPost(reqData, z.acct, "R1", { threshold: CONFIRMATIONS, orgTimeZone: orgTimeZoneFor(z.acct, "xero"), by: "Mei", now: NOW, adapter });
+    const seen = planPosting(reqData, z.acct, "R1", { threshold: CONFIRMATIONS, orgTimeZone: orgTimeZoneFor(z.acct, "xero") });
+    const res = await approveAndPost(reqData, z.acct, "R1", { threshold: CONFIRMATIONS, orgTimeZone: orgTimeZoneFor(z.acct, "xero"), by: "Mei", now: NOW, adapter, expectedKey: seen.approvalKey });
     expect(res.error).toBeUndefined();
     const put = calls.find((c) => c.url.endsWith("/Payments"))!;
     expect(JSON.parse(put.body!).Payments[0].Date).toBe("2026-11-01");
+  });
+});
+
+describe("connecting: the zone is read and stored, replacing any earlier one (callback route)", () => {
+  const connect = (acct: AccountingData, f: Fetch) => connectOrgTimeZone(acct, xero(f), { orgName: "Demo Company (SG)", at: NOW, by: "Xero OAuth" });
+  it("mapped zone → stored, and the 'connected' audit row states it", async () => {
+    const a = await connect(emptyAccounting(), fakeFetch(() => org("SINGAPORESTANDARDTIME")).fn);
+    expect(a.provider).toBe("xero");
+    expect(a.orgTimeZone).toEqual({ provider: "xero", source: "SINGAPORESTANDARDTIME", ianaTimeZone: "Asia/Singapore", readAt: NOW });
+    expect(a.audit.at(-1)).toMatchObject({ kind: "connected", provider: "xero", reason: 'Connected to the Xero organisation "Demo Company (SG)", timezone Asia/Singapore (Xero: SINGAPORESTANDARDTIME).' });
+  });
+  it("unmapped zone → stored without an IANA zone, so plans are blocked; the audit says so", async () => {
+    const a = await connect(withZone(emptyAccounting(), "SINGAPORESTANDARDTIME", "Asia/Singapore"), fakeFetch(() => org("MIDATLANTICSTANDARDTIME")).fn);
+    expect(a.orgTimeZone?.ianaTimeZone).toBeUndefined();
+    expect(orgTimeZoneFor(a, "xero")).toBeUndefined();
+    expect(a.audit.at(-1)?.reason).toMatch(/"MIDATLANTICSTANDARDTIME" not recognised: nothing will post until it is/);
+  });
+  it("read fails on a reconnect → the earlier zone is cleared, never kept", async () => {
+    const a = await connect(withZone(emptyAccounting(), "SINGAPORESTANDARDTIME", "Asia/Singapore"), fakeFetch(() => ({ status: 403 })).fn);
+    expect(a.orgTimeZone).toBeUndefined();
+    expect(orgTimeZoneFor(a, "xero")).toBeUndefined();
+    expect(a.audit.at(-1)?.reason).toMatch(/timezone couldn't be read \(Xero GET \/Organisation failed \(403\)/);
   });
 });
