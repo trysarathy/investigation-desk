@@ -167,6 +167,9 @@ export function nextAction(v: RequestView, data?: RequestsData): NextAction {
     }
     case "transfer_detected":
     case "confirming":
+      if (v.seenTwice.length) {
+        return { title: "Set aside the copy left by a chain reorganisation", detail: `The same transaction was seen in two blocks; only one is real. Pick the copy that stopped gaining confirmations (the lower count) and mark it not a payment. It stays on file with its evidence.`, owner: ops, primary: "dismiss_transfer" };
+      }
       // Live transfers don't update on their own yet: their confirmations move only when looked up again.
       if (v.counted.some((o) => o.source === "live" && o.confirmations < CONFIRMATIONS)) {
         return { title: "Look the transaction up again", detail: `Confirmations were ${v.maxConfirmations} of ${CONFIRMATIONS} at the last lookup. Paste the same hash under "Record a real transaction" to update them.`, owner: ops };
