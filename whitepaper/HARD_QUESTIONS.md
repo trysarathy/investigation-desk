@@ -43,11 +43,11 @@ No. The Xero adapter is tested against recorded API shapes, and the posting rule
 never posted to a live Xero organisation. QuickBooks hasn't been run on a sandbox; NetSuite is designed only.
 *(Section 4.3, Appendix A.5.)*
 
-**7. Your accuracy numbers come from a test you designed. Why trust them?**
-Don't treat them as real-world accuracy. They come from the earlier deposit-investigation product, whose checking
-engine Clearline reuses: 59/59 real public transactions with sample company data, and 52/52 on a set built
-afterwards. Each answer was proven by a source outside the product, and an independent reviewer re-checked 7. Clearline's
-own matching has been tested only on simulated data. The real measure will be pilots' actual cases. *(Section 7.)*
+**7. Your tests are ones you designed. How accurate is it?**
+We don't quote an accuracy figure. The checking engine Clearline reuses, from the earlier deposit-investigation product,
+is tested on recorded real public transfers with sample company data; each expected answer was proven by a source
+outside the product, and an independent reviewer re-checked 7. That covers diagnosing deposits, not matching payments to
+invoices: invoice-matching accuracy will be measured on 20 replayed real transfers and has not been measured yet. The real measure will be pilots' actual cases. *(Section 7.)*
 
 **8. Would you let a pilot customer connect their Xero today?**
 Not yet. There's no sign-in, Xero tokens are stored unencrypted, the audit log isn't tamper-evident, and the Xero
