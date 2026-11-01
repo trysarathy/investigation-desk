@@ -52,7 +52,7 @@ but **always keeps Q5 verbatim** (RULES.md).
 | Deletion | No feature | Manual, within 10 business days | |
 | Security | Read-only on-chain, no custody, **no wallet keys**; Xero connection is a write credential to the books (say "no wallet keys", not "no keys") | | No individual sign-in, no SOC 2, no pen test, one-person operation |
 | AI explanations | Built; off in the Docker image | | Not tested on real data |
-| Evidence | Earlier deposit-investigation engine: 59/59 real public transactions with sample company data, 52/52 held-out; Clearline matching tested on simulated data only | | |
+| Evidence | The checking engine is tested on recorded real public transfers (sample company data); invoice matching accuracy will be measured on 20 replayed real transfers (not yet measured). Clearline matching tested on simulated data only. Never cite the earlier engine's 59/59 or held-out figures: they measured deposit diagnosis, not matching, and are not a matching or accuracy claim | | |
 | Customers | **0 customers**; working demo | | |
 
 **Never say:** "posts to Xero automatically", "live with customers", "payments check themselves", "correct
@@ -68,7 +68,7 @@ for "ready to mark paid".
 | Objection | Honest core answer | Watch-outs |
 |---|---|---|
 | Security | Read-only, no custody, no wallet keys; writes to books only on approval; **gaps stated** (no sign-in, plain JSON tokens, no SOC 2/pen test, solo); offer self-host / dedicated container | If SOC 2/SSO required: "we're not ready for you yet" |
-| Build it ourselves | Possible; the work is in edge cases (18 rules, tests, 52 held-out transfers) | "The pilot is a cheap way to see the edge cases": the price line is hers to send |
+| Build it ourselves | Possible; the work is in edge cases (18 rules, tests on recorded real public transfers) | "The pilot is a cheap way to see the edge cases": the price line is hers to send |
 | Our gateway does this | Fine for checkout payments; we add the ones that skip checkout + posting | Ask: "What share skip the checkout?" If almost none, not a fit |
 | Bitwave / Request Finance / Cryptio | True, partly; they're broader and more mature; our hypothesis is small firms paid direct, wrong payments explained | Bitwave and Request Finance integration claims are [VERIFIED 28 Oct, their pages] in OBJECTIONS.md; Cryptio is [ASSUMPTION]; certifications unchecked |
 | Pricing | The founding offer; ROI calculator with their numbers; below ~20-25 payments/month may not pay back [GUESS] | Credit/refund terms need her OK (§1) |
