@@ -1,0 +1,21 @@
+--- /dev/null
++++ b/src/lib/matching/verdict.ts
++export type VerdictCategory = "exact" | "partial" | "over" | "wrong_token" | "wrong_network" | "lookalike";
++export interface MatchVerdict {
++  category: VerdictCategory;
++  explanation: string;            // plain English shown to the controller
++  postable: boolean;
++  lines: PostingLine[];           // built here for partial / over
++}
+@@ line 48
++      lines: [{ kind: "payment", amount: received, date: blockDateUtc(tx), description: `Partial payment on ${inv}` },
++              { kind: "note", amount: "0", date: blockDateUtc(tx), description: `Short by ${short}, balance requested` }],
+@@ line 61
++      lines: [{ kind: "payment", amount: due, date: blockDateUtc(tx), description: "Payment" },
++              { kind: "overpayment", amount: sub(received, due), date: blockDateUtc(tx), description: "Customer credit" }],
+@@ line 74
++    case "wrong_network":
++      return { category, explanation: `Sent on ${net}; this invoice only accepts Ethereum.`, postable: true,
++               lines: [{ kind: "wrong_network", amount: received, date: blockDateUtc(tx), description: "Held: wrong network" }] };
++
++// blockDateUtc(tx) = new Date(tx.blockTime * 1000).toISOString().slice(0, 10)

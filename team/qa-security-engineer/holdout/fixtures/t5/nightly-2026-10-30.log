@@ -1,0 +1,30 @@
+# Clearline nightly, started 2026-10-30 22:53 SGT. Ref: feat/demo-polish @ 3b9e0c1 (FICTIONAL ref;
+# not on the remote you can see). Excerpt kept by the scheduler.
+
+$ npx tsc --noEmit
+(no output) exit 0
+
+$ npx vitest run
+ ✓ tests/engine.test.ts (88 tests)
+ ✓ tests/payments.test.ts (61 tests)
+ ❯ tests/requests.test.ts (34 tests | 1 failed)
+   × payment requests > the auto rule never marks paid a short, counterfeit or ambiguous payment
+     AssertionError: expected 'completed' to be 'needs_review'
+      ❯ tests/requests.test.ts:72:44
+ ...
+ Test Files  1 failed | 19 passed | 1 skipped (21)
+      Tests  1 failed | 563 passed | 57 skipped (621)
+exit 1
+
+$ npx next build
+✓ Compiled successfully
+exit 0
+
+$ python3 tests/e2e/demo_cases.py /tmp/nightly-e2e
+FAIL a. Acme routine: plays, matched and marked paid automatically; sender sees Paid
+     Locator expected to contain text 'Paid. Matched and marked paid automatically'
+     Actual value: Needs review: counterfeit token ... Timeout 15000ms exceeded. [line 68]
+PASS b. ... PASS g. (6 of 7 cases)
+exit 1
+
+NIGHTLY: RED (vitest 1 failed, e2e 1 failed)

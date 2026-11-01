@@ -1,0 +1,108 @@
+queue_date,lead_id,company,contact_name,email,step,subject,body,first_line_source,guard,guard_reasons,needs_approval,APPROVE,edited_body,status,queued_at,via
+2026-11-05,L-0931,"Coral Bay Traders Pty Ltd (AU, Sydney)",Mia Tan,mia.tan@coralbay.example.com,D0,Quick question about stablecoin payments,"Hi Mia,
+
+I saw Coral Bay now accepts USDC from Asian buyers for bulk seafood orders (your news page, 14 Sep 2026).
+
+I'm Aashmiin, an SMU student in Singapore building a small tool called Clearline, and I'm researching how finance teams handle stablecoin payments that arrive wrong: short after fees, on the wrong network, a fake token, or with no invoice reference.
+
+When a USDC or USDT payment comes in, how do you match it to the right invoice today?
+
+I'm not asking you to buy anything. 15 minutes of your experience would help me a lot.
+
+Thanks,
+Aashmiin Kaur
+https://www.linkedin.com/in/aashmiin-kaur-479665391
+
+If you'd rather not hear from me, reply ""no"" and I won't email again.",https://coralbay.example.com/news/usdc,ALLOW,,no,,,queued,2026-11-04 18:20,evening
+2026-11-05,L-0944,Harbourline Logistics Ltd (HK),Kenneth Ho,kenneth.ho@harbourline.example.com,D0,Quick question about stablecoin payments,"Hi Kenneth,
+
+Harbourline's July 2026 press release says you now settle freight invoices in USDT.
+
+I'm Aashmiin, an SMU student in Singapore building a small tool called Clearline, and I'm researching how finance teams handle stablecoin payments that arrive wrong: short after fees, on the wrong network, a fake token, or with no invoice reference.
+
+When a USDC or USDT payment comes in, how do you match it to the right invoice today?
+
+I'm not asking you to buy anything. 15 minutes of your experience would help me a lot.
+
+Thanks,
+Aashmiin Kaur
+https://www.linkedin.com/in/aashmiin-kaur-479665391
+
+If you'd rather not hear from me, reply ""no"" and I won't email again.",https://harbourline.example.com/press/usdt-settlement,ALLOW,,no,,,queued,2026-11-04 18:20,evening
+2026-11-05,L-0950,Saffron Freight Forwarders (IN),Priya Nair,priya@saffronfreight.example.com,D0,Quick question about stablecoin payments,"Hi Priya,
+
+Your blog post from March 2025 says Saffron started taking USDC from Gulf clients.
+
+I'm Aashmiin, an SMU student in Singapore building a small tool called Clearline, and I'm researching how finance teams handle stablecoin payments that arrive wrong: short after fees, on the wrong network, a fake token, or with no invoice reference.
+
+When a USDC or USDT payment comes in, how do you match it to the right invoice today?
+
+I'm not asking you to buy anything. 15 minutes of your experience would help me a lot.
+
+Thanks,
+Aashmiin Kaur
+https://www.linkedin.com/in/aashmiin-kaur-479665391
+
+If you'd rather not hear from me, reply ""no"" and I won't email again.",https://saffronfreight.example.com/blog/crypto,ALLOW,,no,,,queued,2026-11-04 18:20,evening
+2026-11-05,L-0953,Polar Ledger OU (EE),Kadri Saar,kadri@polarledger.example.com,D0,Quick question about stablecoin payments,"Hi Kadri,
+
+Polar Ledger's pricing page lists USDC as a payment option since October 2026.
+
+I'm Aashmiin, an SMU student in Singapore building a small tool called Clearline, and I'm researching how finance teams handle stablecoin payments that arrive wrong: short after fees, on the wrong network, a fake token, or with no invoice reference.
+
+When a USDC or USDT payment comes in, how do you match it to the right invoice today?
+
+I'm not asking you to buy anything. 15 minutes of your experience would help me a lot.
+
+Thanks,
+Aashmiin Kaur
+https://www.linkedin.com/in/aashmiin-kaur-479665391
+
+If you'd rather not hear from me, reply ""no"" and I won't email again.",https://polarledger.example.com/usdc,ALLOW,,no,,,queued,2026-11-04 18:20,evening
+2026-11-05,L-0957,Dunmore Textiles (UK),Aisha Rahman,aisha@dunmore.example.com,D0,Quick question about stablecoin payments,"Hi Aisha,
+
+Dunmore's payments page says overseas wholesale buyers can pay in USDT.
+
+I'm Aashmiin, an SMU student in Singapore building a small tool called Clearline, and I'm researching how finance teams handle stablecoin payments that arrive wrong: short after fees, on the wrong network, a fake token, or with no invoice reference.
+
+When a USDC or USDT payment comes in, how do you match it to the right invoice today?
+
+I'm not asking you to buy anything. 15 minutes of your experience would help me a lot.
+
+Thanks,
+Aashmiin Kaur
+https://www.linkedin.com/in/aashmiin-kaur-479665391
+
+If you'd rather not hear from me, reply ""no"" and I won't email again.",https://dunmore.example.com/payments,ALLOW,,no,,,queued,2026-11-04 18:20,evening
+2026-11-05,L-0961,"Vela Robotics FZ-LLC (AE, Dubai)",Sam Okafor,sam@vela.example.com,D0,Quick question about stablecoin payments,"Hi Sam,
+
+Vela's invoicing FAQ (updated August 2026) says clients can pay in USDC on Base or Ethereum.
+
+I'm Aashmiin, an SMU student in Singapore building a small tool called Clearline, and I'm researching how finance teams handle stablecoin payments that arrive wrong: short after fees, on the wrong network, a fake token, or with no invoice reference.
+
+When a USDC or USDT payment comes in, how do you match it to the right invoice today?
+
+I'm not asking you to buy anything. 15 minutes of your experience would help me a lot.
+
+Thanks,
+Aashmiin Kaur
+https://www.linkedin.com/in/aashmiin-kaur-479665391
+
+If you'd rather not hear from me, reply ""no"" and I won't email again.",https://vela.example.com/crypto-invoices,ALLOW,,no,,,queued,2026-11-04 18:20,evening
+2026-11-05,L-0970,Kowloon Bay Electronics (HK),Grace Chan,grace@kowloonbay.example.com,D0,Quick question about stablecoin payments,"Hi Grace,
+
+Kowloon Bay's distributor page says invoices can be settled in USDT.
+
+I'm Aashmiin, an SMU student in Singapore building a small tool called Clearline, and I'm researching how finance teams handle stablecoin payments that arrive wrong: short after fees, on the wrong network, a fake token, or with no invoice reference.
+
+When a USDC or USDT payment comes in, how do you match it to the right invoice today?
+
+I'm not asking you to buy anything. 15 minutes of your experience would help me a lot.
+
+Thanks,
+Aashmiin Kaur
+https://www.linkedin.com/in/aashmiin-kaur-479665391
+
+If you'd rather not hear from me, reply ""no"" and I won't email again.",https://kowloonbay.example.com/distributors,ALLOW,,no,,,queued,2026-11-04 18:26,evening
+2026-11-05,L-0959,Van Dijk Freight BV (NL),Joost de Vries,joost@vandijk.example.com,D0,Quick question about stablecoin payments,(blocked),https://vandijk.example.com/news,BLOCK,strict-consent country (Netherlands),no,,,blocked,2026-11-04 18:20,evening
+2026-11-05,L-0963,"Mesa Digital LLC (US, New York)",Chris Alvarez,chris@mesadigital.example.com,D0,Quick question about stablecoin payments,(blocked),https://mesadigital.example.com/usdc,BLOCK,US contact and POSTAL_ADDRESS is empty,no,,,blocked,2026-11-04 18:20,evening

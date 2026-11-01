@@ -333,6 +333,8 @@ Hard rules:
 
 ## 8. Pricing hypothesis and what is not in v1
 
+**Superseded 31 Oct 2026 (Aashmiin's decision):** the offer is the founding pilot, US$300 for 30 days, then US$200/month, for the first 10 businesses. The plan table below is the original hypothesis, kept for history; don't quote it.
+
 **Recommendation: a per-workspace platform fee with seats included, not per-case pricing.** Per-case pricing makes analysts hesitate before opening a case, which defeats the product. \[ASSUMPTION\]
 
 | Plan | Price | Includes |
@@ -392,7 +394,7 @@ All prices are \[ASSUMPTION\]. I found no public price for a directly comparable
 4. **Show the reply (1 min).** Press `C`. "That's the reply your analyst sends, and it only contains facts from the evidence."
 5. **Show a hard case (2 min).** Open the wrong-address case: the verdict is D07 (High), with a D07b "likely cause" finding showing the character diff and the earlier zero-value poisoning transfer. Then the analyst's confirm step: "We tell you when we're not sure."
 6. **Show bulk (1 min).** "Give us last month's tickets as a CSV and we'll show you how many were D12 — money that arrived but wasn't credited."
-7. **Ask (2 min).** "Would you share 60 days of redacted tickets for a 4-week paid pilot at US$1,500?" Then stop talking.
+7. **Ask (2 min).** "Would you share 60 days of redacted tickets for a founding pilot: US$300 for 30 days, then US$200/month?" Then stop talking.
 
 Never claim in the demo that fixture cases are customer data, or that accuracy figures exist before the labelled test set is run.
 

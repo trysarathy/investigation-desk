@@ -1,0 +1,81 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 2a61a84..f6c3a78 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -4,5 +4,8 @@ Plain-English notes for every merged change, newest first (company/OPERATING_MOD
+ Each entry: date, PR link, one paragraph a finance controller can understand: what changed, why, and
+ anything they need to do.
+ 
++## 2026-11-03
++- **Matching suggestions treat USD and USDT alike in both directions** ([#65](https://github.com/trysarathy/investigation-desk/pull/65)). When a payment is missing a record, Clearline suggests likely candidates and says why ("same amount", "same asset"). A provider row quoted in USD did not get the "same asset" hint against a USDT instruction, although the reverse did. The hint now works both ways round. USDC and USDT are still never treated as the same asset. Suggestions are only hints; nothing is linked without a person.
++
+ ## 2026-11-01
+ - **CHANGELOG started.** From today every merged pull request adds an entry here.
+diff --git a/src/lib/payments/match.ts b/src/lib/payments/match.ts
+index 9515761..7efbb47 100644
+--- a/src/lib/payments/match.ts
++++ b/src/lib/payments/match.ts
+@@ -122,7 +122,7 @@ function indexBy<T>(items: T[], keys: (x: T) => (string | undefined)[]): Map<str
+ 
+ // ---- Similarity: ranks candidates, never links ----
+ 
+-interface Traits { amount?: string; asset?: string; address?: string; chain?: string; time?: string }
++export interface Traits { amount?: string; asset?: string; address?: string; chain?: string; time?: string }
+ 
+ const abs = (a?: string) => (a === undefined ? undefined : a.replace(/^-/, ""));
+ const traits = (r: PaymentRecord): Traits => {
+@@ -135,14 +135,20 @@ const traits = (r: PaymentRecord): Traits => {
+   }
+ };
+ 
+-function similarity(a: Traits, b: Traits): { score: number; reasons: string[] } {
++/** Same token family, whichever side is the anchor: USD and USDT share one, USDC and USDT don't. */
++const sameAsset = (a: string, b: string) => {
++  const x = a.toUpperCase().slice(0, 4), y = b.toUpperCase().slice(0, 4);
++  return x.startsWith(y) || y.startsWith(x);
++};
++
++export function similarity(a: Traits, b: Traits): { score: number; reasons: string[] } {
+   let score = 0;
+   const reasons: string[] = [];
+   if (a.amount && b.amount && isDecimal(a.amount) && isDecimal(b.amount) && compareDecimal(a.amount, b.amount) === 0) {
+     score += 3; reasons.push(`same amount (${displayAmount(a.amount)})`);
+   }
+   if (a.address && b.address && sameAddress(a.address, b.address)) { score += 3; reasons.push("same destination address"); }
+-  if (a.asset && b.asset && a.asset.toUpperCase().startsWith(b.asset.toUpperCase().slice(0, 4))) { score += 1; reasons.push(`same asset (${b.asset})`); }
++  if (a.asset && b.asset && sameAsset(a.asset, b.asset)) { score += 1; reasons.push(`same asset (${b.asset})`); }
+   if (a.chain && b.chain && a.chain === b.chain) { score += 1; reasons.push(`same chain (${CHAIN_NAMES[a.chain as keyof typeof CHAIN_NAMES] ?? a.chain})`); }
+   if (a.time && b.time) {
+     const hours = Math.abs(Date.parse(a.time) - Date.parse(b.time)) / 3_600_000;
+diff --git a/tests/payments.test.ts b/tests/payments.test.ts
+index e300256..f2ae510 100644
+--- a/tests/payments.test.ts
++++ b/tests/payments.test.ts
+@@ -12,7 +12,7 @@ import { RECORDINGS } from "@/lib/demo/recordings";
+ import { demoTransport } from "@/lib/demo/transport";
+ import { referencedHashes } from "@/lib/payments/chain";
+ import { checkMapping, importWithMapping, type ColumnMapping } from "@/lib/payments/mapping";
+-import { matchPayments } from "@/lib/payments/match";
++import { matchPayments, similarity } from "@/lib/payments/match";
+ import { BVNK_TRANSACTION_REPORT, INSTRUCTIONS_STANDARD, BANK_STANDARD } from "@/lib/payments/presets";
+ import { refreshMatching } from "@/lib/payments/refresh";
+ import { applyImport, findMapping, ledgerFromFileB, MemoryPaymentsStore, saveMappingVersion, type PaymentsData } from "@/lib/payments/store";
+@@ -311,3 +311,18 @@ describe("unknowns and other providers", () => {
+     expect(BVNK_TRANSACTION_REPORT.sources!.every((s) => /^https:\/\/(docs|help)\.bvnk\.com\//.test(s.url))).toBe(true);
+   });
+ });
++
++describe("suggestion similarity", () => {
++  const asset = (a: string, b: string) => similarity({ asset: a }, { asset: b }).reasons.some((r) => r.startsWith("same asset"));
++
++  it("gives the same-asset hint for the same token family, whichever way round", () => {
++    expect(asset("USDT", "USD")).toBe(true); // a USDT instruction against a bank row in USD
++    expect(asset("usdt", "USDT")).toBe(true);
++    expect(similarity({ asset: "USDT" }, { asset: "USD" }).score).toBe(1);
++  });
++
++  it("never treats USDC and USDT as the same asset", () => {
++    expect(asset("USDC", "USDT")).toBe(false);
++    expect(asset("USDT", "USDC")).toBe(false);
++  });
++});

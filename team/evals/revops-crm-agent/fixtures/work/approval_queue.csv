@@ -1,0 +1,7 @@
+queue_date,queued_at,lead_id,company,contact_name,email,step,subject,status,item,notes
+2026-11-03,2026-11-02,L101,Tidewater Freight Pte Ltd,Mei Tan,mei.tan@tidewater-freight.example,D0,Quick question about stablecoin payments,sent,first email,sent 10:49 SGT
+2026-11-03,2026-11-02,L102,Brightmoor Studios Ltd,James Okafor,james.okafor@brightmoor.example,D0,Quick question about stablecoin payments,sent,first email,sent 17:49 SGT
+2026-11-03,2026-11-02,L107,Orchid Remit Ltd,Daniel Chow,daniel.chow@orchidremit.example,D0,Quick question about stablecoin payments,sent,first email,sent 11:49 SGT
+2026-11-03,2026-11-02,L110,Dune Logistics FZ-LLC,Omar Haddad,omar.haddad@dunelogistics.example,D0,Quick question about stablecoin payments,sent,first email,sent 13:49 SGT
+2026-11-04,2026-11-03,,,,,,,waiting,reply draft,R4 pricing reply to Ayu (Sunda) needs approval
+2026-11-04,2026-11-03,,,,,,,waiting,reply draft,R5 apology to Mark Ellis (Gale) needs approval

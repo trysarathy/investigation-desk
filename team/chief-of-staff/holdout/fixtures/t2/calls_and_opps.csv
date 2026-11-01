@@ -1,0 +1,8 @@
+# FICTIONAL TEST FIXTURE - Company HQ "Calls" + "Opportunities" tabs, week 2-8 Nov 2026
+tab,date,company,type,status,notes
+Calls,2026-11-03,Ardent Freight (FICTIONAL),learning call,held,"pain: reconciling partial USDT payments by hand; 300/mo"
+Calls,2026-11-05,Pelagic Remit (FICTIONAL),demo,held,"CFO liked matching; wants NetSuite not Xero; asked for paid pilot price"
+Calls,2026-11-10,Brightwater OTC (FICTIONAL),learning call,booked,"booked via booking link 6 Nov"
+Calls,2026-11-11,Halden Payroll (FICTIONAL),learning call,booked,"booked 7 Nov"
+Opportunities,2026-11-05,Pelagic Remit (FICTIONAL),stage,demo done,"next: pilot proposal draft in queue (AQ-322); blocker: NetSuite (designed, not built)"
+Opportunities,2026-11-06,Korvanta Trade (FICTIONAL),stage,closed lost,"went with a competitor; reason in their email: 'already on our bank's crypto module'"

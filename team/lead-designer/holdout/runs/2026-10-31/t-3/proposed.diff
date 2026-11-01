@@ -1,0 +1,58 @@
+diff --git a/website/src/app/page.tsx b/website/src/app/page.tsx
+index 29b6e17..f0578fb 100644
+--- a/website/src/app/page.tsx
++++ b/website/src/app/page.tsx
+@@ -2,6 +2,7 @@ import { Hero } from "@/components/Hero";
+ import { HowItWorks } from "@/components/HowItWorks";
+ import { Partners } from "@/components/Partners";
+ import { Problem } from "@/components/Problem";
++import { Proof } from "@/components/Proof";
+ import { WhyNow } from "@/components/WhyNow";
+ import { BuiltFor, Demo, Faq, FinalCta, Trust } from "@/components/Sections";
+ import { Footer, Header, Motion } from "@/components/ui";
+@@ -12,6 +13,7 @@ export default function Home() {
+       <Header />
+       <main id="main">
+         <Hero />
++        <Proof />
+         <Demo />
+         <Problem />
+         <HowItWorks />
+diff --git a/src/components/Proof.tsx b/src/components/Proof.tsx
+new file mode 100644
+index 0000000..a669013
+--- /dev/null
++++ b/src/components/Proof.tsx
+@@ -0,0 +1,32 @@
++import { Reveal } from "./ui";
++
++// What a visitor can check for themselves, in place of logos or quotes we don't have.
++// Every line traces to company/PRODUCT_FACTS.md or the 52-of-52 test already in the Trust section.
++const proof = [
++  { k: "52 of 52", v: "real public USDC and USDT transfers checked correctly in our own test.", note: "Our own small test, not a customer result." },
++  { k: "Tron, Ethereum, BNB Chain", v: "USDT and USDC payments checked on all three today.", note: "Payment pages: Ethereum for now." },
++  { k: "Read-only", v: "Clearline reads the blockchain. It never holds keys or moves money.", note: null },
++  { k: "You approve", v: "Nothing reaches your books until a person clicks Approve.", note: "Xero first (in testing), QuickBooks next." },
++];
++
++export function Proof() {
++  return (
++    <section aria-labelledby="proof-h" className="mx-auto max-w-6xl px-5 pt-16 sm:px-8 sm:pt-20">
++      <h2 id="proof-h" className="sr-only">What you can check today</h2>
++      <Reveal>
++        <ul className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
++          {proof.map((p) => (
++            <li key={p.k} className="bg-ink p-6">
++              <p className="text-[18px] font-semibold tracking-tight text-fg">{p.k}</p>
++              <p className="mt-2 text-[15px] leading-relaxed text-muted">{p.v}</p>
++              {p.note && <p className="mt-3 text-[12.5px] text-faint">{p.note}</p>}
++            </li>
++          ))}
++        </ul>
++        <p className="mt-4 text-center text-[13px] text-faint">
++          Working demo · early access · no customers yet. <a href="#trust" className="text-accent underline underline-offset-2">How we tested</a>
++        </p>
++      </Reveal>
++    </section>
++  );
++}

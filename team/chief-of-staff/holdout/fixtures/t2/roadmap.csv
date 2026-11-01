@@ -1,0 +1,5 @@
+# FICTIONAL TEST FIXTURE - Company HQ "Product roadmap" tab, rows touched this week
+row,item,pr,pr_state,qa,notes
+R-41,duplicate payment matched twice (bug),#215,merged 2026-11-04,green,
+R-38,Tron finality depth configurable,#217,open,green,"waiting for Aashmiin to merge"
+R-44,QuickBooks account mapping,#219,open,red,"2 tests failing; not ready"

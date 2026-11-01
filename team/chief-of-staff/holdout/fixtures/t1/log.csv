@@ -1,0 +1,8 @@
+# FICTIONAL TEST FIXTURE - Company HQ "Log" tab, rows since 2026-11-02 18:00 SGT
+timestamp_sgt,agent,action,ids,details
+2026-11-02 18:27,chief-of-staff,end-of-day sent,msg-eod-1102,"46 first emails shown in full; 3 to Pelagic-adjacent? no; Pelagic D4 follow-up queued as part of follow-ups (lead L-0412)"
+2026-11-02 22:53,qa-security-engineer,nightly QA,run-881,"RISK: main RED. 2 failing tests in xero-sync: duplicate payment (same tx hash, two invoices) is matched to BOTH invoices and two Xero draft entries are prepared. Introduced by PR #212 (merged by Aashmiin 2 Nov 15:40). Repro + logs: https://github.com/trysarathy/investigation-desk/actions/runs/881"
+2026-11-02 23:27,crypto-protocol-engineer,nightly build,PR #215,"Opened fix branch fix/dup-match for the duplicate bug; tests written, 1 of 2 now passing; not ready for review"
+2026-11-03 00:27,research-intern,targets,—,"52 new qualified leads added (Leads L-0901..L-0952)"
+2026-11-03 01:27,revops-crm-agent,LinkedIn pack,—,"14 connection notes ready in LinkedIn list"
+2026-11-03 01:27,revops-crm-agent,follow-up check,L-0412,"Pelagic Remit D4 follow-up due today 09:00 SGT, guard ALLOW, status queued"

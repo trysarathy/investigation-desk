@@ -1,0 +1,6 @@
+date,lead_id,company,segment,status,problem_score,volume_per_month,accounting_q5_answer,pain_quotes,notes
+2026-10-29,L-0112,Nodewell (FICTIONAL),S1,held,Strong,60,"Xero; our bookkeeper types each USDT receipt in on Fridays, about 3 hours","Last month two clients paid on BNB instead of Ethereum and it took me a day to sort out",Tried a spreadsheet + Etherscan; next step: demo 12 Nov with their wallet history
+2026-10-30,L-0131,Gridlane Data (FICTIONAL),S1,held,Strong,35,"Xero, manual, weekly","A client sent 4,980 USDC for a 5,000 invoice after exchange fees; we chased it for two weeks",Asked for a demo; no date yet
+2026-10-30,L-0140,Quorra RPC (FICTIONAL),S1,held,Weak,8,"QuickBooks; it's 10 minutes a month","Happens maybe twice a year",Fine with workaround
+2026-10-31,L-0207,Brightloom Studio (FICTIONAL),S2,held,Strong,6,"Spreadsheet, accountant does it quarterly","This is so cool, we'd definitely use something like this",No past example given; no next step
+2026-10-31,L-0305,Hostvane (FICTIONAL),S3,held,None,400,"Our gateway (NOWPayments) gives us the report","Gateway handles it",All receipts via gateway

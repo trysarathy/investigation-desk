@@ -1,0 +1,5 @@
+item,why (revenue link),status,PR / link,owner,target week,notes
+"Accounting sync fixes (overpayment account, partial failure, rounding)",Safe to run for paying pilots,shipped,https://github.com/trysarathy/investigation-desk/pull/38,Product,W1,Merged 4 Nov
+Month-end receivables report (PDF/CSV),The paid pilot deliverable,in review,https://github.com/trysarathy/investigation-desk/pull/41,Product,W1,
+Tron USDT payment requests,Most leads are paid on TRC-20,in review,https://github.com/trysarathy/investigation-desk/pull/40,Product,W1,
+Tron memo-less payments: match by amount only?,Tron payers often omit the reference,needs decision,,Product,W2,lead-engineer asks: allow amount-only matching with a 'needs review' flag?

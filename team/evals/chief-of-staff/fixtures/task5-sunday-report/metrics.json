@@ -1,0 +1,8 @@
+{"source": "python3 -m gtm.cli metrics --dir work, run 2026-11-08 17:30 SGT (FICTIONAL)",
+ "leads_total": 301, "leads_added_7d": 209, "first_emails_sent": 118, "first_emails_sent_this_week": 86,
+ "bounce_pct": 1.7, "bounce_pct_7d": 1.5, "complaints": 0,
+ "reply_pct": 4.2, "replies": 5, "replies_this_week": 4, "positive_reply_pct": 2.5, "positive_replies": 3,
+ "positive_by_segment": {"logistics/freight": 2, "fintech": 1},
+ "first_emails_by_segment": {"logistics/freight": 31, "fintech": 40, "e-commerce": 29, "other": 18},
+ "calls_booked": 6, "calls_held": 4, "strong_problems": 2, "design_partners": 0, "paying": 0,
+ "emails_sent_last_30d_all_steps": 214}

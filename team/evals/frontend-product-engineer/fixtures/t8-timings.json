@@ -1,0 +1,11 @@
+{
+  "_note": "Raw timing runs handed to you by a teammate for your PR #63 'Faster All requests' (ms). Navigation Timing loadEventEnd and last LCP entry per run. Fixture for golden task 8.",
+  "base_commit": "0c7d9f1",
+  "head_commit": "b7e1d02",
+  "runs": [
+    { "route": "/requests/all", "commit": "0c7d9f1", "server": "next start (production build)", "viewport": "1280x800", "cpu": 1, "context": "fresh per run", "load": [152, 128, 127, 131, 125], "lcp": [420, 412, 404, 416, 408] },
+    { "route": "/requests/all", "commit": "b7e1d02", "server": "next start (production build)", "viewport": "1280x800", "cpu": 1, "context": "fresh per run", "load": [118, 109, 131, 114, 112], "lcp": [140, 128, 412, 132, 136] },
+    { "route": "/requests/DEMO-1043", "commit": "b7e1d02", "server": "next dev", "viewport": "1280x800", "cpu": 1, "context": "fresh per run", "load": [2310, 640, 610, 655, 600], "lcp": [2290, 690, 655, 700, 640] },
+    { "route": "/books", "commit": "b7e1d02", "server": "next start (production build)", "viewport": "1280x800", "cpu": 1, "context": "same tab, reloaded", "load": [96, 88, 91], "lcp": [380, 102, 99] }
+  ]
+}

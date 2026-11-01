@@ -1,54 +1,66 @@
-# Night shift and schedules (all Singapore time, all cloud scheduled tasks)
+# Schedules (all Singapore time, all cloud scheduled tasks)
 
 Every slot is a cloud scheduled task on Aashmiin's claude.ai account. They run whether or not her Mac
-is on, and each starts a fresh session that clones investigation-desk, reads `company/COMPANY_RULES.md`
-and its own `.claude/agents/<name>.md`, checks PAUSE, does its job and logs it. Times are a few
-minutes before the hour or half hour, because the scheduler is busiest on the exact mark.
+is on. Each one starts a fresh session that clones investigation-desk and reads
+`company/COMPANY_RULES.md` plus its own definition, knowledge pack and playbook (from the `ai-team`
+branch until that is merged). It then checks PAUSE, does its job and logs it. Times sit a few minutes
+off the hour, because the scheduler is busiest on the exact mark.
 
-## Night shift
+**Click needed** means the task was created from a coding session, so it has no connectors and no
+Auto mode. To fix it, open claude.ai → Scheduled tasks → the task → Edit. Add the connectors named
+and set the mode to Auto. Every other task already has its connectors and runs in Auto.
 
-| Time | Employee | Scheduled task | Change from today |
+## Technical night (reorganised 1 Nov 2026)
+
+| Time | Employee | Scheduled task | Status |
 |---|---|---|---|
-| 22:53 | qa-tester | "Clearline nightly product QA (qa-tester)" | live (was 02:13) |
-| 23:27 | lead-engineer | "Clearline lead engineer nightly (lead-engineer)" | live, **needs a click**: add Gmail + Google Sheets connectors and choose Auto (see below) |
-| 00:27 | research-analyst | "Clearline nightly LinkedIn + targets builder (research-analyst)" | live (was 01:37); adds competitor/regulation watch |
-| 01:27 | sdr | "Clearline LinkedIn daily pack (sdr, night)" + follow-up check | live (was 07:49 weekdays), Mon-Fri |
-| every hour at :49 | sdr | "Clearline sender" | unchanged: sends only 9:00-17:00 in each recipient's time zone, so US/EU follow-ups go out overnight SGT within the caps |
-| 02:27 | content-marketer | "Clearline marketing daily (content-marketer)" | live (was 10:37), Mon-Fri |
-| 03:27 | devops | "Clearline devops nightly (devops)" | new, **needs a click** (see below) |
-| Weekdays 07:07 | ae-assistant | "Clearline AE assistant (ae-assistant)", call prep Docs | new, **needs a click** (see below) |
-| 07:27 | chief-of-staff | "Clearline daily briefing (chief-of-staff)" | live (was 08:24 weekdays), every day |
+| 21:17 daily | tech-lead-architect | "Clearline nightly plan + evening progress": PR-sized tasks on branch `plan`, 14-day progress email | **click needed**: Gmail, Sheets, Auto |
+| 22:47 daily | lead-designer | "Clearline nightly design tasks + Thursday review" | **click needed**: Sheets, Gmail, Auto |
+| 23:27 daily | crypto-protocol-engineer | "Clearline nightly build" (assigned tasks only) | **click needed**: Gmail, Sheets, Auto |
+| 23:47 daily | accounting-integrations-engineer | "Clearline nightly build (accounting-integrations-engineer)" | **click needed**: Sheets, Auto |
+| 00:17 daily | matching-engine-engineer | "Clearline nightly build (matching-engine-engineer)" | **click needed**: Sheets, Auto |
+| 00:47 daily | frontend-product-engineer | "Clearline nightly build (frontend-product-engineer)" | **click needed**: Sheets, Auto |
+| 02:47 daily | code-reviewer | "Clearline nightly code review (code-reviewer)" | **click needed**: Sheets, Auto |
+| 03:27 daily | devops-engineer | "Clearline nightly deploy check" (ruleset + CI) | **click needed**: Gmail, Sheets, Auto |
+| 04:17 daily | qa-security-engineer | "Clearline nightly QA on PRs + product health" | live |
+| 05:47 daily | crypto-finance-user | "Clearline release test as a finance user" (only if main changed) | **click needed**: Sheets, Auto |
+| 06:17 daily | tech-lead-architect | "Clearline morning integration check + merge gate" | **click needed**: Gmail, Sheets, Auto |
 
-## Daytime and weekly (unchanged)
+Builders work only the tasks in `team/plan/tasks-<date>.md` and exit fast when they have none. Nothing
+merges until main's ruleset requires the `ci` check.
 
-| Time | Employee | Scheduled task |
-|---|---|---|
-| Weekdays 10:51 | sdr (partners) | "Clearline partnerships daily" |
-| Weekdays 11:13, 15:13, 19:13 | research-analyst | "Clearline lead research" |
-| Weekdays 18:07 | ae-assistant | "Clearline AE assistant (ae-assistant)": call summaries, follow-up and proposal drafts |
-| Weekdays 18:24 | sdr | "Clearline evening summary" (now reports ae-assistant's drafts) |
-| Mon 08:44 | chief-of-staff | "Clearline Monday plan" |
-| Thu 16:29 | finance-admin (week 3; today the finance job) | "Clearline finance weekly" |
-| Fri 17:13 | product-manager | "Clearline Friday ship review (product-manager)": call notes → roadmap rows, PR review |
-| Sun 17:38 | chief-of-staff | "Clearline weekly wrap" |
-| 1st of month 10:17 | chief-of-staff | "Clearline monthly update" |
+## Day
 
-## Approval mode and connectors
+| Time | Employee | Scheduled task | Status |
+|---|---|---|---|
+| 07:07 + 18:07 Mon-Fri | sales-closer-assistant | "Clearline call prep + after-call drafts" | **click needed**: Gmail, Sheets, Calendar, Docs, Drive, Auto |
+| 07:27 daily | chief-of-staff | "Clearline daily" email | live |
+| 18:13 Mon-Fri | revops-crm-agent, then chief-of-staff | "Clearline evening: prepare tomorrow's outreach + end of day" (drafts only) | live |
 
-Every task above runs in **Auto** mode (no clicks) with the Gmail, Google Sheets/Drive/Docs/Calendar and
-Notion connectors, except three new tasks: tasks created from a coding session get no connectors and no
-mode. For each, open claude.ai → Scheduled tasks → the task → Edit, add the connectors and set the mode to Auto:
-- "Clearline lead engineer nightly (lead-engineer)": Gmail, Google Sheets.
-- "Clearline devops nightly (devops)": Gmail, Google Sheets. Until then it still checks builds, but read-only.
-- "Clearline AE assistant (ae-assistant)": Gmail, Google Sheets, Google Calendar, Google Docs, Google Drive
-  (and Notion if your call notes are there). Until then it does nothing, and the evening summary writes
-  the call summaries as before.
-The one-off
-"Day-1 sending review + ramp decision" is tied to Aashmiin's MacBook Air: it runs only if the Mac is on.
+## Weekly and monthly
 
-## What never happens overnight
+| Time | Employee | Scheduled task | Status |
+|---|---|---|---|
+| Mon 06:47 | research-intern | "Clearline weekly technical + regulation research" | **click needed**: Gmail, Sheets, Docs, Drive, Auto |
+| Mon 08:44 | chief-of-staff | "Clearline Monday plan" | live |
+| Thu 16:29 | finance job | "Clearline finance weekly" | live |
+| Fri 14:13 | crypto-finance-user + lead-designer + chief-of-staff | "Clearline Friday product excellence pass" | **click needed**: Sheets, Gmail, Auto |
+| Fri 17:13 | chief-of-staff | "Clearline Friday ship review" | live |
+| Sun 17:38 | chief-of-staff | "Clearline weekly report + scorecards + worst outputs" | live |
+| Sun 20:47 | devops-engineer | "Clearline weekly uptime + backup report" | **click needed**: Gmail, Sheets, Auto |
+| Sun 21:47 | qa-security-engineer | "Clearline weekly security review" | **click needed**: Gmail, Google Sheets |
+| 1st 09:43 | research-intern + fresh examiners | "Clearline monthly knowledge refresh + fresh hidden tests" | **click needed**: Gmail, Google Sheets, Auto |
+| 1st 10:17 | chief-of-staff | "Clearline monthly update draft" | live |
 
-Emails to new people beyond the queue she saw at 18:24; anything to customers, mentors or investors;
-payments, prices, contracts; merging to `main`; deleting data or branches. These wait in the 07:30
-approval queue. A failure or anything risky stops that task only, is logged with `RISK:`, and leads
-the briefing. PAUSE (Settings, or reply PAUSE to any Clearline email) stops everything.
+## Paused 1 Nov (to save spend)
+gtm-strategist (market brief), content-marketer (daily drafts), revops-crm-agent's hourly drafter,
+LinkedIn pack and partner runs, research-intern's nightly targets and daytime lead research.
+
+## What never happens without her
+Nothing customer-facing is sent automatically: every email, follow-up, proposal and post is a draft
+she sends herself. Never without her: anything to customers, mentors, advisors or investors;
+payments, prices, proposals, invoices, contracts; posts in her name; merging anything on the
+approval-only list (`company/OPERATING_MODEL.md` §2: keys, wallets, auth, secrets, permissions,
+Xero/QuickBooks posting rules, money amounts, customer data, pricing, production/deploy settings,
+deletions); deleting data or branches. A failure, a spend-limit stop or anything risky stops that
+task only, is logged with `RISK:`, and leads the daily email. PAUSE stops everything.

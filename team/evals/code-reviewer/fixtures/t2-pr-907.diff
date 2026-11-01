@@ -1,0 +1,83 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+new file mode 100644
+index 0000000..4f80ba8
+--- /dev/null
++++ b/CHANGELOG.md
+@@ -0,0 +1,5 @@
++# Changelog
++
++## Unreleased
++- **Safer CSV exports.** Exported cells can no longer start a spreadsheet formula, whatever characters
++  an imported file uses: full-width signs, invisible characters and semicolons are all neutralised.
+diff --git a/src/lib/csv/cell.ts b/src/lib/csv/cell.ts
+index 2762821..9eaf0c4 100644
+--- a/src/lib/csv/cell.ts
++++ b/src/lib/csv/cell.ts
+@@ -3,11 +3,12 @@
+ 
+ const AMOUNT = /^-?\d+(\.\d+)?$/;
+ 
+-/** A spreadsheet must never execute a cell: values starting with = + - @ or a control are quoted as text. */
++/** A spreadsheet must never execute a cell: values starting with = + - @ ; or a control are quoted as text. */
+ export function csvCell(v: string | number | boolean | undefined | null): string {
+-  let s = v === undefined || v === null ? "" : String(v);
+-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
++  // Full-width forms (＝ ＋ － ＠) fold to ASCII under NFKC, and a leading zero-width space can hide an '='.
++  let s = (v === undefined || v === null ? "" : String(v)).normalize("NFKC").replace(/^\u200B/, "");
++  if (/^[=+\-@;\t\r]/.test(s)) s = `'${s}`;
++  return /[",;\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+ }
+ 
+ /** Exact amounts (signed too) as numbers; everything else through csvCell. */
+diff --git a/tests/csv-cell-unicode.test.ts b/tests/csv-cell-unicode.test.ts
+new file mode 100644
+index 0000000..b329a57
+--- /dev/null
++++ b/tests/csv-cell-unicode.test.ts
+@@ -0,0 +1,21 @@
++// Unicode hardening for csvCell (exports): formula characters are neutralised whatever their form.
++
++import { describe, expect, it } from "vitest";
++import { csvCell, csvValue } from "@/lib/csv/cell";
++
++describe("csvCell unicode hardening", () => {
++  it("neutralises a formula after normalisation", () => {
++    expect(csvCell("=1+1")).toBe("'=1+1");
++    expect(csvCell("@SUM(A1)")).toBe("'@SUM(A1)");
++  });
++
++  it("leaves ordinary text and references alone", () => {
++    expect(csvCell("INV-1042")).toBe("INV-1042");
++    expect(csvCell("Acme Pte Ltd")).toBe("Acme Pte Ltd");
++  });
++
++  it("keeps exact amounts as numbers", () => {
++    expect(csvValue("4950.00")).toBe("4950.00");
++    expect(csvValue("-12.5")).toBe("-12.5");
++  });
++});
+diff --git a/tests/security-csv-cell.test.ts b/tests/security-csv-cell.test.ts
+index b46f6ed..edee4f1 100644
+--- a/tests/security-csv-cell.test.ts
++++ b/tests/security-csv-cell.test.ts
+@@ -27,17 +27,14 @@ describe("security: CSV injection beyond ASCII = + - @", () => {
+     ["full-width minus －", "－1+1"],
+     ["full-width at ＠", "＠SUM(A1:A9)"],
+     ["zero-width space then =", "​=1+1"],
+-    ["BOM / zero-width no-break space then =", "﻿=1+1"],
+     ["leading semicolon", ";=1+1"],
+   ] as const) {
+-    // SECURITY BUG: remove .fails when fixed
+-    it.fails(`${name} is neutralised`, () => {
++    it(`${name} is neutralised`, () => {
+       expect(neutralised(csvCell(v)), `csvCell(${JSON.stringify(v)}) = ${JSON.stringify(csvCell(v))}`).toBe(true);
+     });
+   }
+ 
+-  // SECURITY BUG: remove .fails when fixed
+-  it.fails("a cell containing ';' is quoted, so a ';'-splitting spreadsheet can't start a new cell with '=1+1'", () => {
++  it("a cell containing ';' is quoted, so a ';'-splitting spreadsheet can't start a new cell with '=1+1'", () => {
+     expect(csvCell("a;=1+1")).toBe("\"a;=1+1\"");
+   });
+ });

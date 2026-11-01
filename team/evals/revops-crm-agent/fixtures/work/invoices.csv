@@ -1,0 +1,2 @@
+invoice_no,opp_id,company,issued,due,amount,currency,status,paid_date,paid_amount,method,notes
+(none issued yet),,,,,,,,,,,0 customers so far

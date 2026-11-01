@@ -1,0 +1,11 @@
+item,type,first_shown,answered,source
+Advisor update draft 1 Nov,MENTOR,2026-11-02 07:31,2026-11-06 08:30,she sent it herself
+Northwind follow-up draft (1, 4 Nov),SEND,2026-11-04 07:31,2026-11-04 20:12,reply '1 yes'
+LinkedIn post 'wrong network' (2),POST,2026-11-03 07:31,2026-11-04 20:12,reply '2 no'
+Lumen Exports pricing reply,MONEY,2026-11-05 07:31,,still open at 2026-11-08 17:30
+D1 BOOKING_LINK,SETTING,2026-11-04 07:31,2026-11-04 20:12,reply 'D1 A'
+D2 Tron memo-less matching,ROADMAP,2026-11-04 07:31,2026-11-06 08:15,reply 'D2 C'
+Partner drafts d-2201/d-2202,SEND,2026-11-05 07:31,,still open
+Harbourline removal + restart,DECIDE,2026-11-05 07:31,2026-11-06 08:10,reply + she set PAUSE FALSE
+PR #42 merge,MERGE,2026-11-05 07:31,2026-11-06 08:20,merged on GitHub
+Secret rotation (Xero app),DO,2026-11-05 07:31,2026-11-06 07:55,reply 'rotated'

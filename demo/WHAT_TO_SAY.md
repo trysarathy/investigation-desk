@@ -16,8 +16,8 @@ send from your own wallet.
 audit, or SOC 2. Those come before any real customer data goes in.
 
 **"What does it cost?"**
-We haven't set pricing. We're working it out with our first design partners. What do you spend on this
-today, in people's hours? That's what it has to beat.
+The founding pilot is US$300 for 30 days, then US$200/month, for the first 10 businesses. What do you
+spend on this today, in people's hours? That's what it has to beat.
 
 **"Which chains and tokens?"**
 Today: USDC and USDT on Ethereum. A payment sent on Tron is detected as a wrong-network payment, with
@@ -29,8 +29,8 @@ decides what comes next.
 For the first pilot: the receiving addresses you use, and your open invoices (customer, invoice number,
 amount, token). No customer personal data is needed. Optionally, an export of past payment support
 tickets so we can measure the product against your real cases.
-*Not yet:* a connection to your accounting system. Today "mark paid" is recorded in the app, not pushed
-to Xero or NetSuite.
+In the pilot you get a Xero-ready import file that your accountant reviews and imports. *Not yet:* live
+posting to your own Xero; it's switched on only after our Xero sandbox tests pass. NetSuite isn't built.
 
 **"How do you know which invoice a payment is for?"**
 Each invoice gets its own receiving address, so the address identifies the invoice, not the amount.

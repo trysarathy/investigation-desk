@@ -1,0 +1,78 @@
+{
+  "_about": "Tron receipt and transaction: REAL public data recorded from TronGrid on 2026-10-24 (repo tests/fixtures/real/TRN-01.json). The head heights and the File A row are a SCENARIO for this task (File A row is SAMPLE COMPANY DATA, fictional company). Ignore what Tronscan says today; answer only from this file.",
+  "gettransactioninfobyid": {
+    "id": "5296e24018c9197bbf4e7e844c7152ca494067400a5a06f351c66aad7d3873cb",
+    "fee": 345000,
+    "blockNumber": 87393445,
+    "blockTimeStamp": 1792853529000,
+    "contractResult": [
+      "0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "contract_address": "41a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+    "receipt": {
+      "energy_usage": 64285,
+      "energy_usage_total": 64285,
+      "net_fee": 345000,
+      "result": "SUCCESS",
+      "energy_penalty_total": 49635
+    },
+    "log": [
+      {
+        "address": "a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+        "topics": [
+          "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          "000000000000000000000000d9251733398d2eef5b5a0be1d33fb1dbcbc401bc",
+          "000000000000000000000000b4ba17ed21e62b43418ea5feb9677ff844f70dbe"
+        ],
+        "data": "00000000000000000000000000000000000000000000000000000001004ccb00"
+      }
+    ]
+  },
+  "gettransactionbyid_raw_data_contract0": {
+    "parameter": {
+      "value": {
+        "owner_address": "41d9251733398d2eef5b5a0be1d33fb1dbcbc401bc",
+        "contract_address": "41a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+        "data": "a9059cbb000000000000000000000000b4ba17ed21e62b43418ea5feb9677ff844f70dbe00000000000000000000000000000000000000000000000000000001004ccb00"
+      },
+      "type_url": "type.googleapis.com/protocol.TriggerSmartContract"
+    },
+    "type": "TriggerSmartContract"
+  },
+  "heads_at_check_time": {
+    "checked_at": "2026-10-24T14:53:03Z",
+    "wallet_getnowblock_number": 87393463,
+    "walletsolidity_getnowblock_number": 87393443
+  },
+  "file_a_row": {
+    "address": "TSSoZb7K81i7NtoF7PEjDwG8m2gThoK9Zi",
+    "chain": "tron",
+    "customer_id": "SAMPLE-C001",
+    "assigned_at": "2025-01-01T00:00:00Z",
+    "retired_at": ""
+  },
+  "ledger_rows_for_this_tx": [],
+  "company_settings": {
+    "accepted_tokens": {
+      "tron": [
+        {
+          "symbol": "USDT",
+          "contract": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
+        }
+      ]
+    },
+    "confirmations": {
+      "tron": 20
+    },
+    "minimums": {
+      "tron": {
+        "USDT": "1"
+      }
+    }
+  },
+  "freeze_checks": {
+    "sender_isBlackListed": false,
+    "deposit_isBlackListed": false,
+    "read_at": "latest, 2026-10-24T14:53:03Z"
+  }
+}

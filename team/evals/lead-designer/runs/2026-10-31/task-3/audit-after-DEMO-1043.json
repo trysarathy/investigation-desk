@@ -1,0 +1,1466 @@
+[
+  {
+    "url": "http://127.0.0.1:3300/requests/DEMO-1043",
+    "viewport": "desktop-1280",
+    "screenshot": "requests-DEMO-1043-desktop-1280.png",
+    "overflow": {
+      "scrollWidth": 1280,
+      "clientWidth": 1280,
+      "offenders": []
+    },
+    "contrastFails": [
+      {
+        "fg": "#8a8d94",
+        "bg": "#f7f7f5",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.1,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": true,
+        "count": 2,
+        "sample": "/"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#f7f7f5",
+        "size": 20,
+        "weight": 400,
+        "ratio": 3.1,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": true,
+        "count": 4,
+        "sample": "INV-1043"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "· offline, fictional data"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Theme"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 22,
+        "sample": "Today 12:40 SGT"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 11,
+        "weight": 600,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "What happened"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 700,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Not a payment: close it"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 10,
+        "sample": "·"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 9,
+        "sample": "1"
+      },
+      {
+        "fg": "#8b8c8e",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.38,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Save"
+      }
+    ],
+    "contrastAll": [
+      {
+        "fg": "#8a8d94",
+        "bg": "#f7f7f5",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.1,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": true,
+        "count": 2,
+        "sample": "/"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#f7f7f5",
+        "size": 20,
+        "weight": 400,
+        "ratio": 3.1,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": true,
+        "count": 4,
+        "sample": "INV-1043"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "· offline, fictional data"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Theme"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 22,
+        "sample": "Today 12:40 SGT"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 11,
+        "weight": 600,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "What happened"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 700,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Not a payment: close it"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 10,
+        "sample": "·"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 9,
+        "sample": "1"
+      },
+      {
+        "fg": "#8b8c8e",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.38,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Save"
+      },
+      {
+        "fg": "#3b5bdb",
+        "bg": "#f7f7f5",
+        "size": 12,
+        "weight": 400,
+        "ratio": 5.28,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": true,
+        "count": 1,
+        "sample": "At a glance"
+      },
+      {
+        "fg": "#1f7a3d",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 5.37,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Passed"
+      },
+      {
+        "fg": "#3b5bdb",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Sender page ↗"
+      },
+      {
+        "fg": "#ffffff",
+        "bg": "#3b5bdb",
+        "size": 13,
+        "weight": 400,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Not a payment: close it"
+      },
+      {
+        "fg": "#3b5bdb",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "audit log"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#fdecea",
+        "size": 12,
+        "weight": 500,
+        "ratio": 5.75,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Blocked"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#fdecea",
+        "size": 13,
+        "weight": 400,
+        "ratio": 5.75,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "🔒"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Demo data"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "All requests"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 700,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Demo mode"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 500,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Demo data"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 6.49,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 9,
+        "sample": "Email"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 700,
+        "ratio": 6.49,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Daniel Koh, Finance, Orbit Retail"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.49,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 23,
+        "sample": "Real USDT on Ethereum comes only from Tether's contract: 0xd"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 500,
+        "ratio": 6.49,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "USDT"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#ffffff",
+        "size": 18,
+        "weight": 600,
+        "ratio": 6.57,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "This isn't real USDT"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 600,
+        "ratio": 6.57,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "In your books"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 6.57,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Failed"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.57,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Not Tether's contract"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#f7f7f5",
+        "size": 20,
+        "weight": 600,
+        "ratio": 16.54,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": true,
+        "count": 1,
+        "sample": "Orbit Retail"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 700,
+        "ratio": 16.98,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Northwind Pay Pte Ltd"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 16.98,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Hi Daniel,\n\nThank you for letting us know about your payment"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 17,
+        "sample": "At a glance"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 400,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "“"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 16,
+        "weight": 600,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Send the customer the reply, then close this transfer"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 600,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 9,
+        "sample": "Reply to"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 6,
+        "sample": "Copy reply"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 700,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "7,500.00"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 18,
+        "weight": 600,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "7,500.00"
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "At a glance",
+        "w": 63,
+        "h": 15,
+        "inline": true,
+        "spacingOk": true
+      },
+      {
+        "text": "audit log",
+        "w": 49,
+        "h": 15,
+        "inline": true,
+        "spacingOk": true
+      }
+    ],
+    "focus": [
+      {
+        "el": "At a glance",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(228, 228, 224)"
+      },
+      {
+        "el": "All requests",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "New request",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "Books",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "SystemLightDark",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "At a glance",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "Sender page ↗",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "Decision note",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "Not a payment: close it",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "audit log",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "Copy reply",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "What this can't tell you",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(23, 24, 28)"
+      },
+      {
+        "el": "Activity · 5 entries, kept in full",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(23, 24, 28)"
+      },
+      {
+        "el": "Copy link",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "Copy instructions",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      }
+    ],
+    "axe": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 23,
+        "sample": [
+          ".mode-note",
+          "label",
+          "select"
+        ]
+      },
+      {
+        "id": "link-in-text-block",
+        "impact": "serious",
+        "help": "Links must be distinguishable without relying on color",
+        "nodes": 1,
+        "sample": [
+          ".faint > a[href$=\"books\"]"
+        ]
+      }
+    ]
+  },
+  {
+    "url": "http://127.0.0.1:3300/requests/DEMO-1043",
+    "viewport": "phone-390",
+    "screenshot": "requests-DEMO-1043-phone-390.png",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "offenders": []
+    },
+    "contrastFails": [
+      {
+        "fg": "#8a8d94",
+        "bg": "#f7f7f5",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.1,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "/"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#f7f7f5",
+        "size": 20,
+        "weight": 400,
+        "ratio": 3.1,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 4,
+        "sample": "INV-1043"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "· offline, fictional data"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Theme"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 22,
+        "sample": "Today 12:40 SGT"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 11,
+        "weight": 600,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "What happened"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 700,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Not a payment: close it"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 10,
+        "sample": "·"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 9,
+        "sample": "1"
+      },
+      {
+        "fg": "#8b8c8e",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.38,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Save"
+      }
+    ],
+    "contrastAll": [
+      {
+        "fg": "#8a8d94",
+        "bg": "#f7f7f5",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.1,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "/"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#f7f7f5",
+        "size": 20,
+        "weight": 400,
+        "ratio": 3.1,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 4,
+        "sample": "INV-1043"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "· offline, fictional data"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Theme"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 22,
+        "sample": "Today 12:40 SGT"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 11,
+        "weight": 600,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "What happened"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 700,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Not a payment: close it"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 10,
+        "sample": "·"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 9,
+        "sample": "1"
+      },
+      {
+        "fg": "#8b8c8e",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.38,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Save"
+      },
+      {
+        "fg": "#3b5bdb",
+        "bg": "#f7f7f5",
+        "size": 12,
+        "weight": 400,
+        "ratio": 5.28,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "At a glance"
+      },
+      {
+        "fg": "#1f7a3d",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 5.37,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Passed"
+      },
+      {
+        "fg": "#3b5bdb",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Sender page ↗"
+      },
+      {
+        "fg": "#ffffff",
+        "bg": "#3b5bdb",
+        "size": 13,
+        "weight": 400,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Not a payment: close it"
+      },
+      {
+        "fg": "#3b5bdb",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "audit log"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#fdecea",
+        "size": 12,
+        "weight": 500,
+        "ratio": 5.75,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Blocked"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#fdecea",
+        "size": 13,
+        "weight": 400,
+        "ratio": 5.75,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "🔒"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Demo data"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "All requests"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 700,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Demo mode"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 500,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Demo data"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 6.49,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 9,
+        "sample": "Email"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 700,
+        "ratio": 6.49,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Daniel Koh, Finance, Orbit Retail"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.49,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 23,
+        "sample": "Real USDT on Ethereum comes only from Tether's contract: 0xd"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 500,
+        "ratio": 6.49,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "USDT"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#ffffff",
+        "size": 18,
+        "weight": 600,
+        "ratio": 6.57,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "This isn't real USDT"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 600,
+        "ratio": 6.57,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "In your books"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 6.57,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Failed"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.57,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Not Tether's contract"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#f7f7f5",
+        "size": 20,
+        "weight": 600,
+        "ratio": 16.54,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Orbit Retail"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 700,
+        "ratio": 16.98,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Northwind Pay Pte Ltd"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 16.98,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Hi Daniel,\n\nThank you for letting us know about your payment"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 17,
+        "sample": "At a glance"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 400,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "“"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 16,
+        "weight": 600,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Send the customer the reply, then close this transfer"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 600,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 9,
+        "sample": "Reply to"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 6,
+        "sample": "Copy reply"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 700,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "7,500.00"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 18,
+        "weight": 600,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "7,500.00"
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "At a glance",
+        "w": 63,
+        "h": 15,
+        "inline": true,
+        "spacingOk": true
+      }
+    ],
+    "focus": [
+      {
+        "el": "At a glance",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(228, 228, 224)"
+      },
+      {
+        "el": "All requests",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "New request",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "Books",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "SystemLightDark",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "At a glance",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "Sender page ↗",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "Decision note",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "Not a payment: close it",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "audit log",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "Copy reply",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "What this can't tell you",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(23, 24, 28)"
+      },
+      {
+        "el": "Activity · 5 entries, kept in full",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(23, 24, 28)"
+      },
+      {
+        "el": "Copy link",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "Copy instructions",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      }
+    ],
+    "axe": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 25,
+        "sample": [
+          ".mode-note",
+          "label",
+          "select"
+        ]
+      },
+      {
+        "id": "link-in-text-block",
+        "impact": "serious",
+        "help": "Links must be distinguishable without relying on color",
+        "nodes": 1,
+        "sample": [
+          ".faint > a[href$=\"books\"]"
+        ]
+      }
+    ]
+  },
+  {
+    "reducedMotion": {
+      "path": "/requests/DEMO-1043",
+      "runningAnimations": [],
+      "scrollBehavior": "auto"
+    }
+  }
+]

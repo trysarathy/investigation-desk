@@ -1,0 +1,5 @@
+# FICTIONAL TEST FIXTURE - Company HQ "Spot checks" tab, week 2-8 Nov 2026
+date,checker,leads_checked,leads_passed,notes
+2026-11-03,chief-of-staff,5,4,"1 lead: evidence URL was a 2023 article (>12 months)"
+2026-11-05,chief-of-staff,5,3,"2 leads: email VERIFIED-TOOL but bounced"
+2026-11-08,chief-of-staff,5,4,"1 lead: company does not accept stablecoins, evidence was about a competitor"

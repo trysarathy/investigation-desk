@@ -1,0 +1,1 @@
+date,item,type (income/cost),customer/vendor,amount_usd,invoice_no,status (invoiced/paid/overdue),method (bank/PayPal/Wise),notes

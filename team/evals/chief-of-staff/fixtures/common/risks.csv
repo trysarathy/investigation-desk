@@ -1,0 +1,5 @@
+risk,likelihood,impact,mitigation,owner
+Personal Gmail flagged/locked at 50-75 cold emails/day,Medium [ASSUMPTION],High: lose the main inbox,Auto-throttle; PAUSE on any Gmail warning; buy a sending domain,Sales
+No one pays: problem is weak,Medium [GUESS],High,Decision rule after 10 calls; offer only when Strong,Me
+"Overpromising features (Xero live, Tron) before they work",Medium,High: trust,Delivered as a service wording; roadmap status honest,Marketing
+Solo-founder bandwidth (studies, Hatch, QRE),High,Medium,<=2h/day; agents do the rest; weekly review,Chief of staff

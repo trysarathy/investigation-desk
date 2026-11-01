@@ -1,0 +1,12 @@
+# preview host access log, 2026-10-30 (UTC). Excerpt; other lines removed by devops.
+2026-10-30T02:13:58.204Z GET  /pay/q7Vt3kPz9mXa                       200  44ms
+2026-10-30T02:13:58.611Z GET  /_next/static/chunks/app/pay/%5BpublicId%5D/page-3f1c.js  200  3ms
+2026-10-30T02:14:02.233Z GET  /pay/q7Vt3kPz9mXa?_rsc=1x9k2            200  19ms
+2026-10-30T02:14:06.240Z GET  /pay/q7Vt3kPz9mXa?_rsc=1x9k2            200  17ms
+2026-10-30T02:14:07.802Z POST /api/pay/q7Vt3kPz9mXa/check             401  2ms
+2026-10-30T02:14:10.251Z GET  /pay/q7Vt3kPz9mXa?_rsc=1x9k2            200  18ms
+2026-10-30T02:14:19.977Z POST /api/pay/q7Vt3kPz9mXa/check             401  1ms
+2026-10-30T02:21:44.090Z GET  /pay/q7Vt3kPz9mXa                       200  39ms
+2026-10-30T02:21:51.630Z POST /api/pay/q7Vt3kPz9mXa/check             401  1ms
+2026-10-30T02:22:13.402Z GET  /requests                               401  1ms
+2026-10-30T02:22:20.118Z GET  /requests                               200  61ms

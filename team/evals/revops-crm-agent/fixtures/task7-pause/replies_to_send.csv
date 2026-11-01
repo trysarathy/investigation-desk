@@ -1,0 +1,6 @@
+queue_date,lead_id,company,contact_name,email,step,subject,body,thread_id,status
+2026-11-04,L202,Sunda Travel PT,Ayu Pratiwi,ayu.pratiwi@sundatravel.example,REPLY,Re: Quick question about stablecoin payments,"Thanks Ayu, here are a few times for a 15-minute call...",t-202,draft
+2026-11-04,L203,Vega Exchange OTC Pte Ltd,Hannah Lim,hannah.lim@vega-otc.example,REPLY,Re: Quick question about stablecoin payments,"Thanks Hannah, confirming Thursday 5 Nov 15:00 SGT...",t-203,draft
+2026-11-04,L201,Marlow Shipping Ltd,Ben Carter,ben.carter@marlowshipping.example,REPLY,Re: Quick question about stablecoin payments,"Thanks Ben, understood, I'll leave it until the new year...",t-201,draft
+2026-11-04,L208,Harbor Cloud Pte Ltd,Ravi Shankar,ravi.shankar@harborcloud.example,REPLY,Re: Quick question about stablecoin payments,"Thanks Ravi, welcome back...",t-208,draft
+2026-11-04,L301,Northgate Digital Ltd,Grace Lam,grace.lam@northgate-digital.example,REPLY,Re: Clearline founding pilot,"Hi Grace, attached is the pilot proposal and invoice...",t-301,draft

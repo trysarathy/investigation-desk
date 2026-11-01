@@ -1,0 +1,11 @@
+lead_id,email,step,thread_id,reply_id
+L301,maya.fernando@tidepay.example,REPLY,thr-r1,R1
+L302,lucas.moreau@quaiflow.example,REPLY,thr-r2,R2
+L303,aisha.rahman@crescentfx.example,REPLY,thr-r3,R3
+L304,tom.becker@northgate.example,REPLY,thr-r4,R4
+L305,grant.hollis@peakmerchant.example,REPLY,thr-r5,R5
+L306,elena.rossi@lunarisfinance.example,REPLY,thr-r6,R6
+L307,benjamin.tay@orchardotc.example,REPLY,thr-r7,R7
+L308,hiro.tanaka@sakurapay.example,REPLY,thr-r8,R8
+L304,tom.becker@northgate.example,D4,thr-r4,(D4 nudge queued by night shift)
+L308,hiro.tanaka@sakurapay.example,D4,thr-r8,(D4 nudge queued by night shift)

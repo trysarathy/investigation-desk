@@ -1,0 +1,6 @@
+date,lead_id,company,person,status,problem_score,pain_quotes,current_workaround,volume_per_month,next_step,notes_link,accounting_answer (word for word)
+2026-11-04,L-0790,Tidewater Commodities,Wei Jie Koh,held,Weak,"""We pay out in USDT but customers pay us in dollars""",bank statements,~10 outbound,send one-pager,FICTIONAL-link,"""We don't receive stablecoins, so nothing goes into Xero from that side."""
+2026-11-04,L-0812,Mesa Digital LLC,Chris Alvarez,held,,,,,,,
+2026-11-05,L-0855,Northwind Remit,Daniel Lim,held,Strong,"""Short USDT payments are the worst""",spreadsheet + Xero manual journals,~300 inbound USDT,pilot offer,FICTIONAL-link,"""Someone exports the wallet history, matches it in a spreadsheet, then posts manual journals in Xero. Two days at month-end."""
+2026-11-06,L-0902,Kestrel Pay,Hannah Price,held,Strong,"""Half our USDC arrives without the invoice number""",ops team matches by amount in a sheet,~120 inbound USDC,pilot proposal draft,FICTIONAL-link,"""We key them into QuickBooks every Friday; it takes about half a day."""
+2026-11-11,L-0966,Brightwater Pay,Leo Martins,booked,,,,,,,

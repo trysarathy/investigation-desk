@@ -1,0 +1,135 @@
+# Examiner measurements, 2026-10-31 (product = HEAD of ai-team worktree src/; website = origin/website-fixes)
+
+== LIGHT: rows = foreground, cols = surface
+fg             canvas      panel     panel2 accentSoft  amberSoft  greenSoft    redSoft
+text            16.54      17.74      16.98      15.71      16.07      15.83      15.51
+text2            6.05       6.49       6.21       5.75       5.88       5.79       5.67
+text3            3.10       3.32       3.18       2.94       3.01       2.97       2.91
+accent           5.28       5.67       5.43       5.02       5.14       5.06       4.96
+green            5.01       5.37       5.14       4.76       4.87       4.79       4.70
+amber            5.53       5.93       5.67       5.25       5.37       5.29       5.18
+red              6.13       6.57       6.29       5.82       5.96       5.87       5.75
+timeline li.cited bg (accent-soft 45% over panel) = rgb(247,249,254); text-3 on it 3.16; text-2 6.16
+btn-primary accent-text on accent 5.67
+chip pressed: canvas on text 16.54
+UI: border on panel 1.27; border-strong on panel 1.52; border-strong on canvas 1.42
+focus on panel 5.67; focus on canvas 5.28; focus on accent-soft 5.02; focus on accent (btn-primary ring offset sits on page) n/a
+track: border bar on panel2 1.22; green bar on panel2 5.14; accent bar on panel2 5.43
+disabled btn opacity .5 text over panel: 3.37
+chip .count opacity .7 text on panel 6.56
+
+== DARK: rows = foreground, cols = surface
+fg             canvas      panel     panel2 accentSoft  amberSoft  greenSoft    redSoft
+text            15.88      14.89      14.10      12.88      12.81      13.01      13.56
+text2            7.77       7.29       6.91       6.31       6.27       6.37       6.64
+text3            4.31       4.04       3.82       3.49       3.47       3.53       3.68
+accent           5.61       5.26       4.99       4.56       4.53       4.60       4.80
+green            9.08       8.51       8.06       7.37       7.32       7.44       7.75
+amber            9.91       9.29       8.80       8.04       7.99       8.12       8.46
+red              7.58       7.11       6.74       6.15       6.12       6.22       6.48
+timeline li.cited bg (accent-soft 45% over panel) = rgb(27,30,45); text-3 on it 3.80; text-2 6.86
+btn-primary accent-text on accent 5.66
+chip pressed: canvas on text 15.88
+UI: border on panel 1.24; border-strong on panel 1.55; border-strong on canvas 1.65
+focus on panel 7.05; focus on canvas 7.52; focus on accent-soft 6.10; focus on accent (btn-primary ring offset sits on page) n/a
+track: border bar on panel2 1.18; green bar on panel2 8.06; accent bar on panel2 4.99
+disabled btn opacity .5 text over panel: 4.63
+chip .count opacity .7 text on panel 7.82
+
+== Candidate --text-3 replacements (light)
+#8a8d94 canvas 3.10 | panel 3.32 | panel2 3.18 | accentSoft 2.94 | amberSoft 3.01 | greenSoft 2.97 | redSoft 2.91 | cited 3.16
+#767982 canvas 4.06 | panel 4.35 | panel2 4.16 | accentSoft 3.85 | amberSoft 3.94 | greenSoft 3.88 | redSoft 3.80 | cited 4.13
+#737680 canvas 4.23 | panel 4.53 | panel2 4.34 | accentSoft 4.02 | amberSoft 4.11 | greenSoft 4.05 | redSoft 3.96 | cited 4.30
+#6f727a canvas 4.49 | panel 4.81 | panel2 4.61 | accentSoft 4.26 | amberSoft 4.36 | greenSoft 4.29 | redSoft 4.21 | cited 4.57
+#6b6e76 canvas 4.76 | panel 5.10 | panel2 4.88 | accentSoft 4.52 | amberSoft 4.62 | greenSoft 4.55 | redSoft 4.46 | cited 4.84
+#686b73 canvas 4.97 | panel 5.33 | panel2 5.10 | accentSoft 4.72 | amberSoft 4.83 | greenSoft 4.76 | redSoft 4.66 | cited 5.06
+#5b5e66 canvas 6.05 | panel 6.49 | panel2 6.21 | accentSoft 5.75 | amberSoft 5.88 | greenSoft 5.79 | redSoft 5.67 | cited 6.16
+
+== WEBSITE (website-fixes globals.css @theme)
+fg            ink 16.86 | panel 15.88 | panel2 15.01
+muted         ink 8.47 | panel 7.98 | panel2 7.54
+faint         ink 6.32 | panel 5.95 | panel2 5.62
+accent        ink 8.16 | panel 7.69 | panel2 7.26
+accentStrong  ink 5.45 | panel 5.14 | panel2 4.85
+good          ink 10.54 | panel 9.93 | panel2 9.38
+warn          ink 11.08 | panel 10.44 | panel2 9.86
+bad           ink 8.19 | panel 7.71 | panel2 7.29
+white on accent-strong 3.59 | ink on accent 8.16 | ink on accent-strong 5.45
+line(8% white) on ink 1.19 | line-strong(14%) on ink 1.44 | line-strong on panel 1.50
+
+== DECK
+WHITE  INK 17.53 | CARD 15.81
+MUTED  INK 8.26 | CARD 7.45
+FAINT  INK 4.72 | CARD 4.26
+ACC    INK 8.06 | CARD 7.27
+ACC2   INK 11.58 | CARD 10.44
+RED    INK 8.46 | CARD 7.63
+LINE   INK 1.48 | CARD 1.34
+
+== WHITEPAPER (print, white page)
+ink      white 19.56 | accentbg 18.03
+accent   white 3.59 | accentbg 3.31
+muted    white 6.11 | accentbg 5.63
+rule     white 1.59 | accentbg 1.47
+vgreen   white 4.99 | accentbg 4.60
+aamber   white 4.55 | accentbg 4.20
+gred     white 5.93 | accentbg 5.47
+
+== Candidate dark --text-3 (product)
+#767982 canvas 4.31 | panel 4.04 | panel2 3.82 | accentSoft 3.49 | amberSoft 3.47 | greenSoft 3.53 | redSoft 3.68
+#80838c canvas 4.94 | panel 4.64 | panel2 4.39 | accentSoft 4.01 | amberSoft 3.99 | greenSoft 4.05 | redSoft 4.22
+#868991 canvas 5.35 | panel 5.02 | panel2 4.75 | accentSoft 4.34 | amberSoft 4.32 | greenSoft 4.39 | redSoft 4.57
+#8b8e96 canvas 5.71 | panel 5.36 | panel2 5.08 | accentSoft 4.64 | amberSoft 4.61 | greenSoft 4.68 | redSoft 4.88
+#8f929a canvas 6.02 | panel 5.64 | panel2 5.34 | accentSoft 4.88 | amberSoft 4.85 | greenSoft 4.93 | redSoft 5.14
+#a4a7ae canvas 7.77 | panel 7.29 | panel2 6.91 | accentSoft 6.31 | amberSoft 6.27 | greenSoft 6.37 | redSoft 6.64
+
+== Light --text-3 minimum that clears 4.5 on every light surface
+#6b6e76 min 4.46 | vs text-2 #5b5e66 luminance step 1.27
+#6a6d75 min 4.53 | vs text-2 #5b5e66 luminance step 1.25
+#696c74 min 4.59 | vs text-2 #5b5e66 luminance step 1.23
+#686b73 min 4.66 | vs text-2 #5b5e66 luminance step 1.22
+#676a72 min 4.73 | vs text-2 #5b5e66 luminance step 1.20
+#65686f min 4.88 | vs text-2 #5b5e66 luminance step 1.16
+
+== Print link/accent candidates (whitepaper: white page and statusbox accentbg #F4F5FF)
+#6E7DF0 white 3.59 | accentbg 3.31
+#5865E0 white 4.82 | accentbg 4.45
+#4F5BD5 white 5.54 | accentbg 5.11
+#4A56CF white 5.96 | accentbg 5.49
+#3B5BDB white 5.67 | accentbg 5.22
+
+== Deck FAINT candidates (INK #0B0E14 / CARD #151A24)
+#767E8C INK 4.72 | CARD 4.26
+#7E8694 INK 5.27 | CARD 4.75
+#838B99 INK 5.63 | CARD 5.08
+#8A93A3 INK 6.24 | CARD 5.63
+
+== Product chip .count: accent at opacity .7 on panel (a.chip inherits a{color:accent})
+light 3.15 | dark 3.22
+
+## Playwright, product demo mode (light)
+### /requests/DEMO-1044 @ 390px  scrollWidth=548 HORIZONTAL SCROLL
+ small targets: a "At a glance" 63x15
+### /requests/all @ 390px  scrollWidth=390 ok
+ wider than viewport: table.table right=1033 | thead. right=1033 | tr. right=1033 | th. right=398 | th. right=488 | th. right=645 | th. right=865 | th. right=1033 | tbody. right=1033 | tr. right=1033 | td.amount right=398 | td.amount right=488
+ small targets: a "Orbit Retail" 70x16 | a "Kestrel Freight" 91x16 | a "Meridian Travel" 97x16 | a "Brightline Studio" 104x16 | a "Kite Analytics" 87x16 | a "Acme Logistics" 96x16 | a "Fernhill Foods" 88x16 | a "Greenleaf Packaging" 131x16 | a "Northstar Clinics" 106x16 | a "Red Dot Events" 95x16 | a "Vantage Prints" 92x16 | a "Saffron Kitchen Group" 140x16 | a "Cobalt Robotics" 100x16 | a "Bluefin Charters" 102x16 | a "Tanjong Coffee Co." 121x16 | a "Lumen Health Supplies" 145x16 | a "Pixel & Grain" 79x16 | a "Harbourline Shipping" 133x16 | a "Kite Analytics" 87x16
+### /requests/DEMO-1044 @ 1280px  scrollWidth=1280 ok
+ small targets: a "At a glance" 63x15 | a "audit log" 49x15
+### /requests/all @ 1280px  scrollWidth=1280 ok
+ small targets: a "Orbit Retail" 70x16 | a "Kestrel Freight" 91x16 | a "Meridian Travel" 97x16 | a "Brightline Studio" 104x16 | a "Kite Analytics" 87x16 | a "Acme Logistics" 96x16 | a "Fernhill Foods" 88x16 | a "Greenleaf Packaging" 131x16 | a "Northstar Clinics" 106x16 | a "Red Dot Events" 95x16 | a "Vantage Prints" 92x16 | a "Saffron Kitchen Group" 140x16 | a "Cobalt Robotics" 100x16 | a "Bluefin Charters" 102x16 | a "Tanjong Coffee Co." 121x16 | a "Lumen Health Supplies" 145x16 | a "Pixel & Grain" 79x16 | a "Harbourline Shipping" 133x16 | a "Kite Analytics" 87x16
+
+## Playwright, website-fixes static export
+### / @ 390px  scrollWidth=390 ok
+ small targets: a "Skip to content" 1x1 | input "" 1x1 | input "" 1x1 | input "" 1x1 | input "" 1x1 | input "" 16x16
+### /demo/ @ 390px  scrollWidth=390 ok
+ small targets: a "Skip to content" 1x1
+### / @ 1280px  scrollWidth=1280 ok
+ small targets: a "Skip to content" 1x1 | a "How it works" 86x21 | a "Demo" 39x21 | a "Safety" 43x21 | a "Design partners" 106x21 | a "FAQ" 27x21 | input "" 1x1 | input "" 1x1 | input "" 1x1 | input "" 1x1 | input "" 16x16 | a "privacy notice" 90x16
+### /demo/ @ 1280px  scrollWidth=1280 ok
+ small targets: a "Skip to content" 1x1 | a "How it works" 86x21 | a "Demo" 39x21 | a "Safety" 43x21 | a "Design partners" 106x21 | a "FAQ" 27x21
+
+## verify_fix_1044
+light 390px: scrollWidth before 548, after fix 390; "At a glance" 63x15, nearest other target edge 64px from its centre
+light 1280px: scrollWidth before 1280, after fix 1280; "At a glance" 63x15, nearest other target edge 85px from its centre
+dark 390px: scrollWidth before 548, after fix 390; "At a glance" 63x15, nearest other target edge 64px from its centre
+dark 1280px: scrollWidth before 1280, after fix 1280; "At a glance" 63x15, nearest other target edge 85px from its centre

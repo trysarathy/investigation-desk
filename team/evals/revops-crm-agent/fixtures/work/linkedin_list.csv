@@ -1,0 +1,9 @@
+id,person,role,company,country,linkedin_url,source_url,source_date,evidence,status,last_action_date,notes
+LI01,Katrin Feldmann,CFO,Feldmann Logistik GmbH,Germany,https://www.linkedin.com/in/example-katrin-feldmann,https://feldmann-logistik.example/press/usdc,2026-08-12,Press release: now accepts USDC from Asian freight partners,to connect,,strict-consent country: LinkedIn first
+LI02,Hannah Lim,Head of Finance,Vega Exchange OTC Pte Ltd,Singapore,https://www.linkedin.com/in/example-hannah-lim,https://vega-otc.example/settlement,2026-09-02,Settlement page: USDT and USDC,connected,2026-10-30,accepted our request 30 Oct; no DM sent yet; also replied by email 3 Nov (call booked)
+LI03,Marco Bianchi,Finance Director,Lago Trading S.r.l.,Italy,https://www.linkedin.com/in/example-marco-bianchi,https://lagotrading.example/news/usdt,2026-10-08,News post: invoices Gulf buyers in USDT,to connect,,strict-consent country: LinkedIn first
+LI04,Dr Catalin Burlacu,Lecturer,Singapore Management University,Singapore,https://www.linkedin.com/in/example-catalin-burlacu,,,,to connect,,added by mistake from an event list
+LI05,Tomas Rivera,Controller,Andes Freight S.A.S.,Colombia,https://www.linkedin.com/in/example-tomas-rivera,https://andesfreight.example/pagos,2026-09-18,Payments page: accepts USDC (Spanish),to connect,,lead marked Spanish
+LI06,Sophie Wright,Head of Finance,Northbeam Games Ltd,United Kingdom,https://www.linkedin.com/in/example-sophie-wright,https://northbeam.example/blog/usdc-payouts,2025-03-02,Blog post: USDC payouts to creators,to connect,,
+LI07,Jun Park,CFO,Hanbit Pay Co,South Korea,https://www.linkedin.com/in/example-jun-park,https://hanbitpay.example/en/news,2026-10-01,News: accepts USDT for B2B invoices,connected,2026-10-21,DM1 sent 2026-10-22; no reply
+LI08,Alex Tan,Partner,QCDAO Ventures,Singapore,https://www.linkedin.com/in/example-alex-tan,https://qcdao.example/team,2026-09-01,,to connect,,

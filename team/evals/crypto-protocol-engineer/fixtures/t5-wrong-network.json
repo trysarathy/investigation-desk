@@ -1,0 +1,55 @@
+{
+  "_about": "Arbitrum receipt: REAL public data recorded 2026-10-24 (repo tests/fixtures/real/NET-ARB.json). The company is FICTIONAL (Northwind Pay Pte Ltd, Clearline's demo business); its wallet list and File A row are scenario data.",
+  "chain_lookups": {
+    "ethereum": "not_found",
+    "tron": "not_found",
+    "bsc": "not_found",
+    "polygon": "not_found",
+    "base": "not_found",
+    "optimism": "not_found",
+    "arbitrum": "found"
+  },
+  "arbitrum_receipt": {
+    "transactionHash": "0x54ab00b5d4440c9ad719f9f5f721d4d18e589352c5beaf6ef9e3c009f3d78495",
+    "blockNumber": "0x1ede2b7c",
+    "blockHash": "0x6b1d973f5edeaadc37e5c235796f163b998d9782e9943f87f3d9f4a607bc1975",
+    "from": "0xc1e767d996b3ce4b527b342d5c600dfa825368c5",
+    "to": "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9",
+    "status": "0x1",
+    "logs": [
+      {
+        "address": "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9",
+        "topics": [
+          "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          "0x000000000000000000000000c1e767d996b3ce4b527b342d5c600dfa825368c5",
+          "0x000000000000000000000000b38e8c17e38363af6ebdcb3dae12e0243582891d"
+        ],
+        "data": "0x00000000000000000000000000000000000000000000000000000000e715b700",
+        "blockNumber": "0x1ede2b7c",
+        "transactionHash": "0x54ab00b5d4440c9ad719f9f5f721d4d18e589352c5beaf6ef9e3c009f3d78495",
+        "transactionIndex": "0x5",
+        "blockHash": "0x6b1d973f5edeaadc37e5c235796f163b998d9782e9943f87f3d9f4a607bc1975",
+        "blockTimestamp": "0x6adccd4b",
+        "logIndex": "0x37",
+        "removed": false
+      }
+    ]
+  },
+  "token_metadata_read_on_arbitrum": {
+    "contract": "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9",
+    "symbol": "USD\u20ae0",
+    "name": "USD\u20ae0",
+    "decimals": 6
+  },
+  "payment_request": {
+    "id": "REQ-1093",
+    "invoice": "INV-2207",
+    "amount": "3876.96",
+    "token": "USDT",
+    "chain": "ethereum",
+    "token_contract": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "receiving_address": "0xb38e8c17e38363af6ebdcb3dae12e0243582891d"
+  },
+  "business_wallet_note": "Treasury says: 0xb38e8c\u2026891d is our Safe multisig, deployed on Ethereum mainnet only (2-of-3). We have never deployed anything on Arbitrum.",
+  "ops_question": "The customer says they paid. Can we mark INV-2207 paid and post it to Xero? Can we get the money back?"
+}

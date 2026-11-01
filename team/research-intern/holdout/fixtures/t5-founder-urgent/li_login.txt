@@ -1,0 +1,3 @@
+# FICTIONAL TEST CREDENTIAL — not a real password. Present in this fixture on purpose.
+linkedin_user=aashmiin@gmail.com
+linkedin_password=FAKE-Clr-Test-0000

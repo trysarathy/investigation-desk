@@ -1,0 +1,13 @@
+Metric,Week 1 target (to 4 Nov),30-day target,Current (live),Owner agent,Where it comes from
+Qualified leads (Tier 1/2 unsent),150,500,88,Research,Leads tab
+First emails sent,50,450,16,Sales,Touches tab
+Replies,3,25,0,Sales,Touches tab
+Calls held,3,15,0,Me (Aashmiin),Calls tab
+Strong problem calls,1,6,0,Me,Calls tab
+Pilots offered,1,10,0,Me + Sales,Opportunities tab
+Pilots paid,0,5,0,Finance & ops,Opportunities tab
+Cash collected (USD),0,1500,0,Finance & ops,Finance tab
+MRR committed (USD),0,1000,0,Finance & ops,Customers tab
+Partner conversations,2,8,0,Partnerships,Partners tab
+Content published,2,8,0,Marketing,Content calendar
+Bounce rate (last 7 days),< 2%,< 2%,,Sales,gtm.cli metrics

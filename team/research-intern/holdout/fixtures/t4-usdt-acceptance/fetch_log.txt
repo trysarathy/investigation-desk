@@ -1,0 +1,8 @@
+# Fetch log, 30-31 Oct 2026 SGT
+23:10  GET https://kestrelfreight.example/            -> OK, opened: kestrel_home_footer_OPENED.md
+23:11  GET https://kestrelfreight.example/blog/crypto-payments-2023 -> FAILED (403). Snippet: kestrel_blog_2023_SNIPPET.md
+23:11  GET https://kestrelfreight.example/faq/payments -> OK, opened: kestrel_faq_OPENED.md
+23:12  GET https://forum.example/t/kestrel-usdt       -> FAILED. Snippet: kestrel_forum_SNIPPET.md
+23:14  GET https://halyardsettle.example/terms        -> OK, opened: halyard_terms_OPENED.md
+23:15  GET https://halyardsettle.example/contact      -> OK, opened: halyard_contact_OPENED.md
+23:16  Meridian: no fetches made yet. See meridian_note.md.

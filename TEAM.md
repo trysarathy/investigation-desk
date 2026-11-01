@@ -1,0 +1,91 @@
+# Clearline's AI team
+
+You (Aashmiin) are the face of the brand: you get deals and close them. Your human advisors are your
+board. Everything else is done by 14 AI employees. Each one is a Claude agent with a job description,
+a researched knowledge pack, step-by-step playbooks, a quality rubric and a set of test tasks it must
+pass (4/5 or better) before it is scheduled. The full standard is in `team/BUILD_STANDARD.md`.
+
+**Single source of truth:** the Company HQ Google Sheet. Every employee reads it, writes its work there,
+and logs every action in the Log tab.
+
+## The org chart
+
+```
+                                   Aashmiin (CEO: brand, deals, closing)
+                                   advisors = board
+                                              │
+                                       chief-of-staff
+                         (runs the rhythm, briefs you, keeps HQ, holds the approval queue)
+     ┌──────────────────┬──────────────────┬───┴──────────────┬───────────────────┬──────────────────┐
+ ENGINEERING     PRODUCT & CUSTOMER   DESIGN & BRAND   RESEARCH & STRATEGY  REVENUE OPERATIONS   OPERATIONS
+ crypto-protocol-  crypto-finance-user  lead-designer    research-intern      revops-crm-agent     finance-admin
+  engineer (lead)  product-manager      content-and-     gtm-strategist       sales-closer-
+ qa-security-      delivery-specialist   video-producer                        assistant
+  engineer
+ devops-engineer
+```
+
+## Who does what
+
+| Employee | In plain English | Owns this number | Built |
+|---|---|---|---|
+| **chief-of-staff** | Your right hand. 07:27 briefing (overnight work, approvals, today's calls with prep, 3 decisions), ~18:27 end of day (with tomorrow's first emails in full), Monday plan, Friday ship review, Sunday report and the advisor update draft. Keeps Goals, Pipeline, Roadmap, Decisions and Risks current. | Decisions made within 24 h | Week 1 ✅ (passed, live) |
+| **research-intern** | Finds and checks facts: market, competitors, regulation (GENIUS Act, MiCA, Hong Kong, MAS, India), funding news, company research, lead evidence. Labels every claim. Weekly "what changed in our market". Keeps everyone's knowledge pack fresh. | Qualified leads per day; spot-check accuracy | Week 1 ✅ (passed, live) |
+| **crypto-protocol-engineer** | Tech lead. Builds Clearline features from the roadmap as small, tested PRs; the expert on chains, tokens, finality, address poisoning and issuer freezes. Nightly 23:27 SGT (after QA's 22:53 run), max 2 roadmap rows, never merges. | Roadmap items shipped as merged PRs per week (3+); first-pass QA rate (≥ 90%) | Week 1 ✅ (passed, live) |
+| **qa-security-engineer** | Tests everything nightly, including the nasty cases (short, over, duplicate, counterfeit, wrong network, reorgs, outages). Reviews security. Keeps the claims audit honest. Never lets failing code through. | Nights with `main` green | Week 1 ✅ (passed, live) |
+| **revops-crm-agent** | Runs the pipeline: leads, scoring, personalised emails within the caps, follow-ups, replies, meeting booking, the CRM, your daily LinkedIn list, proposal and invoice drafts, payment tracking. | Meetings booked per week | Week 1 ✅ (passed, live) |
+| gtm-strategist | ICP, positioning, messaging, pricing hypotheses, channels, enterprise vs mid-market, partners, the weekly experiment plan and what to scale or kill. Mon 07:47 market brief; recommends, never decides pricing. | Experiments run and decided | Week 2 ✅ (passed, live) |
+| crypto-finance-user | Plays an experienced controller at a stablecoin-receiving company, **as a simulation only** (every output starts "SIMULATED FEEDBACK — NOT EVIDENCE OF CUSTOMER DEMAND"; never used outward as evidence): tests each merged release on desktop and phone, ranks issues by impact on the close, gives value feedback, ranks pain points from Calls + public sources, plays the sceptical buyer in mock calls, refreshes the persona monthly. Schedule: daily 05:47 release test (acts only when main changed) and the Fri 14:13 excellence pass; persona updated only from real call notes. | Issues found that QA/PM confirmed and fixed; share of feedback items tied to a source (≥ 90%) | Week 2 ✅ (passed, live) |
+| sales-closer-assistant | Preps you for every call (account, people, objections, demo path), writes the follow-up and mutual action plan, keeps deals moving. Weekdays 07:07 and 18:07, prepare only. Never negotiates, sends or signs. | Calls → pilots | Week 2 ✅ (passed, live) |
+| lead-designer | Product UI, website, decks, white paper layouts, diagrams, brand system, at Stripe/Linear standard. Reviews every screen at 1280 and 390 px against WCAG 2.2 AA (measured, not eyeballed); changes go through PRs, never main; no fake logos, testimonials or numbers. Weekly Thu 14:47 design review plus the Fri 14:13 excellence pass. | Screens shipped meeting the checklist; accessibility issues open (31 Oct baseline: 1 high, 3 medium) | Week 2 ✅ (passed, live) |
+| devops-engineer | Builds, deployments (website and product), monitoring, backups, uptime. Nightly 03:27 deploy check of active branches, small config-fix PRs, honest uptime/backup report (Sun 20:47). Read-only on production. | Active branches green; time red → fix PR; restore drill done | Week 2 ✅ (passed, live) |
+| product-manager | Turns calls, feedback and research into specs and a ranked roadmap with acceptance criteria. Protects focus: one wedge at a time. | Roadmap items with customer evidence | Week 3 |
+| delivery-specialist | Runs paying pilots: data intake, reconciliation and close packs, QA before anything goes out. | On-time, error-free deliveries | Week 3 |
+| content-and-video-producer | LinkedIn posts in your voice (for you to approve), company posts, SEO pages, case studies, demo films. | Posts approved per week | Week 3 |
+| finance-admin | Invoices, payment tracking, costs, revenue dashboard (MRR, pipeline value), bookkeeping records, contract templates. | Cash collected | Week 3 |
+
+**Until a role is rebuilt, its predecessor keeps working:** devops (→ devops-engineer),
+ae-assistant (→ sales-closer-assistant), content-marketer (→ content-and-video-producer),
+product-manager (rebuilt in week 3), and the "Clearline finance weekly" task (→ finance-admin).
+
+## How you give them work
+- **Reply to any Clearline email** (briefing, end of day, ship review). The chief-of-staff reads replies
+  and routes them. "PAUSE" stops everything; "HOLD" stops tomorrow's first emails.
+- **Add a row** in Company HQ: Product roadmap (to build), Decisions log (to decide), Targets (to research).
+- **Ask directly** in a Claude Code session: "Use the research-intern to…" (the definitions live in
+  `.claude/agents/`).
+
+## The hand-off chain
+sales call → sales-closer-assistant summary → product-manager spec → crypto-protocol-engineer build →
+qa-security-engineer verify → crypto-finance-user test → content-and-video-producer announce →
+revops-crm-agent uses it in outreach.
+
+## Always yours to approve
+Anything to customers, investors, advisors or mentors; pricing, proposals, contracts and invoices
+before they're sent; posts in your name; merging to `main`; spending money; deleting data; first-time
+outreach beyond the level you've unlocked. These wait in the 07:30 approval queue.
+
+## What they need from you
+1. **15 minutes at 07:30**: approve or reject the queue, answer the 3 decisions.
+2. **Call notes** after each call (a few lines in the Calls tab), so the follow-up and the roadmap are real.
+3. **Merges**: the PRs the Friday ship review says are ready.
+4. **LinkedIn by hand**: the daily list of notes and DMs (they never touch LinkedIn).
+5. **Connectors and Auto mode** on scheduled tasks when the briefing says one is missing.
+
+Daily routine: `company/CEO_DAILY_60_MINUTES.md`. Rules: `company/COMPANY_RULES.md`. Schedules:
+`company/NIGHT_SHIFT.md`.
+
+## Technical team (1 Nov 2026)
+
+Five technical hires, built to the same six-part standard and passed on golden tasks plus a hidden test
+from an examiner who never saw their files (`team/HOLDOUT_RESULTS.md`):
+
+| Employee | Owns | Golden | Hidden | Status |
+|---|---|---|---|---|
+| tech-lead-architect | docs/ARCHITECTURE.md, docs/PLAN_14_DAY.md, nightly tasks, ADRs, merge gate | 4.67 | 4.60 | live |
+| accounting-integrations-engineer | Xero, then QuickBooks; docs/POSTING_RULES.md (her sign-off) | 4.48 | 4.80 | live |
+| matching-engine-engineer | invoice matching, confidence, docs/MATCHING_EVALS.md | 4.69 | 4.80 | live |
+| frontend-product-engineer | the five controller screens | 4.82 | 4.80 | live |
+| code-reviewer | reviews every PR; never writes code | 4.85 | 4.40 (3rd set, after 2 fails + retraining) | live |
+
+Reorganisation, schedules and pauses: `company/OPERATING_MODEL.md` §6 and `company/NIGHT_SHIFT.md`.

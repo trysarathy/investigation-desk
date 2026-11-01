@@ -1,0 +1,4 @@
+lead_id,company,stage,pilot_scope,started,next_step,next_step_date,notes,opp_id,contact,value_usd,currency,proposal_status,invoice_status
+L301,Northgate Digital Ltd,Pilot agreed (verbal),,,Proposal + invoice drafts for Aashmiin's approval,2026-11-04,"Founding pilot US$300/30 days, then US$200/month. Wants start Mon 9 Nov. Xero user. Receives ~40 USDC/month on Ethereum and some USDT on Tron. Asked on the call: 'Can you do QuickBooks by December? Our parent company uses it.' Pays suppliers by Wise. Billing entity: Northgate Digital Ltd, Unit 12, 8 Harbour Road (fictional), Hong Kong.",OP01,Grace Lam,300,USD,not drafted,not drafted
+L202,Sunda Travel PT,Replied (positive),,,Answer pricing + Tron question (draft),2026-11-04,,OP02,Ayu Pratiwi,,USD,,
+L299,Orbit Pay Ltd,Call booked,,,Learning call 6 Nov 16:00 SGT,2026-11-06,,OP03,Lena Fox,,USD,,
