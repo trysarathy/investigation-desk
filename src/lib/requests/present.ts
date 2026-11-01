@@ -67,7 +67,7 @@ export function verdict(data: RequestsData, v: RequestView): Verdict {
       if (a.by === AUTO_RULE) {
         return { tone: "paid", status: "Paid", title: "Paid. Matched and marked paid automatically",
           summary: `Exactly ${amt(r.amount, t)} from ${issuerContract} arrived at this invoice's own address and reached ${CONFIRMATIONS} confirmations. The matching rule marked it paid. No one had to touch it.`,
-          points: [`Requested ${amt(r.amount, t)}, received ${amt(v.received, t)}`, `Genuine ${t}: from ${issuerContract}`, "Paid to this invoice's own address, so there's no guessing which invoice it pays", `${CONFIRMATIONS} confirmations: final for practical purposes`] };
+          points: [`Requested ${amt(r.amount, t)}, received ${amt(v.received, t)}`, `Genuine ${t}: from ${issuerContract}`, "Paid to this invoice's own address, so there's no guessing which invoice it pays", `Confirmed: ${CONFIRMATIONS} confirmations (not yet Ethereum's own finality check)`] };
       }
       const what = a.kind === "refund_excess" ? "Paid; the extra is being refunded" : a.kind === "accept_other_network" ? "Paid on another network, counted by a person"
         : a.kind === "accept_short" ? "Settled short, accepted by a person" : a.kind === "accept_over" ? "Paid; the extra is kept as credit" : "Paid. Marked by a person";
@@ -172,7 +172,7 @@ export function nextAction(v: RequestView, data?: RequestsData): NextAction {
       if (v.counted.some((o) => o.source === "live" && o.confirmations < CONFIRMATIONS)) {
         return { title: "Look the transaction up again", detail: `Confirmations were ${v.maxConfirmations} of ${CONFIRMATIONS} at the last lookup. Paste the same hash under "Record a real transaction" to update them.`, owner: ops };
       }
-      return { title: "Nothing to do yet", detail: `Waiting for ${CONFIRMATIONS} confirmations (about ${confirmTime()} on Ethereum).`, owner: "No one" };
+      return { title: "Nothing to do yet", detail: `Waiting for ${CONFIRMATIONS} confirmations (${confirmTime()} on Ethereum).`, owner: "No one" };
     case "matched":
       return { title: "Mark it paid", detail: `Credit ${amt(r.amount, t)} to ${r.customerRef} for ${r.invoiceRef} in your accounting system, then mark it paid here.`, owner: ops, primary: "acknowledge" };
     case "needs_review":
@@ -225,7 +225,7 @@ export function replyDraft(v: RequestView, data: RequestsData, o: { business: st
       }
       case "transfer_detected":
       case "confirming":
-        return `We can see your payment of ${amt(v.pending, t)} for ${r.invoiceRef}${ref}. Ethereum needs ${CONFIRMATIONS} confirmations, which usually takes about ${confirmTime()}. We'll confirm once it's complete.`;
+        return `We can see your payment of ${amt(v.pending, t)} for ${r.invoiceRef}${ref}. Ethereum needs ${CONFIRMATIONS} confirmations, which usually takes ${confirmTime()}. We'll confirm once it's complete.`;
       case "matched":
         return `Your payment of ${amt(r.amount, t)} for ${r.invoiceRef} has arrived${ref}. We're applying it to your account now.`;
       case "completed":

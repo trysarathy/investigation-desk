@@ -61,7 +61,7 @@ function TransferRow({ o, r, label }: { o: Observation; r: PaymentRequest; label
       <div style={{ textAlign: "right" }}>
         {o.status === "failed" ? <Status status="fail" label="Failed" />
           : o.blockNumber === undefined ? <span className="muted">Not yet in a block</span>
-          : <span className="muted" title="Blocks added on top of the one holding this transfer. At this many it is final for practical purposes.">{Math.min(o.confirmations, need)} of {need} confirmations</span>}
+          : <span className="muted" title="Blocks added on top of the one holding this transfer. At this many Clearline counts it as confirmed; Ethereum's own finality check is not used yet.">{Math.min(o.confirmations, need)} of {need} confirmations</span>}
       </div>
       <div className="muted" style={{ fontSize: 12, gridColumn: "1 / -1" }}>
         <TxRef o={o} /> · {friendlyTime(o.blockTime ?? o.firstSeenAt)} · from <span className="mono" title={o.from}>{shortAddr(o.from)}</span>{label ? ` (${label})` : ""} · to <span className="mono" title={o.to}>{shortAddr(o.to)}</span>
