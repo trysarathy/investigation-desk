@@ -1,6 +1,7 @@
 export default function Loading() {
   return (
-    <div className="page" aria-busy="true" aria-label="Loading requests">
+    <div className="page" aria-busy="true">
+      <p role="status" className="sr-only">Loading requests</p>
       <div className="skel" style={{ width: 240, height: 32 }} />
       <div className="panel">
         {Array.from({ length: 8 }, (_, i) => (

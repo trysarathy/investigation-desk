@@ -1,16 +1,20 @@
-// Task 6a: one plain-English status sentence and an honest ETA per payment (src/lib/requests/status.ts).
-// ETA sources: ethereum.org PoS docs (12-second slots) and TRON docs dpos.md (3-second slots); the code
-// waits for 12 confirmations on Ethereum (not Ethereum "finalized", POSTING_RULES R5 / plan D5.5), so a
-// sentence may say "confirmed", never "final". BNB Chain: no ETA (see status.ts).
+// Task 6a: one plain-English status sentence per payment (src/lib/requests/status.ts). No countdown:
+// payments don't re-check on their own yet, so etaMinutes is always null; the documented pace (Ethereum
+// 12-second slots, ethereum.org source; Tron 3-second slots, TRON docs dpos.md) is stated as a pace.
+// The code waits for 12 confirmations, not Ethereum "finalized" (POSTING_RULES R5 / plan D5.5), so a
+// sentence may say "confirmed", never "final". BNB Chain: no pace (see status.ts).
+
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 import { checkObservation, CONFIRMATIONS, OFFICIAL_USDC } from "@/lib/requests/check";
 import { addr, demoPublicId, lookalikeOf, resetDemo } from "@/lib/requests/demo";
 import { createRequest, decide, deriveRequest, ingest, recordAddressCheck } from "@/lib/requests/lifecycle";
-import { nextAction, verdict } from "@/lib/requests/present";
+import { nextAction, replyDraft, verdict } from "@/lib/requests/present";
 import { SimulatedProvider } from "@/lib/requests/provider";
-import { confirmEta, paymentStatus } from "@/lib/requests/status";
-import { emptyRequests, type RequestsData, type TransferEvent } from "@/lib/requests/types";
+import { confirmPace, paymentStatus } from "@/lib/requests/status";
+import { emptyRequests, type CheckSnapshot, type RequestsData, type TransferEvent } from "@/lib/requests/types";
 
 const NOW = "2026-10-25T09:00:00.000Z";
 const sim = new SimulatedProvider();
@@ -20,26 +24,26 @@ function req(o: { amount?: string; demo?: boolean; auto?: boolean } = {}): Reque
   return createRequest(emptyRequests(), { customerRef: "Cust L1", invoiceRef: "INV-L1", amount: o.amount ?? "1250", receivingAddress: addr("l1"), token: "USDC" },
     { now: NOW, by: "Mei", demo: o.demo ?? false, publicId: "L1", tokenContract: OFFICIAL_USDC, id: "L1", autoMarkPaid: o.auto }).data;
 }
-function pay(d: RequestsData, ev: Partial<TransferEvent>, seq = "a"): RequestsData {
+function pay(d: RequestsData, ev: Partial<TransferEvent>, seq = "a", check = checkObservation(NOW)): RequestsData {
   const base = sim.send(d, { to: addr("l1"), amount: "1250.00", tokenContract: OFFICIAL_USDC, tokenSymbol: "USDC", from: addr("from:l1"), seq });
-  return ingest(d, { ...base, demo: d.requests.L1.demo, ...ev }, NOW, "test", checkObservation(NOW), CONFIRMATIONS).data;
+  return ingest(d, { ...base, demo: d.requests.L1.demo, ...ev }, NOW, "test", check, CONFIRMATIONS).data;
 }
-const statusOf = (d: RequestsData, id = "L1", o?: { chainUnreadable?: boolean }) => paymentStatus(d, deriveRequest(d, d.requests[id], CONFIRMATIONS), o);
+const statusOf = (d: RequestsData, id = "L1") => paymentStatus(d, deriveRequest(d, d.requests[id], CONFIRMATIONS));
+/** What check.ts stores when a chain didn't answer. */
+const paused = (): CheckSnapshot => ({ at: NOW, code: null, label: "Check paused", confidence: null, problem: false, summary: "A chain didn't answer (ethereum).", evidence: [] });
+/** Words a status sentence may use only in the confirming state, where they carry the pace. */
+const ALLOWED = /\d+ confirmations|blocks move when you click|demo's matching rule/g;
 
-describe("ETA math: from documented block timing and the confirmations the code waits for", () => {
-  it("Ethereum: 12-second slots × confirmations still needed, rounded up to whole minutes", () => {
-    expect(confirmEta("ethereum", 0, 12)).toMatchObject({ seconds: 144, minutes: 3 });
-    expect(confirmEta("ethereum", 6, 12)).toMatchObject({ seconds: 72, minutes: 2 });
-    expect(confirmEta("ethereum", 11, 12)).toMatchObject({ seconds: 12, minutes: 1 });
-    expect(confirmEta("ethereum", 0, 12)!.basis).toMatch(/12-second slots.*ethereum\.org/);
+describe("pace, not countdown: from one source of block times and the confirmations the code waits for", () => {
+  it("Ethereum: 12 confirmations × 12-second slots = 144 s, worded as formatDuration does for the next step", () => {
+    expect(confirmPace("ethereum")).toBe("about 2 minutes");
   });
-  it("Tron: 3-second slots (TRON docs), 20 confirmations → about a minute", () => {
-    expect(confirmEta("tron", 0, 20)).toMatchObject({ seconds: 60, minutes: 1 });
+  it("Tron: 20 confirmations × 3-second slots = 60 s", () => {
+    expect(confirmPace("tron")).toBe("about a minute");
   });
-  it("no ETA when it can't be computed: already confirmed, BNB Chain, an unknown network", () => {
-    expect(confirmEta("ethereum", 12, 12)).toBeNull();
-    expect(confirmEta("bsc", 0, 15)).toBeNull();
-    expect(confirmEta("polygon", 0, 12)).toBeNull();
+  it("no pace where it isn't documented: BNB Chain (BEP-619 0.45 s vs the 3 s setting), an unknown network", () => {
+    expect(confirmPace("bsc")).toBeNull();
+    expect(confirmPace("polygon")).toBeNull();
   });
 });
 
@@ -49,24 +53,32 @@ describe("status per state", () => {
     expect(s).toMatchObject({ key: "waiting", etaMinutes: null, sentence: "Waiting for payment: nothing has arrived yet." });
   });
 
-  it("seen, not yet in a block: confirming with no ETA (inclusion time isn't predictable)", () => {
+  it("seen, not yet in a block: no pace (inclusion time isn't predictable)", () => {
     const s = statusOf(pay(req(), { confirmations: 0 }));
-    expect(s.key).toBe("seen");
-    expect(s.etaMinutes).toBeNull();
-    expect(s.sentence).toBe("Payment seen and confirming: we can't estimate how long yet, and there's nothing to do.");
+    expect(s).toMatchObject({ key: "seen", etaMinutes: null });
+    expect(s.sentence).toBe("Payment seen but not confirming yet: we can't say how long that takes, and there's nothing to do.");
   });
 
-  it("confirming (demo, simulated Ethereum): ETA from 12 − confirmations, says 'confirmed', never 'final'", () => {
-    const s = statusOf(pay(req({ demo: true }), { blockNumber: 100, blockTime: NOW, confirmations: 6 }));
-    expect(s).toMatchObject({ key: "confirming", etaMinutes: 2 });
-    expect(s.sentence).toBe("Confirming: about 2 minutes until it's confirmed, and there's nothing to do yet.");
-    expect(s.sentence).not.toMatch(/final/i);
+  it("confirming (demo): Ethereum's usual pace, not a countdown, and says what moves demo blocks", () => {
+    const d = pay(req({ demo: true, amount: "2500" }), { blockNumber: 100, blockTime: NOW, confirmations: 6 });
+    const s = statusOf(d);
+    expect(s).toMatchObject({ key: "confirming", etaMinutes: null });
+    expect(s.sentence).toBe("Confirming (6 of 12): Ethereum usually takes about 2 minutes for 12 confirmations; in the demo, blocks move when you click.");
+    expect(s.sentence).not.toMatch(/final|until it's confirmed/i);
+    // The next step quotes the same time from the same source: they can't disagree.
+    expect(nextAction(deriveRequest(d, d.requests.L1, CONFIRMATIONS)).detail).toContain(`(${confirmPace("ethereum")} on Ethereum)`);
   });
 
-  it("confirming, live transfer: no ETA, because live transfers only update when looked up again", () => {
+  it("confirming with part of the payment not yet in a block: no pace at all", () => {
+    let d = pay(req({ demo: true, amount: "2500" }), { blockNumber: 100, blockTime: NOW, confirmations: 6 });
+    d = pay(d, { confirmations: 0 }, "b");
+    expect(statusOf(d)).toMatchObject({ key: "seen", etaMinutes: null });
+  });
+
+  it("confirming, live transfer: pace, plus look it up again (live transfers only update then)", () => {
     const s = statusOf(pay(req(), { source: "live", blockNumber: 100, blockTime: NOW, confirmations: 3 }));
     expect(s).toMatchObject({ key: "confirming", etaMinutes: null });
-    expect(s.sentence).toBe("Confirming: look the payment up again to see whether it's confirmed.");
+    expect(s.sentence).toBe("Confirming (3 of 12): Ethereum usually takes about 2 minutes for 12 confirmations; look the payment up again to update it.");
   });
 
   it("confirmed and checked, ready to mark paid (live): 'confirmed', not 'final', not 'paid automatically'", () => {
@@ -100,8 +112,8 @@ describe("status per state", () => {
     expect(s).toMatchObject({ key: "wrong_token", sentence: "Paid in DAI, not USDC, so it can't pay this invoice: tell the customer and close the payment." });
   });
 
-  it("couldn't check (provider down): says so, promises no time", () => {
-    const s = statusOf(pay(req(), { source: "live", blockNumber: 100, blockTime: NOW, confirmations: CONFIRMATIONS }), "L1", { chainUnreadable: true });
+  it("couldn't check (a stored 'Check paused' result): says so, promises no time", () => {
+    const s = statusOf(pay(req(), { source: "live", blockNumber: 100, blockTime: NOW, confirmations: CONFIRMATIONS }, "a", () => paused()));
     expect(s).toMatchObject({ key: "unchecked", etaMinutes: null });
     expect(s.sentence).toBe("We couldn't check this payment because the network didn't answer, so nothing is decided yet: look it up again later.");
     expect(s.sentence).not.toMatch(/\d|minute|soon/);
@@ -113,6 +125,14 @@ describe("the demo day: every case gets one plain sentence", () => {
   // Fernhill's sender pastes a poisoned address into the payment page (the demo's case f).
   const d = recordAddressCheck(day, "DEMO-1046", lookalikeOf(day.requests["DEMO-1046"].receivingAddress), NOW).data;
   const by = (id: string) => statusOf(d, id);
+  it("a confirming request on the day: one sentence, pace only, and the page's own copy has no 'final' or 'about about'", () => {
+    const c = pay(req({ demo: true }), { blockNumber: 100, blockTime: NOW, confirmations: 0 });
+    const v = deriveRequest(c, c.requests.L1, CONFIRMATIONS);
+    expect(paymentStatus(c, v).sentence.replace(ALLOWED, "")).not.toMatch(JARGON);
+    const words = `${verdict(c, v).summary} ${nextAction(v, c).detail} ${replyDraft(v, c, { business: "Northwind", link: "https://x" })}`;
+    expect(words).toMatch(/about 2 minutes/);
+    expect(words).not.toMatch(/final for practical|about about/);
+  });
   it("counterfeit, wrong network, look-alike, duplicate, suggested match, short", () => {
     expect(by("DEMO-1043")).toMatchObject({ key: "counterfeit", sentence: "Not real USDT, so it can't pay this invoice: tell the customer and close the payment." });
     expect(by("DEMO-1044")).toMatchObject({ key: "wrong_network", sentence: "Sent on Tron, not Ethereum, to the business's own Tron address: ask treasury to confirm it arrived, then count it." });
@@ -126,12 +146,20 @@ describe("the demo day: every case gets one plain sentence", () => {
       const s = by(r.id);
       expect(s.sentence, r.id).toMatch(/^[A-Z].*\.$/);
       expect(s.sentence, r.id).not.toMatch(/\.\s/);
-      expect(s.sentence.replace(/demo's matching rule/, ""), r.id).not.toMatch(JARGON);
-      expect(s.etaMinutes === null || Number.isInteger(s.etaMinutes), r.id).toBe(true);
+      expect(s.sentence.replace(ALLOWED, ""), r.id).not.toMatch(JARGON);
+      expect(s.etaMinutes, r.id).toBeNull();
       expect(s.nextAction.length, r.id).toBeGreaterThan(0);
       // The rest of the page agrees: confirmations are "confirmed", never "final"; no "about about".
       const v = deriveRequest(d, r, CONFIRMATIONS);
       expect(`${verdict(d, v).points.join(" ")} ${nextAction(v, d).detail}`, r.id).not.toMatch(/final for practical|about about/);
     }
+  });
+});
+
+describe("request page source", () => {
+  it("the confirmations tooltip no longer calls 12 confirmations final", () => {
+    const src = readFileSync(path.resolve(__dirname, "..", "src/app/requests/[id]/page.tsx"), "utf8");
+    expect(src).not.toMatch(/final for practical purposes/);
+    expect(src).toMatch(/counts it as confirmed; Ethereum's own finality check is not used yet/);
   });
 });
