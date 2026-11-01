@@ -7,13 +7,14 @@ import { useRouter } from "next/navigation";
 import { refreshAfterChange } from "./AutoRefresh";
 import { useRef, useState } from "react";
 import { ActingAs, useActor } from "@/components/ActingAs";
+import { requestBalanceHint } from "@/lib/requests/copy";
 
 type DecisionKind = "request_balance" | "accept_short" | "accept_over" | "dismiss_transfer" | "assign_transfer" | "count_transfer" | "accept_other_network" | "refund_excess" | "acknowledge";
 export interface TransferOption { key: string; label: string }
 
 const COPY: Record<DecisionKind, { button: string; hint: string; placeholder: string }> = {
   acknowledge: { button: "Mark paid", hint: "Once the invoice is marked paid in your accounting system.", placeholder: "Optional, e.g. ledger reference" },
-  request_balance: { button: "I've asked for the balance", hint: "Keeps the invoice open until the rest arrives; then it's marked paid automatically.", placeholder: "e.g. Sent the top-up request to the customer" },
+  request_balance: { button: "I've asked for the balance", hint: requestBalanceHint(false), placeholder: "e.g. Sent the top-up request to the customer" },
   accept_short: { button: "Accept as settled", hint: "Marks it paid for less than requested, with your reason (e.g. you'll absorb the fee).", placeholder: "Why, e.g. we absorb the 50.00 fee" },
   accept_over: { button: "Keep as credit", hint: "Marks it paid; the extra is kept as credit with the customer.", placeholder: "e.g. Customer asked to keep it as credit" },
   refund_excess: { button: "Record the refund", hint: "Marks the invoice paid and records that treasury will refund the extra. This app never sends money.", placeholder: "e.g. Refund address confirmed by email; instruction sent to treasury" },
@@ -40,8 +41,9 @@ async function post(id: string, actor: string, action: object): Promise<string |
   return r.ok ? null : r.text ?? "Failed.";
 }
 
-export function DecisionPanel({ requestId, allowed, flagged, ambiguous, suggestedNote, blockedLabel }: {
+export function DecisionPanel({ requestId, allowed, flagged, ambiguous, suggestedNote, blockedLabel, autoMarkPaid = false }: {
   requestId: string; allowed: DecisionKind[]; flagged: TransferOption[]; ambiguous: TransferOption[]; suggestedNote?: string; blockedLabel?: string;
+  /** The request has the demo auto-mark rule: only then may a hint say "automatically". */ autoMarkPaid?: boolean;
 }) {
   const actor = useActor();
   const router = useRouter();
@@ -79,7 +81,7 @@ export function DecisionPanel({ requestId, allowed, flagged, ambiguous, suggeste
         ))}
         {blockedLabel && <button className="btn btn-locked" disabled data-testid="mark-paid-blocked" title="A counterfeit or failed transfer can never mark the invoice paid.">🔒 {blockedLabel}</button>}
       </div>
-      <div className="field-hint">{allowed.map((k) => <span key={k} style={{ display: "block" }}><strong>{COPY[k].button}:</strong> {COPY[k].hint}</span>)}</div>
+      <div className="field-hint">{allowed.map((k) => <span key={k} style={{ display: "block" }}><strong>{COPY[k].button}:</strong> {k === "request_balance" ? requestBalanceHint(autoMarkPaid) : COPY[k].hint}</span>)}</div>
       {msg && <div className="bar bar-red" role="alert">{msg}</div>}
     </div>
   );

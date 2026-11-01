@@ -469,7 +469,9 @@ details.panel[open] > summary.panel-h::after { content: "Hide"; }
 details.panel:not([open]) > summary.panel-h { border-bottom: 0; }
 .s-pass { color: var(--green); }
 @media (max-width: 720px) { .kpi:last-child:nth-child(odd) { grid-column: 1 / -1; } }
-@media (max-width: 1100px) and (min-width: 721px) { .kpis .kpi:nth-child(4) { grid-column: span 2; } }
+@media (max-width: 1100px) and (min-width: 721px) { .kpis .kpi:nth-child(4) { grid-column: span 2; } .kpis-4 .kpi:nth-child(4) { grid-column: span 3; } }
+/* Live mode has no time-saved estimate: four tiles, the last one wider, so no empty cell. */
+@media (min-width: 1101px) { .kpis-4 .kpi:nth-child(4) { grid-column: span 2; } }
 .btn-locked { color: var(--red); background: var(--red-soft); border-color: transparent; opacity: 1 !important; cursor: not-allowed; }
 .kpi-estimate { background: var(--panel-2); }
 .kpi-estimate .v { color: var(--text-2); font-size: 18px; }

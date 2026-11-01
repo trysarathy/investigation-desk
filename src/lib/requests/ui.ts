@@ -56,6 +56,8 @@ export function glance(data: RequestsData, views: RequestView[], now: number) {
     arrived,
     toRefund,
     paidAuto: auto.length,
+    /** Matched (genuine, exact, confirmed) and waiting for a person to mark them paid. */
+    readyToMark: week.filter((v) => v.state === "matched").length,
     paid: week.filter((v) => v.state === "completed").length,
     attention,
     requested: byToken((v) => v.request.amount),
