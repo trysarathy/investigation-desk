@@ -68,7 +68,7 @@ export async function BooksPanel({ data, requestId }: { data: RequestsData; requ
           </>
         )}
         {plan.status === "ready" && (
-          <ApprovePosting requestId={requestId} planKey={plan.idempotencyKey} label={`Approve and post to ${provider === "demo" ? "the books" : PROVIDER_LABEL[provider]}`} />
+          <ApprovePosting requestId={requestId} planKey={plan.approvalKey} label={`Approve and post to ${provider === "demo" ? "the books" : PROVIDER_LABEL[provider]}`} />
         )}
         {posted.length > 0 && (
           <>

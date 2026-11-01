@@ -1,15 +1,16 @@
 // POST /api/accounting/<requestId>: approve the posting plan a person saw, and post it.
-// JSON: { actor, key }  (key = the plan's idempotency key, so a plan that changed must be approved again)
+// JSON: { actor, key }  (key = the plan's approval key: its lines and their posting dates, so a plan that
+// changed, including a date moved by a timezone change, must be approved again)
 
 import { NextResponse } from "next/server";
-import { approvePosting } from "@/lib/accounting/service";
+import { approvePosting, NO_APPROVAL_KEY } from "@/lib/accounting/service";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = await req.json().catch(() => undefined) as { actor?: unknown; key?: unknown } | undefined;
   const actor = typeof body?.actor === "string" ? body.actor.trim().slice(0, 60) : "";
   if (!actor) return NextResponse.json({ error: "Set \"Acting as\" first: every posting records who approved it." }, { status: 422 });
-  if (typeof body?.key !== "string") return NextResponse.json({ error: "Missing the plan you approved." }, { status: 400 });
+  if (typeof body?.key !== "string" || !body.key.trim()) return NextResponse.json({ error: NO_APPROVAL_KEY }, { status: 400 });
   const res = await approvePosting(id, actor, body.key);
   if (res.error) return NextResponse.json({ error: res.error }, { status: 409 });
   return NextResponse.json({ ok: true, message: res.message });

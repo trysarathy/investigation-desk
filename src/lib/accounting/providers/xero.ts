@@ -9,7 +9,8 @@
 // The access token comes from the OAuth connection (see ./xero-auth.ts); this file never stores it.
 
 import { PartialPostError } from "../types";
-import type { BooksAdapter, BooksInvoice, InvoiceLink, PostedLine, PostingLine } from "../types";
+import { windowsToIana } from "../timezone";
+import type { BooksAdapter, BooksInvoice, InvoiceLink, OrgTimeZone, PostedLine, PostingLine } from "../types";
 
 export const XERO_API = "https://api.xero.com/api.xro/2.0";
 
@@ -68,6 +69,13 @@ export class XeroAdapter implements BooksAdapter {
     const res = await this.fetchFn(`${XERO_API}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
     if (!res.ok) throw new Error(`Xero ${method} ${path} failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
     return (await res.json()) as Record<string, unknown>;
+  }
+
+  /** GET /Organisation → `Timezone` (Windows-style, e.g. SINGAPORESTANDARDTIME), mapped to IANA. Needs accounting.settings.read. */
+  async readOrgTimeZone(now: string): Promise<OrgTimeZone> {
+    const res = await this.call("GET", "/Organisation");
+    const source = String(((res.Organisations as Record<string, unknown>[] | undefined) ?? [])[0]?.Timezone ?? "");
+    return { provider: "xero", source, ianaTimeZone: windowsToIana(source), readAt: now };
   }
 
   async listOpenInvoices(): Promise<BooksInvoice[]> {

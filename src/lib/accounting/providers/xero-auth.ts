@@ -15,11 +15,13 @@ export const XERO_AUTHORIZE = "https://login.xero.com/identity/connect/authorize
 export const XERO_TOKEN = "https://identity.xero.com/connect/token";
 export const XERO_CONNECTIONS = "https://api.xero.com/connections";
 /**
- * Scopes: read contacts and invoices, write payments, credit notes and bank transactions.
+ * Scopes: read contacts and invoices, write payments, credit notes and bank transactions, and read
+ * organisation settings (accounting.settings.read: GET /Organisation for its Timezone, R2 / ADR 0002).
+ * Connections made before this scope was added must reconnect; until then their plans are blocked.
  * [ASSUMPTION] Apps created after Xero's 2026 scope change may need the granular scopes instead
  * (accounting.invoices, accounting.payments, accounting.banktransactions); set XERO_SCOPES to override.
  */
-export const DEFAULT_SCOPES = "openid profile email offline_access accounting.transactions accounting.contacts.read";
+export const DEFAULT_SCOPES = "openid profile email offline_access accounting.transactions accounting.contacts.read accounting.settings.read";
 
 export interface XeroTokens { accessToken: string; refreshToken: string; expiresAt: number; tenantId: string; tenantName: string }
 

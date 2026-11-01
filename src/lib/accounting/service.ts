@@ -9,8 +9,8 @@ import { isDemoMode } from "../mode";
 import { CONFIRMATIONS, OFFICIAL } from "../requests/check";
 import { requestsStore } from "../requests/service";
 import type { RequestToken } from "../requests/types";
-import { approveAndPost, importInvoice, seedDemoBooks } from "./engine";
-import { DEMO_ORG_TIMEZONE, DemoBooksAdapter, emptyDemoBooks } from "./providers/demo";
+import { approveAndPost, importInvoice, noTimeZoneReasonFor, orgTimeZoneFor, refreshOrgTimeZone, seedDemoBooks } from "./engine";
+import { DemoBooksAdapter, emptyDemoBooks } from "./providers/demo";
 import { NetSuiteAdapter } from "./providers/netsuite";
 import { QuickBooksAdapter } from "./providers/quickbooks";
 import { XeroAdapter } from "./providers/xero";
@@ -29,11 +29,12 @@ export function activeProvider(acct: AccountingData): BooksProvider {
 
 /**
  * Plan options for the active accounting system: the confirmation threshold and the organisation's
- * IANA timezone. Demo books use the demo organisation's stated zone. A real system's zone is not read
- * yet (ADR 0002 PR (b)), so its plans are blocked rather than dated in UTC.
+ * IANA timezone (demo: the demo org's stated zone; Xero/QuickBooks: the zone last read from it).
+ * No zone → plans are blocked rather than dated in UTC.
  */
 export function planOptionsFor(acct: AccountingData): PlanOptions {
-  return { threshold: CONFIRMATIONS, orgTimeZone: activeProvider(acct) === "demo" ? DEMO_ORG_TIMEZONE : undefined };
+  const p = activeProvider(acct);
+  return { threshold: CONFIRMATIONS, orgTimeZone: orgTimeZoneFor(acct, p), noTimeZoneReason: noTimeZoneReasonFor(acct, p) };
 }
 
 export async function adapterFor(acct: AccountingData, now: () => string): Promise<BooksAdapter> {
@@ -63,8 +64,12 @@ export async function planFor(requestId: string): Promise<{ plan: PostingPlan; a
   return { plan: planPosting(reqData, acct, requestId, planOptionsFor(acct)), acct };
 }
 
-/** Approve the plan a person saw (by its key) and post it. */
-export async function approvePosting(requestId: string, by: string, expectedKey?: string): Promise<{ error?: string; message?: string }> {
+export const NO_APPROVAL_KEY = "Clearline didn't receive the plan you approved, so nothing was posted. Reload the page and approve again.";
+
+/** Approve the plan a person saw (by its approval key, which covers the posting dates) and post it. */
+export async function approvePosting(requestId: string, by: string, expectedKey: string): Promise<{ error?: string; message?: string }> {
+  // No key → no check that the dates are the ones the person saw: refuse (QA finding, 1b).
+  if (typeof expectedKey !== "string" || !expectedKey.trim()) return { error: NO_APPROVAL_KEY };
   const reqData = await requestsStore().load();
   type R = { error?: string; message?: string };
   return accountingStore().update(async (acct): Promise<[AccountingData | undefined, R]> => {
@@ -77,9 +82,18 @@ export async function approvePosting(requestId: string, by: string, expectedKey?
         invoiceNumber: acct.links[requestId]?.invoiceNumber, reason: `Not posted: ${error}`, demo: false };
       return [{ ...acct, audit: [...acct.audit, entry] }, { error }];
     }
-    const res = await approveAndPost(reqData, acct, requestId, { ...planOptionsFor(acct), by, now, adapter, expectedKey });
-    if (res.error && res.acct === acct) return [undefined, { error: res.error }];
-    return [res.acct, res.error ? { error: res.error } : { message: `Posted ${res.plan.lines.length} line(s) to ${adapter.provider === "demo" ? "the demo books" : adapter.provider}.` }];
+    // Already in the books → say so, whatever the timezone read would say (nothing new would post anyway).
+    const alreadyPosted = planPosting(reqData, acct, requestId, planOptionsFor(acct)).status === "posted";
+    const z: Awaited<ReturnType<typeof refreshOrgTimeZone>> = alreadyPosted ? { acct } : await refreshOrgTimeZone(acct, adapter, now);
+    if (z.error) {
+      const entry = { id: `AUD-${randomBytes(5).toString("hex")}`, at: now, kind: "refused" as const, by, provider: adapter.provider, requestId,
+        invoiceNumber: acct.links[requestId]?.invoiceNumber, reason: `Not posted: ${z.error}`, ...(z.detail ? { detail: z.detail } : {}), demo: false };
+      return [{ ...z.acct, audit: [...z.acct.audit, entry] }, { error: z.error }];
+    }
+    const res = await approveAndPost(reqData, z.acct, requestId, { ...planOptionsFor(z.acct), by, now, adapter, expectedKey });
+    const error = res.error && z.changed ? `${z.changed} ${res.error}` : res.error;
+    if (error && res.acct === acct) return [undefined, { error }];
+    return [res.acct, error ? { error } : { message: `Posted ${res.plan.lines.length} line(s) to ${adapter.provider === "demo" ? "the demo books" : adapter.provider}.` }];
   });
 }
 

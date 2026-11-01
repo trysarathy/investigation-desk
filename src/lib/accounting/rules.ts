@@ -71,11 +71,19 @@ export function idempotencyKeyFor(requestId: string, lines: PostingLine[]): stri
   return `clearline-${createHash("sha256").update(`${requestId};${canon}`).digest("hex").slice(0, 32)}`;
 }
 
+/** The key a person approves: the plan's idempotency key and every line's date (see PostingPlan.approvalKey). */
+export function approvalKeyFor(requestId: string, lines: PostingLine[]): string {
+  const dates = lines.map((l) => l.date).join(",");
+  return `approve-${createHash("sha256").update(`${idempotencyKeyFor(requestId, lines)};${dates}`).digest("hex").slice(0, 32)}`;
+}
+
 export interface PlanOptions {
   threshold: number;
   price?: PriceSource;
   /** The accounting organisation's IANA timezone (e.g. "Asia/Singapore"). Missing or invalid → the plan is blocked. */
   orgTimeZone?: string;
+  /** Why the zone is missing, in plain English (not read yet, not recognised…). Defaults to NO_TIMEZONE_REASON. */
+  noTimeZoneReason?: string;
 }
 
 export const NO_TIMEZONE_REASON = "Clearline doesn't know your organisation's timezone, so it won't guess the posting date. Post this one by hand.";
@@ -83,7 +91,7 @@ export const NO_TIMEZONE_REASON = "Clearline doesn't know your organisation's ti
 /** Apply the posting rules to one request. */
 export function planPosting(data: RequestsData, acct: AccountingData, requestId: string, o: PlanOptions): PostingPlan {
   const plan = (status: PostingPlan["status"], reasons: string[], lines: PostingLine[] = [], leavesOpen = false): PostingPlan =>
-    ({ requestId, status, reasons, lines, leavesOpen, idempotencyKey: idempotencyKeyFor(requestId, lines) });
+    ({ requestId, status, reasons, lines, leavesOpen, idempotencyKey: idempotencyKeyFor(requestId, lines), approvalKey: approvalKeyFor(requestId, lines) });
 
   const r = data.requests[requestId];
   if (!r) return plan("blocked", ["No such request."]);
@@ -129,7 +137,7 @@ export function planPosting(data: RequestsData, acct: AccountingData, requestId:
   // the books keeps reading "posted", never "post by hand" (which would invite posting it twice).
   const zone = o.orgTimeZone;
   const undated = confirmed.find((x) => !x.blockTime);
-  const dateProblem = !isIanaZone(zone) ? NO_TIMEZONE_REASON
+  const dateProblem = !isIanaZone(zone) ? (o.noTimeZoneReason ?? NO_TIMEZONE_REASON)
     : undated ? `Clearline doesn't know the block time of ${shortHash(undated.hash)}, so it won't guess the posting date. Post this one by hand.`
     : undefined;
   const day = (x: Observation) => (dateProblem ? "" : localDate(x.blockTime!, zone!));

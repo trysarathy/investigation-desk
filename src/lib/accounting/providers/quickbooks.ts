@@ -10,7 +10,8 @@
 // [ASSUMPTION] Built against the documented API shapes; not yet run against a sandbox company.
 
 import { PartialPostError } from "../types";
-import type { BooksAdapter, BooksInvoice, InvoiceLink, PostedLine, PostingLine } from "../types";
+import { anyZoneToIana } from "../timezone";
+import type { BooksAdapter, BooksInvoice, InvoiceLink, OrgTimeZone, PostedLine, PostingLine } from "../types";
 import type { Fetch } from "./xero";
 
 export const qboBase = (realmId: string, env = process.env.QBO_ENV ?? "sandbox") =>
@@ -52,6 +53,13 @@ export class QuickBooksAdapter implements BooksAdapter {
     const res = await this.fetchFn(url, { method, headers: { Authorization: `Bearer ${await this.creds.accessToken()}`, Accept: "application/json", ...(body ? { "Content-Type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });
     if (!res.ok) throw new Error(`QuickBooks ${method} ${path} failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
     return (await res.json()) as Record<string, unknown>;
+  }
+
+  /** GET /companyinfo/<realmId> → `CompanyInfo.DefaultTimeZone` (format not documented: IANA or Windows name accepted). */
+  async readOrgTimeZone(now: string): Promise<OrgTimeZone> {
+    const res = await this.call("GET", `/companyinfo/${encodeURIComponent(this.creds.realmId)}`);
+    const source = String((res.CompanyInfo as Record<string, unknown> | undefined)?.DefaultTimeZone ?? "");
+    return { provider: "quickbooks", source, ianaTimeZone: anyZoneToIana(source), readAt: now };
   }
 
   async listOpenInvoices(): Promise<BooksInvoice[]> {

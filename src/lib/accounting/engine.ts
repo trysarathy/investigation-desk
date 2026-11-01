@@ -7,13 +7,67 @@ import { createRequest, deriveRequest } from "../requests/lifecycle";
 import type { RequestsData, RequestToken } from "../requests/types";
 import { addDemoInvoice, DEMO_ORG_TIMEZONE, DemoBooksAdapter, emptyDemoBooks } from "./providers/demo";
 import { planPosting, type PlanOptions } from "./rules";
-import { PartialPostError, type AccountingData, type AuditEntry, type BooksAdapter, type BooksInvoice, type InvoiceLink, type PostingPlan } from "./types";
+import { PartialPostError, PROVIDER_LABEL, type AccountingData, type AuditEntry, type BooksAdapter, type BooksInvoice, type BooksProvider, type InvoiceLink, type OrgTimeZone, type PostingPlan } from "./types";
 
 const auditId = (seed: string) => `AUD-${createHash("sha256").update(seed).digest("hex").slice(0, 10)}`;
 
 function appendAudit(acct: AccountingData, e: Omit<AuditEntry, "id">): AccountingData {
   const entry: AuditEntry = { id: auditId(`${acct.audit.length}:${e.at}:${e.kind}:${e.requestId ?? ""}:${e.idempotencyKey ?? ""}`), ...e };
   return { ...acct, audit: [...acct.audit, entry] };
+}
+
+/** The IANA zone postings are dated in: the demo org's stated zone, or the zone last read from the connected system. */
+export function orgTimeZoneFor(acct: AccountingData, provider: BooksProvider): string | undefined {
+  if (provider === "demo") return DEMO_ORG_TIMEZONE;
+  return acct.orgTimeZone?.provider === provider ? acct.orgTimeZone.ianaTimeZone : undefined;
+}
+
+/** Why a real system's plan has no zone, in plain English, for the plan's reason. Undefined when there is a zone. */
+export function noTimeZoneReasonFor(acct: AccountingData, provider: BooksProvider): string | undefined {
+  if (provider === "demo" || orgTimeZoneFor(acct, provider)) return undefined;
+  const label = PROVIDER_LABEL[provider];
+  const tz = acct.orgTimeZone?.provider === provider ? acct.orgTimeZone : undefined;
+  if (tz?.source) return `Your organisation's timezone in ${label} isn't one Clearline recognises yet, so it won't guess the posting date. Post this one by hand.`;
+  return `Clearline hasn't been able to read your organisation's timezone from ${label}, so it won't guess the posting date. Reconnect ${label} (Clearline needs permission to read organisation settings) or post this one by hand.`;
+}
+
+const readFailed = (label: string) =>
+  `Clearline couldn't read your organisation's timezone from ${label}, so it won't guess the posting date. Reconnect ${label} (Clearline needs permission to read organisation settings) or post this one by hand.`;
+
+/**
+ * Re-read the organisation's timezone just before posting (R2), and keep what was read. If it can't be
+ * read, `error` (plain English; the system's own message is in `detail`, for the audit row) and nothing
+ * may post. A changed zone is not refused here: the approval is bound to the dates the person saw
+ * (PostingPlan.approvalKey), so a plan whose dates moved is refused by approveAndPost; `changed` says why.
+ */
+export async function refreshOrgTimeZone(acct: AccountingData, adapter: BooksAdapter, now: string):
+  Promise<{ acct: AccountingData; error?: string; detail?: string; changed?: string }> {
+  if (adapter.provider === "demo" || !adapter.readOrgTimeZone) return { acct };
+  const label = PROVIDER_LABEL[adapter.provider];
+  let tz: OrgTimeZone;
+  try { tz = await adapter.readOrgTimeZone(now); } catch (e) {
+    return { acct, error: readFailed(label), detail: e instanceof Error ? e.message : String(e) };
+  }
+  const before = orgTimeZoneFor(acct, adapter.provider);
+  const next: AccountingData = { ...acct, orgTimeZone: tz };
+  if (tz.ianaTimeZone === before) return { acct: next };
+  return { acct: next, changed: `Your organisation's timezone in ${label} has changed${tz.ianaTimeZone ? ` (now ${tz.ianaTimeZone})` : " to one Clearline doesn't recognise"}.` };
+}
+
+/**
+ * On connecting an accounting system: read its timezone and record the connection. The zone is replaced,
+ * never kept from an earlier connection: unreadable or unknown → none, so plans are blocked, never UTC.
+ */
+export async function connectOrgTimeZone(acct: AccountingData, adapter: BooksAdapter, o: { orgName: string; at: string; by: string }): Promise<AccountingData> {
+  const label = PROVIDER_LABEL[adapter.provider];
+  let tz: OrgTimeZone | undefined;
+  let detail = "";
+  try { tz = await adapter.readOrgTimeZone?.(o.at); } catch (e) { detail = e instanceof Error ? e.message : String(e); }
+  const zone = tz?.ianaTimeZone ? `timezone ${tz.ianaTimeZone} (${label}: ${tz.source})`
+    : tz ? `timezone "${tz.source || "not set"}" not recognised: nothing will post until it is`
+    : `timezone couldn't be read: nothing will post until it is`;
+  return appendAudit({ ...acct, provider: adapter.provider, orgTimeZone: tz },
+    { at: o.at, kind: "connected", by: o.by, provider: adapter.provider, reason: `Connected to the ${label} organisation "${o.orgName}", ${zone}.`, ...(detail ? { detail } : {}), demo: false });
 }
 
 export interface PostResult { acct: AccountingData; plan: PostingPlan; error?: string; posted?: AuditEntry }
@@ -35,8 +89,9 @@ export async function approveAndPost(
     const why = plan.status === "posted" ? "Already in the books: nothing new to post." : plan.reasons.join(" ");
     return { acct: appendAudit(acct, { ...base, kind: "refused", reason: `Not posted (${plan.status.replace("_", " ")}): ${why}` }), plan, error: why };
   }
-  if (o.expectedKey && o.expectedKey !== plan.idempotencyKey) {
-    // What the person approved isn't what would post now (a transfer arrived, a decision changed): show them again.
+  if (o.expectedKey !== undefined && o.expectedKey !== plan.approvalKey) {
+    // What the person approved isn't what would post now (a transfer arrived, a decision changed, a posting
+    // date moved because the organisation's timezone changed): show them again.
     const error = "The plan changed since you looked at it. Check the new lines and approve again.";
     return { acct: appendAudit(acct, { ...base, kind: "refused", reason: `Not posted: ${error}`, idempotencyKey: plan.idempotencyKey }), plan, error };
   }

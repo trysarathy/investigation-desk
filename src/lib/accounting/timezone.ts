@@ -16,10 +16,24 @@ export function isIanaZone(zone: string | undefined): zone is string {
   }
 }
 
-/** Xero `Organisation.Timezone` (Windows-style, e.g. SINGAPORESTANDARDTIME) → IANA, or undefined if unknown. */
+/**
+ * A Windows-style zone name → IANA, or undefined if unknown. Accepts Xero's form (SINGAPORESTANDARDTIME)
+ * and Windows' own ("Singapore Standard Time"): both normalise to the table's keys.
+ */
 export function windowsToIana(name: string | undefined): string | undefined {
   if (!name) return undefined;
-  return Object.prototype.hasOwnProperty.call(WINDOWS_TO_IANA, name) ? WINDOWS_TO_IANA[name] : undefined;
+  const key = name.replace(/[\s.-]/g, "").toUpperCase();
+  return Object.prototype.hasOwnProperty.call(WINDOWS_TO_IANA, key) ? WINDOWS_TO_IANA[key] : undefined;
+}
+
+/**
+ * A zone as an accounting system may write it: a full Area/City IANA name, or a Windows name. Unknown →
+ * undefined. Legacy abbreviations that Node still accepts are refused: "EST" is a fixed UTC−5 with no
+ * daylight saving (America/Panama), so a New York company would post summer receipts on the wrong day.
+ */
+export function anyZoneToIana(name: string | undefined): string | undefined {
+  const areaCity = !!name && /^(Africa|America|Antarctica|Arctic|Asia|Atlantic|Australia|Europe|Indian|Pacific)\/[A-Za-z0-9_+\-/]+$/.test(name);
+  return areaCity && isIanaZone(name) ? name : windowsToIana(name);
 }
 
 /** The calendar date (YYYY-MM-DD) of an instant in an IANA zone. */

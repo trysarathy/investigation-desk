@@ -80,6 +80,12 @@ export interface PostingPlan {
   leavesOpen: boolean;
   /** Deterministic key for this exact plan: a retry with the same key never posts twice. */
   idempotencyKey: string;
+  /**
+   * What a person approves: the idempotency key plus every line's posting date. The idempotency key
+   * leaves dates out (so a retry after a zone change can't post twice), so an approval is bound to the
+   * dates the person saw by this key instead (R2, ADR 0002).
+   */
+  approvalKey: string;
 }
 
 /** One line as the accounting system recorded it. */
@@ -102,6 +108,8 @@ export interface AuditEntry {
   invoiceNumber?: string;
   /** Why: the rule that applied, or the error the accounting system returned. */
   reason: string;
+  /** The accounting system's own error text, for support. Stored with the entry, never shown on /books. */
+  detail?: string;
   idempotencyKey?: string;
   lines?: PostedLine[];
   /** For a failure: the lines that were planned. */
@@ -166,6 +174,18 @@ export interface AccountingData {
   /** Append-only. */
   audit: AuditEntry[];
   demoBooks?: DemoBooks;
+  /** The connected organisation's timezone as last read from the accounting system (R2, ADR 0002). */
+  orgTimeZone?: OrgTimeZone;
+}
+
+/** What the accounting system says its timezone is, and the IANA zone Clearline dates postings in. */
+export interface OrgTimeZone {
+  provider: BooksProvider;
+  /** As the system wrote it (Xero `Organisation.Timezone`, QuickBooks `CompanyInfo.DefaultTimeZone`); "" if absent. */
+  source: string;
+  /** Undefined when the value is missing or unknown: plans are then blocked, never dated in UTC. */
+  ianaTimeZone?: string;
+  readAt: string;
 }
 
 export const emptyAccounting = (): AccountingData => ({ version: 1, provider: "demo", accounts: { ...DEFAULT_ACCOUNTS }, links: {}, audit: [] });
@@ -195,4 +215,6 @@ export interface BooksAdapter {
   listOpenInvoices(): Promise<BooksInvoice[]>;
   /** Post approved lines against one invoice. Must be safe to retry with the same idempotency key. */
   post(link: InvoiceLink, lines: PostingLine[], idempotencyKey: string): Promise<PostedLine[]>;
+  /** Read the organisation's timezone (real systems only). Throws if it can't be read. */
+  readOrgTimeZone?(now: string): Promise<OrgTimeZone>;
 }
