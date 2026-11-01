@@ -195,16 +195,16 @@ foot(s, "¹ Singapore EDB, “Singapore: the onchain state” (edb.gov.sg). Pric
 
 # ================================================================ 8. Traction (old 12)
 s = new("""
-SAY: Honestly: a working product, no customers yet. The demo runs seven payment situations end to end, and the investigation side gave the correct verdict on 52 of 52 new real transactions. My three early calls were with custodian and compliance-software teams about an earlier idea, and they said reconciliation wasn't really an issue for them. So the next step is ten conversations with actual buyers, and one question decides the direction: mostly direct means selling to finance teams; mostly checkout means becoming a plug-in for gateways.
+SAY: Honestly: a working product, no customers yet. The demo runs seven payment situations end to end. The checking engine is tested on recorded real public transfers; how accurately it matches payments to invoices hasn't been measured yet, and we'll measure it on 20 replayed real transfers. My three early calls were with custodian and compliance-software teams about an earlier idea, and they said reconciliation wasn't really an issue for them. So the next step is ten conversations with actual buyers, and one question decides the direction: mostly direct means selling to finance teams; mostly checkout means becoming a plug-in for gateways.
 SOURCES / LABELS:
 - 7 payment situations [VERIFIED]: demo/REQUESTS_DEMO.md.
-- Correct verdicts [VERIFIED]: 43/59 before fixes, 59/59 after, 52/52 on held-out cases collected afterwards (deposit-investigation part; 6 networks + Bitcoin IDs). Source: demo/REPORT.md, 24–25 Oct 2026. Explanations and payment matching NOT tested on real data; company records were sample data.
+- Real-data testing [VERIFIED: matching-engine-engineer 2026-11-01, docs/MATCHING_EVALS.md]: the checking engine is tested on recorded real public transfers. Invoice-matching accuracy NOT measured yet; it will be measured on 20 replayed real transfers. Explanations NOT tested on real data. Do not quote the earlier held-out test figure: it measured deposit diagnosis, not invoice matching.
 - 3 early calls [VERIFIED from the founder's notes; names withheld]: custodian and compliance-software teams, 16 Oct 2026, about an earlier idea.
 - 0 customers, 0 paid pilots [VERIFIED].
-FROM OLD SLIDE 12 (moved here): full labels "payment situations run end to end in the demo", "new real transactions given the correct verdict", "early calls, all with vendor teams", "customers or paid pilots"; "Next: 10 finance teams that receive stablecoins, one question"; the decision rule "Mostly directly → sell to finance teams. Mostly checkout → become a plug-in for gateways."
+FROM OLD SLIDE 12 (moved here): full labels "payment situations run end to end in the demo", "invoice-matching accuracy measured on real data" (shown as "Not yet"), "early calls, all with vendor teams", "customers or paid pilots"; "Next: 10 finance teams that receive stablecoins, one question"; the decision rule "Mostly directly → sell to finance teams. Mostly checkout → become a plug-in for gateways."
 """)
 title(s, "A working product, no customers yet")
-stats = [("7", "situations in\nthe demo"), ("52 / 52", "real transactions\ncorrect¹"), ("3", "vendor calls²"), ("0", "customers")]
+stats = [("7", "situations in\nthe demo"), ("Not yet", "matching accuracy\nmeasured¹"), ("3", "vendor calls²"), ("0", "customers")]
 cw = (W - 2 * M - 3 * 0.3) / 4
 for k, (big, small) in enumerate(stats):
     x = M + k * (cw + 0.3)
@@ -213,7 +213,7 @@ for k, (big, small) in enumerate(stats):
 box(s, M, 4.05, W - 2 * M, 1.95, line=ACC)
 text(s, M + 0.4, 4.3, W - 2 * M - 0.8, 0.5, "Next: 10 finance-team interviews", size=20, color=MUTED)
 text(s, M + 0.4, 4.9, W - 2 * M - 0.8, 0.8, "“Do customers pay through a checkout page, or send directly?”", size=28, bold=True)
-foot(s, "¹ demo/REPORT.md: held-out cases (59/59 on tuning cases); explanations and matching not yet tested on real data. ² Custodian and compliance-software teams, 16 Oct 2026, on an earlier idea.", key=False)
+foot(s, "¹ The checking engine is tested on recorded real public transfers; invoice-matching accuracy will be measured on 20 replayed real transfers (not yet measured). ² Custodian and compliance-software teams, 16 Oct 2026, on an earlier idea.", key=False)
 
 # ================================================================ 9. Team (old 13)
 s = new("""

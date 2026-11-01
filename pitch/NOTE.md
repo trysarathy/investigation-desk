@@ -7,9 +7,9 @@
    - HitPay + Triple-A (*offered to* 20,000+ merchants);
    - the EDB's 300+ Web3 companies and the 37 MAS-licensed providers;
    - the wallet warnings;
-   - your test report (52/52 held out).
+   - your test report (deposit diagnosis on real transfers; the deck no longer quotes its held-out figure because it is not an invoice-matching number).
 
-   An independent reviewer re-checked these and found 26 problems. I fixed 24; for example, "111/111" became "52/52", and matching and explanations are now marked untested on real data. Two remain: the GENIUS Act date and the MetaMask feature still cite secondary sources (eco.com and KuCoin News). Both facts check out, but cite the official pages if you can.
+   An independent reviewer re-checked these and found 26 problems. I fixed 24; for example, "111/111" was removed (on 1 Nov 2026 the held-out figure that replaced it was removed too: it measured deposit diagnosis, not invoice matching), and matching accuracy and explanations are now marked not yet measured on real data. Two remain: the GENIUS Act date and the MetaMask feature still cite secondary sources (eco.com and KuCoin News). Both facts check out, but cite the official pages if you can.
 2. **Assumptions and guesses, labelled on the slides:**
    - "hours" per exception;
    - that business customers pay directly;
