@@ -162,7 +162,8 @@ export function nextAction(v: RequestView, data?: RequestsData): NextAction {
       const sug = data && suggestedForRequest(data, r);
       if (sug) return { title: "Confirm the suggested match", detail: `Open the unidentified payment, check the evidence and confirm it pays ${r.invoiceRef}.`, owner: ops };
       return v.review === "short"
-        ? { title: `Wait for the remaining ${amt(v.outstanding, t)}`, detail: "The customer was asked for the balance. It's marked paid when the rest arrives, or you can accept the short payment.", owner: ops }
+        ? { title: `Wait for the remaining ${amt(v.outstanding, t)}`, detail: r.autoMarkPaid ? "The customer was asked for the balance. In the demo it's marked paid automatically when the rest arrives, or you can accept the short payment."
+          : "The customer was asked for the balance. When the rest arrives it's checked: ready for you to mark it paid. Or accept the short payment.", owner: ops }
         : { title: "Nothing to do: waiting for the customer", detail: r.autoMarkPaid ? "When an exact payment arrives it's matched and marked paid automatically." : "Share the payment link if they haven't got it.", owner: "Customer" };
     }
     case "transfer_detected":
@@ -233,7 +234,7 @@ export function replyDraft(v: RequestView, data: RequestsData, o: { business: st
         if (v.review === "short") {
           const cause = shortfallCause(data, v);
           const fees = cause && /Fees/.test(cause.cause) ? " This often happens when the sending exchange or wallet deducts a withdrawal fee from the amount sent." : "";
-          return `Thank you for your payment for ${r.invoiceRef}. We received ${amt(v.received, t)} of the ${amt(r.amount, t)} due${ref}, so ${amt(v.outstanding, t)} is still outstanding.${fees}\n\nCould you send the remaining ${amt(v.outstanding, t)}? Please use ${t} on Ethereum, to the same address as before. Once it arrives, the invoice is marked paid automatically.${link}`;
+          return `Thank you for your payment for ${r.invoiceRef}. We received ${amt(v.received, t)} of the ${amt(r.amount, t)} due${ref}, so ${amt(v.outstanding, t)} is still outstanding.${fees}\n\nCould you send the remaining ${amt(v.outstanding, t)}? Please use ${t} on Ethereum, to the same address as before. Once it arrives, ${r.autoMarkPaid ? "the invoice is marked paid automatically" : "we'll confirm it and mark the invoice paid"}.${link}`;
         }
         if (v.review === "over") {
           const extra = sub(v.received, r.amount);

@@ -4,6 +4,7 @@ import { LoadDemoButton, PlayPayment, ReloadDemo } from "@/components/requests/D
 import { DemoBadge, TonePill } from "@/components/requests/StatePill";
 import { isDemoMode } from "@/lib/mode";
 import { formatUsdc } from "@/lib/requests/lifecycle";
+import { glanceCopy } from "@/lib/requests/copy";
 import { verdict } from "@/lib/requests/present";
 import { loadRequests } from "@/lib/requests/service";
 import { formatMinutes, glance, MINUTES_PER_AUTO_MATCH, MINUTES_PER_EXCEPTION } from "@/lib/requests/ui";
@@ -20,6 +21,7 @@ export default async function AtAGlance() {
   const fern = views.find((v) => v.request.id === "DEMO-1046" && v.request.demo);
   const fernTone = fern ? verdict(data, fern) : undefined;
   const hasDemo = views.some((v) => v.request.demo);
+  const copy = glanceCopy(demoMode, g);
 
   return (
     <div className="page glance">
@@ -29,10 +31,10 @@ export default async function AtAGlance() {
           <h1>Get paid in stablecoins without the mess.</h1>
           {hasDemo && <DemoBadge />}
         </div>
-        <p className="hero-sub">Every request tells the sender exactly what to send, where and on which network. Every payment is matched, checked and explained for you.</p>
+        <p className="hero-sub">{copy.heroSub}</p>
         {hasDemo && (
           <ul className="outcomes" aria-label="Outcomes">
-            <li><strong>{g.paidAuto} of {g.arrived} payments</strong><span>that arrived this week were matched and marked paid with no one touching them</span></li>
+            <li><strong>{g.paidAuto} of {g.arrived} payments</strong><span>that arrived this week were matched and marked paid with no one touching them <em>(demo data)</em></span></li>
             <li><strong>Minutes, not hours</strong><span>per exception: the evidence, the likely cause and the customer reply are ready when you open it <em>(demo estimate)</em></span></li>
             <li><strong>Before it&apos;s sent</strong><span>the payment page catches look-alike scam addresses while the customer can still stop</span></li>
           </ul>
@@ -50,14 +52,14 @@ export default async function AtAGlance() {
         </section>
       ) : (
         <>
-          <section className="kpis" aria-label="This week">
+          <section className={copy.showTimeSaved ? "kpis" : "kpis kpis-4"} aria-label="This week">
             <div className="kpi"><span className="k">Requests sent</span><span className="v">{g.sent}</span><span className="s">this week</span></div>
-            <div className="kpi kpi-paid"><span className="k">Paid automatically</span><span className="v">{g.paidAuto}</span><span className="s">of {g.arrived} payments that arrived</span></div>
+            <div className="kpi kpi-paid"><span className="k">{copy.paidTile.label}</span><span className="v">{copy.paidTile.value}</span><span className="s">{copy.paidTile.sub}</span></div>
             <div className="kpi kpi-attention"><span className="k">Need attention</span><span className="v">{g.attention.length}</span><span className="s">listed below, most urgent first</span></div>
             <div className="kpi"><span className="k">Received this week</span><span className="v v-sm">{g.received.map((x) => <span key={x}>{x}</span>)}</span>
               <span className="s">of {g.requested.join(" + ")} requested{g.toRefund !== "0" ? ` · incl. ${formatUsdc(g.toRefund)} USDC to refund` : ""}</span></div>
-            <div className="kpi kpi-estimate"><span className="k">Time saved · demo estimate</span><span className="v">~{formatMinutes(g.minutesSaved)}</span>
-              <span className="s">{g.paidAuto} auto-matched × {MINUTES_PER_AUTO_MATCH} min + {g.attention.length} explained × {MINUTES_PER_EXCEPTION} min</span></div>
+            {copy.showTimeSaved && <div className="kpi kpi-estimate"><span className="k">Time saved · demo estimate</span><span className="v">~{formatMinutes(g.minutesSaved)}</span>
+              <span className="s">{g.paidAuto} auto-matched × {MINUTES_PER_AUTO_MATCH} min + {g.attention.length} explained × {MINUTES_PER_EXCEPTION} min</span></div>}
           </section>
 
           {acme && acmeTone && (

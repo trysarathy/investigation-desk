@@ -158,7 +158,7 @@ export default async function RequestDetail({ params, searchParams }: { params: 
             <h2>{next.title}</h2>
             <div className="muted">{next.detail}</div>
             {ordered.length > 0 && (
-              <DecisionPanel requestId={r.id} allowed={ordered} blockedLabel={blockedPaid ? `Mark paid · blocked: ${vd.title.replace(/^This /, "this ").replace(/^this isn't/, "not")}` : undefined}
+              <DecisionPanel requestId={r.id} allowed={ordered} autoMarkPaid={!!r.autoMarkPaid} blockedLabel={blockedPaid ? `Mark paid · blocked: ${vd.title.replace(/^This /, "this ").replace(/^this isn't/, "not")}` : undefined}
                 flagged={v.flagged.map((f) => ({ key: f.obs.key, label: label(f.obs) }))}
                 ambiguous={v.ambiguous.map((o) => ({ key: o.key, label: label(o) }))} />
             )}
