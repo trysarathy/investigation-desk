@@ -23,8 +23,10 @@ apply via PRs once Aashmiin approves.
 Honest already, no change needed (checked): `docs/enterprise/SECURITY_OVERVIEW.md` ("no SOC 2
 report"), `SECURITY_QUESTIONNAIRE.md` A3 ("Not yet"), `ENTERPRISE_ONE_PAGER.md:49` ("no SOC 2, no
 penetration test"), `DATA_PROCESSING_TERMS_TEMPLATE.md:52`, `whitepaper/Clearline_Whitepaper.md:150`,
-`pitch/TALK_TRACK_5MIN.md:14` ("zero customers"), "Paid in seconds" (labelled general knowledge),
-`website/src/components/Sections.tsx:68` ("52 of 52… in our own test", scoped correctly).
+`pitch/TALK_TRACK_5MIN.md:14` ("zero customers"), "Paid in seconds" (labelled general knowledge).
+**Superseded 1 Nov 2026:** `website/src/components/Sections.tsx:68` ("52 of 52… in our own test") was listed
+here as scoped correctly. Aashmiin ruled it must go: it measured deposit diagnosis, not invoice matching. It is
+being removed from the website, deck, whitepaper and enterprise pack (branches `copy/no-52-*`).
 `docs/enterprise/PILOT_PROPOSAL_TEMPLATE.md:28` "[100%]" is a target placeholder: keep it bracketed.
 
 ### Status, 31 Oct 2026: Aashmiin decided; every row above now has an open PR (none merged)
@@ -48,7 +50,7 @@ risks above, so the rewrites are kept here as the approved way to say each thing
 |---|---|---|---|
 | 1 | "Posts every stablecoin payment to Xero automatically, so your team never touches it." | Posting happens only after a person approves; Xero is in testing (company rule 2 bans this phrase) | "Clearline prepares the Xero entry; it posts only after your approver clicks approve. Xero is in testing on the Demo Company." |
 | 2 | "We integrate with Xero, QuickBooks and NetSuite today." | QuickBooks not yet run on a sandbox; NetSuite designed, not built | "Xero first, QuickBooks next. NetSuite is designed, not built, and I won't give you a date." |
-| 3 | "Tested on 111 real transactions… every one right, so you'll get zero false alarms." | 111 mixes the tuned set with the held-out set; it tested deposit diagnosis, not invoice matching; "zero for you" is extrapolation | "On 52 real transfers we collected after the last fix, the check was right on all 52. It's a small set and ours, not yours; I'd like to measure it on a month of your payments." |
+| 3 | "Tested on 111 real transactions… every one right, so you'll get zero false alarms." | 111 mixes the tuned set with the held-out set; it tested deposit diagnosis, not invoice matching; "zero for you" is extrapolation | "The checking engine is tested on recorded real public transfers; we haven't measured invoice-matching accuracy yet. We'll measure it on 20 replayed real transfers, and I'd like to measure it on a month of your payments." *(1 Nov 2026: the earlier "all 52" line is withdrawn; it measured deposit diagnosis, not matching.)* |
 | 4 | "Our users save about 20 minutes on every exception." | 0 users; 20 min is an unmeasured demo estimate | "We haven't measured time saved yet. How long did your last wrong payment take, start to finish?" |
 | 5 | "Enterprise-grade; SOC 2 is in progress." | No SOC 2 engagement exists; no SSO, no pen test | "We're pre-SOC 2: read-only, no custody, no keys, and nothing posts without your approval. Happy to fill in your security questionnaire; SOC 2 comes once paying customers need it." |
 | 6 | "Teams like yours tell us this is the biggest headache in their close." | Invented social proof: 0 buyer interviews | Don't claim it. Ask: "When did a payment last arrive wrong, and what did it cost your team?" |

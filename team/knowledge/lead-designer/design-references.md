@@ -83,8 +83,8 @@ Everything here is [ASSUMPTION: not opened, hosts blocked 31 Oct] and must not b
 ### Teardown 4 (NOT opened): Mercury and Ramp marketing pages
 https://mercury.com, https://ramp.com: [ASSUMPTION: not opened, blocked]. Pattern to verify later:
 fintech pages lead with a concrete money claim and social proof. Our version: the concrete claim is
-what the product does today, the proof is the demo film and the "52 of 52" own-test line with its
-caveat (`Sections.tsx:66-71`), never logos or invented numbers.
+what the product does today, the proof is the demo film and the real-data testing line with no accuracy
+figure (`Sections.tsx:66-71`), never logos or invented numbers. Never cite "52 of 52" (or 52/52): it measured deposit diagnosis, not invoice matching, and is not a matching or accuracy claim.
 
 ## 3. How great product designers work (our synthesis; each point traceable above)
 

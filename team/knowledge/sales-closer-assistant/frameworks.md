@@ -101,8 +101,8 @@ blocked; GitLab says the detail is behind its internal handbook for IP reasons].
   roadmap** from `clearline-truth.md`. A capability that is roadmap is written as roadmap.
 - **After / PBO** (their words): what good looks like.
 - **Metrics**: their baseline numbers or Unknown.
-- **Proof points we may use**: only those in `clearline-truth.md` §4 (e.g. 52/52 held-out real transfers on
-  the earlier engine, with the caveat). No customer proof points exist: 0 customers.
+- **Proof points we may use**: only those in `clearline-truth.md` §4 (e.g. "the checking engine is tested on
+  recorded real public transfers; invoice matching accuracy is not yet measured"); never cite "52 of 52" (or 52/52): it measured deposit diagnosis, not invoice matching, and is not a matching or accuracy claim. No customer proof points exist: 0 customers.
 
 ## 5. Gap Selling (current state → future state)
 

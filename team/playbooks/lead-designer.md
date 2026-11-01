@@ -16,8 +16,8 @@ Every playbook ends with a Log row: `<SGT timestamp> | lead-designer | <action> 
   number you didn't measure this run. Ratios you computed this run: `[VERIFIED: measured <date>, <script>]`.
 - **A token change is checked on every surface it touches** (light, dark, tinted boxes, cards, the
   website and the product), with the ratio for each, before you say it "fixes" anything.
-- **Keep full caveats with any statistic** in a design (e.g. "52 of 52 in our own test; matching not yet
-  tested on real data"). Headlines never claim more than the evidence ("The checks work" is too strong).
+- **Keep full caveats with any statistic** in a design (e.g. "invoice matching accuracy: not yet
+  measured"; never cite "52 of 52" (or 52/52): it measured deposit diagnosis, not invoice matching, and is not a matching or accuracy claim). Headlines never claim more than the evidence ("The checks work" is too strong).
 - **Diff hygiene:** correct paths, no build artefacts (`.pyc`, `out/`); PRs go into the feature branch
   the task names, never into `main` by default.
 

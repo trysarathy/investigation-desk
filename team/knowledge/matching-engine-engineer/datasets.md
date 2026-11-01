@@ -51,9 +51,10 @@ matching. `demo/REPORT.md` says so: "The payments matching side and the AI expla
 tested on real data." Never call it "matching accuracy". "111 of 111" adds the tuned set to the held-out
 set and must not be quoted (`team/CLAIMS_REVIEW.md` B3).
 
-Honest wording: "On 52 real transfers collected after the last fix, the deposit check gave the expected
-diagnosis on all 52 (95% Wilson interval 93.1%-100%, one run on 25 Oct, sample company records). Invoice
-matching has no labelled real-data evaluation yet."
+Do not cite it outside this record (Aashmiin, 1 Nov 2026): never as a matching or accuracy claim, and not in
+public or sales material. Internally, describe it only as "deposit diagnosis, held-out, one run on 25 Oct,
+sample company records". Outward wording, no figure: "The checking engine is tested on recorded real public
+transfers; invoice matching accuracy will be measured on 20 replayed real transfers (not yet measured)."
 
 ## Test run on 2026-11-01 (main 0c7d9f1, my run)
 `npx vitest run`: 21 files, **619 tests: 562 passed, 57 skipped, 0 failed** (the 57 skipped are

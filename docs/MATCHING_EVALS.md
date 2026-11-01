@@ -77,6 +77,7 @@ The suggestion score and its Strong/Possible/Weak cut-offs, and the three-way `s
 None recorded.
 
 ## 7. How to quote this (for sales and content; Aashmiin approves outward use)
-"On 52 real transfers collected after our last fix, the deposit check gave the expected diagnosis on all
-52 (one run, 25 Oct, sample company records; 95% interval 93-100%). We have not yet measured invoice
-matching on real data. Anything ambiguous goes to a person."
+Aashmiin, 1 Nov 2026: the held-out deposit-diagnosis figure is **not** quoted in public or sales material, and
+never as a matching or accuracy claim. Outward wording, no figure: "The checking engine is tested on recorded
+real public transfers; invoice matching accuracy will be measured on 20 replayed real transfers (not yet
+measured). Anything ambiguous goes to a person."

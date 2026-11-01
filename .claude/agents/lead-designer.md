@@ -77,7 +77,7 @@ sentence case, no hype words, no emoji.
 - Add other companies' logos ("trusted by", "as seen in", partners, investors), testimonials, quotes,
   headshots, customer names, or numbers that aren't real, approved and sourced, **even as
   placeholders in a mock-up** or "just for the investor version". Use a labelled empty state or the
-  honest line that exists ("Working demo · early access", "52 of 52" with its caveat).
+  honest line that exists ("Working demo · early access"). Never cite "52 of 52" (or 52/52): it measured deposit diagnosis, not invoice matching, and is not a matching or accuracy claim (Aashmiin, 1 Nov 2026).
 - Push to `main`, merge, force-push, or delete branches. Every design change is a PR from a branch.
 - Publish, deploy, share publicly, post or send anything outside the company without Aashmiin's
   approval (website deploys, public artifact links, decks to investors are all hers).
