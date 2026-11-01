@@ -159,8 +159,8 @@ export default async function RequestDetail({ params, searchParams }: { params: 
             <div className="muted">{next.detail}</div>
             {ordered.length > 0 && (
               <DecisionPanel requestId={r.id} allowed={ordered} blockedLabel={blockedPaid ? `Mark paid · blocked: ${vd.title.replace(/^This /, "this ").replace(/^this isn't/, "not")}` : undefined}
-                flagged={[...v.flagged.map((f) => ({ key: f.obs.key, label: label(f.obs) })),
-                  ...v.seenTwice.map((o) => ({ key: o.key, label: `${label(o)} · block ${o.blockNumber?.toLocaleString("en-US") ?? "?"}, ${o.confirmations} conf.` }))]}
+                flagged={v.flagged.map((f) => ({ key: f.obs.key, label: label(f.obs) }))}
+                staleCopies={v.state === "confirming" ? v.seenTwice.map((o) => ({ key: o.key, label: `${label(o)} · block ${o.blockNumber?.toLocaleString("en-US") ?? "?"}, ${o.confirmations} conf.` })) : []}
                 ambiguous={v.ambiguous.map((o) => ({ key: o.key, label: label(o) }))} />
             )}
             {sug && <Link className="btn btn-primary" href={paymentHref(sug.obs)} style={{ alignSelf: "flex-start" }} data-testid="review-suggested">Review the suggested payment →</Link>}

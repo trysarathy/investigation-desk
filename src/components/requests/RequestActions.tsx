@@ -40,8 +40,10 @@ async function post(id: string, actor: string, action: object): Promise<string |
   return r.ok ? null : r.text ?? "Failed.";
 }
 
-export function DecisionPanel({ requestId, allowed, flagged, ambiguous, suggestedNote, blockedLabel }: {
-  requestId: string; allowed: DecisionKind[]; flagged: TransferOption[]; ambiguous: TransferOption[]; suggestedNote?: string; blockedLabel?: string;
+export function DecisionPanel({ requestId, allowed, flagged, ambiguous, staleCopies = [], suggestedNote, blockedLabel }: {
+  requestId: string; allowed: DecisionKind[]; flagged: TransferOption[]; ambiguous: TransferOption[];
+  /** Earlier copies of a transfer already confirmed in a later block: only dismissable, never counted. */
+  staleCopies?: TransferOption[]; suggestedNote?: string; blockedLabel?: string;
 }) {
   const actor = useActor();
   const router = useRouter();
@@ -51,7 +53,8 @@ export function DecisionPanel({ requestId, allowed, flagged, ambiguous, suggeste
   const [pick, setPick] = useState<string>("");
   const noteRef = useRef<HTMLTextAreaElement>(null);
   if (!allowed.length) return null;
-  const needsTransfer = allowed.some((k) => k === "dismiss_transfer" || k === "count_transfer" || k === "accept_other_network") ? flagged : allowed.includes("assign_transfer") ? ambiguous : [];
+  const needsTransfer = staleCopies.length && allowed.includes("dismiss_transfer") ? staleCopies
+    : allowed.some((k) => k === "dismiss_transfer" || k === "count_transfer" || k === "accept_other_network") ? flagged : allowed.includes("assign_transfer") ? ambiguous : [];
   const chosen = pick || needsTransfer[0]?.key;
   const go = async (kind: DecisionKind) => {
     // Buttons stay full colour (readable on a projector); an empty note is caught here instead.

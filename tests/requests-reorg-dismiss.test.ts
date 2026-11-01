@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { compareDecimal } from "@/lib/decimal";
 import { checkObservation, CONFIRMATIONS, OFFICIAL_USDC } from "@/lib/requests/check";
 import { allowedDecisions, createRequest, decide, deriveRequest, ingest, obsKey } from "@/lib/requests/lifecycle";
+import { nextAction } from "@/lib/requests/present";
 import { emptyRequests, type RequestsData, type TransferEvent } from "@/lib/requests/types";
 
 const CREATED = "2026-10-27T01:00:00.000Z";
@@ -104,6 +105,64 @@ describe("reorg: same payment seen twice while confirming", () => {
     d = put(d, { ...sighting(0x0c, 0x1497e2a, 5, "2026-10-27T02:00:12.000Z"), hash: HASH.replace(/5$/, "6") }, LOOKUP_2);
     expect(view(d).state).toBe("confirming");
     expect(allowedDecisions(view(d), d)).toEqual([]);
+    expect(dismiss(d, GHOST).error).toBeDefined();
+  });
+  // Review findings 1-2 (ab5440b): same chain + hash is not evidence of a reorg. One transaction can carry
+  // several genuine transfers to the request address; and while both copies of a real reorg are still
+  // confirming, nobody can tell which is the stale one.
+  const part = (logIndex: number, amount: string, blockNumber: number, confirmations: number): TransferEvent =>
+    ({ ...sighting(logIndex, blockNumber, confirmations, "2026-10-27T02:00:00.000Z"), amount });
+  const nothingToDismiss = (d: RequestsData, keys: string[]) => {
+    const v = view(d);
+    expect(v.seenTwice).toEqual([]);
+    expect(allowedDecisions(v, d)).not.toContain("dismiss_transfer");
+    for (const k of keys) expect(dismiss(d, k).error).toBeDefined();
+  };
+
+  for (const [a, b] of [["6250.00", "6250.00"], ["10000.00", "2500.00"]]) {
+    it(`one transaction with two real transfers in the same block (${a} + ${b}) is never offered for dismissal, and counts in full`, () => {
+      let d = put(put(fresh(), part(1, a, 100, 4), LOOKUP_1), part(2, b, 100, 4), LOOKUP_1);
+      expect(view(d).state).toBe("confirming");
+      nothingToDismiss(d, [obsKey("ethereum", HASH, 1), obsKey("ethereum", HASH, 2)]);
+      expect(nextAction(view(d), d).title).toBe("Look the transaction up again");
+      // The re-lookup moves both past the threshold: the request is matched at the full amount.
+      d = put(put(d, part(1, a, 100, 20), LOOKUP_2), part(2, b, 100, 20), LOOKUP_2);
+      expect(view(d).state).toBe("matched");
+      expect(compareDecimal(view(d).received, "12500.00")).toBe(0);
+    });
+  }
+
+  it("same block: even when one transfer of the transaction is confirmed and the other isn't, neither can be dismissed", () => {
+    const d = put(put(fresh(), part(1, "6250.00", 100, 20), LOOKUP_1), part(2, "6250.00", 100, 4), LOOKUP_1);
+    nothingToDismiss(d, [obsKey("ethereum", HASH, 1), obsKey("ethereum", HASH, 2)]);
+  });
+
+  it("a confirmed copy in a later block with a different amount is not the same payment: not offered", () => {
+    const d = put(put(fresh(), part(1, "2500.00", 100, 4), LOOKUP_1), part(2, "10000.00", 101, 20), LOOKUP_2);
+    nothingToDismiss(d, [obsKey("ethereum", HASH, 1), obsKey("ethereum", HASH, 2)]);
+  });
+
+  it("a reorg pair with both copies still confirming: no dismissal and the look-up step, until one copy is confirmed", () => {
+    const ghost = obsKey("ethereum", HASH, 0x41), survivor = obsKey("ethereum", HASH, 0x0c);
+    let d = put(fresh(), sighting(0x41, 100, 4, "2026-10-27T02:00:00.000Z"), LOOKUP_1);
+    d = put(d, sighting(0x0c, 101, 5, "2026-10-27T02:00:12.000Z"), LOOKUP_2);
+    expect(view(d).state).toBe("confirming");
+    nothingToDismiss(d, [ghost, survivor]);
+    expect(nextAction(view(d), d).title).toBe("Look the transaction up again");
+    // The re-lookup moves the real copy past the threshold; only now is the stale one offered, and only it.
+    d = put(d, sighting(0x0c, 101, 40, "2026-10-27T02:00:12.000Z"), "2026-10-27T03:00:00.000Z");
+    expect(view(d).seenTwice.map((o) => o.key)).toEqual([ghost]);
+    expect(allowedDecisions(view(d), d)).toEqual(["dismiss_transfer"]);
+    expect(dismiss(d, survivor).error).toBeDefined();
+    const res = dismiss(d, ghost);
+    expect(res.error).toBeUndefined();
+    expect(view(res.data).state).toBe("matched");
+  });
+  it("a stale copy can only be set aside while the request is confirming, not under a flagged review", () => {
+    let d = seenTwice();
+    // A look-alike token transfer to the same address puts the request into flagged review.
+    d = put(d, { ...sighting(0x01, 0x1497e2a, 17, "2026-10-27T02:00:12.000Z"), hash: HASH.replace(/5$/, "7"), tokenContract: "0x000000000000000000000000000000000000dEaD" }, LOOKUP_2);
+    expect(view(d).review).toBe("flagged");
     expect(dismiss(d, GHOST).error).toBeDefined();
   });
 });
