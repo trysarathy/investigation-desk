@@ -11,7 +11,9 @@ anything they need to do.
   approved it again, the lines still to post went to Xero under new reference keys, so Xero couldn't tell it was a
   repeat and could make a second credit note. Now each line (payment, shortfall credit note and its allocation,
   overpayment, history note) keeps one fixed key from the moment it is first planned, and every retry sends that
-  same key. A credit note Xero has made is never made again: a failed allocation is retried against it. Xero only
+  same key. A credit note Xero has made is never made again: a failed allocation is retried against it while the
+  amount is unchanged; if the shortfall has changed since, nothing posts and Clearline asks a person to check that
+  credit note. Xero only
   remembers a key for 6 minutes, so when an attempt ended without a clear answer (a timeout, a Xero server error, a
   reply that couldn't be read) and more time has passed, Clearline first checks the invoice in Xero and records what
   is already there; if it can't tell, nothing posts and the request waits for a person. A history note that failed

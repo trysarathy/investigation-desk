@@ -13,7 +13,7 @@
 import { compareDecimal } from "../../decimal";
 import { add } from "../../payments/money";
 import { isUnknownOutcome, PartialPostError } from "../types";
-import type { BooksAdapter, BooksInvoice, InvoiceLink, PostedLine, PostingLine } from "../types";
+import type { BooksAdapter, BooksInvoice, InvoiceLink, MadeRecord, PostedLine, PostingLine } from "../types";
 
 export const XERO_API = "https://api.xero.com/api.xro/2.0";
 
@@ -110,7 +110,7 @@ export class XeroAdapter implements BooksAdapter {
       return String(id);
     };
     const out: PostedLine[] = [];
-    const made: Record<string, string> = {};
+    const made: Record<string, MadeRecord> = {};
     let key = "";
     try {
       for (const [i, l] of lines.entries()) {
@@ -119,7 +119,7 @@ export class XeroAdapter implements BooksAdapter {
         if (l.kind === "fee_writeoff") {
           // Two calls. Once the credit note exists it is never created again: a failed allocation is retried against it.
           const creditNoteId = l.madeId ?? idOf(await this.call("PUT", path, body, key), "CreditNotes", "CreditNoteID");
-          made[key] = creditNoteId;
+          made[key] = { id: creditNoteId, amount: l.amount, currency: "USD" }; // xeroBody sends CurrencyCode USD
           await this.call("PUT", `/CreditNotes/${creditNoteId}/Allocations`,
             { Allocations: [{ Invoice: { InvoiceID: link.invoiceId }, Amount: num(l.amount), Date: l.date }] }, `${key}-alloc`);
           delete made[key];

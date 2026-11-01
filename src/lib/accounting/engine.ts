@@ -3,11 +3,12 @@
 // systems. The only write to the books is `approveAndPost`, and it posts only a "ready" plan.
 
 import { createHash } from "node:crypto";
+import { compareDecimal } from "../decimal";
 import { createRequest, deriveRequest } from "../requests/lifecycle";
 import type { RequestsData, RequestToken } from "../requests/types";
 import { addDemoInvoice, DEMO_ORG_TIMEZONE, DemoBooksAdapter, emptyDemoBooks } from "./providers/demo";
 import { planPosting, postedFor, type PlanOptions } from "./rules";
-import { isUnknownOutcome, PartialPostError, type AccountingData, type AuditEntry, type BooksAdapter, type BooksInvoice, type InvoiceLink, type PostedLine, type PostFailure, type PostingLine, type PostingPlan } from "./types";
+import { isUnknownOutcome, PartialPostError, type AccountingData, type AuditEntry, type BooksAdapter, type BooksInvoice, type InvoiceLink, type MadeRecord, type PostedLine, type PostFailure, type PostingLine, type PostingPlan } from "./types";
 
 const auditId = (seed: string) => `AUD-${createHash("sha256").update(seed).digest("hex").slice(0, 10)}`;
 
@@ -20,9 +21,28 @@ function appendAudit(acct: AccountingData, e: Omit<AuditEntry, "id">): Accountin
 export const KEY_WINDOW_MS = 5 * 60_000;
 
 /** Records the books made on earlier attempts for lines that didn't finish (a credit note not yet allocated). */
+function madeFor(acct: AccountingData, requestId: string): Record<string, MadeRecord> {
+  return Object.assign({}, ...acct.audit.filter((e) => e.requestId === requestId && e.made).map((e) => e.made));
+}
+
+/** Re-use a record the books already made only for exactly the amount and currency it was made for. */
+const sameAs = (m: MadeRecord, l: PostingLine, currency: string) => compareDecimal(m.amount, l.amount) === 0 && m.currency.toUpperCase() === currency.toUpperCase();
+
 function withMade(acct: AccountingData, requestId: string, lines: PostingLine[]): PostingLine[] {
-  const made: Record<string, string> = Object.assign({}, ...acct.audit.filter((e) => e.requestId === requestId && e.made).map((e) => e.made));
-  return lines.map((l) => (l.key && made[l.key] ? { ...l, madeId: made[l.key] } : l));
+  const made = madeFor(acct, requestId);
+  const currency = acct.links[requestId]?.currency ?? "";
+  return lines.map((l) => (l.key && made[l.key] && sameAs(made[l.key], l, currency) ? { ...l, madeId: made[l.key].id } : l));
+}
+
+/** A line whose record the books already made for a different amount: a person must look, nothing posts. */
+function madeDiffers(acct: AccountingData, requestId: string, lines: PostingLine[]): string | undefined {
+  const made = madeFor(acct, requestId);
+  const currency = acct.links[requestId]?.currency ?? "";
+  const l = lines.find((x) => x.key && made[x.key] && !sameAs(made[x.key], x, currency));
+  if (!l) return undefined;
+  const m = made[l.key!];
+  const cur = (c: string) => (m.currency.toUpperCase() === currency.toUpperCase() ? "" : ` ${c}`);
+  return `A credit note for ${m.amount}${cur(m.currency)} was already made in Xero for this invoice, but the shortfall is now ${l.amount}${cur(currency)}. Check the credit note in Xero before approving again.`;
 }
 
 /**
@@ -74,6 +94,8 @@ export async function approveAndPost(
     const why = plan.status === "posted" ? "Already in the books: nothing new to post." : plan.reasons.join(" ");
     return { acct: appendAudit(acct, { ...base, kind: "refused", reason: `Not posted (${plan.status.replace("_", " ")}): ${why}` }), plan, error: why };
   }
+  const differs = madeDiffers(acct, requestId, plan.lines);
+  if (differs) return { acct: appendAudit(acct, { ...base, kind: "refused", reason: `Not posted: ${differs}`, planned: plan.lines }), plan, error: differs };
   if (o.expectedKey && o.expectedKey !== plan.idempotencyKey) {
     // What the person approved isn't what would post now (a transfer arrived, a decision changed): show them again.
     const error = `The plan changed since you looked at it.${foundNote} Check the new lines and approve again.`;

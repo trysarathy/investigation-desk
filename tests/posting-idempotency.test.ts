@@ -342,4 +342,39 @@ describe("posting to Xero is idempotent across retries (roadmap #2)", () => {
     expect(lineKey("R1", { ...l, kind: "note", amount: "0" }, "inv-a")).not.toBe(lineKey("R1", { ...l, kind: "note", amount: "0" }, "inv-b"));
     expect((lineKey("R".repeat(500), l, "i".repeat(500)) + "-alloc").length).toBeLessThanOrEqual(128);
   });
+
+  // Code review of 09d7e8c (probe P7): a credit note Xero made is re-used only for exactly its own amount.
+  const SHORTFALL_CHANGED = /A credit note for 50\.00 was already made in Xero for this invoice, but the shortfall is now 30\.00\. Check the credit note in Xero before approving again\./;
+
+  it("(n) credit note 50.00 made, allocation 429, then 20.00 more arrives: nothing posts, a person checks", async () => {
+    const { reqData, acct } = shortAccepted();
+    const xero = stubXero();
+    xero.fail(1, "Allocations", "reject");
+    const first = await xero.run(reqData, acct, 11);
+    const second = await xero.run(put(reqData, tx("20.00", "b", 20)), first.acct, 30);
+    expect(second.error).toMatch(SHORTFALL_CHANGED);
+    expect(second.acct.audit.at(-1)?.kind).toBe("refused");
+    expect(xero.sent.filter((s) => s.attempt === 2)).toEqual([]); // no allocation of 30.00 against the 50.00 credit note
+    expect(second.acct.audit.flatMap((e) => (e.kind === "posted" ? e.lines ?? [] : [])).some((l) => l.kind === "fee_writeoff")).toBe(false);
+  });
+
+  it("(o) a made credit note smaller than the shortfall now is not re-used either", async () => {
+    const { reqData, acct } = shortAccepted();
+    const xero = stubXero();
+    xero.fail(1, "Allocations", "reject");
+    const first = await xero.run(reqData, acct, 11);
+    // As if the credit note had been made for 30.00 when the shortfall was smaller; the shortfall is now 50.00.
+    const audit = first.acct.audit.map((e) => (e.made ? { ...e, made: Object.fromEntries(Object.entries(e.made).map(([k, m]) => [k, { ...m, amount: "30.00" }])) } : e));
+    const second = await xero.run(reqData, { ...first.acct, audit }, 30);
+    expect(second.error).toMatch(/A credit note for 30\.00 was already made in Xero for this invoice, but the shortfall is now 50\.00\./);
+    expect(xero.sent.filter((s) => s.attempt === 2)).toEqual([]);
+  });
+
+  it("(p) the made credit note's amount and currency are recorded with its id", async () => {
+    const { reqData, acct } = shortAccepted();
+    const xero = stubXero();
+    xero.fail(1, "Allocations", "reject");
+    const first = await xero.run(reqData, acct, 11);
+    expect(Object.values(first.acct.audit.at(-1)?.made ?? {})).toEqual([{ id: "creditnotes-1", amount: "50.00", currency: "USD" }]);
+  });
 });

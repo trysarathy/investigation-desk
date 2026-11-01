@@ -114,8 +114,8 @@ export interface AuditEntry {
   outcome?: "unknown";
   /** For a failure: the key of the line being sent when it failed. */
   inFlight?: string;
-  /** For a failure: records the books made for lines that didn't finish (line key → id, e.g. a credit note not yet allocated). */
-  made?: Record<string, string>;
+  /** For a failure: records the books made for lines that didn't finish (line key → record, e.g. a credit note not yet allocated). */
+  made?: Record<string, MadeRecord>;
   demo: boolean;
 }
 
@@ -193,7 +193,10 @@ export interface BooksInvoice {
 
 /** Thrown by an adapter when some lines posted and a later one failed: `posted` is what is in the books. */
 /** What an adapter knows about a failed post, attached to the error it throws. */
-export interface PostFailure { unknownOutcome?: boolean; inFlight?: string; made?: Record<string, string> }
+/** A record the books made for a line that didn't finish: its id, and the exact amount and currency it was made for. */
+export interface MadeRecord { id: string; amount: string; currency: string }
+
+export interface PostFailure { unknownOutcome?: boolean; inFlight?: string; made?: Record<string, MadeRecord> }
 
 export class PartialPostError extends Error {
   constructor(message: string, readonly posted: PostedLine[], extra: PostFailure = {}) { super(message); Object.assign(this, extra); }
