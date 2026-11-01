@@ -1,5 +1,5 @@
 {
- "about": "The 20 demo payments (ADR 0003, plan D2.3/D5.1/D6.1). Transfers: real public transfers, not Clearline customers, replayed offline from recordings/. Invoices: SAMPLE COMPANY DATA (fictional), each built around a real transfer; 'why' says what was constructed. Labels come from the chain facts in provenance.json and the approved rules (docs/SPEC.md, docs/POSTING_RULES.md), never from the product's output.",
+ "about": "The demo payments (ADR 0003, plan D2.3/D5.1/D6.1): 21 slots, 20 filled with real transfers (the 20 demo payments) and 1 reported gap. Transfers: real public transfers, not Clearline customers, replayed offline from the recordings in this folder (see provenance.json). Invoices: SAMPLE COMPANY DATA (fictional), each built around a real transfer; 'why' says what was constructed. Labels come from the chain facts in provenance.json and the approved rules (docs/SPEC.md, docs/POSTING_RULES.md), never from the product's output.",
  "split_rule": "All tuning. These cases are shown in the demo and run by QA (D7.1), so none can stay unseen; a held-out set must be built separately from transfers not used here. No source transfer is in tests/real_cases_holdout.json (checked 2026-11-01); all are in the deposit tuning set tests/real_cases.json.",
  "split_at": "2026-11-01T10:00:00+08:00",
  "expected_actions": {
@@ -39,7 +39,7 @@
    "label": {
     "expected_action": "auto_match",
     "true_invoice": "SAMPLE-INV-2001",
-    "why": "Only open invoice on this address, genuine Tether contract, Ethereum, exactly 331.40, confirmed.",
+    "why": "Only open invoice on this address, genuine Tether contract, Ethereum, exactly 331.40, confirmed. Constructed: the sample invoice uses the real transfer's destination (a stranger's address) and amount.",
     "expected_reason": "Paid in full: exactly 331.40 USDT from Tether's contract, confirmed.",
     "reason_includes": [
      "exactly 331.40"
@@ -80,7 +80,7 @@
    "label": {
     "expected_action": "auto_match",
     "true_invoice": "SAMPLE-INV-2002",
-    "why": "Only open invoice on this address, genuine contract, exact amount, confirmed.",
+    "why": "Only open invoice on this address, genuine contract, exact amount, confirmed. Constructed: the sample invoice uses the real transfer's destination (a stranger's address) and amount.",
     "expected_reason": "Paid in full: exactly 331.40 USDT, confirmed.",
     "reason_includes": [
      "exactly 331.40"
@@ -121,7 +121,7 @@
    "label": {
     "expected_action": "auto_match",
     "true_invoice": "SAMPLE-INV-2003",
-    "why": "Only open invoice on this address, genuine contract, exact amount, confirmed.",
+    "why": "Only open invoice on this address, genuine contract, exact amount, confirmed. Constructed: the sample invoice uses the real transfer's destination (a stranger's address) and amount.",
     "expected_reason": "Paid in full: exactly 16.00 USDT, confirmed.",
     "reason_includes": [
      "exactly 16.00"
@@ -162,7 +162,7 @@
    "label": {
     "expected_action": "auto_match",
     "true_invoice": "SAMPLE-INV-2004",
-    "why": "Only open invoice on this address, genuine contract, exact amount, confirmed.",
+    "why": "Only open invoice on this address, genuine contract, exact amount, confirmed. Constructed: the sample invoice uses the real transfer's destination (a stranger's address) and amount.",
     "expected_reason": "Paid in full: exactly 100.00 USDT, confirmed.",
     "reason_includes": [
      "exactly 100.00"
@@ -203,7 +203,7 @@
    "label": {
     "expected_action": "auto_match",
     "true_invoice": "SAMPLE-INV-2005",
-    "why": "Only open invoice on this address, genuine Circle USDC contract, exact amount, confirmed.",
+    "why": "Only open invoice on this address, genuine Circle USDC contract, exact amount, confirmed. Constructed: the sample invoice uses the real transfer's destination (a stranger's address) and amount.",
     "expected_reason": "Paid in full: exactly 87.220466 USDC from Circle's contract, confirmed.",
     "reason_includes": [
      "exactly 87.22"
@@ -498,7 +498,7 @@
    "label": {
     "expected_action": "flag",
     "true_invoice": "SAMPLE-INV-2012",
-    "why": "The token calls itself USDT but is not Tether's contract (0xdAC17F95…1ec7): it can never pay the invoice.",
+    "why": "The token calls itself USDT but is not Tether's contract (0xdAC17F95…1ec7): it can never pay the invoice. Constructed: the sample invoice uses the real transfer's destination (a stranger's address); its amount is the fake amount rounded to 2 places.",
     "expected_reason": "Not real USDT: the token calls itself USDT but doesn't come from Tether's contract. It doesn't count.",
     "reason_includes": [
      "isn't real USDT"
@@ -539,7 +539,7 @@
    "label": {
     "expected_action": "flag",
     "true_invoice": "SAMPLE-INV-2013",
-    "why": "Cyrillic look-alike symbol, not Tether's contract; the sample invoice was set to the exact fake amount to show amount is no proof.",
+    "why": "Cyrillic look-alike symbol, not Tether's contract; Constructed: the sample invoice uses the real transfer's destination (a stranger's address) and the exact fake amount, to show amount is no proof.",
     "expected_reason": "Not the token requested: 'ÚЅDТ' is not USDT. It doesn't count, even though the amount is exact.",
     "reason_includes": [
      "not the token requested"
@@ -629,7 +629,7 @@
    "label": {
     "expected_action": "flag",
     "true_invoice": "SAMPLE-INV-2015",
-    "why": "Sent on BNB Chain; the invoice is payable on Ethereum only.",
+    "why": "Sent on BNB Chain; the invoice is payable on Ethereum only. Constructed: the sample invoice's Ethereum address is fictional and its amount is the real transfer's.",
     "expected_reason": "Paid on BNB Chain, not Ethereum: it never reached the invoice's address.",
     "reason_includes": [
      "bsc"
@@ -831,6 +831,59 @@
   },
   {
    "id": "SCN-20",
+   "case_type": "ambiguous",
+   "title": "Two open invoices on one address, only one equals the amount",
+   "split": "tuning",
+   "group": "0xb72cc77b5d18dacb9891116cec58a3887bdacfc720659382753657ef7424d820",
+   "transfer": {
+    "recording": "ETH-06.json",
+    "chain": "ethereum",
+    "hash": "0xb72cc77b5d18dacb9891116cec58a3887bdacfc720659382753657ef7424d820",
+    "to": "0x003155f21f474383314a40a3672279ce2b3ced63",
+    "label": "real public transfer, not a Clearline customer"
+   },
+   "invoices": [
+    {
+     "id": "SAMPLE-INV-2022",
+     "customer_ref": "SAMPLE-CUST-22",
+     "amount": "250.00",
+     "token": "USDT",
+     "chain": "ethereum",
+     "receiving_address": "0x003155f21f474383314a40a3672279ce2b3ced63",
+     "created_at": "2026-10-23T02:00:00Z",
+     "status": "open",
+     "sample": true
+    },
+    {
+     "id": "SAMPLE-INV-2023",
+     "customer_ref": "SAMPLE-CUST-23",
+     "amount": "100.00",
+     "token": "USDT",
+     "chain": "ethereum",
+     "receiving_address": "0x003155f21f474383314a40a3672279ce2b3ced63",
+     "created_at": "2026-10-23T03:00:00Z",
+     "status": "open",
+     "sample": true
+    }
+   ],
+   "lookup_for": "SAMPLE-INV-2022",
+   "label": {
+    "expected_action": "review",
+    "true_invoice": null,
+    "why": "No reference on-chain and two open invoices share the address; the transfer equals only SAMPLE-INV-2023, but amount alone is never proof (docs/SPEC.md: anything ambiguous goes to a person). Constructed: same real transfer as SCN-04 and SCN-09 with a different sample invoice book; added as an adversarial check that an amount-only link is counted as a false match.",
+    "expected_reason": "Two open invoices share this address; the amount equals SAMPLE-INV-2023 but amount alone isn't proof. A person assigns it.",
+    "reason_includes": [
+     "share this address",
+     "amount alone"
+    ]
+   },
+   "labelled_by": "matching-engine-engineer",
+   "labelled_at": "2026-11-01",
+   "second_labeller": null,
+   "agreed": "pending (qa-security-engineer)"
+  },
+  {
+   "id": "SCN-21",
    "case_type": "confirming",
    "title": "Still confirming / not final yet",
    "split": "tuning",

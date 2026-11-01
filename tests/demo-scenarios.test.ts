@@ -13,8 +13,9 @@ const found = all.filter((s) => s.transfer);
 const MINIMUM: Record<string, number> = { exact: 4, partial: 3, over: 2, wrong_token: 2, wrong_network: 2, lookalike_address: 2, ambiguous: 2, confirming: 1 };
 
 describe("demo scenarios: the catalogue", () => {
-  it("has 20 slots; every gap says why and has no transfer", () => {
-    expect(all).toHaveLength(20);
+  it("has 21 slots: the 20 demo payments on real transfers, plus a reported gap with no transfer", () => {
+    expect(all).toHaveLength(21);
+    expect(found).toHaveLength(20);
     for (const s of all.filter((x) => !x.transfer)) expect(s.gap, s.id).toMatch(/NOT FOUND/);
   });
   it("meets the coverage minimums with real transfers (the confirming slot is a reported gap)", () => {
@@ -25,12 +26,13 @@ describe("demo scenarios: the catalogue", () => {
     }
     expect(found.some((s) => s.case_type === "partial" && s.person_decision?.kind === "accept_short")).toBe(true);
   });
-  it("replays only recordings that are byte-for-byte the ones in provenance.json", () => {
-    const prov = new Map(provenance().recordings.map((r) => [r.file, r.sha256]));
-    for (const s of found) expect(sha256Of(s.transfer!.recording), s.id).toBe(prov.get(s.transfer!.recording));
+  it("replays only recordings that are byte-for-byte the ones in provenance.json and their originals", () => {
+    const prov = new Map(provenance().recordings.map((r) => [r.file, r]));
+    for (const s of found) expect(sha256Of(s.transfer!.recording), s.id).toBe(prov.get(s.transfer!.recording)?.sha256);
+    for (const r of prov.values()) expect(sha256Of(r.file), r.file).toBe(sha256Of(r.copied_from, true));
   });
   it("labels every invoice as sample data", () => {
-    for (const s of found) for (const i of s.invoices) expect((i as unknown as { sample: boolean }).sample, `${s.id} ${i.id}`).toBe(true);
+    for (const s of found) for (const i of s.invoices) expect(i.sample, `${s.id} ${i.id}`).toBe(true);
   });
 });
 
@@ -41,6 +43,7 @@ describe("demo scenarios: never a false match (every case)", () => {
   for (const s of found) {
     it(`${s.id} ${s.case_type}: auto-matches only when labelled auto_match, and only to the true invoice`, async () => {
       const o = await runScenario(s);
+      expect(o.autoMatched.length, `auto-matched ${o.autoMatched}`).toBeLessThanOrEqual(1);
       if (o.action === "auto_match") {
         expect(s.label.expected_action).toBe("auto_match");
         expect(o.invoice).toBe(s.label.true_invoice);
@@ -48,6 +51,19 @@ describe("demo scenarios: never a false match (every case)", () => {
       if (o.afterDecision) expect(o.afterDecision.acknowledgedBy?.by).not.toBe(AUTO_RULE);
     });
   }
+});
+
+// A shared address with two open invoices, only one equal to the transfer: an amount-only link
+// (forbidden, docs/SPEC.md "Matching") would auto-match SAMPLE-INV-2023. This must stay a review.
+describe("demo scenarios: amount alone never links", () => {
+  it("SCN-20: two open invoices on one address, one equal to the amount: no system link, no auto-match", async () => {
+    const s = found.find((x) => x.id === "SCN-20")!;
+    expect(s.invoices.filter((i) => i.amount === "100.00")).toHaveLength(1);
+    const o = await runScenario(s);
+    expect(o.autoMatched).toEqual([]);
+    expect(o.action).toBe("review");
+    expect(o.reasons.join(" ")).toMatch(/amount alone isn't proof/);
+  });
 });
 
 describe("demo scenarios: expected outcome (offline replay through the request path)", () => {
