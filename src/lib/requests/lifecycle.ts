@@ -320,6 +320,13 @@ export interface RequestView {
   duplicate?: boolean;
   /** A flagged transfer that can never count (counterfeit, wrong network, failed): it can't be marked paid. */
   blocked?: boolean;
+  /**
+   * Still-confirming copies left behind by a likely chain reorganisation: another copy of the same
+   * transaction (same chain, hash, sender, recipient, token contract and amount) has already reached the
+   * threshold in a later block. Only these may be set aside, never the confirmed copy. Same-block transfers
+   * of one transaction are separate real payments and never appear here.
+   */
+  seenTwice: Observation[];
   acknowledgedBy?: Decision;
 }
 
@@ -336,13 +343,20 @@ export function deriveRequest(data: RequestsData, r: PaymentRequest, threshold: 
   }
   const confirmed = counted.filter((o) => o.blockNumber !== undefined && o.confirmations >= threshold);
   const confirming = counted.filter((o) => !confirmed.includes(o));
+  const lc = (x: string) => x.toLowerCase();
+  // `later` is a copy of `o` re-mined after a reorg: same transfer, a later block, already confirmed.
+  const copyAhead = (o: Observation, later: Observation) => later.key !== o.key && later.chain === o.chain
+    && lc(later.hash) === lc(o.hash) && lc(later.from) === lc(o.from) && lc(later.to) === lc(o.to)
+    && lc(later.tokenContract) === lc(o.tokenContract) && compareDecimal(later.amount, o.amount) === 0
+    && o.blockNumber !== undefined && later.blockNumber !== undefined && later.blockNumber > o.blockNumber;
+  const seenTwice = confirming.filter((o) => confirmed.some((x) => copyAhead(o, x)));
   const received = confirmed.reduce((s, o) => add(s, o.amount), "0");
   const pending = confirming.reduce((s, o) => add(s, o.amount), "0");
   const outstanding = sub(r.amount, received);
   const cmp = compareDecimal(received.replace(/^-/, ""), r.amount);
   const maxConfirmations = Math.max(0, ...confirming.map((o) => o.confirmations));
   const duplicate = confirmed.length > 1 && cmp > 0 && confirmed.every((o) => compareDecimal(o.amount, r.amount) === 0);
-  const base = { request: r, received, pending, outstanding, counted, flagged, ambiguous, maxConfirmations, duplicate };
+  const base = { request: r, received, pending, outstanding, counted, flagged, ambiguous, maxConfirmations, duplicate, seenTwice };
   const ack = acknowledgement(r);
   const reasons: string[] = [];
 
@@ -366,6 +380,7 @@ export function deriveRequest(data: RequestsData, r: PaymentRequest, threshold: 
   if (confirming.length) {
     const inBlock = confirming.some((o) => o.blockNumber !== undefined);
     if (ack) reasons.push(`Another payment arrived after this request was marked paid.`);
+    if (seenTwice.length) reasons.push(`Transaction ${short(seenTwice[0].hash)} may have been seen twice because the chain reorganised: the same transfer is confirmed in block ${confirmed.find((x) => copyAhead(seenTwice[0], x))!.blockNumber!.toLocaleString("en-US")}, and an earlier copy in block ${seenTwice[0].blockNumber!.toLocaleString("en-US")} is holding up the request.`);
     reasons.push(inBlock ? `${formatUsdc(pending)} ${r.token} is confirming (${maxConfirmations} of ${threshold}).` : `${formatUsdc(pending)} ${r.token} is seen but not yet in a block.`);
     return { ...base, state: inBlock ? "confirming" : "transfer_detected", reasons };
   }
@@ -425,6 +440,8 @@ export function allowedDecisions(v: RequestView, data?: RequestsData): DecisionK
   }
   if (v.review === "ambiguous") return ["assign_transfer"];
   if (v.state === "matched") return ["acknowledge"];
+  // Only for a copy behind a confirmed copy of the same transfer (seenTwice); nothing else confirming can be dismissed.
+  if (v.state === "confirming" && v.seenTwice.length) return ["dismiss_transfer"];
   if (v.review === "short") return v.state === "needs_review" ? ["request_balance", "accept_short"] : ["accept_short"];
   if (v.review === "over") return ["refund_excess", "accept_over"];
   return [];
@@ -443,7 +460,11 @@ export function decide(data: RequestsData, requestId: string, input: DecisionInp
   if (note.length > 1000) return { data, error: "Keep the note under 1,000 characters." };
   const observations = { ...data.observations };
   if (input.kind === "dismiss_transfer") {
-    if (!v.flagged.some((f) => f.obs.key === input.observationKey)) return { data, error: "Pick one of this request's flagged transfers." };
+    const flaggedKey = v.review === "flagged" && v.flagged.some((f) => f.obs.key === input.observationKey);
+    const staleCopy = v.state === "confirming" && v.seenTwice.some((x) => x.key === input.observationKey);
+    if (!flaggedKey && !staleCopy) {
+      return { data, error: "Pick one of this request's flagged transfers, or the earlier copy of a transfer that is already confirmed in a later block." };
+    }
   }
   if (input.kind === "count_transfer") {
     const f = v.flagged.find((x) => x.obs.key === input.observationKey);
