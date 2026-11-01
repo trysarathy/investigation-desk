@@ -58,3 +58,15 @@ describe("both screens show the sentence", () => {
     expect(renderToStaticMarkup(createElement(PaymentStatusLine, { s }))).not.toContain("role=");
   });
 });
+
+describe("the requests error page", () => {
+  it("says only what it knows: the page couldn't be shown, reload for the latest status; no claim about payments, no raw error", async () => {
+    const RequestsError = (await import("@/app/requests/error")).default;
+    const h = renderToStaticMarkup(createElement(RequestsError)).replace(/&#x27;/g, "'");
+    expect(h).toContain("These requests couldn't be shown");
+    expect(h).toContain("Something went wrong showing this page. Reload to see the latest status.");
+    expect(h).toContain('role="alert"');
+    expect(h).toMatch(/>Reload<\/button>/);
+    expect(h).not.toMatch(/hasn't changed|no payment status|nothing (was|has) (changed|updated)|digest|Error:/i);
+  });
+});

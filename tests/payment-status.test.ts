@@ -31,8 +31,8 @@ function pay(d: RequestsData, ev: Partial<TransferEvent>, seq = "a", check = che
 const statusOf = (d: RequestsData, id = "L1") => paymentStatus(d, deriveRequest(d, d.requests[id], CONFIRMATIONS));
 /** What check.ts stores when a chain didn't answer. */
 const paused = (): CheckSnapshot => ({ at: NOW, code: null, label: "Check paused", confidence: null, problem: false, summary: "A chain didn't answer (ethereum).", evidence: [] });
-/** Words a status sentence may use only in the confirming state, where they carry the pace. */
-const ALLOWED = /\d+ confirmations|blocks move when you click|demo's matching rule/g;
+/** Not jargon, but "rule" phrasing reserved for the demo. */
+const ALLOWED = /demo's matching rule/g;
 
 describe("pace, not countdown: from one source of block times and the confirmations the code waits for", () => {
   it("Ethereum: 12 confirmations × 12-second slots = 144 s, worded as formatDuration does for the next step", () => {
@@ -50,20 +50,20 @@ describe("pace, not countdown: from one source of block times and the confirmati
 describe("status per state", () => {
   it("waiting for payment", () => {
     const s = statusOf(req());
-    expect(s).toMatchObject({ key: "waiting", etaMinutes: null, sentence: "Waiting for payment: nothing has arrived yet." });
+    expect(s).toMatchObject({ key: "waiting", etaMinutes: null, sentence: "Waiting for payment: nothing has arrived yet, so there's nothing to do until the customer pays." });
   });
 
   it("seen, not yet in a block: no pace (inclusion time isn't predictable)", () => {
     const s = statusOf(pay(req(), { confirmations: 0 }));
     expect(s).toMatchObject({ key: "seen", etaMinutes: null });
-    expect(s.sentence).toBe("Payment seen but not confirming yet: we can't say how long that takes, and there's nothing to do.");
+    expect(s.sentence).toBe("Payment seen, waiting for the network to pick it up: nothing to do yet.");
   });
 
   it("confirming (demo): Ethereum's usual pace, not a countdown, and says what moves demo blocks", () => {
     const d = pay(req({ demo: true, amount: "2500" }), { blockNumber: 100, blockTime: NOW, confirmations: 6 });
     const s = statusOf(d);
     expect(s).toMatchObject({ key: "confirming", etaMinutes: null });
-    expect(s.sentence).toBe("Confirming (6 of 12): Ethereum usually takes about 2 minutes for 12 confirmations; in the demo, blocks move when you click.");
+    expect(s.sentence).toBe("Confirming (6 of 12): Ethereum usually takes about 2 minutes; in the demo, it moves on when you click.");
     expect(s.sentence).not.toMatch(/final|until it's confirmed/i);
     // The next step quotes the same time from the same source: they can't disagree.
     expect(nextAction(deriveRequest(d, d.requests.L1, CONFIRMATIONS)).detail).toContain(`(${confirmPace("ethereum")} on Ethereum)`);
@@ -78,7 +78,7 @@ describe("status per state", () => {
   it("confirming, live transfer: pace, plus look it up again (live transfers only update then)", () => {
     const s = statusOf(pay(req(), { source: "live", blockNumber: 100, blockTime: NOW, confirmations: 3 }));
     expect(s).toMatchObject({ key: "confirming", etaMinutes: null });
-    expect(s.sentence).toBe("Confirming (3 of 12): Ethereum usually takes about 2 minutes for 12 confirmations; look the payment up again to update it.");
+    expect(s.sentence).toBe("Confirming (3 of 12 at the last check): Ethereum usually takes about 2 minutes; look the payment up again to update it.");
   });
 
   it("confirmed and checked, ready to mark paid (live): 'confirmed', not 'final', not 'paid automatically'", () => {
@@ -140,6 +140,11 @@ describe("the demo day: every case gets one plain sentence", () => {
     expect(by("DEMO-1047")).toMatchObject({ key: "duplicate", sentence: "Paid twice, 1,980.00 USDC extra: refund the duplicate or keep it as credit." });
     expect(by("DEMO-1045")).toMatchObject({ key: "suggested", sentence: "A payment that's probably this one arrived at another address: confirm the match." });
     expect(by("DEMO-1042").key).toBe("short");
+  });
+  it("waiting, when the next step has an action: the sentence says it (Fernhill will reuse an old address)", () => {
+    const s = statusOf(day, "DEMO-1046");
+    expect(s).toMatchObject({ key: "waiting", sentence: "Waiting for payment, and Fernhill Foods says they'll reuse an old address: make sure they check it on the payment page before sending." });
+    expect(nextAction(deriveRequest(day, day.requests["DEMO-1046"], CONFIRMATIONS), day).title).toMatch(/reuse an old address: make sure they check it/);
   });
   it("every sentence is one sentence, plain words, and every ETA is a whole number of minutes or null", () => {
     for (const r of Object.values(d.requests)) {
