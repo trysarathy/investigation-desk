@@ -1,7 +1,7 @@
 // QA on main (b193133): data loss under concurrent writes, and an import path that froze the
 // server. Each block was written to fail before its fix. Offline: chain keys unset, stubbed source.
 
-import { mkdtemp, readdir, readFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -31,17 +31,25 @@ function keyless() {
 }
 
 const saved = { DESK_DATA_DIR: process.env.DESK_DATA_DIR, TRONGRID_API_KEY: process.env.TRONGRID_API_KEY, ETHERSCAN_API_KEY: process.env.ETHERSCAN_API_KEY };
+// Every temp data dir this file makes is removed in afterAll (each holds ~25 MB; left behind they fill the disk).
+const made: string[] = [];
+async function tempDir(prefix: string) {
+  const d = await mkdtemp(path.join(tmpdir(), prefix));
+  made.push(d);
+  return d;
+}
 let dir: string;
 beforeAll(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), "desk-qa-"));
+  dir = await tempDir("desk-qa-");
   process.env.DESK_DATA_DIR = dir;
   delete process.env.TRONGRID_API_KEY;
   delete process.env.ETHERSCAN_API_KEY;
   overrideChainDeps(keyless());
 });
-afterAll(() => {
+afterAll(async () => {
   overrideChainDeps(undefined);
   for (const [k, v] of Object.entries(saved)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+  await Promise.all(made.map((d) => rm(d, { recursive: true, force: true })));
 });
 
 const headers = { "x-forwarded-for": "198.51.100.9" };
@@ -103,7 +111,7 @@ describe("P1 concurrent writes", () => {
   }, 60_000);
 
   it("every file store does read-modify-write under one lock: 20 concurrent updates, none lost", async () => {
-    const d = await mkdtemp(path.join(tmpdir(), "desk-stores-"));
+    const d = await tempDir("desk-stores-");
     const payments = new FilePaymentsStore(path.join(d, "p.json"));
     const inbox = new FileInboxStore(path.join(d, "i.json"));
     const workspace = new FileWorkspaceStore(path.join(d, "w.json"));
@@ -131,7 +139,7 @@ describe("P1 concurrent writes", () => {
 
 describe("P2 import performance", () => {
   it("5,000 instruction rows end to end (import, match, exceptions, inbox, saved to disk) in under 10 s", async () => {
-    const d = await mkdtemp(path.join(tmpdir(), "desk-perf-"));
+    const d = await tempDir("desk-perf-");
     const s = { payments: new FilePaymentsStore(path.join(d, "p.json")), inbox: new FileInboxStore(path.join(d, "i.json")), audit: new FileAuditLog(path.join(d, "a.jsonl")) };
     const now = new Date("2026-10-23T08:00:00Z");
     const deps = keyless();
