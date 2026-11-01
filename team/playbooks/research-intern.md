@@ -61,6 +61,11 @@ Steps
    page (named person or published role inbox; never support@/help@/dpo@/legal@/careers@, never a
    pattern guess) labelled VERIFIED-PUBLIC with URL; contact name/role if shown; first line ≤18
    words, true, last 12 months, with source and date; `check_before_sending` flags.
+   **Numbers in a first line** (amounts, minimums, dates, counts) are copied exactly as the source
+   states them, in the source's currency (e.g. "over HKD 500", never a converted "US$89"); if the
+   source gives no figure, the first line gives none. Record the page's own date; no date or older
+   than 12 months → don't use it as a first line. (Added 1 Nov: a sent first line said "orders over
+   US$89" where the source says "over HKD $500.00".)
 4. Skip: US/Canada and strict-consent countries (lean mode), government, charities, QRE/QCDAO,
    mentors/SMU/investors/warm network, anything already in Leads/Targets.
 5. Save `work/new_leads.csv`, export Leads to `work/leads.csv`, run
