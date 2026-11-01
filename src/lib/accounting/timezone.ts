@@ -16,10 +16,19 @@ export function isIanaZone(zone: string | undefined): zone is string {
   }
 }
 
-/** Xero `Organisation.Timezone` (Windows-style, e.g. SINGAPORESTANDARDTIME) → IANA, or undefined if unknown. */
+/**
+ * A Windows-style zone name → IANA, or undefined if unknown. Accepts Xero's form (SINGAPORESTANDARDTIME)
+ * and Windows' own ("Singapore Standard Time"): both normalise to the table's keys.
+ */
 export function windowsToIana(name: string | undefined): string | undefined {
   if (!name) return undefined;
-  return Object.prototype.hasOwnProperty.call(WINDOWS_TO_IANA, name) ? WINDOWS_TO_IANA[name] : undefined;
+  const key = name.replace(/[\s.-]/g, "").toUpperCase();
+  return Object.prototype.hasOwnProperty.call(WINDOWS_TO_IANA, key) ? WINDOWS_TO_IANA[key] : undefined;
+}
+
+/** A zone as an accounting system may write it: an IANA name, or a Windows name. Unknown → undefined. */
+export function anyZoneToIana(name: string | undefined): string | undefined {
+  return isIanaZone(name) ? name : windowsToIana(name);
 }
 
 /** The calendar date (YYYY-MM-DD) of an instant in an IANA zone. */

@@ -7,13 +7,38 @@ import { createRequest, deriveRequest } from "../requests/lifecycle";
 import type { RequestsData, RequestToken } from "../requests/types";
 import { addDemoInvoice, DEMO_ORG_TIMEZONE, DemoBooksAdapter, emptyDemoBooks } from "./providers/demo";
 import { planPosting, type PlanOptions } from "./rules";
-import { PartialPostError, type AccountingData, type AuditEntry, type BooksAdapter, type BooksInvoice, type InvoiceLink, type PostingPlan } from "./types";
+import { PartialPostError, PROVIDER_LABEL, type AccountingData, type AuditEntry, type BooksAdapter, type BooksInvoice, type BooksProvider, type InvoiceLink, type OrgTimeZone, type PostingPlan } from "./types";
 
 const auditId = (seed: string) => `AUD-${createHash("sha256").update(seed).digest("hex").slice(0, 10)}`;
 
 function appendAudit(acct: AccountingData, e: Omit<AuditEntry, "id">): AccountingData {
   const entry: AuditEntry = { id: auditId(`${acct.audit.length}:${e.at}:${e.kind}:${e.requestId ?? ""}:${e.idempotencyKey ?? ""}`), ...e };
   return { ...acct, audit: [...acct.audit, entry] };
+}
+
+/** The IANA zone postings are dated in: the demo org's stated zone, or the zone last read from the connected system. */
+export function orgTimeZoneFor(acct: AccountingData, provider: BooksProvider): string | undefined {
+  if (provider === "demo") return DEMO_ORG_TIMEZONE;
+  return acct.orgTimeZone?.provider === provider ? acct.orgTimeZone.ianaTimeZone : undefined;
+}
+
+/**
+ * Re-read the organisation's timezone just before posting (R2). If it can't be read, nothing posts. If it
+ * changed since the plan was shown, the new zone is kept and nothing posts until the person approves again.
+ */
+export async function refreshOrgTimeZone(acct: AccountingData, adapter: BooksAdapter, now: string): Promise<{ acct: AccountingData; error?: string }> {
+  if (adapter.provider === "demo" || !adapter.readOrgTimeZone) return { acct };
+  const label = PROVIDER_LABEL[adapter.provider];
+  let tz: OrgTimeZone;
+  try { tz = await adapter.readOrgTimeZone(now); } catch (e) {
+    return { acct, error: `Clearline couldn't read your organisation's timezone from ${label} (${e instanceof Error ? e.message : String(e)}), so it won't guess the posting date. Reconnect ${label} (Clearline needs permission to read organisation settings) or post this one by hand.` };
+  }
+  const before = orgTimeZoneFor(acct, adapter.provider);
+  const next: AccountingData = { ...acct, orgTimeZone: tz };
+  if (tz.ianaTimeZone !== before) {
+    return { acct: next, error: `Your organisation's timezone in ${label} is "${tz.source || "not set"}"${tz.ianaTimeZone ? ` (${tz.ianaTimeZone})` : ", which Clearline doesn't recognise"}; Clearline had ${before ?? "none"}. Posting dates may change: check the plan and approve again.` };
+  }
+  return { acct: next };
 }
 
 export interface PostResult { acct: AccountingData; plan: PostingPlan; error?: string; posted?: AuditEntry }

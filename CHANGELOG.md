@@ -5,6 +5,13 @@ Each entry: date, PR link, one paragraph a finance controller can understand: wh
 anything they need to do.
 
 ## 2026-11-01
+- **Clearline reads your organisation's timezone from Xero (and QuickBooks)** (branch `feat/org-timezone-read`, on
+  top of the change below; awaiting review, QA and Aashmiin's approval). When you connect Xero, Clearline now asks
+  for one more read-only permission, "View your organisation settings", and reads the organisation's timezone. It
+  reads it again just before anything posts: if it can't, nothing posts; if it changed since you looked at the plan,
+  you are asked to check the dates and approve again. Already connected? Reconnect Xero once to grant the new
+  permission; until then plans show "Post by hand". QuickBooks (not offered yet) reads the company's timezone the
+  same way.
 - **Posting dates use your organisation's own timezone, not UTC** (branch `bug/xero-posting-date-timezone-v2`,
   awaiting review, QA and Aashmiin's approval; rule R2 and ADR 0002 still to be signed). Until now every line Clearline
   prepared for Xero or QuickBooks was dated with the UTC date of the payment, so in Singapore anything received between

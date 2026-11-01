@@ -166,6 +166,18 @@ export interface AccountingData {
   /** Append-only. */
   audit: AuditEntry[];
   demoBooks?: DemoBooks;
+  /** The connected organisation's timezone as last read from the accounting system (R2, ADR 0002). */
+  orgTimeZone?: OrgTimeZone;
+}
+
+/** What the accounting system says its timezone is, and the IANA zone Clearline dates postings in. */
+export interface OrgTimeZone {
+  provider: BooksProvider;
+  /** As the system wrote it (Xero `Organisation.Timezone`, QuickBooks `CompanyInfo.DefaultTimeZone`); "" if absent. */
+  source: string;
+  /** Undefined when the value is missing or unknown: plans are then blocked, never dated in UTC. */
+  ianaTimeZone?: string;
+  readAt: string;
 }
 
 export const emptyAccounting = (): AccountingData => ({ version: 1, provider: "demo", accounts: { ...DEFAULT_ACCOUNTS }, links: {}, audit: [] });
@@ -195,4 +207,6 @@ export interface BooksAdapter {
   listOpenInvoices(): Promise<BooksInvoice[]>;
   /** Post approved lines against one invoice. Must be safe to retry with the same idempotency key. */
   post(link: InvoiceLink, lines: PostingLine[], idempotencyKey: string): Promise<PostedLine[]>;
+  /** Read the organisation's timezone (real systems only). Throws if it can't be read. */
+  readOrgTimeZone?(now: string): Promise<OrgTimeZone>;
 }
