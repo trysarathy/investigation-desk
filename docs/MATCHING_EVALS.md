@@ -8,7 +8,7 @@ n beside every number. Rules: `team/knowledge/matching-engine-engineer/metrics.m
 ## 1. Summary
 | Question | Answer today |
 |---|---|
-| Is invoice-to-payment matching measured on labelled real data? | **No.** There is no labelled invoice-matching set. False-match rate, recall on exact cases and abstain rate by case type are **not measured**. |
+| Is invoice-to-payment matching measured on labelled real data? | **A first small set only** (§8, 2026-11-01): 19 demo scenarios on 14 real public transfers with **sample (fictional) invoices**, all tuning, no held-out set. Too small for any per-type rate except exact; no held-out false-match rate exists. |
 | What is measured on real data? | **Deposit diagnosis** (which D-code a transaction gets), on real transfers with a **fictional sample company's** deposit addresses and ledger. That is a different task from invoice matching. |
 | Can I say "matching accuracy"? | No. |
 
@@ -81,3 +81,54 @@ Aashmiin, 1 Nov 2026: the held-out deposit-diagnosis figure is **not** quoted in
 never as a matching or accuracy claim. Outward wording, no figure: "The checking engine is tested on recorded
 real public transfers; invoice matching accuracy will be measured on 20 replayed real transfers (not yet
 measured). Anything ambiguous goes to a person."
+
+## 8. First invoice-matching measurement: the demo scenarios (2026-11-01 SGT)
+Task: **invoice matching** (not deposit diagnosis). Set: `tests/fixtures/real/scenarios/catalogue.json`,
+the 20 demo payments of ADR 0003. **Real public transfers (not Clearline customers), sample invoices.**
+Code: `main` 82f8b4d; this change adds data and tests only, no product logic. Run:
+`SCENARIO_EVAL=1 npx vitest run tests/demo-scenarios-eval.test.ts` (offline replay; deterministic).
+
+**What this is:** a first small evaluation set, **not a held-out benchmark**. All 19 cases are tuning
+(they are shown in the demo and run by QA, so none can stay unseen); no held-out look was made. 19 of
+20 slots are filled; **SCN-20 (still confirming) is a gap**: no recorded real Ethereum transfer has
+fewer than 12 confirmations and the session could not reach an Ethereum RPC to record one. The 19 cases
+use **14 distinct transfers**: 5 cases reuse a transfer with a different sample invoice (over ×2,
+duplicate, ambiguous ×2), so cases are not independent. Labels: one labeller (matching-engine-engineer),
+second labeller pending; chain facts taken from `tests/real_cases.json` verified facts (independent
+sources read 2026-10-24) [ASSUMPTION: not re-opened this run; explorers blocked].
+
+| Case type | n | Auto-matched correct | False matches | Sent to a person | Flagged on the invoice | Refused at lookup, nothing recorded | Missed (expected auto-match) |
+|---|---|---|---|---|---|---|---|
+| exact | 5 | 5 | 0 | 0 | 0 | 0 | 0 |
+| partial | 3 | 0 | 0 | 2 | 1 | 0 | 1 |
+| over | 2 | 0 | 0 | 2 | 0 | 0 | 0 |
+| duplicate (same transfer reported twice) | 1 | 1 | 0 | 0 | 0 | 0 | 0 |
+| wrong token / counterfeit | 2 | 0 | 0 | 0 | 2 | 0 | 0 |
+| wrong network | 2 | 0 | 0 | 0 | 0 | 2 | 0 |
+| look-alike address | 2 | 0 | 0 | 0 | 0 | 2 | 0 |
+| ambiguous (same amount, shared address / repeat payer) | 2 | 0 | 0 | 2 | 0 | 0 | 0 |
+| still confirming | 0 | gap | | | | | |
+
+| Metric (all 19, tuning) | Value | 95% Wilson |
+|---|---|---|
+| False-match rate | 0 false of 6 auto-matches (n = 19) | 0%-39.0% (exact one-sided upper 39.3%) |
+| False matches per case | 0/19 | 0%-16.8% |
+| Abstain rate (sent to a person to decide) | 6/19 | 15.4%-54.0% |
+| Recall on exact | 5/5 | 56.6%-100% |
+| Per-type rates for every type other than exact | too few to report (n < 5) | — |
+
+Read it as: on these 19, nothing was auto-matched that should not have been, and the bound the n
+supports is wide (a false-match rate up to about 39% per auto-match is not ruled out). Intervals:
+[VERIFIED: computed 2026-11-01, Wilson as in statsmodels].
+
+Where the product's outcome differs from the label today (tests are `it.fails`, product unchanged):
+- **SCN-06** short by 0.000117 (≤ 0.01): label auto-match with a rounding line (POSTING_RULES R3d,
+  decision 3); product sends it to a person as "short" (miss, not a false match). Planned in D5.4 (AO).
+- **SCN-08** 0.001 USDT on a 250.00 invoice: label "a person decides" (ask for balance or accept);
+  product flags it "below minimum deposit" (D08 from the sample deposit minimums) and blocks those
+  choices. Needs decision: does a deposit minimum apply to invoice payments?
+- **SCN-14/15** wrong network (Tron, BNB Chain): label flagged on the invoice; product refuses the hash
+  with "Found on tron/bsc, not Ethereum" and records nothing (gap K5, plan D6.2).
+- **SCN-16/17** look-alike address (real poisoning): label flagged as look-alike; product says only "no
+  token transfer to the request's receiving address" and records nothing (D07b off on the request path).
+
