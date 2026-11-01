@@ -5,15 +5,17 @@ Each entry: date, PR link, one paragraph a finance controller can understand: wh
 anything they need to do.
 
 ## 2026-11-01
-- **A retry never puts a second payment or credit note in Xero** (branch `fix/posting-idempotency`, awaiting review,
-  QA and Aashmiin's approval; rule R7 still to be signed). Before, if posting stopped part-way (say the payment went
-  in and the shortfall credit note hit Xero's rate limit) and someone approved it again, the lines still to post went
-  to Xero under new reference keys, so Xero couldn't tell it was a repeat and could make a second credit note. Now
-  each line (payment, shortfall credit note and its allocation, overpayment, history note) keeps one fixed key from
-  the moment it is first planned, and every retry sends that same key. Xero only remembers a key for 6 minutes, so
-  when an attempt ended without a clear answer (a timeout or a Xero server error) and more time has passed, Clearline
-  first checks the invoice in Xero and records what is already there; if it can't tell, nothing posts and the request
-  waits for a person. A history note that failed after its payment posted is now still added on the next try.
+- **A retry no longer creates a second payment or credit note in Xero** (Xero is in testing; branch
+  `fix/posting-idempotency`, awaiting review, QA and Aashmiin's approval; rule R7 still to be signed). Before, if
+  posting stopped part-way (say the payment went in and the shortfall credit note hit Xero's rate limit) and someone
+  approved it again, the lines still to post went to Xero under new reference keys, so Xero couldn't tell it was a
+  repeat and could make a second credit note. Now each line (payment, shortfall credit note and its allocation,
+  overpayment, history note) keeps one fixed key from the moment it is first planned, and every retry sends that
+  same key. A credit note Xero has made is never made again: a failed allocation is retried against it. Xero only
+  remembers a key for 6 minutes, so when an attempt ended without a clear answer (a timeout, a Xero server error, a
+  reply that couldn't be read) and more time has passed, Clearline first checks the invoice in Xero and records what
+  is already there; if it can't tell, nothing posts and the request waits for a person. A history note that failed
+  after its payment posted is now still added on the next try. QuickBooks is not covered yet (it isn't offered).
   Demo books are unchanged: each demo payment still posts once.
 - **Posting dates use your organisation's own timezone, not UTC** (branch `bug/xero-posting-date-timezone-v2`,
   awaiting review, QA and Aashmiin's approval; rule R2 and ADR 0002 still to be signed). Until now every line Clearline

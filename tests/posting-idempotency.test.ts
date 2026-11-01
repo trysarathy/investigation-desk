@@ -35,17 +35,24 @@ const endpointOf = (path: string): Endpoint => {
 };
 
 /**
- * reject: Xero refuses the call and makes nothing (429 rate limit).
- * lost:   Xero makes the record, but the response never reaches us (504): an unknown outcome.
+ * reject:  Xero refuses the call and makes nothing (429 rate limit).
+ * lost:    Xero makes the record, but the response never reaches us (504): an unknown outcome.
+ * badbody: Xero makes the record and answers 200, but the body can't be read (connection cut mid-body).
  */
-type Fault = "reject" | "lost";
+type Fault = "reject" | "lost" | "badbody";
 interface Sent { attempt: number; method: string; endpoint: Endpoint; path: string; key?: string; body?: string }
 
-/** A stub Xero organisation: records every request, creates records, and dedupes on Idempotency-Key. */
+/**
+ * A stub Xero organisation: records every request, creates records, and dedupes on Idempotency-Key for
+ * 6 minutes from the key's first call, then forgets it, as Xero documents [VERIFIED: accounting-integrations-engineer
+ * 2026-11-01, developer.xero.com/documentation/guides/idempotent-requests/idempotency].
+ */
 function stubXero() {
   const sent: Sent[] = [];
   const made: Record<Endpoint, string[]> = { Payments: [], CreditNotes: [], Allocations: [], BankTransactions: [], History: [] };
   const byKey = new Map<string, unknown>();
+  const firstAt = new Map<string, number>();
+  let clock = 0;
   const faults: { attempt: number; endpoint: Endpoint; nth?: number; fault: Fault }[] = [];
   let attempt = 0;
   const seenThisAttempt: Partial<Record<Endpoint, number>> = {};
@@ -62,6 +69,7 @@ function stubXero() {
     const nth = (seenThisAttempt[endpoint] = (seenThisAttempt[endpoint] ?? 0) + 1);
     const f = faults.find((x) => x.attempt === attempt && x.endpoint === endpoint && (x.nth ?? 1) === nth)?.fault;
     if (f === "reject") return reply(429, { Title: "Too Many Requests" });
+    if (key && clock - (firstAt.get(key) ?? clock) >= 6 * 60_000) { byKey.delete(key); firstAt.delete(key); }
     let body = key ? byKey.get(key) : undefined;
     if (body === undefined) {
       const id = `${endpoint.toLowerCase()}-${made[endpoint].length + 1}`;
@@ -71,9 +79,10 @@ function stubXero() {
         : endpoint === "BankTransactions" ? { BankTransactions: [{ BankTransactionID: id, OverpaymentID: `op-${id}` }] }
         : endpoint === "Allocations" ? { Allocations: [{ AllocationID: id }] }
         : { HistoryRecords: [{ Details: id }] };
-      if (key) byKey.set(key, body);
+      if (key) { byKey.set(key, body); firstAt.set(key, clock); }
     }
     if (f === "lost") return reply(504, { Title: "Gateway Timeout" });
+    if (f === "badbody") return { ok: true, status: 200, json: async () => { throw new TypeError("terminated: other side closed"); }, text: async () => "" };
     return reply(200, body);
   };
 
@@ -87,8 +96,9 @@ function stubXero() {
     async run(reqData: RequestsData, acct: AccountingData, minute?: number) {
       attempt++;
       for (const k of Object.keys(seenThisAttempt)) delete seenThisAttempt[k as Endpoint];
+      clock = Date.parse(t(minute ?? 10 + attempt));
       const adapter = new XeroAdapter({ tenantId: "demo-tenant", accessToken: async () => "stub-token" }, fetchFn);
-      return approveAndPost(reqData, acct, "R1", { ...opts, orgTimeZone: "Asia/Singapore", by: "Mei", now: t(minute ?? 10 + attempt), adapter });
+      return approveAndPost(reqData, acct, "R1", { ...opts, orgTimeZone: "Asia/Singapore", by: "Mei", now: new Date(clock).toISOString(), adapter });
     },
     keys(attemptNo: number, endpoint: Endpoint) { return sent.filter((s) => s.attempt === attemptNo && s.endpoint === endpoint).map((s) => s.key); },
   };
@@ -265,5 +275,71 @@ describe("posting to Xero is idempotent across retries (roadmap #2)", () => {
     expect(second.error).toBeUndefined();
     expect(xero.gets).toEqual([]);
     expect(xero.keys(2, "CreditNotes")).toEqual(xero.keys(1, "CreditNotes"));
+  });
+
+  // Code review of 72d1272 (probes P1-P3): with keys forgotten after 6 minutes, these made duplicates.
+  const noRecords = () => [200, { Invoices: [{ AmountPaid: 4950, Payments: [], CreditNotes: [] }] }] as [number, unknown];
+
+  it("(i) credit note made, allocation 429, re-approved after Xero forgot the key: no second credit note", async () => {
+    const { reqData, acct } = shortAccepted();
+    const xero = stubXero();
+    xero.fail(1, "Allocations", "reject");
+    const first = await xero.run(reqData, acct, 11);
+    expect(first.error).toMatch(/429/);
+    const second = await xero.run(reqData, first.acct, 30);
+    expect(second.error).toBeUndefined();
+    expect(xero.made.CreditNotes).toHaveLength(1);
+    expect(xero.made.Allocations).toHaveLength(1);
+    expect(xero.keys(2, "CreditNotes")).toEqual([]); // the credit note Xero made is re-used, not re-created
+    expect(xero.sent.find((s) => s.attempt === 2 && s.endpoint === "Allocations")?.path).toBe("/CreditNotes/creditnotes-1/Allocations");
+  });
+
+  it("(j) a 200 whose body can't be read is an unknown outcome, never 'nothing made': no second payment later", async () => {
+    const { reqData: d0, acct } = invoiced("5000.00");
+    const reqData = put(d0, tx("5000.00", "a"));
+    const xero = stubXero();
+    xero.fail(1, "Payments", "badbody");
+    const first = await xero.run(reqData, acct, 11);
+    expect(first.acct.audit.at(-1)).toMatchObject({ kind: "failed", outcome: "unknown" });
+    xero.onGet(() => [200, { Invoices: [{ AmountPaid: 5000, Payments: [{ PaymentID: "payments-1", Amount: 5000 }], CreditNotes: [] }] }]);
+    const second = await xero.run(reqData, first.acct, 30);
+    expect(second.error).toMatch(/can't confirm/);
+    expect(xero.made.Payments).toHaveLength(1);
+  });
+
+  it("(k) the 6-minute window runs from the key's first send, not from the first unknown failure", async () => {
+    const { reqData, acct } = shortAccepted();
+    const xero = stubXero();
+    xero.fail(1, "CreditNotes", "reject"); // credit-note key first sent at 11, nothing made
+    xero.fail(2, "CreditNotes", "lost");   // made at 15, response lost
+    const first = await xero.run(reqData, acct, 11);
+    const second = await xero.run(reqData, first.acct, 15);
+    expect(second.acct.audit.at(-1)).toMatchObject({ kind: "failed", outcome: "unknown" });
+    xero.onGet(noRecords);
+    const third = await xero.run(reqData, second.acct, 19); // 8 min after the first send: Xero forgot the key
+    expect(xero.gets).toEqual(["/Invoices/inv-guid"]);
+    expect(third.error).toMatch(/can't confirm/);
+    expect(xero.made.CreditNotes).toHaveLength(1);
+  });
+
+  it("(l) read-back says 'absent' only when the invoice's AmountPaid matches what Clearline recorded", async () => {
+    const { reqData: d0, acct } = invoiced("5000.00");
+    const reqData = put(d0, tx("5000.00", "a"));
+    const xero = stubXero();
+    xero.fail(1, "Payments", "lost");
+    const first = await xero.run(reqData, acct, 11);
+    // The payment is there but its reference came back changed: AmountPaid gives it away.
+    xero.onGet(() => [200, { Invoices: [{ AmountPaid: 5000, Payments: [{ PaymentID: "payments-1", Reference: "edited", Amount: 5000 }], CreditNotes: [] }] }]);
+    const second = await xero.run(reqData, first.acct, 30);
+    expect(second.error).toMatch(/can't confirm/);
+    expect(xero.made.Payments).toHaveLength(1);
+  });
+
+  it("write-off and note keys include the invoice id (Xero counts key reuse per app, across organisations)", async () => {
+    const { lineKey } = await import("@/lib/accounting/rules");
+    const l = { kind: "fee_writeoff" as const, amount: "50.00", date: "2026-11-01", description: "" };
+    expect(lineKey("R1", l, "inv-a")).not.toBe(lineKey("R1", l, "inv-b"));
+    expect(lineKey("R1", { ...l, kind: "note", amount: "0" }, "inv-a")).not.toBe(lineKey("R1", { ...l, kind: "note", amount: "0" }, "inv-b"));
+    expect((lineKey("R".repeat(500), l, "i".repeat(500)) + "-alloc").length).toBeLessThanOrEqual(128);
   });
 });

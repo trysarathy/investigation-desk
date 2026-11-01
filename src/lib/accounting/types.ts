@@ -58,6 +58,8 @@ export interface PostingLine {
   date: string;
   /** This line's own idempotency key: fixed when first planned (request + kind + the line's identity), the same on every retry. */
   key?: string;
+  /** The record the books already made for this line on an earlier attempt (a credit note still to allocate). */
+  madeId?: string;
 }
 
 /**
@@ -110,6 +112,10 @@ export interface AuditEntry {
   planned?: PostingLine[];
   /** For a failure: "unknown" when the books may or may not have made the record (timeout, 5xx). */
   outcome?: "unknown";
+  /** For a failure: the key of the line being sent when it failed. */
+  inFlight?: string;
+  /** For a failure: records the books made for lines that didn't finish (line key → id, e.g. a credit note not yet allocated). */
+  made?: Record<string, string>;
   demo: boolean;
 }
 
@@ -186,8 +192,11 @@ export interface BooksInvoice {
 }
 
 /** Thrown by an adapter when some lines posted and a later one failed: `posted` is what is in the books. */
+/** What an adapter knows about a failed post, attached to the error it throws. */
+export interface PostFailure { unknownOutcome?: boolean; inFlight?: string; made?: Record<string, string> }
+
 export class PartialPostError extends Error {
-  constructor(message: string, readonly posted: PostedLine[], readonly unknownOutcome = false) { super(message); }
+  constructor(message: string, readonly posted: PostedLine[], extra: PostFailure = {}) { super(message); Object.assign(this, extra); }
 }
 
 /** True when a failed call may still have made the record (timeout, connection reset, 5xx), not a clear "nothing made". */
@@ -203,5 +212,5 @@ export interface BooksAdapter {
   /** Post approved lines against one invoice. Must be safe to retry with the same idempotency key. */
   post(link: InvoiceLink, lines: PostingLine[], idempotencyKey: string): Promise<PostedLine[]>;
   /** After an unknown outcome: the record the books hold for this line, undefined if surely absent; throws if it can't tell. */
-  readBack?(link: InvoiceLink, line: PostingLine): Promise<PostedLine | undefined>;
+  readBack?(link: InvoiceLink, line: PostingLine, recorded: PostedLine[]): Promise<PostedLine | undefined>;
 }

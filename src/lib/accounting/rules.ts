@@ -72,14 +72,15 @@ export function idempotencyKeyFor(requestId: string, lines: PostingLine[]): stri
 }
 
 /**
- * One line's idempotency key: request id + line kind + the line's stable identity (the transfer for a
- * payment or overpayment, "shortfall" for the write-off, "note" for the history note). It never depends
- * on the other lines, their order, the attempt or the clock, so a retry re-sends exactly the same key.
+ * One line's idempotency key: request id + the invoice's id in the books (Xero counts key reuse per app,
+ * across organisations) + line kind + the line's stable identity (the transfer for a payment or
+ * overpayment, "shortfall" for the write-off, "note" for the history note). It never depends on the other
+ * lines, their order, the attempt or the clock, so a retry re-sends exactly the same key.
  * 42 characters (48 with "-alloc"), inside Xero's 128.
  */
-export function lineKey(requestId: string, l: PostingLine): string {
+export function lineKey(requestId: string, l: PostingLine, invoiceId: string): string {
   const identity = l.kind === "fee_writeoff" ? "shortfall" : l.kind === "note" ? "note" : l.observationKey ?? "";
-  return `clearline-${createHash("sha256").update(`line;${requestId};${l.kind};${identity}`).digest("hex").slice(0, 32)}`;
+  return `clearline-${createHash("sha256").update(`line;${requestId};${invoiceId};${l.kind};${identity}`).digest("hex").slice(0, 32)}`;
 }
 
 export interface PlanOptions {
@@ -244,7 +245,7 @@ export function planPosting(data: RequestsData, acct: AccountingData, requestId:
   const postedObs = new Set(already.filter((l) => l.observationKey).map((l) => `${l.kind}|${l.observationKey}`));
   const postedKinds = new Set(already.filter((l) => !l.observationKey).map((l) => `${l.kind}|${l.amount}`));
   const todo = lines.filter((l) => (l.observationKey ? !postedObs.has(`${l.kind}|${l.observationKey}`) : !postedKinds.has(`${l.kind}|${l.amount}`)))
-    .map((l) => ({ ...l, key: lineKey(requestId, l) }));
+    .map((l) => ({ ...l, key: lineKey(requestId, l, link.invoiceId) }));
   // A note that failed after its payment posted is still owed: only a note already in the books is dropped (above).
   if (todo.length === 0 && already.length) return plan("posted", [...reasons, "Everything that can be posted for this invoice is in the books."], [], leavesOpen);
   // Something new would post, but its date can't be known: block, and never return undated lines.

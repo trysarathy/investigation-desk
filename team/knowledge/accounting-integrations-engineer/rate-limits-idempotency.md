@@ -19,10 +19,13 @@
 - Plan key = sha256(request id + each line's kind|amount|observationKey|accountCode), so the same plan always
   gives the same key; a changed plan gives a new key and must be approved again (`expectedKey`).
 - Per line (Xero, branch `fix/posting-idempotency`, not merged): `lineKey` = `clearline-` + 32 hex of sha256(request id
-  + kind + identity: the transfer's observation key, "shortfall" or "note"), 42 chars, allocation `-alloc` (48); the
-  same on every retry. Failures with no clear answer (no response, 5xx) are logged `outcome: "unknown"`; a retry
-  more than 5 min after the first such failure reads the line back (`XeroAdapter.readBack`) before sending.
-  QBO still uses `<planKey>-<i>` / `-link` (follow-up).
+  + Xero invoice id + kind + identity: the transfer's observation key, "shortfall" or "note"), 42 chars, allocation
+  `-alloc` (48); the same on every retry. Only a 4xx answer means "nothing made"; no response, 5xx, an unreadable
+  reply or one without the record's id is `outcome: "unknown"`, with the in-flight key recorded. A credit note made
+  before its allocation failed is recorded (`made`) and re-used, never re-created. When the first approval that
+  planned an unknown line's key is 5+ min old, `XeroAdapter.readBack` checks first (payment by reference, credit note
+  by id/reference, note by exact text; "absent" also needs AmountPaid/AmountCredited to equal what Clearline
+  recorded). QBO still uses `<planKey>-<i>` / `-link` (follow-up).
 - Lines already in the audit log as `posted` are dropped from the next plan (one line per transfer, ever).
 - `PartialPostError`: lines that reached the books before a failure are recorded as posted.
 - **No automatic retry, no 429 handling, no `Retry-After`.** A failure becomes a `failed` audit entry; a person
