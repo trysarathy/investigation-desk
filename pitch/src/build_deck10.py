@@ -74,12 +74,12 @@ foot(s, "Runs today in the working demo, on fictional data. Clearline reads paym
 
 # ================================================================ 4. Demo (old 5)
 s = new("""
-SAY: Here is the real product, running on a fictional company. One: the customer's page says exactly what to send and on which network. Two: a correct payment is checked and marked paid with no one touching it. Three: fake digital dollars are caught, explained in plain English, and can't be marked paid by mistake. [Click the video for the 60-second demo; for the full 2-minute walkthrough, play demo_live_full.mp4.]
+SAY: Here is the real product, running on a fictional company. One: the customer's page says exactly what to send and on which network. Two: in the demo, a correct payment is checked and marked paid with no one touching it; in your account it's checked and ready for you to mark paid. Three: fake digital dollars are caught, explained in plain English, and can't be marked paid by mistake. [Click the video for the 60-second demo; for the full 2-minute walkthrough, play demo_live_full.mp4.]
 SOURCES / LABELS: screenshots captured from the app in demo mode (pitch/assets/shots); the video is a real recording of the app (demo/live). All companies, people and amounts are fictional [VERIFIED].
 FROM OLD SLIDE 5: everything kept; the "Full 2-minute walkthrough" line is now only in these notes.
 """)
 title(s, "It works today: a real demo on fictional data")
-shots = [("request_top.png", "1", "The customer sees what to send"), ("auto_paid.png", "2", "A correct payment marks itself paid"), ("fake_verdict.png", "3", "Fake dollars, explained")]
+shots = [("request_top.png", "1", "The customer sees what to send"), ("auto_paid.png", "2", "In the demo, a correct payment marks itself paid"), ("fake_verdict.png", "3", "Fake dollars, explained")]
 rowh, sw = 1.45, 5.0
 for k, (f, n, cap) in enumerate(shots):
     y = 1.6 + k * (rowh + 0.4)

@@ -145,7 +145,7 @@ footer(s, "All three run in the working demo today, on fictional data. Clearline
 
 # ---------------------------------------------------------------- 5. Demo
 s = new("""
-SAY: Here is the real product, running on a fictional company. One: the customer's payment page says exactly what to send and on which network. Two: a correct payment is checked and marked paid with no one touching it. Three: fake digital dollars are caught, explained in plain English, and can't be marked paid by mistake. [Click the video to play the 60-second demo; for the full 2-minute walkthrough, play demo_live_full.mp4.]
+SAY: Here is the real product, running on a fictional company. One: the customer's payment page says exactly what to send and on which network. Two: in the demo, a correct payment is checked and marked paid with no one touching it; in your account it's checked and ready for you to mark paid. Three: fake digital dollars are caught, explained in plain English, and can't be marked paid by mistake. [Click the video to play the 60-second demo; for the full 2-minute walkthrough, play demo_live_full.mp4.]
 LABELS: screenshots captured from the app in demo mode (pitch/assets/shots); all data fictional. [VERIFIED]
 """)
 title(s, "The working demo")
