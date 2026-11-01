@@ -1,0 +1,355 @@
+[
+  {
+    "url": "http://127.0.0.1:3411/section.html",
+    "viewport": "desktop-1280",
+    "screenshot": "section.html-desktop-1280.png",
+    "overflow": {
+      "scrollWidth": 1280,
+      "clientWidth": 1280,
+      "offenders": []
+    },
+    "contrastFails": [],
+    "contrastAll": [
+      {
+        "fg": "#8a93a3",
+        "bg": "#11141b",
+        "size": 13,
+        "weight": 400,
+        "ratio": 5.95,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Checked against the official contract."
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#11141b",
+        "size": 13.3333,
+        "weight": 400,
+        "ratio": 5.95,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "ⓘ"
+      },
+      {
+        "fg": "#f28b82",
+        "bg": "#11141b",
+        "size": 15.5,
+        "weight": 400,
+        "ratio": 7.71,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Not matched"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#11141b",
+        "size": 15.5,
+        "weight": 400,
+        "ratio": 7.98,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 5,
+        "sample": "We watch your address and read each USDC or USDT transfer: t"
+      },
+      {
+        "fg": "#8ea2ff",
+        "bg": "#0a0c11",
+        "size": 13,
+        "weight": 600,
+        "ratio": 8.16,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "How matching works"
+      },
+      {
+        "fg": "#5fd3a0",
+        "bg": "#11141b",
+        "size": 15.5,
+        "weight": 400,
+        "ratio": 9.93,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Matched"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#11141b",
+        "size": 18,
+        "weight": 600,
+        "ratio": 15.88,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "1. Read the chain"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 52,
+        "weight": 700,
+        "ratio": 16.86,
+        "need": 3,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Every payment checked, matched and explained."
+      }
+    ],
+    "smallTargets": [],
+    "focus": [
+      {
+        "el": "ⓘ",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "⧉",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "ⓘ",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "⧉",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "ⓘ",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "⧉",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "ⓘ",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "⧉",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "ⓘ",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "⧉",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      }
+    ],
+    "axe": []
+  },
+  {
+    "url": "http://127.0.0.1:3411/section.html",
+    "viewport": "phone-390",
+    "screenshot": "section.html-phone-390.png",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "offenders": []
+    },
+    "contrastFails": [],
+    "contrastAll": [
+      {
+        "fg": "#8a93a3",
+        "bg": "#11141b",
+        "size": 13,
+        "weight": 400,
+        "ratio": 5.95,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Checked against the official contract."
+      },
+      {
+        "fg": "#8a93a3",
+        "bg": "#11141b",
+        "size": 13.3333,
+        "weight": 400,
+        "ratio": 5.95,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "ⓘ"
+      },
+      {
+        "fg": "#f28b82",
+        "bg": "#11141b",
+        "size": 15.5,
+        "weight": 400,
+        "ratio": 7.71,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Not matched"
+      },
+      {
+        "fg": "#a3abba",
+        "bg": "#11141b",
+        "size": 15.5,
+        "weight": 400,
+        "ratio": 7.98,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 5,
+        "sample": "We watch your address and read each USDC or USDT transfer: t"
+      },
+      {
+        "fg": "#8ea2ff",
+        "bg": "#0a0c11",
+        "size": 13,
+        "weight": 600,
+        "ratio": 8.16,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "How matching works"
+      },
+      {
+        "fg": "#5fd3a0",
+        "bg": "#11141b",
+        "size": 15.5,
+        "weight": 400,
+        "ratio": 9.93,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Matched"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#11141b",
+        "size": 18,
+        "weight": 600,
+        "ratio": 15.88,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "1. Read the chain"
+      },
+      {
+        "fg": "#eceef4",
+        "bg": "#0a0c11",
+        "size": 30,
+        "weight": 700,
+        "ratio": 16.86,
+        "need": 3,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Every payment checked, matched and explained."
+      }
+    ],
+    "smallTargets": [],
+    "focus": [
+      {
+        "el": "ⓘ",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "⧉",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "ⓘ",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "⧉",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "ⓘ",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "⧉",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "ⓘ",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "⧉",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "ⓘ",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      },
+      {
+        "el": "⧉",
+        "outline": "2px solid rgb(142, 162, 255)",
+        "boxShadow": false,
+        "border": "rgb(138, 147, 163)"
+      }
+    ],
+    "axe": []
+  },
+  {
+    "reducedMotion": {
+      "path": "/section.html",
+      "runningAnimations": [],
+      "scrollBehavior": "auto"
+    }
+  }
+]

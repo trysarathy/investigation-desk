@@ -1,0 +1,6 @@
+<!-- FICTIONAL, search-result cached text, date of cache not shown, text truncated by the search engine. -->
+tallyhash.example/pricing — "Pricing that grows with you"
+Starter — US$49/month · US$0.20 + 0.25% per verified payment · up to 200 payments/month · CSV export
+(Xero sync on Growth and above) · Tron, Ethereum
+Growth — US$1… /month · Xero, QuickBooks and NetSuite (beta) sync · all supported chains · …
+Enterprise — Contact us · SOC 2 Type II · dedicated …

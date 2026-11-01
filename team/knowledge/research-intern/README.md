@@ -23,6 +23,11 @@ for every non-GitHub host. So:
   URL, page not opened. They are good enough to steer research and internal decisions, **not** to
   quote to customers, investors or in posts until opened.
 - Each file ends with a "First refresh to-do" listing the primary pages to open first.
+- **Re-check 2026-10-31** (wider allowlist): primary pages that now load were opened and relabelled
+  `[VERIFIED: <url>, 2026-10-31]` (DefiLlama API, Tether and Circle docs, Cryptio, Ledgible, Lukka,
+  Coinshift, Stripe docs, NOWPayments, CoinGate, FIU-IND, funding trackers); figures they
+  contradicted were corrected in place with a "corrected 2026-10-31: was X" note. Most regulator and
+  many vendor hosts are still blocked; what stays open is listed in `team/UNVERIFIED.md`.
 
 Sources cited for facts: 104 distinct URLs (regulation 51, competitors 38, market 14,
 lead-evidence 3; some shared). About 17 of them were opened on 2026-10-29 by the claims audit; the

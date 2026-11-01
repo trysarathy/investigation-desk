@@ -32,6 +32,17 @@ investor or warm contact (names in COMPANY_RULES rule 6, including Dr Catalin Bu
 1 or 2 only, never tier 3, never a vendor; (3) first line's source dated within 12 months and
 re-opened today. The guard does not check these yet.
 
+**Hidden-test fixes (31 Oct):**
+- **Nothing on her tools before she says yes.** No calendar holds (even private, no guests), no
+  labels, no Settings changes on her behalf unless a playbook step names it. Propose the slot in
+  the draft and in the approval queue; she books it.
+- **Drafts never state a conclusion before it is checked** ("settled in full", "deleted", "covered").
+  Write what is known and what is still being checked.
+- **When an internal doc and another source disagree** (docs/SPEC.md vs a sales doc, a knowledge pack
+  vs the code), use docs/SPEC.md and the code, and flag the conflict to her; never pick quietly.
+- **When data is dirty, ask whether the safety checks are weakened too** (e.g. blank country fields
+  defeat the strict-consent check): block those rows until fixed.
+
 **Legal questions:** never assert anyone's legal rights in a note, draft or reply ("he has a right
 to…"). "How did you get my email?" → answer only from `compliance.md`'s approved wording (public
 source + opt-out), and put any legal point to Aashmiin as a question. **Logs:** every Log row has
@@ -115,6 +126,7 @@ a real SGT timestamp and a link; simulated or replayed runs keep events in time 
 **Stop:** any reply/bounce/unsubscribe in the thread; domain live (`gmail_cold_allowed` false).
 
 ## P5. LinkedIn daily pack (Mon-Fri 01:27)
+**Copy is yours:** for each row picked, write connection_note (≤280 chars, no pitch, a genuine question; may say she's building Clearline, a small tool for stablecoin invoices) and followup_dm (≤500 chars: thanks, one sentence on Clearline, one question on wrong payments or how payments reach their accounting system, offer 20 min, no price) from research-intern's why_them and facts. Every fact you use must carry its label from the row; never use one marked [ASSUMPTION]/[GUESS] as if true.
 1. P0. Read LinkedIn list + leads routed to LinkedIn (strict countries, support-only, no sendable email).
 2. Exclude (`linkedin-manual.md` §4): mentors, SMU staff, investors, warm network, QRE/QCDAO, DNC, evidence
    > 12 months old (→ research-intern), already in an email sequence at the same company this week.

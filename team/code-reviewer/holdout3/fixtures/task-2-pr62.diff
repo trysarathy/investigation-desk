@@ -1,0 +1,64 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 2a61a84..897a2fb 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -4,5 +4,8 @@ Plain-English notes for every merged change, newest first (company/OPERATING_MOD
+ Each entry: date, PR link, one paragraph a finance controller can understand: what changed, why, and
+ anything they need to do.
+ 
++## 2026-11-03
++- **Payments a fraction of a cent short no longer need a person** ([#62](https://github.com/trysarathy/investigation-desk/pull/62)). Some wallets and exchanges round away the last fraction of a cent when they send. A payment request that receives up to 0.01 less than it asked for is now treated as paid in full ("matched") instead of "short", with a line saying it was within the rounding tolerance. Shortfalls above 0.01 still go to a person, as before.
++
+ ## 2026-11-01
+ - **CHANGELOG started.** From today every merged pull request adds an entry here.
+diff --git a/src/lib/requests/lifecycle.ts b/src/lib/requests/lifecycle.ts
+index f7eac2a..9406396 100644
+--- a/src/lib/requests/lifecycle.ts
++++ b/src/lib/requests/lifecycle.ts
+@@ -323,6 +323,10 @@ export interface RequestView {
+   acknowledgedBy?: Decision;
+ }
+ 
++/** Wallets and exchanges sometimes round away the last fraction of a cent. A shortfall up to this is rounding, not a short payment. */
++export const ROUNDING_TOLERANCE = 0.01;
++const withinRounding = (requested: string, received: string) => parseFloat(requested) - parseFloat(received) <= ROUNDING_TOLERANCE;
++
+ export function deriveRequest(data: RequestsData, r: PaymentRequest, threshold: number): RequestView {
+   const mine = Object.values(data.observations).filter((o) => o.attribution.kind === "request" && o.attribution.requestId === r.id)
+     .sort((a, b) => (a.firstSeenAt < b.firstSeenAt ? -1 : 1));
+@@ -377,6 +381,10 @@ export function deriveRequest(data: RequestsData, r: PaymentRequest, threshold:
+     reasons.push(`Confirmed transfers add up to exactly ${formatUsdc(r.amount)} ${r.token}. On-chain this is done; no one has marked it paid yet.`);
+     return { ...base, state: "matched", reasons };
+   }
++  if (cmp < 0 && withinRounding(r.amount, received)) {
++    reasons.push(`Received ${formatUsdc(received)} of ${formatUsdc(r.amount)} ${r.token}: within the ${ROUNDING_TOLERANCE} rounding tolerance, so treated as paid in full.`);
++    return { ...base, state: "matched", reasons };
++  }
+   if (cmp < 0) {
+     const waiting = [...r.decisions].reverse().find((d) => d.kind === "request_balance");
+     reasons.push(`Received ${formatUsdc(received)} of ${formatUsdc(r.amount)} ${r.token}: ${formatUsdc(outstanding)} short.`);
+diff --git a/tests/requests.test.ts b/tests/requests.test.ts
+index f73ad69..567bdee 100644
+--- a/tests/requests.test.ts
++++ b/tests/requests.test.ts
+@@ -274,3 +274,20 @@ describe("input, money and links", () => {
+     expect(view(d, "R1").state).toBe("matched");
+   });
+ });
++
++describe("rounding tolerance", () => {
++  it("a shortfall of a fraction of a cent is rounding: the request is matched, not short", () => {
++    let d = real(emptyRequests(), "R1", "250.00", addr("r1"));
++    d = put(d, tx(addr("r1"), "249.995", "a"));
++    expect(view(d, "R1").state).toBe("matched");
++    expect(view(d, "R1").review).toBeUndefined();
++    expect(view(d, "R1").reasons[0]).toMatch(/within the 0.01 rounding tolerance/);
++  });
++
++  it("a shortfall of more than a cent is still short and needs a person", () => {
++    let d = real(emptyRequests(), "R1", "250.00", addr("r1"));
++    d = put(d, tx(addr("r1"), "249.98", "a"));
++    expect(view(d, "R1").state).toBe("needs_review");
++    expect(view(d, "R1").review).toBe("short");
++  });
++});

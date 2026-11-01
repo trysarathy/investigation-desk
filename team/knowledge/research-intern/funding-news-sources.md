@@ -3,6 +3,9 @@
 Last refreshed 2026-10-29 · owner: research-intern · refresh: monthly (drop dead sources, add new).
 Tiers from `research-method.md`. "Checked" = how this list was built on 2026-10-29: URLs below
 appeared in web-search results today; pages not opened (network block) [ASSUMPTION: search].
+Re-check 2026-10-31: the three funding trackers below were opened; most P1 regulator hosts in the
+table are still blocked from this environment (occ.gov, federalregister.gov, fincen.gov, esma, eba,
+hkma, mas, fca); home.treasury.gov loads; eur-lex returns a bot challenge.
 
 ## Primary (P1) — regulation, go here first
 | Source | What for | URL |
@@ -40,10 +43,13 @@ DefiLlama stablecoins (https://defillama.com/stablecoins), Artemis, Allium repor
 Analytics, McKinsey/BCG/Bessemer reports. Always record measurement date and method.
 
 ## Funding trackers (S3 — use to find deals, then confirm on the company's or investor's release)
-- NAUT stablecoin funding round-ups, e.g. 16 Sep–15 Oct 2026: 13 startups, US$316.1m
-  (https://naut.so/articles/stablecoin-payments-funding-sep-oct-2026) [ASSUMPTION: search]
-- https://stablecoin.nyc/posts/crypto-funding-rounds-october-2026 (aggregator) [ASSUMPTION: search]
-- https://recentfunding.com/companies/industry/payments-stablecoins/ [ASSUMPTION: search]
+- NAUT stablecoin funding round-ups, e.g. 16 Sep–15 Oct 2026: 13 startups, US$316.1m disclosed by 12
+  (https://naut.so/articles/stablecoin-payments-funding-sep-oct-2026) [VERIFIED: page opened, 2026-10-31;
+  the page exists and says this; each deal in it is still S3 until confirmed at the company's release]
+- https://stablecoin.nyc/posts/crypto-funding-rounds-october-2026 (aggregator; 20 rounds 3–23 Oct,
+  US$307.8m disclosed) [VERIFIED: page opened, 2026-10-31; deals S3]
+- https://recentfunding.com/companies/industry/payments-stablecoins/ (1,046 startups, newest first)
+  [VERIFIED: page opened, 2026-10-31; deals S3]
 - GlobeNewswire / Business Wire / PR Newswire for the original press release (P2).
 
 ## Searches that work (copy-paste)

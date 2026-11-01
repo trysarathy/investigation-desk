@@ -1,0 +1,31 @@
+diff --git a/src/app/globals.css b/src/app/globals.css
+index c45bf0c..7db1b01 100644
+--- a/src/app/globals.css
++++ b/src/app/globals.css
+@@ -5,7 +5,7 @@
+   --panel-2: #fafaf9;
+   --text: #17181c;
+   --text-2: #5b5e66;
+-  --text-3: #8a8d94;
++  --text-3: #6a6d72; /* >= 4.5:1 on panel, canvas, panel-2 and every -soft tint (worst 4.54:1 on red-soft) */
+   --border: #e4e4e0;
+   --border-strong: #d2d2cc;
+   --accent: #3b5bdb;
+@@ -32,7 +32,7 @@
+     --panel-2: #1d1e23;
+     --text: #ececee;
+     --text-2: #a4a7ae;
+-    --text-3: #767982;
++    --text-3: #8b8d95; /* >= 4.5:1 on every dark surface (worst 4.56:1 on amber-soft) */
+     --border: #2a2b31;
+     --border-strong: #383a41;
+     --accent: #6b86f0;
+@@ -55,7 +55,7 @@
+   --panel-2: #1d1e23;
+   --text: #ececee;
+   --text-2: #a4a7ae;
+-  --text-3: #767982;
++  --text-3: #8b8d95;
+   --border: #2a2b31;
+   --border-strong: #383a41;
+   --accent: #6b86f0;

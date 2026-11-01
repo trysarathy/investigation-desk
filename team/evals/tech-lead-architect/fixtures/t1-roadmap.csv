@@ -1,0 +1,11 @@
+row_id,item,why,status,pr_link,owner,target_week,notes
+R12,UTC posting date bug: use the Xero org's timezone,Receipts 00:00-07:59 SGT book to the previous day,bug,#51,Product,W1,ADR 0002; approval-only
+R13,Reorg dismiss bug while confirming,Ghost transfer can't be dismissed,bug,#52,Product,W1,bug/dismiss-while-confirming-reorg
+R14,Security gap 1: demo reset guard,One POST wipes live workspace,bug,,Product,W1,SECURITY_GAPS #1; approval-only
+R15,Security gap 2: CSRF origin check,Cross-site approval possible,bug,,Product,W1,SECURITY_GAPS #2; approval-only
+R16,Contrast fix (lead-designer),WCAG contrast on status pills,todo,,Product,W1,
+R17,Watched wallet address (read-only),14-day target item 1,next,,Product,W2,PLAN D3.2/D4.1/D4.2
+R18,Scenario set of 20 payments,14-day target item 2,next,#53,Product,W2,PLAN D2.3/D5.1/D6.1
+R19,Tron payment requests,Customers ask for Tron,next,,Product,W3,
+R20,Add Solana USDC,Research brief suggestion,proposed,,Product,W4,
+R21,Pricing page copy,Website,todo,,Aashmiin,W2,

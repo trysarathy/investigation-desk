@@ -1,0 +1,5 @@
+[
+ {"number":28,"head":"website-fixes","base":"pitch-deck","created_at":"2026-10-28T15:50:45Z","title":"Website: follow-up fixes after review"},
+ {"number":36,"head":"xero-scopes","base":"qa-polish","created_at":"2026-10-29T06:11:49Z","title":"Xero granular scopes; approval requires the plan key"},
+ {"number":41,"head":"payment-terms","base":"main","created_at":"2026-11-02T18:32:00Z","title":"Payment terms on requests (net 7/14/30)"}
+]

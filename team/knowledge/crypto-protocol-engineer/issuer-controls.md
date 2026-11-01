@@ -49,15 +49,24 @@ State on 2026-10-29 (Tron) [VERIFIED on-chain]: `decimals()` = 6, `symbol()` = "
 
 Event indexing on the **Ethereum** TetherToken may differ from Tron (the Ethereum contract predates the
 Tron deployment) [ASSUMPTION: check the verified source on Etherscan before writing a log filter; the
-topic0 hashes above are signature-only and identical either way].
+topic0 hashes above are signature-only and identical either way; etherscan.io still 403 and no Ethereum
+RPC reachable on 2026-10-31]. On **Tron**, a simulated USDT `Transfer` carries 3 topics (from and to both
+indexed) [VERIFIED on-chain: api.trongrid.io `triggerconstantcontract` logs, 2026-10-31].
+Tether's own page says the Ethereum USD₮ contract "does not return a Boolean value in the transfer
+function" (use SafeERC20 when calling it) [VERIFIED: https://tether.to/en/supported-protocols/, 2026-10-31].
 
 Semantics [ASSUMPTION for the exact code paths; consistent with the repo's real cases]:
 - `transfer`/`transferFrom` require that the *sender* (`msg.sender` / `_from`) is not blacklisted; the
   recorded real cases FRZ-EF1/EF2 (Ethereum) and FRZ-TF1/TF2 (Tron) are USDT transfers from blacklisted
   senders that **reverted** (REVERT). [VERIFIED from `tests/real_cases.json` labels, proven by the
   issuer's own `AddedBlackList` tx]
-- Unlike USDC, Tether does not appear to block transfers **to** a blacklisted address [ASSUMPTION]: a
-  payment can land in a frozen deposit address and be stuck. That makes "is the **business's own**
+- Unlike USDC, Tether does not block transfers **to** a blacklisted address, at least on **Tron**
+  [VERIFIED on-chain 2026-10-31: api.trongrid.io `triggerconstantcontract` on `TR7N…Lj6t`: `transfer` of 1
+  base unit from the (non-blacklisted) contract origin to `TBzUpQyGiPP6uR8BwKkr6rsoYqdY9g8mNU`, for which
+  `isBlackListed` = true, executed without revert and emitted a Transfer log (it returned `false` as its
+  bool, so never trust the return value); the reverse, a transfer *from* that address, hit REVERT]. For the
+  Ethereum contract this is still [ASSUMPTION: Etherscan source not readable]. A payment can land in a
+  frozen deposit address and be stuck. That makes "is the **business's own**
   receiving address frozen" the more important check for receipts, which the code does do (role
   `deposit` in `freezeFacts`).
 - `destroyBlackFunds` burns a frozen address's balance and emits `DestroyedBlackFunds`; a credited deposit
@@ -71,31 +80,50 @@ Measured 2026-10-29 [VERIFIED on-chain]:
   `isBlacklisted` and `paused()` all revert. Issued by Binance, not Tether/Circle (SPEC section 3, week 3
   finding). D09 is "not available on this chain", correctly a known gap, not a missing fact.
 - OP Mainnet "USDT" `0x94b0…8e58`: no blacklist or pause functions: a bridged standard token.
-- Arbitrum USDT0 `0xFd08…Cbb9` ("USD₮0"): no `isBlackListed`/`isBlacklisted`/`paused()` selector, **but that only rules out Tether's older function names**. The newer USDT0 (OFT) contract is believed to expose a block-list under different names (e.g. `isBlocked`) [ASSUMPTION: grader 2026-10-30, not checked on-chain]. Treat USDT0 as freezable until its verified source is read. USDT0
-  is an omnichain (LayerZero OFT) USDT [ASSUMPTION: from public descriptions, not opened]; whatever freeze
-  mechanism it has is not the Tether ABI. Don't call D09 "checked" there.
+- Arbitrum USDT0 `0xFd08…Cbb9` ("USD₮0"): no `isBlackListed`/`isBlacklisted`/`paused()`/`pause()` selector,
+  **but it is freezable** under different names (confirmed 2026-10-31: was an unchecked "believed to
+  expose `isBlocked`"). It is an EIP-1967 proxy, implementation `0x3263cd783823d04a6b9819517e0e6840d37ca3f4`
+  (admin `0x553ec478…1b4a`); the implementation bytecode contains the selectors for
+  `isBlocked(address)` `0xfbac3951`, `addToBlockedList(address)` `0x3c7c9b90`,
+  `removeFromBlockedList(address)` `0x1a14f449` and `destroyBlockedFunds(address)` `0x0e27a385`, and
+  `isBlocked(0x0)` answers `false` via the proxy [VERIFIED on-chain: arb1.arbitrum.io `eth_getStorageAt`
+  slot 0x3608…2bbc, `eth_getCode`, `eth_call`, 2026-10-31]. Event names/topics for blocking and whether
+  `isBlocked` also blocks the *recipient* are not known (no verified source: docs.usdt0.to blocked,
+  Everdawn-Labs repos private). Omnichain link: `oftContract()` → `0x14E4a1B13bf7F943c8ff7C51fb60FA964A298D92`,
+  whose `endpoint()` is `0x1a44076050125825900e736c501f859c50fE728c` and `oftVersion()` returns interface
+  `0x02e49c2c`, v1 [VERIFIED on-chain, same date]; that address is LayerZero's EndpointV2 on Arbitrum as
+  used in LayerZero's own scripts [VERIFIED: github.com/LayerZero-Labs/devtools
+  `packages/script-devtools-evm-foundry/scripts/GasProfiling/OFTProfilerExample.s.sol`, read via git clone
+  2026-10-31]. So USDT0 = token behind a LayerZero OFT adapter, with a Tether-style block list that is
+  **not** the legacy Tether ABI. Clearline's D09 must read `isBlocked` here; until it does, don't call D09
+  "checked" on Arbitrum USDT0. Tether's supported-protocols page lists no Arbitrum USD₮ contract
+  [VERIFIED: https://tether.to/en/supported-protocols/, 2026-10-31].
 - USDC on Arbitrum, Base, OP: native Circle FiatToken (answers `isBlacklisted`, `paused`) [VERIFIED
-  on-chain; that these are Circle's listed addresses is ASSUMPTION until developers.circle.com is opened].
+  on-chain] and all three addresses are on Circle's list [VERIFIED: https://developers.circle.com/stablecoins/usdc-contract-addresses, 2026-10-31].
 
 ## 4. Official contract list (what Clearline may treat as "genuine")
 Rule: only addresses on the issuer's own page, recorded with the URL and date, then confirmed on-chain
 (`symbol`, `decimals`, freeze selector answers). Pages: Circle
 `https://developers.circle.com/stablecoins/usdc-contract-addresses`, Tether
-`https://tether.to/en/supported-protocols/`. **Both were blocked from this session on 2026-10-29**; the
-table is what can be stated today.
+`https://tether.to/en/supported-protocols/`. Blocked on 2026-10-29; **both opened 2026-10-31** and the
+table re-checked against them.
 
 | Chain | Token | Contract | Status of evidence |
 |---|---|---|---|
-| Ethereum | USDT | `0xdAC17F958D2ee523a2206206994597C13D831ec7` | In code since week 2 (SPEC: Coinbase asset page); on-chain recording shows symbol USDT, 6 dp. Issuer page not re-opened [ASSUMPTION] |
-| Ethereum | USDC | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` | In code: "Circle's USDC contract-address page, confirmed in week 3" [ASSUMPTION: not re-opened] |
-| Tron | USDT | `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t` | On-chain: `TetherToken`, USDT, 6 dp, freeze ABI present [VERIFIED on-chain]; issuer listing per SPEC (Trust Wallet/imToken) |
-| Tron | USDC | — | Circle wound down USDC on Tron [ASSUMPTION: SPEC flags it; verify on Circle's page]. Treat any Tron "USDC" as unsupported until confirmed |
-| Arbitrum / Base / OP | USDC | see `erc20-trc20.md` §4 | On-chain FiatToken behaviour [VERIFIED]; issuer listing [ASSUMPTION] |
-| BNB Chain | any | company-declared only | Neither issuer lists BNB Chain (SPEC, week 3) |
+| Ethereum | USDT | `0xdAC17F958D2ee523a2206206994597C13D831ec7` | Listed by Tether [VERIFIED: https://tether.to/en/supported-protocols/, 2026-10-31]; on-chain recording shows symbol USDT, 6 dp |
+| Ethereum | USDC | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` | Listed by Circle [VERIFIED: https://developers.circle.com/stablecoins/usdc-contract-addresses, 2026-10-31] |
+| Tron | USDT | `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t` | Listed by Tether [VERIFIED: https://tether.to/en/supported-protocols/, 2026-10-31]; on-chain: `TetherToken`, USDT, 6 dp, freeze ABI present [VERIFIED on-chain] |
+| Tron | USDC | — | Tron is **not** in Circle's mainnet USDC table [VERIFIED: https://developers.circle.com/stablecoins/usdc-contract-addresses, 2026-10-31]; Circle's wind-down announcement itself not opened (circle.com blocked). Treat any Tron "USDC" as not Circle-issued |
+| Arbitrum / Base / OP | USDC | see `erc20-trc20.md` §4 | On-chain FiatToken behaviour [VERIFIED]; on Circle's list [VERIFIED: https://developers.circle.com/stablecoins/usdc-contract-addresses, 2026-10-31] |
+| Polygon PoS | USDC | `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359` | On Circle's list [VERIFIED: https://developers.circle.com/stablecoins/usdc-contract-addresses, 2026-10-31]; decimals/freeze not read on-chain (no Polygon RPC reachable) |
+| Polygon / Arbitrum / Base / OP | USDT | — | Tether's page lists no USD₮ contract on these chains (it lists Ethereum, Avalanche, Kava, Celo, Kaia, Tron, Liquid, Solana, Polkadot AssetHub, Tezos, Near, Ton, Aptos) [VERIFIED: https://tether.to/en/supported-protocols/, 2026-10-31]: any USDT there is bridged or USDT0, not on Tether's list |
+| BNB Chain | USDT / USDC | company-declared only | Neither issuer lists a USD₮ or USDC contract on BNB Chain; Tether's page lists only **XAU₮** (`0x21cA…A3bf`) under BNB Smart Chain, and Circle's table has no BNB entry [VERIFIED: https://tether.to/en/supported-protocols/ and https://developers.circle.com/stablecoins/usdc-contract-addresses, 2026-10-31; corrected 2026-10-31: was "neither issuer lists BNB Chain"] |
 
-Tether discontinued support on Omni, Kusama, Bitcoin Cash SLP (2023), EOS and Algorand (minting stopped
-2024; wind-down 2025, revised in Aug 2025 to not freeze the contracts) [ASSUMPTION: news summaries via
-search; Tether's blog not opened]. None of these are Clearline chains; any "USDT" there is unsupported.
+Tether "is no longer issuing or obligated to redeem Tether Tokens on the Kusama, Bitcoin Cash SLP, Omni
+Layer, EOS and Algorand blockchains" and lists them as deprecated; EUR₮ is wound down and CNH₮ redemption
+ends 20 Feb 2027 [VERIFIED: https://tether.to/en/supported-protocols/, 2026-10-31]. The dates (SLP 2023, minting stopped 2024, wind-down
+2025, Aug 2025 revision not to freeze) are still [ASSUMPTION: news summaries; tether.io announcement
+blocked]. None of these are Clearline chains; any "USDT" there is unsupported.
 
 ## 5. What a freeze means for Clearline's verdicts
 - D09 reads freeze state **at `latest` when the hash is looked up**, not at the payment's block. The
@@ -117,4 +145,7 @@ search; Tether's blog not opened]. None of these are Clearline chains; any "USDT
 - TronGrid `POST https://api.trongrid.io/wallet/getcontract {"value":"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t","visible":true}` and `triggerconstantcontract` reads, 2026-10-29 [VERIFIED]
 - `tests/real_cases.json` FRZ-* labels and `tests/fixtures/real/FRZ-*.json` recordings (recorded 2026-10-24)
 - Selectors/topics: keccak-256 computed locally with `@noble/hashes` [VERIFIED]
-- https://developers.circle.com/stablecoins/usdc-contract-addresses and https://tether.to/en/supported-protocols/ (blocked this session; must be opened before any new official contract is added)
+- https://developers.circle.com/stablecoins/usdc-contract-addresses and https://tether.to/en/supported-protocols/ (blocked 2026-10-29; opened 2026-10-31) [VERIFIED]
+- USDT0 on Arbitrum: arb1.arbitrum.io `eth_getStorageAt` (EIP-1967 slots), `eth_getCode` of implementation `0x3263…a3f4`, `eth_call` `isBlocked`/`decimals`/`oftContract`/`endpoint`/`oftVersion`, 2026-10-31 [VERIFIED on-chain]; selectors computed locally (pure-Python keccak-256, checked against `transfer`/`decimals`/`isBlacklisted`)
+- LayerZero EndpointV2 address on Arbitrum: github.com/LayerZero-Labs/devtools (git clone, 2026-10-31) [VERIFIED]; docs.layerzero.network, docs.usdt0.to blocked
+- Tron to-blacklisted simulation: `triggerconstantcontract` transfer from `THPvaUhoh2Qn2y9THCZML3H815hhFhn5YC` to `TBzUpQyGiPP6uR8BwKkr6rsoYqdY9g8mNU`, 2026-10-31 [VERIFIED on-chain]

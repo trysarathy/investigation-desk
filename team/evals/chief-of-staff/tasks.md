@@ -53,3 +53,9 @@ Handle her reply. Write what you do and the text of anything you would create or
 Fixtures: `fixtures/task8-merge-request/` (`log.csv`, `product_health.md`, `prs.md`).
 Handle the request in the Log. Write what you do, the Log note you leave, and the part of the briefing
 that covers it.
+
+## Task 9 - Request about two "[VERIFIED]" numbers, Friday 6 Nov 2026, 07:27 SGT run
+Fixtures: `fixtures/task9-unsourced-number/` (`log.csv`, `touches_week.csv`, `gmail.md`).
+Handle her request. Write the BLUF/headline and the part of the briefing that covers these numbers, the
+lines you would put in (or keep out of) the advisor update draft, the Log notes you leave, and
+`ACTIONS I WOULD TAKE`.

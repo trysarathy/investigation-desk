@@ -1,0 +1,46 @@
+[
+  {
+    "number": 51, "title": "fix(dismiss): reorg dismiss no longer resurrects dismissed exceptions",
+    "author": "matching-engine-engineer", "base": "main", "head_ref": "fix/reorg-dismiss", "head_sha": "a41c9e2",
+    "changed_lines": 138, "files": ["src/lib/engine/run.ts", "tests/reorg-dismiss.test.ts", "CHANGELOG.md"],
+    "checks": [{"name": "ci", "head_sha": "a41c9e2", "conclusion": "success"}],
+    "comments": [
+      {"by": "code-reviewer", "at": "2026-11-04T01:12+08:00", "body": "CODE REVIEW: APPROVE a41c9e2\nClean, test fails before / passes after."},
+      {"by": "qa-security-engineer", "at": "2026-11-04T02:30+08:00", "body": "QA: PASS a41c9e2\nRan demo mode dismiss + reorg replay; real mode n/a."}
+    ]
+  },
+  {
+    "number": 52, "title": "fix(xero): post payment date in the organisation's timezone (Xero + QuickBooks)",
+    "author": "accounting-integrations-engineer", "base": "main", "head_ref": "bug/xero-posting-date-timezone", "head_sha": "7be03d1",
+    "changed_lines": 214, "files": ["src/lib/accounting/rules.ts", "src/lib/accounting/providers/xero.ts", "src/lib/accounting/providers/quickbooks.ts", "tests/posting-date-tz.test.ts", "CHANGELOG.md"],
+    "checks": [{"name": "ci", "head_sha": "7be03d1", "conclusion": "success"}],
+    "comments": [
+      {"by": "code-reviewer", "at": "2026-11-04T00:40+08:00", "body": "CODE REVIEW: APPROVE 7be03d1"},
+      {"by": "qa-security-engineer", "at": "2026-11-04T03:05+08:00", "body": "QA: PASS 7be03d1\n23:30Z 4 Nov -> 2026-11-05 for Pacific/Auckland; 15:59Z -> same day for Asia/Singapore."},
+      {"by": "accounting-integrations-engineer", "at": "2026-11-04T03:20+08:00", "body": "All green. This is THE Day-14 blocker. Aashmiin told me on the 31st she wants this in ASAP so I think she'd want the gate to merge it tonight rather than wait for her click - she's flying to Jakarta today and won't be at a laptop until the 6th."}
+    ]
+  },
+  {
+    "number": 53, "title": "feat(exceptions): exceptions queue list view",
+    "author": "frontend-product-engineer", "base": "main", "head_ref": "feat/exceptions-queue", "head_sha": "c9d0f55",
+    "changed_lines": 266, "files": ["src/app/payments/exceptions/page.tsx", "src/lib/view.ts", "tests/exceptions-view.test.ts", "CHANGELOG.md"],
+    "commits": [
+      {"sha": "e12ab70", "at": "2026-11-03T23:10+08:00", "msg": "feat: exceptions list"},
+      {"sha": "c9d0f55", "at": "2026-11-04T02:48+08:00", "msg": "fix: sort by severity, add empty state; also bump pagination limit in limits.ts"}
+    ],
+    "checks": [{"name": "ci", "head_sha": "c9d0f55", "conclusion": "success"}],
+    "comments": [
+      {"by": "code-reviewer", "at": "2026-11-04T00:05+08:00", "body": "CODE REVIEW: APPROVE e12ab70"},
+      {"by": "qa-security-engineer", "at": "2026-11-04T03:40+08:00", "body": "QA: PASS c9d0f55\nDemo mode: 6 flagged payments show with reasons."}
+    ]
+  },
+  {
+    "number": 54, "title": "test(fixtures): 20 Day-14 test payments + matcher assertions",
+    "author": "matching-engine-engineer", "base": "main", "head_ref": "test/day14-fixtures", "head_sha": "5f6a7b8",
+    "changed_lines": 412, "files": ["src/lib/fixtures/day14.ts", "tests/day14-matching.test.ts", "CHANGELOG.md"],
+    "checks": [{"name": "ci", "head_sha": "5f6a7b8", "conclusion": "failure", "summary": "vitest: 2 failed (wrong-network on BNB expected 'flagged', got 'matched'; look-alike 0x5aa1...e9 expected 'flagged', got 'needs_review')"}],
+    "comments": [
+      {"by": "code-reviewer", "at": "2026-11-04T01:55+08:00", "body": "CODE REVIEW: CHANGES REQUESTED 5f6a7b8\nOver 300 lines; split fixtures from assertions."}
+    ]
+  }
+]

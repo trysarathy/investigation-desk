@@ -1,0 +1,18 @@
+diff --git a/pitch/src/deck_style.py b/pitch/src/deck_style.py
+index 7ad7701..9ebfcf3 100644
+--- a/pitch/src/deck_style.py
++++ b/pitch/src/deck_style.py
+@@ -10,8 +10,11 @@ from pptx.enum.shapes import MSO_SHAPE
+ 
+ A = pathlib.Path(__file__).resolve().parent.parent / "assets"
+ FONT = "Arial"
+-INK, CARD, LINE = RGBColor(0x0B, 0x0E, 0x14), RGBColor(0x15, 0x1A, 0x24), RGBColor(0x2A, 0x31, 0x40)
+-WHITE, MUTED, FAINT = RGBColor(0xF2, 0xF4, 0xF7), RGBColor(0xA3, 0xAA, 0xB6), RGBColor(0x76, 0x7E, 0x8C)
++# One Clearline look: INK, WHITE, MUTED and FAINT are the website tokens (website/src/app/globals.css:
++# --color-ink, --color-fg, --color-muted, --color-faint). CARD and LINE stay deck-only (a projector needs a
++# card a step lighter than the site's panel). FAINT #8a93a3 is 6.32:1 on INK and 5.63:1 on CARD (was 4.26:1, A7).
++INK, CARD, LINE = RGBColor(0x0A, 0x0C, 0x11), RGBColor(0x15, 0x1A, 0x24), RGBColor(0x2A, 0x31, 0x40)
++WHITE, MUTED, FAINT = RGBColor(0xEC, 0xEE, 0xF4), RGBColor(0xA3, 0xAB, 0xBA), RGBColor(0x8A, 0x93, 0xA3)
+ ACC, ACC2, RED = RGBColor(0x8E, 0xA2, 0xFF), RGBColor(0xB9, 0xC6, 0xFF), RGBColor(0xFF, 0x8A, 0x7F)
+ W, H, M = 13.333, 7.5, 0.6
+ 

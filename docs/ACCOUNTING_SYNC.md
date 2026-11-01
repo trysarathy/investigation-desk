@@ -20,6 +20,15 @@ approves, posted to the company's accounting system.
 
 ## Posting rules (all tested in `tests/accounting.test.ts`)
 
+> **Note (accounting-integrations-engineer, 2026-11-01):** this table is what the code does today.
+> The signed rules in `docs/POSTING_RULES.md` (v0.2, approved by Aashmiin 2026-11-01 for the rows
+> marked Approved) change it once built: receipts go to a per-organisation **Stablecoin clearing**
+> account, not a bank/wallet account; posting waits for Ethereum **`finalized`**, not a
+> confirmation count; a rounding line of at most 0.01 closes an invoice and a larger difference
+> goes to the exceptions queue; an accepted shortfall posts to the organisation's chosen account
+> with no GST and is flagged for the accountant; par to USD, then Xero's own rate to base
+> currency, and a price more than 0.5% off par is an exception. Differences: POSTING_RULES §8.
+
 | Case | What posts | Invoice after |
 |---|---|---|
 | Exact | One payment: tx hash, token, network, USD value and rate source in the reference | Paid |
@@ -54,6 +63,8 @@ from par stops automatic posting.
 | Xero | Built; needs your Xero developer app to run | Payment, CreditNote + Allocation, BankTransaction `RECEIVE-OVERPAYMENT`, invoice History note |
 | QuickBooks Online | Built against documented shapes; not yet run on a sandbox | Payment, CreditMemo + linking payment, unapplied Payment |
 | NetSuite | Interface designed (`providers/netsuite.ts`), not built | customerPayment, creditMemo |
+
+**Pilots (Aashmiin's decision, 31 Oct 2026):** a pilot delivers matching, explanations and a Xero-ready import file that the customer's accountant reviews and imports. Live posting to a customer's Xero is switched on only after the Xero sandbox tests pass and Aashmiin approves.
 
 ### Connect Xero (about 10 minutes)
 

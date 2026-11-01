@@ -1,5 +1,7 @@
 # Real-data test results (24–25 Oct 2026)
 
+**Deposit diagnosis, not invoice matching (added 1 Nov 2026):** these results measure whether each transfer got the expected D-code verdict, with fictional sample company records. Invoice-to-payment matching has never been measured on real data. Do not quote these figures as a matching or accuracy claim in public or sales material.
+
 All numbers below were produced by `run_cases.py` driving the running app exactly as a user would (paste a hash, optional reporting customer; and one bulk CSV upload). No API keys were set. Cold cache for each full run.
 
 | Set | Cases | Correct | Accuracy | False alarms on normal | Wrong **and** High confidence | Paused | Median time | 90th pct | Slowest |

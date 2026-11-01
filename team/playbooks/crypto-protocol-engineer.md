@@ -95,6 +95,9 @@ been credited or posted wrongly.
 - **Any workaround you give ops or Aashmiin** ("use dismiss transfer", "re-run matching") must be checked against the real code or replayed on the fixture first. If the app refuses it, say so and open a `bug` row instead.
 - **Test expectations that contradict the spec** (e.g. `tests/real_cases.json` vs the rule order in docs/SPEC.md): flag the conflict in your output; never silently pick one. Use the catalogue's exact rule names.
 
+- **Customer-facing drafts never promise future work** ("we are fixing", "being fixed", "next week"): state what the product does today and that Aashmiin will follow up. Challenge existing product wording that over-claims instead of repeating it.
+- **Re-check primary sources** (the code, the contract, the EIP) for any fact that decides an outcome; the knowledge pack is a starting point, not evidence.
+
 ## §5 Responding to a QA red `main` (trigger: QA email RED on main, or §0 baseline red)
 1. Read the failing test names and output; reproduce on fresh `main` locally. Classify: real / flaky
    (re-run 3×, compare) / environment (network, keys, Node version).

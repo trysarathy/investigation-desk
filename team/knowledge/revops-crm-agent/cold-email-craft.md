@@ -10,7 +10,8 @@ lives in three slots only: **first line, question, close**. Everything else is g
   https://instantly.ai/blog/cold-email-reply-rate-benchmarks) [ASSUMPTION: search-only, vendor sources].
   Our template body is ~110 words; keep the first line and question short so it stays there.
 - B2B reply-rate benchmarks range from ~1.5% to ~7% depending on source and method [ASSUMPTION:
-  search-only]. RULES.md's floor is 1% (throttle/downgrade); our working target is ≥ 5% on D0.
+  search-only; vendor reports (instantly.ai, belkins.io) blocked 2026-10-31; even if opened they are vendor
+  data, not neutral sources]. RULES.md's floor is 1% (throttle/downgrade); our working target is ≥ 5% on D0.
 - The first follow-up adds a meaningful share of replies; later ones add little and raise complaints
   (Belkins) [ASSUMPTION: search-only]. That matches our D4 + D11 only.
 

@@ -1,0 +1,3784 @@
+[
+  {
+    "url": "product-main@8decb27/requests",
+    "viewport": "desktop-1280",
+    "screenshot": "requests-desktop-1280.png",
+    "overflow": {
+      "scrollWidth": 1280,
+      "clientWidth": 1280,
+      "offenders": []
+    },
+    "contrastFails": [
+      {
+        "fg": "#8a8d94",
+        "bg": "#f7f7f5",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.1,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": true,
+        "count": 1,
+        "sample": "(demo estimate)"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "· offline, fictional data"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Theme"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Time saved · demo estimate"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 5,
+        "sample": "Requests sent"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 11,
+        "weight": 600,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Arriving now"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 7,
+        "sample": "INV-1041"
+      }
+    ],
+    "contrastAll": [
+      {
+        "fg": "#8a8d94",
+        "bg": "#f7f7f5",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.1,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": true,
+        "count": 1,
+        "sample": "(demo estimate)"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "· offline, fictional data"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Theme"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Time saved · demo estimate"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 5,
+        "sample": "Requests sent"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 11,
+        "weight": 600,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Arriving now"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 7,
+        "sample": "INV-1041"
+      },
+      {
+        "fg": "#1f7a3d",
+        "bg": "#ffffff",
+        "size": 24,
+        "weight": 600,
+        "ratio": 5.37,
+        "need": 3,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "11"
+      },
+      {
+        "fg": "#8a5a00",
+        "bg": "#fdf3dc",
+        "size": 12,
+        "weight": 500,
+        "ratio": 5.37,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 4,
+        "sample": "Unidentified"
+      },
+      {
+        "fg": "#3b5bdb",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 700,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Acme Logistics"
+      },
+      {
+        "fg": "#ffffff",
+        "bg": "#3b5bdb",
+        "size": 13,
+        "weight": 400,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "▶ Play Acme's payment"
+      },
+      {
+        "fg": "#3b5bdb",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Open their payment page ↗"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#fdecea",
+        "size": 12,
+        "weight": 500,
+        "ratio": 5.75,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Blocked"
+      },
+      {
+        "fg": "#8a5a00",
+        "bg": "#ffffff",
+        "size": 24,
+        "weight": 600,
+        "ratio": 5.93,
+        "need": 3,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "5"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#f7f7f5",
+        "size": 15,
+        "weight": 400,
+        "ratio": 6.05,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": true,
+        "count": 1,
+        "sample": "Every request tells the sender exactly what to send, where a"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#f7f7f5",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.05,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": true,
+        "count": 3,
+        "sample": "that arrived this week were matched and marked paid with no "
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Demo data"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "All requests"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 700,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Demo mode"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 500,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Demo data"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 18,
+        "weight": 600,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "~"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 12,
+        "weight": 400,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 8,
+        "sample": "11"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 12,
+        "weight": 500,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Awaiting payment"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 6.49,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 9,
+        "sample": "this week"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.49,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 7,
+        "sample": "Waiting for the customer to pay"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#f7f7f5",
+        "size": 26,
+        "weight": 600,
+        "ratio": 16.54,
+        "need": 3,
+        "pass": true,
+        "bgImage": true,
+        "count": 1,
+        "sample": "Get paid in stablecoins without the mess."
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#f7f7f5",
+        "size": 15,
+        "weight": 700,
+        "ratio": 16.54,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": true,
+        "count": 6,
+        "sample": "11"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 700,
+        "ratio": 16.98,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Northwind Pay Pte Ltd"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 10,
+        "sample": "At a glance"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 24,
+        "weight": 600,
+        "ratio": 17.74,
+        "need": 3,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "18"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 600,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "30,620.90 USDC"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 700,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 5,
+        "sample": "Orbit Retail"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Reload demo day"
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "Acme Logistics INV-1041",
+        "w": 154,
+        "h": 20,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Fernhill Foods INV-1046",
+        "w": 149,
+        "h": 20,
+        "inline": false,
+        "spacingOk": true
+      }
+    ],
+    "focus": [
+      {
+        "el": "At a glance",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(228, 228, 224)"
+      },
+      {
+        "el": "All requests",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "New request",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "Books",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "SystemLightDark",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "Acme Logistics INV-1041",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "▶ Play Acme's payment",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "Fernhill Foods INV-1046",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "Open their payment page ↗",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "BlockedOrbit Retail INV-1043This isn't r",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(23, 24, 28)"
+      },
+      {
+        "el": "UnidentifiedNo reference Arrived with no",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(23, 24, 28)"
+      },
+      {
+        "el": "Short paymentBrightline Studio INV-1042S",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(23, 24, 28)"
+      },
+      {
+        "el": "Wrong networkMeridian Travel INV-1044Pai",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(23, 24, 28)"
+      },
+      {
+        "el": "Paid twiceKestrel Freight INV-1047Paid t",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(23, 24, 28)"
+      },
+      {
+        "el": "All requests",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      }
+    ],
+    "axe": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 18,
+        "sample": [
+          ".mode-note",
+          "label",
+          "select"
+        ]
+      }
+    ]
+  },
+  {
+    "url": "product-main@8decb27/requests/DEMO-1043",
+    "viewport": "desktop-1280",
+    "screenshot": "requests-DEMO-1043-desktop-1280.png",
+    "overflow": {
+      "scrollWidth": 1280,
+      "clientWidth": 1280,
+      "offenders": []
+    },
+    "contrastFails": [
+      {
+        "fg": "#8a8d94",
+        "bg": "#f7f7f5",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.1,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": true,
+        "count": 2,
+        "sample": "/"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#f7f7f5",
+        "size": 20,
+        "weight": 400,
+        "ratio": 3.1,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": true,
+        "count": 4,
+        "sample": "INV-1043"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "· offline, fictional data"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Theme"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 22,
+        "sample": "Today 12:18 SGT"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 11,
+        "weight": 600,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "What happened"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 700,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Not a payment: close it"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 10,
+        "sample": "·"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 9,
+        "sample": "1"
+      }
+    ],
+    "contrastAll": [
+      {
+        "fg": "#8a8d94",
+        "bg": "#f7f7f5",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.1,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": true,
+        "count": 2,
+        "sample": "/"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#f7f7f5",
+        "size": 20,
+        "weight": 400,
+        "ratio": 3.1,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": true,
+        "count": 4,
+        "sample": "INV-1043"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "· offline, fictional data"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Theme"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 22,
+        "sample": "Today 12:18 SGT"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 11,
+        "weight": 600,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "What happened"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 700,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Not a payment: close it"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 10,
+        "sample": "·"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 9,
+        "sample": "1"
+      },
+      {
+        "fg": "#3b5bdb",
+        "bg": "#f7f7f5",
+        "size": 12,
+        "weight": 400,
+        "ratio": 5.28,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": true,
+        "count": 1,
+        "sample": "At a glance"
+      },
+      {
+        "fg": "#1f7a3d",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 5.37,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Passed"
+      },
+      {
+        "fg": "#3b5bdb",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Sender page ↗"
+      },
+      {
+        "fg": "#ffffff",
+        "bg": "#3b5bdb",
+        "size": 13,
+        "weight": 400,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Not a payment: close it"
+      },
+      {
+        "fg": "#3b5bdb",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "audit log"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#fdecea",
+        "size": 12,
+        "weight": 500,
+        "ratio": 5.75,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Blocked"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#fdecea",
+        "size": 13,
+        "weight": 400,
+        "ratio": 5.75,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "🔒"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Demo data"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "All requests"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 700,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Demo mode"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 500,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Demo data"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 6.49,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 9,
+        "sample": "Email"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 700,
+        "ratio": 6.49,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Daniel Koh, Finance, Orbit Retail"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.49,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 23,
+        "sample": "Real USDT on Ethereum comes only from Tether's contract: 0xd"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 500,
+        "ratio": 6.49,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "USDT"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#ffffff",
+        "size": 18,
+        "weight": 600,
+        "ratio": 6.57,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "This isn't real USDT"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 600,
+        "ratio": 6.57,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "In your books"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 6.57,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Failed"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.57,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Not Tether's contract"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#f7f7f5",
+        "size": 20,
+        "weight": 600,
+        "ratio": 16.54,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": true,
+        "count": 1,
+        "sample": "Orbit Retail"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 700,
+        "ratio": 16.98,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Northwind Pay Pte Ltd"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 16.98,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Hi Daniel,\n\nThank you for letting us know about your payment"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 17,
+        "sample": "At a glance"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 400,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "“"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 16,
+        "weight": 600,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Send the customer the reply, then close this transfer"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 600,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 9,
+        "sample": "Reply to"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 8,
+        "sample": "Copy reply"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 700,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "7,500.00"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 18,
+        "weight": 600,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "7,500.00"
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "At a glance",
+        "w": 63,
+        "h": 15,
+        "inline": true,
+        "spacingOk": true
+      },
+      {
+        "text": "audit log",
+        "w": 49,
+        "h": 15,
+        "inline": true,
+        "spacingOk": true
+      }
+    ],
+    "focus": [
+      {
+        "el": "At a glance",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(228, 228, 224)"
+      },
+      {
+        "el": "All requests",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "New request",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "Books",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "SystemLightDark",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "At a glance",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "Sender page ↗",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "Decision note",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "Not a payment: close it",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "audit log",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "Copy reply",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "What this can't tell you",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(23, 24, 28)"
+      },
+      {
+        "el": "Activity · 5 entries, kept in full",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(23, 24, 28)"
+      },
+      {
+        "el": "Copy link",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "Copy instructions",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      }
+    ],
+    "axe": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 23,
+        "sample": [
+          ".mode-note",
+          "label",
+          "select"
+        ]
+      },
+      {
+        "id": "link-in-text-block",
+        "impact": "serious",
+        "help": "Links must be distinguishable without relying on color",
+        "nodes": 1,
+        "sample": [
+          ".faint > a[href$=\"books\"]"
+        ]
+      }
+    ]
+  },
+  {
+    "url": "product-main@8decb27/requests/all",
+    "viewport": "desktop-1280",
+    "screenshot": "requests-all-desktop-1280.png",
+    "overflow": {
+      "scrollWidth": 1280,
+      "clientWidth": 1280,
+      "offenders": []
+    },
+    "contrastFails": [
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "· offline, fictional data"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Theme"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 500,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 7,
+        "sample": "Customer"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 62,
+        "sample": "INV-1043"
+      }
+    ],
+    "contrastAll": [
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "· offline, fictional data"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Theme"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 500,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 7,
+        "sample": "Customer"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 62,
+        "sample": "INV-1043"
+      },
+      {
+        "fg": "#1f7a3d",
+        "bg": "#e9f5ec",
+        "size": 12,
+        "weight": 500,
+        "ratio": 4.79,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 12,
+        "sample": "Paid"
+      },
+      {
+        "fg": "#8a5a00",
+        "bg": "#fdf3dc",
+        "size": 12,
+        "weight": 500,
+        "ratio": 5.37,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 4,
+        "sample": "Paid twice"
+      },
+      {
+        "fg": "#ffffff",
+        "bg": "#3b5bdb",
+        "size": 13,
+        "weight": 400,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "New request"
+      },
+      {
+        "fg": "#3b5bdb",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 8,
+        "sample": "Needs attention"
+      },
+      {
+        "fg": "#3b5bdb",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 700,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 19,
+        "sample": "Orbit Retail"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#fdecea",
+        "size": 12,
+        "weight": 500,
+        "ratio": 5.75,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Blocked"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#f7f7f5",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.05,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": true,
+        "count": 1,
+        "sample": "Every request, including earlier ones (the at-a-glance numbe"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Demo data"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "At a glance"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 700,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Demo mode"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 500,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Demo data"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 12,
+        "weight": 500,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Awaiting payment"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.49,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 19,
+        "sample": "This isn't real USDT"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#f7f7f5",
+        "size": 16,
+        "weight": 600,
+        "ratio": 16.54,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": true,
+        "count": 1,
+        "sample": "All requests"
+      },
+      {
+        "fg": "#f7f7f5",
+        "bg": "#17181c",
+        "size": 13,
+        "weight": 400,
+        "ratio": 16.54,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "All"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 700,
+        "ratio": 16.98,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Northwind Pay Pte Ltd"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 34,
+        "sample": "All requests"
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "Orbit Retail",
+        "w": 70,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Kestrel Freight",
+        "w": 91,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Meridian Travel",
+        "w": 97,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Brightline Studio",
+        "w": 104,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Kite Analytics",
+        "w": 87,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Acme Logistics",
+        "w": 96,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Fernhill Foods",
+        "w": 88,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Greenleaf Packaging",
+        "w": 131,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Northstar Clinics",
+        "w": 106,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Red Dot Events",
+        "w": 95,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Vantage Prints",
+        "w": 92,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Saffron Kitchen Group",
+        "w": 140,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Cobalt Robotics",
+        "w": 100,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Bluefin Charters",
+        "w": 102,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Tanjong Coffee Co.",
+        "w": 121,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Lumen Health Supplies",
+        "w": 145,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Pixel & Grain",
+        "w": 79,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Harbourline Shipping",
+        "w": 133,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Kite Analytics",
+        "w": 87,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      }
+    ],
+    "focus": [
+      {
+        "el": "At a glance",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "All requests",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(228, 228, 224)"
+      },
+      {
+        "el": "New request",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "Books",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "SystemLightDark",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "New request",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "All 19",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(23, 24, 28)"
+      },
+      {
+        "el": "Needs attention 5",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "Arriving 0",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "Awaiting payment 2",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "Paid 12",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "Orbit Retail",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "Kestrel Freight",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "Meridian Travel",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "Brightline Studio",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      }
+    ],
+    "axe": [
+      {
+        "id": "aria-allowed-attr",
+        "impact": "critical",
+        "help": "Elements must only use supported ARIA attributes",
+        "nodes": 5,
+        "sample": [
+          "a[href=\"/requests/all?view=all\"]",
+          "a[href=\"/requests/all?view=attention\"]",
+          "a[href=\"/requests/all?view=progress\"]"
+        ]
+      },
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 68,
+        "sample": [
+          ".mode-note",
+          "label",
+          "select"
+        ]
+      }
+    ]
+  },
+  {
+    "url": "product-main@8decb27/requests",
+    "viewport": "phone-390",
+    "screenshot": "requests-phone-390.png",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "offenders": []
+    },
+    "contrastFails": [
+      {
+        "fg": "#8a8d94",
+        "bg": "#f7f7f5",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.1,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "(demo estimate)"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "· offline, fictional data"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Theme"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Time saved · demo estimate"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 5,
+        "sample": "Requests sent"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 11,
+        "weight": 600,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Arriving now"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 7,
+        "sample": "INV-1041"
+      }
+    ],
+    "contrastAll": [
+      {
+        "fg": "#8a8d94",
+        "bg": "#f7f7f5",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.1,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "(demo estimate)"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "· offline, fictional data"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Theme"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Time saved · demo estimate"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 5,
+        "sample": "Requests sent"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 11,
+        "weight": 600,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Arriving now"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 7,
+        "sample": "INV-1041"
+      },
+      {
+        "fg": "#1f7a3d",
+        "bg": "#ffffff",
+        "size": 24,
+        "weight": 600,
+        "ratio": 5.37,
+        "need": 3,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "11"
+      },
+      {
+        "fg": "#8a5a00",
+        "bg": "#fdf3dc",
+        "size": 12,
+        "weight": 500,
+        "ratio": 5.37,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 4,
+        "sample": "Unidentified"
+      },
+      {
+        "fg": "#3b5bdb",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 700,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Acme Logistics"
+      },
+      {
+        "fg": "#ffffff",
+        "bg": "#3b5bdb",
+        "size": 13,
+        "weight": 400,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "▶ Play Acme's payment"
+      },
+      {
+        "fg": "#3b5bdb",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Open their payment page ↗"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#fdecea",
+        "size": 12,
+        "weight": 500,
+        "ratio": 5.75,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Blocked"
+      },
+      {
+        "fg": "#8a5a00",
+        "bg": "#ffffff",
+        "size": 24,
+        "weight": 600,
+        "ratio": 5.93,
+        "need": 3,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "5"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#f7f7f5",
+        "size": 15,
+        "weight": 400,
+        "ratio": 6.05,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Every request tells the sender exactly what to send, where a"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#f7f7f5",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.05,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "that arrived this week were matched and marked paid with no "
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Demo data"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "All requests"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 700,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Demo mode"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 500,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Demo data"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 18,
+        "weight": 600,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "~"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 12,
+        "weight": 400,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 8,
+        "sample": "11"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 12,
+        "weight": 500,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Awaiting payment"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 6.49,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 9,
+        "sample": "this week"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.49,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 7,
+        "sample": "Waiting for the customer to pay"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#f7f7f5",
+        "size": 22,
+        "weight": 600,
+        "ratio": 16.54,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Get paid in stablecoins without the mess."
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#f7f7f5",
+        "size": 15,
+        "weight": 700,
+        "ratio": 16.54,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 6,
+        "sample": "11"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 700,
+        "ratio": 16.98,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Northwind Pay Pte Ltd"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 10,
+        "sample": "At a glance"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 24,
+        "weight": 600,
+        "ratio": 17.74,
+        "need": 3,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "18"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 600,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "30,620.90 USDC"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 700,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 5,
+        "sample": "Orbit Retail"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Reload demo day"
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "Acme Logistics INV-1041",
+        "w": 154,
+        "h": 20,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Fernhill Foods INV-1046",
+        "w": 149,
+        "h": 20,
+        "inline": false,
+        "spacingOk": true
+      }
+    ],
+    "focus": [
+      {
+        "el": "At a glance",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(228, 228, 224)"
+      },
+      {
+        "el": "All requests",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "New request",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "Books",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "SystemLightDark",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "Acme Logistics INV-1041",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "▶ Play Acme's payment",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "Fernhill Foods INV-1046",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "Open their payment page ↗",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "BlockedOrbit Retail INV-1043This isn't r",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(23, 24, 28)"
+      },
+      {
+        "el": "UnidentifiedNo reference Arrived with no",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(23, 24, 28)"
+      },
+      {
+        "el": "Short paymentBrightline Studio INV-1042S",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(23, 24, 28)"
+      },
+      {
+        "el": "Wrong networkMeridian Travel INV-1044Pai",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(23, 24, 28)"
+      },
+      {
+        "el": "Paid twiceKestrel Freight INV-1047Paid t",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(23, 24, 28)"
+      },
+      {
+        "el": "All requests",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      }
+    ],
+    "axe": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 19,
+        "sample": [
+          ".mode-note",
+          "label",
+          "select"
+        ]
+      }
+    ]
+  },
+  {
+    "url": "product-main@8decb27/requests/DEMO-1043",
+    "viewport": "phone-390",
+    "screenshot": "requests-DEMO-1043-phone-390.png",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "offenders": []
+    },
+    "contrastFails": [
+      {
+        "fg": "#8a8d94",
+        "bg": "#f7f7f5",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.1,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "/"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#f7f7f5",
+        "size": 20,
+        "weight": 400,
+        "ratio": 3.1,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 4,
+        "sample": "INV-1043"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "· offline, fictional data"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Theme"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 22,
+        "sample": "Today 12:18 SGT"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 11,
+        "weight": 600,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "What happened"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 700,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Not a payment: close it"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 10,
+        "sample": "·"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 9,
+        "sample": "1"
+      }
+    ],
+    "contrastAll": [
+      {
+        "fg": "#8a8d94",
+        "bg": "#f7f7f5",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.1,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "/"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#f7f7f5",
+        "size": 20,
+        "weight": 400,
+        "ratio": 3.1,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 4,
+        "sample": "INV-1043"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "· offline, fictional data"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Theme"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 22,
+        "sample": "Today 12:18 SGT"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 11,
+        "weight": 600,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "What happened"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 700,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Not a payment: close it"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 10,
+        "sample": "·"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 9,
+        "sample": "1"
+      },
+      {
+        "fg": "#3b5bdb",
+        "bg": "#f7f7f5",
+        "size": 12,
+        "weight": 400,
+        "ratio": 5.28,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "At a glance"
+      },
+      {
+        "fg": "#1f7a3d",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 5.37,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Passed"
+      },
+      {
+        "fg": "#3b5bdb",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Sender page ↗"
+      },
+      {
+        "fg": "#ffffff",
+        "bg": "#3b5bdb",
+        "size": 13,
+        "weight": 400,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Not a payment: close it"
+      },
+      {
+        "fg": "#3b5bdb",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "audit log"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#fdecea",
+        "size": 12,
+        "weight": 500,
+        "ratio": 5.75,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Blocked"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#fdecea",
+        "size": 13,
+        "weight": 400,
+        "ratio": 5.75,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "🔒"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Demo data"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "All requests"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 700,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Demo mode"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 500,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Demo data"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 6.49,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 9,
+        "sample": "Email"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 700,
+        "ratio": 6.49,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Daniel Koh, Finance, Orbit Retail"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.49,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 23,
+        "sample": "Real USDT on Ethereum comes only from Tether's contract: 0xd"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 500,
+        "ratio": 6.49,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "USDT"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#ffffff",
+        "size": 18,
+        "weight": 600,
+        "ratio": 6.57,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "This isn't real USDT"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 600,
+        "ratio": 6.57,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "In your books"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 6.57,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "Failed"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.57,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Not Tether's contract"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#f7f7f5",
+        "size": 20,
+        "weight": 600,
+        "ratio": 16.54,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Orbit Retail"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 700,
+        "ratio": 16.98,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Northwind Pay Pte Ltd"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 16.98,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Hi Daniel,\n\nThank you for letting us know about your payment"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 17,
+        "sample": "At a glance"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 400,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "“"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 16,
+        "weight": 600,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Send the customer the reply, then close this transfer"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 14,
+        "weight": 600,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 9,
+        "sample": "Reply to"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 400,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 8,
+        "sample": "Copy reply"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 700,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "7,500.00"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 18,
+        "weight": 600,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "7,500.00"
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "At a glance",
+        "w": 63,
+        "h": 15,
+        "inline": true,
+        "spacingOk": true
+      }
+    ],
+    "focus": [
+      {
+        "el": "At a glance",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(228, 228, 224)"
+      },
+      {
+        "el": "All requests",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "New request",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "Books",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "SystemLightDark",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "At a glance",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "Sender page ↗",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "Decision note",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "Not a payment: close it",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "audit log",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "Copy reply",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "What this can't tell you",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(23, 24, 28)"
+      },
+      {
+        "el": "Activity · 5 entries, kept in full",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(23, 24, 28)"
+      },
+      {
+        "el": "Copy link",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "Copy instructions",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      }
+    ],
+    "axe": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 25,
+        "sample": [
+          ".mode-note",
+          "label",
+          "select"
+        ]
+      },
+      {
+        "id": "link-in-text-block",
+        "impact": "serious",
+        "help": "Links must be distinguishable without relying on color",
+        "nodes": 1,
+        "sample": [
+          ".faint > a[href$=\"books\"]"
+        ]
+      }
+    ]
+  },
+  {
+    "url": "product-main@8decb27/requests/all",
+    "viewport": "phone-390",
+    "screenshot": "requests-all-phone-390.png",
+    "overflow": {
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "offenders": [
+        "TABLE.table",
+        "THEAD.",
+        "TR.",
+        "TH.",
+        "TH."
+      ]
+    },
+    "contrastFails": [
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "· offline, fictional data"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Theme"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 500,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 7,
+        "sample": "Customer"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 62,
+        "sample": "INV-1043"
+      }
+    ],
+    "contrastAll": [
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "· offline, fictional data"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.18,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Theme"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 12,
+        "weight": 500,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 7,
+        "sample": "Customer"
+      },
+      {
+        "fg": "#8a8d94",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 3.32,
+        "need": 4.5,
+        "pass": false,
+        "bgImage": false,
+        "count": 62,
+        "sample": "INV-1043"
+      },
+      {
+        "fg": "#1f7a3d",
+        "bg": "#e9f5ec",
+        "size": 12,
+        "weight": 500,
+        "ratio": 4.79,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 12,
+        "sample": "Paid"
+      },
+      {
+        "fg": "#8a5a00",
+        "bg": "#fdf3dc",
+        "size": 12,
+        "weight": 500,
+        "ratio": 5.37,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 4,
+        "sample": "Paid twice"
+      },
+      {
+        "fg": "#ffffff",
+        "bg": "#3b5bdb",
+        "size": 13,
+        "weight": 400,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "New request"
+      },
+      {
+        "fg": "#3b5bdb",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 8,
+        "sample": "Needs attention"
+      },
+      {
+        "fg": "#3b5bdb",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 700,
+        "ratio": 5.67,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 19,
+        "sample": "Orbit Retail"
+      },
+      {
+        "fg": "#b42318",
+        "bg": "#fdecea",
+        "size": 12,
+        "weight": 500,
+        "ratio": 5.75,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Blocked"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#f7f7f5",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.05,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Every request, including earlier ones (the at-a-glance numbe"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 400,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Demo data"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 3,
+        "sample": "At a glance"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 700,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Demo mode"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 11,
+        "weight": 500,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Demo data"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#fafaf9",
+        "size": 12,
+        "weight": 500,
+        "ratio": 6.21,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "Awaiting payment"
+      },
+      {
+        "fg": "#5b5e66",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 6.49,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 19,
+        "sample": "This isn't real USDT"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#f7f7f5",
+        "size": 16,
+        "weight": 600,
+        "ratio": 16.54,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "All requests"
+      },
+      {
+        "fg": "#f7f7f5",
+        "bg": "#17181c",
+        "size": 13,
+        "weight": 400,
+        "ratio": 16.54,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 2,
+        "sample": "All"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#fafaf9",
+        "size": 13,
+        "weight": 700,
+        "ratio": 16.98,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 1,
+        "sample": "Northwind Pay Pte Ltd"
+      },
+      {
+        "fg": "#17181c",
+        "bg": "#ffffff",
+        "size": 13,
+        "weight": 400,
+        "ratio": 17.74,
+        "need": 4.5,
+        "pass": true,
+        "bgImage": false,
+        "count": 34,
+        "sample": "All requests"
+      }
+    ],
+    "smallTargets": [
+      {
+        "text": "Orbit Retail",
+        "w": 70,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Kestrel Freight",
+        "w": 91,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Meridian Travel",
+        "w": 97,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Brightline Studio",
+        "w": 104,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Kite Analytics",
+        "w": 87,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Acme Logistics",
+        "w": 96,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Fernhill Foods",
+        "w": 88,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Greenleaf Packaging",
+        "w": 131,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Northstar Clinics",
+        "w": 106,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Red Dot Events",
+        "w": 95,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Vantage Prints",
+        "w": 92,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Saffron Kitchen Group",
+        "w": 140,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Cobalt Robotics",
+        "w": 100,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Bluefin Charters",
+        "w": 102,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Tanjong Coffee Co.",
+        "w": 121,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Lumen Health Supplies",
+        "w": 145,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Pixel & Grain",
+        "w": 79,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Harbourline Shipping",
+        "w": 133,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      },
+      {
+        "text": "Kite Analytics",
+        "w": 87,
+        "h": 16,
+        "inline": false,
+        "spacingOk": true
+      }
+    ],
+    "focus": [
+      {
+        "el": "At a glance",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "All requests",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(228, 228, 224)"
+      },
+      {
+        "el": "New request",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "Books",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(91, 94, 102)"
+      },
+      {
+        "el": "SystemLightDark",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "New request",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "All 19",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(23, 24, 28)"
+      },
+      {
+        "el": "Needs attention 5",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "Arriving 0",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "Awaiting payment 2",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "Paid 12",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(210, 210, 204)"
+      },
+      {
+        "el": "Orbit Retail",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "Kestrel Freight",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "Meridian Travel",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      },
+      {
+        "el": "Brightline Studio",
+        "outline": "2px solid rgb(59, 91, 219)",
+        "boxShadow": false,
+        "border": "rgb(59, 91, 219)"
+      }
+    ],
+    "axe": [
+      {
+        "id": "aria-allowed-attr",
+        "impact": "critical",
+        "help": "Elements must only use supported ARIA attributes",
+        "nodes": 5,
+        "sample": [
+          "a[href=\"/requests/all?view=all\"]",
+          "a[href=\"/requests/all?view=attention\"]",
+          "a[href=\"/requests/all?view=progress\"]"
+        ]
+      },
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 25,
+        "sample": [
+          ".mode-note",
+          "label",
+          "select"
+        ]
+      }
+    ]
+  },
+  {
+    "reducedMotion": {
+      "path": "/requests",
+      "runningAnimations": [],
+      "scrollBehavior": "auto"
+    }
+  }
+]

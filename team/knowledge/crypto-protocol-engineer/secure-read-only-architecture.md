@@ -11,7 +11,7 @@ token approvals, or roles on any contract; it calls only read endpoints with Cle
 `approveAndPost()`, only for a plan in state `ready`, only after a person clicks Approve, with an
 idempotency key per line. Whitepaper 5: "If Clearline received, held or forwarded funds, it would become a
 party to the payment and in Singapore would likely need a licence for digital payment token services"
-[ASSUMPTION as stated there; no legal advice yet].
+[ASSUMPTION as stated there; no legal advice yet; mas.gov.sg unreachable and sso.agc.gov.sg (PS Act) 403 on 2026-10-31].
 
 ## Concrete rules for every PR
 1. **Allowed chain methods only**: `eth_getTransactionByHash`, `eth_getTransactionReceipt`,

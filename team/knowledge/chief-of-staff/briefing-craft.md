@@ -3,8 +3,10 @@
 ## 1. Bottom line up front (BLUF)
 - BLUF comes from US Army correspondence standards: AR 25-50 asks writers to put "the main point at the
   beginning of the correspondence (bottom line up front)" and to use the active voice; the US Air Force
-  *Tongue and Quill* says "get your bottom line up front (most of the time)" [ASSUMPTION S13, S14: seen in
-  search summaries, page not opened].
+  *Tongue and Quill* says "get your bottom line up front (most of the time)" [ASSUMPTION S13: secondary,
+  Wikipedia "BLUF (communication)" opened 2026-10-31 quotes AR 25-50: "putting the main point at the
+  beginning of the correspondence (bottom line up front) and using the active voice"; AR 25-50 itself
+  (armypubs.army.mil) unreachable. S14: not on that Wikipedia page; Air Force e-publishing unreachable].
 - PostHog's handbook: write "with the busy reader in mind": a summary they can read quickly, then go
   deeper below or in appendices [VERIFIED S11].
 - **Our rule:** the first 3 lines of every email answer: *Is anything wrong? What do you need from me? By
@@ -28,7 +30,10 @@ She should be able to stop reading after the last `DECIDE` and lose nothing she 
 ## 3. Completed staff work: bring answers, not questions
 - The "completed staff work" doctrine (1940s US/Canadian military) says the staff officer should hand the
   chief a finished recommendation so the chief only has to approve or disapprove; a rough draft is fine,
-  a half-baked idea is not [ASSUMPTION S20: search summary].
+  a half-baked idea is not [ASSUMPTION S20: secondary, Wikipedia "Completed staff work" opened 2026-10-31:
+  the superior only reviews and approves or disapproves; "earliest description ... appears in U.S. Army
+  publications", attributed variously to Truman's Budget Bureau and MacArthur's HQ. The "rough draft"
+  line and "Canadian" origin are not on that page; no primary text opened].
 - GitLab: "make a concrete proposal instead of calling a meeting"; "every meeting should be a review of
   a proposal"; if you have none, say so and list what you considered [VERIFIED S3].
 - **Our rule:** never ask "what do you want to do about X?". Write "I recommend A. Reply `D1 A` to agree."
@@ -42,10 +47,11 @@ quality/quantity of the data"; "it is ok to make a judgment call with limited da
 is known" [VERIFIED S2].
 Amazon's 2016 letter (as widely quoted) separates Type 1 decisions (one-way doors: irreversible, decide
 carefully) from Type 2 (two-way doors: reversible, decide fast), and says most decisions should be made
-with about 70% of the information you wish you had [ASSUMPTION S15: secondary summaries]. GitLab: most
+with about 70% of the information you wish you had [ASSUMPTION S15: secondary summaries; aboutamazon.com
+and sec.gov unreachable 2026-10-31]. GitLab: most
 decisions are easy to reverse; only irreversible ones need more discussion [VERIFIED S3].
 Amazon writes narrative memos instead of slides and reads them silently at the start of meetings
-[ASSUMPTION S16]; the lesson for us is full sentences with reasons, not bullet fragments.
+[ASSUMPTION S16: aboutamazon.com unreachable 2026-10-31]; the lesson for us is full sentences with reasons, not bullet fragments.
 
 **Short form (in the briefing, ≤ 90 words each):**
 ```
@@ -79,7 +85,7 @@ each answer (who does what by when) · Revisit trigger.
 
 ## 6. Writing rules for her emails
 - ≤ 700 words above the `DETAILS` line for the briefing (≈ 3-4 minutes at a typical 200-250 words per
-  minute [ASSUMPTION]); the rest is reference she may skip. Read time target ≤ 10 min including clearing
+  minute [ASSUMPTION: no source opened]); the rest is reference she may skip. Read time target ≤ 10 min including clearing
   approvals.
 - One line per item; link, owner, recommendation. Numbers with source in brackets: `(Touches tab)`.
 - Bad news plainly: "main is RED: 2 tests failing in accounting-sync (QA 22:53)". Never "mostly green".

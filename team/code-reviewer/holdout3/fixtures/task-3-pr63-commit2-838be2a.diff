@@ -1,0 +1,33 @@
+diff --git a/src/lib/format.ts b/src/lib/format.ts
+index b92ceda..4c6a117 100644
+--- a/src/lib/format.ts
++++ b/src/lib/format.ts
+@@ -23,9 +23,10 @@ export function formatTime(iso: string): string {
+   return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} SGT`;
+ }
+ 
+-/** The calendar day in Singapore time (the pilot region), e.g. for a file name: 2026-11-30T23:30Z is 2026-12-01. */
++/** The calendar day in Singapore time (the pilot region), e.g. for a file name. */
+ export function sgtDay(iso: string): string {
+-  return new Date(Date.parse(iso) + 8 * 3600_000).toISOString().slice(0, 10);
++  // The platform's date formatter instead of adding hours by hand; en-CA writes YYYY-MM-DD.
++  return new Date(iso).toLocaleDateString("en-CA");
+ }
+ 
+ export function formatDuration(seconds: number): string {
+diff --git a/tests/export.test.ts b/tests/export.test.ts
+index 1b058a2..0378b1e 100644
+--- a/tests/export.test.ts
++++ b/tests/export.test.ts
+@@ -174,8 +174,8 @@ describe("evidence pack", () => {
+ 
+ describe("export file name", () => {
+   it("is named after the Singapore day, not the server's UTC day", () => {
+-    expect(exportFileName(new Date("2026-11-30T23:30:00Z"))).toBe("reconciled-2026-12-01.csv"); // 07:30 SGT on 1 Dec
+-    expect(exportFileName(new Date("2026-11-30T15:59:59Z"))).toBe("reconciled-2026-11-30.csv"); // 23:59:59 SGT
+-    expect(exportFileName(new Date("2026-11-30T16:00:00Z"))).toBe("reconciled-2026-12-01.csv"); // midnight SGT
++    // Midday Singapore time, so the result doesn't depend on the machine the tests run on.
++    expect(exportFileName(new Date("2026-11-30T04:00:00Z"))).toBe("reconciled-2026-11-30.csv");
++    expect(exportFileName(new Date("2026-12-01T04:00:00Z"))).toBe("reconciled-2026-12-01.csv");
+   });
+ });

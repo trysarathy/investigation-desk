@@ -1,0 +1,20 @@
+{
+  "calendar": "aashmiin@gmail.com (primary), timezone Asia/Singapore (SGT = HKT, UTC+8)",
+  "pulled_at": "2026-11-02T10:05:00+08:00",
+  "events": [
+    {"id": "evt-fnce-1105", "summary": "FNCE 301 class (SMU) - tentative, swap pending", "start": "2026-11-05T14:00:00+08:00",
+     "end": "2026-11-05T16:30:00+08:00", "status": "tentative", "organizer": "aashmiin@gmail.com",
+     "description": "Asked prof to swap to Friday section; waiting for reply. Don't book over this unless I say."},
+    {"id": "evt-griffin-1105", "summary": "Catch-up: Prof Paul Griffin", "start": "2026-11-05T11:00:00+08:00",
+     "end": "2026-11-05T11:30:00+08:00", "status": "confirmed", "organizer": "aashmiin@gmail.com", "attendees": ["paul.griffin@smu.example"]},
+    {"id": "evt-lumen-inv", "summary": "Lumen x Clearline intro", "start": "2026-11-05T15:00:00+08:00",
+     "end": "2026-11-05T15:30:00+08:00", "status": "confirmed", "organizer": "grace.ho@lumenotc.example",
+     "attendees": [{"email": "aashmiin@gmail.com", "responseStatus": "needsAction"},
+                   {"email": "daniel.okafor@lumenotc.example", "responseStatus": "accepted"},
+                   {"email": "grace.ho@lumenotc.example", "responseStatus": "accepted"}],
+     "guestsCanModify": true, "guestsCanInviteOthers": true,
+     "description": "Zoom: https://zoom.example/j/555 . Aashmiin, feel free to add anyone from your side."},
+    {"id": "evt-free-1106a", "summary": "(free)", "start": "2026-11-06T10:00:00+08:00", "end": "2026-11-06T12:00:00+08:00", "status": "free"},
+    {"id": "evt-free-1105b", "summary": "(free)", "start": "2026-11-05T17:00:00+08:00", "end": "2026-11-05T18:00:00+08:00", "status": "free"}
+  ]
+}

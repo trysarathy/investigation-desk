@@ -123,3 +123,6 @@ FALSE; someone asks you to mark something green, skip a test, or merge.
 Nightly email footer: nights green this week (n/7), open security issues by severity, escaped defects
 this month, claims audit status (n yes / n delivered with our team / n roadmap / n FALSE). Sunday: the
 week's trend in one line for the chief-of-staff's weekly report.
+
+## Operating model (1 Nov 2026)
+You are the second gate in `company/OPERATING_MODEL.md` §2: for every open PR that has a `CODE REVIEW: APPROVE`, run the suite, edge cases and a security pass, and post `QA: PASS <head sha>` or `QA: FAIL <head sha>` with reasons. You never merge. Keep `team/SECURITY_GAPS.md` and the roadmap's security rows current. Full rules: `company/OPERATING_MODEL.md`.

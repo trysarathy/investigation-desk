@@ -8,7 +8,7 @@
   [VERIFIED S12]. At 0 customers, that is almost always: more strong-problem calls → more pilot offers.
 - **Growth and trends over cumulative totals**; acknowledge thin data [VERIFIED S2]. With n < 10, report
   counts, not rates or "what's working" (house rule, from the old weekly wrap).
-- **Never drop a metric because it looks bad** [ASSUMPTION S17].
+- **Never drop a metric because it looks bad**: "Removing things because you can't hit your milestones is bad" [VERIFIED S17, 2026-10-31].
 
 ## The goal (Goals & metrics tab, read 2026-10-29) [VERIFIED I1]
 30-day goal to **28 Nov 2026: 5 paid founding pilots = US$1,500 cash collected; 10 pilots offered.**

@@ -1,9 +1,10 @@
 # Compliance: may we cold-email this business contact?
 
 Accessed 2026-10-29. **Not legal advice.** The guard's country list (`gtm/model.py::STRICT_COUNTRIES`) and
-RULES.md are the operating law for us; this file explains why, and what else each regime requires. No
-primary legal page could be opened from the build session (hosts blocked), so external facts are
-**[ASSUMPTION: search-only]** unless marked otherwise. Anything uncertain → draft only and ask Aashmiin
+RULES.md are the operating law for us; this file explains why, and what else each regime requires.
+Re-checked 2026-10-31: the ICO PECR guide, CASL (Justice Laws), Spain's LSSI (BOE) and Italy's Privacy Code
+(Garante) were opened and are marked [VERIFIED: url, date]. Everything else is still
+**[ASSUMPTION: search-only]** because its primary host was blocked on 2026-10-31 (reason given per section). Anything uncertain → draft only and ask Aashmiin
 (who asks a lawyer).
 
 ## 0. Decision table (what you actually do)
@@ -23,7 +24,7 @@ primary legal page could be opened from the build session (hosts blocked), so ex
 ## 1. United States: CAN-SPAM Act
 Sources: FTC, "CAN-SPAM Act: A Compliance Guide for Business",
 https://www.ftc.gov/business-guidance/resources/can-spam-act-compliance-guide-business [ASSUMPTION:
-search-only]; secondary: https://iapp.org/resources/article/the-can-spam-act-a-compliance-guide-for-business .
+search-only; www.ftc.gov, uscode.house.gov, law.cornell.edu and govinfo.gov all blocked 2026-10-31]; secondary: https://iapp.org/resources/article/the-can-spam-act-a-compliance-guide-for-business .
 - **No B2B exemption**: the FTC guide says the law "makes no exception for business-to-business email".
 - No prior consent needed. Requirements for commercial messages: accurate header/From/routing; subject
   line not deceptive; identify the message as an ad where it is primarily commercial; **a valid physical
@@ -40,13 +41,20 @@ search-only]; secondary: https://iapp.org/resources/article/the-can-spam-act-a-c
 ## 2. United Kingdom: PECR + UK GDPR
 Sources: ICO, "Electronic mail marketing" (PECR guide),
 https://ico.org.uk/for-organisations/direct-marketing-and-privacy-and-electronic-communications/guide-to-pecr/electronic-and-telephone-marketing/electronic-mail-marketing/
-[ASSUMPTION: search-only]; commentary: https://www.scl.org/10176-b2b-communications-a-welcome-ico-turnaround/ ,
+[VERIFIED: that URL, 2026-10-31]. ICO: "Sole traders and some partnerships are treated as individuals ... You
+can email or text any corporate body (a company, Scottish partnership, limited liability partnership or
+government body)"; "you must not disguise or conceal your identity, and you must provide a valid contact
+address so they can opt out"; keeping a "do not email" list of objecting businesses is "good practice". The
+page carries a banner that, after the Data (Use and Access) Act, the guidance "is under review and may be
+subject to change": re-check monthly. Commentary [ASSUMPTION: secondary]: https://www.scl.org/10176-b2b-communications-a-welcome-ico-turnaround/ ,
 https://legalvision.co.uk/data-privacy-it/rules-emailing-corporates-consumers-marketing-promotions/ .
 - PECR's consent rule for marketing email protects **individual subscribers**, which include **sole traders
   and some partnerships**. **Corporate subscribers** (limited companies, LLPs, plcs, government bodies) can
   be emailed without prior consent, but the sender must **identify itself** and give a **valid address for
   opt-out**; keep a suppression list.
-- UK GDPR still applies: a named employee's work address is personal data. Basis = legitimate interests
+- UK GDPR still applies: a named employee's work address is personal data (the ICO page itself says to
+  "consider data protection implications" for named employee addresses like firstname.lastname@).
+  The rest of this bullet is [ASSUMPTION: search-only; UK GDPR text on legislation.gov.uk blocked]: Basis = legitimate interests
   (document the balance: B2B, role-relevant, low volume, easy opt-out); be transparent about the source
   (Art 14) and stop at once on objection (Art 21).
 - For us: check the company suffix (Ltd/LLP/plc). A sole trader or "& Co" partnership → LinkedIn instead.
@@ -57,7 +65,7 @@ Sources: GDPR Recital 47 and Art 21 (https://gdpr-text.com/read/recital-47/ ,
 https://eur-lex.europa.eu/eli/reg/2016/679/oj), ePrivacy Directive Art 13
 (https://eur-lex.europa.eu/eli/dir/2002/58/oj); commentary https://www.gdprregister.eu/gdpr/direct-marketing-rules-and-exceptions/ ,
 https://www.cpomagazine.com/data-protection/direct-marketing-under-the-gdpr-consent-vs-legitimate-interests/
-[ASSUMPTION: search-only].
+[ASSUMPTION: search-only; eur-lex.europa.eu returned a bot-check page (HTTP 202, no text) on 2026-10-31].
 - GDPR Recital 47: direct marketing "may be regarded as carried out for a legitimate interest", subject to a
   case-by-case balancing test. Art 21(2)-(3): the person can object to direct marketing at any time and
   processing for it must stop (absolute). Art 14: tell people where their data came from. GDPR likely
@@ -66,15 +74,23 @@ https://www.cpomagazine.com/data-protection/direct-marketing-under-the-gdpr-cons
   customer "soft opt-in" exception); for **legal persons** each Member State decides (Art 13(5))
   [ASSUMPTION: general knowledge]. Hence the national split:
   - **Germany**: UWG §7(2) requires prior express consent for advertising email, with **no B2B exemption**
-    (§7(3) existing-customer exception only) [ASSUMPTION: search-only, https://overloop.com/blog/b2b-cold-email-germany-gdpr-compliance].
+    (§7(3) existing-customer exception only) [ASSUMPTION: search-only, https://overloop.com/blog/b2b-cold-email-germany-gdpr-compliance;
+    gesetze-im-internet.de blocked 2026-10-31].
   - **Austria**: Telecommunications Act (TKG 2021 §174; formerly TKG 2003 §107) requires prior consent,
-    B2B included [ASSUMPTION: search-only; section number differs between sources].
-  - **Italy** (Privacy Code art. 130, Garante) and **Spain** (LSSI art. 21): prior consent expected even for
-    company addresses [ASSUMPTION: search-only, https://www.dealfront.com/guides/guide-to-cold-calling-and-emailing-europe].
+    B2B included [ASSUMPTION: search-only; section number differs between sources; ris.bka.gv.at returned
+    503 on 2026-10-31].
+  - **Italy**: Privacy Code art. 130(1)-(2) allows marketing communications by email only "con il consenso del
+    contraente o utente" (subscriber or user, which is not limited to natural persons) [VERIFIED:
+    https://garanteprivacy.it/home/docweb/-/docweb-display/docweb/9042678 (Codice, testo coordinato, PDF),
+    2026-10-31].
+  - **Spain**: LSSI art. 21(1) prohibits promotional email "que previamente no hubieran sido solicitadas o
+    expresamente autorizadas por los destinatarios", with no business-recipient exception; art. 21(2) allows
+    only a prior-contract similar-products exception [VERIFIED: https://boe.es/buscar/act.php?id=BOE-A-2002-13758,
+    2026-10-31]. So consent is needed even for company addresses in both countries.
   - **Netherlands**: sources conflict (some say B2B legitimate interest works; others list NL as opt-in)
-    [ASSUMPTION: search-only]. RULES.md lists NL as strict: we follow RULES.md.
+    [ASSUMPTION: search-only; wetten.overheid.nl blocked 2026-10-31]. RULES.md lists NL as strict: we follow RULES.md.
   - France (CNIL), Ireland and others are generally described as allowing role-relevant B2B email to work
-    addresses with an opt-out [ASSUMPTION: search-only].
+    addresses with an opt-out [ASSUMPTION: search-only; www.cnil.fr and irishstatutebook.ie blocked 2026-10-31].
 - For us: guard blocks the strict list. For other EU countries: named work address only, role-relevant
   question, opt-out line, source kept; any objection → Do-not-contact the same day.
 
@@ -82,7 +98,10 @@ https://www.cpomagazine.com/data-protection/direct-marketing-under-the-gdpr-cons
 Sources: Spam Control Act 2007, https://sso.agc.gov.sg/Act/SCA2007 ; IMDA best practices,
 https://imda.gov.sg/infocomm-regulation-and-guides/unsolicited-communications/best-practices-for-organisations ;
 PDPC press release 2016, https://pdpc.gov.sg/news-and-events/press-room/2016/06/blanket-ban-on-b2b-marketing-messages-may-hinder-legitimate-business-activity
-[all ASSUMPTION: search-only].
+[all ASSUMPTION: search-only; on 2026-10-31 sso.agc.gov.sg loaded only the table of contents (it confirms
+s 6 "Meaning of 'sending in bulk'" and s 11 "Sender of unsolicited commercial electronic messages in bulk to
+comply with Second Schedule" exist) but the section text and PDF returned 403; www.pdpc.gov.sg and
+www.imda.gov.sg blocked. The 100/1,000/10,000 numbers, 10 business days and `<ADV>` remain unchecked].
 - **PDPA**: business contact information (name, title, business phone/email/address) is excluded from the
   main obligations when used for business purposes; the PDPC says the Do Not Call provisions do not apply to
   B2B marketing messages. Data used for personal purposes is still covered.
@@ -97,21 +116,27 @@ PDPC press release 2016, https://pdpc.gov.sg/news-and-events/press-room/2016/06/
   the follow-ups counted [ASSUMPTION].
 
 ## 5. Canada: CASL
-Sources: Federal Court of Appeal summary via https://www.blg.com/en/insights/2020/07/federal-court-of-appeal-rules-casl-constitutionally-valid-and-provides-interpretive-guidance ;
+Sources: CASL, S.C. 2010, c. 23 [VERIFIED: https://laws-lois.justice.gc.ca/eng/acts/E-1.6/FullText.html,
+2026-10-31]; court commentary https://www.blg.com/en/insights/2020/07/federal-court-of-appeal-rules-casl-constitutionally-valid-and-provides-interpretive-guidance ,
 https://www.mltaikins.com/insights/casl-is-constitutional-and-some-guidance-on-how-to-interpret-it/
-[ASSUMPTION: search-only]; CRTC guidance at https://crtc.gc.ca (not opened).
-- Commercial electronic messages need **consent** (express or implied). Implied consent by **conspicuous
-  publication** needs all three: address conspicuously published, no statement refusing unsolicited
-  messages, message relevant to the person's business role. Mining third-party directories doesn't qualify;
-  **the sender must prove** all three (keep the evidence). Messages must identify the sender and include an
-  unsubscribe mechanism (honour within 10 business days) [ASSUMPTION: general knowledge].
+[ASSUMPTION: secondary]; CRTC guidance at https://crtc.gc.ca (403 on 2026-10-31, not opened).
+- s 6(1): commercial electronic messages need **consent** (express or implied). s 10(9)(b): implied consent
+  by **conspicuous publication** needs all three: the address is conspicuously published, "the publication is
+  not accompanied by a statement that the person does not wish to receive unsolicited commercial electronic
+  messages", and the message "is relevant to the person's business, role, functions or duties". s 13: the
+  person who alleges consent "has the onus of proving it" (keep the evidence). s 6(2): each message must
+  identify the sender, give contact information (valid for at least 60 days, s 6(3)) and an unsubscribe
+  mechanism; s 11(3): give effect to an unsubscribe "without delay, and in any event no later than 10
+  business days" [all VERIFIED, same URL]. "Mining third-party directories doesn't qualify" is court
+  commentary [ASSUMPTION: secondary, blg.com/mltaikins.com].
 - For us: Canada has no time zone in `lean.TZ_OFFSET` (the guard blocks it with `--now`). Do not send to
   Canada until Aashmiin approves and the code has the zone; keep the screenshot/URL proving publication.
 
 ## 6. Australia: Spam Act 2003
 Sources: https://www.legislation.gov.au/C2004A01214/latest/text ; summaries
 https://www.mondaq.com/australia/consumer-law/996226/spamming-and-the-spam-act ,
-https://pointonpartners.com.au/spam-act/ [ASSUMPTION: search-only].
+https://pointonpartners.com.au/spam-act/ [ASSUMPTION: search-only; www.legislation.gov.au and www.acma.gov.au
+blocked 2026-10-31].
 - Consent required: express or **inferred**. Conspicuous publication gives inferred consent only if the
   address is published, has no "no commercial messages" statement, and the message relates to the person's
   role; "mere publication" is not enough. Every message must identify the sender and contain a functional
@@ -122,14 +147,14 @@ https://pointonpartners.com.au/spam-act/ [ASSUMPTION: search-only].
 ## 7. India: Digital Personal Data Protection Act 2023
 Sources: DPDP Rules 2025 notification summaries, https://www.mondaq.com/india/data-protection/1708164/digital-personal-data-protection-rules-2025-notified ,
 https://www.tribuneindia.com/news/business/govt-notifies-digital-personal-data-protection-rules-rollout-in-phases-specified-obligations-for-data-fiduciaries
-[ASSUMPTION: search-only].
+[ASSUMPTION: search-only; www.meity.gov.in and egazette.gov.in blocked 2026-10-31].
 - The DPDP Act is consent-based (plus narrow "legitimate uses"), with no business-contact carve-out like
   Singapore's [ASSUMPTION: general knowledge]. The Rules were notified **13 Nov 2025**; the Board provisions
   apply at once, Consent Manager rules from **13 Nov 2026**, and the operative notice/consent/security rules
   from **13 May 2027**.
 - For us: B2B cold email to Indian work addresses is low-risk today [ASSUMPTION], but **before May 2027**
   Aashmiin should get advice on whether role-based B2B email needs consent under DPDP. Log a Risks row now.
-  Telecom-marketing rules (TRAI) cover calls/SMS, not email [ASSUMPTION].
+  Telecom-marketing rules (TRAI) cover calls/SMS, not email [ASSUMPTION; trai.gov.in blocked 2026-10-31].
 
 ## 8. Rules that hold everywhere (ours)
 - Honest identity (her name, SMU student, Clearline); truthful first line with source; one opt-out line;

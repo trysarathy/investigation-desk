@@ -50,7 +50,10 @@ Test exists: **yes** (file and test name), **partial**, or **no**.
   https://github.com/ethereum/ethereum-org-website/blob/dev/public/content/developers/docs/consensus-mechanisms/pos/index.md (accessed 2026-10-29) [VERIFIED]
 - TRON DPoS, solidified block after 19 distinct SR confirmations:
   https://github.com/tronprotocol/documentation-en/blob/master/docs/mechanism-algorithm/dpos.md (accessed 2026-10-29) [VERIFIED]
-- Address poisoning pattern (ends match): `docs/SPEC.md` D07b sources (Elliptic, CMU arXiv 2501.16681) —
-  not re-opened on 29 Oct (owasp.org and several hosts were outside this session's allowed network)
-  [ASSUMPTION: as cited in the spec]
+- Address poisoning pattern (ends match): `docs/SPEC.md` D07b sources (Elliptic, CMU arXiv 2501.16681).
+  The CMU paper (Tsuchiya, Dong, Soska, Christin; USENIX Security'25) describes lookalike addresses
+  "similar to one with which the victim has previously interacted" planted in transaction history, and
+  measures 270M attempts / 17M victims / 6,633 incidents / ≥ US$83.8M on Ethereum + BSC, 1 Jul 2022-30 Jun
+  2024 [VERIFIED: https://arxiv.org/abs/2501.16681 abstract and PDF, 2026-10-31]. The Elliptic source is
+  still [ASSUMPTION: as cited in the spec; elliptic.co unreachable 2026-10-31]
 - Product facts: code and tests named in each row (read 29 Oct 2026) [VERIFIED].

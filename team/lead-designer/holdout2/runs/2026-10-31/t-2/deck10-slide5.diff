@@ -1,0 +1,51 @@
+diff --git a/pitch/src/build_deck10.py b/pitch/src/build_deck10.py
+index 6b212e5..1cb3c90 100644
+--- a/pitch/src/build_deck10.py
++++ b/pitch/src/build_deck10.py
+@@ -93,9 +93,16 @@ mv.name = "Live demo (60 s)"
+ pill(s, vx, vy + vh + 0.25, "▶  Live demo · 60 s", color=ACC, size=18, w=vw)
+ foot(s, "Real screenshots and a real recording of the app in demo mode. All companies, people and amounts are fictional.", key=False)
+ 
+-# ================================================================ 5. Why now (old 6: 3 facts)
++# ================================================================ 5. Proof band (same three figures as the website band; old "Why now" facts kept in the notes)
+ s = new("""
+-SAY: Three things are arriving together. Rules: Singapore's central bank consulted on the law changes for its stablecoin framework in September and October 2026, after the US signed its stablecoin law in July 2025. Use: McKinsey and Artemis estimate about 226 billion US dollars a year of business stablecoin payments, still only about 0.01% of business payments. And Singapore is one of the top five countries sending stablecoin payments. I expect more businesses to get paid this way, and the checking work to grow with them [ASSUMPTION].
++SAY: Three numbers, each with its source on the slide. First, our own test: the checks gave the right verdict on 52 of 52 real transfers we had not used to build the rules. That is our own small test, not a customer result, and matching to invoices has not been tested on real data yet. Second, the market: McKinsey and Artemis estimate about 226 billion US dollars a year of business stablecoin payments, still only about 0.01% of business payments; it is an estimate. Third, where we start: Singapore's EDB counts 300+ Web3 companies here.
++LABELS:
++- 52 of 52: [ASSUMPTION: unverified entry - demo/REPORT.md reports it as run 24-25 Oct 2026 (runner not named); lead-designer opened the report 31 Oct 2026 but did not re-run the cases]. Deposit-investigation checks only; sample company records; matching and explanations NOT tested on real data.
++- ~US$226B: [ASSUMPTION: estimate; primary (McKinsey with Artemis, 2026) not opened by lead-designer; the earlier notes carry no who/date]. Always say "estimate" and "McKinsey & Artemis".
++- 300+: [ASSUMPTION: unverified entry - earlier notes say [VERIFIED] (Singapore EDB, edb.gov.sg) without who/date; page undated, counting method not stated].
++- NOT USED: "15 hours a week" (one person's guess on a 16 Oct call, "never measured", about an earlier idea) [GUESS]. Not a figure for a slide.
++FROM OLD SLIDE 5 "Why now" (moved here, not on the slide):
++OLD SAY: Three things are arriving together. Rules: Singapore's central bank consulted on the law changes for its stablecoin framework in September and October 2026, after the US signed its stablecoin law in July 2025. Use: McKinsey and Artemis estimate about 226 billion US dollars a year of business stablecoin payments, still only about 0.01% of business payments. And Singapore is one of the top five countries sending stablecoin payments. I expect more businesses to get paid this way, and the checking work to grow with them [ASSUMPTION].
+ SOURCES:
+ [1] MAS consultation and draft amendments to the Payment Services Act for the stablecoin framework, published 1 Sep 2026, comments closed 16 Oct 2026 — mas.gov.sg media release; Gibson Dunn client alert, Sep 2026.
+ [2] "About $226 billion a year" of B2B stablecoin payments — McKinsey, "Stablecoins in payments: What the raw transaction numbers miss" (2026, with Artemis Analytics). An estimate assuming ~20% of tagged activity is B2B, annualised from Dec 2025; B2B penetration ~0.01%. Also reported by CoinDesk, 23 Jan 2026. Artemis's own Oct 2025 report gives a lower B2B run-rate (US$76B annualised, Aug 2025; its conclusion says US$36B): the definitions differ, so always quote 226B with "McKinsey & Artemis" and "estimate".
+@@ -105,17 +112,18 @@ FROM OLD SLIDE 6 (moved here, not on the slide):
+ - Stripe stablecoin payments: US businesses; private preview in the EU, Hong Kong, Mexico and Switzerland; not Singapore; USDC (USDP/USDG US-only); US$10,000 limit per transaction — docs.stripe.com/crypto/stablecoins (Oct 2026).
+ - HitPay × Triple-A, 14 Oct 2025: "will enable more than 20,000 Singapore merchants" to accept stablecoins with instant fiat settlement — fintechnews.sg. These are eligible merchants, not active users.
+ """)
+-title(s, "The rules and the money are arriving now")
+-facts = [("Rules", "Singapore consulted on its stablecoin law, Sep–Oct 2026", "¹", ""),
+-         ("Business use", "~US$226B a year of business stablecoin payments", "²", "◦"),
+-         ("Singapore", "A top-5 sender of stablecoin payments", "³", "")]
++title(s, "Our own test held up; the market is early")
++facts = [("52 of 52", "real transfers given the right verdict in our own held-out test", "¹", ""),
++         ("~US$226B", "a year of business stablecoin payments, ~0.01% of B2B", "²", "◦"),
++         ("300+", "Web3 companies in Singapore, where we start", "³", "")]
+ cw = (W - 2 * M - 2 * 0.4) / 3
+-for k, (h, t, n, m) in enumerate(facts):
++for k, (fig, t, n, m) in enumerate(facts):
+     x = M + k * (cw + 0.4)
+-    box(s, x, 1.85, cw, 4.0)
+-    text(s, x + 0.4, 2.15, cw - 0.8, 0.5, h, size=22, bold=True, color=ACC2)
+-    text(s, x + 0.4, 2.9, cw - 0.8, 2.6, [[(t, {}), mk(m), sup(n)]], size=26, bold=True)
+-foot(s, "¹ MAS consultation, 1 Sep 2026 (mas.gov.sg; Gibson Dunn)  ² McKinsey with Artemis, 2026: an estimate, ~0.01% of B2B payments  ³ Artemis, Oct 2025")
++    box(s, x, 1.85, cw, 3.3)
++    # footnote number in MUTED, not FAINT: FAINT on CARD is 4.26:1 (A7)
++    text(s, x + 0.4, 2.25, cw - 0.8, 0.9, [[(fig, {}), mk(m), (n, {"size": 16, "color": MUTED, "bold": False})]], size=40, bold=True)
++    text(s, x + 0.4, 3.35, cw - 0.8, 1.7, t, size=20, color=MUTED)
++foot(s, "¹ Our own test, demo/REPORT.md, 24–25 Oct 2026: not a customer result; invoice matching not yet tested on real data  ² McKinsey with Artemis, 2026: an estimate  ³ Singapore EDB, “Singapore: the onchain state” (undated; counting method not stated)")
+ 
+ # ================================================================ 6. First customer & the gap (old 7 + 8 + 9)
+ s = new("""

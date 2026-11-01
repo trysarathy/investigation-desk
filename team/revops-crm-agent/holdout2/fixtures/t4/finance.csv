@@ -1,0 +1,2 @@
+invoice_no,date,customer,description,amount_usd,currency_accepted,pay_to,status,paid_tx,verified_by,notes
+(none yet),,,,,,,,,,"Next invoice number: CL-2026-0001. Invoices are drafted by revops/finance and SENT only by Aashmiin."

@@ -42,7 +42,8 @@ says otherwise for a deal (e.g. a customer needs a Singapore entity). Flag the c
 Fields (based on CGST Rule 46 as summarised by
 https://taxguru.in/?p=674345 , https://www.taxtmi.com/article/detailed?id=15687 and the LUT master circular
 https://gstcouncil.gov.in/sites/default/files/2024-06/final_master_circular_lut_bond_04102017.pdf
-[ASSUMPTION: search-only; **CA to confirm every line**]):
+[ASSUMPTION: search-only; **CA to confirm every line**]; re-check 2026-10-31: the CGST Rules are served from
+taxinformation.cbic.gov.in, which was blocked, so Rule 46 itself is still unread):
 | Field | Value / placeholder |
 |---|---|
 | Title | "Tax Invoice" or "Invoice" [CA to confirm which, depends on GST registration] |
@@ -66,11 +67,19 @@ https://gstcouncil.gov.in/sites/default/files/2024-06/final_master_circular_lut_
 1. Is GST registration (and an LUT) required at her turnover, and is this an "export of services" (supplier
    in India, recipient and place of supply outside India, paid in convertible foreign exchange)?
 2. Correct SAC and invoice title; INR conversion rate rule.
-3. Realisation of export proceeds (FEMA/RBI time limit; FIRC/FIRA from bank, Wise or PayPal) [ASSUMPTION:
-   general knowledge that a time limit exists; not researched].
+3. Realisation of export proceeds: RBI's Master Direction says "the period of realization and repatriation
+   of export proceeds shall be **nine months** from the date of export for all exporters", and a services
+   exporter "shall be liable to realise the amount of foreign exchange which becomes due" (para B.7)
+   [VERIFIED: https://rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=10395 (Master Direction - Export of
+   Goods and Services, updated 17 Jul 2026), 2026-10-31]. Ask the CA how "date of export" applies to a
+   service invoice and what FIRC/FIRA evidence (bank, Wise or PayPal) is needed.
 4. Any withholding tax in the customer's country.
 5. Under the LUT, tax becomes payable if payment isn't received in convertible foreign exchange within the
-   allowed period (master circular) [ASSUMPTION: search-only].
+   allowed period [ASSUMPTION: search-only]. The LUT master circular (Circular 8/8/2017-GST, opened
+   2026-10-31 at gstcouncil.gov.in) does **not** state this itself: it says the LUT is valid for the whole
+   financial year, is filed on FORM GST RFD-11 executed by the proprietor, and is deemed withdrawn if the
+   amount in "sub-rule (1) of rule 96A" is not paid; the payment condition is in CGST Rule 96A(1), not yet
+   opened (taxinformation.cbic.gov.in blocked).
 
 Save as a Docs/Sheets draft `Clearline invoice <no> - <Company> - DRAFT`; Approval Queue row `item =
 invoice`; Opportunities `invoice_status = drafted`. You never email an invoice.

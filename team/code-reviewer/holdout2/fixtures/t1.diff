@@ -1,0 +1,88 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 2a61a84..44baa0f 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -4,5 +4,12 @@ Plain-English notes for every merged change, newest first (company/OPERATING_MOD
+ Each entry: date, PR link, one paragraph a finance controller can understand: what changed, why, and
+ anything they need to do.
+ 
++## 2026-11-02
++- **The payer's look-alike-address warning works behind the preview password** ([#63](https://github.com/trysarathy/investigation-desk/pull/63)).
++  When a pilot deployment is protected by the preview password, the payment page let the payer in but
++  the address check that page runs was refused, so a payer pasting a poisoned look-alike address got no
++  warning. The check is now reachable from the payment page like the page itself; nothing else in the
++  app was opened up, and every other screen and action still asks for the password. Nothing to do.
++
+ ## 2026-11-01
+ - **CHANGELOG started.** From today every merged pull request adds an entry here.
+diff --git a/src/middleware.ts b/src/middleware.ts
+index 8e20cb8..60561fc 100644
+--- a/src/middleware.ts
++++ b/src/middleware.ts
+@@ -11,12 +11,17 @@ function same(a: string, b: string): boolean {
+   return diff === 0;
+ }
+ 
++// The payer's look-alike-address check on that page posts here, so it needs the same exemption.
++// Only POST to exactly /api/pay/<publicId>/check: nothing else under /api/pay, and no other method.
++const PAY_CHECK = /^\/api\/pay\/[A-Za-z0-9_-]+\/check$/;
++
+ export function middleware(req: NextRequest) {
+   const user = process.env.PREVIEW_USER;
+   const password = process.env.PREVIEW_PASSWORD;
+   if (!user || !password) return NextResponse.next();
+   // The sender's payment page is customer-facing: it carries its own unguessable link ID.
+   if (req.nextUrl.pathname.startsWith("/pay/")) return NextResponse.next();
++  if (req.method === "POST" && PAY_CHECK.test(req.nextUrl.pathname)) return NextResponse.next();
+   const header = req.headers.get("authorization") ?? "";
+   if (header.startsWith("Basic ")) {
+     let decoded = "";
+diff --git a/tests/security-pay-check-gate.test.ts b/tests/security-pay-check-gate.test.ts
+new file mode 100644
+index 0000000..0fdfbd9
+--- /dev/null
++++ b/tests/security-pay-check-gate.test.ts
+@@ -0,0 +1,43 @@
++// SECURITY_GAPS #3: the preview password gate let /pay/<id> through but not the payer's address
++// check that page posts to, so the look-alike (poisoning) warning silently failed with 401.
++// Written failing first (it.fails on security/pay-check-preview-gate); switched to it with the fix.
++
++import { NextRequest } from "next/server";
++import { afterAll, beforeAll, describe, expect, it } from "vitest";
++import { middleware } from "@/middleware";
++
++const saved = { u: process.env.PREVIEW_USER, p: process.env.PREVIEW_PASSWORD };
++beforeAll(() => { process.env.PREVIEW_USER = "u"; process.env.PREVIEW_PASSWORD = "p"; });
++afterAll(() => {
++  if (saved.u === undefined) delete process.env.PREVIEW_USER; else process.env.PREVIEW_USER = saved.u;
++  if (saved.p === undefined) delete process.env.PREVIEW_PASSWORD; else process.env.PREVIEW_PASSWORD = saved.p;
++});
++
++const call = (path: string, method = "GET", auth = false) =>
++  middleware(new NextRequest(`http://desk.test${path}`, { method, headers: auth ? { authorization: `Basic ${btoa("u:p")}` } : {} }));
++
++describe("preview gate and the payer's address check", () => {
++  it("POST /api/pay/<publicId>/check is reachable without the preview password, like /pay/<publicId>", () => {
++    expect(call("/pay/Ab3_x-9QzLkP").status).not.toBe(401);
++    expect(call("/api/pay/Ab3_x-9QzLkP/check", "POST").status).not.toBe(401);
++  });
++
++  it("everything else under /api still needs the preview password", () => {
++    for (const [path, method] of [
++      ["/api/pay/Ab3_x-9QzLkP/check", "GET"],
++      ["/api/pay/Ab3_x-9QzLkP/check/extra", "POST"],
++      ["/api/pay/Ab3_x-9QzLkP", "POST"],
++      ["/api/pay/a/b/check", "POST"],
++      ["/api/payx/Ab3_x-9QzLkP/check", "POST"],
++      ["/api/accounting/DEMO-1042", "POST"],
++      ["/api/demo/reset", "POST"],
++      ["/api/requests", "GET"],
++    ] as const) {
++      expect(call(path, method).status, `${method} ${path}`).toBe(401);
++    }
++  });
++
++  it("the right password still gets in everywhere", () => {
++    expect(call("/api/accounting/DEMO-1042", "POST", true).status).not.toBe(401);
++  });
++});

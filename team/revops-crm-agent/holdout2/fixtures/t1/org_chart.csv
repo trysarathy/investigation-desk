@@ -1,0 +1,11 @@
+tab,owner,who_else_may_write,notes
+Settings,Aashmiin,chief-of-staff (PAUSE/HOLD only),Nobody else edits Settings. Ask chief-of-staff to put a change in the approval queue.
+Leads,revops-crm-agent,research-intern (append),
+Touches,revops-crm-agent,,
+LinkedIn list,revops-crm-agent,,
+Approval Queue,chief-of-staff,any employee may APPEND a row; only Aashmiin sets APPROVE,
+Calls,sales-closer-assistant,Aashmiin,revops may not edit
+Opportunities,sales-closer-assistant,,revops may append a new row at stage "Call booked" only after Aashmiin has accepted the meeting
+Log,everyone (append only),,
+Gmail labels,revops-crm-agent,,apply existing Clearline/* labels only; never create/delete labels or archive
+Calendar,Aashmiin,,no employee accepts/declines/creates/edits events on her calendar

@@ -1,0 +1,124 @@
+diff --git a/src/lib/accounting/providers/xero.ts b/src/lib/accounting/providers/xero.ts
+index 548d280..8fe39ba 100644
+--- a/src/lib/accounting/providers/xero.ts
++++ b/src/lib/accounting/providers/xero.ts
+@@ -70,6 +70,12 @@ export class XeroAdapter implements BooksAdapter {
+     return (await res.json()) as Record<string, unknown>;
+   }
+ 
++  async orgTimeZone(): Promise<string | undefined> {
++    const res = await this.call("GET", "/Organisation");
++    const org = ((res.Organisations as Record<string, unknown>[] | undefined) ?? [])[0];
++    return typeof org?.Timezone === "string" ? org.Timezone : undefined;
++  }
++
+   async listOpenInvoices(): Promise<BooksInvoice[]> {
+     const where = encodeURIComponent('Type=="ACCREC"&&Status=="AUTHORISED"');
+     const res = await this.call("GET", `/Invoices?where=${where}&summaryOnly=true`);
+diff --git a/src/lib/accounting/rules.ts b/src/lib/accounting/rules.ts
+index 8e44062..bf473a2 100644
+--- a/src/lib/accounting/rules.ts
++++ b/src/lib/accounting/rules.ts
+@@ -73,8 +73,13 @@ export function idempotencyKeyFor(requestId: string, lines: PostingLine[]): stri
+ export interface PlanOptions {
+   threshold: number;
+   price?: PriceSource;
++  /** The accounting organisation's timezone (IANA). Posting dates are calendar dates there. */
++  orgTimeZone?: string;
+ }
+ 
++/** Our customers are Singapore businesses, so their books are in Singapore time unless told otherwise. */
++export const DEFAULT_ORG_TIME_ZONE = "Asia/Singapore";
++
+ /** Apply the posting rules to one request. */
+ export function planPosting(data: RequestsData, acct: AccountingData, requestId: string, o: PlanOptions): PostingPlan {
+   const plan = (status: PostingPlan["status"], reasons: string[], lines: PostingLine[] = [], leavesOpen = false): PostingPlan =>
+@@ -134,7 +139,8 @@ export function planPosting(data: RequestsData, acct: AccountingData, requestId:
+   const lastDecision = (k: string) => [...r.decisions].reverse().find((d) => d.kind === k);
+   const lines: PostingLine[] = [];
+   const net = NETWORK[r.chain] ?? r.chain;
+-  const day = (x: Observation) => (x.blockTime ?? x.firstSeenAt).slice(0, 10);
++  const orgDay = new Intl.DateTimeFormat("en-CA", { timeZone: o.orgTimeZone ?? DEFAULT_ORG_TIME_ZONE });
++  const day = (x: Observation) => orgDay.format(new Date(x.blockTime ?? x.firstSeenAt));
+ 
+   // One payment line per transfer, applied until the invoice is covered; the rest is excess.
+   // Cents: each payment line is the rounded-down running total minus what earlier lines posted, so the
+diff --git a/src/lib/accounting/service.ts b/src/lib/accounting/service.ts
+index 52c0302..a34551b 100644
+--- a/src/lib/accounting/service.ts
++++ b/src/lib/accounting/service.ts
+@@ -68,7 +68,8 @@ export async function approvePosting(requestId: string, by: string, expectedKey?
+         invoiceNumber: acct.links[requestId]?.invoiceNumber, reason: `Not posted: ${error}`, demo: false };
+       return [{ ...acct, audit: [...acct.audit, entry] }, { error }];
+     }
+-    const res = await approveAndPost(reqData, acct, requestId, { threshold: CONFIRMATIONS, by, now, adapter, expectedKey });
++    const orgTimeZone = await adapter.orgTimeZone?.();
++    const res = await approveAndPost(reqData, acct, requestId, { threshold: CONFIRMATIONS, by, now, adapter, expectedKey, orgTimeZone });
+     if (res.error && res.acct === acct) return [undefined, { error: res.error }];
+     return [res.acct, res.error ? { error: res.error } : { message: `Posted ${res.plan.lines.length} line(s) to ${adapter.provider === "demo" ? "the demo books" : adapter.provider}.` }];
+   });
+diff --git a/src/lib/accounting/types.ts b/src/lib/accounting/types.ts
+index 4d96466..6cdd9b5 100644
+--- a/src/lib/accounting/types.ts
++++ b/src/lib/accounting/types.ts
+@@ -195,4 +195,6 @@ export interface BooksAdapter {
+   listOpenInvoices(): Promise<BooksInvoice[]>;
+   /** Post approved lines against one invoice. Must be safe to retry with the same idempotency key. */
+   post(link: InvoiceLink, lines: PostingLine[], idempotencyKey: string): Promise<PostedLine[]>;
++  /** The organisation's timezone, when the provider can tell us. */
++  orgTimeZone?(): Promise<string | undefined>;
+ }
+diff --git a/tests/posting-date-timezone.test.ts b/tests/posting-date-timezone.test.ts
+index 6ebf808..39c68d4 100644
+--- a/tests/posting-date-timezone.test.ts
++++ b/tests/posting-date-timezone.test.ts
+@@ -63,8 +63,7 @@ const cases: { name: string; blockTime: string; tz: string; date: string }[] = [
+ 
+ describe("posting date is the calendar date in the accounting organisation's timezone", () => {
+   for (const c of cases) {
+-    // BUG: remove .fails when fixed (posting date must use the org's timezone)
+-    it.fails(`payment line: ${c.name}`, () => {
++    it(`payment line: ${c.name}`, () => {
+       const { reqData: d0, acct } = invoiced("1000.00");
+       const plan = planPosting(paid(d0, "1000.00", c.blockTime), acct, "R1", optsIn(c.tz));
+       expect(plan.lines.map((l) => [l.kind, l.date])).toEqual([["payment", c.date]]);
+@@ -73,8 +72,7 @@ describe("posting date is the calendar date in the accounting organisation's tim
+         .toBe(new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Kiritimati" }).format(new Date(c.blockTime)));
+     });
+ 
+-    // BUG: remove .fails when fixed (posting date must use the org's timezone)
+-    it.fails(`short payment note line: ${c.name}`, () => {
++    it(`short payment note line: ${c.name}`, () => {
+       const { reqData: d0, acct } = invoiced("5000.00");
+       const plan = planPosting(paid(d0, "4950.00", c.blockTime), acct, "R1", optsIn(c.tz));
+       expect(plan.lines.map((l) => [l.kind, l.date])).toEqual([["payment", c.date], ["note", c.date]]);
+@@ -82,8 +80,7 @@ describe("posting date is the calendar date in the accounting organisation's tim
+         .toBe(new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Kiritimati" }).format(new Date(c.blockTime)));
+     });
+ 
+-    // BUG: remove .fails when fixed (posting date must use the org's timezone)
+-    it.fails(`fee write-off line: ${c.name}`, () => {
++    it(`fee write-off line: ${c.name}`, () => {
+       const { reqData: d0, acct } = invoiced("5000.00");
+       const d = acceptShort(paid(d0, "4950.00", c.blockTime), later(c.blockTime, 5));
+       const plan = planPosting(d, acct, "R1", optsIn(c.tz));
+@@ -98,8 +95,7 @@ describe("the provider payloads carry the organisation-local posting date", () =
+   // 07:30 SGT on 1 Nov: a Singapore organisation must see November in its books.
+   const blockTime = "2026-10-31T23:30:00.000Z";
+ 
+-  // BUG: remove .fails when fixed (posting date must use the org's timezone)
+-  it.fails("Xero: Payment Date and CreditNote Date are the org-local date (Singapore org, 1 Nov)", () => {
++  it("Xero: Payment Date and CreditNote Date are the org-local date (Singapore org, 1 Nov)", () => {
+     const { reqData: d0, acct, link } = invoiced("5000.00");
+     const plan = planPosting(acceptShort(paid(d0, "4950.00", blockTime), later(blockTime, 5)), acct, "R1", optsIn(SGT));
+     const [pay, fee] = plan.lines;
+@@ -107,8 +103,7 @@ describe("the provider payloads carry the organisation-local posting date", () =
+     expect(xeroBody(link, fee).body).toMatchObject({ CreditNotes: [{ Date: "2026-11-01" }] });
+   });
+ 
+-  // BUG: remove .fails when fixed (posting date must use the org's timezone)
+-  it.fails("QuickBooks: payment and credit memo TxnDate are the org-local date (Singapore company, 1 Nov)", () => {
++  it("QuickBooks: payment and credit memo TxnDate are the org-local date (Singapore company, 1 Nov)", () => {
+     const { reqData: d0, acct } = invoiced("5000.00");
+     const link: InvoiceLink = { ...acct.links.R1, provider: "quickbooks" };
+     const plan = planPosting(acceptShort(paid(d0, "4950.00", blockTime), later(blockTime, 5)), { ...acct, provider: "quickbooks" }, "R1", optsIn(SGT));

@@ -1,0 +1,14 @@
+# FICTIONAL TEST FIXTURE - Approval Queue, open items 2026-11-23 07:27 SGT
+id,queued_by,type,to,summary,deadline
+AQ-401,revops-crm-agent,first emails batch,50 new leads,"built 04:10 today; NOT shown to her in an end-of-day email",2026-11-23 09:00
+AQ-402,revops-crm-agent,reply draft (pricing),Halden Payroll CFO (FICTIONAL),"answer to 'cost for 2 entities?'",none stated
+AQ-403,content-marketer,LinkedIn post,her profile,"'What 30 finance teams taught me about USDT'",none
+AQ-404,content-marketer,LinkedIn post,her profile,"Demo Day teaser",none
+AQ-405,chief-of-staff,advisor update,advisors,"Weekly advisor update draft (from Sunday)",none
+AQ-406,crypto-protocol-engineer,merge,PR #231,"R-52 ready, QA green",none
+AQ-407,revops-crm-agent,partner intro draft,Northwind Ledger (FICTIONAL accounting firm),"intro email",2026-11-27
+AQ-408,finance job,tool spend,—,"Upgrade lead-email verifier tool SGD 49/mo",2026-11-30
+AQ-409,revops-crm-agent,follow-up draft,Ardent Freight (FICTIONAL),"December check-in",2026-12-01
+AQ-410,research-intern,targets approval,—,"Add Japan as a target region",none
+AQ-411,chief-of-staff,decision,Soon Loo / Demo Day,"Take 4 Dec Demo Day slot? (reply needed by 12:00 today)",2026-11-23 12:00
+AQ-412,chief-of-staff,Monday plan,—,"Week plan 23-29 Nov",2026-11-23 08:45

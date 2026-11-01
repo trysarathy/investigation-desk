@@ -10,4 +10,5 @@ replied "wrong person",1,
 bounced,8,status = bounced
 unsubscribed / reply "no",4,moved to Do-not-contact (4 rows dated this week)
 spam complaints,0,
-last 100 sends: replies,0.9%? see note,"last 100 sends (by timestamp) contain 1 reply that is not out-of-office -> 1/100 = 1.0%; counting OOO replies it is 2/100"
+last 100 sends (by timestamp): replies of any kind,1,"the single reply is an out-of-office auto-reply (L-0877)"
+CURRENT_SEND_CAP in Settings right now,75,

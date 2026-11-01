@@ -1,0 +1,16 @@
+# FICTIONAL: local `npx next build` on branch payment-terms @ 0718293 (3 Nov 2026 03:41 SGT), Node v22.22.0
+   ▲ Next.js 15.5.28
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 14.1s
+   Linting and checking validity of types ...
+Failed to compile.
+
+./src/lib/requests/terms.ts:42:18
+Type error: Property 'dueAt' does not exist on type 'PaymentRequest'. Did you mean 'dueDate'?
+
+  40 |   const days = TERMS_DAYS[req.terms];
+  41 |   if (days === undefined) return null;
+> 42 |   return addDays(req.dueAt ?? req.createdAt, days);
+     |                  ^
+  43 | }
+Next.js build worker exited with code: 1 and signal: null

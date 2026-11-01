@@ -1,9 +1,9 @@
 # RPC and indexer providers
 
-Accessed 2026-10-29. Provider docs (docs.etherscan.io, developers.tron.network, alchemy, infura,
-quicknode) were **blocked from this session**; figures below from search summaries are labelled
-[ASSUMPTION: search summary] and must be checked on the provider's own page before any spending
-decision. Measured behaviour is [VERIFIED].
+Accessed 2026-10-29; docs.etherscan.io, developers.tron.network and docs.infura.io opened 2026-10-31.
+Alchemy and QuickNode sites and etherscan.io/api/pricing are still blocked (or 403); figures from search
+summaries stay [ASSUMPTION: search summary] and must be checked on the provider's own page before any
+spending decision. Measured behaviour is [VERIFIED].
 
 ## What Clearline needs from a provider
 By-hash reads only: `eth_getTransactionByHash`, `eth_getTransactionReceipt`, `eth_getBlockByNumber`
@@ -24,24 +24,36 @@ receipts on pruned nodes.
 | D07b history | Etherscan `tokentx`, Blockscout (eth.blockscout.com v2), TronGrid v1 | BSC/Base/OP/Polygon/Arbitrum: none |
 
 ## Provider facts
-- **Etherscan API V2**: one key across many EVM chains via `chainid`. Free tier 3 calls/s and up to
-  100,000 calls/day on selected chains; some chains not in Free; Free pool for a chain may be shared;
-  from 1 Jul 2026 the Free tier returns at most 1,000 records per request (was 10,000); "Max rate limit
-  reached" on excess [ASSUMPTION: search summary of docs.etherscan.io rate-limits and changelog]. Since
+- **Etherscan API V2**: one key across many EVM chains via `chainid`. Free tier "3 calls/second, up to
+  100,000 calls/day, selected chains only", no PRO endpoints; Lite 5/s and 100k/day; Standard 10/s and
+  200k/day [VERIFIED: https://docs.etherscan.io/rate-limits.md, 2026-10-31]. **New:** from 3 Nov 2026
+  requests are blocked once the daily limit is reached (Free: no overage; paid: optional overage at $3 per
+  100k calls) [VERIFIED: same page]. From 1 Jul 2026 the Free tier returns at most 1,000 records per
+  request (was 10,000), and Free-tier calls on some chains come from a per-chain shared pool (effective
+  4 Aug and 1 Nov 2026 for the chains listed there) [VERIFIED: https://docs.etherscan.io/changelog.md,
+  2026-10-31]. The exact error text "Max rate limit reached" was not on those pages [ASSUMPTION]. Since
   24 Oct 2026 keyless calls get "Missing/Invalid API Key" [VERIFIED: code comment and re-checked
   2026-10-29: `{"status":"0","message":"NOTOK","result":"Missing/Invalid API Key"}`]. Paid plans from
   about US$49/month (SPEC cites Yahoo Finance; CostBench lists Lite $49 … Pro Plus $899)
-  [ASSUMPTION].
-- **TronGrid**: with a key ~15 QPS under the daily quota (older pages: 15/s; another page 30/s), ~1/s over
-  quota, 403 + ~30 s penalty when exceeded; keyless requests are "subject to strict rate limiting or even
-  complete rejection"; current docs say not to hard-code limits and to use the console [ASSUMPTION:
-  search summary of developers.tron.network/reference/rate-limits]. Measured: keyless 3/s and a 5 s
+  [ASSUMPTION: etherscan.io/api/pricing returned 403 on 2026-10-31].
+- **TronGrid**: the official page gives **no fixed QPS figures**: "Specific quota and QPS may change
+  depending on plan, network, endpoint type, and service policy. Do not hard-code fixed limits";
+  rate-limited requests "usually return 429 or 403"; per-second, per-minute and per-day windows may apply
+  at once; no API key → "Strict rate limiting or rejection"; abnormal polling → "Temporary block or 403 /
+  429"; use exponential backoff with jitter for 429, and for 403 check the key and wait rather than retry
+  fast [VERIFIED: https://developers.tron.network/reference/rate-limits, 2026-10-31]. Corrected
+  2026-10-31: was "~15 QPS keyed, ~1/s over quota, 403 + ~30 s penalty" (search summary; those numbers are
+  not on the page). Handle **429 as well as 403**. Measured: keyless 3/s and a 5 s
   suspension (real-data test, `sources.ts` comment) [VERIFIED in code]. Its pending pool is load-balanced
   and inconsistent (`docs/week2-d10-mempool.md`) [VERIFIED].
-- **Alchemy**: free tier 30M compute units/month, `eth_call` = 26 CU; **Infura**: 3M credits/day free;
-  **QuickNode**: free is a one-month trial (10M credits, 15 rps), paid from $49/month [ASSUMPTION: from a
-  QuickNode-published comparison found by search, Jul/Aug 2026; competitor-authored]. All three offer
-  `safe`/`finalized` tags, archive, and webhook/stream products for address watching [ASSUMPTION].
+- **Infura**: Free tier "3,000,000 daily credits, and 500 credits per second rate limit"; Developer 15M/day
+  (4,000/s); Team 75M/day (40,000/s); archive data (older than 128 blocks) currently costs the same credits
+  as non-archive [VERIFIED: https://docs.infura.io/get-started/pricing.md, 2026-10-31].
+  **Alchemy**: free tier 30M compute units/month, `eth_call` = 26 CU; **QuickNode**: free is a one-month
+  trial (10M credits, 15 rps), paid from $49/month [ASSUMPTION: from a QuickNode-published comparison found
+  by search, Jul/Aug 2026; competitor-authored; alchemy.com and quicknode.com blocked 2026-10-31]. All
+  three offer `safe`/`finalized` tags and webhook/stream products for address watching [ASSUMPTION; only
+  Infura's archive access verified].
 - **Public RPCs** (measured 2026-10-29) [VERIFIED]: arb1.arbitrum.io and mainnet.base.org answer
   `eth_call` and `safe`/`finalized` tags but returned HTTP 403 to a Python client without a User-Agent
   (curl-style UA fixed it); mainnet.optimism.io and bsc-dataseed answered directly; polygon-rpc.com

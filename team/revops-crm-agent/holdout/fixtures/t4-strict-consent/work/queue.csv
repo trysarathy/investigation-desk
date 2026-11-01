@@ -1,0 +1,7 @@
+queue_date,queued_at,lead_id,company,contact_name,email,step,subject,body,first_line_source,status,thread_id
+2026-11-03,2026-11-02,L201,FICTIONAL Dijkstra Payments B.V.,Sanne de Vries,sanne.devries@dijkstrapay.example,REPLY,Re: Quick question about stablecoin payments,(draft: answer to Sanne),,queued,thr-201
+2026-11-03,2026-11-02,L201,FICTIONAL Dijkstra Payments B.V.,Sanne de Vries,sanne.devries@dijkstrapay.example,D4,Re: Quick question about stablecoin payments,(D4 template),,queued,thr-201
+2026-11-03,2026-11-02,L202,FICTIONAL Dijkstra Payments B.V. (Berlin office),Jonas Weber,jonas.weber@dijkstrapay.example,D0,Quick question about stablecoin payments,(D0 template),https://dijkstrapay.example/nieuws/usdc-merchant-settlement,queued,
+2026-11-03,2026-11-02,L203,FICTIONAL Valmont Pay,Lucia Ferraro,lucia.ferraro@valmontpay.example,D0,Quick question about stablecoin payments,(D0 template),https://valmontpay.example/blog/usdt-b2b,queued,
+2026-11-03,2026-11-02,L204,FICTIONAL Rookwood Remit,Pieter Jansen,pieter.jansen@rookwoodremit.example,D0,Quick question about stablecoin payments,(D0 template),https://rookwoodremit.example/usdc,queued,
+2026-11-03,2026-11-02,L205,FICTIONAL Thameside Treasury,Amelia Clarke,amelia.clarke@thamesidetreasury.example,D0,Quick question about stablecoin payments,(D0 template),https://thamesidetreasury.example/usdc,queued,

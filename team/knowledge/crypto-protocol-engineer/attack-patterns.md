@@ -25,8 +25,10 @@ the victim sends to, then plants it in the victim's history: a zero-value `trans
 token, a dust transfer, or a forged Transfer from a counterfeit token "from the victim to the look-alike".
 The victim later copies the wrong address from history. Scale: Tsuchiya et al. (USENIX Security 2025)
 report ~270 million poisoning attempts against ~17 million victims on Ethereum and BNB Smart Chain, and
-6,633 incidents with ≥ US$83.8 million lost (Jul 2022-Jun 2024) [ASSUMPTION: from search summaries of the
-USENIX page and arXiv 2501.16681; neither opened from this session].
+6,633 incidents with ≥ US$83.8 million lost (1 Jul 2022-30 Jun 2024) [VERIFIED: authors' paper,
+https://arxiv.org/abs/2501.16681 abstract and PDF §1 and measurement section (v3, "To appear in ... USENIX
+Security'25"), 2026-10-31; the 270M/17M figures are "attack attempts"/"victims" across both chains
+combined].
 **Real cases in the repo** [VERIFIED from recordings and `tests/real_cases.json`]: POISON-1, 19 Dec 2025,
 49,999,950 USDT to `0xbaff…f8b5` instead of `0xbaf4…f8b5` (first 3 + last 4 equal), 12 minutes after the
 look-alike sent the victim 0.005 USDT; POISON-2, 9 Aug 2026, 39,889.952535 USDT after a forged
@@ -142,6 +144,6 @@ falls back to templates. Keep it that way; never let chain-sourced strings reach
 
 ## Sources
 - ERC-20 zero-value Transfer rule: https://raw.githubusercontent.com/ethereum/ERCs/master/ERCS/erc-20.md (accessed 2026-10-29) [VERIFIED]
-- Tsuchiya et al., "Blockchain Address Poisoning", USENIX Security 2025: https://www.usenix.org/conference/usenixsecurity25/presentation/tsuchiya ; arXiv https://arxiv.org/abs/2501.16681 (search summary only, 2026-10-29) [ASSUMPTION]
+- Tsuchiya et al., "Blockchain Address Poisoning", USENIX Security 2025: arXiv https://arxiv.org/abs/2501.16681 (abstract and PDF opened 2026-10-31) [VERIFIED]; usenix.org page still blocked
 - ERC-681 security considerations: https://raw.githubusercontent.com/ethereum/ERCs/master/ERCS/erc-681.md [VERIFIED]
 - Repo: `tests/real_cases.json` (POISON-1/2, NET-ARB, FAKE-*, FRZ-*), `tests/fixtures/real/*.json`, whitepaper `origin/whitepaper:whitepaper/Clearline_Whitepaper.md` sections 4.3, 4.5, A.7 [VERIFIED]

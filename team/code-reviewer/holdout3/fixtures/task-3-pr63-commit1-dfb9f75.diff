@@ -1,0 +1,97 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 2a61a84..f6c59f9 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -4,5 +4,8 @@ Plain-English notes for every merged change, newest first (company/OPERATING_MOD
+ Each entry: date, PR link, one paragraph a finance controller can understand: what changed, why, and
+ anything they need to do.
+ 
++## 2026-11-03
++- **Export files are named after the Singapore day** ([#63](https://github.com/trysarathy/investigation-desk/pull/63)). The reconciled export used to be named after the server's UTC date, so an export made at 07:30 on 1 December in Singapore was called `reconciled-2026-11-30.csv`, which looked like the wrong month. The file name now uses the Singapore calendar day. The contents of the file are unchanged.
++
+ ## 2026-11-01
+ - **CHANGELOG started.** From today every merged pull request adds an entry here.
+diff --git a/src/app/api/payments/export.csv/route.ts b/src/app/api/payments/export.csv/route.ts
+index 6197f12..b8a4ddf 100644
+--- a/src/app/api/payments/export.csv/route.ts
++++ b/src/app/api/payments/export.csv/route.ts
+@@ -2,7 +2,7 @@
+ // Every ID is looked up through the same resolver as /api/payments/resolve. Audit-logged.
+ 
+ import { checkActor } from "@/lib/payments/audit";
+-import { reconciledCsv } from "@/lib/payments/export";
++import { exportFileName, reconciledCsv } from "@/lib/payments/export";
+ import { auditLog, inboxStore, paymentsStore, refreshInbox, whoFrom } from "@/lib/payments/live";
+ 
+ export const dynamic = "force-dynamic";
+@@ -19,6 +19,6 @@ export async function GET(req: Request) {
+     action: "export.csv", subject: "reconciled export", detail: `${(data.match?.result.payments.length ?? 0)} payments` }]);
+   return new Response(csv, { headers: {
+     "content-type": "text/csv; charset=utf-8",
+-    "content-disposition": `attachment; filename="reconciled-${at.toISOString().slice(0, 10)}.csv"`,
++    "content-disposition": `attachment; filename="${exportFileName(at)}"`,
+   } });
+ }
+diff --git a/src/lib/format.ts b/src/lib/format.ts
+index 2021439..b92ceda 100644
+--- a/src/lib/format.ts
++++ b/src/lib/format.ts
+@@ -23,6 +23,11 @@ export function formatTime(iso: string): string {
+   return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} SGT`;
+ }
+ 
++/** The calendar day in Singapore time (the pilot region), e.g. for a file name: 2026-11-30T23:30Z is 2026-12-01. */
++export function sgtDay(iso: string): string {
++  return new Date(Date.parse(iso) + 8 * 3600_000).toISOString().slice(0, 10);
++}
++
+ export function formatDuration(seconds: number): string {
+   if (seconds < 90) return "about a minute";
+   const mins = Math.round(seconds / 60);
+diff --git a/src/lib/payments/export.ts b/src/lib/payments/export.ts
+index 41b3e4b..2324d9f 100644
+--- a/src/lib/payments/export.ts
++++ b/src/lib/payments/export.ts
+@@ -4,6 +4,7 @@
+ // where it leads now, never as a dead end.
+ 
+ import { csvValue as cell } from "../csv/cell";
++import { sgtDay } from "../format";
+ import { CHAIN_NAMES } from "../types";
+ import type { AuditEntry } from "./audit";
+ import { recordsOf, sourceText } from "./exceptions";
+@@ -21,6 +22,9 @@ export const EXPORT_COLUMNS = [
+   "leg_instruction", "leg_chain", "leg_provider", "leg_bank", "leg_ledger", "duplicate_records", "decisions",
+ ];
+ 
++/** The download's file name, named after the Singapore business day it was made on, not the server's UTC day. */
++export const exportFileName = (at: Date) => `reconciled-${sgtDay(at.toISOString())}.csv`;
++
+ /** Inbox items about a payment, by whatever payment ID they were recorded under. */
+ function itemsFor(result: MatchResult, inbox: InboxData, paymentId: string): InboxItem[] {
+   return Object.values(inbox.items).filter((i) => i.subject.kind === "payment" &&
+diff --git a/tests/export.test.ts b/tests/export.test.ts
+index 8542775..1b058a2 100644
+--- a/tests/export.test.ts
++++ b/tests/export.test.ts
+@@ -10,7 +10,7 @@ import { MemoryStore } from "@/lib/chain/store";
+ import { RECORDINGS } from "@/lib/demo/recordings";
+ import { demoTransport } from "@/lib/demo/transport";
+ import { MemoryAuditLog } from "@/lib/payments/audit";
+-import { EXPORT_COLUMNS, evidencePack, reconciledCsv } from "@/lib/payments/export";
++import { EXPORT_COLUMNS, evidencePack, exportFileName, reconciledCsv } from "@/lib/payments/export";
+ import type { ColumnMapping } from "@/lib/payments/mapping";
+ import { renderPack, winAnsi } from "@/lib/payments/pdf";
+ import { refreshMatching } from "@/lib/payments/refresh";
+@@ -171,3 +171,11 @@ describe("evidence pack", () => {
+     expect(winAnsi("A → B ≥ 中🙂")).toBe("A -> B >= ??");
+   });
+ });
++
++describe("export file name", () => {
++  it("is named after the Singapore day, not the server's UTC day", () => {
++    expect(exportFileName(new Date("2026-11-30T23:30:00Z"))).toBe("reconciled-2026-12-01.csv"); // 07:30 SGT on 1 Dec
++    expect(exportFileName(new Date("2026-11-30T15:59:59Z"))).toBe("reconciled-2026-11-30.csv"); // 23:59:59 SGT
++    expect(exportFileName(new Date("2026-11-30T16:00:00Z"))).toBe("reconciled-2026-12-01.csv"); // midnight SGT
++  });
++});

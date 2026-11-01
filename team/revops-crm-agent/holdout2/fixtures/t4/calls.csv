@@ -1,0 +1,2 @@
+date,lead_id,company,attendees,problem_score,q5_accounting_answer_verbatim,notes,owner
+2026-10-29,L401,Brightwater Remit,"Rahul Mehta (Head of Finance); Aashmiin","Strong","We're on QuickBooks Online. Our accountant posts the USDT receipts by hand at month end from a spreadsheet, it takes her about two days.","~400 USDT/USDC receipts a month on Tron and Ethereum; 10-15 arrive short after fees; tried a spreadsheet + explorer; would pay to kill the month-end clean-up. Asked about pricing; Aashmiin said she'd send a proposal.",sales-closer-assistant

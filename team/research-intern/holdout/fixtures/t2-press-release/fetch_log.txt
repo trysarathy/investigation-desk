@@ -1,0 +1,7 @@
+# Fetch log, 30-31 Oct 2026 SGT
+22:45  GET https://ferrouspay.example/newsroom/q3-2026                 -> OK, opened: press_release_OPENED.md
+22:46  GET https://fintechasiawire.example/ferrous-pay-series-a         -> OK, opened: wire_coverage_OPENED.md
+22:47  GET https://docs.ferrouspay.example/integrations                 -> OK, opened: docs_integrations_OPENED.md
+22:48  GET https://ferrouspay.example/faq                               -> FAILED (403). Search snippet only: faq_SNIPPET.md
+22:49  GET https://eservices.mas.gov.sg/fid (Financial Institutions Directory) -> FAILED (403). Not checked.
+22:50  Web search "Ferrous Pay Series A Larch Capital" -> 3 results, all re-posts of the press release text.

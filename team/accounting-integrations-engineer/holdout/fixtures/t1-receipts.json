@@ -1,0 +1,59 @@
+{
+  "_note": "Holdout fixture. All organisations, invoices, hashes and rates are FICTIONAL. Amounts are exact decimal strings (USDC/USDT have 6 decimals).",
+  "orgs": {
+    "ORG-A": {
+      "name": "Holdout Demo Co (USD)",
+      "kind": "Xero Demo Company (sandbox)",
+      "baseCurrency": "USD",
+      "timezone": "Asia/Singapore",
+      "chartOfAccounts": {
+        "091": "USDC Clearing - Ethereum (Bank account, currency USD)",
+        "092": "USDT Clearing - Tron (Bank account, currency USD)",
+        "093": "ETH for network fees (Current asset)",
+        "610": "Accounts Receivable (system)",
+        "404": "Bank Fees (Expense)",
+        "405": "Blockchain Network Fees (Expense)"
+      },
+      "clearlineAccounts": { "walletAccountCode": "091", "feeAccountCode": "404" }
+    },
+    "ORG-B": {
+      "name": "Holdout Demo Pte Ltd (SGD)",
+      "kind": "Xero Demo Company (sandbox)",
+      "baseCurrency": "SGD",
+      "timezone": "Asia/Singapore",
+      "chartOfAccounts": {
+        "091": "USDC Clearing - Ethereum (Bank account, currency USD)",
+        "610": "Accounts Receivable (system)",
+        "FXG": "Realised Currency Gains (system)"
+      }
+    }
+  },
+  "cases": [
+    { "case": 1, "org": "ORG-A", "invoice": "INV-2001", "invoiceCurrency": "USD", "amountDue": "1250.00",
+      "transfers": [ { "tx": "0xa1a1...0001", "token": "USDC", "network": "Ethereum", "amount": "1250.000000", "blockTime": "2026-10-14T03:12:09Z", "confirmed": true } ],
+      "decisions": [] },
+    { "case": 2, "org": "ORG-A", "invoice": "INV-2002", "invoiceCurrency": "USD", "amountDue": "980.00",
+      "transfers": [ { "tx": "b2b2...0002", "token": "USDT", "network": "Tron", "amount": "979.650000", "blockTime": "2026-10-15T22:40:00Z", "confirmed": true } ],
+      "decisions": [ { "kind": "accept_short", "by": "Mei (finance)", "note": "customer's exchange took a 0.35 withdrawal fee" } ],
+      "_note": "This invoice's USDT is received into 092 (Tron wallet), not 091." },
+    { "case": 3, "org": "ORG-A", "invoice": "INV-2003", "invoiceCurrency": "USD", "amountDue": "600.00",
+      "transfers": [ { "tx": "0xc3c3...0003", "token": "USDC", "network": "Ethereum", "amount": "450.000000", "blockTime": "2026-10-17T09:00:00Z", "confirmed": true } ],
+      "decisions": [] },
+    { "case": 4, "org": "ORG-A", "invoice": "INV-2004", "invoiceCurrency": "USD", "amountDue": "500.00",
+      "transfers": [
+        { "tx": "0xd4d4...0041", "token": "USDC", "network": "Ethereum", "amount": "200.004567", "blockTime": "2026-10-18T01:00:00Z", "confirmed": true },
+        { "tx": "0xd4d4...0042", "token": "USDC", "network": "Ethereum", "amount": "300.005000", "blockTime": "2026-10-18T01:20:00Z", "confirmed": true }
+      ],
+      "decisions": [] },
+    { "case": 5, "org": "ORG-A", "invoice": "INV-2005", "invoiceCurrency": "USD", "amountDue": "750.00",
+      "transfers": [ { "tx": "0xe5e5...0005", "token": "USDC", "network": "Ethereum", "amount": "800.000000", "blockTime": "2026-10-20T16:05:00Z", "confirmed": true } ],
+      "decisions": [ { "kind": "refund_excess", "by": "Mei (finance)" } ],
+      "laterRefund": { "_note": "Done by the business itself from its own wallet, NOT by Clearline (Clearline never moves funds).",
+        "sentUSDC": "50.000000", "date": "2026-10-23", "gasPaidETH": "0.00031", "ethUsdAtRefund": "2500.00" } },
+    { "case": 6, "org": "ORG-B", "invoice": "INV-3001", "invoiceCurrency": "USD", "amountDue": "2000.00",
+      "invoiceDate": "2026-10-01", "invoiceRate": "1 USD = 1.2900 SGD",
+      "transfers": [ { "tx": "0xf6f6...0006", "token": "USDC", "network": "Ethereum", "amount": "2000.000000", "blockTime": "2026-10-28T02:00:00Z", "confirmed": true } ],
+      "rateOnReceipt": "1 USD = 1.3050 SGD (fictional rate for this test)",
+      "decisions": [] }
+  ]
+}
