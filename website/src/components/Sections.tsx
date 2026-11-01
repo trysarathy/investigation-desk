@@ -66,7 +66,7 @@ export function Trust() {
       </div>
       <Reveal delay={0.1} className="mt-6 rounded-2xl border border-line p-6 text-[14.5px] leading-relaxed text-muted sm:flex sm:items-center sm:justify-between sm:gap-8">
         <p>
-          <span className="font-semibold text-fg">52 of 52.</span> In our own test, Clearline's checks (real token, right network, right address) gave the right answer on 52 real public USDC and USDT transfers we hadn't used while building the rules. The right answers were confirmed on block explorers. Automatic matching hasn't been tested on real data yet.
+          <span className="font-semibold text-fg">Tested on real transfers.</span> Clearline's checking engine (real token, right network, right address) is tested on recorded real public USDC and USDT transfers. Invoice matching accuracy will be measured on 20 replayed real transfers; it hasn't been measured yet.
         </p>
         <p className="mt-3 flex-none text-[12.5px] text-faint sm:mt-0">Our own small test, not a customer result.</p>
       </Reveal>

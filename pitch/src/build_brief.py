@@ -79,7 +79,7 @@ To understand the problem properly, I built a working version myself, with AI co
 LABELS: all three steps work in the demo today, on fictional data [VERIFIED: demo/REQUESTS_DEMO.md]. The payment-matching side has not yet been tested on real data (demo/REPORT.md).
 """)
 head(s, "To explore it, I built a smart cashier")
-steps = [("howtopay", "The customer sees exactly how to pay"), ("ticked", "Correct payments tick themselves off"), ("explains", "Problems are explained, with the reply drafted")]
+steps = [("howtopay", "The customer sees exactly how to pay"), ("ticked", "Correct payments: ready to mark paid once you approve"), ("explains", "Problems are explained, with the reply drafted")]
 cw = (W - 2 * M - 2 * 0.6) / 3
 for k, (ic, t) in enumerate(steps):
     x = M + k * (cw + 0.6)
@@ -143,20 +143,20 @@ s = new("""
 The product side is further along than the customer side. The real-data test covered the part that investigates payments, not the matching or the plain-English explanations. The three calls I've had were with vendor teams (a custodian and compliance-software providers), not with the finance teams who would actually use this.
 SOURCES / LABELS:
 - 7 payment situations [VERIFIED]: demo/REQUESTS_DEMO.md.
-- 52/52 [VERIFIED]: demo/REPORT.md, 24–25 Oct 2026. These were held-out cases collected after the fixes; 59/59 on the cases used for tuning, and 43/59 before the fixes. The matching and explanations are not yet tested on real data, and company records were sample data.
+- Real-data testing [VERIFIED: matching-engine-engineer 2026-11-01, docs/MATCHING_EVALS.md]: the checking engine is tested on recorded real public transfers; invoice-matching accuracy will be measured on 20 replayed real transfers (not yet measured). The explanations are not yet tested on real data. Do not quote the earlier held-out test figure: it measured deposit diagnosis, not invoice matching.
 - 3 early calls [VERIFIED, my notes, names withheld]: 16 Oct 2026, about an earlier version of the idea; reconciliation was "not really an issue" for them.
 - 0 customers, 0 pilots.
 In full: "My 3 early calls reached vendors, who said it isn't a big issue for them"; "I haven't yet spoken to a finance team that receives stablecoins".
 """)
 head(s, "What I've learned: it works, but the need is untested")
-learn = [("The demo handles 7 payment situations", WHITE), ("52 of 52 new real transactions: correct verdict¹", WHITE),
+learn = [("The demo handles 7 payment situations", WHITE), ("Checks tested on recorded real transfers; matching accuracy not yet measured¹", WHITE),
          ("3 early calls, all with vendors: “not really an issue”", WHITE),
          ("Not yet spoken to a finance team that receives stablecoins", ACC2), ("0 customers", ACC2)]
 for k, (t, col) in enumerate(learn):
     y = 1.65 + k * 0.92
     box(s, M, y, W - 2 * M, 0.76)
     text(s, M + 0.35, y, W - 2 * M - 0.7, 0.76, t, size=20, color=col, anchor=MSO_ANCHOR.MIDDLE)
-foot(s, "¹ demo/REPORT.md: held-out cases; the matching and explanations are not yet tested on real data. Calls: 16 Oct 2026, on an earlier version of the idea.", key=False)
+foot(s, "¹ Invoice-matching accuracy will be measured on 20 replayed real transfers (not yet measured); explanations not yet tested on real data. Calls: 16 Oct 2026, on an earlier version of the idea.", key=False)
 
 # 8 ---------------------------------------------------------------- What I'm unsure about
 s = new("""

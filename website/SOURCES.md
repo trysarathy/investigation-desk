@@ -7,7 +7,7 @@ below is saved in `website/sources/` (`bessemer_page_text.txt`, `reap_page_text.
 
 Clearline's own test figures come from a second source, `demo/REPORT.md` (real-data test, 24–25 Oct 2026),
 not from this file:
-- **52 / 52** held-out real transfers given the right verdict (site: "52 of 52" box). [VERIFIED in REPORT.md]
+- **Real-data testing line** (site: Trust box): the checking engine is tested on recorded real public transfers; invoice matching accuracy will be measured on 20 replayed real transfers (not yet measured). No accuracy figure is quoted: the earlier held-out result measured deposit diagnosis, not invoice matching. [VERIFIED: matching-engine-engineer 2026-11-01, docs/MATCHING_EVALS.md]
 - **13 of 13** fake USDT tokens caught (12 named exactly "USDT", one "ÚЅDТ" in Cyrillic). [VERIFIED in REPORT.md]
 Both are our own small test on public transfers, not a customer result.
 

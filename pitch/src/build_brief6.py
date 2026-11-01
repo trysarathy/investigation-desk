@@ -102,7 +102,7 @@ VIDEO: the 60-second demo plays on this slide in PowerPoint (click it); in a PDF
 topline(s)
 text(s, M, 0.62, W - 2 * M, 0.7, "Stablecoin payments, matched, explained and in your books.", size=28, bold=True, name="Title")
 text(s, M, 1.32, W - 2 * M, 0.6, "Clearline asks for each payment clearly, matches it to its invoice, checks it's genuine, explains anything that went wrong in plain English, and posts it to your accounting system when you approve.", size=18, color=MUTED)
-steps = [("Ask", "A payment page per invoice"), ("Match", "Correct ones tick themselves off"),
+steps = [("Ask", "A payment page per invoice"), ("Match", "Correct ones ready to mark paid once you approve"),
          ("Explain", "Wrong ones explained, reply drafted"), ("In your books", "Posted to your books on approval (Xero first)")]
 cw = (W - 2 * M - 3 * 0.25) / 4
 for k, (nm, d) in enumerate(steps):
@@ -130,16 +130,16 @@ foot(s, "The screenshot is Clearline's own panel, not Xero's. It reads payments 
 
 # 5 ---------------------------------------------------------------- HOW GOOD IT IS SO FAR
 s = new("""
-The product side is further along than the customer side. It works in a demo, and on real transactions its investigation part reached the right verdict every time on cases it hadn't seen. I don't yet know whether the people it's for actually need it, because I haven't spoken to them yet.
+The product side is further along than the customer side. It works in a demo, and its checking engine is tested on recorded real public transfers; how accurately it matches payments to invoices hasn't been measured yet. I don't yet know whether the people it's for actually need it, because I haven't spoken to them yet.
 SOURCES / LABELS:
 - 7 payment situations [VERIFIED]: demo/REQUESTS_DEMO.md.
-- 52/52 [VERIFIED]: demo/REPORT.md, 24–25 Oct 2026. These are held-out real transactions collected after the fixes; 59/59 on the tuning cases, 43/59 before the fixes. The part that matches payments to invoices, and the plain-English explanations, are not yet tested on real data; company records were sample data.
+- Real-data testing [VERIFIED: matching-engine-engineer 2026-11-01, docs/MATCHING_EVALS.md]: the checking engine is tested on recorded real public transfers. Invoice-matching accuracy will be measured on 20 replayed real transfers (not yet measured); the plain-English explanations are not yet tested on real data. Do not quote the earlier held-out test figure: it measured deposit diagnosis, not invoice matching.
 - 3 early calls [VERIFIED, my notes, names withheld]: 16 Oct 2026, about an earlier version of the idea; reconciliation was "not really an issue" for them.
 - 0 customers. In full: "my 3 early calls reached vendors, not finance teams"; "do customers mostly pay directly or via checkout pages?".
 """)
 topline(s)
 head(s, "It works in a demo. I don't yet know if people need it")
-cols = [("What works", GREEN := RGBColor(0x66, 0xD9, 0xA3), ["7 payment situations work end to end", "52 of 52 real transactions: correct verdict¹"]),
+cols = [("What works", GREEN := RGBColor(0x66, 0xD9, 0xA3), ["7 payment situations work end to end", "Checks tested on recorded real transfers¹"]),
         ("What I don't know yet", ACC2, ["Do customers pay directly, or via checkout?", "Would finance teams use it?", "0 customers; my 3 calls reached vendors only"])]
 cw = (W - 2 * M - 0.4) / 2
 for k, (h, col, rows) in enumerate(cols):
@@ -147,7 +147,7 @@ for k, (h, col, rows) in enumerate(cols):
     box(s, x, 1.75, cw, 4.5, line=(LINE if k == 0 else ACC))
     text(s, x + 0.4, 2.0, cw - 0.8, 0.5, h, size=24, bold=True, color=col)
     text(s, x + 0.4, 2.75, cw - 0.8, 3.4, [[("•  " + r, {})] for r in rows], size=20, spacing=14)
-foot(s, "¹ Real transactions it hadn't seen before (demo/REPORT.md). The invoice-matching part is not yet tested on real data.", key=False)
+foot(s, "¹ Recorded real public transfers. Invoice-matching accuracy will be measured on 20 replayed real transfers (not yet measured).", key=False)
 
 # 6 ---------------------------------------------------------------- ADVICE + THANK YOU
 s = new("""

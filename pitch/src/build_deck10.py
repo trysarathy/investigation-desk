@@ -58,12 +58,12 @@ foot(s, "¹ A token transfer records sender, receiver and amount: no invoice ref
 
 # ================================================================ 3. Solution (old 4)
 s = new("""
-SAY: Clearline is a smart cashier for digital-dollar payments. Before anyone pays, it tells the customer exactly what to send, on which network and to which address. When a payment arrives correctly, it ticks the invoice off by itself; when something is wrong, it explains why in plain English and drafts the reply. It never holds or moves money, and a person makes every decision that isn't routine.
+SAY: Clearline is a smart cashier for digital-dollar payments. Before anyone pays, it tells the customer exactly what to send, on which network and to which address. When a payment arrives correctly, it checks it and has the invoice ready to mark paid once you approve; when something is wrong, it explains why in plain English and drafts the reply. It never holds or moves money, and a person makes every decision that isn't routine.
 SOURCES / LABELS: the three outcomes are product capabilities [VERIFIED in the working demo], demo/REQUESTS_DEMO.md, "Working now" column. Real-world accuracy of the payment-matching side is not yet tested on real data (demo/REPORT.md).
-FROM OLD SLIDE 4 (moved here): the third outcome's full wording "Problems explain themselves" + "the reply drafted"; subtitle "It does the checking a finance person does today, and shows its work"; card details "amount, network and address on one page" / "checked and marked paid automatically" / "the cause in plain English, and the reply drafted"; footer "runs on fictional data; reads payments, never holds or moves money".
+FROM OLD SLIDE 4 (moved here): the third outcome's full wording "Problems explain themselves" + "the reply drafted"; subtitle "It does the checking a finance person does today, and shows its work"; card details "amount, network and address on one page" / "checked, then marked paid once you approve" / "the cause in plain English, and the reply drafted"; footer "runs on fictional data; reads payments, never holds or moves money".
 """)
 title(s, "Clearline is a smart cashier for digital dollars")
-outs = [("howtopay", "Customers know exactly how to pay"), ("ticked", "Correct payments tick themselves off"), ("explains", "Problems explain themselves, reply drafted")]
+outs = [("howtopay", "Customers know exactly how to pay"), ("ticked", "Correct ones: ready to mark paid on approval"), ("explains", "Problems explain themselves, reply drafted")]
 cw = (W - 2 * M - 2 * 0.4) / 3
 for k, (ic, h1) in enumerate(outs):
     x = M + k * (cw + 0.4)
@@ -74,12 +74,12 @@ foot(s, "Runs today in the working demo, on fictional data. Clearline reads paym
 
 # ================================================================ 4. Demo (old 5)
 s = new("""
-SAY: Here is the real product, running on a fictional company. One: the customer's page says exactly what to send and on which network. Two: a correct payment is checked and marked paid with no one touching it. Three: fake digital dollars are caught, explained in plain English, and can't be marked paid by mistake. [Click the video for the 60-second demo; for the full 2-minute walkthrough, play demo_live_full.mp4.]
+SAY: Here is the real product, running on a fictional company. One: the customer's page says exactly what to send and on which network. Two: in the demo, a correct payment is checked and marked paid with no one touching it; in your account it's checked and ready for you to mark paid. Three: fake digital dollars are caught, explained in plain English, and can't be marked paid by mistake. [Click the video for the 60-second demo; for the full 2-minute walkthrough, play demo_live_full.mp4.]
 SOURCES / LABELS: screenshots captured from the app in demo mode (pitch/assets/shots); the video is a real recording of the app (demo/live). All companies, people and amounts are fictional [VERIFIED].
 FROM OLD SLIDE 5: everything kept; the "Full 2-minute walkthrough" line is now only in these notes.
 """)
 title(s, "It works today: a real demo on fictional data")
-shots = [("request_top.png", "1", "The customer sees what to send"), ("auto_paid.png", "2", "A correct payment marks itself paid"), ("fake_verdict.png", "3", "Fake dollars, explained")]
+shots = [("request_top.png", "1", "The customer sees what to send"), ("auto_paid.png", "2", "In the demo, a correct payment marks itself paid"), ("fake_verdict.png", "3", "Fake dollars, explained")]
 rowh, sw = 1.45, 5.0
 for k, (f, n, cap) in enumerate(shots):
     y = 1.6 + k * (rowh + 0.4)
@@ -195,16 +195,16 @@ foot(s, "¹ Singapore EDB, “Singapore: the onchain state” (edb.gov.sg). Pric
 
 # ================================================================ 8. Traction (old 12)
 s = new("""
-SAY: Honestly: a working product, no customers yet. The demo runs seven payment situations end to end, and the investigation side gave the correct verdict on 52 of 52 new real transactions. My three early calls were with custodian and compliance-software teams about an earlier idea, and they said reconciliation wasn't really an issue for them. So the next step is ten conversations with actual buyers, and one question decides the direction: mostly direct means selling to finance teams; mostly checkout means becoming a plug-in for gateways.
+SAY: Honestly: a working product, no customers yet. The demo runs seven payment situations end to end. The checking engine is tested on recorded real public transfers; how accurately it matches payments to invoices hasn't been measured yet, and we'll measure it on 20 replayed real transfers. My three early calls were with custodian and compliance-software teams about an earlier idea, and they said reconciliation wasn't really an issue for them. So the next step is ten conversations with actual buyers, and one question decides the direction: mostly direct means selling to finance teams; mostly checkout means becoming a plug-in for gateways.
 SOURCES / LABELS:
 - 7 payment situations [VERIFIED]: demo/REQUESTS_DEMO.md.
-- Correct verdicts [VERIFIED]: 43/59 before fixes, 59/59 after, 52/52 on held-out cases collected afterwards (deposit-investigation part; 6 networks + Bitcoin IDs). Source: demo/REPORT.md, 24–25 Oct 2026. Explanations and payment matching NOT tested on real data; company records were sample data.
+- Real-data testing [VERIFIED: matching-engine-engineer 2026-11-01, docs/MATCHING_EVALS.md]: the checking engine is tested on recorded real public transfers. Invoice-matching accuracy NOT measured yet; it will be measured on 20 replayed real transfers. Explanations NOT tested on real data. Do not quote the earlier held-out test figure: it measured deposit diagnosis, not invoice matching.
 - 3 early calls [VERIFIED from the founder's notes; names withheld]: custodian and compliance-software teams, 16 Oct 2026, about an earlier idea.
 - 0 customers, 0 paid pilots [VERIFIED].
-FROM OLD SLIDE 12 (moved here): full labels "payment situations run end to end in the demo", "new real transactions given the correct verdict", "early calls, all with vendor teams", "customers or paid pilots"; "Next: 10 finance teams that receive stablecoins, one question"; the decision rule "Mostly directly → sell to finance teams. Mostly checkout → become a plug-in for gateways."
+FROM OLD SLIDE 12 (moved here): full labels "payment situations run end to end in the demo", "invoice-matching accuracy measured on real data" (shown as "Not yet"), "early calls, all with vendor teams", "customers or paid pilots"; "Next: 10 finance teams that receive stablecoins, one question"; the decision rule "Mostly directly → sell to finance teams. Mostly checkout → become a plug-in for gateways."
 """)
 title(s, "A working product, no customers yet")
-stats = [("7", "situations in\nthe demo"), ("52 / 52", "real transactions\ncorrect¹"), ("3", "vendor calls²"), ("0", "customers")]
+stats = [("7", "situations in\nthe demo"), ("Not yet", "matching accuracy\nmeasured¹"), ("3", "vendor calls²"), ("0", "customers")]
 cw = (W - 2 * M - 3 * 0.3) / 4
 for k, (big, small) in enumerate(stats):
     x = M + k * (cw + 0.3)
@@ -213,7 +213,7 @@ for k, (big, small) in enumerate(stats):
 box(s, M, 4.05, W - 2 * M, 1.95, line=ACC)
 text(s, M + 0.4, 4.3, W - 2 * M - 0.8, 0.5, "Next: 10 finance-team interviews", size=20, color=MUTED)
 text(s, M + 0.4, 4.9, W - 2 * M - 0.8, 0.8, "“Do customers pay through a checkout page, or send directly?”", size=28, bold=True)
-foot(s, "¹ demo/REPORT.md: held-out cases (59/59 on tuning cases); explanations and matching not yet tested on real data. ² Custodian and compliance-software teams, 16 Oct 2026, on an earlier idea.", key=False)
+foot(s, "¹ The checking engine is tested on recorded real public transfers; invoice-matching accuracy will be measured on 20 replayed real transfers (not yet measured). ² Custodian and compliance-software teams, 16 Oct 2026, on an earlier idea.", key=False)
 
 # ================================================================ 9. Team (old 13)
 s = new("""
