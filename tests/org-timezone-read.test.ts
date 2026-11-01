@@ -179,6 +179,8 @@ describe("connecting: the zone is read and stored, replacing any earlier one (ca
     const a = await connect(withZone(emptyAccounting(), "SINGAPORESTANDARDTIME", "Asia/Singapore"), fakeFetch(() => ({ status: 403 })).fn);
     expect(a.orgTimeZone).toBeUndefined();
     expect(orgTimeZoneFor(a, "xero")).toBeUndefined();
-    expect(a.audit.at(-1)?.reason).toMatch(/timezone couldn't be read \(Xero GET \/Organisation failed \(403\)/);
+    expect(a.audit.at(-1)?.reason).toMatch(/timezone couldn't be read: nothing will post until it is/);
+    expect(a.audit.at(-1)?.reason).not.toMatch(/403|forbidden/);
+    expect(a.audit.at(-1)?.detail).toMatch(/Xero GET \/Organisation failed \(403\)/);
   });
 });

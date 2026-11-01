@@ -62,12 +62,12 @@ export async function connectOrgTimeZone(acct: AccountingData, adapter: BooksAda
   const label = PROVIDER_LABEL[adapter.provider];
   let tz: OrgTimeZone | undefined;
   let detail = "";
-  try { tz = await adapter.readOrgTimeZone?.(o.at); } catch (e) { detail = ` (${e instanceof Error ? e.message : String(e)})`; }
+  try { tz = await adapter.readOrgTimeZone?.(o.at); } catch (e) { detail = e instanceof Error ? e.message : String(e); }
   const zone = tz?.ianaTimeZone ? `timezone ${tz.ianaTimeZone} (${label}: ${tz.source})`
     : tz ? `timezone "${tz.source || "not set"}" not recognised: nothing will post until it is`
-    : `timezone couldn't be read${detail}: nothing will post until it is`;
+    : `timezone couldn't be read: nothing will post until it is`;
   return appendAudit({ ...acct, provider: adapter.provider, orgTimeZone: tz },
-    { at: o.at, kind: "connected", by: o.by, provider: adapter.provider, reason: `Connected to the ${label} organisation "${o.orgName}", ${zone}.`, demo: false });
+    { at: o.at, kind: "connected", by: o.by, provider: adapter.provider, reason: `Connected to the ${label} organisation "${o.orgName}", ${zone}.`, ...(detail ? { detail } : {}), demo: false });
 }
 
 export interface PostResult { acct: AccountingData; plan: PostingPlan; error?: string; posted?: AuditEntry }
@@ -89,7 +89,7 @@ export async function approveAndPost(
     const why = plan.status === "posted" ? "Already in the books: nothing new to post." : plan.reasons.join(" ");
     return { acct: appendAudit(acct, { ...base, kind: "refused", reason: `Not posted (${plan.status.replace("_", " ")}): ${why}` }), plan, error: why };
   }
-  if (o.expectedKey && o.expectedKey !== plan.approvalKey) {
+  if (o.expectedKey !== undefined && o.expectedKey !== plan.approvalKey) {
     // What the person approved isn't what would post now (a transfer arrived, a decision changed, a posting
     // date moved because the organisation's timezone changed): show them again.
     const error = "The plan changed since you looked at it. Check the new lines and approve again.";

@@ -6,7 +6,8 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { approvePosting, loadAccounting, planFor } from "@/lib/accounting/service";
+import { POST as approveRoute } from "@/app/api/accounting/[id]/route";
+import { approvePosting, loadAccounting, NO_APPROVAL_KEY, planFor } from "@/lib/accounting/service";
 import { emptyAccounting, type AccountingData, type InvoiceLink } from "@/lib/accounting/types";
 import { checkObservation, CONFIRMATIONS, OFFICIAL_USDC } from "@/lib/requests/check";
 import { addr } from "@/lib/requests/demo";
@@ -70,7 +71,9 @@ describe("approvePosting: the timezone re-read before posting", () => {
     expect(puts).toEqual([]);
     const acct = await loadAccounting();
     expect(acct.audit.at(-1)).toMatchObject({ kind: "refused", requestId: "R1" });
-    expect(acct.audit.at(-1)?.reason).toMatch(/403/);
+    // The /books audit view shows `reason` only: no raw Xero text there; it is kept in `detail`.
+    expect(acct.audit.at(-1)?.reason).not.toMatch(/403|AuthorizationUnsuccessful/);
+    expect(acct.audit.at(-1)?.detail).toMatch(/403/);
     expect(acct.orgTimeZone).toEqual(SG);
   });
 
@@ -112,5 +115,33 @@ describe("approvePosting: the timezone re-read before posting", () => {
     expect(res.error).not.toMatch(/approve again/);
     expect(puts).toEqual([]);
     expect((await planFor("R1")).plan.status).toBe("blocked");
+  });
+
+  // QA findings on 3d9196d.
+  it("empty approval key after a Singapore → New York change → refused (route and service), nothing sent", async () => {
+    await seed(SG);
+    const puts = fakeXero(() => "EASTERNSTANDARDTIME");
+    const call = (key: unknown) => approveRoute(new Request("http://localhost/api/accounting/R1", { method: "POST", body: JSON.stringify({ actor: "Mei", key }) }), { params: Promise.resolve({ id: "R1" }) });
+    for (const key of ["", "   "]) {
+      const r = await call(key);
+      expect(r.status).toBe(400);
+      expect((await r.json()).error).toBe(NO_APPROVAL_KEY);
+      expect(await approvePosting("R1", "Mei", key)).toEqual({ error: NO_APPROVAL_KEY });
+    }
+    expect(puts).toEqual([]);
+    expect((await loadAccounting()).audit).toEqual([]);
+  });
+
+  it("already posted, then the zone read fails → 'Already in the books', never 'post by hand'; nothing sent again", async () => {
+    await seed(SG);
+    const { plan } = await planFor("R1");
+    const puts = fakeXero(() => "SINGAPORESTANDARDTIME");
+    expect((await approvePosting("R1", "Mei", plan.approvalKey)).error).toBeUndefined();
+    expect(puts).toHaveLength(1);
+    vi.unstubAllGlobals();
+    const again = fakeXero(() => undefined); // Organisation now answers 403
+    const res = await approvePosting("R1", "Mei", plan.approvalKey);
+    expect(res.error).toBe("Already in the books: nothing new to post.");
+    expect(again).toEqual([]);
   });
 });

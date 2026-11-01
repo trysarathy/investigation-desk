@@ -108,6 +108,8 @@ export interface AuditEntry {
   invoiceNumber?: string;
   /** Why: the rule that applied, or the error the accounting system returned. */
   reason: string;
+  /** The accounting system's own error text, for support. Stored with the entry, never shown on /books. */
+  detail?: string;
   idempotencyKey?: string;
   lines?: PostedLine[];
   /** For a failure: the lines that were planned. */
