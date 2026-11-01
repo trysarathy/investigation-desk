@@ -67,8 +67,8 @@ On our 24 normal test payments it raised no false alarms."
 
 **2:35 Close (25 s)**
 
-"We tested it on 111 real transactions: 59 in the main set and 52 we collected after the last
-fix. It got all of them right, at about a second and a half each. It's read-only: no keys, and
+"The checking engine is tested on recorded real public transfers. We haven't measured invoice-matching
+accuracy yet; we'll measure it on 20 replayed real transfers. It's read-only: no keys, and
 it never moves funds. What I'd like from you is a month of your 'deposit not arrived' tickets
 and the matching ledger export, so we can measure it on your cases, not mine."
 

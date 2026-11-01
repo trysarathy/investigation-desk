@@ -16,7 +16,7 @@ An independent reviewer read the deck cold, first as a YC partner and then as a 
 | 8 | Elliptic/Chainalysis described without sources | Footer: described from general knowledge |
 | 9 | 'Three calls' didn't say they were about an earlier idea | Added 'on an earlier idea' |
 | 11 | 'Web3 companies' are not all firms that invoice businesses; S$0.9M assumed everyone buys | Row 2 reworded and marked [GUESS]; total is 'a ceiling if every one bought' |
-| 12 | '111/111 explained correctly' overstated (explanations untested; 59 were tuning cases) | Now '52/52 new real transactions given the correct verdict', with the caveats in the footer |
+| 12 | '111/111 explained correctly' overstated (explanations untested; 59 were tuning cases) | Now 'Not yet: invoice-matching accuracy measured on real data', with the caveats in the footer (1 Nov 2026: the held-out figure used here before measured deposit diagnosis, not matching, and is no longer quoted) |
 | 13 | 'Built solo' could mislead if AI coding tools were used | 'built … myself, with AI coding tools' (please confirm) |
 | A1 | 'Never matches on a guess' verified only in the demo | Labelled 'VERIFIED in the demo; untested on real data' |
 | demo | Demo script stated '20-minute investigation' as fact | demo/REQUESTS_DEMO.md now says it's a guess to test |
@@ -45,8 +45,8 @@ Short: I built a working product and I'm trained on the finance side. I lack pay
 Full: I'm a second-year accountancy student, so the finance person's side is what I'm trained in. I built the working demo myself, with AI coding tools, and tested its investigation side on real transactions. What I'm missing is payments-operations experience, and the deck says so; I'm looking for a co-founder or advisor with that background.
 
 **What does your real-data test actually prove?**  
-Short: Investigation verdicts were right on 52 of 52 new real transactions. Matching and explanations aren't tested on real data yet.  
-Full: The investigation engine reached the right verdict on real on-chain cases across six networks, checked against independent sources such as Tronscan and the issuers' own contracts. It scored 43 of 59 before fixes and 59 of 59 after, then 52 of 52 on new cases collected afterwards. Company records were sample data, and the matching side and the plain-English explanations haven't been tested on real data. It shows the technology can work, not that anyone wants it.
+Short: The checks are tested on recorded real public transfers. Invoice-matching accuracy isn't measured yet; we'll measure it on 20 replayed real transfers.  
+Full: The checking engine is tested on recorded real public transfers, with the expected answers taken from sources outside the product such as Tronscan and the issuers' own contracts. That test covered diagnosing deposits, not matching payments to invoices: invoice-matching accuracy will be measured on 20 replayed real transfers and has not been measured yet. Company records were sample data, and the plain-English explanations haven't been tested on real data. It shows the technology can work, not that anyone wants it.
 
 ### A payments expert
 
