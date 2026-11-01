@@ -18,7 +18,8 @@ system by hand. [ASSUMPTION: how often, and how many hours it costs, is not yet 
   written **only when a person approves**, with an audit log. Built and covered by tests; **not yet run against a
   real Xero organisation**.
 - **Investigation desk** for a reported transfer across Ethereum, Tron, BNB Chain, Polygon, Arbitrum, Base and
-  Optimism; tested on 52 of 52 held-out real public transfers (`demo/REPORT.md`; our own test, not a customer result).
+  Optimism; the checking engine is tested on recorded real public transfers (our own test, not a customer result).
+  Invoice matching accuracy will be measured on 20 replayed real transfers (not yet measured).
 - Read-only. No custody, no keys, no money movement.
 
 ## Delivered with our team (manual during a pilot)

@@ -20,7 +20,7 @@ Say what's true, including the gaps:
   tokens that copy the name, issuer freezes, transfers with several token events, look-alike address poisoning,
   short payments after exchange fees, and posting a short or over payment to the books correctly (fee write-off,
   overpayment line, never two payments for a duplicate). That took 18 diagnosis rules and their tests
-  (`src/lib/engine/rules.ts`, `tests/`), tested on 52 held-out real transfers.
+  (`src/lib/engine/rules.ts`, `tests/`), tested on recorded real public transfers.
 - Honest view: if you have an engineering team and stablecoins are core to your business, building can make sense.
   The founding pilot is US$300 for 30 days; it's a cheap way to see the edge cases before you decide.
 
