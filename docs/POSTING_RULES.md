@@ -134,7 +134,8 @@ that the customer's accountant reviews and imports (her decision, 31 Oct 2026). 
 **R7 Never twice, never silently changed.** One line per transfer, ever; a retry after any failure re-sends each
 unposted line with **the same idempotency key it had on the first attempt**. A wrong entry is corrected by a new,
 approved entry (or a person deletes it in Xero); Clearline never edits or deletes posted records by itself.
-*Code today: differs (D19):* after a partial post the remaining lines get a **new** key (measured below). DRAFT.
+*Code today: differs (D19):* after a partial post the remaining lines get a **new** key (measured below); fixed on
+branch `fix/posting-idempotency` (not merged, needs this rule signed). DRAFT.
 
 **R8 Goes to the exceptions queue instead of posting** (the plan shows why): anything flagged (wrong token, wrong
 network, counterfeit, look-alike, failed); no or ambiguous reference; **not yet final** (R5); overpaid until refund/keep
@@ -338,7 +339,7 @@ Code read on `main` @ `0c7d9f1`, 2026-11-01. "Approved rule" = the rule as signe
 | D16 | Accepted shortfall → credit note to `feeAccountCode` (default `404`), NoTax; no accountant flag | C3 (**Approved**) | Posts to an account the org didn't choose; nobody is told to review GST | `shortfallAccountCode` (no default, validated) + accountant flag: D4.4, D6.4 | yes |
 | D17 | No `BaseCurrency`/`/Currencies` read; Xero's applied rate not recorded | R4.3, C15 (**Approved**) | A USD invoice in an org without USD enabled fails at Xero; no audit of the rate | D8.2 | yes |
 | D18 | Excess posts as `RECEIVE-OVERPAYMENT` with `BankAccount` = wallet code (`xero.ts:47`) | C5 (DRAFT; Q-C5) | With CLR non-bank, Xero likely rejects it [ASSUMPTION] | Excess → exceptions queue until Q-C5: D5.4 | yes |
-| D19 | **Partial-post idempotency:** after a `PartialPostError`, `planPosting` drops the posted lines and `idempotencyKeyFor` (`rules.ts:68`) hashes only the rest, so the retry has a new plan key and line index. Probe: accepted shortfall, payment posted, credit note failed → fee line key `<k1>-1` on attempt 1, `<k2>-0` on retry (k1 ≠ k2). The comment at `engine.ts:23` ("retrying uses the same idempotency key") is untrue here. Also a credit note created before its allocation fails is not in the posted list (`xero.ts`, `post`) | R7 | After a timeout/5xx where Xero did create the record, the retry creates a **second credit note** | Failing tests on `bug/partial-post-idempotency`, then fix: **D2.5** (roadmap priority 2) | yes |
+| D19 | **Partial-post idempotency:** after a `PartialPostError`, `planPosting` drops the posted lines and `idempotencyKeyFor` (`rules.ts:68`) hashes only the rest, so the retry has a new plan key and line index. Probe: accepted shortfall, payment posted, credit note failed → fee line key `<k1>-1` on attempt 1, `<k2>-0` on retry (k1 ≠ k2). The comment at `engine.ts:23` ("retrying uses the same idempotency key") is untrue here. Also a credit note created before its allocation fails is not in the posted list (`xero.ts`, `post`) | R7 | After a timeout/5xx where Xero did create the record, the retry creates a **second credit note** | Fix on `fix/posting-idempotency` (stacked on the R2 branch): one fixed key per line; read back after an unknown outcome older than Xero's 6-minute key window [VERIFIED: accounting-integrations-engineer 2026-11-01, developer.xero.com/documentation/guides/idempotent-requests/idempotency]; a failed note is retried. **D2.5** | yes |
 | D20 | Short by > 0.01 with no decision → posts as partial straight away | R3d (**Approved**; reach Q-R1) | Posts before a person has looked | Plan `blocked` → exceptions queue until a decision: D5.4 | yes |
 
 ## 9. Sign-off (Aashmiin)

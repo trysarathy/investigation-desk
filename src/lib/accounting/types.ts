@@ -31,6 +31,9 @@ export interface InvoiceLink {
   demo: boolean;
 }
 
+/** What people call each kind of line (the books panel, and messages that name lines). */
+export const LINE_KIND_LABEL: Record<LineKind, string> = { payment: "Payment", fee_writeoff: "Fee write-off", overpayment: "Overpayment", note: "Note on invoice" };
+
 /** What each posted line represents. */
 export type LineKind =
   | "payment"        // a transfer applied to the invoice
@@ -56,6 +59,10 @@ export interface PostingLine {
   usdRateSource?: string;
   /** Payment date (the block time of the transfer), YYYY-MM-DD. */
   date: string;
+  /** This line's own idempotency key: fixed when first planned (request + kind + the line's identity), the same on every retry. */
+  key?: string;
+  /** The record the books already made for this line on an earlier attempt (a credit note still to allocate). */
+  madeId?: string;
 }
 
 /**
@@ -106,6 +113,12 @@ export interface AuditEntry {
   lines?: PostedLine[];
   /** For a failure: the lines that were planned. */
   planned?: PostingLine[];
+  /** For a failure: "unknown" when the books may or may not have made the record (timeout, 5xx). */
+  outcome?: "unknown";
+  /** For a failure: the key of the line being sent when it failed. */
+  inFlight?: string;
+  /** For a failure: records the books made for lines that didn't finish (line key → record, e.g. a credit note not yet allocated). */
+  made?: Record<string, MadeRecord>;
   demo: boolean;
 }
 
@@ -182,9 +195,18 @@ export interface BooksInvoice {
 }
 
 /** Thrown by an adapter when some lines posted and a later one failed: `posted` is what is in the books. */
+/** What an adapter knows about a failed post, attached to the error it throws. */
+/** A record the books made for a line that didn't finish: its id, and the exact amount and currency it was made for. */
+export interface MadeRecord { id: string; amount: string; currency: string }
+
+export interface PostFailure { unknownOutcome?: boolean; inFlight?: string; made?: Record<string, MadeRecord> }
+
 export class PartialPostError extends Error {
-  constructor(message: string, readonly posted: PostedLine[]) { super(message); }
+  constructor(message: string, readonly posted: PostedLine[], extra: PostFailure = {}) { super(message); Object.assign(this, extra); }
 }
+
+/** True when a failed call may still have made the record (timeout, connection reset, 5xx), not a clear "nothing made". */
+export const isUnknownOutcome = (e: unknown): boolean => !!(e as { unknownOutcome?: boolean } | null)?.unknownOutcome;
 
 /**
  * What every accounting system adapter implements. Reading invoices, and posting approved lines.
@@ -195,4 +217,6 @@ export interface BooksAdapter {
   listOpenInvoices(): Promise<BooksInvoice[]>;
   /** Post approved lines against one invoice. Must be safe to retry with the same idempotency key. */
   post(link: InvoiceLink, lines: PostingLine[], idempotencyKey: string): Promise<PostedLine[]>;
+  /** After an unknown outcome: the record the books hold for this line, undefined if surely absent; throws if it can't tell. */
+  readBack?(link: InvoiceLink, line: PostingLine, recorded: PostedLine[]): Promise<PostedLine | undefined>;
 }

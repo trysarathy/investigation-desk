@@ -6,8 +6,8 @@ import { createHash } from "node:crypto";
 import { createRequest, deriveRequest } from "../requests/lifecycle";
 import type { RequestsData, RequestToken } from "../requests/types";
 import { addDemoInvoice, DEMO_ORG_TIMEZONE, DemoBooksAdapter, emptyDemoBooks } from "./providers/demo";
-import { planPosting, type PlanOptions } from "./rules";
-import { PartialPostError, type AccountingData, type AuditEntry, type BooksAdapter, type BooksInvoice, type InvoiceLink, type PostingPlan } from "./types";
+import { madeFor, planPosting, postedFor, sameAs, type PlanOptions } from "./rules";
+import { isUnknownOutcome, PartialPostError, type AccountingData, type AuditEntry, type BooksAdapter, type BooksInvoice, type InvoiceLink, type PostedLine, type PostFailure, type PostingLine, type PostingPlan } from "./types";
 
 const auditId = (seed: string) => `AUD-${createHash("sha256").update(seed).digest("hex").slice(0, 10)}`;
 
@@ -16,28 +16,70 @@ function appendAudit(acct: AccountingData, e: Omit<AuditEntry, "id">): Accountin
   return { ...acct, audit: [...acct.audit, entry] };
 }
 
+/** Xero keeps an Idempotency-Key 6 minutes from the first call; Clearline trusts it for 5. */
+export const KEY_WINDOW_MS = 5 * 60_000;
+
+function withMade(acct: AccountingData, requestId: string, lines: PostingLine[]): PostingLine[] {
+  const made = madeFor(acct, requestId);
+  const currency = acct.links[requestId]?.currency ?? "";
+  return lines.map((l) => (l.key && made[l.key] && sameAs(made[l.key], l, currency) ? { ...l, madeId: made[l.key].id } : l));
+}
+
+/**
+ * Lines still not in the books that were being sent when a call ended with an unknown outcome (timeout,
+ * 5xx, unreadable reply), once Xero may have forgotten their key: Xero's 6 minutes run from the key's
+ * first call, so the clock starts at the earliest approval that planned that key. Read back before sending.
+ */
+function unsureLines(acct: AccountingData, requestId: string, now: string): PostingLine[] {
+  const mine = acct.audit.filter((e) => e.requestId === requestId);
+  const done = new Set(postedFor(acct, requestId).map((l) => l.key));
+  const firstSent = (key: string) => Math.min(...mine.filter((e) => e.kind === "approved" && e.planned?.some((l) => l.key === key)).map((e) => Date.parse(e.at)));
+  const lines = mine.filter((e) => e.kind === "failed" && e.outcome === "unknown" && e.inFlight && !done.has(e.inFlight))
+    .map((e) => e.planned?.find((l) => l.key === e.inFlight)).filter((l): l is PostingLine => !!l)
+    .filter((l) => !(Date.parse(now) - firstSent(l.key!) < KEY_WINDOW_MS));
+  return withMade(acct, requestId, lines.filter((l, i) => lines.findIndex((x) => x.key === l.key) === i));
+}
+
 export interface PostResult { acct: AccountingData; plan: PostingPlan; error?: string; posted?: AuditEntry }
 
 /**
  * A person approves the plan for one request, and it posts. Refuses anything that isn't "ready"
- * (and records the refusal). A failure part-way is recorded with what was planned; retrying uses
- * the same idempotency key, so lines that did post are not posted again.
+ * (and records the refusal). A failure part-way is recorded with what was planned. Lines that posted
+ * are never sent again; every other line is re-sent with its own fixed key (`lineKey`). After an unknown
+ * outcome that Xero may no longer remember, the line is read back first; if that can't tell, nothing posts.
  */
 export async function approveAndPost(
   reqData: RequestsData, acct: AccountingData, requestId: string,
   o: PlanOptions & { by: string; now: string; adapter: BooksAdapter; expectedKey?: string },
 ): Promise<PostResult> {
-  const plan = planPosting(reqData, acct, requestId, o);
   const link = acct.links[requestId];
   const demo = !!reqData.requests[requestId]?.demo;
   const base = { at: o.now, by: o.by, provider: o.adapter.provider, requestId, invoiceNumber: link?.invoiceNumber, demo };
+  const unsure = link ? unsureLines(acct, requestId, o.now) : [];
+  const found: PostedLine[] = [];
+  if (unsure.length) {
+    try {
+      if (!o.adapter.readBack) throw new Error("This accounting system can't be checked automatically. Check the invoice there.");
+      for (const l of unsure) { const hit = await o.adapter.readBack(link, l, postedFor(acct, requestId)); if (hit) found.push(hit); }
+    } catch (e) {
+      // The person gets plain words; Xero's raw reply, if any, stays in the audit log.
+      const raw = e instanceof Error ? e.message : String(e);
+      const said = (e as { plain?: boolean } | null)?.plain ? raw : "Clearline couldn't reach Xero to check what reached the books. Check the invoice in Xero.";
+      const error = `Not posted: an earlier attempt ended without a clear answer, and ${said}`;
+      return { acct: appendAudit(acct, { ...base, kind: "refused", reason: `${error}${said === raw ? "" : ` (${raw})`}`, planned: unsure }), plan: planPosting(reqData, acct, requestId, o), error };
+    }
+    if (found.length) acct = appendAudit(acct, { ...base, kind: "posted", reason: `Found in the books on read-back after an earlier failure: ${found.length} line(s).`, lines: found });
+  }
+  const planned = planPosting(reqData, acct, requestId, o);
+  const plan = { ...planned, lines: withMade(acct, requestId, planned.lines) };
+  const foundNote = found.length ? " Clearline found part of it already in the books and recorded that, so the lines changed." : "";
   if (plan.status !== "ready") {
     const why = plan.status === "posted" ? "Already in the books: nothing new to post." : plan.reasons.join(" ");
     return { acct: appendAudit(acct, { ...base, kind: "refused", reason: `Not posted (${plan.status.replace("_", " ")}): ${why}` }), plan, error: why };
   }
   if (o.expectedKey && o.expectedKey !== plan.idempotencyKey) {
     // What the person approved isn't what would post now (a transfer arrived, a decision changed): show them again.
-    const error = "The plan changed since you looked at it. Check the new lines and approve again.";
+    const error = `The plan changed since you looked at it.${foundNote} Check the new lines and approve again.`;
     return { acct: appendAudit(acct, { ...base, kind: "refused", reason: `Not posted: ${error}`, idempotencyKey: plan.idempotencyKey }), plan, error };
   }
   let next = appendAudit(acct, { ...base, kind: "approved", reason: `${o.by} approved ${plan.lines.length} line(s): ${plan.reasons.join(" ")}`, idempotencyKey: plan.idempotencyKey, planned: plan.lines });
@@ -51,7 +93,11 @@ export async function approveAndPost(
     if (e instanceof PartialPostError && e.posted.length) {
       next = appendAudit(next, { ...base, kind: "posted", reason: `Part of the plan posted before a failure: ${e.posted.length} of ${plan.lines.length} line(s).`, idempotencyKey: plan.idempotencyKey, lines: e.posted });
     }
-    next = appendAudit(next, { ...base, kind: "failed", reason: msg, idempotencyKey: plan.idempotencyKey, planned: plan.lines });
+    const unknown = isUnknownOutcome(e);
+    const { inFlight, made } = e as PostFailure;
+    next = appendAudit(next, { ...base, kind: "failed", reason: unknown ? `${msg} (no clear answer: the books may hold the record; Clearline checks before sending it again)` : msg,
+      idempotencyKey: plan.idempotencyKey, planned: plan.lines, ...(unknown ? { outcome: "unknown" as const } : {}),
+      ...(inFlight ? { inFlight } : {}), ...(made && Object.keys(made).length ? { made } : {}) });
     return { acct: next, plan, error: `Posting failed: ${msg}` };
   }
 }
