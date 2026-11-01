@@ -1,9 +1,12 @@
 # Rate limits, idempotency and retries
 
 ## Facts
-- Xero `Idempotency-Key` header, 128 characters max [VERIFIED: Xero OpenAPI 19.1.0 opened 2026-11-01]. Key
-  retention time and behaviour for a reused key with a different body: **not in the spec** [ASSUMPTION: open
-  developer.xero.com idempotency guide].
+- Xero `Idempotency-Key` header, 128 characters max (longer → 400 "… is too long") [VERIFIED: Xero OpenAPI 19.1.0
+  opened 2026-11-01] [VERIFIED: accounting-integrations-engineer 2026-11-01, developer.xero.com/documentation/guides/idempotent-requests/idempotency]. Honoured on POST, PUT and PATCH only (ignored on GET). Xero caches the
+  response and **keeps a key 6 minutes from the first call**; after that the same key is processed as new (a
+  duplicate). Same key with a different URL, body or method → 400 "… is used with a different request". An internal
+  error is cached too (a re-run returns the same error). Idempotency is checked *after* rate limits, so a 429 is not
+  cached. Xero's advice when an error repeats: GET the resource to check before retrying [VERIFIED: accounting-integrations-engineer 2026-11-01, developer.xero.com/documentation/guides/idempotent-requests/idempotency].
 - Xero per-org limits 5 concurrent / 60 per minute / 5,000 per day, app-wide 10,000 per minute, 429 when
   exceeded [ASSUMPTION: secondary, search summary of developer.xero.com/faq/limits]. Retry header names not
   confirmed.
@@ -15,7 +18,11 @@
 ## How our code behaves [VERIFIED: code @0c7d9f1, read 2026-11-01]
 - Plan key = sha256(request id + each line's kind|amount|observationKey|accountCode), so the same plan always
   gives the same key; a changed plan gives a new key and must be approved again (`expectedKey`).
-- Per line, key `<planKey>-<i>`; credit-note allocation `-alloc`; QBO link payment `-link`.
+- Per line (Xero, branch `fix/posting-idempotency`, not merged): `lineKey` = `clearline-` + 32 hex of sha256(request id
+  + kind + identity: the transfer's observation key, "shortfall" or "note"), 42 chars, allocation `-alloc` (48); the
+  same on every retry. Failures with no clear answer (no response, 5xx) are logged `outcome: "unknown"`; a retry
+  more than 5 min after the first such failure reads the line back (`XeroAdapter.readBack`) before sending.
+  QBO still uses `<planKey>-<i>` / `-link` (follow-up).
 - Lines already in the audit log as `posted` are dropped from the next plan (one line per transfer, ever).
 - `PartialPostError`: lines that reached the books before a failure are recorded as posted.
 - **No automatic retry, no 429 handling, no `Retry-After`.** A failure becomes a `failed` audit entry; a person

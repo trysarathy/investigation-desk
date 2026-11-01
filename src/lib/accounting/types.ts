@@ -56,6 +56,8 @@ export interface PostingLine {
   usdRateSource?: string;
   /** Payment date (the block time of the transfer), YYYY-MM-DD. */
   date: string;
+  /** This line's own idempotency key: fixed when first planned (request + kind + the line's identity), the same on every retry. */
+  key?: string;
 }
 
 /**
@@ -106,6 +108,8 @@ export interface AuditEntry {
   lines?: PostedLine[];
   /** For a failure: the lines that were planned. */
   planned?: PostingLine[];
+  /** For a failure: "unknown" when the books may or may not have made the record (timeout, 5xx). */
+  outcome?: "unknown";
   demo: boolean;
 }
 
@@ -183,8 +187,11 @@ export interface BooksInvoice {
 
 /** Thrown by an adapter when some lines posted and a later one failed: `posted` is what is in the books. */
 export class PartialPostError extends Error {
-  constructor(message: string, readonly posted: PostedLine[]) { super(message); }
+  constructor(message: string, readonly posted: PostedLine[], readonly unknownOutcome = false) { super(message); }
 }
+
+/** True when a failed call may still have made the record (timeout, connection reset, 5xx), not a clear "nothing made". */
+export const isUnknownOutcome = (e: unknown): boolean => !!(e as { unknownOutcome?: boolean } | null)?.unknownOutcome;
 
 /**
  * What every accounting system adapter implements. Reading invoices, and posting approved lines.
@@ -195,4 +202,6 @@ export interface BooksAdapter {
   listOpenInvoices(): Promise<BooksInvoice[]>;
   /** Post approved lines against one invoice. Must be safe to retry with the same idempotency key. */
   post(link: InvoiceLink, lines: PostingLine[], idempotencyKey: string): Promise<PostedLine[]>;
+  /** After an unknown outcome: the record the books hold for this line, undefined if surely absent; throws if it can't tell. */
+  readBack?(link: InvoiceLink, line: PostingLine): Promise<PostedLine | undefined>;
 }

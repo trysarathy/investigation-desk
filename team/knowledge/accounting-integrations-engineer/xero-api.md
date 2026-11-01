@@ -96,9 +96,9 @@ multi-currency [ASSUMPTION: plan feature not checked].
 
 ## Idempotency
 Header `Idempotency-Key`: "This allows you to safely retry requests without the risk of duplicate processing.
-**128 character max.**" [VERIFIED: Xero OpenAPI 19.1.0 opened 2026-11-01]. How long Xero remembers a key, and
-what it returns for a reused key with a different body, is **not stated in the spec** [ASSUMPTION: check the
-idempotency page on developer.xero.com]. Our keys are `clearline-<32 hex>-<i>[-alloc]` ≈ 44-50 chars: fine.
+**128 character max.**" [VERIFIED: Xero OpenAPI 19.1.0 opened 2026-11-01]. Keys are kept **6 minutes** from the
+first call, then a reused key is processed as new; a reused key with a different request → 400; POST/PUT/PATCH
+only [VERIFIED: accounting-integrations-engineer 2026-11-01, developer.xero.com/documentation/guides/idempotent-requests/idempotency]. Details in `rate-limits-idempotency.md`. Our per-line keys are 42-48 chars: fine.
 
 ## Rate limits (docs page blocked)
 Per organisation: 5 concurrent calls, 60 calls/minute, 5,000 calls/day; app-wide 10,000 calls/minute across

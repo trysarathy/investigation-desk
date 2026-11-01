@@ -5,10 +5,13 @@
 //   fee_writeoff  PUT /CreditNotes, then PUT /CreditNotes/{id}/Allocations   (allocated to the invoice, line to the fee account)
 //   overpayment   PUT /BankTransactions Type RECEIVE-OVERPAYMENT             (a customer overpayment, refundable or kept as credit)
 //   note          PUT /Invoices/{id}/History            (a history note on the invoice)
-// Every write carries an Idempotency-Key header, so a retried posting never creates a second record.
+// Every write carries the line's own Idempotency-Key (see `lineKey` in ../rules), the same on every retry.
+// Xero keeps a key 6 minutes from the first call and caches the response; after that a reused key is
+// processed as new, so after an unknown outcome the engine reads back (`readBack`) before re-sending.
 // The access token comes from the OAuth connection (see ./xero-auth.ts); this file never stores it.
 
-import { PartialPostError } from "../types";
+import { compareDecimal } from "../../decimal";
+import { isUnknownOutcome, PartialPostError } from "../types";
 import type { BooksAdapter, BooksInvoice, InvoiceLink, PostedLine, PostingLine } from "../types";
 
 export const XERO_API = "https://api.xero.com/api.xro/2.0";
@@ -65,8 +68,14 @@ export class XeroAdapter implements BooksAdapter {
     };
     if (body) headers["Content-Type"] = "application/json";
     if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
-    const res = await this.fetchFn(`${XERO_API}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
-    if (!res.ok) throw new Error(`Xero ${method} ${path} failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
+    let res: Awaited<ReturnType<Fetch>>;
+    try {
+      res = await this.fetchFn(`${XERO_API}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
+    } catch (e) { // no response at all (timeout, connection reset): Xero may or may not have made the record
+      throw Object.assign(new Error(`Xero ${method} ${path}: no response (${e instanceof Error ? e.message : String(e)})`), { unknownOutcome: true });
+    }
+    // 4xx (429 rate limit, 400 validation) = nothing made; 5xx = unknown.
+    if (!res.ok) throw Object.assign(new Error(`Xero ${method} ${path} failed (${res.status}): ${(await res.text()).slice(0, 300)}`), { unknownOutcome: res.status >= 500 });
     return (await res.json()) as Record<string, unknown>;
   }
 
@@ -87,7 +96,7 @@ export class XeroAdapter implements BooksAdapter {
     const out: PostedLine[] = [];
     try {
     for (const [i, l] of lines.entries()) {
-      const key = `${idempotencyKey}-${i}`;
+      const key = l.key ?? `${idempotencyKey}-${i}`;
       const { path, body } = xeroBody(link, l);
       const res = await this.call("PUT", path, body, key);
       if (l.kind === "payment") {
@@ -105,9 +114,34 @@ export class XeroAdapter implements BooksAdapter {
       }
     }
     } catch (e) {
-      if (out.length) throw new PartialPostError(e instanceof Error ? e.message : String(e), out);
+      if (out.length) throw new PartialPostError(e instanceof Error ? e.message : String(e), out, isUnknownOutcome(e));
       throw e;
     }
     return out;
+  }
+
+  /**
+   * After an unknown outcome, once Xero may have forgotten the key: is this line's record on the invoice?
+   * Matched only by identity Clearline wrote (the payment's reference carries the tx hash; the one shortfall
+   * credit note per invoice), never by amount alone. Anything it can't tell for sure throws: a person checks.
+   */
+  async readBack(link: InvoiceLink, l: PostingLine): Promise<PostedLine | undefined> {
+    const cantTell = (why: string) => new Error(`Clearline can't confirm from Xero whether the ${l.kind.replace("_", " ")} on ${link.invoiceNumber} reached the books (${why}). Check the invoice in Xero.`);
+    if (l.kind !== "payment" && l.kind !== "fee_writeoff") throw cantTell("Xero doesn't show it on the invoice");
+    if (l.kind === "payment" && !l.txHash) throw cantTell("the line has no transaction hash");
+    const inv = ((await this.call("GET", `/Invoices/${link.invoiceId}`)).Invoices as Record<string, unknown>[] | undefined)?.[0];
+    if (!inv) throw cantTell("Xero didn't return the invoice");
+    const recs = ((l.kind === "payment" ? inv.Payments : inv.CreditNotes) as Record<string, unknown>[] | undefined) ?? [];
+    const ref = l.kind === "payment" ? xeroReference(l) : `Shortfall on ${link.invoiceNumber}`.slice(0, 255);
+    const hit = recs.find((r) => r.Reference === ref);
+    if (hit) {
+      const amount = String(l.kind === "payment" ? hit.Amount : hit.Total);
+      if (compareDecimal(amount, l.amount) !== 0) throw cantTell(`Xero shows ${amount}, the line is ${l.amount}`);
+      return l.kind === "payment" ? { ...l, externalId: String(hit.PaymentID), externalType: "Payment" } : { ...l, externalId: String(hit.CreditNoteID), externalType: "CreditNote" };
+    }
+    // A credit note made but not yet allocated isn't on the invoice, so its absence there proves nothing.
+    if (l.kind === "fee_writeoff") throw cantTell("no allocated credit note on the invoice");
+    if (recs.some((r) => r.Reference === undefined)) throw cantTell("Xero didn't return payment references");
+    return undefined;
   }
 }
