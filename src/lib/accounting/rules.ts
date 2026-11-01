@@ -78,7 +78,7 @@ export interface PlanOptions {
   orgTimeZone?: string;
 }
 
-export const NO_TIMEZONE_REASON = "Clearline couldn't read your organisation's timezone, so it won't guess the posting date. Reconnect your accounting system or post this one by hand.";
+export const NO_TIMEZONE_REASON = "Clearline doesn't know your organisation's timezone, so it won't guess the posting date. Post this one by hand.";
 
 /** Apply the posting rules to one request. */
 export function planPosting(data: RequestsData, acct: AccountingData, requestId: string, o: PlanOptions): PostingPlan {
@@ -124,17 +124,20 @@ export function planPosting(data: RequestsData, acct: AccountingData, requestId:
     return plan("waiting", reasons);
   }
 
-  // Posting date (R2): the block time's calendar date in the organisation's own timezone. Unknown → no post.
+  // Posting date (R2): the block time's calendar date in the organisation's own timezone. Unknown zone or
+  // block time → nothing new posts. The lines are still worked out (undated) so that a request already in
+  // the books keeps reading "posted", never "post by hand" (which would invite posting it twice).
   const zone = o.orgTimeZone;
-  if (!isIanaZone(zone)) return plan("blocked", [...reasons, NO_TIMEZONE_REASON]);
   const undated = confirmed.find((x) => !x.blockTime);
-  if (undated) return plan("blocked", [...reasons, `Clearline doesn't know the block time of ${shortHash(undated.hash)}, so it won't guess the posting date. Post this one by hand.`]);
-  const day = (x: Observation) => localDate(x.blockTime!, zone);
+  const dateProblem = !isIanaZone(zone) ? NO_TIMEZONE_REASON
+    : undated ? `Clearline doesn't know the block time of ${shortHash(undated.hash)}, so it won't guess the posting date. Post this one by hand.`
+    : undefined;
+  const day = (x: Observation) => (dateProblem ? "" : localDate(x.blockTime!, zone!));
 
   // Price check: dollar stablecoins at (or near) par only.
   const rates = new Map<string, ReturnType<PriceSource>>();
   for (const x of confirmed) {
-    const p = price(r.token, x.blockTime!);
+    const p = price(r.token, x.blockTime ?? x.firstSeenAt);
     rates.set(x.key, p);
     const off = sub(p.rate, "1").replace(/^-/, "");
     if (cmp(off, DEPEG_LIMIT) > 0) {
@@ -234,6 +237,8 @@ export function planPosting(data: RequestsData, acct: AccountingData, requestId:
   if (todo.length === 0 || todo.every((l) => l.kind === "note" && already.some((a) => a.kind === "payment"))) {
     if (already.length) return plan("posted", [...reasons, "Everything that can be posted for this invoice is in the books."], [], leavesOpen);
   }
+  // Something new would post, but its date can't be known: block, and never return undated lines.
+  if (dateProblem) return plan("blocked", [...reasons, dateProblem]);
   if (already.length) reasons.push("Some of this was posted before; only the new lines below will post.");
   return plan(status, reasons, todo, leavesOpen);
 }

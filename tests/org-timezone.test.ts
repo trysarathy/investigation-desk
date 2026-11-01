@@ -67,7 +67,7 @@ describe("unknown timezone or block time: the plan is blocked, nothing posts", (
       const plan = planPosting(reqData, acct, "R1", { threshold: CONFIRMATIONS });
       expect(plan.status).toBe("blocked");
       expect(plan.lines).toEqual([]);
-      expect(plan.reasons.join(" ")).toMatch(/couldn't read your organisation's timezone/);
+      expect(plan.reasons.join(" ")).toMatch(/doesn't know your organisation's timezone.*Post this one by hand/);
     });
     it(`${provider}: a zone that isn't a real IANA zone (e.g. Xero's raw name) → blocked`, () => {
       const { reqData, acct } = setup(provider);
@@ -82,6 +82,35 @@ describe("unknown timezone or block time: the plan is blocked, nothing posts", (
     expect(plan.status).toBe("blocked");
     expect(plan.lines).toEqual([]);
     expect(plan.reasons.join(" ")).toMatch(/block time/);
+  });
+  // Review finding (1a): a request already in the books must keep reading "posted" when the zone is
+  // unknown, never "post by hand", or a person could post it twice.
+  const postedWithZone = (reqData: RequestsData, acct: AccountingData): AccountingData => {
+    const plan = planPosting(reqData, acct, "R1", { threshold: CONFIRMATIONS, orgTimeZone: "Asia/Singapore" });
+    expect(plan.status).toBe("ready");
+    return { ...acct, audit: [{ id: "AUD-1", at: NOW, kind: "posted", by: "Mei", provider: acct.provider, requestId: "R1", reason: "test",
+      idempotencyKey: plan.idempotencyKey, lines: plan.lines.map((l, i) => ({ ...l, externalId: `x-${i}`, externalType: "Payment" })), demo: false }] };
+  };
+  it("already posted with a zone, re-planned without one (or with an invalid one) → still 'posted', no lines", () => {
+    const { reqData, acct } = setup("xero");
+    const done = postedWithZone(reqData, acct);
+    for (const orgTimeZone of [undefined, "SINGAPORESTANDARDTIME"]) {
+      const plan = planPosting(reqData, done, "R1", { threshold: CONFIRMATIONS, orgTimeZone });
+      expect(plan.status).toBe("posted");
+      expect(plan.lines).toEqual([]);
+      expect(plan.reasons.join(" ")).not.toMatch(/by hand/);
+    }
+  });
+  it("posted, then a second transfer arrives while the zone is unknown → blocked (only the new part needs a date)", () => {
+    const { reqData, acct } = setup("xero");
+    const done = postedWithZone(reqData, acct);
+    const t: TransferEvent = { ...sim.send(emptyRequests(), { to: addr("R1"), amount: "25.00", tokenContract: OFFICIAL_USDC, tokenSymbol: "USDC", from: addr("from:a"), seq: "b" }),
+      source: "live", demo: false, blockNumber: 901, blockTime: BLOCK, confirmations: CONFIRMATIONS };
+    const more = ingest(reqData, t, "2026-11-01T00:05:00.000Z", "test", checkObservation("2026-11-01T00:05:00.000Z"), CONFIRMATIONS).data;
+    expect(planPosting(more, done, "R1", { threshold: CONFIRMATIONS, orgTimeZone: "Asia/Singapore" }).lines.length).toBeGreaterThan(0);
+    const plan = planPosting(more, done, "R1", { threshold: CONFIRMATIONS });
+    expect(plan.status).toBe("blocked");
+    expect(plan.lines).toEqual([]);
   });
   it("QuickBooks: with the company's zone the payment TxnDate is the local date", () => {
     const { reqData, acct, link } = setup("quickbooks");
