@@ -22,6 +22,6 @@ anything they need to do.
   with the calendar date of the payment's block time in the organisation's timezone (a 07:30 receipt on 1 November in
   Singapore posts on 1 November; the same moment posts on 31 October for a New York organisation). If Clearline doesn't
   know the organisation's timezone, or the payment's block time, it doesn't guess: the plan says "Post by hand" with
-  the reason, and nothing posts. The demo books use the demo organisation's stated timezone (Singapore). Note: reading
+  the reason, and nothing posts. A payment that is already in your books still shows as posted, so it is never offered for posting a second time. The demo books use the demo organisation's stated timezone (Singapore). Note: reading
   the timezone from Xero comes in the next change, so until then Xero and QuickBooks plans show "Post by hand".
 - **CHANGELOG started.** From today every merged pull request adds an entry here.

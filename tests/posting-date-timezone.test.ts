@@ -50,12 +50,18 @@ function paid(d: RequestsData, amount: string, blockTime: string): RequestsData 
 const acceptShort = (d: RequestsData, at: string) =>
   decide(d, "R1", { kind: "accept_short", note: "Exchange fee." }, { now: at, by: "Mei", threshold: CONFIRMATIONS, check: checkObservation(at) }).data;
 
-const cases: { name: string; blockTime: string; tz: string; date: string }[] = [
-  { name: "23:59 SGT 30 Oct stays on 30 Oct", blockTime: "2026-10-30T15:59:00.000Z", tz: SGT, date: "2026-10-30" },
-  { name: "00:00 SGT 31 Oct posts on 31 Oct (UTC is still 30 Oct)", blockTime: "2026-10-30T16:00:00.000Z", tz: SGT, date: "2026-10-31" },
-  { name: "07:59 SGT 31 Oct posts on 31 Oct (UTC is still 30 Oct)", blockTime: "2026-10-30T23:59:00.000Z", tz: SGT, date: "2026-10-31" },
-  { name: "month end: 07:30 SGT 1 Nov posts to November, not October", blockTime: "2026-10-31T23:30:00.000Z", tz: SGT, date: "2026-11-01" },
-  { name: "same instant in a New York org posts on 31 Oct (not hard-coded to Singapore)", blockTime: "2026-10-31T23:30:00.000Z", tz: NYC, date: "2026-10-31" },
+// `kiri`: the same instant's date in Pacific/Kiritimati (UTC+14), written out by hand, so each case also
+// proves the zone was used (several cases match UTC by coincidence).
+const cases: { name: string; blockTime: string; tz: string; date: string; kiri: string }[] = [
+  { name: "23:59 SGT 30 Oct stays on 30 Oct", blockTime: "2026-10-30T15:59:00.000Z", tz: SGT, date: "2026-10-30", kiri: "2026-10-31" },
+  { name: "00:00 SGT 31 Oct posts on 31 Oct (UTC is still 30 Oct)", blockTime: "2026-10-30T16:00:00.000Z", tz: SGT, date: "2026-10-31", kiri: "2026-10-31" },
+  { name: "07:59 SGT 31 Oct posts on 31 Oct (UTC is still 30 Oct)", blockTime: "2026-10-30T23:59:00.000Z", tz: SGT, date: "2026-10-31", kiri: "2026-10-31" },
+  { name: "month end: 07:30 SGT 1 Nov posts to November, not October", blockTime: "2026-10-31T23:30:00.000Z", tz: SGT, date: "2026-11-01", kiri: "2026-11-01" },
+  { name: "same instant in a New York org posts on 31 Oct (not hard-coded to Singapore)", blockTime: "2026-10-31T23:30:00.000Z", tz: NYC, date: "2026-10-31", kiri: "2026-11-01" },
+  { name: "18:00 SGT 30 Oct stays on 30 Oct (Kiritimati is already 31 Oct)", blockTime: "2026-10-30T10:00:00.000Z", tz: SGT, date: "2026-10-30", kiri: "2026-10-31" },
+  { name: "year end: 00:00 SGT 1 Jan 2027 posts to 2027", blockTime: "2026-12-31T16:00:00.000Z", tz: SGT, date: "2027-01-01", kiri: "2027-01-01" },
+  { name: "New York fall-back: 01:30 EST (the repeated hour) on 1 Nov posts on 1 Nov", blockTime: "2026-11-01T06:30:00.000Z", tz: NYC, date: "2026-11-01", kiri: "2026-11-01" },
+  { name: "New York after fall-back: 23:30 EST 1 Nov posts on 1 Nov (UTC is 2 Nov)", blockTime: "2026-11-02T04:30:00.000Z", tz: NYC, date: "2026-11-01", kiri: "2026-11-02" },
 ];
 
 describe("posting date is the calendar date in the accounting organisation's timezone", () => {
@@ -64,9 +70,8 @@ describe("posting date is the calendar date in the accounting organisation's tim
       const { reqData: d0, acct } = invoiced("1000.00");
       const plan = planPosting(paid(d0, "1000.00", c.blockTime), acct, "R1", optsIn(c.tz));
       expect(plan.lines.map((l) => [l.kind, l.date])).toEqual([["payment", c.date]]);
-      // The SGT 23:59 case and the NYC case match UTC by coincidence; this makes each case prove the zone was used.
       expect(planPosting(paid(d0, "1000.00", c.blockTime), acct, "R1", optsIn("Pacific/Kiritimati")).lines[0].date)
-        .toBe(new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Kiritimati" }).format(new Date(c.blockTime)));
+        .toBe(c.kiri);
     });
 
     it(`short payment note line: ${c.name}`, () => {
@@ -74,7 +79,7 @@ describe("posting date is the calendar date in the accounting organisation's tim
       const plan = planPosting(paid(d0, "4950.00", c.blockTime), acct, "R1", optsIn(c.tz));
       expect(plan.lines.map((l) => [l.kind, l.date])).toEqual([["payment", c.date], ["note", c.date]]);
       expect(planPosting(paid(d0, "4950.00", c.blockTime), acct, "R1", optsIn("Pacific/Kiritimati")).lines[1].date)
-        .toBe(new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Kiritimati" }).format(new Date(c.blockTime)));
+        .toBe(c.kiri);
     });
 
     it(`fee write-off line: ${c.name}`, () => {
@@ -83,7 +88,7 @@ describe("posting date is the calendar date in the accounting organisation's tim
       const plan = planPosting(d, acct, "R1", optsIn(c.tz));
       expect(plan.lines.map((l) => [l.kind, l.date])).toEqual([["payment", c.date], ["fee_writeoff", c.date]]);
       expect(planPosting(d, acct, "R1", optsIn("Pacific/Kiritimati")).lines[1].date)
-        .toBe(new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Kiritimati" }).format(new Date(c.blockTime)));
+        .toBe(c.kiri);
     });
   }
 });
