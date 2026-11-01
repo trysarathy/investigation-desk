@@ -7,6 +7,7 @@ import { CopyButton } from "@/components/requests/Copy";
 import { PlayPayment, RedeliverButton } from "@/components/requests/DemoControls";
 import { AttachHash, DecisionPanel, OwnerAndNote } from "@/components/requests/RequestActions";
 import { BooksPanel } from "@/components/books/BooksPanel";
+import { PaymentStatusLine } from "@/components/requests/PaymentStatusLine";
 import { DemoBadge, TonePill } from "@/components/requests/StatePill";
 import { explorerTxUrl } from "@/lib/catalogue";
 import { isDemoMode } from "@/lib/mode";
@@ -15,6 +16,7 @@ import { DEMO_BUSINESS } from "@/lib/requests/demo";
 import { allowedDecisions, deriveRequest, formatUsdc, transferIssue } from "@/lib/requests/lifecycle";
 import { nextAction, refundInstruction, replyDraft, senderName, shortAddr, shortHash, suggestedForRequest, verdict } from "@/lib/requests/present";
 import { requestsStore } from "@/lib/requests/service";
+import { paymentStatus } from "@/lib/requests/status";
 import type { DecisionKind, Observation, PaymentRequest } from "@/lib/requests/types";
 import { ISSUER } from "@/lib/requests/types";
 import { friendlyTime, paymentHref } from "@/lib/requests/ui";
@@ -80,6 +82,7 @@ export default async function RequestDetail({ params, searchParams }: { params: 
   const demoMode = isDemoMode();
   const v = deriveRequest(data, r, CONFIRMATIONS);
   const vd = verdict(data, v);
+  const st = paymentStatus(data, v);
   const next = nextAction(v, data);
   const h = await headers();
   const origin = `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host") ?? "localhost:3000"}`;
@@ -116,6 +119,7 @@ export default async function RequestDetail({ params, searchParams }: { params: 
         </div>
         <a className="btn" href={`/pay/${r.publicId}`} target="_blank" rel="noreferrer" data-testid="sender-link">Sender page ↗</a>
       </div>
+      <PaymentStatusLine s={st} live />
 
       {created && (
         <div className="bar bar-info" role="status" style={{ flexWrap: "wrap" }}>

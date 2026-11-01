@@ -161,6 +161,9 @@ textarea.input { height: auto; padding: 8px 12px; resize: vertical; line-height:
 .bar-amber { background: var(--amber-soft); color: var(--amber); border-color: color-mix(in srgb, var(--amber) 35%, transparent); }
 .bar-red { background: var(--red-soft); color: var(--red); border-color: color-mix(in srgb, var(--red) 35%, transparent); }
 .bar-info { background: var(--panel); color: var(--text-2); border-color: var(--border); }
+/* Payment status sentence (status.ts): text, never colour alone. */
+.status-line { margin: 0; }
+.case > .status-line { color: var(--text); font-size: 15px; font-weight: 500; }
 
 /* ---- Table ---- */
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
