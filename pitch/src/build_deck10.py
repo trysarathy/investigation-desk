@@ -58,12 +58,12 @@ foot(s, "¹ A token transfer records sender, receiver and amount: no invoice ref
 
 # ================================================================ 3. Solution (old 4)
 s = new("""
-SAY: Clearline is a smart cashier for digital-dollar payments. Before anyone pays, it tells the customer exactly what to send, on which network and to which address. When a payment arrives correctly, it ticks the invoice off by itself; when something is wrong, it explains why in plain English and drafts the reply. It never holds or moves money, and a person makes every decision that isn't routine.
+SAY: Clearline is a smart cashier for digital-dollar payments. Before anyone pays, it tells the customer exactly what to send, on which network and to which address. When a payment arrives correctly, it checks it and has the invoice ready to mark paid once you approve; when something is wrong, it explains why in plain English and drafts the reply. It never holds or moves money, and a person makes every decision that isn't routine.
 SOURCES / LABELS: the three outcomes are product capabilities [VERIFIED in the working demo], demo/REQUESTS_DEMO.md, "Working now" column. Real-world accuracy of the payment-matching side is not yet tested on real data (demo/REPORT.md).
-FROM OLD SLIDE 4 (moved here): the third outcome's full wording "Problems explain themselves" + "the reply drafted"; subtitle "It does the checking a finance person does today, and shows its work"; card details "amount, network and address on one page" / "checked and marked paid automatically" / "the cause in plain English, and the reply drafted"; footer "runs on fictional data; reads payments, never holds or moves money".
+FROM OLD SLIDE 4 (moved here): the third outcome's full wording "Problems explain themselves" + "the reply drafted"; subtitle "It does the checking a finance person does today, and shows its work"; card details "amount, network and address on one page" / "checked, then marked paid once you approve" / "the cause in plain English, and the reply drafted"; footer "runs on fictional data; reads payments, never holds or moves money".
 """)
 title(s, "Clearline is a smart cashier for digital dollars")
-outs = [("howtopay", "Customers know exactly how to pay"), ("ticked", "Correct payments tick themselves off"), ("explains", "Problems explain themselves, reply drafted")]
+outs = [("howtopay", "Customers know exactly how to pay"), ("ticked", "Correct ones: ready to mark paid on approval"), ("explains", "Problems explain themselves, reply drafted")]
 cw = (W - 2 * M - 2 * 0.4) / 3
 for k, (ic, h1) in enumerate(outs):
     x = M + k * (cw + 0.4)
@@ -74,12 +74,12 @@ foot(s, "Runs today in the working demo, on fictional data. Clearline reads paym
 
 # ================================================================ 4. Demo (old 5)
 s = new("""
-SAY: Here is the real product, running on a fictional company. One: the customer's page says exactly what to send and on which network. Two: a correct payment is checked and marked paid with no one touching it. Three: fake digital dollars are caught, explained in plain English, and can't be marked paid by mistake. [Click the video for the 60-second demo; for the full 2-minute walkthrough, play demo_live_full.mp4.]
+SAY: Here is the real product, running on a fictional company. One: the customer's page says exactly what to send and on which network. Two: in the demo, a correct payment is checked and marked paid with no one touching it; in your account it's checked and ready for you to mark paid. Three: fake digital dollars are caught, explained in plain English, and can't be marked paid by mistake. [Click the video for the 60-second demo; for the full 2-minute walkthrough, play demo_live_full.mp4.]
 SOURCES / LABELS: screenshots captured from the app in demo mode (pitch/assets/shots); the video is a real recording of the app (demo/live). All companies, people and amounts are fictional [VERIFIED].
 FROM OLD SLIDE 5: everything kept; the "Full 2-minute walkthrough" line is now only in these notes.
 """)
 title(s, "It works today: a real demo on fictional data")
-shots = [("request_top.png", "1", "The customer sees what to send"), ("auto_paid.png", "2", "A correct payment marks itself paid"), ("fake_verdict.png", "3", "Fake dollars, explained")]
+shots = [("request_top.png", "1", "The customer sees what to send"), ("auto_paid.png", "2", "In the demo, a correct payment marks itself paid"), ("fake_verdict.png", "3", "Fake dollars, explained")]
 rowh, sw = 1.45, 5.0
 for k, (f, n, cap) in enumerate(shots):
     y = 1.6 + k * (rowh + 0.4)

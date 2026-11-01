@@ -127,12 +127,12 @@ footer(s, "¹ ERC-20 standard (eips.ethereum.org/EIPS/eip-20). Real cases in our
 
 # ---------------------------------------------------------------- 4. Solution
 s = new("""
-SAY: Clearline is a smart cashier for digital-dollar payments. Before anyone pays, it tells the customer exactly what to send, on which network and to which address. When a payment arrives correctly, it ticks the invoice off by itself. When something is wrong, it explains why in plain English and drafts the reply to the customer. It never moves money; a person makes every decision that isn't routine.
+SAY: Clearline is a smart cashier for digital-dollar payments. Before anyone pays, it tells the customer exactly what to send, on which network and to which address. When a payment arrives correctly, it checks it and has the invoice ready to mark paid once you approve. When something is wrong, it explains why in plain English and drafts the reply to the customer. It never moves money; a person makes every decision that isn't routine.
 LABELS: these are product capabilities, [VERIFIED] in the working demo (demo/REQUESTS_DEMO.md, "Working now" column). Real-world accuracy of the payment-matching side — not yet tested on real data (demo/REPORT.md).
 """)
 title(s, "A smart cashier for digital-dollar payments", "It does the checking a finance person does today, and shows its work.")
 outs = [("howtopay", "Customers know exactly how to pay", "Amount, network and address on one page"),
-        ("ticked", "Correct payments tick themselves off", "Checked and marked paid automatically"),
+        ("ticked", "Correct payments, ready to mark paid", "Once you approve, with the reasons written down"),
         ("explains", "Problems explain themselves", "The cause in plain English, and the reply drafted")]
 cw = (W - 2 * M - 2 * 0.4) / 3
 for k, (ic, h1, h2) in enumerate(outs):
@@ -145,7 +145,7 @@ footer(s, "All three run in the working demo today, on fictional data. Clearline
 
 # ---------------------------------------------------------------- 5. Demo
 s = new("""
-SAY: Here is the real product, running on a fictional company. One: the customer's payment page says exactly what to send and on which network. Two: a correct payment is checked and marked paid with no one touching it. Three: fake digital dollars are caught, explained in plain English, and can't be marked paid by mistake. [Click the video to play the 60-second demo; for the full 2-minute walkthrough, play demo_live_full.mp4.]
+SAY: Here is the real product, running on a fictional company. One: the customer's payment page says exactly what to send and on which network. Two: in the demo, a correct payment is checked and marked paid with no one touching it; in your account it's checked and ready for you to mark paid. Three: fake digital dollars are caught, explained in plain English, and can't be marked paid by mistake. [Click the video to play the 60-second demo; for the full 2-minute walkthrough, play demo_live_full.mp4.]
 LABELS: screenshots captured from the app in demo mode (pitch/assets/shots); all data fictional. [VERIFIED]
 """)
 title(s, "The working demo")

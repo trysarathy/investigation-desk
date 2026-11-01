@@ -79,7 +79,7 @@ To understand the problem properly, I built a working version myself, with AI co
 LABELS: all three steps work in the demo today, on fictional data [VERIFIED: demo/REQUESTS_DEMO.md]. The payment-matching side has not yet been tested on real data (demo/REPORT.md).
 """)
 head(s, "To explore it, I built a smart cashier")
-steps = [("howtopay", "The customer sees exactly how to pay"), ("ticked", "Correct payments tick themselves off"), ("explains", "Problems are explained, with the reply drafted")]
+steps = [("howtopay", "The customer sees exactly how to pay"), ("ticked", "Correct payments: ready to mark paid once you approve"), ("explains", "Problems are explained, with the reply drafted")]
 cw = (W - 2 * M - 2 * 0.6) / 3
 for k, (ic, t) in enumerate(steps):
     x = M + k * (cw + 0.6)

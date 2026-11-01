@@ -5,7 +5,7 @@
  ],
  [
   "glance",
-  "Each morning, Maya opens one page. Most payments have already ticked themselves off."
+  "Each morning, Maya opens one page. In the demo, most payments have already been checked and marked paid."
  ],
  [
   "glance",
@@ -33,7 +33,7 @@
  ],
  [
   "auto",
-  "Clearline checks the amount, the digital dollar and the account, and ticks the invoice off by itself."
+  "Clearline checks the amount, the digital dollar and the account; in the demo, it then marks the invoice paid by itself."
  ],
  [
   "fake",
@@ -61,6 +61,6 @@
  ],
  [
   "close",
-  "Correct payments tick themselves off. Problems explain themselves. That's Clearline."
+  "Correct payments are checked and ready to mark paid in one click. Problems explain themselves. That's Clearline."
  ]
 ]

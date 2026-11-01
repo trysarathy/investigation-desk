@@ -102,7 +102,7 @@ VIDEO: the 60-second demo plays on this slide in PowerPoint (click it); in a PDF
 topline(s)
 text(s, M, 0.62, W - 2 * M, 0.7, "Stablecoin payments, matched, explained and in your books.", size=28, bold=True, name="Title")
 text(s, M, 1.32, W - 2 * M, 0.6, "Clearline asks for each payment clearly, matches it to its invoice, checks it's genuine, explains anything that went wrong in plain English, and posts it to your accounting system when you approve.", size=18, color=MUTED)
-steps = [("Ask", "A payment page per invoice"), ("Match", "Correct ones tick themselves off"),
+steps = [("Ask", "A payment page per invoice"), ("Match", "Correct ones ready to mark paid once you approve"),
          ("Explain", "Wrong ones explained, reply drafted"), ("In your books", "Posted to your books on approval (Xero first)")]
 cw = (W - 2 * M - 3 * 0.25) / 4
 for k, (nm, d) in enumerate(steps):
