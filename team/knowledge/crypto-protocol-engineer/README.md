@@ -1,6 +1,6 @@
 # Knowledge pack: crypto-protocol-engineer
 
-Last refreshed: **2026-10-29** · Refresh owner: crypto-protocol-engineer (monthly, with the golden-task
+Last refreshed: **2026-11-02** (sanctions-freeze-sources.md added; Ethereum USDT source read) · Refresh owner: crypto-protocol-engineer (monthly, with the golden-task
 re-run, and in the same PR as any code change that makes a file untrue). Built by reading the code on
 `main` (533b096), the repo's recorded real chain responses, primary specs/source on GitHub, and live
 read-only chain calls.
@@ -14,6 +14,7 @@ and date given); **[ASSUMPTION]** reasonable, not checked (often: only a search 
 | `codebase-map.md` | Every module in `src/lib` and `src/app/api`, the data flow chain read → evidence → rules → matching → accounting, tests, how to run, **known gaps G1-G13**. Read before touching code. |
 | `erc20-trc20.md` | Transfer event/topic hash, selectors, log decoding with worked real examples, `transfer` vs `transferFrom`, decimals per contract per chain (BSC = 18!), TRC-20 differences, Tron hex vs base58, why energy/bandwidth don't matter for reads |
 | `finality-reorgs.md` | Ethereum `safe`/`finalized`, OP Stack unsafe/safe/finalized, Arbitrum soft/hard, BSC fast finality (BEP-126), Polygon milestones, Tron solidified blocks (19 SRs); measured lags; recommended two-gate confirmation policy; what the code does about reorgs today |
+| `sanctions-freeze-sources.md` | OFAC SDN digital-currency addresses and Tether/Circle freeze functions as used by the release wording (S1): primary sources, what each check does **not** cover (50% rule, other countries' lists, point-in-time freeze), exact "NOT checked" wording, hosts to allow (2026-11-02) |
 | `issuer-controls.md` | Circle FiatToken (`isBlacklisted`, `Blacklisted`, pause, EIP-3009) and Tether TetherToken (`isBlackListed`, `getBlackListStatus`, `AddedBlackList`, `DestroyedBlackFunds`, pause, deprecate) with selectors/topics; bridged tokens with no controls; official contract list and its evidence status; what a freeze means for verdicts |
 | `address-formats.md` | EIP-55 checksum, EIP-1191, Tron base58check, ENS rules, Solana notes, why checksums don't stop poisoning |
 | `attack-patterns.md` | A1-A13: poisoning, look-alikes, counterfeit tokens, `transferFrom` spoofing, dust, wrong network, reorgs, lying RPCs, decimals, failed txs, freezes, page tampering, prompt injection; each with detection and **whether the code handles it today** |
