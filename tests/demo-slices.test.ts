@@ -8,7 +8,8 @@ import { createElement, type ReactNode } from "react";
 import { renderToReadableStream } from "react-dom/server.edge";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { planPosting } from "@/lib/accounting/rules";
-import { APPROVED_MESSAGE, entryScenarios, proposedEntry } from "@/lib/demo-slices/entry";
+import { APPROVED_MESSAGE, APPROVER, entryScenarios, proposedEntry, WAITING_MESSAGE } from "@/lib/demo-slices/entry";
+import { checkChips, ranSummary, statusLabel } from "@/lib/demo-slices/present";
 import { demoSlicesOn } from "@/lib/demo-slices/gate";
 import { card, cardFor, DEMO_WATCH_ID, DEMO_WATCH_LABEL, FREEZE_FIXTURE, freezeFixtureCovers, notificationFor, watchTimeline } from "@/lib/demo-slices/release";
 import { replay, replayOnly, scenarios, scenariosForHash, TRANSFER_LABEL } from "@/lib/demo-slices/replay";
@@ -51,7 +52,7 @@ describe("S1 release card: crypto-protocol-engineer's checks, fed with recorded 
     const c = await card("SCN-01", { asOfConfirmations: 4 });
     expect(c.result).toMatchObject({ tone: "not_yet", headline: "Not final yet." });
     expect(c.result.lines[0]).toMatch(/Ethereum usually takes about 2 minutes/);
-    expect(c.checks.finality.detail).toMatch(/^Replayed wait:/);
+    expect(c.checks.finality.detail).toBe("In a block, not final yet (this wait is replayed faster than real time).");
   });
   it.each([
     ["SCN-07", /^Don't release: Short by 8\.74181 USDT/],
@@ -87,7 +88,10 @@ describe("S1b notification preview: quiet by default", () => {
     expect(notificationFor(await card("SCN-01"))).toBeNull(); // finality not checked: not "paid", so quiet
     const r = await replay("SCN-01");
     expect(notificationFor(await cardFor(r, { finalizedBlock: r.facts!.tx!.blockNumber }))?.subject).toBe("Paid and final: SAMPLE-INV-2001 (331.40 USDT, SAMPLE-CUST-01)");
-    expect(notificationFor(await card("SCN-07"))?.slack).toMatch(/^Don't release yet · SAMPLE-INV-2007/);
+    const short = notificationFor(await card("SCN-07"))!;
+    expect(short.slack).toMatch(/^Don't release · SAMPLE-INV-2007/);
+    expect(short.subject).toMatch(/^Don't release: SAMPLE-INV-2007/);
+    expect([short.subject, short.slack, ...short.body].join(" ")).not.toMatch(/release yet/);
   });
   it("the watcher previews a message only on paid-and-final or problem steps, never on every block", async () => {
     const steps = await watchTimeline(DEMO_WATCH_ID);
@@ -130,11 +134,11 @@ describe("demo watcher: demo only, can't be pointed at a real address, no live c
   });
 });
 
-describe("S2: matched invoice and the proposed entry, from the existing posting plan", () => {
-  it("shows only scenarios whose plan is ready with payment lines; Dr clearing = Cr receivable = the plan's amount", async () => {
+describe("S2: matched invoice, the same release checks, and the proposed entry from the existing posting plan", () => {
+  it("leads with TRON-01, then Ethereum plans that are ready with payment lines; Dr clearing = Cr receivable = the plan's amount", async () => {
     const ids = await entryScenarios();
-    expect(ids).toEqual(["SCN-01", "SCN-02", "SCN-03", "SCN-04", "SCN-05", "SCN-11"]);
-    for (const id of ids) {
+    expect(ids).toEqual(["TRON-01", "SCN-01", "SCN-02", "SCN-03", "SCN-04", "SCN-05", "SCN-11"]);
+    for (const id of ids.slice(1)) {
       const e = (await proposedEntry(id))!;
       const r = await replay(id);
       const acct = { version: 1 as const, provider: "demo" as const, accounts: { walletAccountCode: "SAMPLE-CLR", feeAccountCode: "SAMPLE-SHORTFALL" }, audit: [],
@@ -143,13 +147,54 @@ describe("S2: matched invoice and the proposed entry, from the existing posting 
       expect(e.rows.filter((x) => x.dr).map((x) => x.dr)).toEqual(plan.lines.map((l) => l.amount));
       expect(e.rows.filter((x) => x.cr).map((x) => x.cr)).toEqual(plan.lines.map((l) => l.amount));
       expect(e.rows[0]).toMatchObject({ account: "Stablecoin clearing (sample account)", code: "SAMPLE-CLR" });
-      expect(e.label).toBe(TRANSFER_LABEL);
+      expect(e.rows[0].detail).toMatch(/ USDT? × 1\.00 USD \(assumed peg, not a market rate\)|USDC × 1\.00 USD \(assumed peg, not a market rate\)/);
+      // Post only when final: Ethereum finality isn't read, so none of these can be approved.
+      expect(e.approvable, id).toBe(false);
+      expect(e.matchLine).not.toMatch(/on-chain this is done|confirmed/i);
     }
+  });
+  it("TRON-01: final, but no posting plan exists for Tron, so it says so instead of inventing an entry", async () => {
+    const e = (await proposedEntry("TRON-01"))!;
+    expect(e).toMatchObject({ approvable: true, status: "no_plan", rows: [] });
+    expect(e.planReasons[0]).toBe("Clearline's posting plan covers Ethereum payments only today, so no Xero entry is prepared for this Tron payment.");
+  });
+  it("the page: checks right above Approve; Approve disabled with 'Waiting until final' when finality hasn't passed", async () => {
+    const P = (await import("@/app/demo/entry/page")).default;
+    const h = text(await html(await P({ searchParams: Promise.resolve({ s: "SCN-01" }) })));
+    expect(h).toContain(WAITING_MESSAGE);
+    expect(h).toMatch(/Checks\s+Final: NOT checked\s+Token: checked\s+Amount: checked\s+Sanctions \(US OFAC SDN only\): NOT checked\s+Freeze: checked/);
+    expect(h).toContain("SGD: rate not applied in this demo.");
+    expect(h).not.toMatch(/On-chain this is done/);
+    const raw = await html(await P({ searchParams: Promise.resolve({ s: "SCN-01" }) }));
+    expect(raw).toMatch(/<button[^>]*disabled=""[^>]*data-testid="approve-demo"/);
   });
   it("Approve sends nothing: no network or server call in the component, and it says so", () => {
     const src = readFileSync(path.join(__dirname, "..", "src/components/demo-slices/ApproveDemo.tsx"), "utf8").replace(/^\s*\/\/.*$/gm, "");
     expect(src).not.toMatch(/fetch\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource|"use server"|action=/);
-    expect(APPROVED_MESSAGE).toBe("Would post to Xero after approval (demo: not sent).");
+    expect(APPROVED_MESSAGE).toBe("Live, this would now post to Xero. Demo: nothing sent.");
+    expect(APPROVER).toBe("Mei Tan (sample user)");
+  });
+});
+
+describe("plain labels: chips, summary, status, times", () => {
+  it("not-run checks are amber warnings, and the summary is computed", async () => {
+    const c = await card("SCN-01");
+    const chips = checkChips(c.checks);
+    expect(chips.filter((x) => x.word === "NOT checked").every((x) => x.tone === "warn")).toBe(true);
+    expect(ranSummary(c.checks, c.result.tone)).toBe("3 of 5 checks ran. 2 did not — release is your call.");
+    expect(ranSummary((await card("SCN-07")).checks, "problem")).toMatch(/^\d of 5 checks ran\. \d did not\.$/);
+    expect(statusLabel(c.checks, c.result.tone)).toBe("Finality not checked");
+    expect(statusLabel((await card("TRON-01", { asOfConfirmations: 2 })).checks, "not_yet")).toBe("Not final yet");
+  });
+  it("wrong network chip names both networks", async () => {
+    const c = await card("SCN-14");
+    expect(checkChips(c.checks, { wrongNetwork: c.wrongNetwork }).find((x) => x.key === "token")).toMatchObject({ label: "Network", word: "problem (Tron, invoice says Ethereum)", tone: "fail" });
+  });
+  it("sanctions line names the one list and says others aren't checked; times are SGT, never ISO", async () => {
+    const c = await card("TRON-01");
+    expect(c.result.lines).toContain("No copy of the US OFAC SDN list is loaded, so the sender wasn't checked. Other lists are not checked.");
+    expect(c.result.lines.join(" ")).not.toMatch(/\d{4}-\d\d-\d\dT/);
+    expect(c.result.lines.join(" ")).toMatch(/2 Nov 2026, \d\d:\d\d SGT/);
   });
 });
 
@@ -172,7 +217,7 @@ describe("rendered pages: labelled, and never the word 'safe'", () => {
     expect(h).toContain(TRANSFER_LABEL);
     if (name === "notify" && !q.wait) expect(h).toContain("Preview — nothing is sent");
     if (name === "notify" && !q.s && !q.wait) expect(h).toContain("Paid and final: SAMPLE-INV-T001");
-    if (name === "notify" && q.wait) expect(h).toContain("Quiet: no message for this step.");
+    if (name === "notify" && q.wait) expect(h).toContain("No message for this update.");
     if (name === "entry") { expect(h).toContain("Approve"); expect(h).toContain("Proposed Xero entry"); }
   });
   it("the watcher's every step renders without 'safe', and the not-final step says 'Final: not yet'", async () => {

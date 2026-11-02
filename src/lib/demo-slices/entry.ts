@@ -8,13 +8,17 @@ import { planPosting } from "../accounting/rules";
 import { emptyAccounting, type AccountingData, type PlanStatus } from "../accounting/types";
 import { CONFIRMATIONS } from "../requests/check";
 import { formatUsdc } from "../requests/lifecycle";
-import { shortHash } from "../requests/present";
-import { replay, scenarios, TRANSFER_LABEL } from "./replay";
+import { shortAddr, shortHash } from "../requests/present";
+import { sameAddress } from "../address";
+import { cardFor, type ReleaseCard } from "./release";
+import { replay, scenarios, TRON_SCENARIO } from "./replay";
 
 /** The sample organisation's clearing account code (each organisation sets its own; there is no default). */
 export const SAMPLE_CLEARING = { code: "SAMPLE-CLR", name: "Stablecoin clearing (sample account)" };
-/** What the demo's Approve does: nothing leaves the page. */
-export const APPROVED_MESSAGE = "Would post to Xero after approval (demo: not sent).";
+/** What the demo's Approve says after the click (with who and when): nothing leaves the page. */
+export const APPROVED_MESSAGE = "Live, this would now post to Xero. Demo: nothing sent.";
+export const APPROVER = "Mei Tan (sample user)";
+export const WAITING_MESSAGE = "Waiting until final — can't be approved yet.";
 
 export interface EntryRow { account: string; code?: string; dr?: string; cr?: string; detail: string }
 export interface ProposedEntry {
@@ -22,18 +26,30 @@ export interface ProposedEntry {
   invoiceId: string;
   customerRef: string;
   invoiceAmount: string;
-  matchReasons: string[];
-  status: PlanStatus;
+  /** Why the payment belongs to this invoice (never a claim about finality: that is the checks' job). */
+  matchLine: string;
+  /** The same release checks as S1. */
+  card: ReleaseCard;
+  /** Aashmiin's rule: post only when final. Approvable only when the checks say paid and final. */
+  approvable: boolean;
+  status: PlanStatus | "no_plan";
   planReasons: string[];
   rows: EntryRow[];
-  label: string;
 }
 
-/** A scenario whose plan is a plain C1 payment: the only shape S2 shows Dr/Cr for. */
+const peg = (source?: string) => (source?.startsWith("par") ? "assumed peg, not a market rate" : source ?? "rate source unknown");
+
 export async function proposedEntry(id: string): Promise<ProposedEntry | null> {
   const r = await replay(id);
-  if (!r.view) return null;
   const inv = r.invoice;
+  const c = await cardFor(r);
+  const head = { scenarioId: id, invoiceId: inv.id, customerRef: inv.customer_ref, invoiceAmount: `${formatUsdc(inv.amount)} ${inv.token}`, card: c, approvable: c.result.tone === "paid" };
+  if (!r.view) {
+    const to = r.facts?.tx?.transfers.find((t) => sameAddress(t.to, inv.receiving_address));
+    if (!to) return null;
+    return { ...head, matchLine: `Paid to this sample invoice's own address (${shortAddr(inv.receiving_address)}).`, status: "no_plan", rows: [],
+      planReasons: [`Clearline's posting plan covers Ethereum payments only today, so no Xero entry is prepared for this ${c.network} payment.`] };
+  }
   const acct: AccountingData = {
     ...emptyAccounting(),
     accounts: { walletAccountCode: SAMPLE_CLEARING.code, feeAccountCode: "SAMPLE-SHORTFALL" },
@@ -43,19 +59,17 @@ export async function proposedEntry(id: string): Promise<ProposedEntry | null> {
   const rows: EntryRow[] = [];
   for (const l of plan.lines) {
     if (l.kind !== "payment") return null;
-    const via = `${formatUsdc(l.tokenAmount ?? l.amount)} ${l.token} on ${l.network} · tx ${shortHash(l.txHash ?? "")} · ${l.usdRate} USD each · ${l.date}`;
+    const via = `${formatUsdc(l.tokenAmount ?? l.amount)} ${l.token} × ${l.usdRate} USD (${peg(l.usdRateSource)}) · on ${l.network} · tx ${shortHash(l.txHash ?? "")} · ${l.date}`;
     rows.push({ account: SAMPLE_CLEARING.name, code: l.accountCode, dr: l.amount, detail: via });
     rows.push({ account: `Accounts Receivable · ${inv.customer_ref}`, cr: l.amount, detail: `Payment applied to ${inv.id}` });
   }
-  return {
-    scenarioId: id, invoiceId: inv.id, customerRef: inv.customer_ref, invoiceAmount: `${formatUsdc(inv.amount)} ${inv.token}`,
-    matchReasons: r.view.reasons, status: plan.status, planReasons: plan.reasons, rows, label: TRANSFER_LABEL,
-  };
+  const linked = Object.values(r.data.observations).find((o) => o.attribution.kind === "request" && o.attribution.requestId === inv.id);
+  return { ...head, matchLine: linked?.attribution.reason ?? "Matched by a person.", status: plan.status, planReasons: plan.reasons, rows };
 }
 
-/** The scenarios S2 can show: those whose existing plan is ready and is payment lines only. */
+/** The scenarios S2 shows: TRON-01 first (the one that is final from a recorded read), then plans ready with payment lines. */
 export async function entryScenarios(): Promise<string[]> {
-  const out: string[] = [];
+  const out: string[] = [TRON_SCENARIO.id];
   for (const s of scenarios()) {
     const e = await proposedEntry(s.id);
     if (e && e.status === "ready" && e.rows.length) out.push(s.id);

@@ -27,15 +27,15 @@ export function Watcher({ steps, label, initial = 1, autoplay = true, everyMs = 
       </div>
       <div className="panel-b">
         <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-          Step {shown} of {steps.length}. {playing && !done ? "Next step in a few seconds." : done ? "Replay finished." : "Paused."}{" "}
-          {messages} message{messages === 1 ? "" : "s"} previewed; {shown - messages} step{shown - messages === 1 ? "" : "s"} stayed quiet.
+          Update {shown} of {steps.length}. {playing && !done ? "Waiting for the next transfer…" : done ? "Replay finished." : "Paused."}{" "}
+          {messages} message{messages === 1 ? "" : "s"} previewed; {shown - messages} update{shown - messages === 1 ? "" : "s"} didn&apos;t need a message.
         </p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {!done && <button type="button" className="btn btn-sm" onClick={() => setPlaying((p) => !p)}>{playing ? "Pause" : "Resume"}</button>}
           {!done && <button type="button" className="btn btn-sm" onClick={() => setShown((n) => n + 1)}>Next step</button>}
           <button type="button" className="btn btn-sm" onClick={() => { setShown(1); setPlaying(true); }}>Replay from the start</button>
         </div>
-        {now.replayedWait && <p className="muted" style={{ margin: 0, fontSize: 12 }}>This step replays the wait for blocks from the transfer&apos;s own block, faster than real time. The transfer itself is recorded.</p>}
+        {now.replayedWait && <p className="muted" style={{ margin: 0, fontSize: 12 }}>Waiting for the network to make this payment final. The transfer is recorded; the wait is shown faster than real time.</p>}
         <ReleaseCard card={now.card} live />
         {now.notify ? <NotificationPreview preview={now.notify} /> : <QuietNote />}
         <h3 style={{ margin: "8px 0 0", fontSize: 14 }}>What the watcher saw</h3>
@@ -43,7 +43,7 @@ export function Watcher({ steps, label, initial = 1, autoplay = true, everyMs = 
           {seen.map((s, i) => (
             <li key={i} data-tone={s.card.result.tone}>
               <span className="mono">{s.card.invoiceId}</span> · {s.card.result.headline}
-              <span className="muted"> · {s.notify ? "message previewed" : "quiet"}</span>
+              <span className="muted"> · {s.notify ? "message previewed" : "no message needed"}</span>
             </li>
           ))}
         </ol>

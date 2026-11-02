@@ -19,6 +19,7 @@ import { loadSanctionsSnapshot, screenSender } from "../requests/sanctions";
 import { confirmPace, paymentStatus } from "../requests/status";
 import { add } from "../payments/money";
 import type { Chain } from "../types";
+import { humanTimes, ranSummary } from "./present";
 import { replay, replayOnly, scenario, TRANSFER_LABEL, type Replayed } from "./replay";
 
 const NET: Record<string, string> = { ethereum: "Ethereum", tron: "Tron", bsc: "BNB Chain" };
@@ -81,7 +82,7 @@ export async function releaseChecks(r: Replayed, o: { replayedWait?: boolean; fi
   const src = "Recorded chain data (replayed)";
   const finality: FinalityCheck = o.replayedWait && tx
     // Replaying the wait: the transfer had only just gone into its block, so the network can't have finalized it yet.
-    ? { state: "pending", blockNumber: tx.blockNumber, eta, source: src, detail: `Replayed wait: in block ${tx.blockNumber}, which the network hadn't finalized yet.` }
+    ? { state: "pending", blockNumber: tx.blockNumber, eta, source: src, detail: "In a block, not final yet (this wait is replayed faster than real time)." }
     : o.finalizedBlock !== undefined
       ? finalityCheck({ chain, blockNumber: tx?.blockNumber, finalizedBlock: o.finalizedBlock, source: src, checkedAt: at, eta })
       : await recordedFinality(r, chain, tx?.blockNumber, eta);
@@ -111,7 +112,9 @@ export async function releaseChecks(r: Replayed, o: { replayedWait?: boolean; fi
     }
   }
   const sender = x?.from ?? "";
-  const sanctions = screenSender(loadSanctionsSnapshot(), chain, sender, at);
+  const snapshot = loadSanctionsSnapshot();
+  const screened = screenSender(snapshot, chain, sender, at);
+  const sanctions = snapshot ? screened : { ...screened, detail: "No copy of the US OFAC SDN list is loaded, so the sender wasn't checked. Other lists are not checked." };
   const freeze = x && chain === invChain ? await freezeFor(r, sender, x.to, x.tokenContract)
     : { state: "not_run" as const, issuer: ISSUER[t], detail: `${ISSUER[t]}'s freeze list wasn't read for this transfer, so freeze status wasn't checked.` };
   return { finality, token, amount, sanctions, freeze };
@@ -131,6 +134,8 @@ export interface ReleaseCard {
   checks: ReleaseChecks;
   result: ReleaseHeadline;
   label: string;
+  /** Set when the transfer is on another network than the invoice's. */
+  wrongNetwork?: { sent: string; invoice: string };
 }
 
 export async function cardFor(r: Replayed, o: { replayedWait?: boolean; finalizedBlock?: number } = {}): Promise<ReleaseCard> {
@@ -141,9 +146,12 @@ export async function cardFor(r: Replayed, o: { replayedWait?: boolean; finalize
     scenarioId: r.scenario.id, title: r.scenario.title, invoiceId: r.invoice.id, customerRef: r.invoice.customer_ref,
     invoiceAmount: `${formatUsdc(r.invoice.amount)} ${r.invoice.token}`, network: NET[tx?.chain ?? "ethereum"] ?? String(tx?.chain),
     hash: r.scenario.transfer!.hash, shortHash: shortHash(r.scenario.transfer!.hash), from: x?.from, to: x?.to,
-    checks, result: releaseHeadline(checks), label: TRANSFER_LABEL,
+    checks, result: humanResult(releaseHeadline(checks)), label: TRANSFER_LABEL,
+    ...(tx && tx.chain !== (r.invoice.chain ?? "ethereum") ? { wrongNetwork: { sent: NET[tx.chain] ?? tx.chain, invoice: NET[r.invoice.chain ?? "ethereum"] } } : {}),
   };
 }
+
+const humanResult = (h: ReleaseHeadline): ReleaseHeadline => ({ ...h, headline: humanTimes(h.headline), lines: h.lines.map(humanTimes) });
 
 export const card = async (id: string, o: { asOfConfirmations?: number } = {}) => cardFor(await replay(id, o), { replayedWait: o.asOfConfirmations !== undefined });
 
@@ -157,11 +165,13 @@ export interface NotificationPreview { subject: string; slack: string; body: str
  */
 export function notificationFor(c: ReleaseCard): NotificationPreview | null {
   if (c.result.tone === "not_yet") return null;
-  const what = c.result.tone === "paid" ? "Paid and final" : "Problem";
+  // Same words as the card: "Don't release" for a problem ("yet" is only ever for not final, which is quiet).
+  const what = c.result.tone === "paid" ? "Paid and final" : "Don't release";
+  const summary = ranSummary(c.checks, c.result.tone);
   return {
     subject: `${what}: ${c.invoiceId} (${c.invoiceAmount}, ${c.customerRef})`,
-    slack: `${c.result.tone === "paid" ? "Paid and final" : "Don't release yet"} · ${c.invoiceId} · ${c.invoiceAmount}\n${c.result.headline}`,
-    body: [c.result.headline, ...c.result.lines, `Transfer ${c.shortHash} on ${c.network}.`, c.label],
+    slack: `${what} · ${c.invoiceId} · ${c.invoiceAmount}\n${c.result.headline}\n${summary}`,
+    body: [c.result.headline, summary, ...c.result.lines, `Transfer ${c.shortHash} on ${c.network}.`],
   };
 }
 

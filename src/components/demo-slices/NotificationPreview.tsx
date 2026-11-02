@@ -29,5 +29,5 @@ export function NotificationPreview({ preview }: { preview: Preview }) {
 
 /** Why there is no preview for a step: quiet by default. */
 export function QuietNote() {
-  return <p className="muted" style={{ margin: 0, fontSize: 13 }} data-testid="notify-quiet">Quiet: no message for this step. Messages go out only when a payment is paid and final, or has a problem; never on every block.</p>;
+  return <p className="muted" style={{ margin: 0, fontSize: 13 }} data-testid="notify-quiet">No message for this update. Messages go out only when a payment is paid and final, or has a problem; never on every block.</p>;
 }

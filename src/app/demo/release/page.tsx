@@ -24,6 +24,7 @@ export default async function ReleaseDemo({ searchParams }: { searchParams: Prom
   const ids = q.s && scenario(q.s) ? [q.s] : fromHash.map((s) => s.id);
   const cards = await Promise.all(ids.map((id) => card(id)));
   const entryIds = cards.some((c) => c.result.tone === "paid") ? await entryScenarios() : [];
+  const all = [TRON_SCENARIO, ...scenarios()];
   const badHash = hash && !/^(0x)?[0-9a-fA-F]{64}$/.test(hash);
   return (
     <div className="page demo-page">
@@ -55,12 +56,12 @@ export default async function ReleaseDemo({ searchParams }: { searchParams: Prom
           {hash && !badHash && !fromHash.length && <p role="alert" className="bar bar-amber" style={{ margin: 0 }}>This demo doesn&apos;t have that transfer recorded, so nothing was looked up. Pick one of the sample transfers below.</p>}
         </form>
       </section>
-      <section className="panel" aria-labelledby="samples-h">
-        <div className="panel-h"><h2 id="samples-h" style={{ margin: 0, fontSize: 15 }}>The sample transfers</h2></div>
+      <details className="panel sample-details">
+        <summary className="panel-h" style={{ cursor: "pointer" }}><span style={{ fontWeight: 600 }}>Show {all.length} sample transfers</span></summary>
         <ul className="panel-b sample-list">
-          {[TRON_SCENARIO, ...scenarios()].map((s) => <li key={s.id}><Link href={`/demo/release?s=${s.id}`}>{s.id}</Link> <span className="muted">· {s.title}</span></li>)}
+          {all.map((s) => <li key={s.id}><Link href={`/demo/release?s=${s.id}`}>{s.id}</Link> <span className="muted">· {s.title}</span></li>)}
         </ul>
-      </section>
+      </details>
     </div>
   );
 }
