@@ -7,6 +7,11 @@
 // that blocks release starts "Don't release:". Main lines are plain English: block numbers and other
 // technical detail go in `technical`. The word "safe" is never produced.
 // Sources and limits: team/knowledge/crypto-protocol-engineer/sanctions-freeze-sources.md.
+//
+// INTERNAL ONLY: these headlines and lines are for the business's own staff. The sanctions and freeze
+// sentences must never be put into payer-facing text (payment page, customer replies, emails):
+// tipping-off risk, docs/SPEC.md §2 "Legal note for D09 and D14" (replies must never mention
+// sanctions, AML or suspicion).
 
 export type CheckState = "passed" | "failed" | "not_run";
 
@@ -71,7 +76,9 @@ export const SANCTIONS_SCOPE = "UN, EU, UK, Singapore (MAS), Hong Kong, UAE and 
 
 /** "2 Nov 2026, 2:54 pm SGT" (Singapore has no daylight saving: UTC+8 all year). */
 export function sgtTime(iso: string): string {
-  const d = new Date(Date.parse(iso) + 8 * 3_600_000);
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return ""; // an unreadable time is left out, never shown as "NaN"
+  const d = new Date(t + 8 * 3_600_000);
   const M = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()];
   const h = d.getUTCHours(), m = String(d.getUTCMinutes()).padStart(2, "0");
   return `${d.getUTCDate()} ${M} ${d.getUTCFullYear()}, ${h % 12 || 12}:${m} ${h < 12 ? "am" : "pm"} SGT`;
@@ -97,7 +104,7 @@ export function releaseHeadline(c: ReleaseChecks): ReleaseHeadline {
   const parts = [
     tok && amt ? "Right token and amount." : tok && amtFailed ? "Right token." : tok ? "Right token. Amount NOT checked."
       : amt ? "Right amount. Token NOT checked." : amtFailed ? "Token NOT checked." : "Token and amount NOT checked.",
-    c.sanctions.state === "passed" ? "Sender not on public sanctions lists." : "Sender NOT checked.",
+    c.sanctions.state === "passed" ? "Sender not on the US OFAC SDN list." : "Sender NOT checked.",
     c.freeze.state === "passed" ? "Not frozen." : "Freeze status NOT checked.",
   ];
   // "Paid" needs finality AND the right token AND the right amount; anything less isn't called paid.

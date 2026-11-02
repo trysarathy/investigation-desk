@@ -64,8 +64,8 @@ describe("releaseHeadline: words only for checks that passed", () => {
     const h = releaseHeadline(all());
     expect(h.tone).toBe("paid");
     expect(h.allChecked).toBe(true);
-    expect(h.headline).toBe("Paid and final. Right token and amount. Sender not on public sanctions lists. Not frozen.");
-    // The scope of "public sanctions lists" is always spelled out underneath.
+    expect(h.headline).toBe("Paid and final. Right token and amount. Sender not on the US OFAC SDN list. Not frozen.");
+    // The scope (one list, its date, the lists not checked) is always spelled out underneath.
     expect(h.lines.join(" ")).toMatch(/OFAC SDN list only, dated 2026-10-31/);
     expect(h.lines.join(" ")).toMatch(/UN, EU, UK, Singapore \(MAS\)/);
   });
@@ -74,12 +74,12 @@ describe("releaseHeadline: words only for checks that passed", () => {
     const h = releaseHeadline(all({ sanctions: "not_run" }));
     expect(h.headline).toBe("Paid and final. Right token and amount. Sender NOT checked. Not frozen.");
     expect(h.allChecked).toBe(false);
-    expect(h.headline).not.toMatch(/sanctions lists/);
+    expect(h.headline).not.toMatch(/OFAC|sanctions/);
   });
 
   it("freeze couldn't run (call failed) → \"Freeze status NOT checked.\"", () => {
     const h = releaseHeadline(all({ freeze: "not_run" }));
-    expect(h.headline).toBe("Paid and final. Right token and amount. Sender not on public sanctions lists. Freeze status NOT checked.");
+    expect(h.headline).toBe("Paid and final. Right token and amount. Sender not on the US OFAC SDN list. Freeze status NOT checked.");
     expect(h.headline).not.toMatch(/Not frozen/);
   });
 
@@ -227,7 +227,7 @@ describe("plain English (2 Nov): no jargon in the main lines, numbers in `techni
     const h = releaseHeadline({ ...all(), amount: over });
     expect(h.tone).toBe("problem");
     expect(h.headline).toBe("Paid 5.00 USDC more than the invoice. Check with finance before refunding.");
-    expect(h.lines[0]).toBe("Paid and final. Right token. Sender not on public sanctions lists. Not frozen.");
+    expect(h.lines[0]).toBe("Paid and final. Right token. Sender not on the US OFAC SDN list. Not frozen.");
     // A blocking failure still wins, and the overpayment is still named.
     expect(releaseHeadline({ ...all({ freeze: "failed" }), amount: over }).headline)
       .toBe("Don't release: Sender frozen by Circle. Paid 5.00 USDC more than the invoice. Check with finance before refunding.");
@@ -237,10 +237,10 @@ describe("plain English (2 Nov): no jargon in the main lines, numbers in `techni
 describe("\"Paid\" only with finality AND token AND amount (code review #65)", () => {
   it("final but token not checked → not_yet, not called paid", () => {
     const h = releaseHeadline(all({ token: "not_run" }));
-    expect(h).toMatchObject({ tone: "not_yet", headline: "Final, but not confirmed as paid. Right amount. Token NOT checked. Sender not on public sanctions lists. Not frozen." });
+    expect(h).toMatchObject({ tone: "not_yet", headline: "Final, but not confirmed as paid. Right amount. Token NOT checked. Sender not on the US OFAC SDN list. Not frozen." });
   });
   it("final but amount not checked → not_yet", () => {
-    expect(releaseHeadline(all({ amount: "not_run" }))).toMatchObject({ tone: "not_yet", headline: "Final, but not confirmed as paid. Right token. Amount NOT checked. Sender not on public sanctions lists. Not frozen." });
+    expect(releaseHeadline(all({ amount: "not_run" }))).toMatchObject({ tone: "not_yet", headline: "Final, but not confirmed as paid. Right token. Amount NOT checked. Sender not on the US OFAC SDN list. Not frozen." });
   });
   it("tone 'paid' never comes with a token, amount or finality that didn't pass", () => {
     const S: CheckState[] = ["passed", "failed", "not_run"];
@@ -299,7 +299,7 @@ describe("re-review #65 (2 Nov)", () => {
     const h = releaseHeadline({ ...all(), token, amount: amountCheck({ expected: "100", received: "105", token: "USDC" }) });
     expect(h.tone).toBe("problem");
     expect(h.headline).toBe("Paid 5.00 USDC more than the invoice. Check with finance before refunding.");
-    expect(h.lines[0]).toBe("Final, but not confirmed as paid. Token NOT checked. Sender not on public sanctions lists. Not frozen.");
+    expect(h.lines[0]).toBe("Final, but not confirmed as paid. Token NOT checked. Sender not on the US OFAC SDN list. Not frozen.");
     expect(`${h.headline} ${h.lines.join(" ")}`).not.toMatch(/Paid and final/);
   });
 
@@ -307,5 +307,35 @@ describe("re-review #65 (2 Nov)", () => {
     expect(amountCheck({ expected: "4300", received: "4300.00", token: "USDT" }).detail).toBe("Exactly 4,300.00 USDT.");
     expect(amountCheck({ expected: "1010", received: "1001.25819", token: "USDC" }).detail).toBe("Short by 8.74181 USDC (received 1,001.25819, asked 1,010.00).");
     expect(amountCheck({ expected: "1000", received: "1250.5", token: "USDT" }).detail).toBe("Paid 250.50 USDT more than the invoice. Check with finance before refunding.");
+  });
+});
+
+describe("QA #65 (2 Nov)", () => {
+  it("the headline names only the list that was checked (Aashmiin's rule: wording states only checks that ran)", () => {
+    const h = releaseHeadline(all());
+    expect(h.headline).toBe("Paid and final. Right token and amount. Sender not on the US OFAC SDN list. Not frozen.");
+    expect(h.headline).not.toMatch(/public sanctions lists/);
+  });
+
+  it("finality: a block number that isn't a positive safe integer → not_run, and no NaN anywhere", () => {
+    for (const b of [NaN, -1, 0, 1.5, Number.MAX_SAFE_INTEGER + 2, Infinity]) {
+      for (const f of [b, 100]) {
+        const c = finalityCheck({ chain: "ethereum", blockNumber: f === b ? b : 100, finalizedBlock: f === b ? 120 : b, checkedAt: T });
+        expect(c.state).toBe("not_run");
+        const h = releaseHeadline({ ...all(), finality: c });
+        expect(`${h.headline} ${h.lines.join(" ")} ${c.technical ?? ""}`).not.toMatch(/NaN|Infinity/);
+      }
+    }
+  });
+
+  it("sgtTime: an invalid date gives an empty string, never \"NaN\"", () => {
+    for (const bad of ["", "not a date", "2026-13-45T99:00:00Z"]) expect(sgtTime(bad)).toBe("");
+  });
+
+  // TIPPING-OFF (docs/SPEC.md §2 legal note for D09/D14): these sentences are for the business's own
+  // staff only. They must never be put into anything the payer sees (payment page, customer replies).
+  it("sanctions and freeze sentences are internal-only: the module says so", () => {
+    const src = readFileSync(path.join(__dirname, "..", "src", "lib", "requests", "release-headline.ts"), "utf8");
+    expect(src).toMatch(/INTERNAL ONLY[\s\S]*tipping-off[\s\S]*SPEC\.md/);
   });
 });

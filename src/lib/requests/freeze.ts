@@ -18,6 +18,20 @@ import { ISSUER, sgtTime, type FreezeCheck } from "./release-checks";
 export interface FreezeQuery { chain: Chain; token: Token; contract: string; sender: string; receiver: string }
 
 export async function readIssuerFreeze(deps: Pick<LiveDeps, "tron" | "evm">, q: FreezeQuery, now = () => new Date(), settings = REQUEST_SETTINGS): Promise<FreezeCheck> {
+  try {
+    return await readFreeze(deps, q, now, settings);
+  } catch {
+    // Anything unexpected in the provider layer is an unknown, never an exception and never "not frozen".
+    return { state: "not_run", issuer: ISSUER[q.token], detail: `${ISSUER[q.token]}'s contract didn't answer, so freeze status is unknown.` };
+  }
+}
+
+/** Recording helper: where a person can see the same contract read for themselves. */
+export const freezeExplorerUrl = (contract: string) => (contract.startsWith("T")
+  ? `https://tronscan.org/#/contract/${contract}/code`
+  : `https://etherscan.io/address/${contract.toLowerCase()}#read${contract.toLowerCase() === "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48" ? "Proxy" : ""}Contract`);
+
+async function readFreeze(deps: Pick<LiveDeps, "tron" | "evm">, q: FreezeQuery, now: () => Date, settings: typeof REQUEST_SETTINGS): Promise<FreezeCheck> {
   const issuer = ISSUER[q.token];
   const official = officialContractFor(q.chain, q.token, settings);
   // Only the genuine issuer contract can say an address is frozen (BNB Chain's declared contract can't).
@@ -61,8 +75,9 @@ export async function readIssuerFreeze(deps: Pick<LiveDeps, "tron" | "evm">, q: 
   const technical = `${fn}(address) on ${official.contract} (${q.chain}) at ${atBlock ? `block ${atBlock}` : "the latest block"}; responses ${raws.map((r) => r.sha256.slice(0, 12)).join(", ")}.`;
   const base = { issuer, checkedAt, atBlock, addresses, source: `${fn}(address) on ${official.contract}`, technical };
   const frozen = addresses.filter((a) => a.frozen).map((a) => (a.role === "sender" ? "Sender" : "Receiving address"));
-  const at = `as of ${sgtTime(checkedAt)}`;
+  const when = sgtTime(checkedAt);
+  const at = when ? ` (as of ${when})` : "";
   return frozen.length
-    ? { ...base, state: "failed", detail: `${frozen.join(" and ")} frozen by ${issuer} (${at}).` }
-    : { ...base, state: "passed", detail: `Neither the sender nor the receiving address is frozen by ${issuer} (${at}); this can change later.` };
+    ? { ...base, state: "failed", detail: `${frozen.join(" and ")} frozen by ${issuer}${at}.` }
+    : { ...base, state: "passed", detail: `Neither the sender nor the receiving address is frozen by ${issuer}${at}; this can change later.` };
 }

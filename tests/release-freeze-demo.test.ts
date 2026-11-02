@@ -13,7 +13,7 @@ import { TRANSFER_TOPIC } from "@/lib/chain/abi";
 import { fetchTransport, type Transport } from "@/lib/chain/http";
 import { buildFetchers } from "@/lib/chain/sources";
 import { MemoryStore } from "@/lib/chain/store";
-import { readIssuerFreeze, type FreezeQuery } from "@/lib/requests/freeze";
+import { freezeExplorerUrl, readIssuerFreeze, type FreezeQuery } from "@/lib/requests/freeze";
 import type { Token } from "@/lib/types";
 import { redactUrl, replayTransport, type Exchange, type Recording } from "./fixtures/live/replay";
 
@@ -71,7 +71,7 @@ describe.skipIf(!process.env.RECORD_FREEZE_DEMO)("record freeze reads for the de
       await new Promise((r) => setTimeout(r, 1500));
       if (c.state === "not_run") { rows.push({ recording: `${name}.json`, query: q, skipped: `read failed at ${recordedAt}: ${c.detail}` }); continue; }
       const fixture = `FREEZE-DEMO-${name}.json`;
-      writeFileSync(path.join(REAL, fixture), JSON.stringify({ name: fixture.replace(/\.json$/, ""), hash: "", explorer: "", recordedAt, exchanges }));
+      writeFileSync(path.join(REAL, fixture), JSON.stringify({ name: fixture.replace(/\.json$/, ""), hash: "", explorer: freezeExplorerUrl(q.contract), recordedAt, exchanges }));
       rows.push({ recording: `${name}.json`, fixture, recordedAt, query: q });
     }
     writeFileSync(INDEX, `${JSON.stringify({ about: "Issuer freeze reads (sender and receiver) for the demo transfers, recorded by tests/release-freeze-demo.test.ts. Sender/receiver taken from each recording's Transfer log on the issuer contract.", rows }, null, 1)}\n`);
@@ -99,6 +99,7 @@ describe.skipIf(!!process.env.RECORD_FREEZE_DEMO)("demo freeze reads replay offl
       expect(existsSync(path.join(REAL, r.fixture!))).toBe(true);
       const rec = JSON.parse(readFileSync(path.join(REAL, r.fixture!), "utf8")) as Recording;
       expect(JSON.stringify(rec)).not.toMatch(/apikey=(?!REDACTED)[A-Za-z0-9]/);
+      expect(rec.explorer).toMatch(/^https:\/\/(etherscan\.io|tronscan\.org)\//);
       const c = await readIssuerFreeze(depsFor(replayTransport(rec)), r.query!, () => new Date(rec.recordedAt));
       expect(["passed", "failed"]).toContain(c.state);
       expect(c.addresses?.map((a) => a.role)).toEqual(["sender", "receiver"]);
