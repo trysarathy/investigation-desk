@@ -116,16 +116,22 @@ export class TronFetcher {
     };
   }
 
-  /** USDT's isBlackListed(address) on Tron, read-only. Undefined if the call fails. */
-  async isBlackListed(contract: string, address: string, raws: RawResponse[]): Promise<boolean | undefined> {
+  /**
+   * USDT's isBlackListed(address) on Tron, read-only. Undefined if the call fails or the answer isn't a
+   * clean bool (the node must report result.result = true, and the word must be exactly 0 or 1).
+   * `ttlSec` 0 = never served from cache (the release wording's freeze check stamps a real read time).
+   */
+  async isBlackListed(contract: string, address: string, raws: RawResponse[], ttlSec = 60): Promise<boolean | undefined> {
     try {
       const r = await this.post("/wallet/triggerconstantcontract", {
         owner_address: contract, contract_address: contract, function_selector: "isBlackListed(address)",
         parameter: tronToHex(address).slice(2).padStart(64, "0"), visible: true,
-      }, 60);
+      }, ttlSec);
       raws.push(r);
-      const out = JSON.parse(r.body)?.constant_result?.[0] as string | undefined;
-      return out && /^[0-9a-f]{64}$/i.test(out) ? BigInt(`0x${out}`) !== 0n : undefined;
+      const j = JSON.parse(r.body);
+      const out = j?.constant_result?.[0] as string | undefined;
+      if (j?.result?.result !== true || !out || !/^0{63}[01]$/.test(out)) return undefined;
+      return out.endsWith("1");
     } catch (e) {
       if (e instanceof ChainApiError && e.raw) raws.push(e.raw);
       return undefined;

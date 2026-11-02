@@ -95,6 +95,7 @@ compare. `normalise.ts`: input type detection. `types.ts`: `Chain`, `EVM_CHAIN_I
 | `release-headline.ts` | S1 (2026-11-02), **UI-safe (no runtime imports, tested)**: `CheckState`, `CheckResult` (`detail`, `technical`, `blocking`), `ReleaseChecks {finality, token, amount, sanctions, freeze, network?, address?}`, `releaseHeadline()` → `{tone, headline, lines, allChecked}`, `sgtTime()`; wording only for passed checks, "NOT checked" otherwise, "paid" only with finality + token + amount, never "safe" |
 | `release-checks.ts` | S1, server side (settings, `sameAddress`): `finalityCheck`, `tokenCheck` (BNB: declared contract, others look-alike), `amountCheck` (over = `blocking:false`, C5), `networkCheck`, `receivingAddressCheck`; re-exports release-headline. **Not wired into a page yet** |
 | `sanctions.ts` | S1: `screenSender()` against a recorded OFAC SDN digital-currency snapshot (`parseSanctionsSnapshot`, `loadSanctionsSnapshot`); none shipped → `not_run` |
+| `freeze.ts` | S1 (b): `readIssuerFreeze()` sender + receiver via `ethCall` / `TronFetcher.isBlackListed(…, ttlSec 0)` (uncached, stamped with the read time); addresses validated first (`csv/files.ts checkAddress`: EVM 40 hex + EIP-55, Tron base58 checksum); only an exact 0/1 answer counts; anything else → `not_run`. `TronFetcher.isBlackListed` now also requires `result.result = true` and a 0/1 word (engine D09 too) |
 | `demo.ts` | Fictional Northwind week (cases a-g), `COUNTERFEIT_USDT`, `lookalikeOf` |
 | `store.ts`, `ui.ts` | JSON store with lock; list/sort helpers |
 
