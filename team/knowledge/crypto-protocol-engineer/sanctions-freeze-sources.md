@@ -47,9 +47,11 @@ JSON with the four provenance fields, commit it in its own PR (approval-only).
   same structured way as OFAC [ASSUMPTION: not opened; their hosts are blocked].
 - **Staleness.** The answer is as of the snapshot's list date; the line under the headline always shows it.
 - **Sender only.** The receiving address is the business's own, so it is not screened.
-- **Wording to decide (for Aashmiin):** the agreed headline says "Sender not on public sanctions
-  *lists*", plural, while one list is checked. The line underneath names the one list and the ones not
-  checked. A tighter headline would be "Sender not on the US OFAC sanctions list."
+- **Wording (2 Nov, QA applying Aashmiin's rule that wording states only checks that ran):** the headline
+  says "Sender not on the US OFAC SDN list." (her example "public sanctions lists" was illustrative;
+  she can overrule). The line underneath names the list date and the lists not checked.
+- **Internal only.** Sanctions and freeze sentences never go into payer-facing text (tipping-off,
+  docs/SPEC.md §2 legal note for D09/D14).
 
 ## 2. Issuer freeze (Tether, Circle)
 
@@ -98,7 +100,7 @@ Recorded once, replayed offline: `tests/fixtures/real/FREEZE-*.json` (2026-11-02
 
 ## 3. What the product says when a check can't run
 Exact strings from `releaseHeadline()` (tests in `tests/release-checks.test.ts`):
-- All passed: "Paid and final. Right token and amount. Sender not on public sanctions lists. Not frozen."
+- All passed: "Paid and final. Right token and amount. Sender not on the US OFAC SDN list. Not frozen."
 - Sanctions not run: "... Sender NOT checked. ..." · Freeze not run: "... Freeze status NOT checked."
 - Token / amount not run: "Token NOT checked." / "Amount NOT checked." · Finality unknown: "Finality NOT checked." (not called paid)
 - Not final: "Not final yet." + the 6a status sentence.
