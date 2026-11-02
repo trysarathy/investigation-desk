@@ -490,6 +490,8 @@ details.panel:not([open]) > summary.panel-h { border-bottom: 0; }
 .release-checks .s-fail svg { color: var(--red); }
 .release-checks .s-warn { color: var(--amber); font-weight: 500; }
 .release-checks .s-info { color: var(--accent); }
+.entry-table td { white-space: normal; vertical-align: top; }
+.entry-table td.detail { min-width: 260px; }
 .demo-page .demo-badge { height: auto; min-height: 20px; white-space: normal; margin: 0; }
 .notify-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .notify { margin: 0; overflow-wrap: anywhere; }
