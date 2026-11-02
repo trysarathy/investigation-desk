@@ -9,7 +9,7 @@ import { renderToReadableStream } from "react-dom/server.edge";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { checkChips, first, ranSummary, statusLabel, technicalLines, wholeIn } from "@/lib/demo-slices/present";
 import { demoSlicesOn } from "@/lib/demo-slices/gate";
-import { card, cardFor, DEMO_WATCH_ID, DEMO_WATCH_LABEL, freezeRowFor, notificationFor, watchTimeline } from "@/lib/demo-slices/release";
+import { card, cardFor, DEMO_WATCH_ID, DEMO_WATCH_LABEL, freezeRowFor, notificationFor, WATCH_HEADING, watchTimeline } from "@/lib/demo-slices/release";
 import { replay, replayOnly, scenarios, scenariosForHash, TRANSFER_LABEL } from "@/lib/demo-slices/replay";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {}, replace() {} }), usePathname: () => "/demo/release",
@@ -156,6 +156,16 @@ describe("bundled data: the demo doesn't need tests/ on disk at runtime (Docker 
 });
 
 describe("plain labels: chips, summary, status, times", () => {
+  it("a replayed 'not final yet' step doesn't count finality as a check that ran", async () => {
+    const c = await card("TRON-01", { asOfConfirmations: 2 });
+    expect(checkChips(c.checks).find((x) => x.key === "finality")).toMatchObject({ word: "not yet (replayed)", tone: "wait" });
+    expect(ranSummary(c.checks, c.result.tone)).toBe("5 of 7 checks ran. 2 did not — release is your call.");
+  });
+  it("paidTo comes from the same transfer leg the checks used", async () => {
+    const r = await replay("TRON-01");
+    const c = await cardFor(r);
+    expect(c.paidTo).toBe(r.invoice.receiving_address);
+  });
   it("not-run checks are amber warnings, and the summary is computed", async () => {
     const c = await card("SCN-01");
     const chips = checkChips(c.checks);
@@ -203,8 +213,21 @@ describe("rendered pages: labelled, and never the word 'safe'", () => {
     for (let i = 1; i <= steps.length; i++) {
       const h = text(await html(createElement(Watcher, { steps, label: DEMO_WATCH_LABEL, initial: i, autoplay: false })));
       expect(h, `step ${i}`).not.toMatch(/safe/i);
-      if (i === 1) expect(h).toContain("Final: not yet");
+      if (i === 1) expect(h).toContain("Final: not yet (replayed)");
     }
+  });
+  it("the watcher's heading matches its script: several addresses → never 'one address'; each step names its invoice and address", async () => {
+    const { Watcher } = await import("@/components/demo-slices/Watcher");
+    const steps = await watchTimeline(DEMO_WATCH_ID);
+    const addresses = new Set(steps.map((x) => x.card.paidTo));
+    expect(addresses.size).toBeGreaterThan(1);
+    const h = text(await html(createElement(Watcher, { steps, label: DEMO_WATCH_LABEL, initial: steps.length, autoplay: false })));
+    if (addresses.size > 1) {
+      expect(h).not.toMatch(/one (demo )?address/i);
+      expect(h).toContain(WATCH_HEADING);
+      expect(WATCH_HEADING).toBe("Replaying recorded transfers to the sample invoices' addresses");
+    }
+    for (const x of steps) expect(h, x.card.scenarioId).toContain(`${x.card.invoiceId} · paid to ${x.card.paidToShort}`);
   });
   const ALL_ROUTES = async () => ({
     "/demo": (await import("@/app/demo/page")).default as unknown as (p: { searchParams: Promise<Record<string, string>> }) => unknown,

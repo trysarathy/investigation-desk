@@ -7,7 +7,7 @@ import type { WatchStep } from "@/lib/demo-slices/release";
 import { NotificationPreview, QuietNote } from "./NotificationPreview";
 import { ReleaseCard } from "./ReleaseCard";
 
-export function Watcher({ steps, label, initial = 1, autoplay = true, everyMs = 3000 }: { steps: WatchStep[]; label: string; initial?: number; autoplay?: boolean; everyMs?: number }) {
+export function Watcher({ steps, label, heading = "Replaying recorded transfers to the sample invoices' addresses", initial = 1, autoplay = true, everyMs = 3000 }: { steps: WatchStep[]; label: string; heading?: string; initial?: number; autoplay?: boolean; everyMs?: number }) {
   const [shown, setShown] = useState(Math.min(Math.max(Math.round(initial) || 1, 1), steps.length));
   const [playing, setPlaying] = useState(autoplay);
   const done = shown >= steps.length;
@@ -22,7 +22,7 @@ export function Watcher({ steps, label, initial = 1, autoplay = true, everyMs = 
   return (
     <section className="panel" aria-labelledby="watch-h" data-testid="demo-watcher">
       <div className="panel-h">
-        <h2 id="watch-h" style={{ margin: 0, fontSize: 15 }}>Watching one demo address</h2>
+        <h2 id="watch-h" style={{ margin: 0, fontSize: 15 }}>{heading}</h2>
         <span className="demo-badge" data-testid="watch-label">{label}</span>
       </div>
       <div className="panel-b">
@@ -42,7 +42,7 @@ export function Watcher({ steps, label, initial = 1, autoplay = true, everyMs = 
         <ol className="watch-log">
           {seen.map((s, i) => (
             <li key={i} data-tone={s.card.result.tone}>
-              <span className="mono">{s.card.invoiceId}</span> · {s.card.result.headline}
+              <span className="mono">{s.card.invoiceId} · paid to {s.card.paidToShort}</span> · {s.card.result.headline}
               <span className="muted"> · {s.notify ? "message previewed" : "no message needed"}</span>
             </li>
           ))}

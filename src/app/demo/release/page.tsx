@@ -6,7 +6,7 @@ import { NotificationPreview, QuietNote } from "@/components/demo-slices/Notific
 import { ReleaseCard } from "@/components/demo-slices/ReleaseCard";
 import { Watcher } from "@/components/demo-slices/Watcher";
 import { demoSlicesOn } from "@/lib/demo-slices/gate";
-import { card, DEMO_WATCH_ID, DEMO_WATCH_LABEL, notificationFor, watchTimeline } from "@/lib/demo-slices/release";
+import { card, DEMO_WATCH_ID, DEMO_WATCH_LABEL, WATCH_HEADING, notificationFor, watchTimeline } from "@/lib/demo-slices/release";
 import { scenario, scenarios, scenariosForHash, TRON_SCENARIO } from "@/lib/demo-slices/replay";
 import { first, unknownSampleNote, wholeIn } from "@/lib/demo-slices/present";
 import { DemoHead } from "../DemoHead";
@@ -44,7 +44,7 @@ export default async function ReleaseDemo({ searchParams }: { searchParams: Prom
           })}
         </section>
       )}
-      {!q.s && <Watcher steps={steps} label={DEMO_WATCH_LABEL} initial={wholeIn(raw.at, 1, steps.length, 1)} autoplay={q.paused !== "1"} />}
+      {!q.s && <Watcher steps={steps} label={DEMO_WATCH_LABEL} heading={WATCH_HEADING} initial={wholeIn(raw.at, 1, steps.length, 1)} autoplay={q.paused !== "1"} />}
       <section className="panel" aria-labelledby="paste-h">
         <div className="panel-h"><h2 id="paste-h" style={{ margin: 0, fontSize: 15 }}>Or paste a transaction hash</h2></div>
         <form className="panel-b" method="get" action="/demo/release">

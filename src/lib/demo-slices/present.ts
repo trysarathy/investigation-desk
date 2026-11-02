@@ -9,6 +9,9 @@ export const sgt = (d: string | Date) => sgtTime(new Date(d).toISOString());
 /** Any ISO timestamp in a line, shown as a person's time (SGT). */
 export const humanTimes = (s: string) => s.replace(/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z/g, (m) => sgt(m));
 
+/** Same text as release.ts REPLAYED_WAIT (kept here so client code needn't import the server module). */
+const REPLAYED = "Replayed wait (no finality read)";
+
 export type ChipTone = "pass" | "fail" | "warn" | "wait";
 export interface Chip { key: keyof ReleaseChecks; label: string; word: string; tone: ChipTone }
 
@@ -26,7 +29,7 @@ const LABEL: Record<keyof ReleaseChecks, string> = {
 export function checkChips(c: ReleaseChecks, o: { paidOn?: string; invoiceOn?: string } = {}): Chip[] {
   return presentChecks(c).map(([key, x]) => {
     if (x.state === "passed") return { key, label: LABEL[key], word: "checked", tone: "pass" };
-    if (x.state === "pending") return { key, label: LABEL[key], word: "not yet", tone: "wait" };
+    if (x.state === "pending") return { key, label: LABEL[key], word: x.source === REPLAYED ? "not yet (replayed)" : "not yet", tone: "wait" };
     if (x.state === "not_run") return { key, label: LABEL[key], word: "NOT checked", tone: "warn" };
     if (key === "network" && o.paidOn && o.invoiceOn) return { key, label: LABEL[key], word: `problem (${o.paidOn}, invoice says ${o.invoiceOn})`, tone: "fail" };
     if (key === "address") return { key, label: LABEL[key], word: /look-alike/.test(x.detail) ? "problem (look-alike address)" : "problem (different address)", tone: "fail" };
@@ -41,7 +44,8 @@ export const technicalLines = (c: ReleaseChecks) => presentChecks(c).filter(([, 
 /** "3 of 5 checks ran. 2 did not — release is your call." Computed from the checks. */
 export function ranSummary(c: ReleaseChecks, tone: "paid" | "not_yet" | "problem"): string {
   const all = presentChecks(c).map(([, x]) => x);
-  const ran = all.filter((x) => x.state !== "not_run").length;
+  // A replayed "not final yet" isn't a finality read, so it doesn't count as a check that ran.
+  const ran = all.filter((x) => x.state !== "not_run" && x.source !== REPLAYED).length;
   if (ran === all.length) return `All ${all.length} checks ran.`;
   const not = all.length - ran;
   return `${ran} of ${all.length} checks ran. ${not} did not${tone === "problem" ? "." : " — release is your call."}`;
