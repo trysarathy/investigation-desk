@@ -75,6 +75,24 @@ what to test first. **It is not demand evidence.** Every score below moves only 
   h/month on lots/FX or had an audit adjustment, **and** ≥3 would pay ≥US$100/month.
 - **FALSE:** most convert same day or settle to fiat, are USD-functional, or their auditor says "immaterial, ignore".
 
+#### What Xero does by default vs correct (worked SGD example)
+**DRAFT / ILLUSTRATIVE: rates are made up, not market data. Not signed off; the accounting is under review by a
+qualified accountant.** SGD-base company, USDC = 1.00 USD, FIFO, no fees. Same numbers as `docs/research/H2.md` §3 and
+`docs/POSTING_RULES.md` **C18** (examples (a), (d), (e); PROPOSED). "Xero default" = the approved non-bank Stablecoin
+clearing account (CLR), entered the obvious way.
+
+| Step (SGD per USD) | Xero default | Correct under decision 6 (C18) | Gap |
+|---|---|---|---|
+| Lot A: 10,000 USDC on day 1 (1.35) | CLR 13,500.00 | Lot A cost 13,500.00 | 0 |
+| (a) INV-1042 USD 5,000 raised day 5 (1.34), paid in USDC day 10 (1.33) | CLR +6,650.00; FX loss on AR 50.00 (Xero books it) | Same; Lot B cost 6,650.00 | 0 |
+| (d) 12,000 USDC sold day 20 for SGD 15,840.00 (1.32) | CLR 20,150.00 − 15,840.00 = 4,310.00; **no loss booked** | FIFO cost out 16,160.00; loss 320.00; CLR 3,990.00 | CLR and profit overstated **320.00** |
+| (e) Period end day 30 (1.31): 3,000 USDC worth 3,930.00 | Nothing (a non-bank account is never revalued) | Impairment **flagged**, prepared Dr Impairment 60.00 / Cr Accumulated impairment 60.00, posted only if approved | CLR and profit overstated **380.00** |
+| P&L for the month | −50.00 | −430.00 | 380.00 |
+
+**What it would prove in calls:** if a non-USD finance lead holding coins across month-end recognises the 320.00 hidden
+in the asset (and does a spreadsheet or journal to fix it), H2's pain is real; if they say "we convert same day" or "our
+auditor calls it immaterial", it isn't. Scores unchanged: this is a desk example, not buyer evidence.
+
 ### H3 Pre-funding (research only, excluded from any build)
 - **Who:** PSPs, remittance and payout firms, payroll/EOR, marketplace payouts; exporters/importers paying ahead
   [ASSUMPTION per memo].
@@ -129,7 +147,10 @@ what to test first. **It is not demand evidence.** Every score below moves only 
   clearing" account (POSTING_RULES §9, **decision 1**) is SGD-only and **never revalued**; conversion gains/losses stay
   silently inside it. Fine while receipts are cleared quickly; wrong for anyone holding coins across month-end. Options:
   keep decision 1 and say so in the product (accountant classifies); add a manual-journal step for conversions; or
-  revisit decision 1. Not decided here.
+  revisit decision 1. **Decided 2 Nov: option 2** (Aashmiin): decision 1 kept; coins held at cost as lots, a prepared
+  manual journal for each conversion's gain/loss and a period-end impairment flag, every entry approval-only, no
+  period-end revaluation. Rules and worked examples: `docs/POSTING_RULES.md` C18 (PROPOSED, awaiting her sign-off and a
+  qualified accountant's review).
 
 ## 4. Score table
 

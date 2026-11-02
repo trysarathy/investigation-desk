@@ -5,9 +5,11 @@
 Xero/QuickBooks is on the approval-only list, `company/OPERATING_MODEL.md` §2): never auto-merged; each needs her
 merge click. Open questions are listed in §10.
 
-- Author: accounting-integrations-engineer · Drafted 2026-11-01 (SGT) · **Version 0.2** (2026-11-01: Aashmiin's five
-  decisions recorded in §9; cases rewritten to the clearing-account model; rounding, FX, shortfall and finality rules
-  rewritten; §8 and §10 updated).
+- Author: accounting-integrations-engineer · Drafted 2026-11-01 (SGT) · **Version 0.3** (2026-11-02: Aashmiin's
+  decision 6, the clearing-account option 2 (hold at cost, IAS 21/IAS 38 basis), recorded in §9; new case **C18**
+  (lots, conversion, impairment flag) with five worked SGD examples, **PROPOSED**; R4.5 added; §2, §5, §6, §8 (D21-D24)
+  and §10 updated). v0.2 2026-11-01: the five decisions of 1 Nov; clearing-account model; rounding, FX, shortfall and
+  finality rules.
 - Checked against the code on `origin/main` @ `0c7d9f1` (`src/lib/accounting/rules.ts`, `types.ts`, `engine.ts`,
   `providers/xero.ts`, `src/lib/requests/check.ts`, `src/lib/fixtures/index.ts`), with probes run through the real
   `planPosting`/`approveAndPost` on 2026-11-01 (scratch test in a copy of the repo, deleted after). Where today's code
@@ -39,6 +41,11 @@ demo data: `src/lib/requests/demo.ts`, request DEMO-1042.) The organisation is U
 | CRD | Customer credit (overpayment) | Xero overpayment on the contact | Money received above the invoice | DRAFT; record type open (Q-C5) | received as `RECEIVE-OVERPAYMENT` into the wallet account (D18) |
 | GAS | Network fees | Expense | Gas the business pays when **it** sends tokens (refunds) | DRAFT | not used |
 | SUS | Stablecoin suspense | Current asset | Genuine money no rule can place (wrong token / network) until a person decides | DRAFT | not used |
+| DGN | **Gain on stablecoin conversion** (name suggested; code set per organisation, no default) | Other income (not revenue) | Realised gain when held coins are converted or paid out (C18) | **PROPOSED** (decision 6) | not used (D24) |
+| DLS | **Loss on stablecoin conversion** (code set per organisation; may be the same code as DGN) | Expense | Realised loss when held coins are converted or paid out (C18) | **PROPOSED** (decision 6) | not used (D24) |
+| IMP | **Impairment loss: stablecoins** (code set per organisation) | Expense | Prepared period-end impairment, and any approved reversal (C18) | **PROPOSED** (decision 6) | not used (D24) |
+| AIM | **Accumulated impairment: stablecoins** (code set per organisation) | Asset (contra; credit balance), next to CLR | Impairment taken on lots still held | **PROPOSED** (decision 6) | not used (D24) |
+| BNK | The organisation's own SGD (base-currency) bank account | Bank | Base-currency proceeds of a conversion; the person picks it on the conversion | existing org account; Clearline never posts to it (C18) | not used |
 
 **Decision 1 (Aashmiin, 2026-11-01): the stablecoin wallet is not a cash equivalent.** So Clearline never posts a
 stablecoin receipt to a bank account and never suggests "Cash at bank". Receipts post to CLR.
@@ -55,6 +62,13 @@ What that means in Xero:
   amount are on every line's reference and description, which is what the clearing reconciliation (§6) uses.
 - QuickBooks: Payment deposited to an Other Current Asset account named Stablecoin clearing [ASSUMPTION: QBO
   `DepositToAccountRef` accepting that account type not checked].
+
+**Decision 6 (Aashmiin, 2026-11-02, option 2): stablecoins held are carried at cost, not revalued.** CLR is also where
+the coins sit while held. Each receipt is a **lot** with its base-currency (SGD) cost on the day of receipt;
+conversions and payments out get a prepared manual journal with the realised gain or loss; period-end brings only an
+impairment **flag**. Details, accounts DGN/DLS/IMP/AIM and five worked examples: **C18 (PROPOSED)**. An organisation
+that prefers a separate "Stablecoins held at cost" account can be offered one later (Q-L5); until then CLR is the lot
+account, so the token units in its lots reconcile to the wallet (§6).
 
 ## 3. Rules that apply to every posting
 **R1 Approval.** Nothing is sent to the books until a named person clicks Approve on the exact plan they saw (the
@@ -108,7 +122,10 @@ arithmetic; amounts stay exact decimal strings until the request body.
    path list], so the base-currency amount cannot be shown before approval; the plan says "converted by Xero at its
    rate for <date>" (Q-FX3).
 4. Every line states the USD rate and its source ("par 1.00 USD; peg check <price> from <source> at <time>").
-*Code today: differs (D4, D4b, D17).*
+5. **After receipt: no revaluation (decision 6, 2026-11-02, option 2).** Clearline never revalues CLR at period end,
+   for FX or for price. The SGD amount booked on receipt is the lot's cost; it changes only when coins leave (a
+   prepared, approved conversion journal) or when a person approves a prepared impairment entry (C18).
+*Code today: differs (D4, D4b, D17; C18: D21-D24).*
 
 **R5 When money counts — Approved for Ethereum (decision 5).** Only transfers that are genuine (official token
 contract), successful, on the network the invoice asked for, to the invoice's receiving address, and **final**.
@@ -293,19 +310,209 @@ by hand at a rate they state. 0.995 → posts at par. Price unavailable → exce
 *Code today: differs (D4):* the threshold logic matches (probe: 0.995 and 1.005 → `ready`; 0.994 and 1.0051 →
 `blocked`) but no price source is ever passed (`service.ts` uses `parPrice`), so it never triggers.
 
+### C18 Holding stablecoins: lots, conversion, impairment — PROPOSED (decision 6, option 2)
+**PROPOSED — awaiting Aashmiin's sign-off and a qualified accountant's review.** Not built (D21-D24). Applies to an
+organisation whose base currency is not USD (worked in SGD). In a USD-base organisation the same rules apply with every
+rate 1.00, so a conversion of USDC to USD at par gives no gain or loss.
+
+**In plain words.**
+- **Every journal here is approval-only.** Clearline prepares the lines and shows them; a person clicks Approve on the
+  exact lines; only then are they sent (R1). In the Demo Company only, until live posting is switched on (R6); a pilot
+  gets them in the import file.
+- **Clearline never** auto-posts an impairment or its reversal, **never** revalues CLR at period end (no FX
+  revaluation, no move up to market: R4.5), never posts to the bank account (the person reconciles the bank deposit),
+  and never picks lots by guessing (the configured method decides, and the plan shows which units leave).
+- Clearline only sees the coins leave on-chain. The base-currency **proceeds** come from the exchange or OTC
+  confirmation, which a person enters; no proceeds entered → nothing is prepared.
+
+**Accounting basis** (decision 6; for the accountant to confirm). None of this was opened this run: ifrs.org could not be
+reached from this session, so every point is an assumption from the standards as commonly read.
+- Held stablecoins are treated as a **non-monetary intangible asset at cost** (IAS 38 cost model: cost less accumulated
+  amortisation and impairment) [ASSUMPTION: IAS 38 para 74, not opened]. With an indefinite useful life they are not
+  amortised but are tested for impairment under IAS 36, at least annually and whenever there is an indication
+  [ASSUMPTION: IAS 38 paras 107-108, IAS 36 para 10, not opened]. The revaluation model is not used.
+- A non-monetary item measured at historical cost in a foreign currency stays at the rate on the date of the
+  transaction, so there is **no period-end FX revaluation** [ASSUMPTION: IAS 21 para 23(b), not opened]. When such an
+  item's carrying amount is the lower of cost and recoverable amount, the recoverable amount is translated at the rate
+  on the date it is measured; a fall in USD/SGD can therefore show up **as an impairment**, not as an FX loss
+  [ASSUMPTION: IAS 21 para 25, not opened].
+- Recoverable amount is the higher of fair value less costs of disposal and value in use [ASSUMPTION: IAS 36 para 18,
+  not opened]. Clearline's "market value" (below) ignores costs of disposal, so it is only a **flag of a possible
+  impairment**; the accountant decides the amount.
+- An impairment loss on an asset other than goodwill may be reversed, but only up to the carrying amount the asset
+  would have had with no impairment (here, its cost, as nothing is amortised), and in a cost-model asset the reversal
+  goes to profit or loss [ASSUMPTION: IAS 36 paras 114, 117, 119 and 124 (goodwill never reversed), not opened]. So
+  the cost model **never** takes the asset above cost.
+- The gain or loss on disposal is net proceeds less carrying amount, in profit or loss, and is not revenue
+  [ASSUMPTION: IAS 38 paras 113-114, not opened].
+- IAS 38 names no cost formula; FIFO or weighted average is borrowed from IAS 2 by analogy [ASSUMPTION: IAS 2 para 25,
+  not opened]. The method must be a written, consistent policy.
+- **Why this needs the accountant's review.** The IFRIC agenda decision of June 2019 ("Holdings of cryptocurrencies",
+  IAS 2 or IAS 38, not cash, not a financial asset) was scoped to a cryptocurrency **not issued by a jurisdictional
+  authority or other party** and giving **no contract** between holder and another party. USDC and USDT have an issuer
+  and redemption terms, so they are outside its literal scope [ASSUMPTION: not reopened this run; `docs/research/H2.md`
+  §1 records the quotes as VERIFIED by accounting-integrations-engineer 2026-11-02,
+  https://www.ifrs.org/content/dam/ifrs/supporting-implementation/agenda-decisions/2019/holdings-of-cryptocurrencies-june-2019.pdf].
+  A holder with a contractual right to redeem at par may instead hold a **monetary financial asset** (IAS 32 / IFRS 9),
+  retranslated at the closing rate every period [ASSUMPTION: secondary, KPMG and ICAEW summaries, copied from
+  `stablecoin-accounting.md`]. If the accountant reaches that view, decision 6 must be revisited, not patched.
+
+**The lot rule.**
+1. **Every receipt is a lot**: token, network, wallet, tx hash + log index, units (exact, 6 dp), date (R2, org
+   timezone), and **SGD cost = the SGD amount the receipt actually booked to CLR** (Xero's rate for that date under
+   decision 4, read back from the posted Payment; Q-L1). Coins acquired another way (e.g. bought with SGD by the
+   business) are a lot at the SGD paid, recorded by a person.
+2. **Which units leave: FIFO by default** (oldest lot first), per token per wallet (Q-L8); the organisation may choose
+   weighted average instead. The method is set once and shown on every plan; changing it is a policy change for the
+   accountant, never per transaction.
+3. **Cost leaving, rounding:** for part of a lot, cost leaving = the lot's remaining cost × units leaving ÷ the lot's
+   remaining units, rounded **half-up to 0.01 SGD once**. The last units of a lot take its whole remaining cost, so a lot
+   always empties to 0.00 (no drift). Any accumulated impairment on those units is released in the same proportion.
+4. **Gain or loss = proceeds − (cost leaving − impairment released)**, exact in cents (no second rounding). Positive →
+   Cr DGN; negative → Dr DLS.
+5. **Market value at period end** (for the flag only) = units held × the token's USD price (peg check source, Q-FX1) ×
+   the closing USD/SGD rate (source Q-L2), rounded half-up to 0.01 once per lot.
+6. **Date:** a conversion journal is dated the trade date on the exchange/OTC confirmation, in the org timezone (Q-L6);
+   an impairment entry is dated the period-end date.
+
+**Illustrative rates [ILLUSTRATIVE rates, not market data].** The same made-up rates as `docs/research/H2.md` §3, plus
+three added for (b), (c) and the reversal. USDC = 1.00 USD on every day (within the 0.5% band, R4.2). No fees, no GST.
+
+| Day (org timezone) | SGD per 1 USD | Used in |
+|---|---|---|
+| 1 | 1.3500 | Lot A acquired |
+| 5 | 1.3400 | Invoice INV-1042 raised |
+| 10 | 1.3300 | INV-1042 paid in USDC: Lot B |
+| 15 | 1.3450 (or 1.3200 for (c)) | (b), (c) conversion proceeds |
+| 20 | 1.3200 | (d) conversion proceeds |
+| 30 (period end) | 1.3100 | (e) impairment flag |
+| 40 | 1.3200 | (e) sale after impairment |
+| 60 (next period end) | 1.3400 | (e) reversal flag |
+
+**Lot A (opening, for (d)):** 10,000 USDC acquired day 1 at 1.3500 = **SGD 13,500.00** (in H2 bought with SGD:
+Dr CLR 13,500.00 / Cr BNK 13,500.00, a person's entry; a USD invoice raised and paid on day 1 would give the same lot
+with no FX difference).
+
+#### (a) Receipt of USDC against a USD invoice (SGD-base company) — creates Lot B
+INV-1042, USD 5,000.00, dated day 5. 5,000 USDC arrives day 10, final. The invoice line is Xero's own, not Clearline's;
+the receipt is C15 (Payment of USD 5,000.00 to CLR, no `CurrencyRate`; Xero converts and books the FX on the receivable).
+
+| Day | | Account | Dr SGD | Cr SGD | Note |
+|---|---|---|---|---|---|
+| 5 | 1 | AR Brightline Studio (INV-1042, USD 5,000.00) | 6,700.00 | | 5,000 × 1.3400 (Xero) |
+| 5 | 2 | Revenue | | 6,700.00 | |
+| | | **Total day 5** | **6,700.00** | **6,700.00** | |
+| 10 | 1 | CLR Stablecoin clearing | 6,650.00 | | 5,000 × 1.3300: **Lot B cost** |
+| 10 | 2 | FXG Realised currency loss (on the receivable) | 50.00 | | 6,700.00 − 6,650.00; Xero books it |
+| 10 | 3 | AR Brightline Studio (INV-1042) | | 6,700.00 | invoice paid |
+| | | **Total day 10** | **6,700.00** | **6,700.00** | |
+
+**Lot B:** 5,000.000000 USDC, day 10, cost **SGD 6,650.00** (1.3300 per USDC). The 50.00 is an FX difference on the
+receivable (decision 4), not a gain or loss on the coin. Xero's `CurrencyRate` is "[Foreign Currency] PER [Base
+Currency]", rounded to 6 dp [VERIFIED: accounting-integrations-engineer 2026-11-02,
+https://developer.xero.com/documentation/best-practices/data-integrity/multicurrency]: 0.751880 here, and
+5,000 / 0.751880 = 6,650.0027 → 6,650.00 (my arithmetic). On large amounts the 6-dp rate can move a cent, so the lot
+takes whatever SGD amount Xero actually booked, never a recomputed one.
+
+#### (b) Conversion to SGD at a gain (one lot)
+An organisation whose only lot is Lot B sells all 5,000 USDC on day 15; the bank receives **SGD 6,725.00** (1.3450).
+
+| | Account | Dr SGD | Cr SGD | Note |
+|---|---|---|---|---|
+| 1 | BNK Bank SGD | 6,725.00 | | proceeds (the person's bank deposit) |
+| 2 | CLR Stablecoin clearing | | 6,650.00 | Lot B, all 5,000 units, at cost |
+| 3 | DGN Gain on stablecoin conversion | | 75.00 | 6,725.00 − 6,650.00 |
+| | **Total** | **6,725.00** | **6,725.00** | |
+
+In Xero: the person reconciles the bank deposit as Receive Money in BNK coded to CLR (6,725.00); Clearline prepares one
+manual journal **Dr CLR 75.00 / Cr DGN 75.00** for approval. CLR after: 6,650.00 − 6,725.00 + 75.00 = **0.00**; Lot B
+empty. (Xero manual journal lines are signed, debits positive, credits negative [ASSUMPTION: pack entry,
+`journal-entry-patterns.md`, Xero OpenAPI `ManualJournalLine.LineAmount`; whether the bank-deposit-plus-journal split
+works as written: check in the Demo Company].)
+
+#### (c) Conversion to SGD at a loss (one lot)
+The same, but the bank receives **SGD 6,600.00** (1.3200).
+
+| | Account | Dr SGD | Cr SGD | Note |
+|---|---|---|---|---|
+| 1 | BNK Bank SGD | 6,600.00 | | proceeds |
+| 2 | DLS Loss on stablecoin conversion | 50.00 | | 6,650.00 − 6,600.00 |
+| 3 | CLR Stablecoin clearing | | 6,650.00 | Lot B, all 5,000 units |
+| | **Total** | **6,650.00** | **6,650.00** | |
+
+Manual journal prepared: **Dr DLS 50.00 / Cr CLR 50.00**. CLR after: 6,650.00 − 6,600.00 − 50.00 = **0.00**.
+
+#### (d) Partial conversion across two lots (FIFO)
+Held: Lot A 10,000 USDC, cost 13,500.00; Lot B 5,000 USDC, cost 6,650.00 (CLR 20,150.00). Day 20: 12,000 USDC sold;
+the bank receives **SGD 15,840.00** (1.3200). (Same numbers as H2.md §3 step (c).)
+
+| Lot | Units leaving | Cost leaving | Units left | Cost left |
+|---|---|---|---|---|
+| A (day 1) | 10,000 (all) | 13,500.00 (whole lot) | 0 | 0.00 |
+| B (day 10) | 2,000 of 5,000 | 6,650.00 × 2,000 ÷ 5,000 = 2,660.00 | 3,000 | 3,990.00 |
+| **Total** | **12,000** | **16,160.00** | **3,000** | **3,990.00** |
+
+| | Account | Dr SGD | Cr SGD | Note |
+|---|---|---|---|---|
+| 1 | BNK Bank SGD | 15,840.00 | | proceeds |
+| 2 | DLS Loss on stablecoin conversion | 320.00 | | 16,160.00 − 15,840.00 |
+| 3 | CLR Stablecoin clearing (Lot A) | | 13,500.00 | |
+| 4 | CLR Stablecoin clearing (Lot B, 2,000 units) | | 2,660.00 | |
+| | **Total** | **16,160.00** | **16,160.00** | |
+
+Manual journal prepared: **Dr DLS 320.00 / Cr CLR 320.00**. CLR after: 20,150.00 − 15,840.00 − 320.00 = **3,990.00** =
+Lot B's remaining cost. With **weighted average** instead: 20,150.00 × 12,000 ÷ 15,000 = 16,120.00 leaves, loss
+**280.00**, 4,030.00 stays; same total over (d) + (e), split differently.
+
+#### (e) Period-end impairment flag (prepared, approval-only, never auto-posted)
+Day 30 is the period end. Held: Lot B 3,000 USDC, carrying amount 3,990.00. Market value = 3,000 × 1.00 USD × 1.3100 =
+**3,930.00**, below carrying amount by **60.00** → Clearline shows **"Possible impairment: market value 3,930.00 is
+below carrying amount 3,990.00 (Lot B). For your accountant."** and prepares:
+
+| | Account | Dr SGD | Cr SGD | Note |
+|---|---|---|---|---|
+| 1 | IMP Impairment loss: stablecoins | 60.00 | | 3,990.00 − 3,930.00 |
+| 2 | AIM Accumulated impairment: stablecoins | | 60.00 | recorded against Lot B |
+| | **Total** | **60.00** | **60.00** | |
+
+Nothing posts unless a person approves it (or edits the amount to the accountant's recoverable amount and approves
+that). After approval: CLR 3,990.00, AIM (60.00), carrying amount **3,930.00**. Lot B keeps its cost of 3,990.00; the
+impairment is held separately so cost is never lost.
+
+*Sale after impairment (day 40):* all 3,000 sold for **SGD 3,960.00** (1.3200). Dr BNK 3,960.00 + Dr AIM 60.00 =
+**4,020.00**; Cr CLR 3,990.00 + Cr DGN 30.00 = **4,020.00**. Manual journal prepared: Dr AIM 60.00 / Cr CLR 30.00 /
+Cr DGN 30.00 (Dr 60.00 = Cr 60.00).
+
+*Reversal flag instead (still held at day 60, next period end, 1.3400):* market value 3,000 × 1.3400 = 4,020.00 is
+90.00 above carrying amount 3,930.00, but the reversal is **capped at cost** 3,990.00, so Clearline prepares a possible
+reversal of **60.00** only: Dr AIM 60.00 / Cr IMP 60.00 (or a separate reversal account, Q-L7). The 30.00 above cost is
+**never** booked (cost model). Same rule: flagged, prepared, approval-only.
+
+**P&L over the H2 sequence (Lot A, (a), (d), (e)):** FX on the receivable −50.00, conversion −320.00, impairment
+−60.00, total **−430.00**, as in H2.md §3. What Xero does if the coin is entered the obvious way: H2.md §3 and
+`docs/PROBLEM_BRIEF.md` §2 H2.
+
+**Goes to a person instead (exceptions queue):** no proceeds entered; units leaving exceed the lots held (the lot
+ledger and the wallet disagree); a lot with no SGD cost (receipt not yet posted or not read back); a payment out to a
+supplier (Q-L4); a period-end price or rate unavailable (no flag computed, said so, never "assume par"); coins moved
+between own wallets (not a disposal: no journal, lots move with the units [ASSUMPTION]).
+*Code today: differs (D21-D24): none of C18 exists.*
+
 ## 5. What goes to the exceptions queue (summary)
 Wrong token (C9), wrong network (C10), counterfeit/failed/look-alike (nothing to post, explain), overpaid or duplicate
 until refund/keep chosen, and the excess itself until Q-C5 (C5-C6), **any difference above 0.01 with no decision**
 (C2, C7), multi-invoice split (C14), non-USD invoice (C15), **off-par or unavailable price** (C17), **not yet final**
 (R5), no/ambiguous reference (C16), unknown timezone/block time/lock date, **missing or invalid CLR/SHF/RND account**
-(R8), any non-demo organisation (R6), refunds and gas (C13, C4). Accepted shortfalls post but stay on the
-**accountant's list** (C3).
+(R8), any non-demo organisation (R6), refunds and gas (C13, C4), and for held coins (C18, proposed): no proceeds
+entered, lots and wallet disagree, payments out to suppliers, period-end price/rate unavailable. Accepted shortfalls post
+but stay on the **accountant's list** (C3); C18 impairment flags go on the same list and never post by themselves.
 
 ## 6. Clearing reconciliation (proposed, not built)
 Daily, per wallet: on-chain token balance (read-only, valued at par) vs the CLR postings for that wallet (USD amounts on
 each line) vs Clearline's posted lines. Expected differences: sub-cent overs (C7) and excesses waiting on Q-C5; anything
 else is an exception for a person. CLR is a clearing account: the accountant decides when and where its balance is
-moved or classified (decision 1).
+moved or classified (decision 1). Under decision 6 (C18, proposed) the check adds: token units in open lots = on-chain
+balance, and CLR balance in SGD = Σ open lots' remaining cost (impairment sits in AIM).
 
 ## 7. QuickBooks and NetSuite
 QuickBooks uses the same lines; records as shown per case. Its date rule needs the company timezone, whose API location
@@ -337,6 +544,10 @@ Code read on `main` @ `0c7d9f1`, 2026-11-01. "Approved rule" = the rule as signe
 | D18 | Excess posts as `RECEIVE-OVERPAYMENT` with `BankAccount` = wallet code (`xero.ts:47`) | C5 (DRAFT; Q-C5) | With CLR non-bank, Xero likely rejects it [ASSUMPTION] | Excess → exceptions queue until Q-C5: D5.4 | yes |
 | D19 | **Partial-post idempotency:** after a `PartialPostError`, `planPosting` drops the posted lines and `idempotencyKeyFor` (`rules.ts:68`) hashes only the rest, so the retry has a new plan key and line index. Probe: accepted shortfall, payment posted, credit note failed → fee line key `<k1>-1` on attempt 1, `<k2>-0` on retry (k1 ≠ k2). The comment at `engine.ts:23` ("retrying uses the same idempotency key") is untrue here. Also a credit note created before its allocation fails is not in the posted list (`xero.ts`, `post`) | R7 | After a timeout/5xx where Xero did create the record, the retry creates a **second credit note** | Failing tests on `bug/partial-post-idempotency`, then fix: **D2.5** (roadmap priority 2) | yes |
 | D20 | Short by > 0.01 with no decision → posts as partial straight away | R3d (**Approved**; reach Q-R1) | Posts before a person has looked | Plan `blocked` → exceptions queue until a decision: D5.4 | yes |
+| D21 | **No lot ledger.** Nothing records a receipt as a lot (units, date, SGD cost). A case-insensitive search of `src/` for `ManualJournal`, `impair`, `lot`, `fifo`, `costBasis` and `revalu` found no such code (checked on `ai-team` @ `f47e118`, 2026-11-02) | C18 lot rule (PROPOSED; decision 6 Approved) | Cost of coins leaving can't be computed; CLR can't be reconciled per lot | Not planned yet; after C18 is signed and the accountant has reviewed it | yes |
+| D22 | **No conversion / payment-out journal.** `providers/xero.ts` calls only `/Payments`, `/CreditNotes` (+ allocations) and `/BankTransactions` (`RECEIVE-OVERPAYMENT`); no `ManualJournals` call anywhere in `src/` (same search) | C18 (b)-(d) (PROPOSED) | Conversion gains and losses stay inside CLR, as in H2 | Not planned yet | yes |
+| D23 | **No period-end impairment flag** (no period-end job, no market-value check; `impair` appears nowhere in `src/`) | C18 (e) (PROPOSED) | Carrying amount above market is never flagged | Not planned yet | yes |
+| D24 | **No settings for DGN, DLS, IMP, AIM** or the lot method (`types.ts` account settings: `walletAccountCode`, `feeAccountCode`, optional `overpaymentAccountCode`; nothing for gains, losses or impairment) | §2, C18 (PROPOSED) | — | With D21 | yes |
 
 ## 9. Sign-off (Aashmiin)
 Nothing is built until a rule is **Approved**; each built rule then needs her merge click.
@@ -368,9 +579,12 @@ in quotes, unchanged).
 | C13 Refunds recorded by a person (Q-C13) | ☐ | ☐ | ☐ | |
 | C14 Multi-invoice split by a person | ☐ | ☐ | ☐ | |
 | C16 No reference / not final → wait | ☐ | ☐ | ☐ | |
+| **Decision 6: clearing account under option 2** (hold at cost; IAS 21/IAS 38 basis) | ☑ 2026-11-02 (the policy) | | | **Decided by Aashmiin 2026-11-02 (option 2)**, as relayed by tech-lead-architect: stablecoins held are non-monetary intangibles at cost (IAS 38 cost model), no period-end FX revaluation, consistent with IAS 21 for non-monetary items at historical cost; decision 1 kept (wallet not a cash equivalent, configurable "Stablecoin clearing" account); every receipt recorded as a lot with its SGD (base-currency) cost at the rate on the day of receipt; on conversion or payment out Clearline prepares a manual journal with the realised gain/loss (lot method FIFO by default, configurable), posting approval-only; at period end, flag a possible impairment if market value is below carrying amount, prepare the entry, never post it automatically. Her words: "update POSTING_RULES.md with worked SGD examples (receipt, conversion at a gain, conversion at a loss, partial conversion across two lots, period-end impairment flag) in plain debits and credits for my sign-off … I'll have a qualified accountant review it." |
+| C18 lots, conversion journals, impairment flag: the five worked examples, accounts DGN/DLS/IMP/AIM, rounding, Q-L1-Q-L9 | ☐ | ☐ | ☐ | PROPOSED; awaiting her sign-off **and** a qualified accountant's review. Not built until both. |
 | Build order: D1, then D19 (partial-post idempotency, roadmap priority 2), D6, D8/D16, D2/D3/D20, D13, D17, D4 | ☑ 2026-11-01 (first two) | | | Her build order, 1 Nov: "1. UTC posting-date fix … 2. Idempotent Xero posting … 3. Reorg dismiss bug … 4. Honest copy … 5. The 20 test payments … 6. Payment status + ETA … 7. Then continue docs/PLAN_14_DAY.md in order." The order after D19 follows the plan. |
 
 Signed: Aashmiin Kaur, 2026-11-01 SGT, for the five rows marked ☑ (recorded by accounting-integrations-engineer).
+Decision 6 (option 2) decided by Aashmiin 2026-11-02 SGT, recorded by accounting-integrations-engineer from the tech lead's relay; the C18 details row is not signed.
 Remaining rows: ____________________ Date: __________ SGT
 
 ## 10. Open questions for Aashmiin (none decided here)
@@ -388,4 +602,14 @@ Remaining rows: ____________________ Date: __________ SGT
 | Q-C5 | Overpayments when CLR is not a bank account (Xero's overpayment record needs a bank account). (a) Manual journal Dr CLR / Cr a "Customer overpayments" liability; (b) a bank-type account used only for excesses (conflicts with decision 1); (c) a person records the excess by hand | (c): excess to the exceptions queue; the invoice amount still posts | Day 6 |
 | Q-F1 | **Finality on other chains** (none post today; payment requests are Ethereum-only). What we know: **Tron** — a block is "solidified" (irreversible) when ≈19 of 27 Super Representatives have built on it, ≈1 minute, read from `/walletsolidity/*` [VERIFIED: crypto-protocol-engineer 2026-10-31, developers.tron.network/docs/concensus]; **BNB Chain** — `finalized` tag under BEP-126 fast finality, about a second [VERIFIED: crypto-protocol-engineer 2026-10-29/31, bnb-chain/BEPs BEP-126, BEP-667]; **Base/OP, Arbitrum** — `finalized` follows Ethereum finality of the posted batch, ~15-30 min [VERIFIED: crypto-protocol-engineer 2026-10-29/31, OP Stack and Arbitrum docs]; **Polygon PoS** — `finalized` milestones, 2-5 s [VERIFIED: crypto-protocol-engineer 2026-10-31, docs.polygon.technology]. Is "the chain's own finality signal, read from the node" the rule for each? | Undecided: nothing on another chain posts | before Tron payment requests ship |
 | Q-C13 | Should Clearline later *prepare* the refund entry (C13) for approval? | No | later |
+| Q-H1 | ~~Clearing account and period-end revaluation (PROBLEM_BRIEF §3, H2 finding): keep decision 1 as is, add a conversion manual-journal step, or revisit decision 1?~~ | **Decided by Aashmiin 2026-11-02 (option 2):** hold at cost, lots, prepared conversion journals, impairment flag; no period-end revaluation (R4.5, C18, §9 decision 6) | done |
+| Q-L1 | **Lot cost rate source.** Proposed: the SGD amount Xero actually booked to CLR for the receipt (Xero's rate, decision 4, read back), so lots always equal the books. Alternative: a named daily rate (e.g. MAS, XE) per day of receipt, which would then disagree with Xero by the FX Xero books | Xero's booked amount (proposed) | before C18 is built |
+| Q-L2 | **Period-end market value source** (for the impairment flag): USDC/USD price (Q-FX1) × a USD/SGD closing rate from which source (MAS, XE, the exchange's USDC/SGD price)? Xero's rate can't be read before posting (no rate endpoint, R4.3) | No flag until chosen | before C18 (e) |
+| Q-L3 | Impairment tested **per lot** (proposed, prudent: a low-cost lot can't hide a high-cost one) or per token holding? Accountant's call | Per lot | accountant review |
+| Q-L4 | **Payment out to a supplier in USDC:** proceeds = the SGD amount at which Xero settles the USD bill on that date? Clearline does not see bills today | To a person | later |
+| Q-L5 | A separate "Stablecoins held at cost" account (and its presentation: current/non-current intangible) instead of holding lots in CLR? | Lots stay in CLR | accountant review |
+| Q-L6 | Conversion date and fees: trade date on the exchange/OTC confirmation (proposed)? Exchange fee netted into proceeds (net proceeds, proposed) or a separate fee expense line? | Trade date; net proceeds | before C18 (b)-(d) |
+| Q-L7 | Impairment reversal: credit IMP (proposed) or a separate "Impairment reversal" income account? | IMP | accountant review |
+| Q-L8 | FIFO per token **per wallet** (proposed, reconcilable on-chain) or across all the organisation's wallets? | Per wallet | before C18 is built |
+| Q-L9 | When is "period end" for the flag: every month end (proposed) or only the financial year end? | Every month end, org timezone | before C18 (e) |
 | — | Still to sign: §2 CRD/GAS/SUS, R1, R2 (with ADR 0002), R3(a)-(c), R6, R7, C1, C2, C4-C6, C8-C14, C16, build order | Not built until Approved | Day 3-4 for R1, R2, R3(a)-(c), R6, R7, C1 (needed for the Day 11 run) |
