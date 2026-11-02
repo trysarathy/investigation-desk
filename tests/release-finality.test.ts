@@ -26,6 +26,8 @@ const CASES: Record<string, FinalityQuery> = {
   "FINALITY-TRON": { chain: "tron", hash: TRN01, blockNumber: 87_393_445 },
   "FINALITY-TRON-NOT-SOLID": { chain: "tron", hash: NO_SUCH_TX, blockNumber: 87_393_445 },
   "FINALITY-ETH-ETHERSCAN": { chain: "ethereum", hash: ETH01, blockNumber: 23_650_000 },
+  // tests/real_cases.json FRZ-TF1: a USDT transfer from a blacklisted sender that hit REVERT, block 87,366,298.
+  "FINALITY-TRON-REVERTED": { chain: "tron", hash: "f6973c9c864818871aa63eceb9ab9098e1cd3588abdaa37d044c764852478abd", blockNumber: 87_366_298 },
 };
 const file = (name: string) => path.join(__dirname, "fixtures", "real", `${name}.json`);
 const load = (name: string) => JSON.parse(readFileSync(file(name), "utf8")) as Recording;
@@ -70,10 +72,19 @@ describe.skipIf(!!process.env.RECORD_FINALITY)("finality, replayed from real rec
     expect(releaseHeadline({ ...others, finality: c }).headline).toBe("Paid and final. Right token and amount. Sender NOT checked. Not frozen.");
   });
 
-  it("the block comes from the re-read, not the caller: a stale or wrong earlier block number can't make it pass or fail", async () => {
-    const c = await replay("FINALITY-TRON", { blockNumber: 999_999_999 });
-    expect(c.state).toBe("passed");
-    expect(c.technical).toMatch(/an earlier lookup saw block 999999999/);
+  it("the re-read finds the transaction in a DIFFERENT block from the earlier lookup → not_run, look it up again", async () => {
+    const c = await replay("FINALITY-TRON", { blockNumber: 87_393_444 });
+    expect(c.state).toBe("not_run");
+    expect(c.detail).toMatch(/look it up again/);
+    expect(c.technical).toMatch(/Earlier lookup saw block 87393444, now in block 87393445/);
+  });
+
+  it("Tron: a REVERTed transaction (FRZ-TF1, real) is never final-and-paid → not_run, look it up again", async () => {
+    const rec = load("FINALITY-TRON-REVERTED");
+    expect(rec.exchanges.at(-1)!.response.body).toMatch(/"REVERT"/);
+    const c = await replay("FINALITY-TRON-REVERTED");
+    expect(c.state).toBe("not_run");
+    expect(c.detail).toMatch(/look it up again/);
   });
 
   it("Tron: a transaction the solidity node doesn't have (dropped, replaced or not yet irreversible) → pending, never passed", async () => {
@@ -118,19 +129,41 @@ describe("synthetic: malformed answers and reorgs are never passed", () => {
   const finalized = { number: "0x100", hash: H(0xf) };
 
   it("EVM: receipt block ≤ finalized and its hash is the canonical block's → passed", async () => {
-    const c = await eth(rpc({ eth_getBlockByNumber: (p: unknown[]) => (p[0] === "finalized" ? finalized : { hash: H(1) }), eth_getTransactionReceipt: { blockNumber: "0x64", blockHash: H(1) } }));
+    const c = await eth(rpc({ eth_getBlockByNumber: (p: unknown[]) => (p[0] === "finalized" ? finalized : { hash: H(1) }), eth_getTransactionReceipt: { transactionHash: ETH01, blockNumber: "0x64", blockHash: H(1), status: "0x1" } }));
     expect(c).toMatchObject({ state: "passed", blockNumber: 100, finalizedBlock: 256 });
   });
   it("EVM: reorged — the canonical block at that height has another hash → not_run", async () => {
-    const c = await eth(rpc({ eth_getBlockByNumber: (p: unknown[]) => (p[0] === "finalized" ? finalized : { hash: H(2) }), eth_getTransactionReceipt: { blockNumber: "0x64", blockHash: H(1) } }));
+    const c = await eth(rpc({ eth_getBlockByNumber: (p: unknown[]) => (p[0] === "finalized" ? finalized : { hash: H(2) }), eth_getTransactionReceipt: { transactionHash: ETH01, blockNumber: "0x64", blockHash: H(1), status: "0x1" } }));
     expect(c.state).toBe("not_run");
+  });
+  it("EVM: receipt status 0x0 (reverted) → not_run", async () => {
+    const c = await eth(rpc({ eth_getBlockByNumber: (p: unknown[]) => (p[0] === "finalized" ? finalized : { hash: H(1) }), eth_getTransactionReceipt: { transactionHash: ETH01, blockNumber: "0x64", blockHash: H(1), status: "0x0" } }));
+    expect(c.state).toBe("not_run");
+  });
+  it("EVM: a receipt for a different transaction hash, a missing status, or an unsafe block number → not_run", async () => {
+    for (const r of [
+      { transactionHash: H(9), blockNumber: "0x64", blockHash: H(1), status: "0x1" },
+      { transactionHash: ETH01, blockNumber: "0x64", blockHash: H(1) },
+      { transactionHash: ETH01, blockNumber: "0x64", blockHash: H(1), status: "0x2" },
+      { transactionHash: ETH01, blockNumber: "0xffffffffffffffffff", blockHash: H(1), status: "0x1" },
+    ]) {
+      expect((await eth(rpc({ eth_getBlockByNumber: (p: unknown[]) => (p[0] === "finalized" ? finalized : { hash: H(1) }), eth_getTransactionReceipt: r }))).state).toBe("not_run");
+    }
+  });
+  it("EVM: ONE store shared by two checks; the second re-read finds no receipt → not_run (nothing is served from cache)", async () => {
+    let receipt: unknown = { transactionHash: ETH01, blockNumber: "0x64", blockHash: H(1), status: "0x1" };
+    const deps = depsFor(rpc({ eth_getBlockByNumber: (p: unknown[]) => (p[0] === "finalized" ? finalized : { hash: H(1) }), eth_getTransactionReceipt: () => receipt }), "");
+    const q: FinalityQuery = { chain: "ethereum", hash: ETH01, blockNumber: 100 };
+    expect((await readFinality(deps, q)).state).toBe("passed");
+    receipt = null;
+    expect((await readFinality(deps, q)).state).toBe("not_run");
   });
   it("EVM: reorged out — no receipt any more → not_run", async () => {
     expect((await eth(rpc({ eth_getBlockByNumber: finalized, eth_getTransactionReceipt: null }))).state).toBe("not_run");
   });
   it("EVM: malformed finalized answers → not_run", async () => {
     for (const bad of [null, {}, { number: "256" }, { number: "0x100" }, { number: "0x100", hash: "0x12" }, "0x100"]) {
-      const c = await eth(rpc({ eth_getBlockByNumber: (p: unknown[]) => (p[0] === "finalized" ? bad : { hash: H(1) }), eth_getTransactionReceipt: { blockNumber: "0x64", blockHash: H(1) } }));
+      const c = await eth(rpc({ eth_getBlockByNumber: (p: unknown[]) => (p[0] === "finalized" ? bad : { hash: H(1) }), eth_getTransactionReceipt: { transactionHash: ETH01, blockNumber: "0x64", blockHash: H(1), status: "0x1" } }));
       expect(c.state).toBe("not_run");
     }
   });
@@ -145,13 +178,13 @@ describe("synthetic: malformed answers and reorgs are never passed", () => {
       { Error: "something" },
     ];
     for (const b of bodies) {
-      const t: Transport = async (req) => ({ status: 200, headers: {}, body: req.url.endsWith("getnowblock") ? JSON.stringify(b) : JSON.stringify({ id: TRN01, blockNumber: 87_393_445 }) });
+      const t: Transport = async (req) => ({ status: 200, headers: {}, body: req.url.endsWith("getnowblock") ? JSON.stringify(b) : JSON.stringify({ id: TRN01, blockNumber: 87_393_445, receipt: { result: "SUCCESS" } }) });
       expect((await readFinality(depsFor(t), CASES["FINALITY-TRON"])).state).toBe("not_run");
     }
   });
   it("Tron: a solidity answer for a different transaction id → not_run", async () => {
     const head = load("FINALITY-TRON").exchanges[0].response.body;
-    const t: Transport = async (req) => ({ status: 200, headers: {}, body: req.url.endsWith("getnowblock") ? head : JSON.stringify({ id: NO_SUCH_TX, blockNumber: 87_393_445 }) });
+    const t: Transport = async (req) => ({ status: 200, headers: {}, body: req.url.endsWith("getnowblock") ? head : JSON.stringify({ id: NO_SUCH_TX, blockNumber: 87_393_445, receipt: { result: "SUCCESS" } }) });
     expect((await readFinality(depsFor(t), CASES["FINALITY-TRON"])).state).toBe("not_run");
   });
 });

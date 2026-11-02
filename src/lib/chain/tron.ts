@@ -137,17 +137,21 @@ export class TronFetcher {
 
   /**
    * The block of a transaction as the SOLIDITY node sees it (/walletsolidity/gettransactioninfobyid),
-   * never cached. That node answers only for solidified transactions, so "not_solid" = not irreversible
-   * (yet, or ever if it was dropped). Undefined on error or a malformed answer.
+   * never cached, and whether it succeeded (not `result: "FAILED"`, and `receipt.result` absent for a
+   * plain TRX transfer or "SUCCESS"; REVERT, OUT_OF_ENERGY etc. = failed). That node answers only for
+   * solidified transactions, so "not_solid" = not irreversible (yet, or ever if it was dropped).
+   * Undefined on error or a malformed answer (wrong id, block not a positive safe integer).
    */
-  async solidTxBlock(hash: string, raws: RawResponse[]): Promise<number | "not_solid" | undefined> {
+  async solidTxBlock(hash: string, raws: RawResponse[]): Promise<{ block: number; success: boolean } | "not_solid" | undefined> {
     try {
       const id = hash.replace(/^0x/i, "").toLowerCase();
       const r = await this.post("/walletsolidity/gettransactioninfobyid", { value: id }, 0);
       raws.push(r);
       const j = JSON.parse(r.body);
       if (j && typeof j === "object" && Object.keys(j).length === 0) return "not_solid";
-      return j?.id === id && Number.isSafeInteger(j.blockNumber) && j.blockNumber > 0 ? j.blockNumber : undefined;
+      if (j?.id !== id || !Number.isSafeInteger(j.blockNumber) || j.blockNumber <= 0) return undefined;
+      const receipt = j.receipt?.result;
+      return { block: j.blockNumber, success: j.result !== "FAILED" && (receipt === undefined || receipt === "SUCCESS") };
     } catch (e) {
       if (e instanceof ChainApiError && e.raw) raws.push(e.raw);
       return undefined;
