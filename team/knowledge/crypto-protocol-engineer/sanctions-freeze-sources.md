@@ -81,6 +81,11 @@ stuck): recommended and built. On Ethereum it also reads `eth_blockNumber` first
 the block; on Tron it carries the time only. Only the issuer's own contract is asked (a look-alike or
 BNB Chain's company-declared contract → `not_run`). Any error, timeout or unreadable answer → `not_run`.
 Recorded once, replayed offline: `tests/fixtures/real/FREEZE-*.json` (2026-11-02, ADR 0003).
+Demo transfers (2026-11-02, `tests/release-freeze-demo.test.ts`, index `tests/fixtures/real/freeze-demo-index.json`): sender and
+receiver re-derived from each recording's Transfer log on the issuer contract; 11 recorded (10 Ethereum:
+ETH-01…08, POISON-1, POISON-2; 1 Tron: TRN-01), all **not frozen** at the read time; 3 not asked because
+the transfer isn't on an issuer contract (FAKE-06, FAKE-HG counterfeits; BSC-01 BNB Chain bridged): those
+stay "Freeze status NOT checked." [VERIFIED on-chain: crypto-protocol-engineer 2026-11-02, Etherscan V2 eth_call, TronGrid triggerconstantcontract].
 
 ### Limits
 - **Point in time.** The answer is "as of block N / time T at `latest`", not at the payment's block

@@ -1,0 +1,149 @@
+{
+ "about": "Issuer freeze reads (sender and receiver) for the demo transfers, recorded by tests/release-freeze-demo.test.ts. Sender/receiver taken from each recording's Transfer log on the issuer contract.",
+ "rows": [
+  {
+   "recording": "ETH-01.json",
+   "fixture": "FREEZE-DEMO-ETH-01.json",
+   "recordedAt": "2026-11-02T07:04:55.033Z",
+   "query": {
+    "chain": "ethereum",
+    "token": "USDT",
+    "contract": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "sender": "0x8afcf06919e6719bec706696c5ccb3dde40b4377",
+    "receiver": "0x6f416e24bab64ea58bd6390bb5e19c6506a0d99c"
+   }
+  },
+  {
+   "recording": "ETH-02.json",
+   "fixture": "FREEZE-DEMO-ETH-02.json",
+   "recordedAt": "2026-11-02T07:04:57.459Z",
+   "query": {
+    "chain": "ethereum",
+    "token": "USDT",
+    "contract": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "sender": "0x8afcf06919e6719bec706696c5ccb3dde40b4377",
+    "receiver": "0x02c3401fdd8c80e8bb9576f30e51234007bcaf8b"
+   }
+  },
+  {
+   "recording": "ETH-03.json",
+   "fixture": "FREEZE-DEMO-ETH-03.json",
+   "recordedAt": "2026-11-02T07:04:59.826Z",
+   "query": {
+    "chain": "ethereum",
+    "token": "USDT",
+    "contract": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "sender": "0xad7b82517c1a25aec6cfe6b6bfb18c37777cd2b8",
+    "receiver": "0xff3f306410ff2f1060ad5fa780283c54a5d91553"
+   }
+  },
+  {
+   "recording": "ETH-04.json",
+   "fixture": "FREEZE-DEMO-ETH-04.json",
+   "recordedAt": "2026-11-02T07:05:02.204Z",
+   "query": {
+    "chain": "ethereum",
+    "token": "USDT",
+    "contract": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "sender": "0x08ec0883dec73e786ccf01461e4e543e23a731a7",
+    "receiver": "0x78ace9b2ee9a31737fad748015266a59f32dc79a"
+   }
+  },
+  {
+   "recording": "ETH-05.json",
+   "fixture": "FREEZE-DEMO-ETH-05.json",
+   "recordedAt": "2026-11-02T07:05:04.573Z",
+   "query": {
+    "chain": "ethereum",
+    "token": "USDT",
+    "contract": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "sender": "0x2a771aa7b61bf6c9ee3fca21c44a6823278c7d0f",
+    "receiver": "0x8c4851b9e382230d6b959fba789ebc6ef76966a5"
+   }
+  },
+  {
+   "recording": "ETH-06.json",
+   "fixture": "FREEZE-DEMO-ETH-06.json",
+   "recordedAt": "2026-11-02T07:05:06.944Z",
+   "query": {
+    "chain": "ethereum",
+    "token": "USDT",
+    "contract": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "sender": "0xbfda3808a7706624b2dcb4ee0730e1c457aca7fa",
+    "receiver": "0x003155f21f474383314a40a3672279ce2b3ced63"
+   }
+  },
+  {
+   "recording": "ETH-07.json",
+   "fixture": "FREEZE-DEMO-ETH-07.json",
+   "recordedAt": "2026-11-02T07:05:09.315Z",
+   "query": {
+    "chain": "ethereum",
+    "token": "USDT",
+    "contract": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "sender": "0x8f0da0c74ff873f75aef3ee5cc0b71307a94b059",
+    "receiver": "0x9d7d8b567ee10bcb4f9db438245e1d0668175d72"
+   }
+  },
+  {
+   "recording": "ETH-08.json",
+   "fixture": "FREEZE-DEMO-ETH-08.json",
+   "recordedAt": "2026-11-02T07:05:11.690Z",
+   "query": {
+    "chain": "ethereum",
+    "token": "USDC",
+    "contract": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    "sender": "0x6cdb7776f6a20b9ed4441b791e9541a6fc04e313",
+    "receiver": "0x4fb77df50f9dad15330a9696ed35d6e6c70ac7e2"
+   }
+  },
+  {
+   "recording": "FAKE-06.json",
+   "skipped": "no transfer on an issuer contract (counterfeit, bridged or failed): freeze can't be asked"
+  },
+  {
+   "recording": "FAKE-HG.json",
+   "skipped": "no transfer on an issuer contract (counterfeit, bridged or failed): freeze can't be asked"
+  },
+  {
+   "recording": "TRN-01.json",
+   "fixture": "FREEZE-DEMO-TRN-01.json",
+   "recordedAt": "2026-11-02T07:05:14.099Z",
+   "query": {
+    "chain": "tron",
+    "token": "USDT",
+    "contract": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "sender": "TVmN4nfC3NrgGxU3Ecpv9cvkc15h9upbFA",
+    "receiver": "TSSoZb7K81i7NtoF7PEjDwG8m2gThoK9Zi"
+   }
+  },
+  {
+   "recording": "BSC-01.json",
+   "skipped": "no transfer on an issuer contract (counterfeit, bridged or failed): freeze can't be asked"
+  },
+  {
+   "recording": "POISON-1.json",
+   "fixture": "FREEZE-DEMO-POISON-1.json",
+   "recordedAt": "2026-11-02T07:05:16.141Z",
+   "query": {
+    "chain": "ethereum",
+    "token": "USDT",
+    "contract": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "sender": "0xcb80784ef74c98a89b6ab8d96ebe890859600819",
+    "receiver": "0xbaff2f13638c04b10f8119760b2d2ae86b08f8b5"
+   }
+  },
+  {
+   "recording": "POISON-2.json",
+   "fixture": "FREEZE-DEMO-POISON-2.json",
+   "recordedAt": "2026-11-02T07:05:18.509Z",
+   "query": {
+    "chain": "ethereum",
+    "token": "USDT",
+    "contract": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "sender": "0xb83f1c98b6d799f8ec56a002f2c0a2c343a0f50e",
+    "receiver": "0x053dc459bade1baf76aed6e8630823f8392fda3a"
+   }
+  }
+ ]
+}
