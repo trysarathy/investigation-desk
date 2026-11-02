@@ -61,6 +61,7 @@ describe("S1 release card: crypto-protocol-engineer's checks, fed with recorded 
     ["SCN-14", /^Don't release: Sent on Tron, not Ethereum, the network on the invoice\.$/],
     ["SCN-15", /^Don't release: Sent on BNB Chain, not Ethereum/],
     ["SCN-16", /^Don't release: Sent to a look-alike address \(.+\), not the invoice's address \(.+\)\.$/],
+    ["SCN-17", /^Don't release: Sent to a look-alike address \(0x053dc4…da3a\), not the invoice's address \(0x053dba…da3a\)\.$/],
   ])("%s problem: says what's wrong plainly, with 'Don't release'", async (id, re) => {
     const c = await card(id);
     expect(c.result.tone).toBe("problem");
