@@ -29,13 +29,22 @@ const SIGNAL = (chain: Chain) => (chain === "tron" ? "Tron solidified block (Tro
 
 export async function readFinality(deps: Pick<LiveDeps, "tron" | "evm">, q: FinalityQuery, now = () => new Date(),
   o: { recordedAt?: string } = {}): Promise<FinalityCheck> {
+  try {
+    return await read(deps, q, now, o);
+  } catch {
+    // Anything unexpected in the provider layer is an unknown, never an exception and never "final".
+    return { state: "not_run", blockNumber: q.blockNumber, eta: q.eta, detail: "We couldn't read whether the network has made this payment final." };
+  }
+}
+
+async function read(deps: Pick<LiveDeps, "tron" | "evm">, q: FinalityQuery, now: () => Date, o: { recordedAt?: string }): Promise<FinalityCheck> {
   if (q.blockNumber === undefined) return finalityCheck({ chain: q.chain, eta: q.eta });
   const raws: RawResponse[] = [];
   const checkedAt = o.recordedAt ?? now().toISOString();
   const stamp = (c: FinalityCheck): FinalityCheck => {
     const shas = raws.map((r) => r.sha256.slice(0, 12)).join(", ");
     const source = `${SIGNAL(q.chain)}${shas ? `; responses ${shas}` : ""}${o.recordedAt ? `; recorded at ${o.recordedAt}` : ""}`;
-    return { ...c, source, checkedAt, detail: o.recordedAt ? `${c.detail} (recorded ${sgtTime(o.recordedAt)}, not a live read)` : c.detail };
+    return { ...c, source, checkedAt, detail: o.recordedAt ? `${c.detail} (${sgtTime(o.recordedAt) ? `recorded ${sgtTime(o.recordedAt)}` : "from a recording"}, not a live read)` : c.detail };
   };
   const unknown = (why: string): FinalityCheck =>
     stamp({ state: "not_run", blockNumber: q.blockNumber, eta: q.eta, detail: why, technical: `Earlier lookup saw block ${q.blockNumber}.` });
