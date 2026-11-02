@@ -246,28 +246,32 @@ export class EvmFetcher {
     try {
       const b = (await src.call("eth_getBlockByNumber", ["finalized", false], { ttlSec: 0 }, raws)) as { number?: unknown; hash?: unknown } | null;
       return typeof b?.number === "string" && /^0x[0-9a-f]+$/i.test(b.number) && typeof b.hash === "string" && /^0x[0-9a-f]{64}$/i.test(b.hash)
-        ? Number(BigInt(b.number)) : undefined;
+        && Number.isSafeInteger(Number(BigInt(b.number))) && BigInt(b.number) > 0n ? Number(BigInt(b.number)) : undefined;
     } catch {
       return undefined;
     }
   }
 
   /**
-   * Where a transaction is NOW, re-read uncached: its receipt's block, confirmed canonical by reading the
-   * block at that height and comparing hashes. "gone" = no receipt (reorged out, or a node gap: unknown
-   * either way); "moved" = the block at that height has another hash (a reorg in progress).
+   * Where a transaction is NOW, re-read uncached: its receipt (for this very hash), its block, confirmed
+   * canonical by reading the block at that height and comparing hashes, and whether it succeeded
+   * (status 0x1; 0x0 = reverted). "gone" = no receipt (reorged out, or a node gap: unknown either way);
+   * "moved" = the block at that height has another hash (a reorg in progress). Malformed → undefined.
    */
-  async canonicalBlock(chain: EvmChain, hash: string, raws: RawResponse[]): Promise<number | "gone" | "moved" | undefined> {
+  async canonicalBlock(chain: EvmChain, hash: string, raws: RawResponse[]): Promise<{ block: number; success: boolean } | "gone" | "moved" | undefined> {
     const src = this.sources[chain];
     if (!src) return undefined;
     try {
       const txhash = `0x${hash.replace(/^0x/i, "").toLowerCase()}`;
-      const r = (await src.call("eth_getTransactionReceipt", [txhash], { ttlSec: 0 }, raws)) as { blockNumber?: unknown; blockHash?: unknown } | null;
+      const r = (await src.call("eth_getTransactionReceipt", [txhash], { ttlSec: 0 }, raws)) as
+        { transactionHash?: unknown; blockNumber?: unknown; blockHash?: unknown; status?: unknown } | null;
       if (r === null) return "gone";
-      if (typeof r?.blockNumber !== "string" || !/^0x[0-9a-f]+$/i.test(r.blockNumber) || typeof r.blockHash !== "string" || !/^0x[0-9a-f]{64}$/i.test(r.blockHash)) return undefined;
+      const block = typeof r?.blockNumber === "string" && /^0x[0-9a-f]{1,14}$/i.test(r.blockNumber) ? Number(BigInt(r.blockNumber)) : NaN;
+      if (typeof r?.transactionHash !== "string" || r.transactionHash.toLowerCase() !== txhash || !Number.isSafeInteger(block) || block <= 0
+        || typeof r.blockHash !== "string" || !/^0x[0-9a-f]{64}$/i.test(r.blockHash) || (r.status !== "0x1" && r.status !== "0x0")) return undefined;
       const b = (await src.call("eth_getBlockByNumber", [r.blockNumber, false], { ttlSec: 0 }, raws)) as { hash?: unknown } | null;
       if (typeof b?.hash !== "string" || !/^0x[0-9a-f]{64}$/i.test(b.hash)) return undefined;
-      return b.hash.toLowerCase() === r.blockHash.toLowerCase() ? Number(BigInt(r.blockNumber)) : "moved";
+      return b.hash.toLowerCase() === r.blockHash.toLowerCase() ? { block, success: r.status === "0x1" } : "moved";
     } catch {
       return undefined;
     }

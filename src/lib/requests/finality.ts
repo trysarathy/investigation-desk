@@ -4,7 +4,8 @@
 //         it (/walletsolidity/gettransactioninfobyid answers only once it's irreversible).
 //   EVM:  the `finalized` head, then the receipt re-read uncached and its block hash compared with the
 //         canonical block at that height.
-// Passed only if the transaction is, right now, canonical at or below the head. Any error, timeout or
+// Passed only if the transaction is, right now, canonical at or below the head, in the SAME block the
+// earlier lookup saw, and successful. Any error, timeout or
 // malformed answer is not_run. finality-reorgs.md has the policy.
 
 import { MemoryStore } from "../chain/store";
@@ -50,9 +51,18 @@ export async function readFinality(deps: Pick<LiveDeps, "tron" | "evm">, q: Fina
     const c = finalityCheck({ chain: q.chain, blockNumber: Math.max(q.blockNumber, head + 1), finalizedBlock: head, eta: q.eta });
     return stamp({ ...c, blockNumber: q.blockNumber, technical: `Not yet on the solidity node; solidified up to block ${head}.` });
   }
-  const c = finalityCheck({ chain: q.chain, blockNumber: now_, finalizedBlock: head, eta: q.eta });
-  const moved = now_ !== q.blockNumber ? ` (an earlier lookup saw block ${q.blockNumber})` : "";
-  return stamp({ ...c, technical: `${c.technical}${moved}` });
+  // Only the very transaction the earlier lookup saw, in the same block, and successful, can be final-and-paid.
+  if (now_.block !== q.blockNumber) {
+    return stamp({ state: "not_run", blockNumber: q.blockNumber, finalizedBlock: head, eta: q.eta,
+      detail: "This payment's block changed since it was looked up, so finality is unknown: look it up again.",
+      technical: `Earlier lookup saw block ${q.blockNumber}, now in block ${now_.block}.` });
+  }
+  if (!now_.success) {
+    return stamp({ state: "not_run", blockNumber: q.blockNumber, finalizedBlock: head, eta: q.eta,
+      detail: "The chain now reports this transaction as failed, so it isn't counted as final: look it up again.",
+      technical: `In block ${now_.block}, receipt not successful.` });
+  }
+  return stamp(finalityCheck({ chain: q.chain, blockNumber: now_.block, finalizedBlock: head, eta: q.eta }));
 }
 
 /** Does this recorded request read the finality signal of `chain`? */
