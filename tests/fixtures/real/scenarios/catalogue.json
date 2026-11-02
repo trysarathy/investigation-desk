@@ -1,0 +1,908 @@
+{
+ "about": "The demo payments (ADR 0003, plan D2.3/D5.1/D6.1): 21 slots, 20 filled with real transfers (the 20 demo payments) and 1 reported gap. Transfers: real public transfers, not Clearline customers, replayed offline from the recordings in this folder (see provenance.json). Invoices: SAMPLE COMPANY DATA (fictional), each built around a real transfer; 'why' says what was constructed. Labels come from the chain facts in provenance.json and the approved rules (docs/SPEC.md, docs/POSTING_RULES.md), never from the product's output.",
+ "split_rule": "All tuning. These cases are shown in the demo and run by QA (D7.1), so none can stay unseen; a held-out set must be built separately from transfers not used here. No source transfer is in tests/real_cases_holdout.json (checked 2026-11-01); all are in the deposit tuning set tests/real_cases.json.",
+ "split_at": "2026-11-01T10:00:00+08:00",
+ "expected_actions": {
+  "auto_match": "linked to the invoice by the system and matched with no person",
+  "review": "sent to a person to decide",
+  "flag": "can never pay the invoice; the problem is named",
+  "wait": "not counted yet"
+ },
+ "scenarios": [
+  {
+   "id": "SCN-01",
+   "case_type": "exact",
+   "title": "Exact USDT payment",
+   "split": "tuning",
+   "group": "0xf70dab272206053e0e44c35db3891e5d72c3410fc26fcdfc9949193d4ce605da",
+   "transfer": {
+    "recording": "ETH-01.json",
+    "chain": "ethereum",
+    "hash": "0xf70dab272206053e0e44c35db3891e5d72c3410fc26fcdfc9949193d4ce605da",
+    "to": "0x6f416e24bab64ea58bd6390bb5e19c6506a0d99c",
+    "label": "real public transfer, not a Clearline customer"
+   },
+   "invoices": [
+    {
+     "id": "SAMPLE-INV-2001",
+     "customer_ref": "SAMPLE-CUST-01",
+     "amount": "331.40",
+     "token": "USDT",
+     "chain": "ethereum",
+     "receiving_address": "0x6f416e24bab64ea58bd6390bb5e19c6506a0d99c",
+     "created_at": "2026-10-23T02:00:00Z",
+     "status": "open",
+     "sample": true
+    }
+   ],
+   "lookup_for": "SAMPLE-INV-2001",
+   "label": {
+    "expected_action": "auto_match",
+    "true_invoice": "SAMPLE-INV-2001",
+    "why": "Only open invoice on this address, genuine Tether contract, Ethereum, exactly 331.40, confirmed. Constructed: the sample invoice uses the real transfer's destination (a stranger's address) and amount.",
+    "expected_reason": "Paid in full: exactly 331.40 USDT from Tether's contract, confirmed.",
+    "reason_includes": [
+     "exactly 331.40"
+    ]
+   },
+   "labelled_by": "matching-engine-engineer",
+   "labelled_at": "2026-11-01",
+   "second_labeller": null,
+   "agreed": "pending (qa-security-engineer)"
+  },
+  {
+   "id": "SCN-02",
+   "case_type": "exact",
+   "title": "Exact USDT payment, same sender as SCN-01",
+   "split": "tuning",
+   "group": "0x5dc6d3c4d96add3c2fa7ecaaff2c18fec9ea2ef6dd3279ec7e58370ddfe86ea0",
+   "transfer": {
+    "recording": "ETH-02.json",
+    "chain": "ethereum",
+    "hash": "0x5dc6d3c4d96add3c2fa7ecaaff2c18fec9ea2ef6dd3279ec7e58370ddfe86ea0",
+    "to": "0x02c3401fdd8c80e8bb9576f30e51234007bcaf8b",
+    "label": "real public transfer, not a Clearline customer"
+   },
+   "invoices": [
+    {
+     "id": "SAMPLE-INV-2002",
+     "customer_ref": "SAMPLE-CUST-02",
+     "amount": "331.40",
+     "token": "USDT",
+     "chain": "ethereum",
+     "receiving_address": "0x02c3401fdd8c80e8bb9576f30e51234007bcaf8b",
+     "created_at": "2026-10-23T02:00:00Z",
+     "status": "open",
+     "sample": true
+    }
+   ],
+   "lookup_for": "SAMPLE-INV-2002",
+   "label": {
+    "expected_action": "auto_match",
+    "true_invoice": "SAMPLE-INV-2002",
+    "why": "Only open invoice on this address, genuine contract, exact amount, confirmed. Constructed: the sample invoice uses the real transfer's destination (a stranger's address) and amount.",
+    "expected_reason": "Paid in full: exactly 331.40 USDT, confirmed.",
+    "reason_includes": [
+     "exactly 331.40"
+    ]
+   },
+   "labelled_by": "matching-engine-engineer",
+   "labelled_at": "2026-11-01",
+   "second_labeller": null,
+   "agreed": "pending (qa-security-engineer)"
+  },
+  {
+   "id": "SCN-03",
+   "case_type": "exact",
+   "title": "Exact small USDT payment",
+   "split": "tuning",
+   "group": "0xeb2153554f28e07207ee5fac0d41bee3fda2a37aaafc188ffb134339620e2c12",
+   "transfer": {
+    "recording": "ETH-03.json",
+    "chain": "ethereum",
+    "hash": "0xeb2153554f28e07207ee5fac0d41bee3fda2a37aaafc188ffb134339620e2c12",
+    "to": "0xff3f306410ff2f1060ad5fa780283c54a5d91553",
+    "label": "real public transfer, not a Clearline customer"
+   },
+   "invoices": [
+    {
+     "id": "SAMPLE-INV-2003",
+     "customer_ref": "SAMPLE-CUST-03",
+     "amount": "16.00",
+     "token": "USDT",
+     "chain": "ethereum",
+     "receiving_address": "0xff3f306410ff2f1060ad5fa780283c54a5d91553",
+     "created_at": "2026-10-23T02:00:00Z",
+     "status": "open",
+     "sample": true
+    }
+   ],
+   "lookup_for": "SAMPLE-INV-2003",
+   "label": {
+    "expected_action": "auto_match",
+    "true_invoice": "SAMPLE-INV-2003",
+    "why": "Only open invoice on this address, genuine contract, exact amount, confirmed. Constructed: the sample invoice uses the real transfer's destination (a stranger's address) and amount.",
+    "expected_reason": "Paid in full: exactly 16.00 USDT, confirmed.",
+    "reason_includes": [
+     "exactly 16.00"
+    ]
+   },
+   "labelled_by": "matching-engine-engineer",
+   "labelled_at": "2026-11-01",
+   "second_labeller": null,
+   "agreed": "pending (qa-security-engineer)"
+  },
+  {
+   "id": "SCN-04",
+   "case_type": "exact",
+   "title": "Exact USDT payment, round amount",
+   "split": "tuning",
+   "group": "0xb72cc77b5d18dacb9891116cec58a3887bdacfc720659382753657ef7424d820",
+   "transfer": {
+    "recording": "ETH-06.json",
+    "chain": "ethereum",
+    "hash": "0xb72cc77b5d18dacb9891116cec58a3887bdacfc720659382753657ef7424d820",
+    "to": "0x003155f21f474383314a40a3672279ce2b3ced63",
+    "label": "real public transfer, not a Clearline customer"
+   },
+   "invoices": [
+    {
+     "id": "SAMPLE-INV-2004",
+     "customer_ref": "SAMPLE-CUST-04",
+     "amount": "100.00",
+     "token": "USDT",
+     "chain": "ethereum",
+     "receiving_address": "0x003155f21f474383314a40a3672279ce2b3ced63",
+     "created_at": "2026-10-23T02:00:00Z",
+     "status": "open",
+     "sample": true
+    }
+   ],
+   "lookup_for": "SAMPLE-INV-2004",
+   "label": {
+    "expected_action": "auto_match",
+    "true_invoice": "SAMPLE-INV-2004",
+    "why": "Only open invoice on this address, genuine contract, exact amount, confirmed. Constructed: the sample invoice uses the real transfer's destination (a stranger's address) and amount.",
+    "expected_reason": "Paid in full: exactly 100.00 USDT, confirmed.",
+    "reason_includes": [
+     "exactly 100.00"
+    ]
+   },
+   "labelled_by": "matching-engine-engineer",
+   "labelled_at": "2026-11-01",
+   "second_labeller": null,
+   "agreed": "pending (qa-security-engineer)"
+  },
+  {
+   "id": "SCN-05",
+   "case_type": "exact",
+   "title": "Exact USDC payment (invoice quoted to 6 decimals)",
+   "split": "tuning",
+   "group": "0xd202d1bf3acb3052c1f6bc2690728eaa896dc41445658d57b6b93ada1ceda5de",
+   "transfer": {
+    "recording": "ETH-08.json",
+    "chain": "ethereum",
+    "hash": "0xd202d1bf3acb3052c1f6bc2690728eaa896dc41445658d57b6b93ada1ceda5de",
+    "to": "0x4fb77df50f9dad15330a9696ed35d6e6c70ac7e2",
+    "label": "real public transfer, not a Clearline customer"
+   },
+   "invoices": [
+    {
+     "id": "SAMPLE-INV-2005",
+     "customer_ref": "SAMPLE-CUST-05",
+     "amount": "87.220466",
+     "token": "USDC",
+     "chain": "ethereum",
+     "receiving_address": "0x4fb77df50f9dad15330a9696ed35d6e6c70ac7e2",
+     "created_at": "2026-10-23T02:00:00Z",
+     "status": "open",
+     "sample": true
+    }
+   ],
+   "lookup_for": "SAMPLE-INV-2005",
+   "label": {
+    "expected_action": "auto_match",
+    "true_invoice": "SAMPLE-INV-2005",
+    "why": "Only open invoice on this address, genuine Circle USDC contract, exact amount, confirmed. Constructed: the sample invoice uses the real transfer's destination (a stranger's address) and amount.",
+    "expected_reason": "Paid in full: exactly 87.220466 USDC from Circle's contract, confirmed.",
+    "reason_includes": [
+     "exactly 87.22"
+    ]
+   },
+   "labelled_by": "matching-engine-engineer",
+   "labelled_at": "2026-11-01",
+   "second_labeller": null,
+   "agreed": "pending (qa-security-engineer)"
+  },
+  {
+   "id": "SCN-06",
+   "case_type": "partial",
+   "title": "Short by 0.000117 (inside the approved 0.01 rounding line)",
+   "split": "tuning",
+   "group": "0x3dfa021933824e325e736b1afbc2831ffa296e7088dce619908d2b266d9a453d",
+   "transfer": {
+    "recording": "ETH-04.json",
+    "chain": "ethereum",
+    "hash": "0x3dfa021933824e325e736b1afbc2831ffa296e7088dce619908d2b266d9a453d",
+    "to": "0x78ace9b2ee9a31737fad748015266a59f32dc79a",
+    "label": "real public transfer, not a Clearline customer"
+   },
+   "invoices": [
+    {
+     "id": "SAMPLE-INV-2006",
+     "customer_ref": "SAMPLE-CUST-06",
+     "amount": "2495.50",
+     "token": "USDT",
+     "chain": "ethereum",
+     "receiving_address": "0x78ace9b2ee9a31737fad748015266a59f32dc79a",
+     "created_at": "2026-10-23T02:00:00Z",
+     "status": "open",
+     "sample": true
+    }
+   ],
+   "lookup_for": "SAMPLE-INV-2006",
+   "label": {
+    "expected_action": "auto_match",
+    "true_invoice": "SAMPLE-INV-2006",
+    "why": "Short by 0.000117, at most 0.01: POSTING_RULES R3d (decision 3, Approved) closes the invoice with one rounding line of 0.01 or less. Constructed: the sample invoice amount was set 0.000117 above the real transfer.",
+    "expected_reason": "Paid: 2,495.499883 USDT against 2,495.50; the 0.000117 difference is within the 0.01 rounding line.",
+    "reason_includes": [
+     "2,495.49"
+    ]
+   },
+   "known_gap": "The matcher today treats any shortfall as 'short' and sends it to a person; the 0.01 rounding tolerance is planned in D5.4 (approval-only, posting). Not changed in this PR.",
+   "labelled_by": "matching-engine-engineer",
+   "labelled_at": "2026-11-01",
+   "second_labeller": null,
+   "agreed": "pending (qa-security-engineer)"
+  },
+  {
+   "id": "SCN-07",
+   "case_type": "partial",
+   "title": "Short by 8.74 (0.9%), accepted short by a person",
+   "split": "tuning",
+   "group": "0x386aa675227e9e49f9ab2daa1bde962f76f30e5b6d02a84b0c9d73c36c6c7c96",
+   "transfer": {
+    "recording": "ETH-05.json",
+    "chain": "ethereum",
+    "hash": "0x386aa675227e9e49f9ab2daa1bde962f76f30e5b6d02a84b0c9d73c36c6c7c96",
+    "to": "0x8c4851b9e382230d6b959fba789ebc6ef76966a5",
+    "label": "real public transfer, not a Clearline customer"
+   },
+   "invoices": [
+    {
+     "id": "SAMPLE-INV-2007",
+     "customer_ref": "SAMPLE-CUST-07",
+     "amount": "1010.00",
+     "token": "USDT",
+     "chain": "ethereum",
+     "receiving_address": "0x8c4851b9e382230d6b959fba789ebc6ef76966a5",
+     "created_at": "2026-10-23T02:00:00Z",
+     "status": "open",
+     "sample": true
+    }
+   ],
+   "lookup_for": "SAMPLE-INV-2007",
+   "label": {
+    "expected_action": "review",
+    "true_invoice": "SAMPLE-INV-2007",
+    "why": "Short by 8.74181, above 0.01: only a person may accept a shortfall (POSTING_RULES C2/C7). Constructed: invoice set above the real transfer.",
+    "expected_reason": "Short by 8.74 USDT (0.9%), likely a fee deducted before sending. A person decides; here they accept it as settled.",
+    "reason_includes": [
+     "short"
+    ]
+   },
+   "person_decision": {
+    "kind": "accept_short",
+    "note": "SAMPLE: customer's exchange deducted its withdrawal fee; accepted as settled."
+   },
+   "after_decision": "completed_by_person",
+   "labelled_by": "matching-engine-engineer",
+   "labelled_at": "2026-11-01",
+   "second_labeller": null,
+   "agreed": "pending (qa-security-engineer)"
+  },
+  {
+   "id": "SCN-08",
+   "case_type": "partial",
+   "title": "A 0.001 USDT test send against a 250.00 invoice",
+   "split": "tuning",
+   "group": "0xdfda625b602bf5d4f9e38a72c52fc4e7521e4e276eb56191206eb783c8f67f87",
+   "transfer": {
+    "recording": "ETH-07.json",
+    "chain": "ethereum",
+    "hash": "0xdfda625b602bf5d4f9e38a72c52fc4e7521e4e276eb56191206eb783c8f67f87",
+    "to": "0x9d7d8b567ee10bcb4f9db438245e1d0668175d72",
+    "label": "real public transfer, not a Clearline customer"
+   },
+   "invoices": [
+    {
+     "id": "SAMPLE-INV-2008",
+     "customer_ref": "SAMPLE-CUST-08",
+     "amount": "250.00",
+     "token": "USDT",
+     "chain": "ethereum",
+     "receiving_address": "0x9d7d8b567ee10bcb4f9db438245e1d0668175d72",
+     "created_at": "2026-10-23T02:00:00Z",
+     "status": "open",
+     "sample": true
+    }
+   ],
+   "lookup_for": "SAMPLE-INV-2008",
+   "label": {
+    "expected_action": "review",
+    "true_invoice": "SAMPLE-INV-2008",
+    "why": "Short by 249.999, no decision yet: goes to a person (exceptions queue). Constructed: invoice set far above the real 0.001 transfer.",
+    "expected_reason": "Received 0.001 of 250.00 USDT. A person decides: ask for the balance or accept.",
+    "reason_includes": [
+     "short"
+    ]
+   },
+   "known_gap": "Today the engine flags it 'Below minimum deposit: 0.001000 is below 10' (D08 from the sample deposit minimums in REQUEST_SETTINGS) and blocks it, so a person can only dismiss it, not ask for the balance or accept. It still goes to a person (no false match). Whether a deposit minimum applies to an invoice payment is a decision for Aashmiin.",
+   "labelled_by": "matching-engine-engineer",
+   "labelled_at": "2026-11-01",
+   "second_labeller": null,
+   "agreed": "pending (qa-security-engineer)"
+  },
+  {
+   "id": "SCN-09",
+   "case_type": "over",
+   "title": "Over by 5.00",
+   "split": "tuning",
+   "group": "0xb72cc77b5d18dacb9891116cec58a3887bdacfc720659382753657ef7424d820",
+   "transfer": {
+    "recording": "ETH-06.json",
+    "chain": "ethereum",
+    "hash": "0xb72cc77b5d18dacb9891116cec58a3887bdacfc720659382753657ef7424d820",
+    "to": "0x003155f21f474383314a40a3672279ce2b3ced63",
+    "label": "real public transfer, not a Clearline customer"
+   },
+   "invoices": [
+    {
+     "id": "SAMPLE-INV-2009",
+     "customer_ref": "SAMPLE-CUST-09",
+     "amount": "95.00",
+     "token": "USDT",
+     "chain": "ethereum",
+     "receiving_address": "0x003155f21f474383314a40a3672279ce2b3ced63",
+     "created_at": "2026-10-23T02:00:00Z",
+     "status": "open",
+     "sample": true
+    }
+   ],
+   "lookup_for": "SAMPLE-INV-2009",
+   "label": {
+    "expected_action": "review",
+    "true_invoice": "SAMPLE-INV-2009",
+    "why": "Received 100.00 on a 95.00 invoice: a person chooses refund or keep (POSTING_RULES C5). Constructed: same real transfer as SCN-04 with a different sample invoice.",
+    "expected_reason": "Received 100.00 USDT, 5.00 more than the invoice. A person decides: refund the excess or keep it.",
+    "reason_includes": [
+     "more than requested"
+    ]
+   },
+   "labelled_by": "matching-engine-engineer",
+   "labelled_at": "2026-11-01",
+   "second_labeller": null,
+   "agreed": "pending (qa-security-engineer)"
+  },
+  {
+   "id": "SCN-10",
+   "case_type": "over",
+   "title": "Over by 2.22 on a USDC invoice",
+   "split": "tuning",
+   "group": "0xd202d1bf3acb3052c1f6bc2690728eaa896dc41445658d57b6b93ada1ceda5de",
+   "transfer": {
+    "recording": "ETH-08.json",
+    "chain": "ethereum",
+    "hash": "0xd202d1bf3acb3052c1f6bc2690728eaa896dc41445658d57b6b93ada1ceda5de",
+    "to": "0x4fb77df50f9dad15330a9696ed35d6e6c70ac7e2",
+    "label": "real public transfer, not a Clearline customer"
+   },
+   "invoices": [
+    {
+     "id": "SAMPLE-INV-2010",
+     "customer_ref": "SAMPLE-CUST-10",
+     "amount": "85.00",
+     "token": "USDC",
+     "chain": "ethereum",
+     "receiving_address": "0x4fb77df50f9dad15330a9696ed35d6e6c70ac7e2",
+     "created_at": "2026-10-23T02:00:00Z",
+     "status": "open",
+     "sample": true
+    }
+   ],
+   "lookup_for": "SAMPLE-INV-2010",
+   "label": {
+    "expected_action": "review",
+    "true_invoice": "SAMPLE-INV-2010",
+    "why": "Received 87.220466 on an 85.00 invoice: a person decides. Constructed: same real transfer as SCN-05 with a different sample invoice.",
+    "expected_reason": "Received 87.22 USDC, 2.22 more than the invoice. A person decides.",
+    "reason_includes": [
+     "more than requested"
+    ]
+   },
+   "labelled_by": "matching-engine-engineer",
+   "labelled_at": "2026-11-01",
+   "second_labeller": null,
+   "agreed": "pending (qa-security-engineer)"
+  },
+  {
+   "id": "SCN-11",
+   "case_type": "duplicate",
+   "title": "The same transfer reported twice",
+   "split": "tuning",
+   "group": "0xeb2153554f28e07207ee5fac0d41bee3fda2a37aaafc188ffb134339620e2c12",
+   "transfer": {
+    "recording": "ETH-03.json",
+    "chain": "ethereum",
+    "hash": "0xeb2153554f28e07207ee5fac0d41bee3fda2a37aaafc188ffb134339620e2c12",
+    "to": "0xff3f306410ff2f1060ad5fa780283c54a5d91553",
+    "label": "real public transfer, not a Clearline customer"
+   },
+   "invoices": [
+    {
+     "id": "SAMPLE-INV-2011",
+     "customer_ref": "SAMPLE-CUST-11",
+     "amount": "16.00",
+     "token": "USDT",
+     "chain": "ethereum",
+     "receiving_address": "0xff3f306410ff2f1060ad5fa780283c54a5d91553",
+     "created_at": "2026-10-23T02:00:00Z",
+     "status": "open",
+     "sample": true
+    }
+   ],
+   "lookup_for": "SAMPLE-INV-2011",
+   "label": {
+    "expected_action": "auto_match",
+    "true_invoice": "SAMPLE-INV-2011",
+    "why": "One real transfer delivered twice (e.g. the hash pasted twice): it counts once, so the invoice is paid exactly, not twice. Constructed: same real transfer as SCN-03.",
+    "expected_reason": "Paid in full once; the repeat report of the same transfer is ignored.",
+    "reason_includes": [
+     "exactly 16.00"
+    ]
+   },
+   "deliveries": 2,
+   "labelled_by": "matching-engine-engineer",
+   "labelled_at": "2026-11-01",
+   "second_labeller": null,
+   "agreed": "pending (qa-security-engineer)"
+  },
+  {
+   "id": "SCN-12",
+   "case_type": "wrong_token",
+   "title": "Counterfeit token named \"USDT\"",
+   "split": "tuning",
+   "group": "0x909804df7f566cb0fbf3c10d244b49bf6227783c6cba1c520c259092b894dc4b",
+   "transfer": {
+    "recording": "FAKE-06.json",
+    "chain": "ethereum",
+    "hash": "0x909804df7f566cb0fbf3c10d244b49bf6227783c6cba1c520c259092b894dc4b",
+    "to": "0xa7358ad5c0d4836d5c9a5e9acaa87f13f571b160",
+    "label": "real public transfer, not a Clearline customer"
+   },
+   "invoices": [
+    {
+     "id": "SAMPLE-INV-2012",
+     "customer_ref": "SAMPLE-CUST-12",
+     "amount": "607019.28",
+     "token": "USDT",
+     "chain": "ethereum",
+     "receiving_address": "0xa7358ad5c0d4836d5c9a5e9acaa87f13f571b160",
+     "created_at": "2026-10-23T02:00:00Z",
+     "status": "open",
+     "sample": true
+    }
+   ],
+   "lookup_for": "SAMPLE-INV-2012",
+   "label": {
+    "expected_action": "flag",
+    "true_invoice": "SAMPLE-INV-2012",
+    "why": "The token calls itself USDT but is not Tether's contract (0xdAC17F95…1ec7): it can never pay the invoice. Constructed: the sample invoice uses the real transfer's destination (a stranger's address); its amount is the fake amount rounded to 2 places.",
+    "expected_reason": "Not real USDT: the token calls itself USDT but doesn't come from Tether's contract. It doesn't count.",
+    "reason_includes": [
+     "isn't real USDT"
+    ]
+   },
+   "labelled_by": "matching-engine-engineer",
+   "labelled_at": "2026-11-01",
+   "second_labeller": null,
+   "agreed": "pending (qa-security-engineer)"
+  },
+  {
+   "id": "SCN-13",
+   "case_type": "wrong_token",
+   "title": "Counterfeit token with a look-alike name \"ÚЅDТ\", exact invoice amount",
+   "split": "tuning",
+   "group": "0xf84dacfeb3a92ae3291120d954b86d89932fe31702103754cad4f8e8ac41a10d",
+   "transfer": {
+    "recording": "FAKE-HG.json",
+    "chain": "ethereum",
+    "hash": "0xf84dacfeb3a92ae3291120d954b86d89932fe31702103754cad4f8e8ac41a10d",
+    "to": "0xc64b9a8a38025e3a840449e015508fffa435a519",
+    "label": "real public transfer, not a Clearline customer"
+   },
+   "invoices": [
+    {
+     "id": "SAMPLE-INV-2013",
+     "customer_ref": "SAMPLE-CUST-13",
+     "amount": "250016.185472",
+     "token": "USDT",
+     "chain": "ethereum",
+     "receiving_address": "0xc64b9a8a38025e3a840449e015508fffa435a519",
+     "created_at": "2026-08-08T02:00:00Z",
+     "status": "open",
+     "sample": true
+    }
+   ],
+   "lookup_for": "SAMPLE-INV-2013",
+   "label": {
+    "expected_action": "flag",
+    "true_invoice": "SAMPLE-INV-2013",
+    "why": "Cyrillic look-alike symbol, not Tether's contract; Constructed: the sample invoice uses the real transfer's destination (a stranger's address) and the exact fake amount, to show amount is no proof.",
+    "expected_reason": "Not the token requested: 'ÚЅDТ' is not USDT. It doesn't count, even though the amount is exact.",
+    "reason_includes": [
+     "not the token requested"
+    ]
+   },
+   "labelled_by": "matching-engine-engineer",
+   "labelled_at": "2026-11-01",
+   "second_labeller": null,
+   "agreed": "pending (qa-security-engineer)"
+  },
+  {
+   "id": "SCN-14",
+   "case_type": "wrong_network",
+   "title": "USDT sent on Tron for an Ethereum invoice",
+   "split": "tuning",
+   "group": "5296e24018c9197bbf4e7e844c7152ca494067400a5a06f351c66aad7d3873cb",
+   "transfer": {
+    "recording": "TRN-01.json",
+    "chain": "tron",
+    "hash": "5296e24018c9197bbf4e7e844c7152ca494067400a5a06f351c66aad7d3873cb",
+    "to": "TSSoZb7K81i7NtoF7PEjDwG8m2gThoK9Zi",
+    "label": "real public transfer, not a Clearline customer"
+   },
+   "invoices": [
+    {
+     "id": "SAMPLE-INV-2014",
+     "customer_ref": "SAMPLE-CUST-14",
+     "amount": "4300.00",
+     "token": "USDT",
+     "chain": "ethereum",
+     "receiving_address": "0x00000000000000000000000000000000005a3e01",
+     "created_at": "2026-10-23T02:00:00Z",
+     "status": "open",
+     "sample": true
+    }
+   ],
+   "lookup_for": "SAMPLE-INV-2014",
+   "label": {
+    "expected_action": "flag",
+    "true_invoice": "SAMPLE-INV-2014",
+    "why": "Sent on Tron; the invoice is payable on Ethereum only. Constructed: the sample invoice's Ethereum address is fictional; the Tron destination is treated as the sample business's old Tron wallet.",
+    "expected_reason": "Paid on Tron, not Ethereum: it never reached the invoice's address. A person checks whether it landed in the business's own Tron wallet.",
+    "reason_includes": [
+     "tron"
+    ]
+   },
+   "wallets": [
+    {
+     "chain": "tron",
+     "address": "TSSoZb7K81i7NtoF7PEjDwG8m2gThoK9Zi",
+     "label": "SAMPLE old Tron wallet"
+    }
+   ],
+   "known_gap": "Today a hash found on another network is refused at lookup with a message and nothing is recorded on the invoice (gap K5, plan D6.2), so it never reaches the queue.",
+   "labelled_by": "matching-engine-engineer",
+   "labelled_at": "2026-11-01",
+   "second_labeller": null,
+   "agreed": "pending (qa-security-engineer)"
+  },
+  {
+   "id": "SCN-15",
+   "case_type": "wrong_network",
+   "title": "USDT sent on BNB Chain for an Ethereum invoice",
+   "split": "tuning",
+   "group": "0x275afee98ebe7d4f0a45d86c3321d8e334572f3ae194be66f8dc88ca51c9cb7a",
+   "transfer": {
+    "recording": "BSC-01.json",
+    "chain": "bsc",
+    "hash": "0x275afee98ebe7d4f0a45d86c3321d8e334572f3ae194be66f8dc88ca51c9cb7a",
+    "to": "0x2622a3a703fc2595d825d83d00da9f24d370a85b",
+    "label": "real public transfer, not a Clearline customer"
+   },
+   "invoices": [
+    {
+     "id": "SAMPLE-INV-2015",
+     "customer_ref": "SAMPLE-CUST-15",
+     "amount": "1330.678168",
+     "token": "USDT",
+     "chain": "ethereum",
+     "receiving_address": "0x00000000000000000000000000000000005a3e01",
+     "created_at": "2026-10-23T02:00:00Z",
+     "status": "open",
+     "sample": true
+    }
+   ],
+   "lookup_for": "SAMPLE-INV-2015",
+   "label": {
+    "expected_action": "flag",
+    "true_invoice": "SAMPLE-INV-2015",
+    "why": "Sent on BNB Chain; the invoice is payable on Ethereum only. Constructed: the sample invoice's Ethereum address is fictional and its amount is the real transfer's.",
+    "expected_reason": "Paid on BNB Chain, not Ethereum: it never reached the invoice's address.",
+    "reason_includes": [
+     "bsc"
+    ]
+   },
+   "known_gap": "As SCN-14: refused at lookup, nothing recorded on the invoice (gap K5, plan D6.2).",
+   "labelled_by": "matching-engine-engineer",
+   "labelled_at": "2026-11-01",
+   "second_labeller": null,
+   "agreed": "pending (qa-security-engineer)"
+  },
+  {
+   "id": "SCN-16",
+   "case_type": "lookalike_address",
+   "title": "Poisoned look-alike address (first 3 + last 4 equal)",
+   "split": "tuning",
+   "group": "0xc0514a795f065fce8a3e1238a1ba480e8a792d45f6431ee4ba8d800bedd86a0f",
+   "transfer": {
+    "recording": "POISON-1.json",
+    "chain": "ethereum",
+    "hash": "0xc0514a795f065fce8a3e1238a1ba480e8a792d45f6431ee4ba8d800bedd86a0f",
+    "to": "0xbaff2f13638c04b10f8119760b2d2ae86b08f8b5",
+    "label": "real public transfer, not a Clearline customer"
+   },
+   "invoices": [
+    {
+     "id": "SAMPLE-INV-2016",
+     "customer_ref": "SAMPLE-CUST-16",
+     "amount": "49999950.00",
+     "token": "USDT",
+     "chain": "ethereum",
+     "receiving_address": "0xbaf4b1af7e3b560d937da0458514552b6495f8b5",
+     "created_at": "2025-12-18T02:00:00Z",
+     "status": "open",
+     "sample": true
+    }
+   ],
+   "lookup_for": "SAMPLE-INV-2016",
+   "label": {
+    "expected_action": "flag",
+    "true_invoice": "SAMPLE-INV-2016",
+    "why": "Sent to 0xbaff…f8b5, not the invoice's 0xbaf4…f8b5: a look-alike address (poisoning). Never a match; the money went to someone else. Constructed: the intended address is used as the sample invoice's address.",
+    "expected_reason": "Not paid: sent to a look-alike address (0xbaff…f8b5), not this invoice's (0xbaf4…f8b5). Possible address poisoning.",
+    "reason_includes": [
+     "look-alike"
+    ]
+   },
+   "known_gap": "Today the lookup says only 'no token transfer to the request's receiving address'; it records nothing and does not name the look-alike (D07b is off on the request path).",
+   "labelled_by": "matching-engine-engineer",
+   "labelled_at": "2026-11-01",
+   "second_labeller": null,
+   "agreed": "pending (qa-security-engineer)"
+  },
+  {
+   "id": "SCN-17",
+   "case_type": "lookalike_address",
+   "title": "Poisoned look-alike address (first 4 + last 4 equal)",
+   "split": "tuning",
+   "group": "0x374076fa28ed745227c28f42c5054a0bcd024c51ad7a41c17d52e7c6c24980eb",
+   "transfer": {
+    "recording": "POISON-2.json",
+    "chain": "ethereum",
+    "hash": "0x374076fa28ed745227c28f42c5054a0bcd024c51ad7a41c17d52e7c6c24980eb",
+    "to": "0x053dc459bade1baf76aed6e8630823f8392fda3a",
+    "label": "real public transfer, not a Clearline customer"
+   },
+   "invoices": [
+    {
+     "id": "SAMPLE-INV-2017",
+     "customer_ref": "SAMPLE-CUST-17",
+     "amount": "39889.952535",
+     "token": "USDT",
+     "chain": "ethereum",
+     "receiving_address": "0x053dba7292957341779cb0e9aae1aa7b139ada3a",
+     "created_at": "2026-08-08T02:00:00Z",
+     "status": "open",
+     "sample": true
+    }
+   ],
+   "lookup_for": "SAMPLE-INV-2017",
+   "label": {
+    "expected_action": "flag",
+    "true_invoice": "SAMPLE-INV-2017",
+    "why": "Sent to 0x053dc459…da3a, not the invoice's 0x053dba72…da3a, after a forged transfer planted the look-alike in the payer's history. Constructed: as SCN-16.",
+    "expected_reason": "Not paid: sent to a look-alike address, not this invoice's. Possible address poisoning.",
+    "reason_includes": [
+     "look-alike"
+    ]
+   },
+   "known_gap": "As SCN-16.",
+   "labelled_by": "matching-engine-engineer",
+   "labelled_at": "2026-11-01",
+   "second_labeller": null,
+   "agreed": "pending (qa-security-engineer)"
+  },
+  {
+   "id": "SCN-18",
+   "case_type": "ambiguous",
+   "title": "Two open invoices, same address, same amount",
+   "split": "tuning",
+   "group": "0x5dc6d3c4d96add3c2fa7ecaaff2c18fec9ea2ef6dd3279ec7e58370ddfe86ea0",
+   "transfer": {
+    "recording": "ETH-02.json",
+    "chain": "ethereum",
+    "hash": "0x5dc6d3c4d96add3c2fa7ecaaff2c18fec9ea2ef6dd3279ec7e58370ddfe86ea0",
+    "to": "0x02c3401fdd8c80e8bb9576f30e51234007bcaf8b",
+    "label": "real public transfer, not a Clearline customer"
+   },
+   "invoices": [
+    {
+     "id": "SAMPLE-INV-2018",
+     "customer_ref": "SAMPLE-CUST-18",
+     "amount": "331.40",
+     "token": "USDT",
+     "chain": "ethereum",
+     "receiving_address": "0x02c3401fdd8c80e8bb9576f30e51234007bcaf8b",
+     "created_at": "2026-10-23T02:00:00Z",
+     "status": "open",
+     "sample": true
+    },
+    {
+     "id": "SAMPLE-INV-2019",
+     "customer_ref": "SAMPLE-CUST-19",
+     "amount": "331.40",
+     "token": "USDT",
+     "chain": "ethereum",
+     "receiving_address": "0x02c3401fdd8c80e8bb9576f30e51234007bcaf8b",
+     "created_at": "2026-10-23T03:00:00Z",
+     "status": "open",
+     "sample": true
+    }
+   ],
+   "lookup_for": "SAMPLE-INV-2018",
+   "label": {
+    "expected_action": "review",
+    "true_invoice": null,
+    "why": "No reference on-chain and two open invoices for 331.40 share the address: which one it pays is unknowable from the chain. Constructed: same real transfer as SCN-02.",
+    "expected_reason": "Two open invoices share this address and amount; no reference says which one it pays. A person assigns it.",
+    "reason_includes": [
+     "share this address"
+    ]
+   },
+   "labelled_by": "matching-engine-engineer",
+   "labelled_at": "2026-11-01",
+   "second_labeller": null,
+   "agreed": "pending (qa-security-engineer)"
+  },
+  {
+   "id": "SCN-19",
+   "case_type": "ambiguous",
+   "title": "Repeat payer: the address already paid an earlier invoice",
+   "split": "tuning",
+   "group": "0xf70dab272206053e0e44c35db3891e5d72c3410fc26fcdfc9949193d4ce605da",
+   "transfer": {
+    "recording": "ETH-01.json",
+    "chain": "ethereum",
+    "hash": "0xf70dab272206053e0e44c35db3891e5d72c3410fc26fcdfc9949193d4ce605da",
+    "to": "0x6f416e24bab64ea58bd6390bb5e19c6506a0d99c",
+    "label": "real public transfer, not a Clearline customer"
+   },
+   "invoices": [
+    {
+     "id": "SAMPLE-INV-2020",
+     "customer_ref": "SAMPLE-CUST-20",
+     "amount": "331.40",
+     "token": "USDT",
+     "chain": "ethereum",
+     "receiving_address": "0x6f416e24bab64ea58bd6390bb5e19c6506a0d99c",
+     "created_at": "2026-10-01T02:00:00Z",
+     "status": "paid",
+     "sample": true
+    },
+    {
+     "id": "SAMPLE-INV-2021",
+     "customer_ref": "SAMPLE-CUST-20",
+     "amount": "331.40",
+     "token": "USDT",
+     "chain": "ethereum",
+     "receiving_address": "0x6f416e24bab64ea58bd6390bb5e19c6506a0d99c",
+     "created_at": "2026-10-23T02:00:00Z",
+     "status": "open",
+     "sample": true
+    }
+   ],
+   "lookup_for": "SAMPLE-INV-2021",
+   "label": {
+    "expected_action": "review",
+    "true_invoice": "SAMPLE-INV-2021",
+    "why": "Only one open invoice, but a paid invoice used the same address: it could be a repeat of the earlier payment. Constructed: same real transfer as SCN-01.",
+    "expected_reason": "Could be a repeat payment: SAMPLE-INV-2020 (paid) used this address too. A person confirms.",
+    "reason_includes": [
+     "repeat payment"
+    ]
+   },
+   "labelled_by": "matching-engine-engineer",
+   "labelled_at": "2026-11-01",
+   "second_labeller": null,
+   "agreed": "pending (qa-security-engineer)"
+  },
+  {
+   "id": "SCN-20",
+   "case_type": "ambiguous",
+   "title": "Two open invoices on one address, only one equals the amount",
+   "split": "tuning",
+   "group": "0xb72cc77b5d18dacb9891116cec58a3887bdacfc720659382753657ef7424d820",
+   "transfer": {
+    "recording": "ETH-06.json",
+    "chain": "ethereum",
+    "hash": "0xb72cc77b5d18dacb9891116cec58a3887bdacfc720659382753657ef7424d820",
+    "to": "0x003155f21f474383314a40a3672279ce2b3ced63",
+    "label": "real public transfer, not a Clearline customer"
+   },
+   "invoices": [
+    {
+     "id": "SAMPLE-INV-2022",
+     "customer_ref": "SAMPLE-CUST-22",
+     "amount": "250.00",
+     "token": "USDT",
+     "chain": "ethereum",
+     "receiving_address": "0x003155f21f474383314a40a3672279ce2b3ced63",
+     "created_at": "2026-10-23T02:00:00Z",
+     "status": "open",
+     "sample": true
+    },
+    {
+     "id": "SAMPLE-INV-2023",
+     "customer_ref": "SAMPLE-CUST-23",
+     "amount": "100.00",
+     "token": "USDT",
+     "chain": "ethereum",
+     "receiving_address": "0x003155f21f474383314a40a3672279ce2b3ced63",
+     "created_at": "2026-10-23T03:00:00Z",
+     "status": "open",
+     "sample": true
+    }
+   ],
+   "lookup_for": "SAMPLE-INV-2022",
+   "label": {
+    "expected_action": "review",
+    "true_invoice": null,
+    "why": "No reference on-chain and two open invoices share the address; the transfer equals only SAMPLE-INV-2023, but amount alone is never proof (docs/SPEC.md: anything ambiguous goes to a person). Constructed: same real transfer as SCN-04 and SCN-09 with a different sample invoice book; added as an adversarial check that an amount-only link is counted as a false match.",
+    "expected_reason": "Two open invoices share this address; the amount equals SAMPLE-INV-2023 but amount alone isn't proof. A person assigns it.",
+    "reason_includes": [
+     "share this address",
+     "amount alone"
+    ]
+   },
+   "labelled_by": "matching-engine-engineer",
+   "labelled_at": "2026-11-01",
+   "second_labeller": null,
+   "agreed": "pending (qa-security-engineer)"
+  },
+  {
+   "id": "SCN-21",
+   "case_type": "confirming",
+   "title": "Still confirming / not final yet",
+   "split": "tuning",
+   "group": null,
+   "transfer": null,
+   "gap": "NOT FOUND AS A RECORDED REAL TRANSFER. Needs a fresh Ethereum transfer recorded within ~2 minutes of being mined (fewer than 12 confirmations). Every existing recording has hundreds of confirmations, and this session could not reach any Ethereum RPC (eth.drpc.org refused by the network policy, 2026-11-01). Not faked; excluded from the measurement.",
+   "label": {
+    "expected_action": "wait",
+    "true_invoice": null,
+    "why": "Fewer confirmations than required: not counted yet.",
+    "expected_reason": "Not final on Ethereum yet: waiting for confirmations.",
+    "reason_includes": [
+     "confirming"
+    ]
+   },
+   "labelled_by": "matching-engine-engineer",
+   "labelled_at": "2026-11-01",
+   "second_labeller": null,
+   "agreed": "pending (qa-security-engineer)"
+  }
+ ]
+}
