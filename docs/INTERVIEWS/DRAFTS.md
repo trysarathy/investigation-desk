@@ -1,5 +1,7 @@
 # Drafts for Aashmiin (nothing sent; she sends both herself)
 
+**Status 2 Nov: both APPROVED by Aashmiin (email with her one-line edit). She sends them herself.**
+
 Prepared by sales-closer-assistant, 2026-11-02. COMPANY_RULES rule 6: Matt and Vishal (Protégé Ventures,
 SMU-linked fund) and Ryan (their intro) are advisors / warm network: **her approval, she sends**.
 Outward check: no product claims, no numbers, no prices, no promises of features or dates; no mention of
@@ -18,7 +20,7 @@ To: Matt, Vishal `[AASHMIIN: add their email addresses]` · Subject: **Thank you
 >
 > Thank you for your time on the call, and for the honest feedback. You were right that I haven't been clear about what I'm building, and that I need to find the biggest pain first.
 >
-> So this week I'm not building anything new. I'm speaking with finance, operations and payments people to sharpen the problem, including the points you raised about the moment a payment comes in and FX for non-USD companies.
+> This week my main focus is speaking with finance, operations and payments people to sharpen the problem, including the points you raised about the moment a payment comes in and FX for non-USD companies.
 >
 > I'll text Ryan this week, as you suggested. If you're still happy to, I'd be very grateful for the introductions you offered to the OTC desk and the crypto accounting advisory firms.
 >
