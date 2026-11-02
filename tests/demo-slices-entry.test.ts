@@ -46,6 +46,10 @@ describe("S2: matched invoice, the same release checks, and the proposed entry f
     expect(e.rows.filter((r) => r.dr).map((r) => r.dr)).toEqual(["16.00"]);
     expect(e.rows.filter((r) => r.cr).map((r) => r.cr)).toEqual(["16.00"]);
     expect(e.planReasons).toContain("Reported twice — counted once.");
+    // The line comes from the product ignoring a real second delivery, not from the catalogue's label.
+    const r = await replay("SCN-11");
+    expect(r.duplicatesIgnored).toBe(1);
+    expect(Object.keys(r.data.observations)).toHaveLength(1);
     const P = (await import("@/app/demo/entry/page")).default as unknown as (p: { searchParams: Promise<Record<string, string>> }) => Promise<ReactNode>;
     const h = text(await html(await P({ searchParams: Promise.resolve({ s: "SCN-11" }) })));
     expect(h).toContain("Reported twice — counted once.");
@@ -104,6 +108,17 @@ describe("S2 page: labelled, never 'safe', gated, odd params", () => {
     expect(r).not.toMatch(/proposed Xero entry/i);
     const e = text(await html(await Release({ searchParams: Promise.resolve({ s: "SCN-01" }) })));
     expect(e).not.toContain("See it matched"); // not paid: no link
+  });
+  it("XSS payloads in ?s= are never echoed and nothing is injected", async () => {
+    const raw = async (el: ReactNode) => { const st = await renderToReadableStream(el); await st.allReady; return new Response(st).text(); };
+    const tagAttrs = (h: string) => [...h.matchAll(/<[a-zA-Z][\w-]*((?:\s+[\w:-]+(?:="[^"]*")?)*)\s*\/?>/g)].flatMap((m) => [...m[1].matchAll(/\s+([\w:-]+)(?:="[^"]*")?/g)].map((a) => a[1].toLowerCase()));
+    expect(tagAttrs('<p><img src="x" onerror="alert(1)"></p>')).toContain("onerror"); // the detector works (React always quotes attributes)
+    for (const s of ["<script>alert(1)</script>", "<img src=x onerror=alert(1)>", "\"><svg onload=alert(1)>"]) {
+      const h = await raw(await (await Entry())({ searchParams: Promise.resolve({ s }) }));
+      expect(h, s).not.toMatch(/<script>alert|<img src=x|<svg onload/i);
+      expect(tagAttrs(h).some((a) => a.startsWith("on")), s).toBe(false);
+      expect(h, s).not.toContain("alert(1)");
+    }
   });
   it("entry.ts reads nothing from disk", () => {
     expect(readFileSync(path.join(__dirname, "..", "src/lib/demo-slices/entry.ts"), "utf8")).not.toMatch(/node:fs|readFileSync|process\.cwd/);

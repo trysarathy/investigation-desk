@@ -69,7 +69,7 @@ export async function proposedEntry(id: string): Promise<ProposedEntry | null> {
   }
   const linked = Object.values(r.data.observations).find((o) => o.attribution.kind === "request" && o.attribution.requestId === inv.id);
   // Reported more than once, kept once by the product (one observation per transfer): say so, one entry.
-  const once = (r.scenario.deliveries ?? 1) > 1 && Object.keys(r.data.observations).length === 1;
+  const once = (r.duplicatesIgnored ?? 0) > 0;
   return { ...head, matchLine: linked?.attribution.reason ?? "Matched by a person.", status: plan.status, planReasons: once ? [...plan.reasons, "Reported twice — counted once."] : plan.reasons, rows };
 }
 
