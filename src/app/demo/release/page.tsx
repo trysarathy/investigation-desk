@@ -9,7 +9,7 @@ import { demoSlicesOn } from "@/lib/demo-slices/gate";
 import { card, DEMO_WATCH_ID, DEMO_WATCH_LABEL, notificationFor, watchTimeline } from "@/lib/demo-slices/release";
 import { scenario, scenarios, scenariosForHash, TRON_SCENARIO } from "@/lib/demo-slices/replay";
 import { entryScenarios, proposedEntry } from "@/lib/demo-slices/entry";
-import { first, wholeIn } from "@/lib/demo-slices/present";
+import { first, unknownSampleNote, wholeIn } from "@/lib/demo-slices/present";
 import { DemoHead } from "../DemoHead";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +35,7 @@ export default async function ReleaseDemo({ searchParams }: { searchParams: Prom
   return (
     <div className="page demo-page">
       <DemoHead title="Release check" current="/demo/release" />
-      {unknown && <p role="status" className="bar bar-amber" style={{ margin: 0 }}>Unknown sample {unknown} — showing {TRON_SCENARIO.id} instead.</p>}
+      {unknown && <p role="status" className="bar bar-amber" style={{ margin: 0 }}>{unknownSampleNote(unknown, "TRON-01")}</p>}
       {cards.length > 0 && (
         <section aria-label="Result" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {cards.map((c) => {

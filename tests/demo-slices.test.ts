@@ -2,7 +2,7 @@
 // messages, no "safe" anywhere on the rendered pages, a watcher that can't take a real address,
 // and no live chain call. All on the 20 replayed real transfers.
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { createElement, type ReactNode } from "react";
 import { renderToReadableStream } from "react-dom/server.edge";
@@ -243,6 +243,44 @@ describe("rendered pages: labelled, and never the word 'safe'", () => {
     const h = text(await html(await P({ searchParams: Promise.resolve({ s: "SCN-21" }) })));
     expect(h).toContain("Unknown sample SCN-21 — showing TRON-01 instead.");
     expect(h).toContain("SAMPLE-INV-T001");
+  });
+  const PAYLOADS = ["<script>alert(1)</script>", "<img src=x onerror=alert(1)>", "\"><svg onload=alert(1)>"];
+  const raw = async (el: ReactNode) => { const st = await renderToReadableStream(el); await st.allReady; return new Response(st).text(); };
+  // Injected = a raw <script>/<img src=x>/<svg onload> tag, or any event-handler attribute on any real tag.
+  const tagAttrs = (h: string) => [...h.matchAll(/<[a-zA-Z][\w-]*((?:\s+[\w:-]+(?:="[^"]*")?)*)\s*\/?>/g)].flatMap((m) => [...m[1].matchAll(/\s+([\w:-]+)(?:="[^"]*")?/g)].map((a) => a[1].toLowerCase()));
+  const injected = (h: string) => /<script>alert|<img src=x|<svg onload/i.test(h) || tagAttrs(h).some((a) => a.startsWith("on"));
+  it("the injection detector itself catches a real injection", () => {
+    expect(injected('<p><img src=x onerror=alert(1)></p>')).toBe(true);
+    expect(injected('<div onmouseover="x">a</div>')).toBe(true);
+    expect(injected('<input value="&lt;img src=x onerror=alert(1)&gt;"/>')).toBe(false);
+  });
+  it.each(["release", "notify"] as const)("%s: XSS payloads in ?s= are never echoed, and nothing is injected", async (name) => {
+    const P = (await pages())[name] as unknown as (p: { searchParams: Promise<Record<string, string>> }) => Promise<ReactNode>;
+    for (const s of PAYLOADS) {
+      const h = await raw(await P({ searchParams: Promise.resolve({ s }) }));
+      expect(injected(h), s).toBe(false);
+      expect(text(h), s).toContain("Unknown sample — showing TRON-01 instead.");
+      expect(h, s).not.toContain("alert(1)");
+    }
+  });
+  it("release: XSS payloads in ?hash= are shown only as escaped text in the input, nothing injected", async () => {
+    const P = (await pages()).release as unknown as (p: { searchParams: Promise<Record<string, string>> }) => Promise<ReactNode>;
+    for (const hash of PAYLOADS) {
+      const h = await raw(await P({ searchParams: Promise.resolve({ hash }) }));
+      expect(injected(h), hash).toBe(false);
+      expect(h, hash).toContain(`value="${hash.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}"`);
+    }
+  });
+  it("a plain unknown id (looks like a sample id) is echoed; anything else is not", async () => {
+    const P = (await pages()).release as unknown as (p: { searchParams: Promise<Record<string, string>> }) => Promise<ReactNode>;
+    expect(text(await html(await P({ searchParams: Promise.resolve({ s: "SCN-21" }) })))).toContain("Unknown sample SCN-21 — showing TRON-01 instead.");
+    expect(text(await html(await P({ searchParams: Promise.resolve({ s: "x".repeat(40) }) })))).toContain("Unknown sample — showing TRON-01 instead.");
+  });
+  it("no demo route or component uses raw HTML", () => {
+    const walk = (d: string): string[] => readdirSync(d).flatMap((f) => { const x = path.join(d, f); return statSync(x).isDirectory() ? walk(x) : [x]; });
+    for (const dir of ["src/app/demo", "src/components/demo-slices", "src/lib/demo-slices"]) {
+      for (const f of walk(path.join(__dirname, "..", dir))) expect(readFileSync(f, "utf8"), f).not.toMatch(/dangerouslySetInnerHTML|innerHTML|__html/);
+    }
   });
   it("first() and wholeIn() take the first value, round and clamp", () => {
     expect(first(["3", "0"])).toBe("3");

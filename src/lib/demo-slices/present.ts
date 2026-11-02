@@ -62,3 +62,7 @@ export function wholeIn(v: string | string[] | undefined, min: number, max: numb
   const n = Math.round(Number(first(v)));
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
 }
+
+/** The note for an unknown ?s=: echoes the value only when it looks like a sample id (React escapes it either way). */
+export const unknownSampleNote = (s: string, shown: string) =>
+  /^[A-Z0-9-]{1,16}$/.test(s) ? `Unknown sample ${s} — showing ${shown} instead.` : `Unknown sample — showing ${shown} instead.`;

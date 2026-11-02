@@ -7,7 +7,7 @@ import { ReleaseCard } from "@/components/demo-slices/ReleaseCard";
 import { demoSlicesOn } from "@/lib/demo-slices/gate";
 import { card, notificationFor } from "@/lib/demo-slices/release";
 import { scenario } from "@/lib/demo-slices/replay";
-import { first, wholeIn } from "@/lib/demo-slices/present";
+import { first, unknownSampleNote, wholeIn } from "@/lib/demo-slices/present";
 import { DemoHead } from "../DemoHead";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ export default async function NotifyDemo({ searchParams }: { searchParams: Promi
   return (
     <div className="page demo-page">
       <DemoHead title="Message preview" current="/demo/notify" />
-      {unknown && <p role="status" className="bar bar-amber" style={{ margin: 0 }}>Unknown sample {unknown} — showing TRON-01 instead.</p>}
+      {unknown && <p role="status" className="bar bar-amber" style={{ margin: 0 }}>{unknownSampleNote(unknown, "TRON-01")}</p>}
       <p style={{ margin: 0 }}>Quiet by default: a message only when a payment is paid and final, or has a problem. Never on every block.</p>
       <nav className="chips" aria-label="Example">
         {PICKS.map((p) => <Link key={p.id} className="chip" href={`/demo/notify?s=${p.id}`} aria-current={!wait && p.id === id ? "page" : undefined}>{p.label}</Link>)}
