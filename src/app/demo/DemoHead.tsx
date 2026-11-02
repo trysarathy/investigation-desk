@@ -7,7 +7,6 @@ import { TRANSFER_LABEL } from "@/lib/demo-slices/replay";
 const PAGES = [
   { href: "/demo/release", label: "Release check" },
   { href: "/demo/notify", label: "Message preview" },
-  { href: "/demo/entry", label: "Invoice and Xero entry" },
 ];
 
 export function DemoHead({ title, current }: { title: string; current: string }) {

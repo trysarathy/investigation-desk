@@ -8,7 +8,6 @@ import { Watcher } from "@/components/demo-slices/Watcher";
 import { demoSlicesOn } from "@/lib/demo-slices/gate";
 import { card, DEMO_WATCH_ID, DEMO_WATCH_LABEL, notificationFor, watchTimeline } from "@/lib/demo-slices/release";
 import { scenario, scenarios, scenariosForHash, TRON_SCENARIO } from "@/lib/demo-slices/replay";
-import { entryScenarios } from "@/lib/demo-slices/entry";
 import { first, wholeIn } from "@/lib/demo-slices/present";
 import { DemoHead } from "../DemoHead";
 
@@ -25,7 +24,6 @@ export default async function ReleaseDemo({ searchParams }: { searchParams: Prom
   const fromHash = hash ? scenariosForHash(hash) : [];
   const ids = q.s && scenario(q.s) ? [q.s] : fromHash.map((s) => s.id);
   const cards = await Promise.all(ids.map((id) => card(id)));
-  const entryIds = cards.some((c) => c.result.tone === "paid") ? await entryScenarios() : [];
   const all = [TRON_SCENARIO, ...scenarios()];
   const badHash = hash && !/^(0x)?[0-9a-fA-F]{64}$/.test(hash);
   return (
@@ -39,7 +37,6 @@ export default async function ReleaseDemo({ searchParams }: { searchParams: Prom
               <div key={c.scenarioId} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <ReleaseCard card={c} />
                 {n ? <NotificationPreview preview={n} /> : <QuietNote />}
-                {c.result.tone === "paid" && entryIds.includes(c.scenarioId) && <Link href={`/demo/entry?s=${c.scenarioId}`}>See it matched to its invoice and the proposed Xero entry</Link>}
               </div>
             );
           })}
