@@ -23,7 +23,8 @@ export default async function ReleaseDemo({ searchParams }: { searchParams: Prom
   const steps = await watchTimeline(DEMO_WATCH_ID);
   const hash = q.hash?.trim();
   const fromHash = hash ? scenariosForHash(hash) : [];
-  const ids = q.s && scenario(q.s) ? [q.s] : fromHash.map((s) => s.id);
+  const unknown = q.s && !scenario(q.s) ? q.s : undefined;
+  const ids = q.s ? [unknown ? TRON_SCENARIO.id : q.s] : fromHash.map((s) => s.id);
   const cards = await Promise.all(ids.map((id) => card(id)));
   const entryIds = cards.some((c) => c.result.tone === "paid") ? await entryScenarios() : [];
   // Only promise a proposed entry where the posting plan prepared one (TRON-01 has none: Tron isn't in the plan).
@@ -34,6 +35,7 @@ export default async function ReleaseDemo({ searchParams }: { searchParams: Prom
   return (
     <div className="page demo-page">
       <DemoHead title="Release check" current="/demo/release" />
+      {unknown && <p role="status" className="bar bar-amber" style={{ margin: 0 }}>Unknown sample {unknown} — showing {TRON_SCENARIO.id} instead.</p>}
       {cards.length > 0 && (
         <section aria-label="Result" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {cards.map((c) => {

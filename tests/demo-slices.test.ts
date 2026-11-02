@@ -237,6 +237,12 @@ describe("rendered pages: labelled, and never the word 'safe'", () => {
     expect(h).toContain("No message for this update.");
     expect(h).toContain("Not final yet");
   });
+  it.each(["release", "notify"] as const)("%s: an unknown sample says so and shows TRON-01 instead (never blank, never silent)", async (name) => {
+    const P = (await pages())[name] as unknown as (p: { searchParams: Promise<Record<string, string>> }) => Promise<ReactNode>;
+    const h = text(await html(await P({ searchParams: Promise.resolve({ s: "SCN-21" }) })));
+    expect(h).toContain("Unknown sample SCN-21 — showing TRON-01 instead.");
+    expect(h).toContain("SAMPLE-INV-T001");
+  });
   it("first() and wholeIn() take the first value, round and clamp", () => {
     expect(first(["3", "0"])).toBe("3");
     expect(wholeIn(["4", "1"], 1, 9, 1)).toBe(4);
