@@ -73,13 +73,24 @@ describe("S2 page: labelled, never 'safe', gated, odd params", () => {
     expect(h).toContain(DEMO_WATCH_LABEL);
     expect(h).toContain(TRANSFER_LABEL);
     expect(h).toContain("Approve");
-    expect(h).toContain("Proposed Xero entry");
     if (Array.isArray(q.s)) expect(h).toContain("Matched to SAMPLE-INV-2001");
+    if (Array.isArray(q.s)) expect(h).toContain("Proposed Xero entry"); // SCN-01 has a plan
   });
   it.each([["DEMO_MODE", "off"], ["DEMO_MODE", "live"], ["DEMO_MODE", "0"], ["DEMO_SLICES", "off"]])("%s=%s: not-found", async (k, v) => {
     process.env[k] = v;
     try { await expect((await Entry())({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_NOT_FOUND"); }
     finally { process.env.DEMO_MODE = "on"; delete process.env.DEMO_SLICES; }
+  });
+  it("TRON-01 (no entry prepared): the link and heading don't promise a proposed entry", async () => {
+    const h = text(await html(await (await Entry())({ searchParams: Promise.resolve({ s: "TRON-01" }) })));
+    expect(h).toMatch(/Xero entry/);
+    expect(h).not.toContain("Proposed Xero entry");
+    const Release = (await import("@/app/demo/release/page")).default as unknown as (p: { searchParams: Promise<Record<string, string>> }) => Promise<ReactNode>;
+    const r = text(await html(await Release({ searchParams: Promise.resolve({ s: "TRON-01" }) })));
+    expect(r).toContain("See it matched to its invoice");
+    expect(r).not.toMatch(/proposed Xero entry/i);
+    const e = text(await html(await Release({ searchParams: Promise.resolve({ s: "SCN-01" }) })));
+    expect(e).not.toContain("See it matched"); // not paid: no link
   });
   it("entry.ts reads nothing from disk", () => {
     expect(readFileSync(path.join(__dirname, "..", "src/lib/demo-slices/entry.ts"), "utf8")).not.toMatch(/node:fs|readFileSync|process\.cwd/);

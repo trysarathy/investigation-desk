@@ -37,7 +37,7 @@ export default async function EntryDemo({ searchParams }: { searchParams: Promis
             </div>
           </section>
           <section className="panel" aria-labelledby="entry-h" data-testid="entry-proposed">
-            <div className="panel-h"><h2 id="entry-h" style={{ margin: 0, fontSize: 15 }}>Proposed Xero entry</h2></div>
+            <div className="panel-h"><h2 id="entry-h" style={{ margin: 0, fontSize: 15 }}>{e.rows.length ? "Proposed Xero entry" : "Xero entry"}</h2></div>
             <div className="panel-b">
               <ul className="points">{e.planReasons.map((r, i) => <li key={i}>{r}</li>)}</ul>
               {e.rows.length > 0 && (
