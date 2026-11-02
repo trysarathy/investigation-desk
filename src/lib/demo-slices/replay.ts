@@ -24,6 +24,8 @@ export interface Scenario {
   invoices: SampleInvoice[]; lookup_for: string;
   wallets?: { chain: "tron"; address: string; label: string }[];
   person_decision?: { kind: "accept_short"; note: string };
+  /** How many times the same transfer is reported (SCN-11: twice). The product must count it once. */
+  deliveries?: number;
 }
 interface Exchange { request: { method: string; url: string; body?: string }; response: { status: number; headers: Record<string, string>; body: string } }
 interface Recording { name: string; hash: string; recordedAt: string; exchanges: Exchange[] }
@@ -83,6 +85,8 @@ export interface Replayed {
   /** Blocks on top of the transfer's block, as replayed. */
   confirmations?: number;
   threshold: number;
+  /** Repeat deliveries of a transfer the product recognised and ignored (SCN-11 is reported twice). */
+  duplicatesIgnored?: number;
 }
 
 function invoiceBook(s: Scenario): RequestsData {
@@ -130,14 +134,21 @@ export async function replay(id: string, o: { asOfConfirmations?: number; applyD
     facts = { ...facts, currentBlock: facts.tx!.blockNumber + k };
     events = events.map((e) => ({ ...e, confirmations: k }));
   }
-  for (const ev of events) data = ingest(data, ev, rec.recordedAt, "Demo replay of a recorded transfer", checkObservation(rec.recordedAt, facts), CONFIRMATIONS).data;
+  let duplicatesIgnored = 0;
+  for (let n = 0; n < (s.deliveries ?? 1); n++) {
+    for (const ev of events) {
+      const res = ingest(data, ev, rec.recordedAt, "Demo replay of a recorded transfer", checkObservation(rec.recordedAt, facts), CONFIRMATIONS);
+      if (res.outcome === "duplicate") duplicatesIgnored++;
+      data = res.data;
+    }
+  }
   if (o.applyDecision && s.person_decision) {
     const res = decide(data, s.lookup_for, { kind: s.person_decision.kind, note: s.person_decision.note }, { now: rec.recordedAt, by: "SAMPLE operator", threshold: CONFIRMATIONS });
     if (!res.error) data = res.data;
   }
   const linked = Object.values(data.observations).map((x) => (x.attribution.kind === "request" ? x.attribution.requestId : undefined)).find(Boolean);
   const view = deriveRequest(data, data.requests[linked ?? s.lookup_for], CONFIRMATIONS);
-  return { ...base, data, facts, view, confirmations: events[0]?.confirmations };
+  return { ...base, data, facts, view, confirmations: events[0]?.confirmations, duplicatesIgnored };
 }
 
 /** Which recorded scenarios a pasted hash belongs to. Only the recorded hashes are known; nothing is looked up. */
