@@ -1,14 +1,12 @@
-// Demo slices S1 / S1b / S2 and the demo watcher (DEMO ONLY): wording per state, quiet-by-default
+// Demo slices S1 / S1b and the demo watcher (DEMO ONLY): wording per state, quiet-by-default
 // messages, no "safe" anywhere on the rendered pages, a watcher that can't take a real address,
-// no live chain call, and an Approve that sends nothing. All on the 20 replayed real transfers.
+// and no live chain call. All on the 20 replayed real transfers.
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { createElement, type ReactNode } from "react";
 import { renderToReadableStream } from "react-dom/server.edge";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { planPosting } from "@/lib/accounting/rules";
-import { APPROVED_MESSAGE, APPROVER, entryScenarios, NOT_CHECKED_MESSAGE, proposedEntry, WAITING_MESSAGE } from "@/lib/demo-slices/entry";
 import { checkChips, ranSummary, statusLabel, technicalLines } from "@/lib/demo-slices/present";
 import { demoSlicesOn } from "@/lib/demo-slices/gate";
 import { card, cardFor, DEMO_WATCH_ID, DEMO_WATCH_LABEL, freezeRowFor, notificationFor, watchTimeline } from "@/lib/demo-slices/release";
@@ -137,53 +135,9 @@ describe("demo watcher: demo only, can't be pointed at a real address, no live c
   });
 });
 
-describe("S2: matched invoice, the same release checks, and the proposed entry from the existing posting plan", () => {
-  it("leads with TRON-01, then Ethereum plans that are ready with payment lines; Dr clearing = Cr receivable = the plan's amount", async () => {
-    const ids = await entryScenarios();
-    expect(ids).toEqual(["TRON-01", "SCN-01", "SCN-02", "SCN-03", "SCN-04", "SCN-05", "SCN-11"]);
-    for (const id of ids.slice(1)) {
-      const e = (await proposedEntry(id))!;
-      const r = await replay(id);
-      const acct = { version: 1 as const, provider: "demo" as const, accounts: { walletAccountCode: "SAMPLE-CLR", feeAccountCode: "SAMPLE-SHORTFALL" }, audit: [],
-        links: { [r.invoice.id]: { provider: "demo" as const, invoiceId: r.invoice.id, invoiceNumber: r.invoice.id, contactName: r.invoice.customer_ref, currency: "USD", amountDue: r.invoice.amount, linkedAt: r.invoice.created_at, demo: true } } };
-      const plan = planPosting(r.data, acct, r.invoice.id, { threshold: 12 });
-      expect(e.rows.filter((x) => x.dr).map((x) => x.dr)).toEqual(plan.lines.map((l) => l.amount));
-      expect(e.rows.filter((x) => x.cr).map((x) => x.cr)).toEqual(plan.lines.map((l) => l.amount));
-      expect(e.rows[0]).toMatchObject({ account: "Stablecoin clearing (sample account)", code: "SAMPLE-CLR" });
-      expect(e.rows[0].detail).toMatch(/ USDT? × 1\.00 USD \(assumed peg, not a market rate\)|USDC × 1\.00 USD \(assumed peg, not a market rate\)/);
-      // Post only when final: Ethereum finality isn't read, so none of these can be approved.
-      expect(e.approvable, id).toBe(false);
-      expect(e.matchLine).not.toMatch(/on-chain this is done|confirmed/i);
-    }
-  });
-  it("TRON-01: final, but no posting plan exists for Tron, so it says so instead of inventing an entry", async () => {
-    const e = (await proposedEntry("TRON-01"))!;
-    expect(e).toMatchObject({ approvable: true, status: "no_plan", rows: [] });
-    expect(e.planReasons[0]).toBe("Clearline's posting plan covers Ethereum payments only today, so no Xero entry is prepared for this Tron payment.");
-  });
-  it("the page: checks right above Approve; Approve disabled, saying finality wasn't checked (not 'waiting') on Ethereum", async () => {
-    const P = (await import("@/app/demo/entry/page")).default;
-    const h = text(await html(await P({ searchParams: Promise.resolve({ s: "SCN-01" }) })));
-    expect(h).toContain(NOT_CHECKED_MESSAGE);
-    expect(NOT_CHECKED_MESSAGE).toBe("Finality wasn't checked, so this can't be approved.");
-    expect(h).not.toContain(WAITING_MESSAGE); // "Waiting until final" only when finality is actually pending
-    expect(h).toMatch(/Checks\s+Final: NOT checked\s+Network: checked\s+Address: checked\s+Token: checked\s+Amount: checked\s+Sanctions \(US OFAC SDN only\): NOT checked\s+Freeze: checked/);
-    expect(h).toContain("SGD: rate not applied in this demo.");
-    expect(h).not.toMatch(/On-chain this is done/);
-    const raw = await html(await P({ searchParams: Promise.resolve({ s: "SCN-01" }) }));
-    expect(raw).toMatch(/<button[^>]*disabled=""[^>]*data-testid="approve-demo"/);
-  });
-  it("Approve sends nothing: no network or server call in the component, and it says so", () => {
-    const src = readFileSync(path.join(__dirname, "..", "src/components/demo-slices/ApproveDemo.tsx"), "utf8").replace(/^\s*\/\/.*$/gm, "");
-    expect(src).not.toMatch(/fetch\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource|"use server"|action=/);
-    expect(APPROVED_MESSAGE).toBe("Live, this would now post to Xero. Demo: nothing sent.");
-    expect(APPROVER).toBe("Mei Tan (sample user)");
-  });
-});
-
 describe("bundled data: the demo doesn't need tests/ on disk at runtime (Docker image)", () => {
   it("no demo-slices module reads files from disk", () => {
-    for (const f of ["replay.ts", "release.ts", "entry.ts", "present.ts", "gate.ts", "fixtures.ts"]) {
+    for (const f of ["replay.ts", "release.ts", "present.ts", "gate.ts", "fixtures.ts"]) {
       const src = readFileSync(path.join(__dirname, "..", "src/lib/demo-slices", f), "utf8");
       expect(src, f).not.toMatch(/node:fs|readFileSync|process\.cwd/);
     }
@@ -226,12 +180,11 @@ describe("rendered pages: labelled, and never the word 'safe'", () => {
   const pages = async () => ({
     release: (await import("@/app/demo/release/page")).default,
     notify: (await import("@/app/demo/notify/page")).default,
-    entry: (await import("@/app/demo/entry/page")).default,
   });
   const cases: [keyof Awaited<ReturnType<typeof pages>>, Record<string, string>][] = [
     ["release", {}], ["release", { at: "3", paused: "1" }], ["release", { hash: "nope" }], ["release", { hash: `0x${"1".repeat(64)}` }],
     ...scenarios().map((s) => ["release", { s: s.id }] as [keyof Awaited<ReturnType<typeof pages>>, Record<string, string>]),
-    ["notify", {}], ["notify", { s: "TRON-01", wait: "4" }], ["release", { s: "TRON-01" }], ["notify", { s: "SCN-16" }], ["entry", {}], ["entry", { s: "SCN-07" }],
+    ["notify", {}], ["notify", { s: "TRON-01", wait: "4" }], ["release", { s: "TRON-01" }], ["notify", { s: "SCN-16" }],
   ];
   it.each(cases)("%s %j", async (name, q) => {
     const P = (await pages())[name] as (p: { searchParams: Promise<Record<string, string>> }) => Promise<ReactNode>;
@@ -242,7 +195,6 @@ describe("rendered pages: labelled, and never the word 'safe'", () => {
     if (name === "notify" && !q.wait) expect(h).toContain("Preview — nothing is sent");
     if (name === "notify" && !q.s && !q.wait) expect(h).toContain("Paid and final: SAMPLE-INV-T001");
     if (name === "notify" && q.wait) expect(h).toContain("No message for this update.");
-    if (name === "entry") { expect(h).toContain("Approve"); expect(h).toContain("Proposed Xero entry"); }
   });
   it("the watcher's every step renders without 'safe', and the not-final step says 'Final: not yet'", async () => {
     const { Watcher } = await import("@/components/demo-slices/Watcher");
@@ -255,7 +207,7 @@ describe("rendered pages: labelled, and never the word 'safe'", () => {
   });
   const ALL_ROUTES = async () => ({
     "/demo": (await import("@/app/demo/page")).default as unknown as (p: { searchParams: Promise<Record<string, string>> }) => unknown,
-    "/demo/release": (await pages()).release, "/demo/notify": (await pages()).notify, "/demo/entry": (await pages()).entry,
+    "/demo/release": (await pages()).release, "/demo/notify": (await pages()).notify,
   });
   it.each([["DEMO_MODE", "off"], ["DEMO_MODE", "live"], ["DEMO_MODE", "0"], ["DEMO_MODE", "false"], ["DEMO_SLICES", "off"]])("%s=%s: every demo route is not-found", async (k, v) => {
     process.env[k] = v;
@@ -269,7 +221,6 @@ describe("rendered pages: labelled, and never the word 'safe'", () => {
     ["release", { at: "1.5" }], ["release", { at: "-3" }], ["release", { at: "99999" }], ["release", { at: "abc" }],
     ["release", { hash: ["a", "b"] }], ["release", { s: ["SCN-01", "SCN-07"] }], ["release", { at: ["2", "3"], paused: ["1", "0"] }],
     ["notify", { s: ["SCN-07", "SCN-01"] }], ["notify", { wait: ["2", "3"] }], ["notify", { wait: "2.5" }],
-    ["entry", { s: ["SCN-01", "SCN-02"] }],
   ] as [string, Record<string, string | string[]>][])("%s %j: odd or repeated params render (first value wins)", async (name, q) => {
     const P = (await pages())[name as "release"] as unknown as (p: { searchParams: Promise<Record<string, string | string[]>> }) => Promise<ReactNode>;
     const h = text(await html(await P({ searchParams: Promise.resolve(q) })));
