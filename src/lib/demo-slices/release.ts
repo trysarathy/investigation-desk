@@ -11,7 +11,7 @@ import type { Recording } from "../demo/recordings";
 import { readFinalityFromRecordings } from "../requests/finality";
 import { readIssuerFreeze, type FreezeQuery } from "../requests/freeze";
 import { formatUsdc } from "../requests/lifecycle";
-import { shortHash } from "../requests/present";
+import { shortAddr, shortHash } from "../requests/present";
 import { amountCheck, finalityCheck, ISSUER, networkCheck, receivingAddressCheck, releaseHeadline, tokenCheck, type CheckResult, type FinalityCheck, type FreezeCheck, type ReleaseChecks, type ReleaseHeadline } from "../requests/release-checks";
 import { loadSanctionsSnapshot, screenSender } from "../requests/sanctions";
 import { confirmPace } from "../requests/status";
@@ -54,6 +54,9 @@ async function recordedFinality(r: Replayed, chain: string, hash: string, blockN
   return readFinalityFromRecordings(recs, { chain: chain as Chain, hash, blockNumber });
 }
 
+/** Marks a finality "not final yet" that comes from replaying the wait, not from reading the chain's finality signal. */
+export const REPLAYED_WAIT = "Replayed wait (no finality read)";
+
 /** The release checks for one replayed transfer: crypto-protocol-engineer's builders, fed with recorded data only. */
 export async function releaseChecks(r: Replayed, o: { replayedWait?: boolean; finalizedBlock?: number } = {}): Promise<ReleaseChecks> {
   const inv = r.invoice, t = inv.token, at = r.recordedAt;
@@ -63,7 +66,7 @@ export async function releaseChecks(r: Replayed, o: { replayedWait?: boolean; fi
   const src = "Recorded chain data (replayed)";
   const finality: FinalityCheck = o.replayedWait && tx
     // Replaying the wait: the transfer had only just gone into its block, so the network can't have finalized it yet.
-    ? { state: "pending", blockNumber: tx.blockNumber, source: src, detail: `Not final yet${confirmPace(chain) ? ` — usually ${confirmPace(chain)} more` : ""} (this wait is replayed faster than real time).`, technical: `In block ${tx.blockNumber}; replayed wait.` }
+    ? { state: "pending", blockNumber: tx.blockNumber, source: REPLAYED_WAIT, detail: `Not final yet${confirmPace(chain) ? ` — usually ${confirmPace(chain)} more` : ""} (this wait is replayed faster than real time).`, technical: `In block ${tx.blockNumber}; replayed wait.` }
     : o.finalizedBlock !== undefined
       ? finalityCheck({ chain, blockNumber: tx?.blockNumber, finalizedBlock: o.finalizedBlock, source: src, checkedAt: at })
       : await recordedFinality(r, chain, r.scenario.transfer!.hash, tx?.blockNumber);
@@ -103,8 +106,9 @@ export interface ReleaseCard {
   network: string;
   hash: string;
   shortHash: string;
-  from?: string;
-  to?: string;
+  /** Where the transfer was paid: the same leg the checks used (the invoice's address if any leg went there). */
+  paidTo?: string;
+  paidToShort?: string;
   checks: ReleaseChecks;
   result: ReleaseHeadline;
   /** The network the invoice asks for (the transfer's is `network`). */
@@ -115,11 +119,11 @@ export interface ReleaseCard {
 export async function cardFor(r: Replayed, o: { replayedWait?: boolean; finalizedBlock?: number } = {}): Promise<ReleaseCard> {
   const checks = await releaseChecks(r, o);
   const tx = r.facts?.tx;
-  const x = tx?.transfers[0];
+  const x = tx?.transfers.find((t) => sameAddress(t.to, r.invoice.receiving_address)) ?? tx?.transfers[0];
   return {
     scenarioId: r.scenario.id, title: r.scenario.title, invoiceId: r.invoice.id, customerRef: r.invoice.customer_ref,
     invoiceAmount: `${formatUsdc(r.invoice.amount)} ${r.invoice.token}`, network: NET[tx?.chain ?? "ethereum"] ?? String(tx?.chain),
-    hash: r.scenario.transfer!.hash, shortHash: shortHash(r.scenario.transfer!.hash), from: x?.from, to: x?.to,
+    hash: r.scenario.transfer!.hash, shortHash: shortHash(r.scenario.transfer!.hash), paidTo: x?.to, paidToShort: x ? shortAddr(x.to) : undefined,
     checks, result: humanResult(releaseHeadline(checks)), label: TRANSFER_LABEL, invoiceNetwork: NET[r.invoice.chain ?? "ethereum"],
   };
 }
@@ -153,6 +157,8 @@ export function notificationFor(c: ReleaseCard): NotificationPreview | null {
 /** The only thing the demo watcher can watch. Not an address on any network, on purpose. */
 export const DEMO_WATCH_ID = "demo-replay-1";
 export const DEMO_WATCH_LABEL = "Demo: replaying recorded transfers";
+/** Not "one address": the script replays transfers to several sample invoices' addresses (a test ties the two). */
+export const WATCH_HEADING = "Replaying recorded transfers to the sample invoices' addresses";
 
 /** The watcher's script: recorded transfers, some replayed through their wait for blocks first. */
 export const WATCH_SCRIPT: { id: string; asOfConfirmations?: number }[] = [

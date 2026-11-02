@@ -40,7 +40,7 @@ export function ReleaseCard({ card, live = false, headingLevel = 2 }: { card: Ca
         </details>
       )}
       <p className="muted" style={{ fontSize: 13 }}>
-        {card.customerRef} · transfer <span className="mono" title={card.hash}>{card.shortHash}</span> on {card.network}
+        {card.customerRef}{card.paidToShort && <> · paid to <span className="mono" title={card.paidTo}>{card.paidToShort}</span></>} · transfer <span className="mono" title={card.hash}>{card.shortHash}</span> on {card.network}
       </p>
     </section>
   );
