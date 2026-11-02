@@ -91,6 +91,10 @@ compare. `normalise.ts`: input type detection. `types.ts`: `Chain`, `EVM_CHAIN_I
 | `provider.ts` | `SimulatedProvider` (demo; hashes start `0x00000000`), `LiveHashProvider.lookup` (Ethereum only; another chain returns a message and **records nothing**) |
 | `present.ts` | `eip681()` URI, verdict text, next action, reply drafts, refund *instructions* (text for treasury, never a transaction) |
 | `service.ts` | Server side: store lock, `createPaymentRequest`, `actOnRequest`, `attachHash` (live lookup → `ingest`) |
+| `status.ts` | 6a: `paymentStatus()` one plain sentence per payment, `confirmPace()` (pace, not countdown; says "confirmed", never "final") |
+| `release-checks.ts` | S1 (2026-11-02), pure, UI-importable: `CheckState`, `ReleaseChecks {finality, token, amount, sanctions, freeze}`, `finalityCheck`/`tokenCheck`/`amountCheck`, `releaseHeadline()` → `{tone, headline, lines, allChecked}`; wording only for passed checks, "NOT checked" otherwise, never "safe". **Not wired into a page yet; no finalized-head read exists (G1), so finality is `not_run` until one is built** |
+| `sanctions.ts` | S1: `screenSender()` against a recorded OFAC SDN digital-currency snapshot (`parseSanctionsSnapshot`, `loadSanctionsSnapshot`); none shipped → `not_run` |
+| `freeze.ts` | S1: `readIssuerFreeze()` sender + receiver via `ethCall`/`isBlackListed`; error → `not_run` |
 | `demo.ts` | Fictional Northwind week (cases a-g), `COUNTERFEIT_USDT`, `lookalikeOf` |
 | `store.ts`, `ui.ts` | JSON store with lock; list/sort helpers |
 
