@@ -92,7 +92,8 @@ compare. `normalise.ts`: input type detection. `types.ts`: `Chain`, `EVM_CHAIN_I
 | `present.ts` | `eip681()` URI, verdict text, next action, reply drafts, refund *instructions* (text for treasury, never a transaction) |
 | `service.ts` | Server side: store lock, `createPaymentRequest`, `actOnRequest`, `attachHash` (live lookup → `ingest`) |
 | `status.ts` | 6a: `paymentStatus()` one plain sentence per payment, `confirmPace()` (pace, not countdown; says "confirmed", never "final") |
-| `release-checks.ts` | S1 (2026-11-02), pure, UI-importable: `CheckState`, `ReleaseChecks {finality, token, amount, sanctions, freeze}`, `finalityCheck`/`tokenCheck`/`amountCheck`, `releaseHeadline()` → `{tone, headline, lines, allChecked}`; wording only for passed checks, "NOT checked" otherwise, never "safe". **Not wired into a page yet; no finalized-head read exists (G1), so finality is `not_run` until one is built** |
+| `release-checks.ts` | S1 (2026-11-02), pure, UI-importable: `CheckState`, `ReleaseChecks {finality, token, amount, sanctions, freeze}`, `finalityCheck`/`tokenCheck`/`amountCheck`, `releaseHeadline()` → `{tone, headline, lines, allChecked}`; wording only for passed checks, "NOT checked" otherwise, never "safe". **Not wired into a page yet** |
+| `finality.ts` | S1: `readFinality()` (Tron solidified head / EVM `finalized` tag via `TronFetcher.solidifiedBlock`, `EvmFetcher.finalizedBlock`; error → `not_run`; Etherscan refuses the tag → Ethereum `not_run` with a key) and `readFinalityFromRecordings()` (demo: only recordings that read the finality signal, labelled "recorded at") |
 | `sanctions.ts` | S1: `screenSender()` against a recorded OFAC SDN digital-currency snapshot (`parseSanctionsSnapshot`, `loadSanctionsSnapshot`); none shipped → `not_run` |
 | `freeze.ts` | S1: `readIssuerFreeze()` sender + receiver via `ethCall`/`isBlackListed`; error → `not_run` |
 | `demo.ts` | Fictional Northwind week (cases a-g), `COUNTERFEIT_USDT`, `lookalikeOf` |
@@ -167,7 +168,7 @@ synthetic CSVs; `src/lib/fixtures/` fabricated sample data.
 
 | # | Gap | Where | Severity |
 |---|---|---|---|
-| G1 | Confirmations counted from **latest** head (Tron `/wallet/getblock`, EVM `eth_blockNumber`), not solidified/`finalized`; Tron 19-block solidification and Ethereum ~2-epoch finality not used | `chain/tron.ts`, `chain/evm.ts`, `engine/context.ts` | High before live crediting |
+| G1 | (S1 release wording reads solidified/`finalized` since 2026-11-02, `requests/finality.ts`; lookups, ingest and posting don't) Confirmations counted from **latest** head (Tron `/wallet/getblock`, EVM `eth_blockNumber`), not solidified/`finalized`; Tron 19-block solidification and Ethereum ~2-epoch finality not used | `chain/tron.ts`, `chain/evm.ts`, `engine/context.ts` | High before live crediting |
 | G2 | **Reorg-blind**: mined tx/receipt/block cached forever; `ingest` keeps the first block number and never lowers confirmations; a re-included tx with a new `logIndex` gets a **second** observation key → can read as "paid twice"; payments `refresh.ts` never re-reads a found hash | `chain/evm.ts`, `requests/lifecycle.ts`, `payments/refresh.ts` | High |
 | G3 | Payment-request receiving address and accounting-import address: regex only, **no EIP-55 checksum** (the CSV validator has one) | `requests/lifecycle.ts validateRequest`, `api/accounting/import` | Medium |
 | G4 | Counterfeit with confusable symbol ("ÚЅDТ") is labelled `wrong_token`, not `counterfeit` (engine still says D06; never counted or posted) | `requests/lifecycle.ts transferIssue` | Low-Medium (explanation quality) |
