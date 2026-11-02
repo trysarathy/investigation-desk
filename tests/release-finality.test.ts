@@ -57,7 +57,7 @@ describe.skipIf(!process.env.RECORD_FINALITY)("record finality reads", () => {
       const recordedAt = new Date().toISOString();
       await readFinality(depsFor(transport, process.env.ETHERSCAN_API_KEY ?? "", true), CASES[name], () => new Date(recordedAt));
       await new Promise((r) => setTimeout(r, 1500));
-      writeFileSync(file(name), JSON.stringify({ name, hash: CASES[name].hash, explorer: "", recordedAt, exchanges }));
+      writeFileSync(file(name), JSON.stringify({ name, hash: CASES[name].hash, explorer: CASES[name].chain === "tron" ? `https://tronscan.org/#/transaction/${CASES[name].hash}` : `https://etherscan.io/tx/${CASES[name].hash}`, ...(name === "FINALITY-TRON-NOT-SOLID" ? { label: "lookup of a made-up hash, not a real payment" } : {}), recordedAt, exchanges }));
     }, 60_000);
   }
 });
@@ -114,6 +114,27 @@ describe.skipIf(!!process.env.RECORD_FINALITY)("finality, replayed from real rec
   it("not in a block yet → pending, and no call is made", async () => {
     const none: Transport = async () => { throw new Error("must not be called"); };
     expect((await readFinality(depsFor(none), { chain: "tron", hash: TRN01 })).state).toBe("pending");
+  });
+});
+
+describe.skipIf(!!process.env.RECORD_FINALITY)("QA #68 (2 Nov)", () => {
+  it("a provider layer that throws (not just a failed request) → not_run, never an exception", async () => {
+    const boom = () => { throw new Error("provider bug"); };
+    const deps = { tron: { solidifiedBlock: boom, solidTxBlock: boom }, evm: { finalizedBlock: boom, canonicalBlock: boom } } as unknown as Parameters<typeof readFinality>[0];
+    for (const chain of ["tron", "ethereum"] as const) {
+      await expect(readFinality(deps, { chain, hash: TRN01, blockNumber: 5 })).resolves.toMatchObject({ state: "not_run" });
+    }
+  });
+
+  it("every finality recording names its explorer page; the made-up-hash one says so", () => {
+    for (const name of Object.keys(CASES)) expect(load(name).explorer).toMatch(/^https:\/\/(etherscan\.io|tronscan\.org)\//);
+    expect((load("FINALITY-TRON-NOT-SOLID") as Recording & { label?: string }).label).toBe("lookup of a made-up hash, not a real payment");
+  });
+
+  it("an unreadable recording time is left out of the line, never \"NaN\"", async () => {
+    const rec = { ...load("FINALITY-TRON"), recordedAt: "not a time" };
+    const c = await readFinalityFromRecordings([rec], CASES["FINALITY-TRON"]);
+    expect(c.detail).not.toMatch(/NaN/);
   });
 });
 
