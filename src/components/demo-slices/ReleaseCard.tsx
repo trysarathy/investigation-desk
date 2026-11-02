@@ -3,7 +3,7 @@
 
 import { StatusIcon } from "@/components/Status";
 import type { ReleaseCard as Card } from "@/lib/demo-slices/release";
-import { checkChips, ranSummary, statusLabel, type ChipTone } from "@/lib/demo-slices/present";
+import { checkChips, ranSummary, statusLabel, technicalLines, type ChipTone } from "@/lib/demo-slices/present";
 
 const BOX = { paid: "paid", not_yet: "progress", problem: "blocked" } as const;
 const ICON: Record<ChipTone, "pass" | "fail" | "warn" | "info"> = { pass: "pass", fail: "fail", warn: "warn", wait: "info" };
@@ -12,7 +12,7 @@ const ICON: Record<ChipTone, "pass" | "fail" | "warn" | "info"> = { pass: "pass"
 export function CheckChips({ card }: { card: Card }) {
   return (
     <ul className="release-checks" aria-label="Checks" data-testid="check-chips">
-      {checkChips(card.checks, { wrongNetwork: card.wrongNetwork }).map((c) => (
+      {checkChips(card.checks, { paidOn: card.network, invoiceOn: card.invoiceNetwork }).map((c) => (
         <li key={c.key} className={`status s-${ICON[c.tone]}`} data-check={c.key} data-tone={c.tone}>
           <StatusIcon status={ICON[c.tone]} /><span>{c.label}: {c.word}</span>
         </li>
@@ -33,6 +33,12 @@ export function ReleaseCard({ card, live = false, headingLevel = 2 }: { card: Ca
       <ul className="release-lines" data-testid="release-lines">
         {card.result.lines.map((l, i) => <li key={i}>{l}</li>)}
       </ul>
+      {technicalLines(card.checks).length > 0 && (
+        <details className="tech" data-testid="technical">
+          <summary className="muted" style={{ fontSize: 13, cursor: "pointer" }}>Technical details</summary>
+          <ul className="release-lines" style={{ fontSize: 12 }}>{technicalLines(card.checks).map((l, i) => <li key={i} className="mono">{l}</li>)}</ul>
+        </details>
+      )}
       <p className="muted" style={{ fontSize: 13 }}>
         {card.customerRef} · transfer <span className="mono" title={card.hash}>{card.shortHash}</span> on {card.network}
       </p>

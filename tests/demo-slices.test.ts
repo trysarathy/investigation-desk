@@ -9,9 +9,9 @@ import { renderToReadableStream } from "react-dom/server.edge";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { planPosting } from "@/lib/accounting/rules";
 import { APPROVED_MESSAGE, APPROVER, entryScenarios, proposedEntry, WAITING_MESSAGE } from "@/lib/demo-slices/entry";
-import { checkChips, ranSummary, statusLabel } from "@/lib/demo-slices/present";
+import { checkChips, ranSummary, statusLabel, technicalLines } from "@/lib/demo-slices/present";
 import { demoSlicesOn } from "@/lib/demo-slices/gate";
-import { card, cardFor, DEMO_WATCH_ID, DEMO_WATCH_LABEL, FREEZE_FIXTURE, freezeFixtureCovers, notificationFor, watchTimeline } from "@/lib/demo-slices/release";
+import { card, cardFor, DEMO_WATCH_ID, DEMO_WATCH_LABEL, freezeRowFor, notificationFor, watchTimeline } from "@/lib/demo-slices/release";
 import { replay, replayOnly, scenarios, scenariosForHash, TRANSFER_LABEL } from "@/lib/demo-slices/replay";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {}, replace() {} }), usePathname: () => "/demo/release",
@@ -32,27 +32,28 @@ describe("S1 release card: crypto-protocol-engineer's checks, fed with recorded 
     expect(c.result.lines[0]).toBe("Right token and amount. Sender NOT checked. Not frozen.");
     expect(c.checks.sanctions.state).toBe("not_run");
     expect(c.checks.freeze).toMatchObject({ state: "passed", issuer: "Tether" });
-    expect(c.checks.freeze.detail).toMatch(/^Neither the sender nor the receiving address is frozen by Tether \(as of .* block \d+\); this can change later\.$/);
+    expect(c.checks.freeze.detail).toMatch(/^Neither the sender nor the receiving address is frozen by Tether \(as of 2 Nov 2026, .* SGT\); this can change later\.$/);
   });
   it("with a finalized block covering the transfer: Paid and final, and still says the sender was NOT checked", async () => {
     const r = await replay("SCN-01");
     const c = await cardFor(r, { finalizedBlock: r.facts!.tx!.blockNumber });
     expect(c.result).toMatchObject({ tone: "paid", headline: "Paid and final. Right token and amount. Sender NOT checked. Not frozen.", allChecked: false });
     const r5 = await replay("SCN-05");
-    expect((await cardFor(r5, { finalizedBlock: r5.facts!.tx!.blockNumber })).result.headline).toBe("Paid and final. Right token and amount. Sender NOT checked. Freeze status NOT checked.");
+    expect((await cardFor(r5, { finalizedBlock: r5.facts!.tx!.blockNumber })).result.headline).toBe("Paid and final. Right token and amount. Sender NOT checked. Not frozen.");
   });
   it("TRON-01 (Tron-first): Paid and final from the recorded Tron finality read, and the line says it's a recording, not a live read", async () => {
     const c = await card("TRON-01");
-    expect(c.result).toMatchObject({ tone: "paid", headline: "Paid and final. Right token and amount. Sender NOT checked. Freeze status NOT checked.", allChecked: false });
-    expect(c.result.lines[0]).toMatch(/^In block \d+; the network had finalized up to block 87642970\. \(from a recording made at .*, not a live read\)$/);
+    expect(c.result).toMatchObject({ tone: "paid", headline: "Paid and final. Right token and amount. Sender NOT checked. Not frozen.", allChecked: false });
+    expect(c.result.lines[0]).toMatch(/^Final on Tron \(can't be reversed\)\. \(recorded 2 Nov 2026, .* SGT, not a live read\)$/);
+    expect(technicalLines(c.checks).join(" ")).toMatch(/In block 87393445; the network had finalized up to block \d+\./);
     expect(c.network).toBe("Tron");
     expect(c.label).toBe(TRANSFER_LABEL);
   });
   it("not final yet (replayed wait): says so, with the 6a status sentence as the time line", async () => {
     const c = await card("SCN-01", { asOfConfirmations: 4 });
     expect(c.result).toMatchObject({ tone: "not_yet", headline: "Not final yet." });
-    expect(c.result.lines[0]).toMatch(/Ethereum usually takes about 2 minutes/);
-    expect(c.checks.finality.detail).toBe("In a block, not final yet (this wait is replayed faster than real time).");
+    expect(c.result.lines[0]).toBe("Not final yet — usually about 2 minutes more (this wait is replayed faster than real time).");
+    
   });
   it.each([
     ["SCN-07", /^Don't release: Short by 8\.74181 USDT/],
@@ -61,7 +62,7 @@ describe("S1 release card: crypto-protocol-engineer's checks, fed with recorded 
     ["SCN-13", /^Don't release: Wrong token: .*look-alike\.$/],
     ["SCN-14", /^Don't release: Sent on Tron, not Ethereum, the network on the invoice\.$/],
     ["SCN-15", /^Don't release: Sent on BNB Chain, not Ethereum/],
-    ["SCN-16", /^Don't release: Not paid to this invoice: it went to a look-alike address \(0xbaff2…f8b5, not 0xbaf4b…f8b5\)\.$/],
+    ["SCN-16", /^Don't release: Sent to a look-alike address \(.+\), not the invoice's address \(.+\)\.$/],
   ])("%s problem: says what's wrong plainly, with 'Don't release'", async (id, re) => {
     const c = await card(id);
     expect(c.result.tone).toBe("problem");
@@ -71,14 +72,16 @@ describe("S1 release card: crypto-protocol-engineer's checks, fed with recorded 
     for (const s of scenarios()) {
       const c = await card(s.id);
       expect(c.checks.sanctions.state, s.id).toBe("not_run");
-      expect(c.checks.freeze.state, s.id).toBe(["SCN-01", "SCN-19"].includes(s.id) ? "passed" : "not_run");
+      expect(c.checks.freeze.state, s.id).toBe(["SCN-12", "SCN-13", "SCN-15"].includes(s.id) ? "not_run" : "passed");
       expect([c.result.headline, ...c.result.lines].join(" "), s.id).not.toMatch(/safe/i);
       if (c.result.tone !== "problem") expect(c.result.lines.join(" "), s.id).toContain("Sender NOT checked.");
     }
   });
-  it("the freeze fixture really covers the demo transfer's sender and receiver", () => {
-    expect(freezeFixtureCovers(FREEZE_FIXTURE["ETH-01.json"], "0x8afcf06919e6719bec706696c5ccb3dde40b4377", "0x6f416e24bab64ea58bd6390bb5e19c6506a0d99c")).toBe(true);
-    expect(freezeFixtureCovers(FREEZE_FIXTURE["ETH-01.json"], "0x8afcf06919e6719bec706696c5ccb3dde40b4377", "0x02c3401fdd8c80e8bb9576f30e51234007bcaf8b")).toBe(false);
+  it("freeze rows come from the recorded index and match the transfer's own sender and receiver", async () => {
+    expect(freezeRowFor("TRN-01.json")?.fixture).toBe("FREEZE-DEMO-TRN-01.json");
+    for (const f of ["FAKE-06.json", "FAKE-HG.json", "BSC-01.json"]) expect(freezeRowFor(f)?.fixture, f).toBeUndefined();
+    const c = await card("TRON-01");
+    expect(c.checks.freeze).toMatchObject({ state: "passed", issuer: "Tether" });
   });
 });
 
@@ -162,7 +165,7 @@ describe("S2: matched invoice, the same release checks, and the proposed entry f
     const P = (await import("@/app/demo/entry/page")).default;
     const h = text(await html(await P({ searchParams: Promise.resolve({ s: "SCN-01" }) })));
     expect(h).toContain(WAITING_MESSAGE);
-    expect(h).toMatch(/Checks\s+Final: NOT checked\s+Token: checked\s+Amount: checked\s+Sanctions \(US OFAC SDN only\): NOT checked\s+Freeze: checked/);
+    expect(h).toMatch(/Checks\s+Final: NOT checked\s+Network: checked\s+Address: checked\s+Token: checked\s+Amount: checked\s+Sanctions \(US OFAC SDN only\): NOT checked\s+Freeze: checked/);
     expect(h).toContain("SGD: rate not applied in this demo.");
     expect(h).not.toMatch(/On-chain this is done/);
     const raw = await html(await P({ searchParams: Promise.resolve({ s: "SCN-01" }) }));
@@ -181,20 +184,20 @@ describe("plain labels: chips, summary, status, times", () => {
     const c = await card("SCN-01");
     const chips = checkChips(c.checks);
     expect(chips.filter((x) => x.word === "NOT checked").every((x) => x.tone === "warn")).toBe(true);
-    expect(ranSummary(c.checks, c.result.tone)).toBe("3 of 5 checks ran. 2 did not — release is your call.");
-    expect(ranSummary((await card("SCN-07")).checks, "problem")).toMatch(/^\d of 5 checks ran\. \d did not\.$/);
+    expect(ranSummary(c.checks, c.result.tone)).toBe("5 of 7 checks ran. 2 did not — release is your call.");
+    expect(ranSummary((await card("SCN-07")).checks, "problem")).toMatch(/^\d of 7 checks ran\. \d did not\.$/);
     expect(statusLabel(c.checks, c.result.tone)).toBe("Finality not checked");
     expect(statusLabel((await card("TRON-01", { asOfConfirmations: 2 })).checks, "not_yet")).toBe("Not final yet");
   });
   it("wrong network chip names both networks", async () => {
     const c = await card("SCN-14");
-    expect(checkChips(c.checks, { wrongNetwork: c.wrongNetwork }).find((x) => x.key === "token")).toMatchObject({ label: "Network", word: "problem (Tron, invoice says Ethereum)", tone: "fail" });
+    expect(checkChips(c.checks, { paidOn: c.network, invoiceOn: c.invoiceNetwork }).find((x) => x.key === "network")).toMatchObject({ label: "Network", word: "problem (Tron, invoice says Ethereum)", tone: "fail" });
   });
   it("sanctions line names the one list and says others aren't checked; times are SGT, never ISO", async () => {
     const c = await card("TRON-01");
     expect(c.result.lines).toContain("No copy of the US OFAC SDN list is loaded, so the sender wasn't checked. Other lists are not checked.");
     expect(c.result.lines.join(" ")).not.toMatch(/\d{4}-\d\d-\d\dT/);
-    expect(c.result.lines.join(" ")).toMatch(/2 Nov 2026, \d\d:\d\d SGT/);
+    expect(c.result.lines.join(" ")).toMatch(/2 Nov 2026, \d{1,2}:\d\d [ap]m SGT/);
   });
 });
 

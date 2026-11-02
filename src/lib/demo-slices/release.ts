@@ -11,12 +11,12 @@ import { buildFetchers } from "../chain/sources";
 import { MemoryStore } from "../chain/store";
 import type { Recording } from "../demo/recordings";
 import { readFinalityFromRecordings } from "../requests/finality";
-import { readIssuerFreeze } from "../requests/freeze";
-import { compareAddress, formatUsdc } from "../requests/lifecycle";
+import { readIssuerFreeze, type FreezeQuery } from "../requests/freeze";
+import { formatUsdc } from "../requests/lifecycle";
 import { shortHash } from "../requests/present";
-import { amountCheck, finalityCheck, ISSUER, releaseHeadline, tokenCheck, type CheckResult, type FinalityCheck, type FreezeCheck, type ReleaseChecks, type ReleaseHeadline } from "../requests/release-checks";
+import { amountCheck, finalityCheck, ISSUER, networkCheck, receivingAddressCheck, releaseHeadline, tokenCheck, type CheckResult, type FinalityCheck, type FreezeCheck, type ReleaseChecks, type ReleaseHeadline } from "../requests/release-checks";
 import { loadSanctionsSnapshot, screenSender } from "../requests/sanctions";
-import { confirmPace, paymentStatus } from "../requests/status";
+import { confirmPace } from "../requests/status";
 import { add } from "../payments/money";
 import type { Chain } from "../types";
 import { humanTimes, ranSummary } from "./present";
@@ -24,100 +24,76 @@ import { replay, replayOnly, scenario, TRANSFER_LABEL, type Replayed } from "./r
 
 const NET: Record<string, string> = { ethereum: "Ethereum", tron: "Tron", bsc: "BNB Chain" };
 
-/** Two look-alike addresses shortened far enough to show where they differ. */
-export function apart(a: string, b: string): [string, string] {
-  let i = 0;
-  while (i < a.length && a[i].toLowerCase() === b[i]?.toLowerCase()) i++;
-  const head = Math.max(6, i + 2);
-  return [`${a.slice(0, head)}…${a.slice(-4)}`, `${b.slice(0, head)}…${b.slice(-4)}`];
-}
+const FIXTURES = () => path.join(process.cwd(), "tests", "fixtures", "real");
+const load = (file: string): Recording => JSON.parse(readFileSync(path.join(FIXTURES(), file), "utf8"));
 
 /**
- * Recorded issuer-freeze reads (crypto-protocol-engineer, tests/fixtures/real/FREEZE-*.json) that cover a
- * demo transfer's own sender AND receiving address. Only these transfers get a freeze answer; the rest
- * say "not checked". `freezeFixtureCovers` re-checks that both addresses are in the recording.
+ * Recorded issuer-freeze reads for the demo transfers (crypto-protocol-engineer,
+ * tests/fixtures/real/freeze-demo-index.json). A row is used only when its query is this transfer's own
+ * sender and receiver; transfers with no row (FAKE-06, FAKE-HG, BSC-01) stay "not checked".
  */
-export const FREEZE_FIXTURE: Record<string, string> = { "ETH-01.json": "FREEZE-ETH-USDT-CLEAN.json" };
-const FREEZE_DIR = () => path.join(process.cwd(), "tests", "fixtures", "real");
-const word = (a: string) => a.replace(/^0x/i, "").toLowerCase().padStart(64, "0");
-export function freezeFixtureCovers(file: string, sender: string, receiver: string): boolean {
-  const body = readFileSync(path.join(FREEZE_DIR(), file), "utf8").toLowerCase();
-  return body.includes(word(sender)) && body.includes(word(receiver));
-}
+interface FreezeRow { recording: string; fixture?: string; query?: FreezeQuery }
+let freezeIndex: FreezeRow[] | undefined;
+export const freezeRowFor = (recording: string): FreezeRow | undefined =>
+  (freezeIndex ??= JSON.parse(readFileSync(path.join(FIXTURES(), "freeze-demo-index.json"), "utf8")).rows as FreezeRow[]).find((r) => r.recording === recording);
 
-async function freezeFor(r: Replayed, sender: string, receiver: string, contract: string): Promise<FreezeCheck> {
+async function freezeFor(r: Replayed, sender: string, receiver: string): Promise<FreezeCheck> {
   const issuer = ISSUER[r.invoice.token];
-  const file = FREEZE_FIXTURE[r.scenario.transfer!.recording];
-  if (!file || !freezeFixtureCovers(file, sender, receiver)) {
+  const row = freezeRowFor(r.scenario.transfer!.recording);
+  if (!row?.fixture || !row.query || !sameAddress(row.query.sender, sender) || !sameAddress(row.query.receiver, receiver)) {
     return { state: "not_run", issuer, detail: `${issuer}'s freeze list wasn't read for this transfer, so freeze status wasn't checked.` };
   }
-  const rec = JSON.parse(readFileSync(path.join(FREEZE_DIR(), file), "utf8"));
+  const rec = load(row.fixture);
   const at = () => new Date(rec.recordedAt);
-  const deps = buildFetchers({ tronKey: "", etherscanKey: "replay", store: new MemoryStore(), transport: replayOnly(rec), now: at, sleep: async () => {}, noSpacing: true });
-  return readIssuerFreeze(deps, { chain: r.facts!.tx!.chain, token: r.invoice.token, contract, sender, receiver }, at);
+  const deps = buildFetchers({ tronKey: "", etherscanKey: "replay", store: new MemoryStore(), transport: replayOnly(rec as never), now: at, sleep: async () => {}, noSpacing: true });
+  return readIssuerFreeze(deps, row.query, at);
 }
 
-/**
- * Finality from crypto-protocol-engineer's demo hook: only recordings that read the chain's own finality
- * signal count (tests/fixtures/real/FINALITY-*.json), labelled "recorded at". None of the Ethereum demo
- * recordings has one (Etherscan refused the `finalized` tag when recorded), so Ethereum stays NOT checked.
- */
+/** Finality from crypto-protocol-engineer's demo hook: only a recording that read the chain's own finality signal for this hash counts. */
 const FINALITY_FIXTURE: Record<string, string> = { ethereum: "FINALITY-ETH-ETHERSCAN.json", tron: "FINALITY-TRON.json" };
-async function recordedFinality(r: Replayed, chain: string, blockNumber: number | undefined, eta?: string): Promise<FinalityCheck> {
-  const files = [r.scenario.transfer!.recording, FINALITY_FIXTURE[chain]].filter(Boolean);
-  const recs: Recording[] = files.map((f) => JSON.parse(readFileSync(path.join(f.startsWith("FINALITY") ? FREEZE_DIR() : path.join(FREEZE_DIR(), "scenarios"), f), "utf8")));
-  return readFinalityFromRecordings(recs, { chain: chain as Chain, blockNumber, eta });
+async function recordedFinality(r: Replayed, chain: string, hash: string, blockNumber: number | undefined): Promise<FinalityCheck> {
+  const recs = [load(path.join("scenarios", r.scenario.transfer!.recording)), ...(FINALITY_FIXTURE[chain] ? [load(FINALITY_FIXTURE[chain])] : [])];
+  return readFinalityFromRecordings(recs, { chain: chain as Chain, hash, blockNumber });
 }
 
-/** The five checks for one replayed transfer. */
+/** The release checks for one replayed transfer: crypto-protocol-engineer's builders, fed with recorded data only. */
 export async function releaseChecks(r: Replayed, o: { replayedWait?: boolean; finalizedBlock?: number } = {}): Promise<ReleaseChecks> {
   const inv = r.invoice, t = inv.token, at = r.recordedAt;
   const tx = r.facts?.tx;
-  const chain = tx?.chain ?? "ethereum";
-  const net = NET[chain] ?? chain;
-  const invChain = inv.chain ?? "ethereum", invNet = NET[invChain] ?? invChain;
-  const pace = confirmPace(chain);
-  // The 6a status sentence when the product has a request view; otherwise 6a's documented pace for the network.
-  const eta = r.view ? paymentStatus(r.data, r.view).sentence : pace ? `${net} usually takes ${pace}; that's a usual pace, not a promise.` : undefined;
+  const chain = (tx?.chain ?? "ethereum") as Chain;
+  const invChain = (inv.chain ?? "ethereum") as Chain;
   const src = "Recorded chain data (replayed)";
   const finality: FinalityCheck = o.replayedWait && tx
     // Replaying the wait: the transfer had only just gone into its block, so the network can't have finalized it yet.
-    ? { state: "pending", blockNumber: tx.blockNumber, eta, source: src, detail: "In a block, not final yet (this wait is replayed faster than real time)." }
+    ? { state: "pending", blockNumber: tx.blockNumber, source: src, detail: `Not final yet${confirmPace(chain) ? ` — usually ${confirmPace(chain)} more` : ""} (this wait is replayed faster than real time).`, technical: `In block ${tx.blockNumber}; replayed wait.` }
     : o.finalizedBlock !== undefined
-      ? finalityCheck({ chain, blockNumber: tx?.blockNumber, finalizedBlock: o.finalizedBlock, source: src, checkedAt: at, eta })
-      : await recordedFinality(r, chain, tx?.blockNumber, eta);
+      ? finalityCheck({ chain, blockNumber: tx?.blockNumber, finalizedBlock: o.finalizedBlock, source: src, checkedAt: at })
+      : await recordedFinality(r, chain, r.scenario.transfer!.hash, tx?.blockNumber);
 
   const mine = tx?.transfers.filter((x) => sameAddress(x.to, inv.receiving_address)) ?? [];
   const x = mine[0] ?? tx?.transfers[0];
-  let token: CheckResult, amount: CheckResult;
   if (!tx || !x) {
-    token = { state: "not_run", detail: "The transfer couldn't be read, so the token wasn't checked." };
-    amount = { state: "not_run", detail: "The transfer couldn't be read, so the amount wasn't checked." };
-  } else if (chain !== invChain) {
-    token = { state: "failed", detail: `Sent on ${net}, not ${invNet}, the network on the invoice.`, source: src, checkedAt: at };
-    amount = { state: "not_run", detail: "Amount not checked: the transfer is on another network.", checkedAt: at };
-  } else {
-    token = { ...tokenCheck({ chain, token: t, contract: x.tokenContract }), checkedAt: at };
-    if (token.state === "failed") {
-      amount = { state: "not_run", checkedAt: at, detail: "Amount not counted: the token is wrong." };
-    } else if (!mine.length) {
-      amount = { state: "failed", source: src, checkedAt: at, detail: compareAddress(x.to, inv.receiving_address) === "lookalike"
-        ? `Not paid to this invoice: it went to a look-alike address (${apart(x.to, inv.receiving_address).join(", not ")}).`
-        : "Not paid to this invoice: nothing arrived at its address." };
-    } else if (r.view?.review === "ambiguous") {
-      amount = { state: "not_run", checkedAt: at, detail: "Two sample invoices could be paid by this transfer: a person confirms which one before the amount is counted." };
-    } else {
-      const received = mine.reduce((s, m) => add(s, m.amount), "0");
-      amount = { ...amountCheck({ expected: inv.amount, received, token: t }), source: src, checkedAt: at };
-    }
+    const no = (what: string): CheckResult => ({ state: "not_run", detail: `The transfer couldn't be read, so the ${what} wasn't checked.` });
+    return { finality, token: no("token"), amount: no("amount"), sanctions: sanctionsFor(chain, "", at), freeze: { state: "not_run", issuer: ISSUER[t], detail: no("freeze status").detail } };
   }
-  const sender = x?.from ?? "";
+  const network = { ...networkCheck({ paidOn: chain, invoiceOn: invChain }), checkedAt: at };
+  // Only compare addresses on the invoice's own network (an address on another network is never "the invoice's").
+  const address = network.state === "passed" ? { ...receivingAddressCheck({ paidTo: x.to, invoiceAddress: inv.receiving_address }), checkedAt: at } : undefined;
+  const token = { ...tokenCheck({ chain, token: t, contract: x.tokenContract }), checkedAt: at };
+  let amount: CheckResult;
+  if (token.state === "failed") amount = { state: "not_run", checkedAt: at, detail: "Amount not counted: the token is wrong." };
+  else if (network.state === "failed") amount = { state: "not_run", checkedAt: at, detail: "Amount not counted: the transfer is on another network." };
+  else if (address?.state === "failed") amount = { state: "not_run", checkedAt: at, detail: "Amount not counted: nothing arrived at this invoice's address." };
+  else if (r.view?.review === "ambiguous") amount = { state: "not_run", checkedAt: at, detail: "Two sample invoices could be paid by this transfer: a person confirms which one before the amount is counted." };
+  else amount = { ...amountCheck({ expected: inv.amount, received: mine.reduce((sum, m) => add(sum, m.amount), "0"), token: t }), source: src, checkedAt: at };
+  const freeze = await freezeFor(r, x.from, x.to);
+  return { finality, network, ...(address ? { address } : {}), token, amount, sanctions: sanctionsFor(chain, x.from, at), freeze };
+}
+
+function sanctionsFor(chain: Chain, sender: string, at: string) {
   const snapshot = loadSanctionsSnapshot();
   const screened = screenSender(snapshot, chain, sender, at);
-  const sanctions = snapshot ? screened : { ...screened, detail: "No copy of the US OFAC SDN list is loaded, so the sender wasn't checked. Other lists are not checked." };
-  const freeze = x && chain === invChain ? await freezeFor(r, sender, x.to, x.tokenContract)
-    : { state: "not_run" as const, issuer: ISSUER[t], detail: `${ISSUER[t]}'s freeze list wasn't read for this transfer, so freeze status wasn't checked.` };
-  return { finality, token, amount, sanctions, freeze };
+  return snapshot ? screened : { ...screened, detail: "No copy of the US OFAC SDN list is loaded, so the sender wasn't checked. Other lists are not checked." };
 }
 
 export interface ReleaseCard {
@@ -133,9 +109,9 @@ export interface ReleaseCard {
   to?: string;
   checks: ReleaseChecks;
   result: ReleaseHeadline;
+  /** The network the invoice asks for (the transfer's is `network`). */
+  invoiceNetwork: string;
   label: string;
-  /** Set when the transfer is on another network than the invoice's. */
-  wrongNetwork?: { sent: string; invoice: string };
 }
 
 export async function cardFor(r: Replayed, o: { replayedWait?: boolean; finalizedBlock?: number } = {}): Promise<ReleaseCard> {
@@ -146,8 +122,7 @@ export async function cardFor(r: Replayed, o: { replayedWait?: boolean; finalize
     scenarioId: r.scenario.id, title: r.scenario.title, invoiceId: r.invoice.id, customerRef: r.invoice.customer_ref,
     invoiceAmount: `${formatUsdc(r.invoice.amount)} ${r.invoice.token}`, network: NET[tx?.chain ?? "ethereum"] ?? String(tx?.chain),
     hash: r.scenario.transfer!.hash, shortHash: shortHash(r.scenario.transfer!.hash), from: x?.from, to: x?.to,
-    checks, result: humanResult(releaseHeadline(checks)), label: TRANSFER_LABEL,
-    ...(tx && tx.chain !== (r.invoice.chain ?? "ethereum") ? { wrongNetwork: { sent: NET[tx.chain] ?? tx.chain, invoice: NET[r.invoice.chain ?? "ethereum"] } } : {}),
+    checks, result: humanResult(releaseHeadline(checks)), label: TRANSFER_LABEL, invoiceNetwork: NET[r.invoice.chain ?? "ethereum"],
   };
 }
 
