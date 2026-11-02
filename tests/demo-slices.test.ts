@@ -40,6 +40,13 @@ describe("S1 release card: crypto-protocol-engineer's checks, fed with recorded 
     const r5 = await replay("SCN-05");
     expect((await cardFor(r5, { finalizedBlock: r5.facts!.tx!.blockNumber })).result.headline).toBe("Paid and final. Right token and amount. Sender NOT checked. Freeze status NOT checked.");
   });
+  it("TRON-01 (Tron-first): Paid and final from the recorded Tron finality read, and the line says it's a recording, not a live read", async () => {
+    const c = await card("TRON-01");
+    expect(c.result).toMatchObject({ tone: "paid", headline: "Paid and final. Right token and amount. Sender NOT checked. Freeze status NOT checked.", allChecked: false });
+    expect(c.result.lines[0]).toMatch(/^In block \d+; the network had finalized up to block 87642970\. \(from a recording made at .*, not a live read\)$/);
+    expect(c.network).toBe("Tron");
+    expect(c.label).toBe(TRANSFER_LABEL);
+  });
   it("not final yet (replayed wait): says so, with the 6a status sentence as the time line", async () => {
     const c = await card("SCN-01", { asOfConfirmations: 4 });
     expect(c.result).toMatchObject({ tone: "not_yet", headline: "Not final yet." });
@@ -87,7 +94,7 @@ describe("S1b notification preview: quiet by default", () => {
     expect(steps.length).toBeGreaterThanOrEqual(6);
     for (const s of steps) expect(!!s.notify, s.card.scenarioId).toBe(s.card.result.tone !== "not_yet");
     expect(steps.filter((s) => !s.notify).length).toBeGreaterThan(0);
-    expect(steps.filter((s) => s.notify).length).toBeGreaterThan(0);
+    expect(steps.slice(0, 3).map((s) => [s.card.scenarioId, s.card.result.tone])).toEqual([["TRON-01", "not_yet"], ["TRON-01", "not_yet"], ["TRON-01", "paid"]]);
   });
 });
 
@@ -155,7 +162,7 @@ describe("rendered pages: labelled, and never the word 'safe'", () => {
   const cases: [keyof Awaited<ReturnType<typeof pages>>, Record<string, string>][] = [
     ["release", {}], ["release", { at: "3", paused: "1" }], ["release", { hash: "nope" }], ["release", { hash: `0x${"1".repeat(64)}` }],
     ...scenarios().map((s) => ["release", { s: s.id }] as [keyof Awaited<ReturnType<typeof pages>>, Record<string, string>]),
-    ["notify", {}], ["notify", { s: "SCN-01", wait: "4" }], ["notify", { s: "SCN-16" }], ["entry", {}], ["entry", { s: "SCN-07" }],
+    ["notify", {}], ["notify", { s: "TRON-01", wait: "4" }], ["release", { s: "TRON-01" }], ["notify", { s: "SCN-16" }], ["entry", {}], ["entry", { s: "SCN-07" }],
   ];
   it.each(cases)("%s %j", async (name, q) => {
     const P = (await pages())[name] as (p: { searchParams: Promise<Record<string, string>> }) => Promise<ReactNode>;
@@ -164,6 +171,7 @@ describe("rendered pages: labelled, and never the word 'safe'", () => {
     expect(h).toContain(DEMO_WATCH_LABEL);
     expect(h).toContain(TRANSFER_LABEL);
     if (name === "notify" && !q.wait) expect(h).toContain("Preview — nothing is sent");
+    if (name === "notify" && !q.s && !q.wait) expect(h).toContain("Paid and final: SAMPLE-INV-T001");
     if (name === "notify" && q.wait) expect(h).toContain("Quiet: no message for this step.");
     if (name === "entry") { expect(h).toContain("Approve"); expect(h).toContain("Proposed Xero entry"); }
   });

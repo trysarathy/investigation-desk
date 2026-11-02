@@ -16,7 +16,7 @@ import { compareAddress, formatUsdc } from "../requests/lifecycle";
 import { shortHash } from "../requests/present";
 import { amountCheck, finalityCheck, ISSUER, releaseHeadline, tokenCheck, type CheckResult, type FinalityCheck, type FreezeCheck, type ReleaseChecks, type ReleaseHeadline } from "../requests/release-checks";
 import { loadSanctionsSnapshot, screenSender } from "../requests/sanctions";
-import { paymentStatus } from "../requests/status";
+import { confirmPace, paymentStatus } from "../requests/status";
 import { add } from "../payments/money";
 import type { Chain } from "../types";
 import { replay, replayOnly, scenario, TRANSFER_LABEL, type Replayed } from "./replay";
@@ -74,7 +74,10 @@ export async function releaseChecks(r: Replayed, o: { replayedWait?: boolean; fi
   const tx = r.facts?.tx;
   const chain = tx?.chain ?? "ethereum";
   const net = NET[chain] ?? chain;
-  const eta = r.view ? paymentStatus(r.data, r.view).sentence : undefined;
+  const invChain = inv.chain ?? "ethereum", invNet = NET[invChain] ?? invChain;
+  const pace = confirmPace(chain);
+  // The 6a status sentence when the product has a request view; otherwise 6a's documented pace for the network.
+  const eta = r.view ? paymentStatus(r.data, r.view).sentence : pace ? `${net} usually takes ${pace}; that's a usual pace, not a promise.` : undefined;
   const src = "Recorded chain data (replayed)";
   const finality: FinalityCheck = o.replayedWait && tx
     // Replaying the wait: the transfer had only just gone into its block, so the network can't have finalized it yet.
@@ -89,8 +92,8 @@ export async function releaseChecks(r: Replayed, o: { replayedWait?: boolean; fi
   if (!tx || !x) {
     token = { state: "not_run", detail: "The transfer couldn't be read, so the token wasn't checked." };
     amount = { state: "not_run", detail: "The transfer couldn't be read, so the amount wasn't checked." };
-  } else if (chain !== "ethereum") {
-    token = { state: "failed", detail: `Sent on ${net}, not Ethereum, the network on the invoice.`, source: src, checkedAt: at };
+  } else if (chain !== invChain) {
+    token = { state: "failed", detail: `Sent on ${net}, not ${invNet}, the network on the invoice.`, source: src, checkedAt: at };
     amount = { state: "not_run", detail: "Amount not checked: the transfer is on another network.", checkedAt: at };
   } else {
     token = { ...tokenCheck({ chain, token: t, contract: x.tokenContract }), checkedAt: at };
@@ -109,7 +112,7 @@ export async function releaseChecks(r: Replayed, o: { replayedWait?: boolean; fi
   }
   const sender = x?.from ?? "";
   const sanctions = screenSender(loadSanctionsSnapshot(), chain, sender, at);
-  const freeze = x && chain === "ethereum" ? await freezeFor(r, sender, x.to, x.tokenContract)
+  const freeze = x && chain === invChain ? await freezeFor(r, sender, x.to, x.tokenContract)
     : { state: "not_run" as const, issuer: ISSUER[t], detail: `${ISSUER[t]}'s freeze list wasn't read for this transfer, so freeze status wasn't checked.` };
   return { finality, token, amount, sanctions, freeze };
 }
@@ -170,10 +173,11 @@ export const DEMO_WATCH_LABEL = "Demo: replaying recorded transfers";
 
 /** The watcher's script: recorded transfers, some replayed through their wait for blocks first. */
 export const WATCH_SCRIPT: { id: string; asOfConfirmations?: number }[] = [
-  { id: "SCN-01", asOfConfirmations: 1 }, { id: "SCN-01", asOfConfirmations: 7 }, { id: "SCN-01" },
+  { id: "TRON-01", asOfConfirmations: 2 }, { id: "TRON-01", asOfConfirmations: 12 }, { id: "TRON-01" },
   { id: "SCN-07" },
-  { id: "SCN-05", asOfConfirmations: 3 }, { id: "SCN-05" },
+  { id: "SCN-01", asOfConfirmations: 3 }, { id: "SCN-01" },
   { id: "SCN-12" },
+  { id: "SCN-14" },
   { id: "SCN-16" },
 ];
 

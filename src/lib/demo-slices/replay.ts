@@ -18,7 +18,7 @@ import { emptyRequests, type RequestsData, type RequestToken } from "../requests
 /** The label every demo transfer carries (ADR 0003). */
 export const TRANSFER_LABEL = "Sample invoice · real public transfer, not a Clearline customer";
 
-export interface SampleInvoice { id: string; customer_ref: string; amount: string; token: RequestToken; receiving_address: string; created_at: string; status: "open" | "paid"; sample: true }
+export interface SampleInvoice { id: string; customer_ref: string; amount: string; token: RequestToken; chain?: string; receiving_address: string; created_at: string; status: "open" | "paid"; sample: true }
 export interface Scenario {
   id: string; case_type: string; title: string;
   transfer: { recording: string; hash: string; chain: string; to: string } | null;
@@ -39,7 +39,19 @@ export function scenarios(): Scenario[] {
   cached ??= (JSON.parse(readFileSync(path.join(DIR(), "catalogue.json"), "utf8")).scenarios as Scenario[]).filter((s) => s.transfer);
   return cached;
 }
-export const scenario = (id: string) => scenarios().find((s) => s.id === id);
+/**
+ * Demo-slices only (not in the matching catalogue): the recorded Tron transfer TRN-01 paired with a
+ * sample invoice payable on Tron, built the ADR 0003 way: the sample invoice uses the real transfer's
+ * destination (a stranger's address) and amount. The wedge is Tron-first, and this is the one demo
+ * transfer whose finality was recorded from the chain's own signal (FINALITY-TRON.json).
+ */
+export const TRON_SCENARIO: Scenario = {
+  id: "TRON-01", case_type: "exact", title: "Exact USDT payment on Tron (sample invoice payable on Tron)",
+  transfer: { recording: "TRN-01.json", chain: "tron", hash: "5296e24018c9197bbf4e7e844c7152ca494067400a5a06f351c66aad7d3873cb", to: "TSSoZb7K81i7NtoF7PEjDwG8m2gThoK9Zi" },
+  invoices: [{ id: "SAMPLE-INV-T001", customer_ref: "SAMPLE-CUST-T1", amount: "4300.00", token: "USDT", chain: "tron", receiving_address: "TSSoZb7K81i7NtoF7PEjDwG8m2gThoK9Zi", created_at: "2026-10-23T02:00:00Z", status: "open", sample: true }],
+  lookup_for: "SAMPLE-INV-T001",
+};
+export const scenario = (id: string) => (id === TRON_SCENARIO.id ? TRON_SCENARIO : scenarios().find((s) => s.id === id));
 
 const recording = (file: string): Recording => {
   if (!/^[A-Z0-9-]+\.json$/.test(file)) throw new Error("Not a demo recording.");
@@ -81,6 +93,7 @@ export interface Replayed {
 function invoiceBook(s: Scenario): RequestsData {
   let data: RequestsData = { ...emptyRequests(), wallets: (s.wallets ?? []).map((w) => ({ ...w, demo: false })) };
   for (const i of s.invoices) {
+    if ((i.chain ?? "ethereum") !== "ethereum") continue; // payment requests are Ethereum-only today; the card reads the facts directly
     data = createRequest(data, { customerRef: i.customer_ref, invoiceRef: i.id, amount: i.amount, receivingAddress: i.receiving_address, token: i.token },
       { now: i.created_at, by: "SAMPLE operator", demo: false, publicId: i.id, tokenContract: OFFICIAL[i.token], id: i.id }).data;
     if (i.status === "paid") {
@@ -104,6 +117,11 @@ export async function replay(id: string, o: { asOfConfirmations?: number; applyD
   let data = invoiceBook(s);
   const invoice = s.invoices.find((i) => i.id === s.lookup_for)!;
   const base = { scenario: s, invoice, recordedAt: rec.recordedAt, threshold: CONFIRMATIONS };
+  if ((invoice.chain ?? "ethereum") !== "ethereum") {
+    // Not a product payment request (those are Ethereum-only): the same recorded facts, read by the same engine fetchers.
+    const facts = await fetchFacts(s.transfer.hash, { depositAddresses: [], ledger: [], ledgerUploadedAt: rec.recordedAt, customerId: "request" }, deps(), REQUEST_SETTINGS);
+    return { ...base, data, facts };
+  }
   const found = await new LiveHashProvider(deps()).lookup(s.transfer.hash, data.requests[s.lookup_for], data);
   if (!found.events.length || !found.facts?.tx) {
     const ws = { depositAddresses: requestAddresses(data, data.requests[s.lookup_for]), ledger: [], ledgerUploadedAt: rec.recordedAt, customerId: "request" };
@@ -131,5 +149,5 @@ export async function replay(id: string, o: { asOfConfirmations?: number; applyD
 export function scenariosForHash(input: string): Scenario[] {
   const h = input.trim().toLowerCase().replace(/^0x/, "");
   if (!/^[0-9a-f]{64}$/.test(h)) return [];
-  return scenarios().filter((s) => s.transfer!.hash.toLowerCase().replace(/^0x/, "") === h);
+  return [TRON_SCENARIO, ...scenarios()].filter((s) => s.transfer!.hash.toLowerCase().replace(/^0x/, "") === h);
 }

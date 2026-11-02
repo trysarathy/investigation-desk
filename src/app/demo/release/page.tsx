@@ -7,7 +7,8 @@ import { ReleaseCard } from "@/components/demo-slices/ReleaseCard";
 import { Watcher } from "@/components/demo-slices/Watcher";
 import { demoSlicesOn } from "@/lib/demo-slices/gate";
 import { card, DEMO_WATCH_ID, DEMO_WATCH_LABEL, notificationFor, watchTimeline } from "@/lib/demo-slices/release";
-import { scenario, scenarios, scenariosForHash } from "@/lib/demo-slices/replay";
+import { scenario, scenarios, scenariosForHash, TRON_SCENARIO } from "@/lib/demo-slices/replay";
+import { entryScenarios } from "@/lib/demo-slices/entry";
 import { DemoHead } from "../DemoHead";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,7 @@ export default async function ReleaseDemo({ searchParams }: { searchParams: Prom
   const fromHash = hash ? scenariosForHash(hash) : [];
   const ids = q.s && scenario(q.s) ? [q.s] : fromHash.map((s) => s.id);
   const cards = await Promise.all(ids.map((id) => card(id)));
+  const entryIds = cards.some((c) => c.result.tone === "paid") ? await entryScenarios() : [];
   const badHash = hash && !/^(0x)?[0-9a-fA-F]{64}$/.test(hash);
   return (
     <div className="page demo-page">
@@ -34,7 +36,7 @@ export default async function ReleaseDemo({ searchParams }: { searchParams: Prom
               <div key={c.scenarioId} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <ReleaseCard card={c} />
                 {n ? <NotificationPreview preview={n} /> : <QuietNote />}
-                {c.result.tone === "paid" && <Link href={`/demo/entry?s=${c.scenarioId}`}>See it matched to its invoice and the proposed Xero entry</Link>}
+                {c.result.tone === "paid" && entryIds.includes(c.scenarioId) && <Link href={`/demo/entry?s=${c.scenarioId}`}>See it matched to its invoice and the proposed Xero entry</Link>}
               </div>
             );
           })}
@@ -44,7 +46,7 @@ export default async function ReleaseDemo({ searchParams }: { searchParams: Prom
       <section className="panel" aria-labelledby="paste-h">
         <div className="panel-h"><h2 id="paste-h" style={{ margin: 0, fontSize: 15 }}>Or paste a transaction hash</h2></div>
         <form className="panel-b" method="get" action="/demo/release">
-          <label htmlFor="hash" className="muted" style={{ fontSize: 13 }}>This demo knows only the 20 recorded transfers. A hash it doesn&apos;t know is not looked up.</label>
+          <label htmlFor="hash" className="muted" style={{ fontSize: 13 }}>This demo knows only the recorded sample transfers below. A hash it doesn&apos;t know is not looked up.</label>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <input id="hash" name="hash" className="input mono" defaultValue={hash ?? ""} placeholder="0x…" autoComplete="off" spellCheck={false} style={{ flex: "1 1 240px", minWidth: 0 }} />
             <button className="btn btn-primary" type="submit">Check</button>
@@ -54,9 +56,9 @@ export default async function ReleaseDemo({ searchParams }: { searchParams: Prom
         </form>
       </section>
       <section className="panel" aria-labelledby="samples-h">
-        <div className="panel-h"><h2 id="samples-h" style={{ margin: 0, fontSize: 15 }}>The 20 sample transfers</h2></div>
+        <div className="panel-h"><h2 id="samples-h" style={{ margin: 0, fontSize: 15 }}>The sample transfers</h2></div>
         <ul className="panel-b sample-list">
-          {scenarios().map((s) => <li key={s.id}><Link href={`/demo/release?s=${s.id}`}>{s.id}</Link> <span className="muted">· {s.title}</span></li>)}
+          {[TRON_SCENARIO, ...scenarios()].map((s) => <li key={s.id}><Link href={`/demo/release?s=${s.id}`}>{s.id}</Link> <span className="muted">· {s.title}</span></li>)}
         </ul>
       </section>
     </div>
