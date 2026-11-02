@@ -10,8 +10,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { planPosting } from "@/lib/accounting/rules";
 import { APPROVED_MESSAGE, entryScenarios, proposedEntry } from "@/lib/demo-slices/entry";
 import { demoSlicesOn } from "@/lib/demo-slices/gate";
-import { card, DEMO_WATCH_ID, DEMO_WATCH_LABEL, notificationFor, watchTimeline } from "@/lib/demo-slices/release";
-import { releaseHeadline, type ReleaseChecks } from "@/lib/demo-slices/release-adapter";
+import { card, cardFor, DEMO_WATCH_ID, DEMO_WATCH_LABEL, FREEZE_FIXTURE, freezeFixtureCovers, notificationFor, watchTimeline } from "@/lib/demo-slices/release";
 import { replay, replayOnly, scenarios, scenariosForHash, TRANSFER_LABEL } from "@/lib/demo-slices/replay";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {}, replace() {} }), usePathname: () => "/demo/release",
@@ -24,54 +23,63 @@ beforeAll(() => { process.env.DEMO_MODE = "on"; delete process.env.DEMO_SLICES; 
 afterAll(() => { process.env.DEMO_MODE = env.demo; process.env.DEMO_SLICES = env.slices; });
 afterEach(() => vi.restoreAllMocks());
 
-describe("S1 release card: wording per state (only checks that ran)", () => {
-  it("paid and final, with sanctions and freeze not run: says the sender was NOT checked", async () => {
+describe("S1 release card: crypto-protocol-engineer's checks, fed with recorded data only", () => {
+  it("SCN-01 as recorded: token and amount checked, sender NOT checked, not frozen (recorded freeze read), finality NOT checked (no finalized block recorded yet)", async () => {
     const c = await card("SCN-01");
-    expect(c.result.tone).toBe("paid");
-    expect(c.result.headline).toBe("Paid and final. Right token and amount. Sender NOT checked.");
+    expect(c.result.tone).toBe("not_yet");
+    expect(c.result.headline).toBe("Finality NOT checked.");
+    expect(c.result.lines[0]).toBe("Right token and amount. Sender NOT checked. Not frozen.");
     expect(c.checks.sanctions.state).toBe("not_run");
-    expect(c.checks.freeze.state).toBe("not_run");
+    expect(c.checks.freeze).toMatchObject({ state: "passed", issuer: "Tether" });
+    expect(c.checks.freeze.detail).toMatch(/^Neither the sender nor the receiving address is frozen by Tether \(as of .* block \d+\); this can change later\.$/);
   });
-  it("not final yet: says so, with the network's usual pace as a pace, not a promise", async () => {
+  it("with a finalized block covering the transfer: Paid and final, and still says the sender was NOT checked", async () => {
+    const r = await replay("SCN-01");
+    const c = await cardFor(r, { finalizedBlock: r.facts!.tx!.blockNumber });
+    expect(c.result).toMatchObject({ tone: "paid", headline: "Paid and final. Right token and amount. Sender NOT checked. Not frozen.", allChecked: false });
+    const r5 = await replay("SCN-05");
+    expect((await cardFor(r5, { finalizedBlock: r5.facts!.tx!.blockNumber })).result.headline).toBe("Paid and final. Right token and amount. Sender NOT checked. Freeze status NOT checked.");
+  });
+  it("not final yet (replayed wait): says so, with the 6a status sentence as the time line", async () => {
     const c = await card("SCN-01", { asOfConfirmations: 4 });
     expect(c.result).toMatchObject({ tone: "not_yet", headline: "Not final yet." });
-    expect(c.result.lines.join(" ")).toMatch(/4 of the 12 blocks.*Ethereum usually takes about 2 minutes; that's a usual pace, not a promise/);
+    expect(c.result.lines[0]).toMatch(/Ethereum usually takes about 2 minutes/);
+    expect(c.checks.finality.detail).toMatch(/^Replayed wait:/);
   });
   it.each([
-    ["SCN-07", /^Short by 8\.74181 USDT: .* Don't release yet\.$/],
-    ["SCN-08", /^Only 0\.001 of 250\.00 USDT arrived\. Don't release yet\.$/],
-    ["SCN-12", /^Look-alike token: it calls itself USDT but isn't Tether's contract\. Don't release yet\.$/],
-    ["SCN-13", /^Wrong token: ".+" is not USDT, and isn't Tether's contract\. Don't release yet\.$/],
-    ["SCN-14", /^Sent on Tron, not Ethereum.*Don't release yet\.$/],
-    ["SCN-15", /^Sent on BNB Chain, not Ethereum.*Don't release yet\.$/],
-    ["SCN-16", /^Not paid to this invoice: it went to a look-alike address \(0xbaff2…f8b5, not 0xbaf4b…f8b5\)\. Don't release yet\.$/],
-  ])("%s problem: says what's wrong plainly and 'Don't release yet'", async (id, re) => {
+    ["SCN-07", /^Don't release: Short by 8\.74181 USDT/],
+    ["SCN-08", /^Don't release: Short by 249\.999 USDT/],
+    ["SCN-12", /^Don't release: Wrong token: this is not Tether's USDT contract on Ethereum, it's a look-alike\.$/],
+    ["SCN-13", /^Don't release: Wrong token: .*look-alike\.$/],
+    ["SCN-14", /^Don't release: Sent on Tron, not Ethereum, the network on the invoice\.$/],
+    ["SCN-15", /^Don't release: Sent on BNB Chain, not Ethereum/],
+    ["SCN-16", /^Don't release: Not paid to this invoice: it went to a look-alike address \(0xbaff2…f8b5, not 0xbaf4b…f8b5\)\.$/],
+  ])("%s problem: says what's wrong plainly, with 'Don't release'", async (id, re) => {
     const c = await card(id);
     expect(c.result.tone).toBe("problem");
     expect(c.result.headline).toMatch(re);
   });
-  it("every one of the 20 cards: sanctions and freeze never claimed, no jargon in the headline", async () => {
+  it("every one of the 20 cards: sanctions never claimed (no list shipped), freeze only where recorded, never 'safe'", async () => {
     for (const s of scenarios()) {
       const c = await card(s.id);
       expect(c.checks.sanctions.state, s.id).toBe("not_run");
-      expect(c.checks.freeze.state, s.id).toBe("not_run");
-      expect(c.result.headline, s.id).not.toMatch(/finaliz|confirmation|safe/i);
-      if (c.result.tone === "paid") expect(c.result.headline, s.id).toContain("Sender NOT checked.");
+      expect(c.checks.freeze.state, s.id).toBe(["SCN-01", "SCN-19"].includes(s.id) ? "passed" : "not_run");
+      expect([c.result.headline, ...c.result.lines].join(" "), s.id).not.toMatch(/safe/i);
+      if (c.result.tone !== "problem") expect(c.result.lines.join(" "), s.id).toContain("Sender NOT checked.");
     }
   });
-  it("adapter: only when both sender checks passed does it say so; a failed one is a problem", () => {
-    const ok = { state: "passed" as const, detail: "ok." };
-    const all: ReleaseChecks = { finality: ok, token: ok, amount: ok, sanctions: ok, freeze: ok };
-    expect(releaseHeadline(all).headline).toBe("Paid and final. Right token and amount. Sender not on public sanctions lists. Not frozen.");
-    const hit = releaseHeadline({ ...all, sanctions: { state: "failed", detail: "Sender is on the public sanctions list." } });
-    expect(hit).toMatchObject({ tone: "problem", headline: "Sender is on the public sanctions list. Don't release yet." });
+  it("the freeze fixture really covers the demo transfer's sender and receiver", () => {
+    expect(freezeFixtureCovers(FREEZE_FIXTURE["ETH-01.json"], "0x8afcf06919e6719bec706696c5ccb3dde40b4377", "0x6f416e24bab64ea58bd6390bb5e19c6506a0d99c")).toBe(true);
+    expect(freezeFixtureCovers(FREEZE_FIXTURE["ETH-01.json"], "0x8afcf06919e6719bec706696c5ccb3dde40b4377", "0x02c3401fdd8c80e8bb9576f30e51234007bcaf8b")).toBe(false);
   });
 });
 
 describe("S1b notification preview: quiet by default", () => {
   it("no message for a not-final step; one for paid-and-final and for a problem", async () => {
     expect(notificationFor(await card("SCN-01", { asOfConfirmations: 3 }))).toBeNull();
-    expect(notificationFor(await card("SCN-01"))?.subject).toBe("Paid and final: SAMPLE-INV-2001 (331.40 USDT, SAMPLE-CUST-01)");
+    expect(notificationFor(await card("SCN-01"))).toBeNull(); // finality not checked: not "paid", so quiet
+    const r = await replay("SCN-01");
+    expect(notificationFor(await cardFor(r, { finalizedBlock: r.facts!.tx!.blockNumber }))?.subject).toBe("Paid and final: SAMPLE-INV-2001 (331.40 USDT, SAMPLE-CUST-01)");
     expect(notificationFor(await card("SCN-07"))?.slack).toMatch(/^Don't release yet · SAMPLE-INV-2007/);
   });
   it("the watcher previews a message only on paid-and-final or problem steps, never on every block", async () => {
@@ -79,7 +87,7 @@ describe("S1b notification preview: quiet by default", () => {
     expect(steps.length).toBeGreaterThanOrEqual(6);
     for (const s of steps) expect(!!s.notify, s.card.scenarioId).toBe(s.card.result.tone !== "not_yet");
     expect(steps.filter((s) => !s.notify).length).toBeGreaterThan(0);
-    expect(steps.map((s) => s.card.result.tone).slice(0, 3)).toEqual(["not_yet", "not_yet", "paid"]);
+    expect(steps.filter((s) => s.notify).length).toBeGreaterThan(0);
   });
 });
 
@@ -159,13 +167,13 @@ describe("rendered pages: labelled, and never the word 'safe'", () => {
     if (name === "notify" && q.wait) expect(h).toContain("Quiet: no message for this step.");
     if (name === "entry") { expect(h).toContain("Approve"); expect(h).toContain("Proposed Xero entry"); }
   });
-  it("the watcher's every step renders without 'safe', and the not-final step says 'Final: Not yet'", async () => {
+  it("the watcher's every step renders without 'safe', and the not-final step says 'Final: not yet'", async () => {
     const { Watcher } = await import("@/components/demo-slices/Watcher");
     const steps = await watchTimeline(DEMO_WATCH_ID);
     for (let i = 1; i <= steps.length; i++) {
       const h = text(await html(createElement(Watcher, { steps, label: DEMO_WATCH_LABEL, initial: i, autoplay: false })));
       expect(h, `step ${i}`).not.toMatch(/safe/i);
-      if (i === 1) expect(h).toContain("Final: Not yet.");
+      if (i === 1) expect(h).toContain("Final: not yet");
     }
   });
   it("in live mode the pages are a 404", async () => {

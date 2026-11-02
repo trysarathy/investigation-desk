@@ -10,12 +10,12 @@ import { scenario } from "@/lib/demo-slices/replay";
 import { DemoHead } from "../DemoHead";
 
 export const dynamic = "force-dynamic";
-const PICKS = [{ id: "SCN-01", label: "Paid and final" }, { id: "SCN-07", label: "Short" }, { id: "SCN-12", label: "Look-alike token" }, { id: "SCN-16", label: "Look-alike address" }];
+const PICKS = [{ id: "SCN-07", label: "Short" }, { id: "SCN-01", label: "Exact payment" }, { id: "SCN-12", label: "Look-alike token" }, { id: "SCN-16", label: "Look-alike address" }];
 
 export default async function NotifyDemo({ searchParams }: { searchParams: Promise<{ s?: string; wait?: string }> }) {
   if (!demoSlicesOn()) notFound();
   const { s, wait } = await searchParams;
-  const id = s && scenario(s) ? s : "SCN-01";
+  const id = s && scenario(s) ? s : "SCN-07";
   const c = await card(id, wait ? { asOfConfirmations: Math.max(0, Math.min(11, Number(wait) || 0)) } : {});
   const n = notificationFor(c);
   return (

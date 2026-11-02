@@ -1,18 +1,25 @@
-// DEMO ONLY (S1, S1b, demo watcher). Turns the product's own result for one replayed transfer into
-// the release checks, then into the card, the quiet notification previews and the watcher's timeline.
-// Wording of the headline comes from releaseHeadline() (the adapter, later crypto-protocol-engineer's
-// module); this file only says which check passed, failed or didn't run, with a detail line each.
+// DEMO ONLY (S1, S1b, demo watcher). Builds crypto-protocol-engineer's five release checks
+// (src/lib/requests/release-checks.ts) for one replayed transfer, then the card, the quiet message
+// previews and the watcher's timeline. All wording of the result comes from releaseHeadline(); this
+// file only feeds the checks with recorded data. No live call: sanctions read the shipped OFAC
+// snapshot (none is shipped, so "not checked"); freeze reads only a recorded FREEZE-*.json fixture.
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { sameAddress } from "../address";
-import { OFFICIAL, REQUEST_SETTINGS } from "../requests/check";
+import { buildFetchers } from "../chain/sources";
+import { MemoryStore } from "../chain/store";
+import { readIssuerFreeze } from "../requests/freeze";
 import { compareAddress, formatUsdc } from "../requests/lifecycle";
-import { shortAddr, shortHash } from "../requests/present";
-import { confirmPace } from "../requests/status";
-import { notRunFreeze, notRunSanctions, releaseHeadline, type Check, type ReleaseChecks, type ReleaseHeadline } from "./release-adapter";
-import { replay, scenario, TRANSFER_LABEL, type Replayed } from "./replay";
+import { shortHash } from "../requests/present";
+import { amountCheck, finalityCheck, ISSUER, releaseHeadline, tokenCheck, type CheckResult, type FinalityCheck, type FreezeCheck, type ReleaseChecks, type ReleaseHeadline } from "../requests/release-checks";
+import { loadSanctionsSnapshot, screenSender } from "../requests/sanctions";
+import { paymentStatus } from "../requests/status";
+import { add } from "../payments/money";
+import { replay, replayOnly, scenario, TRANSFER_LABEL, type Replayed } from "./replay";
 
 const NET: Record<string, string> = { ethereum: "Ethereum", tron: "Tron", bsc: "BNB Chain" };
-const ISSUER: Record<string, string> = { USDT: "Tether", USDC: "Circle" };
+
 /** Two look-alike addresses shortened far enough to show where they differ. */
 export function apart(a: string, b: string): [string, string] {
   let i = 0;
@@ -20,67 +27,81 @@ export function apart(a: string, b: string): [string, string] {
   const head = Math.max(6, i + 2);
   return [`${a.slice(0, head)}…${a.slice(-4)}`, `${b.slice(0, head)}…${b.slice(-4)}`];
 }
-const need = (chain: string) => REQUEST_SETTINGS.confirmations[chain as keyof typeof REQUEST_SETTINGS.confirmations] ?? 12;
 
-/** The five checks for one replayed transfer, from the product's view and the recorded chain facts. */
-export function releaseChecks(r: Replayed): ReleaseChecks {
-  const inv = r.invoice, t = inv.token, amt = (a: string) => `${formatUsdc(a.replace(/^-/, ""))} ${t}`;
-  const at = r.recordedAt;
+/**
+ * Recorded issuer-freeze reads (crypto-protocol-engineer, tests/fixtures/real/FREEZE-*.json) that cover a
+ * demo transfer's own sender AND receiving address. Only these transfers get a freeze answer; the rest
+ * say "not checked". `freezeFixtureCovers` re-checks that both addresses are in the recording.
+ */
+export const FREEZE_FIXTURE: Record<string, string> = { "ETH-01.json": "FREEZE-ETH-USDT-CLEAN.json" };
+const FREEZE_DIR = () => path.join(process.cwd(), "tests", "fixtures", "real");
+const word = (a: string) => a.replace(/^0x/i, "").toLowerCase().padStart(64, "0");
+export function freezeFixtureCovers(file: string, sender: string, receiver: string): boolean {
+  const body = readFileSync(path.join(FREEZE_DIR(), file), "utf8").toLowerCase();
+  return body.includes(word(sender)) && body.includes(word(receiver));
+}
+
+async function freezeFor(r: Replayed, sender: string, receiver: string, contract: string): Promise<FreezeCheck> {
+  const issuer = ISSUER[r.invoice.token];
+  const file = FREEZE_FIXTURE[r.scenario.transfer!.recording];
+  if (!file || !freezeFixtureCovers(file, sender, receiver)) {
+    return { state: "not_run", issuer, detail: `${issuer}'s freeze list wasn't read for this transfer, so freeze status wasn't checked.` };
+  }
+  const rec = JSON.parse(readFileSync(path.join(FREEZE_DIR(), file), "utf8"));
+  const at = () => new Date(rec.recordedAt);
+  const deps = buildFetchers({ tronKey: "", etherscanKey: "replay", store: new MemoryStore(), transport: replayOnly(rec), now: at, sleep: async () => {}, noSpacing: true });
+  return readIssuerFreeze(deps, { chain: r.facts!.tx!.chain, token: r.invoice.token, contract, sender, receiver }, at);
+}
+
+/**
+ * The block the network had finalized when the transfer was recorded. Not in the recordings yet, so
+ * undefined: finality then reads "NOT checked" (never guessed from a block count).
+ * TODO(crypto-protocol-engineer finality follow-up): use their recorded-finality hook here.
+ */
+export function recordedFinalizedBlock(r: Replayed): number | undefined { void r; return undefined; }
+
+/** The five checks for one replayed transfer. */
+export async function releaseChecks(r: Replayed, o: { replayedWait?: boolean; finalizedBlock?: number } = {}): Promise<ReleaseChecks> {
+  const inv = r.invoice, t = inv.token, at = r.recordedAt;
   const tx = r.facts?.tx;
   const chain = tx?.chain ?? "ethereum";
   const net = NET[chain] ?? chain;
-  const blocks = tx && r.facts?.currentBlock !== undefined ? Math.max(0, r.facts.currentBlock - tx.blockNumber) : undefined;
-  const confs = r.confirmations ?? blocks;
-  const n = need(chain);
-  const pace = confirmPace(chain);
-  const finality: Check = confs === undefined
-    ? { state: "not_run", detail: `Not in a block yet, so we can't say when it will be final.`, checkedAt: at }
-    : confs >= n
-      ? { state: "passed", detail: `Final: ${confs.toLocaleString("en-US")} blocks on top of the transfer on ${net}; Clearline waits for ${n}. (It doesn't read the network's own finality signal yet.)`, source: "Recorded chain data", checkedAt: at }
-      : { state: "not_run", detail: `Not final yet: ${confs} of the ${n} blocks Clearline waits for. ${pace ? `${net} usually takes ${pace}; that's a usual pace, not a promise.` : "We can't say how long it will take."}`, source: "Recorded chain data", checkedAt: at };
+  const eta = r.view ? paymentStatus(r.data, r.view).sentence : undefined;
+  const src = "Recorded chain data (replayed)";
+  const finality: FinalityCheck = o.replayedWait && tx
+    // Replaying the wait: the transfer had only just gone into its block, so the network can't have finalized it yet.
+    ? { state: "pending", blockNumber: tx.blockNumber, eta, source: src, detail: `Replayed wait: in block ${tx.blockNumber}, which the network hadn't finalized yet.` }
+    : finalityCheck({ chain, blockNumber: tx?.blockNumber, finalizedBlock: o.finalizedBlock ?? recordedFinalizedBlock(r), source: src, checkedAt: at, eta });
 
-  const v = r.view;
-  const flag = v?.flagged.at(-1);
-  const official = OFFICIAL[t];
-  let token: Check;
-  let amount: Check;
-  if (r.refused && tx && chain !== "ethereum") {
-    token = { state: "failed", detail: `Sent on ${net}, not Ethereum, the network on the invoice.`, source: "Recorded chain data", checkedAt: at };
+  const mine = tx?.transfers.filter((x) => sameAddress(x.to, inv.receiving_address)) ?? [];
+  const x = mine[0] ?? tx?.transfers[0];
+  let token: CheckResult, amount: CheckResult;
+  if (!tx || !x) {
+    token = { state: "not_run", detail: "The transfer couldn't be read, so the token wasn't checked." };
+    amount = { state: "not_run", detail: "The transfer couldn't be read, so the amount wasn't checked." };
+  } else if (chain !== "ethereum") {
+    token = { state: "failed", detail: `Sent on ${net}, not Ethereum, the network on the invoice.`, source: src, checkedAt: at };
     amount = { state: "not_run", detail: "Amount not checked: the transfer is on another network.", checkedAt: at };
-  } else if (r.refused && tx) {
-    const x = tx.transfers[0];
-    const genuine = x && sameAddress(x.tokenContract, official);
-    token = genuine
-      ? { state: "passed", detail: `Right token: ${ISSUER[t]}'s ${t} contract (${shortAddr(official)}).`, source: "Recorded chain data", checkedAt: at }
-      : { state: "not_run", detail: "Token not checked: nothing reached this invoice's address.", checkedAt: at };
-    const look = x && compareAddress(x.to, inv.receiving_address) === "lookalike";
-    amount = { state: "failed", detail: look
-      ? `Not paid to this invoice: it went to a look-alike address (${apart(x.to, inv.receiving_address).join(", not ")}).`
-      : "Not paid to this invoice: nothing arrived at its address.", source: "Recorded chain data", checkedAt: at };
-  } else if (flag && (flag.kind === "counterfeit" || flag.kind === "wrong_token")) {
-    token = flag.kind === "counterfeit"
-      ? { state: "failed", detail: `Look-alike token: it calls itself ${t} but isn't ${ISSUER[t]}'s contract.`, source: "Recorded chain data", checkedAt: at }
-      : { state: "failed", detail: `Wrong token: "${flag.obs.tokenSymbol}" is not ${t}, and isn't ${ISSUER[t]}'s contract.`, source: "Recorded chain data", checkedAt: at };
-    amount = { state: "not_run", detail: "Amount not counted: the token is wrong.", checkedAt: at };
   } else {
-    const anyObs = v?.counted[0] ?? flag?.obs;
-    token = anyObs && sameAddress(anyObs.tokenContract, official)
-      ? { state: "passed", detail: `Right token: ${ISSUER[t]}'s ${t} contract (${shortAddr(official)}).`, source: "Recorded chain data", checkedAt: at }
-      : { state: "not_run", detail: "Token not checked yet.", checkedAt: at };
-    if (!v) amount = { state: "not_run", detail: "Amount not checked yet.", checkedAt: at };
-    else if (v.review === "ambiguous") amount = { state: "not_run", detail: "Two sample invoices could be paid by this transfer: a person confirms which one before it counts.", checkedAt: at };
-    else if (flag) amount = { state: "failed", detail: `Only ${formatUsdc(flag.obs.amount)} of ${amt(inv.amount)} arrived.`, source: "Recorded chain data", checkedAt: at };
-    else if (v.review === "short") amount = { state: "failed", detail: `Short by ${amt(v.outstanding)}: ${amt(v.received)} of ${amt(inv.amount)} arrived.`, source: "Recorded chain data", checkedAt: at };
-    else if (v.review === "over") amount = { state: "passed", detail: `Covers the invoice: ${amt(v.outstanding)} more than asked, to refund or keep as credit.`, source: "Recorded chain data", checkedAt: at };
-    else if (v.state === "confirming" && v.counted.length) {
-      const got = v.counted[0].amount;
-      amount = got === inv.amount || formatUsdc(got) === formatUsdc(inv.amount)
-        ? { state: "passed", detail: `Exactly ${amt(inv.amount)}, the invoice amount.`, source: "Recorded chain data", checkedAt: at }
-        : { state: "not_run", detail: "Amount counted once it's final.", checkedAt: at };
-    } else if (v.state === "matched" || v.state === "completed") amount = { state: "passed", detail: `Exactly ${amt(inv.amount)}, the invoice amount.`, source: "Recorded chain data", checkedAt: at };
-    else amount = { state: "not_run", detail: "Amount not checked yet.", checkedAt: at };
+    token = { ...tokenCheck({ chain, token: t, contract: x.tokenContract }), checkedAt: at };
+    if (token.state === "failed") {
+      amount = { state: "not_run", checkedAt: at, detail: "Amount not counted: the token is wrong." };
+    } else if (!mine.length) {
+      amount = { state: "failed", source: src, checkedAt: at, detail: compareAddress(x.to, inv.receiving_address) === "lookalike"
+        ? `Not paid to this invoice: it went to a look-alike address (${apart(x.to, inv.receiving_address).join(", not ")}).`
+        : "Not paid to this invoice: nothing arrived at its address." };
+    } else if (r.view?.review === "ambiguous") {
+      amount = { state: "not_run", checkedAt: at, detail: "Two sample invoices could be paid by this transfer: a person confirms which one before the amount is counted." };
+    } else {
+      const received = mine.reduce((s, m) => add(s, m.amount), "0");
+      amount = { ...amountCheck({ expected: inv.amount, received, token: t }), source: src, checkedAt: at };
+    }
   }
-  return { finality, token, amount, sanctions: notRunSanctions(), freeze: notRunFreeze() };
+  const sender = x?.from ?? "";
+  const sanctions = screenSender(loadSanctionsSnapshot(), chain, sender, at);
+  const freeze = x && chain === "ethereum" ? await freezeFor(r, sender, x.to, x.tokenContract)
+    : { state: "not_run" as const, issuer: ISSUER[t], detail: `${ISSUER[t]}'s freeze list wasn't read for this transfer, so freeze status wasn't checked.` };
+  return { finality, token, amount, sanctions, freeze };
 }
 
 export interface ReleaseCard {
@@ -99,8 +120,8 @@ export interface ReleaseCard {
   label: string;
 }
 
-export function cardFor(r: Replayed): ReleaseCard {
-  const checks = releaseChecks(r);
+export async function cardFor(r: Replayed, o: { replayedWait?: boolean; finalizedBlock?: number } = {}): Promise<ReleaseCard> {
+  const checks = await releaseChecks(r, o);
   const tx = r.facts?.tx;
   const x = tx?.transfers[0];
   return {
@@ -111,7 +132,7 @@ export function cardFor(r: Replayed): ReleaseCard {
   };
 }
 
-export const card = async (id: string, o: { asOfConfirmations?: number } = {}) => cardFor(await replay(id, o));
+export const card = async (id: string, o: { asOfConfirmations?: number } = {}) => cardFor(await replay(id, o), { replayedWait: o.asOfConfirmations !== undefined });
 
 // ---------- S1b: notification preview (quiet by default) ----------
 
