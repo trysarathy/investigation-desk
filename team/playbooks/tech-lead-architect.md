@@ -129,7 +129,7 @@ Log per PR: `gate PR #<n> <sha>: merged | held (<condition>) | queued for approv
   pass on builders' summaries or your own view of the PR.
 - **Mandatory** for approval-only PRs (posting rules, money, auth, keys, deploy and the rest of the list);
   **default** for everything else (exceptions need a one-line Log reason).
-- The same applies to QA where practical; at minimum QA must not be the builder's session.
+- QA: running QA in a fresh session too is recommended (not yet decided by Aashmiin); until she decides, say in the merge report whether QA ran in the builder's session.
 
 ## §5 ADR procedure (trigger: `adr-guide.md` "when to write one", or two PRs disagree)
 1. Next number from `ls docs/adr`. Branch `docs/adr-<NNNN>-<slug>`.
