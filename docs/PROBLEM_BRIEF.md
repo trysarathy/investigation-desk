@@ -202,3 +202,63 @@ No names; roles only. Aashmiin chooses and contacts; nothing is sent by us.
 Indian recipients are deliberately absent (Regulation box). Script per role: `docs/INTERVIEWS/SCRIPT_*.md`.
 
 ## 7. Stress test (crypto-finance-user)
+
+SIMULATED FEEDBACK — NOT EVIDENCE OF CUSTOMER DEMAND
+
+This is a simulation by an AI persona; it is NOT evidence of demand and must not be quoted as a customer.
+
+Basis: Calls rows 2 (both advisors), 0 buyers (§1); public sources: only those already labelled in §2-3, none opened this run.
+Every objection is `[GUESS: persona judgement]` unless it points to a labelled line above. **FC** = financial controller,
+SGD-base SME. **Ops** = ops/sales lead, merchant/exporter releasing goods. **TR** = treasury lead, cross-border payments firm.
+
+### H1 Moment of payment
+| | Strongest objection | What I do today | I'd pay if | Ask a real buyer |
+|---|---|---|---|---|
+| FC | Release is ops' call; I care about the books. | Nothing until the rec. | It closes a release-control gap my auditor raised. | "Who released the last USDT-paid order, and what did they look at?" |
+| Ops | Repeat buyers' screenshots are fine; new buyers prepay or go via an OTC desk that confirms on chat. | Screenshot, explorer, or ask the desk. | I've been burned (fake, short, wrong network) and it beats the screenshot for speed. | "Tell me about the last payment you released on that turned out wrong. What did it cost?" |
+| TR | My custodian/PSP webhook already gives final status; I wouldn't route payment ops through a solo founder's tool (O6). | Webhooks into our own ops stack. | Probably never. | "What tells you a payin is final today, and when did that last fail?" |
+
+### H2 FX and lots
+| | Strongest objection | What I do today | I'd pay if | Ask a real buyer |
+|---|---|---|---|---|
+| FC | I convert the same day, so FX never matters; or my auditor calls it immaterial (§2 H2 FALSE). | OTC/exchange conversion; accountant posts a year-end journal. | I hold coins across month-end and got an audit adjustment. | "At last month-end, what stablecoin balance did you hold, and how was it translated?" |
+| Ops | Not my problem. | Price in USDT, let finance worry. | Never. | "Have you ever lost margin between quoting in USDT and converting?" |
+| TR | We're USD-functional; FX is a desk spread, handled in our treasury system. | Treasury system and hedges. | No. | "What is your functional currency, and who books the conversion difference?" |
+
+### H3 Pre-funding
+| | Strongest objection | What I do today | I'd pay if | Ask a real buyer |
+|---|---|---|---|---|
+| FC | We're not a payout firm. | n/a | n/a | "Do you pay anyone abroad before you are paid?" |
+| Ops | I already pay suppliers in USDT; that *is* my pre-funding fix. | Pay supplier in USDT. | n/a | "What do you pay suppliers ahead of time, in what, and how long before you're paid?" |
+| TR | Real pain, but the fix is liquidity and a licence; a read-only tool frees no buffer. BVNK/Circle/my bank are already pitching (§2 H3). | Per-corridor buffers, bank lines. | It cuts the buffer I hold, which read-only can't. | "Who confirms a partner's settlement landed and matched, and how long does it take?" |
+
+### H4 Current Clearline
+| | Strongest objection | What I do today | I'd pay if | Ask a real buyer |
+|---|---|---|---|---|
+| FC | Cryptio/Bitwave/TRES already push to Xero (§2 H4); at my volume the bookkeeper does it in an afternoon; approver names are typed, not signed in (O11). | Wallet CSV, spreadsheet, manual journal. | It shortens close, the auditor accepts its evidence, it does Tron (O12), cheaper than a sub-ledger. | "Walk me through last month-end for the wallet: what did you export, how long did it take, what did the auditor ask?" |
+| Ops | Doesn't touch me: wrong buyer. | n/a | n/a | n/a |
+| TR | Our volumes need APIs and a sub-ledger, not paste-a-hash. | Internal recon or a sub-ledger. | No. | "What reconciles your stablecoin flows today, and what breaks?" |
+
+### The wedge: "Safe to release", own-wallet Tron USDT
+- **Ops: the screenshot is faster.** I trust known buyers' screenshots; new ones prepay and I wait. Pasting a hash is
+  slower than my wallet app, and watching and push aren't built (§5 Against).
+- **Ops/TR: my gateway or OTC desk already tells me.** CoinGate payment channels do this for 1% (§2 H1), and an OTC desk
+  confirms on chat for free.
+- **FC: I'd never let a tool near my wallet.** "Read-only, no keys" must be the first sentence, and my address in a solo
+  founder's database is still a question (O1, O6).
+- **FC: Tron USDT straight to our own wallet is a grey area.** My bank asks about crypto receipts and the source of funds. And
+  "safe" says nothing about who sent it or freeze/sanctions exposure: a promise you can't keep.
+- **FC: I convert instantly, so the Xero half is one entry a month.** Not worth a subscription.
+- **What I'd do instead:** screenshot plus explorer plus the desk chat; for anything big, wait for the fiat credit.
+- **What would make me pay:** an alert in the chat ops already uses, with no pasting, that has caught a fake-token,
+  wrong-network or short payment *before* release, priced below one bad release (their number, not ours).
+- **One question per persona:** Ops: "The last time you released goods against USDT, what did you check and how long
+  did it take?" FC: "Has your bank or auditor ever asked about USDT received into the company wallet?" TR: "When a
+  client's USDT lands on Tron, who confirms it and how?"
+
+### Most likely to be wrong about
+1. That enough own-wallet USDT receivers with no gateway or OTC desk exist, and can be reached, in SG/HK/UAE free zones. The wedge rests on this `[ASSUMPTION]`.
+2. That ops feels screenshot risk as urgent. With repeat buyers, prepayment or credit terms, many may never have been burned.
+3. That paste-a-hash is a product. Without watching and push (not built), it is slower than the habit it replaces.
+4. That the person who feels it (ops) pays. Finance holds the budget and may see the Xero half as one entry.
+5. That "safe to release" is a claim we can make. It doesn't screen the sender or freeze risk, and own-wallet Tron USDT may be a grey area buyers won't document.
