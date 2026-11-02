@@ -103,7 +103,9 @@ export function releaseHeadline(c: ReleaseChecks): ReleaseHeadline {
   // "Paid" needs finality AND the right token AND the right amount; anything less isn't called paid.
   if (c.finality.state !== "passed") return { tone: "not_yet", headline: "Finality NOT checked.", lines: [parts.join(" "), ...lines], allChecked };
   if (personDecides.length) {
-    return { tone: "problem", headline: personDecides.map(said).join(" "), lines: [`Paid and final. ${parts.join(" ")}`, ...lines], allChecked };
+    // "Paid and final." only with the right token; an overpayment says nothing about which token it was.
+    const lead = tok ? "Paid and final." : "Final, but not confirmed as paid.";
+    return { tone: "problem", headline: personDecides.map(said).join(" "), lines: [`${lead} ${parts.join(" ")}`, ...lines], allChecked };
   }
   if (!tok || !amt) return { tone: "not_yet", headline: `Final, but not confirmed as paid. ${parts.join(" ")}`, lines, allChecked };
   return { tone: "paid", headline: `Paid and final. ${parts.join(" ")}`, lines, allChecked };

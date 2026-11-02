@@ -103,7 +103,7 @@ describe("releaseHeadline: words only for checks that passed", () => {
 
   it("short amount → problem", () => {
     const h = releaseHeadline(all({ amount: "failed" }));
-    expect(h).toMatchObject({ tone: "problem", headline: "Don't release: Short by 50 USDC (received 1200, asked 1250)." });
+    expect(h).toMatchObject({ tone: "problem", headline: "Don't release: Short by 50.00 USDC (received 1,200.00, asked 1,250.00)." });
   });
 
   it("not final yet → \"Not final yet.\" with the 6a status sentence, no other claim", () => {
@@ -121,7 +121,7 @@ describe("releaseHeadline: words only for checks that passed", () => {
 
   it("several failures are all named", () => {
     const h = releaseHeadline(all({ amount: "failed", freeze: "failed" }));
-    expect(h.headline).toBe("Don't release: Short by 50 USDC (received 1200, asked 1250). Sender frozen by Circle.");
+    expect(h.headline).toBe("Don't release: Short by 50.00 USDC (received 1,200.00, asked 1,250.00). Sender frozen by Circle.");
   });
 
   it("never the word \"safe\", in any combination of results (and even if a caller's line contains it)", () => {
@@ -155,7 +155,7 @@ describe("the five checks", () => {
   });
 
   it("amount: exact decimal, overpaid is not \"right amount\" either; unparseable → not_run", () => {
-    expect(amountCheck({ expected: "1250", received: "1250.5", token: "USDT" })).toMatchObject({ state: "failed", blocking: false, detail: "Paid 0.5 USDT more than the invoice. Check with finance before refunding." });
+    expect(amountCheck({ expected: "1250", received: "1250.5", token: "USDT" })).toMatchObject({ state: "failed", blocking: false, detail: "Paid 0.50 USDT more than the invoice. Check with finance before refunding." });
     expect(amountCheck({ expected: "0.1", received: "0.10", token: "USDT" }).state).toBe("passed");
     expect(amountCheck({ expected: "1250", received: "1e3", token: "USDT" }).state).toBe("not_run");
   });
@@ -226,11 +226,11 @@ describe("plain English (2 Nov): no jargon in the main lines, numbers in `techni
     const over = amountCheck({ expected: "1250", received: "1255", token: "USDC" });
     const h = releaseHeadline({ ...all(), amount: over });
     expect(h.tone).toBe("problem");
-    expect(h.headline).toBe("Paid 5 USDC more than the invoice. Check with finance before refunding.");
+    expect(h.headline).toBe("Paid 5.00 USDC more than the invoice. Check with finance before refunding.");
     expect(h.lines[0]).toBe("Paid and final. Right token. Sender not on public sanctions lists. Not frozen.");
     // A blocking failure still wins, and the overpayment is still named.
     expect(releaseHeadline({ ...all({ freeze: "failed" }), amount: over }).headline)
-      .toBe("Don't release: Sender frozen by Circle. Paid 5 USDC more than the invoice. Check with finance before refunding.");
+      .toBe("Don't release: Sender frozen by Circle. Paid 5.00 USDC more than the invoice. Check with finance before refunding.");
   });
 });
 
@@ -286,6 +286,26 @@ describe("UI-safe module (code review #65)", () => {
   it("release-headline.ts has no runtime imports (type-only or none), so it can't pull node:crypto into the client", () => {
     const src = readFileSync(path.join(__dirname, "..", "src", "lib", "requests", "release-headline.ts"), "utf8");
     expect(src.split("\n").filter((l) => /^\s*import\s/.test(l) && !/^\s*import\s+type\s/.test(l))).toEqual([]);
-    expect(src).not.toMatch(/require\(/);
+    expect(src).not.toMatch(/require\s*\(/);
+    expect(src).not.toMatch(/^\s*export\s[^\n]*\sfrom\s/m);
+    expect(src).not.toMatch(/\bimport\s*\(/);
+  });
+});
+
+describe("re-review #65 (2 Nov)", () => {
+  it("overpaid with the token NOT checked (BNB USDC, final, 105 vs 100) → not \"Paid and final.\"", () => {
+    const token = tokenCheck({ chain: "bsc", token: "USDC", contract: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d" });
+    expect(token.state).toBe("not_run");
+    const h = releaseHeadline({ ...all(), token, amount: amountCheck({ expected: "100", received: "105", token: "USDC" }) });
+    expect(h.tone).toBe("problem");
+    expect(h.headline).toBe("Paid 5.00 USDC more than the invoice. Check with finance before refunding.");
+    expect(h.lines[0]).toBe("Final, but not confirmed as paid. Token NOT checked. Sender not on public sanctions lists. Not frozen.");
+    expect(`${h.headline} ${h.lines.join(" ")}`).not.toMatch(/Paid and final/);
+  });
+
+  it("amounts read with thousands separators, every digit kept", () => {
+    expect(amountCheck({ expected: "4300", received: "4300.00", token: "USDT" }).detail).toBe("Exactly 4,300.00 USDT.");
+    expect(amountCheck({ expected: "1010", received: "1001.25819", token: "USDC" }).detail).toBe("Short by 8.74181 USDC (received 1,001.25819, asked 1,010.00).");
+    expect(amountCheck({ expected: "1000", received: "1250.5", token: "USDT" }).detail).toBe("Paid 250.50 USDT more than the invoice. Check with finance before refunding.");
   });
 });

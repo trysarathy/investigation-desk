@@ -11,6 +11,7 @@ import { formatDuration } from "../format";
 import { sub } from "../payments/money";
 import type { Chain, Token } from "../types";
 import { REQUEST_SETTINGS } from "./check";
+import { formatUsdc } from "./lifecycle";
 import { ISSUER, type CheckResult, type FinalityCheck } from "./release-headline";
 
 export * from "./release-headline";
@@ -56,10 +57,12 @@ export function tokenCheck(o: { chain: Chain; token: Token; contract: string }, 
 export function amountCheck(o: { expected: string; received: string; token: Token }): CheckResult {
   if (!isDecimal(o.expected) || !isDecimal(o.received)) return { state: "not_run", detail: "The amount couldn't be read, so it wasn't checked." };
   const c = compareDecimal(o.received, o.expected);
-  if (c === 0) return { state: "passed", detail: `Exactly ${o.expected} ${o.token}.` };
+  // For reading: thousands separators, at least 2 decimals, no digit dropped (formatUsdc). Exact values in `technical`.
+  const f = formatUsdc;
+  if (c === 0) return { state: "passed", detail: `Exactly ${f(o.expected)} ${o.token}.` };
   const technical = `Received ${o.received}, invoice ${o.expected}.`;
-  if (c < 0) return { state: "failed", detail: `Short by ${sub(o.expected, o.received)} ${o.token} (received ${o.received}, asked ${o.expected}).`, technical };
-  return { state: "failed", blocking: false, detail: `Paid ${sub(o.received, o.expected)} ${o.token} more than the invoice. Check with finance before refunding.`, technical };
+  if (c < 0) return { state: "failed", detail: `Short by ${f(sub(o.expected, o.received))} ${o.token} (received ${f(o.received)}, asked ${f(o.expected)}).`, technical };
+  return { state: "failed", blocking: false, detail: `Paid ${f(sub(o.received, o.expected))} ${o.token} more than the invoice. Check with finance before refunding.`, technical };
 }
 
 /** Network: the transfer is on the network the invoice asks for. */
