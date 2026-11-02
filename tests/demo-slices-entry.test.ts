@@ -25,7 +25,7 @@ describe("S2: matched invoice, the same release checks, and the proposed entry f
   it("leads with TRON-01, then Ethereum plans that are ready with payment lines; Dr clearing = Cr receivable = the plan's amount", async () => {
     const ids = await entryScenarios();
     expect(ids).toEqual(["TRON-01", "SCN-01", "SCN-02", "SCN-03", "SCN-04", "SCN-05", "SCN-11"]);
-    for (const id of ids.slice(1)) {
+    for (const id of ids.slice(1).filter((x) => x !== "SCN-11")) {
       const e = (await proposedEntry(id))!;
       const r = await replay(id);
       const acct = { version: 1 as const, provider: "demo" as const, accounts: { walletAccountCode: "SAMPLE-CLR", feeAccountCode: "SAMPLE-SHORTFALL" }, audit: [],
@@ -39,6 +39,15 @@ describe("S2: matched invoice, the same release checks, and the proposed entry f
       expect(e.approvable, id).toBe(false);
       expect(e.matchLine).not.toMatch(/on-chain this is done|confirmed/i);
     }
+  });
+  it("SCN-11 (same transfer reported twice): labelled, no second entry, no Dr/Cr", async () => {
+    const e = (await proposedEntry("SCN-11"))!;
+    expect(e).toMatchObject({ status: "duplicate", rows: [], approvable: false });
+    expect(e.planReasons).toEqual(["Same transfer as SCN-03 — no second entry."]);
+    const P = (await import("@/app/demo/entry/page")).default as unknown as (p: { searchParams: Promise<Record<string, string>> }) => Promise<ReactNode>;
+    const h = text(await html(await P({ searchParams: Promise.resolve({ s: "SCN-11" }) })));
+    expect(h).toContain("Same transfer as SCN-03 — no second entry.");
+    expect(h).not.toMatch(/Debit|Credit/);
   });
   it("TRON-01: final, but no posting plan exists for Tron, so it says so instead of inventing an entry", async () => {
     const e = (await proposedEntry("TRON-01"))!;
@@ -60,7 +69,9 @@ describe("S2: matched invoice, the same release checks, and the proposed entry f
   it("Approve sends nothing: no network or server call in the component, and it says so", () => {
     const src = readFileSync(path.join(__dirname, "..", "src/components/demo-slices/ApproveDemo.tsx"), "utf8").replace(/^\s*\/\/.*$/gm, "");
     expect(src).not.toMatch(/fetch\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource|"use server"|action=/);
-    expect(APPROVED_MESSAGE).toBe("Live, this would now post to Xero. Demo: nothing sent.");
+    // QA: Xero is "in testing" (PRODUCT_FACTS); never "would now post".
+    expect(APPROVED_MESSAGE).toBe("Live, this is the step that would post the entry to Xero once it's connected and switched on. Demo: nothing sent.");
+    expect(APPROVED_MESSAGE).not.toMatch(/would now post/);
     expect(APPROVER).toBe("Mei Tan (sample user)");
   });
 });

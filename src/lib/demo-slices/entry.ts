@@ -16,7 +16,8 @@ import { replay, scenarios, TRON_SCENARIO } from "./replay";
 /** The sample organisation's clearing account code (each organisation sets its own; there is no default). */
 export const SAMPLE_CLEARING = { code: "SAMPLE-CLR", name: "Stablecoin clearing (sample account)" };
 /** What the demo's Approve says after the click (with who and when): nothing leaves the page. */
-export const APPROVED_MESSAGE = "Live, this would now post to Xero. Demo: nothing sent.";
+/** QA's wording: Xero is "in testing" (PRODUCT_FACTS), so never "would now post". Final wording is Aashmiin's call. */
+export const APPROVED_MESSAGE = "Live, this is the step that would post the entry to Xero once it's connected and switched on. Demo: nothing sent.";
 export const APPROVER = "Mei Tan (sample user)";
 /** Only when finality is actually pending (on the chain, not final yet). */
 export const WAITING_MESSAGE = "Waiting until final — can't be approved yet.";
@@ -35,7 +36,7 @@ export interface ProposedEntry {
   card: ReleaseCard;
   /** Aashmiin's rule: post only when final. Approvable only when the checks say paid and final. */
   approvable: boolean;
-  status: PlanStatus | "no_plan";
+  status: PlanStatus | "no_plan" | "duplicate";
   planReasons: string[];
   rows: EntryRow[];
 }
@@ -47,6 +48,13 @@ export async function proposedEntry(id: string): Promise<ProposedEntry | null> {
   const inv = r.invoice;
   const c = await cardFor(r);
   const head = { scenarioId: id, invoiceId: inv.id, customerRef: inv.customer_ref, invoiceAmount: `${formatUsdc(inv.amount)} ${inv.token}`, card: c, approvable: c.result.tone === "paid" };
+  // "The same transfer reported twice": its transfer already has an entry under the original sample, so no second one.
+  if (r.scenario.case_type === "duplicate") {
+    const original = scenarios().find((o) => o.id !== id && o.case_type !== "duplicate" && o.transfer?.hash === r.scenario.transfer?.hash);
+    if (original) {
+      return { ...head, approvable: false, matchLine: `Same transfer as ${original.id}.`, status: "duplicate", rows: [], planReasons: [`Same transfer as ${original.id} — no second entry.`] };
+    }
+  }
   if (!r.view) {
     const to = r.facts?.tx?.transfers.find((t) => sameAddress(t.to, inv.receiving_address));
     if (!to) return null;
@@ -75,7 +83,7 @@ export async function entryScenarios(): Promise<string[]> {
   const out: string[] = [TRON_SCENARIO.id];
   for (const s of scenarios()) {
     const e = await proposedEntry(s.id);
-    if (e && e.status === "ready" && e.rows.length) out.push(s.id);
+    if (e && ((e.status === "ready" && e.rows.length) || e.status === "duplicate")) out.push(s.id);
   }
   return out;
 }
