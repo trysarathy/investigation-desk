@@ -9,7 +9,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { EVM_CHAIN_IDS, type Chain } from "../types";
-import type { SanctionsCheck } from "./release-checks";
+import type { SanctionsCheck } from "./release-headline";
 
 export interface SanctionsSnapshot {
   list: "OFAC SDN";
@@ -52,6 +52,9 @@ export function screenSender(snapshot: SanctionsSnapshot | undefined, chain: Cha
   if (!snapshot) return { state: "not_run", list, detail: "No copy of the OFAC sanctions list is loaded, so the sender wasn't checked." };
   const meta = { list, listDate: snapshot.source.listPublishDate, source: snapshot.source.url, checkedAt: now };
   const ageDays = (Date.parse(now) - Date.parse(snapshot.source.fetchedAt)) / 86_400_000;
+  if (ageDays < 0) {
+    return { ...meta, state: "not_run", detail: "The loaded OFAC list copy is dated after this check, so it can't be trusted and the sender wasn't checked." };
+  }
   if (!(ageDays <= MAX_SNAPSHOT_AGE_DAYS)) {
     return { ...meta, state: "not_run", detail: `The loaded OFAC list copy is more than ${MAX_SNAPSHOT_AGE_DAYS} days old, so the sender wasn't checked.` };
   }

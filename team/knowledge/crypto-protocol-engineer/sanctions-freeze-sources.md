@@ -2,7 +2,7 @@
 
 Written 2026-11-02 for S1 "release checks" (Aashmiin's decision, 2 Nov: the paid wording says only what
 was checked). Code: `src/lib/requests/release-checks.ts` (wording), `sanctions.ts` (OFAC snapshot),
-`freeze.ts` (issuer calls). Labels follow company rule 2: **[VERIFIED: who date, url]** only when the
+`freeze.ts` (issuer calls, stacked PR `feat/s1-freeze`), `finality.ts` (stacked PR `feat/s1-finality`). Labels follow company rule 2: **[VERIFIED: who date, url]** only when the
 primary source itself was opened in this run.
 
 **This is not a compliance or KYT screening product and not legal advice.** It looks up one address
@@ -102,7 +102,10 @@ Exact strings from `releaseHeadline()` (tests in `tests/release-checks.test.ts`)
 - Sanctions not run: "... Sender NOT checked. ..." · Freeze not run: "... Freeze status NOT checked."
 - Token / amount not run: "Token NOT checked." / "Amount NOT checked." · Finality unknown: "Finality NOT checked." (not called paid)
 - Not final: "Not final yet." + the 6a status sentence.
-- Any failure: "Don't release: <what failed>." The word "safe" is never produced (tested over all 324 combinations).
+- Any blocking failure (wrong token, short, wrong network, look-alike or different receiving address, sanctioned, frozen): "Don't release: <what failed>."
+- Overpaid: "Paid 5 USDT more than the invoice. Check with finance before refunding." (problem tone; a person decides, POSTING_RULES C5).
+- "Paid" only when finality, token and amount all passed; otherwise "Final, but not confirmed as paid. …".
+- The word "safe" is never produced (tested over all 324 combinations). Main lines carry no block numbers or "confirmations"; those are in `technical`.
 
 ## 4. Hosts to allow (environment → network access), then flip the labels above
 `sanctionslist.ofac.treas.gov`, `ofac.treasury.gov`, `www.treasury.gov` (OFAC list + FAQs 562/594);

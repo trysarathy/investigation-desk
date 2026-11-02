@@ -235,22 +235,6 @@ export class EvmFetcher {
     return { lookup: { ...base, result: "found" }, tx: chainTx, currentBlock: Number.isFinite(current) ? current : undefined };
   }
 
-  /**
-   * The chain's `finalized` block number (JSON-RPC block tag, ethereum/execution-apis block.yaml). Never
-   * cached. Undefined on any error or an answer without a number: Etherscan V2's proxy refuses the tag
-   * ("invalid hex string", recorded 2026-11-02), so through Etherscan this is always unknown.
-   */
-  async finalizedBlock(chain: EvmChain, raws: RawResponse[]): Promise<number | undefined> {
-    const src = this.sources[chain];
-    if (!src) return undefined;
-    try {
-      const b = (await src.call("eth_getBlockByNumber", ["finalized", false], { ttlSec: 0 }, raws)) as { number?: unknown } | null;
-      return typeof b?.number === "string" && /^0x[0-9a-f]+$/i.test(b.number) ? Number(BigInt(b.number)) : undefined;
-    } catch {
-      return undefined;
-    }
-  }
-
   /** Read-only eth_call at the latest block; undefined on any error (a revert means "no such function"). */
   async ethCall(chain: EvmChain, to: string, data: string, ttlSec: number, raws: RawResponse[]): Promise<string | undefined> {
     const src = this.sources[chain];

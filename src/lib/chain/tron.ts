@@ -116,19 +116,6 @@ export class TronFetcher {
     };
   }
 
-  /** The solidified (irreversible) head: /walletsolidity/getnowblock. Never cached; undefined if the call fails. */
-  async solidifiedBlock(raws: RawResponse[]): Promise<number | undefined> {
-    try {
-      const r = await this.post("/walletsolidity/getnowblock", {}, 0);
-      raws.push(r);
-      const n = JSON.parse(r.body)?.block_header?.raw_data?.number;
-      return Number.isSafeInteger(n) && n > 0 ? n : undefined;
-    } catch (e) {
-      if (e instanceof ChainApiError && e.raw) raws.push(e.raw);
-      return undefined;
-    }
-  }
-
   /** USDT's isBlackListed(address) on Tron, read-only. Undefined if the call fails. */
   async isBlackListed(contract: string, address: string, raws: RawResponse[]): Promise<boolean | undefined> {
     try {
