@@ -4,10 +4,12 @@
 // one is a problem headline; the word "safe" never appears. Sources and limits:
 // team/knowledge/crypto-protocol-engineer/sanctions-freeze-sources.md.
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { OFFICIAL_USDC, OFFICIAL_USDT } from "@/lib/requests/check";
 import {
-  amountCheck, finalityCheck, releaseHeadline, tokenCheck,
+  amountCheck, finalityCheck, networkCheck, receivingAddressCheck, releaseHeadline, sgtTime, tokenCheck,
   type CheckState, type FinalityCheck, type FreezeCheck, type ReleaseChecks, type SanctionsCheck,
 } from "@/lib/requests/release-checks";
 import { parseSanctionsSnapshot, screenSender, type SanctionsSnapshot } from "@/lib/requests/sanctions";
@@ -108,7 +110,8 @@ describe("releaseHeadline: words only for checks that passed", () => {
     const h = releaseHeadline(all({ finality: "pending" }));
     expect(h.tone).toBe("not_yet");
     expect(h.headline).toBe("Not final yet.");
-    expect(h.lines[0]).toMatch(/^Confirming \(5 of 12 at the last check\)/);
+    // 10 blocks short of final × 12-second slots: the usual pace only, no confirmation counts.
+    expect(h.lines[0]).toBe("Not final yet — usually about 2 minutes more.");
   });
 
   it("finality couldn't be read → not yet, \"Finality NOT checked.\"", () => {
@@ -148,11 +151,11 @@ describe("the five checks", () => {
     expect(tokenCheck({ chain: "tron", token: "USDT", contract: TRON_USDT }).state).toBe("passed");
     expect(tokenCheck({ chain: "tron", token: "USDT", contract: TRON_USDT.toLowerCase() }).state).toBe("failed");
     expect(tokenCheck({ chain: "ethereum", token: "USDT", contract: OFFICIAL_USDC }).state).toBe("failed");
-    expect(tokenCheck({ chain: "bsc", token: "USDT", contract: "0x55d398326f99059ff775485246999027b3197955" }).state).toBe("not_run");
+    expect(tokenCheck({ chain: "polygon", token: "USDT", contract: "0xc2132d05d31c914a87c6611c10748aeb04b58e8f" }).state).toBe("not_run");
   });
 
   it("amount: exact decimal, overpaid is not \"right amount\" either; unparseable → not_run", () => {
-    expect(amountCheck({ expected: "1250", received: "1250.5", token: "USDT" })).toMatchObject({ state: "failed", detail: "Overpaid by 0.5 USDT (received 1250.5, asked 1250)." });
+    expect(amountCheck({ expected: "1250", received: "1250.5", token: "USDT" })).toMatchObject({ state: "failed", blocking: false, detail: "Paid 0.5 USDT more than the invoice. Check with finance before refunding." });
     expect(amountCheck({ expected: "0.1", received: "0.10", token: "USDT" }).state).toBe("passed");
     expect(amountCheck({ expected: "1250", received: "1e3", token: "USDT" }).state).toBe("not_run");
   });
@@ -177,6 +180,10 @@ describe("sanctions: offline against a recorded OFAC SDN snapshot", () => {
       .toMatchObject({ state: "passed", list: "OFAC SDN", listDate: "2026-10-31", source: "test://not-a-real-list", checkedAt: T });
   });
 
+  it("a snapshot \"fetched\" after the check time (clock skew or a bad file) → not_run", () => {
+    expect(screenSender(TEST_SNAPSHOT, "ethereum", "0x2222222222222222222222222222222222222222", "2026-10-31T23:59:59.000Z").state).toBe("not_run");
+  });
+
   it("a stale snapshot (fetched more than 7 days before the check) → not_run", () => {
     expect(screenSender(TEST_SNAPSHOT, "ethereum", "0x2222222222222222222222222222222222222222", "2026-11-09T00:00:01.000Z").state).toBe("not_run");
   });
@@ -188,5 +195,97 @@ describe("sanctions: offline against a recorded OFAC SDN snapshot", () => {
     expect(parseSanctionsSnapshot({ ...TEST_SNAPSHOT, entries: [] })).toBeUndefined();
     expect(parseSanctionsSnapshot({ ...TEST_SNAPSHOT, entries: [{ idType: "Digital Currency Address - XBT", address: "bc1qnotsupportedhere" }] })).toBeUndefined();
     expect(parseSanctionsSnapshot("nonsense")).toBeUndefined();
+  });
+});
+
+describe("plain English (2 Nov): no jargon in the main lines, numbers in `technical`", () => {
+  const JARGON = /confirmations|finali[sz]ed|solidified|block \d|\d{6,}/i;
+
+  it("final: \"Final on Ethereum (can't be reversed).\", block numbers only in technical", () => {
+    const c = fin("passed");
+    expect(c.detail).toBe("Final on Ethereum (can't be reversed).");
+    expect(c.technical).toBe("In block 100; the network had finalized up to block 120.");
+    expect(finalityCheck({ chain: "tron", blockNumber: 5, finalizedBlock: 9 }).detail).toBe("Final on Tron (can't be reversed).");
+    expect(finalityCheck({ chain: "tron", blockNumber: 10, finalizedBlock: 9 }).detail).toBe("Not final yet — usually about a minute more.");
+  });
+
+  it("no jargon in any headline or line, in any combination", () => {
+    for (const f of ["passed", "pending", "not_run"]) for (const z of ["passed", "failed", "not_run"] as CheckState[]) for (const a of ["passed", "failed", "not_run"] as CheckState[]) {
+      const h = releaseHeadline(all({ finality: f, freeze: z, amount: a }));
+      expect(`${h.headline} ${h.lines.join(" ")}`).not.toMatch(JARGON);
+    }
+  });
+
+  it("recorded time as a human SGT time", () => {
+    expect(sgtTime("2026-11-02T06:54:26.025Z")).toBe("2 Nov 2026, 2:54 pm SGT");
+    expect(sgtTime("2026-11-01T16:05:00.000Z")).toBe("2 Nov 2026, 12:05 am SGT");
+    expect(sgtTime("2026-11-02T04:00:00.000Z")).toBe("2 Nov 2026, 12:00 pm SGT");
+  });
+
+  it("overpaid: problem tone (a person decides, POSTING_RULES C5), but not \"Don't release\"", () => {
+    const over = amountCheck({ expected: "1250", received: "1255", token: "USDC" });
+    const h = releaseHeadline({ ...all(), amount: over });
+    expect(h.tone).toBe("problem");
+    expect(h.headline).toBe("Paid 5 USDC more than the invoice. Check with finance before refunding.");
+    expect(h.lines[0]).toBe("Paid and final. Right token. Sender not on public sanctions lists. Not frozen.");
+    // A blocking failure still wins, and the overpayment is still named.
+    expect(releaseHeadline({ ...all({ freeze: "failed" }), amount: over }).headline)
+      .toBe("Don't release: Sender frozen by Circle. Paid 5 USDC more than the invoice. Check with finance before refunding.");
+  });
+});
+
+describe("\"Paid\" only with finality AND token AND amount (code review #65)", () => {
+  it("final but token not checked → not_yet, not called paid", () => {
+    const h = releaseHeadline(all({ token: "not_run" }));
+    expect(h).toMatchObject({ tone: "not_yet", headline: "Final, but not confirmed as paid. Right amount. Token NOT checked. Sender not on public sanctions lists. Not frozen." });
+  });
+  it("final but amount not checked → not_yet", () => {
+    expect(releaseHeadline(all({ amount: "not_run" }))).toMatchObject({ tone: "not_yet", headline: "Final, but not confirmed as paid. Right token. Amount NOT checked. Sender not on public sanctions lists. Not frozen." });
+  });
+  it("tone 'paid' never comes with a token, amount or finality that didn't pass", () => {
+    const S: CheckState[] = ["passed", "failed", "not_run"];
+    for (const f of ["passed", "pending", "not_run", "failed"]) for (const t of S) for (const a of S) for (const z of S) {
+      const c = all({ finality: f, token: t, amount: a, freeze: z });
+      if (releaseHeadline(c).tone === "paid") expect([f, t, a]).toEqual(["passed", "passed", "passed"]);
+    }
+  });
+  it("BNB Chain: the company-declared contract passes as the accepted one; any other contract is a look-alike, not \"not checked\"", () => {
+    expect(tokenCheck({ chain: "bsc", token: "USDT", contract: "0x55D398326f99059fF775485246999027B3197955" }))
+      .toMatchObject({ state: "passed", detail: "The USDT contract your company accepts on BNB Chain." });
+    expect(tokenCheck({ chain: "bsc", token: "USDT", contract: "0x55d398326f99059ff775485246999027b3197956" }))
+      .toMatchObject({ state: "failed", detail: "Wrong token: this is not the USDT contract your company accepts on BNB Chain, it's a look-alike." });
+  });
+});
+
+describe("network and receiving-address slots: failures that block \"Paid and final\"", () => {
+  const INVOICE = "0xbaff2f13638c04b10f8119760b2d2ae86b08f8b5";
+
+  it("wrong network", () => {
+    const n = networkCheck({ paidOn: "tron", invoiceOn: "ethereum" });
+    expect(n).toMatchObject({ state: "failed", detail: "Sent on Tron, not Ethereum, the network on the invoice." });
+    expect(networkCheck({ paidOn: "ethereum", invoiceOn: "ethereum" }).state).toBe("passed");
+    expect(releaseHeadline({ ...all(), network: n })).toMatchObject({ tone: "problem", headline: "Don't release: Sent on Tron, not Ethereum, the network on the invoice." });
+  });
+
+  it("look-alike receiving address, both addresses shortened", () => {
+    const a = receivingAddressCheck({ paidTo: "0xbaff2f13638c04b10f8119760b2d2ae86b08f8b6", invoiceAddress: INVOICE });
+    expect(a).toMatchObject({ state: "failed", detail: "Sent to a look-alike address (0xbaff…f8b6), not the invoice's address (0xbaff…f8b5)." });
+    expect(releaseHeadline({ ...all(), address: a }).headline).toMatch(/^Don't release: Sent to a look-alike address/);
+    expect(receivingAddressCheck({ paidTo: INVOICE.toUpperCase().replace("0X", "0x"), invoiceAddress: INVOICE }).state).toBe("passed");
+    expect(receivingAddressCheck({ paidTo: "0x1234567890123456789012345678901234567890", invoiceAddress: INVOICE }).detail)
+      .toBe("Sent to a different address (0x1234…7890), not the invoice's address (0xbaff…f8b5).");
+  });
+
+  it("passed slots add nothing to the headline", () => {
+    const ok = { network: networkCheck({ paidOn: "ethereum", invoiceOn: "ethereum" }), address: receivingAddressCheck({ paidTo: INVOICE, invoiceAddress: INVOICE }) };
+    expect(releaseHeadline({ ...all(), ...ok }).headline).toBe(releaseHeadline(all()).headline);
+  });
+});
+
+describe("UI-safe module (code review #65)", () => {
+  it("release-headline.ts has no runtime imports (type-only or none), so it can't pull node:crypto into the client", () => {
+    const src = readFileSync(path.join(__dirname, "..", "src", "lib", "requests", "release-headline.ts"), "utf8");
+    expect(src.split("\n").filter((l) => /^\s*import\s/.test(l) && !/^\s*import\s+type\s/.test(l))).toEqual([]);
+    expect(src).not.toMatch(/require\(/);
   });
 });

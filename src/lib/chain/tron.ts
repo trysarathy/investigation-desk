@@ -116,29 +116,60 @@ export class TronFetcher {
     };
   }
 
-  /** The solidified (irreversible) head: /walletsolidity/getnowblock. Never cached; undefined if the call fails. */
+  /**
+   * The solidified (irreversible) head, /walletsolidity/getnowblock, never cached. Undefined if the call
+   * fails or the answer is malformed: the number must be a positive integer and match the blockID, whose
+   * first 8 bytes are the block number (e.g. 000000000539535a… = 87,642,970, recorded 2026-11-02).
+   */
   async solidifiedBlock(raws: RawResponse[]): Promise<number | undefined> {
     try {
       const r = await this.post("/walletsolidity/getnowblock", {}, 0);
       raws.push(r);
-      const n = JSON.parse(r.body)?.block_header?.raw_data?.number;
-      return Number.isSafeInteger(n) && n > 0 ? n : undefined;
+      const j = JSON.parse(r.body);
+      const n = j?.block_header?.raw_data?.number, id = j?.blockID;
+      if (!Number.isSafeInteger(n) || n <= 0 || typeof id !== "string" || !/^[0-9a-f]{64}$/i.test(id)) return undefined;
+      return BigInt(`0x${id.slice(0, 16)}`) === BigInt(n) ? n : undefined;
     } catch (e) {
       if (e instanceof ChainApiError && e.raw) raws.push(e.raw);
       return undefined;
     }
   }
 
-  /** USDT's isBlackListed(address) on Tron, read-only. Undefined if the call fails. */
-  async isBlackListed(contract: string, address: string, raws: RawResponse[]): Promise<boolean | undefined> {
+  /**
+   * The block of a transaction as the SOLIDITY node sees it (/walletsolidity/gettransactioninfobyid),
+   * never cached. That node answers only for solidified transactions, so "not_solid" = not irreversible
+   * (yet, or ever if it was dropped). Undefined on error or a malformed answer.
+   */
+  async solidTxBlock(hash: string, raws: RawResponse[]): Promise<number | "not_solid" | undefined> {
+    try {
+      const id = hash.replace(/^0x/i, "").toLowerCase();
+      const r = await this.post("/walletsolidity/gettransactioninfobyid", { value: id }, 0);
+      raws.push(r);
+      const j = JSON.parse(r.body);
+      if (j && typeof j === "object" && Object.keys(j).length === 0) return "not_solid";
+      return j?.id === id && Number.isSafeInteger(j.blockNumber) && j.blockNumber > 0 ? j.blockNumber : undefined;
+    } catch (e) {
+      if (e instanceof ChainApiError && e.raw) raws.push(e.raw);
+      return undefined;
+    }
+  }
+
+  /**
+   * USDT's isBlackListed(address) on Tron, read-only. Undefined if the call fails or the answer isn't a
+   * clean bool (the node must report result.result = true, and the word must be exactly 0 or 1).
+   * `ttlSec` 0 = never served from cache (the release wording's freeze check stamps a real read time).
+   */
+  async isBlackListed(contract: string, address: string, raws: RawResponse[], ttlSec = 60): Promise<boolean | undefined> {
     try {
       const r = await this.post("/wallet/triggerconstantcontract", {
         owner_address: contract, contract_address: contract, function_selector: "isBlackListed(address)",
         parameter: tronToHex(address).slice(2).padStart(64, "0"), visible: true,
-      }, 60);
+      }, ttlSec);
       raws.push(r);
-      const out = JSON.parse(r.body)?.constant_result?.[0] as string | undefined;
-      return out && /^[0-9a-f]{64}$/i.test(out) ? BigInt(`0x${out}`) !== 0n : undefined;
+      const j = JSON.parse(r.body);
+      const out = j?.constant_result?.[0] as string | undefined;
+      if (j?.result?.result !== true || !out || !/^0{63}[01]$/.test(out)) return undefined;
+      return out.endsWith("1");
     } catch (e) {
       if (e instanceof ChainApiError && e.raw) raws.push(e.raw);
       return undefined;

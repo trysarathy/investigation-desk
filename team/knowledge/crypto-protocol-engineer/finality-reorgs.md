@@ -143,16 +143,19 @@ finality guarantee [VERIFIED as cited in docs/SPEC.md section 3].
   `chain:hash:logIndex`, so a re-included tx at a new logIndex becomes a **second observation**:
   two confirmed transfers of the full amount → `duplicate` "Paid twice" → refund suggestion.
 - `payments/refresh.ts`: a found hash is "settled" and never looked up again.
-- No `removed` flag or block-hash check is read anywhere.
-- Update 2026-11-02 (S1, PR #65): the release wording reads the finality signal through the provider layer:
-  `TronFetcher.solidifiedBlock()` (`/walletsolidity/getnowblock`) and `EvmFetcher.finalizedBlock()`
-  (`eth_getBlockByNumber("finalized")`), used by `requests/finality.ts readFinality()`; any error → not_run.
+- No `removed` flag, block-hash check or finality tag is read in lookups, ingest or posting.
+- Update 2026-11-02 (S1 release wording, stacked PR `feat/s1-finality`): `requests/finality.ts` reads the
+  head, then re-reads the transaction uncached: Tron `/walletsolidity/getnowblock` then
+  `/walletsolidity/gettransactioninfobyid` (empty `{}` until solidified); EVM `eth_getBlockByNumber("finalized")`
+  then `eth_getTransactionReceipt` and `eth_getBlockByNumber(receipt.blockNumber)`, block hashes compared.
+  Tron's `blockID` begins with the block number as 8 bytes (`0000000005395501…` = 87,643,393) [VERIFIED:
+  crypto-protocol-engineer 2026-11-02, tests/fixtures/real/FINALITY-TRON.json]; the code requires it.
   **Etherscan V2's proxy refuses the `finalized` tag** (`-32602 invalid argument 0: invalid hex string`)
   [VERIFIED: crypto-protocol-engineer 2026-11-02, api.etherscan.io/v2/api module=proxy action=eth_getBlockByNumber
-  tag=finalized, recorded in tests/fixtures/real/FINALITY-ETH-ETHERSCAN.json], so with `ETHERSCAN_API_KEY` set,
-  Ethereum finality is always not_run; keyless JSON-RPC (eth.drpc.org) takes the tag [ASSUMPTION: standard tag
-  per execution-apis; drpc not reachable from this session]. Follow-up: read `finalized` from a JSON-RPC
-  provider even when Etherscan is the lookup source. Lookups, `ingest` and posting still use the count (G1 open there).
+  tag=finalized, tests/fixtures/real/FINALITY-ETH-ETHERSCAN.json], so with `ETHERSCAN_API_KEY` set Ethereum
+  finality is always not_run; keyless JSON-RPC takes the tag [ASSUMPTION: standard tag per execution-apis;
+  no Ethereum RPC reachable from this session]. Follow-up: read `finalized` from a JSON-RPC provider even
+  when Etherscan is the lookup source.
 
 ## Sources
 - https://github.com/ethereum/ethereum-org-website (pos/index.md, dev branch), accessed 2026-10-29 [VERIFIED]

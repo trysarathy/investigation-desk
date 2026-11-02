@@ -113,4 +113,70 @@ describe.skipIf(!!process.env.RECORD_FREEZE)("issuer freeze, replayed from real 
     const bsc = await readIssuerFreeze(depsFor(none, at().toISOString()), { ...CASES["FREEZE-ETH-USDT-CLEAN"], chain: "bsc", contract: "0x55d398326f99059ff775485246999027b3197955" }, at);
     expect(bsc.state).toBe("not_run");
   });
+
+  it("malformed or empty addresses → not_run (EVM 40 hex; Tron base58 WITH checksum), even if the node would answer", async () => {
+    // Synthetic stub that answers "not frozen" to anything, so only address validation can stop a "passed".
+    const z = "0".repeat(64);
+    const none: Transport = async (req) => ({ status: 200, headers: {}, body: req.url.includes("trongrid")
+      ? JSON.stringify({ result: { result: true }, constant_result: [z] })
+      : JSON.stringify({ jsonrpc: "2.0", id: 1, result: /eth_blockNumber/.test(req.url) ? "0x10" : `0x${z}` }) });
+    const at = () => new Date("2026-11-02T00:00:00Z");
+    const eth = CASES["FREEZE-ETH-USDT-CLEAN"], tron = CASES["FREEZE-TRON-USDT-RECEIVER"];
+    for (const bad of ["", "0x1234", "not-an-address", "0x8afcf06919e6719bec706696c5ccb3dde40b437g", "0x8AFCF06919e6719bec706696c5ccb3dde40b4377"]) {
+      for (const q of [{ ...eth, sender: bad }, { ...eth, receiver: bad }]) {
+        expect((await readIssuerFreeze(depsFor(none, at().toISOString()), q, at)).state).toBe("not_run");
+      }
+    }
+    // One letter's case changed: still base58, but the checksum fails, so it's not the same account.
+    const oneCase = "THPvaUhoh2Qn2y9THCZML3H815hhFhn5yC";
+    for (const bad of ["", "T123", oneCase, tron.receiver.slice(0, -1)]) {
+      expect((await readIssuerFreeze(depsFor(none, at().toISOString()), { ...tron, sender: bad }, at)).state).toBe("not_run");
+    }
+  });
+
+  it("reads uncached: a second check makes fresh calls and is stamped with its own read time", async () => {
+    const rec = JSON.parse(readFileSync(file("FREEZE-TRON-USDT-RECEIVER"), "utf8")) as Recording;
+    const replayed = replayTransport(rec);
+    let calls = 0;
+    const counting: Transport = async (req) => { calls++; return replayed(req); };
+    let t = Date.parse("2026-11-02T01:00:00Z");
+    const clock = () => new Date(t);
+    const deps = buildFetchers({ tronKey: "", etherscanKey: "replay", store: new MemoryStore(), transport: counting, now: clock, noSpacing: true, sleep: async () => {} });
+    const q = CASES["FREEZE-TRON-USDT-RECEIVER"];
+    const first = await readIssuerFreeze(deps, q, clock);
+    const n = calls;
+    t += 30_000;
+    const second = await readIssuerFreeze(deps, q, clock);
+    expect(calls).toBe(2 * n);
+    expect(second.checkedAt).toBe("2026-11-02T01:00:30.000Z");
+    expect(first.checkedAt).toBe("2026-11-02T01:00:00.000Z");
+  });
+
+  // Synthetic answers (not recordings): a stub transport returning malformed bodies, to test the parser.
+  it("malformed issuer answers → not_run (a bool must be exactly 0 or 1; Tron needs result.result = true)", async () => {
+    const at = () => new Date("2026-11-02T00:00:00Z");
+    const word = (n: number) => n.toString(16).padStart(64, "0");
+    const tronBodies = [
+      { result: { result: true }, constant_result: [word(2)] },
+      { result: { code: "CONTRACT_VALIDATE_ERROR" }, constant_result: [word(0)] },
+      { result: { result: true }, constant_result: ["00"] },
+      { result: { result: true } },
+    ];
+    for (const b of tronBodies) {
+      const stub: Transport = async () => ({ status: 200, headers: {}, body: JSON.stringify(b) });
+      expect((await readIssuerFreeze(depsFor(stub, at().toISOString()), CASES["FREEZE-TRON-USDT-RECEIVER"], at)).state).toBe("not_run");
+    }
+    for (const r of [`0x${word(2)}`, "0x01", null, "0x"]) {
+      const stub: Transport = async (req) => ({ status: 200, headers: {}, body: JSON.stringify({ jsonrpc: "2.0", id: 1, result: /eth_blockNumber/.test(req.url) ? "0x10" : r }) });
+      expect((await readIssuerFreeze(depsFor(stub, at().toISOString()), CASES["FREEZE-ETH-USDT-CLEAN"], at)).state).toBe("not_run");
+    }
+  });
+
+  it("plain lines: block number in technical, read time as SGT", async () => {
+    const c = await replay("FREEZE-ETH-USDT-CLEAN");
+    expect(c.detail).not.toMatch(/block|\d{6,}/i);
+    expect(c.detail).toMatch(/2 Nov 2026, \d{1,2}:\d\d [ap]m SGT/);
+    expect(c.technical).toMatch(new RegExp(`block ${c.atBlock}`));
+  });
 });
+
