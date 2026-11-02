@@ -25,7 +25,7 @@ describe("S2: matched invoice, the same release checks, and the proposed entry f
   it("leads with TRON-01, then Ethereum plans that are ready with payment lines; Dr clearing = Cr receivable = the plan's amount", async () => {
     const ids = await entryScenarios();
     expect(ids).toEqual(["TRON-01", "SCN-01", "SCN-02", "SCN-03", "SCN-04", "SCN-05", "SCN-11"]);
-    for (const id of ids.slice(1).filter((x) => x !== "SCN-11")) {
+    for (const id of ids.slice(1)) {
       const e = (await proposedEntry(id))!;
       const r = await replay(id);
       const acct = { version: 1 as const, provider: "demo" as const, accounts: { walletAccountCode: "SAMPLE-CLR", feeAccountCode: "SAMPLE-SHORTFALL" }, audit: [],
@@ -40,14 +40,16 @@ describe("S2: matched invoice, the same release checks, and the proposed entry f
       expect(e.matchLine).not.toMatch(/on-chain this is done|confirmed/i);
     }
   });
-  it("SCN-11 (same transfer reported twice): labelled, no second entry, no Dr/Cr", async () => {
+  it("SCN-11 (one transfer reported twice for its own invoice): ONE entry, counted once", async () => {
     const e = (await proposedEntry("SCN-11"))!;
-    expect(e).toMatchObject({ status: "duplicate", rows: [], approvable: false });
-    expect(e.planReasons).toEqual(["Same transfer as SCN-03 — no second entry."]);
+    expect(e.invoiceId).toBe("SAMPLE-INV-2011");
+    expect(e.rows.filter((r) => r.dr).map((r) => r.dr)).toEqual(["16.00"]);
+    expect(e.rows.filter((r) => r.cr).map((r) => r.cr)).toEqual(["16.00"]);
+    expect(e.planReasons).toContain("Reported twice — counted once.");
     const P = (await import("@/app/demo/entry/page")).default as unknown as (p: { searchParams: Promise<Record<string, string>> }) => Promise<ReactNode>;
     const h = text(await html(await P({ searchParams: Promise.resolve({ s: "SCN-11" }) })));
-    expect(h).toContain("Same transfer as SCN-03 — no second entry.");
-    expect(h).not.toMatch(/Debit|Credit/);
+    expect(h).toContain("Reported twice — counted once.");
+    expect(h).not.toMatch(/Same transfer as|no second entry/);
   });
   it("TRON-01: final, but no posting plan exists for Tron, so it says so instead of inventing an entry", async () => {
     const e = (await proposedEntry("TRON-01"))!;

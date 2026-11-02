@@ -36,7 +36,7 @@ export interface ProposedEntry {
   card: ReleaseCard;
   /** Aashmiin's rule: post only when final. Approvable only when the checks say paid and final. */
   approvable: boolean;
-  status: PlanStatus | "no_plan" | "duplicate";
+  status: PlanStatus | "no_plan";
   planReasons: string[];
   rows: EntryRow[];
 }
@@ -48,13 +48,6 @@ export async function proposedEntry(id: string): Promise<ProposedEntry | null> {
   const inv = r.invoice;
   const c = await cardFor(r);
   const head = { scenarioId: id, invoiceId: inv.id, customerRef: inv.customer_ref, invoiceAmount: `${formatUsdc(inv.amount)} ${inv.token}`, card: c, approvable: c.result.tone === "paid" };
-  // "The same transfer reported twice": its transfer already has an entry under the original sample, so no second one.
-  if (r.scenario.case_type === "duplicate") {
-    const original = scenarios().find((o) => o.id !== id && o.case_type !== "duplicate" && o.transfer?.hash === r.scenario.transfer?.hash);
-    if (original) {
-      return { ...head, approvable: false, matchLine: `Same transfer as ${original.id}.`, status: "duplicate", rows: [], planReasons: [`Same transfer as ${original.id} — no second entry.`] };
-    }
-  }
   if (!r.view) {
     const to = r.facts?.tx?.transfers.find((t) => sameAddress(t.to, inv.receiving_address));
     if (!to) return null;
@@ -75,7 +68,9 @@ export async function proposedEntry(id: string): Promise<ProposedEntry | null> {
     rows.push({ account: `Accounts Receivable · ${inv.customer_ref}`, cr: l.amount, detail: `Payment applied to ${inv.id}` });
   }
   const linked = Object.values(r.data.observations).find((o) => o.attribution.kind === "request" && o.attribution.requestId === inv.id);
-  return { ...head, matchLine: linked?.attribution.reason ?? "Matched by a person.", status: plan.status, planReasons: plan.reasons, rows };
+  // Reported more than once, kept once by the product (one observation per transfer): say so, one entry.
+  const once = (r.scenario.deliveries ?? 1) > 1 && Object.keys(r.data.observations).length === 1;
+  return { ...head, matchLine: linked?.attribution.reason ?? "Matched by a person.", status: plan.status, planReasons: once ? [...plan.reasons, "Reported twice — counted once."] : plan.reasons, rows };
 }
 
 /** The scenarios S2 shows: TRON-01 first (the one that is final from a recorded read), then plans ready with payment lines. */
@@ -83,7 +78,7 @@ export async function entryScenarios(): Promise<string[]> {
   const out: string[] = [TRON_SCENARIO.id];
   for (const s of scenarios()) {
     const e = await proposedEntry(s.id);
-    if (e && ((e.status === "ready" && e.rows.length) || e.status === "duplicate")) out.push(s.id);
+    if (e && e.status === "ready" && e.rows.length) out.push(s.id);
   }
   return out;
 }

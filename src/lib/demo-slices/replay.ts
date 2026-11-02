@@ -24,6 +24,8 @@ export interface Scenario {
   invoices: SampleInvoice[]; lookup_for: string;
   wallets?: { chain: "tron"; address: string; label: string }[];
   person_decision?: { kind: "accept_short"; note: string };
+  /** How many times the same transfer is reported (SCN-11: twice). The product must count it once. */
+  deliveries?: number;
 }
 interface Exchange { request: { method: string; url: string; body?: string }; response: { status: number; headers: Record<string, string>; body: string } }
 interface Recording { name: string; hash: string; recordedAt: string; exchanges: Exchange[] }
@@ -130,7 +132,9 @@ export async function replay(id: string, o: { asOfConfirmations?: number; applyD
     facts = { ...facts, currentBlock: facts.tx!.blockNumber + k };
     events = events.map((e) => ({ ...e, confirmations: k }));
   }
-  for (const ev of events) data = ingest(data, ev, rec.recordedAt, "Demo replay of a recorded transfer", checkObservation(rec.recordedAt, facts), CONFIRMATIONS).data;
+  for (let n = 0; n < (s.deliveries ?? 1); n++) {
+    for (const ev of events) data = ingest(data, ev, rec.recordedAt, "Demo replay of a recorded transfer", checkObservation(rec.recordedAt, facts), CONFIRMATIONS).data;
+  }
   if (o.applyDecision && s.person_decision) {
     const res = decide(data, s.lookup_for, { kind: s.person_decision.kind, note: s.person_decision.note }, { now: rec.recordedAt, by: "SAMPLE operator", threshold: CONFIRMATIONS });
     if (!res.error) data = res.data;
