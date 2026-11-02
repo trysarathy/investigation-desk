@@ -153,7 +153,7 @@ textarea.input { height: auto; padding: 8px 12px; resize: vertical; line-height:
   height: 28px; padding: 0 12px; border-radius: 14px; border: 1px solid var(--border-strong);
   background: var(--panel); cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
 }
-.chip[aria-pressed="true"] { background: var(--text); color: var(--canvas); border-color: var(--text); }
+.chip[aria-pressed="true"], .chip[aria-current="page"] { background: var(--text); color: var(--canvas); border-color: var(--text); }
 .chip .count { font-variant-numeric: tabular-nums; opacity: 0.7; }
 
 /* ---- Bars ---- */
@@ -482,3 +482,21 @@ details.panel:not([open]) > summary.panel-h { border-bottom: 0; }
 /* In your books: tone of the posting panel */
 [data-testid="posting-lines"] td { white-space: normal; cursor: default; }
 [data-testid="posting-lines"] tbody tr:hover { background: transparent; }
+
+/* ---- Demo slices (/demo/*, demo mode only) ---- */
+.release-checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; line-height: 1.5; }
+.release-checks .status { align-items: flex-start; }
+.release-checks .status svg { margin-top: 3px; }
+.release-checks .s-pass svg { color: var(--green); }
+.release-checks .s-fail svg { color: var(--red); }
+.release-checks .s-info svg { color: var(--text-2); }
+.demo-page .demo-badge { height: auto; min-height: 20px; white-space: normal; margin: 0; }
+.notify-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.notify { margin: 0; overflow-wrap: anywhere; }
+.watch-log { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.sample-list { list-style: none; margin: 0; font-size: 13px; }
+.demo-page { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .notify-grid { grid-template-columns: 1fr; }
+  .workspace .demo-page { padding-left: 8px; padding-right: 8px; } /* + the workspace's 8px = a 16px gutter */
+}
