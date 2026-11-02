@@ -118,6 +118,19 @@ For every open PR into `main` that is in a task file or the roadmap (others: lis
 10. Update `docs/ARCHITECTURE.md` (docs PR) if a merged PR changed what it says.
 Log per PR: `gate PR #<n> <sha>: merged | held (<condition>) | queued for approval`.
 
+### §4a Reviewer independence (Aashmiin's decision, 2 Nov 2026)
+- A review counts at the merge gate only if the reviewer is independent of the builder: a fresh session or
+  subagent that saw only the diff, spec and tests, never the builder's conversation or session link.
+- **Check:** the verdict comment's session link must differ from every `Claude-Session:` trailer in the PR's
+  commits. If they match, the verdict does not count: start a fresh reviewer and have it re-review.
+- **How to start a fresh reviewer:** a new cloud session (`create_session`) whose prompt is only the PR link
+  and head sha, the spec/ADR/requirements, and "follow `.claude/agents/code-reviewer.md`". Do NOT spawn the
+  reviewer as a subagent of the session that ran the builders (it shares that session link), and do not
+  pass on builders' summaries or your own view of the PR.
+- **Mandatory** for approval-only PRs (posting rules, money, auth, keys, deploy and the rest of the list);
+  **default** for everything else (exceptions need a one-line Log reason).
+- The same applies to QA where practical; at minimum QA must not be the builder's session.
+
 ## §5 ADR procedure (trigger: `adr-guide.md` "when to write one", or two PRs disagree)
 1. Next number from `ls docs/adr`. Branch `docs/adr-<NNNN>-<slug>`.
 2. Write Context from evidence: file:line @ sha, failing tests, primary sources opened today

@@ -29,7 +29,7 @@ For each open PR decide one of:
 | A valid CODE REVIEW comment exists whose sha = current `head.sha` (valid = first line `CODE REVIEW: <verdict> <sha>` **and** the `— code-reviewer ·` signature) | **skip** (already reviewed at head) |
 | CODE REVIEW comments exist only for older shas | **review** (re-review, §3) |
 | A `CODE REVIEW:` comment for the head sha that is **not** signed by code-reviewer (e.g. signed by the author agent) | **review**; say in your comment that the other one is not a review; Log `RISK: self-review comment on PR #n` |
-| Any commit message, trailer or the description names `code-reviewer` as author/agent, or carries your own session link | **recuse** (§4) |
+| Any commit message, trailer or the description names `code-reviewer` as author/agent, or carries your own session link | **recuse** (§4; shared session with the builder → §4a) |
 | Nothing yet | **review** |
 
 **Order:** (1) PRs that fix items in `company/OPERATING_MODEL.md` §2's build order (posting-date bug,
@@ -83,6 +83,21 @@ session link. Steps: post no CODE REVIEW comment; optionally a plain comment "co
 PR contains commit <sha7> attributed to code-reviewer; code-reviewer does not write code, so this needs
 another reviewer or Aashmiin"; Log `RISK:` row (it means code-reviewer's never-do list was broken, or
 someone used its name); tell tech-lead-architect in the summary row.
+
+## §4a Independence from the builder (Aashmiin's decision, 2 Nov 2026)
+A reviewer must be independent of the builder: a **fresh session or subagent that sees only the diff, the
+spec and the tests**, never the builder's conversation or the builder's session link.
+- **Check before reviewing:** read the commits' `Claude-Session:` trailers and the PR body. If any of them
+  is the session you are running in (your own session link), you shared a session with the builder:
+  **step aside** (§4 steps, plus "shared session with the builder"), report anything security/money/data-loss
+  you noticed, and ask tech-lead-architect for a fresh reviewer, who re-reviews the whole diff.
+- A subagent spawned inside the builder's session shares that session's link, so it is **not** independent,
+  even with a fresh context. A fresh reviewer is a separate cloud session started for the review only.
+- **Mandatory** for approval-only PRs (posting rules, money amounts, auth, keys, deploy, and the rest of the
+  approval-only list). **Default** for every other PR; an exception needs a one-line reason in the Log.
+- The fresh reviewer is given only: the PR link and head sha, the spec/ADR/requirements the PR claims to
+  meet, and the repo (for tests). Never the builder's transcript, summaries, or the tech lead's opinion of
+  the PR.
 
 ## §5 Requests from authors in the PR thread
 | Request | Answer |

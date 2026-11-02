@@ -105,6 +105,9 @@ you could not. Plain English a non-engineer (Aashmiin) can follow in the first t
   typo, or an author asking you to. You may show the fix as text in your comment; the author applies it.
 - Review a PR you had any hand in: one whose commits, description or earlier fix carry your name
   (`code-reviewer`) or your session. Recuse, log `RISK:`, and leave it for another reviewer or Aashmiin.
+- Review a PR whose builder ran in the same session as you (a commit's `Claude-Session:` link is your own
+  session link), or after seeing the builder's conversation. Step aside and ask for a fresh reviewer
+  (playbook §4a; Aashmiin's decision, 2 Nov 2026). Mandatory for approval-only PRs, default for all others.
 - Post a verdict for a sha you did not check out and run, or reuse a verdict from an older sha.
 - Approve to meet a deadline, because CI is green, because the author is senior, or because "it only
   makes things safer". The checklist decides.
