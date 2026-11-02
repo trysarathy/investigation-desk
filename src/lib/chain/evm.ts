@@ -235,6 +235,44 @@ export class EvmFetcher {
     return { lookup: { ...base, result: "found" }, tx: chainTx, currentBlock: Number.isFinite(current) ? current : undefined };
   }
 
+  /**
+   * The chain's `finalized` block (JSON-RPC block tag, ethereum/execution-apis block.yaml), never cached.
+   * Undefined on any error or a malformed answer (number and hash must both be well-formed). Etherscan
+   * V2's proxy refuses the tag ("invalid hex string", recorded 2026-11-02): through Etherscan it's unknown.
+   */
+  async finalizedBlock(chain: EvmChain, raws: RawResponse[]): Promise<number | undefined> {
+    const src = this.sources[chain];
+    if (!src) return undefined;
+    try {
+      const b = (await src.call("eth_getBlockByNumber", ["finalized", false], { ttlSec: 0 }, raws)) as { number?: unknown; hash?: unknown } | null;
+      return typeof b?.number === "string" && /^0x[0-9a-f]+$/i.test(b.number) && typeof b.hash === "string" && /^0x[0-9a-f]{64}$/i.test(b.hash)
+        ? Number(BigInt(b.number)) : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Where a transaction is NOW, re-read uncached: its receipt's block, confirmed canonical by reading the
+   * block at that height and comparing hashes. "gone" = no receipt (reorged out, or a node gap: unknown
+   * either way); "moved" = the block at that height has another hash (a reorg in progress).
+   */
+  async canonicalBlock(chain: EvmChain, hash: string, raws: RawResponse[]): Promise<number | "gone" | "moved" | undefined> {
+    const src = this.sources[chain];
+    if (!src) return undefined;
+    try {
+      const txhash = `0x${hash.replace(/^0x/i, "").toLowerCase()}`;
+      const r = (await src.call("eth_getTransactionReceipt", [txhash], { ttlSec: 0 }, raws)) as { blockNumber?: unknown; blockHash?: unknown } | null;
+      if (r === null) return "gone";
+      if (typeof r?.blockNumber !== "string" || !/^0x[0-9a-f]+$/i.test(r.blockNumber) || typeof r.blockHash !== "string" || !/^0x[0-9a-f]{64}$/i.test(r.blockHash)) return undefined;
+      const b = (await src.call("eth_getBlockByNumber", [r.blockNumber, false], { ttlSec: 0 }, raws)) as { hash?: unknown } | null;
+      if (typeof b?.hash !== "string" || !/^0x[0-9a-f]{64}$/i.test(b.hash)) return undefined;
+      return b.hash.toLowerCase() === r.blockHash.toLowerCase() ? Number(BigInt(r.blockNumber)) : "moved";
+    } catch {
+      return undefined;
+    }
+  }
+
   /** Read-only eth_call at the latest block; undefined on any error (a revert means "no such function"). */
   async ethCall(chain: EvmChain, to: string, data: string, ttlSec: number, raws: RawResponse[]): Promise<string | undefined> {
     const src = this.sources[chain];
