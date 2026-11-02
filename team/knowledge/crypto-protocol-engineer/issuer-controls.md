@@ -47,10 +47,11 @@ on-chain via TronGrid `/wallet/getcontract` for `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjL
 State on 2026-10-29 (Tron) [VERIFIED on-chain]: `decimals()` = 6, `symbol()` = "USDT", `name()` =
 "Tether USD", `paused()` = false, `deprecated()` = false.
 
-Event indexing on the **Ethereum** TetherToken may differ from Tron (the Ethereum contract predates the
-Tron deployment) [ASSUMPTION: check the verified source on Etherscan before writing a log filter; the
-topic0 hashes above are signature-only and identical either way; etherscan.io still 403 and no Ethereum
-RPC reachable on 2026-10-31]. On **Tron**, a simulated USDT `Transfer` carries 3 topics (from and to both
+Event indexing on the **Ethereum** TetherToken differs from Tron: `AddedBlackList(address _user)`,
+`RemovedBlackList(address _user)` and `DestroyedBlackFunds(address _blackListedUser, uint _balance)` are
+**not indexed** there (the address is in `data`); topic0 hashes are signature-only and identical [VERIFIED:
+crypto-protocol-engineer 2026-11-02, Etherscan V2 getsourcecode for 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+see sanctions-freeze-sources.md §2]. On **Tron**, a simulated USDT `Transfer` carries 3 topics (from and to both
 indexed) [VERIFIED on-chain: api.trongrid.io `triggerconstantcontract` logs, 2026-10-31].
 Tether's own page says the Ethereum USD₮ contract "does not return a Boolean value in the transfer
 function" (use SafeERC20 when calling it) [VERIFIED: https://tether.to/en/supported-protocols/, 2026-10-31].
@@ -65,7 +66,8 @@ Semantics [ASSUMPTION for the exact code paths; consistent with the repo's real 
   base unit from the (non-blacklisted) contract origin to `TBzUpQyGiPP6uR8BwKkr6rsoYqdY9g8mNU`, for which
   `isBlackListed` = true, executed without revert and emitted a Transfer log (it returned `false` as its
   bool, so never trust the return value); the reverse, a transfer *from* that address, hit REVERT]. For the
-  Ethereum contract this is still [ASSUMPTION: Etherscan source not readable]. A payment can land in a
+  Ethereum contract the source shows the same: `transfer` checks only `msg.sender`, `transferFrom` only
+  `_from` [VERIFIED: crypto-protocol-engineer 2026-11-02, Etherscan V2 getsourcecode]. A payment can land in a
   frozen deposit address and be stuck. That makes "is the **business's own**
   receiving address frozen" the more important check for receipts, which the code does do (role
   `deposit` in `freezeFacts`).
