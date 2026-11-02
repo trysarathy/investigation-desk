@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { fetchTransport, type Transport } from "@/lib/chain/http";
 import { buildFetchers } from "@/lib/chain/sources";
 import { MemoryStore } from "@/lib/chain/store";
-import { readIssuerFreeze, type FreezeQuery } from "@/lib/requests/freeze";
+import { freezeExplorerUrl, readIssuerFreeze, type FreezeQuery } from "@/lib/requests/freeze";
 import { releaseHeadline } from "@/lib/requests/release-checks";
 import type { Exchange, Recording } from "./fixtures/live/replay";
 import { redactUrl, replayTransport } from "./fixtures/live/replay";
@@ -50,7 +50,7 @@ describe.skipIf(!process.env.RECORD_FREEZE)("record freeze reads", () => {
       const recordedAt = new Date().toISOString();
       await readIssuerFreeze(depsFor(transport, recordedAt, process.env.ETHERSCAN_API_KEY ?? "", true), CASES[name], () => new Date(recordedAt));
       await new Promise((r) => setTimeout(r, 1500)); // stay under Etherscan 3/s and TronGrid's keyless rps
-      writeFileSync(file(name), JSON.stringify({ name, hash: "", explorer: "", recordedAt, exchanges }));
+      writeFileSync(file(name), JSON.stringify({ name, hash: "", explorer: freezeExplorerUrl(CASES[name].contract), recordedAt, exchanges }));
     }, 60_000);
   }
 });
@@ -177,6 +177,22 @@ describe.skipIf(!!process.env.RECORD_FREEZE)("issuer freeze, replayed from real 
     expect(c.detail).not.toMatch(/block|\d{6,}/i);
     expect(c.detail).toMatch(/2 Nov 2026, \d{1,2}:\d\d [ap]m SGT/);
     expect(c.technical).toMatch(new RegExp(`block ${c.atBlock}`));
+  });
+
+  it("QA: a provider layer that throws (not just a failed request) → not_run, never an exception", async () => {
+    const boom = () => { throw new Error("provider bug"); };
+    const deps = { tron: { isBlackListed: boom }, evm: { source: boom, ethCall: boom } } as unknown as Parameters<typeof readIssuerFreeze>[0];
+    const at = () => new Date("2026-11-02T00:00:00Z");
+    for (const q of [CASES["FREEZE-ETH-USDT-CLEAN"], CASES["FREEZE-TRON-USDT-RECEIVER"]]) {
+      await expect(readIssuerFreeze(deps, q, at)).resolves.toMatchObject({ state: "not_run" });
+    }
+  });
+
+  it("QA: every freeze recording names where to see it (explorer) and its recorded responses are untouched", () => {
+    for (const name of [...Object.keys(CASES)]) {
+      const rec = JSON.parse(readFileSync(file(name), "utf8")) as Recording;
+      expect(rec.explorer).toMatch(/^https:\/\/(etherscan\.io|tronscan\.org)\//);
+    }
   });
 });
 
