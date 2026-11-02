@@ -8,7 +8,7 @@ import { NotificationPreview, QuietNote } from "./NotificationPreview";
 import { ReleaseCard } from "./ReleaseCard";
 
 export function Watcher({ steps, label, initial = 1, autoplay = true, everyMs = 3000 }: { steps: WatchStep[]; label: string; initial?: number; autoplay?: boolean; everyMs?: number }) {
-  const [shown, setShown] = useState(Math.min(Math.max(initial, 1), steps.length));
+  const [shown, setShown] = useState(Math.min(Math.max(Math.round(initial) || 1, 1), steps.length));
   const [playing, setPlaying] = useState(autoplay);
   const done = shown >= steps.length;
   useEffect(() => {

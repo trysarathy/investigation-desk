@@ -4,8 +4,6 @@
 // file only feeds the checks with recorded data. No live call: sanctions read the shipped OFAC
 // snapshot (none is shipped, so "not checked"); freeze reads only a recorded FREEZE-*.json fixture.
 
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { sameAddress } from "../address";
 import { buildFetchers } from "../chain/sources";
 import { MemoryStore } from "../chain/store";
@@ -19,13 +17,13 @@ import { loadSanctionsSnapshot, screenSender } from "../requests/sanctions";
 import { confirmPace } from "../requests/status";
 import { add } from "../payments/money";
 import type { Chain } from "../types";
+import { FREEZE_INDEX, recording as bundled } from "./fixtures";
 import { humanTimes, ranSummary } from "./present";
 import { replay, replayOnly, scenario, TRANSFER_LABEL, type Replayed } from "./replay";
 
 const NET: Record<string, string> = { ethereum: "Ethereum", tron: "Tron", bsc: "BNB Chain" };
 
-const FIXTURES = () => path.join(process.cwd(), "tests", "fixtures", "real");
-const load = (file: string): Recording => JSON.parse(readFileSync(path.join(FIXTURES(), file), "utf8"));
+const load = (file: string): Recording => bundled(file);
 
 /**
  * Recorded issuer-freeze reads for the demo transfers (crypto-protocol-engineer,
@@ -35,7 +33,7 @@ const load = (file: string): Recording => JSON.parse(readFileSync(path.join(FIXT
 interface FreezeRow { recording: string; fixture?: string; query?: FreezeQuery }
 let freezeIndex: FreezeRow[] | undefined;
 export const freezeRowFor = (recording: string): FreezeRow | undefined =>
-  (freezeIndex ??= JSON.parse(readFileSync(path.join(FIXTURES(), "freeze-demo-index.json"), "utf8")).rows as FreezeRow[]).find((r) => r.recording === recording);
+  (freezeIndex ??= FREEZE_INDEX.rows as FreezeRow[]).find((r) => r.recording === recording);
 
 async function freezeFor(r: Replayed, sender: string, receiver: string): Promise<FreezeCheck> {
   const issuer = ISSUER[r.invoice.token];
@@ -52,7 +50,7 @@ async function freezeFor(r: Replayed, sender: string, receiver: string): Promise
 /** Finality from crypto-protocol-engineer's demo hook: only a recording that read the chain's own finality signal for this hash counts. */
 const FINALITY_FIXTURE: Record<string, string> = { ethereum: "FINALITY-ETH-ETHERSCAN.json", tron: "FINALITY-TRON.json" };
 async function recordedFinality(r: Replayed, chain: string, hash: string, blockNumber: number | undefined): Promise<FinalityCheck> {
-  const recs = [load(path.join("scenarios", r.scenario.transfer!.recording)), ...(FINALITY_FIXTURE[chain] ? [load(FINALITY_FIXTURE[chain])] : [])];
+  const recs = [load(r.scenario.transfer!.recording), ...(FINALITY_FIXTURE[chain] ? [load(FINALITY_FIXTURE[chain])] : [])];
   return readFinalityFromRecordings(recs, { chain: chain as Chain, hash, blockNumber });
 }
 

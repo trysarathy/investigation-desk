@@ -7,16 +7,18 @@ import { ReleaseCard } from "@/components/demo-slices/ReleaseCard";
 import { demoSlicesOn } from "@/lib/demo-slices/gate";
 import { card, notificationFor } from "@/lib/demo-slices/release";
 import { scenario } from "@/lib/demo-slices/replay";
+import { first, wholeIn } from "@/lib/demo-slices/present";
 import { DemoHead } from "../DemoHead";
 
 export const dynamic = "force-dynamic";
 const PICKS = [{ id: "TRON-01", label: "Paid and final (Tron)" }, { id: "SCN-07", label: "Short" }, { id: "SCN-01", label: "Ethereum, finality not checked" }, { id: "SCN-12", label: "Look-alike token" }, { id: "SCN-16", label: "Look-alike address" }];
 
-export default async function NotifyDemo({ searchParams }: { searchParams: Promise<{ s?: string; wait?: string }> }) {
+export default async function NotifyDemo({ searchParams }: { searchParams: Promise<{ s?: string | string[]; wait?: string | string[] }> }) {
   if (!demoSlicesOn()) notFound();
-  const { s, wait } = await searchParams;
+  const raw = await searchParams;
+  const s = first(raw.s), wait = first(raw.wait);
   const id = s && scenario(s) ? s : "TRON-01";
-  const c = await card(id, wait ? { asOfConfirmations: Math.max(0, Math.min(11, Number(wait) || 0)) } : {});
+  const c = await card(id, wait ? { asOfConfirmations: wholeIn(wait, 0, 11, 0) } : {});
   const n = notificationFor(c);
   return (
     <div className="page demo-page">

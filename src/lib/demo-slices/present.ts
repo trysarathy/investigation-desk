@@ -53,3 +53,12 @@ export function statusLabel(c: ReleaseChecks, tone: "paid" | "not_yet" | "proble
   if (tone === "problem") return "Problem";
   return c.finality.state === "not_run" ? "Finality not checked" : "Not final yet";
 }
+
+/** A query parameter's first value: `?s=a&s=b` gives "a", never an array. */
+export const first = (v?: string | string[]) => (Array.isArray(v) ? v[0] : v);
+
+/** A whole number from a query parameter, clamped to [min, max]; anything unreadable gives `fallback`. */
+export function wholeIn(v: string | string[] | undefined, min: number, max: number, fallback: number): number {
+  const n = Math.round(Number(first(v)));
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
+}

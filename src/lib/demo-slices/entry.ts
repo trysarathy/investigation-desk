@@ -18,7 +18,10 @@ export const SAMPLE_CLEARING = { code: "SAMPLE-CLR", name: "Stablecoin clearing 
 /** What the demo's Approve says after the click (with who and when): nothing leaves the page. */
 export const APPROVED_MESSAGE = "Live, this would now post to Xero. Demo: nothing sent.";
 export const APPROVER = "Mei Tan (sample user)";
+/** Only when finality is actually pending (on the chain, not final yet). */
 export const WAITING_MESSAGE = "Waiting until final — can't be approved yet.";
+/** When finality couldn't be read (every Ethereum sample today): it won't become final by waiting here. */
+export const NOT_CHECKED_MESSAGE = "Finality wasn't checked, so this can't be approved.";
 
 export interface EntryRow { account: string; code?: string; dr?: string; cr?: string; detail: string }
 export interface ProposedEntry {

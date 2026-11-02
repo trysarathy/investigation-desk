@@ -3,10 +3,9 @@
 // transport (anything not in the recording throws), so no chain API is ever called from here.
 // The same steps as the server's "attach a hash" action: LiveHashProvider.lookup → ingest → deriveRequest.
 
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import type { HttpRequest, Transport } from "../chain/http";
 import { fetchFacts } from "../chain/investigate";
+import { CATALOGUE, recording as bundled } from "./fixtures";
 import { buildFetchers } from "../chain/sources";
 import { MemoryStore } from "../chain/store";
 import type { Facts } from "../types";
@@ -32,11 +31,10 @@ interface Recording { name: string; hash: string; recordedAt: string; exchanges:
 /** Recordings store API keys as "REDACTED" (the demo has none to send anyway). */
 const redactUrl = (url: string) => { const u = new URL(url); if (u.searchParams.has("apikey")) u.searchParams.set("apikey", "REDACTED"); return u.toString(); };
 
-const DIR = () => path.join(process.cwd(), "tests", "fixtures", "real", "scenarios");
 let cached: Scenario[] | undefined;
 /** The 20 scenarios that have a recorded transfer (the 21st "confirming" slot is a reported gap, not faked). */
 export function scenarios(): Scenario[] {
-  cached ??= (JSON.parse(readFileSync(path.join(DIR(), "catalogue.json"), "utf8")).scenarios as Scenario[]).filter((s) => s.transfer);
+  cached ??= (CATALOGUE.scenarios as Scenario[]).filter((s) => s.transfer);
   return cached;
 }
 /**
@@ -53,10 +51,7 @@ export const TRON_SCENARIO: Scenario = {
 };
 export const scenario = (id: string) => (id === TRON_SCENARIO.id ? TRON_SCENARIO : scenarios().find((s) => s.id === id));
 
-const recording = (file: string): Recording => {
-  if (!/^[A-Z0-9-]+\.json$/.test(file)) throw new Error("Not a demo recording.");
-  return JSON.parse(readFileSync(path.join(DIR(), file), "utf8"));
-};
+const recording = (file: string): Recording => bundled(file) as unknown as Recording;
 
 /** Serves only what was recorded; any other request throws. This is the only transport the demo uses. */
 export function replayOnly(rec: Recording): Transport {

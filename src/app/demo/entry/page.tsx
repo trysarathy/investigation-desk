@@ -6,16 +6,16 @@ import { notFound } from "next/navigation";
 import { ApproveDemo } from "@/components/demo-slices/ApproveDemo";
 import { CheckChips } from "@/components/demo-slices/ReleaseCard";
 import { demoSlicesOn } from "@/lib/demo-slices/gate";
-import { APPROVED_MESSAGE, APPROVER, entryScenarios, proposedEntry, WAITING_MESSAGE } from "@/lib/demo-slices/entry";
-import { ranSummary } from "@/lib/demo-slices/present";
+import { APPROVED_MESSAGE, APPROVER, entryScenarios, NOT_CHECKED_MESSAGE, proposedEntry, WAITING_MESSAGE } from "@/lib/demo-slices/entry";
+import { first, ranSummary } from "@/lib/demo-slices/present";
 import { formatUsdc } from "@/lib/requests/lifecycle";
 import { DemoHead } from "../DemoHead";
 
 export const dynamic = "force-dynamic";
 
-export default async function EntryDemo({ searchParams }: { searchParams: Promise<{ s?: string }> }) {
+export default async function EntryDemo({ searchParams }: { searchParams: Promise<{ s?: string | string[] }> }) {
   if (!demoSlicesOn()) notFound();
-  const { s } = await searchParams;
+  const s = first((await searchParams).s);
   const ids = await entryScenarios();
   const id = s && ids.includes(s) ? s : ids[0];
   const e = id ? await proposedEntry(id) : null;
@@ -76,7 +76,7 @@ export default async function EntryDemo({ searchParams }: { searchParams: Promis
                 <p className="muted" style={{ margin: 0, fontSize: 13 }}>{ranSummary(c.checks, c.result.tone)}</p>
               </div>
               {e.rows.length > 0 || e.approvable
-                ? <ApproveDemo message={APPROVED_MESSAGE} approver={APPROVER} disabledReason={e.approvable && e.rows.length ? undefined : e.approvable ? "No Xero entry is prepared for this payment, so there is nothing to approve." : WAITING_MESSAGE} />
+                ? <ApproveDemo message={APPROVED_MESSAGE} approver={APPROVER} disabledReason={e.approvable && e.rows.length ? undefined : e.approvable ? "No Xero entry is prepared for this payment, so there is nothing to approve." : c.checks.finality.state === "pending" ? WAITING_MESSAGE : NOT_CHECKED_MESSAGE} />
                 : null}
             </div>
           </section>

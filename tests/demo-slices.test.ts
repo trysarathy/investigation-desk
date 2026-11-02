@@ -8,7 +8,7 @@ import { createElement, type ReactNode } from "react";
 import { renderToReadableStream } from "react-dom/server.edge";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { planPosting } from "@/lib/accounting/rules";
-import { APPROVED_MESSAGE, APPROVER, entryScenarios, proposedEntry, WAITING_MESSAGE } from "@/lib/demo-slices/entry";
+import { APPROVED_MESSAGE, APPROVER, entryScenarios, NOT_CHECKED_MESSAGE, proposedEntry, WAITING_MESSAGE } from "@/lib/demo-slices/entry";
 import { checkChips, ranSummary, statusLabel, technicalLines } from "@/lib/demo-slices/present";
 import { demoSlicesOn } from "@/lib/demo-slices/gate";
 import { card, cardFor, DEMO_WATCH_ID, DEMO_WATCH_LABEL, freezeRowFor, notificationFor, watchTimeline } from "@/lib/demo-slices/release";
@@ -53,7 +53,7 @@ describe("S1 release card: crypto-protocol-engineer's checks, fed with recorded 
     const c = await card("SCN-01", { asOfConfirmations: 4 });
     expect(c.result).toMatchObject({ tone: "not_yet", headline: "Not final yet." });
     expect(c.result.lines[0]).toBe("Not final yet — usually about 2 minutes more (this wait is replayed faster than real time).");
-    
+
   });
   it.each([
     ["SCN-07", /^Don't release: Short by 8\.74181 USDT/],
@@ -161,10 +161,12 @@ describe("S2: matched invoice, the same release checks, and the proposed entry f
     expect(e).toMatchObject({ approvable: true, status: "no_plan", rows: [] });
     expect(e.planReasons[0]).toBe("Clearline's posting plan covers Ethereum payments only today, so no Xero entry is prepared for this Tron payment.");
   });
-  it("the page: checks right above Approve; Approve disabled with 'Waiting until final' when finality hasn't passed", async () => {
+  it("the page: checks right above Approve; Approve disabled, saying finality wasn't checked (not 'waiting') on Ethereum", async () => {
     const P = (await import("@/app/demo/entry/page")).default;
     const h = text(await html(await P({ searchParams: Promise.resolve({ s: "SCN-01" }) })));
-    expect(h).toContain(WAITING_MESSAGE);
+    expect(h).toContain(NOT_CHECKED_MESSAGE);
+    expect(NOT_CHECKED_MESSAGE).toBe("Finality wasn't checked, so this can't be approved.");
+    expect(h).not.toContain(WAITING_MESSAGE); // "Waiting until final" only when finality is actually pending
     expect(h).toMatch(/Checks\s+Final: NOT checked\s+Network: checked\s+Address: checked\s+Token: checked\s+Amount: checked\s+Sanctions \(US OFAC SDN only\): NOT checked\s+Freeze: checked/);
     expect(h).toContain("SGD: rate not applied in this demo.");
     expect(h).not.toMatch(/On-chain this is done/);
@@ -176,6 +178,25 @@ describe("S2: matched invoice, the same release checks, and the proposed entry f
     expect(src).not.toMatch(/fetch\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource|"use server"|action=/);
     expect(APPROVED_MESSAGE).toBe("Live, this would now post to Xero. Demo: nothing sent.");
     expect(APPROVER).toBe("Mei Tan (sample user)");
+  });
+});
+
+describe("bundled data: the demo doesn't need tests/ on disk at runtime (Docker image)", () => {
+  it("no demo-slices module reads files from disk", () => {
+    for (const f of ["replay.ts", "release.ts", "entry.ts", "present.ts", "gate.ts", "fixtures.ts"]) {
+      const src = readFileSync(path.join(__dirname, "..", "src/lib/demo-slices", f), "utf8");
+      expect(src, f).not.toMatch(/node:fs|readFileSync|process\.cwd/);
+    }
+  });
+  it("cards and the watcher still build from a directory with no tests/ folder", async () => {
+    const { mkdtempSync } = await import("node:fs");
+    const os = await import("node:os");
+    const here = process.cwd();
+    process.chdir(mkdtempSync(path.join(os.tmpdir(), "no-tests-")));
+    try {
+      expect((await card("TRON-01")).result.tone).toBe("paid");
+      expect((await watchTimeline(DEMO_WATCH_ID)).length).toBeGreaterThan(5);
+    } finally { process.chdir(here); }
   });
 });
 
@@ -232,10 +253,28 @@ describe("rendered pages: labelled, and never the word 'safe'", () => {
       if (i === 1) expect(h).toContain("Final: not yet");
     }
   });
-  it("in live mode the pages are a 404", async () => {
-    process.env.DEMO_MODE = "off";
-    const { release } = await pages();
-    await expect(release({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_NOT_FOUND");
-    process.env.DEMO_MODE = "on";
+  const ALL_ROUTES = async () => ({
+    "/demo": (await import("@/app/demo/page")).default as unknown as (p: { searchParams: Promise<Record<string, string>> }) => unknown,
+    "/demo/release": (await pages()).release, "/demo/notify": (await pages()).notify, "/demo/entry": (await pages()).entry,
   });
+  it.each([["DEMO_MODE", "off"], ["DEMO_MODE", "live"], ["DEMO_MODE", "0"], ["DEMO_MODE", "false"], ["DEMO_SLICES", "off"]])("%s=%s: every demo route is not-found", async (k, v) => {
+    process.env[k] = v;
+    try {
+      for (const [route, P] of Object.entries(await ALL_ROUTES())) {
+        await expect((async () => P({ searchParams: Promise.resolve({}) }))(), route).rejects.toThrow("NEXT_NOT_FOUND");
+      }
+    } finally { process.env.DEMO_MODE = "on"; delete process.env.DEMO_SLICES; }
+  });
+  it.each([
+    ["release", { at: "1.5" }], ["release", { at: "-3" }], ["release", { at: "99999" }], ["release", { at: "abc" }],
+    ["release", { hash: ["a", "b"] }], ["release", { s: ["SCN-01", "SCN-07"] }], ["release", { at: ["2", "3"], paused: ["1", "0"] }],
+    ["notify", { s: ["SCN-07", "SCN-01"] }], ["notify", { wait: ["2", "3"] }], ["notify", { wait: "2.5" }],
+    ["entry", { s: ["SCN-01", "SCN-02"] }],
+  ] as [string, Record<string, string | string[]>][])("%s %j: odd or repeated params render (first value wins)", async (name, q) => {
+    const P = (await pages())[name as "release"] as unknown as (p: { searchParams: Promise<Record<string, string | string[]>> }) => Promise<ReactNode>;
+    const h = text(await html(await P({ searchParams: Promise.resolve(q) })));
+    expect(h).toContain(DEMO_WATCH_LABEL);
+    if (Array.isArray(q.s)) expect(h).toContain(`SAMPLE-INV-20${q.s[0].slice(-2)}`);
+  });
+
 });

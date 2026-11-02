@@ -9,15 +9,17 @@ import { demoSlicesOn } from "@/lib/demo-slices/gate";
 import { card, DEMO_WATCH_ID, DEMO_WATCH_LABEL, notificationFor, watchTimeline } from "@/lib/demo-slices/release";
 import { scenario, scenarios, scenariosForHash, TRON_SCENARIO } from "@/lib/demo-slices/replay";
 import { entryScenarios } from "@/lib/demo-slices/entry";
+import { first, wholeIn } from "@/lib/demo-slices/present";
 import { DemoHead } from "../DemoHead";
 
 export const dynamic = "force-dynamic";
 
-type Params = { hash?: string; s?: string; at?: string; paused?: string };
+type Params = { hash?: string | string[]; s?: string | string[]; at?: string | string[]; paused?: string | string[] };
 
 export default async function ReleaseDemo({ searchParams }: { searchParams: Promise<Params> }) {
   if (!demoSlicesOn()) notFound();
-  const q = await searchParams;
+  const raw = await searchParams;
+  const q = { hash: first(raw.hash), s: first(raw.s), paused: first(raw.paused) };
   const steps = await watchTimeline(DEMO_WATCH_ID);
   const hash = q.hash?.trim();
   const fromHash = hash ? scenariosForHash(hash) : [];
@@ -43,7 +45,7 @@ export default async function ReleaseDemo({ searchParams }: { searchParams: Prom
           })}
         </section>
       )}
-      {!q.s && <Watcher steps={steps} label={DEMO_WATCH_LABEL} initial={Number(q.at) || 1} autoplay={q.paused !== "1"} />}
+      {!q.s && <Watcher steps={steps} label={DEMO_WATCH_LABEL} initial={wholeIn(raw.at, 1, steps.length, 1)} autoplay={q.paused !== "1"} />}
       <section className="panel" aria-labelledby="paste-h">
         <div className="panel-h"><h2 id="paste-h" style={{ margin: 0, fontSize: 15 }}>Or paste a transaction hash</h2></div>
         <form className="panel-b" method="get" action="/demo/release">
