@@ -17,12 +17,14 @@ export default async function NotifyDemo({ searchParams }: { searchParams: Promi
   if (!demoSlicesOn()) notFound();
   const raw = await searchParams;
   const s = first(raw.s), wait = first(raw.wait);
-  const id = s && scenario(s) ? s : "TRON-01";
+  const unknown = s && !scenario(s) ? s : undefined;
+  const id = s && !unknown ? s : "TRON-01";
   const c = await card(id, wait ? { asOfConfirmations: wholeIn(wait, 0, 11, 0) } : {});
   const n = notificationFor(c);
   return (
     <div className="page demo-page">
       <DemoHead title="Message preview" current="/demo/notify" />
+      {unknown && <p role="status" className="bar bar-amber" style={{ margin: 0 }}>Unknown sample {unknown} — showing TRON-01 instead.</p>}
       <p style={{ margin: 0 }}>Quiet by default: a message only when a payment is paid and final, or has a problem. Never on every block.</p>
       <nav className="chips" aria-label="Example">
         {PICKS.map((p) => <Link key={p.id} className="chip" href={`/demo/notify?s=${p.id}`} aria-current={!wait && p.id === id ? "page" : undefined}>{p.label}</Link>)}
