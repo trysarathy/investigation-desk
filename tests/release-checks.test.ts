@@ -339,3 +339,29 @@ describe("QA #65 (2 Nov)", () => {
     expect(src).toMatch(/INTERNAL ONLY[\s\S]*tipping-off[\s\S]*SPEC\.md/);
   });
 });
+
+describe("QA #65: a look-alike never prints identical to the real address", () => {
+  it("SCN-17 (real poisoning pair): same first 4 and last 4 → both widened past the first difference; full addresses in technical", () => {
+    const paidTo = "0x053dc459bade1baf76aed6e8630823f8392fda3a", invoice = "0x053dba7292957341779cb0e9aae1aa7b139ada3a";
+    const a = receivingAddressCheck({ paidTo, invoiceAddress: invoice });
+    expect(a.detail).toBe("Sent to a look-alike address (0x053dc4…da3a), not the invoice's address (0x053dba…da3a).");
+    expect(a.technical).toBe(`Paid to ${paidTo}; invoice ${invoice}.`);
+  });
+  it("difference near the end: the tail is widened, the same on both sides", () => {
+    const x = `0x1234${"a".repeat(31)}1f8b5`, y = `0x1234${"a".repeat(31)}2f8b5`;
+    expect(receivingAddressCheck({ paidTo: x, invoiceAddress: y }).detail)
+      .toBe("Sent to a look-alike address (0x1234…a1f8b5), not the invoice's address (0x1234…a2f8b5).");
+  });
+  it("the two shortened forms always differ when the addresses do (fuzz over random look-alikes)", () => {
+    const hex = "0123456789abcdef";
+    let seed = 7;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) % 16;
+    for (let n = 0; n < 300; n++) {
+      const mid = () => Array.from({ length: 32 }, () => hex[rnd()]).join("");
+      const x = `0xabcd${mid()}f8b5`, y = `0xabcd${mid()}f8b5`;
+      if (x === y) continue;
+      const m = /\((0x[^)]+)\), not the invoice's address \((0x[^)]+)\)/.exec(receivingAddressCheck({ paidTo: x, invoiceAddress: y }).detail)!;
+      expect(m[1]).not.toBe(m[2]);
+    }
+  });
+});

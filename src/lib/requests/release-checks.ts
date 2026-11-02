@@ -77,11 +77,29 @@ export function networkCheck(o: { paidOn: Chain; invoiceOn: Chain }): CheckResul
     : { state: "failed", detail: `Sent on ${net(o.paidOn)}, not ${net(o.invoiceOn)}, the network on the invoice.` };
 }
 
-const short = (a: string) => `${a.slice(0, a.startsWith("0x") ? 6 : 5)}…${a.slice(-4)}`;
+/**
+ * Both addresses shortened the same way. Normally first 4 + last 4 characters (after 0x / T); when that
+ * would print them identically (address poisoning copies exactly those), the nearer end is widened on
+ * both to one character past the first difference, so the two never read the same. EVM compares
+ * case-insensitively, Tron exactly; the displayed case is the address's own.
+ */
+function shortPair(a: string, b: string): [string, string] {
+  const evm = a.startsWith("0x");
+  const x = evm ? a.toLowerCase() : a, y = evm ? b.toLowerCase() : b;
+  let head = evm ? 6 : 5, tail = 4;
+  const cut = (s: string) => `${s.slice(0, head)}…${s.slice(-tail)}`;
+  if (x.length === y.length && cut(x) === cut(y) && x !== y) {
+    let i = 0; while (x[i] === y[i]) i++;
+    let j = 0; while (x[x.length - 1 - j] === y[y.length - 1 - j]) j++;
+    if (i - head <= j - tail) head = Math.min(i + 2, x.length); else tail = Math.min(j + 2, x.length);
+  }
+  return [cut(a), cut(b)];
+}
 /** Receiving address: exactly the invoice's (EVM case-insensitive, Tron exact). A look-alike shares the first or last 4 characters (requests/lifecycle.ts compareAddress). */
 export function receivingAddressCheck(o: { paidTo: string; invoiceAddress: string }): CheckResult {
   if (sameAddress(o.paidTo, o.invoiceAddress)) return { state: "passed", detail: "Sent to the invoice's own address." };
   const x = o.paidTo.replace(/^0x/i, "").toLowerCase(), y = o.invoiceAddress.replace(/^0x/i, "").toLowerCase();
   const kind = x.slice(0, 4) === y.slice(0, 4) || x.slice(-4) === y.slice(-4) ? "a look-alike" : "a different";
-  return { state: "failed", detail: `Sent to ${kind} address (${short(o.paidTo)}), not the invoice's address (${short(o.invoiceAddress)}).`, technical: `Paid to ${o.paidTo}; invoice ${o.invoiceAddress}.` };
+  const [paid, invoice] = shortPair(o.paidTo, o.invoiceAddress);
+  return { state: "failed", detail: `Sent to ${kind} address (${paid}), not the invoice's address (${invoice}).`, technical: `Paid to ${o.paidTo}; invoice ${o.invoiceAddress}.` };
 }
