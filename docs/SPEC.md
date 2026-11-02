@@ -355,6 +355,7 @@ All prices are \[ASSUMPTION\]. I found no public price for a directly comparable
 - Sending replies to customers: copy only, no integrations with Zendesk or Intercom.
 - Recovering funds, signing, or any transaction.
 - Sanctions screening or AML risk scoring (we read issuer freezes only).
+  *Note (2 Nov 2026):* the demo release card does a read-only lookup of the **sender** against a recorded copy of the US OFAC SDN list's published digital-currency addresses (no copy is shipped yet, so it reads "Sender NOT checked."). It is staff-only, per the §2 legal note on tipping-off, never payer-facing, and it is not AML screening or risk scoring.
 - AI that changes a verdict, a confidence or a next step.
 - Mobile apps, SSO, self-serve sign-up.
 
