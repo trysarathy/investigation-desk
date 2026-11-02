@@ -7,7 +7,7 @@ import path from "node:path";
 import { createElement, type ReactNode } from "react";
 import { renderToReadableStream } from "react-dom/server.edge";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { checkChips, ranSummary, statusLabel, technicalLines } from "@/lib/demo-slices/present";
+import { checkChips, first, ranSummary, statusLabel, technicalLines, wholeIn } from "@/lib/demo-slices/present";
 import { demoSlicesOn } from "@/lib/demo-slices/gate";
 import { card, cardFor, DEMO_WATCH_ID, DEMO_WATCH_LABEL, freezeRowFor, notificationFor, watchTimeline } from "@/lib/demo-slices/release";
 import { replay, replayOnly, scenarios, scenariosForHash, TRANSFER_LABEL } from "@/lib/demo-slices/replay";
@@ -221,11 +221,28 @@ describe("rendered pages: labelled, and never the word 'safe'", () => {
     ["release", { at: "1.5" }], ["release", { at: "-3" }], ["release", { at: "99999" }], ["release", { at: "abc" }],
     ["release", { hash: ["a", "b"] }], ["release", { s: ["SCN-01", "SCN-07"] }], ["release", { at: ["2", "3"], paused: ["1", "0"] }],
     ["notify", { s: ["SCN-07", "SCN-01"] }], ["notify", { wait: ["2", "3"] }], ["notify", { wait: "2.5" }],
-  ] as [string, Record<string, string | string[]>][])("%s %j: odd or repeated params render (first value wins)", async (name, q) => {
+  ] as [string, Record<string, string | string[]>][])("%s %j: odd or repeated params render", async (name, q) => {
     const P = (await pages())[name as "release"] as unknown as (p: { searchParams: Promise<Record<string, string | string[]>> }) => Promise<ReactNode>;
     const h = text(await html(await P({ searchParams: Promise.resolve(q) })));
     expect(h).toContain(DEMO_WATCH_LABEL);
     if (Array.isArray(q.s)) expect(h).toContain(`SAMPLE-INV-20${q.s[0].slice(-2)}`);
+  });
+  it("repeated at/paused: the first (non-default) values win on the watcher", async () => {
+    const h = text(await html(await (await pages()).release({ searchParams: Promise.resolve({ at: ["4", "1"], paused: ["1", "0"] }) as never })));
+    expect(h).toContain("Update 4 of 9. Paused.");
+  });
+  it("repeated wait: the first (non-default) value wins on the message preview", async () => {
+    const P = (await pages()).notify as unknown as (p: { searchParams: Promise<Record<string, string | string[]>> }) => Promise<ReactNode>;
+    const h = text(await html(await P({ searchParams: Promise.resolve({ s: "TRON-01", wait: ["3", ""] }) })));
+    expect(h).toContain("No message for this update.");
+    expect(h).toContain("Not final yet");
+  });
+  it("first() and wholeIn() take the first value, round and clamp", () => {
+    expect(first(["3", "0"])).toBe("3");
+    expect(wholeIn(["4", "1"], 1, 9, 1)).toBe(4);
+    expect(wholeIn("1.5", 1, 9, 1)).toBe(2);
+    expect(wholeIn("99999", 1, 9, 1)).toBe(9);
+    expect(wholeIn("abc", 1, 9, 1)).toBe(1);
   });
 
 });
