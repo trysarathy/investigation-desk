@@ -25,6 +25,11 @@ const PACE_SEC: Partial<Record<Chain, number>> = { ethereum: REQUEST_SETTINGS.bl
 export function finalityCheck(o: { chain: Chain; blockNumber?: number; finalizedBlock?: number; source?: string; checkedAt?: string; eta?: string }): FinalityCheck {
   const base = { blockNumber: o.blockNumber, finalizedBlock: o.finalizedBlock, source: o.source, checkedAt: o.checkedAt, eta: o.eta };
   if (o.blockNumber === undefined) return { ...base, state: "pending", detail: "Not on the chain yet: waiting for the network to pick it up." };
+  const ok = (n: number | undefined) => n === undefined || (Number.isSafeInteger(n) && n > 0);
+  if (!ok(o.blockNumber) || !ok(o.finalizedBlock)) {
+    // A block number that isn't a positive whole number is an unreadable answer: unknown, never shown.
+    return { source: o.source, checkedAt: o.checkedAt, eta: o.eta, state: "not_run", detail: `We couldn't read whether ${net(o.chain)} has made this payment final.`, technical: "A block number in the answer couldn't be read." };
+  }
   // Unknown head is unknown, never "final" and never "not final" (attack-patterns A7/A8).
   if (o.finalizedBlock === undefined) {
     return { ...base, state: "not_run", detail: `We couldn't read whether ${net(o.chain)} has made this payment final.`, technical: `In block ${o.blockNumber}; finality signal not read.` };
