@@ -9,6 +9,8 @@ import path from "node:path";
 import { sameAddress } from "../address";
 import { buildFetchers } from "../chain/sources";
 import { MemoryStore } from "../chain/store";
+import type { Recording } from "../demo/recordings";
+import { readFinalityFromRecordings } from "../requests/finality";
 import { readIssuerFreeze } from "../requests/freeze";
 import { compareAddress, formatUsdc } from "../requests/lifecycle";
 import { shortHash } from "../requests/present";
@@ -16,6 +18,7 @@ import { amountCheck, finalityCheck, ISSUER, releaseHeadline, tokenCheck, type C
 import { loadSanctionsSnapshot, screenSender } from "../requests/sanctions";
 import { paymentStatus } from "../requests/status";
 import { add } from "../payments/money";
+import type { Chain } from "../types";
 import { replay, replayOnly, scenario, TRANSFER_LABEL, type Replayed } from "./replay";
 
 const NET: Record<string, string> = { ethereum: "Ethereum", tron: "Tron", bsc: "BNB Chain" };
@@ -54,11 +57,16 @@ async function freezeFor(r: Replayed, sender: string, receiver: string, contract
 }
 
 /**
- * The block the network had finalized when the transfer was recorded. Not in the recordings yet, so
- * undefined: finality then reads "NOT checked" (never guessed from a block count).
- * TODO(crypto-protocol-engineer finality follow-up): use their recorded-finality hook here.
+ * Finality from crypto-protocol-engineer's demo hook: only recordings that read the chain's own finality
+ * signal count (tests/fixtures/real/FINALITY-*.json), labelled "recorded at". None of the Ethereum demo
+ * recordings has one (Etherscan refused the `finalized` tag when recorded), so Ethereum stays NOT checked.
  */
-export function recordedFinalizedBlock(r: Replayed): number | undefined { void r; return undefined; }
+const FINALITY_FIXTURE: Record<string, string> = { ethereum: "FINALITY-ETH-ETHERSCAN.json", tron: "FINALITY-TRON.json" };
+async function recordedFinality(r: Replayed, chain: string, blockNumber: number | undefined, eta?: string): Promise<FinalityCheck> {
+  const files = [r.scenario.transfer!.recording, FINALITY_FIXTURE[chain]].filter(Boolean);
+  const recs: Recording[] = files.map((f) => JSON.parse(readFileSync(path.join(f.startsWith("FINALITY") ? FREEZE_DIR() : path.join(FREEZE_DIR(), "scenarios"), f), "utf8")));
+  return readFinalityFromRecordings(recs, { chain: chain as Chain, blockNumber, eta });
+}
 
 /** The five checks for one replayed transfer. */
 export async function releaseChecks(r: Replayed, o: { replayedWait?: boolean; finalizedBlock?: number } = {}): Promise<ReleaseChecks> {
@@ -71,7 +79,9 @@ export async function releaseChecks(r: Replayed, o: { replayedWait?: boolean; fi
   const finality: FinalityCheck = o.replayedWait && tx
     // Replaying the wait: the transfer had only just gone into its block, so the network can't have finalized it yet.
     ? { state: "pending", blockNumber: tx.blockNumber, eta, source: src, detail: `Replayed wait: in block ${tx.blockNumber}, which the network hadn't finalized yet.` }
-    : finalityCheck({ chain, blockNumber: tx?.blockNumber, finalizedBlock: o.finalizedBlock ?? recordedFinalizedBlock(r), source: src, checkedAt: at, eta });
+    : o.finalizedBlock !== undefined
+      ? finalityCheck({ chain, blockNumber: tx?.blockNumber, finalizedBlock: o.finalizedBlock, source: src, checkedAt: at, eta })
+      : await recordedFinality(r, chain, tx?.blockNumber, eta);
 
   const mine = tx?.transfers.filter((x) => sameAddress(x.to, inv.receiving_address)) ?? [];
   const x = mine[0] ?? tx?.transfers[0];
