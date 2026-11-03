@@ -184,7 +184,7 @@ class ReferenceWalkthrough(unittest.TestCase):
         r = run("reference", "friday")
         self.assertEqual(r["decision_time"], {"id": "friday", "label": "Friday funding decision",
                                               "as_of_sgt": "Fri 13 Nov 2026, 15:00 SGT",
-                                              "as_of_ny": "Fri 13 Nov 2026, 02:00 EST"})
+                                              "as_of_ny": "Fri 13 Nov 2026, 02:00 EST", "note": None})
         p = r["payment"]
         self.assertEqual(p["net_usd"], "100,000.00")
         self.assertEqual(p["deadline_sgt"], "Wed 18 Nov 2026, 23:00 SGT")
@@ -293,7 +293,7 @@ class DelayedReceivable(unittest.TestCase):
         m = opt(r, "monday")
         self.assertEqual(m["required_sgd"], "SGD 135,382.50")
         self.assertEqual(m["cash_headroom_sgd"], "SGD −5,382.50")
-        self.assertIn("Usable SGD 130,000.00 vs required SGD 135,382.50: short SGD 5,382.50", d["reason"])
+        self.assertIn("usable SGD 130,000.00 vs required SGD 135,382.50, short SGD 5,382.50", d["reason"])
         self.assertIsNone(r["comparison"])
 
     def test_monday_view_excludes_tuesday_receipt(self):
@@ -355,7 +355,7 @@ class OtherIncidents(unittest.TestCase):
         for slot in ("friday", "monday"):
             o = opt(r, slot)
             self.assertEqual(o["status"], "infeasible")
-            c = check(o, "Delivery")
+            c = check(o, "Simulated delivery")
             self.assertEqual(c["state"], "fail")
             self.assertIn("Thu 19 Nov 2026, 00:00 SGT", c["detail"])
             self.assertIn("not observed delivery", c["detail"])
@@ -364,7 +364,7 @@ class OtherIncidents(unittest.TestCase):
 
     def test_simulated_bound_is_not_delivery(self):
         r = run("reference", "friday")
-        self.assertIn("not observed delivery", check(opt(r, "friday"), "Delivery")["detail"])
+        self.assertIn("not observed delivery", check(opt(r, "friday"), "Simulated delivery")["detail"])
         self.assertTrue(any("simulated" in w for w in r["warnings"]))
 
 
@@ -497,7 +497,7 @@ class LoaderBehaviour(unittest.TestCase):
     def _row(self, **overrides):
         base = {"record_id": "X-1", "kind": "fee", "slot": "", "effective_at": "",
                 "known_at": "2026-11-12T09:00:00+08:00", "expires_at": "", "amount": "10.00", "currency": "SGD",
-                "rate": "", "bp": "", "status": "", "source": "synthetic: test", "establishes": "test"}
+                "rate": "", "bp": "", "status": "processing", "source": "synthetic: test", "establishes": "test"}
         base.update(overrides)
         return ",".join(base[c] for c in replay.COLUMNS)
 

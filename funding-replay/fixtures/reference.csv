@@ -5,9 +5,9 @@ SLOT-FRI,funding_slot,friday,2026-11-13T15:00:00+08:00,2026-11-12T09:00:00+08:00
 SLOT-MON,funding_slot,monday,2026-11-16T15:00:00+08:00,2026-11-12T09:00:00+08:00,2026-11-16T16:00:00+08:00,,,,,,synthetic: Northwind Foods SG fixture,Monday funding slot: instruct at 15:00 SGT; provider cutoff 16:00 SGT.
 CAL-FRI,calendar,friday,2026-11-13T00:00:00+08:00,2026-11-12T09:00:00+08:00,,,,,,open,synthetic: Northwind Foods SG fixture,Fri 13 Nov is a provider business day.
 CAL-MON,calendar,monday,2026-11-16T00:00:00+08:00,2026-11-12T09:00:00+08:00,,,,,,open,synthetic: Northwind Foods SG fixture,Mon 16 Nov is a provider business day.
-FEE-RAIL,fee,,,2026-11-12T09:00:00+08:00,,20.00,SGD,,,,synthetic: Northwind Foods SG fixture,"Rail fixed charge SGD 20.00 per payout, either slot."
-FEE-PROC-FRI,fee,friday,,2026-11-12T09:00:00+08:00,,15.00,SGD,,,,synthetic: Northwind Foods SG fixture,Processing charge SGD 15.00 for the Friday slot.
-FEE-PROC-MON,fee,monday,,2026-11-12T09:00:00+08:00,,25.00,SGD,,,,synthetic: Northwind Foods SG fixture,Processing charge SGD 25.00 for the Monday slot.
+FEE-RAIL,fee,,,2026-11-12T09:00:00+08:00,,20.00,SGD,,,rail,synthetic: Northwind Foods SG fixture,"Rail fixed charge SGD 20.00 per payout, either slot."
+FEE-PROC-FRI,fee,friday,,2026-11-12T09:00:00+08:00,,15.00,SGD,,,processing,synthetic: Northwind Foods SG fixture,Processing charge SGD 15.00 for the Friday slot.
+FEE-PROC-MON,fee,monday,,2026-11-12T09:00:00+08:00,,25.00,SGD,,,processing,synthetic: Northwind Foods SG fixture,Processing charge SGD 25.00 for the Monday slot.
 FLOOR-001,cash_floor,,,2026-11-12T09:00:00+08:00,,50000.00,SGD,,,,synthetic: Northwind Foods SG fixture,"Treasury policy keeps at least SGD 50,000.00 in the operating account."
 SVC-001,service_bound,,,2026-11-12T09:00:00+08:00,,7.5,,,,,synthetic: Northwind Foods SG fixture,"Simulated last-mile bound: usable credit within 7.5 h of release. A simulated bound, not observed delivery."
 CASH-FRI,cash_snapshot,,2026-11-13T09:00:00+08:00,2026-11-13T09:05:00+08:00,,200000.00,SGD,,,settled,synthetic: Northwind Foods SG fixture,"Bank snapshot: settled operating balance SGD 200,000.00 at Fri 13 Nov 09:00 SGT."
@@ -15,3 +15,4 @@ CAP-FRI,capacity,friday,2026-11-13T10:00:00+08:00,2026-11-13T10:00:00+08:00,2026
 Q-FRI,quote,friday,2026-11-13T14:30:00+08:00,2026-11-13T14:30:00+08:00,2026-11-13T16:00:00+08:00,,,1.35,25,,synthetic: Northwind Foods SG fixture,"Executable Friday quote: SGD 1.35 per USD, 25 bp spread, valid to Fri 13 Nov 16:00 SGT."
 Q-MON,quote,monday,2026-11-16T09:00:00+08:00,2026-11-16T09:00:00+08:00,2026-11-16T16:00:00+08:00,,,1.35,25,,synthetic: Northwind Foods SG fixture,"Executable Monday quote: SGD 1.35 per USD, 25 bp spread, valid to Mon 16 Nov 16:00 SGT."
 CAP-MON,capacity,monday,2026-11-16T09:00:00+08:00,2026-11-16T09:00:00+08:00,2026-11-16T16:00:00+08:00,100000.00,USD,,,confirmed,synthetic: Northwind Foods SG fixture,"Provider confirms USD 100,000.00 payout capacity for the Monday slot."
+CASH-MON,cash_snapshot,,2026-11-16T09:00:00+08:00,2026-11-16T09:00:00+08:00,,200000.00,SGD,,,settled,synthetic: Northwind Foods SG fixture,"Bank snapshot: settled operating balance SGD 200,000.00 at Mon 16 Nov 09:00 SGT."

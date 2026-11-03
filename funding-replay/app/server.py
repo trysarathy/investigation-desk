@@ -17,6 +17,7 @@ or from funding-replay/:        python3 app/server.py [--port 8765]
 import argparse
 import json
 import os
+import re
 import sys
 import threading
 from decimal import Decimal, InvalidOperation
@@ -34,6 +35,7 @@ HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 MAX_BODY = 1024 * 1024  # 1 MB
 DEFAULT_RATE = "8"
+RATE_RE = re.compile(r"^[0-9]{1,3}(\.[0-9]{1,6})?$")
 
 CONTENT_TYPES = {
     ".html": "text/html; charset=utf-8",
@@ -122,6 +124,7 @@ class Handler(BaseHTTPRequestHandler):
         body = dict(payload)
         body.setdefault("label", replay.LABEL)
         data = json.dumps(body, ensure_ascii=False).encode("utf-8")
+        self._sent = True
         self.send_response(status)
         self._common_headers("application/json; charset=utf-8", len(data))
         for k, v in extra_headers:
@@ -130,6 +133,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def _send_bytes(self, status, data, content_type):
+        self._sent = True
         self.send_response(status)
         self._common_headers(content_type, len(data))
         self.end_headers()
@@ -182,7 +186,7 @@ class Handler(BaseHTTPRequestHandler):
         return self.rfile.read(length) if length else b""
 
     # ---------------------------------------------------------------- methods
-    def do_GET(self):
+    def _do_GET(self):
         if not self._allowed_origin():
             return self._error(403, "Forbidden host or origin.")
         path = self.path.split("?", 1)[0].split("#", 1)[0]
@@ -220,7 +224,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_bytes(200, PLACEHOLDER.encode("utf-8"), CONTENT_TYPES[".html"])
         return self._error(404, "Not found.")
 
-    def do_POST(self):
+    def _do_POST(self):
         if not self._allowed_origin():
             self.close_connection = True
             return self._error(403, "Forbidden host or origin.")
@@ -251,8 +255,11 @@ class Handler(BaseHTTPRequestHandler):
         raw_rate = req.get("funding_rate_pct", DEFAULT_RATE)
         if isinstance(raw_rate, bool) or not isinstance(raw_rate, (str, int, Decimal)):
             return self._error(400, "funding_rate_pct must be a number between 0 and 100.")
+        text = str(raw_rate).strip()
+        if not RATE_RE.match(text):  # ASCII digits only; Decimal() would accept full-width digits
+            return self._error(400, "funding_rate_pct must be a number between 0 and 100.")
         try:
-            rate = Decimal(str(raw_rate).strip())
+            rate = Decimal(text)
         except InvalidOperation:
             return self._error(400, "funding_rate_pct must be a number between 0 and 100.")
         if not rate.is_finite() or rate < 0 or rate > 100:
@@ -263,7 +270,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._error(400, "Unknown scenario %r." % (scenario_id,))
         if decision_time not in ("friday", "monday", "retro"):
             return self._error(400, "Unknown decision_time %r." % (decision_time,))
-        result = replay.evaluate(scenario["events"], decision_time, rate, scenario)
+        try:
+            result = replay.evaluate(scenario["events"], decision_time, rate, scenario)
+        except Exception:  # never drop the connection; never echo internals
+            self.close_connection = True
+            return self._error(500, "The engine could not evaluate this dataset. No result is shown.")
         return self._send_json(200, result)
 
     def _import(self, body):
@@ -280,6 +291,24 @@ class Handler(BaseHTTPRequestHandler):
                                          "current_dataset": dataset})
         return self._send_json(200, {"ok": True, "scenario": "imported", "records": info,
                                      "current_dataset": dataset})
+
+    def _guarded(self, handler):
+        self._sent = False
+        try:
+            handler()
+        except Exception:
+            self.close_connection = True
+            if not self._sent:
+                try:
+                    self._error(500, "Internal error. No result is shown.")
+                except Exception:
+                    pass
+
+    def do_GET(self):
+        self._guarded(self._do_GET)
+
+    def do_POST(self):
+        self._guarded(self._do_POST)
 
     def _method_not_allowed(self):
         self.close_connection = True

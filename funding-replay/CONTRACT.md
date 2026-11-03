@@ -58,7 +58,8 @@ Header (exact order not required; all columns required):
 - `record_id`: non-empty, unique per fact. An identical duplicate row (all fields equal) is dropped
   (dedup). Same `record_id` with any different field → **conflict error** for that row (reject file).
 - timestamps: ISO 8601 **with offset** (e.g. `2026-11-13T09:00:00+08:00`); `expires_at` may be empty.
-- `amount`, `rate`, `bp`: decimal strings or empty; never parsed as float.
+- `amount`, `rate`, `bp`: decimal strings or empty; never parsed as float. ASCII digits only, at most 18 integer
+  digits and 6 decimal places, no sign, commas or exponent (row error otherwise). Timestamps: ASCII only.
 - `slot`: `friday`, `monday`, or empty (applies to both).
 - `kind` (and what it establishes):
   - `obligation` — amount (USD net), effective_at = spendable-USD deadline.
@@ -67,10 +68,15 @@ Header (exact order not required; all columns required):
   - `calendar` — slot, status `open` | `closed` (business day for that slot).
   - `quote` — slot, rate (SGD per USD), bp (FX spread), expires_at = quote expiry. For the Monday slot, a
     quote known on Friday is only usable if it is still live at the Monday instruction time.
-  - `fee` — slot (or empty = both), amount SGD, establishes e.g. "rail fixed charge" / "processing".
-  - `cash_snapshot` — amount SGD, status `settled`, effective_at = balance time.
+  - `fee` — slot (or empty = both), amount SGD, **status = fee type** `rail` | `processing` | `other` (required).
+    Two live fees applying to the same slot with the same type (different amounts, or the same amount under a
+    different record_id) → contradictory → fees unknown.
+  - `cash_snapshot` — amount SGD, status `settled`, effective_at = balance time. Usable only if effective_at ≤
+    known_at (otherwise it is a forecast: warning, never usable), effective_at ≤ the slot instruction time, and no
+    more than 96 h before it (older → stale → unknown).
   - `receivable` — amount SGD, status `forecast` | `settled`; effective_at = when usable. Only `settled`
     and effective_at ≤ slot instruction time adds to usable cash. Forecast never does.
+    A `settled` receivable dated after its known_at is treated as a forecast (warning).
   - `commitment` — amount SGD, competing obligation (concurrent payout) due before the deadline; always
     subtracted from usable cash.
   - `cash_floor` — amount SGD, policy minimum balance; subtracted.
@@ -81,8 +87,12 @@ Header (exact order not required; all columns required):
   - `reservation_cost` — slot monday, amount SGD: what reserving the later slot costs.
   - `fallback` — status `documented`; an independent fallback route if Monday fails.
   - `service_bound` — amount = hours (simulated last-mile bound, release → usable credit).
-  - `beneficiary_credit` — effective_at = observed usable credit (absent in all samples → "not observed").
+  - `beneficiary_credit` — effective_at = observed usable credit (absent in all samples → "not observed"). When
+    visible it overrides the simulated bound in the delivery check ("Observed beneficiary credit"; after the
+    deadline → fail "observed late").
 - `currency`: `USD` or `SGD` as applicable; empty for non-money kinds.
+- `obligation` amount must be > 0. A `quote` or agreed `forward_terms` without `rate` or `bp` gives pricing
+  unknown (a missing spread is never assumed to be 0).
 - Mandatory evidence missing, stale (expired before needed) or contradictory (two visible records of the same
   mandatory kind+slot with different values) → that check is **unknown**, never assumed.
 
@@ -109,7 +119,8 @@ Header (exact order not required; all columns required):
  "label": "Synthetic replay — no funds move.",
  "engine": "reconstructed",
  "scenario": {"id","name","description","synthetic": true},
- "decision_time": {"id","label","as_of_sgt":"Fri 13 Nov 2026, 15:00 SGT","as_of_ny":"Fri 13 Nov 2026, 02:00 EST"},
+ "decision_time": {"id","label","as_of_sgt":"Fri 13 Nov 2026, 15:00 SGT","as_of_ny":"Fri 13 Nov 2026, 02:00 EST",
+                  "note": null | "Counterfactual: assumes the SGD had been held after Friday. On Friday’s evidence the decision was: <Friday headline>." (monday) | "Hindsight: each slot is judged only on records known by its own instruction time (…)." (retro)},
  "payment": {"net_usd":"100,000.00","deadline_sgt":"Wed 18 Nov 2026, 23:00 SGT","deadline_ny":"Wed 18 Nov 2026, 10:00 EST",
              "release_sgt":"Wed 18 Nov 2026, 15:00 SGT","release_ny":"...", "beneficiary_credit":"not observed"},
  "decision": {"state": "KEEP_FRIDAY|MANUAL_REVIEW|INSUFFICIENT_CASH|DEADLINE_AT_RISK|MONDAY_FEASIBLE|MONDAY_UNAVAILABLE|HINDSIGHT|NO_DECISION",
@@ -137,7 +148,8 @@ Header (exact order not required; all columns required):
                "net_benefit_before_subscription": "SGD 78.77",
                "formula": "135,000.00 × 8% × (5 − 2) / 365 = 88.77; 88.77 − 10.00 = 78.77",
                "framing": "Hindsight only. Not available to the operator on Friday …",
-               "zero_rate_note": "If retained cash earns nothing and avoids no borrowing, waiting costs SGD 10.00 more."},
+               "zero_rate_note": "If retained cash earns nothing and avoids no borrowing, waiting costs SGD 10.00 more.",
+               "risk_note": "A missed deadline can swamp either figure." | null},
  "assumption": {"funding_rate_pct":"8", "kind":"assumption", "text":"Hypothetical annual rate on retained cash (avoided borrowing or incremental return). Not historical evidence."},
  "evidence": [ {"record_id","kind","slot","fact":"establishes text","effective_sgt","known_sgt","expires_sgt"|"—","status","used_by":["friday: quote", ...]} ],
  "warnings": ["..."]
@@ -154,6 +166,25 @@ never change any feasibility, status, decision state or check. `reservation_cost
 (subtracted in `net_benefit…` and shown in `formula`), null when none is on file. An option whose status is
 `not_evidenced` returns null for every numeric field (`required_sgd` … `cash_headroom_sgd`, incl.
 `restricted_days` and `funding_cost_formula`): only its status and checks.
+
+Hindsight and counterfactual rules (challenger fixes, v1.1):
+- **Retro** judges each slot only on records known by that slot's own instruction time (Friday slot: ≤ Fri 15:00
+  SGT; Monday slot: ≤ Mon 15:00 SGT), not everything known by Thu 19 Nov. If either slot is not feasible on its
+  own-time evidence, the comparison is withheld. An observed `beneficiary_credit` visible at retro still applies
+  to both slots' delivery check. `framing` states each late record kind's actual first-known time.
+- The comparison is also withheld if the two slots' FX rates or principals differ ("Rates differ between slots;
+  the difference would mix a market move with timing."). `extra_processing` is the fee difference only. No text
+  ever says waiting "saves".
+- Retro headlines: available and not actionable on Friday → "In hindsight, Monday tied up cash for fewer days —
+  waiting was not supported on Friday"; available after a Friday MANUAL_REVIEW → "Hindsight comparison: a
+  reviewed Monday option existed on Friday"; otherwise "Hindsight comparison withheld".
+- **Monday** is a counterfactual: `decision_time.note` says so and quotes the Friday headline. Monday headlines
+  say "would have been". Monday `next_actions` never instruct funding unless Friday's state was MANUAL_REVIEW
+  (then "If you held the funds after review: confirm …"), and always include "If the Friday instruction was
+  kept, do not instruct the same payment again on Monday."
+- Fixture `scenarios.json` names and descriptions are Friday-safe: they state no fact first known after Fri 15:00.
+- The delivery check is named "Simulated delivery bound (not observed)" (or "Observed beneficiary credit").
+- The server answers any internal error with labelled JSON 500 `{ok:false, error}`, never a dropped connection.
 
 ## Expected outcomes (acceptance; engine tests must assert these)
 | scenario id | friday | monday | retro |

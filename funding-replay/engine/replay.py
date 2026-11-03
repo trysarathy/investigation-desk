@@ -26,7 +26,7 @@ import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, localcontext
 from typing import Dict, List, Optional, Tuple
 
 LABEL = "Synthetic replay — no funds move."
@@ -55,7 +55,7 @@ REQUIRED = {
     "funding_slot": ("slot", "effective_at", "expires_at"),
     "calendar": ("slot", "status"),
     "quote": ("slot", "rate", "bp", "expires_at"),
-    "fee": ("amount", "currency"),
+    "fee": ("amount", "currency", "status"),
     "cash_snapshot": ("effective_at", "amount", "currency", "status"),
     "receivable": ("effective_at", "amount", "currency", "status"),
     "commitment": ("amount", "currency"),
@@ -69,6 +69,7 @@ REQUIRED = {
 }
 STATUSES = {
     "calendar": ("open", "closed"),
+    "fee": ("rail", "processing", "other"),
     "cash_snapshot": ("settled",),
     "receivable": ("forecast", "settled"),
     "capacity": ("reserved", "confirmed", "indicative"),
@@ -81,7 +82,9 @@ CURRENCIES = {
     "commitment": "SGD", "cash_floor": "SGD", "reservation_cost": "SGD",
 }
 
-_DECIMAL_RE = re.compile(r"^\d+(\.\d+)?$")
+# ASCII digits only; at most 18 integer digits and 6 decimal places.
+_DECIMAL_RE = re.compile(r"^[0-9]{1,18}(\.[0-9]{1,6})?$")
+_ASCII_TS_RE = re.compile(r"^[0-9T:+\-.Z ]+$")
 
 # --------------------------------------------------------------------------
 # Time zones and formatting
@@ -221,6 +224,8 @@ def _err(row, column, message):
 
 
 def _parse_ts(text):
+    if not _ASCII_TS_RE.match(text):
+        raise ValueError("must use ASCII digits only (e.g. 2026-11-13T09:00:00+08:00)")
     raw = text[:-1] + "+00:00" if text.endswith("Z") else text
     try:
         dt = datetime.fromisoformat(raw)
@@ -337,8 +342,8 @@ def _validate_row(line, raw):
             nums[col] = None
             continue
         if not _DECIMAL_RE.match(value):
-            errs.append(_err(line, col, "%s '%s' is not a plain decimal (digits with an optional point, "
-                                        "no commas or signs, e.g. 1350.00)." % (col, value)))
+            errs.append(_err(line, col, "%s '%s' is not a plain decimal (ASCII digits, at most 18 before and 6 "
+                                        "after the point, no commas or signs, e.g. 1350.00)." % (col, value)))
             continue
         nums[col] = Decimal(value)
     status = raw["status"]
@@ -358,6 +363,8 @@ def _validate_row(line, raw):
             errs.append(_err(line, "currency", "Kind '%s' must be in %s, found %s." % (kind, expected, currency)))
         else:
             errs.append(_err(line, "currency", "Kind '%s' takes no currency; found %s." % (kind, currency)))
+    if kind == "obligation" and nums.get("amount") is not None and nums["amount"] <= 0:
+        errs.append(_err(line, "amount", "The obligation amount must be greater than zero."))
     if kind == "service_bound" and nums.get("amount") is not None and nums["amount"] > Decimal(240):
         errs.append(_err(line, "amount", "service_bound is in hours and must be at most 240."))
     if errs:
@@ -603,7 +610,7 @@ def _evaluate_option(view, common, slot, hindsight):
                                  ("fees", "Fees", "%s fee schedule" % sname),
                                  ("cash", "Cash after floor and commitments", None),
                                  ("capacity", "Payout capacity", "Reserved or confirmed %s payout capacity" % sname),
-                                 ("delivery", "Delivery by deadline", None)):
+                                 ("delivery", DELIVERY_NAME, None)):
             opt.checks.append(Check(key, name, "unknown", "Depends on the %s funding slot." % sname, (),
                                     "derived" if label is None else "missing", label))
         _set_status(opt)
@@ -629,7 +636,9 @@ def _evaluate_option(view, common, slot, hindsight):
     # 4. FX pricing: a live quote, else agreed forward terms.
     quotes = view.kind("quote", slot)
     q_rec, q_problem, q_recs = _pick(quotes, lambda r: (r.rate, r.bp), at=instr)
-    forwards = [e for e in view.kind("forward_terms", slot) if e.status == "agreed"]
+    agreed = [e for e in view.kind("forward_terms", slot) if e.status == "agreed"]
+    forwards = [e for e in agreed if e.rate is not None and e.bp is not None]
+    incomplete = [e for e in agreed if e not in forwards]  # no spread: never assume 0 bp
     f_rec, f_problem, f_recs = _pick(forwards, lambda r: (r.rate, r.bp), at=instr)
     if q_problem is None:
         opt.pricing = q_rec
@@ -642,14 +651,17 @@ def _evaluate_option(view, common, slot, hindsight):
         valid = " valid to %s" % fmt_sgt(f_rec.expires_at) if f_rec.expires_at else ""
         opt.checks.append(Check("pricing", "Forward terms", "ok",
                                 "Agreed forward terms: SGD %s per USD, %s bp spread,%s. Enforceability still to verify." % (
-                                    fmt_plain(f_rec.rate), fmt_plain(f_rec.bp or Decimal(0)), valid),
+                                    fmt_plain(f_rec.rate), fmt_plain(f_rec.bp), valid),
                                 f_recs))
     else:
         # Report the most informative problem: contradictory > stale > missing.
         order = {"contradictory": 0, "stale": 1, "missing": 2}
         candidates = [(q_problem, q_recs, "%s quote" % sname), (f_problem, f_recs, "%s forward terms" % sname)]
         problem, recs, what = min(candidates, key=lambda c: order[c[0]])
-        if problem == "missing":
+        if problem == "missing" and incomplete:
+            recs = incomplete
+            detail = "%s forward terms %s have no FX spread (bp), so pricing is unknown." % (sname, _ids(incomplete))
+        elif problem == "missing":
             detail = "No %s quote or binding forward terms on file." % sname
         else:
             detail = _problem_text(problem, what, recs, at=instr)
@@ -665,11 +677,23 @@ def _evaluate_option(view, common, slot, hindsight):
     fees_all = view.kind("fee", slot)
     fees_live = [f for f in fees_all if _live(f, instr)]
     fee_sum = None
-    if fees_live:
+    by_type = {}
+    for f in fees_live:
+        by_type.setdefault(f.status, []).append(f)
+    clash = [group for group in by_type.values() if len(group) > 1]
+    if clash:
+        recs = sorted((f for g in clash for f in g), key=lambda r: r.record_id)
+        types = ", ".join(sorted({f.status for f in recs}))
+        opt.checks.append(Check("fees", "Fees", "unknown",
+                                "More than one live %s fee of the same type (%s: %s), so the fee is contradictory."
+                                % (sname, types, _ids(recs)), recs, "contradictory", "%s fee schedule" % sname))
+        opt.warnings.append("Contradictory %s fees (%s); fees treated as unknown." % (sname, _ids(recs)))
+    elif fees_live:
         fee_sum = sum((f.amount for f in fees_live), Decimal(0))
         opt.checks.append(Check("fees", "Fees", "ok",
                                 "Charges SGD %s (%s) plus FX spread." % (
-                                    fmt_num(fee_sum), "; ".join("%s SGD %s" % (f.record_id, fmt_num(f.amount))
+                                    fmt_num(fee_sum), "; ".join("%s %s SGD %s" % (f.status, f.record_id,
+                                                                                  fmt_num(f.amount))
                                                                 for f in fees_live)),
                                 fees_live))
     else:
@@ -681,7 +705,7 @@ def _evaluate_option(view, common, slot, hindsight):
     # Money for this slot (full precision; rounded only at output)
     if opt.pricing is not None and net is not None and fee_sum is not None:
         opt.principal = net * opt.pricing.rate
-        spread = opt.principal * (opt.pricing.bp or Decimal(0)) / Decimal(10000)
+        spread = opt.principal * opt.pricing.bp / Decimal(10000)
         opt.fees = spread + fee_sum
         opt.required = opt.principal + opt.fees
     if common.release is not None and instr < common.release:
@@ -716,18 +740,30 @@ def _evaluate_option(view, common, slot, hindsight):
                                 _problem_text(problem, "%s payout capacity" % sname, recs, at=instr),
                                 recs, problem, "Reserved or confirmed %s payout capacity" % sname))
 
-    # 8. Delivery by deadline (simulated bound; not observed delivery)
-    if common.rel_problem is None and common.svc_problem is None and common.obl_problem is None:
+    # 8. Delivery by deadline: an observed beneficiary credit overrides the simulated bound.
+    if common.credit is not None and common.obl_problem is None:
+        credit = common.credit
+        if credit.effective_at <= common.deadline:
+            opt.checks.append(Check("delivery", OBSERVED_NAME, "ok",
+                                    "Usable credit observed %s (%s), within the %s deadline." % (
+                                        fmt_sgt(credit.effective_at), credit.record_id, fmt_sgt(common.deadline)),
+                                    [credit] + common.obl_recs))
+        else:
+            opt.checks.append(Check("delivery", OBSERVED_NAME, "fail",
+                                    "Usable credit observed late: %s (%s), after the %s deadline." % (
+                                        fmt_sgt(credit.effective_at), credit.record_id, fmt_sgt(common.deadline)),
+                                    [credit] + common.obl_recs))
+    elif common.rel_problem is None and common.svc_problem is None and common.obl_problem is None:
         hours = common.svc.amount
         arrival = common.release + timedelta(seconds=int(hours * 3600))
         recs = common.rel_recs + common.svc_recs + common.obl_recs
         base = "Release %s + %s h simulated bound = %s" % (fmt_sgt(common.release), fmt_plain(hours), fmt_sgt(arrival))
         if arrival <= common.deadline:
-            opt.checks.append(Check("delivery", "Delivery by deadline", "ok",
+            opt.checks.append(Check("delivery", DELIVERY_NAME, "ok",
                                     "%s, within the %s deadline. Simulated bound, not observed delivery." % (
                                         base, fmt_sgt(common.deadline)), recs))
         else:
-            opt.checks.append(Check("delivery", "Delivery by deadline", "fail",
+            opt.checks.append(Check("delivery", DELIVERY_NAME, "fail",
                                     "%s, after the %s deadline. Simulated bound, not observed delivery." % (
                                         base, fmt_sgt(common.deadline)), recs))
     else:
@@ -741,10 +777,10 @@ def _evaluate_option(view, common, slot, hindsight):
                 recs += r
                 problem = problem if problem in ("contradictory", "stale") else p
         if not parts:
-            opt.checks.append(Check("delivery", "Delivery by deadline", "unknown",
+            opt.checks.append(Check("delivery", DELIVERY_NAME, "unknown",
                                     "The supplier deadline is unknown.", recs, "derived"))
         else:
-            opt.checks.append(Check("delivery", "Delivery by deadline", "unknown", " ".join(parts), recs, problem,
+            opt.checks.append(Check("delivery", DELIVERY_NAME, "unknown", " ".join(parts), recs, problem,
                                     "Release checkpoint and last-mile service bound"))
 
     # 9. Fallback: only when deciding to wait before the slot is reached.
@@ -764,17 +800,40 @@ def _evaluate_option(view, common, slot, hindsight):
     return opt
 
 
+MAX_SNAPSHOT_AGE = timedelta(hours=96)
+
+
+def _settled_evidence(record):
+    """Settled only if the record was dated no later than when it was first known."""
+    return record.status == "settled" and record.effective_at <= record.known_at
+
+
 def _cash_check(view, opt, sname):
     instr = opt.instr
-    snaps = [e for e in view.kind("cash_snapshot") if e.status == "settled" and e.effective_at <= instr
-             and _live(e, instr)]
+    all_snaps = view.kind("cash_snapshot")
+    receivables = view.kind("receivable")
+    for r in all_snaps + receivables:
+        if r.status == "settled" and r.effective_at > r.known_at:
+            opt.warnings.append("%s %s is marked settled but dated %s, after it was first known %s; treated as a "
+                                "forecast, not usable cash." % (
+                                    "Cash snapshot" if r.kind == "cash_snapshot" else "Receipt", r.record_id,
+                                    fmt_sgt(r.effective_at), fmt_sgt(r.known_at)))
+    dated = [e for e in all_snaps if _settled_evidence(e) and e.effective_at <= instr and _live(e, instr)]
+    snaps = [e for e in dated if e.effective_at >= instr - MAX_SNAPSHOT_AGE]
     floors = view.kind("cash_floor")
     floor, f_problem, f_recs = _pick(floors, lambda r: r.amount)
     commitments = view.kind("commitment")
-    receivables = view.kind("receivable")
     if not snaps:
-        any_snaps = view.kind("cash_snapshot")
+        any_snaps = dated or all_snaps
         problem = "stale" if any_snaps else "missing"
+        if dated:
+            latest = max(dated, key=lambda r: r.effective_at)
+            opt.checks.append(Check("cash", "Cash after floor and commitments", "unknown",
+                                    "The latest settled snapshot (%s, %s) is more than 96 h before the %s "
+                                    "instruction, so it is stale." % (latest.record_id, fmt_sgt(latest.effective_at),
+                                                                     sname),
+                                    [latest], "stale", "Settled cash snapshot"))
+            return
         opt.checks.append(Check("cash", "Cash after floor and commitments", "unknown",
                                 _problem_text(problem, "settled cash snapshot", any_snaps, at=instr),
                                 any_snaps, problem, "Settled cash snapshot"))
@@ -794,9 +853,9 @@ def _cash_check(view, opt, sname):
                                 _problem_text(f_problem, "cash floor policy", f_recs), f_recs, f_problem,
                                 "Cash floor policy"))
         return
-    receipts = [r for r in receivables if r.status == "settled" and snap.effective_at < r.effective_at <= instr]
-    late = [r for r in receivables if r.status == "settled" and r.effective_at > instr]
-    forecasts = [r for r in receivables if r.status == "forecast"]
+    receipts = [r for r in receivables if _settled_evidence(r) and snap.effective_at < r.effective_at <= instr]
+    late = [r for r in receivables if _settled_evidence(r) and r.effective_at > instr]
+    forecasts = [r for r in receivables if not _settled_evidence(r)]
     receipt_sum = sum((r.amount for r in receipts), Decimal(0))
     commit_sum = sum((c.amount for c in commitments), Decimal(0))
     usable = snap.amount + receipt_sum - floor.amount - commit_sum
@@ -894,6 +953,8 @@ def _option_json(opt, rate):
 # --------------------------------------------------------------------------
 # Decisions
 # --------------------------------------------------------------------------
+DELIVERY_NAME = "Simulated delivery bound (not observed)"
+OBSERVED_NAME = "Observed beneficiary credit"
 _FAIL_ORDER_MONDAY = ("calendar", "window", "delivery", "cash", "capacity")
 
 
@@ -1035,43 +1096,60 @@ def _decide_friday(fri, mon, common, as_of, actionable):
                      _missing_list(mon), actions, actionable)
 
 
-def _decide_monday(mon, common, actionable):
+NO_DOUBLE = "If the Friday instruction was kept, do not instruct the same payment again on Monday."
+
+
+def _decide_monday(mon, common, actionable, fri_state):
+    """The Monday checkpoint is a counterfactual: it assumes the SGD had been held after Friday."""
+    reviewed = fri_state == "MANUAL_REVIEW"
+    lead = ("If you held the funds after review: confirm the Monday position with your provider before %s."
+            % _fmt_clock(mon.cutoff) if mon.cutoff else
+            "If you held the funds after review: confirm the Monday position with your provider.")
+    prefix = [lead] if reviewed else []
     if mon.failed():
         fail = _first_fail(mon, _FAIL_ORDER_MONDAY)
         if fail.key == "delivery":
-            return _decision("DEADLINE_AT_RISK", "Supplier deadline at risk",
-                             "Monday funding misses the deadline. %s" % fail.detail,
+            return _decision("DEADLINE_AT_RISK", "Supplier deadline would have been at risk",
+                             "Had the SGD been held, Monday funding would have missed the deadline. %s" % fail.detail,
                              "Last-mile time after the common release checkpoint.", mon, _missing_list(mon),
-                             _deadline_actions(common), actionable)
+                             prefix + _deadline_actions(common) + [NO_DOUBLE], actionable)
         if fail.key == "cash":
-            reason = "Usable SGD %s vs required SGD %s: short SGD %s." % (
-                fmt_num(mon.usable), fmt_num(mon.required), fmt_num(mon.required - mon.usable))
+            short = fmt_money("SGD", mon.required - mon.usable)
+            reason = "Had the SGD been held, Monday would have had %s" % _cash_short(mon)
+            actions = prefix + ["Report the counterfactual Monday shortfall of %s to the controller." % short,
+                                "Before relying on waiting, ask your bank whether an existing committed facility "
+                                "would cover %s." % short]
             if any("Forecast receipt" in w for w in mon.warnings):
                 reason += " The forecast customer receipt is not settled, so it is not counted."
-            return _decision("INSUFFICIENT_CASH", "Not enough usable cash for Monday%ss funding" % RSQUO,
-                             reason, "Usable cash after the cash floor and competing commitments.", mon,
-                             _missing_list(mon), _cash_short_actions(mon, "Monday"), actionable)
-        return _decision("MONDAY_UNAVAILABLE", "Monday funding slot unavailable", fail.detail,
+                actions.append("Do not count the forecast customer receipt until your bank shows it settled.")
+            return _decision("INSUFFICIENT_CASH", "Monday would have been short of usable cash", reason,
+                             "Usable cash after the cash floor and competing commitments.", mon,
+                             _missing_list(mon), actions + [NO_DOUBLE], actionable)
+        return _decision("MONDAY_UNAVAILABLE", "Monday funding slot would have been unavailable",
+                         "Had the SGD been held, the Monday slot would have been lost. %s" % fail.detail,
                          "%s for the Monday slot." % fail.name, mon, _missing_list(mon),
-                         ["Ask your provider for the earliest usable alternative slot that still meets %s." % fmt_sgt(
-                             common.deadline) if common.deadline else
-                          "Ask your provider for the earliest usable alternative slot.",
-                          "Record why waiting would have lost the Monday slot."], actionable)
+                         prefix + ["Record why waiting would have lost the Monday slot.", NO_DOUBLE], actionable)
     if mon.status != "feasible":
         missing = _missing_list(mon)
-        bad = [c for c in mon.unknown()]
+        bad = mon.unknown()
         reason = bad[0].detail if bad else "Monday evidence is incomplete."
-        return _decision("NO_DECISION", "No decision: Monday evidence incomplete", reason,
+        return _decision("NO_DECISION", "No decision: Monday evidence would have been incomplete", reason,
                          "Missing or unreliable Monday evidence.", mon, missing,
-                         ["Ask your provider for the missing Monday evidence before the Monday cutoff: %s." %
-                          "; ".join(missing)] if missing else
-                         ["Ask your provider to confirm the Monday slot before its cutoff."], actionable)
-    return _decision("MONDAY_FEASIBLE", "Monday funding is feasible on Monday%ss evidence" % RSQUO,
-                     "On Monday%ss evidence the Monday slot covers the same USD %s net by the same deadline." % (
-                         RSQUO, fmt_num(common.net_usd)),
-                     "Monday %s cutoff." % _fmt_clock(mon.cutoff), mon, [],
-                     ["Confirm the Monday quote and capacity with your provider before %s." % _fmt_clock(mon.cutoff),
-                      "Track beneficiary credit separately: provider release is not supplier credit."], actionable)
+                         prefix + (["Record which Monday evidence was missing: %s." % "; ".join(missing)]
+                                   if missing else []) + [NO_DOUBLE], actionable)
+    reason = ("Had the SGD been held, Monday%ss evidence would have covered the same USD %s net by the same "
+              "deadline." % (RSQUO, fmt_num(common.net_usd)))
+    if reviewed:
+        actions = ["If you held the funds after review: confirm the Monday terms and capacity with your provider "
+                   "before %s." % _fmt_clock(mon.cutoff), NO_DOUBLE,
+                   "Track beneficiary credit separately: provider release is not supplier credit."]
+    else:
+        actions = ["No Monday action: this checkpoint is a counterfactual and Friday%ss decision stands." % RSQUO,
+                   NO_DOUBLE,
+                   "Next time, ask your provider before Friday%ss cutoff whether Monday terms and capacity can be "
+                   "agreed in advance." % RSQUO]
+    return _decision("MONDAY_FEASIBLE", "Monday funding would have been feasible on Monday%ss evidence" % RSQUO,
+                     reason, "Monday %s cutoff." % _fmt_clock(mon.cutoff), mon, [], actions, actionable)
 
 
 def _cash_short(opt):
@@ -1102,35 +1180,37 @@ def _withheld_reason(fri, mon):
     return "Comparison withheld. " + " ".join(parts)
 
 
+RATES_DIFFER = "Rates differ between slots; the difference would mix a market move with timing."
+RISK_NOTE = "A missed deadline can swamp either figure."
+
+
 def _comparison(fri, mon, rate, framing):
-    pf, pm = fri.principal, mon.principal
+    """Like-for-like only: same net amount, deadline, FX rate and principal. Extra cost is fees only."""
+    if fri.pricing.rate != mon.pricing.rate or fri.principal != mon.principal:
+        return _withheld("Comparison withheld. " + RATES_DIFFER)
+    principal = fri.principal
     df, dm = fri.days, mon.days
-    capital_days = pf * df - pm * dm
+    capital_days = principal * (df - dm)
     carry = rate / Decimal(100) * capital_days / Decimal(365)
-    extra = mon.required - fri.required
+    extra = mon.fees - fri.fees
     reservation = sum((r.amount for r in mon.reservation), Decimal(0))
     net = carry - extra - reservation
-    zero = -(extra + reservation)
-    if pf == pm:
-        lhs = "%s %s %s%% %s (%s %s %s) / 365" % (fmt_num(pf), "×", fmt_plain(rate), "×",
-                                                   fmt_plain(df), MINUS, fmt_plain(dm))
-    else:
-        lhs = "%s%% %s (%s %s %s %s %s %s %s) / 365" % (
-            fmt_plain(rate), "×", fmt_num(pf), "×", fmt_plain(df), MINUS, fmt_num(pm), "×",
-            fmt_plain(dm))
+    zero_cost = extra + reservation
+    lhs = "%s × %s%% × (%s %s %s) / 365" % (fmt_num(principal), fmt_plain(rate), fmt_plain(df), MINUS,
+                                                     fmt_plain(dm))
     formula = "%s = %s; %s %s %s" % (lhs, fmt_num(carry), fmt_num(carry), MINUS, fmt_num(extra))
     if reservation:
         formula += " %s %s" % (MINUS, fmt_num(reservation))
     formula += " = %s" % fmt_num(net)
-    if zero < 0:
+    if zero_cost >= 0:
         note = "If retained cash earns nothing and avoids no borrowing, waiting costs %s more." % fmt_money(
-            "SGD", -zero)
+            "SGD", zero_cost)
         if reservation:
             note = note[:-1] + " (%s extra processing + %s reservation)." % (
                 fmt_money("SGD", extra), fmt_money("SGD", reservation))
     else:
-        note = "If retained cash earns nothing and avoids no borrowing, waiting still saves %s." % fmt_money(
-            "SGD", zero)
+        note = ("If retained cash earns nothing and avoids no borrowing, Monday%ss fees are %s lower; that is a fee "
+                "difference, not a timing benefit." % (RSQUO, fmt_money("SGD", -zero_cost)))
     return {
         "available": True, "withheld_reason": None,
         "days": {"friday": _days_value(df), "monday": _days_value(dm)},
@@ -1140,7 +1220,7 @@ def _comparison(fri, mon, rate, framing):
         "extra_processing": fmt_money("SGD", extra),
         "reservation_cost": fmt_money("SGD", reservation) if mon.reservation else None,
         "net_benefit_before_subscription": fmt_money("SGD", net),
-        "formula": formula, "framing": framing, "zero_rate_note": note,
+        "formula": formula, "framing": framing, "zero_rate_note": note, "risk_note": RISK_NOTE,
     }
 
 
@@ -1148,7 +1228,7 @@ def _withheld(reason):
     return {"available": False, "withheld_reason": reason, "days": None, "sgd_days_less": None,
             "avg_restricted_less_30d": None, "carry_reduction": None, "extra_processing": None,
             "reservation_cost": None, "net_benefit_before_subscription": None, "formula": None,
-            "framing": None, "zero_rate_note": None}
+            "framing": None, "zero_rate_note": None, "risk_note": None}
 
 
 def _comparable(fri, mon, common):
@@ -1156,21 +1236,38 @@ def _comparable(fri, mon, common):
             and common.deadline is not None and fri.days is not None and mon.days is not None)
 
 
+_LATE_NAMES = {"quote": "quote", "capacity": "capacity", "forward_terms": "forward terms",
+               "calendar": "calendar", "fallback": "fallback"}
+
+
 def _late_kinds(mon):
-    """Kinds of Monday evidence first known after the Friday decision time."""
-    late = []
-    first = None
-    names = {"quote": "quote", "capacity": "capacity", "forward_terms": "forward terms", "calendar": "calendar",
-             "fallback": "fallback"}
+    """[(kind name, first known_at)] for Monday evidence first known after the Friday decision time."""
+    first = {}
+    order = []
     for c in mon.checks:
         if c.state != "ok":
             continue
         for r in c.records:
-            if r.known_at > FRIDAY_AS_OF and r.kind in names:
-                if names[r.kind] not in late:
-                    late.append(names[r.kind])
-                first = r.known_at if first is None or r.known_at < first else first
-    return late, first
+            if r.known_at > FRIDAY_AS_OF and r.kind in _LATE_NAMES:
+                name = _LATE_NAMES[r.kind]
+                if name not in first:
+                    order.append(name)
+                    first[name] = r.known_at
+                elif r.known_at < first[name]:
+                    first[name] = r.known_at
+    return [(name, first[name]) for name in order]
+
+
+def _late_sentence(late):
+    if not late:
+        return ""
+    times = {t for _, t in late}
+    if len(times) == 1:
+        names = [n for n, _ in late]
+        return "Monday%ss %s %s first known %s." % (RSQUO, _join_and(names), "was" if len(names) == 1 else "were",
+                                                    fmt_sgt(late[0][1]))
+    parts = ["%s was first known %s" % (n, fmt_sgt(t)) for n, t in late]
+    return "Monday%ss %s." % (RSQUO, "; ".join(parts))
 
 
 # --------------------------------------------------------------------------
@@ -1183,7 +1280,7 @@ def _as_rate(value):
         rate = value
     elif isinstance(value, (int, str)) and not isinstance(value, bool):
         text = str(value).strip()
-        if not re.match(r"^\d+(\.\d+)?$", text):
+        if not re.match(r"^[0-9]{1,3}(\.[0-9]{1,6})?$", text):
             raise ValueError("funding_rate_pct must be a non-negative decimal, e.g. 8 or 2.5")
         rate = Decimal(text)
     else:
@@ -1193,57 +1290,94 @@ def _as_rate(value):
     return rate
 
 
-def _actionable_on_friday(events):
+def _friday_view(events):
+    """The Friday decision exactly as it was available on Friday (records known by Fri 15:00 only)."""
     view = _View(events, FRIDAY_AS_OF)
     common = _Common(view)
     fri = _evaluate_option(view, common, "friday", False)
     mon = _evaluate_option(view, common, "monday", False)
-    return _comparable(fri, mon, common)
+    actionable = _comparable(fri, mon, common)
+    decision = _decide_friday(fri, mon, common, FRIDAY_AS_OF, actionable)
+    return view, common, fri, mon, decision, actionable
+
+
+def _hindsight_option(events, rview, rcommon, slot):
+    """Retro: judge a slot only on records known by that slot's own instruction time."""
+    slots = [e for e in rview.kind("funding_slot") if e.slot == slot]
+    rec, problem, _ = _pick(slots, lambda r: (r.effective_at, r.expires_at))
+    if problem is not None:
+        return _evaluate_option(rview, rcommon, slot, True), rview
+    view = _View(events, rec.effective_at)
+    common = _Common(view)
+    common.credit = rcommon.credit  # an observed outcome overrides the simulated bound
+    opt = _evaluate_option(view, common, slot, True)
+    late = [r for r in rview.kind("receivable") if _settled_evidence(r) and r.effective_at > rec.effective_at]
+    opt.late_receipts = opt.late_receipts + [r for r in late if r not in opt.late_receipts]
+    return opt, view
 
 
 def evaluate(events, decision_time, funding_rate_pct, scenario=None):
     """Pure, deterministic evaluation of one decision time. Returns the contract JSON dict."""
+    with localcontext() as ctx:
+        ctx.prec = 100  # 18-digit amounts x rates x days stay exact
+        return _evaluate(events, decision_time, funding_rate_pct, scenario)
+
+
+def _evaluate(events, decision_time, funding_rate_pct, scenario):
     if decision_time not in _DT_BY_ID:
         raise ValueError("unknown decision_time %r (use %s)" % (decision_time, ", ".join(_DT_BY_ID)))
     rate = _as_rate(funding_rate_pct)
     dt = _DT_BY_ID[decision_time]
     as_of = dt["as_of"]
-    hindsight = decision_time == "retro"
     view = _View(events, as_of)
     common = _Common(view)
-    fri = _evaluate_option(view, common, "friday", hindsight)
-    mon = _evaluate_option(view, common, "monday", hindsight)
-    actionable = _actionable_on_friday(events)
+    _, _, _, _, fri_decision, actionable = _friday_view(events)
+    note = None
 
     comparison = None
     if decision_time == "friday":
+        fri = _evaluate_option(view, common, "friday", False)
+        mon = _evaluate_option(view, common, "monday", False)
         decision = _decide_friday(fri, mon, common, as_of, actionable)
         if decision["state"] == "MANUAL_REVIEW" and _comparable(fri, mon, common):
             framing = ("Conditional on verifying the forward terms; not a recommendation. The figures assume the "
                        "Monday terms, reserved capacity and fallback hold, with the reservation cost subtracted.")
             comparison = _comparison(fri, mon, rate, framing)
     elif decision_time == "monday":
-        decision = _decide_monday(mon, common, actionable)
+        fri = _evaluate_option(view, common, "friday", False)
+        mon = _evaluate_option(view, common, "monday", False)
+        note = ("Counterfactual: assumes the SGD had been held after Friday. On Friday%ss evidence the decision "
+                "was: %s." % (RSQUO, fri_decision["headline"]))
+        decision = _decide_monday(mon, common, actionable, fri_decision["state"])
     else:
-        if _comparable(fri, mon, common):
-            late, first = _late_kinds(mon)
+        fri, fview = _hindsight_option(events, view, common, "friday")
+        mon, mview = _hindsight_option(events, view, common, "monday")
+        times = [(SLOT_NAMES[o.slot], o.instr) for o in (fri, mon) if o.instr is not None]
+        note = ("Hindsight: each slot is judged only on records known by its own instruction time (%s)." %
+                "; ".join("%s %s" % (n, fmt_sgt(t)) for n, t in times)) if times else \
+            "Hindsight: each slot is judged only on records known by its own instruction time."
+        mcommon = _Common(mview)
+        if _comparable(fri, mon, mcommon):
+            late = _late_kinds(mon)
             if actionable:
                 framing = ("Hindsight. A reviewed option existed on Friday: Monday terms, reserved capacity and a "
                            "documented fallback were known before Friday%ss cutoff. Waiting still needed manual "
                            "review; this is not a recommendation." % RSQUO)
+                headline = "Hindsight comparison: a reviewed Monday option existed on Friday"
             else:
-                known = (" Monday%ss %s %s first known %s." % (RSQUO, _join_and(late),
-                                                               "was" if len(late) == 1 else "were", fmt_sgt(first))
-                         if late else "")
+                known = (" " + _late_sentence(late)) if late else ""
                 framing = ("Hindsight only. Not available to the operator on Friday.%s The Friday decision stands; "
                            "the difference was not actionable on Friday." % known)
+                headline = ("In hindsight, Monday tied up cash for fewer days — waiting was not supported on "
+                            "Friday")
             comparison = _comparison(fri, mon, rate, framing)
-            reason = "Both slots were feasible on the evidence held by %s, for the same USD %s net and deadline." % (
-                fmt_sgt(as_of), fmt_num(common.net_usd))
+        if comparison is not None and comparison["available"]:
+            reason = ("Each slot was feasible on the records known by its own instruction time, for the same USD %s "
+                      "net and deadline." % fmt_num(mcommon.net_usd))
             if not actionable and late:
-                reason += " Monday%ss %s only became known %s." % (RSQUO, _join_and(late), fmt_sgt(first))
+                reason += " " + _late_sentence(late)
             decision = _decision(
-                "HINDSIGHT", "Hindsight comparison: both slots were feasible", reason,
+                "HINDSIGHT", headline, reason,
                 "The common release checkpoint %s ends the carry for both slots." % fmt_sgt(common.release),
                 mon, [],
                 ["Use this as a hindsight record only; it does not change the Friday decision.",
@@ -1251,11 +1385,15 @@ def evaluate(events, decision_time, funding_rate_pct, scenario=None):
                  "Ask the supplier%ss bank for available-balance evidence; provider release is not credit."
                  % RSQUO], actionable)
         else:
-            reason = _withheld_reason(fri, mon)
-            comparison = _withheld(reason)
-            fail = _first_fail(mon, _FAIL_ORDER_MONDAY) or _first_fail(fri, _FAIL_ORDER_MONDAY)
-            binding = ("%s (%s slot)." % (fail.name, SLOT_NAMES[mon.slot if mon.failed() else fri.slot])
-                       if fail else "Missing or unreliable evidence.")
+            if comparison is not None:
+                reason = comparison["withheld_reason"]
+                binding = "FX rate differs between the two slots."
+            else:
+                reason = _withheld_reason(fri, mon)
+                comparison = _withheld(reason)
+                fail = _first_fail(mon, _FAIL_ORDER_MONDAY) or _first_fail(fri, _FAIL_ORDER_MONDAY)
+                binding = ("%s (%s slot)." % (fail.name, SLOT_NAMES[mon.slot if mon.failed() else fri.slot])
+                           if fail else "Missing or unreliable evidence.")
             decision = _decision(
                 "HINDSIGHT", "Hindsight comparison withheld", reason, binding, mon, _missing_list(fri, mon),
                 ["Keep the Friday decision as the record; no like-for-like Monday alternative is shown.",
@@ -1303,7 +1441,7 @@ def evaluate(events, decision_time, funding_rate_pct, scenario=None):
         "engine": ENGINE,
         "scenario": meta,
         "decision_time": {"id": dt["id"], "label": dt["label"], "as_of_sgt": fmt_sgt(as_of),
-                          "as_of_ny": fmt_ny(as_of)},
+                          "as_of_ny": fmt_ny(as_of), "note": note},
         "payment": {
             "net_usd": fmt_num(common.net_usd) if common.net_usd is not None else None,
             "deadline_sgt": fmt_sgt(common.deadline) if common.deadline else None,

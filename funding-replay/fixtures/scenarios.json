@@ -2,17 +2,17 @@
   {
     "id": "reference",
     "name": "Reference week",
-    "description": "Friday has a live quote and confirmed capacity. Monday's quote and capacity first appear on Monday morning."
+    "description": "Friday has a live quote and confirmed capacity for the Friday slot. Nothing binding is on file for Monday at Friday's decision."
   },
   {
     "id": "preagreed",
     "name": "Pre-agreed Monday terms",
-    "description": "Before Friday's cutoff the provider has agreed Monday forward terms, reserved Monday capacity for a SGD 25.00 fee, and a fallback route is documented."
+    "description": "Before Friday's cutoff the provider has agreed Monday forward terms and reserved Monday capacity for a SGD 25.00 fee, and a fallback route is documented."
   },
   {
     "id": "delayed_receivable",
-    "name": "Delayed customer receipt",
-    "description": "Settled cash is SGD 180,000. A SGD 25,000 customer receipt is forecast for Monday but only settles on Tuesday."
+    "name": "Forecast customer receipt",
+    "description": "Settled cash is SGD 180,000. A SGD 25,000 customer receipt is forecast for Monday but has not settled."
   },
   {
     "id": "concurrent_payout",
@@ -21,8 +21,8 @@
   },
   {
     "id": "stale_quote",
-    "name": "Stale Monday quote",
-    "description": "The only Monday quote known on Friday expires Friday at 18:00 SGT, long before Monday's instruction."
+    "name": "Short-lived Monday quote",
+    "description": "The only Monday quote on file on Friday is valid until Friday 18:00 SGT."
   },
   {
     "id": "closed_day",
@@ -31,8 +31,8 @@
   },
   {
     "id": "low_capacity",
-    "name": "Low Monday capacity",
-    "description": "Monday's confirmed payout capacity is only USD 60,000, below the USD 100,000 obligation."
+    "name": "Monday capacity check",
+    "description": "Same Friday evidence as the reference week. Monday's payout capacity is only checked at the Monday checkpoint."
   },
   {
     "id": "slow_credit",
