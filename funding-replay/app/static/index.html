@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Funding decision replay</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="banner" role="note" id="banner">Synthetic replay — no funds move.</div>
+
+<header class="topbar">
+  <div class="topbar-row">
+    <h1 class="app-title">Funding decision replay <span class="app-sub">One supplier payment, replayed at a chosen moment</span></h1>
+  </div>
+  <div class="topbar-row controls" role="group" aria-label="Replay controls">
+    <fieldset class="control seg-control">
+      <legend class="control-label">Decision time</legend>
+      <div class="segmented" id="decision-times" role="radiogroup" aria-label="Decision time"></div>
+    </fieldset>
+    <div class="control">
+      <label class="control-label" for="scenario">Scenario</label>
+      <select id="scenario" name="scenario"></select>
+    </div>
+    <div class="control control-buttons">
+      <span class="control-label" aria-hidden="true">&nbsp;</span>
+      <div class="btn-row">
+        <button type="button" class="btn" id="open-evidence" aria-controls="evidence">Evidence</button>
+        <button type="button" class="btn btn-quiet" id="open-data" aria-controls="data">Data</button>
+      </div>
+    </div>
+    <div class="assumption-box" id="assumption-box" role="group" aria-labelledby="rate-label">
+      <span class="tag tag-assumption">Assumption</span>
+      <label id="rate-label" class="control-label" for="rate">Assumed funding rate (hypothetical, not evidence)</label>
+      <div class="rate-row">
+        <button type="button" class="btn btn-small rate-quick" data-rate="0" aria-pressed="false">0%</button>
+        <button type="button" class="btn btn-small rate-quick" data-rate="8" aria-pressed="false">8%</button>
+        <span class="rate-input-wrap"><input id="rate" name="rate" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" aria-describedby="assumption-text"><span class="rate-unit" aria-hidden="true">% per year</span></span>
+      </div>
+      <p class="assumption-text" id="assumption-text"></p>
+      <p class="assumption-formula" id="assumption-formula"></p>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  <div class="status-line" id="status-line" role="status" aria-live="polite"></div>
+
+  <section class="hero" aria-labelledby="decision-heading" id="decision-section">
+    <div class="decision-card" id="decision">
+      <h2 class="section-kicker" id="decision-heading">1 · Decision</h2>
+      <div id="decision-body" aria-live="polite" aria-atomic="true"></div>
+      <dl class="qa" id="qa" aria-label="Decision details"></dl>
+      <div id="warnings"></div>
+    </div>
+    <aside class="payment-card" aria-labelledby="payment-heading" id="payment">
+      <h2 class="section-kicker" id="payment-heading">Payment</h2>
+      <div id="payment-body"></div>
+    </aside>
+  </section>
+
+  <section class="panel" aria-labelledby="options-heading" id="options-section">
+    <h2 class="section-title" id="options-heading">2 · Funding options side by side</h2>
+    <div class="options" id="options"></div>
+    <div id="comparison"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="evidence-heading" id="evidence">
+    <h2 class="section-title" id="evidence-heading" tabindex="-1">3 · Evidence trail</h2>
+    <p class="muted small" id="evidence-intro"></p>
+    <div class="table-wrap" id="evidence-table"></div>
+  </section>
+
+  <section class="panel data-panel" aria-labelledby="data-heading" id="data">
+    <h2 class="section-title" id="data-heading" tabindex="-1">Data</h2>
+    <p class="note">Synthetic or expressly authorised anonymised files only.</p>
+    <div class="data-row">
+      <label class="btn file-btn" for="csv-file">Import CSV<input type="file" id="csv-file" accept=".csv,text/csv,text/plain" class="visually-hidden-input"></label>
+      <button type="button" class="btn btn-quiet" id="reset">Reset to sample</button>
+      <span class="muted small" id="dataset-label"></span>
+    </div>
+    <div id="import-result" role="status" aria-live="polite"></div>
+  </section>
+</main>
+
+<footer class="footer">
+  <span>Reconstructed engine · synthetic fixtures · local only</span>
+  <span class="muted" id="footer-label">Synthetic replay — no funds move.</span>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
