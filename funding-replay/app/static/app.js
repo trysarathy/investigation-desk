@@ -296,12 +296,22 @@
       ctx.data.scenario && ctx.data.scenario.name ? el('span', { class: 'chip', text: ctx.data.scenario.name }) : null,
       ctx.data.scenario && ctx.data.scenario.synthetic ? el('span', { class: 'chip chip-synth', text: 'Synthetic' }) : null
     ]);
-    $('decision-body').replaceChildren(
+    var noteNode = null;
+    if (!isBlank(dt.note)) {
+      // The tag only names the kind of view (from the selected decision-time id); the sentence is the engine's.
+      var tagText = dt.id === 'monday' ? 'Counterfactual' : (dt.id === 'retro' ? 'Hindsight' : 'Note');
+      noteNode = el('p', { class: 'dt-note dt-note-' + (dt.id || 'other'), id: 'dt-note' }, [
+        el('span', { class: 'tag tag-view', text: tagText }), ' ', el('span', { text: dt.note })
+      ]);
+    }
+    // replaceChildren() would print a literal "null" for a missing node, so filter first.
+    $('decision-body').replaceChildren.apply($('decision-body'), [
       asOf,
+      noteNode,
       el('p', { class: 'headline', id: 'headline', text: show(d.headline) }),
       el('p', { class: 'reason', id: 'reason', text: show(d.reason) }),
       chips
-    );
+    ].filter(Boolean));
   }
 
   function renderPayment(ctx) {
@@ -431,7 +441,7 @@
       } else {
         daysNode = el('span', null, [
           valueOrReason(opt.restricted_days, reason, 'days'),
-          el('span', { class: 'sub num', text: isBlank(opt.sgd_days) ? DASH + ' SGD-days' : opt.sgd_days + ' SGD-days' })
+          el('span', { class: 'sub num', text: isBlank(opt.sgd_days) ? DASH + ' SGD\u2011days' : opt.sgd_days + ' SGD\u2011days' })
         ]);
       }
       var costLabel = 'Funding cost at assumed rate' + (isBlank(rate) ? '' : ' (' + rate + '% p.a.)');
@@ -447,7 +457,10 @@
           optionRow('Cash headroom', valueOrReason(opt.cash_headroom_sgd, reason)),
           optionRow('Restricted days & SGD-days', daysNode),
           optionRow('Average restricted balance (30 d)', valueOrReason(opt.avg_restricted_30d, reason)),
-          optionRow(costLabel, valueOrReason(opt.funding_cost_sgd, reason), { assumption: true })
+          optionRow(costLabel, isBlank(opt.funding_cost_sgd) ? valueOrReason(null, reason) : el('span', null, [
+            valueOrReason(opt.funding_cost_sgd, reason),
+            isBlank(opt.funding_cost_formula) ? null : el('code', { class: 'sub num formula-inline', text: opt.funding_cost_formula })
+          ]), { assumption: true })
         ]),
         el('h4', { class: 'checks-title', text: 'Checks' }),
         checks.length ? el('ul', { class: 'checks' }, checks) : el('p', { class: 'muted small', text: 'No checks returned.' })
@@ -495,7 +508,7 @@
 
     var rows = [
       compRow('Days the principal is restricted', daysText),
-      compRow('Restricted SGD-days avoided', isBlank(c.sgd_days_less) ? null : c.sgd_days_less + ' SGD-days'),
+      compRow('Restricted SGD-days avoided', isBlank(c.sgd_days_less) ? null : c.sgd_days_less + ' SGD\u2011days'),
       compRow('Average restricted balance lower by (30 d)', c.avg_restricted_less_30d),
       compRow('Carry reduction at assumed rate', c.carry_reduction, { assumption: true }),
       compRow('Extra processing for waiting', c.extra_processing)
@@ -508,7 +521,8 @@
       c.framing ? el('p', { class: 'framing', text: c.framing }) : null,
       el('dl', { class: 'comp-rows' }, rows),
       c.formula ? el('p', { class: 'formula' }, [el('span', { class: 'formula-label', text: 'Formula ' }), el('code', { class: 'num', text: c.formula })]) : null,
-      c.zero_rate_note ? el('p', { class: 'zero-note', text: c.zero_rate_note }) : null
+      c.zero_rate_note ? el('p', { class: 'zero-note', text: c.zero_rate_note }) : null,
+      c.risk_note ? el('p', { class: 'risk-note', id: 'risk-note', text: c.risk_note }) : null
     ]));
   }
 
@@ -551,7 +565,10 @@
     if (c && c.available !== false && c.formula) {
       f.replaceChildren(el('span', { class: 'formula-label', text: 'Engine formula: ' }), el('code', { class: 'num', text: c.formula }));
     } else {
-      f.replaceChildren(el('span', { class: 'muted', text: 'The engine shows its formula when a comparison is available.' }));
+      var lines = (ctx.data.options || []).filter(function (o) { return !isBlank(o.funding_cost_formula); })
+        .map(function (o) { return el('span', { class: 'formula-line' }, [el('span', { class: 'formula-label', text: (o.label || o.slot) + ': ' }), el('code', { class: 'num', text: o.funding_cost_formula })]); });
+      if (lines.length) f.replaceChildren.apply(f, [el('span', { class: 'formula-label', text: 'Engine formula (funding cost)' })].concat(lines));
+      else f.replaceChildren(el('span', { class: 'muted', text: 'No funding-cost formula at this decision time.' }));
     }
   }
 

@@ -151,7 +151,7 @@ select { min-width: 220px; max-width: 100%; }
   grid-template-columns: auto 1fr;
   align-items: center;
   gap: 2px 10px;
-  flex: 1 1 420px;
+  flex: 1 1 340px;
   max-width: 640px;
   min-width: 0;
 }
@@ -329,3 +329,13 @@ body[aria-busy="true"] main { cursor: progress; }
 }
 .comp-row dd.num, .opt-row dd .num { overflow-wrap: break-word; }
 table.evidence td:last-child { min-width: 12em; }
+
+/* decision-time note (counterfactual / hindsight) */
+.dt-note { margin: 4px 0 6px; padding: 6px 10px; border-radius: 6px; font-size: 0.97rem; border: 1px solid var(--border); background: var(--surface-2); max-width: 75ch; }
+.dt-note-monday { background: var(--amber-bg); border: 1px solid var(--amber-border); color: var(--amber-text); }
+.dt-note-retro { background: var(--hind-bg); border: 1px dashed #a2a7b0; color: var(--hind-text); }
+.tag-view { border: 1px solid currentColor; background: rgba(255,255,255,0.6); margin-right: 4px; }
+.dt-note-monday .tag-view { color: #6e4500; border-color: var(--amber-border); background: #ffe7b3; }
+.risk-note { margin-top: 6px; font-size: 0.95rem; font-weight: 600; color: var(--red-text); }
+.formula-inline { display: block; font-size: 0.78rem; margin-top: 2px; }
+.formula-line { display: block; }

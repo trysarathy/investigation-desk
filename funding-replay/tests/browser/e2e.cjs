@@ -160,6 +160,10 @@ const FRIDAY_FORBIDDEN = ['78.77', '88.77', 'Mon 16 Nov 2026, 09:00', '135,382.5
     }
     check('Friday Monday option is "Not evidenced"', (await page.textContent('#option-monday')).includes('Not evidenced'));
     check('Friday reference shows no comparison block', (await page.$('#comparison-block')) === null);
+    check('Friday reference: delivery check "Simulated delivery bound (not observed)"', t0.text.includes('Simulated delivery bound (not observed)'));
+    check('Friday reference: no decision-time note', (await page.$('#dt-note')) === null);
+    const names = await page.$$eval('#scenario option', (os) => os.map((o) => o.textContent));
+    check('Scenario names from engine (new names present)', ['Forecast customer receipt', 'Monday capacity check', 'Short-lived Monday quote'].every((n) => names.includes(n)), names.join(' | '));
     await page.setViewportSize({ width: 1440, height: 900 });
     await shoot(page, 'friday-reference');
 
@@ -170,7 +174,29 @@ const FRIDAY_FORBIDDEN = ['78.77', '88.77', 'Mon 16 Nov 2026, 09:00', '135,382.5
     const compText = (await page.textContent('#comparison-block')) || '';
     check('Retro comparison framed as hindsight only', compText.includes('Hindsight only — not available to the operator on Friday'));
     check('Retro comparison shows formula', /135,000\.00 × 8% × \(5 − 2\) \/ 365/.test(compText));
+    check('Retro shows risk note "A missed deadline can swamp either figure."', compText.includes('A missed deadline can swamp either figure.'));
+    check('Retro reference headline (hindsight, not supported on Friday)', (await page.textContent('#headline')) ===
+      'In hindsight, Monday tied up cash for fewer days — waiting was not supported on Friday', await page.textContent('#headline'));
+    check('Retro shows per-slot hindsight note', ((await page.textContent('#dt-note')) || '').includes('judged only on records known by its own instruction time'));
+    await page.setViewportSize({ width: 1366, height: 768 });
+    const foldRetro = await aboveFold(page, ['#dt-note', '#headline', '#reason']);
+    check('Retro note, headline and reason above the fold at 1366x768', foldRetro.every((f) => f.ok), JSON.stringify(foldRetro));
+    await page.setViewportSize({ width: 1440, height: 900 });
     await shoot(page, 'retro-reference');
+
+    // ---- 3b. Monday reference (counterfactual) ----
+    await selectTime(page, 'monday');
+    const tm = await pageText(page);
+    const noteM = (await page.textContent('#dt-note')) || '';
+    check('Monday view shows "Counterfactual" tag', (await page.textContent('#dt-note .tag')) === 'Counterfactual');
+    check('Monday note quotes the Friday decision', noteM.includes('On Friday’s evidence the decision was: Keep Friday’s funding window'), noteM);
+    check('Monday headline says "would have been"', (await page.textContent('#headline')).includes('would have been'));
+    check('Monday action: do not instruct the same payment again', tm.text.includes('If the Friday instruction was kept, do not instruct the same payment again on Monday.'));
+    await page.setViewportSize({ width: 1366, height: 768 });
+    const foldMon = await aboveFold(page, ['#dt-note', '#headline', '#reason', '#fact-net', '#fact-deadline']);
+    check('Monday counterfactual note, headline, reason, net and deadline above the fold at 1366x768', foldMon.every((f) => f.ok), JSON.stringify(foldMon));
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await shoot(page, 'monday-reference');
 
     // ---- 4. Back to Friday removes everything ----
     await selectTime(page, 'friday');
@@ -201,8 +227,10 @@ const FRIDAY_FORBIDDEN = ['78.77', '88.77', 'Mon 16 Nov 2026, 09:00', '135,382.5
     for (const s of ['130,000.00', '135,382.50', '5,382.50']) check('Delayed receivable Monday shows "' + s + '"', td.text.includes(s));
     check('Delayed receivable Monday: no actionable comparison shown', !(await page.$('#comparison-block')) ||
       (await page.textContent('#comparison-block')).includes('Comparison withheld'));
-    check('Delayed receivable Monday headline reports insufficient cash', /Insufficient|Not enough usable cash/i.test(await page.textContent('#headline')),
+    check('Delayed receivable Monday headline reports insufficient cash', /Insufficient|Not enough usable cash|short of usable cash/i.test(await page.textContent('#headline')),
       await page.textContent('#headline'));
+    check('Delayed receivable Monday: Counterfactual note + no-double-instruction action',
+      td.text.includes('Counterfactual') && td.text.includes('If the Friday instruction was kept, do not instruct the same payment again on Monday.'));
     check('Delayed receivable Monday decision tone is red', (await page.getAttribute('#decision', 'class')).includes('tone-red'));
     check('Scenario switch kept decision time (Monday)', (await page.getAttribute('#dt-monday', 'aria-checked')) === 'true' &&
       td.text.includes('Mon 16 Nov 2026, 15:00 SGT'));
@@ -280,6 +308,25 @@ const FRIDAY_FORBIDDEN = ['78.77', '88.77', 'Mon 16 Nov 2026, 09:00', '135,382.5
     await settled(page);
     check('Arrow key moves decision time to Monday', (await page.getAttribute('#dt-monday', 'aria-checked')) === 'true');
     await selectTime(page, 'friday');
+
+    // ---- 12b. Every scenario x decision time: no "saves", Monday views are counterfactual ----
+    {
+      const scen = await page.$$eval('#scenario option', (os) => os.map((o) => o.value));
+      const savesHits = []; const monBad = [];
+      for (const sc of scen) {
+        await selectScenario(page, sc);
+        for (const dt of ['friday', 'monday', 'retro']) {
+          await selectTime(page, dt);
+          const t = await pageText(page);
+          if (/\bsaves?\b|\bsaving(s)?\b/i.test(t.text + '\n' + t.titles + '\n' + t.arias)) savesHits.push(sc + '/' + dt);
+          if (/(^|\s)(null|undefined|NaN|\[object Object\])(\s|$)/.test(t.text)) savesHits.push(sc + '/' + dt + ' (stray null/undefined)');
+          if (dt === 'monday' && !(t.text.includes('Counterfactual') && t.text.includes('If the Friday instruction was kept, do not instruct the same payment again on Monday.'))) monBad.push(sc);
+        }
+      }
+      check('No "saves"/"savings" (or stray null/undefined) text in any scenario or decision time (' + scen.length + ' x 3 views)', savesHits.length === 0, savesHits.join(', '));
+      check('Every Monday view is labelled Counterfactual with the no-double-instruction action', monBad.length === 0, monBad.join(', '));
+      await selectScenario(page, 'reference');
+    }
 
     // ---- 13. Layout: no horizontal scroll, no clipped amounts ----
     for (const vp of [[1280, 800], [1366, 768], [1440, 900]]) {
