@@ -1,0 +1,42 @@
+[
+  {
+    "id": "reference",
+    "name": "Reference week",
+    "description": "Friday has a live quote and confirmed capacity. Monday's quote and capacity first appear on Monday morning."
+  },
+  {
+    "id": "preagreed",
+    "name": "Pre-agreed Monday terms",
+    "description": "Before Friday's cutoff the provider has agreed Monday forward terms, reserved Monday capacity for a SGD 25.00 fee, and a fallback route is documented."
+  },
+  {
+    "id": "delayed_receivable",
+    "name": "Delayed customer receipt",
+    "description": "Settled cash is SGD 180,000. A SGD 25,000 customer receipt is forecast for Monday but only settles on Tuesday."
+  },
+  {
+    "id": "concurrent_payout",
+    "name": "Concurrent payout",
+    "description": "A second supplier payout of SGD 30,000 draws on the same balance before the deadline."
+  },
+  {
+    "id": "stale_quote",
+    "name": "Stale Monday quote",
+    "description": "The only Monday quote known on Friday expires Friday at 18:00 SGT, long before Monday's instruction."
+  },
+  {
+    "id": "closed_day",
+    "name": "Monday closed",
+    "description": "On Friday morning the provider confirms Monday 16 Nov is not a business day."
+  },
+  {
+    "id": "low_capacity",
+    "name": "Low Monday capacity",
+    "description": "Monday's confirmed payout capacity is only USD 60,000, below the USD 100,000 obligation."
+  },
+  {
+    "id": "slow_credit",
+    "name": "Slow last mile",
+    "description": "The simulated last-mile bound is 9 hours, so a 15:00 SGT release lands after the 23:00 SGT deadline."
+  }
+]

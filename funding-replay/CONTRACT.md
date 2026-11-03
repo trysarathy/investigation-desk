@@ -124,13 +124,16 @@ Header (exact order not required; all columns required):
                "checks":[{"name","state":"ok|fail|unknown","detail","record_ids":[...]}],
                "required_sgd": "SGD 135,372.50" | null, "principal_sgd": "SGD 135,000.00" | null,
                "restricted_days": 5 | null, "sgd_days": "675,000" | null, "avg_restricted_30d": "SGD 22,500.00" | null,
-               "funding_cost_sgd": "SGD 147.95" | null, "fees_sgd": "SGD 372.50" | null,
+               "funding_cost_sgd": "SGD 147.95" | null,
+               "funding_cost_formula": "135,000.00 × 8% × 5 / 365 = 147.95" | null,
+               "fees_sgd": "SGD 372.50" | null,
                "cash_headroom_sgd": "SGD 14,627.50" | null},
               {"slot":"monday", ...} ],
  "comparison": null | {"available": true|false, "withheld_reason": "...",
                "days": {"friday":5,"monday":2}, "sgd_days_less": "405,000",
                "avg_restricted_less_30d":"SGD 13,500.00",
                "carry_reduction": "SGD 88.77", "extra_processing": "SGD 10.00",
+               "reservation_cost": "SGD 25.00" | null,
                "net_benefit_before_subscription": "SGD 78.77",
                "formula": "135,000.00 × 8% × (5 − 2) / 365 = 88.77; 88.77 − 10.00 = 78.77",
                "framing": "Hindsight only. Not available to the operator on Friday …",
@@ -145,8 +148,12 @@ net amount and deadline. In `friday` view it is present only for `MANUAL_REVIEW`
 "conditional on verifying the forward terms; not a recommendation", with reservation cost subtracted and
 shown. In `retro` view, if Friday's view did not support waiting, `framing` must say the Friday decision
 stands and the difference was not actionable on Friday (`actionable_on_friday:false`). Changing
-`funding_rate_pct` changes only `funding_cost_sgd`, `carry_reduction`, `net_benefit…` and `formula`; it must
-never change any feasibility, status, decision state or check.
+`funding_rate_pct` changes only `funding_cost_sgd`, `funding_cost_formula`, `carry_reduction`, `net_benefit…` and
+`formula`; it must
+never change any feasibility, status, decision state or check. `reservation_cost` is the Monday reservation cost
+(subtracted in `net_benefit…` and shown in `formula`), null when none is on file. An option whose status is
+`not_evidenced` returns null for every numeric field (`required_sgd` … `cash_headroom_sgd`, incl.
+`restricted_days` and `funding_cost_formula`): only its status and checks.
 
 ## Expected outcomes (acceptance; engine tests must assert these)
 | scenario id | friday | monday | retro |
