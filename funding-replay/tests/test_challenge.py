@@ -346,3 +346,25 @@ class MinorFixes(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AbsurdRateBounds(unittest.TestCase):
+    def test_absurd_rate_and_bp_rejected_with_row(self):
+        from engine.replay import load_events
+        text = open(os.path.join(os.path.dirname(__file__), "..", "fixtures", "reference.csv"), encoding="utf-8").read()
+        lines = text.splitlines()
+        header = lines[0].split(",")
+        ri, bi, ki = header.index("rate"), header.index("bp"), header.index("kind")
+        for n, line in enumerate(lines[1:], start=2):
+            cells = line.split(",")
+            if cells[ki] == "quote":
+                cells[ri] = "999999999999999999.999999"
+                cells[bi] = "20000"
+                lines[n - 1] = ",".join(cells)
+                break
+        events, errors = load_events("\n".join(lines) + "\n")
+        self.assertEqual(events, [])
+        cols = {e["column"] for e in errors}
+        self.assertIn("rate", cols)
+        self.assertIn("bp", cols)
+        self.assertTrue(all(e["row"] == n for e in errors))

@@ -346,6 +346,11 @@ def _validate_row(line, raw):
                                         "after the point, no commas or signs, e.g. 1350.00)." % (col, value)))
             continue
         nums[col] = Decimal(value)
+    # Sane ranges keep every product exact (no silent rounding of absurd inputs).
+    if nums.get("rate") is not None and not (Decimal(0) < nums["rate"] <= Decimal(1000)):
+        errs.append(_err(line, "rate", "rate '%s' must be above 0 and at most 1000 (SGD per USD)." % raw["rate"]))
+    if nums.get("bp") is not None and nums["bp"] > Decimal(10000):
+        errs.append(_err(line, "bp", "bp '%s' must be at most 10000 basis points." % raw["bp"]))
     status = raw["status"]
     allowed = STATUSES.get(kind, ())
     if status and status not in allowed:

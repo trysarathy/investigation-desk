@@ -14,7 +14,9 @@ Point at: the headline, "What evidence is missing?", the empty Monday card, the 
 records known by Friday 15:00).
 
 **0:30 — Hindsight (≈25 s).** Switch to *Retrospective comparison*.
-> "Now look back. Both slots were feasible on their own day's evidence. Waiting would have restricted
+Read the headline aloud: *"In hindsight, Monday tied up cash for fewer days — waiting was not supported
+on Friday."*
+> "Now look back. Each slot was feasible on the evidence known by its own funding time. Waiting would have restricted
 > the SGD for 2 days instead of 5 — 405,000 SGD-days less. At an assumed 8% that's SGD 88.77 of carry,
 > minus SGD 10 extra processing: SGD 78.77 before any subscription. But see the label: hindsight only. It
 > wasn't available to you on Friday, and supplier credit was never observed."
@@ -25,10 +27,11 @@ Click **0%**:
 
 Click **8%** again.
 
-**0:55 — Delayed receipt (≈20 s).** Scenario: *Delayed receivable*, Decision time: *Monday checkpoint*.
-> "Different week. Monday's usable cash is SGD 130,000 against SGD 135,382.50 required — short by
-> SGD 5,382.50. A customer receipt that lands on Tuesday can't pay Monday's instruction, so there's no
-> savings comparison at all. Waiting would have put the deadline at risk."
+**0:55 — Delayed receipt (≈20 s).** Scenario: *Forecast customer receipt*, Decision time: *Monday checkpoint* (note the amber
+"Counterfactual" tag: this asks what would have happened had the SGD been held).
+> "Different week. Suppose they had held the SGD. Monday's usable cash would have been SGD 130,000 against SGD 135,382.50 required — short by
+> SGD 5,382.50. A customer receipt that lands on Tuesday can't pay Monday's instruction, so the tool
+> withholds any comparison. Waiting would have left them short on the day they had to fund."
 
 **1:15 — The question (≈15 s).** Leave the screen and ask:
 > "What could you actually have done with that cash on Friday — and did your agreement with your bank or

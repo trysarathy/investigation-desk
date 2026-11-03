@@ -56,11 +56,11 @@ supplier credit; beneficiary credit is "not observed" in every sample.
 |---|---|
 | Reference week | Monday's terms are not on record on Friday |
 | Pre-agreed later slot | Friday records include forward terms, a reserved slot, a cash floor and a fallback |
-| Delayed receivable | A customer receipt is only forecast |
+| Forecast customer receipt | A customer receipt is only forecast (the delayed-receivable walkthrough) |
 | Concurrent payout | Another payout claims the same cash |
-| Stale quote | A Monday quote that expires before Monday |
+| Short-lived Monday quote | A Monday quote that expires before Monday (stale quote) |
 | Closed business day | Monday is not a provider business day |
-| Insufficient payout capacity | Provider capacity for the later slot |
+| Monday capacity check | Provider payout capacity for the later slot |
 | Slow beneficiary credit | A longer simulated last-mile bound |
 
 Fixtures live in `funding-replay/fixtures/*.csv`. Import your own with **Data → Import CSV**
@@ -80,6 +80,13 @@ stays loaded. **Reset to sample** restores the eight samples.
   it **infeasible**. Waiting is only considered on Friday if binding later terms, reserved capacity and a
   documented fallback were on record on Friday; even then the result is **manual review**, never an
   instruction to wait.
+- The **Monday checkpoint is counterfactual**: it asks whether waiting *would have* worked if the SGD had
+  been held, and says so on screen. It never tells the operator to instruct the payment a second time.
+- The **retrospective** view judges each slot only on records known by that slot's own funding time, so a
+  quote or capacity that appeared later cannot make a slot look feasible. A comparison is withheld if
+  either slot was not feasible then, or if the two slots' FX rates differ (that would mix a market move
+  with timing). Settled cash dated after it was first known is treated as a forecast; a cash snapshot
+  more than 96 hours old is stale.
 - Options are compared only for the same net amount and deadline. The 7.5-hour last-mile bound is
   simulated, not observed delivery.
 - Carry (funding cost) = principal × assumed annual rate × restricted calendar days / 365, with restricted
@@ -96,9 +103,12 @@ stays loaded. **Reset to sample** restores the eight samples.
 
 ```bash
 cd funding-replay
-python3 -m unittest discover -s tests -v      # engine + server
-node tests/browser/e2e.cjs                     # browser (needs Node + Playwright with Chromium)
+python3 -m unittest discover -s tests -v      # engine + server (108 tests)
+node tests/browser/e2e.cjs                     # browser, 100 checks (needs Node + Playwright with Chromium)
 ```
+
+Latest results: `docs/TEST_RESULTS.md`. Screenshots: `docs/screenshots/`. Demo script:
+`docs/DEMO_SCRIPT.md`. Handoff: `docs/HANDOFF.md`.
 
 ## Known limitations
 
