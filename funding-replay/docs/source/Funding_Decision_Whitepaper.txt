@@ -1,0 +1,631 @@
+CLEARLINE RESEARCH   /   TREASURY OPERATIONS
+
+
+FOUNDING WHITEPAPER           /   EXPERIMENT 01
+
+
+When to fund a supplier payment
+A read-only treasury experiment for Singapore importers paying US suppliers
+Prepared for Aashmiin Kaur        •   3 November 2026
+
+The decision at 3 pm
+It is Friday in Singapore. A controller can fund a USD 100,000 supplier payment now, or keep the SGD in
+the business until Monday. The supplier needs usable dollars on Wednesday. Before Friday’s cutoff, can
+the controller show that Monday is actually an available option, that nobody else needs the same cash,
+and that waiting is worth the risk?
+Our proposed capability is a timestamped funding decision record. For one legal entity, obligation and
+corridor, it shows the earliest binding constraint, the cash available after competing commitments, and
+the cost of two admissible funding choices. It explains why to keep the existing instruction when
+evidence is missing. A human uses the existing bank or provider to act.
+Decision: test the information problem before building a platform. Financing an early supplier payment
+is a different business. A faster rail is useful only if transit drives the funding deadline. The interviews
+have not established which constraint dominates. This experiment is inexpensive enough to find out.
+
+How to read the evidence
+Verified means a supplied artefact, primary source or reproducible calculation supports the narrow
+claim. Reported in interview identifies testimony. Assumption covers the proposed design, all synthetic
+terms, prices and thresholds. Unknown marks an unresolved dependency. The payment narrative and
+financial tables are constructed examples; none describes an actual customer transaction. External
+reference links were checked on 3 November 2026.
+For the founder: the experimental economics and stop conditions matter most. For treasury: inspect the
+assumptions about available cash and cutoffs. For engineering: the decision record and failure tests
+define the minimum product.
+
+
+
+
+                                                                        Founder study • 3 November 2026   /   1
+CLEARLINE RESEARCH      /   TREASURY OPERATIONS
+
+
+
+
+What the conversations actually establish
+Reported in interview · supplied 2 November transcript, 14:49–18:35. An adviser describes a provider
+that asks an enterprise to deposit cash ahead of an FX payout. On some deals the provider advances
+money after assessing credit. The client keeps liquidity; the provider must find funding and absorb
+default exposure. The speaker explicitly qualified the timing and did not identify a representative sector.
+There is no transaction file, measured loss, enforceable bank term or buying commitment.
+Independent framing. Three explanations would lead to different companies. The importer may have
+cash but fund unnecessarily early; the FX provider may need corridor inventory before dispatch; or the
+importer may lack cash until a customer pays. Only the first is principally a decision-support problem.
+Our accessible interview subject is the importer, not an assumed provider treasury customer.
+
+ Alternative lead            Decision and budget owner             What would beat the funding thesis
+
+ Receipt release ·           Operations decides whether to         Repeated orders are demonstrably held for
+ 04:29–05:09                 release goods; finance validates an   missing attribution. A controlled decision
+                             incoming payment.                     changes dispatch time without false clearance.
+
+ FX and lot records ·        Controller or accountant reconciles   Material reconciling items survive existing
+ 20:46–21:26                 token units, currency value and       tools and an accountant will supply records
+                             subsequent disposal.                  and fund a trial.
+
+ Funding time · 14:49–       Treasury operator proposes timing;    Permitted funding slack, continued delivery
+ 18:35                       controller/CFO owns working capital   performance and demonstrably useful cash. If
+                             and signs.                            the buyer needs a loan, this fails.
+Unknown: whether any lead is commercially stronger. Roughly 50 conversations were founder-reported
+across countries and roles, some after a demo (05:15–06:32; 09:09–12:19). They are not 50 independent
+demand confirmations. In the earlier 1 November transcript (16:26–19:01), an adviser wanted
+exceptions inside existing systems. That favours a bounded export or alert, not a second daily
+dashboard.
+
+
+
+
+                                                                             Founder study • 3 November 2026     /   2
+CLEARLINE RESEARCH      /   TREASURY OPERATIONS
+
+
+
+
+Following the money
+Figure 1. Assumed incumbent route. The supplier accepts only USD in its US bank account. Arrows
+represent funds or settlement legs, never a status message. Ownership of a bank balance is a claim
+against that bank; title and safeguarding at an intermediary depend on the actual contract.
+
+
+
+
+ When · all times           Who owes whom and who can use the                Evidence, cutoff and risk
+ SGT                        asset
+
+ Thu 12 Nov · 09:00         Importer owes supplier USD 100k. Customer        Invoice, due date, cash ledger. Importer
+                            receivable is a separate claim; expected         bears late customer risk.
+                            proceeds cannot fund an instruction.
+
+ Fri 13 · 15:00 early       Importer transfers own SGD to provider via       Bank debit + provider allocation. Fictional
+ OR Mon 16 · 15:00          bank. Earmarked funds are unavailable to         16:00 cutoff. Match entity, amount and
+ later                      importer. Provider owes contractual              value date.
+                            performance, not an on-demand USD bank
+                            balance.
+
+ Before Wed 18 ·            FX/liquidity partner delivers USD under its      FX confirmation, inventory/limit and
+ 15:00                      agreement. Provider reserves or funds            release condition; provider bears its own
+                            payout bank capacity. Importer still owes        funding and partner risk.
+                            supplier until contract discharge.
+
+ Wed 18 · 15:00 →           Provider releases payout at 02:00 New York.      Dispatch ≠ credit. Obtain beneficiary
+ 23:00                      Beneficiary bank controls final credit.          available-balance evidence. Return/hold
+                            Illustrative usable credit 22:30 SGT; deadline   can defeat the anticipated availability.
+                            23:00 SGT / 10:00 New York.
+The partner, bank and timestamps are fictional. No verified named provider promises these synthetic
+cutoffs. DBS distinguishes debit and indicative availability; Swift distinguishes arrival at the beneficiary
+bank and final credit. [O1] [O2]
+
+
+
+
+                                                                                 Founder study • 3 November 2026     /     3
+CLEARLINE RESEARCH   /   TREASURY OPERATIONS
+
+
+
+
+The three clocks and their owners
+ Clock                    Who pays for the gap                        What moves the deadline
+
+ Receivable collection    Importer uses its cash or draws a           Earlier collection, longer supplier terms or
+                          committed facility while its own customer   actual credit. Faster messaging does not
+                          still owes it money.                        create funds.
+
+ Corridor prefunding      Provider or FX partner holds local          A contractual change, approved credit or
+                          inventory; separately, the importer may     less inventory with the same service level.
+                          post earmarked cash. Their balances are     Identify who supplies replacement
+                          not additive savings.                       liquidity.
+
+ Settlement and           Provider releases, banks settle, supplier   A different rail may reduce transit. FX
+ payout                   waits for usable USD. Someone still holds   conversion, off-ramp hours, limits, reviews
+                          the intermediate exposure.                  and beneficiary credit can still bind.
+Verified: the BIS describes opportunity costs from fragmented cross-border liquidity holdings in the
+banking system. It does not estimate what a Singapore importer would pay for a timing tool. [B1]
+
+The control group
+Before proposing a product, ask what the operator would have done with a shared calendar, AP export,
+confirmed balances and an existing bank facility. Reproduce the rule exactly: applicable holidays,
+maker/checker availability, funding lead, payout lead and an explicit safety buffer. Then test negotiating
+a later contractual date. A negotiated term that removes the whole problem is a success for the
+customer and a reason not to sell software.
+Design decision. An early transfer is discretionary only when the buyer had an alternative under the
+terms and evidence available at the earlier choice. A later favourable quote cannot justify a Friday
+decision retrospectively. No deployment should advise waiting if the last safe baseline slot would expire
+before its alternative becomes evidenced.
+
+
+
+
+                                                                           Founder study • 3 November 2026     /     4
+CLEARLINE RESEARCH   /   TREASURY OPERATIONS
+
+
+
+
+Providers and the cheapest alternative
+Verified · vendor documentation accessed 3 November 2026. These are comparison points for a
+Singapore payer and US bank beneficiary. Public estimates are not executable quotes, measured service
+levels or approved credit lines.
+
+ Alternative             What the provider publishes                       What the buyer must verify
+
+ Airwallex               SG→US business route. Singapore pricing lists     Check currency tier, plan, cutoff,
+                         0.4% above interbank on major FX, 0.6%            maximum and account-specific limit,
+                         otherwise; eligible local transfers free, SWIFT   weekend processing and net
+                         S$20–35. US docs describe next-day ACH for        beneficiary amount.
+                         non-US clients and 1–2 business days.
+
+ Wise Business           Schedules and batch payments; Singapore           Obtain a timestamped business quote
+                         business pricing describes volume discounts       at USD100k. Retail-sized public
+                         above S$30,000 qualifying monthly volume.         calculator examples do not establish
+                                                                           this fee.
+
+ Ripple Payments         Documents prefunding, credit and just-in-time     SG→US access, precise route,
+ Direct                  funding; in JIT, dispatch waits for funds.        underwriting, credit terms, fees and
+                                                                           end-to-end SLA unknown.
+
+ DBS or existing bank    Import financing depends on bank terms and        Compare drawn interest, unused
+                         an offer/facility letter. An existing             commitment fee, collateral, advance
+                         commitment may already solve the receivable       dates, repayment and eligibility.
+                         gap.
+Sources: Airwallex [M1] [M2] [M3]; Wise [M4] [M5]; Ripple [M8]; DBS [B2]. No commercial relationship
+or test account is claimed.
+Assumption to attack: the calendar workaround cannot combine evolving cutoffs, encumbrances and
+reserved capacity reliably enough. Run its best version on exactly the same records. If it gives the same
+answers at lower cost, deliver the spreadsheet and stop. A prior competitor already checks exchange-
+origin receipts after receiving a transaction hash; the older AR idea also faces a credible incumbent. [B5]
+
+
+
+
+                                                                             Founder study • 3 November 2026      /   5
+CLEARLINE RESEARCH    /   TREASURY OPERATIONS
+
+
+
+
+One obligation under four funding arrangements
+Assumption · not a provider quote. Every column pays USD 100,000 net into the same US bank account
+by the same Wednesday deadline. Reference SGD/USD is 1.35 SGD per USD; principal is SGD 135,000.
+Costs are additional, in SGD. The 30-day observation window contains one payment. Assume no other
+scenario differences unless shown.
+
+ SGD unless noted                            Early         Later           Token rail        Credit
+
+ Customer capital restricted × calendar      135,000 × 5   135,000 × 2     135,000 × 1       27,000 × 5
+ days
+
+ SGD-days of customer cash locked            675,000       270,000         135,000           135,000
+
+ Peak customer cash restricted               135,000       135,000         135,000           27,000
+
+ Average restricted customer cash over       22,500        9,000           4,500             4,500
+ 30d
+
+ Interest or opportunity cost, 8%,           147.95        59.18           29.59             29.59
+ Actual/365
+
+ FX execution spread (25 / 25 / 15 / 25      337.50        337.50          202.50            337.50
+ bp)
+
+ Rail or network fixed charge                20.00         20.00           3.00              20.00
+
+ Staff / route overhead                      15.00         25.00           22.50             22.50
+
+ On-ramp 12 bp + off-ramp 20 bp              0             0               432.00            0
+
+ Facility fee 10 bp + draw interest 12%      0             0               0                 356.92
+ for 5d
+
+ Expected late loss (probability × event     2.00          2.00            5.00              2.00
+ impact)
+
+ Expected unrecovered counterparty           6.75          6.75            6.75              1.35
+ exposure
+
+ Expected residual token-price shortfall     0             0               3.38              0
+
+ All-in illustrative cost per paid invoice   529.20        450.43          704.71            769.86
+Capital source by route. Cash-funded routes require the importer to provide the full principal (plus
+charges); peak and average above refer to earmarked principal only. Credit substitutes a partner balance
+sheet for 80% net exposure after collateral. A supplier that withholds goods or charges penalties after a
+late credit bears disruption even if it later collects in full.
+The same-rail comparison isolates the timing decision; the token and credit columns are economic
+counterfactuals, not functioning integrations. Principal carrying cost ends at the common release
+checkpoint. The same later payout leg and beneficiary deadline still apply. Fee cash, interest after
+release and receipt use are not additional savings. Differential ordinary FX slippage is zero in the base
+case; add actual executable slippage separately if not already in quoted spreads.
+
+
+
+                                                                         Founder study • 3 November 2026   /   6
+CLEARLINE RESEARCH   /   TREASURY OPERATIONS
+
+
+
+
+Where the modeled benefit disappears
+Verified arithmetic on assumptions. The customer’s own money is tied up for 5 or 2 days. Simple carry =
+135,000 × annual differential rate × days / 365. Three days at 8% produce SGD 88.77. After SGD 10 extra
+processing, the conditional net advantage is SGD 78.77 before subscription. Restricted cash falls by
+405,000 SGD-days; average restricted balance falls by SGD 13,500 across 30 days. Peak exposure on an
+individual transfer does not fall.
+Cost of each gap. Early and later use the importer’s own bank balance; the 8% is hypothetical avoided
+borrowing or incremental return, not interest actually charged. The token route uses its own SGD for
+one day; liquidity partners supply ramp inventory and price FX and conversion into separate charges. A
+lender advances SGD 135,000 for five days with SGD 27,000 locked collateral. The borrower pays 12%
+draw interest plus a fee; nominal unsecured exposure is SGD 108,000. The model does not assume a
+lender will offer this facility.
+Underwriting is real work. Illustratively, funding SGD 135,000 at 8% for five days costs a lender SGD
+147.95. Under an assumed per-draw default probability of 0.1% and 60% loss severity on the unsecured
+portion, its expected credit loss is SGD 64.80. The SGD 356.92 fee plus interest must cover both, capital,
+operations and the adverse tail. Do not charge lender loss again to the borrower. The borrower’s
+counterparty exposure line instead prices the risk to its posted cash.
+Risk inputs, not measurements. Expected late cost: 0.2% × SGD 1,000; 0.5% on the token route.
+Expected counterparty loss: 0.01% × 50% of exposed cash. Residual token slippage/depeg beyond
+ordinary spreads: 0.25% × 1% of principal. Full quote incl. ordinary slippage, haircut, haircut changes and
+the cost of a fall-back rail remain unknown. Reject any comparison that quietly reduces the level of
+service.
+The pivotal input is usable discretionary time at a real differential rate. Each avoidable day is worth
+SGD 29.59 at 8%; break-even on the SGD 10 increment is 0.338 day, or 0.90% annual differential over
+three days. Contractual buffer or idle cash at the same yield makes the incumbent SGD 10 cheaper. Just
+5.84 bp worse FX, or 0.79 percentage points more late risk with a SGD 10,000 impact, erases the entire
+advantage. Equal deadlines alone do not establish equal reliability.
+
+
+
+
+                                                                       Founder study • 3 November 2026   /   7
+CLEARLINE RESEARCH   /   TREASURY OPERATIONS
+
+
+
+
+The decision mechanism
+Figure 2. Data and decisions only. This system reads a dated export, builds a view of the world as known
+at a selected instant and produces a record. The user’s existing treasury controls remain responsible for
+any instruction.
+
+
+
+
+Inputs. For one legal entity and currency pair: invoice and net beneficiary deadline; source balance
+snapshots; all other known reservations; forecast versus cleared receipts; FX rate, spread, fees and
+expiry; operating calendars; contractual cutoffs and maximum last-mile time; authenticated capacity or a
+documented fallback. Store event time and first-known time separately. A report generated on Monday
+cannot become Friday evidence because it describes a Friday event.
+Decision rule. Compare candidate slots only if in the allowed contract/calendar, source cash net of other
+liabilities covers priced funding requirements, and destination capacity and remaining time cover the
+same deadline. Missing, stale or contradictory mandatory evidence yields unknown; a known constraint
+violation yields infeasible. The later option at Friday requires a credible forward commitment or a
+protected alternative, not hindsight. Without it the safe answer is to keep the incumbent option or ask
+for a binding offer.
+Trust boundary. A bank snapshot proves a dated balance, not future cash; a provider acceptance proves
+submission, not beneficiary credit. A merchant operator can document an override, but may not turn an
+unsupported state into “verified”. In a pilot use read-only scoped exports, no account numbers in shared
+demos, no signing credentials and separate consent for retention. Track “proposed → reviewed →
+manually acted → externally confirmed”; last two require external evidence and are not implemented by
+the replay.
+
+
+
+
+                                                                      Founder study • 3 November 2026   /   8
+CLEARLINE RESEARCH    /   TREASURY OPERATIONS
+
+
+
+
+What the prototype must get right
+ User and trigger             Action and required evidence               Acceptance test
+
+ AP analyst imports a         Identify obligation and deadline from      Replay at Friday; a Monday balance
+ week                         dated invoice; reconstruct balances from   cannot change Friday output.
+                              permitted records.
+
+ Treasurer reaches            Compare candidate funding dates,           Same cash cannot cover a concurrent
+ funding checkpoint           spendable cash, competing reservations,    payout twice. Missing or stale input
+                              FX/cost and both cutoffs.                  withholds the comparison.
+
+ Treasurer reviews an         Keep baseline or seek provider             Holiday, missed cutoff or failed payout
+ exception                    confirmation. Show reason, amount          route cannot appear ordinarily feasible.
+                              short and record IDs.
+
+ Controller reviews           See restricted principal, capital-days,    8% example reconciles to SGD 78.77
+ economics                    average, marginal cost and price           differential; at 0% the extra cost
+                              sensitivity.                               remains.
+
+ Reviewer reproduces          Use immutable fixture and explicit as-of   Duplicate events do not alter output;
+ decision                     time. Compare actual rules, calendar       conflicting evidence is blocked; no
+                              control and later slot.                    external writes.
+
+Four incidents the happy path hides
+Weekend or market closure: Friday cutoff passes; if Monday is closed the delayed slot is lost. Keep the
+original funding instruction when delay cannot be protected. Receivable arrives late: classify the
+forecast separately; reduce headroom only on committed outflows, increase usable funds only on settled
+evidence. If cash is short, obtain an existing committed facility through the bank or report the shortfall.
+Off-ramp failure: a landed token does not meet the USD obligation. Without confirmed alternate
+capacity, mark deadline at risk; price emergency FX, network and late charges. Concurrent payouts:
+subtract the second instruction and compare again. If there is a shared liquidity pool, reserve atomically
+in any future live system; this single-obligation replay only tests supplied concurrent encumbrances.
+
+
+
+
+                                                                            Founder study • 3 November 2026      /   9
+CLEARLINE RESEARCH   /   TREASURY OPERATIONS
+
+
+
+
+Regulation and the system we will not build yet
+Verified scope, not a licence opinion. Singapore’s Payment Services Act and the MAS scope expansion
+cover specified payment activities; some facilitation can fall within the perimeter without possession of
+funds. Section 23 addresses safeguarding in defined circumstances. The licences and customer money
+arrangements of a bank or transfer partner do not automatically authorise a separate software firm. [O3]
+[O4]
+
+ Activity                Experiment boundary                        Dependency for any expansion
+
+ Decision software       Local synthetic CSV in, read-only          Review exact data flows, service terms and
+                         evidence out. No credential or             disclosure with Singapore counsel.
+                         instruction transmission.
+
+ Execution and FX        No booking, initiation, quote              Bank/PSP authority, customer permissions,
+                         acceptance, conversion or routing.         operative agreement and documented
+                                                                    cutoffs.
+
+ Custody                 No wallets, keys, client pooled accounts   Do not add unless separately authorised and
+                         or redemption.                             funded; counterparties’ balances are not
+                                                                    ours.
+
+ Credit or broking       No lending, guarantees, referral           Underwriter, capital, loss allocation,
+                         commission or underwriting decision.       collections and separate local legal review.
+For permitted pilot files, minimise personal data, agree purpose and deletion date, separate
+organisations, restrict access, log exports and prove deletion. Determine whether cross-border
+processing or partner disclosure is permitted. Singapore’s PDPC describes protection, retention and
+transfer limitation duties. [B3] No customer data has been processed in this experiment.
+A database and signed imports can preserve provenance without a settlement network. A protocol
+becomes a research question only if independent providers will attest to cutoffs and capacity, buyers can
+verify the statements and no simpler API agreement works. A token does not supply working capital.
+None is required.
+
+
+
+
+                                                                           Founder study • 3 November 2026    /    10
+CLEARLINE RESEARCH   /   TREASURY OPERATIONS
+
+
+
+
+What we built and what we preserved
+Verified in this study. A separate, local Python experiment reads a synthetic CSV, evaluates one USD
+obligation at two defined slots, emits JSON and renders a standalone HTML view. No bank connectivity,
+credential, paid API or money movement. The 22 automated tests passed through the shipped entry
+point and its underlying decision functions. This tests the mechanics, not predictiveness, demand, real
+cutoffs or payout reliability.
+
+ Run or open                Expected observation
+
+ friday.html                Monday is not yet observable. Keep the feasible baseline because binding future
+                            terms and fallback evidence are missing.
+
+ demo.html                  Two independently feasible synthetic snapshots. SGD 78.77 retrospective difference.
+                            Friday’s original decision remains unchanged; no beneficiary credit observed.
+
+ preagreed.html             Synthetic terms, slot, cash floor and fallback documented on Friday. Manual review of
+                            enforceability and cost; still no instruction to pay or unconditional saving.
+
+ delayed.html               Monday usable SGD 130,000; required SGD 135,382.50. Tuesday cash cannot fill
+                            Monday’s SGD 5,382.50 shortfall. Comparison withheld.
+Reproduce: unzip the supplied package; open friday.html in a browser. From its folder run python3
+replay.py --html demo.html, then python3 -m unittest -v. The README lists cases for closed dates,
+competing payouts, unavailable off-ramp capacity, stale quote and a nine-hour last mile. Requires
+Python 3.9+ and time-zone data. No third-party packages.
+What is worth reusing. After independently framing the funding decision we inspected the existing
+investigation-desk checkout and the prior Clearline papers. Reuse their exact-decimal, unknown-on-
+outage, versioned-evidence and approval patterns (src/lib/decimal.ts, chain/store.ts, platform/store.ts).
+The replay instead uses Python Decimal and CSV for portability. The prior checkout remains untouched;
+the new code lives in funding-replay/.
+Assumption discarded: explaining an incoming transfer or allocating an invoice does not by itself identify
+when an importer may fund a different outbound obligation. A replay requires original decision-time
+balances, contractual permissions and supplier deadlines. FX lot valuation also requires its own
+accounting policy and benchmark; IAS 21 concerns foreign currency and does not by itself classify a
+stablecoin. [B4]
+
+
+
+
+                                                                          Founder study • 3 November 2026     /   11
+CLEARLINE RESEARCH   /   TREASURY OPERATIONS
+
+
+
+
+Who might buy and how the business could
+grow
+Assumption. Sell a four-week read-only replay to a controller responsible for repeat supplier payments
+in one corridor. Offer SGD 500 flat, credited against an initial subscription if appropriate. Proposed
+recurring price: SGD 270 per legal entity per corridor per month, with agreed volume and support limits.
+Charge for a decision workflow, not a percentage of principal. The operator prepares the case; the
+controller owns the budget.
+At the modeled SGD 78.77 differential, four suitable payments/month yield SGD 315.08 before the fee
+and only SGD 45.08 after it. Sixteen yield SGD 1,260.32 before the fee, but this is not a forecast:
+overlapping commitments, an unused cash balance, hedging costs, lower marginal rates or a costly
+reserved fallback can eliminate it. For a 2× buyer value/fee hurdle at SGD 270, require SGD 540 of
+documented gross monthly value net of incremental handling and risk; roughly seven genuinely
+comparable opportunities at the illustrative rate. Count separately evidenced labour savings once.
+Bottom-up planning range [Assumption]. Suppose interviews ultimately identify 100–500 reachable
+entities with this currency pair; 10–30% have repeated actionable timing choices; 10–30% of those buy.
+At SGD 3,240 annual price, the arithmetic gives SGD 3,240–145,800 annual recurring revenue (1–45
+buyers). The account counts and conversion rates are unmeasured scenario inputs, not a census or a
+market valuation. Replace them with named eligible firms, dated outreach, observed workflows and
+signed contracts. This corridor alone does not justify a venture-scale claim.
+Unit economics. At SGD 270/month, an assumed SGD 15 data/hosting, 1.5 support hours at SGD 45 and
+SGD 30 monthly amortised onboarding cost leave SGD 157.50 contribution, about 58%, before sales,
+R&D, insurance and tax. At five support hours the same subscription contributes nothing. Price
+contracted integrations or decline them rather than disguise services revenue as software margin.
+Expansion test. Require renewals at measured positive contribution, verified partner lead-time data,
+permitted reuse and independent evidence across three firms before a second corridor. A compounding
+asset might be a library of contractual cutoff exceptions with permitted, de-identified realised-versus-
+expected timings. Customers retain rights to their own records; providers must consent to reuse of their
+terms. A bank or TMS can neutralise this advantage with native schedules, richer outcomes or bundled
+funding. Pursue an API only when multiple partners request the same evidence contract.
+
+
+
+
+                                                                    Founder study • 3 November 2026   /   12
+CLEARLINE RESEARCH   /   TREASURY OPERATIONS
+
+
+
+
+Distribution and the two week decision
+Verified public fit; unknown eligibility and interest. H.L. Yong distributes US brands [M9]; Food
+Spectrum describes US imports [M10]; Interocean Foods lists US meat imports [M11]. These are three
+prospects to qualify, not confirmed USD buyers or approved pilots. Product sourcing in the US does not
+prove that invoices are paid directly to a US bank account.
+
+ Prospect                Introduction route to request                           Who must join
+
+ H.L. Yong               Ask an SMU accountancy alumnus in distribution for a    AP operator plus finance
+                         controller introduction; otherwise request an AP        signatory.
+                         referral via its public company channel.
+
+ Food Spectrum           Ask an SMU/BIG food-business founder or adviser for     Finance manager responsible
+                         an introduction; if no connection exists, use the       for supplier funding.
+                         published partnership channel.
+
+ Interocean Foods        Ask the PV adviser who offered network introductions    Treasury decision owner;
+                         to check for a trade/FX operator who can introduce a    separate provider-side witness
+                         client with consent; use the firm’s public contact if   if allowed.
+                         unavailable.
+Unknown: whether any intermediary knows these firms. No contact or permission is implied. Include
+one buyer with comfortable bank credit or no early-funding pain as a negative control. Airwallex’s
+ZENXIN case describes pre-shipment payment and later retail receipts: useful evidence of different
+clocks, not a commitment or an independent savings estimate. [M14]
+
+The fortnight
+Days 1–3: seek six independent qualifying interviews, including one no-pain buyer. Reconstruct the last
+incident before demonstrating anything. Days 4–7: seek two authorised redacted weeks; one original
+provider term, bank snapshot and policy per firm. Catalogue all obligations including successes, misses
+and zero-action days. Days 8–11: replay the actual rule, calendar control and candidate rule at the same
+cutoffs. Have an operator independently adjudicate each case and document which fields arrived too
+late. Days 12–14: review findings with both signatories, freeze thresholds and offer a paid four-week
+shadow pilot with deletion and exit terms.
+
+
+
+
+                                                                          Founder study • 3 November 2026   /   13
+CLEARLINE RESEARCH   /   TREASURY OPERATIONS
+
+
+
+
+Interview script and falsification criteria
+Begin: “Walk me through the last payout for which you had to move cash earlier than you wanted.” If
+there was none: “Walk me through your most recent overseas supplier payment, from approval until the
+supplier could use the money.” Do not propose a tool until that reconstruction is complete.
+Ask: What currency, amount or range, due date and time zone? Which term set the earliest and latest
+funding dates? Who actually chose the date, and what did they know then? What restriction applied to
+the balance? Was there a receivable or credit line, and was it usable? What did staff do when late? Who
+paid interest, fees or penalties? Can we inspect a redacted instruction, dated term and evidence of
+supplier availability? What could a spreadsheet or renegotiated term already solve? Only then show the
+Friday screen and ask precisely which decision they would change.
+Draft outreach for founder review. “I’m an SMU accountancy student studying how Singapore importers
+decide when to fund overseas supplier payments. Would you or the person who prepares your payment
+run walk me through one recent USD payout for 20 minutes? A case where your current process works
+well is equally useful. No account numbers or client names are needed.” No messages have been sent.
+
+ Proposed gate             Pass, pivot or stop
+
+ Behavioural pass          Within 14 days two unrelated treasury owners share an authorised redacted week,
+                           including original timestamps and cutoff evidence. Across the two, identify at least
+                           three discretionary decisions.
+
+ Commercial pass           One budget owner signs the SGD 500 four-week scope; agree a 2× monthly value/fee
+                           target, ongoing staffing cost, and no known additional deadline misses before
+                           expansion. Price, agreement and renewal are unproven.
+
+ Safety stop               Any false reassurance, cash-floor breach or deadline miss attributed to waiting pauses
+                           that rule. Track every abstention. Replay cannot prove noninferiority for rare failures;
+                           continue in prospective shadow mode.
+
+ Pivot                     If credit or contract fixes timing on most cases, stop selling timing software. Test
+                           receipt release only with recent held orders; test FX records only with accountant-
+                           supplied lots and a paid review use case.
+
+ Evidence stop             If six qualified conversations yield no authority to change a date, or data access/paid
+                           interest fails after a completed scoped offer, stop development. If six interviews were
+                           not obtained, report recruitment failure rather than rejecting market demand.
+
+
+
+
+                                                                            Founder study • 3 November 2026       /   14
+CLEARLINE RESEARCH   /   TREASURY OPERATIONS
+
+
+
+
+Evidence register and meeting card
+Primary provider and authority materials, accessed 3 November 2026. Select a linked title to inspect the
+underlying terms. Prices, limits, eligibility and operating schedules are subject to verification on the
+customer’s actual account. No published fee is used as an executable quote in the synthetic cost model.
+M1 Airwallex SG-US route
+M2 Airwallex Singapore pricing
+M3 Airwallex US payout specifications
+M4 Wise Business Singapore payments
+M5 Wise business pricing and volume discounts
+M8 Ripple Payments Direct funding methods
+B1 BIS CPMI · Liquidity bridges across central banks for cross-border payments
+B2 DBS · Import financing terms and facility letter
+O1 DBS, IDEAL corporate pricing and cut-off times, public indicative schedule
+O2 Swift, How long does a Swift payment take
+O3 Singapore Statutes Online, Payment Services Act 2019, section 23
+O4 Monetary Authority of Singapore, MAS expands scope of regulated payment services, 2 April 2024
+B3 Singapore PDPC · Data protection obligations
+B4 IFRS Foundation · IAS 21 The Effects of Changes in Foreign Exchange Rates
+B5 Request Finance · External payments via exchange or wallet
+M9 H.L. Yong Company, distribution and contacts
+M10 Food Spectrum, importer profile/contact
+M11 Interocean Foods, importer profile
+M14 Airwallex, ZENXIN customer story
+Private primary materials: supplied 2 November transcript (especially 04:29–05:09, 05:15–12:19, 14:49–
+18:35, 20:46–21:26); earlier 1 November transcript, 16:26–19:01; Clearline working papers v0.3 and
+v0.4. A file date does not verify a meeting date. Research and engineering were reviewed separately; no
+customer records or independent field outcomes were supplied.
+
+Take this into the room
+Say: “I’m testing whether your team can fund a supplier later without putting its payment deadline at
+risk.”
+Show: Friday’s keep-baseline decision beside the cheaper Monday hindsight case.
+Ask: “What could you actually have done with the cash, and did your agreement let you wait?”
+Tomorrow: ask the adviser for a treasury introduction and book one walkthrough of an actual payout.
+
+
+
+
+                                                                    Founder study • 3 November 2026   /   15
+

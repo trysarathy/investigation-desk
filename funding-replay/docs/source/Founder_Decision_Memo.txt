@@ -1,0 +1,36 @@
+CLEARLINE RESEARCH   /       TREASURY OPERATIONS
+
+
+DECISION MEMO            /    03 NOV 2026
+
+
+When to fund a supplier payment
+Recommendation: run a two-week replay experiment. Do not start a lender, switch rails or replace the
+receipt product. Ask whether a Singapore importer can safely keep its own SGD usable for longer before
+its US supplier needs spendable USD.
+Reported in interview. An adviser describes an intermediary advancing money after credit review. This
+establishes a plausible need for credit. It says nothing about how often a treasury team funds earlier
+than its contract requires. The latter is the only problem this software can solve.
+The test. Reconstruct one redacted week using only what the operator knew when the funding decision
+was due. Compare its real policy, a spreadsheet with provider cutoffs, and a later funding slot. If the later
+slot was not available or evidenced at the earlier decision, keep the baseline. Ask the controller what the
+retained cash would actually have earned or repaid.
+Synthetic economics. For USD 100,000 at SGD 1.35/USD, moving the commitment from five days to two
+frees 405,000 SGD-days. At an assumed 8% differential that is SGD 88.77 gross; an extra SGD 10 of
+processing leaves SGD 78.77. Idle cash with no incremental return makes the change SGD 10 worse. A
+missed deadline can swamp either figure.
+Buyer and offer. Start with the controller or CFO of a Singapore food importer paying US suppliers. Offer
+one corridor, four weeks of read-only replay, a written exception report and a review for SGD 500,
+subject to data permissions. Test SGD 270/month thereafter; neither price is validated.
+Pass only with behaviour. Seek two unrelated firms sharing a permitted week of data, three defensible
+discretionary decisions across them, and one signed paid scope. A hard deadline breach in a
+recommended scenario stops that configuration. If contracts force early funding, redirect discovery to
+the credit owner or the prior receipt-control hypothesis.
+Tomorrow: request an introduction to one AP operator and one treasury signatory. Ask for the last case
+before showing the simulation.
+
+
+
+
+                                                                        Founder study • 3 November 2026   /   1
+
