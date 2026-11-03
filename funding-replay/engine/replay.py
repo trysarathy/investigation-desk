@@ -54,7 +54,7 @@ REQUIRED = {
     "obligation": ("effective_at", "amount", "currency"),
     "release_checkpoint": ("effective_at",),
     "funding_slot": ("slot", "effective_at", "expires_at"),
-    "calendar": ("slot", "effective_at", "status"),
+    "calendar": ("effective_at", "status"),
     "quote": ("slot", "rate", "bp", "expires_at"),
     "fee": ("amount", "currency", "status"),
     "cash_snapshot": ("effective_at", "amount", "currency", "status"),
@@ -617,7 +617,7 @@ def _lead_check(view, opt, slot, sname, local, all_cals, common, day, day_recs):
                                 "(%s required)." % (day, open_days, payout.isoformat(), fmt_plain(lead.amount)), recs))
 
 
-def _evaluate_option(view, common, slot, hindsight):
+def _evaluate_option(view, common, slot, hindsight, forward_allowed=False):
     as_of = view.as_of
     opt = _Option(slot)
     sname = SLOT_NAMES[slot]
@@ -663,7 +663,7 @@ def _evaluate_option(view, common, slot, hindsight):
                                 _problem_text(problem, "%s funding slot" % sname, recs), recs, problem,
                                 "%s funding slot and cutoff" % sname))
     instr = opt.instr
-    opt.forward = (not hindsight) and instr is not None and as_of < instr
+    opt.forward = forward_allowed and (not hindsight) and instr is not None and as_of < instr
     if instr is None:
         # Without an instruction time nothing slot-specific can be judged as live.
         for key, name, label in (("calendar", "Business day", "%s business-day calendar" % sname),
@@ -801,7 +801,7 @@ def _evaluate_option(view, common, slot, hindsight):
                                     "Capacity USD %s is %s, but the obligation is unknown." % (
                                         fmt_num(rec.amount), rec.status), recs, "derived"))
         elif (rec.expires_at is not None and common.release is not None
-              and rec.expires_at < common.release):
+              and rec.expires_at <= common.release):
             opt.checks.append(Check("capacity", "Payout capacity", "unknown",
                                     "%s capacity %s is only confirmed until %s, before the release checkpoint %s; "
                                     "capacity through release is not evidenced." % (
@@ -866,6 +866,7 @@ def _evaluate_option(view, common, slot, hindsight):
     if opt.forward:
         fbs = [e for e in view.kind("fallback", slot) if e.status == "documented"]
         live = [f for f in fbs if _live(f, instr)
+                and (f.effective_at is None or f.effective_at <= instr)
                 and (common.deadline is None or f.expires_at is None or f.expires_at >= common.deadline)
                 and (net is None or f.amount is None or f.amount >= net)]
         if live:
@@ -903,6 +904,15 @@ def _cash_support_check(view, opt, sname):
     sups = [e for e in view.kind("cash_support", opt.slot) if e.slot == opt.slot and e.status == "documented"]
     label = "Documented cash support for the %s slot (a balance known today is not %s cash)" % (sname, sname)
     rec, problem, recs = _pick(sups, lambda r: r.amount, at=opt.instr)
+    if problem is None:
+        newer = [c for c in view.kind("commitment") if c.known_at > rec.known_at]
+        if newer:
+            opt.checks.append(Check("cash", "Cash support", "unknown",
+                                    "Cash support %s was attested %s, before commitment %s became known %s, so it may "
+                                    "not cover it." % (rec.record_id, fmt_sgt(rec.known_at), _ids(newer),
+                                                       fmt_sgt(max(c.known_at for c in newer))),
+                                    recs + newer, "stale", label))
+            return
     if problem is not None:
         opt.checks.append(Check("cash", "Cash support", "unknown",
                                 _problem_text(problem, "documented %s cash support" % sname, recs, at=opt.instr)
@@ -986,6 +996,7 @@ def _cash_check(view, opt, sname):
     snaps = [e for e in dated if e.effective_at == newest]
     # The commitment list must be attested complete for this slot (same freshness rule as the balance).
     lists = [e for e in view.kind("commitment_list") if e.status == "complete" and e.effective_at <= instr
+             and e.effective_at <= e.known_at
              and instr - e.effective_at <= MAX_SNAPSHOT_AGE and _live(e, instr)]
     if not lists:
         old = view.kind("commitment_list")
@@ -1013,6 +1024,18 @@ def _cash_check(view, opt, sname):
     reflected = [c for c in commitments if c.effective_at is not None and c.effective_at <= snap.effective_at]
     commitments = [c for c in commitments if c not in reflected]
     receipts = [r for r in receivables if _settled_evidence(r) and snap.effective_at < r.effective_at <= instr]
+    seen = {}
+    for r in receipts:
+        seen.setdefault((r.amount, r.effective_at), []).append(r)
+    dupes = [g for g in seen.values() if len(g) > 1]
+    if dupes:
+        recs = sorted((r for g in dupes for r in g), key=lambda r: r.record_id)
+        opt.checks.append(Check("cash", "Cash after floor and commitments", "unknown",
+                                "Settled receipts %s have the same amount and time under different record IDs; they may "
+                                "be one receipt counted twice, so cash is unknown." % _ids(recs), recs, "contradictory",
+                                "Unambiguous settled receipts"))
+        opt.warnings.append("Possible duplicate receipts (%s); cash treated as unknown." % _ids(recs))
+        return
     late = [r for r in receivables if _settled_evidence(r) and r.effective_at > instr]
     forecasts = [r for r in receivables if not _settled_evidence(r)]
     receipt_sum = sum((r.amount for r in receipts), Decimal(0))
@@ -1444,6 +1467,17 @@ def _comparison(fri, mon, rate, framing):
     }
 
 
+def _late_costs(rview, pairs):
+    """Fees or reservation costs for a slot that only became known after that slot's own instruction time."""
+    out = []
+    for opt, own in pairs:
+        own_ids = {e.record_id for e in own.visible}
+        for e in rview.kind("fee", opt.slot) + [r for r in rview.kind("reservation_cost") if r.slot == opt.slot]:
+            if e.record_id not in own_ids:
+                out.append("%s %s first known %s" % (SLOT_NAMES[opt.slot], e.record_id, fmt_sgt(e.known_at)))
+    return "; ".join(out)
+
+
 def _withheld(reason):
     return {"available": False, "withheld_reason": reason, "days": None, "sgd_days_less": None,
             "avg_restricted_less_30d": None, "carry_reduction": None, "extra_processing": None,
@@ -1514,8 +1548,8 @@ def _friday_view(events):
     """The Friday decision exactly as it was available on Friday (records known by Fri 15:00 only)."""
     view = _View(events, FRIDAY_AS_OF)
     common = _Common(view)
-    fri = _evaluate_option(view, common, "friday", False)
-    mon = _evaluate_option(view, common, "monday", False)
+    fri = _evaluate_option(view, common, "friday", False, forward_allowed=True)
+    mon = _evaluate_option(view, common, "monday", False, forward_allowed=True)
     actionable = _comparable(fri, mon, common)
     decision = _decide_friday(fri, mon, common, FRIDAY_AS_OF, actionable)
     return view, common, fri, mon, decision, actionable
@@ -1556,8 +1590,8 @@ def _evaluate(events, decision_time, funding_rate_pct, scenario):
 
     comparison = None
     if decision_time == "friday":
-        fri = _evaluate_option(view, common, "friday", False)
-        mon = _evaluate_option(view, common, "monday", False)
+        fri = _evaluate_option(view, common, "friday", False, forward_allowed=True)
+        mon = _evaluate_option(view, common, "monday", False, forward_allowed=True)
         decision = _decide_friday(fri, mon, common, as_of, actionable)
         # No economic figure on Friday, even under manual review: the terms are unverified (as in the original).
     elif decision_time == "monday":
@@ -1574,7 +1608,11 @@ def _evaluate(events, decision_time, funding_rate_pct, scenario):
                 "; ".join("%s %s" % (n, fmt_sgt(t)) for n, t in times)) if times else \
             "Hindsight: each slot is judged only on records known by its own instruction time."
         mcommon = _Common(mview)
-        if _comparable(fri, mon, mcommon):
+        late_costs = _late_costs(view, ((fri, fview), (mon, mview)))
+        if late_costs and _comparable(fri, mon, mcommon):
+            comparison = _withheld("Comparison withheld. A cost was first known after its slot's instruction (%s), so "
+                                   "the like-for-like figure would understate it." % late_costs)
+        elif _comparable(fri, mon, mcommon):
             late = _late_kinds(mon)
             if actionable:
                 framing = ("Hindsight. A reviewed option existed on Friday: Monday terms, reserved capacity and a "
@@ -1604,7 +1642,8 @@ def _evaluate(events, decision_time, funding_rate_pct, scenario):
         else:
             if comparison is not None:
                 reason = comparison["withheld_reason"]
-                binding = "FX rate differs between the two slots."
+                binding = ("A cost first known after its slot's instruction." if "first known after" in reason
+                           else "FX rate or spread differs between the two slots.")
             else:
                 reason = _withheld_reason(fri, mon)
                 comparison = _withheld(reason)

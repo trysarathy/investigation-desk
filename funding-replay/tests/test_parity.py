@@ -222,3 +222,60 @@ class P4Commitments(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class P5AdversarialFindings(unittest.TestCase):
+    """P5: regressions for the adversarial review of the parity changes."""
+
+    def test_b1_cost_known_after_instruction_withholds_retro_figure(self):
+        text = sub(PRE, "RES-MON,reservation_cost,monday,2026-11-13T11:00:00+08:00,2026-11-13T11:00:00+08:00",
+                   "RES-MON,reservation_cost,monday,2026-11-13T11:00:00+08:00,2026-11-17T10:00:00+08:00")
+        c = ev(load(text), "retro")["comparison"]
+        self.assertFalse(c["available"])
+        self.assertIn("RES-MON", c["withheld_reason"])
+        late_fee = REF + ("FEE-LATE,fee,monday,,2026-11-17T10:00:00+08:00,,200.00,SGD,,,other,synthetic: test,"
+                          "Monday charge invoiced Tuesday\n")
+        self.assertFalse(ev(load(late_fee), "retro")["comparison"]["available"])
+
+    def test_b2_monday_checkpoint_never_uses_friday_cash_support(self):
+        text = sub(PRE, "SLOT-MON,funding_slot,monday,2026-11-16T15:00:00+08:00",
+                   "SLOT-MON,funding_slot,monday,2026-11-16T15:30:00+08:00")
+        text = drop(drop(text, "CASH-MON"), "CLIST-MON")
+        r = ev(load(text), "monday")
+        self.assertEqual(r["decision"]["state"], "NEED_NEWER_BALANCE")
+
+    def test_b3_future_dated_commitment_list_is_not_evidence(self):
+        text = sub(REF, "CLIST-MON,commitment_list,,2026-11-16T09:00:00+08:00,2026-11-16T09:00:00+08:00",
+                   "CLIST-MON,commitment_list,,2026-11-16T09:00:00+08:00,2026-11-13T10:00:00+08:00")
+        events = load(text)
+        self.assertNotEqual(ev(events, "monday")["decision"]["state"], "MONDAY_FEASIBLE")
+        self.assertFalse(ev(events, "retro")["comparison"]["available"])
+
+    def test_m1_closure_with_empty_slot_applies_to_both_slots(self):
+        text = REF + ("CAL-TUE,calendar,,2026-11-17T00:00:00+08:00,2026-11-13T10:00:00+08:00,,,,,,closed,"
+                      "synthetic: test,Tue 17 Nov closed for both routes\n")
+        r = ev(load(text), "monday")
+        self.assertEqual(r["decision"]["state"], "MONDAY_UNAVAILABLE")
+
+    def test_m2_fallback_starting_after_the_slot_is_not_a_fallback(self):
+        text = sub(PRE, "FB-001,fallback,,2026-11-13T11:30:00+08:00", "FB-001,fallback,,2026-11-19T09:00:00+08:00")
+        self.assertEqual(ev(load(text), "friday")["decision"]["state"], "KEEP_FRIDAY")
+
+    def test_m3_cash_support_older_than_a_known_commitment_is_stale(self):
+        text = sub(PRE, "2026-11-13T09:00:00+08:00,2026-11-13T09:05:00+08:00,,200000.00",
+                   "2026-11-13T09:00:00+08:00,2026-11-13T09:05:00+08:00,,300000.00")  # Friday still covered
+        text = text + ("COMMIT-X,commitment,,2026-11-16T10:00:00+08:00,2026-11-13T14:00:00+08:00,,100000.00,SGD,,,,"
+                      "synthetic: test,Payout due Monday known after the cash support\n")
+        self.assertEqual(ev(load(text), "friday")["decision"]["state"], "KEEP_FRIDAY")
+
+    def test_capacity_expiring_exactly_at_release_is_not_through_release(self):
+        text = sub(PRE, "2026-11-16T15:00:00+08:00,2026-11-13T11:00:00+08:00,2026-11-19T09:00:00+08:00,100000.00,USD",
+                   "2026-11-16T15:00:00+08:00,2026-11-13T11:00:00+08:00,2026-11-18T15:00:00+08:00,100000.00,USD")
+        self.assertEqual(ev(load(text), "friday")["decision"]["state"], "KEEP_FRIDAY")
+
+    def test_same_receipt_under_two_ids_is_not_counted_twice(self):
+        text = SC["delayed_receivable"]["csv"] + "".join(
+            "%s,receivable,,2026-11-16T10:00:00+08:00,2026-11-16T10:00:00+08:00,,3000.00,SGD,,,settled,"
+            "synthetic: test,Receipt\n" % rid for rid in ("RCV-A", "RCV-A2"))
+        r = ev(load(text), "monday")
+        self.assertNotEqual(r["decision"]["state"], "MONDAY_FEASIBLE")
