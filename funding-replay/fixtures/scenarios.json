@@ -38,5 +38,10 @@
     "id": "slow_credit",
     "name": "Slow last mile",
     "description": "The simulated last-mile bound is 9 hours, so a 15:00 SGT release lands after the 23:00 SGT deadline."
+  },
+  {
+    "id": "stale_balance",
+    "name": "Friday-afternoon balance",
+    "description": "Friday's bank balance is taken at 14:00 and stated valid through Monday 16:00 SGT. Nothing binding is on file for Monday at Friday's decision."
   }
 ]

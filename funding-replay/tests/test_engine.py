@@ -55,6 +55,7 @@ EXPECTED = {
     "closed_day": ("KEEP_FRIDAY", "MONDAY_UNAVAILABLE", "HINDSIGHT"),
     "low_capacity": ("KEEP_FRIDAY", "MONDAY_UNAVAILABLE", "HINDSIGHT"),
     "slow_credit": ("DEADLINE_AT_RISK", "DEADLINE_AT_RISK", "HINDSIGHT"),
+    "stale_balance": ("KEEP_FRIDAY", "NEED_NEWER_BALANCE", "HINDSIGHT"),
 }
 # Retro comparison available (True) or withheld (False).
 RETRO_AVAILABLE = {"reference": True, "preagreed": True}
@@ -80,14 +81,14 @@ class ExpectedOutcomesTable(unittest.TestCase):
                     self.assertTrue(c["withheld_reason"])
                     self.assertIsNone(c["net_benefit_before_subscription"])
 
-    def test_friday_comparison_only_for_manual_review(self):
+    def test_friday_view_never_has_an_economic_figure(self):
+        # Parity decision: like the original, the Friday view shows no modelled benefit, even under manual review.
         for sid in SC:
-            with self.subTest(scenario=sid):
-                r = run(sid, "friday")
-                if r["decision"]["state"] == "MANUAL_REVIEW":
-                    self.assertTrue(r["comparison"]["available"])
-                else:
+            for rate in ("0", "8", "20"):
+                with self.subTest(scenario=sid, rate=rate):
+                    r = run(sid, "friday", rate)
                     self.assertIsNone(r["comparison"])
+                    self.assertNotIn("net_benefit", dump(r).replace('"net_benefit_before_subscription": null', ""))
 
     def test_monday_view_has_no_comparison(self):
         for sid in SC:
@@ -107,7 +108,7 @@ class ExpectedOutcomesTable(unittest.TestCase):
         keys = {"label", "engine", "scenario", "decision_time", "payment", "decision", "options", "comparison",
                 "assumption", "evidence", "warnings"}
         decision_keys = {"state", "headline", "reason", "binding_constraint", "cash_after_commitments",
-                         "missing_evidence", "next_actions", "actionable_on_friday"}
+                         "missing_evidence", "next_actions", "actionable_on_friday", "balance_check"}
         option_keys = {"slot", "label", "status", "checks", "required_sgd", "principal_sgd", "restricted_days",
                        "sgd_days", "avg_restricted_30d", "funding_cost_sgd", "funding_cost_formula", "fees_sgd",
                        "cash_headroom_sgd"}
@@ -257,12 +258,18 @@ class PreagreedWalkthrough(unittest.TestCase):
         self.assertIn("reservation cost SGD 25.00", actions)
         self.assertEqual(opt(r, "monday")["status"], "feasible")
 
-    def test_friday_comparison_conditional_with_reservation_cost(self):
-        c = run("preagreed", "friday")["comparison"]
-        self.assertTrue(c["available"])
-        self.assertIn("Conditional on verifying the forward terms; not a recommendation", c["framing"])
+    def test_friday_shows_no_figure_but_lists_cost_questions(self):
+        r = run("preagreed", "friday")
+        self.assertIsNone(r["comparison"])
+        text = dump(r)
+        self.assertNotIn("53.77", text)
+        self.assertNotIn("88.77", text)
+        self.assertIn("Confirm the reservation cost SGD 25.00", " ".join(r["decision"]["next_actions"]))
+        self.assertIn("SUP-MON", text)  # documented cash support is the Friday cash evidence for Monday
+
+    def test_retro_reservation_cost_is_paid_by_the_importer(self):
+        c = run("preagreed", "retro")["comparison"]
         self.assertEqual(c["reservation_cost"], "SGD 25.00")
-        self.assertEqual(c["carry_reduction"], "SGD 88.77")
         self.assertEqual(c["net_benefit_before_subscription"], "SGD 53.77")
         self.assertIn("− 25.00", c["formula"])
 
@@ -396,7 +403,7 @@ class EvidenceCutoff(unittest.TestCase):
         extra_csv = csv_text("reference") + (
             "LATE-1,quote,monday,2026-11-13T15:30:00+08:00,2026-11-13T15:00:01+08:00,2026-11-16T16:00:00+08:00,"
             ",,1.30,5,,synthetic: test,A later Monday quote\n"
-            "LATE-2,capacity,monday,2026-11-16T09:00:00+08:00,2026-11-13T16:00:00+08:00,,100000.00,USD,,,"
+            "LATE-2,capacity,monday,2026-11-16T09:00:00+08:00,2026-11-13T16:00:00+08:00,2026-11-19T09:00:00+08:00,100000.00,USD,,,"
             "reserved,synthetic: test,Later capacity\n")
         events, errors = replay.load_events(extra_csv)
         self.assertEqual(errors, [])

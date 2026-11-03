@@ -46,6 +46,7 @@ KINDS = (
     "fee", "cash_snapshot", "receivable", "commitment", "cash_floor",
     "capacity", "forward_terms", "reservation_cost", "fallback",
     "service_bound", "beneficiary_credit",
+    "cash_support", "commitment_list", "lead_business_days",
 )
 
 # Fields each kind must carry.
@@ -53,19 +54,22 @@ REQUIRED = {
     "obligation": ("effective_at", "amount", "currency"),
     "release_checkpoint": ("effective_at",),
     "funding_slot": ("slot", "effective_at", "expires_at"),
-    "calendar": ("slot", "status"),
+    "calendar": ("slot", "effective_at", "status"),
     "quote": ("slot", "rate", "bp", "expires_at"),
     "fee": ("amount", "currency", "status"),
     "cash_snapshot": ("effective_at", "amount", "currency", "status"),
     "receivable": ("effective_at", "amount", "currency", "status"),
     "commitment": ("amount", "currency"),
     "cash_floor": ("amount", "currency"),
-    "capacity": ("slot", "amount", "currency", "status"),
-    "forward_terms": ("slot", "rate", "status"),
+    "capacity": ("slot", "amount", "currency", "status", "expires_at"),
+    "forward_terms": ("slot", "rate", "status", "expires_at"),
     "reservation_cost": ("slot", "amount", "currency"),
-    "fallback": ("status",),
+    "fallback": ("status", "amount", "currency", "expires_at"),
     "service_bound": ("amount",),
     "beneficiary_credit": ("effective_at",),
+    "cash_support": ("slot", "amount", "currency", "status", "expires_at"),
+    "commitment_list": ("effective_at", "status"),
+    "lead_business_days": ("slot", "amount"),
 }
 STATUSES = {
     "calendar": ("open", "closed"),
@@ -75,11 +79,14 @@ STATUSES = {
     "capacity": ("reserved", "confirmed", "indicative"),
     "forward_terms": ("agreed", "proposed"),
     "fallback": ("documented",),
+    "cash_support": ("documented",),
+    "commitment_list": ("complete",),
 }
 CURRENCIES = {
     "obligation": "USD", "capacity": "USD",
     "fee": "SGD", "cash_snapshot": "SGD", "receivable": "SGD",
     "commitment": "SGD", "cash_floor": "SGD", "reservation_cost": "SGD",
+    "fallback": "USD", "cash_support": "SGD",
 }
 
 # ASCII digits only; at most 18 integer digits and 6 decimal places.
@@ -551,6 +558,7 @@ class _Option:
         self.cash_notes = []
         self.late_receipts = []
         self.warnings = []
+        self.balance = None  # set when the bank balance is stale or missing for this slot
 
     def check(self, key):
         for c in self.checks:
@@ -563,6 +571,50 @@ class _Option:
 
     def unknown(self):
         return [c for c in self.checks if c.state == "unknown" and c.reason != "derived"]
+
+
+REQUIRED_FEE_TYPES = {"rail", "processing"}
+
+
+def _lead_check(view, opt, slot, sname, local, all_cals, common, day, day_recs):
+    """Open business dates after the instruction date through the release date in New York."""
+    leads = view.kind("lead_business_days", slot)
+    lead, problem, lrecs = _pick(leads, lambda r: r.amount)
+    if problem is not None:
+        opt.checks.append(Check("calendar", "Business days", "unknown",
+                                _problem_text(problem, "%s lead business-day requirement" % sname, lrecs),
+                                day_recs + lrecs, problem, "%s lead business-day requirement" % sname))
+        return
+    if common.release is None:
+        opt.checks.append(Check("calendar", "Business days", "unknown",
+                                "The release checkpoint is unknown, so business days cannot be counted.",
+                                day_recs + lrecs, "derived"))
+        return
+    payout = _to_ny(common.release)[0].date()
+    closed = {}
+    for c in all_cals:
+        if c.status == "closed" and c.effective_at is not None:
+            closed[c.effective_at.astimezone(SGT).date()] = c
+    open_days, recs, d = 0, list(day_recs) + lrecs, local.date()
+    while d < payout:
+        d = d + timedelta(days=1)
+        if d.weekday() < 5 and d not in closed:
+            open_days += 1
+        elif d in closed:
+            recs.append(closed[d])
+    if payout.weekday() >= 5 or payout in closed:
+        opt.checks.append(Check("calendar", "Business days", "fail",
+                                "The payout date %s is not a business day, so the %s slot cannot meet the release."
+                                % (payout.isoformat(), sname), recs))
+    elif open_days < lead.amount:
+        opt.checks.append(Check("calendar", "Business days", "fail",
+                                "%s is a business day, but only %d open business date(s) remain through the %s "
+                                "payout date; %s required (weekends and recorded closures excluded)." % (
+                                    day, open_days, payout.isoformat(), fmt_plain(lead.amount)), recs))
+    else:
+        opt.checks.append(Check("calendar", "Business day", "ok",
+                                "%s is a business day; %d open business date(s) through the %s payout date "
+                                "(%s required)." % (day, open_days, payout.isoformat(), fmt_plain(lead.amount)), recs))
 
 
 def _evaluate_option(view, common, slot, hindsight):
@@ -594,6 +646,10 @@ def _evaluate_option(view, common, slot, hindsight):
             opt.checks.append(Check("window", "Funding window", "fail",
                                     "The %s cutoff (%s) passed before this checkpoint." % (sname, fmt_sgt(opt.cutoff)),
                                     recs))
+        elif opt.instr >= opt.cutoff:
+            opt.checks.append(Check("window", "Funding window", "fail",
+                                    "Instruction at %s is at or after the %s cutoff %s; the cutoff is exclusive." % (
+                                        fmt_sgt(opt.instr), sname, _fmt_clock(opt.cutoff)), recs))
         elif common.release is not None and opt.instr >= common.release:
             opt.checks.append(Check("window", "Funding window", "fail",
                                     "Instruction at %s is not before the release checkpoint %s." % (
@@ -621,18 +677,23 @@ def _evaluate_option(view, common, slot, hindsight):
         _set_status(opt)
         return opt
 
-    # 3. Business day
-    cals = [e for e in view.kind("calendar") if e.slot == slot]
+    # 3. Business day: the instruction date must be an open weekday; then enough open business dates
+    #    after it, through the release date in New York (weekends and recorded closures excluded).
+    local = instr.astimezone(SGT)
+    all_cals = view.kind("calendar", slot)
+    cals = [e for e in all_cals if e.effective_at is not None and e.effective_at.astimezone(SGT).date() == local.date()]
     rec, problem, recs = _pick(cals, lambda r: r.status)
     if problem is None:
-        local = instr.astimezone(SGT)
         day = "%s %d %s" % (_DAYS[local.weekday()], local.day, _MONTHS[local.month - 1])
-        if rec.status == "open":
-            opt.checks.append(Check("calendar", "Business day", "ok", "%s is a business day." % day, recs))
-        else:
+        if local.weekday() >= 5:
+            opt.checks.append(Check("calendar", "Business day", "fail",
+                                    "%s is a weekend, so the %s slot is lost." % (day, sname), recs))
+        elif rec.status != "open":
             opt.checks.append(Check("calendar", "Business day", "fail",
                                     "%s is closed (known %s), so the %s slot is lost." % (
                                         day, fmt_sgt(rec.known_at), sname), recs))
+        else:
+            _lead_check(view, opt, slot, sname, local, all_cals, common, day, recs)
     else:
         opt.checks.append(Check("calendar", "Business day", "unknown",
                                 _problem_text(problem, "%s calendar" % sname, recs), recs, problem,
@@ -693,6 +754,12 @@ def _evaluate_option(view, common, slot, hindsight):
                                 "More than one live %s fee of the same type (%s: %s), so the fee is contradictory."
                                 % (sname, types, _ids(recs)), recs, "contradictory", "%s fee schedule" % sname))
         opt.warnings.append("Contradictory %s fees (%s); fees treated as unknown." % (sname, _ids(recs)))
+    elif fees_live and not REQUIRED_FEE_TYPES <= set(by_type):
+        absent = sorted(REQUIRED_FEE_TYPES - set(by_type))
+        opt.checks.append(Check("fees", "Fees", "unknown",
+                                "No live %s %s fee on file, so the cost of this slot is incomplete." % (
+                                    sname, " and ".join(absent)), fees_live, "missing", "%s %s fee" % (
+                                    sname, " and ".join(absent))))
     elif fees_live:
         fee_sum = sum((f.amount for f in fees_live), Decimal(0))
         opt.checks.append(Check("fees", "Fees", "ok",
@@ -733,6 +800,13 @@ def _evaluate_option(view, common, slot, hindsight):
             opt.checks.append(Check("capacity", "Payout capacity", "unknown",
                                     "Capacity USD %s is %s, but the obligation is unknown." % (
                                         fmt_num(rec.amount), rec.status), recs, "derived"))
+        elif (rec.expires_at is not None and common.release is not None
+              and rec.expires_at < common.release):
+            opt.checks.append(Check("capacity", "Payout capacity", "unknown",
+                                    "%s capacity %s is only confirmed until %s, before the release checkpoint %s; "
+                                    "capacity through release is not evidenced." % (
+                                        sname, rec.record_id, fmt_sgt(rec.expires_at), fmt_sgt(common.release)),
+                                    recs, "stale", "%s payout capacity confirmed through release" % sname))
         elif rec.amount < net:
             opt.checks.append(Check("capacity", "Payout capacity", "fail",
                                     "%s capacity USD %s is below the USD %s obligation." % (
@@ -791,7 +865,9 @@ def _evaluate_option(view, common, slot, hindsight):
     # 9. Fallback: only when deciding to wait before the slot is reached.
     if opt.forward:
         fbs = [e for e in view.kind("fallback", slot) if e.status == "documented"]
-        live = [f for f in fbs if _live(f, instr)]
+        live = [f for f in fbs if _live(f, instr)
+                and (common.deadline is None or f.expires_at is None or f.expires_at >= common.deadline)
+                and (net is None or f.amount is None or f.amount >= net)]
         if live:
             opt.checks.append(Check("fallback", "Fallback route", "ok",
                                     "Documented fallback if the %s slot fails (%s)." % (sname, _ids(live)), live))
@@ -805,7 +881,10 @@ def _evaluate_option(view, common, slot, hindsight):
     return opt
 
 
-MAX_SNAPSHOT_AGE = timedelta(hours=96)
+# Demo policy (not an industry rule): a settled balance more than 24 h older than the funding slot being
+# judged is stale. Exactly 24 h is accepted. An earlier expires_at on the snapshot still applies.
+MAX_SNAPSHOT_AGE = timedelta(hours=24)
+BALANCE_LIMIT_TEXT = "24 h before the funding slot (demo policy)"
 
 
 def _settled_evidence(record):
@@ -813,8 +892,56 @@ def _settled_evidence(record):
     return record.status == "settled" and record.effective_at <= record.known_at
 
 
+def _fmt_age(td):
+    minutes = int(_td_seconds(td) // 60)
+    return "%d h %02d min" % (minutes // 60, minutes % 60)
+
+
+def _cash_support_check(view, opt, sname):
+    """Judging a later slot before it arrives: today's balance is not evidence of that day's cash.
+    Only a documented cash-support attestation (after floor and all commitments) known now can be used."""
+    sups = [e for e in view.kind("cash_support", opt.slot) if e.slot == opt.slot and e.status == "documented"]
+    label = "Documented cash support for the %s slot (a balance known today is not %s cash)" % (sname, sname)
+    rec, problem, recs = _pick(sups, lambda r: r.amount, at=opt.instr)
+    if problem is not None:
+        opt.checks.append(Check("cash", "Cash support", "unknown",
+                                _problem_text(problem, "documented %s cash support" % sname, recs, at=opt.instr)
+                                if problem != "missing" else
+                                "No documented cash support for the %s slot on file; a balance known today does "
+                                "not show %s's cash." % (sname, sname),
+                                recs, problem, label))
+        return
+    if opt.required is None:
+        opt.checks.append(Check("cash", "Cash support", "unknown",
+                                "Documented cash support SGD %s; the required amount is not known yet." % fmt_num(
+                                    rec.amount), recs, "derived"))
+        return
+    reservation = sum((r.amount for r in opt.reservation), Decimal(0))
+    need = opt.required + reservation
+    if rec.amount >= need:
+        opt.usable = rec.amount
+        opt.cash_explain = "documented %s cash support %s (%s), after floor and all commitments; an attestation, " \
+                           "not a bank balance" % (sname, fmt_num(rec.amount), rec.record_id)
+        opt.checks.append(Check("cash", "Cash support", "ok",
+                                "Documented cash support SGD %s (%s, valid to %s) covers required SGD %s%s. It is an "
+                                "attestation to verify, not a bank balance." % (
+                                    fmt_num(rec.amount), rec.record_id, fmt_sgt(rec.expires_at),
+                                    fmt_num(opt.required),
+                                    " plus the SGD %s reservation cost" % fmt_num(reservation) if reservation else ""),
+                                recs + list(opt.reservation)))
+    else:
+        opt.checks.append(Check("cash", "Cash support", "unknown",
+                                "Documented cash support SGD %s (%s) is below required SGD %s." % (
+                                    fmt_num(rec.amount), rec.record_id, fmt_num(need)),
+                                recs, "missing", "Adequate documented cash support for the %s slot" % sname))
+
+
 def _cash_check(view, opt, sname):
     instr = opt.instr
+    opt.balance = None
+    if opt.forward:
+        _cash_support_check(view, opt, sname)
+        return
     all_snaps = view.kind("cash_snapshot")
     receivables = view.kind("receivable")
     for r in all_snaps + receivables:
@@ -823,26 +950,51 @@ def _cash_check(view, opt, sname):
                                 "forecast, not usable cash." % (
                                     "Cash snapshot" if r.kind == "cash_snapshot" else "Receipt", r.record_id,
                                     fmt_sgt(r.effective_at), fmt_sgt(r.known_at)))
-    dated = [e for e in all_snaps if _settled_evidence(e) and e.effective_at <= instr and _live(e, instr)]
-    snaps = [e for e in dated if e.effective_at >= instr - MAX_SNAPSHOT_AGE]
+    settled = [e for e in all_snaps if _settled_evidence(e) and e.effective_at <= instr]
+    dated = [e for e in settled if _live(e, instr)]
     floors = view.kind("cash_floor")
     floor, f_problem, f_recs = _pick(floors, lambda r: r.amount)
     commitments = view.kind("commitment")
-    if not snaps:
-        any_snaps = dated or all_snaps
-        problem = "stale" if any_snaps else "missing"
-        if dated:
-            latest = max(dated, key=lambda r: r.effective_at)
+    label = "Settled bank balance within %s" % BALANCE_LIMIT_TEXT
+    if not dated:
+        if settled:  # every settled balance expired before the slot
+            latest = max(settled, key=lambda r: r.effective_at)
+            opt.balance = {"problem": "stale", "record": latest, "age": instr - latest.effective_at,
+                           "expired": True}
             opt.checks.append(Check("cash", "Cash after floor and commitments", "unknown",
-                                    "The latest settled snapshot (%s, %s) is more than 96 h before the %s "
-                                    "instruction, so it is stale." % (latest.record_id, fmt_sgt(latest.effective_at),
-                                                                     sname),
-                                    [latest], "stale", "Settled cash snapshot"))
-            return
-        opt.checks.append(Check("cash", "Cash after floor and commitments", "unknown",
-                                _problem_text(problem, "settled cash snapshot", any_snaps, at=instr),
-                                any_snaps, problem, "Settled cash snapshot"))
+                                    "The newest settled balance (%s, %s) expired %s, before the %s slot at %s, so "
+                                    "cash availability is unknown." % (
+                                        latest.record_id, fmt_sgt(latest.effective_at), fmt_sgt(latest.expires_at),
+                                        sname, fmt_sgt(instr)), [latest], "stale", label))
+        else:
+            opt.balance = {"problem": "missing", "record": None, "age": None, "expired": False}
+            opt.checks.append(Check("cash", "Cash after floor and commitments", "unknown",
+                                    "No settled bank balance dated before the %s slot at %s is on file, so cash "
+                                    "availability is unknown." % (sname, fmt_sgt(instr)), all_snaps, "missing", label))
         return
+    newest = max(e.effective_at for e in dated)
+    if instr - newest > MAX_SNAPSHOT_AGE:
+        latest = max((e for e in dated if e.effective_at == newest), key=lambda r: (r.known_at, r.record_id))
+        age = instr - latest.effective_at
+        opt.balance = {"problem": "stale", "record": latest, "age": age, "expired": False}
+        opt.checks.append(Check("cash", "Cash after floor and commitments", "unknown",
+                                "The newest settled balance (%s, %s) is %s old at the %s slot (%s); the limit is %s. "
+                                "Cash availability is unknown; this does not show the account is short." % (
+                                    latest.record_id, fmt_sgt(latest.effective_at), _fmt_age(age), sname,
+                                    fmt_sgt(instr), BALANCE_LIMIT_TEXT), [latest], "stale", label))
+        return
+    snaps = [e for e in dated if e.effective_at == newest]
+    # The commitment list must be attested complete for this slot (same freshness rule as the balance).
+    lists = [e for e in view.kind("commitment_list") if e.status == "complete" and e.effective_at <= instr
+             and instr - e.effective_at <= MAX_SNAPSHOT_AGE and _live(e, instr)]
+    if not lists:
+        old = view.kind("commitment_list")
+        opt.checks.append(Check("cash", "Cash after floor and commitments", "unknown",
+                                "No attestation within %s that the list of competing commitments is complete, so "
+                                "cash after commitments is unknown." % BALANCE_LIMIT_TEXT, old,
+                                "stale" if old else "missing", "Complete commitment list for the %s slot" % sname))
+        return
+    clist = max(lists, key=lambda r: (r.effective_at, r.record_id))
     latest_time = max(s.effective_at for s in snaps)
     at_latest = [s for s in snaps if s.effective_at == latest_time]
     if len({s.amount for s in at_latest}) > 1:
@@ -858,6 +1010,8 @@ def _cash_check(view, opt, sname):
                                 _problem_text(f_problem, "cash floor policy", f_recs), f_recs, f_problem,
                                 "Cash floor policy"))
         return
+    reflected = [c for c in commitments if c.effective_at is not None and c.effective_at <= snap.effective_at]
+    commitments = [c for c in commitments if c not in reflected]
     receipts = [r for r in receivables if _settled_evidence(r) and snap.effective_at < r.effective_at <= instr]
     late = [r for r in receivables if _settled_evidence(r) and r.effective_at > instr]
     forecasts = [r for r in receivables if not _settled_evidence(r)]
@@ -874,11 +1028,14 @@ def _cash_check(view, opt, sname):
         notes.append("forecast %s not counted" % fmt_num(r.amount))
     for r in late:
         notes.append("%s settled %s is after this slot, not counted" % (fmt_num(r.amount), fmt_sgt(r.effective_at)))
+    for c in reflected:
+        notes.append("%s %s due %s is already reflected in the balance, not deducted again" % (
+            c.record_id, fmt_num(c.amount), fmt_sgt(c.effective_at)))
     if notes:
         explain += "; " + "; ".join(notes)
     opt.cash_explain = explain
     opt.late_receipts = late
-    recs = [snap] + receipts + f_recs + commitments + forecasts + late
+    recs = [snap, clist] + receipts + f_recs + commitments + reflected + forecasts + late
     sentences = []
     for r in forecasts:
         sentences.append("Forecast receipt SGD %s (%s) is not counted; only settled cash can fund an instruction." % (
@@ -1002,10 +1159,57 @@ def _cash_block(opt):
     return {"amount": fmt_money("SGD", opt.usable), "explain": opt.cash_explain}
 
 
-def _decision(state, headline, reason, binding, cash_opt, missing, actions, actionable):
+def _decision(state, headline, reason, binding, cash_opt, missing, actions, actionable, balance_check=None):
     return {"state": state, "headline": headline, "reason": reason, "binding_constraint": binding,
             "cash_after_commitments": _cash_block(cash_opt), "missing_evidence": missing,
-            "next_actions": actions, "actionable_on_friday": actionable}
+            "next_actions": actions, "actionable_on_friday": actionable, "balance_check": balance_check}
+
+
+def _balance_check_json(opt):
+    b = opt.balance
+    rec = b["record"]
+    return {"slot": SLOT_NAMES[opt.slot], "slot_sgt": fmt_sgt(opt.instr),
+            "problem": b["problem"],
+            "balance_id": rec.record_id if rec else None,
+            "balance_sgt": fmt_sgt(rec.effective_at) if rec else None,
+            "balance_known_sgt": fmt_sgt(rec.known_at) if rec else None,
+            "age_at_slot": _fmt_age(b["age"]) if b["age"] is not None else None,
+            "expired_sgt": fmt_sgt(rec.expires_at) if rec is not None and b.get("expired") else None,
+            "limit": BALANCE_LIMIT_TEXT}
+
+
+def _needs_balance(opt):
+    """True when the only thing standing between this slot and an answer is a stale or missing balance."""
+    return (opt.balance is not None and not opt.failed()
+            and all(c.key == "cash" for c in opt.unknown()))
+
+
+def _balance_decision(opt, actionable, extra_actions=()):
+    sname = SLOT_NAMES[opt.slot]
+    b = opt.balance
+    if b["problem"] == "missing":
+        headline = "We need a bank balance to assess %s%ss funding." % (sname, RSQUO)
+        reason = ("No settled bank balance dated before the %s slot (%s) is on file, so cash availability is "
+                  "unknown." % (sname, fmt_sgt(opt.instr)))
+    else:
+        headline = "We need a newer bank balance to assess %s%ss funding." % (sname, RSQUO)
+        rec = b["record"]
+        if b.get("expired"):
+            reason = ("The newest settled balance (%s, %s) expired %s, before the %s slot at %s. Cash availability "
+                      "is unknown; this does not show the account is short." % (
+                          rec.record_id, fmt_sgt(rec.effective_at), fmt_sgt(rec.expires_at), sname,
+                          fmt_sgt(opt.instr)))
+        else:
+            reason = ("The newest settled balance (%s) is from %s: %s old at the %s slot (%s). The limit is "
+                      "%s. Cash availability is unknown; this does not show the account is short." % (
+                          rec.record_id, fmt_sgt(rec.effective_at), _fmt_age(b["age"]), sname, fmt_sgt(opt.instr),
+                          BALANCE_LIMIT_TEXT))
+    actions = ["Ask your bank for a settled balance dated within 24 hours of the %s %s instruction, then re-run "
+               "this replay." % (sname, _fmt_clock(opt.instr)),
+               "Until then, do not treat %s as feasible or as short; its cash position is unknown." % sname]
+    return _decision("NEED_NEWER_BALANCE", headline, reason,
+                     "Bank balance freshness: %s." % BALANCE_LIMIT_TEXT, None, _missing_list(opt),
+                     list(extra_actions) + actions, actionable, _balance_check_json(opt))
 
 
 def _cash_short_actions(opt, sname):
@@ -1047,6 +1251,8 @@ def _decide_friday(fri, mon, common, as_of, actionable):
             fail.detail, fail.name, fri, _missing_list(fri),
             ["Confirm the Friday route with your bank or provider before %s." % _fmt_clock(fri.cutoff)
              if fri.cutoff else "Confirm the Friday route with your bank or provider."], actionable)
+    if fri.status != "feasible" and _needs_balance(fri):
+        return _balance_decision(fri, actionable)
     if fri.status != "feasible":
         missing = _missing_list(fri)
         return _decision(
@@ -1104,6 +1310,11 @@ def _decide_friday(fri, mon, common, as_of, actionable):
 NO_DOUBLE = "If the Friday instruction was kept, do not instruct the same payment again on Monday."
 
 
+def _add_no_double(decision):
+    decision["next_actions"].append(NO_DOUBLE)
+    return decision
+
+
 def _decide_monday(mon, common, actionable, fri_state):
     """The Monday checkpoint is a counterfactual: it assumes the SGD had been held after Friday."""
     reviewed = fri_state == "MANUAL_REVIEW"
@@ -1134,6 +1345,8 @@ def _decide_monday(mon, common, actionable, fri_state):
                          "Had the SGD been held, the Monday slot would have been lost. %s" % fail.detail,
                          "%s for the Monday slot." % fail.name, mon, _missing_list(mon),
                          prefix + ["Record why waiting would have lost the Monday slot.", NO_DOUBLE], actionable)
+    if mon.status != "feasible" and _needs_balance(mon):
+        return _add_no_double(_balance_decision(mon, actionable, prefix))
     if mon.status != "feasible":
         missing = _missing_list(mon)
         bad = mon.unknown()
@@ -1185,13 +1398,15 @@ def _withheld_reason(fri, mon):
     return "Comparison withheld. " + " ".join(parts)
 
 
-RATES_DIFFER = "Rates differ between slots; the difference would mix a market move with timing."
+RATES_DIFFER = ("FX rates or spreads differ between slots; the difference would mix a market move or a pricing "
+                "difference with timing.")
 RISK_NOTE = "A missed deadline can swamp either figure."
 
 
 def _comparison(fri, mon, rate, framing):
     """Like-for-like only: same net amount, deadline, FX rate and principal. Extra cost is fees only."""
-    if fri.pricing.rate != mon.pricing.rate or fri.principal != mon.principal:
+    if (fri.pricing.rate != mon.pricing.rate or fri.pricing.bp != mon.pricing.bp
+            or fri.principal != mon.principal):
         return _withheld("Comparison withheld. " + RATES_DIFFER)
     principal = fri.principal
     df, dm = fri.days, mon.days
@@ -1344,10 +1559,7 @@ def _evaluate(events, decision_time, funding_rate_pct, scenario):
         fri = _evaluate_option(view, common, "friday", False)
         mon = _evaluate_option(view, common, "monday", False)
         decision = _decide_friday(fri, mon, common, as_of, actionable)
-        if decision["state"] == "MANUAL_REVIEW" and _comparable(fri, mon, common):
-            framing = ("Conditional on verifying the forward terms; not a recommendation. The figures assume the "
-                       "Monday terms, reserved capacity and fallback hold, with the reservation cost subtracted.")
-            comparison = _comparison(fri, mon, rate, framing)
+        # No economic figure on Friday, even under manual review: the terms are unverified (as in the original).
     elif decision_time == "monday":
         fri = _evaluate_option(view, common, "friday", False)
         mon = _evaluate_option(view, common, "monday", False)

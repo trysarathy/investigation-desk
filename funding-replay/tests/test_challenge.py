@@ -93,7 +93,8 @@ class B2MondayIsCounterfactual(unittest.TestCase):
     def test_monday_language_is_conditional(self):
         for sid, s in SC.items():
             d = ev(s["events"], "monday")["decision"]
-            self.assertIn("would have been", d["headline"], sid)
+            if d["state"] != "NEED_NEWER_BALANCE":  # asks for evidence instead of judging Monday
+                self.assertIn("would have been", d["headline"], sid)
             fri_state = ev(s["events"], "friday")["decision"]["state"]
             text = " ".join(d["next_actions"])
             if fri_state == "MANUAL_REVIEW":
@@ -123,7 +124,7 @@ class B4DifferentRatesWithheld(unittest.TestCase):
         for rate in ("0", "8"):
             c = ev(load(text), "retro", rate)["comparison"]
             self.assertFalse(c["available"])
-            self.assertIn("Rates differ between slots; the difference would mix a market move with timing",
+            self.assertIn("FX rates or spreads differ between slots; the difference would mix a market move",
                           c["withheld_reason"])
 
     def test_no_saves_wording_anywhere(self):
@@ -306,8 +307,9 @@ class M4OldSnapshotIsStale(unittest.TestCase):
         r = ev(load(text), "friday")
         c = check(opt(r, "friday"), "Cash")
         self.assertEqual(c["state"], "unknown")
-        self.assertIn("stale", c["detail"])
-        self.assertEqual(r["decision"]["state"], "NO_DECISION")
+        self.assertIn("1038 h 00 min old", c["detail"])
+        self.assertIn("24 h before the funding slot (demo policy)", c["detail"])
+        self.assertEqual(r["decision"]["state"], "NEED_NEWER_BALANCE")
 
     def test_monday_snapshots_in_fixtures(self):
         ids = {e.record_id: e for e in SC["reference"]["events"]}
@@ -340,8 +342,7 @@ class MinorFixes(unittest.TestCase):
         for sid in ("reference", "preagreed"):
             self.assertEqual(ev(SC[sid]["events"], "retro")["comparison"]["risk_note"],
                              "A missed deadline can swamp either figure.")
-        self.assertEqual(ev(SC["preagreed"]["events"], "friday")["comparison"]["risk_note"],
-                         "A missed deadline can swamp either figure.")
+        self.assertIsNone(ev(SC["preagreed"]["events"], "friday")["comparison"])
 
 
 if __name__ == "__main__":
