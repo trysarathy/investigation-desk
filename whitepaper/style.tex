@@ -1,0 +1,55 @@
+% Clearline white paper style. Brand: Inter, ink #0a0c11, accent #6e7df0 (from /website).
+\usepackage{xcolor}
+\definecolor{ink}{HTML}{0A0C11}
+\definecolor{accent}{HTML}{6E7DF0}
+\definecolor{accentbg}{HTML}{F4F5FF}
+\definecolor{muted}{HTML}{5B6272}
+\definecolor{rule}{HTML}{C9CDD6}
+\definecolor{vgreen}{HTML}{2F7D5B}
+\definecolor{aamber}{HTML}{A8670F}
+\definecolor{gred}{HTML}{B23A30}
+\color{ink}
+\usepackage{titlesec}
+\usepackage{needspace}
+\titleformat{\section}{\fontsize{15}{19}\selectfont\bfseries\color{ink}}{}{0pt}{}[\vspace{2pt}{\color{accent}\titlerule[0.8pt]}]
+\titleformat{\subsection}{\fontsize{11.5}{15}\selectfont\bfseries\color{ink}}{}{0pt}{}
+\titlespacing*{\section}{0pt}{16pt}{8pt}
+\titlespacing*{\subsection}{0pt}{11pt}{4pt}
+\usepackage{xurl}
+\usepackage{float}
+\floatplacement{figure}{H}
+\usepackage{etoolbox}
+\AtBeginEnvironment{longtable}{\small\renewcommand{\arraystretch}{1.18}}
+\usepackage{caption}
+\captionsetup{font={small,color=muted},labelfont={bf,color=ink},skip=4pt}
+\setlength{\parskip}{4pt}
+\setlength{\parindent}{0pt}
+\linespread{1.08}
+\usepackage{footmisc}
+\renewcommand{\footnotelayout}{\raggedright\color{muted}}
+\usepackage{enumitem}
+\setlist{itemsep=1pt,topsep=3pt}
+\usepackage{tcolorbox}
+\newtcolorbox{statusbox}{colback=accentbg,colframe=accent,boxrule=0.6pt,arc=3pt,left=8pt,right=8pt,top=6pt,bottom=6pt,fontupper=\small}
+\newcommand{\vtag}[1]{\textsf{\scriptsize\bfseries\color{vgreen}[#1]}}
+\newcommand{\atag}[1]{\textsf{\scriptsize\bfseries\color{aamber}[#1]}}
+\newcommand{\gtag}[1]{\textsf{\scriptsize\bfseries\color{gred}[#1]}}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[L]{\scriptsize\color{muted}Clearline \textperiodcentered{} Working paper v0.2 \textperiodcentered{} 29 October 2026\CLvariant}
+\fancyfoot[R]{\scriptsize\color{muted}\thepage}
+\fancypagestyle{plain}{\fancyhf{}\fancyfoot[R]{\scriptsize\color{muted}\thepage}}
+\usepackage{fvextra}
+\fvset{breaklines=true,fontsize=\footnotesize}
+\makeatletter
+\renewcommand{\maketitle}{%
+  \thispagestyle{plain}%
+  {\color{accent}\rule{36pt}{3pt}}\par\vspace{10pt}%
+  {\fontsize{30}{34}\selectfont\bfseries\@title\par}\vspace{6pt}%
+  {\fontsize{15}{19}\selectfont\color{muted}\CLsubtitle\par}\vspace{12pt}%
+  {\small\@author\par\color{muted}\@date\par}\vspace{14pt}%
+}
+\makeatother
+\makeatletter\AtBeginDocument{\def\fps@figure{H}}\makeatother
