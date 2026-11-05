@@ -104,6 +104,11 @@ def _short(dt):
     return day.rsplit(" ", 1)[0] + " " + rest
 
 
+def _day(dt):
+    """'Fri 13 Nov'."""
+    return fmt_sgt(dt).split(",")[0].rsplit(" ", 1)[0]
+
+
 def _hours(td):
     h = Decimal(int(td.total_seconds())) / Decimal(3600)
     return format(h.quantize(Decimal("0.1")).normalize(), "f")
@@ -466,8 +471,13 @@ def _rules(d):
     out.append({"group": "Authorised to lend", "rule": "Company limit headroom covers the advance",
                 "ok": avail >= need, "detail": "Available %s of %s limit; advance needs %s." % (sgd(avail), sgd(fac["_limit"]), sgd(need))})
     ok, detail, _ = _balance_check(d)
-    out.append({"group": "Authorised to lend", "rule": "Importer bank balance no more than %d h old" % fx["balance_max_age_hours"],
-                "ok": ok, "detail": detail})
+    brule = {"group": "Authorised to lend", "rule": "Importer bank balance no more than %d h old" % fx["balance_max_age_hours"],
+             "ok": ok, "detail": detail}
+    bal = _latest_balance(d)
+    if ok is None and bal:
+        brule["short"] = "Importer balance is %s h old (limit %d h): need a newer one, not insufficient." % (
+            _hours(d.clock - bal["_eff"]), fx["balance_max_age_hours"])
+    out.append(brule)
     before = d.clock < fac["_expiry"]
     out.append({"group": "Authorised to lend", "rule": "Draw and payout instruction possible before %s" % _short(fac["_expiry"]),
                 "ok": before, "detail": ("Release %s precedes the supplier deadline %s." % (_short(_t(fx["release_checkpoint"])), _short(fx["_deadline"]))
@@ -478,8 +488,11 @@ def _rules(d):
     if others > 0:
         detail += " %s is already reserved for other payouts (%s)." % (
             sgd(others), ", ".join(o["id"] for o in d.fund["other_reservations"]))
+    short = "Deployable cash %s < %s needed" % (sgd(favail), sgd(need))
+    if others > 0:
+        short += "; %s reserved for another payout" % sgd(others)
     out.append({"group": "Cash available to pay", "rule": "Provider funding account has deployable cash for the advance",
-                "ok": favail >= need, "detail": detail})
+                "ok": favail >= need, "detail": detail, "short": short + "."})
     return out
 
 
@@ -511,17 +524,18 @@ def _option_a(d):
         dis.append("The Friday window cutoff %s has passed." % _short(w["_cutoff"]))
     ok, detail, bal = _balance_check(d)
     if ok is None:
-        unknown.append("Importer balance cannot be relied on: " + detail)
+        unknown.append("Importer balance %s is %s h old (limit %d h): unknown, need a newer one." % (
+            bal["id"], _hours(d.clock - bal["_eff"]), fx["balance_max_age_hours"]) if bal else detail)
     elif bal["_money"].amount < fx["_cost"].amount:
         dis.append("Importer balance %s is below the %s needed." % (bal["_money"].text(), fx["_cost"].text()))
     status = "infeasible" if dis else "unknown" if unknown else "feasible"
     ev = [w["evidence"], "QTE-NW-01"] + ([bal["id"]] if bal else [])
-    return {"key": "A", "title": "Importer funds the Friday window", "status": status,
-            "whose_money": "%s's own cash" % fx["importer"],
-            "committed_at": fmt_sgt(w["_at"]), "amount": fx["_cost"].text(),
-            "duration": "Cash tied up from %s until the supplier deadline %s." % (_short(w["_at"]), _short(fx["_deadline"])),
-            "modeled_cost": "Not modelled: the importer's cost of cash is not on record.",
-            "risk_bearer": "Importer (its cash leaves early; delivery risk as for any payout).",
+    return {"key": "A", "title": "Importer funds Friday", "status": status,
+            "whose_money": "Importer's own cash",
+            "committed_at": _short(w["_at"]), "amount": fx["_cost"].text(),
+            "duration": "%s → %s (cash tied up)" % (_day(w["_at"]), _day(fx["_deadline"])),
+            "modeled_cost": "Not modelled (cost of cash unknown)",
+            "risk_bearer": "Importer",
             "evidence": ev, "disqualifiers": dis + unknown}
 
 
@@ -534,28 +548,28 @@ def _option_b(d):
     supports = [e for e in _all_visible(d) if e["kind"] == "cash_support" and e["status"] == "documented"]
     if not supports:
         fc = [e for e in _visible_fixture(d) if e["kind"] == "forecast_receipt"]
-        txt = "No documented cash support for the %s slot." % _short(w["_at"])
+        txt = "No documented cash support for %s." % _day(w["_at"])
         if fc:
-            txt += " The %s receipt forecast for %s (%s) is a forecast and does not count." % (
-                fc[0]["_money"].text(), fmt_sgt(fc[0]["_eff"]).split(",")[0], fc[0]["id"])
+            txt = "No documented cash support for %s; the %s forecast (%s) does not count." % (
+                _day(w["_at"]), _day(fc[0]["_eff"]), fc[0]["id"])
         dis.append(txt)
     if d.clock >= w["_cutoff"]:
         dis.append("The later window cutoff %s has passed." % _short(w["_cutoff"]))
     ev = [fx["contract"]["evidence"], w["evidence"]] + [e["id"] for e in supports] + \
         [e["id"] for e in _visible_fixture(d) if e["kind"] == "forecast_receipt"]
-    return {"key": "B", "title": "Importer funds the later window (no advance)", "status": "infeasible" if dis else "feasible",
-            "whose_money": "%s's own cash, later" % fx["importer"],
-            "committed_at": fmt_sgt(w["_at"]), "amount": fx["_cost"].text(),
-            "duration": "Cash tied up from %s until the supplier deadline %s." % (_short(w["_at"]), _short(fx["_deadline"])),
-            "modeled_cost": "Not modelled: the importer's cost of cash is not on record.",
-            "risk_bearer": "Importer and supplier (a missed later window misses the deadline).",
+    return {"key": "B", "title": "Importer funds Monday (no advance)", "status": "infeasible" if dis else "feasible",
+            "whose_money": "Importer's own cash, later",
+            "committed_at": _short(w["_at"]), "amount": fx["_cost"].text(),
+            "duration": "%s → %s (cash tied up)" % (_day(w["_at"]), _day(fx["_deadline"])),
+            "modeled_cost": "Not modelled (cost of cash unknown)",
+            "risk_bearer": "Importer and supplier (deadline)",
             "evidence": ev, "disqualifiers": dis}
 
 
 def _option_c(d):
     fx, fac = d.fx, d.fac
-    base = {"key": "C", "title": "Provider advance (Simulated facility)", "whose_money": "Provider funding account (Simulated)",
-            "amount": fx["_cost"].text(), "risk_bearer": "Provider (credit risk on the importer until repaid and matched).",
+    base = {"key": "C", "title": "Provider advance (Simulated)", "whose_money": "Provider funding account (Simulated)",
+            "amount": fx["_cost"].text(), "risk_bearer": "Provider, until repaid and matched",
             "evidence": [], "disqualifiers": []}
     if not fac:
         base.update(status="unavailable", committed_at="—", duration="—", modeled_cost="—",
@@ -565,12 +579,12 @@ def _option_c(d):
     bal = _latest_balance(d)
     if bal:
         base["evidence"].append(bal["id"])
-    base.update(committed_at="At draw, no later than %s" % fmt_sgt(fac["_expiry"]),
-                amount="%s principal + %s fee" % (sgd(fx["_cost"].amount), sgd(fac["_fee"])),
-                duration="From draw until repaid; repayment due %s." % fmt_sgt(fac["_due"]),
-                modeled_cost="%s flat fee (Simulated)." % sgd(fac["_fee"]))
+    base.update(committed_at="At draw, by %s" % _short(fac["_expiry"]),
+                amount="%s + %s fee" % (sgd(fx["_cost"].amount), sgd(fac["_fee"])),
+                duration="Draw → due %s" % _short(fac["_due"]),
+                modeled_cost="%s flat fee (Simulated)" % sgd(fac["_fee"]))
     if d.draw:
-        base["committed_at"] = fmt_sgt(_t(d.draw["known_at"]))
+        base["committed_at"] = "Drawn " + _short(_t(d.draw["known_at"]))
     if d.auth in ("reserved", "consumed"):
         base["status"] = "selected"
         return base
@@ -586,7 +600,7 @@ def _option_c(d):
     rules = _rules(d)
     st = _rules_state(rules)
     base["status"] = {"ok": "feasible", "unknown": "unknown", "fail": "infeasible"}[st]
-    base["disqualifiers"] = [r["detail"] for r in rules if r["ok"] is not True]
+    base["disqualifiers"] = [r.get("short", r["detail"]) for r in rules if r["ok"] is not True]
     return base
 
 
@@ -705,7 +719,7 @@ def _action_specs(d):
     if fac and fac["status"] == "active":
         if d.auth == "none" and d.selected is None:
             ok = d.clock < fac["_expiry"]
-            add("request_advance", "Request advance of %s" % sgd(need), "Operator", ok,
+            add("request_advance", "Request advance", "Operator", ok,
                 "The draw cutoff %s has passed." % _short(fac["_expiry"]),
                 "Asks the reviewer (Simulated role) to approve %s on %s. Nothing is reserved yet." % (sgd(need), fac["id"]),
                 lambda: [_ev(d, "request", OPERATOR, id="REQ-NW-01")])
@@ -722,12 +736,13 @@ def _action_specs(d):
                     reason = "We need a newer bank balance before reviewing this advance. " + reason
                 elif _cash_rule_failed(rules):
                     reason = "Credit headroom exists but the provider cannot pay: " + reason + " Refer to provider treasury."
-            add("approve_reserve", "Approve and reserve %s" % sgd(need), "Reviewer", en, reason,
-                "Reserves %s of company limit and %s of provider funding cash, once. Expires unused at %s."
-                % (sgd(need), sgd(need), _short(fac["_expiry"])),
+            add("approve_reserve", "Reserve capacity", "Reviewer", en, reason,
+                "Approves the advance and reserves %s of company limit and %s of provider funding cash under %s "
+                "(Simulated), once. It does not draw cash or pay the supplier. Expires unused at %s."
+                % (sgd(need), sgd(need), fac["id"], _short(fac["_expiry"])),
                 lambda: [_ev(d, "reserve", SIM_REVIEWER, id="RES-NW-01", amount=str(need), rules=_rules_json(rules))])
         if d.auth == "requested" and rules and _rules_state(rules) == "unknown":
-            add("request_evidence", "Request newer bank balance", "Reviewer", True, None,
+            add("request_evidence", "Request evidence", "Reviewer", True, None,
                 "Asks the importer for a settled balance no more than %d h old. Nothing is reserved." % fx["balance_max_age_hours"],
                 lambda: [_ev(d, "evidence_request", SIM_REVIEWER, id="EVQ-NW-%02d" % (d.counts.get("evidence_request", 0) + 1))])
         if d.auth == "evidence_requested":
@@ -737,8 +752,8 @@ def _action_specs(d):
                 "Adds a settled balance of %s as of %s and moves the clock there." % (Money.parse(fb["amount"]).text(), _short(at)),
                 lambda: [_fresh_balance_event(d)])
         if d.auth in ("requested", "evidence_requested"):
-            add("decline", "Decline advance", "Reviewer", True, None,
-                "Ends the request. Nothing was reserved, so nothing needs releasing.",
+            add("decline", "Decline", "Reviewer", True, None,
+                "Declines the advance. Nothing was reserved; the importer must fund at the original window or the payout does not go ahead.",
                 lambda: [_ev(d, "decline", SIM_REVIEWER, id="DEC-NW-01")])
         if d.auth == "reserved":
             add("release", "Withdraw approval and release reservation", "Reviewer", True, None,
@@ -753,11 +768,11 @@ def _action_specs(d):
         # ---- Cash movement ----------------------------------------------
         if d.auth == "reserved":
             ok = d.clock < fac["_expiry"]
-            add("draw", "Draw advance %s" % sgd(need), "Operator", ok, "The reservation expired at %s." % _short(fac["_expiry"]),
+            add("draw", "Record simulated draw", "Operator", ok, "The reservation expired at %s." % _short(fac["_expiry"]),
                 "Moves %s from the reservation to outstanding principal and charges the %s fee." % (sgd(need), sgd(fac["_fee"])),
                 lambda: [_ev(d, "draw", OPERATOR, id="DRW-NW-01", amount=str(need), fee=str(fac["_fee"]))])
         elif d.auth == "consumed":
-            add("draw", "Draw advance %s" % sgd(need), "Operator", *(_dup("drawn (%s)" % d.draw["id"])), "No change.", None)
+            add("draw", "Record simulated draw", "Operator", *(_dup("drawn (%s)" % d.draw["id"])), "No change.", None)
     # ---- Option A ---------------------------------------------------------
     if d.selected is None and d.auth in ("none", "declined", "released"):
         a = _option_a(d)
@@ -771,33 +786,33 @@ def _action_specs(d):
         cutoff = fx["windows"]["friday"]["_cutoff"] if d.selected == "A" else fac["_expiry"]
         if d.delivery == "none":
             ok = d.clock < cutoff
-            add("instruct", "Instruct supplier payout %s" % fx["_net"].text(), "Operator", ok,
+            add("instruct", "Instruct payout", "Operator", ok,
                 "The payout cutoff %s has passed; a late instruction would miss the release." % _short(cutoff),
                 "Sends one payout instruction to the provider. It is not supplier credit.",
                 lambda: [_ev(d, "instruct", OPERATOR, id="PAY-NW-01",
                              funded_by="advance DRW-NW-01" if d.selected == "C" else "the importer's own cash (Option A)")])
         elif d.delivery == "returned":
-            add("instruct", "Instruct supplier payout %s" % fx["_net"].text(), "Operator", False,
+            add("instruct", "Instruct payout", "Operator", False,
                 "The payout was returned (%s). No second payment is sent automatically; a new instruction needs fresh review."
                 % d.ret["id"], "No change.", None)
         else:
-            add("instruct", "Instruct supplier payout %s" % fx["_net"].text(), "Operator",
+            add("instruct", "Instruct payout", "Operator",
                 *(_dup("instructed (%s)" % d.instruct["id"])), "No change.", None)
         if d.delivery == "instructed":
-            add("sim_accept", "Provider accepts the payout instruction", "Simulated event", True, None,
+            add("sim_accept", "Provider accepts payout", "Simulated event", True, None,
                 "Records provider acceptance at the current clock. Acceptance is not beneficiary credit.",
                 lambda: [_accept_event(d)])
         elif d.delivery in ("accepted", "credited", "returned"):
-            add("sim_accept", "Provider accepts the payout instruction", "Simulated event",
+            add("sim_accept", "Provider accepts payout", "Simulated event",
                 *(_dup("accepted by the provider (%s)" % d.accept["id"])), "No change.", None)
         cr, rt = fx["simulated_events"].get("credit"), fx["simulated_events"].get("return")
         if d.delivery == "accepted" and cr:
             known = max(d.clock, cr["_known"])
-            add("sim_credit", "Beneficiary credit reported (%s)" % _short(cr["_eff"]), "Simulated event", True, None,
+            add("sim_credit", "Record beneficiary credit", "Simulated event", True, None,
                 "Adds the delivery record that %s was credited %s; moves the clock to %s." % (fx["supplier"], fx["_net"].text(), _short(known)),
                 lambda: [_outcome_event(d)])
         elif d.delivery == "credited":
-            add("sim_credit", "Beneficiary credit reported", "Simulated event", *(_dup("beneficiary credit recorded (%s)" % d.credit["id"])),
+            add("sim_credit", "Record beneficiary credit", "Simulated event", *(_dup("beneficiary credit recorded (%s)" % d.credit["id"])),
                 "No change.", None)
         if d.delivery == "accepted" and rt:
             known = max(d.clock, rt["_known"])
@@ -807,7 +822,7 @@ def _action_specs(d):
         cf = fx["simulated_events"].get("conflict")
         if cf and d.delivery == "credited":
             # The supplier query arrives once nothing else is pending (end of the journey, before close).
-            if d.conflict is None and d.conflict_resolved is None and d.total_out == 0 and not d.unmatched:
+            if d.conflict is None and d.conflict_resolved is None and d.total_out == 0 and not d.unmatched and not d.incoming:
                 add("sim_conflict", "Supplier says the funds are not visible", "Simulated event", True, None,
                     "Adds conflicting evidence; the case goes to review and cannot close until resolved.",
                     lambda: [_ev(d, "conflict", "Supplier (Simulated)", id=cf["id"], text=cf["text"], source=cf["source"])])
@@ -818,7 +833,7 @@ def _action_specs(d):
                                  source="synthetic: beneficiary bank trace (Simulated)")])
     # ---- Customer receipt (importer's own account) and repayment ---------
     rc = fx["simulated_events"].get("customer_receipt")
-    if rc and d.auth == "consumed":
+    if rc and d.auth == "consumed" and d.clock >= rc["_known"]:  # never listed before it is known
         if d.receipts:
             add("sim_receipt", "Record customer receipt (importer's account)", "Simulated event",
                 *(_dup("customer receipt recorded (%s)" % rc["id"])), "No change.", None)
@@ -841,6 +856,8 @@ def _action_specs(d):
                 add(aid, label, "Simulated event", *(_dup("%s received" % money.text())), "No change.", None)
                 return
             g = gate or extra_gate
+            if g is None and d.incoming:
+                g = "Match the payment already received (%s) first." % d.incoming[0]["id"]
             if g is None and d.total_out == 0:
                 g = "Nothing is outstanding; a further payment would be excess."
             kw = {"source": source} if source else {}
@@ -857,7 +874,9 @@ def _action_specs(d):
         wc = fx["simulated_events"].get("wrong_currency")
         if wc:
             wm = Money.parse(wc["amount"])
-            pay("sim_pay_usd", "wrong", wm, "Importer pays provider %s" % wm.text(), source=wc["source"])
+            sgd_paid = any(r["money"].currency == "SGD" for r in d.repayments)
+            pay("sim_pay_usd", "wrong", wm, "Importer pays provider %s" % wm.text(), source=wc["source"],
+                extra_gate="Simulation: the wrong-currency payment arrives only before any SGD repayment." if sgd_paid else None)
         if d.incoming:
             add("match_repayment", "Match repayment", "Operator", True, None,
                 "Allocates %s: fees first, then principal. Other currencies and any excess stay unmatched and block close."
@@ -881,7 +900,7 @@ def _action_specs(d):
             lambda: [_ev(d, "close", OPERATOR, id="CLS-NW-01")])
     # ---- Clock ------------------------------------------------------------
     step = _next_step(d)
-    settled = d.delivery == "credited" and d.total_out == 0 and not d.open_unmatched
+    settled = d.delivery == "credited" and d.total_out == 0 and not d.open_unmatched and not d.incoming
     if step and not settled:  # nothing time-dependent remains once credited and settled: close instead
         add("advance_clock", step["label"], "Simulated event", True, None,
             "Moves the simulation clock to %s. Responses already due by then are recorded first; cutoffs and expiry "
@@ -896,6 +915,8 @@ def _close_blockers(d):
         b.append("supplier credit is not evidenced (delivery: %s)" % d.delivery)
     if d.principal_out != 0 or d.fees_out != 0:
         b.append("%s outstanding (principal %s, fees %s)" % (sgd(d.total_out), sgd(d.principal_out), sgd(d.fees_out)))
+    if d.incoming:
+        b.append("%d received payment(s) not yet matched" % len(d.incoming))
     if d.open_unmatched:
         b.append("%d unmatched item(s) held for review" % len(d.open_unmatched))
     if d.conflict:
@@ -1059,8 +1080,11 @@ def _facts(d):
                  "fees_outstanding": sgd(d.fees_out), "due_sgt": fmt_sgt(fac["_due"]) if fac else "—",
                  "owner": "%s (importer) repays; Operator matches" % fx["importer"] if d.draw else "—",
                  "allocation_rule": ALLOCATION_RULE,
-                 "matched": [{"id": r["id"], "amount": r["money"].text(), "at_sgt": fmt_sgt(r["_at"]),
-                              "fees": sgd(r["fees"]), "principal": sgd(r["principal"])}
+                 "unallocated": [{"id": i["id"], "amount": i["money"].text(), "received_sgt": fmt_sgt(i["_at"]),
+                                  "note": "Received by the provider; not allocated until matched."} for i in d.incoming],
+                 "matched": [{"id": r["id"], "amount": r["money"].text(), "received_sgt": fmt_sgt(r["received_at"]),
+                              "at_sgt": fmt_sgt(r["_at"]), "fees": sgd(r["fees"]), "principal": sgd(r["principal"]),
+                              "unmatched": r["money"].currency + " " + format(r["unmatched"], ",.2f")}
                              for r in d.repayments if r["fees"] + r["principal"] > 0],
                  "customer_receipts": [{"id": e["id"], "amount": e["_money"].text(), "at_sgt": fmt_sgt(e["_eff"]),
                                         "note": "Into the importer's own account — not a repayment."} for e in _receipts(d)],
@@ -1078,7 +1102,8 @@ def _exposure(d):
     else:
         last = d.repayments[-1]["_at"] if d.repayments else d.clock
         ends = "Ended %s: principal and fees repaid and matched." % fmt_sgt(last)
-    return {"amount": sgd(d.total_out), "principal": sgd(d.principal_out), "fees": sgd(d.fees_out), "currency": "SGD",
+    return {"status": "outstanding" if d.total_out > 0 else "ended",
+            "amount": sgd(d.total_out), "principal": sgd(d.principal_out), "fees": sgd(d.fees_out), "currency": "SGD",
             "owner": "Provider (Simulated facility %s) is owed by %s" % (d.fac["id"], d.fx["importer"]), "ends_when": ends}
 
 
@@ -1115,6 +1140,10 @@ def _decision(d, opts):
                    "; ".join(u["reason"] for u in d.open_unmatched),
                    "Return the unmatched item(s) to the payer%s." % (
                        "; the importer still owes " + sgd(d.total_out) if d.total_out > 0 else ""), SIM_REVIEWER)
+    if d.delivery == "credited" and d.incoming:
+        return dec("decide", "Repayment received — match it to the advance",
+                   "%s received and not yet allocated; %s." % (", ".join(i["money"].text() for i in d.incoming), owe),
+                   "Match the repayment: fees first, then principal.", OPERATOR)
     if d.delivery == "credited":
         if d.selected == "C" and d.total_out > 0:
             if d.clock >= fac["_due"]:
@@ -1181,8 +1210,17 @@ def _decision(d, opts):
     prefix = ""
     tone_none = "blocked"
     if d.auth == "declined":
-        prefix, tone_none = "Advance declined — ", "declined"
-    elif d.auth == "released":
+        w = fx["windows"]["friday"]
+        a_ok = by["A"]["status"] == "feasible"
+        binding = ("Nothing was reserved or drawn. The importer must fund at the original window (%s, cutoff %s) "
+                   "or the payout does not go ahead." % (_short(w["_at"]), _short(w["_cutoff"]).split(" ", 3)[3]))
+        if not a_ok:
+            binding += " " + (by["A"]["disqualifiers"][0] if by["A"]["disqualifiers"] else "")
+        nxt = ("Record Option A if the importer funds by %s; otherwise tell the importer and supplier the payout will not "
+               "go ahead." % _short(w["_cutoff"]) if a_ok else
+               "Tell the importer and supplier the payout will not go ahead through this desk.")
+        return dec("declined", "Advance declined — nothing reserved", binding.strip(), nxt, OPERATOR)
+    if d.auth == "released":
         prefix, tone_none = "Reservation released — ", "declined"
     if not feasible:
         if any(o["status"] == "unknown" for o in opts):
@@ -1197,10 +1235,17 @@ def _decision(d, opts):
         return dec(tone_none, prefix + "Option %s remains" % keys, c["disqualifiers"][0] if c["disqualifiers"] else "—",
                    "Record Option %s or let the case lapse." % feasible[0]["key"], OPERATOR)
     if c["status"] == "feasible":
-        return dec("decide", "Supplier can be paid on time with a provider advance",
-                   "Advance must be drawn and the payout instructed before %s." % _short(fac["_expiry"]),
-                   "Request the advance of %s (or record Option A if the importer prefers to fund Friday)." % sgd(fx["_cost"].amount),
-                   OPERATOR)
+        def route(o, ok_text):
+            return "%s: %s" % (o["key"], ok_text if o["status"] == "feasible" else
+                               (o["disqualifiers"][0] if o["disqualifiers"] else o["status"]))
+        a, b = by["A"], by["B"]
+        binding = " ".join([
+            route(a, "the importer's cash leaves at %s." % a["committed_at"]),
+            route(b, "the importer funds %s." % b["committed_at"]),
+            route(c, "needs the reviewer to reserve capacity; draw and instruct by %s." % _short(fac["_expiry"]))])
+        return dec("decide", "Decision needed: how does %s get paid by %s?" % (
+            fx["supplier"].replace(" LLC", ""), _day(fx["_deadline"])), binding,
+            "Compare the three routes; the reviewer decides whether to reserve capacity.", OPERATOR)
     if c["status"] == "unknown":
         return dec("unknown", "We need a newer bank balance before reviewing this advance", c["disqualifiers"][0],
                    "Request the advance; the reviewer will ask the importer for a newer bank balance.", OPERATOR)
@@ -1306,11 +1351,18 @@ def _invariants(d, evidence, timeline):
     inv("every repayment allocated: fees + principal + unmatched = amount (SGD only matched)", alloc_ok,
         "%d repayment(s); rule: fees first, then principal; excess and other currencies unmatched." % len(d.repayments))
     sgd_in = sum((r["money"].amount for r in d.repayments if r["money"].currency == "SGD"), ZERO)
+    sgd_unalloc = sum((i["money"].amount for i in d.incoming if i["money"].currency == "SGD"), ZERO)
     sgd_unm = sum((u["money"].amount for u in d.unmatched if u["money"].currency == "SGD"), ZERO)
-    inv("SGD received = fees repaid + principal repaid + SGD unmatched", sgd_in == d.fees_repaid + d.principal_repaid + sgd_unm,
-        "%s = %s + %s + %s" % (sgd(sgd_in), sgd(d.fees_repaid), sgd(d.principal_repaid), sgd(sgd_unm)))
+    inv("SGD received = fees repaid + principal repaid + SGD unmatched + SGD not yet matched",
+        sgd_in + sgd_unalloc == d.fees_repaid + d.principal_repaid + sgd_unm + sgd_unalloc,
+        "%s = %s + %s + %s + %s" % (sgd(sgd_in + sgd_unalloc), sgd(d.fees_repaid), sgd(d.principal_repaid), sgd(sgd_unm),
+                                    sgd(sgd_unalloc)))
+    inv("a customer receipt never reduces what is owed",
+        d.principal_repaid + d.fees_repaid == sum((r["fees"] + r["principal"] for r in d.repayments), ZERO),
+        "%d customer receipt(s); only matched repayments reduce principal or fees" % len(d.receipts))
     once = all(d.counts.get(k, 0) <= 1 for k in ("request", "reserve", "draw", "instruct", "accept", "credit", "return", "close",
-                                                   "decline", "release", "expire", "select_a"))
+                                                   "decline", "release", "expire", "select_a", "receipt",
+                                                   "incoming_partial", "incoming_balance", "incoming_wrong"))
     inv("each lifecycle step recorded at most once (no double reservation, draw, payout or credit)", once,
         ", ".join("%s×%d" % (k, v) for k, v in sorted(d.counts.items()) if not k.startswith("repayment_")) or "no events")
     order = {"none": 0, "instructed": 1, "accepted": 2, "credited": 3, "returned": 3}[d.delivery]

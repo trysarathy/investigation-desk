@@ -59,26 +59,58 @@ Accounting identities (checked after every event, shown in the view):
 { "label":"Simulated — no funds move.", "case":{"id","name","description"}, "state_id",
   "clock":{"sgt","ny","label"},                       // simulation clock
   "header":{"importer","supplier","amount":"USD 100,000.00 net","deadline_sgt","deadline_ny"},
-  "decision":{"tone":"decide|blocked|unknown|review|delivered_exposure|closed|declined|failed",
-              "headline","binding_constraint","next_action","owner"},
-  "options":[{"key":"A|B|C","title","status":"feasible|infeasible|unknown|unavailable|selected|not_selected",
-              "whose_money","committed_at","amount","duration","modeled_cost","risk_bearer",
-              "evidence":[ids],"disqualifiers":[...]}],
+  "decision":{"tone","headline","binding_constraint","next_action","owner"},
+  "options":[{"key":"A|B|C","title","status","whose_money","committed_at","amount","duration","modeled_cost",
+              "risk_bearer","evidence":[ids],"disqualifiers":[...]}],   // short texts (≤ 48 chars per field)
   "options_note":"why costs are/aren't ranked",
-  "facility":null|{"id","name","policy_version","denomination","company_limit","company_available",
-                   "reserved","principal_outstanding","funding_available_cash","funding_reserved",
-                   "fee","repayment_due_sgt","reservation_expiry_sgt","route_deadline_sgt","rules":[{"rule","ok"|null,"detail"}]},
+  "facility":null|{"id","name","label","status":"active|suspended","policy_version","denomination",
+                   "company_limit","company_available","reserved","committed_capacity","principal_outstanding",
+                   "funding_account","funding_start","funding_available_cash","funding_reserved",
+                   "funding_reserved_this_payout","funding_reserved_other_payouts",
+                   "fee","fees_outstanding","fees_collected",
+                   "repayment_due_sgt","reservation_expiry_sgt","route_deadline_sgt",
+                   "rules":[{"group":"Authorised to lend|Cash available to pay","rule","ok":true|false|null,"detail"}]},
   "facts":{"authorization":{"status","label","detail"},"cash":{"status","label","detail"},
            "delivery":{"status","label","detail","last_evidenced"},
-           "repayment":{"status","label","principal_outstanding","fees_outstanding","due_sgt","owner",
-                        "matched":[...],"customer_receipts":[...],"unmatched":[...]}},
-  "exposure":{"amount","principal","fees","currency":"SGD","owner","ends_when"} | null,
+           "repayment":{"status","label","principal_outstanding","fees_outstanding","due_sgt","owner","allocation_rule",
+                        "unallocated":[{"id","amount","received_sgt","note"}],
+                        "matched":[{"id","amount","received_sgt","at_sgt","fees","principal","unmatched"}],
+                        "customer_receipts":[{"id","amount","at_sgt","note"}],
+                        "unmatched":[{"id","amount","reason","status":"open|returned to payer"}]}},
+  "exposure":null|{"status":"outstanding|ended","amount","principal","fees","currency":"SGD","owner","ends_when"},
   "evidence":[{"id","kind","fact","source","effective_sgt","known_sgt","status"}],   // known_at <= clock only
   "timeline":[{"at_sgt","known_sgt","actor","text"}],                               // known_at <= clock only
   "actions":[{"id","label","role":"Operator|Reviewer|Simulated event|Importer","enabled","disabled_reason",
-              "consequence","next"}],
+              "consequence","next"}],   // disabled: next = this state_id (applying it is a no-op)
   "invariants":[{"name","ok","detail"}], "warnings":[...] }
 ```
+`exposure` is null until a draw. All money fields are display strings.
+
+### Status and tone values (the UI may rely on exactly these)
+- `decision.tone`: `decide` (a person must act), `blocked`, `unknown` (evidence missing/stale or waiting on a
+  response), `review` (conflict, unmatched cash, missed cutoff/deadline, overdue), `delivered_exposure` (supplier
+  credited, importer still owes), `closed`, `declined` (advance declined, or reservation released/expired unused:
+  nothing reserved; the importer funds at the original window or not at all), `failed` (payout returned).
+- `options[].status`: `feasible`, `infeasible`, `unknown`, `unavailable`, `selected`, `not_selected`.
+- `facts.authorization.status`: `none`, `requested`, `evidence_requested`, `reserved`, `declined`, `released`, `consumed`.
+- `facts.cash.status`: `none`, `drawn`.
+- `facts.delivery.status`: `none`, `instructed`, `accepted`, `credited`, `returned`.
+- `facts.repayment.status`: `not_started` (nothing drawn), `not_applicable` (Option A, no advance), `outstanding`,
+  `partially_repaid`, `repaid`.
+- `exposure.status`: `outstanding`, `ended`.
+
+### Action ids (labels in brackets)
+`request_advance` [Request advance] · `approve_reserve` [Reserve capacity — approves and reserves limit + funding
+under FAC-NW-01; does not draw cash or pay the supplier] · `request_evidence` [Request evidence] ·
+`sim_fresh_balance` · `decline` [Decline] · `release` · `select_a` · `draw` [Record simulated draw] ·
+`instruct` [Instruct payout] · `sim_accept` [Provider accepts payout] · `sim_credit` [Record beneficiary credit] ·
+`sim_return` · `sim_conflict` · `resolve_conflict` · `sim_receipt` [Record customer receipt (importer's account);
+listed only once the clock is at or after its known time] · `sim_pay_partial` [Importer pays provider SGD
+100,000.00] · `sim_pay_balance` [Importer pays provider SGD 35,532.50 (balance)] · `sim_pay_usd` [Importer pays
+provider USD 100.00] · `match_repayment` [Match repayment] · `return_unmatched` [Return unmatched amount] ·
+`close` · `advance_clock` [Advance to …]. Incoming payments are unallocated until `match_repayment` applies them
+(fees first, then principal); USD and excess stay unmatched and block close.
+
 Money strings like "SGD 135,382.50" / "USD 100,000.00"; times "Fri 13 Nov 2026, 15:00 SGT" and NY with EST.
 
 ## Cases (fixtures `fixtures/lifecycle/*.json`)

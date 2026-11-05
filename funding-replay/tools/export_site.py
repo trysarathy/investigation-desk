@@ -17,7 +17,7 @@ root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(root))
 from engine import lifecycle  # noqa: E402
 
-STATE_CAP = 400  # per case; the walk raises above this
+STATE_CAP = lifecycle.STATE_CAP  # per case; the walk raises above this
 
 
 def _js(view):

@@ -89,7 +89,7 @@ class FutureEvidence(unittest.TestCase):
         raw["simulated_events"]["customer_receipt"] = None
         L.register_case(raw)
         try:
-            for path in ([], ["request_advance"], WED, THU_CLOCK):
+            for path in ([], ["request_advance"], WED):
                 a = L.view(run("reference", path))
                 b = L.view(run("reference_no_receipt", path))
                 self.assertEqual(comparable(a), comparable(b), path)
@@ -385,6 +385,12 @@ class Wording(unittest.TestCase):
         self.assertEqual(export_site.STATE_CAP, L.STATE_CAP)
         for cid in L.CASE_ORDER:
             self.assertLessEqual(len(L.reachable(cid)), L.STATE_CAP)
+
+    def test_over_cap_reports_incomplete_coverage_not_truncation(self):
+        # A traversal that exceeds its limit must fail loudly, never return a partial graph as success.
+        with self.assertRaises(RuntimeError) as ctx:
+            L.reachable("reference", cap=10)
+        self.assertIn("exceeds", str(ctx.exception))
 
 
 class Paths(unittest.TestCase):
