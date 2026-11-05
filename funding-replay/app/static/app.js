@@ -196,7 +196,7 @@
 
   function renderDatasetLabel() {
     var cur = state.meta && state.meta.current_dataset;
-    $('dataset-label').textContent = cur ? ('Current dataset: ' + cur) : '';
+    if ($('dataset-label')) $('dataset-label').textContent = cur ? ('Current dataset: ' + cur) : '';
   }
 
   // ---------- clearing (no stale data, ever) ----------
