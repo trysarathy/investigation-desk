@@ -153,7 +153,7 @@ class Handler(BaseHTTPRequestHandler):
                         break
                     left -= len(chunk)
             what = "Evidence uploads are limited to 5 MB per file" if limit == EVIDENCE_LIMIT else \
-                "Requests are limited to 1 MB of JSON"
+                ("Requests are limited to 1 MB of JSON" if limit == JSON_LIMIT else "Requests are limited to %d bytes" % limit)
             raise CommandError(413, "payload_too_large", "%s; this request is %.1f MB." % (what, n / 1048576.0))
         return self.rfile.read(n) if n else b""
 
@@ -251,6 +251,13 @@ class Handler(BaseHTTPRequestHandler):
             u = self._user()
             org = db.one(conn, "SELECT id, name FROM orgs WHERE id=?", (u["org_id"],))
             return self._json(200, self._me(u, org, u["csrf"]))
+        if path == "/api/trade/bank/sandbox/observations" and method == "POST":
+            from .trade_bank import ingest
+            raw = self._read_body(32768)
+            status, reply = ingest(conn, raw, self.headers)
+            return self._json(status, reply)
+        if path.startswith("/api/trade/"):
+            return self._trade_api(method, path)
         if path == "/api/queue" and method == "GET":
             return self._json(200, commands.queue(conn, self._user()))
         if path == "/api/facilities" and method == "GET":
@@ -312,6 +319,61 @@ class Handler(BaseHTTPRequestHandler):
         if method not in ("GET", "POST"):
             raise CommandError(405, "method_not_allowed", "Method not allowed.")
         raise CommandError(404, "not_found", "No such API endpoint.")
+
+    def _trade_api(self, method, path):
+        # Authenticate before revealing whether a particular instrument exists.
+        user = self._user() if method == "GET" else self._mutating_user()
+        if method not in ("GET", "POST"):
+            raise CommandError(405, "method_not_allowed", "Method not allowed.")
+        inbox = re.fullmatch(r"/api/trade/instruments/([A-Za-z0-9_-]{1,80})/bank-observations", path)
+        if inbox and method == "GET":
+            from .trade_bank import observations
+            return self._json(200, {"observations": observations(self.conn,user,inbox.group(1))})
+        if path == "/api/trade/calendar/preview" and method == "POST":
+            from .trade_calendar import preview_calendar
+            try:
+                result = preview_calendar(self._trade_body())
+            except ValueError as err:
+                raise CommandError(422, "invalid_calendar", str(err))
+            return self._json(200, result)
+        if path == "/api/trade/messages/preview" and method == "POST":
+            from .trade_messages import parse_message
+            data = self._trade_body()
+            try:
+                preview = parse_message(data.get("kind"), data.get("raw"))
+            except ValueError as err:
+                raise CommandError(422, "invalid_message", str(err))
+            return self._json(200, preview)
+        match = re.fullmatch(r"/api/trade/(instruments|records)(?:/([A-Za-z0-9_-]{1,80})(/commands)?)?", path)
+        if not match:
+            raise CommandError(404, "not_found", "No such trade endpoint.")
+        group, rid, commands_path = match.groups()
+        if group == "records":
+            from . import trade_records as svc
+            listing = svc.list_records
+        else:
+            from . import trade as svc
+            listing = svc.list_instruments
+        if method == "GET" and not commands_path:
+            return self._json(200, svc.detail(self.conn, user, rid) if rid else {group: listing(self.conn, user)})
+        if method == "POST" and (commands_path or not rid):
+            data = self._trade_body()
+            key = data.pop("idempotency_key", None)
+            if not isinstance(key, str) or not key.strip() or len(key) > 128:
+                raise CommandError(422, "invalid_key", "A nonempty idempotency_key (maximum 128 characters) is required.")
+            if not rid:
+                return self._json(201, svc.create(self.conn, user, data, key))
+            action, payload, version = data.get("action"), data.get("payload", {}), data.get("version")
+            if not isinstance(action,str) or not isinstance(payload,dict) or type(version) is not int:
+                raise CommandError(422, "invalid_command", "Send action, object payload and integer version.")
+            return self._json(200, svc.command(self.conn, user, rid, action, payload, key, version))
+        raise CommandError(405, "method_not_allowed", "Method not allowed.")
+
+    def _trade_body(self):
+        data = self._json_body(131072)
+        if not isinstance(data, dict):
+            raise CommandError(422, "invalid_body", "Send a JSON object.")
+        return data
 
     def _me(self, user, org, csrf):
         return {"user": {"id": user["id"], "name": user["name"], "email": user["email"], "role": user["role"]},

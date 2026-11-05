@@ -71,3 +71,6 @@ python3 -m pilot.cli restore /backups/pilot-2026-12-07.db       # refuses corrup
 python3 -m pilot.cli migrate && python3 -m pilot.cli check
 ```
 Operator recovery for interrupted imports, uncertain payouts and failed reconciliation: `RECOVERY.md`.
+
+## Documentary operations sandbox
+The related [trade workspace, architecture and limits](../trade/SPRINT.md) documents the LC, collection, eBL evidence, calendar and read-only message profiles. This is part of the private pilot, not the public demo.
