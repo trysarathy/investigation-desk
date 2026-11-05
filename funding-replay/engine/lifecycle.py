@@ -61,7 +61,11 @@ class Money:
 
     @classmethod
     def parse(cls, obj):
-        return cls(obj["currency"], Decimal(obj["amount"]))
+        amt = obj["amount"]
+        if not isinstance(amt, str):
+            raise TypeError("Money amounts in fixtures must be decimal strings such as \"150.00\", not %s %r"
+                            % (type(amt).__name__, amt))
+        return cls(obj["currency"], Decimal(amt))
 
     def _same(self, other):
         if self.currency != other.currency:
@@ -109,9 +113,13 @@ def _day(dt):
     return fmt_sgt(dt).split(",")[0].rsplit(" ", 1)[0]
 
 
-def _hours(td):
-    h = Decimal(int(td.total_seconds())) / Decimal(3600)
-    return format(h.quantize(Decimal("0.1")).normalize(), "f")
+def _age(td):
+    """Exact age to the minute: '30 h', '24 h 1 min', '45 min'. Never rounds a stale age down to the limit."""
+    mins = int(td.total_seconds()) // 60
+    h, m = divmod(mins, 60)
+    if h and m:
+        return "%d h %d min" % (h, m)
+    return "%d h" % h if h else "%d min" % m
 
 
 # --------------------------------------------------------------------------
@@ -151,7 +159,10 @@ def register_case(raw):
     if fund:
         fund["_start"] = Money.parse(fund["start"]).amount
         fund["_others"] = Decimal("0")
+        ev_ids = {e["id"] for e in fx["evidence"]}
         for o in fund["other_reservations"]:
+            if o["id"] not in ev_ids:
+                raise ValueError("Other reservation %s needs an evidence record (known_at) with the same id" % o["id"])
             m = Money.parse(o["amount"])
             if m.currency != "SGD":
                 raise ValueError("Funding reservations must be SGD")
@@ -440,20 +451,45 @@ def _balance_check(d):
         return None, "No importer bank balance on record.", None
     age = d.clock - bal["_eff"]
     if age <= timedelta(hours=limit):
-        return True, "%s balance %s is %s h old (limit %d h)." % (bal["id"], bal["_money"].text(), _hours(age), limit), bal
-    return None, ("%s balance is %s h old (limit %d h). This is unknown, not insufficient: a newer balance is needed."
-                  % (bal["id"], _hours(age), limit)), bal
+        return True, "%s balance %s is %s old (limit %d h)." % (bal["id"], bal["_money"].text(), _age(age), limit), bal
+    return None, ("%s balance is %s old (limit %d h). This is unknown, not insufficient: a newer balance is needed."
+                  % (bal["id"], _age(age), limit)), bal
 
 
 # --------------------------------------------------------------------------
 # Facility arithmetic and rules
 # --------------------------------------------------------------------------
+def _fac_status(d):
+    """Facility status as evidenced at the clock: 'active', 'suspended' or 'not_on_record'."""
+    recs = [e for e in _visible_fixture(d) if e["kind"] == "facility"]
+    if not recs:
+        return "not_on_record"
+    latest = max(recs, key=lambda e: (e["_eff"], e["_known"]))
+    if latest["status"] == "suspended" or d.fac["status"] != "active":
+        return "suspended"
+    return "active"
+
+
+def _fund_known(d):
+    return any(e["id"] == d.fund["evidence"] for e in _visible_fixture(d))
+
+
+def _other_res(d):
+    """Other payouts' reservations on the funding account, counted only once their record is known."""
+    vis = {e["id"] for e in _visible_fixture(d)}
+    return [o for o in d.fund["other_reservations"] if o["id"] in vis] if d.fund else []
+
+
+def _others_sum(d):
+    return sum((Money.parse(o["amount"]).amount for o in _other_res(d)), ZERO)
+
+
 def _company_available(d):
     return d.fac["_limit"] - d.res_limit - d.principal_out
 
 
 def _funding_reserved(d):
-    return (d.fund["_others"] if d.fund else ZERO) + d.res_cash
+    return _others_sum(d) + d.res_cash
 
 
 def _funding_available(d):
@@ -464,9 +500,11 @@ def _rules(d):
     """Deterministic eligibility for Option C at the clock: list of {rule, ok, detail, group}."""
     fx, fac, need = d.fx, d.fac, d.fx["_cost"].amount
     out = []
-    active = fac["status"] == "active"
+    fst = _fac_status(d)
     out.append({"group": "Authorised to lend", "rule": "Facility active (Simulated %s, %s)" % (fac["id"], fac["policy_version"]),
-                "ok": active, "detail": "Active." if active else "Facility is %s for new advances." % fac["status"]})
+                "ok": True if fst == "active" else (None if fst == "not_on_record" else False),
+                "detail": {"active": "Active.", "not_on_record": "No facility terms on record at this clock."}.get(
+                    fst, "Facility is %s for new advances." % fst)})
     avail = _company_available(d)
     out.append({"group": "Authorised to lend", "rule": "Company limit headroom covers the advance",
                 "ok": avail >= need, "detail": "Available %s of %s limit; advance needs %s." % (sgd(avail), sgd(fac["_limit"]), sgd(need))})
@@ -475,24 +513,29 @@ def _rules(d):
              "ok": ok, "detail": detail}
     bal = _latest_balance(d)
     if ok is None and bal:
-        brule["short"] = "Importer balance is %s h old (limit %d h): need a newer one, not insufficient." % (
-            _hours(d.clock - bal["_eff"]), fx["balance_max_age_hours"])
+        brule["short"] = "Importer balance is %s old (limit %d h): need a newer one, not insufficient." % (
+            _age(d.clock - bal["_eff"]), fx["balance_max_age_hours"])
     out.append(brule)
     before = d.clock < fac["_expiry"]
     out.append({"group": "Authorised to lend", "rule": "Draw and payout instruction possible before %s" % _short(fac["_expiry"]),
                 "ok": before, "detail": ("Release %s precedes the supplier deadline %s." % (_short(_t(fx["release_checkpoint"])), _short(fx["_deadline"]))
                                          if before else "The draw cutoff %s has passed." % _short(fac["_expiry"]))})
     favail = _funding_available(d)
-    others = d.fund["_others"]
+    others = _others_sum(d)
     detail = "Deployable %s of %s; advance needs %s." % (sgd(favail), sgd(d.fund["_start"]), sgd(need))
     if others > 0:
         detail += " %s is already reserved for other payouts (%s)." % (
-            sgd(others), ", ".join(o["id"] for o in d.fund["other_reservations"]))
+            sgd(others), ", ".join(o["id"] for o in _other_res(d)))
     short = "Deployable cash %s < %s needed" % (sgd(favail), sgd(need))
     if others > 0:
         short += "; %s reserved for another payout" % sgd(others)
-    out.append({"group": "Cash available to pay", "rule": "Provider funding account has deployable cash for the advance",
-                "ok": favail >= need, "detail": detail, "short": short + "."})
+    if not _fund_known(d):
+        out.append({"group": "Cash available to pay", "rule": "Provider funding account has deployable cash for the advance",
+                    "ok": None, "detail": "No provider funding account balance on record at this clock.",
+                    "short": "Funding account balance not on record."})
+    else:
+        out.append({"group": "Cash available to pay", "rule": "Provider funding account has deployable cash for the advance",
+                    "ok": favail >= need, "detail": detail, "short": short + "."})
     return out
 
 
@@ -524,8 +567,11 @@ def _option_a(d):
         dis.append("The Friday window cutoff %s has passed." % _short(w["_cutoff"]))
     ok, detail, bal = _balance_check(d)
     if ok is None:
-        unknown.append("Importer balance %s is %s h old (limit %d h): unknown, need a newer one." % (
-            bal["id"], _hours(d.clock - bal["_eff"]), fx["balance_max_age_hours"]) if bal else detail)
+        unknown.append("Importer balance %s is %s old (limit %d h): unknown, need a newer one." % (
+            bal["id"], _age(d.clock - bal["_eff"]), fx["balance_max_age_hours"]) if bal else detail)
+    elif bal["_money"].currency != fx["_cost"].currency:
+        unknown.append("Importer balance %s is in %s; it cannot be counted against an %s need." % (
+            bal["id"], bal["_money"].currency, fx["_cost"].currency))
     elif bal["_money"].amount < fx["_cost"].amount:
         dis.append("Importer balance %s is below the %s needed." % (bal["_money"].text(), fx["_cost"].text()))
     status = "infeasible" if dis else "unknown" if unknown else "feasible"
@@ -545,8 +591,24 @@ def _option_b(d):
     dis = []
     if not fx["contract"]["later_funding_permitted"]:
         dis.append("Contract %s fixes prefunding at the Friday window; later funding is not permitted." % fx["contract"]["evidence"])
-    supports = [e for e in _all_visible(d) if e["kind"] == "cash_support" and e["status"] == "documented"]
-    if not supports:
+    need = fx["_cost"]
+    docs = [e for e in _all_visible(d) if e["kind"] == "cash_support" and e["status"] == "documented"]
+    supports, problems = [], []
+    for e in docs:
+        m = e.get("_money")
+        if m is None:
+            problems.append("Cash support %s states no amount." % e["id"])
+        elif m.currency != need.currency:
+            problems.append("Cash support %s is in %s; it cannot be counted against an %s need." % (e["id"], m.currency, need.currency))
+        elif m.amount < need.amount:
+            problems.append("Cash support %s covers %s of the %s needed." % (e["id"], m.text(), need.text()))
+        elif e["_eff"] > w["_at"]:
+            problems.append("Cash support %s is effective only from %s, after the %s window." % (e["id"], _short(e["_eff"]), _day(w["_at"])))
+        else:
+            supports.append(e)
+    if not supports and problems:
+        dis.extend(problems)
+    elif not supports:
         fc = [e for e in _visible_fixture(d) if e["kind"] == "forecast_receipt"]
         txt = "No documented cash support for %s." % _day(w["_at"])
         if fc:
@@ -555,7 +617,7 @@ def _option_b(d):
         dis.append(txt)
     if d.clock >= w["_cutoff"]:
         dis.append("The later window cutoff %s has passed." % _short(w["_cutoff"]))
-    ev = [fx["contract"]["evidence"], w["evidence"]] + [e["id"] for e in supports] + \
+    ev = [fx["contract"]["evidence"], w["evidence"]] + [e["id"] for e in docs] + \
         [e["id"] for e in _visible_fixture(d) if e["kind"] == "forecast_receipt"]
     return {"key": "B", "title": "Importer funds Monday (no advance)", "status": "infeasible" if dis else "feasible",
             "whose_money": "Importer's own cash, later",
@@ -575,7 +637,8 @@ def _option_c(d):
         base.update(status="unavailable", committed_at="—", duration="—", modeled_cost="—",
                     disqualifiers=["No advance facility exists for this importer (Simulated)."])
         return base
-    base["evidence"] = list(fac["evidence"]) + [d.fund["evidence"]] + [o["id"] for o in d.fund["other_reservations"]]
+    vis = {e["id"] for e in _all_visible(d)}
+    base["evidence"] = [i for i in list(fac["evidence"]) + [d.fund["evidence"]] if i in vis] + [o["id"] for o in _other_res(d)]
     bal = _latest_balance(d)
     if bal:
         base["evidence"].append(bal["id"])
@@ -588,8 +651,12 @@ def _option_c(d):
     if d.auth in ("reserved", "consumed"):
         base["status"] = "selected"
         return base
-    if fac["status"] != "active":
-        base.update(status="unavailable", disqualifiers=["Facility %s is %s for new advances (Simulated)." % (fac["id"], fac["status"])])
+    fst = _fac_status(d)
+    if fst == "suspended":
+        base.update(status="unavailable", disqualifiers=["Facility %s is suspended for new advances (Simulated)." % fac["id"]])
+        return base
+    if fst == "not_on_record":
+        base.update(status="unknown", disqualifiers=["No facility terms on record at this clock."])
         return base
     if d.auth == "declined":
         base.update(status="infeasible", disqualifiers=["Declined by the reviewer at %s." % fmt_sgt(_t(d.decline["known_at"]))])
@@ -716,7 +783,7 @@ def _action_specs(d):
 
     rules = _rules(d) if fac else None
     # ---- Authorisation / reservation -------------------------------------
-    if fac and fac["status"] == "active":
+    if fac and (_fac_status(d) == "active" or d.auth != "none"):
         if d.auth == "none" and d.selected is None:
             ok = d.clock < fac["_expiry"]
             add("request_advance", "Request advance", "Operator", ok,
@@ -965,7 +1032,7 @@ def _evidence_json(d):
         status = e["status"]
         if e["kind"] == "importer_balance":
             age = d.clock - e["_eff"]
-            status = "settled; %s h old%s" % (_hours(age), " (stale)" if age > timedelta(hours=d.fx["balance_max_age_hours"]) else "")
+            status = "settled; %s old%s" % (_age(age), " (stale)" if age > timedelta(hours=d.fx["balance_max_age_hours"]) else "")
         if e["kind"] == "forecast_receipt" and d.clock > e["_eff"] and not _receipts(d):
             status = "forecast; not evidenced as settled by %s" % _short(e["_eff"])
         out.append({"id": e["id"], "kind": e["kind"], "fact": e["fact"], "source": e["source"],
@@ -997,12 +1064,12 @@ def _facility_json(d):
     else:
         rules = _rules_json(_rules(d))
     return {"id": fac["id"], "name": fac["name"], "policy_version": fac["policy_version"],
-            "denomination": fac["denomination"], "status": fac["status"],
+            "denomination": fac["denomination"], "status": _fac_status(d),
             "company_limit": sgd(fac["_limit"]), "company_available": sgd(_company_available(d)),
             "reserved": sgd(d.res_limit), "principal_outstanding": sgd(d.principal_out),
             "funding_account": d.fund["name"], "funding_start": sgd(d.fund["_start"]),
             "funding_available_cash": sgd(_funding_available(d)), "funding_reserved": sgd(_funding_reserved(d)),
-            "funding_reserved_this_payout": sgd(d.res_cash), "funding_reserved_other_payouts": sgd(d.fund["_others"]),
+            "funding_reserved_this_payout": sgd(d.res_cash), "funding_reserved_other_payouts": sgd(_others_sum(d)),
             "fee": sgd(fac["_fee"]), "fees_outstanding": sgd(d.fees_out), "fees_collected": sgd(d.fees_repaid),
             "repayment_due_sgt": fmt_sgt(fac["_due"]),
             "reservation_expiry_sgt": fmt_sgt(fac["_expiry"]), "route_deadline_sgt": fmt_sgt(d.fx["_deadline"]),
@@ -1227,10 +1294,16 @@ def _decision(d, opts):
     if d.auth == "released":
         prefix, tone_none = "Reservation released — ", "declined"
     if not feasible:
+        can_req = fac and _fac_status(d) == "active" and d.auth == "none" and d.clock < fac["_expiry"]
+        c_rules = _rules(d) if can_req else None
+        if c_rules and _rules_state(c_rules) == "fail":
+            return _blocked_c(d, c_rules, "; ".join(r["detail"] for r in c_rules if r["ok"] is not True), dec, by)
         if any(o["status"] == "unknown" for o in opts):
-            return dec("unknown", "We need a newer bank balance before reviewing this advance",
-                       _balance_check(d)[1],
-                       "Request the advance; the reviewer will ask the importer for a newer bank balance.", OPERATOR)
+            if _request_leads_to_evidence(d):
+                return dec("unknown", "We need a newer bank balance before reviewing this advance",
+                           _balance_check(d)[1],
+                           "Request the advance; the reviewer will ask the importer for a newer bank balance.", OPERATOR)
+            return _unknown_outside(d, opts, by, c, dec)
         return dec(tone_none if prefix else "blocked", prefix + "No feasible option meets the %s deadline" % _short(fx["_deadline"]),
                    " ".join("%s: %s" % (o["key"], o["disqualifiers"][0]) for o in opts if o["disqualifiers"]),
                    "Tell the importer and supplier now; agree a new deadline or another route outside this desk.", OPERATOR)
@@ -1251,24 +1324,53 @@ def _decision(d, opts):
             fx["supplier"].replace(" LLC", ""), _day(fx["_deadline"])), binding,
             "Compare the three routes; the reviewer decides whether to reserve capacity.", OPERATOR)
     if c["status"] == "unknown":
-        return dec("unknown", "We need a newer bank balance before reviewing this advance", c["disqualifiers"][0],
-                   "Request the advance; the reviewer will ask the importer for a newer bank balance.", OPERATOR)
+        if _request_leads_to_evidence(d):
+            return dec("unknown", "We need a newer bank balance before reviewing this advance", c["disqualifiers"][0],
+                       "Request the advance; the reviewer will ask the importer for a newer bank balance.", OPERATOR)
+        return _unknown_outside(d, opts, by, c, dec)
     if not fx["contract"]["later_funding_permitted"] and c["status"] == "unavailable":
         return dec("decide", "Later funding unavailable",
                    "%s %s" % (by["B"]["disqualifiers"][0], c["disqualifiers"][0]),
                    "Record Option A: the importer funds %s by %s." % (fx["_cost"].text(), _short(fx["windows"]["friday"]["_cutoff"])),
                    OPERATOR)
-    if fac and fac["status"] == "active":
+    if fac and _fac_status(d) == "active":
         rules = _rules(d)
         return _blocked_c(d, rules, "; ".join(r["detail"] for r in rules if r["ok"] is not True), dec, by)
     return dec("decide", "Option %s is the only feasible route" % feasible[0]["key"], c["disqualifiers"][0] if c["disqualifiers"] else "—",
                "Record Option %s." % feasible[0]["key"], OPERATOR)
 
 
+def _request_leads_to_evidence(d):
+    """True only if 'Request advance' is enabled now and, once requested, the reviewer can 'Request evidence'."""
+    fac = d.fac
+    if not fac or _fac_status(d) != "active" or d.auth != "none" or d.selected is not None or d.clock >= fac["_expiry"]:
+        return False
+    rules = _rules(d)
+    return _rules_state(rules) == "unknown" and _balance_check(d)[0] is None
+
+
+def _unknown_outside(d, opts, by, c, dec):
+    """Evidence is missing and no action in this tool can obtain it: say who must act outside the tool."""
+    fx = d.fx
+    stale = _balance_check(d)[0] is None
+    binding = " ".join("%s: %s" % (o["key"], o["disqualifiers"][0]) for o in opts if o["disqualifiers"])
+    if not fx["contract"]["later_funding_permitted"] and c["status"] == "unavailable":
+        return dec("unknown", "Later funding unavailable", binding,
+                   "The importer must send a bank balance no more than %d h old before it funds the Friday window "
+                   "(Option A); it does this outside this tool." % fx["balance_max_age_hours"] if stale else
+                   "Wait for the missing records before recording Option A.", SIM_IMPORTER if stale else OPERATOR)
+    if stale:
+        return dec("unknown", "We need a newer bank balance before the importer can fund", binding,
+                   "The importer must send a bank balance no more than %d h old; it does this outside this tool. "
+                   "No advance can be requested here." % fx["balance_max_age_hours"], SIM_IMPORTER)
+    return dec("unknown", "More evidence is needed before any route can be relied on", binding,
+               "Wait for the missing records; nothing can be relied on yet.", OPERATOR)
+
+
 def _blocked_c(d, rules, failing, dec, by):
     alt = " or record Option A (importer funds Friday)" if by["A"]["status"] == "feasible" else ""
     if _cash_rule_failed(rules):
-        if d.fund["_others"] > 0 and d.fund["_start"] >= d.fx["_cost"].amount:
+        if _others_sum(d) > 0 and d.fund["_start"] >= d.fx["_cost"].amount:
             head = "Funding is already reserved for another payout — this advance cannot be reserved"
         else:
             head = "Credit headroom available, but no deployable cash to pay"
