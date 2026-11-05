@@ -16,7 +16,7 @@
   var DASH = '—';
   var ID_RE = /^[A-Za-z0-9_-]+$/;
 
-  var st = { caseId: null, stateId: null, view: null, seq: 0, focusAfter: null };
+  var st = { caseId: null, stateId: null, view: null, seq: 0, focusAfter: null, acting: false };
 
   // ---------- DOM helpers (escape by construction: text only, never innerHTML) ----------
   function $(id) { return document.getElementById(id); }
@@ -139,6 +139,7 @@
       syncCaseSelect();
       render(view);
       afterRenderFocus();
+      st.acting = false;
     };
     script.onload = function () {
       script.remove();
@@ -146,6 +147,7 @@
     };
     script.onerror = function () { script.remove(); if (my === st.seq) fail(); };
     function fail() {
+      st.acting = false;
       document.body.removeAttribute('aria-busy');
       clearAll();
       setStatus('This state could not be loaded. Extract the whole folder (including states/), then open index.html again, or use Reset.', 'error');
@@ -412,7 +414,13 @@
       disabled: !enabled,
       'aria-describedby': described || null
     }, show(a.label));
-    if (enabled) btn.addEventListener('click', function () { loadState(st.caseId, a.next, 'lc-decision-heading'); });
+    if (enabled) btn.addEventListener('click', function (ev) {
+      // One activation per rendered state: ignore the 2nd+ click of a double-click (detail > 1, which can land
+      // on the freshly rendered button) and anything while the next state is still loading.
+      if (st.acting || (ev && ev.detail > 1)) { ev.preventDefault(); return; }
+      st.acting = true;
+      loadState(st.caseId, a.next, 'lc-decision-heading');
+    });
     return el('li', { class: 'lc-action' + (enabled ? '' : ' is-disabled') + (isEvent ? ' is-event' : ''), 'data-action': a.id }, [
       el('div', { class: 'lc-action-top' }, [btn, roleTag(a.role)]),
       isBlank(a.consequence) ? null : el('p', { class: 'lc-consequence', id: cid }, [el('span', { class: 'lc-mini', text: enabled ? 'If clicked: ' : 'Would: ' }), a.consequence]),

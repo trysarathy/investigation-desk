@@ -230,6 +230,45 @@ async function openCase(page, caseId) {
     check('reserved: exposure still "No advance drawn"', (await text(page, '#lc-exposure-status')) === 'No advance drawn');
     await shot(page, 'approval-reserved');
 
+    // Double-click on a clock action must apply exactly one step (no second advance onto the new button).
+    {
+      const reservedId = (await position(page)).stateId;
+      const adv = pick(v, /^Advance to /);
+      check('double-click: reserved state offers a clock action', !!adv);
+      if (adv) {
+        // Human-speed double-click: the second press arrives after the next state has already rendered
+        // (file:// loads in a few ms), at the same spot, with click count 2.
+        const box = await page.locator('#lc-actions').getByRole('button', { name: adv.label, exact: true }).boundingBox();
+        const x = box.x + box.width / 2, y = box.y + box.height / 2;
+        await page.mouse.click(x, y);
+        await settled(page);
+        await page.waitForTimeout(60);
+        await page.mouse.click(x, y, { clickCount: 2 });
+        await page.locator('#lc-actions').getByRole('button', { name: adv.label, exact: true }).dblclick().catch(() => {});
+        await settled(page);
+        await page.waitForTimeout(400);
+        await settled(page);
+        const after = await position(page);
+        check('double-click "' + adv.label + '" advances exactly one step', after.stateId === adv.next,
+          'expected ' + adv.next + ', got ' + after.stateId);
+        check('double-click: clock shows the one-step time', (await text(page, '#lc-clock .lc-pay-main')) === viewFor('reference', adv.next).clock.sgt);
+        // Same for keyboard: Enter pressed twice quickly on a focused action applies one step.
+        await page.goto(INDEX + '#reference/' + reservedId);
+        await settled(page);
+        const b2 = page.locator('#lc-actions').getByRole('button', { name: adv.label, exact: true });
+        await b2.focus();
+        await page.keyboard.press('Enter');
+        await page.keyboard.press('Enter');
+        await settled(page);
+        await page.waitForTimeout(400);
+        await settled(page);
+        check('double Enter on "' + adv.label + '" advances exactly one step', (await position(page)).stateId === adv.next);
+      }
+      await page.goto(INDEX + '#reference/' + reservedId);
+      await settled(page);
+      v = await currentView(page);
+    }
+
     // ---------- draw -> instruct -> accept -> credit ----------
     v = await act(page, 'Record simulated draw');
     await stateChecks(page, 'drawn');
