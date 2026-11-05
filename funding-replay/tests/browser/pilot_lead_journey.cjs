@@ -45,8 +45,14 @@ async function settle(page) {
   await page.waitForFunction(() => !document.querySelector('[aria-busy="true"]'), null, { timeout: 10000 });
 }
 async function signIn(page, base, who) {
+  // Sessions persist in the database, so after a server restart the user may still be signed in.
   await page.goto(base + '/#/queue');
-  await page.waitForSelector('#login-form', { timeout: 10000 });
+  await page.waitForSelector('#login-form, #pd-user:not([hidden])', { timeout: 10000 });
+  if (await page.locator('#pd-user:not([hidden])').count()) {
+    const me = await apiGet(page, '/api/me');
+    if (me.status === 200 && me.json.user.email === who.email) { await settle(page); return; }
+    await page.click('#pd-signout'); await page.waitForSelector('#login-form', { timeout: 10000 });
+  }
   await page.fill('#login-email', who.email);
   await page.fill('#login-password', who.password);
   await page.click('#login-submit');
@@ -181,6 +187,7 @@ async function supplierText(page) { return (await domText(page, '#supplier-panel
     await page.fill('#nc-expected_local', '2026-12-08T15:00');
     await page.fill('#nc-expected_payer', 'Brightwater Logistics (importer\'s customer)');
     await page.fill('#nc-reference', 'INV-OP-2026-1187');
+    await page.fill('#nc-invoice_ref', 'INV-OP-2026-1187');
     await page.click('#nc-submit');
     await page.waitForSelector('#decision-headline', { timeout: 10000 });
     caseId = await domText(page, '#case-id');
@@ -312,7 +319,7 @@ async function supplierText(page) { return (await domText(page, '#supplier-panel
     // ===== Recovery paths on a second unscripted case: failed payout, then wrong-currency repayment
     const mk = await apiPost(page, '/api/cases', { importer: 'Pelican Marine Supplies Pte Ltd', supplier: 'Haverford Rope Works Ltd', payout_amount: '12,940.00', payout_currency: 'GBP',
       funding_amount: '22,311.80', funding_currency: 'SGD', quote_ref: 'Q-PM-1207-01', deadline_at: '2026-12-11T09:00:00Z', deadline_tz: 'Asia/Singapore',
-      window_a_at: '2026-12-08T02:00:00Z', window_a_cutoff_at: '2026-12-08T05:00:00Z', later_permitted: false, contract_ref: 'MSA-PM-2026', facility_id: 'FAC-HL-01', reference: 'INV-HRW-5521',
+      window_a_at: '2026-12-08T02:00:00Z', window_a_cutoff_at: '2026-12-08T05:00:00Z', later_permitted: false, contract_ref: 'MSA-PM-2026', facility_id: 'FAC-HL-01', reference: 'INV-HRW-5521', invoice_ref: 'INV-HRW-5521',
       observations: [{ kind: 'balance', amount: '4,100.00', currency: 'SGD', as_of: '2026-12-07T01:00:00Z', source: 'Operator-entered from importer email', provenance: 'operator_entered' }],
       idempotency_key: 'lead-pelican-1' });
     check('second case created via API', mk.status === 200 || mk.status === 201, mk.status + ' ' + JSON.stringify(mk.json).slice(0, 200));
