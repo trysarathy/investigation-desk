@@ -450,7 +450,8 @@ def h_select_route(c):
 def h_request_advance(c):
     reason = _reason(c)
     rc = next(r for r in c.routes if r["key"] == "C")
-    ev_ids = sorted(set(sum((r["evidence_ids"] for r in c.routes), [])))
+    # Every evidence file and observation on record when the request is made (the reviewer sees the same set).
+    ev_ids = sorted(set(sum((r["evidence_ids"] for r in c.routes), [])) | set(c.state.evidence.keys()))
     _ev(c, "advance_requested", {"snapshot": rc, "routes": [{"key": r["key"], "status": r["status"]} for r in c.routes],
                                  "evidence_ids": ev_ids}, reason=reason)
 
@@ -484,6 +485,7 @@ def h_approve(c):
     _ev(c, "advance_approved", {"facility_id": fac["id"], "amount_minor": need, "fee_minor": fee, "due_at": db.iso(due),
                                 "expires_at": db.iso(expires), "policy_version": fac["policy_version"],
                                 "reservation_id": cur.lastrowid, "requested_by": c.state.request["by"],
+                                "evidence_ids": sorted(c.state.evidence.keys()),
                                 "capacity_before": {"headroom_minor": cap["headroom"],
                                                     "funding_cash_minor": cap["funding_cash"]}}, reason=reason)
 

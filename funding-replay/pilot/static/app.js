@@ -1386,7 +1386,10 @@
     var body = Object.assign({ type: d.action.type }, params, { idempotency_key: d.key, expected_version: d.version });
     confirm.disabled = true; confirm.setAttribute('aria-busy', 'true');
     status('Sending ' + d.action.label + '…');
-    api('POST', '/api/cases/' + encodeURIComponent(S.view.id) + '/commands', body).then(function (res) {
+    // Actions that name their own endpoint (the sandbox driver) are posted there; everything else is a command.
+    var url = (d.action.endpoint && /^\/api\/cases\/[^/]+\/sandbox\/advance$/.test(d.action.endpoint)) ? d.action.endpoint
+      : '/api/cases/' + encodeURIComponent(S.view.id) + '/commands';
+    api('POST', url, body).then(function (res) {
       confirm.removeAttribute('aria-busy');
       S.dialog = null; closeDialog();
       var cv = res && (res.case_view || (res.id && res.version !== undefined ? res : null));
