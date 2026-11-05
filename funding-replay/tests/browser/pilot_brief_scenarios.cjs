@@ -45,8 +45,14 @@ async function settle(page) {
   await page.waitForFunction(() => !document.querySelector('[aria-busy="true"]'), null, { timeout: 10000 });
 }
 async function signIn(page, base, who) {
+  // Sessions persist in the database, so after a server restart the user may still be signed in.
   await page.goto(base + '/#/queue');
-  await page.waitForSelector('#login-form', { timeout: 10000 });
+  await page.waitForSelector('#login-form, #pd-user:not([hidden])', { timeout: 10000 });
+  if (await page.locator('#pd-user:not([hidden])').count()) {
+    const me = await apiGet(page, '/api/me');
+    if (me.status === 200 && me.json.user.email === who.email) { await settle(page); return; }
+    await page.click('#pd-signout'); await page.waitForSelector('#login-form', { timeout: 10000 });
+  }
   await page.fill('#login-email', who.email);
   await page.fill('#login-password', who.password);
   await page.click('#login-submit');

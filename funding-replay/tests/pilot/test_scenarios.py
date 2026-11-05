@@ -251,9 +251,9 @@ class ScenarioG(unittest.TestCase):
 
 class ScenarioH(Blank):
     def test_report_not_measured_then_synthetic_and_no_savings_claims(self):
-        op, rv = self.login("op"), self.login("rv")
         cid = ScenarioA.run_deal(self, "12,400.00", "16,800.00", "INV-FA-2026-0555", "6,000.00",
                                  {"owed": "SGD 16,860.00", "principal_paid_1": "SGD 5,940.00", "remaining": "SGD 10,860.00"})
+        op = self.login("op")   # the deal restarted the server; sign in on the current one
         rep = self.ok(op.get("/api/cases/%s/report?format=json" % cid))
         txt = json.dumps(rep)
         self.assertIn("not measured", txt)
