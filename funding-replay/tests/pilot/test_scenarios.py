@@ -182,7 +182,7 @@ class ScenarioG(unittest.TestCase):
         try:
             base_src = os.path.join(work, "baseline")
             os.makedirs(base_src)
-            tar = subprocess.run(["git", "-C", ROOT, "archive", self.BASELINE, "funding-replay/pilot"], capture_output=True, check=True).stdout
+            tar = subprocess.run(["git", "-C", os.path.dirname(ROOT), "archive", self.BASELINE, "funding-replay/pilot"], capture_output=True, check=True).stdout
             subprocess.run(["tar", "-x", "-C", base_src], input=tar, check=True)
             old = os.path.join(base_src, "funding-replay")
             db = os.path.join(work, "baseline.db")
