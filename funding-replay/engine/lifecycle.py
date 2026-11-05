@@ -32,7 +32,7 @@ from decimal import Decimal
 from engine.replay import SGT, fmt_money, fmt_ny, fmt_sgt
 
 LABEL = "Simulated — no funds move."
-STATE_CAP = 400  # reachable states per case; reachable() and tools/export_site.py both use it
+STATE_CAP = 600  # reachable states per case; reachable() and tools/export_site.py both use it
 ZERO = Decimal("0")
 FIXTURES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fixtures", "lifecycle")
 CASE_ORDER = ("reference", "stale_balance", "fixed_terms", "no_cash", "competing", "failed_payout", "all_infeasible")
@@ -257,6 +257,7 @@ def _derive(state):
     d.timeline = []               # dynamic timeline entries
     d.counts = {}
     d.missed_expiry = None
+    d.bad_outcome = None          # delivery record dated before the instruction (held for review)
     for ev in state["events"]:
         typ = ev["type"]
         d.counts[typ] = d.counts.get(typ, 0) + 1
@@ -322,6 +323,14 @@ def _derive(state):
             d.extra_evidence.append(_rec(ev, "provider_acceptance", "Provider accepted payout instruction %s for release. Acceptance is not beneficiary credit."
                                          % d.instruct["id"], "accepted"))
             d.timeline.append(_tl(ev, "Provider accepted the payout instruction (%s). Not yet credited to the supplier." % ev["id"]))
+        elif typ in ("credit", "return") and d.instruct and _t(ev["effective_at"]) < _t(d.instruct["effective_at"]):
+            # A delivery record dated before the instruction cannot evidence this payout: review, not credit.
+            d.bad_outcome = ev
+            d.extra_evidence.append(_rec(ev, "delivery_record_rejected",
+                                         "Delivery record %s is dated %s, before instruction %s at %s; it is not accepted as "
+                                         "evidence for this payout." % (ev["id"], fmt_sgt(_t(ev["effective_at"])), d.instruct["id"],
+                                                                        fmt_sgt(_t(d.instruct["effective_at"]))), "rejected"))
+            d.timeline.append(_tl(ev, "Delivery record %s rejected: dated before the payout instruction." % ev["id"]))
         elif typ == "credit":
             d.delivery, d.credit = "credited", ev
             d.extra_evidence.append(_rec(ev, "beneficiary_credit", "%s credited %s on %s (delivery record)."
@@ -751,7 +760,7 @@ def _advance_events(d, target, clock_event):
     if d.delivery == "instructed":
         out.append(_accept_event(d))
     kind, rec = _outcome(d)
-    if kind and d.delivery in ("instructed", "accepted") and rec["_known"] <= target:
+    if kind and d.delivery in ("instructed", "accepted") and rec["_known"] <= target and not d.bad_outcome:
         out.append(_outcome_event(d))
     out.append(clock_event)
     if d.auth == "reserved" and d.fac and target >= d.fac["_expiry"]:
@@ -830,8 +839,9 @@ def _action_specs(d):
                              % (d.reservation["id"], sgd(d.res_limit), sgd(d.res_cash)))])
         if d.auth == "consumed":
             add("release", "Withdraw approval and release reservation", "Reviewer", False,
-                "The advance is already drawn: principal %s stays outstanding until repaid. Cancelling cannot erase it."
-                % sgd(d.principal_out), "No change.", None)
+                ("The advance is already drawn: principal %s stays outstanding until repaid. Cancelling cannot erase it."
+                 % sgd(d.principal_out)) if d.principal_out > 0 else
+                "The advance was drawn and has been repaid; a drawn advance cannot be cancelled.", "No change.", None)
         # ---- Cash movement ----------------------------------------------
         if d.auth == "reserved":
             ok = d.clock < fac["_expiry"]
@@ -873,7 +883,11 @@ def _action_specs(d):
             add("sim_accept", "Provider accepts payout", "Simulated event",
                 *(_dup("accepted by the provider (%s)" % d.accept["id"])), "No change.", None)
         cr, rt = fx["simulated_events"].get("credit"), fx["simulated_events"].get("return")
-        if d.delivery == "accepted" and cr:
+        if d.bad_outcome:
+            add("sim_credit" if cr else "sim_return", "Record beneficiary credit" if cr else "Beneficiary bank returns the payout",
+                "Simulated event", False, "Delivery record %s was already received and rejected (dated before the instruction)."
+                % d.bad_outcome["id"], "No change.", None)
+        elif d.delivery == "accepted" and cr:
             known = max(d.clock, cr["_known"])
             add("sim_credit", "Record beneficiary credit", "Simulated event", True, None,
                 "Adds the delivery record that %s was credited %s; moves the clock to %s." % (fx["supplier"], fx["_net"].text(), _short(known)),
@@ -881,7 +895,7 @@ def _action_specs(d):
         elif d.delivery == "credited":
             add("sim_credit", "Record beneficiary credit", "Simulated event", *(_dup("beneficiary credit recorded (%s)" % d.credit["id"])),
                 "No change.", None)
-        if d.delivery == "accepted" and rt:
+        if d.delivery == "accepted" and rt and not d.bad_outcome:
             known = max(d.clock, rt["_known"])
             add("sim_return", "Beneficiary bank returns the payout (%s)" % _short(rt["_eff"]), "Simulated event", True, None,
                 "Records the return; the case stays open with a named recovery owner. Moves the clock to %s." % _short(known),
@@ -953,9 +967,9 @@ def _action_specs(d):
             add("match_repayment", "Match repayment", "Operator", False,
                 "Nothing unallocated to match; every received payment is already matched.", "No change.", None)
     if d.open_unmatched:
-        add("return_unmatched", "Return unmatched amount", "Reviewer", d.total_out == 0 and not d.incoming,
-            "Unmatched amounts stay held until the advance is fully repaid and matched, then the reviewer returns them "
-            "in one step; until then they block close.",
+        add("return_unmatched", "Return unmatched amount", "Reviewer", not d.incoming,
+            "Match the received payment first; unmatched amounts are then returned in one step. Until returned they "
+            "block close.",
             "Returns %s to the payer; nothing is netted." % ", ".join(u["money"].text() for u in d.open_unmatched),
             lambda: [_ev(d, "return_unmatched", SIM_REVIEWER, id="RTN-UNM-%02d" % (d.counts.get("return_unmatched", 0) + 1))])
     # ---- Close ------------------------------------------------------------
@@ -986,7 +1000,7 @@ def _close_blockers(d):
         b.append("%d received payment(s) not yet matched" % len(d.incoming))
     if d.open_unmatched:
         b.append("%d unmatched item(s) held for review" % len(d.open_unmatched))
-    if d.conflict:
+    if d.conflict or d.bad_outcome:
         b.append("conflicting delivery evidence is unresolved")
     if d.selected is None:
         b.append("no funding route is in use")
@@ -1190,13 +1204,21 @@ def _decision(d, opts):
         return dec("closed", "Case closed — supplier credited, %s" % how, "None.", "Nothing further.", OPERATOR)
     if d.delivery == "returned":
         rt = fx["simulated_events"]["return"]
-        extra = " The advance stays outstanding: %s." % owe if d.draw else ""
+        extra = (" The advance stays outstanding: %s." % owe if d.total_out > 0 else
+                 " The advance is repaid and matched.") if d.draw else ""
         return dec("failed", "Supplier payout returned — no second payment sent",
                    "Money last evidenced: %s returned to %s at %s (%s).%s" % (
                        fx["_net"].text(), rt["money_location"], _short(_t(d.ret["effective_at"])), d.ret["id"], extra),
                    "Confirm corrected beneficiary details with %s. Any new payment needs a fresh instruction and review; "
-                   "nothing is resent automatically. Returned funds are not applied to the advance automatically." % fx["supplier"],
+                   "nothing is resent automatically.%s" % (fx["supplier"], " Returned funds are not applied to the advance "
+                                                          "automatically." if d.draw else ""),
                    rt["recovery_owner"])
+    if d.bad_outcome:
+        return dec("review", "Delivery record predates the payout instruction — review",
+                   "Record %s is dated %s, before instruction %s at %s; it is not accepted as delivery evidence." % (
+                       d.bad_outcome["id"], _short(_t(d.bad_outcome["effective_at"])), d.instruct["id"],
+                       _short(_t(d.instruct["effective_at"]))),
+                   "Ask the provider for a payment trace outside this tool; do not send a second payment.", SIM_REVIEWER)
     if d.conflict:
         return dec("review", "Conflicting delivery evidence — review before closing",
                    "Delivery record %s says credited; %s says otherwise." % (d.credit["id"], d.conflict["id"]),
@@ -1207,10 +1229,9 @@ def _decision(d, opts):
             tot.setdefault(u["money"].currency, []).append(u["money"].text())
         return dec("review", "Unmatched cash held for review — case cannot close",
                    "; ".join(u["reason"] for u in d.open_unmatched),
-                   ("Collect and match the remaining %s from %s; the unmatched item(s) stay held and can be "
-                    "returned to the payer once the advance is repaid and matched." % (sgd(d.total_out), fx["importer"])
-                    if d.total_out > 0 else "Return the unmatched item(s) to the payer."),
-                   OPERATOR if d.total_out > 0 else SIM_REVIEWER)
+                   ("Return the unmatched item(s) to the payer (Return unmatched amount); the importer still owes %s, "
+                    "which must be collected and matched separately." % sgd(d.total_out)
+                    if d.total_out > 0 else "Return the unmatched item(s) to the payer."), SIM_REVIEWER)
     if d.delivery == "credited" and d.incoming:
         return dec("decide", "Repayment received — match it to the advance",
                    "%s received and not yet allocated; %s." % (", ".join(i["money"].text() for i in d.incoming), owe),

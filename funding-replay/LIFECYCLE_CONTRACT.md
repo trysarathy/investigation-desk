@@ -63,7 +63,7 @@ Accounting identities (checked after every event, shown in the view):
   "options":[{"key":"A|B|C","title","status","whose_money","committed_at","amount","duration","modeled_cost",
               "risk_bearer","evidence":[ids],"disqualifiers":[...]}],   // short texts (≤ 48 chars per field)
   "options_note":"why costs are/aren't ranked",
-  "facility":null|{"id","name","label","status":"active|suspended","policy_version","denomination",
+  "facility":null|{"id","name","label","status":"active|suspended|not_on_record","policy_version","denomination",
                    "company_limit","company_available","reserved","committed_capacity","principal_outstanding",
                    "funding_account","funding_start","funding_available_cash","funding_reserved",
                    "funding_reserved_this_payout","funding_reserved_other_payouts",

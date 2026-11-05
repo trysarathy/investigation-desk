@@ -22,6 +22,23 @@ evaluated at the new clock. Evidence, timeline, options, rules, warnings and act
 10:00) cannot appear in any earlier view, and the clock advance does not record it: it is its own Simulated event
 "Record customer receipt (importer's account)", listed only once the clock is at or after Thu 19 Nov 10:00.
 
+Facility status, the funding account balance and other payouts' reservations count only once their evidence
+record is known (`known_at <= clock`); before that the facility reads "not on record" and the related rules are
+unknown. Ages are shown exactly to the minute (e.g. "24 h 1 min old"), never rounded down to the limit.
+
+## Evidence acceptance rules
+- **Option B (importer funds later, no advance)** needs contract permission, a feasible later window and a
+  documented `cash_support` record that is SGD, at least the SGD amount needed, effective no later than the
+  later window and known by the clock. Smaller, later-dated or other-currency support is listed as a disqualifier;
+  forecasts never count.
+- **Importer balance** in a currency other than the need is not compared numerically; Option A is then unknown.
+- **Delivery records** dated before the payout instruction are rejected (held as `delivery_record_rejected`
+  evidence); delivery stays at its previous stage and the case goes to review. No second payment is suggested.
+- **Fixtures:** every money amount must be a decimal string ("150.00"); a JSON number (float) is rejected at load.
+  Other payouts' reservations need an evidence record with the same id.
+- **Next actions** only name an action that is enabled in that state, or say who must act outside the tool
+  (e.g. the importer sending a newer balance when no advance can be requested).
+
 ## Four independent facts
 1. **Authorisation/reservation:** `none → requested → (evidence_requested → requested) → reserved | declined`;
    `reserved → released` (reviewer withdraws, or expiry at Mon 16 Nov 16:00 SGT evaluated at the clock) or
@@ -40,10 +57,10 @@ evaluated at the new clock. Evidence, timeline, options, rules, warnings and act
    USD 100.00" creates an unallocated incoming payment; the operator's "Match repayment" allocates it. Exposure
    (`exposure.status` outstanding → ended) exists only after a draw.
 
-**Simplifications kept to bound the pre-computed state space (≤ 400 states per case):** importer payments are only
+**Simplifications kept to bound the pre-computed state space (≤ 600 states per case):** importer payments are only
 offered after the customer receipt is recorded; one payment waits for matching at a time; the balance payment
 follows a matched SGD 100,000.00; the USD payment can only arrive before any SGD repayment; "Return unmatched
-amount" is enabled once the advance is fully repaid and matched; the supplier's conflicting message arrives only
+amount" is enabled whenever no received payment is waiting to be matched (returning never repays or closes); the supplier's conflicting message arrives only
 after full repayment; the clock stops offering advances once the case is credited and settled. The engine's rules
 (allocation, blocking, identities) do not depend on these orderings; tests cover excess with a variant fixture.
 
@@ -79,5 +96,5 @@ the remaining cash cannot be reserved twice, so approval is disabled with the re
 - No authentication or authorisation: "Reviewer" and "Importer" are labels anyone can click.
 - The exported site is plain static files: anyone with the folder or URL can read every state, including future
   ones. Do not put real data in it.
-- The state space is pre-computed (≤ 400 states per case); unusual paths outside the modelled actions do not exist.
+- The state space is pre-computed (≤ 600 states per case); unusual paths outside the modelled actions do not exist.
 - Times, cutoffs, balances and the 24 h freshness limit are demo policy, not provider or bank rules.
