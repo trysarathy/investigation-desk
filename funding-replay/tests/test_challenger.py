@@ -763,5 +763,44 @@ class Resisted2(unittest.TestCase):
             self.assertEqual(v["options"][2]["status"], "infeasible")
 
 
+class Resisted3OptionB(unittest.TestCase):
+    """Round 3 (5e2df82): the new Record Option B path."""
+
+    def test_R21_option_b_path_never_double_funds_double_instructs_or_closes_uncredited(self):
+        def b_ok(r):
+            r["evidence"].append(cash_support("200000.00"))
+        for base, mutate in (("reference", b_ok), ("reference", _b_only), ("failed_payout", b_ok), ("competing", b_ok)):
+            with Variant(base, "chl3_b_" + base + mutate.__name__, mutate) as cid:
+                for st in L.reachable(cid, cap=3000).values():
+                    types = [e["type"] for e in st["events"]]
+                    v = L.view(st)
+                    if v["options"][1]["status"] != "feasible" and v["options"][1]["status"] != "selected":
+                        self.assertIsNone(action(v, "select_b"))
+                    self.assertLessEqual(types.count("instruct"), 1)
+                    if "select_b" in types:
+                        self.assertNotIn("draw", types)
+                        self.assertNotIn("select_a", types)
+                        self.assertIsNone(v["exposure"])
+                        self.assertEqual(v["facility"]["reserved"] if v["facility"] else "SGD 0.00", "SGD 0.00")
+                        for e in st["events"]:
+                            if e["type"] == "instruct":
+                                self.assertTrue("2026-11-16T15:00" <= e["effective_at"][:16] < "2026-11-16T16:00", e)
+                    if v["decision"]["tone"] == "closed" or (action(v, "close") or {}).get("enabled"):
+                        self.assertEqual(v["facts"]["delivery"]["status"], "credited")
+
+    def test_R22_select_b_never_offered_on_late_small_usd_or_not_yet_known_support(self):
+        cases = {"small": cash_support("1000.00"), "late": cash_support("200000.00", effective="2026-11-17T12:00:00+08:00"),
+                 "usd": cash_support("200000.00", currency="USD"),
+                 "known_mon": cash_support("200000.00", known="2026-11-16T15:30:00+08:00")}
+        for name, rec in cases.items():
+            with Variant("reference", "chl3_bad_" + name, lambda r, rec=rec: r["evidence"].append(rec)) as cid:
+                for st in L.reachable(cid, cap=3000).values():
+                    sel = [e for e in st["events"] if e["type"] == "select_b"]
+                    if name == "known_mon":
+                        self.assertTrue(all(e["known_at"] >= "2026-11-16T15:30" for e in sel), name)
+                    else:
+                        self.assertEqual(sel, [], name)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -49,3 +49,10 @@ git push origin main
 5. Thursday: record the customer receipt (not repayment), then repayment, **Match repayment**, close.
 6. **Reset** returns to the Friday state. `/replay/` still opens the earlier replay.
 If any step fails, roll back (above) and record why.
+
+## Release log
+| Date | Source (investigation-desk) | Deploy commit (clearline-funding-desk main) | Vercel status on GitHub | Live check |
+|---|---|---|---|---|
+| 5 Nov 2026 | `5e2df82` | `5c61373` (previous `774f739`) | success, "Deployment has completed" (D6bmFaZbHmc1gRQR7iKfMNZN7176) | Not done from the build session (vercel.app blocked there); owner to check that `/build.txt` reads "Build 5e2df82" |
+
+Confirmed on 5 Nov from GitHub commit statuses: the Vercel project `sarathyv2/clearline-funding-desk` deploys this repo's `main`.
