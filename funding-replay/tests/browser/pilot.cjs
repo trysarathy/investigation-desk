@@ -62,13 +62,27 @@ async function startServer() {
   let proc; let seedOut = '';
   cli(env, ['migrate']);
   seedOut = cli(env, ['seed']);
-  proc = spawn('python3', ['-m', 'pilot.cli', 'serve', '--port', String(port)], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
   let log = '';
-  proc.stdout.on('data', (d) => { log += d; });
-  proc.stderr.on('data', (d) => { log += d; });
   const base = 'http://127.0.0.1:' + port;
-  try { await waitHealthy(base, proc, 20000); } catch (e) { console.error(log); throw e; }
-  return { base, env, dir, seedOut, log: () => log, stop() { try { proc.kill('SIGTERM'); } catch (e) { /* gone */ } } };
+  const launch = async (e) => {
+    proc = spawn('python3', ['-m', 'pilot.cli', 'serve', '--port', String(port)], { cwd: ROOT, env: e, stdio: ['ignore', 'pipe', 'pipe'] });
+    proc.stdout.on('data', (d) => { log += d; });
+    proc.stderr.on('data', (d) => { log += d; });
+    try { await waitHealthy(base, proc, 20000); } catch (err) { console.error(log); throw err; }
+  };
+  await launch(env);
+  const stopProc = async () => {
+    if (!proc || proc.exitCode !== null) return;
+    const p = proc; const gone = new Promise((r) => p.once('exit', r));
+    try { p.kill('SIGTERM'); } catch (e) { /* gone */ }
+    await gone;
+  };
+  return {
+    base, env, dir, seedOut, log: () => log,
+    // Restart the same database with the clock moved (the only way to let time pass on a fixed-clock server).
+    async restart(clock) { await stopProc(); env.PILOT_CLOCK = clock; await launch(env); },
+    stop() { try { proc.kill('SIGTERM'); } catch (e) { /* gone */ } }
+  };
 }
 
 // Seeded synthetic users (pilot/cli.py seed, PILOT_ENV=test: password "pilot-dev-<role>"). Override with env.

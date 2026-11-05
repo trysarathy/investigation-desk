@@ -18,17 +18,40 @@ SANDBOX_LABEL = "Sandbox — not a live payment"
 
 # ---------------------------------------------------------------- roles
 OPERATOR_AND_REVIEWER = {"add_observation", "supersede_observation", "add_note", "assign_owner", "add_evidence",
-                         "create_case", "import_cases"}
+                         "create_case", "import_cases", "log_work", "record_baseline"}
 OPERATOR_ONLY = {"select_route", "request_advance", "record_prefunding", "record_draw", "instruct_payout",
                  "record_delivery", "query_payout_status", "record_customer_receipt", "record_repayment",
                  "match_repayment", "resolve_duplicate", "close_case"}
 REVIEWER_ONLY = {"approve_and_reserve", "decline", "request_evidence", "release_reservation", "authorize_draw",
-                 "return_unmatched", "reverse_match", "close_with_exception", "authorize_reinstruction", "reopen_case"}
+                 "return_unmatched", "reverse_match", "close_with_exception", "authorize_reinstruction", "reopen_case",
+                 "resolve_duplicate_check", "declare_default"}
 COMMANDS = OPERATOR_AND_REVIEWER | OPERATOR_ONLY | REVIEWER_ONLY
 DISPOSITIONS = ("write_off_referred", "supplier_paid_outside", "cancelled_before_payout", "duplicate_case",
                 "other_documented")
 DELIVERY_STATUSES = ("accepted", "credited", "failed", "returned", "unknown")
-OBS_KINDS = ("balance", "commitment", "cash_support", "expected_receipt", "terms")
+OBS_KINDS = ("balance", "commitment", "cash_support", "expected_receipt", "terms", "invoice")
+OBS_SCOPES = ("case", "importer")
+# Commands allowed on a closed case: they change no money and no status (measurement happens after close).
+CLOSED_ALLOWED = ("add_note", "log_work", "record_baseline")
+REVIEW_COMMANDS = ("approve_and_reserve", "decline", "request_evidence", "resolve_duplicate_check", "declare_default",
+                   "release_reservation", "authorize_draw", "close_with_exception")
+NO_MATCH_TEXT = "No matching record in this provider's book."
+OVERDUE_LABEL = "Overdue — not a default determination"
+MONEY_KINDS = ("balance", "commitment", "cash_support", "expected_receipt", "invoice")
+KIND_TIME_KEY = {"balance": "as_of", "commitment": "due_at", "cash_support": "effective_at",
+                 "expected_receipt": "expected_at", "invoice": "issued_at"}
+
+
+def norm_ref(text):
+    """Normalise a reference for matching: case-folded, letters and digits only."""
+    return "".join(ch for ch in (text or "").casefold() if ch.isalnum())
+
+
+def required_kinds(fac):
+    raw = (fac or {}).get("required_evidence")
+    if raw is None:
+        raw = "balance"
+    return [k.strip() for k in str(raw).split(",") if k.strip()]
 
 
 def role_for(cmd):
@@ -136,6 +159,15 @@ class CaseState(object):
         self.closed = None
         self.post_close = []             # provider events recorded after the case was closed
         self.timeline = []
+        self.dup_check = None            # latest same-provider duplicate check {status, matches, text, ...}
+        self.dup_history = []
+        self.checkpoints = []            # eligibility_evaluated events (decision record)
+        self.judgments = []              # reviewer decisions with reasons (never rewritten)
+        self.last_fact_seq = 0           # seq of the latest observation/evidence event
+        self.decline_seq = None
+        self.default_declared = None
+        self.work_logs = []
+        self.baselines = []
 
     # -- derived
     @property
@@ -213,12 +245,13 @@ def _money_of(d):
 def obs_data(kind, payload):
     """Parse stored observation payload into typed fields."""
     d = {}
-    if kind in ("balance", "commitment", "cash_support", "expected_receipt"):
+    if kind in MONEY_KINDS:
         d["money"] = _money_of(payload)
-    for k in ("as_of", "due_at", "effective_at", "expected_at"):
+    for k in ("as_of", "due_at", "effective_at", "expected_at", "issued_at"):
         if payload.get(k):
             d[k] = parse_iso(payload[k])
-    for k in ("source", "description", "document_ref", "payer", "contract_ref"):
+    for k in ("source", "description", "document_ref", "payer", "contract_ref", "invoice_ref", "issuer",
+              "record_ref"):
         if payload.get(k) is not None:
             d[k] = payload[k]
     if kind == "terms":
@@ -267,6 +300,9 @@ def _obs_text(kind, d):
     if kind == "terms":
         return "Contract terms %s: later funding %s" % (
             d.get("contract_ref") or "(no ref)", "permitted" if d["later_permitted"] else "not permitted")
+    if kind == "invoice":
+        return "Supplier invoice %s for %s issued %s by %s" % (
+            d.get("invoice_ref"), d["money"], iso(d["issued_at"]), d.get("issuer") or "issuer not stated")
     return kind
 
 
@@ -277,8 +313,10 @@ def _add_obs(s, ev, p, known):
                                 "provenance": ev["provenance"], "evidence_id": p.get("evidence_id"),
                                 "known_at": known, "effective_at": parse_iso(ev["effective_at"]),
                                 "superseded_by": None, "corrects": ev.get("corrects_event_id"),
-                                "reason": ev.get("reason")}
+                                "reason": ev.get("reason"), "issuer": p.get("issuer"),
+                                "record_ref": p.get("record_ref"), "scope": p.get("scope") or "case"}
     s.obs_order.append(ev["id"])
+    s.last_fact_seq = ev["seq"]
     return _obs_text(kind, d)
 
 
@@ -295,6 +333,7 @@ def _h_supersede(s, ev, p, known):
 
 
 def _h_evidence(s, ev, p, known):
+    s.last_fact_seq = ev["seq"]
     s.evidence[p["evidence_id"]] = {"id": p["evidence_id"], "filename": p["filename"],
                                     "content_type": p["content_type"], "size": p["size"], "sha256": p["sha256"],
                                     "known_at": ev["known_at"], "provenance": ev["provenance"],
@@ -310,6 +349,7 @@ def _h_route(s, ev, p, known):
 
 def _h_request(s, ev, p, known):
     s.auth = "requested"
+    s.decline_seq = None
     s.request = {"by": ev.get("actor_user_id"), "at": ev["known_at"], "snapshot": p.get("snapshot"),
                  "evidence_ids": p.get("evidence_ids", [])}
     return "Advance requested (route C) for %s." % s.funding
@@ -318,18 +358,22 @@ def _h_request(s, ev, p, known):
 def _h_evreq(s, ev, p, known):
     s.auth = "evidence_requested"
     s.evidence_request = {"what": p.get("what"), "by": ev.get("actor_user_id")}
+    _judge(s, ev, "evidence_requested", p.get("what"))
     return "Reviewer requested evidence: %s. Nothing reserved." % p.get("what")
 
 
 def _h_decline(s, ev, p, known):
     s.auth = "declined"
-    s.decline_info = {"by": ev.get("actor_user_id"), "at": ev["known_at"]}
+    s.decline_info = {"by": ev.get("actor_user_id"), "at": ev["known_at"], "seq": ev["seq"]}
+    s.decline_seq = ev["seq"]
+    _judge(s, ev, "declined", ev.get("reason"))
     return "Advance declined. Nothing reserved."
 
 
 def _h_approve(s, ev, p, known):
     s.auth = "reserved"
     s.approval = dict(p, by=ev.get("actor_user_id"), at=ev["known_at"])
+    _judge(s, ev, "approved", ev.get("reason"), policy_version=p.get("policy_version"))
     return "Approved and reserved %s of capacity on %s (policy %s); fee %s; repayment due %s; reservation expires %s. Not a draw." % (
         mtext(p["amount_minor"], s.fac_ccy), p["facility_id"], p["policy_version"], mtext(p["fee_minor"], s.fac_ccy),
         p["due_at"], p["expires_at"])
@@ -560,11 +604,77 @@ def _h_close(s, ev, p, known):
 def _h_close_exc(s, ev, p, known):
     s.closed = {"kind": "exception", "disposition": p["disposition"], "at": ev["known_at"],
                 "by": ev.get("actor_user_id"), "owed": s.owed}
+    _judge(s, ev, "closed_with_exception:%s" % p["disposition"], ev.get("reason"))
     extra = (" Still owed and kept on record: %s." % mtext(s.owed, s.fac_ccy)) if s.owed else ""
     return "Closed with exception (%s).%s" % (p["disposition"], extra)
 
 
+def _judge(s, ev, decision, reason, **extra):
+    j = {"seq": ev["seq"], "event_id": ev["id"], "decision": decision, "reason": reason,
+         "by": ev.get("actor_user_id"), "by_role": ev.get("actor_role"), "at": ev["known_at"]}
+    j.update(extra)
+    s.judgments.append(j)
+
+
+def _h_dup_check(s, ev, p, known):
+    s.dup_check = {"status": p["status"], "matches": list(p.get("matches") or []), "text": p.get("text"),
+                   "trigger": p.get("trigger"), "at": ev["known_at"], "seq": ev["seq"], "reason": None}
+    s.dup_history.append(dict(s.dup_check))
+    return "Same-provider duplicate check (%s): %s" % (p.get("trigger") or "intake", p.get("text"))
+
+
+def _h_dup_check_resolved(s, ev, p, known):
+    st = "overridden" if p["decision"] == "not_duplicate" else "duplicate"
+    prev = s.dup_check or {"matches": []}
+    text = ("Reviewer judged this not a duplicate of %s: %s" % (", ".join(prev["matches"]) or "the match", ev.get("reason"))
+            if st == "overridden" else
+            "Reviewer confirmed a duplicate of %s: this case may only be closed with exception duplicate_case."
+            % (", ".join(prev["matches"]) or "another case"))
+    s.dup_check = {"status": st, "matches": list(prev["matches"]), "text": text, "trigger": "review",
+                   "at": ev["known_at"], "seq": ev["seq"], "reason": ev.get("reason"),
+                   "by": ev.get("actor_user_id")}
+    s.dup_history.append(dict(s.dup_check))
+    _judge(s, ev, "duplicate_check:%s" % p["decision"], ev.get("reason"))
+    return text
+
+
+def _h_eligibility(s, ev, p, known):
+    cp = dict(p)
+    cp["seq"] = ev["seq"]
+    cp["at"] = ev["known_at"]
+    s.checkpoints.append(cp)
+    cl, ad = p.get("blockers_cleared") or [], p.get("blockers_added") or []
+    txt = "Eligibility evaluated (%s): route C %s → %s" % (p.get("trigger"), p.get("route_c_before") or "—",
+                                                          p.get("route_c_after"))
+    if cl:
+        txt += "; cleared: %s" % "; ".join(b["text"] for b in cl)
+    if ad:
+        txt += "; added: %s" % "; ".join(b["text"] for b in ad)
+    return txt + "."
+
+
+def _h_default(s, ev, p, known):
+    s.default_declared = {"at": ev["known_at"], "by": ev.get("actor_user_id"), "reason": ev.get("reason"),
+                          "owed_minor": p.get("owed_minor")}
+    _judge(s, ev, "default_declared", ev.get("reason"))
+    return "Reviewer declared a default (judgment): %s. Amounts owed stay on record." % ev.get("reason")
+
+
+def _h_work(s, ev, p, known):
+    s.work_logs.append({"minutes": p["minutes"], "activity": p.get("activity"), "by": ev.get("actor_user_id"),
+                        "at": ev["known_at"], "provenance": p.get("provenance", "operator_reported")})
+    return "Work logged: %d min (%s), operator-reported." % (p["minutes"], p.get("activity"))
+
+
+def _h_baseline(s, ev, p, known):
+    s.baselines.append(dict(p, at=ev["known_at"], by=ev.get("actor_user_id")))
+    return "Baseline recorded (%s): %s" % (p.get("provenance"), p.get("source_note"))
+
+
 _HANDLERS = {
+    "duplicate_check_run": _h_dup_check, "duplicate_check_resolved": _h_dup_check_resolved,
+    "eligibility_evaluated": _h_eligibility, "default_declared": _h_default, "work_logged": _h_work,
+    "baseline_recorded": _h_baseline,
     "case_created": _h_created, "observation_added": _h_obs, "observation_superseded": _h_supersede,
     "evidence_added": _h_evidence, "route_selected": _h_route, "advance_requested": _h_request,
     "evidence_requested": _h_evreq, "advance_declined": _h_decline, "advance_approved": _h_approve,
@@ -609,16 +719,75 @@ def _latest(obs, key):
     return max(obs, key=lambda o: (o["data"][key], o["known_at"], o["seq"])) if obs else None
 
 
+def fact_statuses(s, fac, now):
+    """Mark every observation known at `now`: fresh | stale | superseded | conflicting (§13.3).
+
+    Returns (status_by_event_id, conflicts_by_event_id). Two active records of the same kind conflict when they are
+    in the same currency with different amounts and the same as-of instant (an invoice: the same invoice reference).
+    """
+    out = {}
+    for oid in s.obs_order:
+        o = s.observations[oid]
+        if o["known_at"] > now:
+            continue
+        sup = o["superseded_by"]
+        out[oid] = "superseded" if (sup is not None and s.observations[sup]["known_at"] <= now) else "fresh"
+    active = s.active_observations(now)
+    conflicts = {}
+    for i, a in enumerate(active):
+        for b in active[i + 1:]:
+            if _conflict(a, b):
+                conflicts.setdefault(a["id"], []).append(b["id"])
+                conflicts.setdefault(b["id"], []).append(a["id"])
+    for oid in conflicts:
+        out[oid] = "conflicting"
+    max_age = _dt.timedelta(hours=(fac or {}).get("balance_max_age_hours", 24))
+    for o in active:
+        if out[o["id"]] == "fresh" and o["kind"] == "balance" and now - o["data"]["as_of"] > max_age:
+            out[o["id"]] = "stale"
+    return out, conflicts
+
+
+def _conflict(a, b):
+    if a["kind"] != b["kind"] or a["kind"] not in MONEY_KINDS:
+        return False
+    ma, mb = a["data"]["money"], b["data"]["money"]
+    if ma.currency != mb.currency or ma.minor == mb.minor:
+        return False
+    if a["kind"] == "invoice":
+        return norm_ref(a["data"].get("invoice_ref")) == norm_ref(b["data"].get("invoice_ref"))
+    key = KIND_TIME_KEY[a["kind"]]
+    return a["data"].get(key) is not None and a["data"].get(key) == b["data"].get(key)
+
+
+def _conflict_text(s, o, conflicts):
+    group = [o] + [s.observations[x] for x in conflicts.get(o["id"], [])]
+    key = KIND_TIME_KEY.get(o["kind"])
+    when = (" as of %s" % local_text(o["data"][key], s.tz)) if key and o["data"].get(key) and o["kind"] != "invoice" \
+        else (" for invoice %s" % o["data"].get("invoice_ref") if o["kind"] == "invoice" else "")
+    return "Conflicting records: %s %s%s (events %s). Correct or supersede one of them." % (
+        o["kind"].replace("_", " "), " vs ".join(str(g["data"]["money"]) for g in group), when,
+        ", ".join(str(g["id"]) for g in group))
+
+
 def assess(s, facility, cap, now):
     """Assess routes A, B, C at `now` using only records known at `now`. `cap` = capacity() excluding this case."""
-    return [_route_a(s, facility, now), _route_b(s, facility, now), _route_c(s, facility, cap, now)]
+    facts = fact_statuses(s, facility, now)
+    return [_route_a(s, facility, now, facts), _route_b(s, facility, now, facts), _route_c(s, facility, cap, now, facts)]
 
 
 def _base(key, title, s, needed_at, whose, risk, cost):
     return {"key": key, "title": title, "status": "feasible", "whose_money": whose,
             "needed_at": time_json(needed_at, s.tz) if needed_at else None, "amount": str(s.funding),
             "cost": cost, "risk_bearer": risk, "missing": [], "disqualifiers": [], "evidence_ids": [],
-            "observation_ids": [], "selected": False}
+            "observation_ids": [], "selected": False, "blockers": []}
+
+
+def _blk(r, bucket, code, kind, text, evidence_ids=()):
+    """Record one blocker: `missing` makes the route unknown, `disqualifiers` infeasible (§13.4)."""
+    r[bucket].append(text)
+    r["blockers"].append({"code": code, "kind": kind, "text": text, "evidence_ids": [e for e in evidence_ids if e],
+                          "effect": "unknown" if bucket == "missing" else "infeasible"})
 
 
 def _finish(r):
@@ -626,13 +795,14 @@ def _finish(r):
     return r
 
 
-def _route_a(s, fac, now):
+def _route_a(s, fac, now, facts):
     c = s.case
+    status, conflicts = facts
     win, cut = parse_iso(c["window_a_at"]), parse_iso(c["window_a_cutoff_at"])
     r = _base("A", "Importer funds at window A", s, win, "Importer's own cash", "Importer",
               "Not modelled — importer's cost of cash")
     if now >= cut:
-        r["disqualifiers"].append("Window A cutoff %s has passed." % local_text(cut, s.tz))
+        _blk(r, "disqualifiers", "a_cutoff_passed", "time", "Window A cutoff %s has passed." % local_text(cut, s.tz))
     max_age = (fac or {}).get("balance_max_age_hours", 24)
     bals = s.active_observations(now, "balance")
     same = [o for o in bals if o["data"]["money"].currency == s.funding.currency]
@@ -640,19 +810,26 @@ def _route_a(s, fac, now):
     if bal is None:
         other = _latest(bals, "as_of")
         if other is not None:
-            r["missing"].append("Importer balance is in %s; it cannot be counted against a %s need. Add a %s balance."
-                                % (other["data"]["money"].currency, s.funding.currency, s.funding.currency))
+            _blk(r, "missing", "balance_other_currency", "evidence",
+                 "Importer balance is in %s; it cannot be counted against a %s need. Add a %s balance."
+                 % (other["data"]["money"].currency, s.funding.currency, s.funding.currency), [other["evidence_id"]])
             r["observation_ids"].append(other["id"])
         else:
-            r["missing"].append("No importer balance on record. Add a balance observation (with evidence).")
+            _blk(r, "missing", "balance_missing", "evidence",
+                 "No importer balance on record. Add a balance observation (with evidence).")
         return _finish(r)
     r["observation_ids"].append(bal["id"])
     if bal["evidence_id"]:
         r["evidence_ids"].append(bal["evidence_id"])
+    if status.get(bal["id"]) == "conflicting":
+        _blk(r, "missing", "conflicting_balance", "evidence", _conflict_text(s, bal, conflicts), [bal["evidence_id"]])
+        return _finish(r)
     age = win - bal["data"]["as_of"]
     if age > _dt.timedelta(hours=max_age):
-        r["missing"].append("Importer balance as of %s is %s old at the window (limit %d h): unknown, not short. "
-                            "Add a newer balance." % (local_text(bal["data"]["as_of"], s.tz), age_text(age), max_age))
+        _blk(r, "missing", "balance_stale", "evidence",
+             "Importer balance as of %s is %s old at the window (limit %d h): unknown, not short. "
+             "Add a newer balance." % (local_text(bal["data"]["as_of"], s.tz), age_text(age), max_age),
+             [bal["evidence_id"]])
         return _finish(r)
     usable = bal["data"]["money"]
     for o in s.active_observations(now, "commitment"):
@@ -660,20 +837,23 @@ def _route_a(s, fac, now):
         if due <= bal["data"]["as_of"] or due > cut:
             continue
         if o["data"]["money"].currency != usable.currency:
-            r["missing"].append("Commitment %s is in %s and cannot be netted against the %s balance." % (
-                o["data"]["money"], o["data"]["money"].currency, usable.currency))
+            _blk(r, "missing", "commitment_other_currency", "evidence",
+                 "Commitment %s is in %s and cannot be netted against the %s balance." % (
+                     o["data"]["money"], o["data"]["money"].currency, usable.currency), [o["evidence_id"]])
             continue
         usable = usable - o["data"]["money"]
         r["observation_ids"].append(o["id"])
     r["usable_balance"] = str(usable)
     if not r["missing"] and usable < s.funding:
-        r["disqualifiers"].append("Usable importer balance %s (after commitments due by the cutoff) is below the %s needed."
-                                  % (usable, s.funding))
+        _blk(r, "disqualifiers", "usable_balance_short", "cash",
+             "Usable importer balance %s (after commitments due by the cutoff) is below the %s needed."
+             % (usable, s.funding), [bal["evidence_id"]])
     return _finish(r)
 
 
-def _route_b(s, fac, now):
+def _route_b(s, fac, now, facts):
     c = s.case
+    status, conflicts = facts
     win = parse_iso(c["window_b_at"]) if c.get("window_b_at") else None
     cut = parse_iso(c["window_b_cutoff_at"]) if c.get("window_b_cutoff_at") else None
     r = _base("B", "Importer funds later at window B", s, win, "Importer's own cash, later",
@@ -684,27 +864,32 @@ def _route_b(s, fac, now):
         if terms["evidence_id"]:
             r["evidence_ids"].append(terms["evidence_id"])
     if not later:
-        r["disqualifiers"].append("Contract fixes the funding date (%s): later funding is not permitted." % (
-            (terms and terms["data"].get("contract_ref")) or c.get("contract_ref") or "no contract ref"))
+        _blk(r, "disqualifiers", "contract_fixed_date", "contract",
+             "Contract fixes the funding date (%s): later funding is not permitted." % (
+                 (terms and terms["data"].get("contract_ref")) or c.get("contract_ref") or "no contract ref"),
+             [terms and terms["evidence_id"]])
         return _finish(r)
     if win is None or cut is None:
-        r["disqualifiers"].append("No later funding window (window B) on record.")
+        _blk(r, "disqualifiers", "no_window_b", "contract", "No later funding window (window B) on record.")
         return _finish(r)
     if now >= cut:
-        r["disqualifiers"].append("Window B cutoff %s has passed." % local_text(cut, s.tz))
+        _blk(r, "disqualifiers", "b_cutoff_passed", "time", "Window B cutoff %s has passed." % local_text(cut, s.tz))
     lead = (fac or {}).get("payout_lead_hours", 8)
     if win + _dt.timedelta(hours=lead) > s.deadline:
-        r["disqualifiers"].append("Window B plus %d h payout lead time is after the supplier deadline %s." % (
-            lead, local_text(s.deadline, s.tz)))
+        _blk(r, "disqualifiers", "b_after_deadline", "time",
+             "Window B plus %d h payout lead time is after the supplier deadline %s." % (
+                 lead, local_text(s.deadline, s.tz)))
     good, problems = None, []
     for o in s.active_observations(now, "cash_support"):
         m, eff = o["data"]["money"], o["data"]["effective_at"]
         if m.currency != s.funding.currency:
-            problems.append("Cash support %s is in %s; it cannot count against a %s need." % (m, m.currency, s.funding.currency))
+            problems.append(("cash_support_currency", "evidence", o,
+                             "Cash support %s is in %s; it cannot count against a %s need." % (m, m.currency, s.funding.currency)))
         elif m < s.funding:
-            problems.append("Cash support %s covers less than the %s needed." % (m, s.funding))
+            problems.append(("cash_support_short", "cash", o, "Cash support %s covers less than the %s needed." % (m, s.funding)))
         elif eff > win:
-            problems.append("Cash support is effective only from %s, after window B." % local_text(eff, s.tz))
+            problems.append(("cash_support_late", "time", o,
+                             "Cash support is effective only from %s, after window B." % local_text(eff, s.tz)))
         else:
             good = o
             break
@@ -712,37 +897,84 @@ def _route_b(s, fac, now):
         r["observation_ids"].append(good["id"])
         if good["evidence_id"]:
             r["evidence_ids"].append(good["evidence_id"])
+        if status.get(good["id"]) == "conflicting":
+            _blk(r, "missing", "conflicting_cash_support", "evidence", _conflict_text(s, good, conflicts),
+                 [good["evidence_id"]])
     else:
         fc = s.active_observations(now, "expected_receipt")
         txt = "No documented cash support for window B."
         if fc:
             txt += " The expected receipt (%s) is a forecast and never counts." % fc[-1]["data"]["money"]
-        r["disqualifiers"].extend(problems or [txt])
+        if problems:
+            for code, kind, o, t in problems:
+                _blk(r, "disqualifiers", code, kind, t, [o["evidence_id"]])
+        else:
+            _blk(r, "disqualifiers", "cash_support_missing", "evidence", txt)
     return _finish(r)
 
 
-def _route_c(s, fac, cap, now):
+def _policy_fact(s, fac, kind, now, facts, r):
+    """§13.4: every kind in the facility's required evidence must be active, non-stale, non-conflicting."""
+    status, conflicts = facts
+    pol = fac["policy_version"]
+    cands = s.active_observations(now, kind)
+    if kind == "invoice" and s.case.get("invoice_ref"):
+        want = norm_ref(s.case["invoice_ref"])
+        match = [o for o in cands if norm_ref(o["data"].get("invoice_ref")) == want]
+        if cands and not match:
+            o = cands[-1]
+            _blk(r, "missing", "invoice_ref_mismatch", "evidence",
+                 "Policy %s requires invoice: the invoice on record (%s) does not match the case invoice reference %s."
+                 % (pol, o["data"].get("invoice_ref"), s.case["invoice_ref"]), [o["evidence_id"]])
+            r["observation_ids"].append(o["id"])
+            return
+        cands = match
+    if not cands:
+        _blk(r, "missing", "policy_requires_%s" % kind, "evidence",
+             "Policy %s requires %s: not on record" % (pol, kind.replace("_", " ")))
+        return
+    key = KIND_TIME_KEY.get(kind)
+    o = max(cands, key=lambda x: ((x["data"].get(key) or x["known_at"]) if key else x["known_at"], x["known_at"], x["seq"]))
+    r["observation_ids"].append(o["id"])
+    if o["evidence_id"]:
+        r["evidence_ids"].append(o["evidence_id"])
+    if status.get(o["id"]) == "conflicting":
+        _blk(r, "missing", "conflicting_%s" % kind, "evidence", _conflict_text(s, o, conflicts), [o["evidence_id"]])
+        return
+    if kind == "balance":
+        age = now - o["data"]["as_of"]
+        if age > _dt.timedelta(hours=fac["balance_max_age_hours"]):
+            _blk(r, "missing", "policy_stale_balance", "evidence",
+                 "Policy %s requires balance: the importer balance on record is %s old (limit %d h): unknown, not "
+                 "insufficient. Add a newer one." % (pol, age_text(age), fac["balance_max_age_hours"]),
+                 [o["evidence_id"]])
+
+
+def _route_c(s, fac, cap, now, facts):
     r = _base("C", "Provider advance (route C)", s, None, "Provider's funding account",
               "Provider, until repaid and matched", "—")
     r["capacity_ok"] = None
     r["cash_ok"] = None
     if not fac:
-        r["disqualifiers"].append("No advance facility on record for this case.")
+        _blk(r, "disqualifiers", "no_facility", "facility", "No advance facility on record for this case.")
         return _finish(r)
     lead = _dt.timedelta(hours=fac["payout_lead_hours"])
     r["needed_at"] = time_json(s.deadline - lead, s.tz)
     fee = fee_minor(fac, s.funding.minor) if fac["currency"] == s.funding.currency else fac["fee_flat_minor"]
     r["cost"] = "%s facility fee (policy %s)" % (mtext(fee, fac["currency"]), fac["policy_version"])
     r["fee"] = mtext(fee, fac["currency"])
+    r["policy_version"] = fac["policy_version"]
+    r["required_evidence"] = required_kinds(fac)
     r["whose_money"] = "Provider's funding account (facility %s)" % fac["id"]
     if s.auth in ("reserved", "consumed"):
         r["selected"] = True
         r["capacity_ok"] = r["cash_ok"] = True
         return _finish(r)
     if fac["status"] != "active":
-        r["disqualifiers"].append("Facility %s is suspended: unavailable for new advances." % fac["id"])
+        _blk(r, "disqualifiers", "facility_suspended", "facility",
+             "Facility %s is suspended: unavailable for new advances." % fac["id"])
     if fac["currency"] != s.funding.currency:
-        r["disqualifiers"].append("Facility lends in %s; this funding amount is in %s." % (
+        _blk(r, "disqualifiers", "facility_currency", "facility", "Facility lends in %s; this funding amount is in %s." % (
             fac["currency"], s.funding.currency))
         return _finish(r)
     r["capacity_ok"] = cap["headroom"] >= s.funding.minor
@@ -750,27 +982,38 @@ def _route_c(s, fac, cap, now):
     r["headroom"] = mtext(cap["headroom"], fac["currency"])
     r["funding_cash"] = mtext(cap["funding_cash"], fac["currency"])
     if not r["capacity_ok"]:
-        r["disqualifiers"].append("Facility headroom %s is below the %s needed." % (r["headroom"], s.funding))
+        _blk(r, "disqualifiers", "headroom_short", "credit",
+             "Facility headroom %s is below the %s needed." % (r["headroom"], s.funding))
     if not r["cash_ok"]:
-        r["disqualifiers"].append("Provider funding cash %s is below the %s needed." % (r["funding_cash"], s.funding))
+        _blk(r, "disqualifiers", "funding_cash_short", "cash",
+             "Provider funding cash %s is below the %s needed." % (r["funding_cash"], s.funding))
     if now + lead > s.deadline:
-        r["disqualifiers"].append("Too late: the payout needs %d h lead time before the supplier deadline %s." % (
-            fac["payout_lead_hours"], local_text(s.deadline, s.tz)))
+        _blk(r, "disqualifiers", "too_late", "time",
+             "Too late: the payout needs %d h lead time before the supplier deadline %s." % (
+                 fac["payout_lead_hours"], local_text(s.deadline, s.tz)))
     elif reservation_expiry(fac, s.case, now) <= now:
-        r["disqualifiers"].append("A reservation would expire before it could be drawn.")
-    bal = _latest(s.active_observations(now, "balance"), "as_of")
-    if bal is None:
-        r["missing"].append("No importer balance on record; add one (with evidence) before requesting an advance.")
-    else:
-        r["observation_ids"].append(bal["id"])
-        if bal["evidence_id"]:
-            r["evidence_ids"].append(bal["evidence_id"])
-        age = now - bal["data"]["as_of"]
-        if age > _dt.timedelta(hours=fac["balance_max_age_hours"]):
-            r["missing"].append("Importer balance is %s old (limit %d h): unknown, not insufficient. Add a newer one."
-                                % (age_text(age), fac["balance_max_age_hours"]))
-    if s.auth == "declined":
-        r["disqualifiers"].append("The advance was declined by a reviewer.")
+        _blk(r, "disqualifiers", "reservation_would_expire", "time",
+             "A reservation would expire before it could be drawn.")
+    req = required_kinds(fac)
+    for kind in req:
+        _policy_fact(s, fac, kind, now, facts, r)
+    if "balance" not in req:
+        bal = _latest(s.active_observations(now, "balance"), "as_of")
+        if bal is None:
+            _blk(r, "missing", "balance_missing", "evidence",
+                 "No importer balance on record; add one (with evidence) before requesting an advance.")
+        else:
+            r["observation_ids"].append(bal["id"])
+            if bal["evidence_id"]:
+                r["evidence_ids"].append(bal["evidence_id"])
+            age = now - bal["data"]["as_of"]
+            if age > _dt.timedelta(hours=fac["balance_max_age_hours"]):
+                _blk(r, "missing", "balance_stale", "evidence",
+                     "Importer balance is %s old (limit %d h): unknown, not insufficient. Add a newer one."
+                     % (age_text(age), fac["balance_max_age_hours"]), [bal["evidence_id"]])
+    if s.auth == "declined" and s.last_fact_seq <= (s.decline_seq or 0):
+        _blk(r, "disqualifiers", "declined", "evidence",
+             "The advance was declined by a reviewer; add new evidence before requesting again.")
     return _finish(r)
 
 
@@ -877,9 +1120,30 @@ def precheck(s, cmd, params, now, actor=None, routes=None, connector_ok=True):
         if not (s.closed and s.post_close):
             raise DomainError(409, "not_reopenable", "Only a closed case that received a provider event after closing can be reopened.")
         return
-    if s.closed and cmd not in ("add_note",):
-        raise DomainError(409, "case_closed", "The case is closed; only notes can be added.")
+    if cmd in ("log_work", "record_baseline"):
+        return
+    if s.closed and cmd not in CLOSED_ALLOWED:
+        raise DomainError(409, "case_closed", "The case is closed; only notes and pilot measurements can be added.")
     lp = s.latest_payout()
+    dup = (s.dup_check or {}).get("status")
+    if dup == "duplicate" and cmd not in CLOSED_ALLOWED + ("add_observation", "supersede_observation", "add_evidence",
+                                                           "assign_owner", "close_with_exception"):
+        raise DomainError(409, "duplicate_case", "A reviewer confirmed this case is a duplicate; it may only be "
+                          "closed with exception duplicate_case.")
+    if cmd == "resolve_duplicate_check":
+        if dup != "potential_match":
+            raise DomainError(409, "no_potential_match", "There is no potential duplicate match awaiting review.")
+        d = params.get("decision")
+        if d is not None and d not in ("not_duplicate", "duplicate"):
+            raise DomainError(422, "validation_failed", "Decision is not_duplicate or duplicate.", "decision")
+        return
+    if cmd == "declare_default":
+        if s.default_declared:
+            raise DomainError(409, "already_declared", "A default was already declared on this case.")
+        if not s.overdue(now):
+            raise DomainError(409, "not_overdue", "A default can be declared only after the repayment due date with "
+                              "money still owed; nothing becomes a default automatically.")
+        return
 
     def route(key):
         return next(r for r in (routes or []) if r["key"] == key) if routes else None
@@ -912,8 +1176,12 @@ def precheck(s, cmd, params, now, actor=None, routes=None, connector_ok=True):
     if cmd == "request_advance":
         if s.committed() or s.auth in ("requested", "consumed"):
             raise DomainError(409, "route_committed", "A route is already selected or an advance is already requested.")
-        if s.auth == "declined":
-            raise DomainError(409, "declined", "The advance was declined; select route A/B or close with an exception.")
+        if s.auth == "declined" and s.last_fact_seq <= (s.decline_seq or 0):
+            raise DomainError(409, "declined", "The advance was declined; add new evidence before requesting again, "
+                              "select route A/B, or close with an exception.")
+        if dup == "potential_match":
+            raise DomainError(409, "potential_duplicate", "Possible duplicate of %s in this provider's book: a reviewer "
+                              "must resolve the duplicate check first." % ", ".join(s.dup_check["matches"]))
         r = route("C")
         if r and r["status"] != "feasible":
             raise DomainError(409, "route_not_feasible", "Route C is %s: %s" % (
@@ -1054,6 +1322,9 @@ def precheck(s, cmd, params, now, actor=None, routes=None, connector_ok=True):
         if lp and lp["status"] in ("instructed", "accepted", "unknown"):
             raise DomainError(409, "payout_outcome_open", "Attempt %d is %s; get the provider's final outcome (credited, "
                               "failed or returned) before closing." % (lp["attempt"], lp["status"]))
+        if dup == "duplicate" and d is not None and d != "duplicate_case":
+            raise DomainError(409, "duplicate_case", "A confirmed duplicate may only be closed with exception "
+                              "duplicate_case.", "disposition")
         if d == "cancelled_before_payout" and s.payouts:
             raise DomainError(409, "payout_exists", "A payout was instructed on this case; it was not cancelled before payout.", "disposition")
         return
@@ -1131,7 +1402,19 @@ def exposure_panel(s, now):
     else:
         st = "none"
     due = s.due_at()
-    return {"status": st, "currency": ccy,
+    od = s.overdue(now)
+    if s.default_declared:
+        label = "Default declared by a reviewer (judgment, %s) — amounts owed stay on record" % (
+            local_text(s.default_declared["at"], s.tz))
+    elif s.closed and s.closed.get("disposition") == "write_off_referred":
+        label = "Write-off referred by a reviewer (default judgment) — amounts owed stay on record"
+    elif od:
+        label = OVERDUE_LABEL
+    else:
+        label = {"outstanding": "Outstanding — owed to the provider", "reserved": "Reserved capacity — not a draw",
+                 "ended": "Repaid and matched", "none": "No provider exposure"}[st]
+    return {"status": st, "currency": ccy, "status_label": label,
+            "default_declared": dict(s.default_declared) if s.default_declared else None,
             "reserved": mtext(s.reserved_minor, ccy),
             "principal_outstanding": mtext(s.principal_outstanding, ccy),
             "fees_outstanding": mtext(s.fees_outstanding, ccy),
@@ -1195,6 +1478,18 @@ def decision(s, routes, now):
         owed = (" %s remains owed and stays on record." % mtext(s.owed, ccy)) if s.owed else ""
         return dec("closed", "Closed with exception (%s).%s" % (s.closed["disposition"], owed), None, None, None)
     lp = s.latest_payout()
+    dup = (s.dup_check or {}).get("status")
+    if dup == "duplicate":
+        return dec("blocked", "Confirmed duplicate of %s: close this case with exception duplicate_case." % ", ".join(
+            s.dup_check["matches"]), "Reviewer confirmed a duplicate in this provider's book",
+            {"label": "Close with exception", "command": "close_with_exception", "role": "reviewer",
+             "params": {"disposition": "duplicate_case"}}, "reviewer")
+    if dup == "potential_match" and not s.committed() and s.auth not in ("requested", "consumed") and not lp:
+        return dec("review", "Possible duplicate in this provider's book (%s): a reviewer must resolve the duplicate "
+                   "check before an advance can be requested." % ", ".join(s.dup_check["matches"]),
+                   "Same-provider duplicate check", {"label": "Resolve duplicate check",
+                                                     "command": "resolve_duplicate_check", "role": "reviewer"},
+                   "reviewer")
     if s.auth == "requested":
         return dec("decide", "Advance requested — awaiting a different reviewer.",
                    "Reviewer approval (four-eyes) and facility capacity at approval time",
@@ -1243,7 +1538,7 @@ def decision(s, routes, now):
         if s.owed > 0:
             due = s.due_at()
             if s.overdue(now):
-                return dec("review", "Repayment overdue: %s owed by %s since %s." % (
+                return dec("review", "Repayment overdue (not a default determination): %s owed by %s since %s." % (
                     mtext(s.owed, ccy), s.case["importer"], local_text(due, s.tz)), "Importer repayment",
                     {"label": "Record repayment to provider", "command": "record_repayment", "role": "operator"}, "operator")
             return dec("delivered_exposure", "Supplier credited; %s owes the provider %s, due %s." % (
@@ -1263,6 +1558,15 @@ def decision(s, routes, now):
         return dec("decide", "Route %s selected: the importer funds from its own cash." % s.route,
                    "Importer prefunding by the window cutoff",
                    {"label": "Record importer prefunding", "command": "record_prefunding", "role": "operator"}, "operator")
+    if s.auth == "declined" and s.last_fact_seq > (s.decline_seq or 0):
+        rc = next((r for r in routes if r["key"] == "C"), None)
+        hl = ("Advance declined earlier (that judgment stays on record); new evidence has been added since, so the "
+              "operator may request again.")
+        if rc and rc["status"] != "feasible" and rc["blockers"]:
+            hl += " Route C is %s: %s" % (rc["status"], rc["blockers"][0]["text"])
+        return dec("declined", hl, rc["blockers"][0]["text"] if rc and rc["blockers"] else None,
+                   _route_next(routes) or {"label": "Add observation", "command": "add_observation",
+                                           "role": "operator"}, "operator")
     if s.auth == "declined":
         return dec("declined", "Advance declined: nothing reserved. The importer funds itself or the case closes with an exception.",
                    None, _route_next(routes) or {"label": "Close with exception", "command": "close_with_exception",
@@ -1279,6 +1583,15 @@ def decision(s, routes, now):
         if unk:
             hl += " Route %s cannot be confirmed yet (evidence missing or stale)." % " and ".join(unk)
         return dec("decide", hl, "Supplier deadline %s" % local_text(s.deadline, s.tz), _route_next(routes), "operator")
+    rc = next((r for r in routes if r["key"] == "C"), None)
+    if rc and rc["status"] == "infeasible" and not rc["missing"]:
+        money = [b for b in rc["blockers"] if b["kind"] in ("cash", "credit")]
+        if money:
+            unk = [r for r in routes if r["status"] == "unknown"]
+            nxt = ({"label": "Add observation", "command": "add_observation", "role": "operator"} if unk else
+                   {"label": "Close with exception", "command": "close_with_exception", "role": "reviewer"})
+            return dec("blocked", "No feasible route: route C is blocked even with complete evidence — %s" % " ".join(
+                b["text"] for b in money), money[0]["text"], nxt, "operator" if unk else "reviewer")
     unknown = [r for r in routes if r["status"] == "unknown"]
     if unknown:
         miss = unknown[0]["missing"][0]
@@ -1307,7 +1620,8 @@ def _binding(s, routes):
 
 _PARAMS = {
     "add_observation": ["kind", "amount", "currency", "as_of", "source", "due_at", "description", "effective_at",
-                        "document_ref", "expected_at", "payer", "later_permitted", "contract_ref", "evidence_id"],
+                        "document_ref", "expected_at", "payer", "later_permitted", "contract_ref", "evidence_id",
+                        "invoice_ref", "issuer", "issued_at", "record_ref", "scope"],
     "supersede_observation": ["event_id", "reason", "...replacement fields"],
     "add_note": ["text"], "assign_owner": ["user_id", "note"],
     "select_route": ["route", "reason"], "request_advance": ["reason"], "approve_and_reserve": ["reason"],
@@ -1322,6 +1636,10 @@ _PARAMS = {
     "match_repayment": ["repayment_id"], "resolve_duplicate": ["repayment_id", "resolution"],
     "return_unmatched": ["item_id", "reason", "reference"], "reverse_match": ["match_id", "reason"],
     "close_case": [], "close_with_exception": ["disposition", "reason"], "reopen_case": ["reason"],
+    "resolve_duplicate_check": ["decision", "reason"], "declare_default": ["reason"],
+    "log_work": ["minutes", "activity", "provenance"],
+    "record_baseline": ["provenance", "operator_minutes", "touchpoints", "evidence_requests", "decision_hours",
+                        "deadline_met", "outcome", "source_note"],
 }
 
 _LABELS = {
@@ -1336,6 +1654,8 @@ _LABELS = {
     "resolve_duplicate": "Resolve possible duplicate", "return_unmatched": "Return unmatched amount",
     "reverse_match": "Reverse match", "close_case": "Close case", "close_with_exception": "Close with exception",
     "reopen_case": "Reopen case (provider event after close)",
+    "resolve_duplicate_check": "Resolve duplicate check", "declare_default": "Declare default (reviewer judgment)",
+    "log_work": "Log work time", "record_baseline": "Record baseline",
 }
 _DELIVERY_LABELS = {"accepted": "Record provider acceptance", "credited": "Record beneficiary credit",
                     "failed": "Record payout failure", "returned": "Record payout return",
@@ -1370,13 +1690,19 @@ def actions(s, routes, now, user, connector_ok=True):
         if s.post_close:
             add("reopen_case")
         add("add_note")
+        add("log_work")
+        add("record_baseline")
         return out
     lp = s.latest_payout()
     if not s.committed() and s.auth not in ("requested", "evidence_requested", "consumed"):
         for k, lbl in (("A", "Select route A (importer funds at window A)"), ("B", "Select route B (importer funds later)")):
             add("select_route", lbl, {"route": k})
-    if not s.committed() and s.auth not in ("requested", "consumed", "declined"):
+    if not s.committed() and s.auth not in ("requested", "consumed"):
         add("request_advance")
+    if (s.dup_check or {}).get("status") == "potential_match":
+        add("resolve_duplicate_check")
+    if s.overdue(now) and not s.default_declared:
+        add("declare_default")
     if s.auth == "requested":
         add("approve_and_reserve")
         add("decline")
@@ -1419,4 +1745,117 @@ def actions(s, routes, now, user, connector_ok=True):
         add("supersede_observation")
     add("add_note")
     add("assign_owner")
+    add("log_work")
+    add("record_baseline")
     return out
+
+
+# ---------------------------------------------------------------- decision record (§13.5)
+def route_snapshot(routes):
+    """{key: {status, blockers:[{code, kind, text}]}} — what a checkpoint compares."""
+    return {r["key"]: {"status": r["status"],
+                       "blockers": [{"code": b["code"], "kind": b["kind"], "text": b["text"],
+                                     "evidence_ids": list(b.get("evidence_ids") or [])} for b in r.get("blockers", [])]}
+            for r in routes}
+
+
+def _sig(snap):
+    return {k: (v["status"], tuple(sorted(b["code"] for b in v["blockers"]))) for k, v in (snap or {}).items()}
+
+
+def snapshot_changed(before, after):
+    return _sig(before) != _sig(after)
+
+
+def checkpoint_facts(s, fac, routes, now):
+    status, _ = fact_statuses(s, fac, now)
+    observed = []
+    for o in s.active_observations(now):
+        observed.append({"event_id": o["id"], "kind": o["kind"], "text": _obs_text(o["kind"], o["data"]),
+                         "provenance": o["provenance"], "evidence_id": o["evidence_id"], "issuer": o.get("issuer"),
+                         "record_ref": o.get("record_ref"), "scope": o.get("scope"),
+                         "fact_status": status.get(o["id"]), "known_at": iso(o["known_at"])})
+    for e in s.evidence.values():
+        observed.append({"evidence_id": e["id"], "kind": "evidence_file", "text": "Evidence file %s (sha256 %s)" % (
+            e["filename"], e["sha256"][:12]), "provenance": e["provenance"], "known_at": e["known_at"]})
+    policy = []
+    pv = (fac or {}).get("policy_version")
+    rc = next((r for r in routes if r["key"] == "C"), None)
+    if fac:
+        codes = {b["code"]: b for b in (rc or {}).get("blockers", [])}
+        for kind in required_kinds(fac):
+            bad = [b for c, b in codes.items() if c in ("policy_requires_%s" % kind, "conflicting_%s" % kind)
+                   or (kind == "balance" and c == "policy_stale_balance")
+                   or (kind == "invoice" and c == "invoice_ref_mismatch")]
+            policy.append({"rule": "required_evidence:%s" % kind, "policy_version": pv,
+                           "result": "not met" if bad else "met", "text": bad[0]["text"] if bad else
+                           "Policy %s requires %s: on record" % (pv, kind)})
+        for code, rule in (("headroom_short", "capacity:headroom"), ("funding_cash_short", "capacity:funding_cash")):
+            if rc and rc.get("capacity_ok") is not None:
+                b = codes.get(code)
+                policy.append({"rule": rule, "policy_version": pv, "result": "not met" if b else "met",
+                               "text": b["text"] if b else "%s %s ≥ %s needed" % (
+                                   "Headroom" if "headroom" in code else "Funding cash",
+                                   rc.get("headroom" if "headroom" in code else "funding_cash"), s.funding)})
+    for r in routes:
+        policy.append({"rule": "route_%s" % r["key"], "policy_version": pv if r["key"] == "C" else None,
+                       "result": r["status"], "text": "; ".join(b["text"] for b in r.get("blockers", [])) or
+                       "No blockers"})
+    judgment = [dict(j) for j in s.judgments]
+    return {"observed": observed, "policy": policy, "judgment": judgment}
+
+
+def eligibility_payload(s, fac, before, after_routes, trigger, trigger_seq, now):
+    """Payload of an `eligibility_evaluated` event, or None when no route's status or blockers changed."""
+    after = route_snapshot(after_routes)
+    if before is not None and not snapshot_changed(before, after):
+        return None
+    bc = {(k, b["code"]): b for k, v in (before or {}).items() for b in v["blockers"]}
+    ac = {(k, b["code"]): b for k, v in after.items() for b in v["blockers"]}
+    cleared = [dict(b, route=k) for (k, c), b in bc.items() if (k, c) not in ac]
+    added = [dict(b, route=k) for (k, c), b in ac.items() if (k, c) not in bc]
+    return {"trigger": trigger, "trigger_event_seq": trigger_seq,
+            "route_c_before": (before or {}).get("C", {}).get("status"), "route_c_after": after["C"]["status"],
+            "routes_before": before, "routes_after": after, "blockers_cleared": cleared, "blockers_added": added,
+            "policy_version": (fac or {}).get("policy_version"),
+            "facts": checkpoint_facts(s, fac, after_routes, now)}
+
+
+def decision_record(s, routes, now):
+    status, conflicts = fact_statuses(s, s.facility, now)
+    cps = []
+    for cp in s.checkpoints:
+        cps.append({"at": cp["at"], "seq": cp["seq"], "trigger_event_seq": cp.get("trigger_event_seq"),
+                    "trigger": cp.get("trigger"), "route_c_before": cp.get("route_c_before"),
+                    "route_c_after": cp.get("route_c_after"), "blockers_cleared": cp.get("blockers_cleared") or [],
+                    "blockers_added": cp.get("blockers_added") or [], "policy_version": cp.get("policy_version"),
+                    "facts": cp.get("facts") or {"observed": [], "policy": [], "judgment": []}})
+    waiting = []
+    for r in routes:
+        if r["status"] != "feasible":
+            for b in r.get("blockers", []):
+                waiting.append(dict(b, route=r["key"]))
+    last = cps[-1] if cps else None
+    changed = ([dict(x, change="cleared", at=last["at"], trigger=last["trigger"]) for x in last["blockers_cleared"]]
+               + [dict(x, change="added", at=last["at"], trigger=last["trigger"]) for x in last["blockers_added"]]
+               if last else [])
+    uncertain = []
+    for oid, st in status.items():
+        if st in ("stale", "conflicting"):
+            o = s.observations[oid]
+            uncertain.append({"kind": st, "event_id": oid, "text": "%s record %s: %s" % (
+                st.capitalize(), oid, _obs_text(o["kind"], o["data"]))})
+    lp = s.latest_payout()
+    if lp and lp["status"] in ("unknown", "instructed", "accepted"):
+        uncertain.append({"kind": "delivery_unknown", "text": "Payout attempt %d: beneficiary credit not evidenced "
+                          "(status %s)." % (lp["attempt"], lp["status"])})
+    for u in s.open_unmatched():
+        uncertain.append({"kind": "unmatched_cash", "text": "Unmatched cash %s (%s)." % (u["money"], u["reason"])})
+    for r in s.unallocated():
+        uncertain.append({"kind": "unmatched_cash", "text": "Unallocated repayment %s %s." % (r["id"], r["money"])})
+    for r in s.duplicates_pending():
+        uncertain.append({"kind": "unmatched_cash", "text": "Possible duplicate repayment %s." % r["id"]})
+    if (s.dup_check or {}).get("status") == "potential_match":
+        uncertain.append({"kind": "potential_duplicate", "text": s.dup_check["text"]})
+    return {"checkpoints": cps, "waiting_for": waiting, "changed": changed, "uncertain": uncertain,
+            "judgments": [dict(j) for j in s.judgments]}

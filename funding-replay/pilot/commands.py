@@ -295,9 +295,26 @@ def validate_observation(params, now, state=None, allow_evidence=True, prefix=""
             errors.append({"field": "later_permitted", "message": "Must be true or false."})
         p["later_permitted"] = bool(lp)
         p["contract_ref"] = _text(params, "contract_ref", errors, maxlen=200)
+    elif kind == "invoice":
+        eff = _time(params, "issued_at", errors, now=now, not_future=True)
+        p["invoice_ref"] = _text(params, "invoice_ref", errors, maxlen=200)
+        p["issuer"] = _text(params, "issuer", errors, maxlen=200)
+    # §13.3 evidence fields, on every kind: who produced the record, their reference, and its scope.
+    if kind != "invoice":
+        iss = _text(params, "issuer", errors, required=False, maxlen=200)
+        if iss:
+            p["issuer"] = iss
+    rref = _text(params, "record_ref", errors, required=False, maxlen=200)
+    if rref:
+        p["record_ref"] = rref
+    scope = params.get("scope")
+    if scope not in (None, ""):
+        if scope not in domain.OBS_SCOPES:
+            errors.append({"field": prefix + "scope", "message": "Scope is case (default) or importer."})
+        else:
+            p["scope"] = scope
     if eff is not None:
-        key = {"balance": "as_of", "commitment": "due_at", "cash_support": "effective_at",
-               "expected_receipt": "expected_at"}.get(kind)
+        key = domain.KIND_TIME_KEY.get(kind)
         if key:
             p[key] = db.iso(eff)
     if params.get("source") and kind != "balance":
@@ -352,6 +369,105 @@ def _require_key(body):
     return k
 
 
+# ---------------------------------------------------------------- eligibility checkpoints (§13.5)
+def trigger_for(cmd):
+    if cmd in ("add_observation", "supersede_observation"):
+        return "observation"
+    if cmd == "add_evidence":
+        return "evidence"
+    if cmd in domain.REVIEW_COMMANDS:
+        return "review"
+    return "command"
+
+
+def clock_checkpoint(conn, case, st, routes, now):
+    """If time alone moved a route since the last checkpoint, record that first (trigger 'clock'). Returns before."""
+    before = domain.route_snapshot(routes)
+    if st.closed or not st.checkpoints:
+        return before
+    last = st.checkpoints[-1].get("routes_after")
+    if last is not None and domain.snapshot_changed(last, before):
+        payload = domain.eligibility_payload(st, st.facility, last, routes, "clock", None, now)
+        if payload:
+            append_event(conn, case, "eligibility_evaluated", payload, None, "system")
+    return before
+
+
+def record_checkpoint(conn, case, before, trigger, now, force=False):
+    """Append `eligibility_evaluated` (provenance system) in the caller's tx when any route's status or blockers
+    changed (or on intake, force=True). Returns the new state."""
+    case = db.one(conn, "SELECT * FROM cases WHERE id=?", (case["id"],))
+    st = build_state(conn, case)
+    if st.closed:
+        return st
+    routes = routes_for(conn, st, now)
+    payload = domain.eligibility_payload(st, st.facility, None if force else before, routes, trigger,
+                                         next_seq(conn, case["id"]) - 1, now)
+    if payload:
+        append_event(conn, case, "eligibility_evaluated", payload, None, "system")
+    return st
+
+
+# ---------------------------------------------------------------- same-provider duplicate check (§13.7)
+def duplicate_matches(conn, case, extra_refs=()):
+    """Other cases IN THE SAME ORG with the same normalised invoice_ref + supplier, or same supplier + payout
+    amount/currency with deadlines within 30 days. Never searches other orgs."""
+    org = case["org_id"]
+    sup = domain.norm_ref(case["supplier"])
+    refs = {domain.norm_ref(case.get("invoice_ref"))} | {domain.norm_ref(r) for r in extra_refs}
+    refs.discard("")
+    dl = db.parse_iso(case["deadline_at"])
+    other_refs = {}
+    for r in db.all_rows(conn, "SELECT case_id, payload FROM events WHERE org_id=? AND case_id<>? AND type IN "
+                               "('observation_added','observation_superseded')", (org, case["id"])):
+        pl = json.loads(r["payload"] or "{}")
+        if pl.get("kind") == "invoice" and pl.get("invoice_ref"):
+            other_refs.setdefault(r["case_id"], set()).add(domain.norm_ref(pl["invoice_ref"]))
+    out = []
+    for o in db.all_rows(conn, "SELECT id, supplier, invoice_ref, payout_minor, payout_currency, deadline_at FROM cases "
+                               "WHERE org_id=? AND id<>? ORDER BY id", (org, case["id"])):
+        if domain.norm_ref(o["supplier"]) != sup:
+            continue
+        theirs = {domain.norm_ref(o["invoice_ref"])} | other_refs.get(o["id"], set())
+        theirs.discard("")
+        why = None
+        if refs & theirs:
+            why = "same invoice reference and supplier"
+        elif (o["payout_minor"] == case["payout_minor"] and o["payout_currency"] == case["payout_currency"]
+              and abs(db.parse_iso(o["deadline_at"]) - dl) <= _dt.timedelta(days=30)):
+            why = "same supplier and payout amount within 30 days of the deadline"
+        if why:
+            out.append((o["id"], why))
+    return out
+
+
+def run_duplicate_check(conn, case, user, trigger, extra_refs=()):
+    st = build_state(conn, case)
+    prev = st.dup_check
+    found = duplicate_matches(conn, case, extra_refs)
+    ids = [m[0] for m in found]
+    if prev and prev["status"] == "duplicate":
+        return
+    if prev and prev["status"] == "overridden" and set(ids) <= set(prev["matches"]):
+        return
+    if prev and prev["status"] == trigger_status(ids) and prev["matches"] == ids and trigger != "intake":
+        return
+    if ids:
+        text = "Potential match in this provider's book: %s. A reviewer must resolve the duplicate check." % "; ".join(
+            "%s (%s)" % m for m in found)
+        status = "potential_match"
+    else:
+        text, status = domain.NO_MATCH_TEXT, "no_match"
+    append_event(conn, case, "duplicate_check_run", {"status": status, "matches": ids, "text": text,
+                                                     "reasons": {m[0]: m[1] for m in found}, "trigger": trigger,
+                                                     "scope": "this provider's book (same organisation only)"},
+                 None, "system")
+
+
+def trigger_status(ids):
+    return "potential_match" if ids else "no_match"
+
+
 # ---------------------------------------------------------------- command execution
 class Ctx(object):
     pass
@@ -398,9 +514,11 @@ def execute(conn, user, case_id, body):
             outcome = domain.precheck(c.state, cmd, body, now, actor=user["id"], routes=c.routes,
                                       connector_ok=c.connector_ok)
             c.outcome = outcome
+            before = clock_checkpoint(conn, case, c.state, c.routes, now)
             special = HANDLERS[cmd](c)
         except DomainError as e:
             raise _from_domain(e)
+        record_checkpoint(conn, case, before, trigger_for(cmd), now)
         case, st = _finish_case(conn, case, now)
         view = case_view(conn, user, case, st, now)
         status, resp = 200, view
@@ -426,6 +544,8 @@ def h_add_observation(c):
     p, eff, prov, errors = validate_observation(c.params, c.now, c.state)
     _raise_fields(errors)
     _ev(c, "observation_added", p, prov, effective_at=db.iso(eff) if eff else None, reason=c.params.get("reason"))
+    if p["kind"] == "invoice":
+        run_duplicate_check(c.conn, c.case, c.user, "invoice", [p.get("invoice_ref")])
 
 
 def h_supersede(c):
@@ -444,6 +564,8 @@ def h_supersede(c):
     _raise_fields(errors)
     p["replaces"] = eid
     _ev(c, "observation_superseded", p, prov, effective_at=db.iso(eff) if eff else None, reason=reason, corrects=eid)
+    if p["kind"] == "invoice":
+        run_duplicate_check(c.conn, c.case, c.user, "invoice", [p.get("invoice_ref")])
 
 
 def h_select_route(c):
@@ -474,6 +596,8 @@ def h_approve(c):
     if short:
         raise CommandError(409, "insufficient_capacity", "Insufficient capacity: %s is below the %s needed. Nothing "
                            "was reserved." % (" and ".join(short), c.state.funding), extra={"short": short})
+    fv = db.one(c.conn, "SELECT id FROM facility_versions WHERE facility_id=? AND policy_version=?",
+                (fac["id"], fac["policy_version"]))
     expires = domain.reservation_expiry(fac, c.case, c.now)
     due = domain.repayment_due(fac, c.case)
     fee = domain.fee_minor(fac, need)
@@ -487,6 +611,8 @@ def h_approve(c):
         raise CommandError(409, "already_reserved", "This case already has a reservation.")
     _ev(c, "advance_approved", {"facility_id": fac["id"], "amount_minor": need, "fee_minor": fee, "due_at": db.iso(due),
                                 "expires_at": db.iso(expires), "policy_version": fac["policy_version"],
+                                "facility_version_id": fv["id"] if fv else None,
+                                "required_evidence": domain.required_kinds(fac),
                                 "reservation_id": cur.lastrowid, "requested_by": c.state.request["by"],
                                 "evidence_ids": sorted(c.state.evidence.keys()),
                                 "capacity_before": {"headroom_minor": cap["headroom"],
@@ -773,6 +899,73 @@ def h_reopen(c):
     _ev(c, "case_reopened", {"post_close_events": len(c.state.post_close)}, reason=_reason(c))
 
 
+def h_resolve_dup_check(c):
+    errors = []
+    d = c.params.get("decision")
+    if d not in ("not_duplicate", "duplicate"):
+        errors.append({"field": "decision", "message": "Decision is not_duplicate or duplicate."})
+    reason = _text(c.params, "reason", errors, maxlen=1000)
+    _raise_fields(errors)
+    _ev(c, "duplicate_check_resolved", {"decision": d, "matches": list(c.state.dup_check["matches"])}, reason=reason)
+
+
+def h_declare_default(c):
+    reason = _reason(c)
+    _ev(c, "default_declared", {"owed_minor": c.state.owed, "currency": c.state.fac_ccy,
+                                "due_at": db.iso(c.state.due_at())}, reason=reason)
+
+
+def _int(params, field, errors, lo=0, hi=10 ** 6, required=False):
+    v = params.get(field)
+    if v is None or v == "":
+        if required:
+            errors.append({"field": field, "message": "Required."})
+        return None
+    if isinstance(v, bool) or not isinstance(v, int) or not (lo <= v <= hi):
+        errors.append({"field": field, "message": "Give a whole number from %d to %d." % (lo, hi)})
+        return None
+    return v
+
+
+def h_log_work(c):
+    errors = []
+    minutes = _int(c.params, "minutes", errors, 1, 24 * 60, required=True)
+    activity = _text(c.params, "activity", errors, maxlen=500)
+    prov = c.params.get("provenance") or "operator_reported"
+    if prov != "operator_reported":
+        errors.append({"field": "provenance", "message": "Work time is operator_reported."})
+    _raise_fields(errors)
+    _ev(c, "work_logged", {"minutes": minutes, "activity": activity, "provenance": prov})
+
+
+BASELINE_PROVENANCE = ("recorded", "estimated", "synthetic")
+
+
+def h_record_baseline(c):
+    errors = []
+    prov = c.params.get("provenance")
+    if prov not in BASELINE_PROVENANCE:
+        errors.append({"field": "provenance", "message": "Provenance is recorded, estimated or synthetic."})
+    p = {"provenance": prov}
+    for f, hi in (("operator_minutes", 100000), ("touchpoints", 10000), ("evidence_requests", 1000),
+                  ("decision_hours", 100000)):
+        v = _int(c.params, f, errors, 0, hi)
+        if v is not None:
+            p[f] = v
+    dm = c.params.get("deadline_met")
+    if dm is not None:
+        if not isinstance(dm, bool):
+            errors.append({"field": "deadline_met", "message": "Must be true or false."})
+        else:
+            p["deadline_met"] = dm
+    out = _text(c.params, "outcome", errors, required=False, maxlen=500)
+    if out:
+        p["outcome"] = out
+    p["source_note"] = _text(c.params, "source_note", errors, maxlen=1000)
+    _raise_fields(errors)
+    _ev(c, "baseline_recorded", p, reason=p["source_note"])
+
+
 def h_close_exc(c):
     errors = []
     d = c.params.get("disposition")
@@ -795,7 +988,8 @@ HANDLERS = {
     "record_customer_receipt": h_receipt, "record_repayment": h_repayment, "match_repayment": h_match,
     "resolve_duplicate": h_dup, "return_unmatched": h_return, "reverse_match": h_reverse, "add_note": h_note,
     "assign_owner": h_assign, "close_case": h_close, "close_with_exception": h_close_exc,
-    "reopen_case": h_reopen,
+    "reopen_case": h_reopen, "resolve_duplicate_check": h_resolve_dup_check, "declare_default": h_declare_default,
+    "log_work": h_log_work, "record_baseline": h_record_baseline,
 }
 
 
