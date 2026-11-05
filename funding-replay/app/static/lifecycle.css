@@ -299,3 +299,20 @@ body.lc { font-size: 14px; line-height: 1.4; }
   .lc-decision { position: relative; }
   .lc-inv-line { position: absolute; top: 9px; right: 12px; margin: 0; }
 }
+
+/* tone word beside the kicker */
+.lc-tone { margin-left: 8px; font-size: 10.5px; letter-spacing: 0.06em; padding: 0 6px; border: 1px solid var(--border-strong); border-radius: 3px; color: var(--muted); }
+.lc-tone:empty { display: none; }
+.tonechip-decide { color: var(--accent); border-color: var(--accent); }
+.tonechip-unknown, .tonechip-review, .tonechip-delivered_exposure { color: var(--amber-text); border-color: var(--amber-border); }
+.tonechip-blocked, .tonechip-failed { color: var(--red-text); border-color: var(--red-border); }
+.tonechip-declined { color: var(--text); border-style: dashed; }
+/* declined: plain, neutral, dashed edge; not green, not an error */
+.tone-declined { border-left-style: dashed; border-left-color: var(--muted); background: var(--surface); }
+.tone-declined .lc-headline { color: var(--text); }
+.tone-decide { border-left-color: var(--accent); }
+.lc-exposure.exp-none { border-color: var(--border); background: transparent; color: var(--muted); padding: 3px 10px; }
+.lc-exposure.exp-none strong { color: var(--text); font-weight: 600; }
+.lc-unallocated { color: var(--amber-text); }
+.lc-panel, .lc-decision { padding: 8px 12px; }
+.lc-kicker { margin-bottom: 5px; }

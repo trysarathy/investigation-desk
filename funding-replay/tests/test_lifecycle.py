@@ -303,7 +303,11 @@ class Repayment(unittest.TestCase):
         v = L.view(run("reference", THU + PAY_ALL))
         self.assertEqual(v["facts"]["repayment"]["status"], "repaid")
         self.assertTrue(action(v, "close")["enabled"])
-        # wrong currency
+        # wrong currency: while the advance is still owed, the next action must not name the disabled return
+        mid = L.view(run("reference", THU + ["sim_pay_usd", "match_repayment"]))
+        self.assertFalse(action(mid, "return_unmatched")["enabled"])
+        self.assertFalse(mid["decision"]["next_action"].startswith("Return"))
+        self.assertIn("SGD 135,532.50", mid["decision"]["next_action"])
         st = run("reference", THU + ["sim_pay_usd", "match_repayment"] + PAY_ALL)
         v = L.view(st)
         self.assertEqual(v["facts"]["repayment"]["principal_outstanding"], "SGD 0.00")

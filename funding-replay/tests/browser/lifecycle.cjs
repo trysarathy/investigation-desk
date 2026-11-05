@@ -69,14 +69,14 @@ async function text(page, sel) {
 }
 
 // Click the action whose visible button label matches `label` (string = exact, RegExp = pattern).
-async function act(page, label) {
+async function act(page, label, opts) {
   const v = await currentView(page);
   const m = (x) => (label instanceof RegExp ? label.test(x.label) : x.label === label);
   const a = (v.actions || []).find((x) => m(x) && x.enabled) || (v.actions || []).find(m);
   if (!a) throw new Error('No action matching ' + label + ' in ' + v.state_id + '; have: ' + (v.actions || []).map((x) => x.label + (x.enabled ? '' : ' (disabled)')).join(' | '));
   const btn = page.locator('#lc-actions').getByRole('button', { name: a.label, exact: true });
   if (!a.enabled) throw new Error('Action "' + a.label + '" is disabled: ' + a.disabled_reason);
-  await btn.click();
+  if (opts && opts.keyboard) { await btn.focus(); await page.keyboard.press('Enter'); } else await btn.click();
   await settled(page);
   const after = await position(page);
   if (!after || after.stateId !== a.next) throw new Error('After "' + a.label + '" expected state ' + a.next + ', got ' + JSON.stringify(after));
@@ -114,7 +114,8 @@ async function stateChecks(page, tag) {
     check(tag + ': exposure amount + owner shown (amber)', (await text(page, '#lc-exposure')).includes(v.exposure.amount) &&
       (await text(page, '#lc-exposure')).includes(v.exposure.owner));
   } else {
-    check(tag + ': no exposure block when the view has none', (await page.locator('#lc-exposure').count()) === 0);
+    check(tag + ': no draw yet: exposure says "No advance drawn"', (await text(page, '#lc-exposure-status')) === 'No advance drawn' &&
+      (await page.getAttribute('#lc-exposure', 'data-status')) === 'none');
   }
   // Every action shows its exact label, role tag and consequence before clicking; disabled ones show why.
   const items = page.locator('#lc-actions li.lc-action');
@@ -208,170 +209,190 @@ async function openCase(page, caseId) {
     check('friday: decision region is aria-live', (await page.getAttribute('#lc-decision-body', 'aria-live')) === 'polite');
     await shot(page, 'decision-friday');
 
-    // ---------- Reserve capacity ----------
-    v = await reserve(page, v);
-    v = await act(page, RESERVE);
+    // Friday: neutral decision, three routes, and they fit on the first laptop screen.
+    check('friday: neutral decision tone (decide), not blocked/red', v.decision.tone === 'decide' && (await page.textContent('#lc-tone')) === 'Decision needed');
+    const optsBottom = await page.evaluate(() => Math.max(...Array.from(document.querySelectorAll('#lc-options article')).map((n) => n.getBoundingClientRect().bottom)));
+    check('friday: the three options fit within 1366x768 without scrolling', optsBottom <= 768, 'bottom ' + Math.round(optsBottom));
+    check('friday: exposure says "No advance drawn"', (await text(page, '#lc-exposure-status')) === 'No advance drawn');
+    const fridayId = (await position(page)).stateId;
+
+    // ---------- Request advance -> Reserve capacity (reviewer, by keyboard) ----------
+    v = await act(page, 'Request advance');
+    await stateChecks(page, 'requested');
+    check('requested: next step is the reviewer’s (role switch labelled)', (await text(page, '#lc-actions li[data-action="approve_reserve"] .lc-role')) === 'Simulated role: Reviewer');
+    v = await act(page, 'Reserve capacity', { keyboard: true });
     await stateChecks(page, 'reserved');
-    check('reserved: capacity reserved', /reserv/i.test(v.facts.authorization.status));
-    check('reserved: delivery not paid', v.facts.delivery.status !== 'credited' && !(await page.getAttribute('#lc-fact-delivery', 'class')).includes('fact-ok'));
-    check('reserved: cash not drawn', v.facts.cash.status !== 'drawn' && (await page.getAttribute('#lc-fact-cash', 'data-status')) !== 'drawn');
-    if (v.facility) {
-      check('reserved: reserved and principal outstanding shown separately', (await text(page, '#lc-fac-reserved')) === v.facility.reserved &&
-        (await text(page, '#lc-fac-principal')) === v.facility.principal_outstanding);
-    }
+    check('reserved: authorisation reserved', (await page.getAttribute('#lc-fact-authorization', 'data-status')) === 'reserved');
+    check('reserved: facility shows reserved SGD 135,382.50', (await text(page, '#lc-fac-reserved')) === 'SGD 135,382.50', await text(page, '#lc-fac-reserved'));
+    check('reserved: principal outstanding SGD 0.00 (no draw)', (await text(page, '#lc-fac-principal')) === 'SGD 0.00' && (await text(page, '#lc-rep-principal')) === 'SGD 0.00');
+    check('reserved: cash not drawn, supplier not paid', (await page.getAttribute('#lc-fact-cash', 'data-status')) === 'none' &&
+      (await page.getAttribute('#lc-fact-delivery', 'data-status')) === 'none' && !(await page.getAttribute('#lc-fact-delivery', 'class')).includes('fact-ok'));
+    check('reserved: exposure still "No advance drawn"', (await text(page, '#lc-exposure-status')) === 'No advance drawn');
     await shot(page, 'approval-reserved');
 
     // ---------- draw -> instruct -> accept -> credit ----------
-    v = await act(page, /^(Record simulated draw|Draw)/i);
+    v = await act(page, 'Record simulated draw');
     await stateChecks(page, 'drawn');
-    check('drawn: cash drawn; exposure outstanding', v.facts.cash.status === 'drawn' && !!v.exposure);
-    v = await act(page, /^Instruct/i);
+    check('drawn: principal outstanding SGD 135,382.50 on screen', (await text(page, '#lc-fac-principal')) === 'SGD 135,382.50' && (await text(page, '#lc-rep-principal')) === 'SGD 135,382.50');
+    check('drawn: reservation consumed (reserved back to SGD 0.00)', (await text(page, '#lc-fac-reserved')) === 'SGD 0.00');
+    check('drawn: exposure Outstanding', (await text(page, '#lc-exposure-status')) === 'Outstanding');
+    v = await act(page, 'Instruct payout');
     await stateChecks(page, 'instructed');
-    check('instructed: delivery instructed, not credited', v.facts.delivery.status !== 'credited');
-    v = await act(page, /accepts?\b/i);
+    v = await act(page, 'Provider accepts payout');
     await stateChecks(page, 'accepted');
-    check('accepted: accepted by provider is not credited (no green)', v.facts.delivery.status !== 'credited' &&
+    check('accepted: provider acceptance is not supplier credit (not green)', (await page.getAttribute('#lc-fact-delivery', 'data-status')) === 'accepted' &&
       !(await page.getAttribute('#lc-fact-delivery', 'class')).includes('fact-ok'));
-    v = await act(page, (pick(v, /^Beneficiary credit/i, /credit/i) || {}).label || /^Beneficiary credit/i);
+    v = await act(page, 'Record beneficiary credit');
     await stateChecks(page, 'credited');
-    check('credited: delivery credited is green', v.facts.delivery.status === 'credited' &&
-      (await page.getAttribute('#lc-fact-delivery', 'class')).includes('fact-ok'));
 
-    // ---------- advance to Wednesday ----------
-    for (let guard = 0; guard < 4; guard++) {
-      const adv = (v.actions || []).find((x) => x.enabled && x.next !== v.state_id && /Wed|Wednesday/.test(x.label)) ||
-        (!/Wed/.test(v.clock.sgt) ? (v.actions || []).find((x) => x.enabled && /advance/i.test(x.label)) : null);
-      if (!adv) break;
-      v = await act(page, adv.label);
+    // ---------- Wednesday screen ----------
+    async function exposureFigures(tag, amount, principal, fees) {
+      const t = await text(page, '#lc-exposure');
+      check(tag + ': exposure Outstanding ' + amount + ' (principal ' + principal + ', fees ' + fees + ')',
+        (await text(page, '#lc-exposure-status')) === 'Outstanding' && t.includes(amount) && t.includes('principal ' + principal) && t.includes('fees ' + fees), t);
+      check(tag + ': remaining principal and fees shown separately', (await text(page, '#lc-rep-principal')) === principal && (await text(page, '#lc-rep-fees')) === fees);
     }
-    await stateChecks(page, 'wednesday');
-    check('wednesday: clock on Wednesday', /Wed/.test(v.clock.sgt), v.clock.sgt);
-    check('wednesday: "Supplier credited; importer repayment outstanding"', (await text(page, '#lc-headline')) === 'Supplier credited; importer repayment outstanding', await text(page, '#lc-headline'));
-    check('wednesday: amount, owner and next action shown', !!v.exposure && (await text(page, '#lc-exposure')).includes(v.exposure.amount) &&
-      (await text(page, '#lc-owner')) === v.decision.owner && (await text(page, '#lc-next')) === v.decision.next_action && !!v.decision.next_action);
-    check('wednesday: split shows Supplier delivery vs Provider exposure', (await text(page, '#lc-facts')).includes('Supplier delivery') && (await text(page, '#lc-facts')).includes('Provider exposure'));
+    check('wednesday: clock is Wed 18 Nov', /^Wed 18 Nov/.test(await text(page, '#lc-clock .lc-pay-main')));
+    check('wednesday: headline "Supplier credited; importer repayment outstanding"', (await text(page, '#lc-headline')) === 'Supplier credited; importer repayment outstanding');
+    await exposureFigures('wednesday', 'SGD 135,532.50', 'SGD 135,382.50', 'SGD 150.00');
+    const who = await text(page, '#lc-exposure');
+    check('wednesday: who is exposed: provider FAC-NW-01, owed by Northwind', /Provider/.test(who) && who.includes('FAC-NW-01') && who.includes('Northwind'));
+    check('wednesday: next action and owner shown', (await text(page, '#lc-next')) === v.decision.next_action && v.decision.next_action.length > 0 && (await text(page, '#lc-owner')) === v.decision.owner);
+    check('wednesday: supplier delivery half complete (credited, green)', (await page.getAttribute('#lc-fact-delivery', 'data-status')) === 'credited' &&
+      (await page.getAttribute('#lc-fact-delivery', 'class')).includes('fact-ok') && (await text(page, '#lc-h-delivery')) === 'Supplier delivery');
+    check('wednesday: provider exposure half stays open (amber)', (await page.getAttribute('.half-provider', 'class')).includes('half-exposure') &&
+      (await text(page, '#lc-h-provider')).includes('Outstanding SGD 135,532.50'));
     const known = await page.evaluate(() => ['lc-decision', 'lc-facts', 'lc-options', 'lc-evidence', 'lc-timeline', 'lc-facility', 'lc-warnings']
       .map((id) => document.getElementById(id).innerText).join('\n'));
-    check('wednesday: Thursday receipt not yet known anywhere (only the clock-advance button names Thu)', !/Thu 19 Nov/.test(known) &&
-      !(v.facts.repayment.customer_receipts || []).length);
+    check('wednesday: Thursday receipt not known anywhere yet', !/Thu 19 Nov/.test(known) && !/140,000\.00 settled/.test(known));
     await shot(page, 'paid-outstanding-wednesday');
 
-    // ---------- Thursday receipt ----------
-    for (let guard = 0; guard < 3 && !(v.facts.repayment.customer_receipts || []).length; guard++) {
-      const nxt = pick(v, /receipt settles|customer receipt/i, /^Advance to Thu/i);
-      if (!nxt) break;
-      v = await act(page, nxt.label);
-    }
+    // ---------- Thursday ----------
+    for (let guard = 0; guard < 3 && !/^Thu/.test(v.clock.sgt); guard++) v = await act(page, /^Advance to /);
     await stateChecks(page, 'thursday');
-    check('thursday: debt still outstanding after the importer’s own receipt', !!v.exposure && v.facts.repayment.principal_outstanding === (await text(page, '#lc-rep-principal')) &&
-      !/SGD 0\.00$/.test(v.facts.repayment.principal_outstanding));
-    check('thursday: receipt listed as customer receipt, not repayment', (v.facts.repayment.customer_receipts || []).length > 0 && (await page.locator('.lc-receipts li').count()) === v.facts.repayment.customer_receipts.length);
-    const principalBefore = v.facts.repayment.principal_outstanding;
+    check('thursday: clock Thu 19 Nov 10:00', /^Thu 19 Nov 2026, 10:00/.test(v.clock.sgt), v.clock.sgt);
+    await exposureFigures('thursday', 'SGD 135,532.50', 'SGD 135,382.50', 'SGD 150.00');
+    v = await act(page, "Record customer receipt (importer's account)");
+    await stateChecks(page, 'receipt');
+    await exposureFigures('receipt', 'SGD 135,532.50', 'SGD 135,382.50', 'SGD 150.00');
+    const rec = await text(page, '.lc-receipts');
+    check('receipt: SGD 140,000.00 listed as customer receipt, not repayment', rec.includes('SGD 140,000.00') && /not repayment|not a repayment/.test(rec), rec);
+    check('receipt: nothing matched', (await page.locator('#lc-fact-repayment .lc-ilist:not(.lc-receipts)').count()) === 0);
+    const receiptState = (await position(page)).stateId;
 
-    // ---------- partial repayment ----------
-    const partial = pick(v, /partial/i, /^Importer repays SGD/i, /^Match repayment/i);
-    v = await act(page, partial.label);
-    const matchP = pick(v, /^Match repayment/i);
-    if (matchP) v = await act(page, matchP.label);
-    await stateChecks(page, 'partial');
-    check('partial: remaining principal shown as the engine states', (await text(page, '#lc-rep-principal')) === v.facts.repayment.principal_outstanding &&
-      v.facts.repayment.principal_outstanding !== principalBefore, v.facts.repayment.principal_outstanding);
-    check('partial: remaining fees shown as the engine states', (await text(page, '#lc-rep-fees')) === v.facts.repayment.fees_outstanding);
-    check('partial: exposure still outstanding', !!v.exposure);
-
-    // ---------- final repayment + close ----------
-    for (let guard = 0; guard < 4 && !pick(v, /^close/i); guard++) {
-      const nxt = pick(v, /final|remaining/i, /^Match/i);
-      if (!nxt) break;
-      v = await act(page, nxt.label);
-      await stateChecks(page, 'repaying');
-    }
-    check('final: principal and fees fully repaid', /SGD 0\.00/.test(v.facts.repayment.principal_outstanding) && /SGD 0\.00/.test(v.facts.repayment.fees_outstanding),
-      v.facts.repayment.principal_outstanding + ' / ' + v.facts.repayment.fees_outstanding);
-    v = await act(page, /^close/i);
+    v = await act(page, 'Importer pays provider SGD 100,000.00');
+    await stateChecks(page, 'paid 100k');
+    await exposureFigures('paid 100k (unmatched)', 'SGD 135,532.50', 'SGD 135,382.50', 'SGD 150.00');
+    const un = await text(page, '.lc-unallocated');
+    check('paid 100k: shown as "Received — not yet matched" SGD 100,000.00', un.startsWith('Received — not yet matched') && un.includes('SGD 100,000.00'), un);
+    v = await act(page, 'Match repayment', { keyboard: true });
+    await stateChecks(page, 'matched 100k');
+    await exposureFigures('matched 100k', 'SGD 35,532.50', 'SGD 35,532.50', 'SGD 0.00');
+    check('matched 100k: unallocated list gone; matched shows fees then principal', (await page.locator('.lc-unallocated').count()) === 0 &&
+      /SGD 150\.00/.test(await text(page, '#lc-fact-repayment')) && /SGD 99,850\.00/.test(await text(page, '#lc-fact-repayment')));
+    check('matched 100k: facility principal outstanding SGD 35,532.50', (await text(page, '#lc-fac-principal')) === 'SGD 35,532.50');
+    v = await act(page, 'Importer pays provider SGD 35,532.50 (balance)');
+    await stateChecks(page, 'paid balance');
+    await exposureFigures('paid balance (unmatched)', 'SGD 35,532.50', 'SGD 35,532.50', 'SGD 0.00');
+    v = await act(page, 'Match repayment');
+    await stateChecks(page, 'matched balance');
+    check('matched balance: exposure "Ended", not amber', (await text(page, '#lc-exposure-status')) === 'Ended' &&
+      (await page.getAttribute('#lc-exposure', 'data-open')) === 'false' && !(await page.getAttribute('.half-provider', 'class')).includes('half-exposure'));
+    check('matched balance: principal and fees SGD 0.00', (await text(page, '#lc-rep-principal')) === 'SGD 0.00' && (await text(page, '#lc-rep-fees')) === 'SGD 0.00');
+    v = await act(page, 'Close case');
     await stateChecks(page, 'closed');
-    check('closed: decision tone closed', v.decision.tone === 'closed' && (await page.getAttribute('#lc-decision', 'class')).includes('tone-closed'));
-    check('closed: no exposure outstanding (block absent or marked ended, not amber)', !v.exposure ||
-      ((await page.getAttribute('#lc-exposure', 'data-open')) === 'false' && (await text(page, '#lc-exposure')).includes('ended')));
-    check('closed: provider half not amber', !(await page.getAttribute('.half-provider', 'class')).includes('half-exposure'));
+    check('closed: decision tone closed, "Closed" shown', v.decision.tone === 'closed' && (await page.textContent('#lc-tone')) === 'Closed');
+    check('closed: exposure Ended', (await text(page, '#lc-exposure-status')) === 'Ended');
     check('closed: reconciled', /^Reconciled: (\d+)\/\1 identities hold$/.test(await text(page, '#lc-inv-summary')), await text(page, '#lc-inv-summary'));
-    check('closed: timeline lists what changed', (await page.locator('#lc-timeline li').count()) === (v.timeline || []).length && (v.timeline || []).length > 0);
-    await page.click('#lc-inv summary');
+    check('closed: no enabled actions remain except simulated events', !(v.actions || []).some((a) => a.enabled && a.role !== 'Simulated event'));
     await shot(page, 'reconciled-closed');
 
     // ---------- Reset ----------
     await page.click('#lc-reset');
     await settled(page);
     pos = await position(page);
-    check('reset: back to the reference start', pos.stateId === M.cases.find((c) => c.id === 'reference').start && (await text(page, '#lc-headline')) === startHeadline);
-    dump = await domDump(page);
-    check('reset: no future information left on screen', !/Thu 19 Nov/.test(dump.html));
+    check('reset: back to the Friday start state', pos.stateId === fridayId && (await text(page, '#lc-headline')) === startHeadline);
+    check('reset: no future information left on screen', !/Thu 19 Nov/.test((await domDump(page)).html) && (await text(page, '#lc-exposure-status')) === 'No advance drawn');
 
-    // ---------- decline path ----------
-    v = await reserve(page, await currentView(page));
-    const dec = findAction(v, /^decline/i);
-    check('decline: offered at the Friday decision', !!dec && dec.enabled);
-    if (dec) {
-      v = await act(page, dec.label);
-      await stateChecks(page, 'declined');
-      check('declined: authorisation declined; nothing drawn or paid', /declin/i.test(v.facts.authorization.status) && v.facts.cash.status !== 'drawn' && v.facts.delivery.status !== 'credited');
-      check('declined: tone', v.decision.tone === 'declined' || v.decision.tone === 'closed' || v.decision.tone === 'review', v.decision.tone);
-    }
+    // ---------- decline ----------
+    v = await act(page, 'Request advance');
+    v = await act(page, 'Decline');
+    await stateChecks(page, 'declined');
+    check('declined: "Declined" visible, own tone', v.decision.tone === 'declined' && (await page.textContent('#lc-tone')) === 'Declined' &&
+      (await page.getAttribute('#lc-decision', 'class')).includes('tone-declined'));
+    check('declined: not green and not red', await page.evaluate(() => {
+      const cs = getComputedStyle(document.getElementById('lc-decision'));
+      const c = cs.borderLeftColor.match(/\d+/g).map(Number);
+      return !(c[1] > c[0] + 40) && !(c[0] > c[1] + 40);
+    }));
+    check('declined: no reservation, nothing drawn', (await page.getAttribute('#lc-fact-authorization', 'data-status')) === 'declined' &&
+      (await text(page, '#lc-fac-reserved')) === 'SGD 0.00' && (await text(page, '#lc-fac-principal')) === 'SGD 0.00' && (await page.getAttribute('#lc-fact-cash', 'data-status')) === 'none');
+    check('declined: exposure "No advance drawn"', (await text(page, '#lc-exposure-status')) === 'No advance drawn');
+    await shot(page, 'declined');
+
+    // ---------- wrong currency blocks close ----------
+    await page.goto(INDEX + '#reference/' + receiptState);
+    await settled(page);
+    v = await act(page, 'Importer pays provider USD 100.00');
+    v = await act(page, 'Match repayment');
+    await stateChecks(page, 'usd');
+    const unm = await text(page, '.lc-unmatched');
+    check('usd: USD 100.00 held as unmatched', unm.includes('USD 100.00'), unm);
+    const close = (v.actions || []).find((a) => a.id === 'close');
+    check('usd: Close case disabled with reason on screen', !!close && !close.enabled && (await text(page, '#lc-actions li[data-action="close"]')).includes(close.disabled_reason));
+    check('usd: case in review, debt unchanged', v.decision.tone === 'review');
+    await exposureFigures('usd', 'SGD 135,532.50', 'SGD 135,382.50', 'SGD 150.00');
 
     // ---------- other cases ----------
     const caseIds = M.cases.map((c) => c.id);
-    if (caseIds.includes('stale_balance')) {
-      v = await openCase(page, 'stale_balance');
-      await stateChecks(page, 'stale_balance');
-      check('stale_balance: asks for newer evidence', /newer|stale|older/i.test(v.decision.headline + ' ' + v.decision.binding_constraint), v.decision.headline);
-      v = await reserve(page, v);
-      check('stale_balance: reviewer cannot reserve on a stale balance', !(findAction(v, RESERVE) || {}).enabled);
-      const req = pick(v, /^Request (evidence|newer)/i);
-      check('stale_balance: Request evidence offered', !!req);
-      v = await act(page, req.label);
-      await stateChecks(page, 'stale_balance requested');
-      for (let guard = 0; guard < 3 && !(findAction(v, RESERVE) || {}).enabled; guard++) {
-        const ev = (v.actions || []).find((a) => a.enabled && a.role === 'Simulated event');
-        if (!ev) break;
-        v = await act(page, ev.label);
-        await stateChecks(page, 'stale_balance evidence');
-      }
-      check('stale_balance: after fresh evidence, the reviewer can reserve', !!(findAction(v, RESERVE) || {}).enabled);
+    v = await openCase(page, 'stale_balance');
+    await stateChecks(page, 'stale_balance');
+    check('stale_balance: asks for newer evidence (unknown, amber)', v.decision.tone === 'unknown' && /newer|stale|old/i.test(v.decision.headline + v.decision.binding_constraint));
+    v = await act(page, 'Request advance');
+    const ap = (v.actions || []).find((a) => a.id === 'approve_reserve');
+    check('stale_balance: Reserve capacity disabled with reason', !!ap && !ap.enabled && (await text(page, '#lc-actions li[data-action="approve_reserve"]')).includes(ap.disabled_reason));
+    v = await act(page, 'Request evidence');
+    await stateChecks(page, 'stale_balance requested');
+    const fresh = pick(v, /balance/i);
+    v = await act(page, fresh.label);
+    await stateChecks(page, 'stale_balance fresh');
+    check('stale_balance: after the fresh balance, Reserve capacity is available', !!pick(v, /^Reserve capacity$/));
+
+    v = await openCase(page, 'fixed_terms');
+    await stateChecks(page, 'fixed_terms');
+    check('fixed_terms: "Later funding unavailable"', (await domDump(page)).text.includes('Later funding unavailable'));
+
+    v = await openCase(page, 'no_cash');
+    await stateChecks(page, 'no_cash');
+    check('no_cash: blocked: credit headroom but provider cash insufficient', v.decision.tone === 'blocked' &&
+      (await page.locator('#lc-facility .check-fail').count()) > 0);
+    v = await act(page, 'Request advance');
+    const nr = (v.actions || []).find((a) => a.id === 'approve_reserve');
+    check('no_cash: Reserve capacity disabled with reason', !!nr && !nr.enabled && (await text(page, '#lc-actions')).includes(nr.disabled_reason));
+
+    if (caseIds.includes('competing')) {
+      v = await openCase(page, 'competing');
+      await stateChecks(page, 'competing');
+      check('competing: blocked by another payout’s reservation', v.decision.tone === 'blocked' && (await text(page, '#lc-facility')).includes(v.facility.funding_reserved_other_payouts));
+      v = await act(page, 'Request advance');
+      const cr = (v.actions || []).find((a) => a.id === 'approve_reserve');
+      check('competing: Reserve capacity disabled with reason', !!cr && !cr.enabled && (await text(page, '#lc-actions')).includes(cr.disabled_reason));
     }
-    if (caseIds.includes('no_cash')) {
-      v = await openCase(page, 'no_cash');
-      await stateChecks(page, 'no_cash');
-      check('no_cash: blocked at the start', v.decision.tone === 'blocked', v.decision.tone);
-      v = await reserve(page, v);
-      await stateChecks(page, 'no_cash requested');
-      const r = findAction(v, RESERVE);
-      check('no_cash: blocked and reservation not available', v.decision.tone === 'blocked' && (!r || !r.enabled), v.decision.tone);
-      if (r && !r.enabled) check('no_cash: disabled reason shown', (await text(page, '#lc-actions')).includes(r.disabled_reason));
-    }
-    if (caseIds.includes('fixed_terms')) {
-      v = await openCase(page, 'fixed_terms');
-      await stateChecks(page, 'fixed_terms');
-      check('fixed_terms: "Later funding unavailable"', (await domDump(page)).text.includes('Later funding unavailable'));
-    }
-    if (caseIds.includes('all_infeasible')) {
-      v = await openCase(page, 'all_infeasible');
-      await stateChecks(page, 'all_infeasible');
-      check('all_infeasible: no option shown as feasible', !(v.options || []).some((o) => o.status === 'feasible') &&
-        (await page.locator('#lc-options .lc-chip-feasible').count()) === 0);
-    }
-    if (caseIds.includes('failed_payout')) {
-      v = await openCase(page, 'failed_payout');
-      for (let guard = 0; guard < 12 && v.decision.tone !== 'failed'; guard++) {
-        const nxt = pick(v, /^Request advance/i, RESERVE, /^(Record simulated draw|Draw)/i, /^Instruct/i, /accepts?\b/i, /returns?\b|fail/i, /^Advance to/i);
-        if (!nxt) break;
-        v = await act(page, nxt.label);
-      }
-      await stateChecks(page, 'failed_payout');
-      check('failed_payout: tone failed, delivery not credited', v.decision.tone === 'failed' && v.facts.delivery.status !== 'credited' &&
-        (await page.getAttribute('#lc-fact-delivery', 'class')).includes('fact-fail'), v.decision.tone + ' ' + v.facts.delivery.status);
-      check('failed_payout: case stays open (no enabled close)', !(v.actions || []).some((a) => /^close/i.test(a.label) && a.enabled) && v.decision.tone !== 'closed');
-      check('failed_payout: money last evidenced shown', !v.facts.delivery.last_evidenced || (await text(page, '#lc-fact-delivery')).includes(v.facts.delivery.last_evidenced));
-    }
+
+    v = await openCase(page, 'all_infeasible');
+    await stateChecks(page, 'all_infeasible');
+    check('all_infeasible: no option feasible on screen', !(v.options || []).some((o) => o.status === 'feasible') && (await page.locator('#lc-options .lc-chip-feasible').count()) === 0);
+
+    v = await openCase(page, 'failed_payout');
+    for (const l of ['Request advance', 'Reserve capacity', 'Record simulated draw', 'Instruct payout', 'Provider accepts payout']) v = await act(page, l);
+    v = await act(page, /^Beneficiary bank returns|return/i);
+    await stateChecks(page, 'failed_payout');
+    check('failed_payout: tone failed, delivery returned (red)', v.decision.tone === 'failed' && (await page.getAttribute('#lc-fact-delivery', 'data-status')) === 'returned' &&
+      (await page.getAttribute('#lc-fact-delivery', 'class')).includes('fact-fail'));
+    check('failed_payout: money location shown (last evidenced)', !!v.facts.delivery.last_evidenced && (await text(page, '#lc-fact-delivery')).includes(v.facts.delivery.last_evidenced));
+    check('failed_payout: owner and next action shown', (await text(page, '#lc-owner')) === v.decision.owner && (await text(page, '#lc-next')) === v.decision.next_action);
+    check('failed_payout: no automatic second payment (Instruct payout not available)', !(v.actions || []).some((a) => a.id === 'instruct' && a.enabled));
+    check('failed_payout: exposure still Outstanding, case open', (await text(page, '#lc-exposure-status')) === 'Outstanding' && !(v.actions || []).some((a) => a.id === 'close' && a.enabled));
 
     // ---------- keyboard ----------
     await page.goto(INDEX);

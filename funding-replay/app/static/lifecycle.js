@@ -55,7 +55,7 @@
 
   // A list entry may be a string or a small object from the engine; show its strings as given.
   var ITEM_LEAD = ['id', 'amount', 'at_sgt'];
-  var ITEM_SKIP = { text: 1, label: 1, note: 1 };
+  var ITEM_SKIP = { text: 1, label: 1, note: 1, reason: 1, status: 1 };
   function itemText(x) {
     if (x === null || x === undefined) return DASH;
     if (typeof x !== 'object') return String(x);
@@ -70,6 +70,8 @@
       parts.push(k.replace(/_sgt$/, '').replace(/_/g, ' ') + ' ' + v);
     });
     var out = parts.join(' · ');
+    if (!isBlank(x.reason)) out += (out ? ' — ' : '') + x.reason;
+    if (!isBlank(x.status) && typeof x.status !== 'object') out += ' (' + x.status + ')';
     if (!isBlank(x.note)) out += (out ? ' — ' : '') + x.note;
     return out;
   }
@@ -98,6 +100,7 @@
   function clearAll() {
     REGIONS.forEach(function (id) { $(id).replaceChildren(); });
     $('lc-decision').className = 'lc-decision';
+    $('lc-tone').textContent = '';
     document.title = 'Clearline | Provider funding desk';
   }
 
@@ -220,21 +223,32 @@
     return el('div', { class: 'lc-drow' }, [el('dt', { text: label }), el('dd', { id: id || null, text: show(value) })]);
   }
 
+  // A plain word for every decision tone in the contract (styling and wording only; the tone is the engine's).
+  var TONE_WORD = { decide: 'Decision needed', blocked: 'Blocked', unknown: 'Evidence or response pending', review: 'Review',
+                    delivered_exposure: 'Supplier paid · exposure open', closed: 'Closed', declined: 'Declined', failed: 'Payout returned' };
+
   function renderDecision(ctx) {
     var d = ctx.v.decision || {}, x = ctx.v.exposure;
     var tone = isBlank(d.tone) ? 'unknown' : String(d.tone).replace(/[^a-z_]/g, '');
     $('lc-decision').className = 'lc-decision tone-' + tone;
-    var exposure = null;
+    $('lc-tone').textContent = TONE_WORD[tone] || tone;
+    $('lc-tone').className = 'lc-tone tonechip-' + tone;
+    var exposure;
     if (x) {
       var open = exposureOpen(ctx.v);
-      exposure = el('div', { class: 'lc-exposure ' + (open ? 'exp-open' : 'exp-ended'), id: 'lc-exposure', 'data-open': open ? 'true' : 'false' }, [
-        el('span', { class: 'lc-exposure-label', text: open ? 'Provider exposure outstanding' : 'Provider exposure ended' }),
+      exposure = el('div', { class: 'lc-exposure ' + (open ? 'exp-open' : 'exp-ended'), id: 'lc-exposure', 'data-open': open ? 'true' : 'false', 'data-status': x.status || null }, [
+        el('span', { class: 'lc-exposure-label' }, ['Provider exposure: ', el('strong', { id: 'lc-exposure-status', text: open ? 'Outstanding' : 'Ended' })]),
         el('span', { class: 'lc-exposure-amount num', text: show(x.amount) }),
         el('span', { class: 'lc-exposure-sub num' }, [
           'principal ', show(x.principal), ' · fees ', show(x.fees)
         ]),
         el('span', { class: 'lc-exposure-sub' }, ['Owner: ', show(x.owner)]),
         isBlank(x.ends_when) ? null : el('span', { class: 'lc-exposure-sub lc-exposure-ends' }, [open ? 'Ends: ' : '', x.ends_when])
+      ]);
+    } else {
+      // exposure is null until a draw: say so, never "Ended" or "Repaid".
+      exposure = el('div', { class: 'lc-exposure exp-none', id: 'lc-exposure', 'data-open': 'false', 'data-status': 'none' }, [
+        el('span', { class: 'lc-exposure-label' }, ['Provider exposure: ', el('strong', { id: 'lc-exposure-status', text: 'No advance drawn' })])
       ]);
     }
     fill('lc-decision-body', [
@@ -348,6 +362,7 @@
         inlineRow('Due', r.due_sgt, 'lc-rep-due'),
         inlineRow('Owner', r.owner, 'lc-rep-owner')
       ]),
+      itemList('Received — not yet matched', r.unallocated, 'lc-unallocated'),
       itemList('Matched repayments', r.matched),
       itemList('Customer receipts (importer’s own account, not repayment)', r.customer_receipts, 'lc-receipts'),
       itemList('Unmatched, held for review', r.unmatched, 'lc-unmatched'),
@@ -367,7 +382,7 @@
         factRow('Delivery', d, dTone, deliveryExtra, 'lc-fact-delivery')
       ]),
       el('section', { class: 'lc-half half-provider half-' + provTone, 'aria-labelledby': 'lc-h-provider' }, [
-        el('h3', { id: 'lc-h-provider' }, ['Provider exposure', el('span', { class: 'lc-half-state', text: open ? ' · outstanding ' + show(x.amount) : (x ? ' · ended' : ' · none outstanding') })]),
+        el('h3', { id: 'lc-h-provider' }, ['Provider exposure', el('span', { class: 'lc-half-state', text: open ? ' · Outstanding ' + show(x.amount) : (x ? ' · Ended' : ' · No advance drawn') })]),
         el('div', { class: 'lc-prov-facts' }, [
           factRow('Authorisation', a, AUTH_TONE[a.status] || 'pending', null, 'lc-fact-authorization'),
           factRow('Cash', c, cTone, null, 'lc-fact-cash'),
@@ -625,6 +640,11 @@
     }
     $('lc-case').value = caseId;
     loadState(caseId, stateId);
+    // A pasted or edited #case/state link loads that state (replaceState above never fires this).
+    window.addEventListener('hashchange', function () {
+      var h = /^#([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)$/.exec(location.hash || '');
+      if (h && findCase(h[1]) && (h[1] !== st.caseId || h[2] !== st.stateId)) loadState(h[1], h[2]);
+    });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

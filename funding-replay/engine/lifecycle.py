@@ -1140,8 +1140,10 @@ def _decision(d, opts):
             tot.setdefault(u["money"].currency, []).append(u["money"].text())
         return dec("review", "Unmatched cash held for review — case cannot close",
                    "; ".join(u["reason"] for u in d.open_unmatched),
-                   "Return the unmatched item(s) to the payer%s." % (
-                       "; the importer still owes " + sgd(d.total_out) if d.total_out > 0 else ""), SIM_REVIEWER)
+                   ("Collect and match the remaining %s from %s; the unmatched item(s) stay held and can be "
+                    "returned to the payer once the advance is repaid and matched." % (sgd(d.total_out), fx["importer"])
+                    if d.total_out > 0 else "Return the unmatched item(s) to the payer."),
+                   OPERATOR if d.total_out > 0 else SIM_REVIEWER)
     if d.delivery == "credited" and d.incoming:
         return dec("decide", "Repayment received — match it to the advance",
                    "%s received and not yet allocated; %s." % (", ".join(i["money"].text() for i in d.incoming), owe),
