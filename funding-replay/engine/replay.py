@@ -1334,7 +1334,8 @@ def _decide_friday(fri, mon, common, as_of, actionable):
         binding = "Friday %s cutoff: Monday is not evidenced before it closes." % _fmt_clock(fri.cutoff)
     else:
         missing = [c.missing_label or c.name for c in mon.unknown()]
-        reason = "Monday is not evidenced by %s. Missing: %s." % (fmt_sgt(as_of), "; ".join(missing))
+        reason = ("Nothing on record by %s shows that Monday can be used: %d required item%s missing (listed "
+                  "below)." % (fmt_sgt(as_of), len(missing), " is" if len(missing) == 1 else "s are"))
         binding = "Friday %s cutoff: Monday is not evidenced before it closes." % _fmt_clock(fri.cutoff)
     actions = ["Keep the existing Friday instruction with your bank or provider.",
                "To consider waiting next time, ask your provider before Friday%ss cutoff for binding Monday terms, "

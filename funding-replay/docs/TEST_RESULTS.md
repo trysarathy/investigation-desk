@@ -319,3 +319,15 @@ Ran 22 tests in 0.018s
 
 OK
 ```
+
+## Tester edition (5 Nov 2026, branch funding-tester)
+| Check | Result |
+|---|---|
+| Engine + server tests | Ran 139 tests in 2.257s, OK |
+| Development app browser checks (`node tests/browser/e2e.cjs`) | 123/123 checks passed |
+| Recipient checks on the unzipped ZIP, file:// and static HTTP (`node tests/browser/recipient.cjs`) | 48/48 recipient checks passed |
+| Offline check (`node tests/browser/offline.cjs`) | all 54 scenario/checkpoint/preset states passed; no remote requests or browser errors |
+
+Recipient checks cover: the first screen above the fold at 1366×768 (route, USD 100,000.00 net, deadline SGT + New York, decision time, headline, banner); the Friday reference with no 78.77/88.77/Monday records anywhere (page, attributes, evidence); retrospective 8% (5 vs 2 days, 405,000 SGD-days, 88.77 − 10.00 = 78.77, hindsight label, no "saving") and 0% (waiting costs SGD 10.00 more); Friday → retrospective → Friday clearing; delayed receipt (130,000.00 vs 135,382.50, short 5,382.50; Tuesday receipt cannot finance Monday); stale balance (73 h 00 min vs 24 h demo policy, not short); pre-agreed Manual review with no figure; simulated delivery never a green tick; all 54 states without clipped amounts; keyboard arrow navigation and focus ring; WCAG AA text contrast on key elements; 390 px phone width without horizontal scroll; no remote requests; no browser errors; no CSV/Data panel.
+
+Not verified: Safari, Firefox or Edge; a real Mac or Windows machine; screen readers; any hosted URL (not hosted).
