@@ -243,8 +243,9 @@ async function openCase(page, caseId) {
         await page.mouse.click(x, y);
         await settled(page);
         await page.waitForTimeout(60);
-        await page.mouse.click(x, y, { clickCount: 2 });
-        await page.locator('#lc-actions').getByRole('button', { name: adv.label, exact: true }).dblclick().catch(() => {});
+        await page.mouse.move(x, y);
+        await page.mouse.down({ clickCount: 2 });
+        await page.mouse.up({ clickCount: 2 });
         await settled(page);
         await page.waitForTimeout(400);
         await settled(page);
