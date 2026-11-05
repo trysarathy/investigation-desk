@@ -585,5 +585,183 @@ class ResistedDeliveryAndRepayment(unittest.TestCase):
         self.assertFalse(action(v, "release")["enabled"])
 
 
+# =============================================================================================== ROUND 2 (integrated 001e29b)
+def _fund_known_monday(r):
+    e = evidence_by_id(r, "FUND-SG-01")
+    e["effective_at"] = e["known_at"] = "2026-11-16T09:00:00+08:00"
+
+
+def _fac_terms_known_monday(r):
+    e = evidence_by_id(r, "FAC-NW-01")
+    e["effective_at"] = e["known_at"] = "2026-11-16T09:00:00+08:00"
+
+
+def _b_only(r):
+    """No facility; valid SGD 200,000 cash support for the Monday window, known Thu 12 Nov."""
+    r["evidence"].append(cash_support("200000.00"))
+    r["facility"] = None
+    r["funding_account"] = None
+    r["evidence"] = [e for e in r["evidence"] if e["id"] not in ("FAC-NW-01", "POL-ADV-01", "FUND-SG-01")]
+
+
+def _suspension_record_monday(r):
+    """Facility terms known since 2 Nov; a separate suspension record first known Mon 16 Nov 09:00."""
+    r["facility"]["status"] = "suspended"
+    r["evidence"].append({"id": "FAC-NW-01-S", "kind": "facility", "status": "suspended",
+                          "fact": "FAC-NW-01 suspended for new advances from Mon 16 Nov 09:00 SGT (Simulated).",
+                          "effective_at": "2026-11-16T09:00:00+08:00", "known_at": "2026-11-16T09:00:00+08:00",
+                          "source": "synthetic: facility notice (Simulated)"})
+
+
+class Defect2FalseWait(unittest.TestCase):
+    """NEW in 001e29b: when Option C is 'unknown' for a reason other than a stale balance (facility terms or
+    funding balance not yet on record), the decision says 'Wait for the missing records; nothing can be relied on
+    yet' even though Option A is feasible and its Friday 16:00 cutoff is one hour away."""
+
+    def _check(self, mutate, vid):
+        with Variant("reference", vid, mutate) as cid:
+            v = L.view(L.initial_state(cid))
+            self.assertEqual(v["options"][0]["status"], "feasible")
+            self.assertTrue(action(v, "select_a")["enabled"])
+            self.assertNotIn("nothing can be relied on", (v["decision"]["headline"] + v["decision"]["next_action"]).lower(),
+                             v["decision"])
+            self.assertNotIn("Wait", v["decision"]["next_action"], v["decision"])
+
+    def test_N1a_funding_balance_not_yet_known_does_not_hide_feasible_option_a(self):
+        self._check(_fund_known_monday, "chl2_fund_mon")
+
+    def test_N1b_facility_terms_not_yet_known_do_not_hide_feasible_option_a(self):
+        self._check(_fac_terms_known_monday, "chl2_fac_mon")
+
+
+class Defect2OptionB(unittest.TestCase):
+    def test_N2_record_option_b_advice_has_an_action(self):
+        # No facility, valid SGD cash support; Monday 15:00 the only feasible route is B. The decision says
+        # "Record Option B." but no action records or instructs Option B, so the supplier is never paid.
+        with Variant("reference", "chl2_b_only", _b_only) as cid:
+            v = L.view(run(cid, ["advance_clock"]))
+            self.assertEqual(v["options"][1]["status"], "feasible")
+            if "Option B" in v["decision"]["next_action"]:
+                enabled = [a["id"] for a in v["actions"] if a["enabled"] and a["id"] != "advance_clock"]
+                self.assertTrue(enabled, "decision %r but the only enabled action is the clock" % v["decision"]["next_action"])
+
+    def test_N3_only_feasible_route_headline_not_used_when_two_routes_are_feasible(self):
+        # Minor wording: Friday, A and B both feasible, headline says "Option A is the only feasible route".
+        with Variant("reference", "chl2_b_only_fri", _b_only) as cid:
+            v = L.view(L.initial_state(cid))
+            feasible = [o["key"] for o in v["options"] if o["status"] == "feasible"]
+            self.assertEqual(feasible, ["A", "B"])
+            self.assertNotIn("only feasible route", v["decision"]["headline"])
+
+
+class Defect2KnownAt(unittest.TestCase):
+    def test_N4_suspension_record_known_monday_is_not_applied_on_friday(self):
+        with Variant("reference", "chl2_susp_rec", _suspension_record_monday) as cid:
+            v = L.view(L.initial_state(cid))
+            self.assertNotIn("FAC-NW-01-S", {e["id"] for e in v["evidence"]})
+            self.assertNotEqual(v["facility"]["status"], "suspended", "Friday shows a suspension first known Monday")
+            self.assertNotEqual(v["options"][2]["status"], "unavailable")
+            # ...and it does apply once known (Monday)
+            v2 = L.view(run(cid, ["advance_clock"]))
+            self.assertEqual(v2["facility"]["status"], "suspended")
+
+    def test_N5_facility_panel_does_not_show_funding_figures_not_on_record(self):
+        # Minor: rule says 'No provider funding account balance on record', panel shows SGD 500,000.00.
+        with Variant("reference", "chl2_fund_panel", _fund_known_monday) as cid:
+            f = L.view(L.initial_state(cid))["facility"]
+            self.assertNotIn("FUND-SG-01", [r.get("id") for r in f["rules"]])
+            self.assertNotEqual(f["funding_available_cash"], "SGD 500,000.00",
+                                "funding figures shown although the funding record is not yet known")
+
+
+class Defect2Wording(unittest.TestCase):
+    def test_N6_missed_cutoff_after_full_repayment_does_not_say_principal_stays_outstanding(self):
+        v = L.view(run("reference", C_PATH[:3] + ["advance_clock"] * 3 + ["sim_receipt"] + PAY_ALL))
+        self.assertEqual(v["exposure"]["status"], "ended")
+        self.assertNotIn("stays outstanding", v["decision"]["next_action"])
+
+
+class Resisted2(unittest.TestCase):
+    def test_R17_wrong_currency_return_neither_repays_nor_closes_nor_is_blocked(self):
+        base = THU + ["sim_pay_usd", "match_repayment"]
+        v = L.view(run("reference", base))
+        self.assertTrue(action(v, "return_unmatched")["enabled"])
+        self.assertFalse(action(v, "close")["enabled"])
+        st = run("reference", base + ["return_unmatched"])
+        v2 = L.view(st)
+        rp = v2["facts"]["repayment"]
+        self.assertEqual((rp["principal_outstanding"], rp["fees_outstanding"]), ("SGD 135,382.50", "SGD 150.00"))
+        self.assertEqual(v2["exposure"]["status"], "outstanding")
+        self.assertEqual(v2["facility"]["company_available"], v["facility"]["company_available"])
+        self.assertFalse(action(v2, "close")["enabled"])
+        self.assertEqual(L.state_id(L.apply(st, "return_unmatched")), L.state_id(st))
+        self.assertNotIn("close", [e["type"] for e in st["events"]])
+        # while a payment awaits matching, return waits; it never nets
+        v3 = L.view(run("reference", base + ["sim_pay_partial"]))
+        self.assertFalse(action(v3, "return_unmatched")["enabled"])
+        v4 = L.view(run("reference", base + ["return_unmatched"] + PAY_ALL))
+        self.assertTrue(action(v4, "close")["enabled"])
+        # over every reachable state: a return event never lowers what is owed
+        for case in L.CASE_ORDER:
+            for st in reach(case).values():
+                if (action(L.view(st), "return_unmatched") or {}).get("enabled"):
+                    a, b = L.view(st), L.view(L.apply(st, "return_unmatched"))
+                    for k in ("principal_outstanding", "fees_outstanding", "matched"):
+                        self.assertEqual(a["facts"]["repayment"][k], b["facts"]["repayment"][k], case)
+                    self.assertNotEqual(b["decision"]["tone"], "closed")
+
+    def test_R18_repeated_reserve_draw_instruct_match_happen_once(self):
+        st = L.initial_state("reference")
+        for aid in C_PATH + ["advance_clock", "advance_clock", "sim_receipt", "sim_pay_partial", "match_repayment"]:
+            for _ in range(5):
+                st = L.apply(st, aid)   # five clicks each; the clock has only three steps
+        counts = {}
+        for e in st["events"]:
+            counts[e["type"]] = counts.get(e["type"], 0) + 1
+        for k in ("request", "reserve", "draw", "instruct", "accept", "credit", "receipt", "incoming", "match"):
+            self.assertEqual(counts.get(k), 1, (k, counts))
+        rp = L.view(st)["facts"]["repayment"]
+        self.assertEqual(rp["principal_outstanding"], "SGD 35,532.50")
+
+    def test_R19_settled_or_undrawn_case_never_says_someone_is_owed(self):
+        bad = re.compile(r"is owed by|still owes|Outstanding —|owed\)|owes the provider", re.I)
+        for case in L.CASE_ORDER:
+            for st in reach(case).values():
+                v = L.view(st)
+                ex = v["exposure"]
+                if ex is None or ex["status"] == "ended":
+                    txt = json.dumps([v["decision"], ex, v["facts"]["repayment"]["label"], v["facts"]["cash"]],
+                                     ensure_ascii=False)
+                    self.assertIsNone(bad.search(txt), (case, txt[:300]))
+
+    def test_R20_fixes_hold_valid_b_known_at_and_early_record_review(self):
+        with Variant("reference", "chl2_b_ok", lambda r: r["evidence"].append(cash_support("200000.00"))) as cid:
+            self.assertEqual(L.view(L.initial_state(cid))["options"][1]["status"], "feasible")
+
+        def early(r):
+            r["simulated_events"]["credit"]["effective_at"] = "2026-11-13T14:00:00+08:00"
+            r["simulated_events"]["credit"]["known_at"] = "2026-11-13T14:00:00+08:00"
+        with Variant("reference", "chl2_early", early) as cid:
+            for path in (["select_a", "instruct", "advance_clock"],
+                         ["request_advance", "approve_reserve", "draw", "instruct", "sim_accept", "sim_credit"]):
+                st = run(cid, path)
+                v = L.view(st)
+                self.assertEqual(v["decision"]["tone"], "review")
+                self.assertNotEqual(v["facts"]["delivery"]["status"], "credited")
+                self.assertFalse(action(v, "close")["enabled"])
+                self.assertFalse(action(v, "instruct")["enabled"])
+                st2 = L.apply(st, "advance_clock")
+                self.assertEqual(sum(1 for e in st2["events"] if e["type"] in ("credit", "return")), 1)
+
+        def res_monday(r):
+            e = evidence_by_id(r, "RES-OTH-77")
+            e["effective_at"] = e["known_at"] = "2026-11-16T09:00:00+08:00"
+        with Variant("competing", "chl2_res_mon", res_monday) as cid:
+            self.assertEqual(L.view(L.initial_state(cid))["facility"]["funding_reserved_other_payouts"], "SGD 0.00")
+            v = L.view(run(cid, ["advance_clock"]))
+            self.assertEqual(v["facility"]["funding_reserved_other_payouts"], "SGD 150,000.00")
+            self.assertEqual(v["options"][2]["status"], "infeasible")
+
+
 if __name__ == "__main__":
     unittest.main()

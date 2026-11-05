@@ -857,6 +857,10 @@ def _action_specs(d):
             "Option A is %s: %s" % (a["status"], " ".join(a["disqualifiers"])),
             "Records that %s funds %s from its own cash. No advance is used." % (fx["importer"], fx["_cost"].text()),
             lambda: [_ev(d, "select_a", OPERATOR, id="SEL-A-01")])
+    # List routes in option order (A before C) so the advance is never presented as the default.
+    ids = [sp[0]["id"] for sp in specs]
+    if "select_a" in ids and "request_advance" in ids:
+        specs.insert(ids.index("request_advance"), specs.pop(ids.index("select_a")))
     # ---- Delivery ---------------------------------------------------------
     funded = d.auth == "consumed" or d.selected == "A"
     if funded:
