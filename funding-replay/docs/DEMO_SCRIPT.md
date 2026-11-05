@@ -39,7 +39,12 @@ Click **8%** again.
 
 Then stop talking. Note the answer word for word in the Calls tab.
 
+Optional — old bank balance (≈15 s): Scenario *Friday-afternoon balance*, Decision time *Monday checkpoint*.
+> "Here the newest bank balance is Friday 14:00 — 73 hours old at Monday's 15:00 slot. Our demo rule is 24
+> hours, so the tool won't call Monday feasible or short. It asks for a newer balance first."
+
 Optional if asked: *Pre-agreed later slot* on Friday shows **Manual review before waiting** — the terms to
-verify and what reserving Monday would cost — and is explicitly not a recommendation to wait.
+verify and what reserving Monday would cost (SGD 25.00) — with no benefit figure, and is explicitly not a
+recommendation to wait.
 
 Do not say "savings", "we save you" or quote a monthly figure. Every number on screen is synthetic.

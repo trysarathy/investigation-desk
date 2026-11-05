@@ -28,6 +28,7 @@
     HINDSIGHT: 'hindsight',
     MANUAL_REVIEW: 'amber',
     NO_DECISION: 'amber',
+    NEED_NEWER_BALANCE: 'amber',   // unknown, never green: cash is not established either way
     INSUFFICIENT_CASH: 'red',
     DEADLINE_AT_RISK: 'red'
   };
@@ -310,8 +311,43 @@
       noteNode,
       el('p', { class: 'headline', id: 'headline', text: show(d.headline) }),
       el('p', { class: 'reason', id: 'reason', text: show(d.reason) }),
+      renderBalanceCheck(d),
       chips
     ].filter(Boolean));
+  }
+
+  // decision.balance_check: every value is the engine's string; nothing is derived here
+  // (the age is the engine's age_at_slot, never computed from the timestamps).
+  function renderBalanceCheck(d) {
+    var b = d.balance_check;
+    if (!b) return null;
+    var hasBalance = !isBlank(b.balance_sgt) || !isBlank(b.balance_id);
+    var balanceNode = hasBalance
+      ? el('span', null, [
+          el('span', { class: 'num bc-main', text: show(b.balance_sgt) }),
+          isBlank(b.balance_id) ? null : el('span', { class: 'bc-sub num', text: b.balance_id +
+            (isBlank(b.balance_known_sgt) ? '' : ' · known ' + b.balance_known_sgt) }),
+          isBlank(b.expired_sgt) ? null : el('span', { class: 'bc-sub num', text: 'expired ' + b.expired_sgt })
+        ])
+      : el('span', { class: 'bc-main', text: 'None on file' });
+    var slotName = isBlank(b.slot) ? 'funding' : b.slot;
+    var ageNode = el('span', null, [
+      el('span', { class: 'num bc-main', id: 'bc-age', text: isBlank(b.age_at_slot) ? DASH : b.age_at_slot }),
+      isBlank(b.slot_sgt) ? null : el('span', { class: 'bc-sub num', text: 'at ' + b.slot_sgt })
+    ]);
+    var actions = Array.isArray(d.next_actions) ? d.next_actions : [];
+    function row(label, node, cls) {
+      return el('div', { class: 'bc-row' + (cls ? ' ' + cls : '') }, [el('dt', { text: label }), el('dd', null, node)]);
+    }
+    return el('section', { class: 'balance-check bc-' + (b.problem || 'unknown'), id: 'balance-check', 'aria-label': 'Bank balance check' }, [
+      el('h3', { class: 'bc-title', text: b.problem === 'missing' ? 'Bank balance check: no balance on file' : 'Bank balance check: balance too old' }),
+      el('dl', { class: 'bc-rows' }, [
+        row('Newest bank balance', balanceNode),
+        row('Age at the ' + slotName + ' slot', ageNode),
+        row('Limit', el('span', { class: 'bc-main', text: show(b.limit) })),
+        actions.length ? row('Next action', el('span', { class: 'bc-main', id: 'bc-next', text: actions[0] }), 'bc-row-wide') : null
+      ])
+    ]);
   }
 
   function renderPayment(ctx) {
@@ -494,8 +530,6 @@
     var mode, heading;
     if (d.actionable_on_friday === false) {
       mode = 'hindsight'; heading = 'Hindsight only — not available to the operator on Friday';
-    } else if (d.state === 'MANUAL_REVIEW') {
-      mode = 'conditional'; heading = 'Conditional — verify terms first; not a recommendation to wait';
     } else if (d.state === 'HINDSIGHT') {
       mode = 'hindsight'; heading = 'Hindsight view';
     } else {

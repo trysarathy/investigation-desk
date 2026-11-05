@@ -209,7 +209,7 @@ main { max-width: 1400px; margin: 0 auto; padding: 10px var(--gutter) 24px; }
 .tone-amber .headline { color: var(--amber-text); }
 .tone-red .headline { color: var(--red-text); }
 .tone-hindsight .headline { color: var(--hind-text); }
-.reason { font-size: 1.05rem; max-width: 62ch; }
+.reason { font-size: 1.05rem; max-width: 75ch; }
 .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .chip { font-size: 0.8rem; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); }
 .chip-synth { border-style: dashed; }
@@ -279,8 +279,6 @@ main { max-width: 1400px; margin: 0 auto; padding: 10px var(--gutter) 24px; }
 .comparison { margin-top: 14px; border-radius: var(--radius); padding: 12px 14px; border: 1px solid var(--border); }
 .comparison h3 { font-size: 1rem; margin-bottom: 6px; }
 .comp-hindsight { background: var(--hind-bg); color: var(--hind-text); border-style: dashed; border-color: #a2a7b0; }
-.comp-conditional { background: var(--amber-bg); border-color: var(--amber-border); border-style: dashed; }
-.comp-conditional h3 { color: var(--amber-text); }
 .comp-withheld { background: var(--surface-2); border-style: dashed; }
 .comp-plain { background: var(--surface-2); }
 .framing { margin-bottom: 8px; max-width: 80ch; }
@@ -339,3 +337,17 @@ table.evidence td:last-child { min-width: 12em; }
 .risk-note { margin-top: 6px; font-size: 0.95rem; font-weight: 600; color: var(--red-text); }
 .formula-inline { display: block; font-size: 0.78rem; margin-top: 2px; }
 .formula-line { display: block; }
+
+/* Bank balance check (decision.balance_check) — amber: cash is unknown, not short and not fine */
+.balance-check { margin: 6px 0 4px; padding: 6px 12px; border: 1px solid var(--amber-border); border-radius: 6px; background: var(--surface); }
+.bc-title { margin: 0 0 4px; font-size: 0.82rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--amber-text); }
+.bc-rows { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1.2fr); gap: 6px 16px; margin: 0; }
+.bc-row { min-width: 0; }
+.bc-row dt { font-size: 0.8rem; color: var(--muted); margin: 0 0 1px; }
+.bc-row dd { margin: 0; }
+.bc-row-wide { grid-column: 1 / -1; border-top: 1px dashed var(--amber-border); padding-top: 4px; display: flex; gap: 8px; align-items: baseline; }
+.bc-row-wide dt { flex: none; }
+.bc-main { font-weight: 600; overflow-wrap: anywhere; }
+.bc-sub { display: block; font-size: 0.8rem; color: var(--muted); }
+#bc-age { font-size: 1.15rem; }
+@media (max-width: 700px) { .bc-rows { grid-template-columns: 1fr; } }

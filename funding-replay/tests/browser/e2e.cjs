@@ -163,7 +163,8 @@ const FRIDAY_FORBIDDEN = ['78.77', '88.77', 'Mon 16 Nov 2026, 09:00', '135,382.5
     check('Friday reference: delivery check "Simulated delivery bound (not observed)"', t0.text.includes('Simulated delivery bound (not observed)'));
     check('Friday reference: no decision-time note', (await page.$('#dt-note')) === null);
     const names = await page.$$eval('#scenario option', (os) => os.map((o) => o.textContent));
-    check('Scenario names from engine (new names present)', ['Forecast customer receipt', 'Monday capacity check', 'Short-lived Monday quote'].every((n) => names.includes(n)), names.join(' | '));
+    check('9 scenarios in the list', names.length === 9, names.join(' | '));
+    check('Scenario names from engine (new names present)', ['Forecast customer receipt', 'Monday capacity check', 'Short-lived Monday quote', 'Friday-afternoon balance'].every((n) => names.includes(n)), names.join(' | '));
     await page.setViewportSize({ width: 1440, height: 900 });
     await shoot(page, 'friday-reference');
 
@@ -247,10 +248,49 @@ const FRIDAY_FORBIDDEN = ['78.77', '88.77', 'Mon 16 Nov 2026, 09:00', '135,382.5
     await selectScenario(page, 'preagreed');
     const tp = await pageText(page);
     check('Preagreed Friday headline "Manual review"', (await page.textContent('#headline')).includes('Manual review'));
-    const cmp = await page.$('#comparison-block');
-    check('Preagreed Friday comparison is conditional', cmp && (await cmp.textContent()).includes('Conditional — verify terms first; not a recommendation to wait'));
+    check('Preagreed Friday headline is exactly "Manual review before waiting"', (await page.textContent('#headline')) === 'Manual review before waiting', await page.textContent('#headline'));
+    check('Preagreed Friday next actions ask about the reservation cost', /Confirm the reservation cost SGD 25\.00 \(RES-MON\)/.test(await page.textContent('#qa')));
+    check('Preagreed Friday shows no comparison block (Friday never has one)', (await page.$('#comparison-block')) === null);
+    for (const s of ['53.77', '88.77']) {
+      const hit = [tp.text, tp.html, tp.titles, tp.arias, tp.values].some((x) => x.includes(s));
+      check('Preagreed Friday excludes "' + s + '"', !hit);
+    }
+    check('Preagreed Friday: no "Conditional" comparison heading', !tp.text.includes('Conditional — verify terms first'));
     check('Preagreed Friday scenario switch kept Friday', (await page.getAttribute('#dt-friday', 'aria-checked')) === 'true' && tp.text.includes('Fri 13 Nov 2026, 15:00 SGT'));
     await shoot(page, 'friday-preagreed');
+
+    // ---- 7b. Friday-afternoon balance (stale_balance) at Monday ----
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await selectTime(page, 'monday');
+    await selectScenario(page, 'stale_balance');
+    const ts = await pageText(page);
+    check('Stale balance Monday headline exact', (await page.textContent('#headline')) === 'We need a newer bank balance to assess Monday’s funding.', await page.textContent('#headline'));
+    const bc = (await page.$('#balance-check')) ? await page.textContent('#balance-check') : '';
+    check('Stale balance Monday: balance panel shows "Fri 13 Nov 2026, 14:00 SGT"', bc.includes('Fri 13 Nov 2026, 14:00 SGT'), bc);
+    check('Stale balance Monday: balance panel shows balance id CASH-FRI', bc.includes('CASH-FRI'), bc);
+    check('Stale balance Monday: balance panel shows age "73 h 00 min"', (await page.textContent('#bc-age')) === '73 h 00 min');
+    check('Stale balance Monday: balance panel shows limit "24 h before the funding slot (demo policy)"', bc.includes('24 h before the funding slot (demo policy)'), bc);
+    check('Stale balance Monday: balance panel labels', ['Newest bank balance', 'Age at the Monday slot', 'Limit', 'Next action'].every((l) => bc.includes(l)), bc);
+    check('Stale balance Monday: next action shown in the panel', (await page.textContent('#bc-next')) ===
+      'Ask your bank for a settled balance dated within 24 hours of the Monday 15:00 SGT instruction, then re-run this replay.', await page.textContent('#bc-next'));
+    check('Stale balance Monday: Monday option is not "Feasible"', !(await page.textContent('#option-monday .status-chip')).includes('Feasible'), await page.textContent('#option-monday .status-chip'));
+    check('Stale balance Monday: no "Feasible" chip anywhere', !(await page.$$eval('.status-chip', (cs) => cs.some((c) => c.textContent.trim() === 'Feasible'))));
+    check('Stale balance Monday: no comparison block', (await page.$('#comparison-block')) === null);
+    check('Stale balance Monday: decision tone is amber (never green)', (await page.getAttribute('#decision', 'class')).includes('tone-amber'));
+    check('Stale balance Monday: banner label still visible', ts.text.includes('Synthetic replay — no funds move.') && await page.isVisible('#banner'));
+    const foldStale = await aboveFold(page, ['#headline', '#reason', '#balance-check', '#bc-next']);
+    check('Stale balance Monday: headline, reason and balance panel above the fold at 1366x768', foldStale.every((f) => f.ok), JSON.stringify(foldStale));
+    check('Stale balance Monday: panel sits directly under the reason', await page.evaluate(() => {
+      const r = document.getElementById('reason'); return !!r && r.nextElementSibling && r.nextElementSibling.id === 'balance-check'; }));
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await shoot(page, 'monday-stale-balance');
+    await selectTime(page, 'friday');
+    const tsf = await pageText(page);
+    for (const s of ['73 h 00 min', 'Age at the Monday slot']) {
+      const where = ['text', 'html', 'titles', 'arias', 'values'].filter((k) => tsf[k].includes(s));
+      check('Stale balance Monday → Friday removes "' + s + '"', where.length === 0, where.join(','));
+    }
+    check('Stale balance Friday: no balance panel and no comparison', (await page.$('#balance-check')) === null && (await page.$('#comparison-block')) === null);
 
     // ---- 8. Scenario switch keeps decision time (retro) ----
     await selectTime(page, 'retro');
@@ -292,7 +332,7 @@ const FRIDAY_FORBIDDEN = ['78.77', '88.77', 'Mon 16 Nov 2026, 09:00', '135,382.5
       document.querySelector('#import-result').textContent.includes('Sample dataset restored'), null, { timeout: 10000 });
     await settled(page);
     const opts = await page.$$eval('#scenario option', (os) => os.map((o) => o.value));
-    check('Reset restores the 8 samples (no imported)', opts.length === 8 && !opts.includes('imported'), opts.join(','));
+    check('Reset restores the 9 samples (no imported)', opts.length === 9 && !opts.includes('imported'), opts.join(','));
     check('Reset leaves a sample scenario selected', opts.includes(await page.inputValue('#scenario')));
 
     // ---- 11. Evidence button jumps to the trail ----

@@ -1,8 +1,21 @@
-# Test results (3 Nov 2026, this checkout)
+# Test results (5 Nov 2026, branch funding-replay-parity)
 
-Baseline: the original replay package (test_replay.py, 22 tests) was not supplied, so 0 baseline tests could be run.
+All runs below were executed in this session on this checkout. Nothing is marked passed that did not run.
 
-## Engine + server: `python3 -m unittest discover -s tests -v`
+| Suite | Command | Result |
+|---|---|---|
+| Original experiment (reference, unchanged) | `python3 -I -m unittest -v` in the extracted ZIP (SHA-256 7cbab786…24a9d) | Ran 22 tests in 0.018s, OK |
+| Rebuilt engine + server | `python3 -m unittest discover -s tests -v` | Ran 139 tests in 2.513s, OK |
+| Browser (real `app/server.py`, Chromium) | `node tests/browser/e2e.cjs` | 123/123 checks passed |
+| Comparison harness | `python3 parity/run.py` | exit 0; Totals over 19 scenarios x 3 as-of times x 14 fields: 692 same, 64 differs, 42 n/a. (differences reviewed in docs/PARITY_REVIEW.md) |
+
+Baseline before changes (same session): original 22/22, rebuild 108/108, browser 100/100.
+
+Browser checks include: the stale-Monday-balance screen (exact headline, 73 h 00 min, 24 h demo-policy limit, next action, no feasible chip, no comparison), Friday reference/pre-agreed leak checks (no 78.77, 88.77, 53.77 or Monday records in text, HTML, titles, aria or inputs), retrospective figures, 0%/8% sensitivity, delayed receivable, CSV import errors with row numbers, reset to 9 samples, switching retrospective/stale-balance back to Friday, no horizontal scroll at 1280/1366/1440, no non-local requests.
+
+**Not verified:** real bank or provider data, real calendars or cutoffs, actual supplier credit, Safari/Firefox, the Mac launch itself (Python 3.9+ expected).
+
+## Rebuilt engine + server (full list)
 ```
 test_capacity_known_after_monday_instruction_withholds_retro (test_challenge.B1RetroUsesEachSlotsOwnEvidence.test_capacity_known_after_monday_instruction_withholds_retro) ... ok
 test_framing_states_each_kinds_first_known_time (test_challenge.B1RetroUsesEachSlotsOwnEvidence.test_framing_states_each_kinds_first_known_time) ... ok
@@ -24,9 +37,9 @@ test_non_ascii_digits_in_timestamp_rejected (test_challenge.M1LimitsAndServerErr
 test_server_rejects_unicode_digit_rate (test_challenge.M1LimitsAndServerErrors.test_server_rejects_unicode_digit_rate) ... ok
 test_server_returns_json_500_on_engine_exception (test_challenge.M1LimitsAndServerErrors.test_server_returns_json_500_on_engine_exception) ... ok
 test_conflicting_fee_is_contradictory (test_challenge.M2FeeTypes.test_conflicting_fee_is_contradictory) ... ok
-test_duplicate_fee_under_new_id_is_contradictory (test_challenge.M2FeeTypes.test_duplicate_fee_under_new_id_is_contradictory) ... ok
 test_fee_without_type_rejected (test_challenge.M2FeeTypes.test_fee_without_type_rejected) ... ok
 test_fixture_fees_carry_type (test_challenge.M2FeeTypes.test_fixture_fees_carry_type) ... ok
+test_restated_identical_fee_is_counted_once (test_challenge.M2FeeTypes.test_restated_identical_fee_is_counted_once) ... ok
 test_late_observed_credit_fails_delivery (test_challenge.M3ObservedCreditOverridesBound.test_late_observed_credit_fails_delivery) ... ok
 test_on_time_observed_credit_ok (test_challenge.M3ObservedCreditOverridesBound.test_on_time_observed_credit_ok) ... ok
 test_monday_snapshots_in_fixtures (test_challenge.M4OldSnapshotIsStale.test_monday_snapshots_in_fixtures) ... ok
@@ -44,7 +57,7 @@ test_evidence_lists_only_visible_records (test_engine.EvidenceCutoff.test_eviden
 Serialise the whole response: no record known after as_of may appear. ... ok
 test_all_eight_scenarios_present (test_engine.ExpectedOutcomesTable.test_all_eight_scenarios_present) ... ok
 test_contract_top_level_shape (test_engine.ExpectedOutcomesTable.test_contract_top_level_shape) ... ok
-test_friday_comparison_only_for_manual_review (test_engine.ExpectedOutcomesTable.test_friday_comparison_only_for_manual_review) ... ok
+test_friday_view_never_has_an_economic_figure (test_engine.ExpectedOutcomesTable.test_friday_view_never_has_an_economic_figure) ... ok
 test_labels_on_every_response (test_engine.ExpectedOutcomesTable.test_labels_on_every_response) ... ok
 test_monday_view_has_no_comparison (test_engine.ExpectedOutcomesTable.test_monday_view_has_no_comparison) ... ok
 test_retro_comparison_available_or_withheld (test_engine.ExpectedOutcomesTable.test_retro_comparison_available_or_withheld) ... ok
@@ -71,9 +84,10 @@ test_slow_credit (test_engine.OtherIncidents.test_slow_credit) ... ok
 test_stale_quote (test_engine.OtherIncidents.test_stale_quote) ... ok
 test_deterministic_and_pure (test_engine.PlainEnglish.test_deterministic_and_pure) ... ok
 test_no_banned_phrases_in_actions_and_reasons (test_engine.PlainEnglish.test_no_banned_phrases_in_actions_and_reasons) ... ok
-test_friday_comparison_conditional_with_reservation_cost (test_engine.PreagreedWalkthrough.test_friday_comparison_conditional_with_reservation_cost) ... ok
 test_friday_manual_review (test_engine.PreagreedWalkthrough.test_friday_manual_review) ... ok
+test_friday_shows_no_figure_but_lists_cost_questions (test_engine.PreagreedWalkthrough.test_friday_shows_no_figure_but_lists_cost_questions) ... ok
 test_monday_and_retro (test_engine.PreagreedWalkthrough.test_monday_and_retro) ... ok
+test_retro_reservation_cost_is_paid_by_the_importer (test_engine.PreagreedWalkthrough.test_retro_reservation_cost_is_paid_by_the_importer) ... ok
 test_bad_rate_and_time_rejected (test_engine.RateIsOnlyAnAssumption.test_bad_rate_and_time_rejected) ... ok
 test_float_rate_rejected (test_engine.RateIsOnlyAnAssumption.test_float_rate_rejected) ... ok
 test_no_float_in_engine_source (test_engine.RateIsOnlyAnAssumption.test_no_float_in_engine_source) ... ok
@@ -98,6 +112,36 @@ test_contradictory_monday_quotes_withhold_retro (test_engine.UnknownNeverAssumed
 test_indicative_capacity_is_not_feasible (test_engine.UnknownNeverAssumed.test_indicative_capacity_is_not_feasible) ... ok
 test_missing_cash_floor_is_unknown (test_engine.UnknownNeverAssumed.test_missing_cash_floor_is_unknown) ... ok
 test_missing_obligation (test_engine.UnknownNeverAssumed.test_missing_obligation) ... ok
+test_backdated_monday_balance_first_received_tuesday (test_parity.P1BalanceAge24h.test_backdated_monday_balance_first_received_tuesday) ... ok
+test_earlier_expiry_still_applies (test_parity.P1BalanceAge24h.test_earlier_expiry_still_applies) ... ok
+test_exactly_24h_is_accepted (test_parity.P1BalanceAge24h.test_exactly_24h_is_accepted) ... ok
+test_fresh_monday_snapshot (test_parity.P1BalanceAge24h.test_fresh_monday_snapshot) ... ok
+test_freshness_is_judged_at_the_slot_not_when_retro_opens (test_parity.P1BalanceAge24h.test_freshness_is_judged_at_the_slot_not_when_retro_opens) ... ok
+test_just_over_24h_is_stale (test_parity.P1BalanceAge24h.test_just_over_24h_is_stale) ... ok
+test_missing_snapshot (test_parity.P1BalanceAge24h.test_missing_snapshot) ... ok
+test_rate_never_changes_the_balance_answer (test_parity.P1BalanceAge24h.test_rate_never_changes_the_balance_answer) ... ok
+test_stale_monday_balance_screen (test_parity.P1BalanceAge24h.test_stale_monday_balance_screen) ... ok
+test_cash_support_must_cover_required_plus_reservation (test_parity.P2ForwardCashSupport.test_cash_support_must_cover_required_plus_reservation) ... ok
+test_preagreed_is_manual_review_only (test_parity.P2ForwardCashSupport.test_preagreed_is_manual_review_only) ... ok
+test_preagreed_without_cash_support_keeps_friday (test_parity.P2ForwardCashSupport.test_preagreed_without_cash_support_keeps_friday) ... ok
+test_reference_friday_lists_cash_support_as_missing (test_parity.P2ForwardCashSupport.test_reference_friday_lists_cash_support_as_missing) ... ok
+test_capacity_ending_before_release_is_not_evidence (test_parity.P3RouteChecks.test_capacity_ending_before_release_is_not_evidence) ... ok
+test_fallback_must_cover_net_amount (test_parity.P3RouteChecks.test_fallback_must_cover_net_amount) ... ok
+test_instruction_at_cutoff_is_infeasible_even_in_retro (test_parity.P3RouteChecks.test_instruction_at_cutoff_is_infeasible_even_in_retro) ... ok
+test_missing_processing_fee_is_unknown_not_cheaper (test_parity.P3RouteChecks.test_missing_processing_fee_is_unknown_not_cheaper) ... ok
+test_spread_difference_withholds_comparison (test_parity.P3RouteChecks.test_spread_difference_withholds_comparison) ... ok
+test_tuesday_closure_loses_monday_lead (test_parity.P3RouteChecks.test_tuesday_closure_loses_monday_lead) ... ok
+test_commitment_after_balance_is_deducted_once (test_parity.P4Commitments.test_commitment_after_balance_is_deducted_once) ... ok
+test_commitment_already_paid_before_balance_is_not_deducted_again (test_parity.P4Commitments.test_commitment_already_paid_before_balance_is_not_deducted_again) ... ok
+test_missing_commitment_list_makes_cash_unknown (test_parity.P4Commitments.test_missing_commitment_list_makes_cash_unknown) ... ok
+test_b1_cost_known_after_instruction_withholds_retro_figure (test_parity.P5AdversarialFindings.test_b1_cost_known_after_instruction_withholds_retro_figure) ... ok
+test_b2_monday_checkpoint_never_uses_friday_cash_support (test_parity.P5AdversarialFindings.test_b2_monday_checkpoint_never_uses_friday_cash_support) ... ok
+test_b3_future_dated_commitment_list_is_not_evidence (test_parity.P5AdversarialFindings.test_b3_future_dated_commitment_list_is_not_evidence) ... ok
+test_capacity_expiring_exactly_at_release_is_not_through_release (test_parity.P5AdversarialFindings.test_capacity_expiring_exactly_at_release_is_not_through_release) ... ok
+test_m1_closure_with_empty_slot_applies_to_both_slots (test_parity.P5AdversarialFindings.test_m1_closure_with_empty_slot_applies_to_both_slots) ... ok
+test_m2_fallback_starting_after_the_slot_is_not_a_fallback (test_parity.P5AdversarialFindings.test_m2_fallback_starting_after_the_slot_is_not_a_fallback) ... ok
+test_m3_cash_support_older_than_a_known_commitment_is_stale (test_parity.P5AdversarialFindings.test_m3_cash_support_older_than_a_known_commitment_is_stale) ... ok
+test_same_receipt_under_two_ids_is_not_counted_twice (test_parity.P5AdversarialFindings.test_same_receipt_under_two_ids_is_not_counted_twice) ... ok
 test_from_project_dir (test_server.LaunchCommands.test_from_project_dir) ... ok
 test_from_repo_root (test_server.LaunchCommands.test_from_repo_root) ... ok
 test_body_over_1mb_rejected (test_server.ServerTest.test_body_over_1mb_rejected) ... ok
@@ -111,13 +155,13 @@ test_import_good_then_bad_keeps_last_good_then_reset (test_server.ServerTest.tes
 test_index_and_static (test_server.ServerTest.test_index_and_static) ... ok
 test_meta (test_server.ServerTest.test_meta) ... ok
 test_other_methods_rejected (test_server.ServerTest.test_other_methods_rejected) ... ok
-Ran 108 tests in 1.934s
+Ran 139 tests in 2.513s
 OK
 ```
 
-## Browser: `node tests/browser/e2e.cjs` (real server, Chromium)
+## Browser
 ```
-Server: real (app/server.py) on port 40779
+Server: real (app/server.py) on port 34071
 PASS banner label present
 PASS footer label present
 PASS net amount shown
@@ -142,6 +186,7 @@ PASS Friday Monday option is "Not evidenced"
 PASS Friday reference shows no comparison block
 PASS Friday reference: delivery check "Simulated delivery bound (not observed)"
 PASS Friday reference: no decision-time note
+PASS 9 scenarios in the list
 PASS Scenario names from engine (new names present)
 PASS Retro shows "5 days"
 PASS Retro shows "2 days"
@@ -187,8 +232,30 @@ PASS Scenario switch kept decision time (Monday)
 PASS Delayed receivable Retro: "Comparison withheld" + reason
 PASS Delayed receivable Retro: no savings figures
 PASS Preagreed Friday headline "Manual review"
-PASS Preagreed Friday comparison is conditional
+PASS Preagreed Friday headline is exactly "Manual review before waiting"
+PASS Preagreed Friday next actions ask about the reservation cost
+PASS Preagreed Friday shows no comparison block (Friday never has one)
+PASS Preagreed Friday excludes "53.77"
+PASS Preagreed Friday excludes "88.77"
+PASS Preagreed Friday: no "Conditional" comparison heading
 PASS Preagreed Friday scenario switch kept Friday
+PASS Stale balance Monday headline exact
+PASS Stale balance Monday: balance panel shows "Fri 13 Nov 2026, 14:00 SGT"
+PASS Stale balance Monday: balance panel shows balance id CASH-FRI
+PASS Stale balance Monday: balance panel shows age "73 h 00 min"
+PASS Stale balance Monday: balance panel shows limit "24 h before the funding slot (demo policy)"
+PASS Stale balance Monday: balance panel labels
+PASS Stale balance Monday: next action shown in the panel
+PASS Stale balance Monday: Monday option is not "Feasible"
+PASS Stale balance Monday: no "Feasible" chip anywhere
+PASS Stale balance Monday: no comparison block
+PASS Stale balance Monday: decision tone is amber (never green)
+PASS Stale balance Monday: banner label still visible
+PASS Stale balance Monday: headline, reason and balance panel above the fold at 1366x768
+PASS Stale balance Monday: panel sits directly under the reason
+PASS Stale balance Monday → Friday removes "73 h 00 min"
+PASS Stale balance Monday → Friday removes "Age at the Monday slot"
+PASS Stale balance Friday: no balance panel and no comparison
 PASS Scenario switch kept decision time (Retrospective)
 PASS Invalid CSV shows row-numbered errors
 PASS Invalid CSV: row errors formatted "Row N, column C: message"
@@ -196,12 +263,12 @@ PASS Invalid CSV keeps previous scenario
 PASS After failed import, evaluate still uses reference
 PASS Valid CSV import accepted (reference.csv)
 PASS Imported scenario selected
-PASS Reset restores the 8 samples (no imported)
+PASS Reset restores the 9 samples (no imported)
 PASS Reset leaves a sample scenario selected
 PASS Evidence button focuses the evidence trail
 PASS Evidence table has the required columns
 PASS Arrow key moves decision time to Monday
-PASS No "saves"/"savings" (or stray null/undefined) text in any scenario or decision time (8 x 3 views)
+PASS No "saves"/"savings" (or stray null/undefined) text in any scenario or decision time (9 x 3 views)
 PASS Every Monday view is labelled Counterfactual with the no-double-instruction action
 PASS No horizontal scroll at 1280x800 (friday)
 PASS No clipped amounts at 1280x800 (friday)
@@ -219,5 +286,36 @@ PASS Key facts above the fold at 1280x800
 PASS No request to any non-local host
 PASS No page errors
 
-100/100 checks passed
+123/123 checks passed
+```
+
+## Original experiment
+```
+test_baseline (test_replay.Tests.test_baseline) ... ok
+test_capacity (test_replay.Tests.test_capacity) ... ok
+test_concurrent (test_replay.Tests.test_concurrent) ... ok
+test_conflict (test_replay.Tests.test_conflict) ... ok
+test_cutoff (test_replay.Tests.test_cutoff) ... ok
+test_destination_missing (test_replay.Tests.test_destination_missing) ... ok
+test_destination_slow (test_replay.Tests.test_destination_slow) ... ok
+test_duplicate (test_replay.Tests.test_duplicate) ... ok
+test_early_replay (test_replay.Tests.test_early_replay) ... ok
+test_forecast (test_replay.Tests.test_forecast) ... ok
+test_forward_after_deadline (test_replay.Tests.test_forward_after_deadline) ... ok
+test_future (test_replay.Tests.test_future) ... ok
+test_holiday (test_replay.Tests.test_holiday) ... ok
+test_html (test_replay.Tests.test_html) ... ok
+test_missing (test_replay.Tests.test_missing) ... ok
+test_order (test_replay.Tests.test_order) ... ok
+test_preagreed (test_replay.Tests.test_preagreed) ... ok
+test_prior_choice (test_replay.Tests.test_prior_choice) ... ok
+test_receivable_late (test_replay.Tests.test_receivable_late) ... ok
+test_scenarios (test_replay.Tests.test_scenarios) ... ok
+test_stale (test_replay.Tests.test_stale) ... ok
+test_weekend (test_replay.Tests.test_weekend) ... ok
+
+----------------------------------------------------------------------
+Ran 22 tests in 0.018s
+
+OK
 ```

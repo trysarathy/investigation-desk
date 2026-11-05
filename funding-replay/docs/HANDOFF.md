@@ -1,49 +1,71 @@
-# Handoff: funding decision replay (3 Nov 2026)
+# Handoff: funding decision replay (updated 5 Nov 2026 after the parity review)
 
-**Synthetic replay — no funds move.** Branch `funding-replay` of `trysarathy/investigation-desk`,
-folder `funding-replay/`. Start: `python3 funding-replay/app/server.py`, open http://127.0.0.1:8765.
+**Synthetic replay — no funds move.** Branch `funding-replay-parity` of `trysarathy/investigation-desk`,
+folder `funding-replay/` (draft PR, not merged). Start: `python3 funding-replay/app/server.py`, then open
+http://127.0.0.1:8765.
 
-## Reused
-- **Your documents** (in `docs/source/`): the Funding Decision Whitepaper, Founder Decision Memo and
-  Two-Week Validation Plan. All numbers, scenarios, the decision rule, the trust boundary and the four
-  incidents come from them.
-- **Not available to reuse:** the original Funding Replay Experiment (README, `replay.py`, `events.csv`,
-  `test_replay.py`, `friday.html`, `demo.html`, `preagreed.html`, `delayed.html`). It was not in the
-  uploads, on disk or on any repo branch, so its 22 tests could not be run (0 baseline tests). The
-  engine is **reconstructed** from the whitepaper; if you find the zip, swap it in and compare.
-- Patterns from the earlier Clearline code (exact decimals, "unknown" on missing evidence, versioned
-  evidence), re-implemented in Python. The earlier Clearline projects are untouched (`main` and all other
-  branches unchanged); this lives on its own branch.
+## How the engine came to be
+1. **Reconstructed first.** In the first build session the original experiment wasn't available, so the
+   engine was rebuilt from the Funding Decision Whitepaper, the Founder Decision Memo and the Two-Week
+   Validation Plan (`docs/source/`).
+2. **Compared with the supplied original afterwards.** You then supplied
+   `1fb78459-Funding_Replay_Experiment.zip` (SHA-256
+   `7cbab786925d105ccd902ded51d6c822fd36653e08444c9838f16db915e24a9d`). It was extracted read-only outside the
+   app, and its 22 tests pass.
+   - The harness in `parity/` translates the same 19 scenarios into both engines' formats and compares the
+     answers a treasurer cares about.
+   - Decision-changing differences were fixed in the rebuild. The main one: a bank balance more than 24 h old
+     at the slot is now stale, as a demo policy.
+   - Deliberate deviations are kept and explained in `docs/PARITY_REVIEW.md`.
+3. **Independent review.** Two analysts (one per engine), one harness owner and one adversarial reviewer
+   worked independently. The lead integrated every change.
 
-## Built
-- `engine/replay.py`: the decision engine (Python standard library, `Decimal` money). Evidence cutoff at
-  each decision time; forecast vs settled vs reserved vs spendable cash; dedup and conflict rejection;
-  stale/missing/contradictory evidence → unknown; competing commitments subtracted first; same net amount
-  and deadline only; rate sensitivity that can never change a decision.
-- `fixtures/`: 8 synthetic scenarios (reference, pre-agreed later slot, forecast customer receipt,
-  concurrent payout, short-lived Monday quote, closed business day, Monday capacity check, slow
-  beneficiary credit).
-- `app/server.py` + `app/static/`: one local workspace (decision → options → evidence), CSV import with
-  row-numbered errors that keeps the last good scenario, Reset to sample. The browser only displays what
-  the engine returns; it does no money or date arithmetic.
-- Tests: 108 engine/server tests and a 100-check browser test (`docs/TEST_RESULTS.md`). Screenshots in
-  `docs/screenshots/`. Demo script in `docs/DEMO_SCRIPT.md`.
-- Team: one owner built the engine and tests, one built the interface, and a separate challenger
-  attacked the integrated result. It found 6 blocking issues (e.g. the hindsight view using evidence
-  that arrived later; a Monday view that read as if the payment should be funded twice; an FX move shown
-  as a saving). All were fixed with tests and re-checked by the challenger; one remaining minor was then
-  fixed (absurd rates are now rejected).
+## What changed for the person using the app
+- **Old balances.** The Monday checkpoint (and any slot) now asks for a newer bank balance when the newest one
+  is more than 24 h old at the funding slot. Example: "We need a newer bank balance to assess Monday's
+  funding." The screen shows the balance time, the 73 h age, the 24 h limit and the next action. It never
+  shows green and never says the account is short. New scenario: **Friday-afternoon balance**.
+- **No benefit figure on Friday.** The Friday screen never shows a modelled benefit, even in the pre-agreed
+  case, which stays **Manual review before waiting**. Its questions include the reservation cost.
+- **Stricter checks for waiting, as in the original:**
+  - documented cash support for Monday;
+  - an attested-complete commitment list;
+  - an exclusive cutoff;
+  - enough open business dates, with weekends and closures excluded;
+  - capacity confirmed through release;
+  - a fallback covering the USD amount through the deadline;
+  - a complete fee schedule.
+- **Retrospective comparison.** It is now withheld when a cost was first known late, or when the two slots'
+  rates or spreads differ.
+
+## Built and reused
+- **Reused:**
+  - your documents;
+  - the original's rules (24 h freshness, own-cash floor, reservation snapshot, lead days, capacity through
+    release, fallback cover, exclusive cutoff);
+  - patterns from the earlier Clearline code.
+  The earlier Clearline projects are untouched.
+- **Built:**
+  - `engine/replay.py`, in standard-library Python with exact decimals;
+  - 9 synthetic fixtures;
+  - `app/server.py` and the workspace in `app/static/`;
+  - `parity/` (the comparison harness).
+- **Tests:**
+  - 139 engine and server tests, 123 browser checks and the harness (`docs/TEST_RESULTS.md`);
+  - screenshots in `docs/screenshots/`;
+  - the demo script in `docs/DEMO_SCRIPT.md`.
 
 ## Only simulated
-- Every balance, quote, fee, cutoff, capacity, calendar and timestamp is synthetic. The importer and
-  supplier are fictional. No provider's real terms are used.
-- The 7.5-hour last-mile bound is simulated; beneficiary credit is never observed.
-- The 8% rate is a hypothetical assumption, not a measured cost of funds.
-- No bank or provider connection, no instruction, no FX booking, no wallet, no credit. "Next actions" are
-  what an operator could do with their own bank or provider; the tool does none of them.
-- The economics (SGD 78.77 before subscription) are illustrative arithmetic, not a forecast or a result.
+- **Data:** every balance, quote, fee, cutoff, capacity, calendar and timestamp is synthetic. The importer and
+  supplier are fictional.
+- **Assumptions:**
+  - The 24 h balance limit is a demo policy, not an industry rule. A newer balance is not a guarantee.
+  - The last-mile bound is simulated, and beneficiary credit is never observed.
+  - Provider release is not supplier credit.
+  - The 8% rate is an assumption. SGD 78.77 is illustrative hindsight arithmetic, not a saving.
+- **Out of scope:** no bank or provider connection, no instruction, no FX booking, no wallet, no credit.
 
 ## Before you show it
-- Open it on your Mac first and click through the demo script once.
+- Click through `docs/DEMO_SCRIPT.md` once on your Mac.
 - Show it only after the buyer has walked you through their own last payout.
 - Don't call any figure a saving.

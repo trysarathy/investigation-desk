@@ -93,7 +93,8 @@ class B2MondayIsCounterfactual(unittest.TestCase):
     def test_monday_language_is_conditional(self):
         for sid, s in SC.items():
             d = ev(s["events"], "monday")["decision"]
-            self.assertIn("would have been", d["headline"], sid)
+            if d["state"] != "NEED_NEWER_BALANCE":  # asks for evidence instead of judging Monday
+                self.assertIn("would have been", d["headline"], sid)
             fri_state = ev(s["events"], "friday")["decision"]["state"]
             text = " ".join(d["next_actions"])
             if fri_state == "MANUAL_REVIEW":
@@ -123,7 +124,7 @@ class B4DifferentRatesWithheld(unittest.TestCase):
         for rate in ("0", "8"):
             c = ev(load(text), "retro", rate)["comparison"]
             self.assertFalse(c["available"])
-            self.assertIn("Rates differ between slots; the difference would mix a market move with timing",
+            self.assertIn("FX rates or spreads differ between slots; the difference would mix a market move",
                           c["withheld_reason"])
 
     def test_no_saves_wording_anywhere(self):
@@ -264,12 +265,15 @@ class M2FeeTypes(unittest.TestCase):
         events, errors = replay.load_events(text)
         self.assertTrue(any(e["column"] == "status" for e in errors))
 
-    def test_duplicate_fee_under_new_id_is_contradictory(self):
+    def test_restated_identical_fee_is_counted_once(self):
+        # Parity review: a fee restated at the same amount (e.g. agreed Friday, posted Monday) is one fee,
+        # counted once -- never twice and not a contradiction. Different amounts still contradict.
         text = REF + ("FEE-PROC-MON2,fee,monday,,2026-11-12T09:00:00+08:00,,25.00,SGD,,,processing,"
                       "synthetic: test,Processing charge again\n")
         r = ev(load(text), "retro")
-        self.assertEqual(check(opt(r, "monday"), "Fees")["state"], "unknown")
-        self.assertFalse(r["comparison"]["available"])
+        self.assertEqual(check(opt(r, "monday"), "Fees")["state"], "ok")
+        self.assertEqual(opt(r, "monday")["required_sgd"], "SGD 135,382.50")
+        self.assertEqual(r["comparison"]["net_benefit_before_subscription"], "SGD 78.77")
 
     def test_conflicting_fee_is_contradictory(self):
         text = REF + ("FEE-PROC-MON-v2,fee,monday,,2026-11-14T09:00:00+08:00,,30.00,SGD,,,processing,"
@@ -306,8 +310,9 @@ class M4OldSnapshotIsStale(unittest.TestCase):
         r = ev(load(text), "friday")
         c = check(opt(r, "friday"), "Cash")
         self.assertEqual(c["state"], "unknown")
-        self.assertIn("stale", c["detail"])
-        self.assertEqual(r["decision"]["state"], "NO_DECISION")
+        self.assertIn("1038 h 00 min old", c["detail"])
+        self.assertIn("24 h before the funding slot (demo policy)", c["detail"])
+        self.assertEqual(r["decision"]["state"], "NEED_NEWER_BALANCE")
 
     def test_monday_snapshots_in_fixtures(self):
         ids = {e.record_id: e for e in SC["reference"]["events"]}
@@ -340,8 +345,7 @@ class MinorFixes(unittest.TestCase):
         for sid in ("reference", "preagreed"):
             self.assertEqual(ev(SC[sid]["events"], "retro")["comparison"]["risk_note"],
                              "A missed deadline can swamp either figure.")
-        self.assertEqual(ev(SC["preagreed"]["events"], "friday")["comparison"]["risk_note"],
-                         "A missed deadline can swamp either figure.")
+        self.assertIsNone(ev(SC["preagreed"]["events"], "friday")["comparison"])
 
 
 if __name__ == "__main__":
