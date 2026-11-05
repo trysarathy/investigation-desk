@@ -174,12 +174,14 @@ async function fillAll(page, values) { for (const k of Object.keys(values)) awai
 async function noHorizontalScroll(page) {
   return page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
 }
-async function shots(page, name) {
+async function shots(page, name, anchor) {
   fs.mkdirSync(SHOTS, { recursive: true });
   const vp = page.viewportSize();
   for (const [w, h, tag] of [[1366, 768, 'desktop'], [390, 844, 'phone']]) {
     await page.setViewportSize({ width: w, height: h });
     await page.waitForTimeout(150);
+    if (anchor === 'top') await page.evaluate(() => window.scrollTo(0, 0));
+    else if (anchor) await page.evaluate((a) => { const n = document.querySelector(a); if (n) n.scrollIntoView({ block: 'start' }); }, anchor);
     check(name + ' @' + w + ': no horizontal page scroll', await noHorizontalScroll(page),
       await page.evaluate(() => document.documentElement.scrollWidth + ' > ' + window.innerWidth));
     await page.screenshot({ path: path.join(SHOTS, name + '-' + tag + '.png'), fullPage: false });
@@ -285,7 +287,7 @@ async function scrollTo(page, sel) { await page.locator(sel).first().scrollIntoV
         done.add(a.name); visited.push(a.name + ':' + a.type);
         if (values[a.name] !== undefined && !a.value) await page.keyboard.type(values[a.name]);
         else if (keys[a.name] && a.tag === 'SELECT') await page.keyboard.type(keys[a.name]);
-        else if (a.name === 'issued_at' && a.type === 'datetime-local') { await page.keyboard.type('11162026'); await page.keyboard.type('1030'); await page.keyboard.type('A'); done.add('issued_at'); }
+        else if (a.name === 'issued_at' && a.type === 'datetime-local') { await page.keyboard.type('11162026'); await page.keyboard.type('1030'); await page.keyboard.type('A'); done.add('issued_at'); visited.push('issued=' + (await page.inputValue('#pd-dialog-fields [name="issued_at"]'))); }
       }
       const kindNow = await page.inputValue('#pd-dialog-fields [name="kind"]');
       await page.keyboard.press('Enter');
@@ -301,11 +303,11 @@ async function scrollTo(page, sel) { await page.locator(sel).first().scrollIntoV
     const cps = dr.checkpoints || [];
     const flip = cps.find((c) => c.route_c_before === 'unknown' && c.route_c_after === 'feasible');
     check('v2: decision record has a checkpoint unknown -> feasible', !!flip, JSON.stringify(cps.map((c) => [c.trigger, c.route_c_before, c.route_c_after])));
-    check('v2: checkpoint shown with before -> after and its time', flip && (await page.locator('#checkpoints .cp[data-at="' + flip.at + '"] .cp-move').innerText()).toLowerCase().replace(/\s+/g, ' ').includes('unknown → feasible'));
+    check('v2: checkpoint shown with before -> after and its time', flip && (await page.locator('#checkpoints .cp[data-at="' + flip.at + '"] .cp-move').innerText()).toLowerCase().replace(/\s+/g, ' ').match(/unknown → (became )?feasible/));
     check('v2: "What changed" lists the cleared invoice blocker', /invoice/i.test(await domText(page, '#dr-changed')) && /cleared/i.test(await domText(page, '#dr-changed')), await domText(page, '#dr-changed'));
     check('v2: observed / policy / judgment split shown per checkpoint', (await page.locator('#checkpoints .cp').first().locator('.fc-observed, .fc-policy, .fc-judgment').count()) === 3 &&
       flip && (flip.facts.observed || []).length > 0 && (flip.facts.policy || []).length > 0, String(JSON.stringify(flip && flip.facts)).slice(0, 400));
-    check('v2: policy facts carry the policy version', flip && (await page.locator('#checkpoints .cp[data-at="' + flip.at + '"] .fc-policy').innerText()).includes('POL-UI-1'));
+    check('v2: policy facts carry the policy version', flip && ((await page.locator('#checkpoints .cp[data-at="' + flip.at + '"] .fc-policy').first().textContent()) || '').includes('POL-UI-1'));
     check('v2: fact status badges in the evidence table', (await page.locator('#evidence .fact-badge').count()) >= 2 && (await page.locator('#evidence tr[data-kind="invoice"] .fb-fresh').count()) === 1, await page.locator('#evidence .fact-badge').allInnerTexts());
 
     // ---- replay: click the first checkpoint (before the invoice) -> replay banner, no actions
@@ -321,12 +323,12 @@ async function scrollTo(page, sel) { await page.locator(sel).first().scrollIntoV
         (await page.locator('#ev-form').count()) === 0 && (await page.locator('#btn-add-note, #btn-assign').count()) === 0 && (await domText(page, '#actions')).includes('Replay — no actions'));
       const rC = rv0 && rv0.routes.find((r) => r.key === 'C');
       check('v2 replay: route C as it was then (invoice not yet known)', rC && rC.status === 'unknown' && (await domText(page, '#route-C .chip-route')).toLowerCase() === 'unknown' && !(rv0.observations || []).some((o) => o.kind === 'invoice'), rC && rC.status);
-      await shots(page, 'replay');
+      await shots(page, 'replay', 'top');
       // the datetime control: 16 Nov 09:30 SGT
       await page.fill('#replay-at', '2026-11-16T09:30'); await page.fill('#replay-tz', 'Asia/Singapore');
       await page.click('#replay-go');
       await page.waitForFunction(() => location.hash.indexOf('as_of=2026-11-16T01%3A30%3A00Z') >= 0 || location.hash.indexOf('as_of=2026-11-16T01:30:00Z') >= 0, null, { timeout: 5000 }).catch(() => {});
-      await page.waitForSelector('#replay-banner');
+      await page.waitForFunction(() => { const b = document.getElementById('replay-banner'); return b && /09:30/.test(b.innerText); }, null, { timeout: 10000 }).catch(() => {});
       check('v2 replay: "View as known at" control converts the zone and loads ?as_of=', /16 Nov 2026, 09:30/.test(await domText(page, '#replay-banner')) && decodeURIComponent(page.url()).includes('as_of=2026-11-16T01:30:00Z'), page.url());
       await page.click('#replay-exit');
       await page.waitForSelector('#actions-enabled');
@@ -338,12 +340,15 @@ async function scrollTo(page, sel) { await page.locator(sel).first().scrollIntoV
     await signOut(page);
     await signIn(page, base, rv);
     await openCase(page, base, idP);
-    await scrollTo(page, '#decision-record');
-    await shots(page, 'review');
+    await shots(page, 'review', '#decision-record');
     await act(page, 'Approve and reserve capacity', (p) => fillAll(p, { reason: 'Policy POL-UI-1 evidence present; capacity checked.' }));
     vP = await view(page, idP);
     const judg = (vP.decision_record.checkpoints || []).some((c) => (c.facts.judgment || []).length) || (vP.decision_record.judgments || []).length;
     check('v2: reviewer approval recorded as a judgment in the decision record', vP.exposure_panel.status === 'reserved' && !!judg, JSON.stringify(vP.decision_record.judgments || []).slice(0, 300));
+    {
+      const rvName = ((await apiGet(page, '/api/me')).json.user || {}).name;
+      check('v2: judgment shown with the reviewer\'s name, role and reason', (await domText(page, '#dr-judgments')).includes(rvName) && (await domText(page, '#dr-judgments')).includes('Policy POL-UI-1 evidence present') && /reviewer/.test(await domText(page, '#dr-judgments')), await domText(page, '#dr-judgments'));
+    }
 
     // ---- duplicate: same invoice + supplier in this org -> potential match; reviewer resolves
     {
@@ -375,8 +380,7 @@ async function scrollTo(page, sel) { await page.locator(sel).first().scrollIntoV
     await act(page, 'Record beneficiary credit', (p) => fillAll(p, { status: 'credited', reference: 'CRD-5011', location: 'Aaltonen Precision Oy account' }));
     vP = await view(page, idP);
     check('v2: delivered and unpaid — supplier credited, exposure outstanding', vP.supplier_panel.status === 'credited' && vP.exposure_panel.status === 'outstanding');
-    await scrollTo(page, '#supplier-panel');
-    await shots(page, 'delivered-unpaid');
+    await shots(page, 'delivered-unpaid', '.case-strip');
 
     // ---- report with no baseline
     await page.click('#open-report');
@@ -408,8 +412,7 @@ async function scrollTo(page, sel) { await page.locator(sel).first().scrollIntoV
       check('v2 report: synthetic baseline -> baseline numbers labelled "synthetic"', blProv.filter((t) => t === 'synthetic').length >= 4 && blProv.every((t) => t === 'synthetic' || t === 'not measured'), blProv.join(','));
       const act2 = await page.locator('table.report tbody tr').filter({ hasText: /active/i }).locator('td:nth-child(2)').allInnerTexts();
       check('v2 report: logged minutes appear on the Clearline side', act2.some((t) => /25/.test(t)), act2.join(' | '));
-      await page.evaluate(() => window.scrollTo(0, 0));
-      await shots(page, 'report');
+      await shots(page, 'report', 'top');
     }
 
     // ---- overdue is not default
@@ -495,8 +498,7 @@ async function scrollTo(page, sel) { await page.locator(sel).first().scrollIntoV
     }
     await page.fill('#nc-payout_amount', '61,400.00');
     await page.fill('#nc-invoice_ref', 'LO-44817');
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await shots(page, 'intake');
+    await shots(page, 'intake', 'top');
     await page.click('#nc-submit');
     await page.waitForSelector('#decision-headline', { timeout: 10000 });
     caseId = await domText(page, '#case-id');
@@ -630,8 +632,7 @@ async function scrollTo(page, sel) { await page.locator(sel).first().scrollIntoV
     check('no enabled actions on a closed case except notes', (await page.locator('#actions-enabled button').count()) === 0);
     await scrollTo(page, '#identities');
     await shots(page, 'reconciled-closed');
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await shots(page, 'closure');
+    await shots(page, 'closure', 'top');
     check('export buttons JSON/CSV/HTML', (await page.locator('#exports a[data-export]').count()) === 3);
     const html = await apiGet(page, '/api/cases/' + caseId + '/export?format=html');
     const opName = me.user.name; const rvName = (await (async () => { return rv.name; })()) || null;

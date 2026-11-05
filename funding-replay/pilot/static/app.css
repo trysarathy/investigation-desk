@@ -491,3 +491,14 @@ table.report th[scope="row"] { font-weight: 600; min-width: 12em; }
   .dr-cols, .cp-facts, .cp-blk { grid-template-columns: minmax(0, 1fr); }
   .cp-replay { margin-left: 0; }
 }
+.cp-details { margin-top: 4px; }
+.cp-details > summary { cursor: pointer; font-size: 0.8rem; color: var(--muted); font-weight: 600; }
+@media (max-width: 560px) {
+  table.report thead { display: none; }
+  table.report, table.report tbody, table.report tr, table.report th, table.report td { display: block; width: 100%; }
+  table.report tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 2px 10px; padding: 6px 8px; border-top: 1px solid var(--border-strong); }
+  table.report th[scope="row"] { grid-column: 1 / -1; min-width: 0; border-top: 0; padding: 0; }
+  table.report td { border-top: 0; padding: 0; min-width: 0; }
+  table.report td::before { content: attr(data-label); display: block; font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  .table-wrap:has(table.report) { overflow-x: visible; }
+}

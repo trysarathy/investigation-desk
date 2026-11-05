@@ -188,11 +188,19 @@
     return new Date(ts).toISOString().replace(/\.\d{3}Z$/, 'Z');
   }
   function zoneAbbr(tz, utcIso) {
-    try {
-      var p = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'short' }).formatToParts(new Date(utcIso));
-      var z = p.filter(function (x) { return x.type === 'timeZoneName'; })[0];
-      return z ? z.value : tz;
-    } catch (e) { return tz; }
+    // Prefer a named abbreviation (SGT, CET); several locales know names en-US only shows as GMT+8.
+    var first = null;
+    var locs = ['en-US', 'en-SG', 'en-GB', 'en-AU', 'en-IN'];
+    for (var i = 0; i < locs.length; i++) {
+      try {
+        var p = new Intl.DateTimeFormat(locs[i], { timeZone: tz, timeZoneName: 'short' }).formatToParts(new Date(utcIso));
+        var z = p.filter(function (x) { return x.type === 'timeZoneName'; })[0];
+        if (!z) continue;
+        if (first === null) first = z.value;
+        if (!/^(GMT|UTC)[+-]/.test(z.value)) return z.value;
+      } catch (e) { return tz; }
+    }
+    return first || tz;
   }
   var zoneList = null;
   function zoneDatalist() {
@@ -503,7 +511,7 @@
     var v = viewRoot('New case');
     if (!canWrite()) { v.root.appendChild(el('p', { class: 'muted', text: 'Viewers cannot create cases.' })); focusHeading(v.heading); return; }
     var defTz = 'Asia/Singapore';
-    var dt = function (name, req) { return inp(name, { type: 'datetime-local', required: req ? true : null }); };
+    var dt = function (name, req) { return inp(name, { type: 'datetime-local', min: '2000-01-01T00:00', max: '2099-12-31T23:59', required: req ? true : null }); };
     var tzIn = zoneInput('deadline_tz', defTz);
     var later = el('input', { type: 'checkbox', name: 'later_permitted', id: 'nc-later_permitted' });
     var facSel = el('select', { name: 'facility_id', id: 'nc-facility_id' }, el('option', { value: '', text: 'No facility' }));
@@ -582,6 +590,10 @@
       utcPreview.textContent = 'Deadline ' + d.replace('T', ' ') + ' ' + zoneAbbr(tz, u) + ' = ' + u + ' (UTC)';
     }
     form.addEventListener('input', preview);
+    form.addEventListener('input', function (e) {   // an edited field no longer shows the server's old complaint
+      var t = e.target; if (!t || !t.id || t.getAttribute('aria-invalid') !== 'true') return;
+      t.removeAttribute('aria-invalid'); var er = document.getElementById(t.id + '-err'); if (er) er.textContent = '';
+    });
     var key = null; var lastBody = null;
     form.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -719,12 +731,13 @@
   function renderCase(id, focus, seq, asOf) {
     var v = viewRoot('Case ' + id, 'case-h1');
     v.root.appendChild(el('p', { class: 'muted', text: asOf ? 'Loading replay…' : 'Loading case…' }));
+    if (asOf) status('');
     if (asOf && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?Z$/.test(asOf)) {
       var bad = viewRoot('Replay time not understood', 'case-h1');
       bad.root.appendChild(el('div', { class: 'panel', id: 'case-error' }, [el('p', { text: 'The replay time must be a UTC instant such as 2026-11-16T01:00:00Z.' }), el('p', null, el('a', { href: caseLink(id), text: 'Open the current case' }))]));
       focusHeading(bad.heading); return;
     }
-    loadCase(id, asOf).then(function (cv) {
+    Promise.all([loadCase(id, asOf), loadUsers()]).then(function (res) { return res[0]; }).then(function (cv) {
       if (seq !== undefined && seq !== S.routeSeq) return;
       paintCase(cv, focus);
     }).catch(function (e) {
@@ -747,7 +760,7 @@
     var v = viewRoot(show(h.importer) + ' → ' + show(h.supplier), 'case-h1');
     v.heading.classList.add('case-title');
     v.root.setAttribute('data-version', String(cv.version));
-    v.root.prepend(el('p', { class: 'crumbs' }, [el('a', { href: '#/queue', text: 'Queue' }), ' / ', el('span', { class: 'mono', id: 'case-id', text: cv.id }), ' ', chip(humanize(cv.status), 'chip-status chip-st-' + cv.status), el('span', { class: 'muted small num', id: 'case-version', text: ' v' + cv.version })]));
+    v.root.prepend(el('p', { class: 'crumbs' }, [el('a', { href: '#/queue', text: 'Queue' }), ' / ', el('span', { class: 'mono', id: 'case-id', text: cv.id }), ' ', chip(humanize(cv.status), 'chip-status chip-st-' + cv.status), el('span', { class: 'muted small num', id: 'case-version', text: blank(cv.version) ? '' : ' v' + cv.version })]));
     var replay = isReplay(cv);
     v.root.setAttribute('data-replay', replay ? 'true' : 'false');
     if (replay) v.root.insertBefore(replayBanner(cv), v.heading);
@@ -804,9 +817,19 @@
     arr(cv.routes).forEach(function (r) { if (r.status !== 'feasible') arr(r.blockers).forEach(function (b) { out.push(Object.assign({ route: pick(r, 'key', 'route', 'id') }, typeof b === 'object' ? b : { text: b })); }); });
     return out;
   }
+  function routeInUse(cv) {
+    var rs = arr(cv.routes);
+    var sel = rs.filter(function (r) { return r.selected; })[0];
+    if (sel) return pick(sel, 'key', 'route', 'id');
+    var ex = (cv.exposure_panel || {}).status;
+    if (ex && ex !== 'none') return 'C';
+    return null;
+  }
   function blocksNow(cv) {
+    var inUse = routeInUse(cv);
     var bl = currentBlockers(cv);
-    var body = bl.length ? blockerGroups(bl, 'now') : el('p', { class: 'small muted', text: 'Nothing recorded as blocking.' });
+    if (inUse) bl = bl.filter(function (b) { return !b.route || b.route === inUse; });
+    var body = bl.length ? blockerGroups(bl, 'now') : el('p', { class: 'small muted', text: /closed/.test(cv.status || '') ? 'Case closed \u2014 nothing blocks it.' : inUse ? 'Route ' + inUse + ' is in use; nothing recorded blocks it. Other routes are shown below.' : 'Nothing recorded as blocking.' });
     return el('div', { class: 'blocks-now', id: 'blocks-now' }, [el('p', { class: 'mini-h', text: 'What blocks the next action' }), body]);
   }
 
@@ -945,13 +968,13 @@
     var note = cv.replay && cv.replay.note;
     return el('section', { class: 'replay-banner', id: 'replay-banner', role: 'note', 'aria-labelledby': 'replay-h' }, [
       el('h2', { class: 'replay-h', id: 'replay-h' }, [el('span', { class: 'replay-tag', text: 'Replay' }), ' Replay — what was known at ', el('span', { class: 'num', title: 'UTC ' + at, text: formatLocal(at, caseTz(cv)) })]),
-      el('p', { class: 'small', text: (note ? note + ' ' : '') + 'Read only: no actions can be taken from a replay. Times in ' + caseTz(cv) + '; UTC ' + at + '.' }),
+      el('p', { class: 'small', text: (note ? note + ' ' : 'Read only: no actions can be taken from a replay. UTC ' + at + '. ') + 'Times shown in ' + caseTz(cv) + '.' }),
       el('p', null, el('a', { class: 'btn btn-small', id: 'replay-exit', href: caseLink(cv.id), text: 'Back to the current view' }))
     ]);
   }
   function replayControl(cv) {
     var tz = caseTz(cv);
-    var at = el('input', { type: 'datetime-local', id: 'replay-at', name: 'replay_at', required: true });
+    var at = el('input', { type: 'datetime-local', id: 'replay-at', name: 'replay_at', min: '2000-01-01T00:00', max: '2099-12-31T23:59', required: true });
     var tzIn = zoneInput('replay_tz', tz, 'replay-tz');
     var err = el('p', { class: 'field-err', id: 'replay-err', role: 'alert' });
     var form = el('form', { class: 'replay-form', id: 'replay-form', novalidate: true }, [
@@ -996,9 +1019,10 @@
   function atUtc(v) { return v && typeof v === 'object' ? (v.utc || v.at) : v; }
   function factLine(f, kind, cv) {
     if (typeof f !== 'object' || !f) return el('li', { class: 'fact fact-' + kind, text: String(f) });
-    var who = pick(f, 'actor_name', 'actor', 'by', 'reviewer', 'user');
+    var who = pick(f, 'actor_name', 'by_name', 'actor', 'by', 'reviewer', 'user');
     if (who && typeof who === 'object') who = who.name;
-    var role = pick(f, 'actor_role', 'role');
+    if (typeof who === 'number') { var u = arr(S.users).filter(function (x) { return x.id === who; })[0]; who = u ? u.name : 'User ' + who; }
+    var role = pick(f, 'actor_role', 'by_role', 'role');
     var pol = pick(f, 'policy_version', 'policy');
     var when = pick(f, 'at', 'known_at', 'effective_at', 'decided_at');
     var meta = [];
@@ -1063,13 +1087,18 @@
             arr(c.blockers_cleared).length ? el('div', null, [el('p', { class: 'mini-h', text: 'Blockers cleared' }), drList(c.blockers_cleared, 'cp-cleared', '')]) : null,
             arr(c.blockers_added).length ? el('div', null, [el('p', { class: 'mini-h', text: 'Blockers added' }), drList(c.blockers_added, 'cp-added', '')]) : null
           ]) : null,
+          el('details', { class: 'cp-details', open: i === cps.length - 1 ? true : null }, [
+            el('summary', { text: 'Facts behind this checkpoint — observed ' + arr(facts.observed).length + ' · policy ' + arr(facts.policy).length + ' · judgment ' + arr(facts.judgment).length }),
           el('div', { class: 'cp-facts' }, [['observed', 'Observed — recorded facts'], ['policy', 'Policy — rule evaluations'], ['judgment', 'Judgment — reviewer decisions']].map(function (k) {
             var list = arr(facts[k[0]]);
             return el('div', { class: 'cp-fact-col fc-' + k[0] }, [el('p', { class: 'mini-h', text: k[1] }),
               list.length ? el('ul', { class: 'facts' }, list.map(function (f) { return factLine(f, k[0], cv); })) : el('p', { class: 'small muted', text: 'None.' })]);
-          }))
+          }))])
         ]);
-      })) : el('p', { class: 'muted small', text: 'No checkpoints yet. One is added whenever evidence or a review changes a route.' })
+      })) : el('p', { class: 'muted small', text: 'No checkpoints yet. One is added whenever evidence or a review changes a route.' }),
+      el('h3', { class: 'mini-h', text: 'Judgments on record — reviewer decisions, never rewritten' }),
+      arr(dr.judgments).length ? el('ul', { class: 'facts', id: 'dr-judgments' }, arr(dr.judgments).map(function (j) { return factLine(j, 'judgment', cv); }))
+        : el('p', { class: 'small muted', id: 'dr-judgments-none', text: 'No reviewer judgment yet.' })
     ], 'panel-dr');
   }
 
@@ -1275,7 +1304,7 @@
     not_measured: { label: 'not measured', title: 'No number was recorded for this.' }
   };
   function provKey(v) { return blank(v) ? null : String(v).toLowerCase().replace(/[\s-]+/g, '_'); }
-  function reportCell(c) {
+  function reportCell(c, side) {
     var val; var prov; var note;
     if (c && typeof c === 'object') {
       val = pick(c, 'display', 'text', 'formatted', 'value');
@@ -1286,7 +1315,7 @@
     if (prov === 'not_measured' || blank(val) && !prov) { prov = 'not_measured'; }
     if (typeof val === 'boolean') val = val ? 'Yes' : 'No';
     var m = REPORT_PROV[prov] || { label: prov ? humanize(prov) : 'unlabelled', title: '' };
-    return el('td', { class: 'rp-cell rp-' + (prov || 'none') }, [
+    return el('td', { class: 'rp-cell rp-' + (prov || 'none'), 'data-label': side || '' }, [
       prov === 'not_measured' && blank(val) ? el('span', { class: 'rp-val muted', text: 'not measured' }) : el('span', { class: 'rp-val num', text: show(val) }),
       ' ', el('span', { class: 'rp-prov rpp-' + (prov || 'none'), title: m.title, text: m.label }),
       note ? el('span', { class: 'sub', text: String(note) }) : null
@@ -1359,7 +1388,7 @@
         section('Clearline vs baseline', 'report-table', [
           el('p', { class: 'small muted', text: 'Clearline figures are computed from this case\u2019s event log. The baseline is what the provider\u2019s usual process took, as recorded below. Every number carries its source.' }),
           rows.length ? tableWrap('Clearline vs baseline', ['Measure', 'Clearline', 'Baseline'], rows.map(function (x) {
-            return el('tr', { 'data-metric': x.key }, [el('th', { scope: 'row', text: show(x.label || REPORT_ROW_LABEL[x.key] || humanize(x.key)) }), reportCell(x.clearline), reportCell(x.baseline)]);
+            return el('tr', { 'data-metric': x.key }, [el('th', { scope: 'row', text: show(x.label || REPORT_ROW_LABEL[x.key] || humanize(x.key)) }), reportCell(x.clearline, 'Clearline'), reportCell(x.baseline, 'Baseline')]);
           }), 'report') : el('p', { class: 'muted small', text: 'The server returned no measures.' }),
           el('p', { class: 'hint', id: 'report-baseline-source' }, ['Baseline: ', blProv ? el('span', { class: 'rp-prov rpp-' + provKey(blProv), text: (REPORT_PROV[provKey(blProv)] || { label: blProv }).label }) : el('span', { class: 'rp-prov rpp-not_measured', text: 'not measured' }), blNote ? ' — ' + blNote : (blProv ? '' : ' — no baseline recorded for this case.')]),
           r.active_vs_elapsed ? el('p', { class: 'hint', text: text(r.active_vs_elapsed) }) : null,
@@ -1506,7 +1535,7 @@
   // Required unless the server's param descriptor says otherwise; everything else is optional and the server
   // reports any field it needs.
   var REQUIRED = { amount: 1, currency: 1, reason: 1, text: 1, what: 1, external_ref: 1, bank_ref: 1, user_id: 1, repayment_id: 1,
-    item_id: 1, match_id: 1, event_id: 1, disposition: 1, route: 1, status: 1, kind: 1, resolution: 1, decision: 1, minutes: 1, activity: 1, source_note: 1 };
+    item_id: 1, match_id: 1, event_id: 1, disposition: 1, route: 1, status: 1, kind: 1, resolution: 1, decision: 1, minutes: 1, activity: 1, source_note: 1, issued_at: 1, invoice_ref: 1 };
   // Which params matter for the current choice (others are hidden and not sent).
   var OBS_SOURCE = ['issuer', 'record_ref', 'scope'];
   var OBS_FIELDS = {
@@ -1637,7 +1666,7 @@
       case 'time': case 'datetime': {
         var tz = el('input', { type: 'text', name: name + '__tz', id: id + '-tz', list: 'pd-zones', value: (cv.header && cv.header.deadline_tz) || 'UTC', autocomplete: 'off', spellcheck: 'false' });
         zoneDatalist();
-        c = el('input', { type: 'datetime-local', name: name, id: id, required: required ? true : null });
+        c = el('input', { type: 'datetime-local', name: name, id: id, min: '2000-01-01T00:00', max: '2099-12-31T23:59', required: required ? true : null });
         return { node: el('div', { class: 'field-pair' }, [field(label + ' (local)', c, required ? null : 'Leave blank for now (server time)', { optional: !required }), field('Time zone', tz)]), kind: 'time' };
       }
       case 'textarea':
@@ -1872,6 +1901,8 @@
     $('pd-dialog-form').addEventListener('submit', submitCommand);
     $('pd-dialog-cancel').addEventListener('click', function () { S.dialog = null; closeDialog(); });
     $('pd-dialog').addEventListener('close', function () {
+      // A close event is queued as a task: if the dialog was reopened before it ran (fast keyboard use), it is stale.
+      if ($('pd-dialog').open) return;
       var opener = S.dialog ? S.dialog.opener : (lastOpener || null);
       S.dialog = null;
       if (opener && document.body.contains(opener)) opener.focus();
