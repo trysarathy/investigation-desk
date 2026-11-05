@@ -81,6 +81,7 @@
 
   // ---------- networking (local API only) ----------
   function api(method, path, body, contentType) {
+    if (window.clearlineDemoAPI) return window.clearlineDemoAPI(path, body);
     var opts = { method: method, headers: {} , cache: 'no-store' };
     if (body !== undefined) {
       opts.body = body;

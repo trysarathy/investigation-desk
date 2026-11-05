@@ -124,7 +124,7 @@ const FRIDAY_FORBIDDEN = ['78.77', '88.77', 'Mon 16 Nov 2026, 09:00', '135,382.5
   let browser;
   try {
     await waitForServer(port, 15000);
-    browser = await chromium.launch();
+    browser = await chromium.launch(process.env.CHROMIUM_PATH ? {executablePath: process.env.CHROMIUM_PATH} : {});
     const ctx = await browser.newContext({ viewport: { width: 1366, height: 768 } });
     const page = await ctx.newPage();
     const foreign = [];
