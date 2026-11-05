@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Clearline | Provider funding desk</title>
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="lifecycle.css">
+</head>
+<body class="lc">
+<a class="skip" href="#lc-actions-heading">Skip to actions</a>
+<header class="lc-mast">
+  <div class="lc-mast-inner">
+    <div class="brand"><svg width="22" height="22" viewBox="0 0 28 28" aria-hidden="true"><path fill="currentColor" d="M4 5h20l-4 5H9v8h11l4 5H4z"/><path fill="currentColor" d="M13 12h10l-3 4h-7z"/></svg>Clearline</div>
+    <h1 class="lc-title">Provider funding desk</h1>
+    <p class="lc-sim" role="note" id="lc-label">Simulated — no funds move.</p>
+    <div class="lc-controls" role="group" aria-label="Case controls">
+      <label class="lc-ctl-label" for="lc-case">Case</label>
+      <select id="lc-case" name="case"></select>
+      <button type="button" class="btn btn-quiet" id="lc-reset">Reset</button>
+      <a class="lc-link" href="replay/index.html">Importer view: Friday replay</a>
+    </div>
+  </div>
+</header>
+
+<section class="lc-pay" aria-label="Payment" id="lc-pay"></section>
+
+<main id="main" class="lc-main">
+  <div class="status-line" id="lc-status" role="status" aria-live="polite"></div>
+
+  <div class="lc-grid">
+    <div class="lc-col lc-col-main" id="lc-col-main">
+      <section class="lc-decision" id="lc-decision" aria-labelledby="lc-decision-heading">
+        <h2 class="lc-kicker" id="lc-decision-heading" tabindex="-1">Decision now</h2>
+        <div id="lc-decision-body" aria-live="polite" aria-atomic="true"></div>
+      </section>
+
+      <section class="lc-panel lc-sec-facts" aria-labelledby="lc-facts-heading">
+        <h2 class="lc-kicker" id="lc-facts-heading">Lifecycle — four separate facts</h2>
+        <div class="lc-split" id="lc-facts"></div>
+      </section>
+
+      <section class="lc-panel lc-sec-options" aria-labelledby="lc-options-heading">
+        <h2 class="lc-kicker" id="lc-options-heading">Funding options — who puts up the money</h2>
+        <div class="lc-options" id="lc-options"></div>
+        <p class="lc-note" id="lc-options-note"></p>
+      </section>
+
+    </div>
+
+    <div class="lc-col lc-col-side">
+      <section class="lc-panel lc-actions-panel" aria-labelledby="lc-actions-heading">
+        <h2 class="lc-kicker" id="lc-actions-heading" tabindex="-1">Actions</h2>
+        <div id="lc-actions"></div>
+      </section>
+
+      <section class="lc-panel" aria-labelledby="lc-facility-heading">
+        <h2 class="lc-kicker" id="lc-facility-heading">Facility</h2>
+        <div id="lc-facility"></div>
+      </section>
+    </div>
+  </div>
+
+  <div id="lc-warnings"></div>
+
+  <div class="lc-grid lc-grid-lower">
+    <section class="lc-panel" aria-labelledby="lc-evidence-heading" id="lc-evidence-section">
+      <h2 class="lc-kicker" id="lc-evidence-heading" tabindex="-1">Evidence</h2>
+      <p class="lc-note">Only records first known at or before the simulation clock.</p>
+      <div class="table-wrap" id="lc-evidence"></div>
+    </section>
+    <section class="lc-panel" aria-labelledby="lc-timeline-heading">
+      <h2 class="lc-kicker" id="lc-timeline-heading">Timeline</h2>
+      <div id="lc-timeline"></div>
+    </section>
+  </div>
+
+  <section class="lc-panel" aria-labelledby="lc-inv-heading">
+    <h2 class="lc-kicker" id="lc-inv-heading">Reconciliation</h2>
+    <div id="lc-invariants"></div>
+  </section>
+</main>
+
+<footer class="footer lc-footer">
+  <span>Every party, facility, limit and event is fictional. Simulated roles are labels, not sign-in.</span>
+  <span id="lc-footer-label">Simulated — no funds move.</span>
+</footer>
+
+<script src="lc-meta.js"></script>
+<script src="lifecycle.js"></script>
+</body>
+</html>
