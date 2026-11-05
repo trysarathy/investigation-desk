@@ -98,3 +98,12 @@ the remaining cash cannot be reserved twice, so approval is disabled with the re
   ones. Do not put real data in it.
 - The state space is pre-computed (≤ 600 states per case); unusual paths outside the modelled actions do not exist.
 - Times, cutoffs, balances and the 24 h freshness limit are demo policy, not provider or bank rules.
+
+## Second challenger round (fixed at the release candidate)
+- A feasible Option A is never hidden behind "wait for the missing records" when only the advance lacks evidence.
+- Option B can be recorded ("Record Option B") whenever it is feasible; its payout can only be instructed inside the
+  Monday window. In the seven shipped cases B is never feasible on Friday, so they are unchanged.
+- Facility suspension and funding-account figures are shown only once their evidence record is known at the clock.
+- Two feasible routes are presented as a choice, never as "the only feasible route".
+- Open policy question (not modelled): whether a suspension "for new advances" should also block drawing a reservation
+  made before it was known. Today such a reservation can still be drawn.

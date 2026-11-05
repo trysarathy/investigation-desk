@@ -243,7 +243,7 @@ def _derive(state):
     d.fees_charged = ZERO
     d.principal_repaid = ZERO
     d.fees_repaid = ZERO
-    d.selected = None             # 'A' | 'C'
+    d.selected = None             # 'A' | 'B' | 'C'
     d.delivery = "none"
     d.instruct = d.accept = d.credit = d.ret = None
     d.conflict = None             # open conflict event
@@ -313,6 +313,10 @@ def _derive(state):
         elif typ == "select_a":
             d.selected = "A"
             d.timeline.append(_tl(ev, "Operator recorded Option A: the importer funds the Friday window from its own cash."))
+        elif typ == "select_b":
+            d.selected = "B"
+            d.timeline.append(_tl(ev, "Operator recorded Option B: the importer funds the Monday window from its own cash, "
+                                      "backed by documented cash support. No advance is used."))
         elif typ == "instruct":
             d.delivery, d.instruct = "instructed", ev
             d.extra_evidence.append(_rec(ev, "payout_instruction", "Payout instruction %s: %s net to %s, funded by %s."
@@ -474,7 +478,7 @@ def _fac_status(d):
     if not recs:
         return "not_on_record"
     latest = max(recs, key=lambda e: (e["_eff"], e["_known"]))
-    if latest["status"] == "suspended" or d.fac["status"] != "active":
+    if latest["status"] == "suspended":
         return "suspended"
     return "active"
 
@@ -624,7 +628,7 @@ def _option_b(d):
             txt = "No documented cash support for %s; the %s forecast (%s) does not count." % (
                 _day(w["_at"]), _day(fc[0]["_eff"]), fc[0]["id"])
         dis.append(txt)
-    if d.clock >= w["_cutoff"]:
+    if d.clock >= w["_cutoff"] and d.selected != "B":
         dis.append("The later window cutoff %s has passed." % _short(w["_cutoff"]))
     ev = [fx["contract"]["evidence"], w["evidence"]] + [e["id"] for e in docs] + \
         [e["id"] for e in _visible_fixture(d) if e["kind"] == "forecast_receipt"]
@@ -857,21 +861,34 @@ def _action_specs(d):
             "Option A is %s: %s" % (a["status"], " ".join(a["disqualifiers"])),
             "Records that %s funds %s from its own cash. No advance is used." % (fx["importer"], fx["_cost"].text()),
             lambda: [_ev(d, "select_a", OPERATOR, id="SEL-A-01")])
+        b = _option_b(d)
+        if b["status"] == "feasible":
+            add("select_b", "Record Option B: importer funds the Monday window", "Operator", True, None,
+                "Records that %s funds %s from its own cash at %s, backed by documented cash support. No advance is used."
+                % (fx["importer"], fx["_cost"].text(), _short(fx["windows"]["monday"]["_at"])),
+                lambda: [_ev(d, "select_b", OPERATOR, id="SEL-B-01")])
     # List routes in option order (A before C) so the advance is never presented as the default.
     ids = [sp[0]["id"] for sp in specs]
-    if "select_a" in ids and "request_advance" in ids:
-        specs.insert(ids.index("request_advance"), specs.pop(ids.index("select_a")))
+    for own in ("select_a", "select_b"):
+        ids = [sp[0]["id"] for sp in specs]
+        if own in ids and "request_advance" in ids and ids.index(own) > ids.index("request_advance"):
+            specs.insert(ids.index("request_advance"), specs.pop(ids.index(own)))
     # ---- Delivery ---------------------------------------------------------
-    funded = d.auth == "consumed" or d.selected == "A"
+    funded = d.auth == "consumed" or d.selected in ("A", "B")
     if funded:
-        cutoff = fx["windows"]["friday"]["_cutoff"] if d.selected == "A" else fac["_expiry"]
+        cutoff = (fx["windows"]["friday"]["_cutoff"] if d.selected == "A" else
+                  fx["windows"]["monday"]["_cutoff"] if d.selected == "B" else fac["_expiry"])
+        opens = fx["windows"]["monday"]["_at"] if d.selected == "B" else None
         if d.delivery == "none":
-            ok = d.clock < cutoff
+            ok = d.clock < cutoff and (opens is None or d.clock >= opens)
             add("instruct", "Instruct payout", "Operator", ok,
-                "The payout cutoff %s has passed; a late instruction would miss the release." % _short(cutoff),
+                ("Option B funds at the %s window; instruct from %s." % (_day(opens), _short(opens))
+                 if opens is not None and d.clock < opens else
+                 "The payout cutoff %s has passed; a late instruction would miss the release." % _short(cutoff)),
                 "Sends one payout instruction to the provider. It is not supplier credit.",
                 lambda: [_ev(d, "instruct", OPERATOR, id="PAY-NW-01",
-                             funded_by="advance DRW-NW-01" if d.selected == "C" else "the importer's own cash (Option A)")])
+                             funded_by="advance DRW-NW-01" if d.selected == "C" else
+                             "the importer's own cash (Option %s)" % d.selected)])
         elif d.delivery == "returned":
             add("instruct", "Instruct payout", "Operator", False,
                 "The payout was returned (%s). No second payment is sent automatically; a new instruction needs fresh review."
@@ -1085,8 +1102,10 @@ def _facility_json(d):
             "denomination": fac["denomination"], "status": _fac_status(d),
             "company_limit": sgd(fac["_limit"]), "company_available": sgd(_company_available(d)),
             "reserved": sgd(d.res_limit), "principal_outstanding": sgd(d.principal_out),
-            "funding_account": d.fund["name"], "funding_start": sgd(d.fund["_start"]),
-            "funding_available_cash": sgd(_funding_available(d)), "funding_reserved": sgd(_funding_reserved(d)),
+            "funding_account": d.fund["name"],
+            "funding_start": sgd(d.fund["_start"]) if _fund_known(d) else "Not on record",
+            "funding_available_cash": sgd(_funding_available(d)) if _fund_known(d) else "Not on record",
+            "funding_reserved": sgd(_funding_reserved(d)),
             "funding_reserved_this_payout": sgd(d.res_cash), "funding_reserved_other_payouts": sgd(_others_sum(d)),
             "fee": sgd(fac["_fee"]), "fees_outstanding": sgd(d.fees_out), "fees_collected": sgd(d.fees_repaid),
             "repayment_due_sgt": fmt_sgt(fac["_due"]),
@@ -1115,8 +1134,8 @@ def _facts(d):
         adetail = "Requested at %s by the operator; reviewer is a Simulated role." % fmt_sgt(_t(d.request["known_at"]))
     else:
         adetail = "Nothing requested or reserved."
-    if d.selected == "A":
-        adetail += " Option A in use: the importer funds the payout itself."
+    if d.selected in ("A", "B"):
+        adetail += " Option %s in use: the importer funds the payout itself." % d.selected
     auth = {"status": d.auth, "label": auth_labels[d.auth], "detail": adetail}
 
     if d.draw:
@@ -1126,7 +1145,7 @@ def _facts(d):
     else:
         cash = {"status": "none", "label": "No advance drawn",
                 "detail": "Committed capacity is not cash: nothing has left the provider funding account."
-                if d.auth == "reserved" else ("Importer-funded (Option A); no provider cash moves." if d.selected == "A" else "No provider cash has moved.")}
+                if d.auth == "reserved" else ("Importer-funded (Option %s); no provider cash moves." % d.selected if d.selected in ("A", "B") else "No provider cash has moved.")}
 
     dl = {"none": "Not instructed", "instructed": "Instructed — not yet accepted", "accepted": "Accepted by provider — not credit",
           "credited": "Beneficiary credited", "returned": "Returned — recovery open"}
@@ -1151,7 +1170,7 @@ def _facts(d):
         ddetail = "%s Recovery owner: %s. No second payment is sent automatically." % (d.ret["text"], rt["recovery_owner"])
     delivery = {"status": d.delivery, "label": dl[d.delivery], "detail": ddetail, "last_evidenced": last}
 
-    if d.selected == "A":
+    if d.selected in ("A", "B"):
         rstatus, rlabel = "not_applicable", "No advance — nothing to repay"
     elif not d.draw:
         rstatus, rlabel = "not_started", "Nothing drawn — nothing owed"
@@ -1269,10 +1288,26 @@ def _decision(d, opts):
         if d.clock >= fac["_expiry"]:
             return dec("review", "Advance drawn but the payout cutoff was missed",
                        "Payout cutoff %s passed without an instruction; %s." % (_short(fac["_expiry"]), owe),
-                       "Reviewer decides recovery. The drawn principal stays outstanding until repaid.", SIM_REVIEWER)
+                       ("Reviewer decides recovery. The drawn principal stays outstanding until repaid."
+                        if d.total_out > 0 else
+                        "Reviewer decides recovery: the advance is repaid and matched, but the supplier was never paid."),
+                       SIM_REVIEWER)
         return dec("decide", "Advance drawn — instruct the supplier payout",
                    "Instruct before %s; %s." % (_short(fac["_expiry"]), owe),
                    "Instruct the supplier payout of %s." % fx["_net"].text(), OPERATOR)
+    if d.selected == "B":
+        w = fx["windows"]["monday"]
+        if d.clock >= w["_cutoff"]:
+            return dec("blocked", "Monday cutoff missed — payout not instructed",
+                       "Option B needed an instruction before %s." % _short(w["_cutoff"]),
+                       "Tell the importer and supplier now; agree a new route outside this desk.", OPERATOR)
+        if d.clock < w["_at"]:
+            return dec("decide", "Importer funds the Monday window — wait for the window to open",
+                       "Option B is backed by documented cash support; the window opens %s (cutoff %s)." % (
+                           _short(w["_at"]), _short(w["_cutoff"])),
+                       "Advance the clock to %s, then instruct the supplier payout." % _short(w["_at"]), OPERATOR)
+        return dec("decide", "Importer funds the Monday window — instruct the supplier payout",
+                   "Instruct before %s." % _short(w["_cutoff"]), "Instruct the supplier payout of %s." % fx["_net"].text(), OPERATOR)
     if d.selected == "A":
         cut = fx["windows"]["friday"]["_cutoff"]
         if d.clock >= cut:
@@ -1361,6 +1396,11 @@ def _decision(d, opts):
     if fac and _fac_status(d) == "active":
         rules = _rules(d)
         return _blocked_c(d, rules, "; ".join(r["detail"] for r in rules if r["ok"] is not True), dec, by)
+    if len(feasible) > 1:
+        keys = " and ".join(o["key"] for o in feasible)
+        return dec("decide", "Options %s are feasible — decide how the importer funds" % keys,
+                   " ".join("%s: %s" % (o["key"], o["disqualifiers"][0]) for o in opts if o["disqualifiers"]) or "—",
+                   "Record Option %s." % " or Option ".join(o["key"] for o in feasible), OPERATOR)
     return dec("decide", "Option %s is the only feasible route" % feasible[0]["key"], c["disqualifiers"][0] if c["disqualifiers"] else "—",
                "Record Option %s." % feasible[0]["key"], OPERATOR)
 
@@ -1388,6 +1428,11 @@ def _unknown_outside(d, opts, by, c, dec):
         return dec("unknown", "We need a newer bank balance before the importer can fund", binding,
                    "The importer must send a bank balance no more than %d h old; it does this outside this tool. "
                    "No advance can be requested here." % fx["balance_max_age_hours"], SIM_IMPORTER)
+    a = by["A"]
+    if a["status"] == "feasible":
+        return dec("decide", "Option A is available now; the advance cannot be assessed yet", binding,
+                   "Record Option A before %s, or obtain the missing records first — Option A lapses at that cutoff."
+                   % _short(fx["windows"]["friday"]["_cutoff"]), OPERATOR)
     return dec("unknown", "More evidence is needed before any route can be relied on", binding,
                "Wait for the missing records; nothing can be relied on yet.", OPERATOR)
 
@@ -1492,12 +1537,12 @@ def _invariants(d, evidence, timeline):
         d.principal_repaid + d.fees_repaid == sum((r["fees"] + r["principal"] for r in d.repayments), ZERO),
         "%d customer receipt(s); only matched repayments reduce principal or fees" % len(d.receipts))
     once = all(d.counts.get(k, 0) <= 1 for k in ("request", "reserve", "draw", "instruct", "accept", "credit", "return", "close",
-                                                   "decline", "release", "expire", "select_a", "receipt",
+                                                   "decline", "release", "expire", "select_a", "select_b", "receipt",
                                                    "incoming_partial", "incoming_balance", "incoming_wrong"))
     inv("each lifecycle step recorded at most once (no double reservation, draw, payout or credit)", once,
         ", ".join("%s×%d" % (k, v) for k, v in sorted(d.counts.items()) if not k.startswith("repayment_")) or "no events")
     order = {"none": 0, "instructed": 1, "accepted": 2, "credited": 3, "returned": 3}[d.delivery]
-    funded = d.draw is not None or d.selected == "A"
+    funded = d.draw is not None or d.selected in ("A", "B")
     inv("delivery stages in order and funded (credit only via a delivery record)",
         (order == 0 or (funded and d.instruct)) and (order < 2 or d.accept) and (d.delivery != "credited" or d.credit),
         "delivery: %s" % d.delivery)

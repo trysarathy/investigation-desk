@@ -102,7 +102,7 @@ Accounting identities (checked after every event, shown in the view):
 ### Action ids (labels in brackets)
 `request_advance` [Request advance] · `approve_reserve` [Reserve capacity — approves and reserves limit + funding
 under FAC-NW-01; does not draw cash or pay the supplier] · `request_evidence` [Request evidence] ·
-`sim_fresh_balance` · `decline` [Decline] · `release` · `select_a` · `draw` [Record simulated draw] ·
+`sim_fresh_balance` · `decline` [Decline] · `release` · `select_a` · `select_b` [Record Option B: importer funds the Monday window; listed only when B is feasible; instruct opens at the Monday window] · `draw` [Record simulated draw] ·
 `instruct` [Instruct payout] · `sim_accept` [Provider accepts payout] · `sim_credit` [Record beneficiary credit] ·
 `sim_return` · `sim_conflict` · `resolve_conflict` · `sim_receipt` [Record customer receipt (importer's account);
 listed only once the clock is at or after its known time] · `sim_pay_partial` [Importer pays provider SGD
