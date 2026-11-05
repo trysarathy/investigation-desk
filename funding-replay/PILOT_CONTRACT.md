@@ -209,3 +209,72 @@ shows the right remainder, balance settles; close; export explains who did what 
 duplicate/delayed connector events never create a second draw or payout, stale balance / missed cutoff /
 unavailable facility / fixed contract date make routes infeasible, wrong-currency repayment returnable and never
 reduces principal, public demo and its deep links still work.
+
+## 13. Brief v2 additions (6 Nov 2026 build brief) — binding
+Ownership this round: **BACKEND** owns all `pilot/*.py` (incl. `imports.py`, `export.py`) and `pilot/migrations/0003_*`;
+**UI** owns `pilot/static/*` and `tests/browser/pilot.cjs`; **lead** owns `tests/pilot/test_scenarios.py`,
+`tests/browser/pilot_lead_journey.cjs`, docs. Migrations stay forward-only and must upgrade a database created at
+`d94177e` (migrations 0001, 0002, 0100 applied) as well as a fresh one.
+
+13.1 **Facility policy administration (CLI, P10).** `cli create-facility --org --id --name --currency --limit --fee-flat
+--fee-bps --allocation --funding-cash --policy-version [--required-evidence invoice,balance] [--balance-max-age-hours]
+[--repayment-days] [--reservation-hours] [--payout-lead-hours] [--suspension-policy]` and `cli update-facility --id …`
+(any subset; **every change requires a new `--policy-version`** and is appended to `facility_versions(facility_id,
+policy_version, terms JSON, changed_at, changed_by)`; the case decision binds to the version in force when the
+reviewer acts). `cli list-facilities`, `cli list-users`, `cli disable-user --email`. New facility column
+`required_evidence` (comma list of observation kinds the policy requires before route C can be approved; default
+`balance`).
+
+13.2 **Intake fields (P02).** Case adds `invoice_ref` (supplier invoice number, required), `customer_ref` (importer's
+own reference, optional), `quote_source` (who issued the quote: free text, e.g. "Provider FX desk"), `quote_at`
+(UTC, when quoted), and `owner_user_id` may be set at intake (must be an operator/reviewer in the org).
+CSV: first line may be `#clearline-cases v2`; v2 adds columns `invoice_ref, customer_ref, quote_source, quote_at_local,
+owner_email`; a file without the marker is v1 and still accepted (invoice_ref then required → row error "v1 file:
+invoice_ref is required for import; add it or use v2"). Replay protection unchanged (row-hash idempotency keys).
+
+13.3 **Evidence fields (P03).** Every observation may carry `issuer` (who produced it), `record_ref` (their
+reference) and `scope` (`case` default | `importer`). New observation kind **`invoice`** {amount, currency, invoice_ref,
+issuer, issued_at} (the supplier invoice). The view marks each fact `fresh | stale | superseded | conflicting`
+(two active records of the same kind with different amounts and overlapping as-of → `conflicting`, which makes the
+dependent route `unknown` with "Conflicting records: …").
+
+13.4 **Policy-required facts (scenario B).** For route C, every kind in `facility.required_evidence` must have an
+active, non-stale, non-conflicting record known at the evaluation time; each missing one is a **blocker** named
+"Policy POL-x requires <kind>: not on record" and makes C `unknown` (never `feasible`). Cash/headroom shortfalls are
+separate blockers and keep C `infeasible` even when all evidence is present (scenario C). Blockers are listed in
+`routes[i].blockers[] = {code, kind: 'evidence'|'cash'|'credit'|'time'|'contract'|'facility', text, evidence_ids}`.
+
+13.5 **Decision record (§4 of the brief).** `case_view.decision_record = {checkpoints:[{at, trigger_event_seq,
+trigger: 'observation'|'evidence'|'review'|'clock'|'command', route_c_before, route_c_after, blockers_cleared[],
+blockers_added[], facts:{observed:[...], policy:[...], judgment:[...]}}], waiting_for[], changed[], uncertain[]}`.
+A checkpoint is appended (as event `eligibility_evaluated`, provenance `system`) whenever an observation/evidence
+event or review action changes any route's status or blockers. `observed` = operator/external facts with ids,
+`policy` = rule evaluations with policy_version, `judgment` = reviewer decisions with reason. An earlier decline is
+never rewritten; a later approval is a new judgment. `waiting_for` = current blockers; `changed` = last checkpoint's
+cleared/added; `uncertain` = unknowns (stale, conflicting, delivery unknown, unmatched cash).
+
+13.6 **As-of replay (P09, scenario B).** `GET /api/cases/{id}?as_of=<UTC>` returns the view computed only from events
+with `known_at <= as_of` and the clock at `as_of`, flagged `{replay:{as_of, note:"Replay: shows only what was known
+at …"}}`, with no actions. Same org scoping.
+
+13.7 **Same-provider duplicate check (§4).** On create/import and when an `invoice` observation is added, look for
+other cases **in the same org** with the same normalised `invoice_ref` + supplier, or same supplier + payout
+amount/currency within 30 days of deadline. Result `case_view.duplicate_check = {status: 'no_match'|'potential_match'|
+'overridden', matches:[case ids], text}`; the no-match text is exactly "No matching record in this provider's book."
+(never "not financed elsewhere"). A potential match blocks `request_advance` until a reviewer runs
+`resolve_duplicate_check {decision: 'not_duplicate'|'duplicate', reason}` (duplicate → case may only be closed with
+exception `duplicate_case`). Never searches other orgs.
+
+13.8 **Overdue vs default (P07).** After due date with money owed: `exposure_panel.status_label` "Overdue — not a
+default determination". Default is only a reviewer's `close_with_exception disposition=write_off_referred` or a new
+command `declare_default {reason}` (reviewer) which records the judgment; nothing becomes "default" automatically.
+
+13.9 **Pilot measurement (P09, scenario H).** Commands `log_work {minutes, activity, provenance:'operator_reported'}`
+(operator/reviewer) and `record_baseline {provenance:'recorded'|'estimated'|'synthetic', operator_minutes?,
+touchpoints?, evidence_requests?, decision_hours?, deadline_met?, outcome?, source_note}`. `GET
+/api/cases/{id}/report?format=json|html` → one-page comparison: Clearline side computed from the event log
+(touchpoints = human events, repeated evidence requests, decision elapsed hours request→judgment, active minutes =
+Σ log_work else "not measured", elapsed wait = request→judgment minus active), baseline side as recorded, every
+number labelled `recorded|estimated|synthetic|computed|not measured`; with no baseline every baseline cell is "not
+measured". Never reports capital released, advance principal or transferred credit risk as savings (the report states
+this explicitly).
