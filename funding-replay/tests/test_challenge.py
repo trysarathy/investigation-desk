@@ -265,12 +265,15 @@ class M2FeeTypes(unittest.TestCase):
         events, errors = replay.load_events(text)
         self.assertTrue(any(e["column"] == "status" for e in errors))
 
-    def test_duplicate_fee_under_new_id_is_contradictory(self):
+    def test_restated_identical_fee_is_counted_once(self):
+        # Parity review: a fee restated at the same amount (e.g. agreed Friday, posted Monday) is one fee,
+        # counted once -- never twice and not a contradiction. Different amounts still contradict.
         text = REF + ("FEE-PROC-MON2,fee,monday,,2026-11-12T09:00:00+08:00,,25.00,SGD,,,processing,"
                       "synthetic: test,Processing charge again\n")
         r = ev(load(text), "retro")
-        self.assertEqual(check(opt(r, "monday"), "Fees")["state"], "unknown")
-        self.assertFalse(r["comparison"]["available"])
+        self.assertEqual(check(opt(r, "monday"), "Fees")["state"], "ok")
+        self.assertEqual(opt(r, "monday")["required_sgd"], "SGD 135,382.50")
+        self.assertEqual(r["comparison"]["net_benefit_before_subscription"], "SGD 78.77")
 
     def test_conflicting_fee_is_contradictory(self):
         text = REF + ("FEE-PROC-MON-v2,fee,monday,,2026-11-14T09:00:00+08:00,,30.00,SGD,,,processing,"

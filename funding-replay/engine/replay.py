@@ -746,6 +746,17 @@ def _evaluate_option(view, common, slot, hindsight, forward_allowed=False):
     by_type = {}
     for f in fees_live:
         by_type.setdefault(f.status, []).append(f)
+    # The same fee restated (same slot, type and amount under another record ID) is one fee, counted once;
+    # different amounts for the same type contradict each other.
+    restated = []
+    for t, group in list(by_type.items()):
+        if len(group) > 1 and len({f.amount for f in group}) == 1:
+            keep = max(group, key=lambda f: (f.known_at, f.record_id))
+            restated += [f for f in group if f is not keep]
+            by_type[t] = [keep]
+    fees_live = [f for f in fees_live if f not in restated]
+    if restated:
+        opt.warnings.append("%s fee %s restates an identical fee; counted once." % (sname, _ids(restated)))
     clash = [group for group in by_type.values() if len(group) > 1]
     if clash:
         recs = sorted((f for g in clash for f in g), key=lambda r: r.record_id)
@@ -789,7 +800,8 @@ def _evaluate_option(view, common, slot, hindsight, forward_allowed=False):
 
     # 7. Capacity
     caps = [e for e in view.kind("capacity", slot) if e.slot == slot]
-    rec, problem, recs = _pick(caps, lambda r: (r.amount, r.status), at=instr)
+    firm = [c for c in caps if c.status in ("reserved", "confirmed")]
+    rec, problem, recs = _pick(firm or caps, lambda r: r.amount, at=instr)
     if problem is None:
         if rec.status == "indicative":
             opt.checks.append(Check("capacity", "Payout capacity", "unknown",
@@ -1316,8 +1328,9 @@ def _decide_friday(fri, mon, common, as_of, actionable):
         reason = "Monday cannot be used. %s" % fail.detail
         binding = "%s for the Monday slot." % fail.name
     elif mon.status == "unknown":
-        bad = [c for c in mon.unknown() if c.reason in ("stale", "contradictory")]
-        reason = "Monday evidence is not reliable. %s" % bad[0].detail
+        bad = ([c for c in mon.unknown() if c.reason in ("stale", "contradictory")] or mon.unknown()
+               or [c for c in mon.checks if c.state == "unknown"])
+        reason = "Monday evidence is not reliable. %s" % (bad[0].detail if bad else "Monday evidence is incomplete.")
         binding = "Friday %s cutoff: Monday is not evidenced before it closes." % _fmt_clock(fri.cutoff)
     else:
         missing = [c.missing_label or c.name for c in mon.unknown()]
@@ -1595,7 +1608,12 @@ def _evaluate(events, decision_time, funding_rate_pct, scenario):
         decision = _decide_friday(fri, mon, common, as_of, actionable)
         # No economic figure on Friday, even under manual review: the terms are unverified (as in the original).
     elif decision_time == "monday":
-        fri = _evaluate_option(view, common, "friday", False)
+        # The passed Friday slot is shown as it stood on its own evidence (nothing learned later).
+        fri, _ = _hindsight_option(events, view, common, "friday")
+        if fri.instr is not None and as_of > fri.cutoff:
+            fri.passed = True
+            _set_status(fri)
+        fri.late_receipts = []
         mon = _evaluate_option(view, common, "monday", False)
         note = ("Counterfactual: assumes the SGD had been held after Friday. On Friday%ss evidence the decision "
                 "was: %s." % (RSQUO, fri_decision["headline"]))
