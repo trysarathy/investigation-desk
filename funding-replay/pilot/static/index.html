@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark light">
+<title>Clearline | Pilot operating desk</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body class="pd">
+<a class="skip" href="#main">Skip to content</a>
+<header class="pd-mast">
+  <div class="pd-mast-inner">
+    <a class="brand" href="#/queue" id="pd-home-link" aria-label="Clearline operating desk — queue"><svg width="22" height="22" viewBox="0 0 28 28" aria-hidden="true"><path fill="currentColor" d="M4 5h20l-4 5H9v8h11l4 5H4z"/><path fill="currentColor" d="M13 12h10l-3 4h-7z"/></svg>Clearline</a>
+    <span class="pd-title">Pilot operating desk</span>
+    <nav class="pd-nav" id="pd-nav" aria-label="Desk" hidden>
+      <a href="#/queue" data-nav="queue">Queue</a>
+      <a href="#/new" data-nav="new">New case</a>
+      <a href="#/import" data-nav="import">Import CSV</a>
+      <a href="#/facilities" data-nav="facilities">Facilities</a>
+    </nav>
+    <div class="pd-user" id="pd-user" hidden>
+      <span class="pd-user-name" id="pd-user-name"></span>
+      <span class="pd-role" id="pd-user-role"></span>
+      <span class="pd-org" id="pd-user-org"></span>
+      <button type="button" class="btn btn-quiet btn-small" id="pd-signout">Sign out</button>
+    </div>
+  </div>
+  <p class="pd-banner" role="note" id="pd-banner">Pilot workspace — sandbox payouts are simulated; no live payments.</p>
+</header>
+
+<main id="main" class="pd-main" tabindex="-1">
+  <div id="pd-status" class="pd-status" role="status" aria-live="polite"></div>
+  <div id="pd-alert" class="pd-alert" role="alert" hidden></div>
+  <div id="pd-view"></div>
+</main>
+
+<footer class="pd-footer">
+  <span>Clearline pilot operating desk. Separate from the public demo. Sandbox payouts are simulated; no live payments.</span>
+  <span id="pd-env"></span>
+</footer>
+
+<dialog id="pd-dialog" class="pd-dialog" aria-labelledby="pd-dialog-title">
+  <form method="dialog" id="pd-dialog-form" novalidate>
+    <div class="pd-dialog-head">
+      <h2 id="pd-dialog-title" class="pd-dialog-title"></h2>
+      <span class="pd-role" id="pd-dialog-role"></span>
+    </div>
+    <p class="pd-consequence" id="pd-dialog-consequence"></p>
+    <div id="pd-dialog-fields" class="pd-fields"></div>
+    <div id="pd-dialog-error" class="pd-form-error" role="alert" hidden></div>
+    <div class="pd-dialog-actions">
+      <button type="button" class="btn btn-quiet" id="pd-dialog-cancel">Cancel</button>
+      <button type="submit" class="btn" id="pd-dialog-confirm" value="confirm">Confirm</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="app.js"></script>
+</body>
+</html>
