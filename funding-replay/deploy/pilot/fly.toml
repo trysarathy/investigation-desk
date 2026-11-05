@@ -1,0 +1,22 @@
+# Template for Fly.io (requires the founder's Fly account; not deployed from the build session).
+# fly launch --no-deploy --copy-config ; fly volumes create pilot_data --size 1 --region sin
+# fly secrets set PILOT_SECRET=$(python3 -c 'import secrets;print(secrets.token_hex(32))')
+app = "clearline-pilot"
+primary_region = "sin"
+[build]
+  dockerfile = "deploy/pilot/Dockerfile"
+[env]
+  PILOT_ENV = "pilot"
+  PILOT_DB = "/data/pilot.db"
+[[mounts]]
+  source = "pilot_data"
+  destination = "/data"
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  min_machines_running = 1
+  [[http_service.checks]]
+    path = "/api/health"
+    interval = "30s"
+    timeout = "5s"
