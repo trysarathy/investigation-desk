@@ -1104,7 +1104,9 @@ def _exposure(d):
         ends = "Ended %s: principal and fees repaid and matched." % fmt_sgt(last)
     return {"status": "outstanding" if d.total_out > 0 else "ended",
             "amount": sgd(d.total_out), "principal": sgd(d.principal_out), "fees": sgd(d.fees_out), "currency": "SGD",
-            "owner": "Provider (Simulated facility %s) is owed by %s" % (d.fac["id"], d.fx["importer"]), "ends_when": ends}
+            "owner": ("Provider (Simulated facility %s) is owed by %s" % (d.fac["id"], d.fx["importer"]) if d.total_out > 0
+                      else "Nothing owed: %s repaid the provider (Simulated facility %s)" % (d.fx["importer"], d.fac["id"])),
+            "ends_when": ends}
 
 
 def _decision(d, opts):

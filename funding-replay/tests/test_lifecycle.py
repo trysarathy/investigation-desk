@@ -378,6 +378,13 @@ class Wording(unittest.TestCase):
         self.assertIsNone(L.view(run("reference", ["request_advance", "approve_reserve"]))["exposure"])
         self.assertEqual(L.view(run("reference", WED))["exposure"]["status"], "outstanding")
         self.assertEqual(L.view(run("reference", THU + PAY_ALL))["exposure"]["status"], "ended")
+        ended = L.view(run("reference", THU + PAY_ALL))["exposure"]
+        self.assertNotIn("is owed", ended["owner"])
+        self.assertTrue(ended["ends_when"].startswith("Ended"))
+        # Never drawn is not the same as repaid: no exposure object at all, repayment not started.
+        declined = L.view(run("reference", ["request_advance", "decline"]))
+        self.assertIsNone(declined["exposure"])
+        self.assertEqual(declined["facts"]["repayment"]["status"], "not_started")
 
     def test_default_cap_matches_exporter(self):
         sys.path.insert(0, os.path.join(os.path.dirname(HERE), "tools"))
