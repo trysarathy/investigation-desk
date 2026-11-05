@@ -32,6 +32,7 @@ from decimal import Decimal
 from engine.replay import SGT, fmt_money, fmt_ny, fmt_sgt
 
 LABEL = "Simulated — no funds move."
+STATE_CAP = 400  # reachable states per case; reachable() and tools/export_site.py both use it
 ZERO = Decimal("0")
 FIXTURES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fixtures", "lifecycle")
 CASE_ORDER = ("reference", "stale_balance", "fixed_terms", "no_cash", "competing", "failed_payout", "all_infeasible")
@@ -165,7 +166,10 @@ def register_case(raw):
         if se.get(k):
             se[k]["_eff"], se[k]["_known"] = _t(se[k]["effective_at"]), _t(se[k]["known_at"])
     fx["_repay_partial"] = Money.parse(fx["importer_repayments"]["partial"])
-    fx["_repay_full"] = Money.parse(fx["importer_repayments"]["full_receipt"])
+    fx["_repay_balance"] = Money.parse(fx["importer_repayments"]["balance"])
+    rc = se.get("customer_receipt")
+    if rc:
+        rc["_eff"], rc["_known"], rc["_money"] = _t(rc["effective_at"]), _t(rc["known_at"]), Money.parse(rc["amount"])
     CASES[fx["id"]] = fx
     return fx
 
@@ -228,7 +232,9 @@ def _derive(state):
     d.instruct = d.accept = d.credit = d.ret = None
     d.conflict = None             # open conflict event
     d.conflict_resolved = None
-    d.repayments = []             # dicts with allocation
+    d.repayments = []             # matched (allocated) repayments
+    d.incoming = []               # received by the provider, not yet matched
+    d.receipts = []               # customer receipts into the importer's own account (never repayment)
     d.unmatched = []              # dicts {id, money, reason, status}
     d.closed = None
     d.extra_evidence = []         # evidence records created by events
@@ -238,8 +244,8 @@ def _derive(state):
     for ev in state["events"]:
         typ = ev["type"]
         d.counts[typ] = d.counts.get(typ, 0) + 1
-        if typ == "repayment":
-            key = "repayment_" + ev["sub"]
+        if typ == "incoming":
+            key = "incoming_" + ev["sub"]
             d.counts[key] = d.counts.get(key, 0) + 1
         known = _t(ev["known_at"])
         if known > d.clock:
@@ -317,8 +323,23 @@ def _derive(state):
             d.conflict, d.conflict_resolved = None, ev
             d.extra_evidence.append(_rec(ev, "trace", ev["text"], "resolves conflict"))
             d.timeline.append(_tl(ev, "Reviewer resolved the conflict: " + ev["text"]))
-        elif typ == "repayment":
-            _allocate(d, ev, known)
+        elif typ == "receipt":
+            rec = _rec(ev, "customer_receipt", ev["fact"], "settled")
+            rec["_money"] = Money.parse(ev["money"])
+            d.receipts.append(rec)
+            d.extra_evidence.append(rec)
+            d.timeline.append(_tl(ev, "Customer receipt %s recorded in %s's own account (%s). Not a repayment."
+                                  % (rec["_money"].text(), fx["importer"], ev["id"])))
+        elif typ == "incoming":
+            m = Money.parse(ev["money"])
+            d.incoming.append({"id": ev["id"], "money": m, "_at": known})
+            d.extra_evidence.append(_rec(ev, "incoming_repayment", "%s received by the provider on the repayment reference (%s). "
+                                         "Not allocated until matched." % (m.text(), ev["id"]), "received"))
+            d.timeline.append(_tl(ev, "Provider received %s on the repayment reference (%s); not yet matched." % (m.text(), ev["id"])))
+        elif typ == "match":
+            for inc in d.incoming:
+                _allocate(d, ev, inc, known)
+            d.incoming = []
         elif typ == "return_unmatched":
             for u in d.unmatched:
                 if u["status"] == "open":
@@ -350,14 +371,15 @@ def _rec(ev, kind, fact, status):
             "_eff": _t(ev["effective_at"]), "_known": _t(ev["known_at"]), "status": status}
 
 
-def _allocate(d, ev, known):
-    money = Money.parse(ev["money"])
-    rec = {"id": ev["id"], "money": money, "_at": known, "fees": ZERO, "principal": ZERO, "unmatched": ZERO}
+def _allocate(d, ev, inc, known):
+    money = inc["money"]
+    rid = inc["id"]
+    rec = {"id": rid, "money": money, "_at": known, "received_at": inc["_at"], "fees": ZERO, "principal": ZERO, "unmatched": ZERO}
     if money.currency != "SGD":
         rec["unmatched"] = money.amount
-        d.unmatched.append({"id": ev["id"], "money": money, "status": "open",
+        d.unmatched.append({"id": rid, "money": money, "status": "open",
                             "reason": "Wrong currency: %s received; repayments are matched in SGD only." % money.currency})
-        text = "%s received on the repayment reference in the wrong currency; held as unmatched (%s)." % (money.text(), ev["id"])
+        text = "Matching %s: wrong currency (%s); held as unmatched, not converted or netted." % (rid, money.text())
     else:
         left = money.amount
         fees = min(left, d.fees_charged - d.fees_repaid)
@@ -368,14 +390,16 @@ def _allocate(d, ev, known):
         d.principal_repaid += principal
         rec.update(fees=fees, principal=principal, unmatched=left)
         if left > 0:
-            d.unmatched.append({"id": ev["id"] + "-X", "money": Money("SGD", left), "status": "open",
+            d.unmatched.append({"id": rid + "-X", "money": Money("SGD", left), "status": "open",
                                 "reason": "Excess: %s more than was owed; held for review, not netted." % sgd(left)})
-        text = "Importer repayment %s (%s): fees %s, principal %s%s." % (
-            money.text(), ev["id"], sgd(fees), sgd(principal),
-            ", unmatched excess %s" % sgd(left) if left > 0 else "")
+        text = "Matched %s (%s): fees %s, then principal %s%s." % (
+            rid, money.text(), sgd(fees), sgd(principal),
+            "; unmatched excess %s" % sgd(left) if left > 0 else "")
     d.repayments.append(rec)
-    d.extra_evidence.append(_rec(ev, "repayment", text, "matched" if rec["unmatched"] == 0 else "partly unmatched"
-                                 if rec["fees"] + rec["principal"] > 0 else "unmatched"))
+    mrec = _rec(ev, "repayment_match", text, "matched" if rec["unmatched"] == 0 else "partly unmatched"
+                if rec["fees"] + rec["principal"] > 0 else "unmatched")
+    mrec["id"] = "MAT-" + rid
+    d.extra_evidence.append(mrec)
     d.timeline.append(_tl(ev, text))
 
 
@@ -400,7 +424,7 @@ def _latest_balance(d):
 
 
 def _receipts(d):
-    return [e for e in _visible_fixture(d) if e["kind"] == "customer_receipt" and e["status"] == "settled"]
+    return [e for e in d.receipts if e["_known"] <= d.clock]
 
 
 def _balance_check(d):
@@ -792,43 +816,61 @@ def _action_specs(d):
                     "Records the trace %s confirming credit; the conflict no longer blocks close." % cf["resolve_id"],
                     lambda: [_ev(d, "resolve_conflict", SIM_REVIEWER, id=cf["resolve_id"], text=cf["resolve_text"],
                                  source="synthetic: beneficiary bank trace (Simulated)")])
-    # ---- Repayment --------------------------------------------------------
-    if d.auth == "consumed":
-        receipts = _receipts(d)
-        gate = None if receipts else ("The importer repays after its customer receipt settles; no settled receipt is on record "
-                                      "yet (the forecast does not count).")
-        part = fx["_repay_partial"]
-        done_partial = d.counts.get("repayment_partial", 0) > 0
-        if done_partial:
-            add("repay_partial", "Importer repays %s" % part.text(), "Importer", *(_dup("partial repayment received")), "No change.", None)
-        elif d.total_out > part.amount:
-            add("repay_partial", "Importer repays %s" % part.text(), "Importer", gate is None, gate,
-                "Applies %s: fees first, then principal." % part.text(),
-                lambda: [_ev(d, "repayment", SIM_IMPORTER, id="RPY-NW-%02d" % (len(d.repayments) + 1), money=part.raw(), sub="partial")])
-        if d.total_out > 0:
-            add("repay_remaining", "Importer repays remaining %s" % sgd(d.total_out), "Importer", gate is None, gate,
-                "Applies %s: fees %s first, then principal %s." % (sgd(d.total_out), sgd(d.fees_out), sgd(d.principal_out)),
-                lambda: [_ev(d, "repayment", SIM_IMPORTER, id="RPY-NW-%02d" % (len(d.repayments) + 1),
-                             money=Money("SGD", d.total_out).raw(), sub="remaining")])
+    # ---- Customer receipt (importer's own account) and repayment ---------
+    rc = fx["simulated_events"].get("customer_receipt")
+    if rc and d.auth == "consumed":
+        if d.receipts:
+            add("sim_receipt", "Record customer receipt (importer's account)", "Simulated event",
+                *(_dup("customer receipt recorded (%s)" % rc["id"])), "No change.", None)
         else:
-            add("repay_remaining", "Importer repays remaining balance", "Importer", False,
-                "Nothing is outstanding: principal and fees are SGD 0.00. A further payment would be excess.", "No change.", None)
-        full = fx["_repay_full"]
-        if not d.repayments and d.total_out > 0:
-            add("repay_full_receipt", "Importer forwards its whole receipt %s" % full.text(), "Importer", gate is None, gate,
-                "Applies %s: fees first, then principal; anything above %s is held as unmatched excess." % (full.text(), sgd(d.total_out)),
-                lambda: [_ev(d, "repayment", SIM_IMPORTER, id="RPY-NW-%02d" % (len(d.repayments) + 1), money=full.raw(), sub="full")])
+            known = max(d.clock, rc["_known"])
+            add("sim_receipt", "Record customer receipt (importer's account)", "Simulated event", d.clock >= rc["_known"],
+                "No settled customer receipt is on record before %s (the forecast does not count)." % _short(rc["_known"]),
+                "Records %s settled into %s's own account. This is the importer's cash, not a repayment." % (
+                    rc["_money"].text(), fx["importer"]),
+                lambda: [_ev(d, "receipt", SIM_IMPORTER, _at=rc["_eff"], _known=known, id=rc["id"], money=rc["amount"],
+                             fact=rc["fact"], source=rc["source"])])
+    if d.auth == "consumed":
+        gate = None if _receipts(d) else ("Simulation: the importer pays the provider after its customer receipt is recorded; "
+                                          "none is recorded yet.")
+        n = d.counts.get("incoming", 0) + 1
+        part, bal = fx["_repay_partial"], fx["_repay_balance"]
+
+        def pay(aid, sub, money, label, extra_gate=None, source=None, actor=SIM_IMPORTER):
+            if d.counts.get("incoming_" + sub):
+                add(aid, label, "Simulated event", *(_dup("%s received" % money.text())), "No change.", None)
+                return
+            g = gate or extra_gate
+            if g is None and d.total_out == 0:
+                g = "Nothing is outstanding; a further payment would be excess."
+            kw = {"source": source} if source else {}
+            add(aid, label, "Simulated event", g is None, g,
+                "The provider receives %s on the repayment reference. It is not allocated until the operator matches it."
+                % money.text(),
+                lambda: [_ev(d, "incoming", actor, id="RPY-NW-%02d" % n, money=money.raw(), sub=sub, **kw)])
+
+        pay("sim_pay_partial", "partial", part, "Importer pays provider %s" % part.text())
+        partial_done = bool(d.counts.get("incoming_partial")) and not any(
+            i for i in d.incoming if i["money"].currency == "SGD" and i["money"].amount == part.amount)
+        pay("sim_pay_balance", "balance", bal, "Importer pays provider %s (balance)" % bal.text(),
+            extra_gate=None if partial_done else "The balance is paid after the %s payment is matched." % part.text())
         wc = fx["simulated_events"].get("wrong_currency")
-        if wc and not d.repayments and d.total_out > 0:
+        if wc:
             wm = Money.parse(wc["amount"])
-            add("sim_wrong_currency", "%s arrives on the repayment reference" % wm.text(), "Simulated event", gate is None, gate,
-                "Held as unmatched (wrong currency). It is not converted or netted, and it blocks close.",
-                lambda: [_ev(d, "repayment", "Collection account (Simulated)", id=wc["id"], money=wc["amount"], sub="wrong", source=wc["source"])])
+            pay("sim_pay_usd", "wrong", wm, "Importer pays provider %s" % wm.text(), source=wc["source"])
+        if d.incoming:
+            add("match_repayment", "Match repayment", "Operator", True, None,
+                "Allocates %s: fees first, then principal. Other currencies and any excess stay unmatched and block close."
+                % ", ".join(i["money"].text() for i in d.incoming),
+                lambda: [_ev(d, "match", OPERATOR, id="MAT-%02d" % (d.counts.get("match", 0) + 1))])
+        elif d.repayments:
+            add("match_repayment", "Match repayment", "Operator", False,
+                "Nothing unallocated to match; every received payment is already matched.", "No change.", None)
     if d.open_unmatched:
-        add("return_unmatched", "Return unmatched items to the payer", "Reviewer", d.total_out == 0,
-            "Unmatched items stay held until the advance is fully repaid, then the reviewer returns them in one step; "
-            "until then they block close.",
-            "Marks %d unmatched item(s) as returned to the payer; nothing is netted." % len(d.open_unmatched),
+        add("return_unmatched", "Return unmatched amount", "Reviewer", d.total_out == 0 and not d.incoming,
+            "Unmatched amounts stay held until the advance is fully repaid and matched, then the reviewer returns them "
+            "in one step; until then they block close.",
+            "Returns %s to the payer; nothing is netted." % ", ".join(u["money"].text() for u in d.open_unmatched),
             lambda: [_ev(d, "return_unmatched", SIM_REVIEWER, id="RTN-UNM-%02d" % (d.counts.get("return_unmatched", 0) + 1))])
     # ---- Close ------------------------------------------------------------
     started = d.selected is not None or d.auth != "none"
@@ -1296,7 +1338,7 @@ def check_invariants(state):
 # --------------------------------------------------------------------------
 # Reachability (used by the exporter and tests)
 # --------------------------------------------------------------------------
-def reachable(case_id, cap=400):
+def reachable(case_id, cap=STATE_CAP):
     """Breadth-first walk following only enabled actions. Returns {state_id: state}. Raises if over cap."""
     start = initial_state(case_id)
     seen = {state_id(start): start}

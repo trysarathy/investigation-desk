@@ -57,7 +57,9 @@ def comparable(v):
 
 
 WED = REF_PATH + ["advance_clock"]           # credit (Wed 16:20) -> Wed 23:00
-THU = WED + ["advance_clock"]                # -> Thu 19 Nov 10:00
+THU_CLOCK = WED + ["advance_clock"]          # -> Thu 19 Nov 10:00 (receipt not yet recorded)
+THU = THU_CLOCK + ["sim_receipt"]            # customer receipt recorded in the importer's account
+PAY_ALL = ["sim_pay_partial", "match_repayment", "sim_pay_balance", "match_repayment"]
 
 
 class FutureEvidence(unittest.TestCase):
@@ -84,15 +86,16 @@ class FutureEvidence(unittest.TestCase):
         with open(os.path.join(L.FIXTURES_DIR, "reference.json"), encoding="utf8") as fh:
             raw = json.load(fh)
         raw["id"] = "reference_no_receipt"
-        raw["evidence"] = [e for e in raw["evidence"] if e["id"] != "RCV-NW-01"]
+        raw["simulated_events"]["customer_receipt"] = None
         L.register_case(raw)
         try:
-            for path in ([], ["request_advance"], WED):
+            for path in ([], ["request_advance"], WED, THU_CLOCK):
                 a = L.view(run("reference", path))
                 b = L.view(run("reference_no_receipt", path))
                 self.assertEqual(comparable(a), comparable(b), path)
             # ...and it does change Thursday.
-            self.assertNotEqual(comparable(L.view(run("reference", THU))), comparable(L.view(run("reference_no_receipt", THU))))
+            self.assertTrue(action(L.view(run("reference", THU_CLOCK)), "sim_receipt")["enabled"])
+            self.assertIsNone(action(L.view(run("reference_no_receipt", THU_CLOCK)), "sim_receipt"))
         finally:
             L.CASES.pop("reference_no_receipt", None)
 
@@ -167,9 +170,10 @@ class Eligibility(unittest.TestCase):
 
 class Idempotency(unittest.TestCase):
     def test_06_duplicates_do_not_double_count(self):
-        steps = REF_PATH + ["advance_clock", "advance_clock", "repay_partial"]
+        steps = THU + ["sim_pay_partial", "match_repayment"]
         st = L.initial_state("reference")
-        dup_ids = {"approve_reserve", "draw", "instruct", "sim_accept", "sim_credit", "repay_partial"}
+        dup_ids = {"approve_reserve", "draw", "instruct", "sim_accept", "sim_credit", "sim_receipt", "sim_pay_partial",
+                   "match_repayment"}
         for a in steps:
             st = L.apply(st, a)
             if a in dup_ids:
@@ -186,7 +190,9 @@ class Idempotency(unittest.TestCase):
         self.assertEqual(d.counts["draw"], 1)
         self.assertEqual(d.counts["instruct"], 1)
         self.assertEqual(d.counts["credit"], 1)
-        self.assertEqual(d.counts["repayment"], 1)
+        self.assertEqual(d.counts["incoming"], 1)
+        self.assertEqual(d.counts["match"], 1)
+        self.assertEqual(d.counts["receipt"], 1)
         self.assertEqual(d.drawn, Decimal("135382.50"))
         self.assertEqual(d.principal_out, Decimal("35532.50"))
         self.assertEqual(L.apply(st, "no_such_action"), st)
@@ -260,6 +266,14 @@ class Delivery(unittest.TestCase):
 
 class Repayment(unittest.TestCase):
     def test_11_customer_receipt_alone_does_not_settle(self):
+        v = L.view(run("reference", THU_CLOCK))
+        self.assertEqual(v["facts"]["repayment"]["customer_receipts"], [])  # the clock does not record it
+        rc = action(v, "sim_receipt")
+        self.assertEqual(rc["label"], "Record customer receipt (importer's account)")
+        self.assertEqual(rc["role"], "Simulated event")
+        self.assertTrue(rc["enabled"])
+        self.assertFalse(action(v, "sim_pay_partial")["enabled"])
+        self.assertIsNone(action(L.view(run("reference", WED)), "sim_receipt"))
         v = L.view(run("reference", THU))
         self.assertEqual([r["id"] for r in v["facts"]["repayment"]["customer_receipts"]], ["RCV-NW-01"])
         self.assertEqual(v["facts"]["repayment"]["principal_outstanding"], "SGD 135,382.50")
@@ -269,42 +283,108 @@ class Repayment(unittest.TestCase):
         self.assertTrue(any("not a repayment" in w for w in v["warnings"]))
 
     def test_12_partial_then_final_and_unmatched_blocks_close(self):
-        v = L.view(run("reference", THU + ["repay_partial"]))
+        v = L.view(run("reference", THU + ["sim_pay_partial"]))
         rp = v["facts"]["repayment"]
+        self.assertEqual([u["amount"] for u in rp["unallocated"]], ["SGD 100,000.00"])
+        self.assertEqual(rp["principal_outstanding"], "SGD 135,382.50")  # not allocated until matched
+        self.assertEqual(rp["matched"], [])
+        self.assertFalse(action(v, "close")["enabled"])
+        self.assertFalse(action(v, "sim_pay_balance")["enabled"])
+        self.assertTrue(action(v, "match_repayment")["enabled"])
+        v = L.view(run("reference", THU + ["sim_pay_partial", "match_repayment"]))
+        rp = v["facts"]["repayment"]
+        self.assertEqual(rp["unallocated"], [])
         self.assertEqual(rp["fees_outstanding"], "SGD 0.00")
         self.assertEqual(rp["principal_outstanding"], "SGD 35,532.50")
         self.assertEqual(rp["matched"][0]["fees"], "SGD 150.00")
         self.assertEqual(rp["matched"][0]["principal"], "SGD 99,850.00")
         self.assertEqual(rp["status"], "partially_repaid")
         self.assertIn("fees first", rp["allocation_rule"])
-        v = L.view(run("reference", THU + ["repay_partial", "repay_remaining"]))
+        v = L.view(run("reference", THU + PAY_ALL))
         self.assertEqual(v["facts"]["repayment"]["status"], "repaid")
         self.assertTrue(action(v, "close")["enabled"])
         # wrong currency
-        st = run("reference", THU + ["sim_wrong_currency", "repay_remaining"])
+        st = run("reference", THU + ["sim_pay_usd", "match_repayment"] + PAY_ALL)
         v = L.view(st)
         self.assertEqual(v["facts"]["repayment"]["principal_outstanding"], "SGD 0.00")
         un = v["facts"]["repayment"]["unmatched"]
-        self.assertEqual(un[0]["amount"], "USD 1,000.00")
+        self.assertEqual(un[0]["amount"], "USD 100.00")
         self.assertIn("Wrong currency", un[0]["reason"])
         self.assertFalse(action(v, "close")["enabled"])
         self.assertIs(L.apply(st, "close"), st)
         self.assertEqual(v["decision"]["tone"], "review")
+        ret = action(v, "return_unmatched")
+        self.assertEqual(ret["label"], "Return unmatched amount")
         st = L.apply(st, "return_unmatched")
         self.assertTrue(action(L.view(st), "close")["enabled"])
-        # excess
-        v = L.view(run("reference", THU + ["repay_full_receipt"]))
-        self.assertEqual(v["facts"]["repayment"]["unmatched"][0]["amount"], "SGD 4,467.50")
-        self.assertEqual(v["facts"]["repayment"]["principal_outstanding"], "SGD 0.00")
-        self.assertFalse(action(v, "close")["enabled"])
+        # excess: a variant whose balance payment is larger than what is owed
+        with open(os.path.join(L.FIXTURES_DIR, "reference.json"), encoding="utf8") as fh:
+            raw = json.load(fh)
+        raw["id"] = "reference_excess"
+        raw["importer_repayments"]["balance"] = {"amount": "40000.00", "currency": "SGD"}
+        L.register_case(raw)
+        try:
+            v = L.view(run("reference_excess", THU + PAY_ALL))
+            self.assertEqual(v["facts"]["repayment"]["unmatched"][0]["amount"], "SGD 4,467.50")
+            self.assertEqual(v["facts"]["repayment"]["principal_outstanding"], "SGD 0.00")
+            self.assertFalse(action(v, "close")["enabled"])
+        finally:
+            L.CASES.pop("reference_excess", None)
 
     def test_conflicting_evidence_goes_to_review(self):
-        st = run("reference", THU + ["repay_remaining", "sim_conflict"])
+        st = run("reference", THU + PAY_ALL + ["sim_conflict"])
         v = L.view(st)
         self.assertEqual(v["decision"]["tone"], "review")
         self.assertFalse(action(v, "close")["enabled"])
-        st = run("reference", THU + ["repay_remaining", "sim_conflict", "resolve_conflict", "close"])
+        st = run("reference", THU + PAY_ALL + ["sim_conflict", "resolve_conflict", "close"])
         self.assertEqual(L.view(st)["decision"]["tone"], "closed")
+
+
+class Wording(unittest.TestCase):
+    def test_happy_path_labels(self):
+        labels = []
+        st = L.initial_state("reference")
+        for a in THU + PAY_ALL + ["close"]:
+            labels.append(action(L.view(st), a)["label"])
+            st = L.apply(st, a)
+        self.assertEqual(labels[:6], ["Request advance", "Reserve capacity", "Record simulated draw", "Instruct payout",
+                                      "Provider accepts payout", "Record beneficiary credit"])
+        self.assertEqual(labels[8:13], ["Record customer receipt (importer's account)", "Importer pays provider SGD 100,000.00",
+                                        "Match repayment", "Importer pays provider SGD 35,532.50 (balance)", "Match repayment"])
+        v = L.view(run("reference", ["request_advance"]))
+        res = action(v, "approve_reserve")
+        self.assertIn("FAC-NW-01", res["consequence"])
+        self.assertIn("does not draw cash or pay the supplier", res["consequence"])
+        self.assertEqual(action(v, "decline")["label"], "Decline")
+        v = L.view(run("stale_balance", ["request_advance"]))
+        self.assertEqual(action(v, "request_evidence")["label"], "Request evidence")
+        v = L.view(run("reference", THU + ["sim_pay_usd"]))
+        self.assertIsNotNone(action(L.view(run("reference", THU)), "sim_pay_usd"))
+        self.assertEqual(action(L.view(run("reference", THU)), "sim_pay_usd")["label"], "Importer pays provider USD 100.00")
+
+    def test_friday_start_does_not_recommend_a_route(self):
+        v = L.view(L.initial_state("reference"))
+        d = v["decision"]
+        self.assertEqual(d["headline"], "Decision needed: how does Harbor Provisions get paid by Wed 18 Nov?")
+        self.assertEqual(d["next_action"], "Compare the three routes; the reviewer decides whether to reserve capacity.")
+        for k in ("A:", "B:", "C:"):
+            self.assertIn(k, d["binding_constraint"])
+        for o in v["options"]:
+            for f in ("title", "whose_money", "committed_at", "amount", "duration", "modeled_cost", "risk_bearer"):
+                self.assertTrue(o[f], (o["key"], f))
+                self.assertLessEqual(len(o[f]), 48, (o["key"], f, o[f]))
+
+    def test_exposure_status(self):
+        self.assertIsNone(L.view(run("reference", ["request_advance", "approve_reserve"]))["exposure"])
+        self.assertEqual(L.view(run("reference", WED))["exposure"]["status"], "outstanding")
+        self.assertEqual(L.view(run("reference", THU + PAY_ALL))["exposure"]["status"], "ended")
+
+    def test_default_cap_matches_exporter(self):
+        sys.path.insert(0, os.path.join(os.path.dirname(HERE), "tools"))
+        import export_site
+        self.assertEqual(export_site.STATE_CAP, L.STATE_CAP)
+        for cid in L.CASE_ORDER:
+            self.assertLessEqual(len(L.reachable(cid)), L.STATE_CAP)
 
 
 class Paths(unittest.TestCase):
@@ -317,7 +397,7 @@ class Paths(unittest.TestCase):
         self.assertEqual([a["id"] for a in v["actions"] if a["enabled"]], ["advance_clock"])
 
     def test_15_reset_and_replay_are_reproducible(self):
-        path = THU + ["repay_partial", "repay_remaining", "close"]
+        path = THU + PAY_ALL + ["close"]
         a, b = run("reference", path), run("reference", path)
         self.assertEqual(L.state_id(a), L.state_id(b))
         self.assertEqual(L.view(a), L.view(b))
@@ -328,6 +408,9 @@ class Paths(unittest.TestCase):
         st = run("reference", ["request_advance", "decline"])
         v = L.view(st)
         self.assertEqual(v["decision"]["tone"], "declined")
+        self.assertEqual(v["decision"]["headline"], "Advance declined — nothing reserved")
+        self.assertIn("original window", v["decision"]["binding_constraint"])
+        self.assertIn("or the payout does not go ahead", v["decision"]["binding_constraint"])
         self.assertEqual(v["facility"]["reserved"], "SGD 0.00")
         self.assertTrue(action(v, "select_a")["enabled"])
         self.assertIsNone(action(v, "approve_reserve"))
@@ -339,7 +422,7 @@ class Paths(unittest.TestCase):
     def test_invariants_hold_on_every_reachable_state(self):
         for cid in L.CASE_ORDER:
             states = reach(cid)
-            self.assertLessEqual(len(states), 400)
+            self.assertLessEqual(len(states), L.STATE_CAP)
             for sid, st in states.items():
                 v = L.view(st)
                 bad = [i for i in v["invariants"] if not i["ok"]]

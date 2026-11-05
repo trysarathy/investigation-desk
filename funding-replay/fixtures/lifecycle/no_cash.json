@@ -207,19 +207,6 @@
         "amount": "90000.00",
         "currency": "SGD"
       }
-    },
-    {
-      "id": "RCV-NW-01",
-      "kind": "customer_receipt",
-      "fact": "Customer receipt SGD 140,000.00 settled into Northwind Foods SG's own bank account. This is the importer's cash, not a repayment of the advance.",
-      "effective_at": "2026-11-19T10:00:00+08:00",
-      "known_at": "2026-11-19T10:00:00+08:00",
-      "status": "settled",
-      "source": "synthetic: importer bank statement (fictional)",
-      "amount": {
-        "amount": "140000.00",
-        "currency": "SGD"
-      }
     }
   ],
   "clock_steps": [
@@ -261,10 +248,23 @@
     "wrong_currency": {
       "id": "RPY-USD-01",
       "amount": {
-        "amount": "1000.00",
+        "amount": "100.00",
         "currency": "USD"
       },
       "source": "synthetic: provider collection account (Simulated)"
+    },
+    "customer_receipt": {
+      "id": "RCV-NW-01",
+      "kind": "customer_receipt",
+      "fact": "Customer receipt SGD 140,000.00 settled into Northwind Foods SG's own bank account. This is the importer's cash, not a repayment of the advance.",
+      "effective_at": "2026-11-19T10:00:00+08:00",
+      "known_at": "2026-11-19T10:00:00+08:00",
+      "status": "settled",
+      "source": "synthetic: importer bank statement (fictional)",
+      "amount": {
+        "amount": "140000.00",
+        "currency": "SGD"
+      }
     }
   },
   "importer_repayments": {
@@ -272,8 +272,8 @@
       "amount": "100000.00",
       "currency": "SGD"
     },
-    "full_receipt": {
-      "amount": "140000.00",
+    "balance": {
+      "amount": "35532.50",
       "currency": "SGD"
     }
   }
