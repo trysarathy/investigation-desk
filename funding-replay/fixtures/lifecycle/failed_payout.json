@@ -1,0 +1,283 @@
+{
+  "id": "failed_payout",
+  "name": "Returned supplier payout",
+  "description": "The importer wants to fund later. A simulated provider advance is available under facility FAC-NW-01; follow the payout to the supplier.",
+  "synthetic": true,
+  "label": "Synthetic case — every party, facility, balance and event is simulated. No funds move.",
+  "start_clock": "2026-11-13T15:00:00+08:00",
+  "importer": "Northwind Foods SG Pte Ltd",
+  "supplier": "Harbor Provisions LLC",
+  "payout": {
+    "net": {
+      "amount": "100000.00",
+      "currency": "USD"
+    },
+    "sgd_cost": {
+      "amount": "135382.50",
+      "currency": "SGD"
+    },
+    "rate": "1.35",
+    "bp": "25",
+    "charges": {
+      "rail": {
+        "amount": "20.00",
+        "currency": "SGD"
+      },
+      "processing": {
+        "amount": "25.00",
+        "currency": "SGD"
+      }
+    }
+  },
+  "deadline": "2026-11-18T23:00:00+08:00",
+  "release_checkpoint": "2026-11-18T15:00:00+08:00",
+  "windows": {
+    "friday": {
+      "at": "2026-11-13T15:00:00+08:00",
+      "cutoff": "2026-11-13T16:00:00+08:00",
+      "evidence": "WIN-FRI"
+    },
+    "monday": {
+      "at": "2026-11-16T15:00:00+08:00",
+      "cutoff": "2026-11-16T16:00:00+08:00",
+      "evidence": "WIN-MON"
+    }
+  },
+  "contract": {
+    "later_funding_permitted": true,
+    "evidence": "CON-NW-01"
+  },
+  "balance_max_age_hours": 24,
+  "facility": {
+    "id": "FAC-NW-01",
+    "name": "Supplier payment advance (Simulated)",
+    "policy_version": "POL-ADV v2026.11-1",
+    "denomination": "SGD",
+    "status": "active",
+    "company_limit": {
+      "amount": "300000.00",
+      "currency": "SGD"
+    },
+    "fee": {
+      "amount": "150.00",
+      "currency": "SGD"
+    },
+    "repayment_due": "2026-11-20T17:00:00+08:00",
+    "reservation_expiry": "2026-11-16T16:00:00+08:00",
+    "evidence": [
+      "FAC-NW-01",
+      "POL-ADV-01"
+    ]
+  },
+  "funding_account": {
+    "id": "FUND-SG-01",
+    "name": "Provider SGD funding account (Simulated)",
+    "start": {
+      "amount": "500000.00",
+      "currency": "SGD"
+    },
+    "other_reservations": [],
+    "evidence": "FUND-SG-01"
+  },
+  "evidence": [
+    {
+      "id": "OBL-NW-01",
+      "kind": "obligation",
+      "fact": "Northwind Foods SG owes Harbor Provisions LLC USD 100,000.00 net, spendable by Wed 18 Nov 2026 23:00 SGT (10:00 New York).",
+      "effective_at": "2026-11-18T23:00:00+08:00",
+      "known_at": "2026-11-12T09:00:00+08:00",
+      "status": "documented",
+      "source": "synthetic: invoice HP-2211 (fictional)"
+    },
+    {
+      "id": "QTE-NW-01",
+      "kind": "quote",
+      "fact": "Quote SGD 1.35 per USD + 25 bp; payout charges SGD 45.00 (rail 20.00 + processing 25.00). SGD cost of the payout SGD 135,382.50.",
+      "effective_at": "2026-11-13T09:00:00+08:00",
+      "known_at": "2026-11-13T09:00:00+08:00",
+      "status": "documented",
+      "source": "synthetic: provider quote desk (Simulated)",
+      "amount": {
+        "amount": "135382.50",
+        "currency": "SGD"
+      }
+    },
+    {
+      "id": "REL-NW-01",
+      "kind": "release_checkpoint",
+      "fact": "The provider releases funded payouts at Wed 18 Nov 2026 15:00 SGT. Release and acceptance are not beneficiary credit.",
+      "effective_at": "2026-11-18T15:00:00+08:00",
+      "known_at": "2026-11-12T09:00:00+08:00",
+      "status": "documented",
+      "source": "synthetic: provider service terms (Simulated)"
+    },
+    {
+      "id": "WIN-FRI",
+      "kind": "funding_window",
+      "fact": "Customer funding window Fri 13 Nov 2026 15:00 SGT; cutoff 16:00 SGT (exclusive).",
+      "effective_at": "2026-11-13T15:00:00+08:00",
+      "known_at": "2026-11-12T09:00:00+08:00",
+      "status": "documented",
+      "source": "synthetic: provider service terms (Simulated)"
+    },
+    {
+      "id": "WIN-MON",
+      "kind": "funding_window",
+      "fact": "Later funding window Mon 16 Nov 2026 15:00 SGT; cutoff 16:00 SGT (exclusive).",
+      "effective_at": "2026-11-16T15:00:00+08:00",
+      "known_at": "2026-11-12T09:00:00+08:00",
+      "status": "documented",
+      "source": "synthetic: provider service terms (Simulated)"
+    },
+    {
+      "id": "CON-NW-01",
+      "kind": "contract",
+      "fact": "Supplier terms let the importer fund at the Fri 13 Nov or the Mon 16 Nov window.",
+      "effective_at": "2026-11-01T00:00:00+08:00",
+      "known_at": "2026-11-02T09:00:00+08:00",
+      "status": "documented",
+      "source": "synthetic: Northwind–Harbor supply contract (fictional)"
+    },
+    {
+      "id": "BAL-NW-01",
+      "kind": "importer_balance",
+      "fact": "Northwind Foods SG settled bank balance SGD 182,000.00.",
+      "effective_at": "2026-11-13T09:00:00+08:00",
+      "known_at": "2026-11-13T09:10:00+08:00",
+      "status": "settled",
+      "source": "synthetic: importer bank statement (fictional)",
+      "amount": {
+        "amount": "182000.00",
+        "currency": "SGD"
+      }
+    },
+    {
+      "id": "BAL-NW-03",
+      "kind": "importer_balance",
+      "fact": "Northwind Foods SG settled bank balance SGD 181,400.00 (daily statement).",
+      "effective_at": "2026-11-16T09:00:00+08:00",
+      "known_at": "2026-11-16T09:10:00+08:00",
+      "status": "settled",
+      "source": "synthetic: importer bank statement (fictional)",
+      "amount": {
+        "amount": "181400.00",
+        "currency": "SGD"
+      }
+    },
+    {
+      "id": "FCT-NW-01",
+      "kind": "forecast_receipt",
+      "fact": "Northwind expects a customer receipt of SGD 140,000.00 on Tue 17 Nov 2026. Forecast only: it is not cash and not repayment.",
+      "effective_at": "2026-11-17T12:00:00+08:00",
+      "known_at": "2026-11-12T11:00:00+08:00",
+      "status": "forecast",
+      "source": "synthetic: importer cash forecast (fictional)",
+      "amount": {
+        "amount": "140000.00",
+        "currency": "SGD"
+      }
+    },
+    {
+      "id": "FAC-NW-01",
+      "kind": "facility",
+      "fact": "Simulated facility FAC-NW-01 'Supplier payment advance': company limit SGD 300,000.00, flat fee SGD 150.00 per advance, repayment due Fri 20 Nov 2026 17:00 SGT, reservation expires at the draw cutoff Mon 16 Nov 16:00 SGT.",
+      "effective_at": "2026-11-02T00:00:00+08:00",
+      "known_at": "2026-11-02T09:00:00+08:00",
+      "status": "documented",
+      "source": "synthetic: facility letter (Simulated)"
+    },
+    {
+      "id": "POL-ADV-01",
+      "kind": "policy",
+      "fact": "Policy POL-ADV v2026.11-1: deterministic rules only (facility active, limit headroom, importer balance no more than 24 h old, draw before cutoff, deployable funding cash).",
+      "effective_at": "2026-11-01T00:00:00+08:00",
+      "known_at": "2026-11-02T09:00:00+08:00",
+      "status": "documented",
+      "source": "synthetic: credit policy (Simulated)"
+    },
+    {
+      "id": "FUND-SG-01",
+      "kind": "funding_account",
+      "fact": "Provider SGD funding account (Simulated) holds SGD 500,000.00 deployable cash; no other payout reservations on it.",
+      "effective_at": "2026-11-13T14:30:00+08:00",
+      "known_at": "2026-11-13T14:30:00+08:00",
+      "status": "settled",
+      "source": "synthetic: provider treasury ledger (Simulated)",
+      "amount": {
+        "amount": "500000.00",
+        "currency": "SGD"
+      }
+    },
+    {
+      "id": "RCV-NW-01",
+      "kind": "customer_receipt",
+      "fact": "Customer receipt SGD 140,000.00 settled into Northwind Foods SG's own bank account. This is the importer's cash, not a repayment of the advance.",
+      "effective_at": "2026-11-19T10:00:00+08:00",
+      "known_at": "2026-11-19T10:00:00+08:00",
+      "status": "settled",
+      "source": "synthetic: importer bank statement (fictional)",
+      "amount": {
+        "amount": "140000.00",
+        "currency": "SGD"
+      }
+    }
+  ],
+  "clock_steps": [
+    {
+      "at": "2026-11-16T15:00:00+08:00",
+      "label": "Advance to Mon 16 Nov 15:00 SGT"
+    },
+    {
+      "at": "2026-11-18T23:00:00+08:00",
+      "label": "Advance to Wed 18 Nov 23:00 SGT"
+    },
+    {
+      "at": "2026-11-19T10:00:00+08:00",
+      "label": "Advance to Thu 19 Nov 10:00 SGT"
+    }
+  ],
+  "simulated_events": {
+    "fresh_balance": {
+      "id": "BAL-NW-02",
+      "delay_minutes": 20,
+      "amount": {
+        "amount": "179500.00",
+        "currency": "SGD"
+      },
+      "source": "synthetic: importer bank statement sent on request (fictional)"
+    },
+    "acceptance": {
+      "id": "ACK-PAY-01",
+      "source": "synthetic: provider payout gateway (Simulated)"
+    },
+    "credit": null,
+    "return": {
+      "id": "RET-HP-01",
+      "effective_at": "2026-11-18T17:30:00+08:00",
+      "known_at": "2026-11-18T17:30:00+08:00",
+      "text": "Beneficiary bank returned USD 100,000.00: account number not found. Funds are back in the provider's USD settlement account.",
+      "money_location": "Provider USD settlement account (Simulated)",
+      "recovery_owner": "Provider payments operations (Simulated role)",
+      "source": "synthetic: beneficiary bank return advice (Simulated)"
+    },
+    "conflict": null,
+    "wrong_currency": {
+      "id": "RPY-USD-01",
+      "amount": {
+        "amount": "1000.00",
+        "currency": "USD"
+      },
+      "source": "synthetic: provider collection account (Simulated)"
+    }
+  },
+  "importer_repayments": {
+    "partial": {
+      "amount": "100000.00",
+      "currency": "SGD"
+    },
+    "full_receipt": {
+      "amount": "140000.00",
+      "currency": "SGD"
+    }
+  }
+}
