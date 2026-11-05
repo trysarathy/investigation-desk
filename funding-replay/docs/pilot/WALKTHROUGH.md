@@ -1,55 +1,54 @@
-# Five-minute walkthrough: blank invoice → two roles → reconciled payment
+# Five-minute founder walkthrough: blank invoice → two people → reconciled, then the contrasting decisions
 
-Synthetic workspace, fictional invoice, sandbox payout. The clock is pinned so the dates line up; you restart the
-server twice to move to the next day and to repayment day (this is also the persistence test).
+Synthetic workspace; the payout is recorded manually (no money moves). The clock is pinned so dates line up; you
+restart the server twice (next day, repayment day), which is also the persistence check.
 
+## Setup (once, ~1 minute) — from `funding-replay/`
 ```bash
-cd funding-replay
 export PILOT_ENV=dev PILOT_DB=/tmp/walkthrough.db PILOT_SECRET=walkthrough
-rm -f /tmp/walkthrough.db*; python3 -m pilot.cli migrate && python3 -m pilot.cli seed
-PILOT_CLOCK=2026-11-30T01:00:00Z python3 -m pilot.cli serve --port 8765     # Mon 30 Nov 09:00 SGT
+rm -f /tmp/walkthrough.db*; python3 -m pilot.cli migrate
+python3 -m pilot.cli create-org --name "Saltmarsh Payments (Synthetic)" --id ORG-SM
+PILOT_NEW_PASSWORD=walk-operator-1 python3 -m pilot.cli create-user --org ORG-SM --email ops@saltmarsh.test --name "Priya Nair" --role operator
+PILOT_NEW_PASSWORD=walk-reviewer-1 python3 -m pilot.cli create-user --org ORG-SM --email credit@saltmarsh.test --name "Daniel Koh" --role reviewer
+python3 -m pilot.cli create-facility --org ORG-SM --id FAC-SM-01 --name "Supplier advance (Synthetic)" --currency SGD \
+  --limit 120,000.00 --fee-flat 60.00 --allocation fees_first --funding-cash 80,000.00 --policy-version "POL-SM v1" --required-evidence balance
+python3 -m pilot.cli create-facility --org ORG-SM --id FAC-SM-02 --name "Small-ticket advance (Synthetic)" --currency SGD \
+  --limit 100,000.00 --fee-flat 45.00 --allocation fees_first --funding-cash 25,000.00 --policy-version "POL-SM2 v1" --required-evidence balance,invoice
+PILOT_CLOCK=2026-12-07T01:00:00Z python3 -m pilot.cli serve --port 8765        # Mon 7 Dec 09:00 SGT
 ```
-Open http://127.0.0.1:8765. Watch two panels on the case: **Supplier delivery** and **Provider exposure**.
+Use two browser windows (one private) so the two people are really separate sign-ins.
 
-**1. Operator creates the case (Mon 09:00).** Sign in `operator@harbourline.test` / `pilot-dev-operator`.
-The queue is empty. **New case**:
-- Importer: Tamarind Freight Holdings Pte Ltd. Supplier: Ostrava Precision s.r.o.
-- Payout: 37,820.40 USD. Funding: 51,276.15 SGD, quote Q-TF-1129-03.
-- Time zone: Asia/Singapore. Deadline: 4 Dec 2026, 18:00. Original window: 1 Dec 10:00, cutoff 13:00.
-- Balance: 9,800.00 SGD as of 30 Nov 08:00, source "Importer bank portal screenshot".
-- Expected receipt: 64,500.00 SGD on 8 Dec, payer Brightwater Logistics. Reference INV-OP-2026-1187.
+## 1. Operator enters a deal nobody scripted (1 min)
+Window 1, sign in `ops@saltmarsh.test` / `walk-operator-1`. Queue is empty. **New case**: importer *Halyard Coffee
+Traders Pte Ltd*, supplier *Finca Altamira Exportadora*, payout **12,400.00 USD**, funding **16,800.00 SGD**, quote
+Q-0042 from "Provider FX desk", invoice **INV-FA-2026-0042**, zone Asia/Singapore, deadline 10 Dec 17:00, window
+8 Dec 10:00–13:00, facility FAC-SM-01, balance 1,250.00 SGD as of 7 Dec 08:30. Watch: the **duplicate check** says
+"No matching record in this provider's book."; route **C feasible**; A not (balance too small/unconfirmed); B infeasible
+(contract fixes the date). **Request advance** with a reason.
 
-You get a case id (CL-2026-…). Upload any small file under **Evidence**: it shows **External record**; the balance
-shows **Operator-entered** (not bank-confirmed). Routes: **A unknown — not "short"** (the balance will be 26 h old at
-Tuesday's 10:00 window; limit 24 h: add a newer balance), **B infeasible** (contract fixes the funding date),
-**C feasible**. Click **Request advance**, give a reason.
-Exposure still **None**. Sign out.
+## 2. A different person decides (1 min)
+Window 2, sign in `credit@saltmarsh.test` / `walk-reviewer-1`. Case is under **Awaiting review**. Ctrl-C the server and
+start it again (same command) — the case, decision record and evidence are all still there. **Approve and reserve
+capacity**. Exposure: **Reserved SGD 16,800.00 — drawn SGD 0.00** (a reservation is not a draw).
 
-**2. Reviewer approves (a different person).** Sign in `reviewer@harbourline.test` / `pilot-dev-reviewer`. The case
-is under **Awaiting review**; its button opens it. Check the evidence, then **Approve and reserve capacity** (the
-dialog states the consequence first). Exposure: **Reserved SGD 51,276.15, drawn SGD 0.00**. The operator could not
-have done this: the server refuses her (403), and the requester can never approve her own request. Sign out.
+## 3. Next day: pay the supplier (1 min)
+Restart with `PILOT_CLOCK=2026-12-08T01:30:00Z`. Operator: **Record draw** → principal **SGD 16,800.00** + fee **SGD 60.00**.
+**Instruct payout** (manual, ref BANK-0042) → supplier *Instructed*. **Record provider acceptance** → *Accepted* (still
+not paid). **Record beneficiary credit** → the key screen:
+**"Supplier credited; Halyard Coffee Traders Pte Ltd owes the provider SGD 16,860.00, due …"** — supplier panel green,
+provider exposure **Outstanding SGD 16,860.00**, next action *Record repayment to provider* (operator).
 
-**3. Next day (restart).** Ctrl-C, then `PILOT_CLOCK=2026-12-01T01:30:00Z python3 -m pilot.cli serve --port 8765`.
-Sign in as the operator: same case id, owner, decision, evidence and reservation. **Record draw** → principal
-**SGD 51,276.15**, fee **SGD 150.00** outstanding; reserved back to 0. **Instruct payout** → route *sandbox*,
-scenario *timeout_then_accept*. Supplier delivery: **Unknown** — not failed, not paid; *Instruct payout* is refused
-("never re-submit"). Click **Query payout status** (same reference) → **Accepted** (still not credited). Click
-**Sandbox simulation: deliver next provider event** → **Credited**.
+## 4. Repayment day: reconcile (1 min)
+Restart with `PILOT_CLOCK=2026-12-11T02:00:00Z`. **Record customer receipt (importer's account)** 40,000.00 → *not
+repayment*, still **SGD 16,860.00**. **Record repayment to provider** 6,000.00 → **Match repayment** → fee **60.00**,
+principal **5,940.00**, remaining **SGD 10,860.00**. Repay **10,860.00** → **Match** → exposure **Ended**, no held cash,
+Facilities back to **SGD 120,000.00** available. **Close case** → **Export → HTML** (who, role, times, provenance, reason).
 
-The moment: **"Supplier credited; Tamarind Freight Holdings Pte Ltd owes the provider SGD 51,426.15, due Mon 7 Dec
-2026, 17:00 SGT."** Supplier panel green; provider exposure **Outstanding SGD 51,426.15**; next action **Record
-repayment to provider** (operator).
-
-**4. Repayment day (restart).** `PILOT_CLOCK=2026-12-07T02:00:00Z python3 -m pilot.cli serve --port 8765`.
-- **Record customer receipt (importer's account)** 64,500.00 SGD → listed as *not repayment*; exposure still
-  **SGD 51,426.15**.
-- **Record repayment to provider** 30,000.00 SGD → *received, not matched*; exposure unchanged. **Match repayment**
-  → fees **SGD 150.00**, principal **SGD 29,850.00**; remaining principal **SGD 21,426.15**, fees **SGD 0.00**.
-- **Record repayment to provider** 21,426.15 SGD → **Match repayment** → exposure **Ended**. **Facilities**:
-  available back to **SGD 500,000.00**.
-- **Close case**, then **Export → HTML**: every step with who, role, effective/known time, provenance and reason.
-
-Optional (1 minute): on a second case, **Record payout failure** shows where the money was last evidenced and asks a
-reviewer to **Authorize reinstruction**; a repayment in **USD** is held as unmatched, blocks close, and the reviewer
-uses **Return unmatched amount** — principal never changes.
+## 5. The contrasting decisions (1 min)
+Create two more cases on **FAC-SM-02** (policy requires an invoice record; funding cash SGD 25,000.00): one for
+**SGD 18,000.00**, one for **SGD 30,000.00**. Both show *Missing evidence — Policy POL-SM2 v1 requires invoice*. On each,
+**Add observation → Invoice** with the same supplier invoice details. The 18,000 case becomes **feasible** — the decision
+record shows the blocker *cleared*; the reviewer can still **Decline** (a judgment, recorded separately). The 30,000 case
+stays red: **"No money — hard constraint: Provider funding cash SGD 25,000.00 is below the SGD 30,000.00 needed"**; next
+action refers it to provider treasury. On the first case, **Replay as known at this checkpoint** shows the earlier view,
+with no invoice and no actions.
