@@ -1,4 +1,31 @@
-# Funding decision replay
+# Clearline provider funding desk (simulated) — and the earlier funding replay
+
+**Synthetic prototype — no funds move.** Everything below is fictional and simulated: no real provider has
+agreed to fund anything, no credit is approved, no account is connected.
+
+## Provider funding desk (current build)
+One question for a payment provider's operator: *can this supplier be paid by the deadline, let the importer
+keep its cash longer, and show exactly who funds the gap, who approved it and when that exposure ends?* One
+synthetic payment (Northwind Foods SG → Harbor Provisions, USD 100,000.00 net by Wed 18 Nov 2026 23:00 SGT),
+three routes, a simulated reviewer, a simulated facility (FAC-NW-01) and seven cases.
+
+Run it (Python 3.9+, no packages):
+
+```bash
+cd funding-replay
+python3 tools/export_site.py /tmp/cfd-site     # engine walks every reachable state; fails on any broken invariant
+open /tmp/cfd-site/index.html                  # or: (cd /tmp/cfd-site && python3 -m http.server 8080)
+```
+
+Tests: `python3 -m unittest discover -s tests` (engine, lifecycle, challenger, replay, server) and
+`node tests/browser/lifecycle.cjs /tmp/cfd-site` (browser journey on the export). Docs: `LIFECYCLE_CONTRACT.md`,
+`docs/MONEY_AND_STATE_MODEL.md`, `docs/DEMO_SCRIPT_PROVIDER.md`, `docs/TEST_RESULTS_PROVIDER.md`,
+`docs/FOUNDER_NOTE_PROVIDER.md`, `docs/RELEASE.md` (mentor link release path). The earlier importer replay ships
+inside the same build under `replay/`.
+
+---
+
+## Earlier: funding decision replay
 
 **Synthetic replay — no funds move.**
 
