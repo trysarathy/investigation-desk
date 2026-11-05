@@ -24,6 +24,7 @@ OPS = {
     "accept_waiver": ("reviewer", ("waiver_recorded",), "accepted"),
     "refuse": ("reviewer", ("discrepant", "waiver_requested", "waiver_recorded"), "refused"),
     "request_financing_review": ("operator", ("accepted",), "financing_review_requested"),
+    "open_funding_case": ("operator", ("financing_review_requested",), "funding_case_opened"),
 }
 CREATE_KEYS = set("reference applicant beneficiary issuing_bank advising_bank currency amount expires_at presentation_deadline_at required_documents".split())
 
@@ -110,6 +111,7 @@ def detail(conn, user, cid):
                                      FROM trade_financing_tasks WHERE org_id=? AND credit_id=?""", args)
     if r["financing_review"]:
         r["financing_review"]["funds_moved"] = False
+    r["funding_case"] = db.one(conn,"SELECT case_id AS id,created_at FROM instrument_funding_links WHERE org_id=? AND credit_id=?",args)
     r["events"] = db.all_rows(conn, "SELECT seq,action,actor_id,role,effective_at,known_at,status,payload_json FROM trade_events WHERE org_id=? AND credit_id=? ORDER BY seq", args)
     r["findings"] = []
     for e in r["events"]:
@@ -270,6 +272,26 @@ def command(conn, user, cid, action, payload, key, version):
         elif action=="record_waiver":
             _fields(payload,("evidence_ref",))
             event={"evidence_ref":_text(payload,"evidence_ref"),"source":"operator_recorded_applicant_response"}
+        elif action=="open_funding_case":
+            from . import commands
+            _fields(payload,("funding_amount","funding_currency","quote_ref","contract_ref","deadline_at",
+                             "deadline_tz","window_a_at","window_a_cutoff_at","facility_id"))
+            _text(payload,"contract_ref",200)
+            present=detail(conn,user,cid)["presentation"]
+            if not present or present["currency"]!=r["currency"] or present["amount_minor"]!=r["amount_minor"]:
+                err(409,"settlement_terms_unresolved","Waived amount or currency differs from the credit; explicit settlement terms need separate review.")
+            body=dict(payload, importer=r["applicant"],supplier=r["beneficiary"],reference=r["reference"],
+                      payout_currency=r["currency"],payout_amount=money.amount_text(r["amount_minor"],r["currency"],False))
+            at=db.now()
+            row,observations,errors=commands.validate_case_body(conn,user,body,at)
+            commands._raise_fields(errors)
+            if not at < db.parse_iso(row["window_a_cutoff_at"]) < db.parse_iso(row["deadline_at"]):
+                err(422,"invalid_window","Funding cutoff must be ahead of now and before the supplier deadline.")
+            case,_=commands._insert_case(conn,user,row,observations,at,key)
+            conn.execute("INSERT INTO instrument_funding_links VALUES(?,?,?,?,?)",
+                         (user["org_id"],cid,case["id"],user["id"],now))
+            event={"case_id":case["id"],"quote_ref":row["quote_ref"],"contract_ref":row["contract_ref"],
+                   "status":"assessment_only","funds_moved":False}
         elif action=="request_financing_review":
             _fields(payload,())
             event={"outcome":"existing_review_task_handed_off","funds_moved":False}

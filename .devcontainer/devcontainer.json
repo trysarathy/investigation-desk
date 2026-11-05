@@ -1,0 +1,7 @@
+{
+  "name": "Clearline private synthetic desk",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+  "forwardPorts": [8765],
+  "portsAttributes": {"8765": {"label": "Clearline Funding Desk", "onAutoForward": "notify"}},
+  "postStartCommand": "bash funding-replay/tools/start_synthetic_desk.sh"
+}

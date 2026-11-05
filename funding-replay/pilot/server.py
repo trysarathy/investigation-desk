@@ -286,6 +286,17 @@ class Handler(BaseHTTPRequestHandler):
                 if v is None:
                     raise CommandError(404, "not_found", "No such case in your organisation.")
                 return self._json(200, v)
+            if rest in ("/decision-report","/duplicate-review") and method in ("GET","POST"):
+                from . import decision_report, duplicates
+                module = decision_report if rest=="/decision-report" else duplicates
+                if method=="POST":
+                    u=self._mutating_user()
+                    return self._json(200,module.record(conn,u,cid,self._trade_body()))
+                u=self._user()
+                if module is decision_report:
+                    when=(self.query.get("as_of") or [None])[0]
+                    return self._json(200,module.read(conn,u,cid,when))
+                return self._json(200,module.read(conn,u,cid))
             if rest == "/commands" and method == "POST":
                 u = self._mutating_user()
                 st, resp = commands.execute(conn, u, cid, self._json_body())

@@ -394,6 +394,9 @@ def execute(conn, user, case_id, body):
         c.fac = c.state.facility
         c.routes = routes_for(conn, c.state, now)
         c.connector_ok = connector_status()[0]
+        from . import decision_snapshots
+        snapshot_before = (decision_snapshots.capture(c.state,c.routes,now)
+                           if cmd in decision_snapshots.WATCH else None)
         try:
             outcome = domain.precheck(c.state, cmd, body, now, actor=user["id"], routes=c.routes,
                                       connector_ok=c.connector_ok)
@@ -403,6 +406,9 @@ def execute(conn, user, case_id, body):
             raise _from_domain(e)
         case, st = _finish_case(conn, case, now)
         view = case_view(conn, user, case, st, now)
+        if snapshot_before is not None:
+            decision_snapshots.save(conn,user,case,cmd,body.get("reason"),snapshot_before,
+                                    decision_snapshots.capture(st,view["routes"],now))
         status, resp = 200, view
         if special:
             status, resp = special["status"], dict(special["error"], case=view)
@@ -1196,6 +1202,9 @@ def case_view(conn, user, case, st=None, now=None):
         "sandbox": {"available": ok, "reason": why, "label": domain.SANDBOX_LABEL},
         "facility": facility_summary(conn, fac) if fac else None,
     }
+    view["source_instrument"] = db.one(conn, """SELECT t.id,t.reference FROM instrument_funding_links l
+      JOIN trade_credits t ON t.id=l.credit_id AND t.org_id=l.org_id WHERE l.org_id=? AND l.case_id=?""",
+      (user["org_id"],case["id"]))
     return view
 
 

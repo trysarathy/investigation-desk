@@ -721,6 +721,8 @@
       el('div', { class: 'col-main' }, [decisionBox(cv), splitPanels(cv), routesPanel(cv), collectionsPanel(cv)]),
       el('div', { class: 'col-side' }, [actionsPanel(cv), handoffPanel(cv), identitiesPanel(cv), exportPanel(cv)])
     ]);
+    if(cv.source_instrument)v.root.appendChild(el('a',{href:'/trade.html?id='+encodeURIComponent(cv.source_instrument.id),text:'Source credit: '+cv.source_instrument.reference}));
+    v.root.appendChild(el('p',{},[el('a',{href:'/report.html?case='+encodeURIComponent(cv.id),text:'Decision replay and comparison'}),' · ',el('a',{href:'/duplicates.html?case='+encodeURIComponent(cv.id),text:'Check possible duplicate invoices'})]));
     v.root.appendChild(grid);
     v.root.appendChild(evidencePanel(cv));
     v.root.appendChild(timelinePanel(cv));
