@@ -240,7 +240,7 @@
       if (my !== state.seq) return;
       document.body.removeAttribute('aria-busy');
       clearAll();
-      setStatus('The local replay server did not respond. Start it with python3 app/server.py.', 'error');
+      setStatus(window.clearlineDemoAPI ? 'The sample results could not be loaded. Extract the whole folder, then open index.html again.' : 'The local replay server did not respond. Start it with python3 app/server.py.', 'error');
     });
   }
 
@@ -362,6 +362,7 @@
       ]);
     }
     $('payment-body').replaceChildren(
+      fact('Route', 'Singapore \u2192 United States', 'SGD funding \u00b7 USD to the supplier\u2019s US bank', null, 'fact-route'),
       fact('Net amount the supplier must receive', isBlank(p.net_usd) ? DASH : 'USD ' + p.net_usd + ' net', null, null, 'fact-net'),
       fact('Spendable-funds deadline', show(p.deadline_sgt), isBlank(p.deadline_ny) ? null : 'New York: ' + p.deadline_ny, null, 'fact-deadline'),
       fact('Provider release checkpoint', show(p.release_sgt), isBlank(p.release_ny) ? null : 'New York: ' + p.release_ny,
@@ -455,8 +456,10 @@
       var status = opt.status || 'unknown';
       var checks = (opt.checks || []).map(function (c) {
         var st = c.state || 'unknown';
-        return el('li', { class: 'check check-' + st }, [
-          el('span', { class: 'check-icon', 'aria-hidden': 'true', text: CHECK_ICON[st] || '?' }),
+        // A simulated delivery bound is not observed supplier credit: never show it as a green tick.
+        var simulated = st === 'ok' && /^Simulated /.test(c.name || '');
+        return el('li', { class: 'check check-' + st + (simulated ? ' check-simulated' : '') }, [
+          el('span', { class: 'check-icon', 'aria-hidden': 'true', text: simulated ? '~' : (CHECK_ICON[st] || '?') }),
           el('span', { class: 'check-body' }, [
             el('span', { class: 'check-name' }, [
               el('span', { class: 'visually-hidden', text: (CHECK_LABEL[st] || st) + ': ' }),
@@ -692,9 +695,10 @@
       rateTimer = setTimeout(function () { setRate(rateInput.value); }, 500);
     });
     $('open-evidence').addEventListener('click', function () { jumpTo('evidence', 'evidence-heading'); });
-    $('open-data').addEventListener('click', function () { jumpTo('data', 'data-heading'); });
-    $('csv-file').addEventListener('change', onImport);
-    $('reset').addEventListener('click', onReset);
+    // The tester edition ships without the Data panel (no CSV upload), so these controls may be absent.
+    if ($('open-data')) $('open-data').addEventListener('click', function () { jumpTo('data', 'data-heading'); });
+    if ($('csv-file')) $('csv-file').addEventListener('change', onImport);
+    if ($('reset')) $('reset').addEventListener('click', onReset);
 
     setStatus('Loading…', 'busy');
     refreshMeta().then(function () {
@@ -708,7 +712,7 @@
       syncRateControls();
       evaluate();
     }).catch(function () {
-      setStatus('The local replay server did not respond. Start it with python3 app/server.py.', 'error');
+      setStatus(window.clearlineDemoAPI ? 'The sample results could not be loaded. Extract the whole folder, then open index.html again.' : 'The local replay server did not respond. Start it with python3 app/server.py.', 'error');
     });
   }
 
