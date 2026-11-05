@@ -266,6 +266,10 @@ class CollectionsTest(ServerCase):
         self.assertTrue(v["exposure_panel"]["overdue"])
         q = self.assertOk(op.get("/api/queue"))
         self.assertIn(cid, [x["case_id"] for x in q["sections"][4]["rows"]])
+        # Held cash must be returned before an exception close (a closed case could not return it).
+        rid = v["collections"]["repayments"][0]["id"]
+        self.assertEqual(rv.cmd(cid, "close_with_exception", disposition="write_off_referred", reason="x").status, 409)
+        self.assertOk(rv.cmd(cid, "return_unmatched", item_id=rid, reason="Payer says it was for another invoice", reference="RTN-1"))
         v = self.assertOk(rv.cmd(cid, "close_with_exception", disposition="write_off_referred",
                                  reason="Importer insolvent; referred to recoveries"))
         self.assertEqual(v["status"], "closed_exception")

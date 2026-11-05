@@ -23,7 +23,7 @@ OPERATOR_ONLY = {"select_route", "request_advance", "record_prefunding", "record
                  "record_delivery", "query_payout_status", "record_customer_receipt", "record_repayment",
                  "match_repayment", "resolve_duplicate", "close_case"}
 REVIEWER_ONLY = {"approve_and_reserve", "decline", "request_evidence", "release_reservation", "authorize_draw",
-                 "return_unmatched", "reverse_match", "close_with_exception", "authorize_reinstruction"}
+                 "return_unmatched", "reverse_match", "close_with_exception", "authorize_reinstruction", "reopen_case"}
 COMMANDS = OPERATOR_AND_REVIEWER | OPERATOR_ONLY | REVIEWER_ONLY
 DISPOSITIONS = ("write_off_referred", "supplier_paid_outside", "cancelled_before_payout", "duplicate_case",
                 "other_documented")
@@ -134,6 +134,7 @@ class CaseState(object):
         self.notes = []
         self.owner_user_id = case.get("owner_user_id")
         self.closed = None
+        self.post_close = []             # provider events recorded after the case was closed
         self.timeline = []
 
     # -- derived
@@ -435,6 +436,9 @@ def _h_submitted(s, ev, p, known):
 def _h_delivery(s, ev, p, known):
     po = _payout_for(s, p)
     st = p["status"]
+    if s.closed:
+        s.post_close.append({"status": st, "attempt": po["attempt"] if po else 0, "at": ev["known_at"],
+                             "provenance": ev["provenance"]})
     applied = _set_delivery(s, po, st, ev, p) if po else False
     label = {"accepted": "provider acceptance (not credit)", "credited": "beneficiary credit",
              "failed": "payout failure", "returned": "payout return", "unknown": "delivery status unknown"}[st]
@@ -542,6 +546,12 @@ def _h_owner(s, ev, p, known):
                                    (": " + p["note"]) if p.get("note") else ".")
 
 
+def _h_reopen(s, ev, p, known):
+    s.closed = None
+    s.post_close = []
+    return "Reviewer reopened the case after a provider event arrived post-close."
+
+
 def _h_close(s, ev, p, known):
     s.closed = {"kind": "closed", "at": ev["known_at"], "by": ev.get("actor_user_id")}
     return "Case closed: supplier credited, nothing owed, no open cash items."
@@ -565,7 +575,7 @@ _HANDLERS = {
     "customer_receipt_recorded": _h_receipt, "repayment_recorded": _h_repay, "duplicate_resolved": _h_dup,
     "repayment_matched": _h_match, "unmatched_returned": _h_return, "match_reversed": _h_reverse,
     "note_added": _h_note, "owner_assigned": _h_owner, "case_closed": _h_close,
-    "case_closed_with_exception": _h_close_exc,
+    "case_closed_with_exception": _h_close_exc, "case_reopened": _h_reopen,
 }
 
 
@@ -831,7 +841,7 @@ def case_identities(s, draw_row=None):
         out.append({"name": "draw equals the reservation", "ok": s.draw["principal"] == s.approval["amount_minor"],
                     "detail": "%s drawn against %s reserved" % (mtext(s.draw["principal"], ccy),
                                                                  mtext(s.approval["amount_minor"], ccy))})
-    if s.closed and s.closed["kind"] == "closed":
+    if s.closed and s.closed["kind"] == "closed" and not s.post_close:
         out.append({"name": "closed ⇒ credited, nothing owed, no open items",
                     "ok": bool(s.latest_payout() and s.latest_payout()["status"] == "credited" and s.owed == 0
                                and s.open_items() == 0),
@@ -863,6 +873,10 @@ def _need_reason(params, field="reason"):
 def precheck(s, cmd, params, now, actor=None, routes=None, connector_ok=True):
     """Raise DomainError when `cmd` is not allowed in this state. `params` may be partial (action listing)."""
     params = params or {}
+    if cmd == "reopen_case":
+        if not (s.closed and s.post_close):
+            raise DomainError(409, "not_reopenable", "Only a closed case that received a provider event after closing can be reopened.")
+        return
     if s.closed and cmd not in ("add_note",):
         raise DomainError(409, "case_closed", "The case is closed; only notes can be added.")
     lp = s.latest_payout()
@@ -1034,6 +1048,14 @@ def precheck(s, cmd, params, now, actor=None, routes=None, connector_ok=True):
         d = params.get("disposition")
         if d is not None and d not in DISPOSITIONS:
             raise DomainError(422, "validation_failed", "Disposition must be one of %s." % ", ".join(DISPOSITIONS), "disposition")
+        if s.open_items():
+            raise DomainError(409, "cash_held", "Return or resolve the payer's held cash first (%d open item(s)); "
+                              "a closed case could no longer return it." % s.open_items())
+        if lp and lp["status"] in ("instructed", "accepted", "unknown"):
+            raise DomainError(409, "payout_outcome_open", "Attempt %d is %s; get the provider's final outcome (credited, "
+                              "failed or returned) before closing." % (lp["attempt"], lp["status"]))
+        if d == "cancelled_before_payout" and s.payouts:
+            raise DomainError(409, "payout_exists", "A payout was instructed on this case; it was not cancelled before payout.", "disposition")
         return
     raise DomainError(400, "unknown_command", "Unknown command %r." % cmd, "type")
 
@@ -1056,6 +1078,8 @@ def close_blockers(s):
 
 # ---------------------------------------------------------------- read model pieces
 def status_key(s, now):
+    if s.closed and s.post_close:
+        return "post_close_review"
     if s.closed:
         return "closed" if s.closed["kind"] == "closed" else "closed_exception"
     lp = s.latest_payout()
@@ -1160,6 +1184,11 @@ def decision(s, routes, now):
         return {"tone": tone, "headline": headline, "binding_constraint": binding, "next_action": nxt,
                 "owner_role": role}
     ccy = s.fac_ccy
+    if s.closed and s.post_close:
+        last = s.post_close[-1]
+        return dec("review", "Closed case received a provider event after closing: payout attempt %d %s." % (
+            last["attempt"], last["status"]), "The provider reported this after the case was closed; the closing record may no longer be true.",
+            {"label": "Reopen case (provider event after close)", "command": "reopen_case", "role": "reviewer"}, "reviewer")
     if s.closed:
         if s.closed["kind"] == "closed":
             return dec("closed", "Closed: supplier credited, repaid and matched.", None, None, None)
@@ -1292,7 +1321,7 @@ _PARAMS = {
     "record_repayment": ["amount", "currency", "effective_at", "bank_ref"],
     "match_repayment": ["repayment_id"], "resolve_duplicate": ["repayment_id", "resolution"],
     "return_unmatched": ["item_id", "reason", "reference"], "reverse_match": ["match_id", "reason"],
-    "close_case": [], "close_with_exception": ["disposition", "reason"],
+    "close_case": [], "close_with_exception": ["disposition", "reason"], "reopen_case": ["reason"],
 }
 
 _LABELS = {
@@ -1306,6 +1335,7 @@ _LABELS = {
     "record_repayment": "Record repayment to provider", "match_repayment": "Match repayment",
     "resolve_duplicate": "Resolve possible duplicate", "return_unmatched": "Return unmatched amount",
     "reverse_match": "Reverse match", "close_case": "Close case", "close_with_exception": "Close with exception",
+    "reopen_case": "Reopen case (provider event after close)",
 }
 _DELIVERY_LABELS = {"accepted": "Record provider acceptance", "credited": "Record beneficiary credit",
                     "failed": "Record payout failure", "returned": "Record payout return",
@@ -1337,6 +1367,8 @@ def actions(s, routes, now, user, connector_ok=True):
         out.append(a)
 
     if s.closed:
+        if s.post_close:
+            add("reopen_case")
         add("add_note")
         return out
     lp = s.latest_payout()

@@ -37,7 +37,7 @@ class EndToEndTest(ServerCase):
             "observations": [{"kind": "expected_receipt", "amount": "120,000.00", "currency": "SGD",
                               "expected_at": "2026-12-05T02:00:00Z", "payer": "Kestrel's customer"}]}), 201)
         cid = v["id"]
-        self.assertRegex(cid, r"^CL-2026-\d{5}$")
+        self.assertRegex(cid, r"^CL-2026-[A-Z0-9]+-\d{5}$")
         self.assertEqual(v["header"]["payout"], "EUR 61,400.00")
         self.assertEqual(v["header"]["funding"], "SGD 89,450.25")
         self.assertEqual(v["header"]["deadline_local"], "Fri 4 Dec 2026, 18:00 SGT")

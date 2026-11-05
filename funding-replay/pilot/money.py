@@ -128,6 +128,8 @@ def parse(text, currency, allow_negative=False, allow_zero=True):
     exp = EXPONENTS[currency]
     if len(frac) > exp:
         raise MoneyError("%s allows %d decimal place%s; %r has %d." % (currency, exp, "" if exp == 1 else "s", text, len(frac)))
+    if len(whole.lstrip("0")) > 13:
+        raise MoneyError("Amount is too large (at most 13 digits before the decimal point).")
     minor = int(whole) * (10 ** exp) + (int(frac.ljust(exp, "0")) if exp else 0)
     if neg:
         minor = -minor

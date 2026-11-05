@@ -184,7 +184,7 @@ async function supplierText(page) { return (await domText(page, '#supplier-panel
     await page.click('#nc-submit');
     await page.waitForSelector('#decision-headline', { timeout: 10000 });
     caseId = await domText(page, '#case-id');
-    check('durable case id issued', /^CL-2026-\d{5}$/.test(caseId), caseId);
+    check('durable case id issued', /^CL-2026-[A-Z0-9]+-\d{5}$/.test(caseId), caseId);
     await page.setInputFiles('#ev-file', { name: 'tamarind-po-1187.txt', mimeType: 'text/plain', buffer: Buffer.from('Synthetic purchase order PO-1187 (fictional) for pilot acceptance.\n') });
     await page.fill('#ev-desc', 'Purchase order from importer (external document)');
     const v0 = await page.getAttribute('#pd-view', 'data-version'); await page.click('#ev-upload');

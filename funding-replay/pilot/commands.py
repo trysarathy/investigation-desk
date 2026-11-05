@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import sqlite3
 
 from . import db, domain
@@ -243,7 +244,9 @@ def _time(params, field, errors, required=True, now=None, not_future=False):
         return None
     try:
         t = db.parse_iso(v)
-    except (ValueError, TypeError) as e:
+        if not (2000 <= t.year <= 2100):
+            raise ValueError("Time must be between the years 2000 and 2100.")
+    except (ValueError, TypeError, OverflowError) as e:
         errors.append({"field": field, "message": str(e) or "Not a valid ISO-8601 time."})
         return None
     if not_future and now is not None and t > now + FUTURE_SLACK:
@@ -766,6 +769,10 @@ def h_close(c):
     _ev(c, "case_closed", {})
 
 
+def h_reopen(c):
+    _ev(c, "case_reopened", {"post_close_events": len(c.state.post_close)}, reason=_reason(c))
+
+
 def h_close_exc(c):
     errors = []
     d = c.params.get("disposition")
@@ -788,6 +795,7 @@ HANDLERS = {
     "record_customer_receipt": h_receipt, "record_repayment": h_repayment, "match_repayment": h_match,
     "resolve_duplicate": h_dup, "return_unmatched": h_return, "reverse_match": h_reverse, "add_note": h_note,
     "assign_owner": h_assign, "close_case": h_close, "close_with_exception": h_close_exc,
+    "reopen_case": h_reopen,
 }
 
 
@@ -855,16 +863,22 @@ def validate_case_body(conn, user, body, now):
     return row, obs, []
 
 
-def _new_case_id(conn, now):
+def _org_code(org_id):
+    code = re.sub(r"[^A-Z0-9]", "", str(org_id).upper().replace("ORG-", "", 1))
+    return (code or "X")[:8]
+
+
+def _new_case_id(conn, now, org_id):
+    """Per-organisation sequence (no cross-customer volume leak); globally unique via the org code."""
     year = now.year
-    conn.execute("INSERT INTO case_counters(year, last) VALUES (?, 1) ON CONFLICT(year) DO UPDATE SET last = last + 1",
-                 (year,))
-    n = conn.execute("SELECT last FROM case_counters WHERE year=?", (year,)).fetchone()[0]
-    return "CL-%d-%05d" % (year, n)
+    conn.execute("INSERT INTO case_counters_org(org_id, year, last) VALUES (?, ?, 1) "
+                 "ON CONFLICT(org_id, year) DO UPDATE SET last = last + 1", (org_id, year))
+    n = conn.execute("SELECT last FROM case_counters_org WHERE org_id=? AND year=?", (org_id, year)).fetchone()[0]
+    return "CL-%d-%s-%05d" % (year, _org_code(org_id), n)
 
 
 def _insert_case(conn, user, row, obs, now, key):
-    cid = _new_case_id(conn, now)
+    cid = _new_case_id(conn, now, user["org_id"])
     cols = dict(row, id=cid, org_id=user["org_id"], created_by=user["id"], owner_user_id=user["id"],
                 status="assessing", version=0, created_at=db.iso(now))
     names = sorted(cols)
@@ -1051,7 +1065,7 @@ def ingest_sandbox_body(conn, body_bytes, signature):
     try:
         ev = mod.parse_event_body(body_bytes)
         db.parse_iso(ev["occurred_at"])
-    except ValueError as e:
+    except (ValueError, OverflowError) as e:
         raise CommandError(400, "bad_event", str(e))
     now = db.now()
     with db.tx(conn):
@@ -1062,12 +1076,10 @@ def ingest_sandbox_body(conn, body_bytes, signature):
             raise CommandError(404, "unknown_payout", "No sandbox payout matches this provider reference.")
         po = rows[0]
         case = db.one(conn, "SELECT * FROM cases WHERE id=?", (po["case_id"],))
-        if build_state(conn, case).closed:
-            res = {"duplicate": False, "applied": False, "ignored": "case closed"}
-        else:
-            res = ingest_provider_event(conn, case, po, ev, now)
-            if not res["duplicate"]:
-                _finish_case(conn, case, now)
+        # A closed case still records provider events: a return or failure after closing must reach a reviewer.
+        res = ingest_provider_event(conn, case, po, ev, now)
+        if not res["duplicate"]:
+            _finish_case(conn, case, now)
     log.info("sandbox event case=%s kind=%s duplicate=%s applied=%s", po["case_id"], ev["kind"], res["duplicate"],
              res["applied"])
     return 200, dict(res, received=True, provenance="sandbox_simulation", label=domain.SANDBOX_LABEL)
@@ -1295,7 +1307,7 @@ def queue(conn, user):
                 sec["approaching_cutoff"].append(_row(st, case, users, now, "%s %s" % (label, domain.local_text(t, st.tz)),
                                                       nxt, db.iso(t), "high"))
         lp = st.latest_payout()
-        if lp and lp["status"] in ("instructed", "unknown", "accepted"):
+        if (lp and lp["status"] in ("instructed", "unknown", "accepted")) or st.post_close:
             sec["uncertain_delivery"].append(_row(st, case, users, now, d["headline"], nxt, dl,
                                                   "high" if lp["status"] == "unknown" else "normal"))
         if st.overdue(now):

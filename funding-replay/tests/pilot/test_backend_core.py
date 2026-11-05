@@ -176,7 +176,7 @@ class CliTest(unittest.TestCase):
                     break
                 except OSError:
                     time.sleep(0.1)
-            self.assertEqual(body, {"ok": True, "db": "ok", "migrations": 2, "env": "dev"})
+            self.assertEqual(body, {"ok": True, "db": "ok", "migrations": 3, "env": "dev"})
         finally:
             proc.terminate()
             _, err = proc.communicate(timeout=10)
