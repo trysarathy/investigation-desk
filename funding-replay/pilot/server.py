@@ -274,6 +274,21 @@ class Handler(BaseHTTPRequestHandler):
         m = CASE_RE.match(path)
         if m:
             cid, rest = m.group(1), m.group(2) or ""
+            if rest == "" and method == "GET" and self.query.get("as_of"):
+                v = commands.read_case_as_of(conn, self._user(), cid, self.query["as_of"][0])
+                if v is None:
+                    raise CommandError(404, "not_found", "No such case in your organisation.")
+                return self._json(200, v)
+            if rest == "/report" and method == "GET":
+                fmt = (self.query.get("format") or ["json"])[0]
+                if fmt not in ("json", "html"):
+                    raise CommandError(400, "bad_format", "Report format is json or html.", "format")
+                rep = commands.case_report(conn, self._user(), cid)
+                if rep is None:
+                    raise CommandError(404, "not_found", "No such case in your organisation.")
+                if fmt == "html":
+                    return self._send(200, commands.render_report_html(rep).encode("utf-8"), "text/html; charset=utf-8")
+                return self._json(200, rep)
             if rest == "" and method == "GET":
                 v = commands.read_case(conn, self._user(), cid)
                 if v is None:

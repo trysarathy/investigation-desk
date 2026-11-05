@@ -1026,6 +1026,30 @@ def validate_case_body(conn, user, body, now):
         errors.append({"field": "window_b_cutoff_at", "message": "Give both window_b_at and window_b_cutoff_at, or neither."})
     row["contract_ref"] = _text(b, "contract_ref", errors, required=False, maxlen=200)
     row["reference"] = _text(b, "reference", errors, required=False, maxlen=200)
+    # §13.2 intake fields: invoice_ref required for every new case; quote provenance; owner at intake.
+    row["invoice_ref"] = _text(b, "invoice_ref", errors, maxlen=200)
+    row["customer_ref"] = _text(b, "customer_ref", errors, required=False, maxlen=200)
+    row["quote_source"] = _text(b, "quote_source", errors, required=False, maxlen=200)
+    qa = _time(b, "quote_at", errors, required=False, now=now, not_future=True)
+    row["quote_at"] = db.iso(qa) if qa else None
+    owner = None
+    if b.get("owner_user_id") not in (None, ""):
+        uid = b.get("owner_user_id")
+        if isinstance(uid, int) and not isinstance(uid, bool):
+            owner = db.one(conn, "SELECT id, role, disabled FROM users WHERE id=? AND org_id=?", (uid, user["org_id"]))
+        if not owner or owner["disabled"] or owner["role"] not in ("operator", "reviewer"):
+            errors.append({"field": "owner_user_id", "message": "Owner must be an active operator or reviewer in your "
+                                                                 "organisation."})
+            owner = None
+    elif b.get("owner_email") not in (None, ""):
+        em = b.get("owner_email")
+        owner = db.one(conn, "SELECT id, role, disabled FROM users WHERE email=? AND org_id=?",
+                       (str(em).strip().lower(), user["org_id"])) if isinstance(em, str) else None
+        if not owner or owner["disabled"] or owner["role"] not in ("operator", "reviewer"):
+            errors.append({"field": "owner_email", "message": "Owner must be an active operator or reviewer in your "
+                                                              "organisation."})
+            owner = None
+    row["owner_user_id"] = owner["id"] if owner else user["id"]
     fid = b.get("facility_id")
     fac = None
     if fid:
@@ -1073,15 +1097,25 @@ def _new_case_id(conn, now, org_id):
 
 def _insert_case(conn, user, row, obs, now, key):
     cid = _new_case_id(conn, now, user["org_id"])
-    cols = dict(row, id=cid, org_id=user["org_id"], created_by=user["id"], owner_user_id=user["id"],
+    cols = dict(row, id=cid, org_id=user["org_id"], created_by=user["id"],
                 status="assessing", version=0, created_at=db.iso(now))
+    cols.setdefault("owner_user_id", user["id"])
     names = sorted(cols)
     conn.execute("INSERT INTO cases(%s) VALUES (%s)" % (",".join(names), ",".join("?" * len(names))),
                  [cols[n] for n in names])
     case = db.one(conn, "SELECT * FROM cases WHERE id=?", (cid,))
-    append_event(conn, case, "case_created", {"facility_id": row.get("facility_id")}, user, "operator_entered", idem=key)
+    created = {"facility_id": row.get("facility_id"), "owner_user_id": cols["owner_user_id"]}
+    for f in ("invoice_ref", "customer_ref", "quote_source", "quote_at"):
+        if row.get(f):
+            created[f] = row[f]
+    append_event(conn, case, "case_created", created, user, "operator_entered", idem=key)
+    refs = []
     for p, eff, prov in obs:
         append_event(conn, case, "observation_added", p, user, prov, effective_at=db.iso(eff) if eff else None, idem=key)
+        if p.get("kind") == "invoice":
+            refs.append(p.get("invoice_ref"))
+    run_duplicate_check(conn, case, user, "intake", refs)
+    record_checkpoint(conn, case, None, "observation" if obs else "command", now, force=True)
     case, st = _finish_case(conn, case, now)
     return case, st
 
@@ -1123,6 +1157,7 @@ def import_cases(conn, user, body):
     if errors:
         return 422, {"errors": errors, "created": [],
                      "error": {"code": "import_invalid", "message": "Nothing was imported: %d problem(s) found." % len(errors)}}
+    v1 = getattr(imports, "csv_version", lambda t: "v1")(body["csv"]) == "v1"
     now = db.now()
     dry = bool(body.get("dry_run"))
     created, existing, all_errors = [], [], []
@@ -1142,7 +1177,10 @@ def import_cases(conn, user, body):
                 continue
             row, obs, errs = validate_case_body(conn, user, rb, now)
             for e in errs:
-                all_errors.append("Row %d, column %s: %s" % (i, e["field"], e["message"]))
+                msg = e["message"]
+                if e["field"] == "invoice_ref" and v1 and not rb.get("invoice_ref"):
+                    msg = "v1 file: invoice_ref is required for import; add it or use v2"
+                all_errors.append("Row %d, column %s: %s" % (i, e["field"], msg))
             if not errs:
                 prepared.append((key, rhash, row, obs))
         if all_errors:
@@ -1222,6 +1260,7 @@ def add_evidence(conn, user, case_id, body):
         st = build_state(conn, case)
         if st.closed:
             raise CommandError(409, "case_closed", "The case is closed; evidence cannot be added.")
+        before = clock_checkpoint(conn, case, st, routes_for(conn, st, now), now)
         cur = conn.execute("INSERT INTO evidence(org_id, case_id, filename, content_type, size, sha256, data, provenance, "
                            "known_at) VALUES (?,?,?,?,?,?,?, 'external_record', ?)",
                            (org, case_id, fname, ctype, len(data), digest, sqlite3.Binary(data), db.iso(now)))
@@ -1231,6 +1270,7 @@ def add_evidence(conn, user, case_id, body):
                                                                   "sha256": digest}, user, "external_record",
                                    idem=key)
         conn.execute("UPDATE evidence SET event_id=? WHERE id=?", (event_id, cur.lastrowid))
+        record_checkpoint(conn, case, before, "evidence", now)
         case, st = _finish_case(conn, case, now)
         view = case_view(conn, user, case, st, now)
         resp = dict(view, evidence_added={"id": eid, "sha256": digest, "size": len(data)})
@@ -1329,18 +1369,28 @@ def _user_name(users, uid):
     return u["name"] if u else None
 
 
-def case_view(conn, user, case, st=None, now=None):
+def case_view(conn, user, case, st=None, now=None, replay=None):
+    """The case read model. `replay` = {'as_of': datetime, 'cap': capacity or None} renders an as-of view with no
+    actions (§13.6)."""
     now = now or db.now()
     st = st or build_state(conn, case)
     users = users_map(conn, case["org_id"])
-    routes = routes_for(conn, st, now)
+    fac = st.facility
+    if replay is None:
+        routes = routes_for(conn, st, now)
+    else:
+        routes = domain.mark_selected(st, domain.assess(st, fac, replay.get("cap"), now))
     ok, why = connector_status()
     tz = st.tz
-    fac = st.facility
-    draw_row = db.one(conn, "SELECT * FROM draws WHERE case_id=?", (st.id,))
+    if replay is None:
+        draw_row = db.one(conn, "SELECT * FROM draws WHERE case_id=?", (st.id,))
+    else:
+        draw_row = ({"principal_minor": st.draw["principal"], "principal_repaid_minor": st.principal_repaid}
+                    if st.draw else None)
     idents = domain.case_identities(st, draw_row)
-    if fac:
+    if fac and replay is None:
         idents.append(domain.facility_identity(fac, table_totals(conn, fac["id"]), event_totals(conn, fac)))
+    fstatus, _conf = domain.fact_statuses(st, fac, now)
     obs = []
     for oid in st.obs_order:
         o = st.observations[oid]
@@ -1348,7 +1398,9 @@ def case_view(conn, user, case, st=None, now=None):
                     "provenance": o["provenance"], "evidence_id": o["evidence_id"],
                     "known_at": time_json(o["known_at"], tz), "effective_at": time_json(o["effective_at"], tz),
                     "superseded_by": o["superseded_by"], "corrects": o["corrects"], "struck": o["superseded_by"] is not None,
-                    "reason": o["reason"]})
+                    "reason": o["reason"], "issuer": o.get("issuer"), "record_ref": o.get("record_ref"),
+                    "scope": o.get("scope") or "case", "fact_status": fstatus.get(oid, "fresh"),
+                    "conflicts_with": list(_conf.get(oid, []))})
     corrected_by = {}
     for t in st.timeline:
         if t["corrects_event_id"]:
@@ -1364,19 +1416,35 @@ def case_view(conn, user, case, st=None, now=None):
                      known_local=domain.local_text(e["known_at"], tz)) for e in st.evidence.values()]
     owner = st.owner_user_id
     dl = st.deadline
+    dc = st.dup_check
+    if dc:
+        dup = {"status": dc["status"], "matches": list(dc["matches"]), "text": dc["text"],
+               "checked_at": time_json(dc["at"], tz), "reason": dc.get("reason"),
+               "scope": "This provider's book only (your organisation); other providers are never searched."}
+    else:
+        dup = {"status": "not_checked", "matches": [], "text": "Not checked: the case was created before the "
+               "same-provider duplicate check existed.", "checked_at": None, "reason": None,
+               "scope": "This provider's book only (your organisation); other providers are never searched."}
+    status = case["status"] if replay is None else domain.status_key(st, now)
     view = {
-        "id": st.id, "version": case["version"], "status": case["status"], "generated_at": db.iso(now),
+        "id": st.id, "version": case["version"] if replay is None else None, "status": status,
+        "generated_at": db.iso(now),
         "header": {"importer": case["importer"], "supplier": case["supplier"], "payout": str(st.payout),
                    "funding": str(st.funding), "quote_ref": case["quote_ref"],
+                   "quote_source": case.get("quote_source"), "quote_at": time_json(case.get("quote_at"), tz),
+                   "invoice_ref": case.get("invoice_ref"), "customer_ref": case.get("customer_ref"),
                    "deadline_local": domain.local_text(dl, tz), "deadline_tz": tz, "deadline_utc": db.iso(dl),
                    "owner": {"id": owner, "name": _user_name(users, owner)} if owner else None,
                    "reference": case["reference"], "facility_id": case["facility_id"],
+                   "policy_version": fac["policy_version"] if fac else None,
                    "window_a": {"at": time_json(case["window_a_at"], tz), "cutoff": time_json(case["window_a_cutoff_at"], tz)},
                    "window_b": ({"at": time_json(case["window_b_at"], tz), "cutoff": time_json(case["window_b_cutoff_at"], tz)}
                                 if case["window_b_at"] else None),
                    "later_permitted": bool(case["later_permitted"]), "contract_ref": case["contract_ref"],
                    "created_at": time_json(case["created_at"], tz), "created_by": _user_name(users, case["created_by"])},
         "decision": domain.decision(st, routes, now),
+        "decision_record": domain.decision_record(st, routes, now),
+        "duplicate_check": dup,
         "supplier_panel": domain.supplier_panel(st),
         "exposure_panel": domain.exposure_panel(st, now),
         "routes": routes,
@@ -1386,11 +1454,86 @@ def case_view(conn, user, case, st=None, now=None):
         "notes": [dict(n, by_name=_user_name(users, n["by"])) for n in st.notes],
         "collections": domain.collections(st, now),
         "identities": idents,
-        "actions": domain.actions(st, routes, now, user, connector_ok=ok) + _sandbox_actions(st, user, ok),
+        "actions": [] if replay is not None else
+        domain.actions(st, routes, now, user, connector_ok=ok) + _sandbox_actions(st, user, ok),
         "sandbox": {"available": ok, "reason": why, "label": domain.SANDBOX_LABEL},
-        "facility": facility_summary(conn, fac) if fac else None,
+        "facility": (facility_summary(conn, fac) if replay is None else replay_facility(fac, replay.get("cap")))
+        if fac else None,
+        "replay": None,
     }
+    if replay is not None:
+        view["replay"] = {"as_of": db.iso(now), "as_of_local": domain.local_text(now, tz),
+                          "note": "Replay: shows only what was known at %s (%s). Read-only; no actions." % (
+                              db.iso(now), domain.local_text(now, tz)),
+                          "events_included": len(st.events)}
     return view
+
+
+def replay_facility(fac, cap):
+    c = fac["currency"]
+    out = {"id": fac["id"], "name": fac["name"], "currency": c, "status": fac["status"],
+           "suspension_policy": fac["suspension_policy"], "policy_version": fac["policy_version"],
+           "required_evidence": domain.required_kinds(fac), "limit": domain.mtext(fac["limit_minor"], c),
+           "note": "Facility terms in force at the replay time; capacity from records known then."}
+    if cap:
+        out.update(available=domain.mtext(cap["headroom"], c), funding_cash=domain.mtext(cap["funding_cash"], c),
+                   reserved_other_cases=domain.mtext(cap["reserved"], c),
+                   principal_outstanding_other_cases=domain.mtext(cap["principal_outstanding"], c))
+    return out
+
+
+def facility_as_of(conn, facility_id, at):
+    """The facility terms in force at `at` (from facility_versions); the current row when no history applies."""
+    fac = load_facility(conn, facility_id)
+    if not fac:
+        return None
+    rows = db.all_rows(conn, "SELECT * FROM facility_versions WHERE facility_id=? ORDER BY changed_at, id",
+                       (facility_id,))
+    pick = None
+    for r in rows:
+        if db.parse_iso(r["changed_at"]) <= at:
+            pick = r
+    if pick is None and rows:
+        pick = rows[0]
+    if pick is None:
+        return fac
+    out = dict(fac)
+    out.update(json.loads(pick["terms"]))
+    out["facility_version_id"] = pick["id"]
+    return out
+
+
+def replay_capacity(conn, fac, at, exclude_case):
+    """Capacity at `at` from the event log of every other case on the facility (records known at `at` only)."""
+    res = out = 0
+    for c in db.all_rows(conn, "SELECT * FROM cases WHERE facility_id=? AND id<>?", (fac["id"], exclude_case)):
+        evs = [e for e in load_events(conn, c["id"]) if db.parse_iso(e["known_at"]) <= at]
+        if not evs:
+            continue
+        s = domain.fold(c, evs, fac)
+        res += s.reserved_minor
+        out += s.principal_outstanding
+    return domain.capacity(fac, res, out)
+
+
+def read_case_as_of(conn, user, case_id, as_of):
+    """§13.6: the view computed only from events with known_at <= as_of and the clock at as_of; read-only."""
+    try:
+        at = db.parse_iso(as_of)
+    except (ValueError, TypeError, OverflowError):
+        raise CommandError(422, "validation_failed", "as_of must be a UTC ISO-8601 time, e.g. 2026-12-01T09:00:00Z.",
+                           "as_of")
+    case = load_case(conn, user["org_id"], case_id)
+    if not case:
+        return None
+    if db.parse_iso(case["created_at"]) > at:
+        raise CommandError(404, "not_found", "This case was not yet on record at %s." % db.iso(at))
+    events = [e for e in load_events(conn, case_id) if db.parse_iso(e["known_at"]) <= at]
+    fac = facility_as_of(conn, case["facility_id"], at) if case["facility_id"] else None
+    c2 = dict(case, owner_user_id=None)
+    st = domain.fold(c2, events, fac)
+    cap = replay_capacity(conn, fac, at, case_id) if fac else None
+    return case_view(conn, user, c2, st, at, replay={"as_of": at, "cap": cap})
 
 
 def _sandbox_actions(st, user, ok):
@@ -1432,7 +1575,7 @@ def facility_summary(conn, fac):
             "fee": domain.mtext(fac["fee_flat_minor"], c) + (" + %d bp" % fac["fee_bps"] if fac["fee_bps"] else ""),
             "allocation": fac["allocation"], "balance_max_age_hours": fac["balance_max_age_hours"],
             "repayment_days": fac["repayment_days"], "reservation_hours": fac["reservation_hours"],
-            "payout_lead_hours": fac["payout_lead_hours"]}
+            "payout_lead_hours": fac["payout_lead_hours"], "required_evidence": domain.required_kinds(fac)}
 
 
 def facilities(conn, user):
@@ -1561,3 +1704,134 @@ def export_case(conn, user, case_id, fmt):
 
 def time_json(v, tz):
     return domain.time_json(v, tz)
+
+
+# ---------------------------------------------------------------- pilot measurement report (§13.9)
+NOT_MEASURED = "not measured"
+NO_SAVINGS_STATEMENT = ("This report does not count capital released, advance principal or transferred credit risk as "
+                        "savings: those are financing outcomes, not software savings. Only time, touchpoints, "
+                        "evidence requests and decision elapsed time are compared.")
+REPORT_LABELS = ("recorded", "estimated", "synthetic", "computed", "not measured")
+MEASUREMENT_EVENTS = ("work_logged", "baseline_recorded")
+JUDGMENT_EVENTS = ("advance_approved", "advance_declined")
+
+
+def _cell(value, label, detail=None, unit=None):
+    c = {"value": value, "label": label}
+    if unit:
+        c["unit"] = unit
+    if detail:
+        c["detail"] = detail
+    return c
+
+
+def _nm(detail=None, unit=None):
+    return _cell(None, NOT_MEASURED, detail, unit)
+
+
+def case_report(conn, user, case_id):
+    """One-page comparison: Clearline side computed from the event log, baseline side as recorded."""
+    case = load_case(conn, user["org_id"], case_id)
+    if not case:
+        return None
+    st = build_state(conn, case)
+    events = st.events
+    human = [e for e in events if e.get("actor_user_id") and e["type"] not in MEASUREMENT_EVENTS]
+    ev_req = [e for e in events if e["type"] == "evidence_requested"]
+    req = next((e for e in events if e["type"] == "advance_requested"), None)
+    judg = next((e for e in events if e["type"] in JUDGMENT_EVENTS and req and e["seq"] > req["seq"]), None)
+    side = {}
+    side["touchpoints"] = _cell(len(human), "computed", "Human events in the case log (excludes system, provider "
+                                "and measurement entries)", "events")
+    side["evidence_requests"] = _cell(len(ev_req), "computed", "Reviewer evidence requests in the case log",
+                                      "requests")
+    elapsed_min = None
+    if req and judg:
+        elapsed_min = int((db.parse_iso(judg["known_at"]) - db.parse_iso(req["known_at"])).total_seconds() // 60)
+        side["decision_hours"] = _cell(round(elapsed_min / 60.0, 2), "computed",
+                                       "Advance request (seq %d) to reviewer judgment (seq %d, %s)" % (
+                                           req["seq"], judg["seq"], judg["type"].replace("_", " ")), "hours")
+    else:
+        side["decision_hours"] = _nm("No advance request followed by a reviewer judgment on record", "hours")
+    active = sum(w["minutes"] for w in st.work_logs)
+    if st.work_logs:
+        side["active_minutes"] = _cell(active, "recorded", "Σ log_work (operator-reported), %d entr%s" % (
+            len(st.work_logs), "y" if len(st.work_logs) == 1 else "ies"), "minutes")
+    else:
+        side["active_minutes"] = _nm("No work time logged (log_work)", "minutes")
+    if elapsed_min is not None and st.work_logs:
+        side["elapsed_wait_minutes"] = _cell(max(elapsed_min - active, 0), "computed",
+                                             "Decision elapsed minus active minutes (waiting, not working)", "minutes")
+    else:
+        side["elapsed_wait_minutes"] = _nm("Needs both a decision elapsed time and logged active minutes", "minutes")
+    lp = st.latest_payout()
+    credit = None
+    if lp and lp["status"] == "credited":
+        credit = next((h for h in lp["history"] if h["status"] == "credited" and h["applied"]), None)
+    if credit:
+        met = db.parse_iso(credit["effective_at"]) <= st.deadline
+        side["deadline_met"] = _cell(met, "computed", "Beneficiary credit evidenced %s; supplier deadline %s" % (
+            credit["effective_at"], db.iso(st.deadline)))
+    else:
+        side["deadline_met"] = _nm("No beneficiary credit on record")
+    outcome = domain.status_key(st, db.now()).replace("_", " ")
+    side["outcome"] = _cell(outcome, "computed", "Case status from the event log")
+
+    bl = st.baselines[-1] if st.baselines else None
+    base = {}
+    for f, unit in (("operator_minutes", "minutes"), ("touchpoints", "events"), ("evidence_requests", "requests"),
+                    ("decision_hours", "hours"), ("deadline_met", None), ("outcome", None)):
+        if bl and bl.get(f) is not None:
+            base[f] = _cell(bl[f], bl["provenance"], None, unit)
+        else:
+            base[f] = _nm(None, unit)
+    baseline = {"cells": base,
+                "provenance": bl["provenance"] if bl else NOT_MEASURED,
+                "source_note": bl.get("source_note") if bl else None,
+                "recorded_at": bl["at"] if bl else None,
+                "entries": len(st.baselines)}
+    rows = []
+    pairs = (("Active operator time", "active_minutes", "operator_minutes"),
+             ("Touchpoints", "touchpoints", "touchpoints"),
+             ("Evidence requests", "evidence_requests", "evidence_requests"),
+             ("Decision elapsed time", "decision_hours", "decision_hours"),
+             ("Elapsed waiting time (not working)", "elapsed_wait_minutes", None),
+             ("Supplier deadline met", "deadline_met", "deadline_met"),
+             ("Outcome", "outcome", "outcome"))
+    for label, ck, bk in pairs:
+        rows.append({"measure": label, "clearline": side[ck], "baseline": base[bk] if bk else _nm()})
+    return {"case_id": case_id, "generated_at": db.now_iso(), "title": "Pilot measurement: %s" % case_id,
+            "clearline": side, "baseline": baseline, "rows": rows,
+            "labels": {"allowed": list(REPORT_LABELS),
+                       "note": "Every number carries one label: recorded, estimated, synthetic (baseline provenance "
+                               "as entered), computed (from the event log) or not measured."},
+            "active_vs_elapsed": "Active minutes are time people spent working (log_work); elapsed waiting is the "
+                                 "decision elapsed time minus active minutes. They are reported separately.",
+            "not_savings": NO_SAVINGS_STATEMENT,
+            "sandbox_note": "Synthetic / sandbox pilot: no real money moved."}
+
+
+def _h(x):
+    import html as _html
+    return _html.escape("" if x is None else str(x), quote=True)
+
+
+def render_report_html(rep):
+    def cell(c):
+        v = c.get("value")
+        if v is None:
+            return "<td>not measured</td>"
+        if isinstance(v, bool):
+            v = "yes" if v else "no"
+        return "<td>%s%s <span class=\"lbl\">[%s]</span></td>" % (_h(v), (" " + _h(c["unit"])) if c.get("unit") else "",
+                                                                   _h(c["label"]))
+    trs = "".join("<tr><th scope=\"row\">%s</th>%s%s</tr>" % (_h(r["measure"]), cell(r["clearline"]), cell(r["baseline"]))
+                  for r in rep["rows"])
+    b = rep["baseline"]
+    return ("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>%s</title>"
+            "</head><body><h1>%s</h1><p>%s</p>"
+            "<table border=\"1\" cellpadding=\"6\" cellspacing=\"0\"><thead><tr><th>Measure</th><th>Clearline (this case)</th><th>Baseline (%s)</th></tr></thead>"
+            "<tbody>%s</tbody></table><p>Baseline source: %s</p><p>%s</p><p><strong>%s</strong></p><p>%s</p>"
+            "</body></html>") % (_h(rep["title"]), _h(rep["title"]), _h(rep["sandbox_note"]), _h(b["provenance"]),
+                                 trs, _h(b["source_note"] or "not measured"), _h(rep["active_vs_elapsed"]),
+                                 _h(rep["not_savings"]), _h(rep["labels"]["note"]))

@@ -26,7 +26,7 @@ except ImportError:  # pragma: no cover
     ZoneInfo = None
     ZoneInfoNotFoundError = Exception
 
-__all__ = ["COLUMNS", "CURRENCY_EXPONENTS", "MAX_ROWS", "parse_cases_csv"]
+__all__ = ["COLUMNS", "V2_COLUMNS", "V2_MARKER", "CURRENCY_EXPONENTS", "MAX_ROWS", "parse_cases_csv", "csv_version"]
 
 COLUMNS = (
     "importer", "supplier", "payout_amount", "payout_currency", "funding_amount",
@@ -35,6 +35,11 @@ COLUMNS = (
     "window_b_cutoff_local", "expected_receipt_amount", "expected_receipt_local",
     "balance_amount", "balance_as_of_local", "balance_source", "reference",
 )
+
+# §13.2: a first line "#clearline-cases v2" marks a v2 file, which adds these columns. A file without the marker
+# is v1 and is still parsed (the importer then requires invoice_ref; see commands.import_cases).
+V2_MARKER = "#clearline-cases v2"
+V2_COLUMNS = ("invoice_ref", "customer_ref", "quote_source", "quote_at_local", "owner_email")
 
 REQUIRED = (
     "importer", "supplier", "payout_amount", "payout_currency", "funding_amount",
@@ -170,7 +175,21 @@ def _parse_bool(raw, column, errs):
     return None
 
 
-def _check_header(header, errors):
+def csv_version(text):
+    """'v2' when the first non-blank line is the v2 marker, 'v1' otherwise, or None for an unknown marker."""
+    if isinstance(text, bytes):
+        text = text.decode("utf-8", "replace")
+    for line in (text or "").lstrip("\ufeff").splitlines():
+        if not line.strip():
+            continue
+        first = line.split(",")[0].strip().lower()
+        if first.startswith("#clearline-cases"):
+            return "v2" if first == V2_MARKER else None
+        return "v1"
+    return "v1"
+
+
+def _check_header(header, errors, columns=COLUMNS):
     """Return column->index mapping or None after reporting."""
     names = [h.strip().lower() for h in header]
     mapping = {}
@@ -182,12 +201,15 @@ def _check_header(header, errors):
         elif n in mapping:
             errors.append("Header: column %r appears more than once" % n)
             ok = False
-        elif n not in COLUMNS:
-            errors.append("Header: unknown column %r" % header[i].strip())
+        elif n not in columns:
+            hint = ""
+            if n in V2_COLUMNS:
+                hint = "; it is a v2 column — put %s on the first line" % V2_MARKER
+            errors.append("Header: unknown column %r%s" % (header[i].strip(), hint))
             ok = False
         else:
             mapping[n] = i
-    for c in COLUMNS:
+    for c in columns:
         if c not in mapping:
             errors.append("Header: missing column %r" % c)
             ok = False
@@ -219,11 +241,21 @@ def parse_cases_csv(text, *, funding_currency_default=None):
 
     while records and not any(c.strip() for c in records[0]):
         records.pop(0)
+    version = "v1"
+    if records and records[0] and records[0][0].strip().lower().startswith("#clearline-cases"):
+        if records[0][0].strip().lower() != V2_MARKER or any(c.strip() for c in records[0][1:]):
+            return [], ["File: unknown format marker %r; the first line may only be %r" % (
+                ",".join(records[0]).strip(), V2_MARKER)]
+        version = "v2"
+        records.pop(0)
+        while records and not any(c.strip() for c in records[0]):
+            records.pop(0)
     if not records:
         return [], ["File: the file is empty; the first line must be the header"]
+    columns = COLUMNS + V2_COLUMNS if version == "v2" else COLUMNS
 
     header, body = records[0], records[1:]
-    mapping = _check_header(header, errors)
+    mapping = _check_header(header, errors, columns)
     if mapping is None:
         return [], errors
 
@@ -245,7 +277,7 @@ def parse_cases_csv(text, *, funding_currency_default=None):
                 hint = "; an amount with a thousands separator must be in double quotes, e.g. \"48,250.00\""
             errors.append("Row %d, column *: expected %d columns, found %d%s" % (row_no, ncols, len(rec), hint))
             continue
-        v = {c: rec[mapping[c]].strip() for c in COLUMNS}
+        v = {c: rec[mapping[c]].strip() for c in columns}
 
         for c in REQUIRED:
             if c == "funding_currency" and not v[c] and funding_currency_default:
@@ -255,6 +287,14 @@ def parse_cases_csv(text, *, funding_currency_default=None):
         for c in ("importer", "supplier", "quote_ref", "contract_ref", "reference", "balance_source"):
             if len(v[c]) > MAX_TEXT:
                 errs.add(c, "longer than %d characters" % MAX_TEXT)
+        if version == "v2":
+            if not v["invoice_ref"]:
+                errs.add("invoice_ref", "required (the supplier invoice number)")
+            for c in ("invoice_ref", "customer_ref", "quote_source", "owner_email"):
+                if len(v[c]) > MAX_TEXT:
+                    errs.add(c, "longer than %d characters" % MAX_TEXT)
+            if v["owner_email"] and "@" not in v["owner_email"]:
+                errs.add("owner_email", "not an email address (%r)" % v["owner_email"])
 
         pay_ccy = _parse_currency(v["payout_currency"], "payout_currency", errs) if v["payout_currency"] else None
         fund_ccy = _parse_currency(v["funding_currency"], "funding_currency", errs) if v["funding_currency"] else None
@@ -282,6 +322,7 @@ def parse_cases_csv(text, *, funding_currency_default=None):
         later = _parse_bool(v["later_permitted"], "later_permitted", errs) if v["later_permitted"] else None
         win_b = t("window_b_local")
         cut_b = t("window_b_cutoff_local")
+        quote_at = t("quote_at_local") if version == "v2" else None
 
         if later:
             for c in ("window_b_local", "window_b_cutoff_local"):
@@ -356,6 +397,10 @@ def parse_cases_csv(text, *, funding_currency_default=None):
             "reference": v["reference"] or None,
             "observations": observations,
         }
+        if version == "v2":
+            out.update(invoice_ref=v["invoice_ref"], customer_ref=v["customer_ref"] or None,
+                       quote_source=v["quote_source"] or None, quote_at=_iso(quote_at) if quote_at else None,
+                       owner_email=v["owner_email"].lower() or None)
 
         dup_key = (
             v["importer"].casefold(), v["supplier"].casefold(),

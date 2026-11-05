@@ -1,6 +1,7 @@
 """Shared helpers for BACKEND tests: temp DB, seeded orgs, in-thread server, small HTTP client."""
 
 import base64
+import itertools
 import sys
 import http.client
 import json
@@ -17,10 +18,19 @@ from pilot import cli, commands, db, server  # noqa: E402
 T0 = "2026-12-01T01:00:00Z"  # Tue 1 Dec 2026, 09:00 SGT
 
 
+_SEQ = itertools.count(1)
+
+
 def kestrel_body(**over):
-    """A new fictional invoice (not the demo's Northwind case)."""
+    """A new fictional invoice (not the demo's Northwind case).
+
+    §13.2/§13.7: every call carries its own invoice_ref and a payout differing by a few cents, so helper-created
+    cases are not same-provider duplicates of each other (tests of the duplicate check pass explicit values).
+    """
+    n = next(_SEQ)
     b = {"importer": "Kestrel Instruments Pte Ltd", "supplier": "Lindqvist Optics AB",
-         "payout_amount": "61,400.00", "payout_currency": "EUR",
+         "payout_amount": "61,%03d.%02d" % (400 + n // 100, n % 100), "payout_currency": "EUR",
+         "invoice_ref": "INV-LO-2026-%05d" % n,
          "funding_amount": "89,450.25", "funding_currency": "SGD", "quote_ref": "QT-KES-2026-118",
          "deadline_at": "2026-12-04T10:00:00Z", "deadline_tz": "Asia/Singapore",
          "window_a_at": "2026-12-02T07:00:00Z", "window_a_cutoff_at": "2026-12-02T08:00:00Z",

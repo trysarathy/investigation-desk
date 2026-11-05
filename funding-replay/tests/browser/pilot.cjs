@@ -206,6 +206,228 @@ async function scrollTo(page, sel) { await page.locator(sel).first().scrollIntoV
     p.on('pageerror', (e) => consoleErrors.push('pageerror: ' + e.message));
   };
   watch(page);
+
+  // ------------------------------------------------------------------ brief v2 (§13)
+  async function v2Journey() {
+    const T1 = '2026-11-16T03:00:00Z';     // two hours after CLOCK: the invoice arrives
+    const T2 = '2026-11-30T01:00:00Z';     // after the repayment due date
+    await signIn(page, base, op);
+    const me2 = (await apiGet(page, '/api/me')).json;
+    // facilities are policy administration: CLI only (§13.1). One requires invoice + balance; one has little funding cash.
+    const facArgs = (id, name, cash, pol) => ['create-facility', '--org', String(me2.org.id), '--id', id, '--name', name, '--currency', 'SGD',
+      '--limit', '500000.00', '--fee-flat', '150.00', '--fee-bps', '0', '--allocation', 'fees_first', '--funding-cash', cash,
+      '--policy-version', pol, '--required-evidence', 'invoice,balance', '--repayment-days', '3'];
+    let facOk = true;
+    try { cli(srv.env, facArgs('FAC-UI-POL', 'Policy test facility (Synthetic)', '600000.00', 'POL-UI-1')); cli(srv.env, facArgs('FAC-UI-THIN', 'Thin cash facility (Synthetic)', '20000.00', 'POL-UI-2')); }
+    catch (e) { facOk = false; console.log(String(e.message).slice(0, 400)); }
+    check('v2: facilities created through the CLI (policy requires invoice and balance)', facOk);
+    const facs2 = (await apiGet(page, '/api/facilities')).json.facilities || [];
+    check('v2: new facilities visible to the org', ['FAC-UI-POL', 'FAC-UI-THIN'].every((id) => facs2.some((f) => f.id === id)), facs2.map((f) => f.id).join(','));
+    const mk = (over) => apiPost(page, '/api/cases', Object.assign({
+      importer: 'Kestrel Instruments Pte Ltd', supplier: 'Aaltonen Precision Oy', payout_amount: '24,900.00', payout_currency: 'EUR',
+      funding_amount: '36,120.00', funding_currency: 'SGD', quote_ref: 'Q-KI-2611-21', quote_source: 'Provider FX desk', quote_at: '2026-11-16T00:40:00Z',
+      deadline_at: '2026-11-20T09:00:00Z', deadline_tz: 'Asia/Singapore', window_a_at: '2026-11-17T01:00:00Z', window_a_cutoff_at: '2026-11-17T02:00:00Z',
+      later_permitted: false, contract_ref: null,
+      observations: [{ kind: 'balance', amount: '2,050.00', currency: 'SGD', as_of: '2026-11-16T00:30:00Z', source: 'Bank portal export', issuer: 'Straits Commercial Bank (fictional)', record_ref: 'SCB-STMT-1116' }]
+    }, over, { idempotency_key: 'pilot-ui-v2-' + over.invoice_ref + '-' + Date.now() }));
+    const cP = await mk({ facility_id: 'FAC-UI-POL', invoice_ref: 'AP-50110', reference: 'INV-AP-50110' });
+    const cT = await mk({ facility_id: 'FAC-UI-THIN', invoice_ref: 'AP-50111', reference: 'INV-AP-50111', payout_amount: '24,950.00' });
+    const idP = cP.json && cP.json.id; const idT = cT.json && cT.json.id;
+    check('v2: policy and thin-cash cases created through the API', !!idP && !!idT, JSON.stringify(cP.json).slice(0, 300) + ' | ' + JSON.stringify(cT.json).slice(0, 200));
+    if (!idP || !idT) return;
+
+    // ---- scenario B: policy-required invoice missing -> C unknown with an evidence blocker
+    await openCase(page, base, idP);
+    let vP = await view(page, idP);
+    let cP_C = vP.routes.find((r) => r.key === 'C');
+    const evBl = (cP_C.blockers || []).find((b) => b.kind === 'evidence' && /invoice/i.test(b.text));
+    check('v2: route C unknown, blocker "Policy … requires invoice: not on record"', cP_C.status === 'unknown' && evBl && /Policy .* requires invoice: not on record/.test(evBl.text), JSON.stringify(cP_C.blockers));
+    check('v2: evidence blocker rendered in the evidence group of route C', evBl && (await domText(page, '#route-C .blk-evidence')).includes(evBl.text));
+
+    // ---- scenario C: no money -> C infeasible, cash blocker is a hard constraint and looks different
+    await openCase(page, base, idT);
+    const vT = await view(page, idT);
+    const tC = vT.routes.find((r) => r.key === 'C');
+    const cashBl = (tC.blockers || []).find((b) => b.kind === 'cash');
+    check('v2: thin facility -> route C infeasible with a cash blocker', tC.status === 'infeasible' && !!cashBl, JSON.stringify(tC.blockers));
+    const moneyTxt = await page.locator('#route-C .blk-money').first().textContent().catch(() => '');
+    check('v2: cash blocker reads as a hard constraint', /No money — hard constraint/.test(moneyTxt) && cashBl && moneyTxt.includes(cashBl.text), moneyTxt);
+    const styleOf = (sel) => page.evaluate((x) => { const n = document.querySelector(x); if (!n) return null; const c = getComputedStyle(n); return [c.borderTopStyle, c.borderLeftWidth, c.backgroundColor].join('|'); }, sel);
+    const sMoney = await styleOf('#route-C .blk-money'); const sEv = await styleOf('#route-C .blk-evidence');
+    check('v2: cash blocker styled differently from the evidence blocker (border and fill)', sMoney && sEv && sMoney !== sEv && /solid/.test(sMoney) && /dashed/.test(sEv), sMoney + ' vs ' + sEv);
+    check('v2: "What blocks the next action" groups blockers above the fold', (await page.locator('#blocks-now .blk-money').count()) === 1 && (await page.locator('#blocks-now .blk-evidence').count()) >= 1 &&
+      await page.evaluate(() => document.getElementById('blocks-now').getBoundingClientRect().top < window.innerHeight));
+
+    // ---- time passes: the invoice arrives two hours later
+    await srv.restart(T1);
+    await openCase(page, base, idP);
+    if ((await page.locator('#login-form').count())) { await signIn(page, base, op); await openCase(page, base, idP); }
+    // keyboard only: add the invoice observation (Tab to the action, Enter, choose the kind by typing, fill, confirm)
+    {
+      const verK = await page.getAttribute('#pd-view', 'data-version');
+      await page.focus('#case-h1');
+      let at = false;
+      for (let i = 0; i < 250 && !at; i++) { await page.keyboard.press('Tab'); at = await page.evaluate(() => document.activeElement && document.activeElement.getAttribute('data-action') === 'add_observation'); }
+      check('v2 keyboard: Tab reaches "Add observation"', at);
+      await page.keyboard.press('Enter');
+      await page.waitForSelector('#pd-dialog[open]');
+      check('v2 keyboard: dialog opens on the kind', await page.evaluate(() => document.activeElement && document.activeElement.name === 'kind'));
+      await page.keyboard.type('Inv');                     // selects "Invoice (supplier invoice)"
+      await page.waitForTimeout(100);
+      const values = { amount: '24,900.00', issuer: 'Aaltonen Precision Oy', record_ref: 'AP-AR-50110' };
+      const keys = { currency: 'EUR' };
+      const done = new Set(); let onConfirm = false; const visited = [];
+      for (let i = 0; i < 60 && !onConfirm; i++) {
+        await page.keyboard.press('Tab');
+        const a = await page.evaluate(() => { const x = document.activeElement; return x ? { id: x.id, name: x.name || '', tag: x.tagName, type: x.type || '', value: x.value || '' } : {}; });
+        if (a.id === 'pd-dialog-confirm') { onConfirm = true; break; }
+        if (done.has(a.name)) continue;
+        done.add(a.name); visited.push(a.name + ':' + a.type);
+        if (values[a.name] !== undefined && !a.value) await page.keyboard.type(values[a.name]);
+        else if (keys[a.name] && a.tag === 'SELECT') await page.keyboard.type(keys[a.name]);
+        else if (a.name === 'issued_at' && a.type === 'datetime-local') { await page.keyboard.type('11162026'); await page.keyboard.type('1030'); await page.keyboard.type('A'); done.add('issued_at'); }
+      }
+      const kindNow = await page.inputValue('#pd-dialog-fields [name="kind"]');
+      await page.keyboard.press('Enter');
+      await page.waitForFunction((x) => !document.querySelector('#pd-dialog[open]') && document.getElementById('pd-view').getAttribute('data-version') !== x, verK, { timeout: 10000 })
+        .catch(async () => console.log('keyboard invoice dialog error: ' + (await domText(page, '#pd-dialog-error'))));
+      vP = await view(page, idP);
+      const inv = (vP.observations || []).find((o) => o.kind === 'invoice');
+      check('v2 keyboard-only: invoice observation recorded with issuer and record_ref', onConfirm && kindNow === 'invoice' && inv && inv.issuer === 'Aaltonen Precision Oy' && inv.record_ref === 'AP-AR-50110', JSON.stringify(inv) + ' kind=' + kindNow + ' visited=' + visited.join(','));
+    }
+    cP_C = vP.routes.find((r) => r.key === 'C');
+    check('v2: invoice on record -> route C feasible', cP_C.status === 'feasible' && (await domText(page, '#route-C .chip-route')).toLowerCase() === 'feasible', cP_C.status + ' ' + JSON.stringify(cP_C.blockers));
+    const dr = vP.decision_record || {};
+    const cps = dr.checkpoints || [];
+    const flip = cps.find((c) => c.route_c_before === 'unknown' && c.route_c_after === 'feasible');
+    check('v2: decision record has a checkpoint unknown -> feasible', !!flip, JSON.stringify(cps.map((c) => [c.trigger, c.route_c_before, c.route_c_after])));
+    check('v2: checkpoint shown with before -> after and its time', flip && (await page.locator('#checkpoints .cp[data-at="' + flip.at + '"] .cp-move').innerText()).toLowerCase().replace(/\s+/g, ' ').includes('unknown → feasible'));
+    check('v2: "What changed" lists the cleared invoice blocker', /invoice/i.test(await domText(page, '#dr-changed')) && /cleared/i.test(await domText(page, '#dr-changed')), await domText(page, '#dr-changed'));
+    check('v2: observed / policy / judgment split shown per checkpoint', (await page.locator('#checkpoints .cp').first().locator('.fc-observed, .fc-policy, .fc-judgment').count()) === 3 &&
+      flip && (flip.facts.observed || []).length > 0 && (flip.facts.policy || []).length > 0, String(JSON.stringify(flip && flip.facts)).slice(0, 400));
+    check('v2: policy facts carry the policy version', flip && (await page.locator('#checkpoints .cp[data-at="' + flip.at + '"] .fc-policy').innerText()).includes('POL-UI-1'));
+    check('v2: fact status badges in the evidence table', (await page.locator('#evidence .fact-badge').count()) >= 2 && (await page.locator('#evidence tr[data-kind="invoice"] .fb-fresh').count()) === 1, await page.locator('#evidence .fact-badge').allInnerTexts());
+
+    // ---- replay: click the first checkpoint (before the invoice) -> replay banner, no actions
+    {
+      const first = cps[0];
+      await page.locator('#checkpoints .cp').first().locator('.cp-replay').click();
+      await page.waitForSelector('#replay-banner', { timeout: 10000 });
+      await page.waitForSelector('#decision-headline');
+      const rv0 = (await apiGet(page, '/api/cases/' + idP + '?as_of=' + encodeURIComponent(first.at))).json;
+      check('v2 replay: banner "Replay — what was known at …"', /Replay — what was known at/.test(await domText(page, '#replay-banner')) && page.url().includes('as_of='), await domText(page, '#replay-banner'));
+      check('v2 replay: server flags replay and returns no actions', rv0 && rv0.replay && (rv0.actions || []).length === 0, JSON.stringify(rv0 && rv0.replay) + ' actions=' + (rv0 && (rv0.actions || []).length));
+      check('v2 replay: no action buttons, upload or hand-off controls on the page', (await page.locator('#actions-enabled').count()) === 0 && (await page.locator('#pd-view button.abtn').count()) === 0 &&
+        (await page.locator('#ev-form').count()) === 0 && (await page.locator('#btn-add-note, #btn-assign').count()) === 0 && (await domText(page, '#actions')).includes('Replay — no actions'));
+      const rC = rv0 && rv0.routes.find((r) => r.key === 'C');
+      check('v2 replay: route C as it was then (invoice not yet known)', rC && rC.status === 'unknown' && (await domText(page, '#route-C .chip-route')).toLowerCase() === 'unknown' && !(rv0.observations || []).some((o) => o.kind === 'invoice'), rC && rC.status);
+      await shots(page, 'replay');
+      // the datetime control: 16 Nov 09:30 SGT
+      await page.fill('#replay-at', '2026-11-16T09:30'); await page.fill('#replay-tz', 'Asia/Singapore');
+      await page.click('#replay-go');
+      await page.waitForFunction(() => location.hash.indexOf('as_of=2026-11-16T01%3A30%3A00Z') >= 0 || location.hash.indexOf('as_of=2026-11-16T01:30:00Z') >= 0, null, { timeout: 5000 }).catch(() => {});
+      await page.waitForSelector('#replay-banner');
+      check('v2 replay: "View as known at" control converts the zone and loads ?as_of=', /16 Nov 2026, 09:30/.test(await domText(page, '#replay-banner')) && decodeURIComponent(page.url()).includes('as_of=2026-11-16T01:30:00Z'), page.url());
+      await page.click('#replay-exit');
+      await page.waitForSelector('#actions-enabled');
+      check('v2 replay: "Back to the current view" restores the actions', (await page.locator('#replay-banner').count()) === 0);
+    }
+
+    // ---- request advance; reviewer screenshot with the decision record
+    await act(page, 'Request advance', (p) => fillAll(p, { reason: 'Invoice and balance now on record; original window short.' }));
+    await signOut(page);
+    await signIn(page, base, rv);
+    await openCase(page, base, idP);
+    await scrollTo(page, '#decision-record');
+    await shots(page, 'review');
+    await act(page, 'Approve and reserve capacity', (p) => fillAll(p, { reason: 'Policy POL-UI-1 evidence present; capacity checked.' }));
+    vP = await view(page, idP);
+    const judg = (vP.decision_record.checkpoints || []).some((c) => (c.facts.judgment || []).length) || (vP.decision_record.judgments || []).length;
+    check('v2: reviewer approval recorded as a judgment in the decision record', vP.exposure_panel.status === 'reserved' && !!judg, JSON.stringify(vP.decision_record.judgments || []).slice(0, 300));
+
+    // ---- duplicate: same invoice + supplier in this org -> potential match; reviewer resolves
+    {
+      const cD = await mk({ facility_id: 'FAC-UI-POL', invoice_ref: 'ap 50110', reference: 'INV-AP-50110-B', quote_ref: 'Q-KI-2611-22' });
+      const idD = cD.json && cD.json.id;
+      const vD = idD && await view(page, idD);
+      check('v2 duplicate: same invoice + supplier -> potential_match naming the other case', vD && vD.duplicate_check && vD.duplicate_check.status === 'potential_match' && (vD.duplicate_check.matches || []).map((m) => m.case_id || m.id || m).includes(idP), JSON.stringify(vD && vD.duplicate_check));
+      await openCase(page, base, idD);
+      check('v2 duplicate: banner shows the server text and links the matching case id', (await domText(page, '#dup-text')) === vD.duplicate_check.text && (await page.locator('#dup-matches a', { hasText: idP }).count()) === 1);
+      check('v2 duplicate: reviewer sees the resolve action in the banner', (await page.locator('#dup-resolve:not([disabled])').count()) === 1);
+      await signOut(page); await signIn(page, base, op); await openCase(page, base, idD);
+      const ra = (await view(page, idD)).actions.find((a) => a.type === 'request_advance');
+      check('v2 duplicate: request advance blocked for the operator while the match is open', ra && !ra.enabled && (await page.locator('#actions-enabled [data-action="request_advance"]').count()) === 0, JSON.stringify(ra));
+      await signOut(page); await signIn(page, base, rv); await openCase(page, base, idD);
+      const verD = await page.getAttribute('#pd-view', 'data-version');
+      await page.click('#dup-resolve');
+      await page.waitForSelector('#pd-dialog[open]');
+      await fillAll(page, { decision: 'not_duplicate', reason: 'Second shipment under the same invoice number; supplier confirmed by phone (synthetic).' });
+      await page.click('#pd-dialog-confirm');
+      await page.waitForFunction((x) => document.getElementById('pd-view').getAttribute('data-version') !== x, verD, { timeout: 10000 }).catch(() => {});
+      const vD2 = await view(page, idD);
+      check('v2 duplicate: reviewer resolution -> overridden, shown on the banner', vD2.duplicate_check.status === 'overridden' && (await page.getAttribute('#duplicate-check', 'data-status')) === 'overridden', JSON.stringify(vD2.duplicate_check));
+    }
+
+    // ---- draw, payout, credit: delivered while unpaid
+    await signOut(page); await signIn(page, base, op); await openCase(page, base, idP);
+    await act(page, 'Record draw', (p) => fillAll(p, { reference: 'DRW-AP-0001' }));
+    await act(page, 'Instruct payout', (p) => fillAll(p, { route: 'manual', external_ref: 'EXT-AP-5011' }));
+    await act(page, 'Record beneficiary credit', (p) => fillAll(p, { status: 'credited', reference: 'CRD-5011', location: 'Aaltonen Precision Oy account' }));
+    vP = await view(page, idP);
+    check('v2: delivered and unpaid — supplier credited, exposure outstanding', vP.supplier_panel.status === 'credited' && vP.exposure_panel.status === 'outstanding');
+    await scrollTo(page, '#supplier-panel');
+    await shots(page, 'delivered-unpaid');
+
+    // ---- report with no baseline
+    await page.click('#open-report');
+    await page.waitForSelector('#report-statement');
+    {
+      const rep0 = (await apiGet(page, '/api/cases/' + idP + '/report?format=json')).json;
+      const blCells = await page.locator('table.report tbody tr td:nth-child(3)').allInnerTexts();
+      check('v2 report: no baseline -> every baseline cell "not measured"', blCells.length > 0 && blCells.every((t) => /not measured/.test(t)), blCells.join(' | '));
+      const clCells = await page.locator('table.report tbody tr td:nth-child(2) .rp-prov').allInnerTexts();
+      check('v2 report: every Clearline number carries a provenance label', clCells.length === blCells.length && clCells.every((t) => /^(recorded|estimated|synthetic|computed|not measured|operator reported)$/.test(t)), clCells.join(','));
+      check('v2 report: explicit not-savings statement from the server', !(await page.locator('#report-not-savings.rp-fallback').count()) && /saving/i.test(await domText(page, '#report-not-savings')), JSON.stringify(rep0).slice(0, 400));
+      check('v2 report: HTML link', (await page.getAttribute('#report-html', 'href')) === '/api/cases/' + idP + '/report?format=html' && (await apiGet(page, '/api/cases/' + idP + '/report?format=html')).status === 200);
+    }
+    // log work + record a synthetic baseline through the report page
+    {
+      const ver = await page.getAttribute('#pd-view', 'data-version');
+      await page.click('#btn-log-work'); await page.waitForSelector('#pd-dialog[open]');
+      await fillAll(page, { minutes: '25', activity: 'Collected invoice and balance evidence' });
+      await page.click('#pd-dialog-confirm');
+      await page.waitForFunction((x) => !document.querySelector('#pd-dialog[open]') && document.getElementById('pd-view').getAttribute('data-version') !== x, ver, { timeout: 10000 })
+        .catch(async () => console.log('log work: ' + (await domText(page, '#pd-dialog-error'))));
+      const ver2 = await page.getAttribute('#pd-view', 'data-version');
+      await page.click('#btn-record-baseline'); await page.waitForSelector('#pd-dialog[open]');
+      await fillAll(page, { provenance: 'synthetic', operator_minutes: '95', touchpoints: '11', evidence_requests: '3', decision_hours: '30', deadline_met: 'false', outcome: 'Supplier paid late (synthetic)', source_note: 'Synthetic baseline for the pilot test; not a real process measurement.' });
+      await page.click('#pd-dialog-confirm');
+      await page.waitForFunction((x) => !document.querySelector('#pd-dialog[open]') && document.getElementById('pd-view').getAttribute('data-version') !== x, ver2, { timeout: 10000 })
+        .catch(async () => console.log('record baseline: ' + (await domText(page, '#pd-dialog-error'))));
+      const blProv = await page.locator('table.report tbody tr td:nth-child(3) .rp-prov').allInnerTexts();
+      check('v2 report: synthetic baseline -> baseline numbers labelled "synthetic"', blProv.filter((t) => t === 'synthetic').length >= 4 && blProv.every((t) => t === 'synthetic' || t === 'not measured'), blProv.join(','));
+      const act2 = await page.locator('table.report tbody tr').filter({ hasText: /active/i }).locator('td:nth-child(2)').allInnerTexts();
+      check('v2 report: logged minutes appear on the Clearline side', act2.some((t) => /25/.test(t)), act2.join(' | '));
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await shots(page, 'report');
+    }
+
+    // ---- overdue is not default
+    await srv.restart(T2);
+    await page.goto(base + '/#/queue');
+    await page.waitForSelector('#login-form, #pd-queue', { timeout: 10000 });
+    if (await page.locator('#login-form').count()) await signIn(page, base, rv); else { await signOut(page); await signIn(page, base, rv); }
+    await openCase(page, base, idP);
+    vP = await view(page, idP);
+    check('v2 overdue: exposure label "Overdue — not a default determination"', vP.exposure_panel.status_label === 'Overdue — not a default determination' && (await domText(page, '#exposure-label')) === vP.exposure_panel.status_label, vP.exposure_panel.status_label);
+    const dd = vP.actions.find((a) => a.type === 'declare_default');
+    check('v2 overdue: "Declare default" offered to the reviewer like any action', dd && dd.enabled && (await page.locator('#actions-enabled button[data-action="declare_default"]').count()) === 1, JSON.stringify(dd));
+    await act(page, dd.label, (p) => fillAll(p, { reason: 'Seven days overdue, no response from the importer (synthetic).' }));
+    vP = await view(page, idP);
+    check('v2 default: recorded as a reviewer judgment, owed amounts stay', /default/i.test(vP.exposure_panel.status_label) && !/^Overdue/.test(vP.exposure_panel.status_label) && vP.exposure_panel.status === 'outstanding' && (await domText(page, '#exposure-label')) === vP.exposure_panel.status_label, vP.exposure_panel.status_label);
+    await signOut(page);
+  }
+
   let caseId = null;
   try {
     // ---------------- sign-in screen and banner
@@ -253,13 +475,28 @@ async function scrollTo(page, sel) { await page.locator(sel).first().scrollIntoV
       await page.fill('#nc-expected_local', '2026-12-10T12:00');
       await page.fill('#nc-expected_payer', 'Harbourline Labs');
       await page.fill('#nc-reference', 'INV-LO-44817');
+      await page.fill('#nc-customer_ref', 'KI-PO-2207');
+      await page.fill('#nc-quote_source', 'Provider FX desk');
+      await page.fill('#nc-quote_at_local', '2026-11-16T08:45');
     };
     await ncFill('61,400.001');
+    // invoice_ref left blank on purpose: the server must name it alongside the bad amount
     await page.click('#nc-submit');
     await page.waitForSelector('[aria-invalid="true"], #nc-error:not([hidden])', { timeout: 10000 });
     check('invalid amount -> inline field error from the server', (await page.getAttribute('#nc-payout_amount', 'aria-invalid')) === 'true',
       await domText(page, '#nc-error'));
+    check('intake: missing supplier invoice number -> inline error on invoice_ref', (await page.getAttribute('#nc-invoice_ref', 'aria-invalid')) === 'true',
+      (await domText(page, '#nc-invoice_ref-err')) + ' | ' + (await domText(page, '#nc-error')));
+    {
+      const users = (await apiGet(page, '/api/users')).json.users;
+      const opts = await page.locator('#nc-owner_user_id option').allInnerTexts();
+      check('intake: owner picker lists operators and reviewers from /api/users, never viewers',
+        users.filter((u) => u.role === 'reviewer').every((u) => opts.some((o) => o.includes(u.name))) && !users.filter((u) => u.role === 'viewer').some((u) => opts.some((o) => o.includes(u.name))), opts.join(','));
+    }
     await page.fill('#nc-payout_amount', '61,400.00');
+    await page.fill('#nc-invoice_ref', 'LO-44817');
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await shots(page, 'intake');
     await page.click('#nc-submit');
     await page.waitForSelector('#decision-headline', { timeout: 10000 });
     caseId = await domText(page, '#case-id');
@@ -267,6 +504,11 @@ async function scrollTo(page, sel) { await page.locator(sel).first().scrollIntoV
     check('case created: header shows server payout and funding strings', (await domText(page, '.case-strip')).includes(mt(v.header.payout)) &&
       (await domText(page, '.case-strip')).includes(mt(v.header.funding)) && /EUR/.test(mt(v.header.payout)) && /SGD/.test(mt(v.header.funding)), mt(v.header.payout) + ' / ' + mt(v.header.funding));
     check('deadline shown with zone', (await domText(page, '.strip-clock')).includes('Asia/Singapore'));
+    check('intake: invoice_ref, customer_ref and quote source stored and shown in the header', v.header.invoice_ref === 'LO-44817' && v.header.customer_ref === 'KI-PO-2207' &&
+      v.header.quote_source === 'Provider FX desk' && (await domText(page, '#case-invoice')).includes('LO-44817') && (await domText(page, '#case-customer-ref')).includes('KI-PO-2207') &&
+      (await domText(page, '#case-quote')).includes('Provider FX desk'), JSON.stringify({ i: v.header.invoice_ref, c: v.header.customer_ref, q: v.header.quote_source, qa: v.header.quote_at }));
+    check('duplicate check: no-match text shown verbatim from the server', v.duplicate_check && v.duplicate_check.status === 'no_match' &&
+      v.duplicate_check.text === "No matching record in this provider's book." && (await domText(page, '#dup-text')) === v.duplicate_check.text, JSON.stringify(v.duplicate_check));
     check('two panels side by side: supplier delivery and provider exposure', (await page.locator('#supplier-panel').count()) === 1 && (await page.locator('#exposure-panel').count()) === 1);
     check('three routes A/B/C', (await page.locator('.route').count()) === 3);
 
@@ -388,6 +630,8 @@ async function scrollTo(page, sel) { await page.locator(sel).first().scrollIntoV
     check('no enabled actions on a closed case except notes', (await page.locator('#actions-enabled button').count()) === 0);
     await scrollTo(page, '#identities');
     await shots(page, 'reconciled-closed');
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await shots(page, 'closure');
     check('export buttons JSON/CSV/HTML', (await page.locator('#exports a[data-export]').count()) === 3);
     const html = await apiGet(page, '/api/cases/' + caseId + '/export?format=html');
     const opName = me.user.name; const rvName = (await (async () => { return rv.name; })()) || null;
@@ -417,7 +661,7 @@ async function scrollTo(page, sel) { await page.locator(sel).first().scrollIntoV
       importer: 'Kestrel Instruments Pte Ltd', supplier: 'Lindqvist Optics AB', payout_amount: '18,200.00', payout_currency: 'EUR',
       funding_amount: '26,530.40', funding_currency: 'SGD', quote_ref: 'Q-KI-2611-09', deadline_at: '2026-11-19T09:00:00Z', deadline_tz: 'Asia/Singapore',
       window_a_at: '2026-11-17T01:00:00Z', window_a_cutoff_at: '2026-11-17T04:00:00Z', later_permitted: false, contract_ref: null,
-      facility_id: (v.facility_id || undefined), reference: 'INV-LO-44821',
+      facility_id: (v.facility_id || undefined), reference: 'INV-LO-44821', invoice_ref: 'LO-44821',
       observations: [{ kind: 'balance', amount: '3,100.00', currency: 'SGD', as_of: '2026-11-16T00:30:00Z', source: 'Bank portal export' }],
       idempotency_key: 'pilot-ui-decline-' + Date.now()
     });
@@ -505,10 +749,18 @@ async function scrollTo(page, sel) { await page.locator(sel).first().scrollIntoV
       check('import: invalid CSV lists row errors and imports nothing', /Row \d+/.test(errText) && (await page.isDisabled('#imp-go')) &&
         (((await apiGet(page, '/api/cases?q=')).json.results || []).length === n0), errText.slice(0, 200));
       // a valid file whose times suit the test clock (fictional parties)
-      const header = fs.readFileSync(path.join(ROOT, 'docs', 'pilot', 'sample_cases.csv'), 'utf8').split(/\r?\n/)[0];
-      const csvOk = header + '\n' +
-        'Kestrel Instruments Pte Ltd,Lindqvist Optics AB,"12,800.00",EUR,"18,650.10",SGD,Q-KI-IMP-01,2026-11-20 17:00,Asia/Singapore,2026-11-18 10:00,2026-11-18 12:00,no,,,,"20,000.00",2026-11-25 12:00,"4,000.00",2026-11-16 08:00,Bank portal export,INV-LO-IMP-01\n' +
-        'Kestrel Instruments Pte Ltd,Lindqvist Optics AB,"7,300.00",EUR,"10,640.00",SGD,Q-KI-IMP-02,2026-11-21 17:00,Asia/Singapore,2026-11-19 10:00,2026-11-19 12:00,no,,,,,,"2,500.00",2026-11-16 08:00,Bank portal export,INV-LO-IMP-02\n';
+      const v1header = 'importer,supplier,payout_amount,payout_currency,funding_amount,funding_currency,quote_ref,deadline_local,deadline_tz,window_a_local,window_a_cutoff_local,later_permitted,contract_ref,window_b_local,window_b_cutoff_local,expected_receipt_amount,expected_receipt_local,balance_amount,balance_as_of_local,balance_source,reference';
+      // v2 file (§13.2): marker line, then the v1 columns plus invoice_ref, customer_ref, quote_source, quote_at_local, owner_email
+      const csvOk = '#clearline-cases v2\n' + v1header + ',invoice_ref,customer_ref,quote_source,quote_at_local,owner_email\n' +
+        'Kestrel Instruments Pte Ltd,Lindqvist Optics AB,"12,800.00",EUR,"18,650.10",SGD,Q-KI-IMP-01,2026-11-20 17:00,Asia/Singapore,2026-11-18 10:00,2026-11-18 12:00,no,,,,"20,000.00",2026-11-25 12:00,"4,000.00",2026-11-16 08:00,Bank portal export,INV-LO-IMP-01,LO-IMP-01,KI-PO-IMP-01,Provider FX desk,2026-11-16 08:40,' + op.email + '\n' +
+        'Kestrel Instruments Pte Ltd,Lindqvist Optics AB,"7,300.00",EUR,"10,640.00",SGD,Q-KI-IMP-02,2026-11-21 17:00,Asia/Singapore,2026-11-19 10:00,2026-11-19 12:00,no,,,,,,"2,500.00",2026-11-16 08:00,Bank portal export,INV-LO-IMP-02,LO-IMP-02,,Provider FX desk,2026-11-16 08:40,\n';
+      // a v1 file (no marker) is still read, but each row needs invoice_ref
+      const csvV1 = v1header + '\n' + 'Kestrel Instruments Pte Ltd,Lindqvist Optics AB,"12,800.00",EUR,"18,650.10",SGD,Q-KI-IMP-01,2026-11-20 17:00,Asia/Singapore,2026-11-18 10:00,2026-11-18 12:00,no,,,,,,"4,000.00",2026-11-16 08:00,Bank portal export,INV-LO-IMP-01\n';
+      await page.setInputFiles('#imp-file', { name: 'kestrel-v1.csv', mimeType: 'text/csv', buffer: Buffer.from(csvV1) });
+      await page.waitForFunction(() => document.getElementById('imp-csv').value.indexOf('Q-KI-IMP-01') >= 0);
+      await page.click('#imp-dry');
+      await page.waitForSelector('#imp-errors');
+      check('import: v1 file without invoice_ref -> row error naming invoice_ref, nothing imported', /invoice_ref/.test(await domText(page, '#imp-errors')) && (await page.isDisabled('#imp-go')), await domText(page, '#imp-errors'));
       await page.setInputFiles('#imp-file', { name: 'kestrel-import.csv', mimeType: 'text/csv', buffer: Buffer.from(csvOk) });
       await page.waitForFunction(() => document.getElementById('imp-csv').value.indexOf('Q-KI-IMP-01') >= 0);
       await page.click('#imp-dry');
@@ -548,8 +800,16 @@ async function scrollTo(page, sel) { await page.locator(sel).first().scrollIntoV
       check('second org search for the id finds nothing', srRows.length === 0);
       await signOut(page);
     }
+
+    // ================================================================ brief v2 (§13) against the real server
+    if (!srv.restart) {
+      console.log('SKIP brief v2 block: needs a server this test starts itself (CLI facility set-up and clock restarts).');
+    } else {
+      await v2Journey();
+    }
   } catch (e) {
     check('journey completed without exceptions', false, e.stack || e.message);
+    if (srv.log) console.log('server log tail:\n' + srv.log().split('\n').slice(-25).join('\n'));
     try { await page.screenshot({ path: path.join(os.tmpdir(), 'pilot-ui-failure.png'), fullPage: true }); console.log('failure screenshot: ' + path.join(os.tmpdir(), 'pilot-ui-failure.png')); } catch (e2) { /* ignore */ }
   }
 

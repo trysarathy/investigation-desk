@@ -33,7 +33,7 @@ class EndToEndTest(ServerCase):
             "funding_currency": "SGD", "quote_ref": "QT-KES-2026-118", "deadline_at": "2026-12-04T10:00:00Z",
             "deadline_tz": "Asia/Singapore", "window_a_at": "2026-12-02T07:00:00Z",
             "window_a_cutoff_at": "2026-12-02T08:00:00Z", "later_permitted": False, "contract_ref": "CT-KES-07",
-            "reference": "PO-KES-5521", "idempotency_key": str(uuid.uuid4()),
+            "reference": "PO-KES-5521", "invoice_ref": "INV-LO-2026-0042", "idempotency_key": str(uuid.uuid4()),
             "observations": [{"kind": "expected_receipt", "amount": "120,000.00", "currency": "SGD",
                               "expected_at": "2026-12-05T02:00:00Z", "payer": "Kestrel's customer"}]}), 201)
         cid = v["id"]

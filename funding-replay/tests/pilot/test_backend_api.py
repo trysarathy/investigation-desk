@@ -10,6 +10,7 @@ from pilot import db
 
 SAMPLE_CSV = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
                           "docs", "pilot", "sample_cases.csv")
+V2_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures_v2_sample.csv")
 
 
 class TenancyTest(ServerCase):
@@ -297,13 +298,19 @@ class ImportTest(ServerCase):
         db.set_clock("2026-12-03T12:00:00Z")  # after every balance date in the sample file
         op = self.client()
         with open(SAMPLE_CSV, encoding="utf-8") as fh:
+            v1 = fh.read()
+        # §13.2: a v1 file (no marker) is still parsed, but invoice_ref is now required for import.
+        r = op.req("POST", "/api/cases/import", {"csv": v1, "dry_run": True})
+        self.assertEqual(r.status, 422, r)
+        self.assertIn("v1 file: invoice_ref is required for import; add it or use v2", r.json["errors"][0])
+        with open(V2_CSV, encoding="utf-8") as fh:
             text = fh.read()
         r = op.req("POST", "/api/cases/import", {"csv": text, "dry_run": True})
         self.assertEqual(r.status, 200, r)
         n = r.json["would_create"]
         self.assertGreater(n, 0)
         self.assertEqual(op.get("/api/cases").json["results"], [])
-        bad = text.rstrip("\n") + "\n" + text.splitlines()[1].replace("SGD", "XXX", 1) + "\n"
+        bad = text.rstrip("\n") + "\n" + text.splitlines()[2].replace("SGD", "XXX", 1) + "\n"
         r = op.req("POST", "/api/cases/import", {"csv": bad})
         self.assertEqual(r.status, 422, r)
         self.assertTrue(r.json["errors"][0].startswith("Row "))

@@ -282,7 +282,7 @@ def _apply(s, ev):
 
 
 def _h_created(s, ev, p, known):
-    s.owner_user_id = s.owner_user_id or ev.get("actor_user_id")
+    s.owner_user_id = p.get("owner_user_id") or s.owner_user_id or ev.get("actor_user_id")
     return "Case created: %s to %s, payout %s, funding %s (quote %s)." % (
         s.case["importer"], s.case["supplier"], s.payout, s.funding, s.case["quote_ref"])
 
@@ -1587,11 +1587,19 @@ def decision(s, routes, now):
     if rc and rc["status"] == "infeasible" and not rc["missing"]:
         money = [b for b in rc["blockers"] if b["kind"] in ("cash", "credit")]
         if money:
-            unk = [r for r in routes if r["status"] == "unknown"]
-            nxt = ({"label": "Add observation", "command": "add_observation", "role": "operator"} if unk else
-                   {"label": "Close with exception", "command": "close_with_exception", "role": "reviewer"})
+            # Evidence cannot create money: the next step is outside the tool (provider treasury / credit).
+            short = []
+            for bl in money:
+                if bl["code"] == "funding_cash_short":
+                    short.append("funding cash %s is below %s" % (rc.get("funding_cash"), s.funding))
+                elif bl["code"] == "headroom_short":
+                    short.append("facility headroom %s is below %s" % (rc.get("headroom"), s.funding))
+                else:
+                    short.append(bl["text"])
+            nxt = {"label": "Refer to provider treasury: %s; or record Option A/B if feasible" % "; ".join(short),
+                   "command": None, "role": "reviewer", "outside_tool": True}
             return dec("blocked", "No feasible route: route C is blocked even with complete evidence — %s" % " ".join(
-                b["text"] for b in money), money[0]["text"], nxt, "operator" if unk else "reviewer")
+                b["text"] for b in money), money[0]["text"], nxt, "reviewer")
     unknown = [r for r in routes if r["status"] == "unknown"]
     if unknown:
         miss = unknown[0]["missing"][0]

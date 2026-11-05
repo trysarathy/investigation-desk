@@ -629,7 +629,8 @@ class DuplicatesTest(Base):
         r1 = op.cmd(cid, "add_note", version=v, key=key, text="hello")
         r2 = op.cmd(cid, "add_note", version=v, key=key, text="hello")
         self.assertTrue(r2.json.get("idempotent_replay"))
-        self.assertEqual(self.event_count(cid), 2)
+        # §13: system events (duplicate check, eligibility checkpoints) are excluded; one case_created + one note.
+        self.assertEqual(self.s.scalar("SELECT COUNT(*) FROM events WHERE case_id=? AND provenance<>'system'", (cid,)), 2)
         r3 = op.cmd(cid, "add_note", version=v, key=key, text="changed")
         self.assertEqual((r3.status, r3.code), (409, "idempotency_conflict"))
         other = self.new_case(op)["id"]
@@ -736,7 +737,8 @@ class TimeTest(Base):
         self.ok(op.cmd(cid, "add_note", text="x", known_at="2020-01-01T00:00:00Z"))
         self.ok(op.cmd(cid, "add_observation", kind="commitment", amount="50,000.00", currency="SGD",
                        due_at="2026-12-02T07:30:00Z", description="payroll", known_at="2026-11-01T00:00:00Z"))
-        rows = self.s.sql("SELECT known_at FROM events WHERE case_id=? AND seq>1", (cid,))
+        # §13: intake also writes system events (duplicate check, first eligibility checkpoint) at creation time.
+        rows = self.s.sql("SELECT known_at FROM events WHERE case_id=? AND seq>1 AND provenance<>'system'", (cid,))
         self.assertTrue(all(r["known_at"] == t1 for r in rows), rows)
         # (The commitment makes A short now.)
         v = self.ok(op.case(cid))

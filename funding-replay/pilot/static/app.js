@@ -1281,6 +1281,7 @@
       val = pick(c, 'display', 'text', 'formatted', 'value');
       prov = provKey(pick(c, 'label', 'provenance', 'basis', 'source_label', 'kind'));
       note = pick(c, 'note', 'detail', 'how');
+      if (!blank(val) && typeof val !== 'boolean' && !blank(c.unit) && blank(pick(c, 'display', 'text', 'formatted'))) val = val + ' ' + c.unit;
     } else { val = c; }
     if (prov === 'not_measured' || blank(val) && !prov) { prov = 'not_measured'; }
     if (typeof val === 'boolean') val = val ? 'Yes' : 'No';
@@ -1300,7 +1301,7 @@
   function reportRows(r) {
     var rows = arr(r.rows || r.metrics || r.comparison);
     if (rows.length) return rows.map(function (x) {
-      return { key: pick(x, 'key', 'metric', 'id') || '', label: pick(x, 'label', 'name', 'title', 'metric') || '', clearline: x.clearline, baseline: x.baseline };
+      return { key: pick(x, 'key', 'metric', 'id', 'measure') || '', label: pick(x, 'measure', 'label', 'name', 'title', 'metric') || '', clearline: x.clearline, baseline: x.baseline };
     });
     var cl = r.clearline || {}; var bl = r.baseline || {};
     var keys = [];
@@ -1329,7 +1330,7 @@
     v.root.prepend(el('p', { class: 'crumbs' }, [el('a', { href: '#/queue', text: 'Queue' }), ' / ', el('a', { class: 'mono', id: 'report-case', href: caseLink(cv.id), text: cv.id }), ' / Pilot report']));
     r = r || {};
     var rows = reportRows(r);
-    var statement = pick(r, 'not_savings_statement', 'statement', 'not_savings', 'disclaimer');
+    var statement = pick(r, 'not_savings_statement', 'not_savings', 'statement', 'disclaimer');
     if (statement && typeof statement === 'object') statement = text(statement);
     var bl = r.baseline && typeof r.baseline === 'object' && !Array.isArray(r.baseline) ? r.baseline : null;
     var blProv = pick(r, 'baseline_provenance') || (bl && bl.provenance && typeof bl.provenance !== 'object' ? bl.provenance : null);
@@ -1361,6 +1362,8 @@
             return el('tr', { 'data-metric': x.key }, [el('th', { scope: 'row', text: show(x.label || REPORT_ROW_LABEL[x.key] || humanize(x.key)) }), reportCell(x.clearline), reportCell(x.baseline)]);
           }), 'report') : el('p', { class: 'muted small', text: 'The server returned no measures.' }),
           el('p', { class: 'hint', id: 'report-baseline-source' }, ['Baseline: ', blProv ? el('span', { class: 'rp-prov rpp-' + provKey(blProv), text: (REPORT_PROV[provKey(blProv)] || { label: blProv }).label }) : el('span', { class: 'rp-prov rpp-not_measured', text: 'not measured' }), blNote ? ' — ' + blNote : (blProv ? '' : ' — no baseline recorded for this case.')]),
+          r.active_vs_elapsed ? el('p', { class: 'hint', text: text(r.active_vs_elapsed) }) : null,
+          r.sandbox_note ? el('p', { class: 'sandbox-note', text: text(r.sandbox_note) }) : null,
           el('p', { class: 'hint' }, ['Labels: ', ['recorded', 'estimated', 'synthetic', 'computed', 'not_measured'].map(function (k) { return [el('span', { class: 'rp-prov rpp-' + k, title: REPORT_PROV[k].title, text: REPORT_PROV[k].label }), ' ']; })])
         ])
       ]),
@@ -1417,7 +1420,8 @@
         el('p', null, el('a', { class: 'btn btn-small', href: caseLink(cv.id), text: 'Back to the current view to act' }))
       ], 'panel-actions');
     }
-    var acts = arr(cv.actions).filter(function (a) { return !NOTE_TYPES[a.type] && a.type !== 'resolve_duplicate_check'; });
+    var acts = arr(cv.actions).filter(function (a) { return !NOTE_TYPES[a.type] && !MEASURE_TYPES[a.type] && a.type !== 'resolve_duplicate_check'; });
+    var meas = arr(cv.actions).filter(function (a) { return MEASURE_TYPES[a.type] && a.enabled; });
     var on = acts.filter(function (a) { return a.enabled; });
     var off = acts.filter(function (a) { return !a.enabled; });
     var role = S.me ? S.me.user.role : '';
@@ -1437,9 +1441,16 @@
             el('p', { class: 'disabled-reason', text: show(a.disabled_reason) })
           ]);
         }))
+      ]) : null,
+      meas.length ? el('div', { class: 'actions-measure' }, [
+        el('p', { class: 'mini-h', text: 'Pilot measurement — not part of the payment' }),
+        el('ul', { class: 'alist', id: 'actions-measure' }, meas.map(function (a) {
+          return el('li', { class: 'action' }, [el('button', { type: 'button', class: 'btn btn-quiet btn-small abtn', 'data-action': a.type, text: a.label, onclick: function (e) { openCommand(a, e.currentTarget); } }), roleTag(roleText(a))]);
+        }))
       ]) : null
     ], 'panel-actions');
   }
+  var MEASURE_TYPES = { log_work: 1, record_baseline: 1 };
   function focusAction(type) {
     var btn = document.querySelector('#actions-enabled button[data-action="' + cssEsc(type) + '"]');
     var panelH = $('actions-h');
