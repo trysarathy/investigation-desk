@@ -761,7 +761,7 @@ def _conflict(a, b):
 
 
 def _conflict_text(s, o, conflicts):
-    group = [o] + [s.observations[x] for x in conflicts.get(o["id"], [])]
+    group = sorted([o] + [s.observations[x] for x in conflicts.get(o["id"], [])], key=lambda g: g["seq"])
     key = KIND_TIME_KEY.get(o["kind"])
     when = (" as of %s" % local_text(o["data"][key], s.tz)) if key and o["data"].get(key) and o["kind"] != "invoice" \
         else (" for invoice %s" % o["data"].get("invoice_ref") if o["kind"] == "invoice" else "")
