@@ -28,7 +28,12 @@ python3 -m pilot.cli check            # integrity + every identity; exit 1 on an
 ```
 Dev/test sign-ins (synthetic, refused in `PILOT_ENV=pilot`): `operator@harbourline.test` / `pilot-dev-operator`,
 `reviewer@harbourline.test` / `pilot-dev-reviewer`, `reviewer2@harbourline.test`, `viewer@harbourline.test` /
-`pilot-dev-viewer`; second org `operator@meridian.test` / `pilot-dev-operator`. Add real pilot users with
+`pilot-dev-viewer`; second org `operator@meridian.test` / `pilot-dev-operator`. Provision a blank organisation (the admin boundary is this privileged CLI; no shared credentials):
+`create-org --name … --id ORG-X`, `PILOT_NEW_PASSWORD=… create-user --org ORG-X --email … --name … --role
+operator|reviewer|viewer`, `create-facility --org ORG-X --id FAC-X --name … --currency SGD --limit … --fee-flat …
+--allocation fees_first --funding-cash … --policy-version "POL v1" --required-evidence balance[,invoice]`,
+`update-facility --id FAC-X --policy-version "POL v2" …` (every change is a new version), `list-facilities`,
+`list-users`, `disable-user --email …` (revokes sessions). See WALKTHROUGH.md. Add real pilot users with
 `PILOT_NEW_PASSWORD=… python3 -m pilot.cli create-user --org ORG-HL --email … --name … --role operator|reviewer|viewer`.
 
 `PILOT_CLOCK=2026-12-01T01:30:00Z` pins the server clock (tests and walkthroughs); leave it unset in a pilot.

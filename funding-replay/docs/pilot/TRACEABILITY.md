@@ -1,6 +1,6 @@
 # Traceability: build brief (6 Nov 2026) → behaviour → evidence
 
-Branch `pilot-operating-desk`, integrated at `495629c` (later commits: tests/docs/fixes listed in TEST_RESULTS.md).
+Branch `pilot-operating-desk`, tested at `d5ace26` (see TEST_RESULTS.md).
 "Locally verified" = exercised against the real server process and SQLite file in this session. Nothing here is
 hosted or verified with real data.
 
