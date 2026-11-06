@@ -3,7 +3,11 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { FundingData, ImportKind, User } from "@/lib/funding/model";
 import type { Review } from "@/lib/funding/review";
-import type { OwedRow, LedgerException } from "@/lib/funding/ledger";
+import type {
+  OwedRow,
+  LedgerException,
+  Allocation,
+} from "@/lib/funding/ledger";
 import styles from "./FundingDesk.module.css";
 import { parseCsv, decodeUtf8 } from "@/lib/csv/parse";
 
@@ -14,7 +18,11 @@ type Snapshot = {
   simulation: boolean;
   revision: number;
   data: FundingData;
-  ledger: { rows: OwedRow[]; exceptions: LedgerException[] };
+  ledger: {
+    rows: OwedRow[];
+    exceptions: LedgerException[];
+    allocations: Allocation[];
+  };
   reviews: Record<string, Review | null>;
   digest: string;
   columns: Record<ImportKind, string[]>;
@@ -558,64 +566,102 @@ export default function FundingDesk() {
                   )}
                 <section className={styles.panel}>
                   <h2>Evidence timeline</h2>
-                  <ol className={styles.timeline}>
-                    {snapshot.data.events
-                      .filter((e) => e.advance_id === selected)
-                      .map((e) => (
-                        <li key={e.id}>
-                          <time>{time(e.at)}</time>
-                          <div>
-                            <strong>{words(e.action)}</strong> ·{" "}
-                            {snapshot.data.users.find(
-                              (u) => u.id === e.actor_id,
-                            )?.name || e.actor_id}
-                            <p>{e.reason}</p>
-                            {e.review && (
-                              <details>
-                                <summary>Recorded checks</summary>
-                                {e.review.checks.map((check) => (
-                                  <p key={check.code}>
-                                    {words(check.status)} · {check.reason}
+                  <p className={styles.muted}>
+                    Ordered by when evidence became known or a decision was
+                    recorded. Equal timestamps use a consistent display order.
+                  </p>
+                  <ol
+                    className={styles.timeline}
+                    aria-label="Evidence timeline"
+                  >
+                    {[
+                      ...snapshot.data.events
+                        .filter((e) => e.advance_id === selected)
+                        .map((e) => ({
+                          at: e.at,
+                          content: (
+                            <li key={e.id}>
+                              <time>{time(e.at)}</time>
+                              <div>
+                                <strong>{words(e.action)}</strong> ·{" "}
+                                {snapshot.data.users.find(
+                                  (u) => u.id === e.actor_id,
+                                )?.name || e.actor_id}
+                                <p>{e.reason}</p>
+                                {e.review && (
+                                  <details>
+                                    <summary>Recorded checks</summary>
+                                    {e.review.checks.map((check) => (
+                                      <p key={check.code}>
+                                        {words(check.status)} · {check.reason}
+                                      </p>
+                                    ))}
+                                  </details>
+                                )}
+                              </div>
+                            </li>
+                          ),
+                        })),
+                      ...snapshot.data.payouts
+                        .filter((p) => p.advance_id === selected)
+                        .map((p) => ({
+                          at: p.known_at,
+                          content: (
+                            <li key={`payout-${p.id}`}>
+                              <time>{time(p.known_at)}</time>
+                              <div>
+                                <strong>Payout evidence</strong>
+                                <p>
+                                  {money(p.amount, p.currency)} · {p.reference}
+                                </p>
+                              </div>
+                            </li>
+                          ),
+                        })),
+                      ...snapshot.data.receipts
+                        .filter((r) => {
+                          const allocation = snapshot.ledger.allocations.find(
+                            (a) => a.receipt_id === r.id,
+                          );
+                          return allocation
+                            ? allocation.advance_id === selected
+                            : r.customer_id === advance.customer_id &&
+                                (r.reference === advance.id ||
+                                  (Boolean(advance.invoice_ref) &&
+                                    r.reference === advance.invoice_ref));
+                        })
+                        .map((r) => {
+                          const allocation = snapshot.ledger.allocations.find(
+                            (a) =>
+                              a.receipt_id === r.id &&
+                              a.advance_id === selected,
+                          );
+                          return {
+                            at: r.known_at,
+                            content: (
+                              <li key={`receipt-${r.id}`}>
+                                <time>{time(r.known_at)}</time>
+                                <div>
+                                  <strong>
+                                    {allocation
+                                      ? "Matched repayment"
+                                      : "Unallocated receipt (not a repayment)"}
+                                  </strong>
+                                  <p>
+                                    Received {money(r.amount, r.currency)} ·{" "}
+                                    {r.reference || "No reference"}.
+                                    {allocation
+                                      ? ` Allocated to this advance: ${money(allocation.amount, r.currency)}.`
+                                      : " The reference names this advance, but no repayment is allocated. Review the exception."}
                                   </p>
-                                ))}
-                              </details>
-                            )}
-                          </div>
-                        </li>
-                      ))}
-                    {snapshot.data.payouts
-                      .filter((p) => p.advance_id === selected)
-                      .map((p) => (
-                        <li key={`payout-${p.id}`}>
-                          <time>{time(p.known_at)}</time>
-                          <div>
-                            <strong>Payout evidence</strong>
-                            <p>
-                              {money(p.amount, p.currency)} · {p.reference}
-                            </p>
-                          </div>
-                        </li>
-                      ))}
-                    {snapshot.data.receipts
-                      .filter(
-                        (r) =>
-                          r.customer_id === advance.customer_id ||
-                          r.reference === advance.id ||
-                          r.reference === advance.invoice_ref,
-                      )
-                      .map((r) => (
-                        <li key={`receipt-${r.id}`}>
-                          <time>{time(r.known_at)}</time>
-                          <div>
-                            <strong>Customer receipt</strong>
-                            <p>
-                              {money(r.amount, r.currency)} ·{" "}
-                              {r.reference || "No reference"}. See repayment
-                              allocation in the evidence pack.
-                            </p>
-                          </div>
-                        </li>
-                      ))}
+                                </div>
+                              </li>
+                            ),
+                          };
+                        }),
+                    ]
+                      .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
+                      .map((entry) => entry.content)}
                   </ol>
                   <p className={styles.muted}>
                     Full source files may include other supplied records. Review

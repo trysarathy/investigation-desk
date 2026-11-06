@@ -95,6 +95,11 @@ test('prepare, approve, record payout, flag late repayment and export evidence',
   await expect(page.getByRole('heading', { name: 'Still owed to the provider', exact: true })).toBeVisible();
   await expect(page.getByText(/60,000/).first()).toBeVisible();
   await expect(page.getByText('advance-1', { exact: true }).first()).toBeVisible();
+  const timeline = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Evidence timeline', exact: true }) });
+  await expect(timeline.getByRole('listitem').filter({ hasText: 'INV-001' })).toContainText('40,000');
+  const evidenceTimes = await timeline.locator('time').allTextContents();
+  expect(evidenceTimes.length).toBeGreaterThan(2);
+  expect(evidenceTimes).toEqual([...evidenceTimes].sort());
   await screenshot(page, info, 'partial-repayment');
   expect((await download(page, 'Daily digest')).toString('utf8')).toContain('60000');
   expect((await download(page, 'Evidence pack')).subarray(0, 2).toString()).toBe('PK');
@@ -125,6 +130,8 @@ test('prepare, approve, record payout, flag late repayment and export evidence',
   const decision = (await (await page.request.get('/api/funding')).json()).data.decisions.find((d: { advance_id: string }) => d.advance_id === 'advance-2');
   expect(decision.reason).toBe(declineReason);
   expect(decision.actor_id).toBe('checker');
+  await expect(timeline).not.toContainText('INV-001');
+  await expect(timeline).not.toContainText('40,000');
   await screenshot(page, info, 'declined-evidence');
   expect(errors).toEqual([]);
 });
