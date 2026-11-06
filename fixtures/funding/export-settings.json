@@ -1,0 +1,21 @@
+{
+  "timezone": "Asia/Singapore",
+  "base_currency": "SGD",
+  "policy_confirmed": true,
+  "clearing_confirmed": true,
+  "accounts": {
+    "SGD": {"receivable":"1300","payout_clearing":"1310","receipt_clearing":"1320","writeoff_expense":"6100"}
+  },
+  "xero": {
+    "accounts": {"receivable":"1300","payout_clearing":"1310","receipt_clearing":"1320","writeoff_expense":"6100"},
+    "no_tax_rate": "No Tax",
+    "mapping_confirmed": true
+  },
+  "netsuite": {
+    "accounts": {"receivable":"1300","payout_clearing":"1310","receipt_clearing":"1320","writeoff_expense":"6100"},
+    "currency_value": "Singapore Dollar",
+    "subsidiary": "Synthetic Singapore Entity",
+    "mapping_confirmed": true,
+    "date_format": "DD/MM/YYYY"
+  }
+}
