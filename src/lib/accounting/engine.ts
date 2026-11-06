@@ -2,6 +2,8 @@
 // take the adapter and the clock as arguments, so the tests run them against fake accounting
 // systems. The only write to the books is `approveAndPost`, and it posts only a "ready" plan.
 
+import type { EvmFetcher } from "../chain/evm";
+import { postingFinality } from "./finality";
 import { createHash } from "node:crypto";
 import { createRequest, deriveRequest } from "../requests/lifecycle";
 import type { RequestsData, RequestToken } from "../requests/types";
@@ -25,7 +27,7 @@ export interface PostResult { acct: AccountingData; plan: PostingPlan; error?: s
  */
 export async function approveAndPost(
   reqData: RequestsData, acct: AccountingData, requestId: string,
-  o: PlanOptions & { by: string; now: string; adapter: BooksAdapter; expectedKey?: string },
+  o: PlanOptions & { by: string; now: string; adapter: BooksAdapter; expectedKey?: string; evm?: EvmFetcher },
 ): Promise<PostResult> {
   const plan = planPosting(reqData, acct, requestId, o);
   const link = acct.links[requestId];
@@ -40,7 +42,19 @@ export async function approveAndPost(
     const error = "The plan changed since you looked at it. Check the new lines and approve again.";
     return { acct: appendAudit(acct, { ...base, kind: "refused", reason: `Not posted: ${error}`, idempotencyKey: plan.idempotencyKey }), plan, error };
   }
-  let next = appendAudit(acct, { ...base, kind: "approved", reason: `${o.by} approved ${plan.lines.length} line(s): ${plan.reasons.join(" ")}`, idempotencyKey: plan.idempotencyKey, planned: plan.lines });
+  let finalityEvidence = "Simulated demo books; no live finality claim.";
+  if (!(o.adapter instanceof DemoBooksAdapter)) {
+    try {
+      if (demo || link.demo || !o.evm) throw new Error("Live payment finality must be checked before posting.");
+      // Include prior payments backing a writeoff or retry, even if those lines already posted.
+      const counted = deriveRequest(reqData, reqData.requests[requestId], o.threshold).counted;
+      finalityEvidence = await postingFinality(o.evm, counted.filter((x) => x.blockNumber !== undefined && x.confirmations >= o.threshold));
+    } catch (e) {
+      const error = e instanceof Error ? e.message : "Payment finality is unavailable.";
+      return { acct: appendAudit(acct, { ...base, kind: "refused", reason: `Not posted: ${error}`, idempotencyKey: plan.idempotencyKey }), plan, error };
+    }
+  }
+  let next = appendAudit(acct, { ...base, kind: "approved", reason: `${o.by} approved ${plan.lines.length} line(s): ${plan.reasons.join(" ")} ${finalityEvidence}`, idempotencyKey: plan.idempotencyKey, planned: plan.lines });
   try {
     const lines = await o.adapter.post(link, plan.lines, plan.idempotencyKey);
     next = appendAudit(next, { ...base, kind: "posted", reason: plan.reasons.join(" "), idempotencyKey: plan.idempotencyKey, lines });

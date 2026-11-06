@@ -2,6 +2,9 @@
 // request, and the approve-and-post action. Server-only.
 
 import "server-only";
+import { buildFetchers } from "../chain/sources";
+import { MemoryStore } from "../chain/store";
+import { liveLookupsEnabled } from "../chain/live";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { dataDir } from "../data-dir";
@@ -68,7 +71,11 @@ export async function approvePosting(requestId: string, by: string, expectedKey?
         invoiceNumber: acct.links[requestId]?.invoiceNumber, reason: `Not posted: ${error}`, demo: false };
       return [{ ...acct, audit: [...acct.audit, entry] }, { error }];
     }
-    const res = await approveAndPost(reqData, acct, requestId, { threshold: CONFIRMATIONS, by, now, adapter, expectedKey });
+    const res = await approveAndPost(reqData, acct, requestId, { threshold: CONFIRMATIONS, by, now, adapter, expectedKey,
+      // A new keyless RPC reader avoids immutable lookup caches and offline replay overrides.
+      evm: !isDemoMode() && liveLookupsEnabled() && !process.env.OFFLINE_REPLAY_DIR
+        ? buildFetchers({ tronKey: "", etherscanKey: "", store: new MemoryStore() }).evm : undefined,
+    });
     if (res.error && res.acct === acct) return [undefined, { error: res.error }];
     return [res.acct, res.error ? { error: res.error } : { message: `Posted ${res.plan.lines.length} line(s) to ${adapter.provider === "demo" ? "the demo books" : adapter.provider}.` }];
   });
