@@ -1,0 +1,179 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`provider review files > matches golden CSV, digests, ERP adapters and manifest 1`] = `
+{
+  "REVIEW-BEFORE-IMPORT.txt": "SYNTHETIC SAMPLE
+Controller review only. These are cumulative snapshots as of 2026-11-19T10:00:00Z, not an incremental posting queue. Stable event IDs do not make repeated ERP imports safe. Compare against prior exports and book entries already present; changed allocations can require reversals. Clearing accounts must reconcile to existing bank feeds to prevent duplicate cash booking. No files are transmitted.
+",
+  "digest-email.txt": "Synthetic sample — Exceptions as of 2026-11-19T10:00:00Z
+Repayment overdue: advance-1; 60000 SGD. Repayment is due and principal remains outstanding. Evidence: ddb6f0e2619dd287deb576c6a68ccd83dfc4929e4a14c46386361ee405424dc9:2;1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2;da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2
+Payout recorded; repayment due: advance-1; 60000 SGD. A supplier payout is recorded and repayment remains due; this does not assert full supplier payment. Evidence: ddb6f0e2619dd287deb576c6a68ccd83dfc4929e4a14c46386361ee405424dc9:2;1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2;da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2
+Partial repayment: advance-1; 60000 SGD. Only part of the principal has been repaid. Evidence: ddb6f0e2619dd287deb576c6a68ccd83dfc4929e4a14c46386361ee405424dc9:2;1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2;da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2
+Approval evidence missing: advance-1; 100000 SGD. Payout exists without a Clearline approval record; the debt still counts. Evidence: ddb6f0e2619dd287deb576c6a68ccd83dfc4929e4a14c46386361ee405424dc9:2;1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2;da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2
+",
+  "digest-slack.txt": "Synthetic sample — Exceptions as of 2026-11-19T10:00:00Z
+Repayment overdue: advance-1; 60000 SGD. Repayment is due and principal remains outstanding. Evidence: ddb6f0e2619dd287deb576c6a68ccd83dfc4929e4a14c46386361ee405424dc9:2;1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2;da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2
+Payout recorded; repayment due: advance-1; 60000 SGD. A supplier payout is recorded and repayment remains due; this does not assert full supplier payment. Evidence: ddb6f0e2619dd287deb576c6a68ccd83dfc4929e4a14c46386361ee405424dc9:2;1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2;da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2
+Partial repayment: advance-1; 60000 SGD. Only part of the principal has been repaid. Evidence: ddb6f0e2619dd287deb576c6a68ccd83dfc4929e4a14c46386361ee405424dc9:2;1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2;da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2
+Approval evidence missing: advance-1; 100000 SGD. Payout exists without a Clearline approval record; the debt still counts. Evidence: ddb6f0e2619dd287deb576c6a68ccd83dfc4929e4a14c46386361ee405424dc9:2;1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2;da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2
+",
+  "digest-webhook.json": "{
+  "version": 1,
+  "as_of": "2026-11-19T10:00:00Z",
+  "simulation": true,
+  "status": "exceptions",
+  "text": "Synthetic sample — Exceptions as of 2026-11-19T10:00:00Z\\nRepayment overdue: advance-1; 60000 SGD. Repayment is due and principal remains outstanding. Evidence: ddb6f0e2619dd287deb576c6a68ccd83dfc4929e4a14c46386361ee405424dc9:2;1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2;da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2\\nPayout recorded; repayment due: advance-1; 60000 SGD. A supplier payout is recorded and repayment remains due; this does not assert full supplier payment. Evidence: ddb6f0e2619dd287deb576c6a68ccd83dfc4929e4a14c46386361ee405424dc9:2;1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2;da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2\\nPartial repayment: advance-1; 60000 SGD. Only part of the principal has been repaid. Evidence: ddb6f0e2619dd287deb576c6a68ccd83dfc4929e4a14c46386361ee405424dc9:2;1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2;da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2\\nApproval evidence missing: advance-1; 100000 SGD. Payout exists without a Clearline approval record; the debt still counts. Evidence: ddb6f0e2619dd287deb576c6a68ccd83dfc4929e4a14c46386361ee405424dc9:2;1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2;da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2",
+  "exceptions": [
+    {
+      "code": "overdue",
+      "reason": "Repayment is due and principal remains outstanding.",
+      "amount": "60000",
+      "currency": "SGD",
+      "sources": [
+        "ddb6f0e2619dd287deb576c6a68ccd83dfc4929e4a14c46386361ee405424dc9:2",
+        "1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2",
+        "da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2"
+      ],
+      "advance_id": "advance-1",
+      "receipt_id": ""
+    },
+    {
+      "code": "supplier_paid_unrepaid_by_due",
+      "reason": "A supplier payout is recorded and repayment remains due; this does not assert full supplier payment.",
+      "amount": "60000",
+      "currency": "SGD",
+      "sources": [
+        "ddb6f0e2619dd287deb576c6a68ccd83dfc4929e4a14c46386361ee405424dc9:2",
+        "1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2",
+        "da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2"
+      ],
+      "advance_id": "advance-1",
+      "receipt_id": ""
+    },
+    {
+      "code": "partial_repayment",
+      "reason": "Only part of the principal has been repaid.",
+      "amount": "60000",
+      "currency": "SGD",
+      "sources": [
+        "ddb6f0e2619dd287deb576c6a68ccd83dfc4929e4a14c46386361ee405424dc9:2",
+        "1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2",
+        "da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2"
+      ],
+      "advance_id": "advance-1",
+      "receipt_id": ""
+    },
+    {
+      "code": "approval_evidence_missing",
+      "reason": "Payout exists without a Clearline approval record; the debt still counts.",
+      "amount": "100000",
+      "currency": "SGD",
+      "sources": [
+        "ddb6f0e2619dd287deb576c6a68ccd83dfc4929e4a14c46386361ee405424dc9:2",
+        "1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2",
+        "da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2"
+      ],
+      "advance_id": "advance-1",
+      "receipt_id": ""
+    }
+  ]
+}
+",
+  "exceptions.csv": "record_scope,as_of,code,advance_id,receipt_id,amount,currency,reason,sources
+SYNTHETIC SAMPLE,2026-11-19T10:00:00Z,overdue,advance-1,,60000,SGD,Repayment is due and principal remains outstanding.,ddb6f0e2619dd287deb576c6a68ccd83dfc4929e4a14c46386361ee405424dc9:2;1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2;da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2
+SYNTHETIC SAMPLE,2026-11-19T10:00:00Z,supplier_paid_unrepaid_by_due,advance-1,,60000,SGD,A supplier payout is recorded and repayment remains due; this does not assert full supplier payment.,ddb6f0e2619dd287deb576c6a68ccd83dfc4929e4a14c46386361ee405424dc9:2;1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2;da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2
+SYNTHETIC SAMPLE,2026-11-19T10:00:00Z,partial_repayment,advance-1,,60000,SGD,Only part of the principal has been repaid.,ddb6f0e2619dd287deb576c6a68ccd83dfc4929e4a14c46386361ee405424dc9:2;1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2;da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2
+SYNTHETIC SAMPLE,2026-11-19T10:00:00Z,approval_evidence_missing,advance-1,,100000,SGD,Payout exists without a Clearline approval record; the debt still counts.,ddb6f0e2619dd287deb576c6a68ccd83dfc4929e4a14c46386361ee405424dc9:2;1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2;da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2
+",
+  "journals-generic.csv": "journal_id,event_id,as_of,date,currency,account,debit,credit,description,source
+CL-959302b1dbb677f67c9362ce,payout:payout-1,2026-11-19T10:00:00Z,10/11/2026,SGD,1300,100000,0,Clearline review: payout payout-1,1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2
+CL-959302b1dbb677f67c9362ce,payout:payout-1,2026-11-19T10:00:00Z,10/11/2026,SGD,1310,0,100000,Clearline review: payout payout-1,1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2
+CL-6e5c2f951e14f67f9cbed629,repayment:receipt-1,2026-11-19T10:00:00Z,18/11/2026,SGD,1320,40000,0,Clearline review: repayment receipt-1,da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2
+CL-6e5c2f951e14f67f9cbed629,repayment:receipt-1,2026-11-19T10:00:00Z,18/11/2026,SGD,1300,0,40000,Clearline review: repayment receipt-1,da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2
+",
+  "journals-netsuite.csv": "External ID,Date,Currency,Subsidiary,Journal Entry -Line: Account,Journal Entry -Line: Debit,Journal Entry -Line: Credit,Journal Entry -Line: Memo
+CL-959302b1dbb677f67c9362ce,10/11/2026,Singapore Dollar,Synthetic Singapore Entity,1300,100000,0,Clearline review: payout payout-1
+CL-959302b1dbb677f67c9362ce,10/11/2026,Singapore Dollar,Synthetic Singapore Entity,1310,0,100000,Clearline review: payout payout-1
+CL-6e5c2f951e14f67f9cbed629,18/11/2026,Singapore Dollar,Synthetic Singapore Entity,1320,40000,0,Clearline review: repayment receipt-1
+CL-6e5c2f951e14f67f9cbed629,18/11/2026,Singapore Dollar,Synthetic Singapore Entity,1300,0,40000,Clearline review: repayment receipt-1
+",
+  "journals-xero.csv": "Narration,Date,Description,AccountCode,TaxRate,Amount
+CL-959302b1dbb677f67c9362ce,10/11/2026,Clearline review: payout payout-1,1300,No Tax,100000
+CL-959302b1dbb677f67c9362ce,10/11/2026,Clearline review: payout payout-1,1310,No Tax,-100000
+CL-6e5c2f951e14f67f9cbed629,18/11/2026,Clearline review: repayment receipt-1,1320,No Tax,40000
+CL-6e5c2f951e14f67f9cbed629,18/11/2026,Clearline review: repayment receipt-1,1300,No Tax,-40000
+",
+  "manifest.json": "{
+  "version": 1,
+  "as_of": "2026-11-19T10:00:00Z",
+  "simulation": true,
+  "settings_sha256": "e4e9c10761ba375e095019258f881767346bc8e0fc8c9641b4334a5988942741",
+  "files": {
+    "open-advances.csv": {
+      "sha256": "9085317b409848b6ba0e985d65a0eb517857467d5b0bd3d2c3777f9307b5f143",
+      "bytes": 529
+    },
+    "exceptions.csv": {
+      "sha256": "671eabb9912bf0a4d357a87d7279c87916b40e1e4ab09ccf644e32f7974588a1",
+      "bytes": 1476
+    },
+    "journals-generic.csv": {
+      "sha256": "459fa27d1b7a0cd5c46841d08916d0458963e342c68659221019cb2a4e18a5e1",
+      "bytes": 879
+    },
+    "digest-email.txt": {
+      "sha256": "f7969588413ed626c64f37cd4f4ee9538a62728d9acce5d7117c6c22bef61012",
+      "bytes": 1360
+    },
+    "digest-slack.txt": {
+      "sha256": "f7969588413ed626c64f37cd4f4ee9538a62728d9acce5d7117c6c22bef61012",
+      "bytes": 1360
+    },
+    "digest-webhook.json": {
+      "sha256": "7300a05fbf888aa6884422a556e1299a79351cdf6ef1612b1431b7f5d8874c43",
+      "bytes": 3519
+    },
+    "REVIEW-BEFORE-IMPORT.txt": {
+      "sha256": "6b1e701c2c742c643358228bb249f4684193f195539348c67c560e4b92a473b8",
+      "bytes": 414
+    },
+    "open-advances.xlsx": {
+      "sha256": "ce69234081f0675d26269f267f9fe50e0e1ea567e7cf9b2f85b386a90236d635",
+      "bytes": 4534
+    },
+    "journals-xero.csv": {
+      "sha256": "3ba2478a51666c619983201e7464491002f416ee2314bcf05747653d701a1092",
+      "bytes": 435
+    },
+    "journals-netsuite.csv": {
+      "sha256": "a3f36e274948ae26de05cce5d9fa832c6084fdbedca232d59518fe7ce91fe23c",
+      "bytes": 682
+    }
+  }
+}
+",
+  "open-advances.csv": "record_scope,as_of,advance_id,customer_id,invoice_ref,account,currency,due_at,state,supplier_delivery,approved_amount,paid,repaid,written_off,outstanding,remaining_commitment,sources
+SYNTHETIC SAMPLE,2026-11-19T10:00:00Z,advance-1,customer-1,INV-001,provider-sgd,SGD,2026-11-17T09:00:00Z,overdue,paid,0,100000,40000,0,60000,0,ddb6f0e2619dd287deb576c6a68ccd83dfc4929e4a14c46386361ee405424dc9:2;1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2;da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2
+",
+}
+`;
+
+exports[`provider review files > matches golden worksheet XML and member checksums 1`] = `
+{
+  "[Content_Types].xml": "<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>",
+  "_rels/.rels": "<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>",
+  "xl/_rels/workbook.xml.rels": "<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>",
+  "xl/workbook.xml": "<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Open advances" sheetId="1" r:id="rId1"/></sheets></workbook>",
+  "xl/worksheets/sheet1.xml": "<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t xml:space="preserve">record_scope</t></is></c><c r="B1" t="inlineStr"><is><t xml:space="preserve">as_of</t></is></c><c r="C1" t="inlineStr"><is><t xml:space="preserve">advance_id</t></is></c><c r="D1" t="inlineStr"><is><t xml:space="preserve">customer_id</t></is></c><c r="E1" t="inlineStr"><is><t xml:space="preserve">invoice_ref</t></is></c><c r="F1" t="inlineStr"><is><t xml:space="preserve">account</t></is></c><c r="G1" t="inlineStr"><is><t xml:space="preserve">currency</t></is></c><c r="H1" t="inlineStr"><is><t xml:space="preserve">due_at</t></is></c><c r="I1" t="inlineStr"><is><t xml:space="preserve">state</t></is></c><c r="J1" t="inlineStr"><is><t xml:space="preserve">supplier_delivery</t></is></c><c r="K1" t="inlineStr"><is><t xml:space="preserve">approved_amount</t></is></c><c r="L1" t="inlineStr"><is><t xml:space="preserve">paid</t></is></c><c r="M1" t="inlineStr"><is><t xml:space="preserve">repaid</t></is></c><c r="N1" t="inlineStr"><is><t xml:space="preserve">written_off</t></is></c><c r="O1" t="inlineStr"><is><t xml:space="preserve">outstanding</t></is></c><c r="P1" t="inlineStr"><is><t xml:space="preserve">remaining_commitment</t></is></c><c r="Q1" t="inlineStr"><is><t xml:space="preserve">sources</t></is></c></row><row r="2"><c r="A2" t="inlineStr"><is><t xml:space="preserve">SYNTHETIC SAMPLE</t></is></c><c r="B2" t="inlineStr"><is><t xml:space="preserve">2026-11-19T10:00:00Z</t></is></c><c r="C2" t="inlineStr"><is><t xml:space="preserve">advance-1</t></is></c><c r="D2" t="inlineStr"><is><t xml:space="preserve">customer-1</t></is></c><c r="E2" t="inlineStr"><is><t xml:space="preserve">INV-001</t></is></c><c r="F2" t="inlineStr"><is><t xml:space="preserve">provider-sgd</t></is></c><c r="G2" t="inlineStr"><is><t xml:space="preserve">SGD</t></is></c><c r="H2" t="inlineStr"><is><t xml:space="preserve">2026-11-17T09:00:00Z</t></is></c><c r="I2" t="inlineStr"><is><t xml:space="preserve">overdue</t></is></c><c r="J2" t="inlineStr"><is><t xml:space="preserve">paid</t></is></c><c r="K2"><v>0</v></c><c r="L2"><v>100000</v></c><c r="M2"><v>40000</v></c><c r="N2"><v>0</v></c><c r="O2"><v>60000</v></c><c r="P2"><v>0</v></c><c r="Q2" t="inlineStr"><is><t xml:space="preserve">ddb6f0e2619dd287deb576c6a68ccd83dfc4929e4a14c46386361ee405424dc9:2;1fd4ddd22ef39dd351084d066fbeb06cc9cd0803136411576ac0895996f19b9f:2;da2a22ab5ff56f5e9c1881f870795a6b00f7ebb1c0d13a85bbc389711b5cdef3:2</t></is></c></row></sheetData></worksheet>",
+}
+`;
+
+exports[`provider review files > matches golden worksheet XML and member checksums 2`] = `
+{
+  "[Content_Types].xml": "621866cb9381fb3da8b18715af2c0efa00ac7ed77a1d771ea5f96f5e310c7cec",
+  "_rels/.rels": "0b3936235a1f7b4ea68da3a54b7748f7f03f10be6cc5f25e5a3ffaca5039bfc5",
+  "xl/_rels/workbook.xml.rels": "5fd5828b83075277cb73d79ca8da121e9392ba1054e9bff1122388f7c9a24acc",
+  "xl/workbook.xml": "eda60e813a02887f3ed604ecdede179f8512f3f56044d603241f3b9549cb1b31",
+  "xl/worksheets/sheet1.xml": "498f6c4df390057134126b71ea7cf0cca0d8fe3e4993785315efdc442709599f",
+}
+`;

@@ -4,13 +4,18 @@
 const AMOUNT = /^-?\d+(\.\d+)?$/;
 
 /** A spreadsheet must never execute a cell: values starting with = + - @ or a control are quoted as text. */
-export function csvCell(v: string | number | boolean | undefined | null): string {
+export function csvCell(
+  v: string | number | boolean | undefined | null,
+): string {
   let s = v === undefined || v === null ? "" : String(v);
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  const prefix = s.normalize("NFKC").replace(/^[\p{White_Space}\p{Cf}]+/u, "");
+  if (/^[=+\-@]/.test(prefix) || /^[\t\r\n]/.test(s)) s = `'${s}`;
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 /** Exact amounts (signed too) as numbers; everything else through csvCell. */
-export function csvValue(v: string | number | boolean | undefined | null): string {
+export function csvValue(
+  v: string | number | boolean | undefined | null,
+): string {
   return typeof v === "string" && AMOUNT.test(v) ? v : csvCell(v);
 }
