@@ -12,14 +12,15 @@ import { DEMO_ACTOR, isDemoMode } from "@/lib/mode";
 import { DEMO_BUSINESS } from "@/lib/requests/demo";
 
 export const metadata: Metadata = {
-  title: isDemoMode() ? "Stablecoin payment requests · Demo" : "Investigation desk",
-  description: "Get paid in stablecoins without the mess (prototype)",
+  title: process.env.CLEARLINE_FUNDING_ONLY === "1" ? "Clearline Funding Desk" : isDemoMode() ? "Stablecoin payment requests · Demo" : "Investigation desk",
+  description: process.env.CLEARLINE_FUNDING_ONLY === "1" ? "Review advances and track what is still owed." : "Get paid in stablecoins without the mess (prototype)",
 };
 
 // Applies the saved theme before first paint so dark mode never flashes light.
 const themeScript = `try{var t=localStorage.getItem("desk.theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}`;
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  if (process.env.CLEARLINE_FUNDING_ONLY === "1") return <html lang="en"><body>{children}</body></html>;
   // The sidebar must not call uploaded data "fabricated" (real-data test, 24 Oct 2026).
   const demoMode = isDemoMode();
   const { data } = await loadWorkspace();

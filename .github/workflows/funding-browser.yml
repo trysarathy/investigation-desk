@@ -1,0 +1,58 @@
+name: Funding browser acceptance
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'scripts/**'
+      - 'fixtures/funding/**'
+      - 'tests/browser/**'
+      - 'playwright.funding.config.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/funding-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: funding-browser-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  funding-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.22.0'
+          cache: npm
+      - name: Record tested source
+        env:
+          EXPECTED_PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mkdir -p funding-browser-artifacts
+          git rev-parse HEAD > funding-browser-artifacts/tested-commit.txt
+          git rev-parse 'HEAD^{tree}' > funding-browser-artifacts/tested-tree.txt
+          printf '%s\n' "$EXPECTED_PR_HEAD" > funding-browser-artifacts/pr-head.txt
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx next build
+      - name: Create disposable fixture password
+        shell: bash
+        run: |
+          password=$(node -e 'process.stdout.write(require("node:crypto").randomBytes(24).toString("hex"))')
+          echo "::add-mask::$password"
+          echo "CLEARLINE_BROWSER_PASSWORD=$password" >> "$GITHUB_ENV"
+      - name: Run desktop and phone journeys
+        run: npx playwright test --config=playwright.funding.config.ts
+      - name: Upload screenshots and test evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: funding-browser-${{ github.event.pull_request.head.sha }}
+          path: funding-browser-artifacts/
+          if-no-files-found: error
+          retention-days: 30

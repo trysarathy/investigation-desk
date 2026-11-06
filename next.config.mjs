@@ -1,6 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  webpack(config) {
+    // Existing CLI modules use Node-style .js specifiers for TypeScript sources.
+    config.resolve.extensionAlias = { ...config.resolve.extensionAlias, '.js': ['.ts', '.tsx', '.js'] };
+    return config;
+  },
   experimental: {
     // Request bodies pass through the middleware, which by default keeps only the first 10 MB:
     // a larger upload reached the route cut short. This matches REQUEST_MAX_BYTES in
