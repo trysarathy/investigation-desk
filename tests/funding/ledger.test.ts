@@ -213,7 +213,7 @@ describe("actual principal and repayment ledger", () => {
     ).toBe(true);
   });
   it("uses receipt-time eligible outstanding for amount fallback despite later payouts", () => {
-    let d = load();
+    const d = load();
     d.payouts[0].amount = "50000";
     d.payouts.push({
       ...d.payouts[0],
