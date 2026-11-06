@@ -34,3 +34,22 @@ The first setup reused an incomplete dependency directory and failed to resolve 
 - [ASSUMPTION] The configured Ethereum RPC reports the chain honestly. This is not a light client, consensus verifier or independent multi-provider quorum. No live-provider or live-Xero smoke test was performed.
 - [VERIFIED] Existing expected-key optionality, request-store/accounting-store race risk and independent price-source policy remain outside this small finality fix. Do not describe the whole accounting integration as production-certified.
 - [VERIFIED] Dependency order from current PR bases: #65 → #67 → #68 → #66 → #69; #72 and #74 are siblings based on #69. This patch targets #72's branch. Integrate this patch into #72, then #72 and #74 into #69, preserving the whole stack when choosing final merge targets. The arrows describe prerequisite content, not permission to merge. No merge was performed.
+
+## Existing GitHub checks and actual merge sequence
+
+[VERIFIED] GitHub CI runs [42250231155](https://github.com/trysarathy/investigation-desk/actions/runs/42250231155) (#72) and [42250505133](https://github.com/trysarathy/investigation-desk/actions/runs/42250505133) (#74) have successful typecheck/test/build jobs but failed lint jobs. Both lint logs contain 20 errors and 38 warnings: existing books-page anchor lint, unescaped apostrophes in settings/Investigation, and CommonJS imports in old team tooling. These are outside the reviewed diffs. Local successful commands do not mean all GitHub checks are green. npm installation logs also report five vulnerabilities (two moderate, one high, two critical); advisory details were not inspected here.
+
+[VERIFIED] With current PR target branches unchanged, the leaves-to-root order is:
+
+1. New posting-finality PR → `review/require-payment-attribution`.
+2. #72 → `feat/demo-slices-s2`.
+3. #74 → `feat/demo-slices-s2` (steps 2 and 3 can swap; test the combined head).
+4. #69 → `feat/demo-slices`.
+5. #66 → `feat/s1-finality`.
+6. #68 → `feat/s1-freeze`.
+7. #67 → `feat/s1-release-checks`.
+8. #65 → `feat/payment-status-eta-screens`.
+9. #62 → `feat/payment-status-eta`.
+10. #61 → `main`.
+
+[VERIFIED] The connecting PRs [#62](https://github.com/trysarathy/investigation-desk/pull/62) and [#61](https://github.com/trysarathy/investigation-desk/pull/61) are open. GitHub currently reports #61 as non-mergeable. Resolve its conflicts in a separate reviewed change and rerun combined tests before considering the final merge. This is a proposed sequence only; nothing was merged, retargeted or deleted.
