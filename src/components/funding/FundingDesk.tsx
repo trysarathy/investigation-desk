@@ -119,6 +119,16 @@ export default function FundingDesk() {
           "File prepared. Review it before sharing or importing it elsewhere.",
         );
       } else {
+        if (body.action === "logout") {
+          setSelected("");
+          setReason("");
+          setTab("Approvals");
+          setFile(null);
+          setHeaders([]);
+          setImportText("");
+          setMapping({});
+          setEmail("");
+        }
         await refresh();
         setPassword("");
         setNotice(body.action === "logout" ? "Signed out." : "Recorded.");

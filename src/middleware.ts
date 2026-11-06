@@ -14,6 +14,7 @@ function same(a: string, b: string): boolean {
 export function middleware(req: NextRequest) {
   if(process.env.CLEARLINE_FUNDING_ONLY === '1') {
     const p=req.nextUrl.pathname;
+    if(p==='/') return NextResponse.redirect(new URL('/funding',process.env.CLEARLINE_ORIGIN ?? req.url));
     if(!['/','/funding','/api/funding','/icon.svg','/favicon.ico'].includes(p)&&!p.startsWith('/_next/')) return new NextResponse('Not found',{status:404});
     return NextResponse.next();
   }

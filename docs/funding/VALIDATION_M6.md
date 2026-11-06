@@ -17,3 +17,9 @@ A local production server reported ready, but a separate HTTP probe could not co
 - Existing CLI `.js` import specifiers resolve their TypeScript sources in the Next build; CLI semantics remain unchanged.
 
 The browser suite is an acceptance gate, not a substitute for a real provider trial. No public deployment, real customer data, live money, ERP import or communication was tested. Authentication baseline uses one server process; full audit/security/retention work belongs to M7.
+
+## First remote browser run
+
+[VERIFIED] GitHub Actions run 42286677542 passed the two security cases but failed both journey cases at initial navigation: `/` served the build-time earlier-product redirect to `/requests`. Runtime funding mode now redirects `/` to `/funding` in middleware before that static page can run. Two focused middleware regressions cover the redirect and legacy-route refusal. The browser assertions remain unchanged; the next remote run is still required.
+
+The runtime redirect uses the configured public origin rather than Next's normalized request hostname. Logout also clears the prior user's selected case and pending import form. Typecheck, scoped lint, the 19 focused middleware/route checks and production build pass for this correction. The remote browser rerun remains required.
