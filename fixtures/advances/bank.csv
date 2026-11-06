@@ -1,0 +1,4 @@
+event_id,advance_id,account_id,kind,currency,amount,occurred_at,known_at
+SYN-E1,SYN-A,SYN-IMPORTER,importer_receipt,SGD,135532.50,2026-11-19T02:00:00Z,2026-11-19T02:00:00Z
+SYN-E2,SYN-A,SYN-PROVIDER-SGD,provider_repayment,SGD,100000.00,2026-11-19T03:00:00Z,2026-11-19T03:00:00Z
+SYN-E3,SYN-B,SYN-PROVIDER-SGD,provider_repayment,SGD,2000.00,2026-11-19T03:00:00Z,2026-11-19T03:00:00Z
