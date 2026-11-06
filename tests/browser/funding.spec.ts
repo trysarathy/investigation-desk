@@ -104,7 +104,7 @@ test('prepare, approve, record payout, flag late repayment and export evidence',
   await screenshot(page, info, 'settings');
 
   const source = (await readFile('fixtures/funding/advances.csv', 'utf8')).replaceAll('advance-1', 'advance-2').replaceAll('INV-001', 'INV-002');
-  await page.getByLabel('Import type', { exact: true }).selectOption('advances');
+  await page.getByRole('combobox', { name: 'Import type', exact: true }).selectOption('advances');
   await page.getByLabel('CSV file', { exact: true }).setInputFiles({ name: 'synthetic-second-advance.csv', mimeType: 'text/csv', buffer: Buffer.from(source) });
   await page.getByRole('button', { name: 'Import records', exact: true }).click();
   await expect.poll(async () => (await (await page.request.get('/api/funding')).json()).data.advances.length).toBe(2);
