@@ -110,8 +110,8 @@ describe("releaseHeadline: words only for checks that passed", () => {
     const h = releaseHeadline(all({ finality: "pending" }));
     expect(h.tone).toBe("not_yet");
     expect(h.headline).toBe("Not final yet.");
-    // 10 blocks short of final × 12-second slots: the usual pace only, no confirmation counts.
-    expect(h.lines[0]).toBe("Not final yet — usually about 2 minutes more.");
+    // A block-height gap does not predict when consensus will finalize.
+    expect(h.lines[0]).toBe("Not final yet. Check again before release.");
   });
 
   it("finality couldn't be read → not yet, \"Finality NOT checked.\"", () => {
@@ -201,12 +201,12 @@ describe("sanctions: offline against a recorded OFAC SDN snapshot", () => {
 describe("plain English (2 Nov): no jargon in the main lines, numbers in `technical`", () => {
   const JARGON = /confirmations|finali[sz]ed|solidified|block \d|\d{6,}/i;
 
-  it("final: \"Final on Ethereum (can't be reversed).\", block numbers only in technical", () => {
+  it("final: \"Ethereum reports this payment as final.\", block numbers only in technical", () => {
     const c = fin("passed");
-    expect(c.detail).toBe("Final on Ethereum (can't be reversed).");
+    expect(c.detail).toBe("Ethereum reports this payment as final.");
     expect(c.technical).toBe("In block 100; the network had finalized up to block 120.");
-    expect(finalityCheck({ chain: "tron", blockNumber: 5, finalizedBlock: 9 }).detail).toBe("Final on Tron (can't be reversed).");
-    expect(finalityCheck({ chain: "tron", blockNumber: 10, finalizedBlock: 9 }).detail).toBe("Not final yet — usually about a minute more.");
+    expect(finalityCheck({ chain: "tron", blockNumber: 5, finalizedBlock: 9 }).detail).toBe("Tron reports this payment as final.");
+    expect(finalityCheck({ chain: "tron", blockNumber: 10, finalizedBlock: 9 }).detail).toBe("Not final yet. Check again before release.");
   });
 
   it("no jargon in any headline or line, in any combination", () => {

@@ -42,7 +42,7 @@ describe("S1 release card: crypto-protocol-engineer's checks, fed with recorded 
   it("TRON-01 (Tron-first): Paid and final from the recorded Tron finality read, and the line says it's a recording, not a live read", async () => {
     const c = await card("TRON-01");
     expect(c.result).toMatchObject({ tone: "paid", headline: "Paid and final. Right token and amount. Sender NOT checked. Not frozen.", allChecked: false });
-    expect(c.result.lines[0]).toMatch(/^Final on Tron \(can't be reversed\)\. \(recorded 2 Nov 2026, .* SGT, not a live read\)$/);
+    expect(c.result.lines[0]).toMatch(/^Tron reports this payment as final\. \(recorded 2 Nov 2026, .* SGT, not a live read\)$/);
     expect(technicalLines(c.checks).join(" ")).toMatch(/In block 87393445; the network had finalized up to block \d+\./);
     expect(c.network).toBe("Tron");
     expect(c.label).toBe(TRANSFER_LABEL);
@@ -50,7 +50,7 @@ describe("S1 release card: crypto-protocol-engineer's checks, fed with recorded 
   it("not final yet (replayed wait): says so, with the 6a status sentence as the time line", async () => {
     const c = await card("SCN-01", { asOfConfirmations: 4 });
     expect(c.result).toMatchObject({ tone: "not_yet", headline: "Not final yet." });
-    expect(c.result.lines[0]).toBe("Not final yet — usually about 2 minutes more (this wait is replayed faster than real time).");
+    expect(c.result.lines[0]).toBe("Not final yet. Check again before release (this wait is replayed faster than real time).");
 
   });
   it.each([
