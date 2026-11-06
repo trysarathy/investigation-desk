@@ -1,5 +1,9 @@
 # Clearline provider funding desk (simulated) — and the earlier funding replay
 
+## Mentor walkthrough
+
+For the single synthetic advance, refusal and matched-repayment story, use [the mentor demo instructions](docs/MENTOR_DEMO.md). This separate export has no login or unrelated product navigation; the operating pilot remains unchanged.
+
 **Synthetic prototype — no funds move.** Everything below is fictional and simulated: no real provider has
 agreed to fund anything, no credit is approved, no account is connected.
 
