@@ -57,10 +57,12 @@ const all = (o: Partial<Record<keyof ReleaseChecks, string>> = {}): ReleaseCheck
   finality: fin((o.finality ?? "passed") as never), token: token((o.token ?? "passed") as CheckState),
   amount: amount((o.amount ?? "passed") as CheckState), sanctions: sanctions((o.sanctions ?? "passed") as CheckState),
   freeze: freeze((o.freeze ?? "passed") as CheckState),
+  network: { state: "passed", detail: "Right network." },
+  address: { state: "passed", detail: "Right receiving address." },
 });
 
 describe("releaseHeadline: words only for checks that passed", () => {
-  it("all five passed", () => {
+  it("all seven passed", () => {
     const h = releaseHeadline(all());
     expect(h.tone).toBe("paid");
     expect(h.allChecked).toBe(true);
@@ -364,4 +366,24 @@ describe("QA #65: a look-alike never prints identical to the real address", () =
       expect(m[1]).not.toBe(m[2]);
     }
   });
+});
+
+
+describe("payment attribution is required before claiming paid", () => {
+  for (const field of ["network", "address"] as const) {
+    for (const missing of [true, false]) {
+      it(`${field} ${missing ? "absent" : "not checked"} cannot produce a paid claim`, () => {
+        const checks = all();
+        if (missing) delete checks[field];
+        else checks[field] = { state: "not_run", detail: "Evidence unavailable." };
+        for (const overpaid of [false, true]) {
+          if (overpaid) checks.amount = { state: "failed", blocking: false, detail: "Overpaid." };
+          const result = releaseHeadline(checks);
+          expect(result.tone).not.toBe("paid");
+          expect(result.allChecked).toBe(false);
+          expect([result.headline, ...result.lines].join(" ")).not.toMatch(/Paid and final/);
+        }
+      });
+    }
+  }
 });

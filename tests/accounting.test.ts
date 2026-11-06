@@ -2,6 +2,7 @@
 // reference), the approval gate, idempotency, the audit log, the Xero and QuickBooks request shapes,
 // and the demo books. Every transfer is synthetic and goes through the real request ingestion.
 
+import { finalityFixture } from "./posting-finality-fixture";
 import { describe, expect, it } from "vitest";
 import { approveAndPost, importInvoice, seedDemoBooks } from "@/lib/accounting/engine";
 import { addDemoInvoice, DemoBooksAdapter, emptyDemoBooks } from "@/lib/accounting/providers/demo";
@@ -38,7 +39,7 @@ const put = (d: RequestsData, ev: TransferEvent, at = t(6)) => ingest(d, ev, at,
 const decideAs = (d: RequestsData, id: string, kind: Parameters<typeof decide>[2]["kind"], note = "Checked with the customer.", observationKey?: string) =>
   decide(d, id, { kind, note, observationKey }, { now: t(9), by: "Mei", threshold: CONFIRMATIONS, check: checkObservation(t(9)) }).data;
 const post = (reqData: RequestsData, acct: AccountingData, adapter: BooksAdapter, id = "R1", expectedKey?: string) =>
-  approveAndPost(reqData, acct, id, { ...opts, by: "Mei", now: t(10), adapter, expectedKey });
+  approveAndPost(reqData, acct, id, { ...opts, by: "Mei", now: t(10), adapter, expectedKey, evm: finalityFixture(Object.values(reqData.observations)).evm });
 
 describe("posting rules", () => {
   it("exact: one payment applied to the invoice, with tx hash, token, network and USD value", async () => {

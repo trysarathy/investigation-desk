@@ -36,6 +36,8 @@ const depsFor = (transport: Transport, etherscanKey = "replay", live = false) =>
 /** The solidified head as the recording's raw body says (read independently of the code under test). */
 const recordedSolid = () => JSON.parse(load("FINALITY-TRON").exchanges[0].response.body).block_header.raw_data.number as number;
 const others: Omit<ReleaseChecks, "finality"> = {
+  network: { state: "passed", detail: "Right network." },
+  address: { state: "passed", detail: "Right receiving address." },
   token: { state: "passed", detail: "Tether's USDT contract on Tron." }, amount: { state: "passed", detail: "Exactly 100 USDT." },
   sanctions: { state: "not_run", list: "OFAC SDN", detail: "No copy of the OFAC sanctions list is loaded, so the sender wasn't checked." },
   freeze: { state: "passed", issuer: "Tether", detail: "Neither the sender nor the receiving address is frozen by Tether; this can change later." },

@@ -57,9 +57,9 @@ export interface ReleaseChecks {
   amount: CheckResult;
   sanctions: SanctionsCheck;
   freeze: FreezeCheck;
-  /** Paid on the invoice's network. Optional; a failure blocks release. */
+  /** Paid on the invoice's network. Required for a paid claim; a failure blocks release. */
   network?: CheckResult;
-  /** Paid to the invoice's own receiving address (not a look-alike). Optional; a failure blocks release. */
+  /** Paid to the invoice's own receiving address (not a look-alike). Required for a paid claim; a failure blocks release. */
   address?: CheckResult;
 }
 
@@ -67,7 +67,7 @@ export interface ReleaseHeadline {
   tone: "paid" | "not_yet" | "problem";
   headline: string;
   lines: string[];
-  /** True only when every check given passed. */
+  /** True only when all seven checks passed. */
   allChecked: boolean;
 }
 
@@ -90,7 +90,8 @@ const clean = (s: string | undefined) => (s && !/safe/i.test(s) ? s : undefined)
 export function releaseHeadline(c: ReleaseChecks): ReleaseHeadline {
   const all: CheckResult[] = [c.finality as CheckResult, c.network, c.address, c.token, c.amount, c.sanctions, c.freeze]
     .filter((x): x is CheckResult => !!x);
-  const allChecked = all.every((x) => x.state === "passed");
+  const attributed = c.network?.state === "passed" && c.address?.state === "passed";
+  const allChecked = attributed && all.every((x) => x.state === "passed");
   const lines = all.map((x) => clean(x.detail)).filter((x): x is string => !!x);
   if (c.sanctions.state === "passed") lines.push(`Sanctions: OFAC SDN list only, dated ${c.sanctions.listDate}. ${SANCTIONS_SCOPE}`);
   const said = (x: CheckResult) => clean(x.detail) ?? "A check failed.";
@@ -109,6 +110,10 @@ export function releaseHeadline(c: ReleaseChecks): ReleaseHeadline {
   ];
   // "Paid" needs finality AND the right token AND the right amount; anything less isn't called paid.
   if (c.finality.state !== "passed") return { tone: "not_yet", headline: "Finality NOT checked.", lines: [parts.join(" "), ...lines], allChecked };
+  if (!attributed) {
+    const missing = [c.network?.state !== "passed" && "Network", c.address?.state !== "passed" && "Receiving address"].filter(Boolean).join(" and ");
+    return { tone: "not_yet", headline: `${missing} NOT checked. Payment attribution needs review.`, lines, allChecked };
+  }
   if (personDecides.length) {
     // "Paid and final." only with the right token; an overpayment says nothing about which token it was.
     const lead = tok ? "Paid and final." : "Final, but not confirmed as paid.";

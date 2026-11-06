@@ -4,6 +4,9 @@ Plain-English notes for every merged change, newest first (company/OPERATING_MOD
 Each entry: date, PR link, one paragraph a finance controller can understand: what changed, why, and
 anything they need to do.
 
+## Unreleased
+- External accounting posting now requires a fresh Ethereum finalized-head and canonical transfer check. Missing or changed evidence refuses the write and records why. Demo books remain simulated and work offline; matching thresholds alone no longer authorize a live accounting write.
+
 ## 2026-11-02
 - **Demo only: the matched sample invoice and the entry Clearline would propose (/demo/entry, demo mode only).** The matched sample invoice with the Xero entry Clearline would propose; Approve stays disabled until the payment is final (no sample is final with an entry today) and never sends anything. The amounts come from the existing posting rules, unchanged. Nothing to do on your side.
 - **Two demo-only screens and a demo watcher for the end of discovery calls (/demo, demo mode only).** A release card that says "Paid and final", "Not final yet" or "Don't release: …" using only the checks that ran (today the sender always reads "NOT checked", and Ethereum payments read "Finality NOT checked."; the Tron sample reads "Paid and final" from a recorded finality read); and an email and a Slack-style preview of the same result, quiet unless a payment is paid and final or has a problem ("Preview — nothing is sent"). A watcher replays recorded transfers on a timer ("Demo: replaying recorded transfers"); it takes no address and makes no live call. All transfers are real public ones replayed offline; all invoices are samples. Live mode is unchanged. Nothing to do on your side.
