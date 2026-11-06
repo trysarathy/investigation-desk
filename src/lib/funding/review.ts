@@ -1,6 +1,8 @@
+import { canonicalPayouts, fundingLedger } from "./ledger";
 import { createHash } from "node:crypto";
 import { add, sub, sum } from "../payments/money";
 import {
+  amount,
   compare,
   instant,
   visible,
@@ -21,7 +23,7 @@ export interface Review {
 }
 export interface FundingEvent {
   id: string;
-  action: "users" | "prepare" | "approve" | "decline";
+  action: "users" | "prepare" | "approve" | "decline" | "write_off";
   at: string;
   import_count: number;
   base_revision: number;
@@ -30,6 +32,8 @@ export interface FundingEvent {
   reason: string;
   users: User[];
   review: Review | null;
+  amount?: string;
+  engine_version?: 3;
 }
 const normalize = (v: string) =>
   v.normalize("NFKC").trim().toUpperCase().replace(/\s+/g, " ");
@@ -47,16 +51,22 @@ export function reviewAdvance(
     (c) => c.id === advance.customer_id && visible(c, at),
   );
   const active = data.advances.filter((a) => visible(a, at));
+  const payoutEvidence = canonicalPayouts(data, at).accepted;
   const paid = (id: string) =>
-    data.payouts.filter((p) => p.advance_id === id && visible(p, at));
+    payoutEvidence.filter((p) => p.advance_id === id && visible(p, at));
   const committed = active.filter(
     (a) => a.state === "approved" || paid(a.id).length > 0,
   );
   const exposureOf = (id: string) => {
     const a = active.find((a) => a.id === id)!;
     const payouts = sum(paid(id).map((p) => p.amount));
-    return compare(payouts, a.amount) > 0 ? payouts : a.amount;
+    return a.state === "approved" && compare(a.amount, payouts) > 0
+      ? a.amount
+      : payouts;
   };
+  const ledger = fundingLedger(data, at);
+  const repaid = (id: string) =>
+    ledger.rows.find((r) => r.advance_id === id)?.repaid ?? "0";
   const exposure = sum(
     committed
       .filter(
@@ -65,7 +75,7 @@ export function reviewAdvance(
           a.currency === advance.currency &&
           a.id !== id,
       )
-      .map((a) => exposureOf(a.id)),
+      .map((a) => sub(exposureOf(a.id), repaid(a.id))),
   );
   const reserved = committed.filter(
     (a) =>
@@ -119,14 +129,15 @@ export function reviewAdvance(
         : "pass",
     !customer
       ? "Customer limit evidence was not known then."
-      : `Open exposure ${exposure}; proposed ${advance.amount}; limit ${customer.credit_limit} ${advance.currency}. Receipts are not netted before matching.`,
+      : `Open exposure ${exposure}; proposed ${advance.amount}; limit ${customer.credit_limit} ${advance.currency}. Only matched repayments reduce exposure; write-offs do not restore the limit.`,
     customer ? [customer.source, ...committed.map((a) => a.source)] : [],
   );
   const overdue = committed.filter(
     (a) =>
       a.customer_id === advance.customer_id &&
       a.id !== id &&
-      instant(a.due_at) <= instant(at),
+      instant(a.due_at) <= instant(at) &&
+      compare(sub(exposureOf(a.id), repaid(a.id)), "0") > 0,
   );
   push(
     "overdue",
@@ -192,7 +203,7 @@ export function reviewAdvance(
   let free: string | null = null;
   const spentSinceSnapshot = latest
     ? sum(
-        data.payouts
+        payoutEvidence
           .filter(
             (p) =>
               p.account === advance.account &&
@@ -234,9 +245,10 @@ export function reviewAdvance(
 }
 export function applyFundingEvent(
   data: FundingData,
-  input: Omit<FundingEvent, "id" | "review">,
+  raw: Omit<FundingEvent, "id" | "review">,
 ): FundingData {
-  if (!input || typeof input !== "object" || !Array.isArray(input.users))
+  const input = { ...raw, engine_version: 3 as const };
+  if (!raw || typeof raw !== "object" || !Array.isArray(input.users))
     throw Error("Invalid workflow event.");
   for (const key of ["at", "actor_id", "advance_id", "reason"] as const)
     if (
@@ -267,7 +279,11 @@ export function applyFundingEvent(
   )
     throw Error("Invalid workflow revision.");
   instant(input.at);
-  if (!["users", "prepare", "approve", "decline"].includes(input.action))
+  if (
+    !["users", "prepare", "approve", "decline", "write_off"].includes(
+      input.action,
+    )
+  )
     throw Error("Choose a supported workflow action.");
   if (
     input.import_count !== data.imports.length ||
@@ -295,7 +311,29 @@ export function applyFundingEvent(
         "Initialize one valid deployment roster before workflow events.",
       );
     next.users = structuredClone(input.users);
+  } else if (input.action === "write_off") {
+    const actor = data.users.find((u) => u.id === input.actor_id);
+    if (
+      !actor ||
+      actor.role !== "approver" ||
+      !input.reason.trim() ||
+      input.users.length ||
+      !input.amount ||
+      compare(amount(input.amount), "0") <= 0
+    )
+      throw Error(
+        "A treasury approver must give a reason and positive write-off amount.",
+      );
+    const row = fundingLedger(data, input.at).rows.find(
+      (r) => r.advance_id === input.advance_id,
+    );
+    if (!row || compare(input.amount, row.outstanding) > 0)
+      throw Error(
+        "Write-off cannot exceed the recorded outstanding principal.",
+      );
   } else {
+    if (input.amount !== undefined)
+      throw Error("Only a write-off accepts an amount.");
     if (input.users.length)
       throw Error("A workflow action cannot replace the deployment roster.");
     const actor = data.users.find((u) => u.id === input.actor_id);
