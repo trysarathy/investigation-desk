@@ -1,3 +1,13 @@
+# Clearline Funding Desk
+
+Current product: a desk for payment providers that pay suppliers before their customers reimburse them. Named people review advances; files and exception lists show what is still owed. Clearline does not move money or make the credit decision.
+
+Start with [provider setup and the synthetic walkthrough](docs/funding/UI_M6.md). Use `npm run funding-start` with a private `CLEARLINE_FUNDING_DIR` and exact `CLEARLINE_ORIGIN`; this entry hides and blocks the earlier product. Browser acceptance for this UI candidate is tracked in [M6 validation](docs/funding/VALIDATION_M6.md).
+
+The stablecoin investigation material below is the retained earlier experiment, not the Funding Desk product.
+
+---
+
 # Stablecoin Payment Investigation Desk
 
 Build week 1 of Product Spec v1 (21 Oct 2026): app shell, design tokens, the case queue and the

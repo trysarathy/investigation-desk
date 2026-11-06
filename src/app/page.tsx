@@ -7,6 +7,8 @@ import { CHAIN_NAMES } from "@/lib/types";
 import { loadCases } from "@/lib/bulk/cases";
 import { caseRows, parseDown, storedCaseRows } from "@/lib/view";
 
+export const dynamic = "force-dynamic";
+
 type Search = Promise<Record<string, string | string[] | undefined>>;
 
 /**
@@ -15,6 +17,7 @@ type Search = Promise<Record<string, string | string[] | undefined>>;
  *   ?down=tron     chain API down (any chain id)
  */
 export default async function QueuePage({ searchParams }: { searchParams: Search }) {
+  if (process.env.CLEARLINE_FUNDING_ONLY === "1") redirect("/funding");
   // Demo mode opens on the payment-requests overview: the queue is hidden, not removed.
   if (isDemoMode()) redirect("/requests");
   const sp = await searchParams;

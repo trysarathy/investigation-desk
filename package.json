@@ -11,7 +11,10 @@
     "lint": "npm install --no-save --no-audit --no-fund eslint@9.39.5 eslint-config-next@15.5.28 @eslint/eslintrc@3.3.7 && eslint -c .github/lint/eslint.config.mjs .",
     "owed-ledger": "sh scripts/owed-ledger.sh",
     "funding-export": "sh scripts/funding-export.sh",
-    "funding-evidence": "sh scripts/funding-evidence.sh"
+    "funding-evidence": "sh scripts/funding-evidence.sh",
+    "funding-setup": "sh scripts/funding-setup.sh",
+    "funding-start": "CLEARLINE_FUNDING_ONLY=1 next start",
+    "funding-dev": "CLEARLINE_FUNDING_ONLY=1 next dev"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.132.0",
@@ -27,6 +30,7 @@
     "server-only": "0.0.1"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.0",
     "@types/node": "22.19.1",
     "@types/react": "19.1.17",
     "@types/react-dom": "19.1.11",
