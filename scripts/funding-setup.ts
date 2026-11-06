@@ -1,8 +1,10 @@
-import { mkdir, readFile, copyFile } from "node:fs/promises";
+import { mkdir, readFile, copyFile, chmod } from "node:fs/promises";
 import path from "node:path";
 import { emptyFunding, type ImportKind } from "../src/lib/funding/model";
 import { importCsv } from "../src/lib/funding/imports";
 import { applyFundingEvent } from "../src/lib/funding/review";
+import { assertDeploymentLocation } from "../src/lib/funding/private";
+import { FundingStore } from "../src/lib/funding/store";
 import { hashPassword, writePrivateFile } from "../src/lib/funding/server";
 async function main() {
   const args = process.argv.slice(2),
@@ -15,6 +17,7 @@ async function main() {
     throw Error(
       "Usage: --sample --dir ABSOLUTE_NEW_DIRECTORY, or --users PRIVATE_USERS_JSON --dir ABSOLUTE_NEW_DIRECTORY",
     );
+  assertDeploymentLocation(dir);
   const password = process.env.CLEARLINE_BOOTSTRAP_PASSWORD;
   if (sample && !password)
     throw Error("Set CLEARLINE_BOOTSTRAP_PASSWORD for synthetic test users.");
@@ -75,7 +78,14 @@ async function main() {
     base_revision: data.revision,
   });
   await mkdir(dir, { mode: 0o700 });
-  await writePrivateFile(path.join(dir, "funding.json"), data);
+  await new FundingStore(path.join(dir, "funding.json")).update(
+    () => [data, undefined],
+    {
+      actor: { kind: "local_admin", id: "funding-setup-cli" },
+      action: "deployment_provisioned",
+      details: { simulation: sample },
+    },
+  );
   await writePrivateFile(path.join(dir, "access.json"), {
     version: 1,
     simulation: sample,
@@ -83,8 +93,14 @@ async function main() {
     users: access,
   });
   if (sample) {
-    for (const file of ["payouts.csv", "receipts.csv", "export-settings.json"])
+    for (const file of [
+      "payouts.csv",
+      "receipts.csv",
+      "export-settings.json",
+    ]) {
       await copyFile(path.join("fixtures/funding", file), path.join(dir, file));
+      await chmod(path.join(dir, file), 0o600);
+    }
   }
   console.log(
     `Funding deployment created at ${dir}. ${sample ? "Synthetic users use the supplied bootstrap password." : "Keep the original users file private or securely remove it after provisioning."}`,

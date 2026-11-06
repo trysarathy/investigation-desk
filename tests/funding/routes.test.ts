@@ -1,5 +1,10 @@
 import { beforeEach, afterEach, describe, it, expect } from "vitest";
-import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
+import {
+  mkdtemp,
+  writeFile as fsWriteFile,
+  readFile,
+  rm,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { GET, POST } from "../../src/app/api/funding/route";
@@ -7,6 +12,8 @@ import { emptyFunding, type ImportKind } from "../../src/lib/funding/model";
 import { columns, importCsv } from "../../src/lib/funding/imports";
 import { applyFundingEvent } from "../../src/lib/funding/review";
 import { hashPassword, fundingStore } from "../../src/lib/funding/server";
+const writeFile = (file: string, data: string | Buffer) =>
+  fsWriteFile(file, data, { mode: 0o600 });
 let dir: string;
 const at = "2026-11-09T10:00:00Z",
   origin = "http://127.0.0.1:3000",

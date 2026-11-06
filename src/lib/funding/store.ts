@@ -4,11 +4,24 @@ import {
 } from "./review-v2";
 import { isDeepStrictEqual } from "node:util";
 import path from "node:path";
-import { mkdir, rm, readFile } from "node:fs/promises";
-import { fileLockKey, LockedStore, withLock, writeAtomic } from "../lock";
+import { mkdir, rm } from "node:fs/promises";
+import { fileLockKey, withLock } from "../lock";
 import { emptyFunding, type FundingData } from "./model";
 import { applyFundingEvent, type FundingEvent } from "./review";
 import { importCsv } from "./imports";
+import {
+  readPrivateFile,
+  writePrivateAtomic,
+  assertPrivateDirectory,
+} from "./private";
+import {
+  appendAudit,
+  verifyAudit,
+  type AuditEntry,
+  type AuditInput,
+  type AuditAnchor,
+  type AuditActor,
+} from "./audit";
 export function validateFundingData(value: unknown): FundingData {
   let data = value as FundingData;
   if (
@@ -77,22 +90,25 @@ export function validateFundingData(value: unknown): FundingData {
     throw Error("Funding records do not match their retained inputs.");
   return data;
 }
-export class FundingStore extends LockedStore<FundingData> {
-  protected readonly lockKey: string;
+
+export interface FundingEnvelope {
+  format: "clearline-funding/v2";
+  data: FundingData;
+  audit: AuditEntry[];
+}
+const localActor: AuditActor = { kind: "local_admin", id: "local-process" };
+export class FundingStore {
+  private readonly lockKey: string;
   constructor(private readonly file: string) {
-    super();
     this.lockKey = fileLockKey(file);
   }
-  override update<R>(
-    fn: (
-      data: FundingData,
-    ) => Promise<[FundingData | undefined, R]> | [FundingData | undefined, R],
-  ): Promise<R> {
+  private async locked<R>(job: () => Promise<R>) {
     return withLock(`funding-lease:${this.lockKey}`, async () => {
-      await mkdir(path.dirname(this.file), { recursive: true });
+      await mkdir(path.dirname(this.file), { recursive: true, mode: 0o700 });
+      await assertPrivateDirectory(path.dirname(this.file));
       const lease = `${this.file}.writer`;
       try {
-        await mkdir(lease);
+        await mkdir(lease, { mode: 0o700 });
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code === "EEXIST")
           throw Error(
@@ -101,32 +117,152 @@ export class FundingStore extends LockedStore<FundingData> {
         throw e;
       }
       try {
-        return await super.update(async (before) => {
-          const imports = structuredClone(before.imports),
-            events = structuredClone(before.events);
-          const [next, result] = await fn(before);
-          if (
-            next &&
-            (!isDeepStrictEqual(
-              next.imports.slice(0, imports.length),
-              imports,
-            ) ||
-              next.imports.length < imports.length ||
-              !isDeepStrictEqual(next.events.slice(0, events.length), events) ||
-              next.events.length < events.length)
-          )
-            throw Error("Input and workflow histories are append-only.");
-          return [next, result];
-        });
+        return await job();
       } finally {
         await rm(lease, { recursive: true });
       }
     });
   }
-  override async save(_data: FundingData): Promise<void> {
+  private async readEnvelope(): Promise<FundingEnvelope> {
+    try {
+      const value = JSON.parse(await readPrivateFile(this.file));
+      if (value?.format === "clearline-funding/v2") {
+        if (Object.keys(value).sort().join(",") !== "audit,data,format")
+          throw Error("Unexpected envelope fields.");
+        const data = validateFundingData(value.data);
+        verifyAudit(value.audit, data);
+        return { format: "clearline-funding/v2", data, audit: value.audit };
+      }
+      const data = validateFundingData(value);
+      return {
+        format: "clearline-funding/v2",
+        data,
+        audit: appendAudit(
+          [],
+          {
+            actor: localActor,
+            action: "legacy_migration",
+            details: {
+              legacy_revision: data.revision,
+              note: "Existing source records validated; prior actions were not retrospectively authenticated.",
+            },
+          },
+          data,
+        ),
+      };
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === "ENOENT") {
+        const data = emptyFunding();
+        return {
+          format: "clearline-funding/v2",
+          data,
+          audit: appendAudit(
+            [],
+            { actor: localActor, action: "store_created", details: {} },
+            data,
+          ),
+        };
+      }
+      throw Error(
+        "Funding records or audit cannot be read. Restore a verified backup; no data was reset.",
+        { cause: e },
+      );
+    }
+  }
+  async load() {
+    return (await this.readEnvelope()).data;
+  }
+  async inspectAudit(anchor?: AuditAnchor) {
+    return this.locked(async () => {
+      const envelope = await this.readEnvelope();
+      const current = verifyAudit(envelope.audit, envelope.data, anchor);
+      await writePrivateAtomic(this.file, JSON.stringify(envelope));
+      return { entries: envelope.audit, anchor: current, data: envelope.data };
+    });
+  }
+  async save(_data: FundingData): Promise<void> {
     throw Error(
       "Use update to preserve the current revision and input history.",
     );
+  }
+  async update<R>(
+    fn: (
+      data: FundingData,
+    ) => Promise<[FundingData | undefined, R]> | [FundingData | undefined, R],
+    context: AuditInput = {
+      actor: localActor,
+      action: "local_update",
+      details: {},
+    },
+  ): Promise<R> {
+    return this.locked(async () => {
+      const envelope = await this.readEnvelope(),
+        before = structuredClone(envelope.data),
+        [next, result] = await fn(envelope.data);
+      if (next !== undefined) {
+        if (
+          !isDeepStrictEqual(
+            next.imports.slice(0, before.imports.length),
+            before.imports,
+          ) ||
+          next.imports.length < before.imports.length ||
+          !isDeepStrictEqual(
+            next.events.slice(0, before.events.length),
+            before.events,
+          ) ||
+          next.events.length < before.events.length
+        )
+          throw Error("Input and workflow histories are append-only.");
+        const data = validateFundingData({
+          ...next,
+          revision: before.revision + 1,
+        });
+        const details = {
+          ...context.details,
+          from_revision: before.revision,
+          to_revision: data.revision,
+          imports: data.imports.slice(before.imports.length).map((b) => ({
+            id: b.id,
+            kind: b.kind,
+            sha256: b.sha256,
+            accepted: b.accepted,
+            duplicates: b.duplicates,
+          })),
+          events: data.events.slice(before.events.length).map((e) => ({
+            id: e.id,
+            action: e.action,
+            actor_id: e.actor_id,
+            at: e.at,
+            review: e.review,
+          })),
+        };
+        const audit = appendAudit(
+          envelope.audit,
+          { ...context, details },
+          data,
+        );
+        verifyAudit(audit, data);
+        await writePrivateAtomic(
+          this.file,
+          JSON.stringify({ format: "clearline-funding/v2", data, audit }),
+        );
+      }
+      return result;
+    });
+  }
+  async recordAudit(input: AuditInput, expectedRevision?: number) {
+    return this.locked(async () => {
+      const envelope = await this.readEnvelope();
+      if (
+        expectedRevision !== undefined &&
+        envelope.data.revision !== expectedRevision
+      )
+        throw Error("Records changed. Reload before generating this output.");
+      envelope.audit = appendAudit(envelope.audit, input, envelope.data);
+      verifyAudit(envelope.audit, envelope.data);
+      await writePrivateAtomic(this.file, JSON.stringify(envelope));
+      return envelope.audit.at(-1)!;
+    });
   }
   act(
     input: Omit<
@@ -134,41 +270,27 @@ export class FundingStore extends LockedStore<FundingData> {
       "id" | "review" | "import_count" | "base_revision"
     >,
     expectedRevision: number,
+    actor: AuditActor = localActor,
   ) {
-    return this.update((data) => {
-      if (data.revision !== expectedRevision)
-        throw Error("Records changed. Reload the advance before deciding.");
-      const next = applyFundingEvent(data, {
-        ...input,
-        import_count: data.imports.length,
-        base_revision: data.revision,
-      });
-      return [next, next.events[next.events.length - 1]];
-    });
-  }
-  protected revOf(data: FundingData) {
-    return data.revision;
-  }
-  protected withRev(data: FundingData, revision: number) {
-    return { ...data, revision };
-  }
-  async load(): Promise<FundingData> {
-    let raw: string;
-    try {
-      raw = await readFile(this.file, "utf8");
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code === "ENOENT") return emptyFunding();
-      throw e;
-    }
-    try {
-      return validateFundingData(JSON.parse(raw));
-    } catch {
-      throw Error(
-        "Funding records cannot be read. Restore a verified backup; no data was reset.",
-      );
-    }
-  }
-  protected write(data: FundingData) {
-    return writeAtomic(this.file, JSON.stringify(validateFundingData(data)));
+    return this.update(
+      (data) => {
+        if (data.revision !== expectedRevision)
+          throw Error("Records changed. Reload the advance before deciding.");
+        const next = applyFundingEvent(data, {
+          ...input,
+          import_count: data.imports.length,
+          base_revision: data.revision,
+        });
+        return [next, next.events[next.events.length - 1]];
+      },
+      {
+        actor,
+        action: "decision_recorded",
+        details: {
+          requested_action: input.action,
+          advance_id: input.advance_id,
+        },
+      },
+    );
   }
 }
