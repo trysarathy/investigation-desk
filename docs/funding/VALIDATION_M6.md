@@ -1,29 +1,25 @@
-# M6 candidate validation
+# M6 validation
 
-[VERIFIED] TypeScript typecheck and production Next build exit 0. Full Vitest run: 716 passed, 57 skipped. The new route suite has 17 passing tests. Scoped ESLint passes on new funding server/API/UI/setup/tests; full-repository lint still reports the existing 20 errors and 41 warnings. No claim that those unrelated errors were fixed.
+[VERIFIED] Tested source: PR #87 head `28dc307aeca707cb9425cf10850ec65b85d0fc81`, identical tree `8102bcf44eda210beec1f3f2dacf06f37b6da7e7` to local `abb67fa`. Independent review ran `npx tsc --noEmit` and `npx next build` successfully; `npx vitest run` passed 718 tests, with 57 skipped (29 files passed, one skipped). The focused HTTP/middleware suites contain 19 passing tests. Scoped funding lint passes; full-repository lint retains 20 existing errors and 41 warnings.
 
-The route tests exercise real Request/Response handlers against disposable synthetic stores: authentication, HTTP-only sessions, server-bound identity, Origin and CSRF refusal, maker/checker and viewer restrictions, recorded decline reason, every export format, non-accounting exports without ERP settings, append-only cash classifications, stale bank observation times, remembered provider mappings, future-row visibility, logout/password-revocation invalidation, normal-mode simulation refusal and streaming body limits.
+## Browser acceptance
 
-A local production server reported ready, but a separate HTTP probe could not connect in this environment. Browser acceptance remains **pending**, not passed. The draft-PR workflow runs the actual production server in GitHub Actions with disposable synthetic stores, isolated desktop and phone journeys, console-error assertions, screenshots and build provenance. M6 is not accepted until that run and its screenshots have been reviewed.
+[VERIFIED] [GitHub Actions run 42291114011](https://github.com/trysarathy/investigation-desk/actions/runs/42291114011), job `128144462406`, passed all four Chromium tests: two full journeys and two security cases, at desktop 1280×800 and phone 390×844. No retries, skipped or flaky tests; test duration 17.7 seconds. Both journeys assert no console errors or uncaught page errors throughout. The production build was made without the funding runtime flag, then started with it, testing the documented deployment boundary.
 
-## Review fixes included
+The journeys cover root navigation and title, operator preparation, rejected self-approval, a different treasury user's approval, recorded supplier payout, overdue exception, partial repayment, digest/CSV/XLSX/evidence downloads, normal CSV import with column mapping, and a second advance declined with a required reason and named actor. Anonymous, viewer, impersonation, missing-CSRF and cross-origin mutations are refused. Legacy product routes are unavailable in funding-only mode.
 
-- Reclassification no longer stamps an old bank balance as newly observed; the operator supplies its actual observation time.
-- Generated classification CSVs retain the provider's remembered mapping.
-- Unknown/future advances do not break or leak into the visible queue.
-- Open-advance files and digests do not depend on controller/ERP account mappings.
-- Expired or revoked sessions return 401 on mutation; normal anonymous UI bootstrap uses a quiet data-free session probe.
-- Journal filenames use the existing adapter names and XLSX downloads use workbook bytes.
-- Existing CLI `.js` import specifiers resolve their TypeScript sources in the Next build; CLI semantics remain unchanged.
+[VERIFIED] [Screenshots and provenance artifact](https://github.com/trysarathy/investigation-desk/actions/runs/42291114011/artifacts/13538859744), SHA-256 `5e7348b0d19a5abef4aa648de8ac9b66d9b2ee4a347edb3ecfc9258c6b158e38`, contains approvals, approved evidence, supplier-paid/still-owed, overdue exceptions, partial repayment, settings and declined evidence. Phone captures include viewport and full-page versions. Automated checks find no horizontal overflow. QA inspected desktop approvals/settings and phone partial-repayment/decline: readable amounts, no clipping, visible simulation labels. The artifact records tested merge commit `87a519ef680150ef0cc6350041b7afe775ea4fab`, PR head and exact tree above. GitHub retains the artifact for 30 days; screenshots are not committed binaries.
 
-The browser suite is an acceptance gate, not a substitute for a real provider trial. No public deployment, real customer data, live money, ERP import or communication was tested. Authentication baseline uses one server process; full audit/security/retention work belongs to M7.
+## Defects found and corrected
 
-## First remote browser run
+- Local Chromium could not start: `process_singleton_posix.cc:297 socket() failed: Operation not permitted (1)`. No security restriction was bypassed. The ordinary GitHub-hosted browser workflow supplied executable acceptance evidence.
+- Run 42286677542 passed security cases but exposed the cached earlier-product root redirect to `/requests`. Funding root routing was corrected.
+- Run 42287663427 reached funding but root navigation changed the browser origin and login was correctly refused. Root is now dynamic with its relative server redirect; strict Origin/CSRF protections remain. The test now asserts the full landing URL, not just its path.
+- That second failed run's `error-context.md` captured the randomly generated, disposable synthetic test password. It belonged only to isolated CI stores/servers destroyed after the job; it was not a persistent deployment credential. Later runs redact the exact ephemeral value from diagnostic text before upload, and upload is blocked if sanitization fails. A local nested-file probe verified replacement while preserving provenance. The earlier artifact remains a historical hygiene finding; no credential value is reproduced here.
+- Run 42288599006 completed approval, payout, late/partial repayment and exports, then failed a test locator at Settings. The accessible combobox was present; the harness now selects it by role and exact accessible name. The fourth run completed import and refusal without weakening acceptance.
+- Run 42290037692 passed all four tests. Screenshot review then found another advance's same-customer receipt in the declined case and grouped rather than chronological evidence. The timeline now shows allocated receipts only for their selected advance, labels unallocated exact-reference receipts separately, and sorts by when evidence became known or the decision was recorded. Run 42291114011 passes added receipt-isolation and chronological-order assertions at both viewport sizes. Final declined-case screenshot shows only its own preparation and refusal.
+- Logout clears selected-case and pending-import state. A provider cash classification retains the bank observation time and saved CSV mapping. Unknown/future records do not leak into the queue. Non-accounting exports do not require ERP mappings. Session probing is quiet and data-free before sign-in; revoked/expired mutation sessions fail.
 
-[VERIFIED] GitHub Actions run 42286677542 passed the two security cases but failed both journey cases at initial navigation: `/` served the build-time earlier-product redirect to `/requests`. Runtime funding mode now redirects `/` to `/funding` in middleware before that static page can run. Two focused middleware regressions cover the redirect and legacy-route refusal. The browser assertions remain unchanged; the next remote run is still required.
+## Limits
 
-The runtime redirect uses the configured public origin rather than Next's normalized request hostname. Logout also clears the prior user's selected case and pending import form. Typecheck, scoped lint, the 19 focused middleware/route checks and production build pass for this correction. The remote browser rerun remains required.
-
-## Second remote browser run
-
-[VERIFIED] Run 42287663427 reached the funding page but maker login failed the configured-Origin check after root navigation; direct funding-page viewer login passed. The middleware absolute redirect was not sufficient to preserve the browser origin through Next's adapter. Root is now explicitly dynamic and uses its existing relative server redirect. Middleware still refuses legacy routes and does not rewrite the root hostname. Origin/CSRF checks and the browser journey remain strict; the harness now also asserts the exact landing origin. A fresh remote run is required.
+[VERIFIED] This validates a synthetic, single-process provider deployment. No public deployment, real customer data, live money, bank delivery, ERP import, email or webhook delivery was tested. Browser coverage is Chromium, including a phone-sized viewport; Safari, Firefox and physical devices are unverified. Hashes establish evidence-pack consistency, not source authenticity. Authentication baseline is present; append-only audit, further hardening and retention work belong to M7. A passing demo does not establish willingness to pay or safe use with real provider data.
