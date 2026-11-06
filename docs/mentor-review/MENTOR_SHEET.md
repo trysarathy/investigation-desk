@@ -37,3 +37,39 @@
 ## The question that can kill the thesis
 
 [ASSUMPTION] “If we put the right evidence in front of you earlier, could you actually take a different action, or is the blocker simply unavailable credit or a fixed contract?”
+
+## Competitor questions
+
+These answers use the supplied competitor pack’s topics, with the named primary pages opened again on 2026-11-06. Vendor descriptions are claims about advertised capability, not independent performance tests. The pack’s 7 November date has not been adopted as this review’s date.
+
+### Why won’t Nium or Airwallex build this?
+
+1. [ASSUMPTION] “They could. I have no evidence that they won’t.”
+2. [VERIFIED — [Nium documentation](https://docs.nium.com/docs/payins/program-client-and-client-prefund-account), opened 2026-11-06] “Nium already documents prefund accounts; that alone doesn’t prove it advances money to importers.”
+3. [VERIFIED — [Airwallex Singapore](https://www.airwallex.com/en-sg), opened 2026-11-06] “Airwallex offers payouts and embedded-finance APIs, including for financial-services businesses.”
+4. [ASSUMPTION] “My proposed starting point is a file-based view of outstanding advances across a provider’s existing records.”
+5. [ASSUMPTION — unknown] “I don’t know whether that is enough to win. Five case replays should tell us whether their existing tools already handle it.”
+
+### Isn’t this Modern Treasury?
+
+1. [VERIFIED — [Modern Treasury lending](https://www.moderntreasury.com/solutions/lending), opened 2026-11-06] “There is real overlap: it advertises disbursements, repayment collection and matching repayments to loans.”
+2. [VERIFIED — same source] “It also describes keeping each capital partner’s money in separate accounts.”
+3. [ASSUMPTION] “Clearline’s proposed first deliverable is an open-advances file and exceptions list, using records the provider already has.”
+4. [ASSUMPTION] “That could suit a team that wants a narrow reconciliation job without changing its payment setup.”
+5. [ASSUMPTION — unknown] “I haven’t proved it is easier or cheaper. We should compare the same five cases against their spreadsheet and a configured incumbent.”
+
+### Isn’t this Taktile?
+
+1. [VERIFIED — [Taktile](https://taktile.com/), opened 2026-11-06] “Taktile advertises business onboarding and underwriting workflows.”
+2. [VERIFIED — same source] “Its business-underwriting description includes automating applications and supporting complex reviews.”
+3. [ASSUMPTION — scope] “Clearline leaves the credit decision with the provider and starts with what happens to an advance and its repayment records.”
+4. [ASSUMPTION] “That is a different first job, but it is not evidence that Taktile or a customer using it couldn’t add it.”
+5. [ASSUMPTION — unknown] “I don’t know yet whether the remaining operations work needs a separate tool.”
+
+### What if importers just get credit elsewhere?
+
+1. [VERIFIED — [Ebury supplier finance](https://ebury.com/products/financing/supplier-payment-finance), opened 2026-11-06] “That is a real alternative: Ebury advertises paying suppliers while its customer settles later.”
+2. [VERIFIED — same source] “Its page says product availability varies by country, so I can’t assume every importer qualifies.”
+3. [ASSUMPTION] “Clearline does not remove the need for capital or replace a credit facility.”
+4. [ASSUMPTION] “It only has a job if a provider still carries advances and spends meaningful effort finding what remains unpaid.”
+5. [ASSUMPTION — stop condition] “If customers can get suitable credit elsewhere and the provider stops advancing funds, that provider is outside our first market.”
