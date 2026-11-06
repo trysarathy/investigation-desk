@@ -99,6 +99,7 @@ describe.skipIf(!!process.env.RECORD_FREEZE)("issuer freeze, replayed from real 
       const c = await readIssuerFreeze(depsFor(down, at().toISOString()), q, at);
       expect(c.state).toBe("not_run");
       expect(releaseHeadline({
+        network: { state: "passed", detail: "Right network." }, address: { state: "passed", detail: "Right receiving address." },
         finality: { state: "passed", detail: "x" }, token: { state: "passed", detail: "x" }, amount: { state: "passed", detail: "x" },
         sanctions: { state: "passed", detail: "x", list: "OFAC SDN", listDate: "2026-10-31" }, freeze: c,
       }).headline).toMatch(/Freeze status NOT checked\.$/);
