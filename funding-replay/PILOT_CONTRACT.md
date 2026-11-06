@@ -278,3 +278,13 @@ touchpoints?, evidence_requests?, decision_hours?, deadline_met?, outcome?, sour
 number labelled `recorded|estimated|synthetic|computed|not measured`; with no baseline every baseline cell is "not
 measured". Never reports capital released, advance principal or transferred credit risk as savings (the report states
 this explicitly).
+
+13.10 **Rules settled by the second challenger round (binding).** (a) Facts that satisfy `required_evidence` must be
+`scope=case`; importer-scoped records are context only. (b) An `invoice` satisfies the policy only if its normalised
+ref, currency and amount equal the case's invoice_ref and payout. (c) Balances in a currency other than the funding
+currency never satisfy route C. (d) The duplicate check considers the case invoice_ref and every active invoice
+observation; a potential match is cleared only by `resolve_duplicate_check` and blocks both `request_advance` and
+`approve_and_reserve`. (e) Fee, due date, allocation rule and policy version are bound at approval; a reserved/drawn
+case shows the approved terms (`header.current_policy_version` shows the facility's current one). (f) Money shortfalls
+are the binding constraint even when evidence is also missing. (g) API/export event ids are per-case `seq`; evidence
+ids `EV-n` are numbered per org (no cross-org volume signal). (h) `?as_of=` later than the server clock → 422.

@@ -230,6 +230,13 @@ class CaseState(object):
                 out.append(o)
         return out
 
+    def allocation_rule(self):
+        """Repayment allocation: the rule bound at approval (§13.1); the facility's current rule only when the
+        approval predates bound terms and none could be resolved."""
+        if self.approval and self.approval.get("allocation") in ("fees_first", "principal_first"):
+            return self.approval["allocation"]
+        return (self.facility or {}).get("allocation", "fees_first")
+
     def later_permitted(self, now):
         terms = self.active_observations(now, "terms")
         if terms:
@@ -618,7 +625,8 @@ def _judge(s, ev, decision, reason, **extra):
 
 def _h_dup_check(s, ev, p, known):
     s.dup_check = {"status": p["status"], "matches": list(p.get("matches") or []), "text": p.get("text"),
-                   "trigger": p.get("trigger"), "at": ev["known_at"], "seq": ev["seq"], "reason": None}
+                   "trigger": p.get("trigger"), "at": ev["known_at"], "seq": ev["seq"], "reason": None,
+                   "reasons": dict(p.get("reasons") or {})}
     s.dup_history.append(dict(s.dup_check))
     return "Same-provider duplicate check (%s): %s" % (p.get("trigger") or "intake", p.get("text"))
 
@@ -914,24 +922,64 @@ def _route_b(s, fac, now, facts):
 
 
 def _policy_fact(s, fac, kind, now, facts, r):
-    """§13.4: every kind in the facility's required evidence must be active, non-stale, non-conflicting."""
+    """§13.4: every kind in the facility's required evidence must be active, non-stale, non-conflicting.
+
+    Only case-scoped records satisfy a policy requirement; importer-scoped records are context (shown, never
+    counted). A balance must be in the funding currency. An invoice must carry the case invoice reference
+    (normalised) and the case payout currency and amount."""
     status, conflicts = facts
     pol = fac["policy_version"]
-    cands = s.active_observations(now, kind)
-    if kind == "invoice" and s.case.get("invoice_ref"):
-        want = norm_ref(s.case["invoice_ref"])
-        match = [o for o in cands if norm_ref(o["data"].get("invoice_ref")) == want]
-        if cands and not match:
+    label = kind.replace("_", " ")
+    every = s.active_observations(now, kind)
+    cands = [o for o in every if (o.get("scope") or "case") == "case"]
+    if every and not cands:
+        o = every[-1]
+        _blk(r, "missing", "policy_requires_%s" % kind, "evidence",
+             "Policy %s requires %s: not on record for this case (the %s on record is importer-scoped context, "
+             "not case evidence). Add a case-scoped %s." % (pol, label, label, label), [o["evidence_id"]])
+        r["observation_ids"].append(o["id"])
+        return
+    if kind == "balance" and cands:
+        same = [o for o in cands if o["data"]["money"].currency == s.funding.currency]
+        if not same:
             o = cands[-1]
-            _blk(r, "missing", "invoice_ref_mismatch", "evidence",
-                 "Policy %s requires invoice: the invoice on record (%s) does not match the case invoice reference %s."
-                 % (pol, o["data"].get("invoice_ref"), s.case["invoice_ref"]), [o["evidence_id"]])
+            _blk(r, "missing", "policy_balance_other_currency", "evidence",
+                 "Policy %s requires balance: the importer balance on record is in %s; it cannot be counted against "
+                 "a %s need. Add a %s balance." % (pol, o["data"]["money"].currency, s.funding.currency,
+                                                    s.funding.currency), [o["evidence_id"]])
             r["observation_ids"].append(o["id"])
             return
-        cands = match
+        cands = same
+    if kind == "invoice" and cands:
+        if s.case.get("invoice_ref"):
+            want = norm_ref(s.case["invoice_ref"])
+            match = [o for o in cands if norm_ref(o["data"].get("invoice_ref")) == want]
+            if not match:
+                o = cands[-1]
+                _blk(r, "missing", "invoice_ref_mismatch", "evidence",
+                     "Policy %s requires invoice: the invoice on record (%s) does not match the case invoice "
+                     "reference %s." % (pol, o["data"].get("invoice_ref"), s.case["invoice_ref"]), [o["evidence_id"]])
+                r["observation_ids"].append(o["id"])
+                return
+            cands = match
+        exact = [o for o in cands if o["data"]["money"] == s.payout]
+        if not exact:
+            o = cands[-1]
+            m = o["data"]["money"]
+            if m.currency != s.payout.currency:
+                code, why = "invoice_currency_mismatch", "is in %s; the case payout is in %s" % (
+                    m.currency, s.payout.currency)
+            else:
+                code, why = "invoice_amount_mismatch", "is for %s; the case payout is %s" % (m, s.payout)
+            _blk(r, "missing", code, "evidence",
+                 "Policy %s requires invoice: the invoice on record (%s, %s) %s. Correct the invoice record or the "
+                 "case." % (pol, o["data"].get("invoice_ref"), m, why), [o["evidence_id"]])
+            r["observation_ids"].append(o["id"])
+            return
+        cands = exact
     if not cands:
         _blk(r, "missing", "policy_requires_%s" % kind, "evidence",
-             "Policy %s requires %s: not on record" % (pol, kind.replace("_", " ")))
+             "Policy %s requires %s: not on record" % (pol, label))
         return
     key = KIND_TIME_KEY.get(kind)
     o = max(cands, key=lambda x: ((x["data"].get(key) or x["known_at"]) if key else x["known_at"], x["known_at"], x["seq"]))
@@ -961,10 +1009,18 @@ def _route_c(s, fac, cap, now, facts):
     lead = _dt.timedelta(hours=fac["payout_lead_hours"])
     r["needed_at"] = time_json(s.deadline - lead, s.tz)
     fee = fee_minor(fac, s.funding.minor) if fac["currency"] == s.funding.currency else fac["fee_flat_minor"]
-    r["cost"] = "%s facility fee (policy %s)" % (mtext(fee, fac["currency"]), fac["policy_version"])
+    pol = fac["policy_version"]
+    req_kinds = required_kinds(fac)
+    if s.auth in ("reserved", "consumed") and s.approval:
+        # An approved advance keeps the terms bound at approval; new requests use the current terms.
+        fee = s.approval.get("fee_minor", fee)
+        pol = s.approval.get("policy_version") or pol
+        req_kinds = s.approval.get("required_evidence") or req_kinds
+        r["terms_source"] = "approval"
+    r["cost"] = "%s facility fee (policy %s)" % (mtext(fee, fac["currency"]), pol)
     r["fee"] = mtext(fee, fac["currency"])
-    r["policy_version"] = fac["policy_version"]
-    r["required_evidence"] = required_kinds(fac)
+    r["policy_version"] = pol
+    r["required_evidence"] = req_kinds
     r["whose_money"] = "Provider's funding account (facility %s)" % fac["id"]
     if s.auth in ("reserved", "consumed"):
         r["selected"] = True
@@ -998,8 +1054,15 @@ def _route_c(s, fac, cap, now, facts):
     for kind in req:
         _policy_fact(s, fac, kind, now, facts, r)
     if "balance" not in req:
-        bal = _latest(s.active_observations(now, "balance"), "as_of")
-        if bal is None:
+        bals = s.active_observations(now, "balance")
+        bal = _latest([o for o in bals if o["data"]["money"].currency == s.funding.currency], "as_of")
+        other = _latest(bals, "as_of") if bal is None else None
+        if other is not None:
+            _blk(r, "missing", "balance_other_currency", "evidence",
+                 "Importer balance is in %s; it cannot be counted against a %s need. Add a %s balance."
+                 % (other["data"]["money"].currency, s.funding.currency, s.funding.currency), [other["evidence_id"]])
+            r["observation_ids"].append(other["id"])
+        elif bal is None:
             _blk(r, "missing", "balance_missing", "evidence",
                  "No importer balance on record; add one (with evidence) before requesting an advance.")
         else:
@@ -1028,7 +1091,7 @@ def mark_selected(s, routes):
 def allocate(s, item):
     """Allocate one repayment item per the facility rule. Returns dict of minor amounts + unmatched reason."""
     m = item["money"]
-    alloc = (s.facility or {}).get("allocation", "fees_first")
+    alloc = s.allocation_rule()
     if m.currency != s.fac_ccy:
         return {"fees": 0, "principal": 0, "unmatched": m.minor, "reason": "wrong_currency",
                 "text": "Wrong currency: %s received; repayments are matched in %s only. Return it to the payer."
@@ -1193,6 +1256,10 @@ def precheck(s, cmd, params, now, actor=None, routes=None, connector_ok=True):
         if cmd == "approve_and_reserve":
             if actor is not None and s.request and s.request["by"] == actor:
                 raise DomainError(403, "four_eyes", "You requested this advance; a different reviewer must approve it.")
+            if dup == "potential_match":
+                raise DomainError(409, "potential_duplicate", "Possible duplicate of %s in this provider's book: "
+                                  "resolve the duplicate check before approving. Nothing was reserved."
+                                  % ", ".join(s.dup_check["matches"]))
             r = route("C")
             if r and (r.get("capacity_ok") is False or r.get("cash_ok") is False):
                 raise DomainError(409, "insufficient_capacity", "Insufficient capacity: %s Nothing was reserved." % " ".join(
@@ -1427,7 +1494,7 @@ def exposure_panel(s, now):
             "owed_by": s.case["importer"] if s.draw else None,
             "owed_to": ("Provider (facility %s)" % s.facility["id"]) if (s.draw and s.facility) else None,
             "allocation_rule": ("Fees first, then principal; excess held as unmatched"
-                                if (s.facility or {}).get("allocation", "fees_first") == "fees_first"
+                                if s.allocation_rule() == "fees_first"
                                 else "Principal first, then fees; excess held as unmatched")}
 
 
@@ -1484,9 +1551,10 @@ def decision(s, routes, now):
             s.dup_check["matches"]), "Reviewer confirmed a duplicate in this provider's book",
             {"label": "Close with exception", "command": "close_with_exception", "role": "reviewer",
              "params": {"disposition": "duplicate_case"}}, "reviewer")
-    if dup == "potential_match" and not s.committed() and s.auth not in ("requested", "consumed") and not lp:
+    if dup == "potential_match" and not s.committed() and s.auth not in ("consumed",) and not lp:
         return dec("review", "Possible duplicate in this provider's book (%s): a reviewer must resolve the duplicate "
-                   "check before an advance can be requested." % ", ".join(s.dup_check["matches"]),
+                   "check before an advance can be %s." % (", ".join(s.dup_check["matches"]),
+                                                          "approved" if s.auth == "requested" else "requested"),
                    "Same-provider duplicate check", {"label": "Resolve duplicate check",
                                                      "command": "resolve_duplicate_check", "role": "reviewer"},
                    "reviewer")
@@ -1584,7 +1652,7 @@ def decision(s, routes, now):
             hl += " Route %s cannot be confirmed yet (evidence missing or stale)." % " and ".join(unk)
         return dec("decide", hl, "Supplier deadline %s" % local_text(s.deadline, s.tz), _route_next(routes), "operator")
     rc = next((r for r in routes if r["key"] == "C"), None)
-    if rc and rc["status"] == "infeasible" and not rc["missing"]:
+    if rc and rc["status"] == "infeasible":
         money = [b for b in rc["blockers"] if b["kind"] in ("cash", "credit")]
         if money:
             # Evidence cannot create money: the next step is outside the tool (provider treasury / credit).
@@ -1598,8 +1666,13 @@ def decision(s, routes, now):
                     short.append(bl["text"])
             nxt = {"label": "Refer to provider treasury: %s; or record Option A/B if feasible" % "; ".join(short),
                    "command": None, "role": "reviewer", "outside_tool": True}
-            return dec("blocked", "No feasible route: route C is blocked even with complete evidence — %s" % " ".join(
-                b["text"] for b in money), money[0]["text"], nxt, "reviewer")
+            if rc["missing"]:
+                hl = ("No feasible route: route C is short of money that no evidence can supply — %s Evidence is also "
+                      "missing: %s" % (" ".join(b["text"] for b in money), " ".join(rc["missing"])))
+            else:
+                hl = "No feasible route: route C is blocked even with complete evidence — %s" % " ".join(
+                    b["text"] for b in money)
+            return dec("blocked", hl, money[0]["text"], nxt, "reviewer")
     unknown = [r for r in routes if r["status"] == "unknown"]
     if unknown:
         miss = unknown[0]["missing"][0]

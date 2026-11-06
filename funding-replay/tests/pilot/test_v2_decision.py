@@ -94,7 +94,9 @@ class ScenarioBTest(ServerCase):
         db.set_clock("2026-12-01T03:00:00Z")
         op.relogin(); rv.relogin(); rv2.relogin()
         ev = self.assertOk(op.evidence(cid, "invoice.pdf", "application/pdf", b"%PDF-1.4 synthetic invoice"), 201)
-        v = self.assertOk(op.cmd(cid, "add_observation", kind="invoice", amount="61,400.00", currency="EUR",
+        # §13.4 / challenger v2: the invoice must carry the case payout currency and amount to satisfy the policy.
+        payout = v["header"]["payout"].split(" ", 1)[1]
+        v = self.assertOk(op.cmd(cid, "add_observation", kind="invoice", amount=payout, currency="EUR",
                                  invoice_ref="inv lo 2026 7781", issuer="Lindqvist Optics AB",
                                  issued_at="2026-11-30T02:00:00Z", record_ref="LO-7781",
                                  evidence_id=ev["evidence_added"]["id"]))

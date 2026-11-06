@@ -90,17 +90,50 @@ def load_facility(conn, facility_id):
 
 
 def load_events(conn, case_id):
+    """The case's events in order. The exposed event id is the per-case sequence number (`id` = `seq`), so an id
+    never reveals another organisation's activity; the global row id stays internal as `row_id`, and
+    `corrects_event_id` is translated to the corrected event's per-case seq."""
     out = []
+    seq_of = {}
     for r in db.all_rows(conn, "SELECT e.*, u.name AS actor_name FROM events e LEFT JOIN users u "
                                "ON u.id = e.actor_user_id WHERE e.case_id=? ORDER BY e.seq", (case_id,)):
         r["payload"] = json.loads(r["payload"] or "{}")
+        r["row_id"] = r["id"]
+        seq_of[r["id"]] = r["seq"]
+        r["id"] = r["seq"]
+        if r.get("corrects_event_id") is not None:
+            r["corrects_event_id"] = seq_of.get(r["corrects_event_id"])
         out.append(r)
     return out
 
 
+def event_row_id(conn, case_id, seq):
+    row = conn.execute("SELECT id FROM events WHERE case_id=? AND seq=?", (case_id, seq)).fetchone()
+    return row[0] if row else None
+
+
+def bind_approval_terms(conn, st):
+    """Resolve the repayment allocation bound at approval for approvals recorded before it was stored in the
+    approval payload: from facility_version_id, else from the approval's policy version."""
+    ap = st.approval
+    if not ap or ap.get("allocation") in ("fees_first", "principal_first"):
+        return st
+    row = None
+    if ap.get("facility_version_id"):
+        row = db.one(conn, "SELECT terms FROM facility_versions WHERE id=?", (ap["facility_version_id"],))
+    if row is None and ap.get("policy_version"):
+        row = db.one(conn, "SELECT terms FROM facility_versions WHERE facility_id=? AND policy_version=?",
+                     (ap.get("facility_id") or st.case.get("facility_id"), ap["policy_version"]))
+    if row is not None:
+        alloc = json.loads(row["terms"] or "{}").get("allocation")
+        if alloc in ("fees_first", "principal_first"):
+            ap["allocation"] = alloc
+    return st
+
+
 def build_state(conn, case):
     fac = load_facility(conn, case["facility_id"])
-    return domain.fold(case, load_events(conn, case["id"]), fac)
+    return bind_approval_terms(conn, domain.fold(case, load_events(conn, case["id"]), fac))
 
 
 def table_totals(conn, facility_id, exclude_case=None):
@@ -442,9 +475,20 @@ def duplicate_matches(conn, case, extra_refs=()):
 
 
 def run_duplicate_check(conn, case, user, trigger, extra_refs=()):
+    """Re-run the check against the case invoice_ref plus EVERY active invoice observation on the case. A potential
+    match is never cleared by the check itself: only a reviewer's resolve_duplicate_check clears it."""
     st = build_state(conn, case)
     prev = st.dup_check
-    found = duplicate_matches(conn, case, extra_refs)
+    refs = [o["data"].get("invoice_ref") for o in st.active_observations(db.now(), "invoice")]
+    refs += [r for r in extra_refs if r]
+    found = duplicate_matches(conn, case, refs)
+    if prev and prev["status"] == "potential_match":
+        have = {m[0] for m in found}
+        reasons = (prev.get("reasons") or {})
+        for mid in prev["matches"]:
+            if mid not in have:
+                found.append((mid, reasons.get(mid) or "earlier potential match, awaiting reviewer resolution"))
+        found.sort()
     ids = [m[0] for m in found]
     if prev and prev["status"] == "duplicate":
         return
@@ -562,8 +606,9 @@ def h_supersede(c):
         raise CommandError(422, "validation_failed", "A correction keeps the same kind (%s)." % old["kind"], "kind")
     p, eff, prov, errors = validate_observation(params, c.now, c.state)
     _raise_fields(errors)
-    p["replaces"] = eid
-    _ev(c, "observation_superseded", p, prov, effective_at=db.iso(eff) if eff else None, reason=reason, corrects=eid)
+    p["replaces"] = eid  # per-case event seq (the exposed event id)
+    _ev(c, "observation_superseded", p, prov, effective_at=db.iso(eff) if eff else None, reason=reason,
+        corrects=event_row_id(c.conn, c.case["id"], eid))
     if p["kind"] == "invoice":
         run_duplicate_check(c.conn, c.case, c.user, "invoice", [p.get("invoice_ref")])
 
@@ -612,6 +657,7 @@ def h_approve(c):
     _ev(c, "advance_approved", {"facility_id": fac["id"], "amount_minor": need, "fee_minor": fee, "due_at": db.iso(due),
                                 "expires_at": db.iso(expires), "policy_version": fac["policy_version"],
                                 "facility_version_id": fv["id"] if fv else None,
+                                "allocation": fac["allocation"],
                                 "required_evidence": domain.required_kinds(fac),
                                 "reservation_id": cur.lastrowid, "requested_by": c.state.request["by"],
                                 "evidence_ids": sorted(c.state.evidence.keys()),
@@ -838,7 +884,7 @@ def h_match(c):
     _ev(c, "repayment_matched", {"match_id": mid, "repayment_id": rid, "fees_minor": a["fees"],
                                  "principal_minor": a["principal"], "unmatched_minor": a["unmatched"],
                                  "unmatched_id": uid, "unmatched_reason": a["reason"], "unmatched_text": a["text"],
-                                 "allocation_rule": (c.fac or {}).get("allocation", "fees_first")})
+                                 "allocation_rule": c.state.allocation_rule()})
 
 
 def h_dup(c):
@@ -1264,7 +1310,7 @@ def add_evidence(conn, user, case_id, body):
         cur = conn.execute("INSERT INTO evidence(org_id, case_id, filename, content_type, size, sha256, data, provenance, "
                            "known_at) VALUES (?,?,?,?,?,?,?, 'external_record', ?)",
                            (org, case_id, fname, ctype, len(data), digest, sqlite3.Binary(data), db.iso(now)))
-        eid = "EV-%d" % cur.lastrowid
+        eid = "EV-%d" % next_evidence_number(conn, org)
         event_id, _ = append_event(conn, case, "evidence_added", {"evidence_id": eid, "filename": fname,
                                                                   "content_type": ctype, "size": len(data),
                                                                   "sha256": digest}, user, "external_record",
@@ -1279,11 +1325,24 @@ def add_evidence(conn, user, case_id, body):
     return 201, resp
 
 
+def next_evidence_number(conn, org_id):
+    """Evidence numbers (EV-<n>) are allocated per organisation, so an id never reveals another organisation's
+    upload volume. The number lives in the append-only `evidence_added` event (the public id was always written
+    there); the evidence row keeps its global rowid as the internal key. Databases from before this rule keep their
+    numbers (they were globally unique, hence unique per organisation too); new numbers continue after the
+    organisation's highest. Caller holds the write transaction (BEGIN IMMEDIATE), so allocation is serialised."""
+    row = conn.execute("SELECT MAX(CAST(substr(json_extract(payload, '$.evidence_id'), 4) AS INTEGER)) FROM events "
+                       "WHERE org_id=? AND type='evidence_added'", (org_id,)).fetchone()
+    return (row[0] or 0) + 1
+
+
 def get_evidence(conn, user, case_id, evidence_id):
     if not isinstance(evidence_id, str) or not evidence_id.startswith("EV-") or not evidence_id[3:].isdigit():
         return None
-    return db.one(conn, "SELECT * FROM evidence WHERE id=? AND case_id=? AND org_id=?",
-                  (int(evidence_id[3:]), case_id, user["org_id"]))
+    return db.one(conn, "SELECT ev.* FROM evidence ev JOIN events e ON e.id = ev.event_id AND e.case_id = ev.case_id "
+                        "WHERE ev.case_id=? AND ev.org_id=? AND e.type='evidence_added' "
+                        "AND json_extract(e.payload, '$.evidence_id')=?",
+                  (case_id, user["org_id"], evidence_id))
 
 
 # ---------------------------------------------------------------- connector ingestion
@@ -1436,7 +1495,10 @@ def case_view(conn, user, case, st=None, now=None, replay=None):
                    "deadline_local": domain.local_text(dl, tz), "deadline_tz": tz, "deadline_utc": db.iso(dl),
                    "owner": {"id": owner, "name": _user_name(users, owner)} if owner else None,
                    "reference": case["reference"], "facility_id": case["facility_id"],
-                   "policy_version": fac["policy_version"] if fac else None,
+                   "policy_version": ((st.approval or {}).get("policy_version")
+                                      if st.auth in ("reserved", "consumed") and st.approval else None)
+                                     or (fac["policy_version"] if fac else None),
+                   "current_policy_version": fac["policy_version"] if fac else None,
                    "window_a": {"at": time_json(case["window_a_at"], tz), "cutoff": time_json(case["window_a_cutoff_at"], tz)},
                    "window_b": ({"at": time_json(case["window_b_at"], tz), "cutoff": time_json(case["window_b_cutoff_at"], tz)}
                                 if case["window_b_at"] else None),
@@ -1528,10 +1590,14 @@ def read_case_as_of(conn, user, case_id, as_of):
         return None
     if db.parse_iso(case["created_at"]) > at:
         raise CommandError(404, "not_found", "This case was not yet on record at %s." % db.iso(at))
+    if at > db.now():
+        raise CommandError(422, "replay_in_future", "Replay time is in the future: %s is after the server time %s. "
+                           "A replay shows only what was known; it is not a projection." % (db.iso(at), db.now_iso()),
+                           "as_of")
     events = [e for e in load_events(conn, case_id) if db.parse_iso(e["known_at"]) <= at]
     fac = facility_as_of(conn, case["facility_id"], at) if case["facility_id"] else None
     c2 = dict(case, owner_user_id=None)
-    st = domain.fold(c2, events, fac)
+    st = bind_approval_terms(conn, domain.fold(c2, events, fac))
     cap = replay_capacity(conn, fac, at, case_id) if fac else None
     return case_view(conn, user, c2, st, at, replay={"as_of": at, "cap": cap})
 
@@ -1685,6 +1751,7 @@ def export_case(conn, user, case_id, fmt):
         return None
     events = load_events(conn, case_id)
     for e in events:
+        e.pop("row_id", None)  # the exported event id is the per-case seq; global row ids stay internal
         e["actor"] = {"name": e.get("actor_name") or ("Sandbox provider" if e["provenance"] == "sandbox_simulation"
                                                       else "System"), "role": e.get("actor_role")}
     try:

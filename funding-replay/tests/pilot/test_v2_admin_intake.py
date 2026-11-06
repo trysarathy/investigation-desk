@@ -172,7 +172,9 @@ class FacilityAdminTest(ServerCase):
         rc = self.route(op.case(cid2).json, "C")
         self.assertEqual(rc["status"], "unknown")
         self.assertIn("Policy POL-HL v2 requires invoice: not on record", rc["missing"])
-        self.assertOk(op.cmd(cid2, "add_observation", kind="invoice", amount="61,400.00", currency="EUR",
+        # §13.4 / challenger v2: the invoice must carry the case payout currency and amount to satisfy the policy.
+        self.assertOk(op.cmd(cid2, "add_observation", kind="invoice", amount=v2["header"]["payout"].split(" ", 1)[1],
+                             currency="EUR",
                              invoice_ref=v2["header"]["invoice_ref"], issuer="Lindqvist Optics AB",
                              issued_at="2026-11-28T02:00:00Z"))
         self.assertOk(op.cmd(cid2, "request_advance", reason="r"))
