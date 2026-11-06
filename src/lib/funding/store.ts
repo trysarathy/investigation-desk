@@ -1,3 +1,7 @@
+import {
+  applyFundingEvent as applyLegacyEvent,
+  type FundingEvent as LegacyEvent,
+} from "./review-v2";
 import { isDeepStrictEqual } from "node:util";
 import path from "node:path";
 import { mkdir, rm, readFile } from "node:fs/promises";
@@ -51,7 +55,10 @@ export function validateFundingData(value: unknown): FundingData {
     }
     rebuilt.revision = event.base_revision;
     const { id: _id, review: _review, ...input } = event;
-    rebuilt = applyFundingEvent(rebuilt, input);
+    rebuilt =
+      event.engine_version === undefined
+        ? applyLegacyEvent(rebuilt, input as Omit<LegacyEvent, "id" | "review">)
+        : applyFundingEvent(rebuilt, input);
   }
   while (imported < data.imports.length) {
     const b = data.imports[imported++];

@@ -12,7 +12,7 @@ export const columns: Record<ImportKind, string[]> = {
 export function validateRow(kind: ImportKind, row: Record<string, string>) {
   for (const key of columns[kind]) {
     if (typeof row[key] !== 'string' || row[key].length > 1000 || /[\u0000-\u001f]/.test(row[key]) || row[key].trim() !== row[key]) throw Error(`${key}: use plain text without surrounding whitespace.`);
-    if (!row[key] && !['terms', 'invoice_ref', 'reference'].includes(key)) throw Error(`${key} is required.`);
+    if (!row[key] && !['terms', 'invoice_ref', 'reference'].includes(key) && !(kind === 'receipts' && key === 'customer_id')) throw Error(`${key} is required.`);
   }
   instant(row.effective_at); instant(row.known_at);
   if (instant(row.known_at) < instant(row.effective_at)) throw Error('The known time cannot be before the event happened.');
@@ -47,7 +47,7 @@ export function importCsv(data: FundingData, kind: ImportKind, text: string, map
       validateRow(kind, row);
       if (kind === 'advances' && !next.customers.some(c => c.id === row.customer_id && c.currency === row.currency)) throw Error('Import this customer and its currency before its advances.');
       if (kind === 'payouts' && !next.advances.some(a => a.id === row.advance_id && a.currency === row.currency && a.account === row.account)) throw Error('The payout must name an existing advance with the same currency and account.');
-      if (kind === 'receipts' && !next.customers.some(c => c.id === row.customer_id)) throw Error('Import the customer before its receipts.');
+      if (kind === 'receipts' && row.customer_id && !next.customers.some(c => c.id === row.customer_id)) throw Error('Import the customer before its receipts.');
       const previous = records.find(r => r.id === row.id);
       if (previous) {
         if (columns[kind].some(k => previous[k] !== row[k])) throw Error(`Record ${row.id} already exists with different values; correct the source rather than overwriting history.`);

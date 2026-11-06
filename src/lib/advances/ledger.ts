@@ -1,3 +1,4 @@
+import { allocateCapped } from './allocation.js';
 import { parseCsv } from '../csv/parse.js';
 import { csvCell } from '../csv/cell.js';
 import { add, sub } from '../payments/money.js';
@@ -51,8 +52,7 @@ export function replay(payouts: string, bank: string, asOf: string) {
     if (event.kind === 'importer_receipt') { a.importerReceipt = 'yes'; a.evidence += `;${source}`; continue; }
     if (event.account_id !== a.provider_account) { flag(a.advance_id, 'provider account mismatch', source, event.amount, event.currency); continue; }
     if (event.currency !== a.currency) { flag(a.advance_id, 'wrong currency', source, event.amount, event.currency); continue; }
-    const applied = cents(event.amount) > cents(a.owed) ? a.owed : event.amount;
-    const excess = sub(event.amount, applied);
+    const { applied, excess } = allocateCapped(event.amount, a.owed);
     a.repaid = add(a.repaid, applied); a.owed = sub(a.owed, applied); a.evidence += `;${source}`;
     if (cents(excess) > 0n) flag(a.advance_id, 'unapplied overpayment', source, excess, a.currency);
   }
