@@ -1,3 +1,4 @@
+import type { FundingEvent } from './review';
 import { add, sub } from '../payments/money';
 export type Currency = 'SGD' | 'USD';
 export type Role = 'operator' | 'approver' | 'viewer';
@@ -15,8 +16,8 @@ export interface InputRows { customers: Customer[]; advances: Advance[]; payouts
 export type ImportKind = keyof InputRows;
 export type ColumnMapping = Record<string, string>;
 export interface ImportBatch { id: string; kind: ImportKind; filename: string; sha256: string; text: string; mapping: ColumnMapping; imported_at: string; accepted: number; duplicates: string[]; }
-export interface FundingData extends InputRows { version: 1; revision: number; mappings: Partial<Record<ImportKind, ColumnMapping>>; imports: ImportBatch[]; decisions: Decision[]; users: User[]; }
-export const emptyFunding = (): FundingData => ({ version: 1, revision: 0, mappings: {}, imports: [], customers: [], advances: [], payouts: [], receipts: [], cash: [], decisions: [], users: [] });
+export interface FundingData extends InputRows { version: 1; events: FundingEvent[]; revision: number; mappings: Partial<Record<ImportKind, ColumnMapping>>; imports: ImportBatch[]; decisions: Decision[]; users: User[]; }
+export const emptyFunding = (): FundingData => ({ version: 1, events: [], revision: 0, mappings: {}, imports: [], customers: [], advances: [], payouts: [], receipts: [], cash: [], decisions: [], users: [] });
 export function amount(value: string): string {
   if (!/^(0|[1-9]\d{0,14})(\.\d{1,2})?$/.test(value)) throw Error('Use a nonnegative amount with at most two decimal places.');
   return add(value, '0');
