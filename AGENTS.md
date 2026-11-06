@@ -1,115 +1,58 @@
-# Clearline: the team
+# Clearline: roles and working rules
 
-Aashmiin Kaur is the founder and the only human. Everyone below is an AI employee: a Claude Code
-subagent defined in `.claude/agents/<name>.md`, plus, for most of them, a cloud scheduled task that runs
-it on a timetable. All of them read `company/COMPANY_RULES.md` first, write to the Company HQ Sheet,
-log every action, stop on PAUSE, and never send anything to customers, mentors or investors, or touch
-money, without your approval.
+[VERIFIED — repository inventory, 2026-11-06] The table below lists the role files present in `.claude/agents/`. These are AI role definitions, not human employees. Their existence does not establish that a scheduled task is enabled or has run.
 
-## Org chart
+## Product direction for this sprint
 
-| Team | Employee | One-line job | Owns the metric | Status |
-|---|---|---|---|---|
-| Ops | **chief-of-staff** | Morning briefing + approval queue, Monday plan, Sunday report, decision log | Decisions made / items waiting > 24 h | Week 1 ✅ |
-| Engineering | **lead-engineer** | Builds the top 1-2 roadmap items as small tested PRs | Roadmap items shipped per week | Week 1 ✅ |
-| Engineering | **qa-tester** | Tests `main` + open PRs nightly, e2e demo flows, fixes small failures on a branch | Nights with `main` green | Week 1 ✅ |
-| Research | **research-analyst** | Leads with evidence, targets, LinkedIn list, competitor/regulation watch | Qualified leads/day, spot-check accuracy | Week 1 ✅ |
-| Sales | **sdr** | GTM OS: queue, guarded sends, follow-ups, replies, LinkedIn pack, partner drafts | Calls booked/week, reply rate | Week 1 ✅ |
-| Product | **product-manager** | Call notes → specs and the roadmap; Friday ship review | Roadmap items with a customer quote | Week 2 ✅ |
-| Sales | **ae-assistant** | Call prep, call summaries, proposals, follow-up drafts | Calls → pilots offered | Week 2 ✅ |
-| Marketing | **content-marketer** | LinkedIn company posts, SEO pages, case studies (drafts) | Posts/pages approved per week | Week 2 ✅ |
-| Engineering | **devops** | Builds, deployments (Vercel preview on `website`), config fixes | Deploys green | Week 2 ✅ |
-| Design | designer | Screens, website, decks via artifacts | Assets shipped | Week 3 |
-| Marketing | video-producer | Demo films/clips with the existing Remotion pipeline (`demo/video`, branch `demo-video`) | Clips approved | Week 3 |
-| Customer | delivery-specialist | Runs paying customers' close packs and reconciliation, QA before sending | On-time, error-free deliveries | Week 3 |
-| Ops | finance-admin | Invoices, revenue dashboard, costs, contract templates (drafts) | Cash collected, days to collect | Week 3 |
-| Engineering | code-reviewer | Reviews every PR for correctness before you merge | Bugs caught before merge | Week 3 |
-| Engineering | security-reviewer | Secrets, auth, data access, dependency review | Open security issues | Week 3 |
+[ASSUMPTION — founder’s approved positioning] A desk for payment providers that pay suppliers before their customers reimburse them: review the advance, then track what is still owed. The provider makes the credit decision. Clearline does not supply capital or move money.
 
-Until an employee is hired, the existing scheduled task that does that job keeps running under its
-current name (see the night shift table). Nothing is switched off when the agent file arrives.
+[VERIFIED — founder’s task brief, 2026-11-06] Keep the earlier stablecoin experiment’s code and address its safety defects, but do not present it as the current product. This direction supersedes older positioning in role files and `company/COMPANY_RULES.md`; the company safety rules still apply.
 
-## How to give an employee work
+## Available roles
 
-1. **Write it in the Company HQ.** A row in the tab they read is a work order:
-   - Product roadmap (lead-engineer, qa-tester): status `next`, priority 1-3, one-line goal, link to a
-     spec or call note.
-   - Settings (sdr): caps, PAUSE, HOLD_DATES, BOOKING_LINK.
-   - Content calendar (content-marketer), Customers (delivery-specialist), Finance (finance-admin).
-   They pick it up on their next run.
-2. **Reply to the morning briefing email.** The chief-of-staff reads your replies at 07:30 the next
-   day and records them in the Decisions log: "yes to 1, no to 2, ask lead-engineer to do X first".
-   `PAUSE` stops everything; `HOLD` stops only tomorrow's first emails.
-3. **Ask one directly, now.** In a Claude Code session on investigation-desk, say
-   "Use the qa-tester agent to test PR #31" or "@research-analyst: is company X a fit?". The agent
-   files are loaded automatically from `.claude/agents/`.
-4. **Change a schedule.** claude.ai → Scheduled tasks (or ask any session: "move the 23:30 lead
-   engineer task to 22:00").
+Each link is the role’s source of instructions. Legacy files are retained rather than silently renamed or deleted.
 
-## How they work together
+| Role file | Responsibility |
+|---|---|
+| [accounting-integrations-engineer](.claude/agents/accounting-integrations-engineer.md) | Owns accounting posting rules and sandbox integrations. |
+| [ae-assistant](.claude/agents/ae-assistant.md) | Legacy call-preparation role; prefer sales-closer-assistant for new work. |
+| [chief-of-staff](.claude/agents/chief-of-staff.md) | Maintains decisions, handoffs and the founder’s review queue. |
+| [code-reviewer](.claude/agents/code-reviewer.md) | Independently reviews code it did not implement. |
+| [content-marketer](.claude/agents/content-marketer.md) | Edits sourced product writing and prepares drafts. |
+| [crypto-finance-user](.claude/agents/crypto-finance-user.md) | Provides simulated user criticism; never evidence of demand. |
+| [crypto-protocol-engineer](.claude/agents/crypto-protocol-engineer.md) | Owns chain evidence, token identity and finality. |
+| [devops](.claude/agents/devops.md) | Legacy deployment role; prefer devops-engineer for new work. |
+| [devops-engineer](.claude/agents/devops-engineer.md) | Checks builds, hosting and operational risks. |
+| [frontend-product-engineer](.claude/agents/frontend-product-engineer.md) | Builds and tests the user workflow. |
+| [gtm-strategist](.claude/agents/gtm-strategist.md) | Tests positioning, customer selection and distribution. |
+| [lead-designer](.claude/agents/lead-designer.md) | Owns the focused demo, readable screens and accessibility. |
+| [matching-engine-engineer](.claude/agents/matching-engine-engineer.md) | Owns attribution rules and matching evaluation. |
+| [product-manager](.claude/agents/product-manager.md) | Turns observed customer problems into scoped experiments. |
+| [qa-security-engineer](.claude/agents/qa-security-engineer.md) | Tests correctness, security and failure cases. |
+| [research-intern](.claude/agents/research-intern.md) | Checks primary sources and qualifies research candidates. |
+| [revops-crm-agent](.claude/agents/revops-crm-agent.md) | Maintains prospect records and prepares outreach drafts. |
+| [sales-closer-assistant](.claude/agents/sales-closer-assistant.md) | Prepares calls, objections and follow-up drafts. |
+| [tech-lead-architect](.claude/agents/tech-lead-architect.md) | Owns architecture, task boundaries and integration planning. |
 
-```
-call (you) → ae-assistant: summary + quotes → product-manager: roadmap row + spec
-  → lead-engineer: PR with tests → qa-tester: verifies overnight → you merge
-  → product-manager marks it shipped → content-marketer: announcement draft
-  → sdr: uses it in outreach and follow-ups → research-analyst: finds more companies with that pain
-```
-- **Leads**: research-analyst → Leads/Targets/LinkedIn list → sdr (evening queue, LinkedIn pack).
-- **Bugs**: qa-tester → Product roadmap (`bug`) → lead-engineer → qa-tester → you.
-- **Risks**: anyone logs `RISK:` → chief-of-staff puts it at the top of the briefing.
-- **Customers** (once paying): delivery-specialist prepares the close pack → qa-tester-style check by a
-  second agent → you approve → it's sent. finance-admin invoices from the Opportunities tab.
+## Assigning work
 
-## The weekly cycle
+1. Read `company/COMPANY_RULES.md`, the applicable role file and the current task brief.
+2. Name the output, its owner and its acceptance check. Give parallel owners separate files or worktrees.
+3. Have the implementer produce evidence, then have a separate reviewer challenge the change. A self-review is not independent approval.
+4. Use the exact role names above. Older references to lead-engineer, qa-tester, research-analyst and sdr refer respectively to crypto-protocol-engineer, qa-security-engineer, research-intern and revops-crm-agent. They are not additional installed roles.
 
-| When (SGT) | What | Who | You |
-|---|---|---|---|
-| Mon 08:44 | Week plan: 3 outcomes, each employee's targets, your tasks, 3 decisions | chief-of-staff | Approve or edit by replying |
-| Daily 23:00-07:30 | Night shift (below) | engineering, research, sales, marketing | Nothing |
-| Daily 07:30 | Briefing + approval queue | chief-of-staff | 15 minutes |
-| Weekdays | Sends, replies, research, LinkedIn pack, partners | sdr, research-analyst | Your calls; LinkedIn by hand |
-| Weekdays 18:07 | Call summaries, follow-up and proposal drafts | ae-assistant | Send the drafts you like |
-| Weekdays 18:24 | Evening summary with tomorrow's emails in full | sdr | Skim; reply HOLD if needed |
-| Fri 17:13 | Ship review: PRs, what to merge, next week's build | product-manager | Merge |
-| Sun 17:38 | Weekly report + spot check + mentor update draft | chief-of-staff | Read |
-| 1st of month | Investor-style update draft | chief-of-staff | Edit and send yourself |
+## Boundaries for this sprint
 
-## Night shift (cloud scheduled tasks, not tied to your Mac)
+- Read the Company HQ Settings PAUSE flag and check the founder’s recent Clearline replies before external changes. Report unavailable checks; do not invent their results.
+- Draft PRs only. Never merge, force-push, delete branches or publish a deployment in this sprint.
+- Use synthetic data. Do not commit secrets, generated builds, customer records or large binaries.
+- Outreach remains in files for the founder to review. Do not send emails, automate LinkedIn or contact mentors.
+- Preserve the meaning of evidence labels. A vendor’s product page supports what it advertises, not measured performance or demand for Clearline.
+- Commit as Aashmiin Kaur <aashmiin@gmail.com> where the transport supports an explicit author. Attribute the actual assistant truthfully; do not add a Claude session or co-author to work performed by Codex.
+- Keep changes scoped to their task and record checks with the tested revision. Never report a blocked test as passed.
 
-Exact times are in `company/NIGHT_SHIFT.md`, with the scheduled task behind each slot and which ones
-still need a click from you. In short: 23:00 qa-tester, 23:30 lead-engineer, 00:30 research-analyst,
-01:30 sdr (LinkedIn pack + follow-up check), 02:30 content-marketer, 03:30 devops, 07:07 ae-assistant
-(call prep), 07:30 chief-of-staff briefing. Follow-ups to the US/EU keep sending overnight from the hourly sender,
-inside each recipient's 9:00-17:00 and the daily caps.
+## Schedules and handoffs
 
-Overnight, nobody: emails new people beyond the queue you saw; writes to customers, mentors or
-investors; pays, signs or quotes; merges to `main`; deletes data. Those wait for your 07:30 approval.
+[ASSUMPTION — not checked here] Historical schedule descriptions in `company/NIGHT_SHIFT.md` and role files require verification in the scheduling service. This inventory does not enable, disable or reschedule anything. Do not promise that an overnight agent will pick up a task merely because its file exists.
 
-## Tools: what each employee uses
-
-| Need | Claude tool | Employees |
-|---|---|---|
-| Code, tests, PRs | Claude Code (cloud), `gh` REST API | lead-engineer, qa-tester, devops, code/security-reviewer |
-| Company HQ | Google Sheets connector | all |
-| Email (send/draft/search) | Gmail connector, always through the guard | sdr, chief-of-staff (to you only), finance-admin (drafts) |
-| Calls | Google Calendar connector | chief-of-staff, ae-assistant |
-| Docs (SEO drafts, updates, invoices) | Google Drive/Docs connectors | content-marketer, chief-of-staff, finance-admin |
-| Notes from calls | Notion connector (if you keep notes there) | ae-assistant, product-manager |
-| Web research | WebSearch/WebFetch | research-analyst, content-marketer |
-| Sales playbooks | Sales plugin (call-prep, call-summary, account-research, draft-outreach), Sales Follow-Up plugin | ae-assistant, sdr (drafts only; the guard still decides) |
-| Marketing playbooks | Marketing plugin (content-creation, seo-audit, brand-review, competitive-brief) | content-marketer, research-analyst |
-| Screens, decks, pages | Artifacts | designer |
-| Films | Existing Remotion pipeline in `demo/video` (on the `demo-video` branch until PR #20 merges) | video-producer |
-
-Apollo: its connector failed to connect from cloud sessions when this was set up (proxy refused).
-Research works without it from public pages; leads are labelled VERIFIED-PUBLIC.
-
-## Outside paid tools (only where Claude genuinely can't do the job)
-
-| Tool | Why Claude can't | Cost [ASSUMPTION: check current prices] | When |
-|---|---|---|---|
-| A separate sending domain + 2-3 Google Workspace inboxes + a warm-up/sequencing tool (e.g. Instantly) | Going past ~75 emails/day safely needs warmed inboxes, rotation and a one-click unsubscribe header. The Gmail connector sends from one personal account and can't warm inboxes | Domain ~US$12/yr; Workspace ~US$7/inbox/month; sequencer ~US$37/month | Only when you decide to grow beyond personal-Gmail volume (RULES.md "domain mode") |
-| Vercel Pro | Vercel's free Hobby plan is for non-commercial use; a company marketing site may need Pro [ASSUMPTION] | ~US$20/month | When the website goes public under the company name |
-
-Everything else (research, writing, coding, testing, briefings, invoices as drafts, decks, films) runs
-on your Claude plan.
+[ASSUMPTION — proposed workflow] Founder’s case notes → product-manager scopes the experiment → tech-lead-architect assigns implementation → code-reviewer and qa-security-engineer check it → founder decides whether to merge. Research and outreach drafts can proceed separately without changing product claims or sending messages.
