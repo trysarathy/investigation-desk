@@ -23,3 +23,7 @@ The browser suite is an acceptance gate, not a substitute for a real provider tr
 [VERIFIED] GitHub Actions run 42286677542 passed the two security cases but failed both journey cases at initial navigation: `/` served the build-time earlier-product redirect to `/requests`. Runtime funding mode now redirects `/` to `/funding` in middleware before that static page can run. Two focused middleware regressions cover the redirect and legacy-route refusal. The browser assertions remain unchanged; the next remote run is still required.
 
 The runtime redirect uses the configured public origin rather than Next's normalized request hostname. Logout also clears the prior user's selected case and pending import form. Typecheck, scoped lint, the 19 focused middleware/route checks and production build pass for this correction. The remote browser rerun remains required.
+
+## Second remote browser run
+
+[VERIFIED] Run 42287663427 reached the funding page but maker login failed the configured-Origin check after root navigation; direct funding-page viewer login passed. The middleware absolute redirect was not sufficient to preserve the browser origin through Next's adapter. Root is now explicitly dynamic and uses its existing relative server redirect. Middleware still refuses legacy routes and does not rewrite the root hostname. Origin/CSRF checks and the browser journey remain strict; the harness now also asserts the exact landing origin. A fresh remote run is required.

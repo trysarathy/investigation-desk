@@ -48,8 +48,12 @@ jobs:
           echo "CLEARLINE_BROWSER_PASSWORD=$password" >> "$GITHUB_ENV"
       - name: Run desktop and phone journeys
         run: npx playwright test --config=playwright.funding.config.ts
-      - name: Upload screenshots and test evidence
+      - name: Remove disposable password from test diagnostics
+        id: sanitize
         if: always()
+        run: node tests/browser/sanitize-artifacts.mjs
+      - name: Upload screenshots and test evidence
+        if: always() && steps.sanitize.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: funding-browser-${{ github.event.pull_request.head.sha }}

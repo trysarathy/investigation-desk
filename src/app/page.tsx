@@ -7,6 +7,8 @@ import { CHAIN_NAMES } from "@/lib/types";
 import { loadCases } from "@/lib/bulk/cases";
 import { caseRows, parseDown, storedCaseRows } from "@/lib/view";
 
+export const dynamic = "force-dynamic";
+
 type Search = Promise<Record<string, string | string[] | undefined>>;
 
 /**

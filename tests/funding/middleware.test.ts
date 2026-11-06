@@ -6,12 +6,11 @@ afterEach(() => {
   delete process.env.CLEARLINE_ORIGIN;
 });
 describe("runtime funding-only routing", () => {
-  it("redirects root before any statically built earlier-product page can run", () => {
+  it("leaves root to its dynamic server redirect without rewriting the origin", () => {
     process.env.CLEARLINE_FUNDING_ONLY = "1";
-    process.env.CLEARLINE_ORIGIN = "http://127.0.0.1:3000";
     const res = middleware(new NextRequest("http://127.0.0.1:3000/"));
-    expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toBe("http://127.0.0.1:3000/funding");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("location")).toBeNull();
   });
   it("allows only funding and required assets in funding-only mode", () => {
     process.env.CLEARLINE_FUNDING_ONLY = "1";

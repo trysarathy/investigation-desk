@@ -47,7 +47,7 @@ test('prepare, approve, record payout, flag late repayment and export evidence',
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   await page.goto('/');
-  await expect(page).toHaveURL(/\/funding$/);
+  await expect(page).toHaveURL(new URL('/funding', info.project.use.baseURL!).href);
   await expect(page).toHaveTitle('Clearline Funding Desk');
   await signIn(page, 'maker@example.test');
   expect(errors).toEqual([]);
