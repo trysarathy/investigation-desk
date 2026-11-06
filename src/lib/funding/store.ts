@@ -67,7 +67,9 @@ export function validateFundingData(value: unknown): FundingData {
       );
     }
     rebuilt.revision = event.base_revision;
-    const { id: _id, review: _review, ...input } = event;
+    const input = { ...event };
+    delete (input as Partial<FundingEvent>).id;
+    delete (input as Partial<FundingEvent>).review;
     rebuilt =
       event.engine_version === undefined
         ? applyLegacyEvent(rebuilt, input as Omit<LegacyEvent, "id" | "review">)
@@ -180,7 +182,8 @@ export class FundingStore {
       return { entries: envelope.audit, anchor: current, data: envelope.data };
     });
   }
-  async save(_data: FundingData): Promise<void> {
+  async save(data: FundingData): Promise<void> {
+    void data;
     throw Error(
       "Use update to preserve the current revision and input history.",
     );

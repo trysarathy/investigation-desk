@@ -31,4 +31,10 @@ Focused audit tests cover record tampering, deletion/reordering, current-data bi
 
 Auth tests cover fixed bounded asynchronous scrypt, concurrent login limits, account/global throttles, credential revocation, expiry/logout, deployment binding, strict configuration, HTTPS except loopback, malformed UTF-8/JSON, streaming caps/cancellation and clock-audit failure reporting.
 
-Final full-suite, build and independent probe results will be recorded after the candidate is pinned. No live customer data or external messages were used.
+[VERIFIED] Candidate fee8ada passed typecheck, 751 tests (57 skipped), and production build. An independent reviewer reproduced those results in an isolated checkout. QA independently passed 50 auth/audit/route probes, including two identical HTTP evidence downloads while audit entries grew and business revision did not change. Scoped lint has no errors; inherited unused-parameter warnings in the touched store were then removed. Full-repository lint retains the unrelated 20 errors and 41 warnings previously recorded.
+
+[VERIFIED] Vitest is pinned to 4.1.12; a PostCSS override resolves 8.5.23 while Next remains 15.5.28. `npm audit` reports zero known vulnerabilities at this check. That is a dependency-advisory result, not proof that the app has no vulnerabilities.
+
+[VERIFIED] Normal CLI smoke: private synthetic setup, anchor creation, file export, two evidence exports and trusted-anchor verification all exited 0. Evidence ZIP bytes matched; business revision remained 1 while the audit reached 8 entries. Every deployment file was mode 0600. Tests cover rejected unsafe/symlink paths and directories inside the application repository.
+
+Browser regression remains pending the M7 draft PR run. No live customer data or external messages were used.
