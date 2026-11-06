@@ -11,7 +11,7 @@ const xml = (s: string) =>
         "'": "&apos;",
       })[c]!,
   );
-function crc32(bytes: Buffer) {
+export function crc32(bytes: Buffer) {
   let crc = 0xffffffff;
   for (const byte of bytes) {
     crc ^= byte;
