@@ -1,0 +1,2 @@
+id,effective_at,known_at,name,currency,credit_limit,terms,status
+customer-1,2026-11-09T09:00:00Z,2026-11-09T09:00:00Z,Northwind (synthetic),SGD,200000,Pay within seven days,active

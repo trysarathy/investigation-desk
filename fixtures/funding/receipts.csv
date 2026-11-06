@@ -1,0 +1,2 @@
+id,effective_at,known_at,customer_id,reference,account,amount,currency
+receipt-1,2026-11-18T09:00:00Z,2026-11-18T09:01:00Z,customer-1,INV-001,provider-sgd,40000,SGD
