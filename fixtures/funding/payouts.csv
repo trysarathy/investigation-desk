@@ -1,0 +1,2 @@
+id,effective_at,known_at,advance_id,account,amount,currency,reference
+payout-1,2026-11-10T09:00:00Z,2026-11-10T09:01:00Z,advance-1,provider-sgd,100000,SGD,BANK-OUT-1

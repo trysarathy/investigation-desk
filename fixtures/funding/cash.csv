@@ -1,0 +1,5 @@
+id,effective_at,known_at,snapshot_id,account,balance,currency,classification,amount
+cash-0,2026-11-09T09:00:00Z,2026-11-09T09:00:00Z,snapshot-1,provider-sgd,180000,SGD,free,140000
+cash-1,2026-11-09T09:00:00Z,2026-11-09T09:00:00Z,snapshot-1,provider-sgd,180000,SGD,safeguarded customer money,20000
+cash-2,2026-11-09T09:00:00Z,2026-11-09T09:00:00Z,snapshot-1,provider-sgd,180000,SGD,pending payouts,15000
+cash-3,2026-11-09T09:00:00Z,2026-11-09T09:00:00Z,snapshot-1,provider-sgd,180000,SGD,buffer,5000
