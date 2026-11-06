@@ -1,0 +1,80 @@
+name,category,region,buyer,overlap,strength,gap_for_clearline,pricing,source_url,checked_date
+Airwallex (lending),Provider with own credit,Singapore/global,SMEs and enterprises,High (substitute),"Distribution, data, SG lending/collections team being hired",Won't sell credit tooling to rival providers; rivals need their own advance record,SG plans public; lending pricing not found,https://builtinsingapore.com/job/director-credit-risk-lending/7113802,2026-11-07
+Ebury Supplier Payment Finance,Provider with own credit,"UK, Europe, Australia, NZ",SME importers,High (substitute),"Balance sheet; pays supplier, client repays up to 150 days; FX hedging",Built in-house; target providers that advance without becoming lenders,0.35%-1.2%/month (NZ); GBP50k-5m lines,https://ebury.com/products/financing/supplier-payment-finance,2026-11-07
+Payoneer Capital Advance,Provider with own credit,Multi-region,Marketplace/e-commerce sellers,Medium,"Activity-based offers, automated repayment from balance",Not supplier advances to enterprise customers,Offer-based; not public,https://www.payoneer.com/cash-flow-and-capital/,2026-11-07
+MODIFI (with PingPong),Embedded trade credit via PSP,Global; launched in Singapore,Exporters/merchants via PSP,High (substitute),Financier takes credit and servicing off the PSP,Be the evidence hand-off between provider and financier,Not public,https://prnewswire.com/news-releases/pingpong-and-modifi-announce-partnership-to-transform-b2b-cross-border-payments-and-digital-trade-finance-301990357.html,2026-11-07
+Ripple Payments / Ripple Treasury,Rails + TMS,60+ markets,"PSPs, fintechs, corporate treasury",Medium,"GTreasury TMS ($1B), Zero Pre-Funding, Line of Credit for ODL","Targets corridor liquidity, not provider's receivable from its customer",Not public,https://ripple.com/ripple-press/ripple-breaks-into-corporate-treasury-with-gtreasury-acquisition/,2026-11-07
+Flash Payments,Provider (customer archetype),Australia,n/a,n/a (potential customer),Ripple Payments partner,Ask mentor if it pays out before customers fund,n/a,https://ripple.com/customer-case-study/flash-payments/,2026-11-07
+FlashPay (Thailand),Merchant payments,Thailand/SEA,SEA and Chinese cross-border merchants,None (dropped),n/a,Not relevant,n/a,https://fintechnews.sg/fintech-startups-thailand/fintech/flashpay/,2026-11-07
+Nium,Cross-border provider,190+ countries,"Banks, fintechs, enterprises",Low (potential buyer),Automated client prefund verification,Client prefunds Nium; no advance product found,Not public,https://docs.nium.com/docs/payins/program-client-and-client-prefund-account,2026-11-07
+Thunes,Cross-border network,140 countries; 720 members,"PSPs, neobanks, fintechs",Low (potential channel),Direct network; USDC/EURC prefunding,Members that front customers need advance records,Not public,https://www.thunes.com/,2026-11-07
+Wise Business,Provider,Singapore/global,SMEs,Low,"Accounts, payments, interest",No credit product on SG page,Public fee pages (not reviewed),https://wise.com/sg/business/,2026-11-07
+Corpay Cross-Border,Provider + FX risk,200+ countries,Mid-market corporates,Low,"Payments, hedging, 21,000+ customers",No supplier-advance product seen,Not public,https://www.corpay.com/cross-border,2026-11-07
+Rapyd,Payout platform,Global,Platforms/enterprises,Low,Disbursements infrastructure,No advance product seen,Not public,https://www.rapyd.net/products/disburse/,2026-11-07
+dLocal,Payout platform,Emerging markets,Global enterprises,Low,EM payins/payouts,No advance product seen,Not public,https://www.dlocal.com/,2026-11-07
+Aspire,SME payments,Singapore/APAC,SMEs,Low,"Low FX fees, local transfers",Not provider tooling; current credit line unverified,Public plans (not reviewed),https://aspireapp.com/en-sg/use-case/payments,2026-11-07
+Volopay,SME spend,Singapore/APAC,SMEs,Low,"Cards, credit, accounting integrations",Not provider tooling,Not reviewed,https://www.volopay.com/sg/,2026-11-07
+Reap,Stablecoin business account/cards,HK/APAC,Crypto-enabled businesses,Low,Cards with credit limit = 100% collateral,Not provider tooling,Bill pay 0.5% bank transfer; US$25 cross-border fee,https://reap.global/pricing,2026-11-07
+Paysend Instant Settlement Accounts,Corridor liquidity,"UK, Europe, North America","PSPs, banks, FX brokers",Low,Real-time 24/7 settlement,Corridor clock only,Not public,https://thepaypers.com/payments/news/paysend-launches-instant-settlement-accounts-for-businesses-to-unlock-liquidity,2026-11-07
+LiquidX,Trade/receivables platform,Global,"Financial institutions, corporates, insurers",Medium,"Origination, TradeHub monitoring, TradeOps servicing","Built for financing programmes, not a PSP's few advances",Not public,https://www.liquidx.com/,2026-11-07
+C2FO,Early pay / SCF,Global,Large buyers and suppliers,Low,Scale; ERP integration in weeks,"Buyer-led, not PSP advances",Not public,https://c2fo.com/,2026-11-07
+SAP Taulia,SCF / dynamic discounting,Global,SAP enterprises,Low,Inside SAP,Buyer-led,Not public,https://taulia.com/,2026-11-07
+Tradeshift,E-invoicing,Global,Enterprises,Low,E-invoicing compliance,No advance workflow,Not public,https://tradeshift.com/,2026-11-07
+Previse,B2B transaction insights,US,"Enterprises, FIs",Low,Connect/match/monitor data; SmartPay,Not PSP advances,Not public,https://previse.co/,2026-11-07
+Stenn,Invoice finance,UK/global,SMEs,None (in administration Dec 2024),n/a,Cautionary,n/a,https://www.stenn.com/,2026-11-07
+Marco,Cross-border finance OS,LatAm-US,LatAm exporters,Low,"Accounts, FX, credit line",Different corridor; direct lender,Not public,https://www.marcofi.com/,2026-11-07
+Drip Capital,Import trade finance,US,US importers,Low (substitute),Pays supplier against invoice and BoL,Direct lender to importer,Not public,https://www.dripcapital.com/en-us/products/trade-finance/,2026-11-07
+Triterras / Kratos,Trade finance platform,Singapore (former),Commodity traders,None (SEC fraud case),n/a,Lesson: record when facts were first known,n/a,https://www.gtreview.com/news/global/sec-accuses-triterras-of-fraud-says-transactions-recorded-after-the-fact/,2026-11-07
+Validis,Financial data,UK/global,"Auditors, lenders",Low (supplier),"Standardised accounting data, MCP",Possible data input,Not public,https://validis.com/,2026-11-07
+Demica,Bank receivables platform,Global,Banks,Low-Medium,Since 2002; banks automate receivables programmes,Bank-only,Not public,https://www.gtreview.com/news/fintech/demica-to-offer-direct-access-to-its-receivables-finance-platform/,2026-11-07
+Tradewind,Export factoring,Global,Exporters,Low,Advances up to 90%,Direct financier,Not public,https://www.tradewindfinance.com/,2026-11-07
+Validus,SME lending,"SG, ID, TH, VN",SMEs,Low,US$5bn+ funded,Direct lender,Not public,https://www.validus.sg/,2026-11-07
+Funding Societies,SME lending,SEA,SMEs,Not assessed (page blocked),n/a,n/a,n/a,https://fundingsocieties.com/,2026-11-07
+KredX,SCF / TReDS,India,"Indian MSMEs, enterprises",Low,RBI-licensed TReDS,Domestic India,Not public,https://www.kredx.com/,2026-11-07
+Jiraaf,Bond investing,India,Retail investors,None (dropped),n/a,Not relevant,n/a,https://www.jiraaf.com/,2026-11-07
+Contour,LC network,Global,"Banks, corporates",Low,Multi-bank LC; XDC-owned since Oct 2025,Documentary credits only,Not public,https://www.gtreview.com/news/digital-trade/xdc-ventures-to-re-energise-contour-after-xalts-sale/,2026-11-07
+Marco Polo Network,Trade finance consortium,Global,Banks,None (insolvent Feb 2023),n/a,Cautionary,n/a,https://www.gtreview.com/news/fintech/marco-polo-brings-in-liquidators-as-funds-run-dry/,2026-11-07
+MonetaGo,Duplicate-financing registry,"India, Singapore, Bahrain","Banks, regulators",Low (input),Built SG Trade Finance Registry,Consume authorised result; don't rebuild,Not public,https://www.monetago.com/use-cases,2026-11-07
+Traydstream,Trade document checking,Global,"Banks, corporates",Low,AI document checking,Not PSP advances,Not public,https://www.traydstream.com/,2026-11-07
+Komgo,Trade finance platform,Global,"Banks, corporates",Low,Multi-bank platform; acquired GTC,Not PSP advances,Not public,https://www.komgo.io/,2026-11-07
+SGTraDex,Trade data exchange,Singapore,"Traders, FIs, logistics",Low (input),Trade finance fraud detection use case,Possible evidence source,Not public,https://www.sgtradex.com/,2026-11-07
+Taktile,Credit decisioning,Global,"Banks, insurers, lenders",Medium,"Policy decisioning, onboarding/underwriting",Stops at decision; no delivery/repayment tracking,Not public,https://taktile.com/,2026-11-07
+Provenir,Credit decisioning,60+ countries,"Banks, fintechs, payments",Medium,Decisioning + data + case management,Stops at decision,Not public,https://www.provenir.com/,2026-11-07
+Zest AI,Consumer underwriting,US,"Lenders, credit unions",Low,AI underwriting,Different problem,Not public,https://www.zest.ai/,2026-11-07
+Alloy,Identity/fraud,US/UK,"FIs, fintechs",Low,Fraud/KYC orchestration,Different problem,Not public,https://www.alloy.com/,2026-11-07
+Ocrolus,Document AI for lenders,US,Lenders,Low,Bank statement analysis,Different problem,Not public,https://www.ocrolus.com/,2026-11-07
+Codat (lending),Financial data API,Global,"Lenders, banks, cross-border payments",Low (supplier),Real-time accounting data,Possible input,Not public,https://www.codat.io/lending/,2026-11-07
+Rutter,Financial data API,Global,B2B fintechs,Low (supplier),Unified accounting/commerce API,Possible input,Not public,https://www.rutter.com/,2026-11-07
+Plaid,Bank data / underwriting,US-led,"Fintechs, lenders",Low (supplier),"Underwriting, LendScore",Possible input,Not public,https://plaid.com/,2026-11-07
+Lendflow,Embedded lending infra,US,"Brands, lenders",Low-Medium,"Decisioning waterfall, lender marketplace",US-centric,Not public,https://www.lendflow.com/,2026-11-07
+Slope,Embedded credit,US,Platforms,Low-Medium,"Embedded credit lines, SlopeScore",US-centric,Not public,https://slope.so/,2026-11-07
+Mondu,B2B BNPL,30+ European countries,Merchants,Low (analogue),Owns risk and servicing,"Merchant checkout, not PSP advances",Not public,https://www.mondu.ai/,2026-11-07
+Billie,B2B BNPL,Europe,Merchants,Low (analogue),"Pay later, merchant paid upfront",Merchant checkout,Not public,https://www.billie.io/en,2026-11-07
+Hokodo,B2B trade credit,UK/Europe,"Merchants, marketplaces",Low (analogue),30/60/90-day terms,Merchant checkout,Not public,https://www.hokodo.co/,2026-11-07
+Two,B2B payments/credit,Europe,"Merchants, banks",Low (analogue),Risk-as-a-Service; Two for Banks,Merchant checkout,Not public,https://www.two.inc/,2026-11-07
+Resolve,B2B net terms,US,B2B sellers,Low (analogue),Advance Pay 50/75/90%,"Merchant AR, not PSP advances",Advance rates public; fees on page,https://resolvepay.com/pricing,2026-11-07
+LoanPro,Loan servicing core,US-led,Lenders,Medium-High,"Servicing, collections, payments suites",Assumes a loan product; heavy for non-lender PSP,Not public,https://www.loanpro.io/,2026-11-07
+Canopy,Loan servicing core,US-led,Commercial lenders,Medium-High,"Working-capital lines, cash advances servicing",Assumes lender; no payout-delivery link,Not public,https://www.canopyservicing.com/,2026-11-07
+Modern Treasury,Payment ops + ledger,US-centric,"Fintechs, lenders",Medium,"Lending: disburse, collect, per-capital-partner accounts","Moves money; no advance policy, delivery evidence or MAS focus",Not public (form),https://www.moderntreasury.com/solutions/lending,2026-11-07
+Formance,Ledger infra,Global,Fintech engineering teams,Medium,Open-source MIT ledger,Build-it-yourself base; Clearline sells policy/evidence,Open source free; Enterprise custom annual,https://www.formance.com/pricing,2026-11-07
+Fragment,Ledger infra,US,Engineering teams,Medium,Ledger + recon; agents,Build-it-yourself base,"Free 1,000 entries/mo; $0.005/entry",https://fragment.dev/pricing,2026-11-07
+TigerBeetle,Transactions database,Global,Engineering teams,Low,Debit/credit OLTP database,Infrastructure only,Not reviewed,https://tigerbeetle.com/,2026-11-07
+Kyriba,TMS,Global,Corporate treasury,Medium (integration target),"Treasury, payments, connectivity, working capital","Feed exposures into it, don't replace",Not public,https://www.kyriba.com/products/working-capital/,2026-11-07
+Trovata,TMS / cash visibility,Global,Treasury teams,Medium (integration target),"Bank connectivity, forecasting",Budget benchmark; feed into it,Base package $24k/year,https://trovata.io/pricing/,2026-11-07
+Nilus,AI treasury/AR/AP,US,"CFOs, treasurers",Low-Medium,"Cash, payments, FX, AR, AP on one platform","Corporate treasury, not PSP advances",Not public,https://www.nilus.com/,2026-11-07
+Statement (Tipalti),AI treasury,US,Finance teams,Low-Medium,"Cash visibility, forecasting; acquired by Tipalti",Corporate treasury,Not public,https://www.statement.io/,2026-11-07
+Duco,Reconciliation,Global,Financial services,Low-Medium,Rule-based + agentic matching,Generic reconciliation,Not public,https://du.co/,2026-11-07
+AutoRek,Reconciliation,UK/global,"Banks, payments, insurers",Low-Medium,"Safeguarding, loan, payment reconciliations","Reconciles, doesn't review advances",Not public,https://autorek.com/,2026-11-07
+HighRadius,O2C / treasury,Global,Enterprise finance,Low-Medium,"Collections, cash application, credit management","Corporate AR, not PSP advances",Not public,https://www.highradius.com/,2026-11-07
+Kolleno,AR automation,UK/global,Mid-market finance,Low-Medium,"Collections, cash application, credit risk",Corporate AR,Not public,https://www.kolleno.com/,2026-11-07
+Ramp,Spend + treasury,US,US businesses,Low,"Yield, banking",US only,Public,https://ramp.com/treasury,2026-11-07
+Brex,Spend + treasury,US,US businesses,Low,"Treasury yield, bill pay",US only,Public,https://www.brex.com/product/business-account,2026-11-07
+BVNK (Mastercard),Stablecoin rails,Global,"Enterprises, PSPs",Low-Medium,Stablecoin send/receive; Mastercard-owned since Aug 2026,Corridor clock only,Not public,https://cointelegraph.com/news/mastercard-completes-bvnk-acquisition-stablecoin-push,2026-11-07
+Bridge (Stripe),Stablecoin rails,Global,"Developers, platforms",Low,"Orchestration, issuance, wallets",Corridor clock only,Not public,https://stripe.com/us/newsroom/news/stripe-completes-bridge-acquisition,2026-11-07
+Circle Payments Network,Stablecoin settlement network,Global,"PSPs, fintechs, banks",Low-Medium,B2B cross-border settled in stablecoins,Corridor clock only,Not public,https://www.circle.com/cpn,2026-11-07
+Conduit,Stablecoin/fiat accounts and payouts,Global,Platforms,Low,"USD accounts, multi-rail payouts",Corridor clock only,Not public,https://www.conduit.financial/,2026-11-07
+Borderless,Stablecoin orchestration,113+ countries,Payment teams,Low,"19+ licensed providers, flat fee",Corridor clock only,Flat platform fee (amount not shown),https://www.borderless.xyz/,2026-11-07
+Request Finance,Crypto AP/AR,Global,Crypto-native businesses,High (old experiment only),"Invoicing with auto-reconciliation, Xero/QBO/NetSuite",Reason to archive stablecoin matching,"Free; Basic $500-600/mo; Premium $7,500-9,000/mo",https://www.request.finance/pricing,2026-11-07
+Bitwave,Crypto accounting/payments,Global,Enterprises,High (old experiment only),"Invoice matching, ERP subledger, SOC certs",Reason to archive stablecoin matching,Not public,https://www.bitwave.io/pricing,2026-11-07
+TRES Finance,Crypto accounting,Global,Digital-asset companies,High (old experiment only),"Multi-source reconciliation, alerts",Reason to archive stablecoin matching,Not public,https://tres.finance/,2026-11-07
+Spreadsheet + bank portal + treasury analysts,Incumbent,Everywhere,Provider treasury/ops,Highest,"Free, flexible, trusted; analysts already do daily funding and recon",No single record separating supplier-paid vs provider-repaid; no reservation lock [ASSUMPTION],Staff cost,https://jobs.insightpartners.com/companies/thunes/jobs/90979735-treasury-analyst,2026-11-07
