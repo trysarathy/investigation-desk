@@ -66,7 +66,7 @@ describe.skipIf(!!process.env.RECORD_FINALITY)("finality, replayed from real rec
   it("Tron TRN-01: on the solidity node, at/below the solidified head → passed, plain words, numbers in technical", async () => {
     const c = await replay("FINALITY-TRON");
     expect(c).toMatchObject({ state: "passed", blockNumber: 87_393_445, finalizedBlock: recordedSolid(), checkedAt: load("FINALITY-TRON").recordedAt });
-    expect(c.detail).toBe("Final on Tron (can't be reversed).");
+    expect(c.detail).toBe("Tron reports this payment as final.");
     expect(c.technical).toMatch(/In block 87393445; the network had finalized up to block \d+/);
     expect(c.source).toMatch(/walletsolidity/);
     expect(releaseHeadline({ ...others, finality: c }).headline).toBe("Paid and final. Right token and amount. Sender NOT checked. Not frozen.");
@@ -215,7 +215,7 @@ describe.skipIf(!!process.env.RECORD_FINALITY)("demo: finality fed from one reco
     const rec = load("FINALITY-TRON");
     const c = await readFinalityFromRecordings([rec, load("FINALITY-TRON-NOT-SOLID"), load("ETH-01")], CASES["FINALITY-TRON"]);
     expect(c).toMatchObject({ state: "passed", checkedAt: rec.recordedAt });
-    expect(c.detail).toBe(`Final on Tron (can't be reversed). (recorded ${sgtTime(rec.recordedAt)}, not a live read)`);
+    expect(c.detail).toBe(`Tron reports this payment as final. (recorded ${sgtTime(rec.recordedAt)}, not a live read)`);
   });
 
   it("a newer recording on another chain, or one without this transaction, doesn't change the label", async () => {

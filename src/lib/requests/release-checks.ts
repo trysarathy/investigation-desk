@@ -7,7 +7,6 @@
 import { sameAddress } from "../address";
 import { COMPANY_CONTRACT_LABEL, officialContractFor } from "../contracts";
 import { compareDecimal, isDecimal } from "../decimal";
-import { formatDuration } from "../format";
 import { sub } from "../payments/money";
 import type { Chain, Token } from "../types";
 import { REQUEST_SETTINGS } from "./check";
@@ -18,9 +17,6 @@ export * from "./release-headline";
 
 const NET: Partial<Record<Chain, string>> = { ethereum: "Ethereum", tron: "Tron", bsc: "BNB Chain", polygon: "Polygon", base: "Base", arbitrum: "Arbitrum", optimism: "OP Mainnet" };
 const net = (c: Chain) => NET[c] ?? c;
-/** Block times documented by the networks themselves (status.ts DOCUMENTED_PACE): Ethereum 12 s slots, Tron 3 s. */
-const PACE_SEC: Partial<Record<Chain, number>> = { ethereum: REQUEST_SETTINGS.blockTimeSec.ethereum, tron: REQUEST_SETTINGS.blockTimeSec.tron };
-
 /** Finality: the payment's block is at or below the chain's own finality signal (Ethereum `finalized`, Tron solidified). */
 export function finalityCheck(o: { chain: Chain; blockNumber?: number; finalizedBlock?: number; source?: string; checkedAt?: string; eta?: string }): FinalityCheck {
   const base = { blockNumber: o.blockNumber, finalizedBlock: o.finalizedBlock, source: o.source, checkedAt: o.checkedAt, eta: o.eta };
@@ -35,11 +31,8 @@ export function finalityCheck(o: { chain: Chain; blockNumber?: number; finalized
     return { ...base, state: "not_run", detail: `We couldn't read whether ${net(o.chain)} has made this payment final.`, technical: `In block ${o.blockNumber}; finality signal not read.` };
   }
   const technical = `In block ${o.blockNumber}; the network had finalized up to block ${o.finalizedBlock}.`;
-  if (o.blockNumber <= o.finalizedBlock) return { ...base, state: "passed", detail: `Final on ${net(o.chain)} (can't be reversed).`, technical };
-  const sec = PACE_SEC[o.chain];
-  // A pace from the gap and the documented block time, stated as "usually", never as a promise.
-  const more = sec ? ` — usually ${formatDuration((o.blockNumber - o.finalizedBlock) * sec)} more` : "; look the payment up again later";
-  return { ...base, state: "pending", detail: `Not final yet${more}.`, technical };
+  if (o.blockNumber <= o.finalizedBlock) return { ...base, state: "passed", detail: `${net(o.chain)} reports this payment as final.`, technical };
+  return { ...base, state: "pending", detail: "Not final yet. Check again before release.", technical };
 }
 
 /**

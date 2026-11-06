@@ -14,7 +14,6 @@ import { formatUsdc } from "../requests/lifecycle";
 import { shortAddr, shortHash } from "../requests/present";
 import { amountCheck, finalityCheck, ISSUER, networkCheck, receivingAddressCheck, releaseHeadline, tokenCheck, type CheckResult, type FinalityCheck, type FreezeCheck, type ReleaseChecks, type ReleaseHeadline } from "../requests/release-checks";
 import { loadSanctionsSnapshot, screenSender } from "../requests/sanctions";
-import { confirmPace } from "../requests/status";
 import { add } from "../payments/money";
 import type { Chain } from "../types";
 import { FREEZE_INDEX, recording as bundled } from "./fixtures";
@@ -66,7 +65,7 @@ export async function releaseChecks(r: Replayed, o: { replayedWait?: boolean; fi
   const src = "Recorded chain data (replayed)";
   const finality: FinalityCheck = o.replayedWait && tx
     // Replaying the wait: the transfer had only just gone into its block, so the network can't have finalized it yet.
-    ? { state: "pending", blockNumber: tx.blockNumber, source: REPLAYED_WAIT, detail: `Not final yet${confirmPace(chain) ? ` — usually ${confirmPace(chain)} more` : ""} (this wait is replayed faster than real time).`, technical: `In block ${tx.blockNumber}; replayed wait.` }
+    ? { state: "pending", blockNumber: tx.blockNumber, source: REPLAYED_WAIT, detail: "Not final yet. Check again before release (this wait is replayed faster than real time).", technical: `In block ${tx.blockNumber}; replayed wait.` }
     : o.finalizedBlock !== undefined
       ? finalityCheck({ chain, blockNumber: tx?.blockNumber, finalizedBlock: o.finalizedBlock, source: src, checkedAt: at })
       : await recordedFinality(r, chain, r.scenario.transfer!.hash, tx?.blockNumber);
