@@ -1,0 +1,2 @@
+id,effective_at,known_at,customer_id,reference,account,amount,currency
+receipt-unmatched,2026-11-12T09:00:00Z,2026-11-12T09:01:00Z,customer-1,WRONG-REF,provider-sgd,100000,SGD
