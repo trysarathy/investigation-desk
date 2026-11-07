@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "synthetic": true,
+  "cases": [
+    {
+      "id": "repaid",
+      "title": "Repaid on time",
+      "advance_id": "advance-1",
+      "review_at": "2026-11-09T10:00:00Z",
+      "reconcile_at": "2026-11-19T10:00:00Z",
+      "historical_decision": "approve",
+      "historical_reason": "Synthetic treasury approval",
+      "observed_outcome": "Full repayment before due date",
+      "inputs": {
+        "customers": "../customers.csv",
+        "cash": "../cash.csv",
+        "advances": "../advances.csv",
+        "payouts": "../payouts.csv",
+        "receipts": "on-time-receipts.csv"
+      }
+    },
+    {
+      "id": "declined",
+      "title": "Cash shortfall; treasury declines",
+      "advance_id": "advance-1",
+      "review_at": "2026-11-09T10:00:00Z",
+      "reconcile_at": "2026-11-19T10:00:00Z",
+      "historical_decision": "decline",
+      "historical_reason": "Free cash did not cover advance",
+      "observed_outcome": "No payout recorded",
+      "inputs": {
+        "customers": "../customers.csv",
+        "cash": "../cash.csv",
+        "advances": "high-advance.csv"
+      }
+    },
+    {
+      "id": "late",
+      "title": "Late partial repayment",
+      "advance_id": "advance-1",
+      "review_at": "2026-11-09T10:00:00Z",
+      "reconcile_at": "2026-11-19T10:00:00Z",
+      "historical_decision": "approve",
+      "historical_reason": "Synthetic treasury approval",
+      "observed_outcome": "SGD 40,000 received late; SGD 60,000 still owed",
+      "inputs": {
+        "customers": "../customers.csv",
+        "cash": "../cash.csv",
+        "advances": "../advances.csv",
+        "payouts": "../payouts.csv",
+        "receipts": "../receipts.csv"
+      }
+    },
+    {
+      "id": "duplicate",
+      "title": "Duplicate supplier invoice",
+      "advance_id": "advance-2",
+      "review_at": "2026-11-09T10:00:00Z",
+      "reconcile_at": "2026-11-19T10:00:00Z",
+      "historical_decision": "decline",
+      "historical_reason": "Duplicate invoice reference",
+      "observed_outcome": "Second advance declined",
+      "inputs": {
+        "customers": "../customers.csv",
+        "cash": "../cash.csv",
+        "advances": "duplicate-advances.csv"
+      }
+    },
+    {
+      "id": "unmatched",
+      "title": "Receipt reference does not match",
+      "advance_id": "advance-1",
+      "review_at": "2026-11-09T10:00:00Z",
+      "reconcile_at": "2026-11-19T10:00:00Z",
+      "historical_decision": "approve",
+      "historical_reason": "Synthetic treasury approval",
+      "observed_outcome": "Receipt held for review; principal remains owed",
+      "inputs": {
+        "customers": "../customers.csv",
+        "cash": "../cash.csv",
+        "advances": "../advances.csv",
+        "payouts": "../payouts.csv",
+        "receipts": "unmatched-receipts.csv"
+      }
+    }
+  ]
+}
