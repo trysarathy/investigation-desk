@@ -460,4 +460,34 @@ describe("funding authenticated entry point", () => {
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("too large");
   });
+  it("returns consistent GET snapshots while refreshes race preparation", async () => {
+    const maker = await signIn();
+    const responses = await Promise.all([
+      ...Array.from({ length: 12 }, () =>
+        GET(new Request(origin + "/api/funding", {
+          headers: { cookie: maker.cookie },
+        })),
+      ),
+      POST(request({
+        action: "prepare",
+        advance_id: "advance-1",
+        reason: "Synthetic terms checked",
+        revision: 0,
+      }, maker.cookie, maker.csrf)),
+    ]);
+    expect(responses.at(-1)!.status).toBe(200);
+    for (const result of responses.slice(0, -1)) {
+      expect(result.status).toBe(200);
+      const snapshot = await result.json();
+      expect(snapshot.data.revision).toBe(snapshot.revision);
+      expect(snapshot.data.advances[0].state).toBe(
+        snapshot.revision === 0 ? "proposed" : "prepared",
+      );
+      expect(snapshot.reviews["advance-1"]).toBeDefined();
+    }
+    const saved = await fundingStore().inspectAudit();
+    expect(saved.data.advances[0].state).toBe("prepared");
+    expect(saved.entries.filter((entry) => entry.action === "checks_viewed").length)
+      .toBeGreaterThanOrEqual(13);
+  });
 });

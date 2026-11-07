@@ -174,4 +174,40 @@ describe("atomic private audit envelope", () => {
     await expect(store.recordAudit(input)).rejects.toThrow(/Restore/);
     expect((await stat(file)).isDirectory()).toBe(true);
   });
+  it("audits an atomic view before a concurrent writer changes the revision", async () => {
+    const { store } = await setup();
+    let start!: () => void;
+    let release!: () => void;
+    const started = new Promise<void>((resolve) => { start = resolve; });
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const viewing = store.observe(async (data) => {
+      const revision = data.revision;
+      start();
+      await gate;
+      return {
+        result: revision,
+        audit: { ...input, details: { viewed_revision: revision } },
+      };
+    });
+    await started;
+    const writing = store.update((data) => [data, undefined]);
+    release();
+    expect(await viewing).toBe(0);
+    await writing;
+    const history = await store.inspectAudit();
+    expect(history.data.revision).toBe(1);
+    expect(history.entries.some((entry) =>
+      entry.action === "checks_viewed" &&
+      entry.details.viewed_revision === 0
+    )).toBe(true);
+  });
+  it("rejects a read callback that changes business records", async () => {
+    const { store } = await setup();
+    const before = await store.load();
+    await expect(store.observe((data) => {
+      data.revision = 99;
+      return { result: null, audit: input };
+    })).rejects.toThrow(/review cannot modify/);
+    expect(await store.load()).toEqual(before);
+  });
 });

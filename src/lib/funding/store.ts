@@ -253,6 +253,27 @@ export class FundingStore {
       return result;
     });
   }
+  // Keep the displayed snapshot and its audit entry under the same writer lease.
+  // A concurrent preparation must never turn a legitimate refresh into a 500.
+  async observe<R>(
+    fn: (
+      data: FundingData,
+    ) =>
+      | { result: R; audit: AuditInput }
+      | Promise<{ result: R; audit: AuditInput }>,
+  ): Promise<R> {
+    return this.locked(async () => {
+      const envelope = await this.readEnvelope();
+      const before = structuredClone(envelope.data);
+      const { result, audit } = await fn(envelope.data);
+      if (!isDeepStrictEqual(before, envelope.data))
+        throw Error("A review cannot modify funding records.");
+      envelope.audit = appendAudit(envelope.audit, audit, envelope.data);
+      verifyAudit(envelope.audit, envelope.data);
+      await writePrivateAtomic(this.file, JSON.stringify(envelope));
+      return result;
+    });
+  }
   async recordAudit(input: AuditInput, expectedRevision?: number) {
     return this.locked(async () => {
       const envelope = await this.readEnvelope();

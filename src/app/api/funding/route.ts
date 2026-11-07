@@ -55,43 +55,51 @@ const response = (body: unknown, status = 200) =>
 export async function GET(request: Request) {
   try {
     enabled();
-    const { session, user, data, config } = await authenticate(request),
-      at = fundingNow(config),
-      ledger = fundingLedger(data, at);
-    const reviews = Object.fromEntries(
-      data.advances
-        .filter((a) => visible(a, at))
-        .map((a) => [a.id, reviewAdvance(data, a.id, at)]),
-    );
-    await fundingStore().recordAudit(
-      {
-        actor: { kind: "user", id: user.id },
-        action: "checks_viewed",
-        details: { as_of: at, reviews },
-      },
-      data.revision,
-    );
-    return response({
-      user,
-      columns,
-      csrf: session.csrf,
-      at,
-      simulation: config.simulation,
-      revision: data.revision,
-      data: {
-        ...data,
-        advances: data.advances.filter((a) => visible(a, at)),
-        customers: data.customers.filter((a) => visible(a, at)),
-        payouts: data.payouts.filter((a) => visible(a, at)),
-        receipts: data.receipts.filter((a) => visible(a, at)),
-        cash: data.cash.filter((a) => visible(a, at)),
-        imports: [],
-        events: data.events.filter((e) => Date.parse(e.at) <= Date.parse(at)),
-      },
-      ledger,
-      reviews,
-      digest: digest(data, at, config.simulation).email,
+    const { session, user, config } = await authenticate(request);
+    // Compute and audit a single current snapshot: preparations can happen
+    // concurrently, but cannot invalidate a view between read and audit.
+    const state = await fundingStore().observe((data) => {
+      const currentUser = data.users.find((candidate) => candidate.id === user.id);
+      if (!currentUser) throw new AuthRequired("Sign in to the funding desk.");
+      const at = fundingNow(config);
+      const ledger = fundingLedger(data, at);
+      const reviews = Object.fromEntries(
+        data.advances
+          .filter((advance) => visible(advance, at))
+          .map((advance) => [advance.id, reviewAdvance(data, advance.id, at)]),
+      );
+      return {
+        result: {
+          user: currentUser,
+          columns,
+          csrf: session.csrf,
+          at,
+          simulation: config.simulation,
+          revision: data.revision,
+          data: {
+            ...data,
+            advances: data.advances.filter((advance) => visible(advance, at)),
+            customers: data.customers.filter((customer) => visible(customer, at)),
+            payouts: data.payouts.filter((payout) => visible(payout, at)),
+            receipts: data.receipts.filter((receipt) => visible(receipt, at)),
+            cash: data.cash.filter((position) => visible(position, at)),
+            imports: [],
+            events: data.events.filter(
+              (event) => Date.parse(event.at) <= Date.parse(at),
+            ),
+          },
+          ledger,
+          reviews,
+          digest: digest(data, at, config.simulation).email,
+        },
+        audit: {
+          actor: { kind: "user" as const, id: currentUser.id },
+          action: "checks_viewed",
+          details: { as_of: at, reviews },
+        },
+      };
     });
+    return response(state);
   } catch (e) {
     if (
       e instanceof AuthRequired &&
