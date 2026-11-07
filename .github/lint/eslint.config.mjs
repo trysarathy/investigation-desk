@@ -7,7 +7,8 @@ import { FlatCompat } from "@eslint/eslintrc";
 const compat = new FlatCompat({ baseDirectory: process.cwd() });
 
 const config = [
-  { ignores: [".next/**", "node_modules/**", "next-env.d.ts"] },
+  // team/**: AI-team docs and helper scripts (CommonJS), not product code.
+  { ignores: [".next/**", "node_modules/**", "next-env.d.ts", "team/**"] },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
 ];
 
