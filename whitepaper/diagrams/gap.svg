@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="330" viewBox="0 0 800 330" font-family="Inter, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5b6272"/></marker>
+    <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6e7df0"/></marker>
+  </defs>
+  <rect width="800" height="330" fill="#ffffff"/>
+  <!-- top row -->
+  <text x="20" y="22" font-size="12" font-weight="600" fill="#8a93a3" letter-spacing="1">WHAT THE CHAIN RECORDS</text>
+  <rect x="20" y="36" width="170" height="54" rx="8" fill="#f4f5f8" stroke="#a3abba"/>
+  <text x="105" y="60" font-size="14" font-weight="600" text-anchor="middle" fill="#0a0c11">Payer's wallet</text>
+  <text x="105" y="78" font-size="11.5" text-anchor="middle" fill="#5b6272">customer's AP team</text>
+  <line x1="190" y1="63" x2="318" y2="63" stroke="#5b6272" stroke-width="1.6" marker-end="url(#a)"/>
+  <text x="254" y="55" font-size="11.5" text-anchor="middle" fill="#0a0c11">token transfer</text>
+  <text x="254" y="80" font-size="11" text-anchor="middle" fill="#5b6272">"money moved"</text>
+  <rect x="320" y="36" width="190" height="54" rx="8" fill="#f4f5f8" stroke="#a3abba"/>
+  <text x="415" y="60" font-size="14" font-weight="600" text-anchor="middle" fill="#0a0c11">Business's own wallet</text>
+  <text x="415" y="78" font-size="11.5" text-anchor="middle" fill="#5b6272">no processor in the middle</text>
+  <line x1="510" y1="63" x2="608" y2="63" stroke="#c2483d" stroke-width="1.6" stroke-dasharray="5 4"/>
+  <text x="559" y="55" font-size="13" font-weight="700" text-anchor="middle" fill="#c2483d">gap</text>
+  <rect x="610" y="36" width="170" height="54" rx="8" fill="#f4f5f8" stroke="#a3abba"/>
+  <text x="695" y="60" font-size="14" font-weight="600" text-anchor="middle" fill="#0a0c11">Invoice closed</text>
+  <text x="695" y="78" font-size="11.5" text-anchor="middle" fill="#5b6272">books correct</text>
+  <!-- layer -->
+  <rect x="20" y="132" width="760" height="180" rx="12" fill="#f7f8ff" stroke="#6e7df0" stroke-width="1.4"/>
+  <text x="38" y="156" font-size="12" font-weight="600" fill="#6e7df0" letter-spacing="1">THE UNOWNED LAYER · WHAT CLEARLINE DOES (READ-ONLY)</text>
+  <g font-size="12" fill="#0a0c11">
+    <rect x="38" y="176" width="132" height="118" rx="8" fill="#ffffff" stroke="#6e7df0"/>
+    <text x="50" y="198" font-size="13.5" font-weight="700">1 Instruction</text>
+    <text x="50" y="220">exact amount,</text><text x="50" y="236">token contract,</text><text x="50" y="252">network, address,</text><text x="50" y="268">address checker</text>
+    <rect x="186" y="176" width="132" height="118" rx="8" fill="#ffffff" stroke="#6e7df0"/>
+    <text x="198" y="198" font-size="13.5" font-weight="700">2 Verification</text>
+    <text x="198" y="220">genuine token?</text><text x="198" y="236">right network?</text><text x="198" y="252">confirmed? failed?</text><text x="198" y="268">issuer freeze?</text>
+    <rect x="334" y="176" width="132" height="118" rx="8" fill="#ffffff" stroke="#6e7df0"/>
+    <text x="346" y="198" font-size="13.5" font-weight="700">3 Matching</text>
+    <text x="346" y="220">which invoice?</text><text x="346" y="236">exact, short, over,</text><text x="346" y="252">duplicate, unknown</text><text x="346" y="268">person confirms</text>
+    <rect x="482" y="176" width="132" height="118" rx="8" fill="#ffffff" stroke="#6e7df0"/>
+    <text x="494" y="198" font-size="13.5" font-weight="700">4 Explanation</text>
+    <text x="494" y="220">what happened,</text><text x="494" y="236">the evidence,</text><text x="494" y="252">next step,</text><text x="494" y="268">reply draft</text>
+    <rect x="630" y="176" width="132" height="118" rx="8" fill="#ffffff" stroke="#6e7df0"/>
+    <text x="642" y="198" font-size="13.5" font-weight="700">5 Accounting</text>
+    <text x="642" y="220">posting plan,</text><text x="642" y="236">a person approves,</text><text x="642" y="252">then it posts;</text><text x="642" y="268">audit log</text>
+  </g>
+  <g stroke="#6e7df0" stroke-width="1.4" marker-end="url(#b)">
+    <line x1="170" y1="235" x2="184" y2="235"/><line x1="318" y1="235" x2="332" y2="235"/><line x1="466" y1="235" x2="480" y2="235"/><line x1="614" y1="235" x2="628" y2="235"/>
+  </g>
+  <!-- verticals -->
+  <path d="M105,90 L105,174" stroke="#6e7df0" stroke-width="1.4" stroke-dasharray="4 3" fill="none" marker-end="url(#b)"/>
+  <text x="112" y="118" font-size="11" fill="#5b6272">before payment</text>
+  <path d="M415,90 C415,140 252,130 252,174" stroke="#6e7df0" stroke-width="1.4" stroke-dasharray="4 3" fill="none" marker-end="url(#b)"/>
+  <text x="352" y="118" font-size="11" fill="#5b6272">reads the transfer</text>
+  <path d="M696,176 L696,92" stroke="#6e7df0" stroke-width="1.4" fill="none" marker-end="url(#b)"/>
+  <text x="703" y="118" font-size="11" fill="#5b6272">after approval</text>
+</svg>

@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="430" viewBox="0 0 800 430" font-family="Inter, sans-serif">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5b6272"/></marker></defs>
+  <rect width="800" height="430" fill="#ffffff"/>
+  <g font-size="15" font-weight="600" text-anchor="middle" fill="#0a0c11">
+    <rect x="10" y="60" width="120" height="50" rx="8" fill="#f4f5f8" stroke="#a3abba"/><text x="70" y="91">Payer</text>
+    <rect x="10" y="270" width="120" height="50" rx="8" fill="#f4f5f8" stroke="#a3abba"/><text x="70" y="301">Finance user</text>
+    <rect x="655" y="60" width="135" height="64" rx="8" fill="#f4f5f8" stroke="#a3abba"/><text x="722" y="88">Blockchain</text>
+    <text x="722" y="108" font-size="13" font-weight="400" fill="#5b6272">read-only</text>
+    <rect x="655" y="230" width="135" height="64" rx="8" fill="#f4f5f8" stroke="#a3abba"/><text x="722" y="258">Accounting</text>
+    <text x="722" y="278" font-size="13" font-weight="400" fill="#5b6272">Xero (in testing)</text>
+  </g>
+  <rect x="160" y="14" width="470" height="404" rx="12" fill="#f7f8ff" stroke="#6e7df0" stroke-width="1.4"/>
+  <text x="178" y="40" font-size="13" font-weight="700" fill="#6e7df0" letter-spacing="1">CLEARLINE · ONE COMPANY PER DEPLOYMENT</text>
+  <g font-size="15" font-weight="600" fill="#0a0c11">
+    <rect x="180" y="56" width="200" height="54" rx="7" fill="#fff" stroke="#6e7df0"/><text x="194" y="80">1 Instruction</text><text x="194" y="99" font-size="13" font-weight="400" fill="#5b6272">payment page, checker</text>
+    <rect x="410" y="56" width="200" height="54" rx="7" fill="#fff" stroke="#6e7df0"/><text x="424" y="80">2 Verification</text><text x="424" y="99" font-size="13" font-weight="400" fill="#5b6272">rules and evidence</text>
+    <rect x="180" y="140" width="200" height="54" rx="7" fill="#fff" stroke="#6e7df0"/><text x="194" y="164">3 Matching</text><text x="194" y="183" font-size="13" font-weight="400" fill="#5b6272">to one invoice</text>
+    <rect x="410" y="140" width="200" height="54" rx="7" fill="#fff" stroke="#6e7df0"/><text x="424" y="164">4 Explanation</text><text x="424" y="183" font-size="13" font-weight="400" fill="#5b6272">cause, next step, reply</text>
+    <rect x="410" y="232" width="200" height="54" rx="7" fill="#fff" stroke="#6e7df0"/><text x="424" y="256">5 Accounting</text><text x="424" y="275" font-size="13" font-weight="400" fill="#5b6272">plan, approve, post</text>
+    <rect x="180" y="232" width="200" height="54" rx="7" fill="#fff" stroke="#6e7df0"/><text x="194" y="256">Person decides</text><text x="194" y="275" font-size="13" font-weight="400" fill="#5b6272">with a written reason</text>
+    <rect x="180" y="320" width="430" height="80" rx="7" fill="#fff" stroke="#a3abba" stroke-dasharray="4 3"/>
+    <text x="194" y="345">Records</text>
+    <text x="194" y="366" font-size="13" font-weight="400" fill="#5b6272">requests, transfers, checks, decisions, posting audit</text>
+    <text x="194" y="385" font-size="13" font-weight="400" fill="#5b6272">JSON files today; database and sign-in planned</text>
+  </g>
+  <g stroke="#5b6272" stroke-width="1.5" fill="none" marker-end="url(#a)">
+    <line x1="130" y1="85" x2="178" y2="83"/>
+    <line x1="653" y1="92" x2="612" y2="86"/>
+    <line x1="380" y1="83" x2="408" y2="83"/>
+    <line x1="430" y1="110" x2="372" y2="138"/>
+    <line x1="380" y1="167" x2="408" y2="167"/>
+    <line x1="510" y1="194" x2="510" y2="230"/>
+    <line x1="130" y1="295" x2="178" y2="262"/>
+    <line x1="380" y1="259" x2="408" y2="259"/>
+    <line x1="612" y1="259" x2="653" y2="262"/>
+    <line x1="280" y1="286" x2="280" y2="318"/>
+    <line x1="510" y1="286" x2="510" y2="318"/>
+  </g>
+  <rect x="655" y="330" width="135" height="58" rx="8" fill="#eaf7f0" stroke="#2f7d5b"/>
+  <text x="722" y="354" font-size="13.5" font-weight="700" text-anchor="middle" fill="#2f7d5b">No wallet keys.</text>
+  <text x="722" y="374" font-size="13.5" font-weight="700" text-anchor="middle" fill="#2f7d5b">Never holds funds.</text>
+  <text x="722" y="214" font-size="12" text-anchor="middle" fill="#0a0c11">writes only after</text>
+  <text x="722" y="314" font-size="12" text-anchor="middle" fill="#0a0c11">a person approves</text>
+</svg>
