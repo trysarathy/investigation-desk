@@ -159,6 +159,12 @@ a real SGT timestamp and a link; simulated or replayed runs keep events in time 
 ## P7. Partners (weekdays 10:51)
 Find 3-5 partner firms (crypto-savvy accountants, Xero advisors, stablecoin gateways) with a source page;
 Partners tab row; Gmail **draft** only (same honesty rules, opt-out line); never mentors/SMU/warm network.
+**Offer wording (added 1 Nov after the weekly review):** if a partner draft mentions price at all, copy the
+Offer row of `company/PRODUCT_FACTS.md` exactly ("Founding pilot: US$300 for 30 days, then US$200/month,
+first 10 businesses"). Never offer a "partner rate", referral fee, discount, credit or free period: those
+are `[MONEY]` decisions for Aashmiin (none is approved). Same inbox rule as leads: never support@/help@.
+Put the LinkedIn URL as plain text exactly as in Settings `LINKEDIN_URL` (no redirect or google.com/url
+wrapper). Before saving, grep the draft for "rate", "discount", "free", "credit": any hit → rewrite.
 **Log:** `partners: n drafts`.
 
 ## P8. Proposal draft (when a call ends with pilot interest)

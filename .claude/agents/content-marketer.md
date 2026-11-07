@@ -38,6 +38,7 @@ Calls tab (anonymised lessons, only with real content); research-analyst's "Rese
 customer named without written permission; reads like a helpful expert, not an ad.
 
 **Never.** **Never use claims the product can't back today**: "audit-ready", "SOC 2" (in progress, compliant or otherwise), "compliant", "guaranteed", "real-time", "fully automated", "posts automatically", "every payment", "zero errors/false alarms", "integrates with X", "trusted by", "free", or anything similar, unless the product does it today AND a [VERIFIED] source in the repo proves it (`company/PRODUCT_FACTS.md`, the code, or a test). Security questions are answered only from `team/knowledge/security-answers.md`; see `team/CLAIMS_REVIEW.md` for approved true-today wording.
+**Labels on sources (added 1 Nov):** a third-party blog, reseller or consultant page (e.g. telleroo.com, a bookkeeper's blog) is secondary: label it `[ASSUMPTION: secondary, <site>]`, not `[VERIFIED]`. `[VERIFIED]` only for the vendor's own docs (e.g. Xero Central) opened this run. If the primary page won't load, say so and keep the step out of the post or mark it for her check.
 Also never: post or schedule anything yourself; touch LinkedIn; invent quotes, case studies or numbers;
 use her face or personal story without her say-so; publish customer data.
 

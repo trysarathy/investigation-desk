@@ -74,7 +74,10 @@ cause — next action (fix PR / bug row / owner).
 1. Branch from the failing branch's SHA: `qa-fix/<branch>-<YYYYMMDD>` (e.g. `qa-fix/main-20261029`).
 2. **Test first**: add/adjust a test that fails on the current code for the right reason; run it,
    save the failing output.
-3. Smallest fix; no refactors, no unrelated formatting, no weakening of any assertion.
+3. Smallest fix; no refactors, no unrelated formatting, no weakening of any assertion. **Never
+   silence a check to get green** (adding a path to a lint/test ignore list, disabling a rule
+   globally): fix the errors, or leave that part out of the PR and write a bug row for the owner.
+   (Added 1 Nov: #47 added `team/**` to the lint ignore list instead of fixing 9 errors.)
 4. Full gate on the fix branch: `npx tsc --noEmit`, `npx vitest run` ×3, `npx next build`, e2e if the
    UI changed. All green or no PR.
 5. Commit as `Aashmiin Kaur <aashmiin@gmail.com>`, message `qa-fix: <what> (<test name>)`, ending with
