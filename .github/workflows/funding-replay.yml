@@ -1,0 +1,35 @@
+name: Funding five-case replay
+on:
+  pull_request:
+    paths:
+      - 'src/lib/funding/**'
+      - 'src/lib/advances/**'
+      - 'src/lib/payments/**'
+      - 'src/lib/csv/**'
+      - 'scripts/funding-replay-kit.*'
+      - 'fixtures/funding/**'
+      - 'tests/funding/replay-kit.test.ts'
+      - 'package.json'
+      - '.github/workflows/funding-replay.yml'
+permissions:
+  contents: read
+jobs:
+  replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.22.0'
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run tests/funding/replay-kit.test.ts
+      - name: Run actual five-case CLI and inspect output
+        run: |
+          out=$(mktemp -d)
+          rmdir "$out"
+          npm run funding-replay-kit -- --sample --out "$out"
+          node -e 'const f=require("node:fs");const r=JSON.parse(f.readFileSync(process.argv[1]+"/report.json","utf8"));if(!r.synthetic||r.cases.length!==5)process.exit(1);if(!f.readFileSync(process.argv[1]+"/report.md","utf8").includes("Still owed"))process.exit(1)' "$out"
