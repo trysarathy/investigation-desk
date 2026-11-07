@@ -36,7 +36,7 @@ export function validateManifest(m: ReplayManifest): ReplayManifest {
     for (const [kind, file] of Object.entries(c.inputs))
       if (!order.includes(kind as ImportKind) ||
           typeof file !== "string" || !/^[a-zA-Z0-9._/-]+\.csv$/.test(file) ||
-          file.startsWith("/") || file.split("/").includes(".."))
+          file.startsWith("/") || file.includes("//") || file.split("/").filter((x) => x === "..").length > 1)
         throw Error("Use relative CSV paths inside the case folder.");
   }
   return m;
