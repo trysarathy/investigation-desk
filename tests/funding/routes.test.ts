@@ -1,5 +1,10 @@
 import { beforeEach, afterEach, describe, it, expect } from "vitest";
-import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
+import {
+  mkdtemp,
+  writeFile as fsWriteFile,
+  readFile,
+  rm,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { GET, POST } from "../../src/app/api/funding/route";
@@ -7,6 +12,8 @@ import { emptyFunding, type ImportKind } from "../../src/lib/funding/model";
 import { columns, importCsv } from "../../src/lib/funding/imports";
 import { applyFundingEvent } from "../../src/lib/funding/review";
 import { hashPassword, fundingStore } from "../../src/lib/funding/server";
+const writeFile = (file: string, data: string | Buffer) =>
+  fsWriteFile(file, data, { mode: 0o600 });
 let dir: string;
 const at = "2026-11-09T10:00:00Z",
   origin = "http://127.0.0.1:3000",
@@ -452,5 +459,35 @@ describe("funding authenticated entry point", () => {
     );
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("too large");
+  });
+  it("returns consistent GET snapshots while refreshes race preparation", async () => {
+    const maker = await signIn();
+    const responses = await Promise.all([
+      ...Array.from({ length: 12 }, () =>
+        GET(new Request(origin + "/api/funding", {
+          headers: { cookie: maker.cookie },
+        })),
+      ),
+      POST(request({
+        action: "prepare",
+        advance_id: "advance-1",
+        reason: "Synthetic terms checked",
+        revision: 0,
+      }, maker.cookie, maker.csrf)),
+    ]);
+    expect(responses.at(-1)!.status).toBe(200);
+    for (const result of responses.slice(0, -1)) {
+      expect(result.status).toBe(200);
+      const snapshot = await result.json();
+      expect(snapshot.data.revision).toBe(snapshot.revision);
+      expect(snapshot.data.advances[0].state).toBe(
+        snapshot.revision === 0 ? "proposed" : "prepared",
+      );
+      expect(snapshot.reviews["advance-1"]).toBeDefined();
+    }
+    const saved = await fundingStore().inspectAudit();
+    expect(saved.data.advances[0].state).toBe("prepared");
+    expect(saved.entries.filter((entry) => entry.action === "checks_viewed").length)
+      .toBeGreaterThanOrEqual(13);
   });
 });

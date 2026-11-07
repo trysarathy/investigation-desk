@@ -34,7 +34,7 @@ import {
   openColumns,
   exceptionColumns,
 } from "@/lib/funding/outputs";
-import { buildEvidence, canonicalJson } from "@/lib/funding/evidence";
+import { buildEvidence, canonicalJson, sha256 } from "@/lib/funding/evidence";
 
 import { exportCsv } from "@/lib/advances/ledger";
 import { zipStored, workbook } from "@/lib/funding/outputs/xlsx";
@@ -55,34 +55,51 @@ const response = (body: unknown, status = 200) =>
 export async function GET(request: Request) {
   try {
     enabled();
-    const { session, user, data, config } = await authenticate(request),
-      at = fundingNow(config),
-      ledger = fundingLedger(data, at);
-    return response({
-      user,
-      columns,
-      csrf: session.csrf,
-      at,
-      simulation: config.simulation,
-      revision: data.revision,
-      data: {
-        ...data,
-        advances: data.advances.filter((a) => visible(a, at)),
-        customers: data.customers.filter((a) => visible(a, at)),
-        payouts: data.payouts.filter((a) => visible(a, at)),
-        receipts: data.receipts.filter((a) => visible(a, at)),
-        cash: data.cash.filter((a) => visible(a, at)),
-        imports: [],
-        events: data.events.filter((e) => Date.parse(e.at) <= Date.parse(at)),
-      },
-      ledger,
-      reviews: Object.fromEntries(
+    const { session, user, config } = await authenticate(request);
+    // Compute and audit a single current snapshot: preparations can happen
+    // concurrently, but cannot invalidate a view between read and audit.
+    const state = await fundingStore().observe((data) => {
+      const currentUser = data.users.find((candidate) => candidate.id === user.id);
+      if (!currentUser) throw new AuthRequired("Sign in to the funding desk.");
+      const at = fundingNow(config);
+      const ledger = fundingLedger(data, at);
+      const reviews = Object.fromEntries(
         data.advances
-          .filter((a) => visible(a, at))
-          .map((a) => [a.id, reviewAdvance(data, a.id, at)]),
-      ),
-      digest: digest(data, at, config.simulation).email,
+          .filter((advance) => visible(advance, at))
+          .map((advance) => [advance.id, reviewAdvance(data, advance.id, at)]),
+      );
+      return {
+        result: {
+          user: currentUser,
+          columns,
+          csrf: session.csrf,
+          at,
+          simulation: config.simulation,
+          revision: data.revision,
+          data: {
+            ...data,
+            advances: data.advances.filter((advance) => visible(advance, at)),
+            customers: data.customers.filter((customer) => visible(customer, at)),
+            payouts: data.payouts.filter((payout) => visible(payout, at)),
+            receipts: data.receipts.filter((receipt) => visible(receipt, at)),
+            cash: data.cash.filter((position) => visible(position, at)),
+            imports: [],
+            events: data.events.filter(
+              (event) => Date.parse(event.at) <= Date.parse(at),
+            ),
+          },
+          ledger,
+          reviews,
+          digest: digest(data, at, config.simulation).email,
+        },
+        audit: {
+          actor: { kind: "user" as const, id: currentUser.id },
+          action: "checks_viewed",
+          details: { as_of: at, reviews },
+        },
+      };
     });
+    return response(state);
   } catch (e) {
     if (
       e instanceof AuthRequired &&
@@ -96,6 +113,8 @@ export async function GET(request: Request) {
   }
 }
 export async function POST(request: Request) {
+  let actor: { kind: "user"; id: string } | undefined;
+  let requestedAction = "unknown";
   try {
     enabled();
     assertOrigin(request);
@@ -116,6 +135,11 @@ export async function POST(request: Request) {
       return res;
     }
     const { session, user, data, config } = await authenticate(request);
+    actor = { kind: "user", id: user.id };
+    requestedAction =
+      typeof body.action === "string" && /^[a-z_-]{1,40}$/.test(body.action)
+        ? body.action
+        : "unknown";
     if (request.headers.get("x-csrf-token") !== session.csrf)
       throw Error("Reload the desk before submitting.");
     if (
@@ -125,6 +149,30 @@ export async function POST(request: Request) {
     )
       throw Error("Identity and policy are set by the server.");
     const at = fundingNow(config);
+    const auditedDownload = async (
+      value: string | Buffer,
+      name: string,
+      type: string,
+    ) => {
+      await fundingStore().recordAudit(
+        {
+          actor: actor!,
+          action: "export_prepared",
+          details: {
+            format: String(body.format),
+            advance_id:
+              typeof body.advance_id === "string" ? body.advance_id : null,
+            as_of: at,
+            filename: name,
+            sha256: sha256(value),
+            bytes: Buffer.byteLength(value),
+            delivery: "generated; client receipt is not observed",
+          },
+        },
+        data.revision,
+      );
+      return download(value, name, type);
+    };
     if (body.action === "logout") {
       logout(request);
       const res = response({ ok: true });
@@ -144,7 +192,7 @@ export async function POST(request: Request) {
           at,
           config.simulation,
         );
-        return download(
+        return auditedDownload(
           zipStored({
             "evidence.zip": pack.archive,
             "evidence-hashes.json": canonicalJson(pack.hashes),
@@ -198,7 +246,7 @@ export async function POST(request: Request) {
         throw Error(
           "This format is unavailable. Confirm the provider accounting mappings first.",
         );
-      return download(
+      return auditedDownload(
         outputs[name],
         name,
         name.endsWith(".xlsx")
@@ -209,7 +257,7 @@ export async function POST(request: Request) {
     if (body.action === "clock") {
       if (user.role === "viewer")
         throw Error("A viewer cannot change the simulation.");
-      await advanceClock(body.at as string);
+      await advanceClock(body.at as string, actor);
       return response({ ok: true });
     }
     if (
@@ -231,82 +279,118 @@ export async function POST(request: Request) {
             : {}),
         },
         body.revision as number,
+        actor,
       );
       return response({ ok: true });
     }
     if (user.role !== "operator")
       throw Error("Only an operator can import evidence or classify cash.");
-    await fundingStore().update(async (current) => {
-      if (current.revision !== body.revision)
-        throw Error("Records changed. Reload before importing.");
-      let kind = body.kind as ImportKind,
-        text = body.text as string,
-        filename = body.filename as string,
-        mapping = body.mapping as ColumnMapping | undefined;
-      if (body.action === "sample-payout" || body.action === "sample-receipt") {
-        if (!config.simulation) throw Error("Sample actions are disabled.");
-        kind = body.action === "sample-payout" ? "payouts" : "receipts";
-        text = await readFile(
-          path.join(fundingDirectory(), `${kind}.csv`),
-          "utf8",
-        );
-        filename = `synthetic-${kind}.csv`;
-        mapping = Object.fromEntries(columns[kind].map((k) => [k, k]));
-      } else if (body.action === "cash") {
-        kind = "cash";
-        const observed = body.effective_at as string;
-        if (instant(observed) > instant(at))
-          throw Error(
-            "The observed bank balance time cannot be in the future.",
+    await fundingStore().update(
+      async (current) => {
+        if (current.users.find((u) => u.id === user.id)?.role !== "operator")
+          throw Error("Only an operator can import evidence.");
+        if (current.revision !== body.revision)
+          throw Error("Records changed. Reload before importing.");
+        let kind = body.kind as ImportKind,
+          text = body.text as string,
+          filename = body.filename as string,
+          mapping = body.mapping as ColumnMapping | undefined;
+        if (
+          body.action === "sample-payout" ||
+          body.action === "sample-receipt"
+        ) {
+          if (!config.simulation) throw Error("Sample actions are disabled.");
+          kind = body.action === "sample-payout" ? "payouts" : "receipts";
+          text = await readFile(
+            path.join(fundingDirectory(), `${kind}.csv`),
+            "utf8",
           );
-        const balance = String(body.balance),
-          restricted = [body.safeguarded, body.pending, body.buffer].map(
-            String,
+          filename = `synthetic-${kind}.csv`;
+          mapping = Object.fromEntries(columns[kind].map((k) => [k, k]));
+        } else if (body.action === "cash") {
+          kind = "cash";
+          const observed = body.effective_at as string;
+          if (instant(observed) > instant(at))
+            throw Error(
+              "The observed bank balance time cannot be in the future.",
+            );
+          const balance = String(body.balance),
+            restricted = [body.safeguarded, body.pending, body.buffer].map(
+              String,
+            );
+          [balance, ...restricted].forEach(amount);
+          const free = sub(balance, sum(restricted));
+          if (compare(free, "0") < 0)
+            throw Error("Restricted portions exceed the balance.");
+          const id = randomBytes(12).toString("hex");
+          const rows = [
+            "free",
+            "safeguarded customer money",
+            "pending payouts",
+            "buffer",
+          ].map((classification, i) =>
+            [
+              `${id}-${i}`,
+              observed,
+              at,
+              id,
+              body.account,
+              balance,
+              body.currency,
+              classification,
+              [free, ...restricted][i],
+            ]
+              .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+              .join(","),
           );
-        [balance, ...restricted].forEach(amount);
-        const free = sub(balance, sum(restricted));
-        if (compare(free, "0") < 0)
-          throw Error("Restricted portions exceed the balance.");
-        const id = randomBytes(12).toString("hex");
-        const rows = [
-          "free",
-          "safeguarded customer money",
-          "pending payouts",
-          "buffer",
-        ].map((classification, i) =>
-          [
-            `${id}-${i}`,
-            observed,
-            at,
-            id,
-            body.account,
-            balance,
-            body.currency,
-            classification,
-            [free, ...restricted][i],
-          ]
-            .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-            .join(","),
-        );
-        mapping =
-          current.mappings.cash ??
-          Object.fromEntries(columns.cash.map((k) => [k, k]));
-        text =
-          columns.cash
-            .map((k) => `"${mapping![k].replace(/"/g, '""')}"`)
-            .join(",") +
-          "\n" +
-          rows.join("\n") +
-          "\n";
-        filename = "provider-cash-classification.csv";
-      } else if (body.action !== "import")
-        throw Error("Choose a supported action.");
-      if (typeof text !== "string" || typeof filename !== "string")
-        throw Error("Select a CSV file.");
-      return [importCsv(current, kind, text, mapping, filename, at), undefined];
-    });
+          mapping =
+            current.mappings.cash ??
+            Object.fromEntries(columns.cash.map((k) => [k, k]));
+          text =
+            columns.cash
+              .map((k) => `"${mapping![k].replace(/"/g, '""')}"`)
+              .join(",") +
+            "\n" +
+            rows.join("\n") +
+            "\n";
+          filename = "provider-cash-classification.csv";
+        } else if (body.action !== "import")
+          throw Error("Choose a supported action.");
+        if (typeof text !== "string" || typeof filename !== "string")
+          throw Error("Select a CSV file.");
+        return [
+          importCsv(current, kind, text, mapping, filename, at),
+          undefined,
+        ];
+      },
+      {
+        actor,
+        action: "input_recorded",
+        details: { request: requestedAction },
+      },
+    );
     return response({ ok: true });
   } catch (e) {
+    if (actor) {
+      try {
+        await fundingStore().recordAudit({
+          actor,
+          action: "request_failed",
+          details: {
+            request: requestedAction,
+            note: "Request did not complete; inspect prior events for any recorded action.",
+          },
+        });
+      } catch {
+        return response(
+          {
+            error:
+              "The request did not complete and its failure could not be audited. Stop and inspect the private store.",
+          },
+          500,
+        );
+      }
+    }
     return response(
       {
         error:
