@@ -209,7 +209,7 @@ export default function MentorDemo() {
               <Tag tone={e.severity === "high" ? "red" : "amber"}>{e.severity === "high" ? "Attention" : "Review"}</Tag><div><h3>{e.title}</h3><p>{e.detail}</p></div>
               {e.advanceId && <button className={styles.linkButton} onClick={() => select(e.advanceId!, "approvals")}>Inspect evidence →</button>}
             </div>)}
-            <div className={styles.cardTitle}><div><h2>Daily digest preview</h2><p>For the provider's existing email or Slack workflow.</p></div></div><pre className={styles.digest}>{dailyDigest(state)}</pre>
+            <div className={styles.cardTitle}><div><h2>Daily digest preview</h2><p>For the provider&apos;s existing email or Slack workflow.</p></div></div><pre className={styles.digest}>{dailyDigest(state)}</pre>
           </section>}
 
           {panel === "ledger" && <><section className={styles.card}><div className={styles.cardTitle}><div><h2>Advances and repayments</h2><p>The outstanding amount is calculated from recorded supplier payouts, repayments, and adjustments.</p></div></div><AdvanceTable state={state} onSelect={(id) => select(id, "ledger")}/></section>
