@@ -15,7 +15,8 @@
     "funding-setup": "sh scripts/funding-setup.sh",
     "funding-start": "CLEARLINE_FUNDING_ONLY=1 next start",
     "funding-dev": "CLEARLINE_FUNDING_ONLY=1 next dev",
-    "funding-audit": "sh scripts/funding-audit.sh"
+    "funding-audit": "sh scripts/funding-audit.sh",
+    "funding-replay-kit": "sh scripts/funding-replay-kit.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.132.0",
