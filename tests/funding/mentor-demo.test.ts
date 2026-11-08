@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  actors, decide, dailyDigest, exceptions, freeCash, initialDemo, journalCsv,
+  actors, createDemoAdvance, decide, dailyDigest, exceptions, freeCash, importBundledSample, initialDemo, journalCsv,
   ledgerCsv, money, outstanding, payout, prepare, repay, review, setDate,
 } from "../../src/lib/mentor-demo/engine";
 
@@ -83,6 +83,26 @@ describe("standalone synthetic mentor demo", () => {
     const totalCredit = journal.reduce((sum, row) => sum + Number(row[4]), 0);
     expect(totalDebit).toBe(totalCredit);
     expect(money(60000)).toBe("SGD 60,000.00");
+  });
+  it("creates a synthetic advance without changing real money or approval states", () => {
+    const seed = initialDemo();
+    const caseData = { customerId: "C-001", supplier: "Pacific Demo", invoice: "INV-SYN-010",
+      amount: 30000, payoutDate: "2026-11-12", due: "2026-11-19" };
+    const created = createDemoAdvance(seed, "operator", caseData);
+    expect(seed.advances).toHaveLength(3);
+    expect(created.advances).toHaveLength(4);
+    expect(created.advances[3]).toMatchObject({ id: "ADV-004", stage: "proposed", paid: 0, repaid: 0 });
+    expect(review(created, "ADV-004")).toHaveLength(5);
+    expect(() => createDemoAdvance(seed, "viewer", caseData)).toThrow();
+    expect(() => createDemoAdvance(created, "operator", caseData)).toThrow("already");
+    expect(() => createDemoAdvance(seed, "operator", { ...caseData, amount: -1 })).toThrow();
+    expect(() => createDemoAdvance(seed, "operator", { ...caseData, due: "2026-11-10" })).toThrow();
+  });
+  it("imports a bundled fake CSV row at most once", () => {
+    const created = importBundledSample(initialDemo(), "operator");
+    expect(created.advances[3].invoice).toBe("INV-NC-7774");
+    expect(() => importBundledSample(created, "operator")).toThrow("already");
+    expect(() => importBundledSample(initialDemo(), "viewer")).toThrow();
   });
   it("rejects invalid replay dates and preserves the original demo on reset", () => {
     const seed = initialDemo();
