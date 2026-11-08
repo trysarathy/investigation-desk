@@ -47,7 +47,7 @@ test("mentor view has no login requirement or live monetary controls", async ({ 
   await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeDisabled();
   await navigate(page, info, "Demo settings");
   await expect(page.getByText("Undrawn credit lines are excluded.")).toBeVisible();
-  await expect(page.getByText(/browser-only mentor demonstration/)).toBeVisible();
+  await expect(page.getByText(/Sandbox payouts are simulated; no live payments/).first()).toBeVisible();
 });
 
 test("pilot queue search, sample import and case creation are interactive", async ({ page }, info) => {
