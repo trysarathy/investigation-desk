@@ -154,3 +154,55 @@ export function journalCsv(s: Demo) {
   }
   return rows.map((r) => r.join(",")).join("\r\n") + "\r\n";
 }
+
+export type NewAdvanceInput = {
+  customerId: string;
+  supplier: string;
+  invoice: string;
+  amount: number;
+  payoutDate: string;
+  due: string;
+};
+// Client-side simulation only. Never creates a real provider record.
+export function createDemoAdvance(s: Demo, role: Role, input: NewAdvanceInput): Demo {
+  if (role !== "operator") throw Error("Only the simulated operator may create an advance.");
+  if (!s.customers.some((c) => c.id === input.customerId))
+    throw Error("Select a customer already in the demo.");
+  if (
+    !input.supplier.trim() || input.supplier.trim().length > 100 ||
+    !input.invoice.trim() || input.invoice.trim().length > 80
+  ) throw Error("Supplier and invoice reference must be provided (up to 100 and 80 characters).");
+  if (!Number.isSafeInteger(input.amount) || input.amount <= 0)
+    throw Error("Enter a positive whole-SGD amount.");
+  if (
+    !/^2026-11-(0[1-9]|[12][0-9]|30)$/.test(input.payoutDate) ||
+    !/^2026-11-(0[1-9]|[12][0-9]|30)$/.test(input.due) ||
+    input.due < input.payoutDate
+  ) throw Error("Choose a November 2026 repayment date on or after the payout date.");
+  if (s.advances.some((a) => a.customerId === input.customerId &&
+    a.invoice.toLowerCase() === input.invoice.trim().toLowerCase() &&
+    a.stage !== "declined"
+  )) throw Error("This customer and invoice already have a funding case.");
+  const nextId = Math.max(0, ...s.advances.map((a) => Number(a.id.replace("ADV-", "")) || 0)) + 1;
+  const id = "ADV-" + String(nextId).padStart(3, "0");
+  const advance: Advance = {
+    id, customerId: input.customerId, supplier: input.supplier.trim(),
+    invoice: input.invoice.trim(), amount: input.amount, currency: "SGD",
+    payoutDate: input.payoutDate, due: input.due, stage: "proposed",
+    invoicePresent: true, termsOnFile: true, paid: 0, repaid: 0, writtenOff: 0,
+  };
+  return log({ ...s, advances: [...s.advances, advance] }, id, actors[role],
+    "Synthetic advance created", "Proposed record only; no funds moved.");
+}
+export const bundledSampleCsv =
+  "customer_id,supplier,invoice_ref,amount_sgd,payout_date,due_date\n" +
+  "C-003,Marina Steel,INV-NC-7774,35000,2026-11-13,2026-11-27\n";
+export function importBundledSample(s: Demo, role: Role): Demo {
+  const [header, line] = bundledSampleCsv.trim().split("\n");
+  if (header !== "customer_id,supplier,invoice_ref,amount_sgd,payout_date,due_date")
+    throw Error("The bundled sample format is invalid.");
+  const [customerId, supplier, invoice, amount, payoutDate, due] = line.split(",");
+  return createDemoAdvance(s, role, {
+    customerId, supplier, invoice, amount: Number(amount), payoutDate, due,
+  });
+}
