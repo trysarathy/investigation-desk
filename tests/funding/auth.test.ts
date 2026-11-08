@@ -200,6 +200,60 @@ describe("funding authentication and request boundaries", () => {
       ),
     ).toThrow();
   });
+  it("permits only a verified Codespaces origin translation", () => {
+    const previousName = process.env.CODESPACE_NAME;
+    const previousDomain = process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN;
+    const previousOrigin = process.env.CLEARLINE_ORIGIN;
+    try {
+      process.env.CODESPACE_NAME = "supreme-robot-abc123";
+      process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN = "app.github.dev";
+      process.env.CLEARLINE_ORIGIN =
+        "https://supreme-robot-abc123-8766.app.github.dev";
+      const url = process.env.CLEARLINE_ORIGIN + "/api/funding";
+      const headers = {
+        origin: "http://localhost:8766",
+        host: "supreme-robot-abc123-8766.app.github.dev",
+        referer: process.env.CLEARLINE_ORIGIN + "/funding",
+        "sec-fetch-site": "same-origin",
+      };
+      expect(() => assertOrigin(new Request(url, { headers }))).not.toThrow();
+      expect(() =>
+        assertOrigin(
+          new Request(url, {
+            headers: { ...headers, origin: "http://127.0.0.1:8766" },
+          }),
+        ),
+      ).not.toThrow();
+      for (const changed of [
+        { origin: "https://evil.test" },
+        { origin: "http://localhost:8767" },
+        { host: "evil.test" },
+        { referer: "https://evil.test/funding" },
+        { referer: "https://supreme-robot-abc123-8766.app.github.dev/evil" },
+        { "sec-fetch-site": "cross-site" },
+        { "sec-fetch-site": "none" },
+      ]) {
+        expect(() =>
+          assertOrigin(
+            new Request(url, { headers: { ...headers, ...changed } }),
+          ),
+        ).toThrow();
+      }
+      process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN = "evil.test";
+      expect(() => assertOrigin(new Request(url, { headers }))).toThrow();
+      process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN = "app.github.dev";
+      delete process.env.CODESPACE_NAME;
+      expect(() => assertOrigin(new Request(url, { headers }))).toThrow();
+    } finally {
+      if (previousName === undefined) delete process.env.CODESPACE_NAME;
+      else process.env.CODESPACE_NAME = previousName;
+      if (previousDomain === undefined)
+        delete process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN;
+      else process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN = previousDomain;
+      if (previousOrigin === undefined) delete process.env.CLEARLINE_ORIGIN;
+      else process.env.CLEARLINE_ORIGIN = previousOrigin;
+    }
+  });
   it("rejects nonobjects, malformed JSON, invalid UTF8 and misleading media types", async () => {
     for (const body of ["[]", "null", "{bad", new Uint8Array([0xff])])
       await expect(
