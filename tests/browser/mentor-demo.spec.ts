@@ -1,5 +1,12 @@
 import { test, expect } from "@playwright/test";
 
+async function navigate(page: import("@playwright/test").Page, info: import("@playwright/test").TestInfo, label: string) {
+  if (info.project.name === "phone") {
+    await page.getByRole("button", { name: "Toggle navigation" }).click();
+  }
+  await page.getByRole("button", { name: label }).click();
+}
+
 test("mentor can complete an entire simulated funding lifecycle", async ({ page }, info) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -16,7 +23,7 @@ test("mentor can complete an entire simulated funding lifecycle", async ({ page 
   await page.getByLabel("Demo role").selectOption("approver");
   await page.getByRole("button", { name: "Approve", exact: true }).click();
   await expect(page.getByText("Treasury approval recorded in synthetic timeline.")).toBeVisible();
-  await page.getByRole("button", { name: "Outstanding ledger" }).click();
+  await navigate(page, info, "Outstanding ledger");
   await page.getByLabel("Demo role").selectOption("operator");
   await page.getByLabel("Replay date").fill("2026-11-10");
   await page.getByRole("button", { name: "Record supplier paid" }).click();
@@ -24,20 +31,20 @@ test("mentor can complete an entire simulated funding lifecycle", async ({ page 
   await page.getByLabel("Replay date").fill("2026-11-19");
   await page.getByRole("button", { name: "Record customer repayment" }).click();
   await expect(page.getByText("Receipt matched by reference and outstanding balance updated.")).toBeVisible();
-  await page.getByRole("button", { name: /Exceptions/ }).click();
+  await navigate(page, info, "Exceptions");
   await expect(page.getByText("Overdue customer repayment").first()).toBeVisible();
   await page.screenshot({ path: info.outputPath("mentor-demo-desktop-or-phone.png"), fullPage: true });
   expect(errors).toEqual([]);
 });
 
-test("mentor view has no login requirement or live monetary controls", async ({ page }) => {
+test("mentor view has no login requirement or live monetary controls", async ({ page }, info) => {
   await page.goto("/mentor-demo");
-  await expect(page.getByText("Northline Payments")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Funding operations, in control." })).toBeVisible();
   await page.getByLabel("Demo role").selectOption("viewer");
   await page.getByRole("button", { name: "Open advance review" }).click();
   await expect(page.getByRole("button", { name: "Prepare advance" })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeDisabled();
-  await page.getByRole("button", { name: "Demo settings" }).click();
+  await navigate(page, info, "Demo settings");
   await expect(page.getByText("Undrawn credit lines are excluded.")).toBeVisible();
   await expect(page.getByText(/browser-only mentor demonstration/)).toBeVisible();
 });
