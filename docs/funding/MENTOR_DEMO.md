@@ -4,20 +4,20 @@
 
 ## What the mentor can see
 
-1. **Overview:** outstanding advances, supplier payout evidence, genuinely free cash and attention-only exceptions.
+1. **Work queue:** the compact pilot operating desk layout: horizontal navigation, search, grouped status rows and live counts for review, evidence requests, cutoff, overdue, partial repayment, unmatched cash and open cases.
 2. **Approvals:** five deterministic rules — invoice uniqueness, exposure limit, existing overdue debt, terms and provider-designated free cash. Operator prepares; simulated treasury approver may approve/decline with a reason. Viewer cannot change records.
 3. **Outstanding ledger:** an approved advance can be marked supplier-paid only on/after its payout date. A receipt explicitly allocated to its invoice reduces the still-owed amount. No money moves.
 4. **Exceptions:** overdue advances, partial repayments and an unmatched receipt, with a plain-English daily digest.
 5. **Evidence:** an event timeline and JSON evidence export with SHA-256 digest of the evidence payload.
 6. **Settings:** explanation of provider cash restrictions and CSV / illustrative balanced accounting journal exports.
 
-All state is held in memory in the user's browser for the current page. **Refreshing resets the example.** The `Reset demo` control does the same intentionally. No user input is sent to a provider, and any actions labeled approval, payout or repayment are fictional. This is a simulation, not a secure multiuser system, audited ledger, signed treasury authorization or legally approved safeguarding method.
+A simulated **New case** form and **Import sample CSV** button let the mentor create a fictional advance or import a bundled one-row example; there is no real CSV file upload on this public route. All state is held in memory in the user's browser for the current page. **Refreshing resets the example.** The `Reset demo` control does the same intentionally. No user input is sent to a provider, and any actions labeled approval, payout or repayment are fictional. This is a simulation, not a secure multiuser system, audited ledger, signed treasury authorization or legally approved safeguarding method.
 
 ### Five-minute guided workflow
 
 At the initial simulated date **9 Nov 2026**, the proposed `ADV-001` amount is SGD 100,000.
 
-- Open **Approvals**, select `ADV-001`, inspect all five checks and click **Prepare advance** as the operator.
+- From **Work queue**, click **Open advance review** (or select the `ADV-001` grouped row), inspect all five checks and click **Prepare advance** as the operator.
 - Change **Acting as** to `Daniel · Treasury` and click **Approve** with a reason.
 - Open **Outstanding ledger**, switch back to `Maya · Operator`, set **Replay date** to **10 Nov 2026**, and click **Record supplier paid**.
 - Change **Replay date** to **19 Nov 2026**. Click **Record customer repayment** for the seeded SGD 40,000 amount. The still-owed principal is SGD 60,000.
@@ -35,7 +35,7 @@ npx tsc --noEmit
 npx next build
 ```
 
-On GitHub Actions the funding browser workflow runs the existing authenticated private funding desk as well as the separate mentor demo at `/mentor-demo`, both desktop and phone. See the CI check runs attached to the pull request for actual results; do not claim they passed unless they did.
+On GitHub Actions, `mentor-browser.yml` separately tests the public synthetic demonstration on desktop and phone. The private authenticated funding desk retains its own independent browser suite. See the CI check runs attached to the pull request for actual results; do not claim they passed unless they did.
 
 ### Limits / next stage
 
