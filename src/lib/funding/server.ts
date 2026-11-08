@@ -235,6 +235,39 @@ export async function authenticate(request: Request) {
 export function logout(request: Request) {
   sessions.delete(key(cookieToken(request)));
 }
+// Codespaces' authenticated port-forwarding proxy can replace an otherwise
+// correct browser Origin with http://localhost:PORT before Next receives it.
+// Permit only that exact translation, and only when the host, referer,
+// Fetch Metadata, Codespace identity and configured HTTPS URL all agree.
+// This does not relax normal production-origin validation.
+function codespacesForwardedOrigin(request: Request, configured: URL): boolean {
+  const name = process.env.CODESPACE_NAME;
+  const domain = process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN;
+  if (!name || domain !== "app.github.dev" || configured.protocol !== "https:")
+    return false;
+  const prefix = name + "-";
+  const suffix = "." + domain;
+  if (
+    !configured.hostname.startsWith(prefix) ||
+    !configured.hostname.endsWith(suffix) ||
+    configured.port ||
+    request.headers.get("host") !== configured.host ||
+    request.headers.get("sec-fetch-site") !== "same-origin"
+  ) return false;
+  const port = configured.hostname.slice(prefix.length, -suffix.length);
+  if (!/^[1-9][0-9]{0,4}$/.test(port) || Number(port) > 65535) return false;
+  if (
+    ![`http://localhost:${port}`, `http://127.0.0.1:${port}`].includes(
+      request.headers.get("origin") ?? "",
+    )
+  ) return false;
+  try {
+    const referer = new URL(request.headers.get("referer") ?? "");
+    return referer.origin === configured.origin && referer.pathname === "/funding";
+  } catch {
+    return false;
+  }
+}
 export function assertOrigin(request: Request) {
   const origin = process.env.CLEARLINE_ORIGIN;
   let url: URL;
@@ -248,7 +281,8 @@ export function assertOrigin(request: Request) {
     !origin ||
     url.origin !== origin ||
     (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) ||
-    request.headers.get("origin") !== origin ||
+    (request.headers.get("origin") !== origin &&
+      !codespacesForwardedOrigin(request, url)) ||
     (request.headers.get("sec-fetch-site") &&
       !["same-origin", "none"].includes(request.headers.get("sec-fetch-site")!))
   )
