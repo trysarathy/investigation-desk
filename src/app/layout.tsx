@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";
@@ -20,6 +21,10 @@ export const metadata: Metadata = {
 const themeScript = `try{var t=localStorage.getItem("desk.theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}`;
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // The mentor demo is an entirely synthetic standalone UI, not the
+  // authenticated provider workspace and not the legacy stablecoin shell.
+  const isMentorDemo = (await headers()).get("x-clearline-mentor-demo-route") === "1";
+  if (isMentorDemo) return <html lang="en"><body>{children}</body></html>;
   if (process.env.CLEARLINE_FUNDING_ONLY === "1") return <html lang="en"><body>{children}</body></html>;
   // The sidebar must not call uploaded data "fabricated" (real-data test, 24 Oct 2026).
   const demoMode = isDemoMode();
