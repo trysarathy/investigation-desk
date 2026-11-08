@@ -5,7 +5,7 @@ if (!password || password.length < 12) throw Error('Set CLEARLINE_BROWSER_PASSWO
 
 export default defineConfig({
   testDir: './tests/browser',
-  testMatch: 'funding.spec.ts',
+  testMatch: ['funding.spec.ts', 'mentor-demo.spec.ts'],
   fullyParallel: false,
   workers: 1,
   retries: 0,
