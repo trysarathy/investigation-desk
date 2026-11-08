@@ -2,20 +2,21 @@
 
 import { useMemo, useState } from "react";
 import {
-  actors, decide, dailyDigest, exceptions, freeCash, initialDemo,
+  actors, createDemoAdvance, decide, dailyDigest, exceptions, freeCash, importBundledSample, initialDemo,
   journalCsv, ledgerCsv, money, outstanding, payout, prepare, repay,
   review, setDate, type Advance, type Demo, type Role,
 } from "@/lib/mentor-demo/engine";
 import styles from "./MentorDemo.module.css";
 
-type Panel = "overview" | "approvals" | "exceptions" | "ledger" | "evidence" | "settings";
+type Panel = "overview" | "approvals" | "exceptions" | "ledger" | "evidence" | "settings" | "newcase";
 const nav: { key: Panel; label: string; icon: string }[] = [
-  { key: "overview", label: "Overview", icon: "◫" },
-  { key: "approvals", label: "Approvals", icon: "◇" },
+  { key: "overview", label: "Queue", icon: "◫" },
+  { key: "approvals", label: "Advance review", icon: "◇" },
   { key: "exceptions", label: "Exceptions", icon: "⚑" },
   { key: "ledger", label: "Outstanding ledger", icon: "▤" },
   { key: "evidence", label: "Evidence", icon: "▧" },
   { key: "settings", label: "Demo settings", icon: "⚙" },
+  { key: "newcase", label: "New case", icon: "+" },
 ];
 function download(filename: string, contents: string, type = "text/plain") {
   const url = URL.createObjectURL(new Blob([contents], { type: type + ";charset=utf-8" }));
@@ -42,6 +43,14 @@ export default function MentorDemo() {
   const [message, setMessage] = useState("");
   const [warning, setWarning] = useState("");
   const [mobileNav, setMobileNav] = useState(false);
+  const [queueQuery, setQueueQuery] = useState("");
+  const [queueFilter, setQueueFilter] = useState("all");
+  const [newCustomer, setNewCustomer] = useState("C-001");
+  const [newSupplier, setNewSupplier] = useState("");
+  const [newInvoice, setNewInvoice] = useState("");
+  const [newAmount, setNewAmount] = useState("50000");
+  const [newPayout, setNewPayout] = useState("2026-11-12");
+  const [newDue, setNewDue] = useState("2026-11-19");
   const active = state.advances.find((a) => a.id === selected) ?? state.advances[0];
   const customer = state.customers.find((c) => c.id === active.customerId)!;
   const checks = useMemo(() => review(state, active.id), [state, active.id]);
@@ -52,6 +61,29 @@ export default function MentorDemo() {
     open: state.advances.filter((a) => outstanding(a) > 0).length,
   }), [state]);
   const timeline = state.events.filter((event) => event.advanceId === active.id);
+  const awaiting = state.advances.filter((a) => a.stage === "proposed" || a.stage === "prepared");
+  const evidenceNeeded = state.advances.filter((a) => ["proposed", "prepared"].includes(a.stage) && review(state, a.id).some((c) => c.status !== "pass"));
+  const upcoming = state.advances.filter((a) => a.stage === "approved" && a.payoutDate >= state.asOf && a.payoutDate <= new Date(Date.parse(state.asOf + "T00:00:00Z") + 86400000).toISOString().slice(0, 10));
+  const overdue = state.advances.filter((a) => outstanding(a) > 0 && a.due < state.asOf);
+  const partly = state.advances.filter((a) => a.repaid > 0 && outstanding(a) > 0);
+  const openCases = state.advances.filter((a) => !["repaid", "declined", "written_off"].includes(a.stage));
+  const queueGroups = [
+    { id: "awaiting", label: "Awaiting review", rows: awaiting, type: "advance" },
+    { id: "evidence", label: "Evidence requested", rows: evidenceNeeded, type: "advance" },
+    { id: "cutoff", label: "Approaching cutoff (24 h)", rows: upcoming, type: "advance" },
+    { id: "overdue", label: "Overdue repayment", rows: overdue, type: "advance" },
+    { id: "partial", label: "Partial repayments", rows: partly, type: "advance" },
+    { id: "unmatched", label: "Unmatched cash", rows: [], type: "receipt" },
+    { id: "mine", label: "My open cases", rows: openCases.filter((a) => a.preparedBy === actors[role]), type: "advance" },
+    { id: "all", label: "All open cases", rows: openCases, type: "advance" },
+  ] as const;
+  const q = queueQuery.trim().toLowerCase();
+  const matches = (a: Advance) => [a.id, a.invoice, a.supplier, state.customers.find((c) => c.id === a.customerId)?.name ?? ""].some((value) => value.toLowerCase().includes(q));
+  const filteredGroups = queueGroups.filter((g) => queueFilter === "all" || queueFilter === g.id);
+  const importSample = () => {
+    if (role !== "operator") { setWarning("Only the simulated operator can import sample cases."); return; }
+    act(() => importBundledSample(state, role), "A new synthetic case was imported from the bundled sample CSV.");
+  };
   const act = (next: () => Demo, confirmation: string) => {
     try {
       const updated = next();
@@ -91,89 +123,115 @@ export default function MentorDemo() {
 
   return (
     <div className={styles.app}>
-      <aside className={`${styles.sidebar} ${mobileNav ? styles.sidebarOpen : ""}`}>
-        <div className={styles.brand}>
-          <span className={styles.mark}>C</span>
-          <span><strong>Clearline</strong><small>FUNDING DESK</small></span>
-        </div>
-        <div className={styles.workspace}>
-          <span className={styles.workspaceLabel}>WORKSPACE</span>
-          <strong>Northline Payments</strong>
-          <small>Fictional provider · Singapore</small>
-        </div>
-        <div className={styles.sectionLabel}>WORKSPACE</div>
-        <nav aria-label="Funding desk sections" className={styles.nav}>
-          {nav.map((item) => <button key={item.key} type="button" onClick={() => jump(item.key)}
-            className={`${styles.navButton} ${panel === item.key ? styles.active : ""}`}
-            aria-current={panel === item.key ? "page" : undefined}>
-            <span className={styles.navIcon} aria-hidden="true">{item.icon}</span>{item.label}
-            {item.key === "exceptions" && <span className={styles.count}>{alerts.length}</span>}
-          </button>)}
-        </nav>
-        <div className={styles.sidebarBottom}>
-          <div className={styles.help}>
-            <strong>About this demonstration</strong>
-            <p>Everything is fictional. No bank account, ERP or credit decision is connected.</p>
+      <header className={styles.pilotHeader}>
+        <div className={styles.pilotMain}>
+          <div className={styles.brand}>
+            <span className={styles.mark}>C</span><strong>Clearline</strong>
+            <span className={styles.brandDivider} aria-hidden="true">│</span><span className={styles.productName}>FUNDING OPERATING DESK</span>
           </div>
-          <div className={styles.avatar}><span>M</span><div><strong>Mentor preview</strong><small>Safe simulation</small></div></div>
+          <button type="button" className={styles.menuButton} aria-label="Toggle navigation" onClick={() => setMobileNav(!mobileNav)}>☰</button>
+          <nav className={`${styles.pilotNav} ${mobileNav ? styles.pilotNavOpen : ""}`} aria-label="Funding desk sections">
+            {nav.map((item) => <button key={item.key} type="button" onClick={() => jump(item.key)}
+              className={`${styles.navButton} ${panel === item.key ? styles.active : ""}`}
+              aria-current={panel === item.key ? "page" : undefined}>{item.label}
+              {item.key === "exceptions" && <span className={styles.count}>{alerts.length}</span>}</button>)}
+          </nav>
         </div>
-      </aside>
+        <div className={styles.pilotIdentity}>
+          <span className={styles.identityName}>{actors[role]}</span><span className={styles.roleChip}>{role}</span>
+          <span className={styles.providerName}>Northline Payments (Synthetic)</span>
+          <select aria-label="Demo role" value={role} onChange={(e) => { setRole(e.target.value as Role); setMessage(""); setWarning(""); }}>
+            <option value="operator">Operator</option><option value="approver">Treasury approver</option><option value="viewer">Viewer</option>
+          </select>
+          <button type="button" className={styles.resetLink} onClick={() => { setState(initialDemo()); setPanel("overview"); setSelected("ADV-001"); setQueueFilter("all"); setQueueQuery(""); setMessage("Demo reset to the original fictional records."); setWarning(""); }}>Reset demo</button>
+        </div>
+      </header>
+      <div className={styles.sandboxBar}>Pilot workspace — sandbox payouts and approvals are simulated; no live payments.</div>
       <main className={styles.main}>
-        <header className={styles.topbar}>
-          <button type="button" className={styles.menuButton} onClick={() => setMobileNav(!mobileNav)} aria-label="Toggle navigation">☰</button>
-          <div className={styles.breadcrumb}>Northline Payments <span>/</span> <strong>{nav.find((n) => n.key === panel)?.label}</strong></div>
-          <div className={styles.topRight}><Tag tone="amber">SYNTHETIC DEMO</Tag><span className={styles.today}>As of {state.asOf}</span></div>
-        </header>
         <div className={styles.body}>
           <div className={styles.pageHead}>
-            <div><div className={styles.eyebrow}>CLEARLINE · OPERATIONS</div>
-              <h1>{panel === "overview" ? "Funding operations, in control." : nav.find((n) => n.key === panel)?.label}</h1>
-              <p>{panel === "overview" ? "Approve with evidence. Know what's still owed. Surface only what matters." :
-                panel === "approvals" ? "A person prepares each advance; a different treasury reviewer makes the decision." :
-                panel === "exceptions" ? "Only the repayments and receipts that need someone's attention." :
-                panel === "ledger" ? "Supplier paid isn't the same as customer repaid." :
-                panel === "evidence" ? "Every review connected to the facts known at the time." :
-                "Simulation controls, provider cash assumptions and export options."}</p>
-            </div>
-            <div className={styles.actions}>
-              <button type="button" className={styles.secondary} onClick={() => { setState(initialDemo()); setPanel("overview"); setSelected("ADV-001"); setMessage("Demo reset to the original fictional records."); setWarning(""); }}>↻ Reset demo</button>
-              <button type="button" className={styles.primary} onClick={() => download("clearline-open-advances.csv", ledgerCsv(state), "text/csv")}>↓ Export ledger</button>
+            <div>
+              <h1>{panel === "overview" ? "Work queue" : panel === "newcase" ? "New advance case" : nav.find((n) => n.key === panel)?.label}</h1>
+              <p>{panel === "overview" ? "What needs your attention, what is at risk, and what you can do next." :
+                panel === "approvals" ? "Operator prepares the advance; a named treasury reviewer approves or declines." :
+                panel === "exceptions" ? "Only the repayments and incoming receipts that need a response." :
+                panel === "ledger" ? "Record supplier payouts and see how much the customer still owes." :
+                panel === "evidence" ? "Every advance comes with the checks, decisions and repayment timeline." :
+                panel === "newcase" ? "Create a synthetic advance to review. No money is moved." :
+                "Review provider-defined cash classifications and export files."}</p>
             </div>
           </div>
           {warning && <div className={styles.error} role="alert">{warning}</div>}
           {message && <div className={styles.success} role="status">{message}</div>}
           <div className={styles.rolebar}>
-            <span>ACTING AS</span>
-            <select aria-label="Demo role" value={role} onChange={(e) => { setRole(e.target.value as Role); setMessage(""); setWarning(""); }}>
-              <option value="operator">{actors.operator}</option>
-              <option value="approver">{actors.approver}</option>
-              <option value="viewer">{actors.viewer}</option>
-            </select>
-            <span className={styles.roleHint}>Role switching is for the simulation only—not real authentication.</span>
+            <span>AS OF {state.asOf} · {role.toUpperCase()} MODE · FICTIONAL DATA</span>
             <label className={styles.dateLabel}>Replay date <input aria-label="Replay date" type="date" min="2026-11-01" max="2026-11-30" value={state.asOf}
               onChange={(e) => act(() => setDate(state, e.target.value), "Replay date updated.")}/></label>
           </div>
-
           {panel === "overview" && <>
-            <div className={styles.metrics}>
-              <div className={styles.metric}><span>STILL OWED BY CUSTOMERS</span><strong>{money(totals.owed)}</strong><small>{totals.open} outstanding advances</small></div>
-              <div className={styles.metric}><span>SUPPLIERS PAID</span><strong>{money(totals.paid)}</strong><small>Recorded payout evidence only</small></div>
-              <div className={styles.metric}><span>FREE CASH ESTIMATE</span><strong>{money(freeCash(state))}</strong><small>After provider-designated restrictions</small></div>
-              <div className={styles.metric}><span>NEEDS ATTENTION</span><strong>{alerts.length}</strong><small>{alerts.length === 0 ? "All clear" : "Exceptions awaiting review"}</small></div>
+            <div className={styles.queueToolbar}>
+              <div className={styles.searchGroup}>
+                <input type="search" aria-label="Search cases" value={queueQuery} onChange={(e) => setQueueQuery(e.target.value)}
+                  placeholder="Case id, customer, supplier or invoice" />
+                <button type="button" className={styles.secondary} onClick={() => setQueueFilter("all")}>Search</button>
+              </div>
+              <div className={styles.queueActions}>
+                <button type="button" className={styles.primary} onClick={() => jump("newcase")}>New case</button>
+                <button type="button" className={styles.secondary} onClick={importSample}>Import sample CSV</button>
+              </div>
             </div>
-            <div className={styles.twoCols}>
-              <section className={styles.card}><div className={styles.cardTitle}><div><h2>What needs you today</h2><p>Quiet by design. Only exceptions appear here.</p></div><button className={styles.linkButton} onClick={() => jump("exceptions")}>View all →</button></div>
-                {alerts.length ? alerts.slice(0, 4).map((item) => <button className={styles.exceptionRow} key={item.id} onClick={() => item.advanceId ? select(item.advanceId, "exceptions") : jump("exceptions")}>
-                  <span className={item.severity === "high" ? styles.dotRed : styles.dotAmber}/><span><strong>{item.title}</strong><small>{item.detail}</small></span><span className={styles.chevron}>↗</span>
-                </button>) : <div className={styles.empty}>✓ All clear. Nothing needs you today.</div>}
-              </section>
-              <section className={styles.card}><div className={styles.cardTitle}><div><h2>At the cutoff</h2><p>Start with a proposed advance.</p></div></div>
-                <div className={styles.focus}><span>REQUIRES OPERATOR REVIEW</span><strong>{active.id === "ADV-001" ? "ADV-001" : "ADV-001"}</strong><p>Redwood Wholesale → Harbor Machinery</p><div className={styles.focusAmount}>SGD 100,000.00</div><Tag>Proposed</Tag></div>
-                <button className={styles.primaryWide} onClick={() => select("ADV-001")}>Open advance review <span>↗</span></button>
-              </section>
+            <div className={styles.queueFilters} aria-label="Queue status filters">
+              <button type="button" className={queueFilter === "all" ? styles.filterOn : ""} onClick={() => setQueueFilter("all")}>All groups</button>
+              {queueGroups.map((group) => <button type="button" key={group.id}
+                className={queueFilter === group.id ? styles.filterOn : ""}
+                onClick={() => setQueueFilter(group.id)}>{group.label} {group.id === "unmatched" ? state.unmatched.length : group.rows.length}</button>)}
             </div>
-            <section className={styles.card}><div className={styles.cardTitle}><div><h2>Outstanding advances</h2><p>From supplier payout through full repayment.</p></div><button className={styles.linkButton} onClick={() => jump("ledger")}>Open ledger →</button></div><AdvanceTable state={state} onSelect={(id) => select(id, "ledger")}/></section>
+            <div className={styles.queueList}>
+              {filteredGroups.map((group) => {
+                const entries = group.type === "advance" ? group.rows.filter(matches) : [];
+                const receipts = group.type === "receipt" ? state.unmatched.filter((r) => !q || [r.id, r.customer, r.reference].some((v) => v.toLowerCase().includes(q))) : [];
+                return <section key={group.id} className={styles.queueSection} aria-label={group.label}>
+                  <div className={styles.queueSectionTitle}><strong>{group.label.toUpperCase()} <span>{entries.length + receipts.length}</span></strong>
+                    {entries.length + receipts.length === 0 && <span className={styles.queueNothing}>Nothing here.</span>}</div>
+                  {entries.map((a) => <button type="button" key={a.id} className={styles.queueRow} onClick={() => select(a.id, group.id === "overdue" || group.id === "partial" ? "ledger" : "approvals")}>
+                    <span><strong>{a.id} · {state.customers.find((c) => c.id === a.customerId)?.name}</strong>
+                      <small>{a.supplier} · {a.invoice} · {stageText[a.stage]}</small></span>
+                    <span className={styles.queueMoney}>{money(group.id === "overdue" || group.id === "partial" ? outstanding(a) : a.amount)}</span>
+                    <span className={styles.queueDue}>Due {a.due}</span><span className={styles.queueArrow}>Open →</span>
+                  </button>)}
+                  {receipts.map((r) => <div className={styles.queueRow} key={r.id}>
+                    <span><strong>{r.id} · {r.customer}</strong><small>Reference: {r.reference} · needs manual matching</small></span>
+                    <span className={styles.queueMoney}>{money(r.amount)}</span><span className={styles.queueDue}>Unassigned</span>
+                    <button type="button" className={styles.linkButton} onClick={() => jump("exceptions")}>Inspect →</button>
+                  </div>)}
+                </section>;
+              })}
+            </div>
+            <div className={styles.queueSummary}><span>Outstanding: <strong>{money(totals.owed)}</strong></span><span>Available cash: <strong>{money(freeCash(state))}</strong></span><span>Exceptions: <strong>{alerts.length}</strong></span></div>
+            <button type="button" className={styles.linkButton} onClick={() => select("ADV-001")}>Open advance review →</button>
           </>}
+
+          {panel === "newcase" && <section className={styles.card}>
+            <div className={styles.cardTitle}><div><h2>Prepare a new funding case</h2><p>Only synthetic records are added to this local demonstration.</p></div></div>
+            <form className={styles.newCaseForm} onSubmit={(e) => { e.preventDefault(); try {
+              const next = createDemoAdvance(state, role, { customerId: newCustomer, supplier: newSupplier, invoice: newInvoice,
+                amount: Number(newAmount), payoutDate: newPayout, due: newDue });
+              setState(next); setSelected(next.advances[next.advances.length - 1].id); setPanel("approvals");
+              setMessage("Synthetic case created. Run checks and prepare it for treasury review."); setWarning("");
+            } catch (err) { setWarning(err instanceof Error ? err.message : "Cannot create the case."); setMessage(""); } }}>
+              <label>Customer<select value={newCustomer} onChange={(e) => setNewCustomer(e.target.value)}>{state.customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+              <label>Supplier<input aria-label="New case supplier" value={newSupplier} maxLength={100} onChange={(e) => setNewSupplier(e.target.value)} placeholder="Supplier name" required/></label>
+              <label>Invoice reference<input aria-label="New case invoice reference" value={newInvoice} maxLength={80} onChange={(e) => setNewInvoice(e.target.value)} placeholder="INV-2026-001" required/></label>
+              <label>Amount (SGD)<input aria-label="New case amount" type="number" value={newAmount} min="1" step="1" onChange={(e) => setNewAmount(e.target.value)} required/></label>
+              <label>Payout date<input aria-label="New case payout date" type="date" min="2026-11-01" max="2026-11-30" value={newPayout} onChange={(e) => setNewPayout(e.target.value)} required/></label>
+              <label>Due date<input aria-label="New case due date" type="date" min="2026-11-01" max="2026-11-30" value={newDue} onChange={(e) => setNewDue(e.target.value)} required/></label>
+              <div className={styles.formActions}>
+                <button type="button" className={styles.secondary} onClick={() => jump("overview")}>Cancel</button>
+                <button type="submit" className={styles.primary} disabled={role !== "operator"}>Create synthetic case</button>
+              </div>
+              <p className={styles.fine}>No connected bank accounts, no credit decisions, no real payouts.</p>
+            </form>
+          </section>}
 
           {(panel === "approvals" || panel === "evidence") && <>
             <div className={styles.selector}><label>ADVANCE <select aria-label="Select advance" value={active.id} onChange={(e) => select(e.target.value, panel)}>
@@ -246,7 +304,7 @@ export default function MentorDemo() {
               <div className={styles.settingRow}><span>Viewer</span><strong>{actors.viewer}</strong></div>
             </section>
           </div>}
-          <footer className={styles.footer}>Clearline Funding Desk · fictional data · no real transfers, accounts, approvals or customer records · browser-only mentor demonstration</footer>
+          <footer className={styles.footer}><span>Clearline funding operating desk. Separate from live production. Sandbox payouts are simulated; no live payments.</span><span>Environment: mentor demo</span></footer>
         </div>
       </main>
     </div>
