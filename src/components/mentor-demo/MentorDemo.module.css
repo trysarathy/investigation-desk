@@ -185,3 +185,87 @@ button.queueRow:hover{background:#f0f7f1}
  .queueSectionTitle strong{font-size:10px}
  .newCaseForm{grid-template-columns:1fr;padding:14px}
 }
+
+
+/* DEMO DAY / Midnight Cobalt. Presentation-only colors; preserves financial rules. */
+.app{
+  --ink:#F3F6FF;--muted:#AEBBD7;--subtle:#899ABB;--line:#303C5C;
+  --light:#0D1426;--green:#7183FF;--greenSoft:#262F5B;
+  --amber:#FFC478;--amberSoft:#483847;--red:#FF837A;--redSoft:#492938;
+  background:#0D1426;color:#F3F6FF;
+}
+.pilotHeader{background:#090F20;border-bottom:1px solid #344363;box-shadow:0 8px 24px #04081144}
+.brand,.brand strong,.productName{color:#F8FAFF}
+.mark{background:linear-gradient(135deg,#586DFF,#9477FF);color:#fff}
+.brandDivider{color:#8A97C4}
+.pilotNav,.pilotMain,.pilotIdentity{color:#DCE3FC}
+.navButton{background:transparent;color:#B7C6E2;border-color:transparent}
+.navButton:hover,.active{background:#252E51;color:#F4F6FF}
+.pilotIdentity{border-color:#303D5C}
+.identityName,.providerName,.roleChip{color:#D6DEFA}
+.roleChip{background:#293253;border:1px solid #455684}
+.resetLink{color:#ABBAFF}
+.sandboxBar{background:#30253B;color:#FFD69E;border-bottom-color:#80627B}
+.body,.main{background:#0D1426;color:#F3F6FF}
+.pageHead h1{color:#FFFFFF}
+.pageHead p,.roleHint,.dateLabel,.rolebar>span:first-child{color:#AFC0DB}
+.eyebrow{color:#A1B0FF}
+.rolebar,.metric,.card,.workspace{background:#17213A;border-color:#354364}
+.metric strong,.focusAmount,.detailHeader h2,.detailHeader>strong{color:#F9FAFF}
+.metric span,.metric small,.cardTitle p,.sectionLabel,.workspaceLabel{color:#B0BFDD}
+.cardTitle{background:#1D2943;border-bottom-color:#354364}
+.cardTitle h2{color:#FFFFFF}
+.primary,.primaryWide{background:#6578FF;border-color:#6578FF;color:#FFFFFF;box-shadow:0 4px 14px #586DFF2C}
+.primary:hover,.primaryWide:hover{background:#8291FF}
+.secondary,.linkButton{background:#222D4C;border:1px solid #485985;color:#D3DCFF}
+.secondary:hover{background:#2A3762}
+.danger{background:#3C2539;border-color:#76445D;color:#FFB0A9}
+.danger:hover{background:#543246}
+.tag,.tag.neutral{background:#27314A;color:#C4D0E9;border-color:#43506C}
+.tag.green{background:#29386B;color:#C8D3FF;border-color:#5067AD}
+.tag.amber{background:#493444;color:#FFD29C;border-color:#8C6257}
+.tag.red{background:#512B3E;color:#FFBBB6;border-color:#90505A}
+.rolebar select,.dateLabel input,.selector select,.selector input,.decision textarea,.actionForm input,.actionForm select,
+.newCaseForm input,.newCaseForm select,.searchGroup input{
+  background:#111B31;border:1px solid #445372;color:#F8F9FF;
+}
+.searchGroup input::placeholder{color:#8B9CB8}
+.queueFilters button{background:#222C45;border-color:#3A4769;color:#BBC8E3}
+.queueFilters button:hover,.queueFilters .filterOn{background:#364782;color:#F5F7FF;border-color:#8397FF}
+.queueSection{background:#18223B;border-color:#36435F;border-radius:8px}
+.queueSectionTitle{color:#AFC2E1}
+.queueNothing{color:#91A3BF}
+.queueRow{background:#192440;border-top-color:#344261;color:#F4F7FF}
+button.queueRow:hover{background:#253354}
+.queueRow strong{color:#F2F4FF}
+.queueRow small,.queueDue{color:#B4C1DA}
+.queueArrow,.queueSummary strong{color:#B6C4FF}
+.queueSummary{border-color:#34415C;color:#A9B9D7}
+.queueMoney{color:#E7ECFF}
+.exceptionRow{background:#17213A;border-bottom-color:#384564}
+.exceptionRow:hover{background:#222F4C}
+.exceptionRow strong{color:#F5F7FF}
+.exceptionRow small{color:#ACB9D5}
+.dotRed{background:#FF7169}.dotAmber{background:#FFC37C}
+.focus>span,.focus p,.fine,.settingRow{color:#B8C6DE}
+.focus>strong{color:#FAFBFF}
+.table,.table td,.table th{color:#E4EAFB;border-color:#33415C}
+.table th{background:#202D4B;color:#B5C4E6}
+.table tbody tr{background:#17213A}
+.table tbody tr:nth-child(even){background:#1D2844}
+.check{border-color:#34415E;color:#F8FAFF}
+.check span,.check small,.check p{color:#AFBFDA}
+.decision,.actionForm,.detailHeader{color:#EFF3FE}
+.timeline{border-color:#354362}
+.timeDot{border-color:#7A8CFF;background:#17213A}
+.timeline strong{color:#F5F8FF}
+.timeline p,.timeline small{color:#B6C4DF}
+.digest{background:#1A2845;color:#D2DAFF;border:1px solid #42527F}
+.total{background:#242F56;color:#E3E9FF}
+.exportList button{background:#1E2C49;color:#BBC9FF;border-color:#43527B}
+.exportList button:hover{background:#2B3861}
+.settingRow{border-color:#354361}
+.newCaseForm label{color:#D3DEF7}
+.queueDue,.queueSummary,.focus,.empty{color:#B6C4DC}
+.queueRow:focus-visible,.queueFilters button:focus-visible{outline-color:#A9B8FF}
+@media(max-width:720px){.pilotHeader{background:#090F20}.menuButton{color:#DFE6FE;border-color:#445272}.navButton{border-bottom-color:#303C5F}}

@@ -134,3 +134,95 @@
 @media(max-width:860px){.mainGrid{grid-template-columns:1fr}.intro{grid-template-columns:1fr}.rolePicker{max-width:370px}.side{display:grid;grid-template-columns:1fr 1fr}.flagCard{grid-column:1/-1}}
 @media(max-width:570px){.topbar{padding:13px 17px}.brand{font-size:12px;gap:5px}.brand strong{font-size:18px}.separator{margin:0 2px}.topActions{width:100%;justify-content:space-between}.container{padding:20px 13px}.intro h1{font-size:29px}.steps{grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}.step{padding:7px 5px;gap:3px;flex-direction:column;align-items:flex-start}.stepLabel{font-size:9px}.storyTop{padding:23px 20px}.storyTop h2{font-size:26px}.storyTop p{font-size:12px}.concept{padding:19px}.concept>div:not(.flowArrow){flex-basis:100%}.flowArrow{transform:rotate(90deg);margin:auto}.checkList{padding:7px 14px 15px}.check{gap:9px}.check>div strong{font-size:12px}.cashFormula{padding:14px}.cashFormula p{overflow-wrap:anywhere;font-size:10px}.approval,.flowLedger,.history{padding:20px 17px}.actionArea{margin:12px 17px 20px;flex-direction:column;align-items:stretch}.cta{width:100%;min-width:0}.side{display:flex}.roleWarning,.error,.success{margin-left:17px;margin-right:17px}.disclosure{font-size:9px}.caseCard,.balanceCard{padding:18px}}
 @media(prefers-reduced-motion:reduce){.lightFill,.balanceBar>span{transition:none}}
+
+
+/* DEMO DAY / Midnight Cobalt — isolated visual layer, zero business-logic changes.
+   Intent: exceptional stage contrast on 16:9 projectors; calm finance UI without greens.
+   Cobalt #6478FF | Periwinkle #AAB4FF | Coral #FF796E | Ink #0B1122.
+*/
+.shell {
+  --navy:#080E20; --navy2:#1A2450; --ink:#F6F7FF; --muted:#A9B5D1;
+  --line:#2B3656; --teal:#6478FF; --tealLight:#262E58;
+  --amber:#FFBD6B; --red:#FF796E;
+  color:#F6F7FF; background:linear-gradient(160deg,#0B1122 0%,#101830 53%,#0B1122 100%);
+}
+.topbar{background:#070C1A;border-bottom:1px solid #29365C;box-shadow:0 5px 28px #04071555}
+.brandMark{background:linear-gradient(140deg,#5569F5,#8C69EE);color:#FFFFFF;box-shadow:0 0 0 1px #9DA8FF44}
+.brand,.brand strong{color:#F7F8FF}
+.separator{color:#7688B7}
+.back,.reset{color:#D7DFFC!important}
+.reset{border:1px solid #3B4770!important;background:#18213D!important}
+.reset:hover{background:#25305B!important}
+.disclosure{background:#27223C;color:#FFDFAF;border-color:#6F567A;box-shadow:none}
+.container{color:#F7F8FF}
+.kicker,.storyIndex{color:#AAB4FF}
+.intro h1{color:#FAFAFF}
+.intro p{color:#BEC8E1}
+.rolePicker{background:#171F36!important;border:1px solid #303C5D!important;box-shadow:0 6px 24px #04061222}
+.rolePicker label{color:#AAB4FF}
+.rolePicker small{color:#B2C0DC}
+.rolePicker select{background:#222B47;color:#F9F9FF;border-color:#485579}
+.step{color:#A3B1CC;background:#1C263D;border-color:#25334F}
+.currentStep{background:#35447D;color:#FFFFFF;border-color:#8A9AFF}
+.finishedStep{background:#222E59;color:#BFC9FF;border-color:#5D72DA}
+.story,.caseCard{background:#151D32;border-color:#34415F;box-shadow:0 16px 40px #00000028}
+.storyTop{background:linear-gradient(112deg,#15234C 0%,#2A2860 60%,#47347F 120%);border-bottom:1px solid #51518D}
+.storyTop h2{color:#FFFFFF}
+.storyTop p{color:#D5D9FB}
+.concept>div:not(.flowArrow){background:#1A2741;border-color:#405078}
+.concept span,.concept small{color:#B4C0E1}
+.concept strong{color:#FFFFFF}
+.flowArrow{color:#99A8FF}
+.check{border-bottom-color:#2C3952}
+.checkIndex{background:#26345D;color:#B9C8FF}
+.check strong,.person strong,.event strong{color:#F8F9FF}
+.check p,.note,.formulaNote,.event p,.event small{color:#B6C1D9}
+.goodStatus,.done{background:#293A70;color:#BFCBFF}
+.warningStatus,.pending{background:#4A3548;color:#FFD39C}
+.cashFormula,.digestBox{background:#1C2546;border-color:#43548C}
+.cashFormula strong,.digestBox code{color:#F4F4FF}
+.cashFormula p,.cashFormula small,.digestBox small,.digestBox p{color:#B7C5E9}
+.cashFormula b{color:#B4BDFF}
+.person{background:#1A2640;border-color:#34425E}
+.personIcon{background:#40488B;color:#FFFFFF}
+.person small{color:#AEBFDD}
+.approval label{color:#CAD4F5}
+.approval textarea{background:#0E172B;border-color:#46567B;color:#F8F9FF}
+.flowRow small{color:#A8B9E2}
+.flowRow strong{color:#FAFAFF}
+.flowRow span:not(.outgoing):not(.returning){color:#B0BDD8}
+.outgoing{background:#3B2940;color:#FFC197}
+.returning{background:#283C70;color:#BBC6FF}
+.lightRail,.balanceBar{background:#4C3047}
+.lightFill,.balanceBar>span{background:linear-gradient(90deg,#657BFF,#A49FFF)}
+.owedAmount{background:#10182E;border:1px solid #4C60AB}
+.owedAmount span{color:#AAB9FF}
+.owedAmount strong{color:#FFFFFF}
+.owedAmount p{color:#C0CAE5}
+.overdueFlag,.eventAlert{background:#472A3C;border-color:#A25B63;color:#FFC5BE}
+.history{color:#F6F7FF}
+.event{border-left-color:#48577C}
+.eventDot{border-color:#7B89FF;background:#151D32}
+.eventAlert span{color:#FFCEC5}
+.actionArea{border-top-color:#35415B}
+.actionArea>div span,.actionArea>div strong{color:#CBD5EE}
+.cta{background:#6478FF;border-color:#6478FF;color:#FFFFFF;box-shadow:0 9px 24px #3745B144}
+.cta:hover:not(:disabled){background:#8090FF}
+.cta:disabled{background:#445071;border-color:#445071;color:#E1E6F4}
+.roleWarning{color:#FFC884}
+.error{background:#4A2739;border-color:#A45A61;color:#FFD1C9}
+.success{background:#1D3251;border-color:#475F9A;color:#D5DFFF}
+.caseHead{color:#A6B7EA}
+.caseCard h3,.caseAmount,.miniNumber strong{color:#F8FAFF}
+.caseCard p,.caseCard dt{color:#AEBBDC}
+.caseCard dd{color:#E3EAFF}
+.caseAmount{border-bottom-color:#3A4665}
+.balanceCard{background:#202851;border-color:#47558B}
+.balanceCard>span{color:#B9C5FF}
+.miniNumber small,.balanceCard>small{color:#B9C6E3}
+.flagCard{background:#3E2639;border-color:#84546A}
+.flagCard>strong{color:#FFC7BC}
+.flagCard p,.flagCard b,.flagCard>small{color:#F4C7C6}
+.footer{color:#8393B8}
+.shell button:focus-visible,.shell a:focus-visible,.shell select:focus-visible,.shell textarea:focus-visible{outline-color:#A9B2FF}
+@media(max-width:570px){.storyTop{background:linear-gradient(135deg,#1A2551,#372B70)}}
