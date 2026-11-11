@@ -69,3 +69,55 @@ test("pilot queue search, sample import and case creation are interactive", asyn
   await expect(page.getByRole("heading", { name: "Deterministic advance checks" })).toBeVisible();
   await page.screenshot({ path: info.outputPath("pilot-queue-style.png"), fullPage: true });
 });
+
+
+test("guided advance tells a complete fictional and role-separated funding story", async ({ page }, info) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/mentor-demo");
+  await page.getByRole("link", { name: /Explore a fictional advance/ }).click();
+  await expect(page).toHaveURL(/\/mentor-demo\/guided$/);
+  await expect(page.getByText("Northwind Pay Pte Ltd")).toHaveCount(0);
+  await expect(page.getByText("At a glance", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "One advance. Every decision in view." })).toBeVisible();
+  await expect(page.getByText(/FICTIONAL DEMO CASES/)).toBeVisible();
+  await expect(page.getByText(/No real funds, approvals or customer data/)).toBeVisible();
+
+  await page.getByRole("button", { name: /Start guided case/ }).click();
+  await expect(page.getByRole("heading", { name: /Before money goes out/ })).toBeVisible();
+  await expect(page.getByText(/SGD 250,000.00/).first()).toBeVisible();
+  await page.getByRole("button", { name: /Prepare for treasury review/ }).click();
+
+  const treasury = page.getByRole("button", { name: /Record treasury approval/ });
+  await expect(treasury).toBeDisabled();
+  await page.getByLabel("Demo role").selectOption("viewer");
+  await expect(treasury).toBeDisabled();
+  await page.getByLabel("Demo role").selectOption("approver");
+  await expect(treasury).toBeEnabled();
+  await treasury.click();
+
+  const payout = page.getByRole("button", { name: /Record supplier payout/ });
+  await expect(payout).toBeDisabled();
+  await page.getByLabel("Demo role").selectOption("operator");
+  await payout.click();
+  await expect(page.getByText("SGD 100,000.00").first()).toBeVisible();
+  await page.getByRole("button", { name: /Match SGD 40,000 repayment/ }).click();
+  await expect(page.getByText("SGD 60,000.00").first()).toBeVisible();
+
+  await page.getByRole("button", { name: /Advance the replay/ }).click();
+  await expect(page.getByText(/OVERDUE · Due 17 Nov/)).toBeVisible();
+  await page.getByRole("button", { name: /Inspect the evidence trail/ }).click();
+  await expect(page.getByText("Approved by treasury")).toBeVisible();
+  await expect(page.getByText("Partial receipt matched")).toBeVisible();
+
+  const downloadEvent = page.waitForEvent("download");
+  await page.getByRole("button", { name: /Download evidence package/ }).click();
+  const receipt = await downloadEvent;
+  expect(receipt.suggestedFilename()).toBe("clearline-adv-001-fictional-evidence.json");
+  await expect(page.getByText(/SHA-256 OF EXPORTED PAYLOAD/)).toBeVisible();
+  const noHorizontalScroll = await page.evaluate(() =>
+    document.documentElement.scrollWidth <= window.innerWidth + 1);
+  expect(noHorizontalScroll).toBe(true);
+  await page.screenshot({ path: info.outputPath("guided-case-final.png"), fullPage: true });
+  expect(errors).toEqual([]);
+});

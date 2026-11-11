@@ -176,6 +176,7 @@ export default function MentorDemo() {
                 <button type="button" className={styles.secondary} onClick={() => setQueueFilter("all")}>Search</button>
               </div>
               <div className={styles.queueActions}>
+                <a href="/mentor-demo/guided" className={styles.primary}>Explore a fictional advance →</a>
                 <button type="button" className={styles.primary} onClick={() => jump("newcase")}>New case</button>
                 <button type="button" className={styles.secondary} onClick={importSample}>Import sample CSV</button>
               </div>
