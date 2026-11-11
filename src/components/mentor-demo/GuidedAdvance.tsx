@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
-  actors, decide, exceptions, freeCash, initialDemo, money, outstanding,
+  decide, exceptions, freeCash, initialDemo, money, outstanding,
   payout, prepare, repay, review, setDate,
   type Demo, type Role,
 } from "@/lib/mentor-demo/engine";
@@ -29,7 +29,7 @@ function download(filename: string, contents: string) {
   document.body.appendChild(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(objectUrl);
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 
 export default function GuidedAdvance() {
