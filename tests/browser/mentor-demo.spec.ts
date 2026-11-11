@@ -77,6 +77,8 @@ test("guided advance tells a complete fictional and role-separated funding story
   await page.goto("/mentor-demo");
   await page.getByRole("link", { name: /Explore a fictional advance/ }).click();
   await expect(page).toHaveURL(/\/mentor-demo\/guided$/);
+  await expect(page.getByText("Northwind Pay Pte Ltd")).toHaveCount(0);
+  await expect(page.getByText("At a glance", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "One advance. Every decision in view." })).toBeVisible();
   await expect(page.getByText(/FICTIONAL DEMO CASES/)).toBeVisible();
   await expect(page.getByText(/No real funds, approvals or customer data/)).toBeVisible();
