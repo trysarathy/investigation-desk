@@ -224,5 +224,5 @@
 .flagCard>strong{color:#FFC7BC}
 .flagCard p,.flagCard b,.flagCard>small{color:#F4C7C6}
 .footer{color:#8393B8}
-button:focus-visible,a:focus-visible,select:focus-visible,textarea:focus-visible{outline-color:#A9B2FF}
+.shell button:focus-visible,.shell a:focus-visible,.shell select:focus-visible,.shell textarea:focus-visible{outline-color:#A9B2FF}
 @media(max-width:570px){.storyTop{background:linear-gradient(135deg,#1A2551,#372B70)}}
