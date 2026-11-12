@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createIntent, explain, formatAmount, initialWorkspace, quoteFor, reconcile, transition,
+import { createIntent, explain, formatAmount, initialWorkspace, quoteFor, reconcile, transition, settlementEventFor, liquiditySnapshots,
  type Payment, type State, type Workspace, type Currency } from "@/lib/clearline/core";
 import styles from "./Console.module.css";
 
@@ -88,6 +88,7 @@ export default function Console(){
  const pending=data.payments.filter(p=>p.status!=="completed"&&p.status!=="failed"&&p.status!=="returned");
  const holds=data.payments.filter(p=>p.status==="on_hold");
  const breaks=reconcile(data.payments,data.events);
+ const balances=liquiditySnapshots(data.payments);
  const quoteInput={amountMinor:Math.round(Number(amount)*100)||4821537,currency:"SGD" as Currency,destinationCurrency:to,kycTier:2};
  const quotes=useMemo(()=>quoteFor(quoteInput),[amount,to]);
  const selectedDraft=data.payments.find(x=>x.id===draftId);
@@ -102,7 +103,10 @@ export default function Console(){
  const progress=(p:Payment,step:State)=>{
   try{
    const next=transition(p,step,step==="completed"?"Sandbox partner reported completion":step==="submitted"?"Instruction accepted by sandbox partner":"Synthetic "+names[step].toLowerCase()+" event");
-   update(next);log("POST","/api/clearline/test/transitions",200,p.id+" → "+step);
+   setData(x=>({...x,payments:x.payments.map(v=>v.id===p.id?next:v),
+    events:step==="completed"&& !x.events.some(e=>e.paymentId===p.id)?
+      [...x.events,settlementEventFor(next)]:x.events}));
+   log("POST","/api/clearline/test/transitions",200,p.id+" → "+step);
    setSelected(p.id);notify(names[step]+" · fictional event recorded");
   }catch(err){notify(err instanceof Error?err.message:"Transition blocked");}
  };
@@ -184,11 +188,9 @@ export default function Console(){
       {data.payments.filter(p=>p.status==="returned"||p.status==="on_hold"||p.scenario==="delay").map(p=><button key={p.id} type="button" className={styles.attention}
        onClick={()=>{setView("payments");setSelected(p.id);}}><Pill status={p.status}/><div><strong>{p.beneficiary}</strong><small>{p.nextAction??"Awaiting provider status"}</small></div><span>↗</span></button>)}</section>
       <section className={styles.panel}><div className={styles.panelTitle}><h2>Provider liquidity</h2><button type="button" onClick={()=>navigate("liquidity")}>All balances ↗</button></div>
-       {[
-        ["Northline Payments","SGD 112,486.73","SGD 79,321.18"],
-        ["Harbour FX","USD 64,278.43","USD 31,542.09"],
-        ["Base Sepolia","USDC 17,562.82","USDC 15,732.25"]
-       ].map(x=><div className={styles.liquidityMini} key={x[0]}><strong>{x[0]} <small>Sandbox</small></strong><span><small>FREE CASH</small>{x[2]}</span></div>)}
+       {balances.map(x=><div className={styles.liquidityMini} key={x.provider}>
+        <strong>{x.provider}</strong><span><small>FREE CASH</small>{formatAmount(x.freeMinor,x.currency)}</span>
+       </div>)}
       </section>
      </div>
      <section className={styles.panel}><div className={styles.panelTitle}><h2>Recent payments</h2><button type="button" onClick={()=>navigate("payments")}>All payments ↗</button></div>{table(data.payments.slice(0,5))}</section>
@@ -269,7 +271,7 @@ export default function Console(){
     {view==="reconciliation"&&<>
      <SectionHead eyebrow="CONTROL / RECONCILIATION" title="Reconciliation" description="Compare fictional provider event exports with payment references. Amount alone is never sufficient to match a payment."/>
      <div className={styles.notice}>Source events are synthetic. A matched amount is not independent confirmation of settlement.</div>
-     <section className={styles.panel}><div className={styles.panelTitle}><h2>Statement comparison</h2><span className={styles.muted}>2 fictional source records</span></div>
+     <section className={styles.panel}><div className={styles.panelTitle}><h2>Statement comparison</h2><span className={styles.muted}>{data.events.length} fictional source records</span></div>
       <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>REFERENCE</th><th>PAYMENT</th><th>AMOUNT</th><th>RESULT</th><th>REASON</th></tr></thead><tbody>
       {breaks.map(x=><tr key={x.reference}><td className={styles.mono}>{x.reference}</td><td className={styles.mono}>{short(x.paymentId)}</td><td className={styles.mono}>{formatAmount(x.amountMinor,"SGD")}</td>
        <td><span className={x.status==="matched"?styles.goodText:styles.badText}>{x.status==="matched"?"Match (unverified)":"Exception"}</span></td><td>{x.reason}</td></tr>)}
@@ -282,15 +284,16 @@ export default function Console(){
     {view==="liquidity"&&<>
      <SectionHead eyebrow="CONTROL / TREASURY" title="Liquidity" description="Illustrative provider balances and pending instructions by currency. These values are not connected to banks or on-chain wallets."/>
      <div className={styles.metrics}>{[
-      ["TOTAL SGD BALANCE","112,486.73"],["RESERVED AMOUNT","18,542.17"],["PENDING INSTRUCTIONS","9,823.38"],["FREE CASH","79,321.18"]
-     ].map(([k,v])=><div key={k}><Label>{k}</Label><strong className={styles.smallMetric}>SGD {v}</strong></div>)}</div>
+      ["TOTAL SGD BALANCE",balances[0].balanceMinor],["RESERVED AMOUNT",balances[0].safeguardedMinor],
+      ["PENDING INSTRUCTIONS",balances[0].pendingMinor],["FREE CASH",balances[0].freeMinor]
+     ].map(([k,v])=><div key={k}><Label>{k}</Label><strong className={styles.smallMetric}>{formatAmount(v,"SGD")}</strong></div>)}</div>
      <section className={styles.panel}><div className={styles.panelTitle}><h2>Provider balances</h2><span className={styles.muted}>Synthetic snapshots · 13 Nov 2026</span></div>
       <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>PROVIDER</th><th>CURRENCY</th><th>BALANCE</th><th>SAFEGUARDED</th><th>PENDING</th><th>BUFFER</th><th>FREE CASH</th></tr></thead><tbody>
-       {[
-        ["Northline Payments","SGD","112,486.73","18,542.17","9,823.38","4,800.00","79,321.18"],
-        ["Harbour FX","USD","64,278.43","11,000.00","17,236.34","4,500.00","31,542.09"],
-        ["Base Sepolia","USDC","17,562.82","0.00","830.57","1,000.00","15,732.25"]
-       ].map(x=><tr key={x[0]}>{x.map((v,i)=><td key={i} className={i>1?styles.mono:undefined}>{v}</td>)}</tr>)}
+       {balances.map(x=><tr key={x.provider}>
+        <td>{x.provider}</td><td>{x.currency}</td>
+        {[x.balanceMinor,x.safeguardedMinor,x.pendingMinor,x.bufferMinor,x.freeMinor].map((v,i)=>
+          <td key={i} className={styles.mono}>{formatAmount(v,x.currency)}</td>)}
+       </tr>)}
       </tbody></table></div></section>
      <div className={styles.notice}>Free cash = balance − safeguarded funds − pending payouts − buffer. These are illustrative balances, not a treasury control or payment authorization.</div>
     </>}
