@@ -283,7 +283,7 @@ export default function Console(){
     </>}
     {view==="liquidity"&&<>
      <SectionHead eyebrow="CONTROL / TREASURY" title="Liquidity" description="Illustrative provider balances and pending instructions by currency. These values are not connected to banks or on-chain wallets."/>
-     <div className={styles.metrics}>{[
+     <div className={styles.metrics}>{([
       ["TOTAL SGD BALANCE",balances[0].balanceMinor],["RESERVED AMOUNT",balances[0].safeguardedMinor],
       ["PENDING INSTRUCTIONS",balances[0].pendingMinor],["FREE CASH",balances[0].freeMinor]
      ] as [string,number][]).map(([k,v])=><div key={k}><Label>{k}</Label><strong className={styles.smallMetric}>{formatAmount(v,"SGD")}</strong></div>)}</div>
