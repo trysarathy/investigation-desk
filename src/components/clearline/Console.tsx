@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createIntent, explain, formatAmount, initialWorkspace, liquidity, quoteFor, reconcile, transition,
- type Payment, type Quote, type State, type Workspace, type Currency } from "@/lib/clearline/core";
+import { createIntent, explain, formatAmount, initialWorkspace, quoteFor, reconcile, transition,
+ type Payment, type State, type Workspace, type Currency } from "@/lib/clearline/core";
 import styles from "./Console.module.css";
 
 type View = "overview"|"payments"|"connect"|"reconciliation"|"liquidity"|"holds"|"funding"|"api";
@@ -55,7 +55,6 @@ export default function Console(){
  const [to,setTo]=useState<Currency>("PHP");
  const [draftId,setDraftId]=useState("");
  const [chosenQuote,setChosenQuote]=useState("");
- const [problem,setProblem]=useState<"none"|"returned"|"hold"|"delay">("none");
  const [webhookType,setWebhookType]=useState("payout.completed");
  const search=useRef<HTMLInputElement>(null);
  useEffect(()=>{
@@ -299,7 +298,7 @@ export default function Console(){
      <SectionHead eyebrow="CONTROL / COMPLIANCE" title="Compliance holds" description="Track partner-reported holds and requested evidence. Your team and providers make all compliance decisions."/>
      <section className={styles.panel}><div className={styles.panelTitle}><h2>Open holds</h2><span className={styles.muted}>Provider decisions · fictional records</span></div>
      {holds.length?holds.map(p=><div className={styles.hold} key={p.id}><div><strong>{p.beneficiary}</strong><small className={styles.mono}>{p.id} · {p.reference}</small></div><Pill status={p.status}/><div><Label>REASON</Label><strong>Supporting invoice requested</strong></div><div><Label>OWNER</Label><strong>Operations review</strong></div><button type="button" onClick={()=>{setView("payments");setSelected(p.id);}}>Investigate ↗</button></div>):<Empty text="No active holds in this fictional workspace."/>}
-     </section><div className={styles.notice}>Clearline records the partner's hold; it does not decide whether to release or reject payments.</div>
+     </section><div className={styles.notice}>Clearline records the partner-reported hold; it does not decide whether to release or reject payments.</div>
     </>}
     {view==="funding"&&<>
      <SectionHead eyebrow="CONTROL / FUNDING EXPOSURE" title="Funding desk" description="The existing mentor Funding Desk is preserved as a separate test-mode module."/>
