@@ -14,11 +14,11 @@ test("Connect payment completes and appears in Control reconciliation",async({pa
  }
  await page.getByRole("button",{name:"Reconciliation",exact:true}).click();
  await expect(page.getByText("INV-2026-153")).toBeVisible();
- await expect(page.getByText("Match (unverified)")).toBeVisible();
+ await expect(page.getByText("Match (unverified)").first()).toBeVisible();
  await page.getByRole("button",{name:"Payments",exact:true}).click();
  await page.getByRole("row").filter({hasText:"INV-2026-153"}).click();
  await expect(page.getByText("What happened?")).toBeVisible();
- await expect(page.getByText(/not independently verified settlement/i)).toBeVisible();
+ await expect(page.getByText(/settlement statement has not been independently verified/i)).toBeVisible();
  mkdirSync("clearline-browser-artifacts",{recursive:true});
  await page.screenshot({path:"clearline-browser-artifacts/payment-"+testInfo.project.name+".png",fullPage:true});
 });
