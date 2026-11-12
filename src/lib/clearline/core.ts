@@ -120,7 +120,10 @@ export async function verifyWebhook(payload:string,secret:string,header:string,a
  let diff=0;for(let i=0;i<header.length;i++)diff|=expected.charCodeAt(i)^header.charCodeAt(i);
  return diff===0;
 }
-export const formatAmount=(minor:number,currency:Currency)=>new Intl.NumberFormat("en-SG",{style:"currency",currency,minimumFractionDigits:2,maximumFractionDigits:2}).format(minor/100);
+export const formatAmount=(minor:number,currency:Currency)=>
+ currency==="USDC"?
+  "USDC "+new Intl.NumberFormat("en-SG",{minimumFractionDigits:2,maximumFractionDigits:2}).format(minor/100):
+  new Intl.NumberFormat("en-SG",{style:"currency",currency,minimumFractionDigits:2,maximumFractionDigits:2}).format(minor/100);
 
 export function settlementEventFor(p:Payment):LedgerEvent{
  if(p.status!=="completed")throw Error("No completion observation exists");
