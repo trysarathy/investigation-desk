@@ -52,6 +52,7 @@ export function seeded():Payment[]{
  p={...p,id:"pi_8f3k20"+i};p=quote(p);p=approve(p,scenario==="finality"?"base":scenario==="hold"?"harbour":"northline");
  p=next(p);p=next(p);
  if(scenario==="happy"||scenario==="returned")p=next(p);
+ p={...p,events:p.events.map((e,index)=>({...e,at:new Date(Date.UTC(2026,10,12,0,12,19)+index*47000).toISOString()}))};
  return p;
  });
 }
