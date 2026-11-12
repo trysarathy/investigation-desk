@@ -12,6 +12,20 @@ function same(a: string, b: string): boolean {
 }
 
 export function middleware(req: NextRequest) {
+  if (process.env.CLEARLINE_CUSTOMER_PREVIEW === "1") {
+    const path = req.nextUrl.pathname;
+    if (path === "/") return NextResponse.redirect(new URL("/clearline", req.url));
+    const allowed = path === "/clearline" || path.startsWith("/clearline/") ||
+      path === "/mentor-demo" || path.startsWith("/api/clearline/test/") ||
+      path === "/favicon.ico" || path === "/icon.svg" || path.startsWith("/_next/");
+    if (!allowed) return new NextResponse("Not found", { status: 404, headers: { "Cache-Control": "no-store" } });
+    if (path === "/mentor-demo" || path === "/clearline" || path.startsWith("/clearline/")) {
+      const h = new Headers(req.headers);
+      h.set("x-clearline-mentor-demo-route", "1");
+      return NextResponse.next({ request: { headers: h } });
+    }
+    return NextResponse.next();
+  }
   // Self-contained, synthetic-only mentor demonstration. It neither touches
   // the private funding store nor exposes the real approval API.
   if (req.nextUrl.pathname === "/mentor-demo" || req.nextUrl.pathname === "/clearline" || req.nextUrl.pathname.startsWith("/clearline/")) {

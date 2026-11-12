@@ -24,7 +24,7 @@ describe("Clearline Connect payment state machine", () => {
   });
   it("reconciles only exact references, never amounts alone", () => {
     const state = initialWorkspace();
-    const events = [{ paymentId:"unknown", reference:"NOT_THE_REFERENCE", amountMinor:4821537, currency:"SGD", source:"sandbox" }];
+    const events = [{ paymentId:"unknown", reference:"NOT_THE_REFERENCE", amountMinor:4821537, currency:"SGD" as const, source:"sandbox" }];
     expect(reconcile(state.payments, events).some(x=>x.reason==="Unmatched reference")).toBe(true);
     expect(reconcile(state.payments, events).some(x=>x.status==="matched")).toBe(false);
   });
