@@ -307,7 +307,8 @@ export default function Console(){
      <SectionHead eyebrow="CONTROL / FUNDING EXPOSURE" title="Funding desk" description="The existing mentor Funding Desk is preserved as a separate test-mode module."/>
      <div className={styles.panel}><div className={styles.fundingPanel}><div><Label>EXISTING PRODUCT MODULE</Label><h2>Advance review & outstanding ledger</h2><p>Review funding advances, five operating checks, maker–checker approvals, outstanding balances and repayments matched to reference. Sandbox data only.</p></div>
      <a href="/mentor-demo" target="_blank" rel="noopener noreferrer" className={styles.primary}>Open Funding Desk ↗</a></div></div>
-     <div className={styles.notice}>The Funding Desk remains its own isolated dataset in this preview. A shared ledger and single sign-on are not implemented yet.</div>
+     <div className={styles.notice}>The original Funding Desk runs below with its own isolated fictional ledger. Shared production records and single sign-on are not implemented.</div>
+     <div className={styles.panel}><iframe title="Existing Clearline Funding Desk — fictional mentor demo" src="/mentor-demo" className={styles.fundingFrame} loading="lazy"/></div>
     </>}
     {view==="api"&&<>
      <SectionHead eyebrow="CONNECT / DEVELOPER TOOLS" title="API request log" description="Test requests recorded in this browser. The public test API is stateless and does not execute payouts."
