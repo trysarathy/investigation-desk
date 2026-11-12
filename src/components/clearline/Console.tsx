@@ -121,7 +121,7 @@ export default function Console(){
   if(!selectedDraft||!chosenQuote)return notify("Choose an eligible route first.");
   const choice=quotes.find(q=>q.id===chosenQuote);
   if(!choice||!choice.eligible)return notify("Route not eligible.");
-  let p={...selectedDraft,provider:choice.provider,quoteId:choice.id};
+  let p:Payment={...selectedDraft,provider:choice.provider,quoteId:choice.id};
   try{
    p=transition(p,"quoted","Route quoted: "+choice.provider);
    update(p);log("POST","/api/clearline/test/quotes",200,choice.provider);
