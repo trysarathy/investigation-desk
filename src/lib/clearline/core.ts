@@ -120,4 +120,36 @@ export async function verifyWebhook(payload:string,secret:string,header:string,a
  let diff=0;for(let i=0;i<header.length;i++)diff|=expected.charCodeAt(i)^header.charCodeAt(i);
  return diff===0;
 }
-export const formatAmount=(minor:number,currency:Currency)=>new Intl.NumberFormat("en-SG",{style:"currency",currency,minimumFractionDigits:2,maximumFractionDigits:2}).format(minor/100);
+export const formatAmount=(minor:number,currency:Currency)=>
+ currency==="USDC"?
+  "USDC "+new Intl.NumberFormat("en-SG",{minimumFractionDigits:2,maximumFractionDigits:2}).format(minor/100):
+  new Intl.NumberFormat("en-SG",{style:"currency",currency,minimumFractionDigits:2,maximumFractionDigits:2}).format(minor/100);
+
+export function settlementEventFor(p:Payment):LedgerEvent{
+ if(p.status!=="completed")throw Error("No completion observation exists");
+ return {paymentId:p.id,reference:p.reference,amountMinor:p.amountMinor,
+  currency:p.from,source:"Fictional sandbox provider completion export (unverified)"};
+}
+export type LiquidityRow={
+ provider:string;currency:Currency;balanceMinor:number;safeguardedMinor:number;
+ pendingMinor:number;bufferMinor:number;freeMinor:number;
+};
+export function liquiditySnapshots(payments:Payment[]):LiquidityRow[]{
+ const base:Omit<LiquidityRow,"freeMinor">[]=[
+  {provider:"Northline Payments (sandbox)",currency:"SGD",balanceMinor:11248673,
+   safeguardedMinor:1854217,pendingMinor:982338,bufferMinor:480000},
+  {provider:"Harbour FX (sandbox)",currency:"USD",balanceMinor:6427843,
+   safeguardedMinor:1100000,pendingMinor:1723634,bufferMinor:450000},
+  {provider:"USDC on Base Sepolia (testnet)",currency:"USDC",balanceMinor:1756282,
+   safeguardedMinor:0,pendingMinor:83057,bufferMinor:100000}
+ ];
+ return base.map(row=>{
+  const newPending=payments.filter(p=>p.provider===row.provider&&p.from===row.currency&&
+   p.createdAt!=="2026-11-12T08:46:18.000Z"&&
+   ["submitted","in_transit","on_hold"].includes(p.status))
+   .reduce((sum,p)=>sum+p.amountMinor,0);
+  const pendingMinor=row.pendingMinor+newPending;
+  return {...row,pendingMinor,
+   freeMinor:liquidity({...row,pendingMinor})};
+ });
+}
