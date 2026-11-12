@@ -14,7 +14,7 @@ function same(a: string, b: string): boolean {
 export function middleware(req: NextRequest) {
   // Self-contained, synthetic-only mentor demonstration. It neither touches
   // the private funding store nor exposes the real approval API.
-  if (req.nextUrl.pathname === "/mentor-demo") {
+  if (req.nextUrl.pathname === "/mentor-demo" || req.nextUrl.pathname === "/clearline") {
     const requestHeaders = new Headers(req.headers);
     requestHeaders.set("x-clearline-mentor-demo-route", "1");
     return NextResponse.next({ request: { headers: requestHeaders } });
