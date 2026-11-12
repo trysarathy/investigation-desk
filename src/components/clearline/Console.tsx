@@ -286,7 +286,7 @@ export default function Console(){
      <div className={styles.metrics}>{[
       ["TOTAL SGD BALANCE",balances[0].balanceMinor],["RESERVED AMOUNT",balances[0].safeguardedMinor],
       ["PENDING INSTRUCTIONS",balances[0].pendingMinor],["FREE CASH",balances[0].freeMinor]
-     ].map(([k,v])=><div key={k}><Label>{k}</Label><strong className={styles.smallMetric}>{formatAmount(v,"SGD")}</strong></div>)}</div>
+     ] as [string,number][]).map(([k,v])=><div key={k}><Label>{k}</Label><strong className={styles.smallMetric}>{formatAmount(v,"SGD")}</strong></div>)}</div>
      <section className={styles.panel}><div className={styles.panelTitle}><h2>Provider balances</h2><span className={styles.muted}>Synthetic snapshots · 13 Nov 2026</span></div>
       <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>PROVIDER</th><th>CURRENCY</th><th>BALANCE</th><th>SAFEGUARDED</th><th>PENDING</th><th>BUFFER</th><th>FREE CASH</th></tr></thead><tbody>
        {balances.map(x=><tr key={x.provider}>
