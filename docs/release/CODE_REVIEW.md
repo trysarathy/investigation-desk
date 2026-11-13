@@ -271,3 +271,60 @@ The requests are clear and the workarounds are honest. R6 (maker ≠ checker cou
 - the QA release tests (`tests/qa-release/*`), beyond seeing that they pass.
 
 — code-reviewer (general-purpose subagent briefed with the role) · 2026-11-13 SGT · re-reviewed sha cfadef9
+
+---
+
+## Final check — 2026-11-13 SGT · range 44f2fdf..5853620
+
+# CODE REVIEW: APPROVE 585362006fa71f5961d84fc8a0cdf812909ba3df
+
+**APPROVAL-ONLY: needs Aashmiin's merge.** This approval covers opening a **public, synthetic-data customer-trial PR** only. Merging it stays Aashmiin's click, because the change touches money amounts, roles and security headers.
+
+**In plain English:** both defects from the re-review are fixed.
+- A provider settlement report now confirms a bank-matched payout in either order without raising a false exception.
+- A returned payout is no longer shown as settled. After resolution it reads settlement `none` and reconciliation `matched`, and the console labels it "Returned — net zero".
+
+All five minor items from the re-review are fixed as well. Every original blocker and major probe still behaves correctly. I found two new small issues (F1, F2 below); neither needs to block a synthetic-data trial.
+
+**Independence caveat (restated):** commits in this range carry the same orchestrating `Claude-Session` as the session that asked for this review. I wrote and suggested none of the code, and I write fixes only in words. Even so, this is not a fully independent review. A second reviewer, or Aashmiin, should read N1, N2, B1 and B2 before merging.
+
+### How I checked
+- **Snapshot:** I froze a copy of HEAD `5853620` with `git archive`; it was still the tip when I finished.
+- **Typecheck:** `npx tsc --noEmit` exit 0.
+- **Unit tests:** `npx vitest run` gave 1050 passed, 57 skipped, 0 failed.
+- **Probes:** I re-ran `rr.test.ts` and `rr2.test.ts` unchanged; no documented change required adapting them. I added `fc3.test.ts`, which covers provider-report edge cases and a terminal event that arrives during a hold and is redelivered after the hold.
+- **Code read:** I read the diff of `reconciliation.ts`, `derive.ts`, `events.ts`, `actions.ts`, `investigation.ts`, the v1 route, `not-found.tsx`, `layout.tsx` and `labels.tsx`.
+- **Not run by me:** `next build` and Playwright.
+
+### Per-item verdict
+
+| Item | Verdict | Evidence (5853620) |
+|---|---|---|
+| **N1** provider report after a bank match raised a false duplicate | **Resolved** | Bank line, then provider report: `recorded_provider_report`, status stays `verified/bank_statement/matched`, no open exceptions. Report first, then bank line: `observed/provider_report/pending`, then `verified/matched`. A report above the payout amount gives `RC_OVERPAYMENT`. The branch now runs after the currency and time-window checks and before the duplicate and remaining-amount checks (`reconciliation.ts:200-218`). |
+| **N2** a resolved returned payout showed `verified/matched` | **Resolved** | After the provider return, the return line and the resolution with `funds_returned_confirmation`: `{"execution":"returned","settlement":"none","settlementScope":"none","reconciliation":"matched"}`, `returnStatus: confirmed_by_statement`. `ReconChip` renders this case as "Returned — net zero" (warning tone, "supplier is still unpaid") (`derive.ts:20-33`, `labels.tsx`). |
+| m-new-1 catch-all hid engine bugs | Resolved | The workspace is validated first: damaged data gives `invalid_field` with a field path (`intents[0].id`). Under VITEST or `CLEARLINE_ENGINE_STRICT=1`, unexpected errors are rethrown; otherwise the error message names the error class and the action. |
+| m-new-2 terminal event during a hold was lost | Resolved | A `payout.returned` during a hold gives `EV_TERMINAL_EVENT_WHILE_ON_HOLD`, with text telling a person what to do. A redelivery during the hold is `duplicate_ignored`. After the reviewer's release and the partner's release, the redelivery is `applied` and the payout becomes `returned`. A third delivery is `duplicate_ignored`, with exactly one `returned_payout` exception. |
+| m-new-3 retired-API docs | Resolved | ENGINE_API CHANGE 4 says `CONNECT_TEST_API.md` marks the legacy API as retired, with 422 for invalid input and 410 otherwise. I did not re-read that file. |
+| m-new-4 duplicate instant check | Resolved | The v1 route now uses the engine's `isIsoInstant`. |
+| m-new-5 provider-report line codes | Resolved | Report lines carry only `RC_PROVIDER_REPORT_ONLY` (plus `RC_LATE_STATEMENT` when late), and that code's group is `informational`. |
+| B1, B2, M1–M10 (regression) | Still resolved | All original probes give the same results as at cfadef9 (see the Re-review table). |
+| QA R3 report injection | Code read, looks correct | `exportCaseReport` flattens line breaks and control characters on every line of the text report. The JSON output is unchanged, which is correct. |
+| QA R1 neutral 404 | Code read, looks correct | When `CLEARLINE_CUSTOMER_PREVIEW=1`, the root layout skips the legacy shell and `not-found.tsx` shows a neutral Clearline page. Behaviour is unchanged with the flag off. |
+
+### New observations (none block approval)
+- **F1 (Minor): a provider settlement report for a payout the provider reported as `failed` is recorded without any flag.**
+  - **Evidence:** the payout's status became `{"execution":"failed","settlement":"observed","settlementScope":"provider_report"}` with no exception.
+  - **Why it matters:** the provider is saying it both failed and settled. At 6fb9433 that debit raised `RC_DEBIT_FOR_FAILED_PAYOUT`; since the M1 fix it does not. The console would show "settlement observed" on a failed payout.
+  - **Fix (in words):** in the provider-report branch, raise `contradictory_evidence` and leave settlement unchanged when the payout's execution is `failed`, `cancelled` or `expired`.
+- **F2 (Minor): a provider report for *less* than the payout amount is recorded with no note.**
+  - **Evidence:** 4,000.00 reported against a 10,000.00 payout gives `recorded_provider_report` and no exception. CHANGE 4 treats only a higher amount or a different currency as a disagreement.
+  - **Fix (in words):** add `RC_PARTIAL_AMOUNT` to such a line (informational), or raise a low-severity `unmatched_reconciliation` exception, so a person sees the provider and the payout disagree.
+- **Nit:** in customer-preview mode the root `generateMetadata` uses the title "Not found — Clearline" as the default for *every* page. Today every allowed route sets its own title (`clearline/layout.tsx`, `mentor-demo`), so only 404s show it. A future page without metadata would inherit "Not found". **Fix (in words):** use a neutral default, and set the 404 title in `not-found.tsx`.
+
+### Overall
+**APPROVE `5853620` to open a public, synthetic-data customer-trial PR. Merging remains approval-only (Aashmiin's click).**
+- **What's settled:** no Blocker or Major is open. The evidence rules hold under every probe: provider claims never settle or reconcile a payout, chain evidence is tied to the payout's rail, wallet and transaction, ambiguity is preserved, holds are never auto-released, and amounts are exact.
+- **Before any non-synthetic use:** F1 and F2 should be fixed, and the B3 size and split concern still stands for merges to main.
+- **Not re-checked:** the Playwright specs, `next build`, the console pages changed in this range other than `labels.tsx`, `QA_SECURITY_REVIEW.md` and `tests/qa-release/recheck-release.test.ts` (I only saw them pass in the full vitest run), and the doc edits beyond CHANGE 4.
+
+— code-reviewer (general-purpose subagent briefed with the role) · 2026-11-13 SGT · final check of sha 5853620
