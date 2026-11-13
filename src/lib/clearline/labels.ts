@@ -317,6 +317,8 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   CH_AMOUNT_DIFFERS_FROM_QUOTE: "On-chain amount differs from the quote",
   CH_BELOW_FINALITY_THRESHOLD: "Below the finality threshold",
   CH_CONFIRMATIONS_DECREASED: "Confirmations went down (possible reorg)",
+  CH_BLOCK_CHANGED: "Transaction moved to another block (reorg)",
+  CH_TX_HASH_ON_OTHER_CHAIN: "Same transaction hash seen on another chain — not counted",
   CH_SECOND_TX_FOR_PAYOUT: "A second transaction for the same payout",
   CH_TX_ALREADY_LINKED: "Transaction already linked to another payout",
   CH_TX_DIFFERS_FROM_PROVIDER: "Transaction differs from the one the provider reported",

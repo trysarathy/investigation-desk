@@ -111,7 +111,9 @@ export function investigate(ws: Workspace, intentId: string): Result<Investigati
 
   // Financially outstanding
   const outstanding: InvestigationView["outstanding"] = [];
-  const chainMatched = ws.allocations.some((a) => a.evidenceKind === "chain_observation" && a.target.kind === "payment" && a.target.intentId === intent.id);
+  // rc3 (C-3): a chain allocation reconciles the payout only while its observation is still final.
+  const finalObs = ws.chainObservations.find((o) => o.intentId === intent.id && o.status === "final");
+  const chainMatched = !!finalObs && ws.allocations.some((a) => a.evidenceKind === "chain_observation" && a.target.kind === "payment" && a.target.intentId === intent.id && a.statementLineId === finalObs.id);
   const matched = chainMatched
     ? intent.amountMinor
     : ws.allocations
