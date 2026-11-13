@@ -155,5 +155,6 @@
 .topRow { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; margin-bottom: 12px; }
 .topRow .crumbs { margin: 0; }
 .actorSel { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 12px; }
-.actorSel select { font: 500 13px var(--cl-font-ui); border: 1px solid var(--cl-line-strong); border-radius: 4px; padding: 4px 6px; background: var(--cl-paper); color: var(--cl-ink); min-height: 32px; max-width: 100%; }
+.actorSel select { font: 500 13px var(--cl-font-ui); border: 1px solid var(--cl-line-strong); border-radius: 4px; padding: 4px 6px; background: var(--cl-paper); color: var(--cl-ink); min-height: 32px; max-width: calc(100vw - 32px); }
 .actorSel .hint { font-size: 11px; }
+.actorSel, .topRow > * { min-width: 0; max-width: 100%; }

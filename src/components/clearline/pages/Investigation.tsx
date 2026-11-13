@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { exportCaseReport, formatMoney, getIntent, investigate, timelineFor, type Finding } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
 import { ExecChip, ReconChip, SCOPE, SettleChip, RAIL, HoldChip, AdvChip, OutcomeChip, human } from "../labels";
@@ -15,9 +16,13 @@ function Findings({ items, empty }: { items: Finding[]; empty: string }) {
   return <ul>{items.map((f, i) => <li key={i}>{f.text} <Code>{f.code}</Code></li>)}</ul>;
 }
 
-export default function Investigation({ id }: { id: string }) {
+export default function Investigation({ id: requested }: { id: string }) {
   const { ws, hydrated, actorName } = useWorkspace();
-  const intent = getIntent(ws, id);
+  const router = useRouter();
+  // Accepts the documented scenario ids (pi_s1_success …) by the engine's intent.scenario label (UI_REQUESTS R1).
+  const intent = getIntent(ws, requested) ?? ws.intents.find((i) => i.scenario && `pi_${i.scenario}` === requested);
+  const id = intent?.id ?? requested;
+  useEffect(() => { if (hydrated && intent && intent.id !== requested) router.replace(`/clearline/payments/${intent.id}`); }, [hydrated, intent, requested, router]);
   const res = useMemo(() => (intent ? investigate(ws, id) : null), [ws, id, intent]);
   const view = res && res.ok ? res.value : null;
   const tl = useMemo(() => (view ? evidenceTimeline(ws, id, actorName, view.unknowns) : []), [ws, id, view, actorName]);

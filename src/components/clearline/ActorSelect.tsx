@@ -9,7 +9,7 @@ export function ActorSelect({ id, label = "Acting as" }: { id: string; label?: s
     <div className={s.actorSel}>
       <label htmlFor={id}>{label}</label>
       <select id={id} value={actorId} onChange={(e) => setActorId(e.target.value)}>
-        {actors.map((a) => <option key={a.id} value={a.id}>{a.name} — {a.role}</option>)}
+        {actors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
       </select>
       <span className={s.hint}>Simulated role — sandbox only</span>
     </div>

@@ -317,6 +317,8 @@ export interface ProviderEvent {
   confidence: "provider_claim" | "observed" | "unverified";
   errorClass: ProviderErrorClass;
   detail: Record<string, string | number>;
+  /** Sandbox only: the raw payload as received (fictional data), kept for replay/duplicate tests. */
+  rawBody?: string;
 }
 
 /** The provider's raw sandbox webhook payload (JSON-serialised before signing). */

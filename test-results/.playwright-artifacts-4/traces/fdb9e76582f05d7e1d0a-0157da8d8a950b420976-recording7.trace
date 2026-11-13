@@ -1,0 +1,1 @@
+{"version":10,"type":"context-options","origin":"library","browserName":"","playwrightVersion":"1.65.0","options":{},"platform":"linux","wallTime":1794566807188,"monotonicTime":20596.331,"sdkLanguage":"javascript","title":"clearline-console.spec.ts:145 › Clearline console › failure injection: duplicate and contradictory events are recorded, not applied blindly"}

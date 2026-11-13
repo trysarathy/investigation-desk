@@ -50,7 +50,7 @@ export function TargetActions({ target, status, idPrefix }: { target: TargetRef;
         <form onSubmit={(e) => { e.preventDefault(); run("Owner assigned", () => dispatch({ type: "assign_owner", target, ownerId: owner })); }}>
           <Field label="Assign owner">
             <select id={id("owner")} value={owner} onChange={(e) => setOwner(e.target.value)}>
-              {actors.map((a) => <option key={a.id} value={a.id}>{a.name} — {a.role}</option>)}
+              {actors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
           </Field>
           <Btn type="submit" size="small" style={{ marginTop: 6 }}>Assign owner</Btn>

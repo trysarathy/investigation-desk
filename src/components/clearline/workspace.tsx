@@ -19,7 +19,7 @@ type Ctx = {
   storage: "available" | "unavailable";
   actorId: string;
   actor: Actor | undefined;
-  actors: Actor[];
+  actors: readonly Actor[];
   setActorId: (id: string) => void;
   /** Applies an engine action at the next simulated instant. */
   dispatch: (action: WorkspaceAction, opts?: { actorId?: string }) => ActionResult;
@@ -108,7 +108,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     actorName: (id?: string) => {
       if (!id) return "Unassigned";
       const a = actors.find((x) => x.id === id);
-      return a ? `${a.name} (${a.role})` : id;
+      return a ? a.name : id;
     },
   }), [ws, hydrated, storage, actorId, actors, setActorId, dispatch, reset]);
 

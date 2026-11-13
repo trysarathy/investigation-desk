@@ -43,7 +43,7 @@ function HoldCard({ h }: { h: ComplianceHold }) {
               <Btn type="submit" size="small" style={{ marginTop: 6 }}>Submit documents</Btn>
             </form>
             <form onSubmit={(e) => { e.preventDefault(); run("Reviewer assigned", dispatch({ type: "assign_hold_reviewer", holdId: h.id, reviewerId: reviewer })); }}>
-              <Field label="Assign reviewer"><select value={reviewer} onChange={(e) => setReviewer(e.target.value)}>{actors.map((a) => <option key={a.id} value={a.id}>{a.name} — {a.role}</option>)}</select></Field>
+              <Field label="Assign reviewer"><select value={reviewer} onChange={(e) => setReviewer(e.target.value)}>{actors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>
               <Btn type="submit" size="small" style={{ marginTop: 6 }}>Assign reviewer</Btn>
             </form>
             <form onSubmit={(e) => { e.preventDefault(); run("Reviewer decision", dispatch({ type: "record_hold_decision", holdId: h.id, decision, reason })); setReason(""); }}>

@@ -170,7 +170,7 @@ export default function Connect() {
             <div className={ui.actions} style={{ alignItems: "flex-end" }}>
               <Field label="Checker" hint="Simulated role — sandbox only">
                 <select id="checker" value={checker} onChange={(e) => setChecker(e.target.value)}>
-                  {actors.map((a) => <option key={a.id} value={a.id}>{a.name} — {a.role}</option>)}
+                  {actors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
               </Field>
               <Btn kind="primary" onClick={() => act("Checker approval", dispatch({ type: "approve_instruction", instructionId: instr.id }, { actorId: checker }))}>Approve as checker</Btn>

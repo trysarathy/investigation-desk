@@ -53,6 +53,7 @@ export function ingestPayload(tx: Tx, input: IngestInput): { outcome: ProviderEv
     providerPaymentId: p?.provider_payment_id,
     payloadRef: `payload:${payloadHash.slice(0, 16)}`,
     payloadHash,
+    rawBody: input.rawBody,
     providerTimestamp: p?.occurred_at ?? tx.at,
     sequence: p?.sequence ?? 0,
     signatureResult: input.signatureResult,
