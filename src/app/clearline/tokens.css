@@ -1,0 +1,61 @@
+/*
+ * Clearline console tokens. Shared identity with the marketing site
+ * (site/marketing/app/tokens.css, site/docs/design/DESIGN_SYSTEM.md).
+ * Scoped to .cl so the legacy investigation-desk globals are untouched.
+ *
+ * Contrast (WCAG 2.x, computed from these hex values):
+ *   ink #17212D on ivory #F5F1E8        14.42:1
+ *   quiet #63707A on ivory               4.51:1  (body-size text on ivory/white only)
+ *   quiet-strong #5A6670 on blue-grey    4.97:1
+ *   signal-text #A93A25 on ivory         5.61:1  (small text, links, primary button bg: white 6.33:1)
+ *   signal #D04B31 on ivory              3.94:1  (non-text accents, large text, rules only)
+ */
+.cl {
+  --cl-ink: #17212D;
+  --cl-ivory: #F5F1E8;
+  --cl-paper: #FFFFFF;
+  --cl-paper-2: #FBF9F4;
+  --cl-signal: #D04B31;
+  --cl-signal-text: #A93A25;
+  --cl-signal-hover: #8F3020;
+  --cl-signal-soft: #F8E4D8;
+  --cl-blue-grey: #E6EDF0;
+  --cl-line: #DED6C9;
+  --cl-line-strong: #C9BEAD;
+  --cl-quiet: #63707A;
+  --cl-quiet-strong: #5A6670;
+
+  /* Semantic status tones. Every chip also carries its text label. */
+  --cl-ok-bg: #E3EFE7;   --cl-ok-fg: #1F5E3B;
+  --cl-warn-bg: #FBEFD5; --cl-warn-fg: #7A4F00;
+  --cl-bad-bg: #F8E4D8;  --cl-bad-fg: #A93A25;
+  --cl-info-bg: #E6EDF0; --cl-info-fg: #2B4252;
+  --cl-neutral-bg: #EFEBE3; --cl-neutral-fg: #3D4852;
+
+  --cl-font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --cl-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --cl-radius: 5px;
+  --cl-focus: #A93A25;
+  --cl-space-1: 4px; --cl-space-2: 8px; --cl-space-3: 12px; --cl-space-4: 16px;
+  --cl-space-5: 24px; --cl-space-6: 32px;
+  --cl-sidebar: 232px;
+
+  color-scheme: light;
+  background: var(--cl-ivory);
+  color: var(--cl-ink);
+  font-family: var(--cl-font-ui);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+.cl *, .cl *::before, .cl *::after { box-sizing: border-box; }
+.cl a { color: var(--cl-signal-text); text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
+.cl a:hover { color: var(--cl-signal-hover); }
+.cl :focus-visible { outline: 3px solid var(--cl-focus); outline-offset: 2px; border-radius: 3px; }
+.cl ::selection { background: #F6C6B2; color: var(--cl-ink); }
+.cl .mono, .cl code { font-family: var(--cl-font-mono); font-size: 0.92em; }
+.cl .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+@media (prefers-reduced-motion: reduce) {
+  .cl *, .cl *::before, .cl *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}
