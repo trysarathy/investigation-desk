@@ -83,7 +83,10 @@ info:
     returns `InvestigationView`: `amountDifferences` holds only the differences still outstanding,
     `resolvedAmountDifferences` the history. A provider `payout.returned` turns settlement evidence
     (`observed`, `pending_finality`, `verified`) into `contradicted`; a bank debit matched before
-    `payout.failed` is likewise `contradicted` with `RC_DEBIT_FOR_FAILED_PAYOUT`. Funding rows carry
+    `payout.failed` is likewise `contradicted` with `RC_DEBIT_FOR_FAILED_PAYOUT`. A bank debit matched AFTER the
+    payout is failed, cancelled, expired or returned is allocated but settlement is `contradicted`
+    (`RC_DEBIT_FOR_FAILED_PAYOUT`, `RC_DEBIT_FOR_TERMINAL_PAYOUT`, or evidence on the open return exception),
+    so the end state does not depend on the order. Funding rows carry
     `supplierPaidBasis`, which is always `none` for a failed, cancelled, expired or returned payout.
 
     **Legacy endpoints** under `/api/clearline/test/{intents,quotes,transitions,webhooks,payments,health}`
@@ -492,7 +495,7 @@ components:
     ReconciliationCode:
       type: string
       enum: [RC_EXACT_REFERENCE_AMOUNT_CURRENCY_WINDOW, RC_PARTIAL_AMOUNT, RC_OVERPAYMENT, RC_CURRENCY_MISMATCH, RC_OUTSIDE_TIME_WINDOW, RC_LATE_STATEMENT, RC_NO_REFERENCE, RC_UNKNOWN_REFERENCE, RC_AMOUNT_ONLY_CANDIDATES, RC_AMBIGUOUS_REFERENCE, RC_DUPLICATE_SUSPECTED, RC_RETURN_CONFIRMS_PROVIDER_RETURN, RC_RETURN_CONTRADICTS_PROVIDER_STATUS, RC_UNMATCHED_INCOMING, RC_UNMATCHED_OUTGOING, RC_PROVIDER_REPORT_ONLY, RC_REPAYMENT_BY_REFERENCE, RC_UNDER_AMOUNT_REPORT, RC_REPORT_ON_TERMINAL_PAYOUT, RC_REPORT_ON_HELD_PAYOUT]
-      description: Statement-line explanation codes (`RECONCILIATION_CODE_TEXT` / `RECONCILIATION_CODE_GROUP`). Exceptions may also carry `RC_DEBIT_FOR_FAILED_PAYOUT` and `RC_NO_STATEMENT_AFTER_COMPLETION`.
+      description: Statement-line explanation codes (`RECONCILIATION_CODE_TEXT` / `RECONCILIATION_CODE_GROUP`). Exceptions may also carry `RC_DEBIT_FOR_FAILED_PAYOUT`, `RC_DEBIT_FOR_TERMINAL_PAYOUT` and `RC_NO_STATEMENT_AFTER_COMPLETION`.
     AmountDifference:
       type: object
       description: >-

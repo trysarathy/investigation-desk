@@ -349,17 +349,23 @@ export function reconcileLine(tx: Tx, line: StatementLine): string {
       intent.status.settlementScope = "provider_report";
     }
   }
-  // Payout that the provider still reports as failed/returned contradicts a debit match.
-  if (intent.status.execution === "failed") {
-    openException(tx, {
-      category: "contradictory_evidence",
-      explanationCode: "RC_DEBIT_FOR_FAILED_PAYOUT",
-      explanation: "A statement debit matches a payout the provider reported as failed.",
-      intentId: intent.id,
-      statementLineId: line.id,
-      supportingEvidenceIds: [evidenceId],
-    });
+  // Re-review N1: a debit matched to a payout that is ALREADY failed, cancelled, expired or returned
+  // (TERMINAL_FOR_SETTLEMENT_REPORT) is allocated — the debit really happened — but never counts as
+  // settled. The end state equals the debit-then-terminal order (onExecutionChanged).
+  const exec = intent.status.execution;
+  if (isTerminalForSettlementReport(exec)) {
+    if (exec === "returned") {
+      // Normal real-world order (statements lag the provider's webhook): the open returned_payout
+      // exception already covers it; the debit is added to it as evidence.
+      const ret = ws.exceptions.find((e) => e.intentId === intent.id && e.category === "returned_payout" && e.status !== "resolved");
+      if (ret) {
+        ret.supportingEvidenceIds.push(evidenceId);
+        ret.history.push({ at: tx.at, actorId: tx.actorId, action: "evidence_added", detail: `Outgoing debit ${line.lineId} matched after the provider reported the return; settlement contradicted.` });
+        ret.lastUpdatedAt = tx.at;
+      }
+    } else openTerminalDebitException(tx, intent, line.id, [evidenceId]);
     intent.status.settlement = "contradicted";
+    intent.status.settlementScope = "bank_statement";
   }
   return "allocated";
 }
@@ -450,18 +456,26 @@ export function onExecutionChanged(tx: Tx, intent: PaymentIntent): void {
     tx.log("intent.settlement", "intent", intent.id, `${s.settlement} → contradicted · provider reported the payout returned`);
     s.settlement = "contradicted";
   }
-  // Same order-independence for a bank debit that was matched BEFORE the provider reported failure
-  // (the debit-after-failure order already raises RC_DEBIT_FOR_FAILED_PAYOUT in reconcileLine).
-  if (state === "failed" && evidenced && s.settlementScope === "bank_statement") {
+  // Same order-independence for a bank debit that was matched BEFORE the payout failed or was
+  // cancelled/expired (the debit-after order raises the same exception in reconcileLine).
+  if (state !== "returned" && evidenced && s.settlementScope === "bank_statement") {
     const lineIds = tx.ws.allocations.filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id && a.evidenceKind === "statement_line").map((a) => a.statementLineId);
-    openException(tx, {
-      category: "contradictory_evidence",
-      explanationCode: "RC_DEBIT_FOR_FAILED_PAYOUT",
-      explanation: "A statement debit matches a payout the provider reported as failed.",
-      intentId: intent.id,
-      statementLineId: lineIds[0],
-      supportingEvidenceIds: tx.ws.evidence.filter((e) => e.intentId === intent.id && e.kind === "bank_statement_line").map((e) => e.id),
-    });
+    openTerminalDebitException(tx, intent, lineIds[0], tx.ws.evidence.filter((e) => e.intentId === intent.id && e.kind === "bank_statement_line").map((e) => e.id));
     s.settlement = "contradicted";
   }
+}
+
+/** A bank debit for a payout that failed (RC_DEBIT_FOR_FAILED_PAYOUT) or was cancelled/expired (RC_DEBIT_FOR_TERMINAL_PAYOUT). */
+function openTerminalDebitException(tx: Tx, intent: PaymentIntent, statementLineId: string | undefined, evidenceIds: string[]) {
+  const failed = intent.status.execution === "failed";
+  openException(tx, {
+    category: "contradictory_evidence",
+    explanationCode: failed ? "RC_DEBIT_FOR_FAILED_PAYOUT" : "RC_DEBIT_FOR_TERMINAL_PAYOUT",
+    explanation: failed
+      ? "A statement debit matches a payout the provider reported as failed."
+      : `A statement debit matches a payout that is ${intent.status.execution}; money left the account for a payout that did not proceed.`,
+    intentId: intent.id,
+    statementLineId,
+    supportingEvidenceIds: evidenceIds,
+  });
 }

@@ -305,6 +305,7 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   RC_REPORT_ON_TERMINAL_PAYOUT: "Provider reports settlement on a failed, cancelled, expired or returned payout",
   RC_REPORT_ON_HELD_PAYOUT: "Provider reports settlement on a payout that is on hold — not counted",
   RC_DEBIT_FOR_FAILED_PAYOUT: "Bank debit for a payout the provider reported as failed",
+  RC_DEBIT_FOR_TERMINAL_PAYOUT: "Bank debit for a payout that was cancelled or expired",
   RC_NO_STATEMENT_AFTER_COMPLETION: "No statement line after provider-reported completion",
   // Provider events
   EV_AMOUNT_DIFFERS_FROM_INSTRUCTION: "Provider amount differs from the approved instruction",

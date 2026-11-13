@@ -8,6 +8,7 @@ import {
   RECONCILIATION_CODE_GROUP,
   TERMINAL_FOR_SETTLEMENT_REPORT,
   describeCode,
+  describeStatus,
   fundingProjection,
   investigate,
   listExceptions,
@@ -367,5 +368,91 @@ describe("review v2 minors", () => {
 
   it("nit: one terminal list — TERMINAL_FOR_SETTLEMENT_REPORT is exactly failed, cancelled, expired, returned", () => {
     expect([...TERMINAL_FOR_SETTLEMENT_REPORT].sort()).toEqual(["cancelled", "expired", "failed", "returned"]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Re-review N1: a debit matched AFTER the payout became terminal is never "verified"
+// ---------------------------------------------------------------------------------------------
+
+describe("re-review N1: debit after a terminal status", () => {
+  it("N1 returned: return-then-debit is contradicted (never verified) and ends exactly like debit-then-return", () => {
+    const s = completedPayout();
+    const r = ingest(webhook(s.ws, s.ppid, "payout.returned", 9), debitLine({ reference: s.ppid, lineId: "D-1" }));
+    expect(r.outcome).toBe("allocated");
+    const after = r.workspace;
+    expect(st(after, s.id)).toEqual({ execution: "returned", settlement: "contradicted", settlementScope: "bank_statement", reconciliation: "exception" });
+    expect(describeStatus(st(after, s.id)).settlement).not.toMatch(/verified/i);
+    const before = webhook(ingest(s.ws, debitLine({ reference: s.ppid, lineId: "D-1" })).workspace, s.ppid, "payout.returned", 9);
+    expect(st(after, s.id)).toEqual(st(before, s.id));
+    expect(openCodes(after, s.id).sort()).toEqual(openCodes(before, s.id).sort());
+    // the debit is recorded as evidence on the open return exception
+    const ret = listExceptions(after, { intentId: s.id, category: "returned_payout" })[0];
+    expect(ret.supportingEvidenceIds.some((e) => after.evidence.find((x) => x.id === e)?.kind === "bank_statement_line")).toBe(true);
+    expect(fundingProjection(after).rows).toHaveLength(0);
+  });
+
+  it("N1 returned: a partial debit after the return is also contradicted, as in the other order", () => {
+    const s = completedPayout();
+    const after = ingest(webhook(s.ws, s.ppid, "payout.returned", 9), debitLine({ reference: s.ppid, amountMinor: 250_000, lineId: "D-P" })).workspace;
+    const before = webhook(ingest(s.ws, debitLine({ reference: s.ppid, amountMinor: 250_000, lineId: "D-P" })).workspace, s.ppid, "payout.returned", 9);
+    expect(st(after, s.id).settlement).toBe("contradicted");
+    expect(st(after, s.id)).toEqual(st(before, s.id));
+  });
+
+  it("N1 returned: once a person resolves the return, the recompute gives none (never verified)", () => {
+    const s = completedPayout();
+    let ws = ingest(webhook(s.ws, s.ppid, "payout.returned", 9), debitLine({ reference: s.ppid })).workspace;
+    const ret = listExceptions(ws, { intentId: s.id, category: "returned_payout" })[0];
+    ws = run(ws, "usr_maya", { type: "assign_owner", target: { kind: "exception", id: ret.id }, ownerId: "usr_maya" }).workspace;
+    ws = run(ws, "usr_maya", { type: "attach_evidence", target: { kind: "exception", id: ret.id }, evidence: { kind: "funds_returned_confirmation", description: "Bank confirms funds back (fictional)" } }).workspace;
+    ws = run(ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: ret.id }, note: "Return confirmed" }).workspace;
+    expect(st(ws, s.id)).toMatchObject({ execution: "returned", settlement: "none", settlementScope: "none" });
+  });
+
+  it("N1 cancelled: debit after the reviewer declines a held payout is contradicted with RC_DEBIT_FOR_TERMINAL_PAYOUT, in both orders", () => {
+    const h = heldPayout();
+    const after = ingest(rejectHold(h.ws, h.holdId), debitLine({ reference: h.ppid, lineId: "D-C" }));
+    expect(after.outcome).toBe("allocated");
+    const before = rejectHold(ingest(h.ws, debitLine({ reference: h.ppid, lineId: "D-C" })).workspace, h.holdId);
+    for (const ws of [after.workspace, before]) {
+      expect(st(ws, h.id)).toMatchObject({ execution: "cancelled", settlement: "contradicted", settlementScope: "bank_statement", reconciliation: "exception" });
+      expect(openCodes(ws, h.id)).toContain("RC_DEBIT_FOR_TERMINAL_PAYOUT");
+    }
+    expect(st(after.workspace, h.id)).toEqual(st(before, h.id));
+    expect(openCodes(after.workspace, h.id).sort()).toEqual(openCodes(before, h.id).sort());
+    expect(CODE_LABELS.RC_DEBIT_FOR_TERMINAL_PAYOUT).toBeTruthy();
+  });
+
+  it("N1 failed: debit after failure still raises RC_DEBIT_FOR_FAILED_PAYOUT (unchanged) and equals the other order", () => {
+    const s = submitted();
+    const after = ingest(webhook(s.ws, s.ppid, "payout.failed", 3), debitLine({ reference: s.ppid, lineId: "D-F" })).workspace;
+    const before = webhook(ingest(s.ws, debitLine({ reference: s.ppid, lineId: "D-F" })).workspace, s.ppid, "payout.failed", 3);
+    expect(st(after, s.id)).toMatchObject({ execution: "failed", settlement: "contradicted" });
+    expect(st(after, s.id)).toEqual(st(before, s.id));
+    expect(openCodes(after, s.id).filter((c) => c === "RC_DEBIT_FOR_FAILED_PAYOUT")).toHaveLength(1);
+  });
+
+  it("N1 expired (stored data): a debit for an expired payout is contradicted with RC_DEBIT_FOR_TERMINAL_PAYOUT", () => {
+    const s = submitted();
+    const w = JSON.parse(serializeWorkspace(s.ws)) as Workspace;
+    intent(w, s.id).status.execution = "expired";
+    const r = ingest(w, debitLine({ reference: s.ppid }));
+    expect(r.outcome).toBe("allocated");
+    expect(st(r.workspace, s.id)).toMatchObject({ execution: "expired", settlement: "contradicted", settlementScope: "bank_statement" });
+    expect(openCodes(r.workspace, s.id)).toContain("RC_DEBIT_FOR_TERMINAL_PAYOUT");
+  });
+
+  it("N1 on_hold (decision): a debit while held is the payout debit, not a contradiction; same result whichever came first", () => {
+    // A hold is not an outcome: the payout may still proceed, and the bank debit really evidences the
+    // payout leaving the account (scope bank_statement, never a beneficiary credit). Not terminal, so
+    // not contradicted — and the result does not depend on the order.
+    const h = heldPayout();
+    const after = ingest(h.ws, debitLine({ reference: h.ppid, lineId: "D-H" })).workspace;
+    const s0 = submitted({ sandboxOutcome: "hold", destinationCurrency: "USD", destinationCountry: "US" }, "prv_harbour");
+    const before = sim(sim(ingest(s0.ws, debitLine({ reference: s0.ppid, lineId: "D-H" })).workspace, s0.id).workspace, s0.id).workspace;
+    expect(st(after, h.id)).toMatchObject({ execution: "on_hold", settlement: "verified", settlementScope: "bank_statement" });
+    expect(st(before, s0.id)).toMatchObject({ execution: "on_hold", settlement: "verified", settlementScope: "bank_statement" });
+    expect(TERMINAL_FOR_SETTLEMENT_REPORT).not.toContain("on_hold");
   });
 });
