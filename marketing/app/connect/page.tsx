@@ -37,7 +37,7 @@ export default function Connect() {
         <QuotesTable />
       </Section>
 
-      <Section tone="bluegrey" eyebrow="Boundaries" title="What Connect does not do today">
+      <Section tone="canvas" eyebrow="Boundaries" title="What Connect does not do today">
         <div className="grid-2">
           <ul className="bullets">
             <li>No licensed provider, bank or wallet is connected. Providers named in the sandbox are fictional.</li>

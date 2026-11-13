@@ -204,7 +204,7 @@ export default function Developers() {
         </div>
       </Section>
 
-      <Section id="limitations" tone="bluegrey" eyebrow="Limitations" title="What the test API does not do">
+      <Section id="limitations" tone="canvas" eyebrow="Limitations" title="What the test API does not do">
         <div className="grid-2">
           <ul className="bullets">
             <li>Sandbox only: fictional providers (Northline, Harbour FX, Tidewater). No provider, bank or wallet calls. No money movement, custody or keys.</li>

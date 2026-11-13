@@ -27,7 +27,7 @@ export default function Header() {
         <div className="header-actions">
           <Link className="header-contact" href="/contact" {...current("/contact")}>Contact</Link>
           <a className="btn btn-primary btn-sm" href={TRIAL_URL} target="_blank" rel="noopener noreferrer">
-            Explore the sandbox<span className="sr-only"> (opens in a new tab)</span>
+            Explore Clearline<span className="sr-only"> (opens in a new tab)</span> <span aria-hidden="true">↗</span>
           </a>
         </div>
         {/* key resets the open state after client-side navigation */}
@@ -37,7 +37,7 @@ export default function Header() {
             {NAV.map(n => <Link key={n.href} href={n.href} {...current(n.href)}>{n.label}</Link>)}
             <Link href="/onchain" {...current("/onchain")}>Onchain</Link>
             <Link href="/contact" {...current("/contact")}>Contact</Link>
-            <a href={TRIAL_URL} target="_blank" rel="noopener noreferrer">Explore the sandbox<span className="sr-only"> (opens in a new tab)</span> <span aria-hidden="true">↗</span></a>
+            <a href={TRIAL_URL} target="_blank" rel="noopener noreferrer">Explore Clearline<span className="sr-only"> (opens in a new tab)</span> <span aria-hidden="true">↗</span></a>
           </nav>
         </details>
       </div>

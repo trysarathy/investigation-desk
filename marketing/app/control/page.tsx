@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ButtonLink, ContactBand, ExtLink, PageHero, Section, Stage } from "@/components/Shared";
 import { ExceptionsTable, FundingTable, LiquidityTable, ReconTable } from "@/components/Tables";
-import PaymentPreview from "@/components/PaymentPreview";
+import InvestigationView from "@/components/InvestigationView";
 import { FUNDING_DESK_URL, SOFTWARE_URL } from "@/lib/site";
 import { pageMeta } from "@/lib/meta";
 
@@ -22,7 +22,7 @@ export default function Control() {
 
       <Section tone="white" eyebrow="Investigation" title="A timeline with sources, not a status badge"
         intro={<p>Every event shows its provenance and what the engine did with it. The investigation view separates what the provider reported from independent evidence, lists what is still unknown, and names who acts next.</p>}>
-        <PaymentPreview />
+        <InvestigationView initial="s2_returned" />
       </Section>
 
       <Section eyebrow="Reconciliation" title="Match by reference. Never by amount alone."
@@ -37,7 +37,7 @@ export default function Control() {
         <LiquidityTable />
       </Section>
 
-      <Section tone="bluegrey" eyebrow="Holds and funding exposure" title="Owners, not automated decisions">
+      <Section tone="canvas" eyebrow="Holds and funding exposure" title="Owners, not automated decisions">
         <div className="grid-2">
           <div className="panel">
             <h3 className="h3">Holds</h3>

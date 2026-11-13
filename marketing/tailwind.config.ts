@@ -5,8 +5,8 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: "var(--cl-ink)", ivory: "var(--cl-ivory)", signal: "var(--cl-signal)", "signal-strong": "var(--cl-signal-strong)",
-        bluegrey: "var(--cl-bluegrey)", line: "var(--cl-line)", quiet: "var(--cl-quiet)", muted: "var(--cl-muted)",
+        midnight: "var(--cl-midnight)", blue: "var(--cl-blue)", "blue-text": "var(--cl-blue-text)", canvas: "var(--cl-canvas)",
+        ice: "var(--cl-ice)", slate: "var(--cl-slate)", text: "var(--cl-text)", line: "var(--cl-line)",
       },
       fontFamily: { sans: ["Inter", "system-ui", "sans-serif"], mono: ["JetBrains Mono", "monospace"] },
     },

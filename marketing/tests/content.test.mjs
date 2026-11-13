@@ -158,7 +158,7 @@ test("sample data is derived from the engine's s1–s5 scenarios", () => {
 
 test("design tokens are exported for the console and used by the site", () => {
   const tokens = read("app/tokens.css");
-  for (const hex of ["#17212D", "#F5F1E8", "#D04B31", "#E6EDF0", "#A93A24"]) assert.ok(tokens.includes(hex), hex);
+  for (const hex of ["#101827", "#376BEB", "#FFFFFF", "#F8FAFC", "#DCE7FF", "#64748B", "#17212D"]) assert.ok(tokens.includes(hex), hex);
   assert.match(read("app/layout.tsx"), /import "\.\/tokens\.css"/);
   assert.ok(fs.existsSync(path.resolve(root, "../docs/design/DESIGN_SYSTEM.md")), "DESIGN_SYSTEM.md missing");
 });
@@ -221,7 +221,7 @@ test("engine CHANGE 3 claims: holds, chain attribution, provider reports, cancel
 test("sample data is fictional and labelled", () => {
   assert.match(read("lib/sample.ts"), /Fictional sample records/);
   assert.match(read("lib/sample.ts"), /Every organisation, provider, person and amount is fictional/);
-  assert.match(read("components/PaymentPreview.tsx"), /fictional/i);
+  assert.match(read("components/InvestigationView.tsx"), /fictional/i);
 });
 
 test("built output (if present) has the email, metadata and no stale hosts", { skip: !fs.existsSync(path.join(root, "out")) }, () => {
@@ -250,3 +250,124 @@ test("founder-approved about, trial and privacy wording", () => {
   assert.match(privacy, /provisional notice/); assert.match(privacy, /hosted on Vercel/);
   assert.match(privacy, /does not claim compliance/); assert.match(privacy, /confidential financial data is disabled/);
 });
+
+
+// ---- v2 brand: Midnight & Electric Blue (13 Nov 2026) ----
+const hexL = h => { const c = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255).map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+const ratio = (a, b) => { const x = hexL(a), y = hexL(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+const tokenValue = name => { const m = read("app/tokens.css").match(new RegExp("--cl-" + name + ":\\s*(#[0-9A-Fa-f]{6})")); assert.ok(m, "token --cl-" + name + " missing"); return m[1].toUpperCase(); };
+
+test("palette: the seven approved colours are the brand tokens, with the console roles defined", () => {
+  const want = { midnight: "#101827", blue: "#376BEB", white: "#FFFFFF", canvas: "#F8FAFC", ice: "#DCE7FF", slate: "#64748B", text: "#17212D" };
+  for (const [k, v] of Object.entries(want)) assert.equal(tokenValue(k), v, k);
+  const tokens = read("app/tokens.css");
+  for (const role of ["--cl-page", "--cl-surface", "--cl-selected", "--cl-action", "--cl-link", "--cl-nav-bg", "--cl-text-secondary"]) assert.ok(tokens.includes(role + ":"), role);
+  assert.match(tokens, /copies THIS FILE VERBATIM from\s+\* marketing\/app\/tokens\.css/);
+  const doc = read("../docs/design/DESIGN_SYSTEM.md");
+  assert.match(doc, /v2\.0 "Midnight & Electric Blue"/);
+  assert.match(doc, /\*\*Superseded:\*\*.*orange-red.*green brand direction/);
+});
+
+test("old palette hexes are gone from site code", () => {
+  const files = [...sources, "app/icon.svg", "tailwind.config.ts", "README.md", ...walk("tests").filter(f => !f.endsWith("content.test.mjs"))];
+  for (const f of files) {
+    const s = read(f).toUpperCase();
+    for (const hex of ["#D04B31", "#A93A24", "#B33D28", "#F5F1E8", "#F08A6E", "#E6EDF0"]) assert.equal(s.includes(hex), false, f + " still uses " + hex);
+  }
+  for (const v of ["--cl-ivory", "--cl-signal", "--cl-bluegrey", "--cl-ink"]) for (const f of sources) assert.equal(read(f).includes(v + ")") || read(f).includes(v + ":"), false, f + " uses retired token " + v);
+});
+
+test("no raw colours outside the token file (OG image excepted: it cannot read CSS variables)", () => {
+  for (const f of sources.filter(f => !f.endsWith("tokens.css") && !f.endsWith("opengraph-image.tsx") && !f.endsWith("layout.tsx")))
+    assert.equal(/#[0-9A-Fa-f]{6}\b/.test(read(f).replace(/^\s*\/\/.*$/gm, "")), false, f + " has a raw hex colour; use a token");
+});
+
+test("contrast: every documented pairing is computed correctly, and allowed pairs meet WCAG", () => {
+  const doc = read("../docs/design/DESIGN_SYSTEM.md");
+  const rows = [...doc.matchAll(/^\| ([^|]*#[0-9A-F]{6}[^|]*) \| ([^|]+) \| ([\d.]+):1 \| ([^|]+) \| ([^|]+) \|$/gm)];
+  assert.ok(rows.length >= 30, "contrast table has " + rows.length + " rows");
+  const named = { White: "#FFFFFF", "Off-white": "#F8FAFC", Ice: "#DCE7FF", Midnight: "#101827", "Midnight-2": "#1A2436" };
+  for (const [, fg, bg, documented, needs, result] of rows) {
+    const f = fg.match(/#[0-9A-F]{6}/)[0];
+    const b = (bg.match(/#[0-9A-F]{6}/) || [named[bg.trim()]])[0];
+    assert.ok(b, "unknown background " + bg);
+    const r = Math.floor(ratio(f, b) * 100) / 100;
+    assert.equal(r.toFixed(2), documented, fg + " on " + bg);
+    const need = parseFloat(needs);
+    if (!Number.isNaN(need)) assert.equal(ratio(f, b) >= need ? "pass" : "**fail**", result.trim(), fg + " on " + bg);
+  }
+  // The pairs the brief names explicitly, and their accessible variants.
+  for (const pair of ["Slate #64748B | Off-white", "Electric Blue #376BEB (text) | White", "Electric Blue #376BEB (text) | Midnight", "White (button label) | Electric Blue #376BEB", "Blue-text #2F5BD0 | Off-white", "Blue-on-midnight #8FB0FF | Midnight", "Slate-strong #4F5D73 | Ice"])
+    assert.ok(doc.includes("| " + pair + " |"), "contrast row missing: " + pair);
+  // Live checks on the token values the site actually uses for text.
+  const T = tokenValue;
+  assert.ok(ratio(T("on-midnight"), T("blue")) >= 4.5, "white on Electric Blue");
+  assert.ok(ratio(T("blue-text"), T("canvas")) >= 4.5 && ratio(T("blue-text"), T("ice")) >= 4.5, "link blue");
+  assert.ok(ratio(T("blue-on-midnight"), T("midnight")) >= 4.5, "blue on midnight");
+  assert.ok(ratio(T("slate"), T("canvas")) >= 4.5 && ratio(T("slate-strong"), T("ice")) >= 4.5, "secondary text");
+  assert.ok(ratio(T("on-midnight-muted"), T("midnight")) >= 4.5 && ratio(T("on-midnight-muted"), T("midnight-2")) >= 4.5, "muted on midnight");
+  assert.ok(ratio(T("blue"), T("canvas")) < 4.5, "Electric Blue on canvas is documented as failing; keep it out of text");
+  for (const t of ["success", "warning", "danger", "info", "neutral"]) {
+    assert.ok(ratio(T(t), T(t + "-bg")) >= 4.5, t + " on tint"); assert.ok(ratio(T(t), "#FFFFFF") >= 4.5, t + " on white");
+  }
+  for (const [fg, bg] of [["focus", "white"], ["focus", "canvas"], ["focus", "ice"], ["focus-on-midnight", "midnight"], ["line-strong", "white"], ["line-strong", "canvas"], ["midnight-control", "midnight"]])
+    assert.ok(ratio(T(fg), T(bg)) >= 3, fg + " on " + bg + " (non-text 3:1)");
+  // Electric Blue is never used as a text colour in site CSS (only fills, borders and focus).
+  const css = read("app/globals.css");
+  assert.equal(/(^|[;{\s])color:\s*var\(--cl-(blue|action|focus)\)/m.test(css), false, "Electric Blue used as text colour");
+});
+
+test("semantic financial colours: provider claims are never green or blue; green only for evidence", () => {
+  const st = read("components/Status.tsx");
+  const tone = (map, key) => { const m = st.match(new RegExp("const " + map + "[^=]*= \\{([\\s\\S]*?)\\};")); assert.ok(m, map); const t = m[1].match(new RegExp("\\b" + key + ': "([a-z]+)"')); assert.ok(t, map + "." + key); return t[1]; };
+  for (const k of ["submitted", "in_transit", "provider_reported_completed"]) assert.equal(tone("execTone", k), "neutral", k);
+  for (const k of ["failed", "returned"]) assert.equal(tone("execTone", k), "danger", k);
+  for (const k of ["awaiting_information", "on_hold"]) assert.equal(tone("execTone", k), "warning", k);
+  assert.equal(tone("settlementTone", "verified"), "success");
+  for (const k of ["observed", "pending_finality"]) assert.equal(tone("settlementTone", k), "warning", k);
+  assert.equal(tone("settlementTone", "contradicted"), "danger");
+  assert.equal(tone("reconTone", "matched"), "success"); assert.equal(tone("reconTone", "exception"), "danger");
+  assert.equal(/tone-info|"info"/.test(st.replace(/Tone \| "info"/, "")), false, "no status uses the info (blue) tone");
+  // Human label first, exact API value as secondary detail.
+  assert.match(st, /provider_reported_completed: "Provider reports completed"/);
+  assert.match(st, /className="st-api"/);
+});
+
+test("homepage: approved hero, CTAs, investigation view from the sample records, and required sections", () => {
+  const home = read("app/page.tsx");
+  assert.match(home, /Every payment\. <em>One clear answer\.<\/em>/);
+  assert.match(home, /Clearline connects payment instructions, provider events and financial evidence&mdash;so operations teams can understand what happened and what needs attention\./);
+  assert.match(home, /<ButtonLink href=\{TRIAL_URL\} main>Explore Clearline<\/ButtonLink>/);
+  assert.match(home, /mailto\("A payment problem"\)\} variant="secondary" onMidnight>Talk about a payment problem/);
+  assert.match(home, /Booking link pending/);
+  assert.match(home, /<InvestigationView \/>/);
+  const iv = read("components/InvestigationView.tsx");
+  assert.match(iv, /from "@\/lib\/sample"/); assert.equal(/<img|\.png|\.jpg/.test(iv), false, "investigation view is HTML, not an image");
+  for (const t of ["Execution", "Settlement evidence", "Reconciliation", "is-hl"]) assert.ok(iv.includes(t), t);
+  for (const id of ["story-title", "products-title", "together", "cases-title", "principles-title", "roles-title", "stage-title", "founder-title", "contact-title"]) assert.ok(home.includes(`id="${id}"`), id);
+  assert.match(home, /19, in her second year of Accountancy at Singapore Management University, with a second major in Finance/);
+});
+
+test("reconciliation edge cases described on the site exist in the engine today", () => {
+  const all = copySources.map(read).join("\n");
+  // Under-amount / failed-payout-report exceptions are not in the engine yet: do not describe them.
+  for (const re of [/under[-_ ]amount/i, /underpaid/i, /failed[-_ ]payout[-_ ]report/i, /short[-_ ]payment/i]) assert.equal(re.test(all), false, "site describes " + re);
+  assert.match(read("app/page.tsx"), /RC_PARTIAL_AMOUNT/);
+});
+
+test("no banned claims (content-marketer list) in site copy", () => {
+  for (const f of copySources) {
+    const s = read(f).toLowerCase();
+    for (const p of ["soc 2", "soc2", "compliant", "posts automatically", "integrates with", "zero errors", "zero false", "free trial", "for free", "bank-grade", "military-grade", "instant settlement", "seamless"]) assert.equal(s.includes(p), false, f + " contains " + p);
+  }
+});
+
+test("internal links resolve to a built route or an in-page anchor", () => {
+  const routes = new Set(ROUTE_PATHS());
+  for (const f of copySources) {
+    for (const m of read(f).matchAll(/href="(\/[^"#]*)(#[^"]*)?"/g)) assert.ok(routes.has(m[1] === "" ? "/" : m[1]) || m[1] === "/replay", f + " links to unknown route " + m[1]);
+  }
+  for (const m of read("app/page.tsx").matchAll(/href="\/trial#([a-z-]+)"/g)) assert.match(read("app/trial/page.tsx"), new RegExp('id="' + m[1] + '"'));
+  assert.match(read("app/privacy/page.tsx"), /href="\/trial#historical"/); assert.match(read("app/trial/page.tsx"), /id="historical"/);
+});
+function ROUTE_PATHS() { return [...read("lib/site.ts").matchAll(/path: "([^"]+)"/g)].map(m => m[1]); }

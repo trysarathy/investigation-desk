@@ -1,21 +1,24 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { EMAIL, LINKEDIN, SOFTWARE_URL, TRIAL_URL, API_DOCS_URL } from "@/lib/site";
+import { EMAIL, LINKEDIN, SOFTWARE_URL, TRIAL_URL, API_DOCS_URL, mailto } from "@/lib/site";
 
 export function Logo() {
   return (
     <Link href="/" className="brand" aria-label="Clearline home">
-      <span className="brand-mark" aria-hidden="true">C</span>
-      <span className="brand-word">clearline<span className="brand-dot">.</span></span>
+      <svg className="brand-mark" width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" focusable="false">
+        <rect x="0.75" y="0.75" width="20.5" height="20.5" rx="5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        <rect x="5" y="10" width="12" height="2" rx="1" style={{ fill: "var(--cl-blue-on-midnight)" }} />
+      </svg>
+      <span className="brand-word">clearline</span>
     </Link>
   );
 }
 
 /** Button-styled link. `main` marks the page's primary call to action (used by keyboard tests). */
-export function ButtonLink({ href, children, variant = "primary", external = false, main = false, onInk = false }: {
-  href: string; children: ReactNode; variant?: "primary" | "secondary"; external?: boolean; main?: boolean; onInk?: boolean;
+export function ButtonLink({ href, children, variant = "primary", external = false, main = false, onMidnight = false }: {
+  href: string; children: ReactNode; variant?: "primary" | "secondary"; external?: boolean; main?: boolean; onMidnight?: boolean;
 }) {
-  const cls = "btn btn-" + variant + (onInk ? " btn-on-ink" : "");
+  const cls = "btn btn-" + variant + (onMidnight ? " btn-on-midnight" : "");
   const extra = main ? { "data-main-cta": "" } : {};
   if (external || href.startsWith("http") || href.startsWith("mailto:")) {
     const isHttp = href.startsWith("http");
@@ -55,7 +58,7 @@ export function PageHero({ eyebrow, title, children, actions, stages }: {
   eyebrow: string; title: ReactNode; children?: ReactNode; actions?: ReactNode; stages?: StageKind[];
 }) {
   return (
-    <section className="page-hero">
+    <section className="page-hero on-midnight">
       <div className="container">
         <Eyebrow>{eyebrow}</Eyebrow>
         <h1 className="h1">{title}</h1>
@@ -67,8 +70,8 @@ export function PageHero({ eyebrow, title, children, actions, stages }: {
   );
 }
 
-export function Section({ id, eyebrow, title, intro, children, tone = "ivory" }: {
-  id?: string; eyebrow?: string; title?: ReactNode; intro?: ReactNode; children?: ReactNode; tone?: "ivory" | "white" | "bluegrey" | "ink";
+export function Section({ id, eyebrow, title, intro, children, tone = "canvas" }: {
+  id?: string; eyebrow?: string; title?: ReactNode; intro?: ReactNode; children?: ReactNode; tone?: "canvas" | "white" | "midnight";
 }) {
   return (
     <section id={id} className={"section section-" + tone}>
@@ -89,16 +92,16 @@ export function Section({ id, eyebrow, title, intro, children, tone = "ivory" }:
 /** Closing band used on most pages: sandbox + founder contact. */
 export function ContactBand({ title = "Bring one payment that was hard to explain." }: { title?: string }) {
   return (
-    <section className="section section-ink contact-band" aria-labelledby="contact-band-title">
+    <section className="section section-midnight contact-band" aria-labelledby="contact-band-title">
       <div className="container contact-band-grid">
         <div>
-          <p className="eyebrow eyebrow-on-ink">Next step</p>
+          <p className="eyebrow">Next step</p>
           <h2 id="contact-band-title" className="h2">{title}</h2>
-          <p className="on-ink-muted">Start in the fictional-data sandbox. If the workflow looks relevant, email the founder about your team&rsquo;s process. No payment records are needed for a first conversation.</p>
+          <p className="on-midnight-muted">Start with the five fictional cases. If the workflow looks relevant, email the founder about your team&rsquo;s process. No payment records are needed for a first conversation.</p>
         </div>
         <div className="actions">
-          <ButtonLink href={TRIAL_URL} onInk>Explore the sandbox</ButtonLink>
-          <ButtonLink href="/contact" variant="secondary" onInk>Talk to us about your workflow</ButtonLink>
+          <ButtonLink href={TRIAL_URL}>Explore Clearline</ButtonLink>
+          <ButtonLink href={mailto("A payment problem")} variant="secondary" onMidnight>Talk about a payment problem</ButtonLink>
         </div>
       </div>
     </section>
@@ -112,7 +115,7 @@ export function Footer() {
         <div className="footer-grid">
           <div>
             <Logo />
-            <p className="footer-note">Software for following cross-border payments: instructions, provider updates, reconciliation and exceptions in one record.</p>
+            <p className="footer-note">Clearline connects payment instructions, provider events and financial evidence, so operations teams can understand what happened and what needs attention.</p>
             <p className="footer-stage">Early product. Sandbox uses fictional data. No payment execution, custody or lending.</p>
           </div>
           <nav className="footer-col" aria-label="Product">
@@ -126,7 +129,7 @@ export function Footer() {
           <nav className="footer-col" aria-label="Try it">
             <p className="footer-label">Try it</p>
             <Link href="/trial">Customer trial</Link>
-            <ExtLink href={TRIAL_URL} className="">Guided sandbox</ExtLink>
+            <ExtLink href={TRIAL_URL} className="">Explore Clearline</ExtLink>
             <ExtLink href={SOFTWARE_URL} className="">Test-mode console</ExtLink>
             <Link href="/developers">Developers</Link>
             <ExtLink href={API_DOCS_URL} className="">API reference</ExtLink>

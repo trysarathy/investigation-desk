@@ -1,84 +1,116 @@
 /*
- * Clearline design tokens — shared by the website (marketing/) and the product console.
- * Source of truth: docs/design/DESIGN_SYSTEM.md. Copy this file verbatim into the console;
- * do not fork values. Contrast ratios are WCAG 2.x, computed from these hex values.
- * Light theme only (the site sets color-scheme: light).
+ * Clearline design tokens v2.0 — "Midnight & Electric Blue".
+ * Shared by the website (marketing/) and the product console. Source of truth:
+ * docs/design/DESIGN_SYSTEM.md. The console copies THIS FILE VERBATIM from
+ * marketing/app/tokens.css; do not fork values. Every ratio below is WCAG 2.x,
+ * computed from these hex values (relative-luminance formula), not eyeballed.
+ * Supersedes v1 (ivory / orange-red "Studio V2") and the earlier green direction.
+ * Light theme only (color-scheme: light).
  */
 :root {
-  /* ---- Core identity ---- */
-  --cl-ink: #17212D;            /* Midnight ink. Text, primary surfaces. 14.42:1 on ivory */
-  --cl-ivory: #F5F1E8;          /* Warm ivory. Page background */
-  --cl-signal: #D04B31;         /* Signal orange-red. Accents, rules, large text (>=24px or >=18.66px bold) only. 3.94:1 on ivory */
-  --cl-signal-strong: #A93A24;  /* Signal for small text, links, primary button fill. 5.62:1 on ivory, 6.33:1 white-on-it */
-  --cl-signal-on-ink: #F08A6E;  /* Signal used as text on ink surfaces. 6.63:1 on ink */
-  --cl-bluegrey: #E6EDF0;       /* Cool blue-grey. Secondary surface, evidence/info areas */
-  --cl-white: #FFFFFF;          /* Raised surfaces: tables, cards, inputs */
-  --cl-line: #DED6C9;           /* Decorative dividers only (not a UI boundary: 1.28:1) */
-  --cl-line-strong: #8C8478;    /* Input and control borders. 3.69:1 on white (UI component 3:1) */
-  --cl-quiet: #63707A;          /* Secondary text on ivory/white only. 4.51:1 ivory, 5.09:1 white */
-  --cl-muted: #5A6670;          /* Secondary text on any light surface incl. blue-grey. 4.97:1 on blue-grey */
-  --cl-ink-2: #222E3B;          /* Raised surface on ink (code blocks, dark panels) */
-  --cl-on-ink: #F5F1E8;         /* Text on ink. 14.42:1 */
-  --cl-on-ink-muted: #B7C2CA;   /* Secondary text on ink. 8.97:1 */
-  --cl-sand: #EFEBE2;           /* Subtle fill: table header, neutral status */
+  /* ---- Brand palette (the seven approved colours) ---- */
+  --cl-midnight: #101827;       /* Foundation: website nav + hero, console sidebar. White on it 17.76:1 */
+  --cl-blue: #376BEB;           /* Electric Blue: primary action FILL and focus ring. White text on it 4.70:1.
+                                   As TEXT: 4.70:1 on white only. FAILS on off-white (4.495:1), ice (3.78:1),
+                                   midnight (3.77:1) -> use --cl-blue-text / --cl-blue-on-midnight. */
+  --cl-white: #FFFFFF;          /* Surfaces: sections, panels, tables, inputs */
+  --cl-canvas: #F8FAFC;         /* Off-white canvas: page background (website alt sections, console workspace) */
+  --cl-ice: #DCE7FF;            /* Ice Blue: selected row, subtle fill, informational tint */
+  --cl-slate: #64748B;          /* Secondary text on white (4.75:1) and canvas (4.54:1) ONLY. Fails on ice (3.83:1) */
+  --cl-text: #17212D;           /* Deep text: 16.25:1 white, 15.53:1 canvas, 13.09:1 ice */
 
-  /* ---- Semantic status (text / tint background). Every pair >= 4.5:1 ---- */
-  --cl-success: #2E6A4B;  --cl-success-bg: #E3EFE7;  /* 5.42:1 */
-  --cl-warning: #7A4F0E;  --cl-warning-bg: #F6EBD3;  /* 6.01:1 */
-  --cl-danger:  #A93A24;  --cl-danger-bg:  #F8E3DC;  /* 5.13:1 */
-  --cl-info:    #2C5A7A;  --cl-info-bg:    #E6EDF0;  /* 6.22:1 */
-  --cl-neutral: #3B4650;  --cl-neutral-bg: #EFEBE2;  /* 8.11:1 */
+  /* ---- Accessible variants (defined because a base pairing fails) ---- */
+  --cl-blue-text: #2F5BD0;      /* Blue for text and links on light surfaces: 5.95 white, 5.68 canvas, 4.79 ice */
+  --cl-blue-hover: #2F5BD0;     /* Primary button hover fill: white text 5.95:1 */
+  --cl-blue-on-midnight: #8FB0FF; /* Blue as text/link/focus on midnight: 8.30:1 (7.27:1 on midnight-2) */
+  --cl-slate-strong: #4F5D73;   /* Secondary text on ice or any tint: 5.37 ice, 5.79 info tint, 6.37 canvas */
+
+  /* ---- Midnight surfaces ---- */
+  --cl-midnight-2: #1A2436;     /* Raised panel / code block on midnight */
+  --cl-midnight-line: #2A3548;  /* Decorative divider on midnight (1.44:1, not a UI boundary) */
+  --cl-midnight-control: #5B6B85; /* Control border on midnight: 3.28:1 (UI >= 3:1) */
+  --cl-on-midnight: #FFFFFF;    /* 17.76:1 */
+  --cl-on-midnight-muted: #A9B4C4; /* Secondary text on midnight 8.47:1, on midnight-2 7.41:1 */
+
+  /* ---- Lines ---- */
+  --cl-line: #E2E8F0;           /* Decorative dividers and panel edges only (1.23:1, not a UI boundary) */
+  --cl-line-strong: #7A889E;    /* Input/control borders: 3.59 white, 3.43 canvas (UI >= 3:1) */
+
+  /* ---- Semantic financial status (text on its tint; all >= 4.5:1) ----
+     green  = genuinely evidenced success only (e.g. bank-statement match -> reconciliation matched)
+     amber  = pending, review, uncertain, waiting on a person or a source
+     red    = failed, returned, contradictory, exception
+     blue   = informational, navigation, primary action — NEVER an unverified financial event
+     neutral= created / not started / nothing to show yet                                       */
+  --cl-success: #146C43;  --cl-success-bg: #E4F4EA;  /* 5.65:1 (6.44:1 on white) */
+  --cl-warning: #8A5300;  --cl-warning-bg: #FEF3D6;  /* 5.72:1 (6.32:1 on white) */
+  --cl-danger:  #B42318;  --cl-danger-bg:  #FDE8E6;  /* 5.59:1 (6.57:1 on white) */
+  --cl-info:    #2F5BD0;  --cl-info-bg:    #E8EFFF;  /* 5.16:1 */
+  --cl-neutral: #475569;  --cl-neutral-bg: #EEF2F6;  /* 6.73:1 */
 
   /* ---- Focus ---- */
-  --cl-focus: #A93A24;          /* 3px outline, 3px offset; >= 3:1 against ivory, white, blue-grey */
-  --cl-focus-on-ink: #F08A6E;
+  --cl-focus: #376BEB;          /* 3px outline, 2px offset. Non-text 3:1: 4.70 white, 4.49 canvas, 3.78 ice */
+  --cl-focus-on-midnight: #8FB0FF; /* 8.30:1 on midnight */
+
+  /* ---- Role aliases (website and console read the same roles) ---- */
+  --cl-page: var(--cl-canvas);
+  --cl-surface: var(--cl-white);
+  --cl-selected: var(--cl-ice);
+  --cl-action: var(--cl-blue);
+  --cl-action-hover: var(--cl-blue-hover);
+  --cl-on-action: var(--cl-white);
+  --cl-link: var(--cl-blue-text);
+  --cl-text-secondary: var(--cl-slate);           /* on white/canvas */
+  --cl-text-secondary-on-tint: var(--cl-slate-strong);
+  --cl-nav-bg: var(--cl-midnight);                /* website top nav + hero; console sidebar */
+  --cl-nav-text: var(--cl-on-midnight-muted);
+  --cl-nav-text-active: var(--cl-on-midnight);
+  --cl-nav-active-bg: var(--cl-midnight-2);
 
   /* ---- Type ---- */
   --cl-font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --cl-font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
-  --cl-font-editorial: Georgia, "Times New Roman", serif; /* italic accent inside headings only */
-  /* Limited scale (px): 12 / 14 / 16 / 20 / 28 / 40 / 56 */
-  --cl-text-xs: 0.75rem;     /* 12 — labels, captions, table meta (mono) */
-  --cl-text-sm: 0.875rem;    /* 14 — body small, table cells, buttons */
-  --cl-text-md: 1rem;        /* 16 — body */
-  --cl-text-lg: 1.25rem;     /* 20 — lede, h4 */
-  --cl-text-xl: 1.75rem;     /* 28 — h3 / console page title */
+  --cl-font-display: "Newsreader", Georgia, "Times New Roman", serif; /* website headings only; console uses sans */
+  /* Limited scale (px): 12 / 14 / 16 / 20 / 28 / 40 / 64 */
+  --cl-text-xs: 0.75rem;     /* 12 — mono labels, captions, status tags */
+  --cl-text-sm: 0.875rem;    /* 14 — table cells, buttons, small body; console default */
+  --cl-text-md: 1rem;        /* 16 — body, inputs */
+  --cl-text-lg: 1.25rem;     /* 20 — lede, h3 */
+  --cl-text-xl: 1.75rem;     /* 28 — h2 on phones; console page title (max) */
   --cl-text-2xl: 2.5rem;     /* 40 — h2 (website) */
-  --cl-text-3xl: 3.5rem;     /* 56 — h1 display (website only) */
-  --cl-leading-tight: 1.1;
-  --cl-leading-snug: 1.3;
+  --cl-text-3xl: 4rem;       /* 64 — h1 display (website only; clamps to 40 on phones) */
+  --cl-leading-tight: 1.04;
+  --cl-leading-snug: 1.25;
   --cl-leading-body: 1.6;
-  --cl-tracking-display: -0.035em;
-  --cl-tracking-heading: -0.02em;
+  --cl-tracking-display: -0.022em;
+  --cl-tracking-heading: -0.012em;
   --cl-tracking-label: 0.08em;  /* uppercase mono labels */
 
   /* ---- Spacing (4px base) ---- */
   --cl-space-1: 4px;  --cl-space-2: 8px;  --cl-space-3: 12px; --cl-space-4: 16px;
   --cl-space-5: 24px; --cl-space-6: 32px; --cl-space-7: 48px; --cl-space-8: 64px;
-  --cl-space-9: 96px;
+  --cl-space-9: 96px; --cl-space-10: 128px;
   --cl-gutter: 16px;            /* phone side gutter; 32px >= 640, 40px >= 1024 */
   --cl-max-width: 1200px;
-  --cl-measure: 68ch;           /* max line length for prose */
+  --cl-measure: 66ch;
 
   /* ---- Borders, radii, elevation ---- */
   --cl-border: 1px solid var(--cl-line);
   --cl-border-strong: 1px solid var(--cl-line-strong);
-  --cl-radius-sm: 3px;          /* status tags, code */
-  --cl-radius-md: 6px;          /* buttons, inputs, cards, tables */
-  --cl-radius-lg: 10px;         /* website panels only */
-  --cl-shadow-none: none;       /* Default. No glow, no gradients. */
-  --cl-shadow-overlay: 0 8px 24px rgba(23, 33, 45, 0.12); /* menus, toasts only */
+  --cl-radius-sm: 4px;          /* status tags, code */
+  --cl-radius-md: 8px;          /* buttons, inputs, tables */
+  --cl-radius-lg: 12px;         /* large panels (website) */
+  --cl-shadow-none: none;
+  --cl-shadow-panel: 0 1px 2px rgba(16, 24, 39, 0.06), 0 12px 32px rgba(16, 24, 39, 0.10); /* product view on midnight */
+  --cl-shadow-overlay: 0 8px 24px rgba(16, 24, 39, 0.14); /* menus, toasts, tooltips */
 
   /* ---- Controls ---- */
-  --cl-control-height: 44px;    /* buttons/inputs on website; meets 24px target size with margin */
-  --cl-control-height-dense: 32px; /* console dense tables/toolbars (still >= 24px target) */
+  --cl-control-height: 44px;
+  --cl-control-height-dense: 32px;
 
-  /* ---- Motion ---- */
-  --cl-duration: 150ms;
+  /* ---- Motion: purposeful only (state change, disclosure). No decorative animation. ---- */
+  --cl-duration: 140ms;
   --cl-ease: cubic-bezier(0.2, 0, 0, 1);
-
-  /* ---- Breakpoints (reference; use in media queries as literals) ----
-     sm 640px · md 768px · lg 1024px · xl 1280px. Test at 390, 768, 1440. */
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -55,7 +55,7 @@ export default function About() {
         </div>
       </Section>
 
-      <Section tone="bluegrey" eyebrow="Still learning" title="What I do not know yet">
+      <Section tone="canvas" eyebrow="Still learning" title="What I do not know yet">
         <div className="prose">
           <ul className="bullets">
             <li>How payment-operations teams at providers actually divide the work between operations, finance and compliance.</li>

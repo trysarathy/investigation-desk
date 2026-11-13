@@ -13,7 +13,7 @@ export function pageMeta(title: string, description: string, path: string): Meta
       url: path,
       title: full,
       description,
-      images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "Clearline. Money moves. Context gets lost." }],
+      images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "Clearline. Every payment. One clear answer." }],
     },
     twitter: { card: "summary_large_image", title: full, description, images: ["/opengraph-image"] },
   };
