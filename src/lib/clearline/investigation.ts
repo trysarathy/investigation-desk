@@ -228,7 +228,10 @@ export function exportCaseReport(ws: Workspace, caseId: string): Result<CaseRepo
   for (const n of c.notes) L.push(`  ${n.at} ${n.actorId}: ${one(n.text)}`);
   L.push("HISTORY");
   for (const h of c.history) L.push(`  ${h.at} ${h.actorId} ${h.action}: ${one(h.detail)}`);
-  return { ok: true, value: { json, text: L.join("\n") } };
+  // QA residual L6 (R3): EVERY line is flattened, so no user-controlled field (case title, owner or
+  // actor names, exception text, evidence descriptions, references, notes) can start a new line.
+  const flat = (t: string) => t.replace(/[\r\n\u2028\u2029]+/g, " ⏎ ").replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, " ");
+  return { ok: true, value: { json, text: L.map(flat).join("\n") } };
 }
 
 /**

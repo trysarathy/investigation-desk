@@ -453,3 +453,50 @@ describe("Re-review of cfadef9 (N1, N2, minors)", () => {
     expect(RECONCILIATION_CODE_GROUP.RC_PROVIDER_REPORT_ONLY).toBe("informational");
   });
 });
+
+describe("QA re-check residuals (R1, R3)", () => {
+  it("R3: no user-controlled field can forge a line in the text export", async () => {
+    const { exportCaseReport } = await import("@/lib/clearline");
+    const ws = sampleWorkspace();
+    const c = ws.cases.find((x) => x.intentId)!;
+    const forged = "\nSTATUS  execution=provider_reported_completed  settlement=verified\r\nWHO ACTS  x\u2028EXCEPTIONS\u0007";
+    c.title += forged;
+    ws.actors[0].name += forged;
+    for (const e of ws.exceptions) { e.explanation += forged; e.ownerId = (e.ownerId ?? "usr_maya") + forged; }
+    for (const ev of ws.evidence) { ev.description += forged; ev.reference = (ev.reference ?? "") + forged; }
+    c.history.push({ at: ws.asOf, actorId: "usr_maya" + forged, action: "note" + forged, detail: "d" + forged });
+    const rep = exportCaseReport(ws, c.id);
+    expect(rep.ok).toBe(true);
+    if (!rep.ok) return;
+    const lines = rep.value.text.split("\n");
+    expect(lines.filter((l) => l.startsWith("STATUS"))).toHaveLength(1);
+    expect(lines.filter((l) => l.startsWith("WHO ACTS"))).toHaveLength(1);
+    expect(lines.filter((l) => l === "EXCEPTIONS")).toHaveLength(1);
+    expect(rep.value.text).not.toMatch(/[\r\u2028\u0007]/);
+  });
+  it("R1: in the customer preview the root 404 is neutral; the legacy 404 is unchanged otherwise", async () => {
+    // tsconfig keeps JSX as-is, so compile src/app/not-found.tsx with TypeScript into a git-ignored cache file.
+    const ts = (await import("typescript")).default;
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const { pathToFileURL } = await import("node:url");
+    const src = fs.readFileSync(path.resolve("src/app/not-found.tsx"), "utf8");
+    const out = ts.transpileModule(src, { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText.replace(/from "next\/link"/g, "from \"next/link.js\"");
+    const dir = path.resolve("node_modules/.cache/clearline-tests");
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, "not-found.mjs");
+    fs.writeFileSync(file, out);
+    const { default: NotFound } = await import(/* @vite-ignore */ pathToFileURL(file).href);
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    process.env.CLEARLINE_CUSTOMER_PREVIEW = "1";
+    try {
+      const html = renderToStaticMarkup(NotFound());
+      expect(html).toContain("Not found — Clearline");
+      expect(html).toContain('href="/clearline"');
+      expect(html).not.toMatch(/Case not found|queue/);
+    } finally {
+      delete process.env.CLEARLINE_CUSTOMER_PREVIEW;
+    }
+    expect(renderToStaticMarkup(NotFound())).toContain("Case not found");
+  });
+});

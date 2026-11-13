@@ -283,3 +283,77 @@ test("breadcrumbs name the right section", async ({ page, request }) => {
   await page.goto(await scenario(request, "s2_returned"));
   await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText("Payments");
 });
+
+/* ---------- Engine CHANGE 4: states built through the real v1 API, then loaded into the browser ---------- */
+const API = "/api/clearline/test/v1";
+const AUTH = { Authorization: "Bearer cl_test_demo" };
+type Ws = { intents: { id: string; scenario?: string; amountMinor: number; sourceCurrency: string }[]; instructions: { intentId: string; providerId: string; providerPaymentId?: string }[]; exceptions: { id: string; intentId?: string; status: string }[]; asOf: string };
+async function v1(request: APIRequestContext, path: string, body: Record<string, unknown>): Promise<Ws> {
+  const r = await request.post(API + path, { headers: AUTH, data: body });
+  const j = await r.json();
+  expect(r.ok(), `${path}: ${JSON.stringify(j.error)}`).toBe(true);
+  return j.workspace as Ws;
+}
+async function sample(request: APIRequestContext): Promise<Ws> {
+  return (await (await request.get(API + "/workspace", { headers: AUTH })).json()).data as Ws;
+}
+const pick = (ws: Ws, scenario: string) => {
+  const intent = ws.intents.find((i) => i.scenario === scenario)!;
+  return { intent, instr: ws.instructions.find((x) => x.intentId === intent.id)! };
+};
+async function load(page: Page, ws: Ws, path: string) {
+  await page.addInitScript((text) => { try { window.localStorage.setItem("clearline.console.workspace.v1", text); } catch { /* storage blocked */ } }, JSON.stringify(ws));
+  await open(page, path);
+}
+
+test("provider settlement report is labelled as not allocated and grouped as informational, never exact", async ({ page, request }) => {
+  let ws = await sample(request);
+  const { intent, instr } = pick(ws, "s1_success");
+  ws = await v1(request, "/reconciliation/statement-lines", { workspace: ws, line: {
+    lineId: "PSR-E2E-0001", source: "provider_settlement_report", accountRef: "Northline settlement report (fictional)", direction: "debit", kind: "payment",
+    amountMinor: intent.amountMinor, currency: intent.sourceCurrency, reference: instr.providerPaymentId, counterparty: "Northline Payments (sandbox)", valueDate: "2026-11-12" } });
+  await load(page, ws, "/clearline/control/reconciliation?group=informational");
+  const row = page.locator("#lines tr", { hasText: "PSR-E2E-0001" });
+  await expect(row).toContainText("Provider report (not allocated)");
+  await expect(row).toContainText("RC_PROVIDER_REPORT_ONLY");
+  await open(page, "/clearline/control/reconciliation?group=exact");
+  await expect(page.locator("#lines")).not.toContainText("PSR-E2E-0001");
+});
+
+test("returned payout with debit and confirmed return both allocated shows net zero, supplier unpaid", async ({ page, request }) => {
+  let ws = await sample(request);
+  const { intent, instr } = pick(ws, "s2_returned");
+  ws = await v1(request, "/reconciliation/statement-lines", { workspace: ws, line: {
+    lineId: "DBS-E2E-9001", source: "bank_statement", accountRef: "BANK-USD-OPS (fictional)", direction: "debit", kind: "payment",
+    amountMinor: intent.amountMinor, currency: intent.sourceCurrency, reference: `NORTHLINE PAYOUT ${instr.providerPaymentId}`, counterparty: "Northline Payments (sandbox)", valueDate: "2026-11-12" } });
+  for (const e of ws.exceptions.filter((x) => x.intentId === intent.id && x.status !== "resolved")) {
+    ws = await v1(request, `/exceptions/${e.id}/assign`, { workspace: ws, ownerId: "usr_maya" });
+    ws = await v1(request, `/exceptions/${e.id}/evidence`, { workspace: ws, evidence: { kind: "funds_returned_confirmation", description: "Return credit on the bank statement (fictional)" } });
+    ws = await v1(request, `/exceptions/${e.id}/resolve`, { workspace: ws, note: "Return confirmed; correction intent to follow." });
+  }
+  await load(page, ws, `/clearline/payments/${intent.id}`);
+  await expect(page.getByTestId("dim-execution")).toContainText("Returned");
+  await expect(page.getByTestId("dim-reconciliation")).toContainText("Returned — net zero");
+  await expect(page.getByTestId("dim-reconciliation")).not.toContainText(/^Matched/);
+  await expect(page.getByTestId("return-status")).toContainText("supplier is still unpaid");
+  await expect(page.getByTestId("dim-settlement")).toContainText("No settlement evidence");
+});
+
+test("a terminal provider event during a compliance hold is held, not applied, and titled for a person", async ({ page, request }) => {
+  const { createHmac } = await import("node:crypto");
+  let ws = await sample(request);
+  const { intent, instr } = pick(ws, "s3_hold");
+  const t = Math.floor(Date.parse(ws.asOf) / 1000);
+  const rawBody = JSON.stringify({ id: "evt_e2e_return_on_hold", type: "payout.returned", provider_payment_id: instr.providerPaymentId, sequence: 9, occurred_at: ws.asOf });
+  const sig = `t=${t},v1=${createHmac("sha256", `test_whsec_${instr.providerId}_public_example`).update(`${t}.${rawBody}`).digest("hex")}`;
+  const r = await request.post(API + "/events/webhook", { headers: { ...AUTH, "X-Sandbox-Signature": sig }, data: { workspace: ws, providerId: instr.providerId, rawBody } });
+  const j = await r.json();
+  expect(j.outcome).toBe("contradictory_exception_raised");
+  ws = j.workspace;
+  await load(page, ws, `/clearline/payments/${intent.id}`);
+  await expect(page.getByTestId("dim-execution")).not.toContainText("Returned");
+  await expect(page.getByTestId("evidence-timeline")).toContainText("Held: not applied");
+  await expect(page.locator("#exceptions")).toContainText("Payout returned or failed during a compliance hold (not applied)");
+  await open(page, "/clearline/exceptions");
+  await expect(page.locator("#queue")).toContainText("EV_TERMINAL_EVENT_WHILE_ON_HOLD");
+});
