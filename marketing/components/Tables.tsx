@@ -5,6 +5,9 @@ import {
 } from "@/lib/sample";
 import { ExecStatus, ReconStatus, SettlementStatus } from "@/components/Status";
 
+/** Rail words used by the console (rc3/clearline-app src/components/clearline/labels.tsx RAIL). */
+const RAIL_LABEL: Record<string, string> = { fiat_local: "Local fiat rail", fiat_correspondent: "Correspondent fiat rail", stablecoin_testnet: "Stablecoin (testnet)" };
+
 /** Scrollable, keyboard-focusable table region. The page itself never scrolls sideways. */
 export function TableWrap({ label, caption, children }: { label: string; caption: string; children: ReactNode }) {
   return (
@@ -23,7 +26,7 @@ export function QuotesTable() {
       <thead><tr><th scope="col">Provider</th><th scope="col">Rail</th><th scope="col" className="r">Rate</th><th scope="col" className="r">Provider fee</th><th scope="col" className="r">Platform fee</th><th scope="col" className="r">Est. recipient</th><th scope="col">ETA</th><th scope="col">Eligibility</th></tr></thead>
       <tbody>{SAMPLE_QUOTES.map(q => (
         <tr key={q.provider + q.rail}>
-          <td>{q.provider}</td><td className="mono">{q.rail}</td>
+          <td>{q.provider}</td><td>{RAIL_LABEL[q.rail] ?? q.rail}<span className="caption mono">{q.rail}</span></td>
           <td className="r num">{q.rate}</td><td className="r num">{q.providerFee}</td><td className="r num">{q.platformFee}</td><td className="r num">{q.recipient}</td><td>{q.eta}</td>
           <td>{q.eligible ? <span className="st-exec tone-neutral">eligible</span> : <><span className="st-exec tone-warning">ineligible</span><span className="caption">{q.reason}</span></>}</td>
         </tr>

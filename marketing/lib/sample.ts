@@ -1,8 +1,10 @@
 /**
  * Fictional sample records taken from the TESTED sandbox engine's deterministic sample
  * (src/lib/clearline/sample.ts → sampleWorkspace(), scenarios s1–s5, on
- * release/clearline-unified-20261113 @ b250bb4, ENGINE_API CHANGE 2; re-run against 0490e40 (CHANGE 5) on 13 Nov 2026:
- * every status, statement line, exception and due date is unchanged; the funding row gained supplierPaidBasis). Values were read by running the engine's own read models
+ * release/clearline-unified-20261113 @ b250bb4, ENGINE_API CHANGE 2; re-run against 0490e40 (CHANGE 5) and against
+ * rc3/clearline-app @ cf8732e on 13 Nov 2026: every status, statement line, exception, quote and due date agrees; exact engine
+ * strings restored for the eligible-quote reason, the hold exception action and the s5 next action).
+ * The investigation view reads lib/investigations.ts, which is generated from the engine (scripts/engine-investigations.gen.ts). Values were read by running the engine's own read models
  * (investigate, timelineFor, listExceptions, computeLiquidity, fundingProjection) and its
  * formatMinor(); times are the engine's simulated clock converted to SGT (UTC+8).
  * Engine intent ids are sequential and may shift, so the site shows internal references instead.
@@ -86,7 +88,7 @@ export const SAMPLE_PAYMENTS: SamplePayment[] = [
     provider: "Northline Payments (sandbox)", label: "Funded advance",
     execution: "provider_reported_completed", settlement: "verified", settlementScope: "bank_statement", reconciliation: "matched",
     whoActs: "Unassigned — operations should assign",
-    nextAction: "Ask the remitter for the payment reference; without it the SGD 20,000.00 receipt cannot be allocated.",
+    nextAction: "Ask the remitter for the payment reference; without it the receipt cannot be allocated.",
     unknown: "The bank statement evidences the payout debit, not the beneficiary's credit.",
     events: [
       { time: "10:00 SGT", label: "Advance approved · maker Maya Tan, checker Daniel Ong", source: "Clearline (sandbox)", outcome: "maker ≠ checker" },
@@ -101,8 +103,8 @@ export const SAMPLE_PAYMENTS: SamplePayment[] = [
 /** request_quotes for INV-2026-126 (SGD 24,651.37 → PHP). Every quote is labelled by the engine. */
 export const QUOTE_LABEL = "Indicative sandbox quote — not executable";
 export const SAMPLE_QUOTES = [
-  { provider: "Northline Payments (sandbox)", rail: "fiat_local", rate: "42.1738", providerFee: "SGD 18.45", platformFee: "SGD 24.65", recipient: "PHP 1,037,824.25", eta: "Within 2 hours (sandbox)", eligible: true, reason: "Within this sandbox route's limits" },
-  { provider: "Harbour FX (sandbox)", rail: "fiat_correspondent", rate: "42.1651", providerFee: "SGD 12.75", platformFee: "SGD 19.72", recipient: "PHP 1,038,058.38", eta: "Next business day (sandbox)", eligible: true, reason: "Within this sandbox route's limits" },
+  { provider: "Northline Payments (sandbox)", rail: "fiat_local", rate: "42.1738", providerFee: "SGD 18.45", platformFee: "SGD 24.65", recipient: "PHP 1,037,824.25", eta: "Within 2 hours (sandbox)", eligible: true, reason: "Corridor, currency, country and amount are within this sandbox route's limits." },
+  { provider: "Harbour FX (sandbox)", rail: "fiat_correspondent", rate: "42.1651", providerFee: "SGD 12.75", platformFee: "SGD 19.72", recipient: "PHP 1,038,058.38", eta: "Next business day (sandbox)", eligible: true, reason: "Corridor, currency, country and amount are within this sandbox route's limits." },
   { provider: "Harbour FX (sandbox)", rail: "fiat_local", rate: "—", providerFee: "—", platformFee: "—", recipient: "—", eta: "Same day (sandbox)", eligible: false, reason: "Sandbox corridor requires KYC tier 3, which this fictional organisation does not hold." },
   { provider: "Tidewater Digital (testnet sandbox)", rail: "stablecoin_testnet", rate: "—", providerFee: "—", platformFee: "—", recipient: "—", eta: "After 12 testnet confirmations (sandbox)", eligible: false, reason: "PHP payouts are not offered on this route." },
 ];
@@ -149,7 +151,7 @@ export const SAMPLE_FUNDING = {
 export const EXCEPTION_DUE_POLICY = "Due dates follow an illustrative sandbox policy: critical and high 1 day, medium 3 days, low 5 days from creation, unless a date is set explicitly.";
 export const SAMPLE_EXCEPTIONS = [
   { category: "returned_payout", reference: "INV-2026-141", severity: "high", status: "in_review", owner: "Maya Tan (fictional)", dueDate: "2026-11-13", action: "Verify beneficiary details with the supplier, confirm the returned funds, then create a correction intent." },
-  { category: "compliance_hold", reference: "INV-2026-145", severity: "high", status: "in_review", owner: "Priya Nair (fictional)", dueDate: "2026-11-13", action: "Your compliance reviewer decides the response; the hold is never released automatically." },
+  { category: "compliance_hold", reference: "INV-2026-145", severity: "high", status: "in_review", owner: "Priya Nair (fictional)", dueDate: "2026-11-13", action: "The partner requested documents. Your compliance reviewer decides the response; the hold is never released automatically." },
   { category: "missing_payment_reference", reference: "DBS-SIM-0005", severity: "medium", status: "open", owner: "Unassigned", dueDate: "2026-11-15", action: "Ask the remitter for the payment reference; without it the receipt cannot be allocated." },
   { category: "pending_finality", reference: "INV-2026-149", severity: "low", status: "open", owner: "Unassigned", dueDate: "2026-11-17", action: "Wait until the finality threshold is reached; observation is not finality." },
 ];

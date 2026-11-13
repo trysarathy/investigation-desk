@@ -20,7 +20,7 @@ export type SettlementScope = "none" | "provider_report" | "bank_statement" | "o
 export type ReconState = "not_started" | "pending" | "matched" | "partially_matched" | "exception";
 type Tone = "neutral" | "warning" | "danger" | "success";
 
-/** Human labels: EXACT strings from the engine's HUMAN_LABELS (src/lib/clearline/labels.ts @ 0490e40, CHANGE 5),
+/** Human labels: EXACT strings from the engine's HUMAN_LABELS (src/lib/clearline/labels.ts @ 0490e40, CHANGE 5; unchanged at rc3/clearline-app cf8732e, which the console renders through engineLabel()),
  * so the website and the console read identically. Do not reword here; change the engine first. */
 export const EXEC_LABEL: Record<ExecState, string> = {
   created: "Created", quoted: "Quoted", approved: "Approved — not yet sent", submitted: "Sent to provider",
