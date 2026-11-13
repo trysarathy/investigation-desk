@@ -159,7 +159,7 @@ export default function Console(){
      onClick={()=>navigate(n.key)}><span className={styles.navIcon}>{n.symbol}</span>{n.label}
      {n.key==="holds"&&holds.length>0&&<span className={styles.navCount}>{holds.length}</span>}
     </button>)}</div>)}
-   <div className={styles.sidebarBottom}><a href="/clearline/docs" className={styles.navItem}><span className={styles.navIcon}>{"</>"}</span>API documentation</a>
+   <div className={styles.sidebarBottom}><a className={styles.navItem} href="https://clearline-marketing.vercel.app/" target="_blank" rel="noopener noreferrer"><span className={styles.navIcon}>{"↗"}</span>Clearline website</a><a href="/clearline/trial" className={styles.navItem}><span className={styles.navIcon}>{"▤"}</span>Guided customer trial</a><a href="/clearline/docs" className={styles.navItem}><span className={styles.navIcon}>{"</>"}</span>API documentation</a>
     <div className={styles.workspaceNotice}><strong>Test environment</strong><span>All records are fictional. No funds are transferred or held by Clearline.</span></div>
     <div className={styles.profile}><span className={styles.avatar}>CL</span><div><strong>Clearline Demo</strong><small>Sandbox operator</small></div></div>
    </div>
