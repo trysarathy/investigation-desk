@@ -23,6 +23,7 @@ import {
   type WorkspaceAction,
 } from "@/lib/clearline";
 import { readBodyLimited } from "@/lib/clearline/bodylimit";
+import { closeAfter, gated } from "../../gate";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -56,12 +57,15 @@ const fail = (code: string, message: string, extra: Record<string, unknown> = {}
 const authed = (req: NextRequest) => req.headers.get("authorization") === "Bearer cl_test_demo";
 
 async function readBody(req: NextRequest): Promise<Record<string, unknown> | Response> {
-  if (!req.headers.get("content-type")?.startsWith("application/json")) return fail("invalid_json", "Content-Type: application/json required.");
+  // Every refusal before the body is read in full closes the connection (QA L3): the server stops
+  // receiving instead of reading and discarding the rest of the body.
+  if (!req.headers.get("content-type")?.startsWith("application/json")) return closeAfter(fail("invalid_json", "Content-Type: application/json required."));
   const declared = Number(req.headers.get("content-length") ?? "0");
-  if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) return fail("invalid_json", "Request body exceeds 512 KB.");
-  // CHANGE 5 (QA R4): stream the body and stop reading at 512 KB (chunked bodies are never read in full).
+  if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) return closeAfter(fail("invalid_json", "Request body exceeds 512 KB."));
+  // CHANGE 5 (QA R4): stream the body and stop reading at 512 KB. Since rc3 (QA L3) this route is outside
+  // the middleware matcher, so nothing upstream in Next buffers the body first either.
   const body = await readBodyLimited(req.body, MAX_BODY_BYTES);
-  if (!body.ok) return fail("invalid_json", body.reason === "too_large" ? "Request body exceeds 512 KB." : "Request body could not be read.");
+  if (!body.ok) return closeAfter(fail("invalid_json", body.reason === "too_large" ? "Request body exceeds 512 KB." : "Request body could not be read."));
   const text = body.text;
   try {
     const v: unknown = text ? JSON.parse(text) : {};
@@ -103,14 +107,18 @@ function act(ws: Workspace, action: WorkspaceAction, body: Record<string, unknow
 }
 
 type Ctx = { params: Promise<{ path: string[] }> };
-/** M6: malformed input must never surface as an HTTP 500 or leak internals. */
-const guarded = (handler: (req: NextRequest, ctx: Ctx) => Promise<Response>) => async (req: NextRequest, ctx: Ctx) => {
+/**
+ * M6: malformed input must never surface as an HTTP 500 or leak internals.
+ * QA L3: the deployment gates (customer-preview allow-list, funding-only 404, preview Basic auth) run
+ * first, exactly as the middleware would run them; this route is excluded from the middleware matcher.
+ */
+const guarded = (handler: (req: NextRequest, ctx: Ctx) => Promise<Response>) => gated(async (req: Request, ctx: Ctx) => {
   try {
-    return await handler(req, ctx);
+    return await handler(req as NextRequest, ctx);
   } catch {
     return respond({ error: { code: "invalid_request", message: "The request could not be processed; check the JSON shape against docs/clearline/openapi.yaml.", help: "Test mode only." } }, 422);
   }
-};
+});
 
 export const GET = guarded(async (req: NextRequest, { params }: Ctx) => {
   const path = (await params).path;
@@ -140,7 +148,7 @@ export const GET = guarded(async (req: NextRequest, { params }: Ctx) => {
 
 export const POST = guarded(async (req: NextRequest, { params }: Ctx) => {
   const path = (await params).path;
-  if (!authed(req)) return fail("unauthenticated", "Send Authorization: Bearer cl_test_demo (a public example key, not a credential).");
+  if (!authed(req)) return closeAfter(fail("unauthenticated", "Send Authorization: Bearer cl_test_demo (a public example key, not a credential)."));
   const body = await readBody(req);
   if (body instanceof Response) return body;
   const route = path.join("/");
@@ -220,3 +228,13 @@ export const POST = guarded(async (req: NextRequest, { params }: Ctx) => {
   }
   return fail("unknown_endpoint", "Unknown endpoint.");
 });
+
+// Methods the API does not implement. Defined explicitly so the deployment gates run for them too
+// (Next would otherwise answer 405 / an automatic OPTIONS before any gate, now that the middleware
+// does not run here). After the gates: the same answers Next gave before.
+const ALLOW = "GET, HEAD, OPTIONS, POST";
+export const OPTIONS = gated(async () => new Response(null, { status: 204, headers: { Allow: ALLOW } }));
+const notAllowed = gated(async () => closeAfter(new Response(null, { status: 405, headers: { Allow: ALLOW } })));
+export const PUT = notAllowed;
+export const PATCH = notAllowed;
+export const DELETE = notAllowed;

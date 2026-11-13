@@ -24,6 +24,18 @@ export const securityHeaders = [
 
 import { loadRelease, resolveReleaseUrls } from './release-urls.mjs';
 
+/**
+ * QA L3 (rc3): bytes of a request body Next copies for the middleware (and drains past). The legacy
+ * investigation-desk uploads need the 20 MB file plus its form (REQUEST_MAX_BYTES in src/lib/limits.ts;
+ * a test checks they match). A customer-preview deployment 404s every upload route and nothing it
+ * allows through the middleware reads a body (no server actions; the test API is outside the matcher),
+ * so there the copy is capped at 64 KB and a large POST to a page costs at most that.
+ */
+export const PREVIEW_MIDDLEWARE_BODY_MAX = 64 * 1024;
+export function middlewareBodyLimit(env) {
+  return env.CLEARLINE_CUSTOMER_PREVIEW === '1' ? PREVIEW_MIDDLEWARE_BODY_MAX : 21 * 1024 * 1024;
+}
+
 // Website/software URLs for this build (clearline-release.json); inlined into client and server code.
 const releaseUrls = resolveReleaseUrls(process.env, loadRelease(new URL('./clearline-release.json', import.meta.url)));
 
@@ -52,7 +64,8 @@ const nextConfig = {
     // Request bodies pass through the middleware, which by default keeps only the first 10 MB:
     // a larger upload reached the route cut short. This matches REQUEST_MAX_BYTES in
     // src/lib/limits.ts (the 20 MB file limit plus the form around it); a test checks they match.
-    middlewareClientMaxBodySize: 21 * 1024 * 1024,
+    // In a customer-preview deployment it is 64 KB (see middlewareBodyLimit above).
+    middlewareClientMaxBodySize: middlewareBodyLimit(process.env),
   },
 };
 export default nextConfig;
