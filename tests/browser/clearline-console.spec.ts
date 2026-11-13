@@ -12,10 +12,10 @@ test("Connect payment completes and appears in Control reconciliation",async({pa
  for(const label of ["Simulate Approved","Simulate Submitted","Simulate In transit","Simulate Completed"]){
   await page.getByRole("button",{name:label}).click();
  }
- await page.getByRole("button",{name:"Reconciliation",exact:true}).click();
+ await page.getByRole("button",{name:/Reconciliation/}).click();
  await expect(page.getByText("INV-2026-153")).toBeVisible();
  await expect(page.getByText("Match (unverified)").first()).toBeVisible();
- await page.getByRole("button",{name:"Payments",exact:true}).click();
+ await page.getByRole("button",{name:/Payments/}).click();
  await page.getByRole("row").filter({hasText:"INV-2026-153"}).click();
  await expect(page.getByText("What happened?")).toBeVisible();
  await expect(page.getByText(/settlement statement has not been independently verified/i)).toBeVisible();
@@ -30,5 +30,5 @@ test("preview protects old finance routes and serves real sandbox docs",async({p
  await page.goto("/clearline/docs");
  await expect(page.getByText("Build on one payment lifecycle.")).toBeVisible();
  await page.goto("/mentor-demo");
- await expect(page.getByText(/Funding Desk/i).first()).toBeVisible();
+ await expect(page.getByRole("navigation",{name:"Funding desk sections"})).toBeVisible();
 });
