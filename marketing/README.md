@@ -26,6 +26,10 @@ npm run build
 
 The marketing pages are statically exported to `out/`. There is no backend and no analytics enabled.
 
+## Connect + Control live demo URL
+
+`NEXT_PUBLIC_PRODUCT_DEMO_URL` defaults to the existing test-mode `/clearline` preview. Set this to the new validated customer trial deployment URL when a new Vercel preview has passed browser checks. The Funding Desk `DEMO` link remains separate.
+
 ## Formspree setup (required to receive requests)
 
 1. Create a Formspree form under your own account and configure its destination email, verified access and spam protection.
