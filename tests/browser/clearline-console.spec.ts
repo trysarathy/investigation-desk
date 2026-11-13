@@ -240,7 +240,11 @@ test.describe("Clearline console", () => {
       const r = await request.get(p, { maxRedirects: 0 });
       expect(r.status(), p).toBe(404);
     }
-    expect((await request.get("/api/clearline/test/health")).status()).toBe(200);
+    expect((await request.get("/api/clearline/test/v1/health")).status()).toBe(200);
+    // The legacy unversioned API passes the preview middleware but is retired (410).
+    const legacy = await request.get("/api/clearline/test/health");
+    expect(legacy.status()).toBe(410);
+    expect((await legacy.json()).error.code).toBe("endpoint_retired");
     expect((await request.get("/mentor-demo")).status()).toBe(200);
     await open(page, "/clearline/docs");
     await expect(page.getByRole("heading", { name: "Test-mode API v1", level: 1 })).toBeVisible();
@@ -259,7 +263,7 @@ test.describe("Clearline console", () => {
     await expect(page.getByTestId("example-webhook-duplicate")).toContainText('"outcome": "duplicate_ignored"');
     await expect(page.getByTestId("example-webhook-stale")).toContainText('"processingOutcome": "rejected_signature"');
     await expect(page.getByTestId("example-self-approve")).toContainText("HTTP 403");
-    await expect(page.locator("#legacy")).toContainText("Legacy endpoints");
+    await expect(page.locator("#legacy")).toContainText("endpoint_retired");
     // The live API still answers the way the captured example says.
     const live = await request.post("/api/clearline/test/v1/intents", { headers: { Authorization: "Bearer cl_test_demo" }, data: { input: { amountMinor: 12.5 } } });
     expect(live.status()).toBe(422);

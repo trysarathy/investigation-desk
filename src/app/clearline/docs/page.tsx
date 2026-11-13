@@ -76,7 +76,7 @@ const OUTCOMES = all<ProcessingOutcome>()([
 ] as const);
 
 /** HTTP status per error code, as mapped in src/app/api/clearline/test/v1/[...path]/route.ts. */
-type HttpCode = EngineErrorCode | "unauthenticated" | "unknown_endpoint" | "invalid_json";
+type HttpCode = EngineErrorCode | "unauthenticated" | "unknown_endpoint" | "invalid_json" | "invalid_request";
 const ERRORS = ([
   ["unauthenticated", 401, "Missing or wrong example key."],
   ["webhook_signature_invalid", 401, "Reserved. A bad webhook signature is recorded with processingOutcome rejected_signature and HTTP 200, not returned as an error."],
@@ -93,8 +93,9 @@ const ERRORS = ([
   ["invalid_amount", 422, "Not a positive safe integer of minor units."],
   ["invalid_currency", 422, "Unsupported currency."],
   ["currency_mismatch", 422, "The operation would combine currencies."],
-  ["invalid_field", 422, "Missing or malformed field, or the workspace failed validation."],
+  ["invalid_field", 422, "Missing or malformed field, or the workspace failed validation. A malformed `at` (not an ISO-8601 instant) is HTTP 400 with field: at."],
   ["invalid_json", 422, "Not application/json, not a JSON object, or over 2 MB."],
+  ["invalid_request", 422, "Any other input the handler could not process. Never an HTTP 500."],
   ["quote_ineligible", 422, "Route not eligible; the reason is in the message."],
   ["precondition_failed", 422, "A required earlier step is missing (e.g. simulate before submit)."],
   ["unsupported_token_or_network", 422, "Reserved. Chain ingestion records these as exceptions and never counts them."],
@@ -298,7 +299,7 @@ if (!result.valid) return new Response(result.reason, { status: 401 });
 
       <Panel title="Legacy endpoints" id="legacy">
         <Body>
-          <P>The earlier unversioned endpoints <code className={ui.code}>/api/clearline/test/{"{intents,quotes,transitions,webhooks,payments,health}"}</code> are still served for existing links. They run on the older prototype model (single status field, no workspace) and are not documented here. Use v1.</P>
+          <P>The earlier unversioned endpoints <code className={ui.code}>/api/clearline/test/{"{intents,quotes,transitions,webhooks,payments,health}"}</code> ran on the older prototype model and are retired. Every method now returns HTTP 410 with <code className={ui.code}>{'{ "error": { "code": "endpoint_retired", "replacement": "/api/clearline/test/v1" } }'}</code>. Use v1.</P>
           <p className={ui.hint} style={{ margin: 0 }}><Link href="/clearline">Back to the console</Link></p>
         </Body>
       </Panel>
