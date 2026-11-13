@@ -7,7 +7,10 @@
 1. `/clearline/trial` — guided five-case walkthrough.
 2. `/clearline` — Connect + Control console.
 3. `/clearline/docs` — test-mode API reference.
-4. `/mentor-demo` — original Funding Desk. It remains self-contained; it is **not linked** to Connect's payment IDs.
+4. `/clearline/control/funding` — funding exposure: the sandbox engine links a payment intent, supplier payout, advance,
+   treasury approval (maker ≠ checker), repayment obligation and allocations through an explicit, tested **projection**
+   (not a shared production ledger).
+5. `/mentor-demo` — the original, more detailed Funding Desk prototype (self-contained).
 
 ## Walk through with a prospective provider (15–20 minutes)
 
@@ -17,14 +20,19 @@
 - Open Control reconciliation and see matched/unmatched references. A matching amount alone must never be treated as payment attribution.
 - Inspect a returned payment, a compliance hold, and a synthetic Base Sepolia finality delay.
 - Open liquidity and confirm restricted balances are subtracted from free cash, not presented as spendable.
-- Open Funding Desk to review maker-checker approvals, outstanding advances and repayments.
+- Open Funding exposure: SGD 50,000.00 advanced, SGD 30,000.00 repaid by reference, SGD 20,000.00 outstanding; an
+  unreferenced SGD 20,000.00 receipt stays an exception and does not close the balance.
 - Conclude on `/clearline/trial` with these questions: which exception is frequent; who owns it; what system is currently used; who would budget for a fix?
 
 ## Acceptable claims
 
-**Built in the prototype:** isolated synthetic Connect test API with strict validation and state transitions, fictional quotes, UI payment timeline and explanation, simulated webhook signing, illustrative Control views, separate Funding Desk module.
+**Built in the prototype:** a deterministic sandbox engine with one payment identity across Connect, Control and funding; three separate status
+fields (execution, settlement evidence, reconciliation); fictional providers behind a typed adapter; signed sandbox
+webhooks with duplicate/out-of-order/contradiction handling; reference-based reconciliation with explained exceptions;
+liquidity with source and freshness; compliance holds that are never auto-released; Base Sepolia observation vs finality;
+a tested funding-exposure projection; a stateless test API (`/api/clearline/test/v1`) and OpenAPI document.
 
-**Not built for live use:** licensed provider routing, real bank payout instructions, production keys, persistent multi-tenant server state, webhook delivery/retries, actual settlement attestations, compliance decisions, independent chain evidence integration into this console, shared funding/Connect ledger, enterprise SSO, real financial data import to this new console.
+**Not built for live use:** licensed provider routing, real bank payout instructions, production keys, persistent multi-tenant server state, webhook delivery/retries, actual settlement attestations, compliance decisions, real chain data (the Base Sepolia evidence is synthetic), a shared production funding/Connect ledger, enterprise SSO, real financial data import to this new console.
 
 ## What NOT to request from trial participants
 
