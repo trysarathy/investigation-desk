@@ -29,6 +29,48 @@ export const securityHeaders = [
 
 import { loadRelease, resolveReleaseUrls } from './release-urls.mjs';
 
+const ON = (v) => v === undefined || v === '' ? false : v;
+// DEMO_MODE values that switch the legacy desk to live mode (src/lib/mode.ts isDemoMode()).
+const LIVE_DEMO_MODE = /^(off|0|false|no|live)$/i;
+
+/**
+ * Fail fast on a deployment configuration that would silently do something other than intended
+ * (Task 3, rc3). Reads only variables the app already reads; never prints a secret's value.
+ * @param {Record<string, string | undefined>} env
+ * @returns {string[]} problems, empty when the configuration is valid
+ */
+export function deploymentConfigProblems(env) {
+  const problems = [];
+  const preview = ON(env.CLEARLINE_CUSTOMER_PREVIEW);
+  const fundingOnly = ON(env.CLEARLINE_FUNDING_ONLY);
+  // src/middleware.ts and the layouts test `=== "1"`: any other value silently turns the mode OFF.
+  if (preview && preview !== '1') problems.push(`CLEARLINE_CUSTOMER_PREVIEW is ${JSON.stringify(preview)}; only "1" turns the customer-preview allow-list on. Use "1", or unset it for the full app.`);
+  if (fundingOnly && fundingOnly !== '1') problems.push(`CLEARLINE_FUNDING_ONLY is ${JSON.stringify(fundingOnly)}; only "1" turns funding-only mode on. Use "1", or unset it.`);
+  if (preview === '1' && fundingOnly === '1') problems.push('CLEARLINE_CUSTOMER_PREVIEW and CLEARLINE_FUNDING_ONLY are both "1"; they are separate deployments. Set only one.');
+  const user = ON(env.PREVIEW_USER);
+  const password = ON(env.PREVIEW_PASSWORD);
+  if (!!user !== !!password) problems.push(`Only ${user ? 'PREVIEW_USER' : 'PREVIEW_PASSWORD'} is set; the preview password gate needs both, and with one alone nothing is protected.`);
+  if (password && password.length < 12) problems.push('PREVIEW_PASSWORD is shorter than 12 characters.');
+  if ((user || password) && (preview === '1' || fundingOnly === '1')) problems.push(`PREVIEW_USER/PREVIEW_PASSWORD are set, but ${preview === '1' ? 'CLEARLINE_CUSTOMER_PREVIEW' : 'CLEARLINE_FUNDING_ONLY'}=1 bypasses the password gate (src/middleware.ts), so they protect nothing. Unset them, or unset the mode.`);
+  // Live execution: QuickBooks posting goes to the production company only with QBO_ENV=production
+  // (src/lib/accounting/providers/quickbooks.ts); the adapter is untested and QuickBooks is not offered.
+  if (env.QBO_ENV === 'production') problems.push('QBO_ENV=production would post to a live QuickBooks company; QuickBooks is not offered and its adapter is untested. Unset QBO_ENV (sandbox).');
+  // The customer preview is fictional-only: it must not run in live mode or hold accounting write credentials.
+  if (preview === '1') {
+    if (env.DEMO_MODE !== undefined && LIVE_DEMO_MODE.test(env.DEMO_MODE.trim())) problems.push(`DEMO_MODE=${JSON.stringify(env.DEMO_MODE)} switches to live mode; the customer preview is fictional-only. Unset DEMO_MODE.`);
+    const creds = ['XERO_CLIENT_ID', 'XERO_CLIENT_SECRET', 'QBO_ACCESS_TOKEN', 'QBO_REALM_ID'].filter((k) => ON(env[k]));
+    if (creds.length) problems.push(`${creds.join(', ')} ${creds.length > 1 ? 'are' : 'is'} set; the customer preview is fictional-only and must not hold accounting write credentials. Remove them from this deployment.`);
+  }
+  return problems;
+}
+
+/** Throws one error listing every problem. Runs whenever Next loads this file: `next build`, `next start`, `next dev`. */
+export function assertDeploymentConfig(env) {
+  const problems = deploymentConfigProblems(env);
+  if (problems.length) throw new Error(`Invalid Clearline deployment configuration:\n${problems.map((p) => `  - ${p}`).join('\n')}\nSee docs/release/SECURITY_PLATFORM_RC3.md.`);
+}
+assertDeploymentConfig(process.env);
+
 /**
  * QA L3 (rc3): bytes of a request body Next copies for the middleware (and drains past). The legacy
  * investigation-desk uploads need the 20 MB file plus its form (REQUEST_MAX_BYTES in src/lib/limits.ts;
