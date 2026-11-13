@@ -119,7 +119,8 @@ test("Status.tsx types are exactly the engine's three status dimensions", () => 
 });
 
 test("pre-engine status names are gone everywhere", () => {
-  const files = [...sources, "../docs/design/DESIGN_SYSTEM.md", "README.md"];
+  // lib/investigations.ts is generated from the engine; its prose (e.g. "not yet reconciled to a statement") is the engine's own.
+  const files = [...sources.filter(f => !f.endsWith("investigations.ts")), "../docs/design/DESIGN_SYSTEM.md", "README.md"];
   for (const f of files) {
     const s = fs.readFileSync(path.resolve(root, f), "utf8");
     for (const re of [/settlement_evidence_verified/, /\bunreconciled\b/, /\breconciled\b/, /st-evidence/, /EvidenceStatus/, /\bev-(none|provider)/])
@@ -341,14 +342,15 @@ test("homepage: approved hero, CTAs, investigation view from the sample records,
   assert.match(home, /Booking link pending/);
   assert.match(home, /<InvestigationView \/>/);
   const iv = read("components/InvestigationView.tsx");
-  assert.match(iv, /from "@\/lib\/sample"/); assert.equal(/<img|\.png|\.jpg/.test(iv), false, "investigation view is HTML, not an image");
+  assert.match(iv, /from "@\/lib\/investigations"/); assert.equal(/<img|\.png|\.jpg/.test(iv), false, "investigation view is HTML, not an image");
   for (const t of ["Execution", "Settlement evidence", "Reconciliation", "is-hl"]) assert.ok(iv.includes(t), t);
-  for (const id of ["story-title", "products-title", "together", "cases-title", "principles-title", "roles-title", "stage-title", "founder-title", "contact-title"]) assert.ok(home.includes(`id="${id}"`), id);
+  for (const id of ["story-title", "products-title", "together", "cases-title", "stage-title", "founder-title", "contact-title"]) assert.ok(home.includes(`id="${id}"`), id);
+  assert.match(home, /<Disclosure headingId="home-disclosure" \/>/);
   assert.match(home, /19, in her second year of Accountancy at Singapore Management University, with a second major in Finance/);
 });
 
 test("engine CHANGE 5: under-amount reports, reports on terminal payouts and partial bank lines are described exactly", () => {
-  const dev = read("app/developers/page.tsx"), control = read("app/control/page.tsx"), uc = read("app/use-cases/page.tsx"), home = read("app/page.tsx");
+  const dev = read("app/developers/page.tsx"), control = read("app/control/page.tsx"), uc = read("app/use-cases/page.tsx");
   // F2: under-amount provider report → unmatched_reconciliation / RC_UNDER_AMOUNT_REPORT, reconciliation exception, settlement not upgraded.
   for (const s of [dev, control]) {
     assert.match(s, /RC_UNDER_AMOUNT_REPORT/); assert.match(s, /unmatched_reconciliation/);
@@ -364,7 +366,9 @@ test("engine CHANGE 5: under-amount reports, reports on terminal payouts and par
   assert.match(dev, /exception_raised/); assert.match(dev, /contradictory_exception_raised/);
   assert.match(dev, /supplierPaidBasis/); assert.match(dev, /Supplier paid \(provider-reported\)/);
   assert.match(uc, /RC_UNDER_AMOUNT_REPORT/); assert.match(uc, /RC_REPORT_ON_TERMINAL_PAYOUT/);
-  assert.match(home, /RC_UNDER_AMOUNT_REPORT/); assert.match(home, /RC_PARTIAL_AMOUNT/); assert.match(home, /RC_REPORT_ON_TERMINAL_PAYOUT/);
+  // The six engine rules now live on Platform (#rules).
+  const platform = read("app/platform/page.tsx");
+  assert.match(platform, /RC_UNDER_AMOUNT_REPORT/); assert.match(platform, /RC_PARTIAL_AMOUNT/); assert.match(platform, /RC_REPORT_ON_TERMINAL_PAYOUT/);
   // The structured difference uses the engine's own F2 wording and arithmetic.
   const s = read("lib/sample.ts");
   assert.match(s, /expected: "SGD 10,000\.00", reported: "SGD 4,000\.00", difference: "SGD 6,000\.00"/);
@@ -413,4 +417,123 @@ test("release URLs: clearline-release.json resolves production by default and th
   assert.equal(resolveReleaseUrls({ VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "rc3/clearline-site" }, release).product, release.preview.product);
   assert.equal(resolveReleaseUrls({ VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "other" }, release).product, release.production.product);
   assert.throws(() => resolveReleaseUrls({ CLEARLINE_PRODUCT_URL: "http://insecure.test" }, release));
+});
+
+// ---- rc3: accuracy guards, disclosure, founder facts, links (13 Nov 2026) ----
+const walkAll = dir => fs.readdirSync(path.join(root, dir), { withFileTypes: true }).flatMap(d =>
+  ["node_modules", ".next", "out", ".git"].includes(d.name) ? [] : d.isDirectory() ? walkAll(path.join(dir, d.name)) : [path.join(dir, d.name)]);
+
+test("rc3 accuracy: no copy describes an unbuilt capability as working", () => {
+  const forbidden = [
+    /\b(executes?|sends?|moves?) (real |live )?(money|funds|payouts?) (for|on behalf of)/i, /\bwe (hold|safeguard|custody) (your |client |customer )?(funds|money|assets)\b/i, /\bnon-custodial wallet\b/i,
+    /connected to (your|real|licensed) (bank|provider|wallet)s?(?! is)/i, /\bconnects to (your|real) bank/i, /\bintegrat(ed|es) with (banks?|providers?|wallets?)\b/i,
+    /\blicensed (by|under)\b/i, /\b(certified|accredited|approved by MAS|regulated by)\b/i, /\bin use (at|by)\b/i, /\bour (customers|clients|partners)\b/i,
+    /\bused by\b/i, /\bpartnered with\b/i, /\bpilot customers?\b/i, /\breal chain reads? (are|is) (live|working|available)/i,
+    /\bmakes? (the )?compliance decisions? for\b/i, /\bapproves? (the )?credit\b/i, /\bautomatically (releases?|clears?|approves?)\b/i, /\bauto-(release|clear|approve)/i,
+    /\bin development on testnet\b/i, /real chain reads in development/i,
+    /Funding Desk (is|as) a (separate|standalone|second) product/i,
+  ];
+  for (const f of copySources) {
+    const s = read(f).replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, ""); // copy only, not code comments
+    for (const re of forbidden) assert.equal(re.test(s), false, f + " matches forbidden claim " + re);
+  }
+  // Onchain items with no code are labelled design only; nothing on Onchain uses an "in development" stage.
+  const onchain = read("app/onchain/page.tsx");
+  assert.match(onchain, /Safe payout proposals and evidence fingerprints are a design only: no code exists for them/);
+  assert.equal(/kind="development"|"development"/.test(onchain), false);
+  // The removed stage kinds do not come back.
+  const shared = read("components/Shared.tsx");
+  assert.match(shared, /export type StageKind = "synthetic" \| "prototype" \| "design" \| "none";/);
+  for (const f of copySources) assert.equal(/kind="(illustrative|development)"|"illustrative"\]|Illustrative UI/.test(read(f)), false, f);
+});
+
+test("rc3 disclosure: one source, precise working / not built / out of scope, shown on Home, Platform and Trial", () => {
+  const d = read("lib/disclosure.ts");
+  for (const t of ["WORKING_TODAY", "NOT_BUILT", "OUT_OF_SCOPE"]) assert.match(d, new RegExp("export const " + t));
+  for (const t of ["No licensed provider, bank or wallet is connected", "No real chain is read", "No user accounts, authentication or server-side storage", "Safe payout proposals and evidence fingerprints are a design only", "Uploads are disabled"]) assert.ok(d.includes(t), t);
+  const scope = d.match(/OUT_OF_SCOPE = "([^"]+)"/)[1];
+  for (const t of ["payouts with real money", "hold funds or keys", "real banking or wallet credentials", "lend", "credit decisions", "compliance decisions"]) assert.ok(scope.includes(t), "out of scope lacks " + t);
+  for (const f of ["app/page.tsx", "app/platform/page.tsx", "app/trial/page.tsx"]) assert.match(read(f), /<Disclosure headingId="[a-z-]+" \/>/, f);
+  assert.match(read("components/Shared.tsx"), /WORKING_TODAY\.map/);
+});
+
+test("rc3 product view is generated from the tested engine and uses the console's labels", () => {
+  const inv = read("lib/investigations.ts");
+  assert.match(inv, /^\/\* GENERATED by scripts\/engine-investigations\.gen\.ts/);
+  assert.match(inv, /rc3\/clearline-app @ [0-9a-f]{7}/);
+  const data = JSON.parse(inv.slice(inv.indexOf("INVESTIGATIONS: Investigation[] = ") + 34, inv.lastIndexOf(";")));
+  assert.deepEqual(data.map(d => d.scenario), ["s1_success", "s2_returned", "s3_hold", "s4_chain", "s5_funding"]);
+  // The generated statuses agree with the hand-kept sample tables.
+  const sample = read("lib/sample.ts");
+  for (const d of data) {
+    const block = sample.slice(sample.indexOf(`scenario: "${d.scenario}", reference`));
+    for (const k of ["execution", "settlement", "settlementScope", "reconciliation"]) assert.ok(block.slice(0, 900).includes(`${k}: "${d.status[k]}"`), d.scenario + " " + k);
+    assert.ok(sample.includes(d.amount), d.amount);
+  }
+  // Engine summaries, e.g. "Provider reports returned · No settlement evidence · Needs review".
+  assert.equal(data[1].summary, "Provider reports returned · No settlement evidence · Needs review");
+  // Console section names and truth questions (pages/Investigation.tsx).
+  const iv = read("components/InvestigationView.tsx");
+  for (const t of ["Three separate truths — never one badge", "What the provider reported", "What independent evidence establishes", "Whether the records match", "Evidence timeline", "Findings", "Who owns the next step", "Still unknown", "Financially outstanding", "Console <span"]) assert.ok(iv.includes(t), t);
+  assert.equal(/from "@\/lib\/sample"/.test(iv), false);
+});
+
+test("rc3 trial cases follow the console's guided trial", () => {
+  const c = read("lib/cases.ts");
+  const titles = [...c.matchAll(/title: "([^"]+)"/g)].map(m => m[1]);
+  assert.deepEqual(titles, ["Successful payment", "Returned payout", "Compliance hold", "Base Sepolia finality delay", "Funding exposure"]);
+  assert.match(c, /Try your own payment|Then try Connect/);
+});
+
+test("rc3 Funding Desk: Control's specialist workflow, linked through FUNDING_DESK_URL", () => {
+  assert.match(read("lib/site.ts"), /FUNDING_DESK_URL = PRODUCT_DEMO_URL \+ "\/mentor-demo"/);
+  const control = read("app/control/page.tsx");
+  assert.match(control, /id="funding-desk"/); assert.match(control, /a specialist workflow in Control/);
+  assert.match(control, /not a separate product/); assert.match(control, /href=\{FUNDING_DESK_URL\}/);
+  for (const f of copySources) assert.equal(/mentor-demo/.test(read(f)) && !f.endsWith("site.ts"), false, f + " hard-codes the Funding Desk path");
+});
+
+test("rc3 founder facts: exact, modest, and the photo is never upscaled", () => {
+  const about = read("app/about/page.tsx"), home = read("app/page.tsx");
+  assert.match(about, /I&rsquo;m 19 and in my second year of Accountancy at Singapore Management University, with a second major in Finance\. I&rsquo;m building Clearline in Singapore\./);
+  assert.match(home, /19, in her second year of Accountancy at Singapore Management University, with a second major in Finance\. Building Clearline in Singapore\./);
+  for (const s of [about, home]) assert.equal(/years? of experience|former|ex-|serial|award|CPA|CFA|Forbes/i.test(s.replace(/@\/|ExtLink/g, "")), false);
+  // public/founder.jpg is 120 × 150; no <img> or CSS shows it larger.
+  for (const f of copySources) for (const m of read(f).matchAll(/founder\.jpg"[^>]*width=\{(\d+)\} height=\{(\d+)\}/g)) assert.ok(+m[1] <= 120 && +m[2] <= 150, f + " displays the photo at " + m[1] + "×" + m[2]);
+  assert.match(read("app/globals.css"), /\.founder-photo \{ width: 120px; height: 150px;/);
+});
+
+test("rc3 contact: a working mailto to the founder, no invented booking URL, no data collection", () => {
+  assert.match(read("lib/site.ts"), /mailto = \(subject: string\) => "mailto:" \+ EMAIL \+ "\?subject=" \+ encodeURIComponent\(subject\)/);
+  for (const f of ["app/page.tsx", "app/contact/page.tsx", "app/about/page.tsx", "components/Shared.tsx"]) assert.match(read(f), /mailto\(/, f);
+  assert.match(read("lib/site.ts"), /BOOKING_URL: string \| undefined = envBooking && envBooking\.startsWith\("https:\/\/"\) \? envBooking : undefined/);
+  for (const f of copySources) assert.equal(/calendly\.com|cal\.com\/|savvycal|zcal/i.test(read(f)), false, f + " invents a booking URL");
+  for (const f of ["app/contact/page.tsx", "app/page.tsx", "app/privacy/page.tsx"]) assert.match(read(f), /(Do not|do not|Never) send payment records/, f);
+});
+
+test("rc3 links: no Vercel host outside lib/site.ts and the release files", () => {
+  const allowed = new Set([path.join("lib", "site.ts"), "clearline-release.json", "release-urls.mjs", path.join("tests", "content.test.mjs")]);
+  for (const f of walkAll(".").map(f => path.normalize(f)).filter(f => !allowed.has(f) && !/\.(jpg|png|ico|tsbuildinfo)$/.test(f) && f !== "package-lock.json")) {
+    assert.equal(/vercel\.app/.test(read(f)), false, f + " hard-codes a vercel.app host");
+  }
+  assert.equal(/vercel\.app/.test(fs.readFileSync(path.resolve(root, "../docs/design/DESIGN_SYSTEM.md"), "utf8")), false, "DESIGN_SYSTEM.md");
+  // Product CTAs use the derived constants only.
+  for (const f of copySources) assert.equal(/href=\{?["'`]\/clearline/.test(read(f)), false, f + " links a product path without site.ts");
+});
+
+test("rc3 hero copy is exactly the approved wording", () => {
+  const home = read("app/page.tsx");
+  assert.match(home, /<h1 id="hero-title" className="h1">Every payment\. <em>One clear answer\.<\/em><\/h1>/);
+  assert.match(home, /<p className="lede">Clearline connects payment instructions, provider events and financial evidence&mdash;so operations teams can understand what happened and what needs attention\.<\/p>/);
+  assert.match(read("app/layout.tsx"), /"Clearline \| Every payment\. One clear answer\."/);
+});
+
+test("rc3 every page is present, built (when out/ exists) and reachable from the header or footer", () => {
+  const nav = read("components/Header.tsx") + read("components/Shared.tsx");
+  for (const [route, file] of Object.entries(PAGES)) {
+    assert.ok(fs.existsSync(path.join(root, file)), file);
+    if (route !== "/") assert.ok(nav.includes(`"${route}"`), route + " not linked from header or footer");
+    if (fs.existsSync(path.join(root, "out"))) assert.ok(fs.existsSync(path.join(root, "out", route === "/" ? "index.html" : route.slice(1) + ".html")), route + " not built");
+  }
+  assert.equal(Object.keys(PAGES).length, 11);
 });
