@@ -30,5 +30,5 @@ test("preview protects old finance routes and serves real sandbox docs",async({p
  await page.goto("/clearline/docs");
  await expect(page.getByText("Build on one payment lifecycle.")).toBeVisible();
  await page.goto("/mentor-demo");
- await expect(page.getByRole("navigation",{name:"Funding desk sections"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"Work queue"})).toBeVisible();
 });
