@@ -1,7 +1,7 @@
 /**
  * Fictional sample records taken from the TESTED sandbox engine's deterministic sample
  * (src/lib/clearline/sample.ts → sampleWorkspace(), scenarios s1–s5, on
- * release/clearline-unified-20261113). Values were read by running the engine's own read models
+ * release/clearline-unified-20261113 @ b250bb4, ENGINE_API CHANGE 2). Values were read by running the engine's own read models
  * (investigate, timelineFor, listExceptions, computeLiquidity, fundingProjection) and its
  * formatMinor(); times are the engine's simulated clock converted to SGT (UTC+8).
  * Engine intent ids are sequential and may shift, so the site shows internal references instead.
@@ -14,6 +14,8 @@ export type SamplePayment = {
   scenario: "s1_success" | "s2_returned" | "s3_hold" | "s4_chain" | "s5_funding";
   reference: string; beneficiary: string; amount: string; corridor: string; provider: string; label: string;
   execution: ExecState; settlement: SettlementState; settlementScope: SettlementScope; reconciliation: ReconState;
+  /** PaymentIntent.returnStatus — only set when the provider reported a return. */
+  returnStatus?: "provider_reported" | "confirmed_by_statement";
   whoActs: string; nextAction: string; unknown: string; events: SampleEvent[];
 };
 
@@ -38,15 +40,15 @@ export const SAMPLE_PAYMENTS: SamplePayment[] = [
   {
     scenario: "s2_returned", reference: "INV-2026-141", beneficiary: "Redwood Supplies Ltd", amount: "USD 12,784.90", corridor: "USD → SGD",
     provider: "Northline Payments (sandbox)", label: "Returned",
-    execution: "returned", settlement: "none", settlementScope: "none", reconciliation: "pending",
+    execution: "returned", settlement: "none", settlementScope: "none", reconciliation: "exception", returnStatus: "confirmed_by_statement",
     whoActs: "Exception owner: Maya Tan, Operations (fictional)",
     nextAction: "Verify beneficiary details with the supplier, confirm the returned funds, then create a correction intent.",
     unknown: "No bank statement or chain evidence of settlement yet.",
     events: [
       { time: "08:39 SGT", label: "payout.accepted", source: API, outcome: "recorded, no state change" },
       { time: "08:42 SGT", label: "payout.in_transit", source: HOOK, outcome: "applied" },
-      { time: "08:45 SGT", label: "payout.returned", source: HOOK, outcome: "applied → returned" },
-      { time: "08:48 SGT", label: "Return credit USD 12,784.90 · DBS-SIM-0002", source: BANK, outcome: "confirms the provider's return" },
+      { time: "08:45 SGT", label: "payout.returned", source: HOOK, outcome: "applied → returned; reconciliation exception (returnStatus provider_reported)" },
+      { time: "08:48 SGT", label: "Return credit USD 12,784.90 · DBS-SIM-0002", source: BANK, outcome: "allocated → returnStatus confirmed_by_statement; still an exception: supplier unpaid" },
     ],
   },
   {
@@ -138,3 +140,13 @@ export const SAMPLE_FUNDING = {
   state: "partly_repaid",
   exception: "SGD 20,000.00 receipt without a reference stays an exception (missing_payment_reference); it is not allocated by amount.",
 };
+
+/** listExceptions(sampleWorkspace()). Every exception has a dueDate: explicit, or creation date +
+ * EXCEPTION_DUE_DAYS[severity] (critical 1, high 1, medium 3, low 5 — an illustrative sandbox policy). */
+export const EXCEPTION_DUE_POLICY = "Due dates follow an illustrative sandbox policy: critical and high 1 day, medium 3 days, low 5 days from creation, unless a date is set explicitly.";
+export const SAMPLE_EXCEPTIONS = [
+  { category: "returned_payout", reference: "INV-2026-141", severity: "high", status: "in_review", owner: "Maya Tan (fictional)", dueDate: "2026-11-13", action: "Verify beneficiary details with the supplier, confirm the returned funds, then create a correction intent." },
+  { category: "compliance_hold", reference: "INV-2026-145", severity: "high", status: "in_review", owner: "Priya Nair (fictional)", dueDate: "2026-11-13", action: "Your compliance reviewer decides the response; the hold is never released automatically." },
+  { category: "missing_payment_reference", reference: "DBS-SIM-0005", severity: "medium", status: "open", owner: "Unassigned", dueDate: "2026-11-15", action: "Ask the remitter for the payment reference; without it the receipt cannot be allocated." },
+  { category: "pending_finality", reference: "INV-2026-149", severity: "low", status: "open", owner: "Unassigned", dueDate: "2026-11-17", action: "Wait until the finality threshold is reached; observation is not finality." },
+];

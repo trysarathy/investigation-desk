@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ButtonLink, ContactBand, ExtLink, PageHero, Section, Stage } from "@/components/Shared";
-import { FundingTable, LiquidityTable, ReconTable } from "@/components/Tables";
+import { ExceptionsTable, FundingTable, LiquidityTable, ReconTable } from "@/components/Tables";
 import PaymentPreview from "@/components/PaymentPreview";
 import { FUNDING_DESK_URL, SOFTWARE_URL } from "@/lib/site";
 import { pageMeta } from "@/lib/meta";
@@ -26,8 +26,10 @@ export default function Control() {
       </Section>
 
       <Section eyebrow="Reconciliation" title="Match by reference. Never by amount alone."
-        intro={<p>A statement line is allocated automatically only on a trusted reference (the provider payment id for payouts, the repayment reference for repayments) plus amount, currency and a value-date window. Amount-only, ambiguous, duplicate, currency-mismatched or out-of-window lines become exceptions with an explanation code. A full bank-statement match sets settlement verified (scope bank_statement); it shows the payout left the account, not that the beneficiary was credited.</p>}>
+        intro={<p>A statement line is allocated automatically only on a trusted reference (the provider payment id for payouts, the repayment reference for repayments) plus amount, currency and a value-date window. Amount-only, ambiguous, duplicate, currency-mismatched or out-of-window lines become exceptions with an explanation code. A full bank-statement match sets settlement verified (scope bank_statement); it shows the payout left the account, not that the beneficiary was credited. A provider-reported return makes reconciliation an exception at once. A matching return line on the statement confirms it (returnStatus confirmed_by_statement), but the exception stays open until a person resolves it, because the supplier is still unpaid.</p>}>
         <ReconTable />
+        <h3 className="h3" style={{ margin: "40px 0 12px" }}>Exceptions, owners and due dates</h3>
+        <ExceptionsTable />
       </Section>
 
       <Section tone="white" eyebrow="Liquidity" title="Usable balance, net of what is not yours to spend"

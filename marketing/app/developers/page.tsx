@@ -84,7 +84,7 @@ const endpoints: [string, string, string][] = [
   ["POST", "/webhooks/verify", "Sample verifier; no workspace needed"],
   ["GET", "/reconciliation", "Statement lines and allocations"],
   ["POST", "/reconciliation/statement-lines", "Ingest a bank or provider settlement line and reconcile it"],
-  ["GET", "/exceptions", "Unresolved exceptions, severity-ordered"],
+  ["GET", "/exceptions", "Unresolved exceptions, severity-ordered, each with an owner and a dueDate"],
   ["POST", "/exceptions/{id}/{assign|notes|evidence|resolve|reopen}", "Resolution only when its conditions are met; never allocates funds"],
   ["GET · POST", "/liquidity", "Liquidity view (sample, or for a supplied workspace / instant)"],
   ["GET · POST", "/funding-advances", "Funding projection · prepare an advance funding a supplier payout"],
@@ -150,7 +150,8 @@ export default function Developers() {
 
       <Section id="status-model" tone="white" eyebrow="Status model" title="execution, settlement, reconciliation"
         intro={<><p>Every payment intent carries <code className="inline">status: {"{"} execution, settlement, settlementScope, reconciliation {"}"}</code>. There is no combined status. A provider&rsquo;s &ldquo;completed&rdquo; sets execution to <code className="inline">provider_reported_completed</code> and never, on its own, sets settlement <code className="inline">verified</code> or reconciliation <code className="inline">matched</code>.</p>
-          <p>When a bank-statement debit is matched to the payout by its trusted reference, amount, currency and value-date window, settlement becomes <code className="inline">verified</code> with scope <code className="inline">bank_statement</code> and reconciliation becomes <code className="inline">matched</code>. That evidences the payout leaving your account. <b>The beneficiary&rsquo;s credit can still be unknown</b>, and the investigation view says so.</p></>}>
+          <p>When a bank-statement debit is matched to the payout by its trusted reference, amount, currency and value-date window, settlement becomes <code className="inline">verified</code> with scope <code className="inline">bank_statement</code> and reconciliation becomes <code className="inline">matched</code>. That evidences the payout leaving your account. <b>The beneficiary&rsquo;s credit can still be unknown</b>, and the investigation view says so.</p>
+          <p>Returned payouts also carry <code className="inline">returnStatus</code>: <code className="inline">provider_reported</code> when the provider reports the return, then <code className="inline">confirmed_by_statement</code> once a return line with the trusted reference is allocated (<code className="inline">RC_RETURN_CONFIRMS_PROVIDER_RETURN</code>). Reconciliation is <code className="inline">exception</code> from the moment of the return and stays so until a person resolves the <code className="inline">returned_payout</code> exception, because the supplier is still unpaid.</p></>}>
         <h3 className="h3" style={{ marginBottom: 12 }}>execution (ExecutionState)</h3>
         <TableWrap label="Execution states and allowed transitions" caption="EXECUTION_TRANSITIONS in the engine. Anything else is rejected with invalid_transition.">
           <thead><tr><th scope="col">State</th><th scope="col">Allowed next</th></tr></thead>
@@ -179,7 +180,7 @@ export default function Developers() {
                 <tr><td><ReconStatus state="pending" /></td><td>Submitted; no allocated statement line yet.</td></tr>
                 <tr><td><ReconStatus state="matched" /></td><td>A line was allocated on trusted reference, amount, currency and value-date window.</td></tr>
                 <tr><td><ReconStatus state="partially_matched" /></td><td>The reference agrees but the amount covers only part; the remainder stays outstanding.</td></tr>
-                <tr><td><ReconStatus state="exception" /></td><td>Something disagrees and needs an owner.</td></tr>
+                <tr><td><ReconStatus state="exception" /></td><td>Something disagrees, or the provider reported a return. Each exception has an owner and a due date. A return stays an exception even after a statement line confirms it, until a person resolves it.</td></tr>
               </tbody>
             </TableWrap>
           </div>

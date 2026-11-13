@@ -45,12 +45,12 @@ export default function UseCases() {
 
       <UseCase id="investigation" n="01" tone="white" title="Payment investigation"
         situation="A USD 12,784.90 payout to Redwood Supplies Ltd (INV-2026-141) via Northline Payments comes back. Operations needs to know why, what is proven, and who fixes it. (Engine scenario s2_returned.)"
-        shows={["Each provider event with its provenance and what the engine did with it: accepted, in transit, returned.", "The return credit line on the bank statement confirming the provider's return.", "Who acts (the named exception owner) and the next action: verify beneficiary details with the supplier, confirm the returned funds, then create a correction intent."]}
+        shows={["Each provider event with its provenance and what the engine did with it: accepted, in transit, returned. The return makes reconciliation an exception straight away.", "The return credit line on the bank statement, allocated by the trusted reference, which sets returnStatus to confirmed_by_statement. The exception stays open, due within one day: the supplier is still unpaid.", "Who acts (the named exception owner) and the next action: verify beneficiary details with the supplier, confirm the returned funds, then create a correction intent."]}
         limits="It does not correct beneficiary details or reissue the payment. A person creates the correction intent."
         stages={["synthetic", "illustrative"]}>
         <div className="panel">
           <p className="label">s2_returned · INV-2026-141</p>
-          <p><ExecStatus state="returned" /> <SettlementStatus state="none" /> <ReconStatus state="pending" /></p>
+          <p><ExecStatus state="returned" /> <SettlementStatus state="none" /> <ReconStatus state="exception" /> <span className="caption mono">returnStatus: confirmed_by_statement</span></p>
           <ol className="timeline">
             {SAMPLE_PAYMENTS[1].events.map(e => <li key={e.time}><span className="timeline-time mono">{e.time}</span><div><b>{e.label}</b><span className="caption">{e.source} · {e.outcome}</span></div></li>)}
           </ol>

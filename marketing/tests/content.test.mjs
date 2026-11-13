@@ -163,6 +163,23 @@ test("design tokens are exported for the console and used by the site", () => {
   assert.ok(fs.existsSync(path.resolve(root, "../docs/design/DESIGN_SYSTEM.md")), "DESIGN_SYSTEM.md missing");
 });
 
+test("returns match engine CHANGE 2: reconciliation exception + returnStatus; exceptions carry due dates", () => {
+  const s = read("lib/sample.ts");
+  const s2 = s.slice(s.indexOf('scenario: "s2_returned"'), s.indexOf('scenario: "s3_hold"'));
+  assert.match(s2, /reconciliation: "exception"/, "a provider-reported return is a reconciliation exception");
+  assert.match(s2, /returnStatus: "confirmed_by_statement"/);
+  assert.equal(/reconciliation: "pending"/.test(s2), false, "s2 must no longer be pending");
+  assert.match(s, /returnStatus\?: "provider_reported" \| "confirmed_by_statement"/);
+  for (const d of ["2026-11-13", "2026-11-15", "2026-11-17"]) assert.ok(s.includes(`dueDate: "${d}"`), d);
+  const uc = read("app/use-cases/page.tsx");
+  assert.match(uc, /<ReconStatus state="exception" \/> <span className="caption mono">returnStatus: confirmed_by_statement/);
+  assert.equal(/ExecStatus state="returned" \/> <SettlementStatus state="none" \/> <ReconStatus state="pending"/.test(uc), false);
+  const dev = read("app/developers/page.tsx");
+  for (const t of ["returnStatus", "provider_reported", "confirmed_by_statement", "returned_payout", "dueDate"]) assert.ok(dev.includes(t), t);
+  assert.match(read("app/control/page.tsx"), /<ExceptionsTable \/>/);
+  assert.match(read("../docs/design/DESIGN_SYSTEM.md"), /returnStatus/);
+});
+
 test("sample data is fictional and labelled", () => {
   assert.match(read("lib/sample.ts"), /Fictional sample records/);
   assert.match(read("lib/sample.ts"), /Every organisation, provider, person and amount is fictional/);

@@ -36,7 +36,7 @@ export default function PaymentPreview() {
           <div><dt>execution</dt><dd><ExecStatus state={p.execution} /></dd></div>
           <div><dt>settlement</dt><dd><SettlementStatus state={p.settlement} scope={p.settlementScope} /></dd></div>
           <div><dt>reconciliation</dt><dd><ReconStatus state={p.reconciliation} /></dd></div>
-          <div><dt>Route</dt><dd className="caption">{p.provider}</dd></div>
+          <div><dt>{p.returnStatus ? "returnStatus" : "Route"}</dt><dd className="caption">{p.returnStatus ? <span className="mono">{p.returnStatus}</span> : p.provider}</dd></div>
         </dl>
         <div className="record-cols">
           <div>

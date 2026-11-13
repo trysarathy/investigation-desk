@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import {
-  FUNDING_PROJECTION_LABEL, LIQUIDITY_POLICY_LABEL, QUOTE_LABEL, SAMPLE_FUNDING, SAMPLE_LIQUIDITY, SAMPLE_PAYMENTS,
+  EXCEPTION_DUE_POLICY, FUNDING_PROJECTION_LABEL, LIQUIDITY_POLICY_LABEL, SAMPLE_EXCEPTIONS, QUOTE_LABEL, SAMPLE_FUNDING, SAMPLE_LIQUIDITY, SAMPLE_PAYMENTS,
   SAMPLE_QUOTES, SAMPLE_STATEMENT_LINES, SAMPLE_USABLE_NOW,
 } from "@/lib/sample";
 import { ExecStatus, ReconStatus, SettlementStatus } from "@/components/Status";
@@ -92,6 +92,22 @@ export function FundingTable() {
     <TableWrap label="Sample funding projection" caption={FUNDING_PROJECTION_LABEL}>
       <thead><tr><th scope="col">Link in the projection</th><th scope="col">s5_funding (fictional)</th></tr></thead>
       <tbody>{rows.map(([k, v]) => <tr key={k}><th scope="row" className="row-head">{k}</th><td>{v}</td></tr>)}</tbody>
+    </TableWrap>
+  );
+}
+
+export function ExceptionsTable() {
+  const sev: Record<string, string> = { critical: "danger", high: "danger", medium: "warning", low: "neutral" };
+  return (
+    <TableWrap label="Sample exceptions with owners and due dates" caption={"The engine's unresolved exceptions, severity-ordered. " + EXCEPTION_DUE_POLICY}>
+      <thead><tr><th scope="col">Category</th><th scope="col">Item</th><th scope="col">Severity</th><th scope="col">Status</th><th scope="col">Owner</th><th scope="col">Due</th><th scope="col">Required action</th></tr></thead>
+      <tbody>{SAMPLE_EXCEPTIONS.map(e => (
+        <tr key={e.category}>
+          <td className="mono">{e.category}</td><td className="mono">{e.reference}</td>
+          <td><span className={"st-exec tone-" + sev[e.severity]}>{e.severity}</span></td><td className="mono">{e.status}</td>
+          <td>{e.owner}</td><td className="num">{e.dueDate}</td><td>{e.action}</td>
+        </tr>
+      ))}</tbody>
     </TableWrap>
   );
 }

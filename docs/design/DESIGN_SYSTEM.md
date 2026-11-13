@@ -120,6 +120,8 @@ Rules (enforced by the engine, mirrored by the UI):
 - A provider "completed" report sets execution `provider_reported_completed` and never, on its own, settlement `verified` or reconciliation `matched`.
 - A full-amount bank-statement match sets settlement `verified` with scope `bank_statement`. Always show the scope: it proves the payout left the account, not that the beneficiary was credited.
 - A provider settlement report or a partial bank line gives at most `observed`. An on-chain transfer is `verified` only past the finality threshold and never proves a bank credit.
+- A provider-reported return sets reconciliation `exception` immediately. Show `returnStatus` (`provider_reported` → `confirmed_by_statement`) as a separate mono label next to the reconciliation tag; a confirmed return is still an exception until a person resolves it.
+- Exceptions always show their owner and `dueDate` (mono, ISO date); overdue items use the danger tone.
 - Each tag includes visually hidden text naming its dimension ("Settlement evidence: …").
 
 Implementation: `marketing/components/Status.tsx` (`.st-exec`, `.st-settlement` + `.stl-*`, `.st-recon`).
@@ -166,5 +168,6 @@ Skip link; one `h1`; landmarks (`header`, `nav` with labels, `main#main`, `foote
 
 ## Change log
 
+- 2026-11-13: v1.2. Engine CHANGE 2: returns are reconciliation exceptions with `returnStatus`; exceptions carry due dates.
 - 2026-11-13: v1.1. Status dimensions renamed to the tested engine's ExecutionState / SettlementEvidenceState (+ scope) / ReconciliationState; evidence family renamed settlement.
 - 2026-11-13: v1. Studio V2 palette consolidated; `#D04B31` restricted to large text/accents; `#A93A24` introduced for small text and buttons; `#5A6670` added for text on blue-grey; three status families and four stage labels defined.
