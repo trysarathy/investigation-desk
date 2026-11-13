@@ -2,7 +2,7 @@ import type {Metadata} from "next";
 import Link from "next/link";
 import {Tag} from "@/components/Shared";
 export const metadata:Metadata={title:"Privacy",description:"How Clearline's marketing site intends to handle contact enquiries and replay requests."};
-export default function Privacy(){const email=process.env.NEXT_PUBLIC_PRIVACY_EMAIL;const sections=[
+export default function Privacy(){const email=process.env.NEXT_PUBLIC_PRIVACY_EMAIL || "aashmiin.k.2025@accountancy.smu.edu.sg";const sections=[
  ["Information you provide","The contact form may collect your name, work email, company, role and message. Do not include banking credentials, private keys, customer financial records or other confidential payment data."],
  ["Why we use it","We use submitted information to respond to enquiries, discuss a product evaluation and arrange a conversation about Clearline. The marketing form does not initiate transactions or make credit decisions."],
  ["Form processing","The planned form uses Formspree, a third-party service. It will be activated only once a valid form ID has been configured. Actual processor arrangements and applicable terms must be reviewed before collecting enquiries."],
