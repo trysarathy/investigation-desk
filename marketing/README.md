@@ -38,7 +38,7 @@ Never commit form secrets or personal files; public Formspree IDs are intended t
 
 ## Booking URL and founder photo
 
-Set `NEXT_PUBLIC_BOOKING_URL` to the real `https://` scheduling page. Until then "Book a call" leads to the replay contact form. Replace the founder photo placeholder in `app/page.tsx` with a photograph you own and have approved for public display. The site intentionally includes no stock photos.
+Set `NEXT_PUBLIC_BOOKING_URL` to the real `https://` scheduling page. Until then "Book a call" leads to the replay contact form. The provided founder photo is installed at `public/founder.jpg`. Check it visually in the deployed preview. The site intentionally includes no stock photos.
 
 ## Custom domain
 
@@ -63,7 +63,7 @@ Before a custom domain exists, set `NEXT_PUBLIC_SITE_URL` to the actual preview 
 - Product scope: Current Funding Desk includes cases, five checks, maker-checker, outstanding ledger, exceptions, evidence/exports and CSV workflows using fictional demo data. Onchain is **in development / testnet**.
 - The work-queue mock is an HTML/CSS illustrative rendering, not a screenshot from a real customer's account.
 - The funding timeline uses illustrative values; no real clients, metrics, quotes, testimonials or partner logos.
-- The marketing form is disabled until configured. Privacy handling language is provisional and must be verified against actual processor terms before public intake.
+- The marketing form is disabled until configured. The founder’s supplied SMU email is used for public contact; booking URL remains pending. Privacy handling language is provisional and must be verified against actual processor terms before public intake.
 - Pricing in the FAQ is marked as individually agreed for any future pilot; check alignment with founder-approved commercial terms before production launch.
 - Financial and jurisdiction-specific legal classifications require external counsel review.
 
