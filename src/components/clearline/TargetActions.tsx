@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { canResolveException, type EvidenceKind, type TargetRef } from "@/lib/clearline";
+import { canResolveCase, canResolveException, type EvidenceKind, type TargetRef } from "@/lib/clearline";
 import { errorText, useWorkspace } from "./workspace";
 import { Btn, Field, Status, ui } from "./ui";
 
@@ -40,7 +40,7 @@ export function TargetActions({ target, status, idPrefix }: { target: TargetRef;
   };
 
   const resolved = status === "resolved";
-  const gate = target.kind === "exception" ? canResolveException(ws, target.id) : null;
+  const gate = target.kind === "exception" ? canResolveException(ws, target.id) : canResolveCase(ws, target.id);
   const id = (s: string) => `${idPrefix}-${s}`;
 
   return (
@@ -84,11 +84,10 @@ export function TargetActions({ target, status, idPrefix }: { target: TargetRef;
         {!resolved ? (
           <form onSubmit={(e) => { e.preventDefault(); run("Resolve", () => dispatch({ type: "resolve", target, note: resolution }), () => setResolution("")); }}>
             <Field label="Resolution note"><textarea id={id("resolve")} value={resolution} onChange={(e) => setResolution(e.target.value)} /></Field>
-            {gate && !gate.allowed && (
+            {!gate.allowed && (
               <p className={ui.err} data-testid="resolve-blocked">Cannot resolve yet: {gate.reason} <code>{gate.code}</code></p>
             )}
-            {target.kind === "case" && <p className={ui.hint}>The engine checks whether this case can close; if it cannot, the reason appears above.</p>}
-            <Btn type="submit" size="small" style={{ marginTop: 6 }} disabled={(gate ? !gate.allowed : false) || !resolution.trim()}>Resolve</Btn>
+            <Btn type="submit" size="small" style={{ marginTop: 6 }} disabled={!gate.allowed || !resolution.trim()}>Resolve</Btn>
           </form>
         ) : (
           <form onSubmit={(e) => { e.preventDefault(); run("Reopen", () => dispatch({ type: "reopen", target, reason: reopenReason }), () => setReopenReason("")); }}>

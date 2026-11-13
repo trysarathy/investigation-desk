@@ -1,4 +1,16 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
+
+/** Sample scenario intent ids come from the engine (via the v1 test API), never hard-coded. */
+const ids = new Map<string, string>();
+async function scenario(request: APIRequestContext, key: string): Promise<string> {
+  if (!ids.size) {
+    const r = await request.get("/api/clearline/test/v1/intents", { headers: { Authorization: "Bearer cl_test_demo" } });
+    for (const i of (await r.json()).data as { id: string; scenario?: string }[]) if (i.scenario) ids.set(i.scenario, i.id);
+  }
+  const id = ids.get(key);
+  if (!id) throw new Error(`no sample intent for scenario ${key}`);
+  return `/clearline/payments/${id}`;
+}
 
 /** Fresh browser context per test = fresh localStorage = the deterministic sample workspace. */
 async function open(page: Page, path: string) {
@@ -33,8 +45,8 @@ async function connectToSubmitted(page: Page, ref: string, outcome = "success") 
   // Maker tries to approve their own instruction: the engine refuses.
   await page.locator("#checker").selectOption("usr_maya");
   await page.getByRole("button", { name: "Approve as checker" }).click();
-  // The engine refuses: a non-approver (role check) or the maker themself (maker ≠ checker).
-  await expect(page.getByText(/not applied — .*\((unauthorized_actor|maker_checker_violation)\)/)).toBeVisible();
+  // Separation of duties is checked before the role, so the maker sees maker_checker_violation.
+  await expect(page.getByText(/not applied — .*\(maker_checker_violation\)/)).toBeVisible();
   await page.locator("#checker").selectOption("usr_daniel");
   await page.getByRole("button", { name: "Approve as checker" }).click();
   await page.getByRole("button", { name: "Submit instruction" }).click();
@@ -60,7 +72,7 @@ test.describe("Clearline console", () => {
   test("scenario 1: successful payment keeps three separate dimensions", async ({ page }) => {
     await open(page, "/clearline/trial");
     await page.getByRole("link", { name: "Start case 01: Successful payment" }).click();
-    await expect(page).toHaveURL(/\/clearline\/payments\/pi_\d+$/); // documented scenario id resolves to the engine id
+    await expect(page).toHaveURL(/\/clearline\/payments\/pi_\d+$/); // trial link uses scenarioIntentId
     await expect(page.getByTestId("cl-workspace")).toHaveAttribute("data-hydrated", "true");
     await expect(page.getByTestId("dim-execution")).toContainText("Provider reports completed");
     await expect(page.getByTestId("dim-settlement")).toBeVisible();
@@ -71,11 +83,15 @@ test.describe("Clearline console", () => {
     await expect(tl).toContainText("Statement record");
     await expect(tl).toContainText("Matching decision");
     await expect(page.getByTestId("explanation")).toContainText("Known");
+    await expect(page.getByTestId("last-event")).toContainText("payout.completed");
+    await expect(page.getByTestId("last-verification")).not.toContainText("None yet");
   });
 
-  test("scenario 2: returned payout — assign, note, resolve gated by the engine", async ({ page }) => {
-    await open(page, "/clearline/payments/pi_s2_returned");
+  test("scenario 2: returned payout — assign, note, resolve gated by the engine", async ({ page, request }) => {
+    await open(page, await scenario(request, "s2_returned"));
     await expect(page.getByTestId("dim-execution")).toContainText("Returned");
+    await expect(page.getByTestId("dim-reconciliation")).toContainText("Exception");
+    await expect(page.getByTestId("return-status")).toContainText(/Return (reported by provider|confirmed by statement)/);
     const kase = page.locator("#case");
     await kase.getByLabel("Assign owner").selectOption("usr_maya");
     await kase.getByRole("button", { name: "Assign owner" }).click();
@@ -84,8 +100,9 @@ test.describe("Clearline console", () => {
     await kase.getByRole("button", { name: "Add note" }).click();
     await expect(kase.getByText("Called the supplier; account name differs.")).toBeVisible();
     await kase.getByLabel("Resolution note").fill("Trying to close early");
-    await kase.getByRole("button", { name: "Resolve" }).click();
-    await expect(kase.getByText(/Resolve not applied — .*\(/)).toBeVisible();
+    // canResolveCase explains the block before any click.
+    await expect(kase.getByTestId("resolve-blocked")).toContainText(/OPEN_EXCEPTIONS|OPEN_INFO_REQUESTS|HOLD_UNDECIDED/);
+    await expect(kase.getByRole("button", { name: "Resolve" })).toBeDisabled();
     await page.getByRole("link", { name: /Returned payout/ }).first().click();
     await expect(page).toHaveURL(/\/clearline\/exceptions/);
   });
@@ -108,8 +125,8 @@ test.describe("Clearline console", () => {
     await expect(hold).toContainText("Request more");
   });
 
-  test("scenario 4: Base Sepolia finality delay advances to verified evidence", async ({ page }) => {
-    await open(page, "/clearline/payments/pi_s4_chain");
+  test("scenario 4: Base Sepolia finality delay advances to verified evidence", async ({ page, request }) => {
+    await open(page, await scenario(request, "s4_chain"));
     await expect(page.getByTestId("dim-settlement")).toContainText(/Pending finality|Evidence observed/);
     await expect(page.locator("#chain")).toContainText("not a bank credit");
     for (let i = 0; i < 20; i++) {
@@ -137,8 +154,8 @@ test.describe("Clearline console", () => {
     await page.getByRole("button", { name: "Simulate next provider event" }).click();
     await expect(page).toHaveURL(new RegExp(`/clearline/payments/${id}$`));
     await expect(page.getByRole("heading", { level: 1 })).toContainText("INV-E2E-301");
-    await expect(page.getByTestId("evidence-timeline")).toContainText("Instruction prepared (maker)");
-    await expect(page.getByTestId("evidence-timeline")).toContainText("Checker decision: approved");
+    await expect(page.getByTestId("evidence-timeline")).toContainText("Instruction prepared (maker");
+    await expect(page.getByTestId("evidence-timeline")).toContainText("Instruction approved (checker");
     await expect(page.getByTestId("evidence-timeline")).toContainText("Provider event");
   });
 
@@ -173,19 +190,19 @@ test.describe("Clearline console", () => {
     await expect(page.locator('#payments a[href^="/clearline/payments/pi_"]')).toHaveCount(5);
   });
 
-  test("works when browser storage is unavailable", async ({ page }) => {
+  test("works when browser storage is unavailable", async ({ page, request }) => {
     await page.addInitScript(() => {
       Object.defineProperty(window, "localStorage", { get() { throw new Error("blocked"); } });
     });
     await open(page, "/clearline/settings");
     await expect(page.getByText(/Unavailable — changes last until you reload/)).toBeVisible();
-    await open(page, "/clearline/payments/pi_s1_success");
+    await open(page, await scenario(request, "s1_success"));
     await expect(page.getByTestId("dim-execution")).toBeVisible();
   });
 
-  test("investigation page is operable by keyboard alone with visible focus", async ({ page, isMobile }) => {
+  test("investigation page is operable by keyboard alone with visible focus", async ({ page, isMobile, request }) => {
     test.skip(isMobile, "keyboard walk runs on desktop");
-    await open(page, "/clearline/payments/pi_s4_chain");
+    await open(page, await scenario(request, "s4_chain"));
     await page.keyboard.press("Tab");
     await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
     await page.keyboard.press("Enter");
@@ -206,8 +223,8 @@ test.describe("Clearline console", () => {
     await expect(page.locator("#simulate").getByRole("status")).toContainText(/Provider event processed|No event simulated/);
   });
 
-  test("no horizontal page overflow on any console page", async ({ page }) => {
-    for (const path of ["/clearline", "/clearline/payments", "/clearline/payments/pi_s1_success", "/clearline/payments/pi_s2_returned",
+  test("no horizontal page overflow on any console page", async ({ page, request }) => {
+    for (const path of ["/clearline", "/clearline/payments", await scenario(request, "s1_success"), await scenario(request, "s2_returned"),
       "/clearline/investigations", "/clearline/exceptions", "/clearline/connect", "/clearline/connect/quotes", "/clearline/connect/activity",
       "/clearline/docs", "/clearline/control/reconciliation", "/clearline/control/liquidity", "/clearline/control/funding",
       "/clearline/control/holds", "/clearline/control/reports", "/clearline/settings", "/clearline/trial"]) {
@@ -226,13 +243,39 @@ test.describe("Clearline console", () => {
     expect((await request.get("/api/clearline/test/health")).status()).toBe(200);
     expect((await request.get("/mentor-demo")).status()).toBe(200);
     await open(page, "/clearline/docs");
-    await expect(page.getByRole("heading", { name: "Build on one payment lifecycle." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Test-mode API v1", level: 1 })).toBeVisible();
+    const spec = await request.get("/clearline/docs/openapi.yaml");
+    expect(spec.status()).toBe(200);
+    expect(spec.headers()["content-type"]).toContain("yaml");
+    expect(await spec.text()).toMatch(/^openapi: 3\.1/);
+  });
+
+  test("API reference documents v1 with real examples and the engine's enums", async ({ page, request }) => {
+    await open(page, "/clearline/docs");
+    await expect(page.getByRole("link", { name: "OpenAPI 3.1 (YAML)" })).toHaveAttribute("href", "/clearline/docs/openapi.yaml");
+    for (const v of ["provider_reported_completed", "pending_finality", "onchain_transfer", "partially_matched", "stored_late_no_regression", "maker_checker_violation"])
+      await expect(page.locator("main").getByText(v, { exact: true }).first()).toBeVisible();
+    await expect(page.getByTestId("example-webhook-late")).toContainText('"processingOutcome": "stored_late_no_regression"');
+    await expect(page.getByTestId("example-webhook-duplicate")).toContainText('"outcome": "duplicate_ignored"');
+    await expect(page.getByTestId("example-webhook-stale")).toContainText('"processingOutcome": "rejected_signature"');
+    await expect(page.getByTestId("example-self-approve")).toContainText("HTTP 403");
+    await expect(page.locator("#legacy")).toContainText("legacy");
+    // The live API still answers the way the captured example says.
+    const live = await request.post("/api/clearline/test/v1/intents", { headers: { Authorization: "Bearer cl_test_demo" }, data: { input: { amountMinor: 12.5 } } });
+    expect(live.status()).toBe(422);
+  });
+
+  test("exceptions queue shows engine due dates", async ({ page }) => {
+    await open(page, "/clearline/exceptions");
+    const due = page.locator('#queue td[data-label="Due"]');
+    await expect(due.first()).toHaveText(/^\d{4}-\d{2}-\d{2}$/);
+    expect(await due.filter({ hasText: "—" }).count()).toBe(0);
   });
 });
 
-test("breadcrumbs name the right section", async ({ page }) => {
+test("breadcrumbs name the right section", async ({ page, request }) => {
   await page.goto("/clearline/control/funding");
   await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toHaveText("ConsoleControlFunding exposure");
-  await page.goto("/clearline/payments/pi_s2_returned");
+  await page.goto(await scenario(request, "s2_returned"));
   await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText("Payments");
 });

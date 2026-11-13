@@ -3,23 +3,25 @@ import Link from "../Link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import {
-  CURRENCIES, RECONCILIATION_CODE_TEXT, formatMinor, parseAmount,
-  type CurrencyCode, type ReconciliationCode, type StatementLine, type StatementLineInput, type Workspace,
+  CURRENCIES, RECONCILIATION_CODE_GROUP, RECONCILIATION_CODE_TEXT, formatMinor, formatMinorPlain, parseAmount,
+  type CurrencyCode, type ReconciliationCodeGroup, type StatementLine, type StatementLineInput, type Workspace,
 } from "@/lib/clearline";
 import { errorText, useWorkspace } from "../workspace";
 import { Btn, Chip, Code, Empty, Field, Notice, PageHead, Panel, Status, type Tone, ui } from "../ui";
 
-/** Display grouping of the engine's explanation codes (codes stay visible on every row). */
-const GROUPS: { key: string; label: string; codes: ReconciliationCode[]; tone: Tone }[] = [
-  { key: "exact", label: "Exact", codes: ["RC_EXACT_REFERENCE_AMOUNT_CURRENCY_WINDOW", "RC_RETURN_CONFIRMS_PROVIDER_RETURN", "RC_REPAYMENT_BY_REFERENCE"], tone: "ok" },
-  { key: "partial", label: "Partial", codes: ["RC_PARTIAL_AMOUNT", "RC_OVERPAYMENT"], tone: "warn" },
-  { key: "unmatched", label: "Unmatched", codes: ["RC_NO_REFERENCE", "RC_UNKNOWN_REFERENCE", "RC_UNMATCHED_INCOMING", "RC_UNMATCHED_OUTGOING", "RC_OUTSIDE_TIME_WINDOW", "RC_LATE_STATEMENT"], tone: "bad" },
-  { key: "duplicate", label: "Duplicate", codes: ["RC_DUPLICATE_SUSPECTED"], tone: "bad" },
-  { key: "ambiguous", label: "Ambiguous", codes: ["RC_AMBIGUOUS_REFERENCE", "RC_AMOUNT_ONLY_CANDIDATES"], tone: "warn" },
-  { key: "currency", label: "Currency mismatch", codes: ["RC_CURRENCY_MISMATCH"], tone: "bad" },
-  { key: "contradiction", label: "Contradicts provider", codes: ["RC_RETURN_CONTRADICTS_PROVIDER_STATUS", "RC_PROVIDER_REPORT_ONLY"], tone: "bad" },
+/** Labels for the engine's code groups (RECONCILIATION_CODE_GROUP); codes stay visible on every row. */
+const GROUPS: { key: ReconciliationCodeGroup; label: string; tone: Tone }[] = [
+  { key: "exact", label: "Exact", tone: "ok" },
+  { key: "partial", label: "Partial", tone: "warn" },
+  { key: "unmatched", label: "Unmatched", tone: "bad" },
+  { key: "duplicate", label: "Duplicate", tone: "bad" },
+  { key: "ambiguous", label: "Ambiguous", tone: "warn" },
+  { key: "currency_mismatch", label: "Currency mismatch", tone: "bad" },
+  { key: "contradiction", label: "Contradicts provider", tone: "bad" },
+  { key: "return", label: "Returns", tone: "warn" },
+  { key: "informational", label: "Informational", tone: "neutral" },
 ];
-const inGroup = (l: StatementLine, key: string) => GROUPS.find((g) => g.key === key)!.codes.some((c) => l.explanationCodes.includes(c));
+const inGroup = (l: StatementLine, key: string) => l.explanationCodes.some((c) => RECONCILIATION_CODE_GROUP[c] === key);
 
 const LINE_STATUS: Record<StatementLine["status"], [string, Tone]> = {
   unallocated: ["Unallocated", "bad"], allocated: ["Allocated", "ok"], partially_allocated: ["Partially allocated", "warn"], exception: ["Exception", "bad"],
@@ -35,12 +37,12 @@ function presets(ws: Workspace): { label: string; form: Form }[] {
   const last = ws.statementLines[ws.statementLines.length - 1];
   const out = [{ label: "Credit with no reference", form: base }];
   if (sent && ins?.providerPaymentId) {
-    const amt = formatMinor(ins.amountMinor, ins.currency).replace(/[^0-9.]/g, "");
+    const amt = formatMinorPlain(ins.amountMinor, ins.currency);
     out.push({ label: `Debit for ${sent.internalReference} (by provider reference)`, form: { ...base, lineId: `BANK-L${String(n).padStart(4, "0")}`, direction: "debit", reference: ins.providerPaymentId, amount: amt, currency: ins.currency, counterparty: ins.providerId } });
     out.push({ label: `Same reference, wrong currency`, form: { ...base, direction: "debit", reference: ins.providerPaymentId, amount: amt, currency: ins.currency === "USD" ? "SGD" : "USD", counterparty: ins.providerId } });
   }
   if (last) {
-    out.push({ label: `Possible duplicate of ${last.lineId}`, form: { ...last, lineId: `BANK-L${String(n).padStart(4, "0")}`, amount: formatMinor(last.amountMinor, last.currency).replace(/[^0-9.]/g, "") } });
+    out.push({ label: `Possible duplicate of ${last.lineId}`, form: { ...last, lineId: `BANK-L${String(n).padStart(4, "0")}`, amount: formatMinorPlain(last.amountMinor, last.currency) } });
   }
   return out;
 }
@@ -81,7 +83,7 @@ export default function Reconciliation() {
       </nav>
       <Panel title={`Statement lines (${lines.length})`} id="lines">
         {lines.length === 0 ? <Empty>No statement lines in this view. Ingest a sample line below.</Empty> : (
-          <div className={ui.tableWrap}>
+          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Statement lines">
             <table className={`${ui.table} ${ui.stack}`}>
               <thead><tr><th>Line</th><th>Source</th><th>Direction</th><th className={ui.r}>Amount</th><th>Reference</th><th>Value date</th><th>Status</th><th>Explanation</th><th>Allocated to</th></tr></thead>
               <tbody>{lines.map((l) => {

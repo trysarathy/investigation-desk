@@ -1,31 +1,35 @@
 "use client";
 import Link from "../Link";
-import { useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
-import { exportCaseReport, formatMoney, getIntent, investigate, timelineFor, type Finding } from "@/lib/clearline";
+import { useMemo } from "react";
+import { evidenceTimelineFor, exportCaseReport, formatMoney, getIntent, investigate, type EvidenceTimelineKind, type Finding, type ProcessingOutcome } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
 import { ExecChip, ReconChip, SCOPE, SettleChip, RAIL, HoldChip, AdvChip, OutcomeChip, human } from "../labels";
-import { evidenceTimeline } from "../evidence";
 import { SimulateEvent } from "../SimulateEvent";
 import { TargetActions } from "../TargetActions";
 import { Btn, Chip, Code, Empty, Notice, PageHead, Panel, fmtTime, ui } from "../ui";
 import { download } from "../download";
+
+const KIND_LABEL: Record<EvidenceTimelineKind, string> = {
+  intent_created: "Intent", quote: "Route and quote", instruction_made: "Maker", instruction_checked: "Checker decision",
+  provider_event: "Provider event", statement_line: "Statement record", allocation: "Matching decision", chain_observation: "Chain evidence",
+  evidence: "Evidence", hold_decision: "Compliance hold", exception: "Exception", missing_evidence: "Missing evidence",
+};
+const PROBLEM_OUTCOMES: ProcessingOutcome[] = ["duplicate_ignored", "stored_late_no_regression", "contradictory_exception_raised", "rejected_signature", "rejected_unknown_payment"];
+const RETURN_STATUS = { provider_reported: "Return reported by provider", confirmed_by_statement: "Return confirmed by statement" } as const;
 
 function Findings({ items, empty }: { items: Finding[]; empty: string }) {
   if (!items.length) return <p className={ui.hint} style={{ margin: 0 }}>{empty}</p>;
   return <ul>{items.map((f, i) => <li key={i}>{f.text} <Code>{f.code}</Code></li>)}</ul>;
 }
 
-export default function Investigation({ id: requested }: { id: string }) {
+export default function Investigation({ id }: { id: string }) {
   const { ws, hydrated, actorName } = useWorkspace();
-  const router = useRouter();
-  // Accepts the documented scenario ids (pi_s1_success …) by the engine's intent.scenario label (UI_REQUESTS R1).
-  const intent = getIntent(ws, requested) ?? ws.intents.find((i) => i.scenario && `pi_${i.scenario}` === requested);
-  const id = intent?.id ?? requested;
-  useEffect(() => { if (hydrated && intent && intent.id !== requested) router.replace(`/clearline/payments/${intent.id}`); }, [hydrated, intent, requested, router]);
+  const intent = getIntent(ws, id);
   const res = useMemo(() => (intent ? investigate(ws, id) : null), [ws, id, intent]);
   const view = res && res.ok ? res.value : null;
-  const tl = useMemo(() => (view ? evidenceTimeline(ws, id, actorName, view.unknowns) : []), [ws, id, view, actorName]);
+  // The engine's unified evidence timeline (UI_REQUESTS R2); provider events are looked up only to show their outcome chip.
+  const tl = useMemo(() => (view ? evidenceTimelineFor(ws, id) : []), [ws, id, view]);
+  const outcomeOf = (eventId: string) => ws.providerEvents.find((e) => e.id === eventId)?.processingOutcome;
 
   if (!intent || !view) {
     if (!hydrated) return <p className={ui.empty} role="status">Loading payment…</p>;
@@ -37,9 +41,7 @@ export default function Investigation({ id: requested }: { id: string }) {
     );
   }
 
-  const events = timelineFor(ws, id);
-  const last = events[events.length - 1];
-  const lastIndependent = tl.filter((e) => e.independent && e.at).map((e) => e.at!).sort().pop();
+  const hasProviderEvents = tl.some((e) => e.kind === "provider_event");
   const kase = view.caseId ? ws.cases.find((c) => c.id === view.caseId) : undefined;
   const amount = formatMoney(view.requested.amount);
 
@@ -71,9 +73,9 @@ export default function Investigation({ id: requested }: { id: string }) {
           <dl className={ui.dl} style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--cl-line)" }} data-testid="status-dimensions">
             <div><dt>Execution (provider-reported)</dt><dd data-testid="dim-execution"><ExecChip v={view.status.execution} /></dd></div>
             <div><dt>Settlement evidence</dt><dd data-testid="dim-settlement"><SettleChip v={view.status.settlement} /><span className={ui.sub}>Scope: {SCOPE[view.status.settlementScope]}</span></dd></div>
-            <div><dt>Reconciliation</dt><dd data-testid="dim-reconciliation"><ReconChip v={view.status.reconciliation} /></dd></div>
-            <div><dt>Last event</dt><dd className="num">{last ? <>{last.normalizedType}<span className={ui.sub}>{fmtTime(last.receivedAt)}</span></> : "No provider events yet"}</dd></div>
-            <div><dt>Last independent verification</dt><dd className="num">{lastIndependent ? fmtTime(lastIndependent) : "None yet"}</dd></div>
+            <div><dt>Reconciliation</dt><dd data-testid="dim-reconciliation"><ReconChip v={view.status.reconciliation} />{intent.returnStatus && <span className={ui.sub} data-testid="return-status">{RETURN_STATUS[intent.returnStatus]}. The supplier is still unpaid.</span>}</dd></div>
+            <div><dt>Last event</dt><dd className="num" data-testid="last-event">{view.lastEventAt ? <>{view.lastEventType}<span className={ui.sub}>{fmtTime(view.lastEventAt)}</span></> : "No provider events yet"}</dd></div>
+            <div><dt>Last independent verification</dt><dd className="num" data-testid="last-verification">{view.lastIndependentVerificationAt ? fmtTime(view.lastIndependentVerificationAt) : "None yet"}</dd></div>
           </dl>
         </div>
       </Panel>
@@ -132,22 +134,25 @@ export default function Investigation({ id: requested }: { id: string }) {
       <Panel title="Evidence timeline" id="timeline">
         {tl.length === 0 ? <Empty>No evidence recorded yet.</Empty> : (
           <ol className={ui.timeline} data-testid="evidence-timeline">
-            {tl.map((e) => (
-              <li key={e.key} className={`${ui.tlItem} ${e.problem ? ui.tlProblem : ""}`}>
-                <span className={ui.tlTime}>{e.at ? fmtTime(e.at) : "Not yet received"}</span>
-                <div>
-                  <p className={ui.tlTitle}>
-                    <Chip tone={e.kind === "missing" || e.kind === "exception" ? "bad" : e.independent ? "ok" : "neutral"}>{e.kindLabel}</Chip>
-                    {e.title}
-                    {e.outcome && <OutcomeChip v={e.outcome} />}
-                    {e.independent !== undefined && <Chip tone={e.independent ? "ok" : "neutral"}>{e.independent ? "Independent" : "Not independent"}</Chip>}
-                  </p>
-                  <p className={ui.tlMeta}>Source: {e.source} · Provenance: {e.provenance}</p>
-                  {e.details.map((d, i) => <p key={i} className={ui.tlMeta}>{d}</p>)}
-                  {e.codes.length > 0 && <p className={ui.tlMeta}>{e.codes.map((c) => <Code key={c}>{c}</Code>)}</p>}
-                </div>
-              </li>
-            ))}
+            {tl.map((e) => {
+              const outcome = e.kind === "provider_event" ? outcomeOf(e.refs[0]) : undefined;
+              const problem = e.kind === "missing_evidence" || e.kind === "exception" || (outcome !== undefined && PROBLEM_OUTCOMES.includes(outcome));
+              return (
+                <li key={e.id} className={`${ui.tlItem} ${problem ? ui.tlProblem : ""}`}>
+                  <span className={ui.tlTime}>{e.kind === "missing_evidence" ? "Not yet received" : fmtTime(e.at)}</span>
+                  <div>
+                    <p className={ui.tlTitle}>
+                      <Chip tone={e.kind === "missing_evidence" || e.kind === "exception" ? "bad" : e.independent ? "ok" : "neutral"}>{KIND_LABEL[e.kind]}</Chip>
+                      {e.title}
+                      {outcome && <OutcomeChip v={outcome} />}
+                      <Chip tone={e.independent ? "ok" : "neutral"}>{e.independent ? "Independent" : "Not independent"}</Chip>
+                    </p>
+                    <p className={ui.tlMeta}>Source: {e.source} · Provenance: {human(e.provenance)}</p>
+                    {e.codes.length > 0 && <p className={ui.tlMeta}>{e.codes.map((c) => <Code key={c}>{c}</Code>)}</p>}
+                  </div>
+                </li>
+              );
+            })}
           </ol>
         )}
       </Panel>
@@ -189,7 +194,7 @@ export default function Investigation({ id: requested }: { id: string }) {
           </>
         )}
       </Panel>
-      {events.length === 0 && <Notice info>No provider events yet. Use “Simulate next provider event” after the instruction is submitted.</Notice>}
+      {!hasProviderEvents && <Notice info>No provider events yet. Use “Simulate next provider event” after the instruction is submitted.</Notice>}
     </>
   );
 }

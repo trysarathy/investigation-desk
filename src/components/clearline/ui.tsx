@@ -125,5 +125,6 @@ export function fmtTime(iso: string | null | undefined): string {
   return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} SGT`;
 }
 export function fmtDate(iso: string | null | undefined): string {
-  return iso ? fmtTime(iso).slice(0, 10) : "—";
+  if (!iso) return "—";
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : fmtTime(iso).slice(0, 10);
 }

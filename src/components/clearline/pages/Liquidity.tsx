@@ -24,13 +24,13 @@ export default function Liquidity() {
         </div>
       </Panel>
       <Panel title="Provider balances" id="balances">
-        <div className={ui.tableWrap}>
+        <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Provider balances">
           <table className={`${ui.table} ${ui.stack}`}>
             <thead><tr><th>Provider / account</th><th>Source and as-of</th><th className={ui.r}>Reported eligible</th><th className={ui.r}>Restricted</th><th className={ui.r}>Safeguarded</th><th className={ui.r}>Committed payouts</th><th className={ui.r}>Buffer</th><th className={ui.r}>Usable</th><th>Freshness</th></tr></thead>
             <tbody>
               {v.rows.map((r) => (
                 <tr key={r.id}>
-                  <td data-label="Provider / account">{r.providerId}<span className={ui.sub + " mono"}>{r.accountRef} · {r.currency}</span></td>
+                  <td data-label="Provider / account">{r.providerName}<span className={ui.sub + " mono"}>{r.providerId} · {r.accountRef} · {r.currency}</span></td>
                   <td data-label="Source and as-of">{r.source}<span className={ui.sub}>{fmtTime(r.asOf)} · {r.ageMinutes} min old</span></td>
                   <td data-label="Reported eligible" className={`${ui.r} ${ui.num}`}>{formatMinor(r.eligibleMinor, r.currency)}</td>
                   <td data-label="Restricted" className={`${ui.r} ${ui.num}`}>{formatMinor(r.restrictedMinor, r.currency)}</td>

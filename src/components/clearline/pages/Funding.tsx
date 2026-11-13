@@ -42,7 +42,7 @@ export default function Funding() {
             </div>
             <div className={ui.panelHead} style={{ borderTop: "1px solid var(--cl-line)" }}><h3>Repayments allocated (evidence)</h3></div>
             {r.allocations.length === 0 ? <Empty>No repayments allocated yet.</Empty> : (
-              <div className={ui.tableWrap}>
+              <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Repayments allocated">
                 <table className={`${ui.table} ${ui.stack}`}>
                   <thead><tr><th>Allocated</th><th>Statement line</th><th className={ui.r}>Amount</th><th>Matched by</th><th>Evidence</th></tr></thead>
                   <tbody>{r.allocations.map((a) => (

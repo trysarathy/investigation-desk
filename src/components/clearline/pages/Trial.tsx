@@ -2,21 +2,22 @@
 import Link from "../Link";
 import { useState } from "react";
 import { MARKETING_URL, CONTACT_MAILTO } from "../nav";
+import { scenarioIntentId } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
 import { Btn, LinkBtn, Notice, Panel, Status, ui } from "../ui";
 
-type Case = { n: string; title: string; area: string; href: string; start: string; action: string[]; expect: string[]; limits: string };
+type Case = { n: string; title: string; area: string; href: string; scenario?: string; start: string; action: string[]; expect: string[]; limits: string };
 
 const CASES: Case[] = [
   {
-    n: "01", title: "Successful payment", area: "Workspace · Investigation", href: "/clearline/payments/pi_s1_success",
+    n: "01", title: "Successful payment", area: "Workspace · Investigation", href: "/clearline/payments", scenario: "s1_success",
     start: "A supplier payout the sandbox provider reports as completed, plus a separate bank statement line.",
     action: ["Open the payment.", "Read the three status dimensions in the header.", "In the evidence timeline, find the provider event and the statement line, each with its source."],
     expect: ["Execution says the provider reports completion — not “payment successful”.", "Settlement evidence comes from the bank statement line, matched by trusted reference (code RC_EXACT_REFERENCE_AMOUNT_CURRENCY_WINDOW).", "Reconciliation is shown separately as matched."],
     limits: "The statement line is fictional; no bank is connected.",
   },
   {
-    n: "02", title: "Returned payout", area: "Investigation · Exceptions", href: "/clearline/payments/pi_s2_returned",
+    n: "02", title: "Returned payout", area: "Investigation · Exceptions", href: "/clearline/payments", scenario: "s2_returned",
     start: "The beneficiary's bank rejected the payout; the provider reported a return and a return line arrived on the statement.",
     action: ["Open the payment and read the explanation panel.", "In the case section, assign an owner and add a note.", "Try to resolve the case or its exception."],
     expect: ["The explanation names what is known, what is not yet known, and what is still financially outstanding.", "Resolve is refused until the engine's conditions are met, and the reason is shown.", "Every action appears in the case history and the audit log."],
@@ -30,7 +31,7 @@ const CASES: Case[] = [
     limits: "Clearline makes no compliance decision; the partner and your reviewer do.",
   },
   {
-    n: "04", title: "Base Sepolia finality delay", area: "Investigation · Chain evidence", href: "/clearline/payments/pi_s4_chain",
+    n: "04", title: "Base Sepolia finality delay", area: "Investigation · Chain evidence", href: "/clearline/payments", scenario: "s4_chain",
     start: "A testnet USDC transfer has been observed on Base Sepolia but does not yet have enough confirmations.",
     action: ["Open the payment and read the chain evidence panel.", "Use “Simulate next provider event” to deliver more confirmations.", "Watch settlement evidence move from pending finality towards verified."],
     expect: ["Settlement evidence is pending finality until the confirmation threshold is reached.", "The scope says on-chain transfer — it never claims a bank credit.", "Only the allow-listed testnet token on chain 84532 is accepted."],
@@ -46,7 +47,9 @@ const CASES: Case[] = [
 ];
 
 export default function Trial() {
-  const { reset } = useWorkspace();
+  const { reset, ws } = useWorkspace();
+  // Scenario payments are looked up in the workspace (ids come from the engine); after "start empty" the link falls back to the payments list.
+  const hrefOf = (c: Case) => { const id = c.scenario ? scenarioIntentId(ws, c.scenario) : undefined; return id ? `/clearline/payments/${id}` : c.href; };
   const [msg, setMsg] = useState<{ text: string } | null>(null);
   const doReset = () => { reset("sample"); setMsg({ text: "Workspace reset to the sample. All five cases are back at their starting state." }); };
   return (
@@ -84,7 +87,7 @@ export default function Trial() {
             </div>
             <p className={ui.hint}><strong>Limitation:</strong> {c.limits}</p>
             <div className={ui.actions}>
-              <LinkBtn href={c.href} kind="primary">Start case {c.n}: {c.title}</LinkBtn>
+              <LinkBtn href={hrefOf(c)} kind="primary">Start case {c.n}: {c.title}</LinkBtn>
               <Btn size="small" onClick={doReset}>Reset to starting state</Btn>
             </div>
           </div>

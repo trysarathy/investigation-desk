@@ -33,7 +33,7 @@ export default function Payments() {
       )}
       <Panel title={`${rows.length} payment${rows.length === 1 ? "" : "s"}`} id="payments">
         {rows.length === 0 ? <Empty>No payments match. <Link href="/clearline/connect">Create a payment intent</Link> or <Link href="/clearline/settings">reset to the sample workspace</Link>.</Empty> : (
-          <div className={ui.tableWrap}>
+          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Payments">
             <table className={`${ui.table} ${ui.stack}`}>
               <thead><tr><th>Payment</th><th>Beneficiary</th><th className={ui.r}>Amount</th><th>Provider / rail</th><th>Execution</th><th>Settlement evidence</th><th>Reconciliation</th><th>Open exceptions</th></tr></thead>
               <tbody>
