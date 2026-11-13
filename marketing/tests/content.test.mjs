@@ -537,3 +537,38 @@ test("rc3 every page is present, built (when out/ exists) and reachable from the
   }
   assert.equal(Object.keys(PAGES).length, 11);
 });
+
+test("rc3 no real bank, payment company or institution is named in sample data or copy (outside an explicit disclaimer)", () => {
+  // Case-sensitive brand names, word-bounded, so ordinary words ("otherwise", "a filled circle") do not match.
+  const names = ["DBS", "OCBC", "UOB", "HSBC", "Citi", "Citibank", "Citigroup", "JPMorgan", "J.P. Morgan", "JP Morgan", "Chase", "Standard Chartered", "StanChart",
+    "Maybank", "CIMB", "Barclays", "Deutsche Bank", "Bank of America", "Wells Fargo", "BNP Paribas", "Santander", "Goldman Sachs", "Morgan Stanley", "Bank of China",
+    "ICBC", "Mizuho", "MUFG", "SMBC", "Revolut", "Wise", "Airwallex", "Payoneer", "Stripe", "Adyen", "Nium", "Thunes", "Rapyd", "Visa", "Mastercard", "SWIFT",
+    "Fireblocks", "Circle Internet", "Coinbase", "Binance", "Paxos", "MAS", "Monetary Authority"];
+  const re = new RegExp("(^|[^A-Za-z])(" + names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")(?![A-Za-z])");
+  // An explicit disclaimer on the same line ("not a real bank", "no real bank is named") is the only exception.
+  const disclaimer = /not a real (bank|institution|company)|no real (bank|institution) is named/i;
+  const data = ["lib/sample.ts", "lib/investigations.ts", "lib/cases.ts", "lib/disclosure.ts"];
+  for (const f of [...new Set([...data, ...copySources])]) {
+    read(f).split("\n").forEach((line, i) => {
+      const m = line.match(re);
+      if (m && !disclaimer.test(line)) assert.fail(`${f}:${i + 1} names a real institution ("${m[2]}"): ${line.trim().slice(0, 120)}`);
+    });
+  }
+  // The engine's fictional statement line ids are used, not the retired bank-named ones.
+  assert.match(read("lib/sample.ts"), /SIMBANK-0001/); assert.match(read("lib/investigations.ts"), /SIMBANK-0002/);
+  // Self-check: the guard does catch a real name.
+  assert.ok(re.test("Debit SGD 1.00 · DBS-SIM-0001") && re.test("via HSBC") && !re.test("otherwise a filled circle"));
+});
+
+test("rc3 return position is the engine's own, and net zero is never claimed when the engine does not establish it", () => {
+  const inv = read("lib/investigations.ts");
+  const data = JSON.parse(inv.slice(inv.indexOf("INVESTIGATIONS: Investigation[] = ") + 34, inv.lastIndexOf(";")));
+  const s2 = data.find(d => d.scenario === "s2_returned");
+  assert.equal(s2.returnStatusText, "Return confirmed on the statement");
+  assert.ok(s2.returnPosition && s2.returnPosition.beneficiaryPaid === false);
+  assert.match(read("components/InvestigationView.tsx"), /p\.returnPosition\.text/);
+  if (!s2.returnPosition.netMovementZero) for (const f of copySources.filter(f => !f.endsWith("investigations.ts")))
+    assert.equal(/net (movement )?(is )?zero(?! only| is not| not)/i.test(read(f).replace(/net zero is not established/g, "")), false, f + " claims a net-zero return the engine does not establish");
+  // Engine functions not yet in the console are not described as available.
+  for (const f of copySources) assert.equal(/buildCaseReport|resetScenario|reset (a|one|each) case|per-case reset|CSV case report/i.test(read(f)), false, f);
+});

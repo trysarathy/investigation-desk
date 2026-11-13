@@ -95,7 +95,8 @@ export default function InvestigationView({ initial = "s2_returned", compact = f
           <div {...truth("reconciliation")}>
             <dt><span className="label">Reconciliation</span><span className="iv-q">Whether the records match</span></dt>
             <dd><ReconStatus state={p.status.reconciliation} />
-              {p.returnStatusText && <p className="iv-why">{p.returnStatusText}. The supplier is still unpaid. <code className="st-api">returnStatus {p.returnStatus}</code></p>}
+              {p.returnStatusText && <p className="iv-why">{p.returnStatusText}. <code className="st-api">returnStatus {p.returnStatus}</code></p>}
+              {p.returnPosition && <p className="iv-why">{p.returnPosition.text} <code className="st-api">{p.returnPosition.code}</code></p>}
               <p className="iv-why">{matches ? `${matches} record${matches === 1 ? "" : "s"} matched by trusted reference.` : "No record matched to this payment yet."}{open ? ` ${open} open exception${open === 1 ? "" : "s"}.` : ""}</p></dd>
           </div>
         </dl>
