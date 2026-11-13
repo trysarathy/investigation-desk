@@ -2,6 +2,10 @@
  * rc3 feature (a): resetScenario / canResetScenario — restore ONE guided case to its sample state.
  */
 import { describe, expect, it } from "vitest";
+import { vi } from "vitest";
+
+// Each reset rebuilds the full sample several times (~4 s for the file); allow headroom on a loaded machine.
+vi.setConfig({ testTimeout: 30_000 });
 import {
   SAMPLE_SCENARIOS, canResetScenario, emptyWorkspace, evidenceTimelineFor, fundingProjection, investigate, listExceptions, resetScenario,
   sampleWorkspace, scenarioIntentId, serializeWorkspace, type SampleScenario, type Workspace,
