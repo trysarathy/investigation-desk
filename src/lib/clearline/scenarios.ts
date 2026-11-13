@@ -137,6 +137,11 @@ function ownership(ws: Workspace): Map<string, Set<string>> {
   return roots;
 }
 
+/** Internal (tests): owner set of every record id in the workspace (scenario keys and "user:<id>"). */
+export function scenarioOwnership(ws: Workspace): Map<string, Set<string>> {
+  return ownership(ws);
+}
+
 function resolveScenario(input: string): SampleScenario | undefined {
   if (Object.prototype.hasOwnProperty.call(SAMPLE_SCENARIOS, input)) return input as SampleScenario;
   const p = pristine();

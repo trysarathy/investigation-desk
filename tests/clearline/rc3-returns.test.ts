@@ -43,10 +43,30 @@ describe("rc3 R-1: net movement and beneficiary-unpaid are two separate facts", 
     expect(view(ws, id).returnPosition).toMatchObject({ netMovementZero: true, beneficiaryPaid: false });
   });
 
-  it("the sample's returned payout (return credit on the statement, no debit line) does not claim net zero", () => {
+  it("the sample's returned payout (debit, then return, then return credit) shows net movement zero AND beneficiary unpaid; settlement never verified; an owned exception stays open", () => {
+    // rc3 follow-up: the s2 sample now has the outgoing debit (SIMBANK-0002) before payout.returned and the
+    // return credit (SIMBANK-0006) after it. (v2 sample: return credit only → RT_DEBIT_NOT_ON_STATEMENT,
+    // which is still covered below on a constructed payout.)
     const ws = sampleWorkspace();
-    const v = view(ws, scenarioIntentId(ws, "s2_returned")!);
-    expect(v.returnPosition).toMatchObject({ returnStatus: "confirmed_by_statement", code: "RT_DEBIT_NOT_ON_STATEMENT", netMovementZero: false, beneficiaryPaid: false, debited: { amountMinor: 0 }, returnCredited: { amountMinor: 1_278_490, currency: "USD" } });
+    const id = scenarioIntentId(ws, "s2_returned")!;
+    const v = view(ws, id);
+    expect(v.returnPosition).toMatchObject({
+      returnStatus: "confirmed_by_statement", code: "RT_NET_ZERO", netMovementZero: true, beneficiaryPaid: false,
+      debited: { amountMinor: 1_278_490, currency: "USD" }, returnCredited: { amountMinor: 1_278_490, currency: "USD" }, netMovement: { amountMinor: 0, currency: "USD" },
+    });
+    expect(v.status).toEqual({ execution: "returned", settlement: "contradicted", settlementScope: "bank_statement", reconciliation: "exception" });
+    expect(describeStatus(v.status).summary).not.toMatch(/verified|delivered|paid/i);
+    const open = listExceptions(ws, { intentId: id, status: "unresolved" });
+    expect(open.map((e) => [e.category, e.ownerId])).toEqual([["returned_payout", "usr_maya"]]);
+    expect(v.explanationCodes).toEqual(expect.arrayContaining(["RT_NET_ZERO", "RT_BENEFICIARY_UNPAID", "OS_RETURN_RECEIVED_SUPPLIER_UNPAID"]));
+  });
+
+  it("a return credit on the statement without the outgoing debit does not claim net zero (RT_DEBIT_NOT_ON_STATEMENT)", () => {
+    let { ws, id, ppid } = submitted({ sandboxOutcome: "return" });
+    ws = sim(sim(ws, id).workspace, id).workspace;
+    ws = run(ws, "usr_maya", { type: "ingest_statement_line", line: returnLine(ppid) }).workspace;
+    const v = view(ws, id);
+    expect(v.returnPosition).toMatchObject({ returnStatus: "confirmed_by_statement", code: "RT_DEBIT_NOT_ON_STATEMENT", netMovementZero: false, beneficiaryPaid: false, debited: { amountMinor: 0 }, returnCredited: { amountMinor: 1_000_000, currency: "SGD" } });
     expect(v.returnPosition!.netMovement).toBeUndefined();
   });
 
