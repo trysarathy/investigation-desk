@@ -258,3 +258,6 @@ code.inline { font-size: .9em; background: var(--cl-sand); padding: 1px 5px; bor
 .grid-2 > *, .grid-3 > *, .grid-4 > *, .split > *, .arch > *, .arch-col > *, .home-hero-grid > *, .record-cols > *, .founder > *, .contact-band-grid > *, .footer-grid > *, .list-rows > * > * { min-width: 0; }
 .text-link, .footer-col a, .glance dd, .caption { overflow-wrap: anywhere; }
 pre.code { max-width: 100%; }
+/* Contain visually hidden (.sr-only, absolutely positioned) text inside scroll regions and tags. */
+.table-wrap, .st-exec, .st-evidence, .st-recon, .btn, .stage, pre.code { position: relative; }
+body { overflow-wrap: break-word; } p, li, dd { overflow-wrap: anywhere; }
