@@ -4,7 +4,7 @@
  * `preview`) whether the action would be accepted; a refused action is disabled and shows the
  * engine's reason in plain words. After a click the message reports what the engine recorded.
  */
-import { useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import type { ActionResult, Workspace, WorkspaceAction } from "@/lib/clearline";
 import { describeError, label } from "./human";
 import { useWorkspace } from "./workspace";
@@ -20,6 +20,20 @@ export function gateOf(r: ActionResult | null, ws: Workspace, need?: string | fa
   if (r.ok) return { ok: true };
   const h = describeError(r.error, ws);
   return { ok: false, reason: h.text, code: h.reasonCode ? `${r.error.code} · ${h.reasonCode}` : r.error.code };
+}
+
+/**
+ * The typed value, settled for `ms`. Dry runs use the person's real text (review rc3 m5), without
+ * re-running the engine on every keystroke; the workspace's dry-run cache keeps unchanged parts free.
+ */
+export function useSettled<T>(value: T, ms = 200): T {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    if (Object.is(v, value)) return;
+    const t = window.setTimeout(() => setV(value), ms);
+    return () => window.clearTimeout(t);
+  }, [value, ms, v]);
+  return v;
 }
 
 /** Dispatches through the engine and words the result. No success message unless the engine recorded it. */
