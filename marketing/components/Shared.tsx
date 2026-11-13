@@ -1,15 +1,150 @@
 import Link from "next/link";
-import type {ReactNode} from "react";
-export const DEMO="https://investigation-desk-git-demo-mentor-funding-desk-sarathyv2.vercel.app/mentor-demo";
-export const PRODUCT_DEMO=process.env.NEXT_PUBLIC_PRODUCT_DEMO_URL?.startsWith("https://")?process.env.NEXT_PUBLIC_PRODUCT_DEMO_URL:"https://clearline-customer-trial-sarathyv2.vercel.app/clearline/trial";
-export const LINKEDIN="https://www.linkedin.com/in/aashmiin-kaur-479665391";
-export const EMAIL="aashmiin.k.2025@accountancy.smu.edu.sg";
-export const BOOKING=process.env.NEXT_PUBLIC_BOOKING_URL?.startsWith("https://")?process.env.NEXT_PUBLIC_BOOKING_URL:undefined;
-export function Logo(){return <Link href="/" className="brand-link" aria-label="Clearline home"><span className="brand-mark">C</span><span className="brand-word">clearline<span className="brand-dot">.</span></span></Link>}
-export function Arrow({diagonal=false}:{diagonal?:boolean}){return <span className="inline-block" aria-hidden="true">{diagonal?"↗":"→"}</span>}
-export function Tag({children,dark=false}:{children:ReactNode;dark?:boolean}){return <span className={dark?"eyebrow text-[#F1C0AD]":"eyebrow text-pine"}>{children}</span>}
-export function ButtonLink({href,children,outline=false,external=false}:{href:string;children:ReactNode;outline?:boolean;external?:boolean}){const c=outline?"btn btn-outline":"btn btn-primary";return external?<a className={c} href={href} target="_blank" rel="noopener noreferrer">{children}<Arrow diagonal/></a>:<Link className={c} href={href}>{children}<Arrow/></Link>}
-export function Header(){return <header className="site-header"><div className="container-site flex min-h-[76px] items-center justify-between gap-5"><Logo/><nav className="hidden items-center gap-9 lg:flex" aria-label="Main navigation"><Link href="/#platform">Platform</Link><Link href="/#how-it-works">How it works</Link><Link href="/#proof">Why Clearline</Link><Link href="/replay">Customer trial</Link></nav><div className="hidden items-center gap-5 md:flex"><a className="header-demo" href={PRODUCT_DEMO} target="_blank" rel="noopener noreferrer">Guided product demo ↗</a><Link className="header-cta" href="/replay#contact">Talk to us <Arrow/></Link></div><details className="group relative md:hidden"><summary className="cursor-pointer list-none rounded border border-line px-3 py-2 text-sm font-medium">Menu</summary><nav className="mobile-nav" aria-label="Mobile navigation"><Link href="/#platform">Platform</Link><Link href="/#how-it-works">How it works</Link><Link href="/#proof">Why Clearline</Link><Link href="/replay">Customer trial</Link><Link href="/onchain">Onchain</Link><a href={PRODUCT_DEMO} target="_blank" rel="noreferrer">Guided product demo ↗</a></nav></details></div></header>}
-export function Footer(){return <footer className="site-footer"><div className="container-site"><div className="grid gap-12 py-16 md:grid-cols-[1.6fr_.7fr_.7fr]"><div><Logo/><p className="mt-6 max-w-[390px] text-[14px] leading-8 text-[#67736B]">A clearer operating picture for money moving across financial rails.</p><p className="mt-4 max-w-[420px] text-xs leading-6 text-[#67736B]">Working prototype · Fictional data · No real payment execution.</p></div><div className="footer-links"><span>Product</span><Link href="/#platform">Connect & Control</Link><a href={PRODUCT_DEMO} target="_blank" rel="noreferrer">Guided product demo ↗</a><Link href="/replay">Five-case replay</Link><Link href="/onchain">Onchain development</Link></div><div className="footer-links"><span>Company</span><a href={"mailto:"+EMAIL}>Email us ↗</a><a href={LINKEDIN} target="_blank" rel="noreferrer">Founder on LinkedIn ↗</a><Link href="/privacy">Privacy</Link></div></div><div className="flex flex-wrap justify-between gap-3 border-t border-line py-6 font-mono text-[10px] tracking-wide text-quiet"><span>© {new Date().getUTCFullYear()} Clearline · Singapore</span><span>Clearline does not hold funds, lend, or make credit or compliance decisions.</span></div></div></footer>}
-export function SectionHead({eyebrow,title,description}:{eyebrow:string;title:string;description?:string}){return <div className="max-w-[790px]"><Tag>{eyebrow}</Tag><h2 className="section-heading mt-5">{title}</h2>{description&&<p className="mt-6 max-w-[630px] text-[16px] leading-8 text-quiet">{description}</p>}</div>}
-export function ContactCTA(){return <section className="bg-[#17212D] py-20 text-white"><div className="container-site flex flex-col justify-between gap-10 md:flex-row md:items-end"><div className="max-w-2xl"><Tag dark>START SMALL</Tag><h2 className="mt-6 text-[clamp(2.2rem,4vw,3.9rem)] font-semibold leading-[1.13] tracking-[-.06em]">Bring a difficult payment story. We'll start there.</h2><p className="mt-6 text-[15px] leading-8 text-[#F2DDD1]">Explore five synthetic cases together, then discuss a redacted historical replay. No live payment connection is needed for the first conversation.</p></div><Link href="/replay#contact" className="btn shrink-0 border-white bg-white text-pine hover:bg-sage">Discuss a trial <Arrow/></Link></div></section>}
+import type { ReactNode } from "react";
+import { EMAIL, LINKEDIN, SOFTWARE_URL, TRIAL_URL, API_DOCS_URL } from "@/lib/site";
+
+export function Logo() {
+  return (
+    <Link href="/" className="brand" aria-label="Clearline home">
+      <span className="brand-mark" aria-hidden="true">C</span>
+      <span className="brand-word">clearline<span className="brand-dot">.</span></span>
+    </Link>
+  );
+}
+
+/** Button-styled link. `main` marks the page's primary call to action (used by keyboard tests). */
+export function ButtonLink({ href, children, variant = "primary", external = false, main = false, onInk = false }: {
+  href: string; children: ReactNode; variant?: "primary" | "secondary"; external?: boolean; main?: boolean; onInk?: boolean;
+}) {
+  const cls = "btn btn-" + variant + (onInk ? " btn-on-ink" : "");
+  const extra = main ? { "data-main-cta": "" } : {};
+  if (external || href.startsWith("http") || href.startsWith("mailto:")) {
+    const isHttp = href.startsWith("http");
+    return (
+      <a className={cls} href={href} {...(isHttp ? { target: "_blank", rel: "noopener noreferrer" } : {})} {...extra}>
+        {children}
+        {isHttp && <span className="sr-only"> (opens in a new tab)</span>}
+        <span aria-hidden="true">{isHttp ? "↗" : "→"}</span>
+      </a>
+    );
+  }
+  return <Link className={cls} href={href} {...extra}>{children}<span aria-hidden="true">→</span></Link>;
+}
+
+/** Inline external link with a screen-reader note. */
+export function ExtLink({ href, children, className = "text-link" }: { href: string; children: ReactNode; className?: string }) {
+  return <a className={className} href={href} target="_blank" rel="noopener noreferrer">{children}<span className="sr-only"> (opens in a new tab)</span> <span aria-hidden="true">↗</span></a>;
+}
+
+export function Eyebrow({ children }: { children: ReactNode }) {
+  return <p className="eyebrow">{children}</p>;
+}
+
+export type StageKind = "synthetic" | "illustrative" | "development" | "none";
+const stageText: Record<StageKind, string> = {
+  synthetic: "Working synthetic engine",
+  illustrative: "Illustrative UI",
+  development: "In development",
+  none: "No third-party integration",
+};
+/** Honest stage label. Always text, never colour alone. */
+export function Stage({ kind }: { kind: StageKind }) {
+  return <span className={"stage stage-" + kind}><span className="stage-dot" aria-hidden="true" />{stageText[kind]}</span>;
+}
+
+export function PageHero({ eyebrow, title, children, actions, stages }: {
+  eyebrow: string; title: ReactNode; children?: ReactNode; actions?: ReactNode; stages?: StageKind[];
+}) {
+  return (
+    <section className="page-hero">
+      <div className="container">
+        <Eyebrow>{eyebrow}</Eyebrow>
+        <h1 className="h1">{title}</h1>
+        {children && <div className="lede">{children}</div>}
+        {stages && <div className="stage-row" aria-label="Stage">{stages.map(s => <Stage key={s} kind={s} />)}</div>}
+        {actions && <div className="actions">{actions}</div>}
+      </div>
+    </section>
+  );
+}
+
+export function Section({ id, eyebrow, title, intro, children, tone = "ivory" }: {
+  id?: string; eyebrow?: string; title?: ReactNode; intro?: ReactNode; children?: ReactNode; tone?: "ivory" | "white" | "bluegrey" | "ink";
+}) {
+  return (
+    <section id={id} className={"section section-" + tone}>
+      <div className="container">
+        {(eyebrow || title || intro) && (
+          <div className="section-head">
+            {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
+            {title && <h2 className="h2">{title}</h2>}
+            {intro && <div className="section-intro">{intro}</div>}
+          </div>
+        )}
+        {children}
+      </div>
+    </section>
+  );
+}
+
+/** Closing band used on most pages: sandbox + founder contact. */
+export function ContactBand({ title = "Bring one payment that was hard to explain." }: { title?: string }) {
+  return (
+    <section className="section section-ink contact-band" aria-labelledby="contact-band-title">
+      <div className="container contact-band-grid">
+        <div>
+          <p className="eyebrow eyebrow-on-ink">Next step</p>
+          <h2 id="contact-band-title" className="h2">{title}</h2>
+          <p className="on-ink-muted">Start in the fictional-data sandbox. If the workflow looks relevant, email the founder about your team&rsquo;s process. No payment records are needed for a first conversation.</p>
+        </div>
+        <div className="actions">
+          <ButtonLink href={TRIAL_URL} onInk>Explore the sandbox</ButtonLink>
+          <ButtonLink href="/contact" variant="secondary" onInk>Talk to us about your workflow</ButtonLink>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function Footer() {
+  return (
+    <footer className="site-footer">
+      <div className="container">
+        <div className="footer-grid">
+          <div>
+            <Logo />
+            <p className="footer-note">Software for following cross-border payments: instructions, provider updates, reconciliation and exceptions in one record.</p>
+            <p className="footer-stage">Early product. Sandbox uses fictional data. No payment execution, custody or lending.</p>
+          </div>
+          <nav className="footer-col" aria-label="Product">
+            <p className="footer-label">Product</p>
+            <Link href="/platform">Platform</Link>
+            <Link href="/connect">Connect</Link>
+            <Link href="/control">Control</Link>
+            <Link href="/use-cases">Use cases</Link>
+            <Link href="/onchain">Onchain (in development)</Link>
+          </nav>
+          <nav className="footer-col" aria-label="Try it">
+            <p className="footer-label">Try it</p>
+            <Link href="/trial">Customer trial</Link>
+            <ExtLink href={TRIAL_URL} className="">Guided sandbox</ExtLink>
+            <ExtLink href={SOFTWARE_URL} className="">Test-mode console</ExtLink>
+            <Link href="/developers">Developers</Link>
+            <ExtLink href={API_DOCS_URL} className="">API reference</ExtLink>
+          </nav>
+          <nav className="footer-col" aria-label="Company">
+            <p className="footer-label">Company</p>
+            <Link href="/about">About the founder</Link>
+            <Link href="/contact">Contact</Link>
+            <a href={"mailto:" + EMAIL}>Email</a>
+            <ExtLink href={LINKEDIN} className="">LinkedIn</ExtLink>
+            <Link href="/privacy">Privacy</Link>
+          </nav>
+        </div>
+        <div className="footer-base">
+          <span>© {new Date().getUTCFullYear()} Clearline · Singapore</span>
+          <span>Clearline does not hold funds, lend, execute payouts or make compliance decisions.</span>
+        </div>
+      </div>
+    </footer>
+  );
+}
