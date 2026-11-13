@@ -1,6 +1,6 @@
 import { obligationOutstanding } from "./funding";
 import { computeLiquidity } from "./liquidity";
-import type { ExceptionCategory, InvestigationCase, Money, ReconciliationException, Severity, Workspace } from "./types";
+import type { AmountDifference, ExceptionCategory, InvestigationCase, Money, ReconciliationException, Severity, Workspace } from "./types";
 import { addDays, type Tx } from "./tx";
 
 /** Required action shown for each category (deterministic text, no generated prose). */
@@ -59,6 +59,8 @@ export interface OpenExceptionSpec {
   supportingEventIds?: string[];
   supportingEvidenceIds?: string[];
   impact?: Money;
+  /** CHANGE 5 (F2): structured amount difference; its requiredNextAction becomes the exception's required action. */
+  amountDifference?: AmountDifference;
   dueDate?: string;
   severity?: Severity;
   ownerId?: string;
@@ -129,8 +131,9 @@ export function openException(tx: Tx, spec: OpenExceptionSpec): ReconciliationEx
     supportingEvidenceIds: [...(spec.supportingEvidenceIds ?? [])],
     ownerId: spec.ownerId,
     impact: spec.impact,
+    ...(spec.amountDifference ? { amountDifference: { ...spec.amountDifference } } : {}),
     dueDate: spec.dueDate ?? dueFrom(tx, severity),
-    requiredAction: EXCEPTION_REQUIRED_ACTION[spec.category],
+    requiredAction: spec.amountDifference?.requiredNextAction ?? EXCEPTION_REQUIRED_ACTION[spec.category],
     createdAt: tx.at,
     lastUpdatedAt: tx.at,
     history: [{ at: tx.at, actorId: tx.actorId, action: "opened", detail: `${spec.explanationCode}: ${spec.explanation}` }],

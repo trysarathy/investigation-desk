@@ -26,6 +26,14 @@ export const canTransitionExecution = (from: ExecutionState, to: ExecutionState)
 
 export const isTerminalExecution = (s: ExecutionState): boolean => EXECUTION_TRANSITIONS[s].length === 0;
 
+/**
+ * CHANGE 5 (F1): executions on which a provider settlement report is a contradiction, not evidence
+ * (and on which no settlement can count as the supplier being paid). The ONE list used by
+ * reconcileLine, onExecutionChanged, recomputeDimensions, investigate and the funding projection.
+ */
+export const TERMINAL_FOR_SETTLEMENT_REPORT: readonly ExecutionState[] = ["failed", "cancelled", "expired", "returned"];
+export const isTerminalForSettlementReport = (e: ExecutionState): boolean => TERMINAL_FOR_SETTLEMENT_REPORT.includes(e);
+
 /** Progress rank used to detect late (out-of-order) events. Terminal outcomes rank highest. */
 export const PROGRESS_RANK: Readonly<Record<ExecutionState, number>> = {
   created: 0, quoted: 1, approved: 2, submitted: 3, awaiting_information: 4, on_hold: 4, in_transit: 4,

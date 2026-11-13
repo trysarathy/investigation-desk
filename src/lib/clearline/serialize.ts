@@ -23,6 +23,33 @@ const instant = (o: Obj, k: string, path: string) => need(isIsoInstant(o[k]), `$
 const date = (o: Obj, k: string, path: string) => need(isIsoDate(o[k]), `${path}.${k}`, "must be YYYY-MM-DD");
 const arr = (o: Obj, k: string, path: string) => need(Array.isArray(o[k]), `${path}.${k}`, "must be an array");
 
+/** CHANGE 5 (F2): optional structured amount difference on statement lines and exceptions. */
+const amountDifference = (o: Obj, p: string) => {
+  if (o.amountDifference === undefined) return;
+  need(isObj(o.amountDifference), `${p}.amountDifference`, "must be an object");
+  const d = o.amountDifference as Obj;
+  const q = `${p}.amountDifference`;
+  oneOf(d, "code", q, ["RC_UNDER_AMOUNT_REPORT", "RC_PARTIAL_AMOUNT"]);
+  int(d, "expectedMinor", q, 1); int(d, "reportedMinor", q, 1); int(d, "differenceMinor", q, 1); cur(d, "currency", q);
+  oneOf(d, "source", q, ["bank_statement", "provider_settlement_report"]); str(d, "statementLineId", q); str(d, "requiredNextAction", q);
+  need(d.expectedMinor === (d.reportedMinor as number) + (d.differenceMinor as number), `${q}.differenceMinor`, "must equal expectedMinor − reportedMinor");
+};
+
+/**
+ * Review v2 (m4): a difference must describe the line it sits on (statement line) or the line its
+ * exception is linked to: same internal line id, currency, source and reported amount, and a code that
+ * fits the source (provider reports give RC_UNDER_AMOUNT_REPORT, bank lines RC_PARTIAL_AMOUNT).
+ */
+const differenceMatchesLine = (d: Obj, line: Obj | undefined, q: string) => {
+  need(line !== undefined, `${q}.statementLineId`, "must identify a statement line in this workspace");
+  const l = line as Obj;
+  need(d.statementLineId === l.id, `${q}.statementLineId`, "must equal the id of its statement line");
+  need(d.currency === l.currency, `${q}.currency`, "must equal its statement line's currency");
+  need(d.source === l.source, `${q}.source`, "must equal its statement line's source");
+  need(d.reportedMinor === l.amountMinor, `${q}.reportedMinor`, "must equal its statement line's amount");
+  need((d.code === "RC_UNDER_AMOUNT_REPORT") === (d.source === "provider_settlement_report"), `${q}.code`, "must be RC_UNDER_AMOUNT_REPORT for a provider report and RC_PARTIAL_AMOUNT for a bank line");
+};
+
 const EXECUTION = ["created", "quoted", "approved", "submitted", "in_transit", "provider_reported_completed", "awaiting_information", "on_hold", "failed", "returned", "cancelled", "expired"];
 const SETTLEMENT = ["none", "observed", "pending_finality", "verified", "contradicted"];
 const SCOPE = ["none", "provider_report", "bank_statement", "onchain_transfer"];
@@ -46,12 +73,14 @@ const ELEMENTS: Partial<Record<keyof Workspace, (e: Obj, p: string) => void>> = 
   statementLines: (e, p) => {
     int(e, "amountMinor", p, 1); cur(e, "currency", p); oneOf(e, "direction", p, ["debit", "credit"]); oneOf(e, "kind", p, ["payment", "return", "reversal"]);
     oneOf(e, "status", p, ["unallocated", "allocated", "partially_allocated", "exception"]); arr(e, "allocationIds", p); arr(e, "explanationCodes", p); date(e, "valueDate", p); need(typeof e.reference === "string", `${p}.reference`, "must be a string");
+    amountDifference(e, p);
   },
   allocations: (e, p) => { str(e, "statementLineId", p); need(isObj(e.target), `${p}.target`, "must be an object"); int(e, "amountMinor", p, 1); cur(e, "currency", p); arr(e, "codes", p); oneOf(e, "evidenceKind", p, ["statement_line", "chain_observation"]); },
   exceptions: (e, p) => {
     str(e, "category", p); oneOf(e, "status", p, ["open", "in_review", "resolved", "reopened"]); oneOf(e, "severity", p, ["low", "medium", "high", "critical"]);
     for (const k of ["candidates", "supportingEventIds", "supportingEvidenceIds", "history"]) arr(e, k, p);
     instant(e, "createdAt", p);
+    amountDifference(e, p);
   },
   cases: (e, p) => { oneOf(e, "status", p, ["open", "resolved", "reopened"]); for (const k of ["notes", "requestedInfo", "evidenceIds", "exceptionIds", "history"]) arr(e, k, p); },
   holds: (e, p) => {
@@ -99,6 +128,18 @@ function validate(w: unknown): Workspace {
       check(e as Obj, path);
     });
   }
+  // Review v2 (m4): cross-check every amount difference against its own / linked statement line.
+  const lines = ws.statementLines as Obj[];
+  lines.forEach((l, i) => {
+    if (l.amountDifference !== undefined) differenceMatchesLine(l.amountDifference as Obj, l, `statementLines[${i}].amountDifference`);
+  });
+  (ws.exceptions as Obj[]).forEach((e, i) => {
+    if (e.amountDifference === undefined) return;
+    const q = `exceptions[${i}].amountDifference`;
+    need(typeof e.statementLineId === "string", `exceptions[${i}].statementLineId`, "must be set when the exception carries an amount difference");
+    need((e.amountDifference as Obj).statementLineId === e.statementLineId, `${q}.statementLineId`, "must equal the exception's statementLineId");
+    differenceMatchesLine(e.amountDifference as Obj, lines.find((l) => l.id === e.statementLineId), q);
+  });
   return ws as unknown as Workspace;
 }
 

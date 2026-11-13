@@ -4,7 +4,8 @@
  */
 import { fundingProjection, obligationOutstanding } from "./funding";
 import { formatMinor } from "./money";
-import { RECONCILIATION_CODE_TEXT } from "./reconciliation";
+import { RECONCILIATION_CODE_TEXT, isAgreeingProviderReport, providerReportLinesFor } from "./reconciliation";
+import { isTerminalForSettlementReport } from "./state";
 import type {
   CaseReport,
   EvidenceTimelineEntry,
@@ -88,12 +89,24 @@ export function investigate(ws: Workspace, intentId: string): Result<Investigati
   if (applied.some((e) => e.normalizedType === "payout.completed") && !providerEvents.some((e) => e.normalizedType === "payout.in_transit"))
     add(unknowns, f("UK_IN_TRANSIT_NOT_REPORTED", "The provider never reported an in-transit event; none was inferred."));
   if (open.some((e) => e.category === "provider_timeout")) add(unknowns, f("UK_PROVIDER_OUTCOME_UNKNOWN", "The provider has not responded; the payout's outcome is unknown."));
+  // Final check C1: a verified/observed bank debit on a held payout means the money left the account,
+  // not that the supplier was paid.
+  if (s.execution === "on_hold" && s.settlementScope === "bank_statement" && (s.settlement === "verified" || s.settlement === "observed"))
+    add(unknowns, f("UK_DEBITED_FUNDS_HELD_BY_PARTNER", "Money left the account (bank debit), but the partner holds the payout. The supplier has not been paid.", hold ? [hold.id] : []));
   if (hold && hold.status !== "released" && hold.status !== "rejected") add(unknowns, f("UK_HOLD_OUTCOME_PENDING", `Partner hold is ${hold.status}; the outcome depends on the partner and your compliance reviewer.`, [hold.id]));
 
   // Contradictions
   const contradictions: Finding[] = [];
   for (const e of open.filter((x) => x.category === "contradictory_evidence" || x.explanationCode === "EV_SAME_ID_DIFFERENT_PAYLOAD"))
     add(contradictions, f(e.explanationCode, e.explanation, [e.id, ...e.supportingEventIds]));
+  // CHANGE 5 (F2): a provider report below the payout amount is a disagreement with the payout.
+  for (const e of open.filter((x) => x.explanationCode === "RC_UNDER_AMOUNT_REPORT" && !contradictions.some((c) => c.refs[0] === x.id)))
+    add(contradictions, f(e.explanationCode, e.explanation, [e.id, ...(e.statementLineId ? [e.statementLineId] : [])]));
+  // Review v2 (M1, derived): a stored workspace can carry a terminal payout with a provider report that
+  // was never flagged (e.g. saved before this rule). It is still shown as a contradiction.
+  if (isTerminalForSettlementReport(s.execution))
+    for (const l of providerReportLinesFor(ws, intent).filter((x) => isAgreeingProviderReport(x)))
+      add(contradictions, f("RC_REPORT_ON_TERMINAL_PAYOUT", `${RECONCILIATION_CODE_TEXT.RC_REPORT_ON_TERMINAL_PAYOUT} Line ${l.lineId}; the payout is ${s.execution}.`, [l.id]));
   if (s.settlement === "contradicted" && !contradictions.length) add(contradictions, f("CT_SETTLEMENT_CONTRADICTED", "Settlement evidence is contradicted by another source."));
 
   // Financially outstanding
@@ -108,13 +121,36 @@ export function investigate(ws: Workspace, intentId: string): Result<Investigati
   if (s.execution === "returned") {
     const returned = ws.allocations.filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id && a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN")).reduce((t, a) => t + a.amountMinor, 0);
     outstanding.push({ code: returned ? "OS_RETURN_RECEIVED_SUPPLIER_UNPAID" : "OS_RETURN_NOT_YET_RECEIVED", text: returned ? "Returned funds appear on the statement; the supplier remains unpaid." : "Provider reports a return; returned funds not yet seen on a statement. The supplier remains unpaid.", amount: money(intent.amountMinor) });
-  } else if (submitted && !["failed", "cancelled", "expired"].includes(s.execution) && matched < intent.amountMinor)
+  } else if (submitted && !isTerminalForSettlementReport(s.execution) && matched < intent.amountMinor)
     outstanding.push({ code: matched ? "OS_PARTIALLY_RECONCILED" : "OS_NOT_RECONCILED", text: matched ? "Part of the payout is reconciled; the remainder is not." : "The payout amount is not yet reconciled to a statement.", amount: money(intent.amountMinor - matched) });
   if (funding && funding.outstanding.amountMinor > 0)
     outstanding.push({ code: funding.overdue ? "OS_ADVANCE_OVERDUE" : "OS_ADVANCE_OUTSTANDING", text: `Customer repayment outstanding on advance ${funding.advanceId}${funding.obligation ? `, due ${funding.obligation.dueDate}, reference ${funding.obligation.reference}` : ""}.`, amount: funding.outstanding });
   for (const e of open.filter((x) => x.category === "missing_payment_reference" || x.explanationCode === "RC_AMOUNT_ONLY_CANDIDATES"))
     outstanding.push({ code: "OS_UNALLOCATED_RECEIPT", text: `Unallocated receipt (${e.impact ? formatMinor(e.impact.amountMinor, e.impact.currency) : "amount unknown"}) — not applied to any obligation without a reference.`, amount: e.impact });
   codes.push(...outstanding.map((o) => o.code));
+
+  // CHANGE 5 (F2): structured differences from provider reports and bank lines linked to this payout.
+  const linkedLineIds = new Set([
+    ...ws.allocations.filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id).map((a) => a.statementLineId),
+    ...ws.exceptions.filter((x) => x.intentId === intent.id && x.statementLineId).map((x) => x.statementLineId!),
+  ]);
+  // Review v2 (M3): only differences that still apply are current ("financially outstanding"); the rest
+  // are history. A bank partial applies while the payout's bank allocations are below its amount (and
+  // the payout is not terminal); a provider under-amount report applies while its exception is open.
+  const remainderOpen = submitted && !isTerminalForSettlementReport(s.execution) && matched < intent.amountMinor;
+  const allDifferences = ws.statementLines
+    .filter((l) => l.amountDifference && linkedLineIds.has(l.id))
+    .map((l) => {
+      const d = l.amountDifference!;
+      const outstanding =
+        d.code === "RC_UNDER_AMOUNT_REPORT"
+          ? ws.exceptions.some((x) => x.statementLineId === l.id && x.explanationCode === "RC_UNDER_AMOUNT_REPORT" && x.status !== "resolved")
+          : remainderOpen;
+      return { ...d, outstanding };
+    });
+  const amountDifferences = allDifferences.filter((d) => d.outstanding);
+  const resolvedAmountDifferences = allDifferences.filter((d) => !d.outstanding);
+  codes.push(...amountDifferences.map((d) => d.code));
 
   // Who acts
   const c = ws.cases.find((x) => x.id === intent.caseId);
@@ -182,6 +218,8 @@ export function investigate(ws: Workspace, intentId: string): Result<Investigati
       funding,
       caseId: intent.caseId,
       explanationCodes: [...new Set(codes)],
+      amountDifferences,
+      resolvedAmountDifferences,
       disclaimer: ENGINE_DISCLAIMER,
     },
   };
@@ -255,7 +293,7 @@ export function evidenceTimelineFor(ws: Workspace, intentId: string): EvidenceTi
   const allocs = ws.allocations.filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id);
   const lineIds = new Set([...allocs.map((a) => a.statementLineId), ...ws.exceptions.filter((x) => x.intentId === intent.id && x.statementLineId).map((x) => x.statementLineId!)]);
   for (const l of ws.statementLines.filter((x) => lineIds.has(x.id)))
-    out.push({ id: l.id, at: l.receivedAt, kind: "statement_line", title: `${l.source === "bank_statement" ? "Bank statement" : "Provider settlement report"} ${l.direction} ${l.kind} · value ${l.valueDate}`, source: l.accountRef, provenance: l.source, independent: l.source === "bank_statement", codes: l.explanationCodes, refs: [l.id] });
+    out.push({ id: l.id, at: l.receivedAt, kind: "statement_line", title: `${l.source === "bank_statement" ? "Bank statement" : "Provider settlement report"} ${l.direction} ${l.kind} · value ${l.valueDate}`, source: l.accountRef, provenance: l.source, independent: l.source === "bank_statement", codes: l.explanationCodes, refs: [l.id], ...(l.amountDifference ? { amountDifference: { ...l.amountDifference } } : {}) });
   for (const a of allocs)
     out.push({ id: a.id, at: a.createdAt, kind: "allocation", title: a.codes.map((c) => RECONCILIATION_CODE_TEXT[c]).join(" "), source: "Clearline reconciliation rules", provenance: "matching_decision", independent: false, codes: a.codes, refs: [a.statementLineId] });
   for (const o of ws.chainObservations.filter((x) => x.intentId === intent.id))
@@ -266,7 +304,7 @@ export function evidenceTimelineFor(ws: Workspace, intentId: string): EvidenceTi
     for (const d of h.decisions)
       out.push({ id: `${h.id}:${d.at}:${d.decision}`, at: d.at, kind: "hold_decision", title: `Compliance reviewer: ${d.decision} — ${d.reason}`, source: name(d.reviewerId), provenance: "clearline_user_action", independent: false, codes: ["HD_" + d.decision.toUpperCase()], refs: [h.id] });
   for (const x of ws.exceptions.filter((e) => e.intentId === intent.id || (intent.advanceId && e.advanceId === intent.advanceId)))
-    out.push({ id: x.id, at: x.createdAt, kind: "exception", title: `${x.category} (${x.severity}, ${x.status})`, source: "Clearline exception rules", provenance: "engine_rule", independent: false, codes: [x.explanationCode], refs: [x.id, ...x.candidates] });
+    out.push({ id: x.id, at: x.createdAt, kind: "exception", title: `${x.category} (${x.severity}, ${x.status})`, source: "Clearline exception rules", provenance: "engine_rule", independent: false, codes: [x.explanationCode], refs: [x.id, ...x.candidates], ...(x.amountDifference ? { amountDifference: { ...x.amountDifference } } : {}) });
   const v = investigate(ws, intent.id);
   if (v.ok) for (const u of v.value.unknowns)
     out.push({ id: "missing:" + u.code, at: ws.asOf, kind: "missing_evidence", title: u.text, source: "Clearline investigation rules", provenance: "engine_rule", independent: false, codes: [u.code], refs: u.refs });

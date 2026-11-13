@@ -1,7 +1,7 @@
 "use client";
 import Link from "../Link";
 import { useSearchParams } from "next/navigation";
-import { formatMoney, listExceptions, type ExceptionCategory } from "@/lib/clearline";
+import { formatMinor, formatMoney, listExceptions, type AmountDifference, type ExceptionCategory } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
 import { ExcChip, SevChip, human, exceptionTitle } from "../labels";
 import { TargetActions } from "../TargetActions";
@@ -19,7 +19,7 @@ export default function Exceptions() {
 
   return (
     <>
-      <PageHead eyebrow="Workspace" title="Exceptions"
+      <PageHead eyebrow="Investigations" title="Exceptions queue"
         lede="Raised by the engine's rules. Each shows its category, severity, owner, due date, financial impact, the action required and its full history." />
       <nav aria-label="Exception filters" className={ui.actions} style={{ marginBottom: 12 }}>
         {["open", "resolved", "all"].map((v) => (
@@ -31,7 +31,7 @@ export default function Exceptions() {
       </nav>
       {rows.length > 0 && (
         <Panel title={`Queue — ${rows.length} exception${rows.length === 1 ? "" : "s"}`} id="queue">
-          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Exceptions queue">
+          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Exceptions queue (scrollable table)">
             <table className={`${ui.table} ${ui.stack}`}>
               <thead><tr><th>Category</th><th>Severity</th><th>Status</th><th>Owner</th><th>Due</th><th className={ui.r}>Impact</th><th>Required action</th></tr></thead>
               <tbody>
@@ -62,10 +62,13 @@ export default function Exceptions() {
               <div><dt>Owner</dt><dd>{actorName(e.ownerId)}</dd></div>
               <div><dt>Due</dt><dd className="num">{fmtDate(e.dueDate)}</dd></div>
               <div><dt>Financial impact</dt><dd className="num">{e.impact ? formatMoney(e.impact) : "None recorded"}</dd></div>
+              {(() => { const d = (e as typeof e & { amountDifference?: AmountDifference }).amountDifference; return d ? (
+                <div data-testid="exception-amount-difference"><dt>Amount difference</dt><dd className="num">Expected {formatMinor(d.expectedMinor, d.currency)} · reported {formatMinor(d.reportedMinor, d.currency)} · difference <strong>{formatMinor(d.differenceMinor, d.currency)}</strong> ({d.source}) — {d.requiredNextAction}</dd></div>
+              ) : null; })()}
               <div><dt>Linked to</dt><dd>
                 {e.intentId && <Link href={`/clearline/payments/${e.intentId}`} className="mono">{e.intentId}</Link>}
-                {e.advanceId && <> <Link href="/clearline/control/funding">{e.advanceId}</Link></>}
-                {e.statementLineId && <> <Link href={`/clearline/control/reconciliation#${e.statementLineId}`}>{e.statementLineId}</Link></>}
+                {e.advanceId && <> <Link href="/clearline/treasury/funding">{e.advanceId}</Link></>}
+                {e.statementLineId && <> <Link href={`/clearline/reconciliation#${e.statementLineId}`}>{e.statementLineId}</Link></>}
                 {!e.intentId && !e.advanceId && !e.statementLineId && "—"}
               </dd></div>
               {e.candidates.length > 0 && <div><dt>Candidates (not auto-picked)</dt><dd>{e.candidates.join(", ")}</dd></div>}

@@ -61,9 +61,34 @@ info:
     product's rules but are not a security boundary here.
 
     **Robustness.** Malformed JSON, damaged workspaces and malformed provider payloads return 4xx JSON,
-    never 500. Limits: request body ≤ 512 KB (422 `invalid_json`); each workspace collection ≤ 1,000
+    never 500. Limits: request body ≤ 512 KB (422 `invalid_json`; the body is streamed and reading stops at
+    the limit, also for chunked bodies without Content-Length); each workspace collection ≤ 1,000
     items, audit ≤ 10,000 (400 `invalid_field`); nesting depth ≤ 32. While a payout is on a partner hold,
     provider events never move it; leaving a hold needs the compliance reviewer.
+
+    **Provider settlement reports (CHANGE 5, review v2).** A report on a payout whose execution is
+    `failed`, `cancelled`, `expired` or `returned` is a contradiction (`contradictory_evidence` /
+    `RC_REPORT_ON_TERMINAL_PAYOUT`) **in either order**: arriving after the terminal status it gets outcome
+    `contradictory_exception_raised` and settlement is unchanged; recorded before it, the same exception
+    is raised when the payout reaches the terminal status and the report stops counting as settlement
+    (a settlement that rested on the report alone goes back to `none`). A report on a payout that is
+    `on_hold` is recorded and flagged (`contradictory_evidence` / `RC_REPORT_ON_HELD_PAYOUT`); settlement is
+    unchanged. A report for less than the payout amount raises `unmatched_reconciliation` /
+    `RC_UNDER_AMOUNT_REPORT` and does not upgrade settlement; the same short report again (same
+    reference, amount, currency, value date) while that exception is open is linked to it (outcome
+    `duplicate_report_linked`, line code `RC_DUPLICATE_SUSPECTED`), not opened again. Only a report that
+    agreed with the payout ever counts as provider-reported settlement, even after a person resolves an
+    exception. The line and the exception carry an `AmountDifference`; a bank line below the remainder
+    is allocated as partial and carries one with `code: RC_PARTIAL_AMOUNT`. `GET/POST …/investigations`
+    returns `InvestigationView`: `amountDifferences` holds only the differences still outstanding,
+    `resolvedAmountDifferences` the history. A provider `payout.returned` turns settlement evidence
+    (`observed`, `pending_finality`, `verified`) into `contradicted`; a bank debit matched before
+    `payout.failed` is likewise `contradicted` with `RC_DEBIT_FOR_FAILED_PAYOUT`. A bank debit matched AFTER the
+    payout is failed, cancelled, expired or returned is allocated but settlement is `contradicted`
+    (`RC_DEBIT_FOR_FAILED_PAYOUT`, `RC_DEBIT_FOR_TERMINAL_PAYOUT`, or evidence on the open return exception),
+    so the end state does not depend on the order; a debit after a person resolved the return opens
+    `RC_DEBIT_FOR_TERMINAL_PAYOUT`, so there is always an open item. Funding rows carry
+    `supplierPaidBasis`, which is always `none` for a failed, cancelled, expired or returned payout.
 
     **Legacy endpoints** under `/api/clearline/test/{intents,quotes,transitions,webhooks,payments,health}`
     are **retired** and execute nothing. A request that is invalid under the old contract gets HTTP 422
@@ -392,12 +417,12 @@ paths:
     get:
       tags: [investigations]
       parameters: [{ $ref: "#/components/parameters/IntentId" }]
-      responses: { "200": { $ref: "#/components/responses/Read" } }
+      responses: { "200": { $ref: "#/components/responses/Investigation" } }
     post:
       tags: [investigations]
       parameters: [{ $ref: "#/components/parameters/IntentId" }]
       requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/StatefulRequest" } } } }
-      responses: { "200": { $ref: "#/components/responses/Read" } }
+      responses: { "200": { $ref: "#/components/responses/Investigation" } }
   /actions:
     post:
       tags: [actions]
@@ -421,6 +446,9 @@ components:
     Read:
       description: Synthetic data
       content: { application/json: { schema: { type: object, properties: { data: {}, mode: { const: synthetic }, disclaimer: { type: string } } } } }
+    Investigation:
+      description: Investigation view (synthetic data)
+      content: { application/json: { schema: { type: object, properties: { data: { $ref: "#/components/schemas/InvestigationView" }, mode: { const: synthetic }, disclaimer: { type: string } } } } }
     Action:
       description: Action applied
       content: { application/json: { schema: { $ref: "#/components/schemas/ActionResponse" } } }
@@ -443,7 +471,7 @@ components:
       type: object
       properties:
         data: {}
-        outcome: { type: string, examples: [applied, idempotent_replay, rejected_signature, duplicate_ignored, stored_late_no_regression, contradictory_exception_raised, timeout_exception_raised, no_event_pending, allocated, exception_raised] }
+        outcome: { type: string, examples: [applied, idempotent_replay, rejected_signature, duplicate_ignored, stored_late_no_regression, contradictory_exception_raised, timeout_exception_raised, no_event_pending, allocated, exception_raised, recorded_provider_report, duplicate_report_linked] }
         audit: { type: array, items: { $ref: "#/components/schemas/AuditEvent" } }
         workspace: { type: object }
         mode: { const: synthetic }
@@ -465,6 +493,97 @@ components:
         settlement: { enum: [none, observed, pending_finality, verified, contradicted] }
         settlementScope: { enum: [none, provider_report, bank_statement, onchain_transfer] }
         reconciliation: { enum: [not_started, pending, matched, partially_matched, exception] }
+    ReconciliationCode:
+      type: string
+      enum: [RC_EXACT_REFERENCE_AMOUNT_CURRENCY_WINDOW, RC_PARTIAL_AMOUNT, RC_OVERPAYMENT, RC_CURRENCY_MISMATCH, RC_OUTSIDE_TIME_WINDOW, RC_LATE_STATEMENT, RC_NO_REFERENCE, RC_UNKNOWN_REFERENCE, RC_AMOUNT_ONLY_CANDIDATES, RC_AMBIGUOUS_REFERENCE, RC_DUPLICATE_SUSPECTED, RC_RETURN_CONFIRMS_PROVIDER_RETURN, RC_RETURN_CONTRADICTS_PROVIDER_STATUS, RC_UNMATCHED_INCOMING, RC_UNMATCHED_OUTGOING, RC_PROVIDER_REPORT_ONLY, RC_REPAYMENT_BY_REFERENCE, RC_UNDER_AMOUNT_REPORT, RC_REPORT_ON_TERMINAL_PAYOUT, RC_REPORT_ON_HELD_PAYOUT]
+      description: Statement-line explanation codes (`RECONCILIATION_CODE_TEXT` / `RECONCILIATION_CODE_GROUP`). Exceptions may also carry `RC_DEBIT_FOR_FAILED_PAYOUT`, `RC_DEBIT_FOR_TERMINAL_PAYOUT` and `RC_NO_STATEMENT_AFTER_COMPLETION`.
+    AmountDifference:
+      type: object
+      description: >-
+        CHANGE 5 (F2). Difference between what a payout needs and what one statement line or provider
+        report shows. Integer minor units of `currency`. On `StatementLine.amountDifference`,
+        `ReconciliationException.amountDifference` and evidence-timeline entries. `parseWorkspace` rejects
+        one whose `statementLineId`, `currency`, `source` or `reportedMinor` disagrees with its own line
+        (or, on an exception, with the exception's linked line), or whose `code` does not fit `source`.
+      required: [code, expectedMinor, reportedMinor, differenceMinor, currency, source, statementLineId, requiredNextAction]
+      properties:
+        code: { enum: [RC_UNDER_AMOUNT_REPORT, RC_PARTIAL_AMOUNT], description: "RC_UNDER_AMOUNT_REPORT only with source provider_settlement_report; RC_PARTIAL_AMOUNT only with bank_statement" }
+        expectedMinor: { type: integer, minimum: 1, description: "Payout amount (provider report) or the unreconciled remainder before this line (bank line)" }
+        reportedMinor: { type: integer, minimum: 1, description: "Equals the line's amountMinor" }
+        differenceMinor: { type: integer, minimum: 1, description: "expectedMinor − reportedMinor" }
+        currency: { $ref: "#/components/schemas/Currency" }
+        source: { enum: [bank_statement, provider_settlement_report] }
+        statementLineId: { type: string, description: "Internal id of the statement line (not the bank's lineId)" }
+        requiredNextAction: { type: string }
+    InvestigationAmountDifference:
+      description: Review v2 (M3). An AmountDifference as returned by investigate(), with whether it still applies.
+      allOf:
+        - $ref: "#/components/schemas/AmountDifference"
+        - type: object
+          required: [outstanding]
+          properties:
+            outstanding:
+              type: boolean
+              description: >-
+                RC_PARTIAL_AMOUNT: true while the payout's bank-statement allocations are below its amount and
+                its execution is not failed/cancelled/expired/returned. RC_UNDER_AMOUNT_REPORT: true while its
+                exception is not resolved.
+    Finding:
+      type: object
+      required: [code, text, refs]
+      properties: { code: { type: string }, text: { type: string }, refs: { type: array, items: { type: string } } }
+    InvestigationView:
+      type: object
+      description: Output of `investigate()`. Only the fields relevant to clients are listed; see ENGINE_API.md for the full type.
+      required: [intentId, status, contradictions, outstanding, whoActs, nextActions, explanationCodes, amountDifferences, resolvedAmountDifferences, disclaimer]
+      properties:
+        intentId: { type: string }
+        status: { $ref: "#/components/schemas/StatusDimensions" }
+        independentEvidence: { type: array, items: { $ref: "#/components/schemas/Finding" } }
+        unknowns: { type: array, items: { $ref: "#/components/schemas/Finding" } }
+        contradictions: { type: array, items: { $ref: "#/components/schemas/Finding" }, description: "Open contradictory exceptions, open RC_UNDER_AMOUNT_REPORT exceptions and, for stored data, unflagged provider reports on a terminal payout (RC_REPORT_ON_TERMINAL_PAYOUT)" }
+        outstanding:
+          type: array
+          items: { type: object, required: [code, text], properties: { code: { type: string }, text: { type: string }, amount: { $ref: "#/components/schemas/Money" } } }
+        whoActs: { type: object, required: [role, code], properties: { ownerId: { type: string }, ownerName: { type: string }, role: { type: string }, code: { type: string } } }
+        nextActions: { type: array, items: { $ref: "#/components/schemas/Finding" } }
+        explanationCodes: { type: array, items: { type: string }, description: "Includes the codes of outstanding amount differences only" }
+        amountDifferences: { type: array, items: { $ref: "#/components/schemas/InvestigationAmountDifference" }, description: "Outstanding differences only (every entry outstanding: true). Show these under financially outstanding." }
+        resolvedAmountDifferences: { type: array, items: { $ref: "#/components/schemas/InvestigationAmountDifference" }, description: "History: differences that no longer apply (every entry outstanding: false)." }
+        disclaimer: { type: string }
+    FundingProjectionRow:
+      type: object
+      description: One row of the Funding Desk projection (`GET /funding-advances`). Only the fields relevant to clients are listed.
+      required: [advanceId, intentId, supplierPayout, principal, repaid, outstanding, overdue, state, supplierPaidBasis]
+      properties:
+        advanceId: { type: string }
+        intentId: { type: string }
+        supplierPayout:
+          type: object
+          properties:
+            execution: { $ref: "#/components/schemas/StatusDimensions/properties/execution" }
+            settlement: { $ref: "#/components/schemas/StatusDimensions/properties/settlement" }
+            providerPaymentId: { type: string }
+            onHold: { type: boolean, description: "True while the payout is on a partner hold (supplierPaidBasis is then none)" }
+            hold: { type: object, properties: { id: { type: string }, status: { enum: [open, documents_submitted, partner_release_reported] } }, description: "The undecided partner hold, if any" }
+        principal: { $ref: "#/components/schemas/Money" }
+        repaid: { type: object, properties: { amountMinor: { type: integer, minimum: 0 }, currency: { $ref: "#/components/schemas/Currency" } } }
+        outstanding: { type: object, properties: { amountMinor: { type: integer, minimum: 0 }, currency: { $ref: "#/components/schemas/Currency" } } }
+        overdue: { type: boolean }
+        state: { enum: [proposed, approved, declined, supplier_paid, partly_repaid, repaid, overdue] }
+        supplierPaidBasis:
+          enum: [none, provider_reported, verified_settlement]
+          description: >-
+            `verified_settlement` = settlement verified (bank statement or final chain transfer) and the payout is
+            not failed/cancelled/expired/returned; `provider_reported` = only the provider's completion claim;
+            `none` otherwise, and always for a failed, cancelled, expired, returned or on_hold payout.
+    QuoteEligibilityCode:
+      type: string
+      enum: [ELIGIBLE, ROUTE_RESTRICTED, SOURCE_CURRENCY_UNSUPPORTED, DESTINATION_CURRENCY_UNSUPPORTED, COUNTRY_UNSUPPORTED, PAIR_UNSUPPORTED, BELOW_MINIMUM, ABOVE_MAXIMUM, FEE_UNDEFINED, AMOUNT_BELOW_FEES, RATE_UNAVAILABLE]
+      description: >-
+        Codes of the adapter's eligibility check (`HUMAN_LABELS.eligibilityCode`). A quote carries the matching
+        `eligible` flag and `eligibilityReason` text. `RATE_UNAVAILABLE` (CHANGE 5 m11): no usable indicative rate,
+        so the quote is ineligible with `estimatedRecipientMinor: 0`; an eligible quote never shows 0.
     PaymentIntentReturn:
       type: object
       properties:

@@ -133,8 +133,8 @@ const ex = (id: string): Example => {
   return e;
 };
 
-const pre: React.CSSProperties = { background: "var(--cl-ink)", color: "var(--cl-on-ink)", borderRadius: 6, padding: 14, overflowX: "auto", fontSize: 12, lineHeight: 1.6, fontFamily: "var(--cl-font-mono)", margin: "8px 0 0", whiteSpace: "pre", maxHeight: 420 };
-const preLight: React.CSSProperties = { ...pre, background: "var(--cl-sand)", color: "var(--cl-ink)", border: "1px solid var(--cl-line)" };
+const pre: React.CSSProperties = { background: "var(--cl-midnight)", color: "var(--cl-on-midnight)", borderRadius: 8, padding: 14, overflowX: "auto", fontSize: 12, lineHeight: 1.6, fontFamily: "var(--cl-font-mono)", margin: "8px 0 0", whiteSpace: "pre", maxHeight: 420 };
+const preLight: React.CSSProperties = { ...pre, background: "var(--cl-canvas)", color: "var(--cl-text)", border: "1px solid var(--cl-line)" };
 
 function Pre({ label, dark, children }: { label: string; dark?: boolean; children: string }) {
   return <pre style={dark ? pre : preLight} tabIndex={0} role="region" aria-label={label}>{children}</pre>;
@@ -172,7 +172,7 @@ const P = ({ children }: { children: ReactNode }) => <p style={{ margin: "0 0 10
 export default function Docs() {
   return (
     <>
-      <PageHead eyebrow="Connect / developer API reference" title="Test-mode API v1"
+      <PageHead eyebrow="Developers · API reference" title="Test-mode API v1"
         lede={<>The same engine the console runs, over HTTP at <code className={ui.code}>/api/clearline/test/v1</code>. Fictional organisations, providers and amounts. Nothing moves money and nothing is stored on the server.</>}
         actions={<a className={ui.btn} href="/clearline/docs/openapi.yaml">OpenAPI 3.1 (YAML)</a>} />
       <Notice><strong>Test mode only.</strong> The key <code className={ui.code}>cl_test_demo</code> is a public example, not a credential. Do not send real customer, beneficiary or bank details. Clearline does not hold funds, execute payouts, or make compliance or credit decisions.</Notice>
@@ -261,7 +261,7 @@ if (!result.valid) return new Response(result.reason, { status: 401 });
       <Panel title="Errors" id="errors">
         <Body>
           <P>Shape: <code className={ui.code}>{'{ "error": { "code", "message", "help", "field?", "entityId?" } }'}</code>.</P>
-          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Error code catalogue">
+          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Error code catalogue (scrollable table)">
             <table className={ui.table}>
               <caption className={ui.hint} style={{ captionSide: "bottom", textAlign: "left", padding: "6px 10px" }}>Error codes and HTTP statuses, from the v1 route handler.</caption>
               <thead><tr><th scope="col">code</th><th scope="col" className={ui.r}>HTTP</th><th scope="col">Meaning</th></tr></thead>
@@ -275,7 +275,7 @@ if (!result.valid) return new Response(result.reason, { status: 401 });
       </Panel>
 
       <Panel title="Endpoints" id="endpoints">
-        <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Endpoint index">
+        <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Endpoint index (scrollable table)">
           <table className={ui.table}>
             <caption className={ui.hint} style={{ captionSide: "bottom", textAlign: "left", padding: "6px 10px" }}>All paths are under /api/clearline/test/v1. Full schemas: <a href="/clearline/docs/openapi.yaml">openapi.yaml</a>.</caption>
             <thead><tr><th scope="col">Method</th><th scope="col">Path</th><th scope="col">Purpose</th></tr></thead>

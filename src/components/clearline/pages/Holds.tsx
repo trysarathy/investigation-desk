@@ -1,21 +1,28 @@
 "use client";
 import Link from "../Link";
 import { useState } from "react";
+import { ActionButton, gateOf, useRun } from "../Action";
 import type { ComplianceHold } from "@/lib/clearline";
-import { errorText, useWorkspace } from "../workspace";
+import { useWorkspace } from "../workspace";
 import { HoldChip, human } from "../labels";
-import { Btn, Dl, Empty, Field, Notice, PageHead, Panel, Status, fmtTime, ui } from "../ui";
+import { Dl, Empty, Field, Notice, PageHead, Panel, Status, fmtTime, ui } from "../ui";
 
 function HoldCard({ h }: { h: ComplianceHold }) {
-  const { dispatch, actors, actorName, actor } = useWorkspace();
-  const [msg, setMsg] = useState<{ text: string; error?: boolean } | null>(null);
+  const { ws, preview, actors, actorName, actor } = useWorkspace();
+  const { msg, run } = useRun();
   const [docs, setDocs] = useState(h.requestedDocuments.join(", "));
   const [reviewer, setReviewer] = useState(h.reviewerId ?? actors.find((a) => a.role === "compliance")?.id ?? "");
   const [decision, setDecision] = useState<"release" | "reject" | "request_more">("request_more");
   const [reason, setReason] = useState("");
-  const run = (label: string, r: ReturnType<typeof dispatch>) =>
-    setMsg(r.ok ? { text: `${label}: recorded.` } : { text: `${label} not recorded — ${errorText(r)}`, error: true });
   const closed = h.status === "released" || h.status === "rejected";
+  const docList = docs.split(",").map((s) => s.trim()).filter(Boolean);
+  const aDocs = { type: "submit_hold_documents", holdId: h.id, documents: docList } as const;
+  const aReviewer = { type: "assign_hold_reviewer", holdId: h.id, reviewerId: reviewer } as const;
+  const aDecision = { type: "record_hold_decision", holdId: h.id, decision, reason: "Dry run" } as const;
+  const gDocs = gateOf(closed ? null : preview(aDocs), ws, !docList.length && "List at least one document name first.");
+  const gReviewer = gateOf(closed ? null : preview(aReviewer), ws);
+  const gDecision = gateOf(closed ? null : preview(aDecision), ws);
+  const gDecisionInput = gDecision.ok && !reason.trim() ? { ok: false as const, reason: "Give the reviewer's reason first." } : gDecision;
 
   return (
     <Panel id={h.id} title={<>Hold on <Link href={`/clearline/payments/${h.intentId}`} className="mono">{h.intentId}</Link></>} actions={<HoldChip v={h.status} />}>
@@ -38,15 +45,15 @@ function HoldCard({ h }: { h: ComplianceHold }) {
         <Status msg={msg} />
         {!closed && (
           <div className={ui.formGrid} style={{ marginTop: 12 }}>
-            <form onSubmit={(e) => { e.preventDefault(); run("Documents submitted", dispatch({ type: "submit_hold_documents", holdId: h.id, documents: docs.split(",").map((s) => s.trim()).filter(Boolean) })); }}>
+            <form onSubmit={(e) => { e.preventDefault(); run("Submit documents", aDocs); }}>
               <Field label="Submit document names (metadata only)" hint="Comma-separated. No files are uploaded."><input value={docs} onChange={(e) => setDocs(e.target.value)} /></Field>
-              <Btn type="submit" size="small" style={{ marginTop: 6 }}>Submit documents</Btn>
+              <div style={{ marginTop: 6 }}><ActionButton type="submit" size="small" gate={gDocs}>Submit documents</ActionButton></div>
             </form>
-            <form onSubmit={(e) => { e.preventDefault(); run("Reviewer assigned", dispatch({ type: "assign_hold_reviewer", holdId: h.id, reviewerId: reviewer })); }}>
+            <form onSubmit={(e) => { e.preventDefault(); run("Assign reviewer", aReviewer); }}>
               <Field label="Assign reviewer"><select value={reviewer} onChange={(e) => setReviewer(e.target.value)}>{actors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>
-              <Btn type="submit" size="small" style={{ marginTop: 6 }}>Assign reviewer</Btn>
+              <div style={{ marginTop: 6 }}><ActionButton type="submit" size="small" gate={gReviewer}>Assign reviewer</ActionButton></div>
             </form>
-            <form onSubmit={(e) => { e.preventDefault(); run("Reviewer decision", dispatch({ type: "record_hold_decision", holdId: h.id, decision, reason })); setReason(""); }}>
+            <form onSubmit={(e) => { e.preventDefault(); run("Record reviewer decision", { ...aDecision, reason }, { onOk: () => setReason("") }); }}>
               <Field label="Reviewer's decision (recorded, not made by Clearline)">
                 <select value={decision} onChange={(e) => setDecision(e.target.value as typeof decision)}>
                   <option value="request_more">Request more information</option>
@@ -56,7 +63,7 @@ function HoldCard({ h }: { h: ComplianceHold }) {
               </Field>
               <Field label="Reason (required)"><input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
               <p className={ui.hint}>Recording as {actor ? `${actor.name} (${actor.role})` : "—"}. Only the assigned compliance reviewer can record a decision.</p>
-              <Btn type="submit" size="small" disabled={!reason.trim()}>Record reviewer decision</Btn>
+              <ActionButton type="submit" size="small" gate={gDecisionInput}>Record reviewer decision</ActionButton>
             </form>
           </div>
         )}
@@ -69,7 +76,7 @@ export default function Holds() {
   const { ws } = useWorkspace();
   return (
     <>
-      <PageHead eyebrow="Control" title="Compliance holds"
+      <PageHead eyebrow="Oversight" title="Compliance holds"
         lede="Holds are placed by the partner. Clearline records documents, the reviewer and the reviewer's decision; it never decides or releases a hold by itself." />
       <Notice>There is no release button. To record a decision, switch “Acting as” to the assigned compliance reviewer.</Notice>
       {ws.holds.length === 0 ? <Panel><Empty>No compliance holds in this workspace.</Empty></Panel> : ws.holds.map((h) => <HoldCard key={h.id} h={h} />)}

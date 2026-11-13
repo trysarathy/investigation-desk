@@ -9,7 +9,8 @@
  */
 import type { Stage as FundingDeskStage } from "@/lib/mentor-demo/engine";
 import { orgDate } from "./tx";
-import type { AdvanceState, FundingProjection, FundingProjectionRow, Money, Workspace } from "./types";
+import type { AdvanceState, FundingProjection, FundingProjectionRow, Money, PaymentIntent, Workspace } from "./types";
+import { isTerminalForSettlementReport } from "./state";
 
 export const FUNDING_PROJECTION_LABEL =
   "Sandbox projection linking a Connect payment to a Funding Desk advance. Not a shared production ledger; the provider makes every credit decision.";
@@ -53,6 +54,20 @@ export function deriveAdvanceState(ws: Workspace, advanceId: string, at: string 
   return "approved";
 }
 
+/**
+ * CHANGE 5 (m5) + review v2 (M2): what "supplier paid" rests on. A failed, cancelled, expired or
+ * returned payout never has a basis, whatever its settlement field says (money that came back, or
+ * never left, did not pay the supplier).
+ */
+export function supplierPaidBasis(intent: PaymentIntent | undefined): FundingProjectionRow["supplierPaidBasis"] {
+  if (!intent || isTerminalForSettlementReport(intent.status.execution)) return "none";
+  // Final check C1: while the partner holds the payout the supplier is not paid, even if the bank
+  // debit is verified (money left the account; it has not reached the supplier). See supplierPayout.hold.
+  if (intent.status.execution === "on_hold") return "none";
+  if (intent.status.settlement === "verified") return "verified_settlement";
+  return intent.status.execution === "provider_reported_completed" ? "provider_reported" : "none";
+}
+
 export function fundingProjection(ws: Workspace, at: string = ws.asOf): FundingProjection {
   const rows: FundingProjectionRow[] = ws.advances.map((adv) => {
     const intent = ws.intents.find((i) => i.id === adv.intentId);
@@ -62,6 +77,7 @@ export function fundingProjection(ws: Workspace, at: string = ws.asOf): FundingP
     const allocations = ob ? ws.repaymentAllocations.filter((a) => a.obligationId === ob.id) : [];
     const outstanding = ob ? obligationOutstanding(ws, ob.id) : { amountMinor: 0, currency: adv.currency };
     const state = deriveAdvanceState(ws, adv.id, at);
+    const hold = intent ? ws.holds.find((h) => h.intentId === intent.id && h.status !== "released" && h.status !== "rejected") : undefined;
     return {
       advanceId: adv.id,
       intentId: adv.intentId,
@@ -69,6 +85,8 @@ export function fundingProjection(ws: Workspace, at: string = ws.asOf): FundingP
         execution: intent?.status.execution ?? "created",
         settlement: intent?.status.settlement ?? "none",
         providerPaymentId: instr?.providerPaymentId,
+        onHold: intent?.status.execution === "on_hold",
+        ...(hold ? { hold: { id: hold.id, status: hold.status } } : {}),
       },
       customerName: adv.customerName,
       supplierName: adv.supplierName,
@@ -81,6 +99,7 @@ export function fundingProjection(ws: Workspace, at: string = ws.asOf): FundingP
       outstanding,
       overdue: state === "overdue",
       state,
+      supplierPaidBasis: supplierPaidBasis(intent),
       fundingDeskStage: STAGE_MAP[state],
       exceptionIds: ws.exceptions.filter((e) => e.advanceId === adv.id || (e.obligationId && e.obligationId === ob?.id) || e.candidates.includes(ob?.id ?? "\u0000")).map((e) => e.id),
       evidenceIds: ws.evidence.filter((e) => e.advanceId === adv.id).map((e) => e.id),

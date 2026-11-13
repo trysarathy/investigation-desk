@@ -226,10 +226,19 @@ export class SandboxAdapter implements ProviderAdapter {
   }
 
   quote(intent: PaymentIntent, route: ProviderRoute, at: string, quoteId: string): Quote {
-    const e = this.eligibility(intent, route);
-    const providerFeeMinor = e.eligible ? route.providerFees[intent.sourceCurrency] ?? 0 : 0;
-    const platformFeeMinor = e.eligible ? Math.floor((intent.amountMinor * route.platformFeeBps) / 10000) : 0;
-    const rate = e.eligible ? route.indicativeRates[`${intent.sourceCurrency}:${intent.destinationCurrency}`] : "—";
+    let e = this.eligibility(intent, route);
+    let providerFeeMinor = e.eligible ? route.providerFees[intent.sourceCurrency] ?? 0 : 0;
+    let platformFeeMinor = e.eligible ? Math.floor((intent.amountMinor * route.platformFeeBps) / 10000) : 0;
+    const rate = e.eligible ? route.indicativeRates[`${intent.sourceCurrency}:${intent.destinationCurrency}`] ?? "—" : "—";
+    // CHANGE 5 (m11): a bad rate or a non-positive recipient amount makes the quote ineligible; it never shows 0 as eligible.
+    let estimatedRecipientMinor = 0;
+    if (e.eligible) {
+      const converted = convertMinor(intent.amountMinor - providerFeeMinor - platformFeeMinor, intent.sourceCurrency, intent.destinationCurrency, rate);
+      if (!converted.ok) e = { eligible: false, code: "RATE_UNAVAILABLE", reason: `No usable indicative rate for ${intent.sourceCurrency}→${intent.destinationCurrency} on this route (${converted.error.message}).` };
+      else if (converted.value <= 0) e = { eligible: false, code: "AMOUNT_BELOW_FEES", reason: "After fees the recipient would receive nothing on this route." };
+      else estimatedRecipientMinor = converted.value;
+      if (!e.eligible) { providerFeeMinor = 0; platformFeeMinor = 0; }
+    }
     return {
       id: quoteId,
       intentId: intent.id,
@@ -242,7 +251,7 @@ export class SandboxAdapter implements ProviderAdapter {
       indicativeRate: rate,
       providerFeeMinor,
       platformFeeMinor,
-      estimatedRecipientMinor: e.eligible ? convertMinor(intent.amountMinor - providerFeeMinor - platformFeeMinor, intent.sourceCurrency, intent.destinationCurrency, rate) : 0,
+      estimatedRecipientMinor,
       expiresAt: addMinutes(at, 15),
       etaLabel: route.etaLabel,
       prerequisites: route.prerequisites,

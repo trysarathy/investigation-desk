@@ -68,13 +68,23 @@ export function addMoney(a: Money, b: Money): Result<Money> {
 /**
  * Convert source minor units with a decimal-string rate into destination minor units,
  * rounding down (never overstates what a recipient would get). BigInt only.
+ *
+ * CHANGE 5 (m11): returns a typed error instead of a silent 0. A rate must be a plain positive
+ * decimal string (at most 12 decimal places, not zero) — otherwise `invalid_field` (field "rate");
+ * the amount must be a non-negative safe integer — otherwise `invalid_amount`.
  */
-export function convertMinor(amountMinor: number, from: CurrencyCode, to: CurrencyCode, rate: string): number {
-  const m = /^(\d+)(?:\.(\d{1,12}))?$/.exec(rate);
-  if (!m) return 0;
+export function convertMinor(amountMinor: number, from: CurrencyCode, to: CurrencyCode, rate: string): Result<number> {
+  if (!isCurrency(from) || !isCurrency(to)) return err("invalid_currency", "Unsupported currency for conversion.", { field: "currency" });
+  if (typeof amountMinor !== "number" || !Number.isSafeInteger(amountMinor) || amountMinor < 0)
+    return err("invalid_amount", "Amount to convert must be a non-negative integer number of minor units.", { field: "amountMinor" });
+  const m = typeof rate === "string" ? /^(\d{1,15})(?:\.(\d{1,12}))?$/.exec(rate) : null;
+  if (!m) return err("invalid_field", `Conversion rate ${JSON.stringify(rate ?? null)} is not a plain positive decimal.`, { field: "rate" });
   const rateScale = (m[2] ?? "").length;
   const rateInt = BigInt(m[1] + (m[2] ?? ""));
+  if (rateInt === 0n) return err("invalid_field", "Conversion rate must be greater than zero.", { field: "rate" });
   const num = BigInt(amountMinor) * rateInt * 10n ** BigInt(CURRENCIES[to]);
   const den = 10n ** BigInt(rateScale) * 10n ** BigInt(CURRENCIES[from]);
-  return Number(num / den);
+  const out = num / den;
+  if (out > BigInt(MAX_AMOUNT_MINOR)) return err("invalid_amount", "Converted amount exceeds sandbox limits.", { field: "amountMinor" });
+  return ok(Number(out));
 }

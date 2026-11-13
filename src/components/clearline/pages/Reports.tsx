@@ -13,19 +13,19 @@ export default function Reports() {
   };
   return (
     <>
-      <PageHead eyebrow="Control" title="Reports and evidence"
+      <PageHead eyebrow="Oversight" title="Reports and evidence"
         lede="Export case reports and the whole sandbox workspace. Files are generated in your browser; nothing is sent anywhere."
         actions={<Btn kind="primary" onClick={() => download(`clearline-workspace-${ws.asOf.slice(0, 10)}.json`, serializeWorkspace(ws), "application/json")}>Export workspace (.json)</Btn>} />
       <p className={ui.hint}>{ENGINE_DISCLAIMER}</p>
       <Panel title="Case reports" id="cases">
         {ws.cases.length === 0 ? <Empty>No cases to export.</Empty> : (
-          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Case reports">
+          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Case reports (scrollable table)">
             <table className={`${ui.table} ${ui.stack}`}>
               <thead><tr><th>Case</th><th>Status</th><th>Payment</th><th><span className={ui.srOnly}>Export</span></th></tr></thead>
               <tbody>{ws.cases.map((c) => (
                 <tr key={c.id}>
                   <td data-label="Case">{c.title}<span className={ui.sub + " mono"}>{c.id}</span></td>
-                  <td data-label="Status"><Chip tone={c.status === "resolved" ? "ok" : "warn"}>{c.status}</Chip></td>
+                  <td data-label="Status"><Chip tone={c.status === "resolved" ? "neutral" : "warn"}>{c.status}</Chip></td>
                   <td data-label="Payment">{c.intentId ? <Link href={`/clearline/payments/${c.intentId}`} className="mono">{c.intentId}</Link> : "—"}</td>
                   <td data-label="Export"><Btn size="small" onClick={() => exportCase(c.id)} aria-label={`Export case report ${c.id}`}>Export report</Btn></td>
                 </tr>))}
@@ -36,7 +36,7 @@ export default function Reports() {
       </Panel>
       <Panel title={`Evidence register (${ws.evidence.length})`} id="evidence">
         {ws.evidence.length === 0 ? <Empty>No evidence recorded.</Empty> : (
-          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Evidence register">
+          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Evidence register (scrollable table)">
             <table className={`${ui.table} ${ui.stack}`}>
               <thead><tr><th>Recorded</th><th>Evidence</th><th>Source</th><th>Independent</th><th>Linked to</th></tr></thead>
               <tbody>{[...ws.evidence].reverse().map((e) => (
@@ -44,7 +44,7 @@ export default function Reports() {
                   <td data-label="Recorded" className={ui.num}>{fmtTime(e.recordedAt)}<span className={ui.sub}>{actorName(e.recordedBy)}</span></td>
                   <td data-label="Evidence">{e.description}<span className={ui.sub}>{e.kind.replace(/_/g, " ")}{e.documentName ? ` · ${e.documentName} (metadata only)` : ""}</span></td>
                   <td data-label="Source">{e.source}</td>
-                  <td data-label="Independent"><Chip tone={e.independent ? "ok" : "neutral"}>{e.independent ? "Independent" : "Not independent"}</Chip></td>
+                  <td data-label="Independent"><Chip tone={e.independent ? "info" : "neutral"}>{e.independent ? "Independent" : "Not independent"}</Chip></td>
                   <td data-label="Linked to">{e.intentId ? <Link href={`/clearline/payments/${e.intentId}`} className="mono">{e.intentId}</Link> : e.advanceId ?? e.caseId ?? "—"}</td>
                 </tr>))}
               </tbody>
@@ -54,7 +54,7 @@ export default function Reports() {
       </Panel>
       <Panel title={`Audit log (${ws.audit.length})`} id="audit">
         {ws.audit.length === 0 ? <Empty>No audit events.</Empty> : (
-          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Audit log">
+          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Audit log (scrollable table)">
             <table className={`${ui.table} ${ui.stack}`}>
               <thead><tr><th>At</th><th>Actor</th><th>Action</th><th>Summary</th></tr></thead>
               <tbody>{[...ws.audit].reverse().slice(0, 200).map((a) => (

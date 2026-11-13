@@ -3,15 +3,40 @@ import Link from "./Link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { ActorSelect } from "./ActorSelect";
-import { CONTACT_MAILTO, MARKETING_URL, NAV, crumbsFor, isActive } from "./nav";
+import { useWorkspace } from "./workspace";
+import { download } from "./download";
+import { CONTACT_MAILTO, MARKETING_URL, PRIMARY, SECONDARY, crumbsFor, isActive } from "./nav";
 import s from "./ui.module.css";
+
+function safeDecode(v: string): string {
+  try { return decodeURIComponent(v); } catch { return v; }
+}
+
+/**
+ * A saved workspace that cannot be read is never replaced silently (review m6): the sample is shown,
+ * nothing is saved over the old copy, and the person chooses what happens to it.
+ */
+function DiscardedNotice() {
+  const { discarded, replaceDiscarded } = useWorkspace();
+  if (!discarded) return null;
+  return (
+    <div className={s.notice} role="alert" data-testid="workspace-discarded">
+      <p style={{ margin: "0 0 6px" }}><strong>Your saved workspace could not be read.</strong> You are seeing the sample workspace instead. The saved copy has not been changed, and nothing you do now is saved until you choose below.</p>
+      <p style={{ margin: "0 0 8px" }}>Reason: {discarded.reason}</p>
+      <div className={s.actions}>
+        <button type="button" className={`${s.btn} ${s.small}`} onClick={() => download("clearline-workspace-unreadable.json", discarded.raw, "application/json")}>Download the unreadable copy</button>
+        <button type="button" className={`${s.btn} ${s.small} ${s.primary}`} onClick={replaceDiscarded}>Replace it with the sample (keeps a backup in this browser)</button>
+      </div>
+    </div>
+  );
+}
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "/clearline";
   const [open, setOpen] = useState(false);
   useEffect(() => setOpen(false), [pathname]);
   const segs = pathname.split("/");
-  const detail = segs.length > 3 && segs[2] === "payments" ? decodeURIComponent(segs[3]) : undefined;
+  const detail = segs.length > 3 && segs[2] === "payments" ? safeDecode(segs[3]) : undefined;
   const crumbs = crumbsFor(pathname, detail);
 
   return (
@@ -28,6 +53,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       </div>
       <div className={s.frame}>
         <aside className={s.sidebar}>
+          <div className={s.sidebarInner}>
           <div className={s.sidebarTop}>
             <Link href="/clearline" className={s.brand} aria-label="Clearline console overview">
               <span className={s.brandMark} aria-hidden="true">C</span>
@@ -39,13 +65,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </button>
           </div>
           <nav id="cl-nav" aria-label="Console" className={s.navWrap} data-open={open ? "true" : "false"}>
-            {NAV.map((g) => (
-              <div key={g.title} className={s.navGroup}>
-                <p className={s.navTitle}>{g.title}</p>
-                <ul className={s.navList}>
-                  {g.items.map((i) => (
+            {([["Operations", PRIMARY, ""], ["Set-up and reference", SECONDARY, s.navSecondary]] as const).map(([title, items, cls]) => (
+              <div key={title} className={`${s.navGroup} ${cls}`}>
+                <p className={s.navTitle} id={`nav-${cls ? "secondary" : "primary"}`}>{title}</p>
+                <ul className={s.navList} aria-labelledby={`nav-${cls ? "secondary" : "primary"}`}>
+                  {items.map((i) => (
                     <li key={i.href}>
-                      <Link href={i.href} className={s.navLink} aria-current={isActive(pathname, i.href) ? "page" : undefined}>
+                      <Link href={i.href} className={s.navLink} aria-current={isActive(pathname, i) ? "page" : undefined}>
                         {i.label}
                       </Link>
                     </li>
@@ -56,10 +82,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <div className={s.navFoot}>
               <Link href="/clearline/trial">Guided trial (5 cases)</Link>
               <Link href="/mentor-demo">Funding Desk prototype</Link>
-              <a href={MARKETING_URL}>← clearline-marketing.vercel.app</a>
+              <a href={MARKETING_URL}>Clearline website</a>
               <a href={CONTACT_MAILTO}>Contact / feedback</a>
             </div>
           </nav>
+          </div>
         </aside>
         <main id="cl-main" className={s.main} tabIndex={-1}>
           <div className={s.topRow}>
@@ -74,6 +101,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </nav>
           <ActorSelect id="cl-actor-global" />
           </div>
+          <DiscardedNotice />
           {children}
           <footer className={s.footer}>
             Clearline test-mode console. All organisations, providers, quotes, balances and statements are fictional.
