@@ -189,3 +189,85 @@ The requests are clear and the workarounds are honest. R6 (maker ≠ checker cou
 - The company PAUSE check, the Log rows and the PR-comment flow from the role's nightly playbook. There is no PR here and I had no Sheets or GitHub write step. This file is the only thing I wrote, as the brief asked.
 
 — code-reviewer (general-purpose subagent briefed with the role) · 2026-11-13 SGT · reviewed sha 6fb9433
+
+---
+
+## Re-review — 2026-11-13 SGT · range df3a25f..cfadef9
+
+# CODE REVIEW: CHANGES REQUESTED cfadef91bfcab309c1f36d5a9197746d7f39686c
+
+**APPROVAL-ONLY: needs Aashmiin's merge** (still touches money amounts, roles and security headers).
+
+**In plain English:** both blockers are fixed. A chain observation can no longer mark a bank payout as settled, and one on-chain transfer can no longer count for two payouts. Nine of the ten Major findings are fixed. The tenth (M1) is only half fixed: the order "provider report first, then bank line" now works, but "bank line first, then provider report" raises a false duplicate exception. The fixes also introduced one new Major defect. After a person resolves a returned payout, the engine recomputes its status and shows it as "settlement verified" and "reconciliation matched", even though the money came back. Neither defect posts money or loses records, so the verdict is CHANGES REQUESTED, not BLOCK.
+
+### How I checked
+- **Snapshot:** I froze a copy of HEAD `cfadef9` with `git archive`, then confirmed it was still the tip.
+- **Typecheck:** `npx tsc --noEmit` exit 0.
+- **Unit tests:** `npx vitest run` (whole repo) gave 1014 passed, 57 skipped, 0 failed.
+- **Probes:** I re-ran my original probes from the scratch folder. They are now `tests/probe/rr.test.ts` and `rr2.test.ts` in the snapshot. I changed them only where CHANGE 3 requires it: chain cases now use a USDC payout on the Tidewater route with the registered wallet and the quoted amount. P1 itself still sends to a fiat payout.
+- **API:** I called the v1 route's `POST` handler directly (`NextRequest`) for the API cases.
+- **Code read:** I read the full diff of `chain.ts`, `reconciliation.ts`, `events.ts`, `actions.ts`, `serialize.ts` (diff only), `tx.ts`, `derive.ts`, `liquidity.ts`, `adapters.ts`, `exceptions.ts`, `webhooks.ts`, the v1 route, the legacy route, `middleware.ts` and `next.config.mjs`.
+- **Not run by me:** `next build` and Playwright. The integration lead reports both green; I did not see them pass.
+
+### Per-finding verdict
+
+| Finding | Verdict | Evidence (cfadef9) |
+|---|---|---|
+| **B1** chain evidence on a fiat payout | **Resolved** | Fiat payout: `precondition_failed`. Wrong wallet or wrong amount: `contradictory_exception_raised`, status unchanged. A good final observation sets settlement `verified` only; reconciliation stays `pending` until the provider's `payout.completed` carries the same `tx_hash`. The full simulated flow ends `verified` + `matched` through a `chain_observation` allocation (`chain.ts:80-122`). |
+| **B2** one tx counted for two payouts | **Resolved** | The same hash on payout B gives `CH_TX_ALREADY_LINKED` with both payouts as candidates. A stays `pending_finality` and B stays `none`/`pending` (`chain.ts:146-157`). A second tx for one payout gives `CH_SECOND_TX_FOR_PAYOUT`. |
+| B3 size / approval | Still applies (process) | +2,601 / −760 in this range alone. The split advice stands. |
+| **M1** provider report sets `matched`; later bank line flagged duplicate | **Partly resolved; new issue N1** | Provider report then bank line now works: `recorded_provider_report` (`observed/provider_report`, reconciliation `pending`), then `allocated` (`verified/bank_statement`, `matched`). The reverse order fails; see **N1**. |
+| **M2** return lines unchecked; returned payout stays matched | **Resolved** | 99,999.99 against a 10,000.00 payout gives `RC_OVERPAYMENT`. A correct 10,000.00 line is allocated once and its repeat gives `RC_DUPLICATE_SUSPECTED`. A provider return sets reconciliation `exception` (`reconciliation.ts:155-169`, `events.ts`). |
+| **M3** contradiction overwritten | **Resolved** | After 8 → 3 → 12 confirmations, settlement stays `contradicted` (`recorded_no_state_change`). Resolving with a note only is refused (`EVIDENCE_REQUIRED`); with document evidence it is accepted, and the status is recomputed (`verified`, reconciliation `pending`). See **N2** for a problem with that recompute. |
+| **M4** offset instants compared as text | **Resolved** | A `+08:00` action time is stored as `…03:00:00.000Z`. The timeout exception can be resolved once the provider has responded. A statement `receivedAt` sent with `+08:00` is stored as UTC. The API accepts an offset `at` (200). The `Tx` constructor normalises the time (`tx.ts`), and comparisons now parse the instants. |
+| **M5** org time zone ignored | **Resolved** | Sample advance due 2026-11-20: at 23:30 SGT on the 20th it is not overdue; at 00:30 SGT on the 21st (16:30Z) it is `overdue` with an `overdue_advance` exception. Window, lateness and due dates use `orgDate`. |
+| **M6** malformed signed payloads crash | **Resolved** | `requested_documents` set to `5`, `"ab"` or `{}` gives `invalid_field` and nothing is recorded. A chain observation with a missing or junk `tokenContract`, or `null`, gives `invalid_field`. The API returns 422 `invalid_field`, not 500. `applyAction` no longer throws (catch-all at `actions.ts:61-65`; see m-new-1). |
+| **M7** cancel on a held payout | **Resolved** | Cancelling an `on_hold` payout gives `invalid_transition` (`actions.ts:321-327`). |
+| **M8** invalid `at` makes stale liquidity fresh | **Resolved** | `computeLiquidity(ws, "garbage")`: all 4 rows stale, `currentUsableByCurrency` empty. API `POST /liquidity` with a bad `at` gives 400. |
+| **M9** damaged workspace accepted | **Resolved** | `intents: [{}]` gives `invalid_field` at `intents[0].id`. A damaged workspace passed straight to `applyAction` gives a typed error, not a throw. The sample still round-trips through serialise and parse. The API returns 422 for a nonsense workspace. I did not re-check that the console now offers a reset. |
+| **M10** legacy `core.ts` alongside the engine | **Resolved** | `core.ts` is deleted. `/api/clearline/test/[action]` returns 410, or 422 for input invalid under the old contract, and executes nothing. `openapi.yaml` says the old API is retired. `docs/CONNECT_TEST_API.md` still describes it as live (m-new-3). |
+| m1 idempotency `__proto__` / `constructor` | Resolved | `__proto__` creates the intent, survives serialise → parse with no prototype pollution, and replays as `idempotent_replay`. |
+| m2 NaN clock in `verifySandboxWebhook` | Resolved (code read) | A non-finite `now` is rejected (`webhooks.ts:32`). |
+| m3, m4, m6, m12 | Resolved (code read; m3 also probed) | As described in CHANGE 3. |
+
+### New issues introduced or exposed by the fixes
+
+**N1 (Major): a provider settlement report that arrives *after* the bank line raises a false duplicate**
+- **Where:** `reconciliation.ts`, the outgoing branch: the `dupe || remaining <= 0` check runs before the provider-report branch.
+- **Evidence:** I matched a payout from its bank line (`verified`, `matched`), then sent the provider's settlement report for the same payout. Result: `RC_DUPLICATE_SUSPECTED` is raised and reconciliation becomes **`exception`** on a fully reconciled payout.
+- **Why it matters:** clearing that exception needs non-note evidence attached by a person. Provider reports routinely arrive after bank lines, so this would flag ordinary payouts.
+- **Fix (in words):** decide whether a line is a provider report before the duplicate and remaining-amount checks. A provider report that agrees with an existing bank allocation should be recorded as corroborating evidence, with no exception and no status change. Only a report that disagrees (different amount or currency) should raise one.
+
+**N2 (Major): after a returned payout is resolved, the recompute shows it as `verified` / `matched`**
+- **Where:** `derive.ts` (recompute counts bank debits, leaves out return allocations, and has no rule for `execution: returned`).
+- **Evidence:** I bank-matched a payout, then sent a provider `payout.returned` (reconciliation becomes `exception`, correct). I then allocated a matching return line and resolved the `returned_payout` exception with a `funds_returned_confirmation`. The recompute set the status to `{"execution":"returned","settlement":"verified","settlementScope":"bank_statement","reconciliation":"matched"}`.
+- **Why it matters:** the money came back, yet the Payments and Overview screens would show this payout as settled and reconciled. This is the kind of quiet wrong status the review standard warns about. It did not happen before this range, because nothing recomputed status.
+- **Fix (in words):** in the recompute, subtract allocated returns from bank debits. For a returned payout whose return is confirmed, use an explicit outcome (for example reconciliation `matched` with a returned/net-zero note, and settlement not `verified` for the payout leg) that the console labels as "returned". Add a test for this whole sequence.
+
+**Minor**
+- **m-new-1** (`actions.ts:61-65`): the catch-all turns *any* unexpected exception, including real programming bugs, into a generic `invalid_field` "workspace or action is malformed". This keeps the API safe, but it hides engine defects from tests and from users. **Fix (in words):** keep the typed response, but record the error class and action type in the result or the audit trail, and make tests fail on it (for example a debug flag that rethrows under vitest).
+- **m-new-2** (`events.ts`, the on-hold guard): a correctly signed `payout.returned` or `payout.failed` that arrives while a payout is on hold is stored as `contradictory_exception_raised` and never applied. Because deduplication counts that stored event, a later redelivery is ignored too. The provider's real outcome can then only reach the payout by hand. This is acceptable as a design choice, but the exception's required action should say so explicitly. **Fix (in words):** say so in the exception text, or re-evaluate stored events when the hold ends.
+- **m-new-3** (docs): `docs/CONNECT_TEST_API.md` still documents the legacy endpoints as working. `openapi.yaml` says "every method returns HTTP 410", but input that is invalid under the old contract gets 422. **Fix (in words):** mark CONNECT_TEST_API.md as retired, and mention the 422 case.
+- **m-new-4** (v1 route): `isInstant` copies `tx.ts`'s `isIsoInstant`. **Fix (in words):** import the engine's helper.
+- **m-new-5** (provider report lines): after M1 a provider report line stays `unallocated` but carries `RC_EXACT_REFERENCE_AMOUNT_CURRENCY_WINDOW` plus `RC_PROVIDER_REPORT_ONLY`. In the console it therefore shows as "Unallocated" (bad tone), is counted under Overview's "Statement lines not allocated", and appears in the "Exact" filter. **Fix (in words):** give provider-report lines their own line status or label.
+
+**Checked, no defect found:**
+- `middleware.ts` anchored matcher (`_next/image$` matches the path without its query string; the allow-list is unchanged);
+- `next.config.mjs` security headers (no external origins needed by the app as far as I can see; `'unsafe-inline'` scripts are a documented follow-up);
+- liquidity Map rewrite (same totals: the sample's usable SGD and USDC are unchanged);
+- v1 byte cap, item caps and depth guard;
+- `parseWebhook` strict field validation;
+- the `tryAllocateChain` trusted-reference rule;
+- one live correction per payout;
+- advance re-check of fresh liquidity at approval.
+
+### Overall
+**CHANGES REQUESTED cfadef9.** No Blocker remains. Fix N1 and N2, each with a test (both are small and local to `reconciliation.ts` and `derive.ts`). The Minor items can follow. The independence caveat from the first review still applies, because the same orchestrating session produced the fixes.
+
+**Not re-reviewed:**
+- console components and the Playwright specs changed in this range;
+- `serialize.ts` line by line (I tested its behaviour only);
+- `investigation.ts` and `funding.ts` diffs beyond a skim;
+- the QA release tests (`tests/qa-release/*`), beyond seeing that they pass.
+
+— code-reviewer (general-purpose subagent briefed with the role) · 2026-11-13 SGT · re-reviewed sha cfadef9
