@@ -20,11 +20,13 @@ export type SettlementScope = "none" | "provider_report" | "bank_statement" | "o
 export type ReconState = "not_started" | "pending" | "matched" | "partially_matched" | "exception";
 type Tone = "neutral" | "warning" | "danger" | "success";
 
+/** Human labels: EXACT strings from the engine's HUMAN_LABELS (src/lib/clearline/labels.ts @ 0490e40, CHANGE 5),
+ * so the website and the console read identically. Do not reword here; change the engine first. */
 export const EXEC_LABEL: Record<ExecState, string> = {
-  created: "Created", quoted: "Quoted", approved: "Approved", submitted: "Submitted to provider",
+  created: "Created", quoted: "Quoted", approved: "Approved — not yet sent", submitted: "Sent to provider",
   in_transit: "Provider reports in transit", provider_reported_completed: "Provider reports completed",
-  awaiting_information: "Provider needs information", on_hold: "On hold with partner",
-  failed: "Failed", returned: "Returned", cancelled: "Cancelled", expired: "Expired",
+  awaiting_information: "Provider requests information", on_hold: "On hold with the partner",
+  failed: "Provider reports failed", returned: "Provider reports returned", cancelled: "Cancelled", expired: "Expired",
 };
 const execTone: Record<ExecState, Tone> = {
   created: "neutral", quoted: "neutral", approved: "neutral", submitted: "neutral", in_transit: "neutral",
@@ -33,17 +35,17 @@ const execTone: Record<ExecState, Tone> = {
 };
 
 export const SETTLEMENT_LABEL: Record<SettlementState, string> = {
-  none: "No settlement evidence", observed: "Observed, not verified", pending_finality: "Awaiting finality",
-  verified: "Verified", contradicted: "Evidence contradicts",
+  none: "No settlement evidence", observed: "Settlement observed (not verified)", pending_finality: "Awaiting finality",
+  verified: "Settlement verified", contradicted: "Settlement evidence contradicted",
 };
 export const SCOPE_LABEL: Record<SettlementScope, string> = {
-  none: "", provider_report: "by provider report", bank_statement: "by bank statement", onchain_transfer: "by on-chain transfer",
+  none: "No evidence", provider_report: "Provider report only", bank_statement: "Bank statement", onchain_transfer: "On-chain transfer (synthetic testnet)",
 };
 const settlementTone: Record<SettlementState, Tone> = { none: "neutral", observed: "warning", pending_finality: "warning", verified: "success", contradicted: "danger" };
 const settlementMark: Record<SettlementState, string> = { none: "○", observed: "◇", pending_finality: "◇", verified: "◆", contradicted: "✕" };
 
 export const RECON_LABEL: Record<ReconState, string> = {
-  not_started: "Not started", pending: "Awaiting match", matched: "Matched", partially_matched: "Partly matched", exception: "Exception",
+  not_started: "Not started", pending: "Awaiting statement", matched: "Matched", partially_matched: "Partially matched", exception: "Needs review",
 };
 const reconTone: Record<ReconState, Tone> = { not_started: "neutral", pending: "warning", matched: "success", partially_matched: "warning", exception: "danger" };
 
@@ -65,7 +67,7 @@ export function SettlementStatus({ state, scope, api = true }: { state: Settleme
   return (
     <span className={"st st-settlement stl-" + state + " tone-" + settlementTone[state]}>
       <span className="sr-only">Settlement evidence: </span>
-      <span className="st-label"><span className="stl-mark" aria-hidden="true">{settlementMark[state]}</span> {SETTLEMENT_LABEL[state]}{sc && <> {SCOPE_LABEL[sc]}</>}</span>
+      <span className="st-label"><span className="stl-mark" aria-hidden="true">{settlementMark[state]}</span> {SETTLEMENT_LABEL[state]}{sc && <> ({SCOPE_LABEL[sc]})</>}</span>
       {api && <code className="st-api"><span className="sr-only">, API value </span>{state}{sc && <span className="stl-scope"> · {sc}</span>}</code>}
     </span>
   );

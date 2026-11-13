@@ -3,7 +3,7 @@
 One identity for the **website** (`marketing/`) and the **product console** (`/clearline`, `/clearline/trial`, `/clearline/docs`). Same tokens; the console is lighter and denser.
 
 - **Token file:** `marketing/app/tokens.css` (CSS custom properties, `--cl-*`). The console copies this file **verbatim from that path**. Change a value here and in the token file in the same PR.
-- **Version:** v2.0 "Midnight & Electric Blue", 13 Nov 2026, website workstream. Founder approval pending.
+- **Version:** v2.1 (palette v2.0 "Midnight & Electric Blue"), 13 Nov 2026, website workstream. Founder approval pending.
 - **Superseded:** the v1 warm-ivory / signal orange-red palette (`#F5F1E8`, `#D04B31`, `#A93A24`, `#B33D28`) and the earlier green brand direction are retired. Neither may appear in site or console code; a test enforces it for `marketing/`.
 - **Contrast:** every ratio below was computed from the hex values with the WCAG 2.x relative-luminance formula and **truncated** to two decimals (never rounded up). A ratio is not an "AA" claim for a page until the rendered page has also been checked (see the audit in the PR body).
 
@@ -170,26 +170,31 @@ Names match the tested engine (`src/lib/clearline/types.ts`): `intent.status = {
 
 ### Human labels and tones
 
-| API value | Human label | Tone |
+Labels are the engine's exact `HUMAN_LABELS` strings (`src/lib/clearline/labels.ts`, CHANGE 5), so the website and the console read identically. Change wording in the engine, not here.
+
+| API value | Human label (engine) | Tone |
 |---|---|---|
-| execution `created` / `quoted` / `approved` | Created / Quoted / Approved | neutral |
-| execution `submitted` | Submitted to provider | neutral |
+| execution `created` / `quoted` | Created / Quoted | neutral |
+| execution `approved` | Approved — not yet sent | neutral |
+| execution `submitted` | Sent to provider | neutral |
 | execution `in_transit` | Provider reports in transit | neutral |
 | execution `provider_reported_completed` | Provider reports completed | neutral |
-| execution `awaiting_information` | Provider needs information | warning |
-| execution `on_hold` | On hold with partner | warning |
-| execution `failed` / `returned` | Failed / Returned | danger |
+| execution `awaiting_information` | Provider requests information | warning |
+| execution `on_hold` | On hold with the partner | warning |
+| execution `failed` / `returned` | Provider reports failed / Provider reports returned | danger |
 | execution `cancelled` / `expired` | Cancelled / Expired | neutral |
 | settlement `none` | No settlement evidence | neutral |
-| settlement `observed` | Observed, not verified | warning |
+| settlement `observed` | Settlement observed (not verified) | warning |
 | settlement `pending_finality` | Awaiting finality | warning |
-| settlement `verified` | Verified (+ scope: by bank statement / on-chain transfer) | success |
-| settlement `contradicted` | Evidence contradicts | danger |
+| settlement `verified` | Settlement verified | success |
+| settlement `contradicted` | Settlement evidence contradicted | danger |
+| settlementScope `none` / `provider_report` / `bank_statement` / `onchain_transfer` | No evidence / Provider report only / Bank statement / On-chain transfer (synthetic testnet), shown in brackets after the settlement label | — |
 | reconciliation `not_started` | Not started | neutral |
-| reconciliation `pending` | Awaiting match | warning |
+| reconciliation `pending` | Awaiting statement | warning |
 | reconciliation `matched` | Matched | success |
-| reconciliation `partially_matched` | Partly matched | warning |
-| reconciliation `exception` | Exception | danger |
+| reconciliation `partially_matched` | Partially matched | warning |
+| reconciliation `exception` | Needs review | danger |
+| advance `supplier_paid` | Supplier paid (provider-reported) — read with `supplierPaidBasis` | neutral |
 
 The exact API value is always shown as secondary detail (mono, slate, after the label) and is named in visually hidden text ("Execution: Provider reports completed, API value provider_reported_completed"). In the homepage investigation view, hovering or focusing a truth also highlights the matching field in the API record beside it.
 
@@ -197,7 +202,10 @@ The exact API value is always shown as secondary detail (mono, slate, after the 
 
 - A provider "completed" report sets execution `provider_reported_completed` and never, on its own, settlement `verified` or reconciliation `matched`.
 - A full-amount bank-statement match sets settlement `verified` with scope `bank_statement`. Always show the scope: it proves the payout left the account, not that the beneficiary was credited.
-- A bank line with a trusted reference but only part of the amount gives reconciliation `partially_matched`; the remainder stays outstanding (`RC_PARTIAL_AMOUNT`).
+- A bank line with a trusted reference but only part of the amount gives reconciliation `partially_matched` and settlement `observed`; the remainder stays outstanding (`RC_PARTIAL_AMOUNT`). The line carries a structured `amountDifference` (expected, reported, difference, currency, source, required next action).
+- A provider settlement report **below** the payout amount raises `unmatched_reconciliation` / `RC_UNDER_AMOUNT_REPORT`: reconciliation `exception` ("Needs review"), settlement not upgraded, and the same structured `amountDifference`. Show expected, reported and difference as mono amounts with the currency, and the required next action as the exception's action.
+- A provider settlement report on a payout that is `failed`, `cancelled`, `expired` or `returned` is a contradiction, not evidence: `contradictory_evidence` / `RC_REPORT_ON_TERMINAL_PAYOUT`, reconciliation `exception`, settlement and scope unchanged.
+- Funding: `supplier_paid` is labelled "Supplier paid (provider-reported)". Always show `supplierPaidBasis` (`none` · `provider_reported` · `verified_settlement`); only `verified_settlement` may use the success tone.
 - A provider settlement report gives at most `observed` and never reconciles on its own. An on-chain transfer is `verified` only past the finality threshold and never proves a bank credit.
 - A provider-reported return sets reconciliation `exception` immediately. Show `returnStatus` (`provider_reported` → `confirmed_by_statement`) beside it; a confirmed return is still an exception until a person resolves it.
 - Exceptions always show their owner and `dueDate` (ISO date, mono); overdue items use the danger tone.
@@ -238,6 +246,7 @@ Skip link; one `h1`; landmarks (`header`, labelled `nav`, `main#main`, `footer`)
 
 ## Change log
 
+- 2026-11-13: v2.1. Engine CHANGE 5: status labels are the engine's exact `HUMAN_LABELS`; rules for `RC_UNDER_AMOUNT_REPORT`, `RC_REPORT_ON_TERMINAL_PAYOUT`, the structured `amountDifference` and `supplierPaidBasis`.
 - 2026-11-13: **v2.0 Midnight & Electric Blue.** New palette (midnight, Electric Blue, white, off-white, ice, slate, deep text) with accessible variants for every failing pairing; semantic financial colours re-defined (provider claims neutral, never blue or green); human status labels with exact API values as secondary detail; Newsreader display face for website headings. **Supersedes** the v1 ivory / orange-red palette and the earlier green direction.
 - 2026-11-13: v1.2. Engine CHANGE 2: returns are reconciliation exceptions with `returnStatus`; exceptions carry due dates.
 - 2026-11-13: v1.1. Status dimensions renamed to the tested engine's ExecutionState / SettlementEvidenceState (+ scope) / ReconciliationState.

@@ -60,7 +60,7 @@ export default function UseCases() {
 
       <UseCase id="reconciliation" n="02" tone="canvas" title="Settlement reconciliation"
         situation="Five fictional bank-statement lines arrive. Finance needs to know which payments and repayments they belong to, and which it cannot attribute."
-        shows={["Payout debits allocated on the provider payment id, amount, currency and value-date window. Settlement becomes verified with scope bank_statement; the beneficiary's credit is still listed as unknown.", "A partial repayment allocated by its repayment reference, with the remainder left outstanding.", "An SGD 20,000.00 credit with no reference becomes an exception, even though the amount matches what is owed."]}
+        shows={["Payout debits allocated on the provider payment id, amount, currency and value-date window. Settlement becomes verified with scope bank_statement; the beneficiary's credit is still listed as unknown.", "A partial repayment allocated by its repayment reference, with the remainder left outstanding.", "An SGD 20,000.00 credit with no reference becomes an exception, even though the amount matches what is owed.", "If a provider settlement report showed less than the payout, it would become an exception (RC_UNDER_AMOUNT_REPORT) with the expected, reported and difference amounts and a required next action; a report on a failed or returned payout is treated as a contradiction (RC_REPORT_ON_TERMINAL_PAYOUT)."]}
         limits="It does not post entries to a ledger or accounting system in this sandbox."
         stages={["synthetic"]}>
         <ReconTable />

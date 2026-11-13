@@ -1,6 +1,6 @@
 import { ButtonLink, ContactBand, ExtLink, PageHero, Section } from "@/components/Shared";
 import { ExecStatus, ReconStatus, SettlementStatus, type ExecState } from "@/components/Status";
-import { TableWrap } from "@/components/Tables";
+import { AmountDifferenceTable, TableWrap } from "@/components/Tables";
 import { API_DOCS_URL, OPENAPI_URL, PRODUCT_DEMO_URL } from "@/lib/site";
 import { pageMeta } from "@/lib/meta";
 
@@ -181,7 +181,7 @@ export default function Developers() {
                 <tr><td><ReconStatus state="not_started" /></td><td>Nothing submitted to reconcile yet.</td></tr>
                 <tr><td><ReconStatus state="pending" /></td><td>Submitted; no allocated statement line yet.</td></tr>
                 <tr><td><ReconStatus state="matched" /></td><td>A line was allocated on trusted reference, amount, currency and value-date window.</td></tr>
-                <tr><td><ReconStatus state="partially_matched" /></td><td>The reference agrees but the amount covers only part; the remainder stays outstanding.</td></tr>
+                <tr><td><ReconStatus state="partially_matched" /></td><td>A bank line with the trusted reference covers only part of the amount; the remainder stays outstanding (<code className="inline">RC_PARTIAL_AMOUNT</code>, settlement <code className="inline">observed</code>). The line carries <code className="inline">amountDifference</code>.</td></tr>
                 <tr><td><ReconStatus state="exception" /></td><td>Something disagrees, or the provider reported a return. Each exception has an owner and a due date. A return stays an exception even after a statement line confirms it, until a person resolves it.</td></tr>
               </tbody>
             </TableWrap>
@@ -189,7 +189,15 @@ export default function Developers() {
         </div>
       </Section>
 
-      <Section id="webhooks" eyebrow="Webhooks" title="Signed sandbox events, verified on raw bytes"
+      <Section id="amount-differences" tone="canvas" eyebrow="Amount differences" title="Short amounts and contradicting reports"
+        intro={<><p>Since engine CHANGE 5, an amount difference is a structured object, <code className="inline">amountDifference: {"{"} code, expectedMinor, reportedMinor, differenceMinor, currency, source, statementLineId, requiredNextAction {"}"}</code> (<code className="inline">differenceMinor = expectedMinor − reportedMinor</code>). It appears on the statement line, on the exception (whose <code className="inline">requiredAction</code> is the <code className="inline">requiredNextAction</code>), in the evidence timeline and in <code className="inline">investigate().amountDifferences</code>.</p>
+          <p>A provider settlement report below the payout amount raises <code className="inline">unmatched_reconciliation</code> with code <code className="inline">RC_UNDER_AMOUNT_REPORT</code> (outcome <code className="inline">exception_raised</code>): reconciliation becomes <code className="inline">exception</code> and settlement is not upgraded. A bank line below the remainder is still allocated as partial (<code className="inline">RC_PARTIAL_AMOUNT</code>, reconciliation <code className="inline">partially_matched</code>, settlement <code className="inline">observed</code>) with the same object.</p>
+          <p>A provider settlement report on a payout whose execution is <code className="inline">failed</code>, <code className="inline">cancelled</code>, <code className="inline">expired</code> or <code className="inline">returned</code> raises <code className="inline">contradictory_evidence</code> with code <code className="inline">RC_REPORT_ON_TERMINAL_PAYOUT</code> (outcome <code className="inline">contradictory_exception_raised</code>): reconciliation becomes <code className="inline">exception</code>, and settlement and scope are unchanged.</p>
+          <p>Human labels for every status, code and error come from the engine&rsquo;s <code className="inline">HUMAN_LABELS</code>, <code className="inline">describeCode</code> and <code className="inline">describeStatus</code>; this site uses the same strings. Funding rows carry <code className="inline">supplierPaidBasis</code> (<code className="inline">none</code>, <code className="inline">provider_reported</code> or <code className="inline">verified_settlement</code>); the <code className="inline">supplier_paid</code> stage is labelled &ldquo;Supplier paid (provider-reported)&rdquo;.</p></>}>
+        <AmountDifferenceTable />
+      </Section>
+
+      <Section id="webhooks" tone="white" eyebrow="Webhooks" title="Signed sandbox events, verified on raw bytes"
         intro={<p><code className="inline">POST /events/webhook</code> ingests a signed sandbox webhook. Header <code className="inline">X-Sandbox-Signature: t=&lt;unix seconds&gt;,v1=&lt;hex HMAC-SHA256(secret, t + &quot;.&quot; + rawBody)&gt;</code>, 300-second tolerance, constant-time compare.</p>}>
         <div className="grid-2">
           <div><p className="code-title">Verify a signature</p><pre className="code" tabIndex={0} aria-label="Signature verification example">{verify}</pre></div>

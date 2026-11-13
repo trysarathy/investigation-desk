@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ButtonLink, ContactBand, ExtLink, PageHero, Section, Stage } from "@/components/Shared";
-import { ExceptionsTable, FundingTable, LiquidityTable, ReconTable } from "@/components/Tables";
+import { AmountDifferenceTable, ExceptionsTable, FundingTable, LiquidityTable, ReconTable } from "@/components/Tables";
 import InvestigationView from "@/components/InvestigationView";
 import { FUNDING_DESK_URL, SOFTWARE_URL } from "@/lib/site";
 import { pageMeta } from "@/lib/meta";
@@ -28,6 +28,13 @@ export default function Control() {
       <Section eyebrow="Reconciliation" title="Match by reference. Never by amount alone."
         intro={<p>A statement line is allocated automatically only on a trusted reference (the provider payment id for payouts, the repayment reference for repayments) plus amount, currency and a value-date window. Amount-only, ambiguous, duplicate, currency-mismatched or out-of-window lines become exceptions with an explanation code. A full bank-statement match sets settlement verified (scope bank_statement); it shows the payout left the account, not that the beneficiary was credited. A provider-reported return makes reconciliation an exception at once. A matching return line on the statement confirms it (returnStatus confirmed_by_statement), but the exception stays open until a person resolves it, because the supplier is still unpaid.</p>}>
         <ReconTable />
+        <h3 className="h3" style={{ margin: "40px 0 12px" }} id="amount-differences">Short amounts and reports that contradict the payout</h3>
+        <div className="prose" style={{ marginBottom: 16 }}>
+          <p>A bank line with the trusted reference but less than the amount is allocated as partial: reconciliation is partially matched, settlement stays observed, and the remainder stays outstanding (<code className="inline">RC_PARTIAL_AMOUNT</code>).</p>
+          <p>A provider settlement report below the payout amount is not treated as settlement in full. It raises an <code className="inline">unmatched_reconciliation</code> exception (<code className="inline">RC_UNDER_AMOUNT_REPORT</code>), reconciliation becomes an exception, and settlement is not upgraded. Both cases carry a structured difference: expected, reported, difference, currency, source and the required next action.</p>
+          <p>A provider settlement report on a payout that is failed, cancelled, expired or returned is a contradiction, not evidence. It raises <code className="inline">contradictory_evidence</code> (<code className="inline">RC_REPORT_ON_TERMINAL_PAYOUT</code>), reconciliation becomes an exception, and settlement is left unchanged.</p>
+        </div>
+        <AmountDifferenceTable />
         <h3 className="h3" style={{ margin: "40px 0 12px" }}>Exceptions, owners and due dates</h3>
         <ExceptionsTable />
       </Section>

@@ -329,8 +329,7 @@ test("semantic financial colours: provider claims are never green or blue; green
   assert.equal(tone("reconTone", "matched"), "success"); assert.equal(tone("reconTone", "exception"), "danger");
   assert.equal(/tone-info|"info"/.test(st.replace(/Tone \| "info"/, "")), false, "no status uses the info (blue) tone");
   // Human label first, exact API value as secondary detail.
-  assert.match(st, /provider_reported_completed: "Provider reports completed"/);
-  assert.match(st, /className="st-api"/);
+    assert.match(st, /className="st-api"/);
 });
 
 test("homepage: approved hero, CTAs, investigation view from the sample records, and required sections", () => {
@@ -348,11 +347,46 @@ test("homepage: approved hero, CTAs, investigation view from the sample records,
   assert.match(home, /19, in her second year of Accountancy at Singapore Management University, with a second major in Finance/);
 });
 
-test("reconciliation edge cases described on the site exist in the engine today", () => {
-  const all = copySources.map(read).join("\n");
-  // Under-amount / failed-payout-report exceptions are not in the engine yet: do not describe them.
-  for (const re of [/under[-_ ]amount/i, /underpaid/i, /failed[-_ ]payout[-_ ]report/i, /short[-_ ]payment/i]) assert.equal(re.test(all), false, "site describes " + re);
-  assert.match(read("app/page.tsx"), /RC_PARTIAL_AMOUNT/);
+test("engine CHANGE 5: under-amount reports, reports on terminal payouts and partial bank lines are described exactly", () => {
+  const dev = read("app/developers/page.tsx"), control = read("app/control/page.tsx"), uc = read("app/use-cases/page.tsx"), home = read("app/page.tsx");
+  // F2: under-amount provider report → unmatched_reconciliation / RC_UNDER_AMOUNT_REPORT, reconciliation exception, settlement not upgraded.
+  for (const s of [dev, control]) {
+    assert.match(s, /RC_UNDER_AMOUNT_REPORT/); assert.match(s, /unmatched_reconciliation/);
+    assert.match(s, /settlement is not upgraded/);
+    assert.match(s, /RC_REPORT_ON_TERMINAL_PAYOUT/); assert.match(s, /contradictory_evidence/);
+    assert.match(s, /failed, cancelled, expired or returned|<code className="inline">failed<\/code>, <code className="inline">cancelled<\/code>, <code className="inline">expired<\/code> or <code className="inline">returned<\/code>/);
+    assert.match(s, /settlement (and scope are|is left) unchanged/);
+    assert.match(s, /RC_PARTIAL_AMOUNT/);
+    assert.match(s, /<AmountDifferenceTable \/>/);
+  }
+  assert.match(dev, /expectedMinor, reportedMinor, differenceMinor, currency, source, statementLineId, requiredNextAction/);
+  assert.match(dev, /investigate\(\)\.amountDifferences/);
+  assert.match(dev, /exception_raised/); assert.match(dev, /contradictory_exception_raised/);
+  assert.match(dev, /supplierPaidBasis/); assert.match(dev, /Supplier paid \(provider-reported\)/);
+  assert.match(uc, /RC_UNDER_AMOUNT_REPORT/); assert.match(uc, /RC_REPORT_ON_TERMINAL_PAYOUT/);
+  assert.match(home, /RC_UNDER_AMOUNT_REPORT/); assert.match(home, /RC_PARTIAL_AMOUNT/); assert.match(home, /RC_REPORT_ON_TERMINAL_PAYOUT/);
+  // The structured difference uses the engine's own F2 wording and arithmetic.
+  const s = read("lib/sample.ts");
+  assert.match(s, /expected: "SGD 10,000\.00", reported: "SGD 4,000\.00", difference: "SGD 6,000\.00"/);
+  assert.match(s, /Ask the provider to explain the SGD 6,000\.00 shortfall \(fees, partial settlement or a further report\) and obtain the bank statement line for the payout\. Do not treat the payout as settled until the full amount is evidenced\./);
+  assert.match(s, /supplierPaidBasis: "verified_settlement"/);
+  // Never claim a short report settles or reconciles.
+  for (const f of copySources) assert.equal(/under-amount[^.]*\b(matched|verified|settled in full)\b/i.test(read(f)), false, f);
+  const doc = read("../docs/design/DESIGN_SYSTEM.md");
+  for (const t of ["RC_UNDER_AMOUNT_REPORT", "RC_REPORT_ON_TERMINAL_PAYOUT", "amountDifference", "supplierPaidBasis"]) assert.ok(doc.includes(t), t);
+});
+
+test("status labels are the engine's exact HUMAN_LABELS strings (labels.ts @ 0490e40)", () => {
+  const st = read("components/Status.tsx");
+  const map = name => { const m = st.match(new RegExp("export const " + name + "[^=]*= \\{([\\s\\S]*?)\\};")); assert.ok(m, name); return Object.fromEntries([...m[1].matchAll(/([a-z_]+): "([^"]*)"/g)].map(x => [x[1], x[2]])); };
+  assert.deepEqual(map("EXEC_LABEL"), { created: "Created", quoted: "Quoted", approved: "Approved — not yet sent", submitted: "Sent to provider", in_transit: "Provider reports in transit", provider_reported_completed: "Provider reports completed", awaiting_information: "Provider requests information", on_hold: "On hold with the partner", failed: "Provider reports failed", returned: "Provider reports returned", cancelled: "Cancelled", expired: "Expired" });
+  assert.deepEqual(map("SETTLEMENT_LABEL"), { none: "No settlement evidence", observed: "Settlement observed (not verified)", pending_finality: "Awaiting finality", verified: "Settlement verified", contradicted: "Settlement evidence contradicted" });
+  assert.deepEqual(map("SCOPE_LABEL"), { none: "No evidence", provider_report: "Provider report only", bank_statement: "Bank statement", onchain_transfer: "On-chain transfer (synthetic testnet)" });
+  assert.deepEqual(map("RECON_LABEL"), { not_started: "Not started", pending: "Awaiting statement", matched: "Matched", partially_matched: "Partially matched", exception: "Needs review" });
+  // Same summary shape as the engine's describeStatus: "Settlement verified (Bank statement)".
+  assert.match(st, /\{SETTLEMENT_LABEL\[state\]\}\{sc && <> \(\{SCOPE_LABEL\[sc\]\}\)<\/>\}/);
+  const doc = read("../docs/design/DESIGN_SYSTEM.md");
+  for (const l of ["Approved — not yet sent", "Settlement observed (not verified)", "Needs review", "Awaiting statement", "On-chain transfer (synthetic testnet)", "Supplier paid (provider-reported)"]) assert.ok(doc.includes(l), l);
 });
 
 test("no banned claims (content-marketer list) in site copy", () => {

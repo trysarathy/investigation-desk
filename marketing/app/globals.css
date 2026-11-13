@@ -188,7 +188,7 @@ code.inline { font-size: 0.86em; background: var(--cl-neutral-bg); color: var(--
 .section-white .panel { background: var(--cl-canvas); }
 .panel .label + p { margin-top: 0; }
 .bullets { list-style: none; display: grid; gap: var(--cl-space-3); }
-.bullets li { position: relative; padding-left: 20px; }
+.bullets li { position: relative; padding-left: 20px; overflow-wrap: anywhere; }
 .bullets li::before { content: ""; position: absolute; left: 0; top: 0.72em; width: 8px; height: 1px; background: currentColor; }
 
 .list-rows { list-style: none; border-top: var(--cl-border); }
@@ -389,3 +389,5 @@ code.inline { font-size: 0.86em; background: var(--cl-neutral-bg); color: var(--
 .toast { padding: var(--cl-space-4); border-radius: var(--cl-radius-sm); border-left: 3px solid; font-size: var(--cl-text-sm); }
 .toast-success { background: var(--cl-success-bg); color: var(--cl-success); }
 .toast-error { background: var(--cl-danger-bg); color: var(--cl-danger); }
+.data-table .st-label, .data-table .st-api { white-space: nowrap; overflow-wrap: normal; }
+.data-table .st { min-width: max-content; }
