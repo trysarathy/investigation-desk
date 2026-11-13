@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+:root{color-scheme:light}
+html{scroll-behavior:smooth;scroll-padding-top:85px}
+body{background:#F5F6F4;color:#1B1F1D;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+::selection{background:#C9DFD0;color:#1B1F1D}
+a,button{transition:color .16s ease,background-color .16s ease,border-color .16s ease,transform .16s ease}
+a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid #2E6B4F;outline-offset:3px}
+@layer components {
+ .container-site{@apply mx-auto w-full max-w-site px-5 sm:px-8 lg:px-10}
+ .eyebrow{@apply font-mono text-[10px] font-semibold uppercase tracking-[.17em]}
+ .heading-section{@apply text-[clamp(2.1rem,4vw,3.9rem)] font-semibold leading-[1.13] tracking-[-.055em]}
+ .btn{@apply inline-flex min-h-[46px] items-center justify-center gap-2 rounded-md border px-5 py-3 text-[13px] font-semibold leading-5 no-underline}
+ .btn-primary{@apply border-pine bg-pine text-white hover:bg-[#24553E]}
+ .btn-outline{@apply border-[#B9CBBE] bg-white/70 text-pine hover:border-pine hover:bg-sage}
+ .form-label{@apply grid gap-2 text-[12px] font-semibold text-ink}
+ .form-label input,.form-label textarea{@apply block w-full rounded-md border border-[#CED9D0] bg-white px-4 py-3 text-[13px] font-normal text-ink placeholder:text-[#97A099] focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine/20}
+}
+.flowline:before{content:"";position:absolute;left:13%;right:13%;top:22px;height:1px;background:#BCD1C2;z-index:0}
+.flow-card{position:relative;z-index:1}
+.flow-step{animation:rise .65s ease both}
+.flow-step:nth-child(2){animation-delay:.12s}.flow-step:nth-child(3){animation-delay:.24s}
+@keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+details>summary::-webkit-details-marker{display:none}
+details[open] summary .faq-plus{transform:rotate(45deg)}
+.timeline-rule{border-left:1px solid #BCD2C0}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
