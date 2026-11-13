@@ -3,8 +3,13 @@
  * prototype engine (float amounts, a weaker webhook verifier). It no longer executes anything:
  * - a request that is invalid under the old contract is still refused with 422 (QA L7), and
  * - every other request gets 410 Gone with a pointer to /api/clearline/test/v1 (unified engine).
+ *
+ * QA L3 (rc3): this route is excluded from the middleware matcher, so it applies the deployment gates
+ * itself (gated) and reads at most MAX_BODY_BYTES of a body.
  */
 import { NextResponse } from "next/server";
+import { readBodyLimited } from "@/lib/clearline/bodylimit";
+import { closeAfter, gated, refusedByDeploymentGate } from "../gate";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -56,14 +61,23 @@ function legacyProblem(action: string, b: Record<string, unknown>): string | nul
   return null;
 }
 
-export async function GET(_req?: unknown, _ctx?: unknown) {
-  return gone();
+/** The old contract allowed 12,000 characters; at most 4 UTF-8 bytes each, so this byte cap never refuses a valid one. */
+const MAX_BODY_BYTES = 48_000;
+
+// The request is optional only for existing unit tests that call GET() bare; Next always passes it.
+export async function GET(req?: unknown, _ctx?: unknown) {
+  const refused = req instanceof Request ? refusedByDeploymentGate(req) : null;
+  return refused ?? gone();
 }
 
-export async function POST(req: Request, ctx: { params: Promise<{ action: string }> }) {
+export const POST = gated(async (req: Request, ctx: { params: Promise<{ action: string }> }) => {
   try {
     const { action } = await ctx.params;
-    const text = await req.text();
+    const declared = Number(req.headers.get("content-length") ?? "0");
+    if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) return closeAfter(invalid("Test payload exceeds 12 KB."));
+    const read = await readBodyLimited(req.body, MAX_BODY_BYTES);
+    if (!read.ok) return closeAfter(read.reason === "too_large" ? invalid("Test payload exceeds 12 KB.") : gone());
+    const text = read.text;
     if (text.length > 12_000) return invalid("Test payload exceeds 12 KB.");
     let body: unknown;
     try {
@@ -77,8 +91,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ action: string
   } catch {
     return gone();
   }
-}
+});
 
-export const PUT = gone;
-export const PATCH = gone;
-export const DELETE = gone;
+const goneGated = gated(async (req: Request) => (req.body ? closeAfter(gone()) : gone()));
+export const PUT = goneGated;
+export const PATCH = goneGated;
+export const DELETE = goneGated;
+// Defined so the gates run for OPTIONS too (Next's automatic OPTIONS would answer before any gate).
+export const OPTIONS = gated(async () => new Response(null, { status: 204, headers: { Allow: "DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT" } }));

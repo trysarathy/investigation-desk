@@ -30,7 +30,8 @@ const themeScript = `try{var t=localStorage.getItem("desk.theme");if(t==="light"
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // The mentor demo is an entirely synthetic standalone UI, not the
   // authenticated provider workspace and not the legacy stablecoin shell.
-  const isMentorDemo = (await headers()).get("x-clearline-mentor-demo-route") === "1";
+  const requestHeaders = await headers();
+  const isMentorDemo = requestHeaders.get("x-clearline-mentor-demo-route") === "1";
   // QA residual R1: in the customer preview every page, including a 404, skips the legacy shell.
   if (isMentorDemo || isCustomerPreview()) return <html lang="en"><body>{children}</body></html>;
   if (process.env.CLEARLINE_FUNDING_ONLY === "1") return <html lang="en"><body>{children}</body></html>;
@@ -47,7 +48,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" suppressHydrationWarning {...(demoMode ? { "data-demo-actor": DEMO_ACTOR } : {})}>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        {/* R2: the per-request nonce from the middleware's Content-Security-Policy (no 'unsafe-inline'). */}
+        <script nonce={requestHeaders.get("x-nonce") ?? undefined} dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
         <Shell index={demoMode ? [] : searchIndex()} workspace={workspace} demoMode={demoMode}>{children}</Shell>

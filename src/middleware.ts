@@ -1,6 +1,15 @@
-// Optional password on a shared preview. Set PREVIEW_USER and PREVIEW_PASSWORD on the host and
-// every page and API route asks for them (HTTP Basic auth). Unset, nothing changes. This is a
-// gate for a demo link, not the week 5 login.
+// Deployment gates and the per-request Content-Security-Policy.
+//
+// Gates (unchanged semantics, now one pure function shared with the test-API routes):
+// - CLEARLINE_CUSTOMER_PREVIEW=1: an allow-list (only the console, /mentor-demo, the test API and assets).
+// - /clearline and /mentor-demo: the synthetic console and mentor demo, never behind the gates below.
+// - CLEARLINE_FUNDING_ONLY=1: only the funding desk and assets; everything else is a plain 404.
+// - PREVIEW_USER + PREVIEW_PASSWORD: HTTP Basic auth on every other page and API route (a gate for a
+//   demo link, not the week 5 login). Unset, nothing changes.
+//
+// QA L3 (rc3): /api/clearline/test/** is excluded from the matcher below so Next never clones or drains
+// its request bodies (middlewareClientMaxBodySize is 21 MB for the legacy upload routes). Those routes
+// call deploymentGate() + gateResponse() themselves, before reading any body, so the gates cannot drift.
 
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -11,50 +20,115 @@ function same(a: string, b: string): boolean {
   return diff === 0;
 }
 
-export function middleware(req: NextRequest) {
-  if (process.env.CLEARLINE_CUSTOMER_PREVIEW === "1") {
-    const path = req.nextUrl.pathname;
-    if (path === "/") return NextResponse.redirect(new URL("/clearline", req.url));
-    const allowed = path === "/clearline" || path.startsWith("/clearline/") ||
-      path === "/mentor-demo" || path.startsWith("/api/clearline/test/") ||
-      path === "/favicon.ico" || path === "/icon.svg" || path.startsWith("/_next/");
-    if (!allowed) return new NextResponse("Not found", { status: 404, headers: { "Cache-Control": "no-store" } });
+/** Reads CLEARLINE_CUSTOMER_PREVIEW, CLEARLINE_FUNDING_ONLY, PREVIEW_USER and PREVIEW_PASSWORD (process.env fits). */
+export type GateEnv = Readonly<Record<string, string | undefined>>;
+
+/** What the deployment gates decide for one request. Pure: no I/O, no clock, no randomness. */
+export type GateDecision =
+  /** Serve it. `consoleShell`: render with the bare console layout (customer preview, console, mentor demo). */
+  | { action: "next"; consoleShell: boolean }
+  | { action: "redirect"; location: "/clearline" }
+  /** `noStore`: the customer-preview 404 carries Cache-Control: no-store; the funding-only 404 does not. */
+  | { action: "not_found"; noStore: boolean }
+  | { action: "unauthorized" };
+
+const isConsolePath = (p: string) => p === "/mentor-demo" || p === "/clearline" || p.startsWith("/clearline/");
+
+export function deploymentGate(pathname: string, authorization: string | null, env: GateEnv): GateDecision {
+  if (env.CLEARLINE_CUSTOMER_PREVIEW === "1") {
+    if (pathname === "/") return { action: "redirect", location: "/clearline" };
+    const allowed = pathname === "/clearline" || pathname.startsWith("/clearline/") ||
+      pathname === "/mentor-demo" || pathname.startsWith("/api/clearline/test/") ||
+      pathname === "/favicon.ico" || pathname === "/icon.svg" || pathname.startsWith("/_next/");
     // QA L1: every allowed request in the customer preview renders with the console layout, so a
     // 404 for an allowed-prefix lookalike (e.g. /_next/imagex) can never show the legacy app shell.
-    // The allow-list itself (what is allowed vs 404) is unchanged.
-    const h = new Headers(req.headers);
-    h.set("x-clearline-mentor-demo-route", "1");
-    return NextResponse.next({ request: { headers: h } });
+    return allowed ? { action: "next", consoleShell: true } : { action: "not_found", noStore: true };
   }
   // Self-contained, synthetic-only mentor demonstration. It neither touches
   // the private funding store nor exposes the real approval API.
-  if (req.nextUrl.pathname === "/mentor-demo" || req.nextUrl.pathname === "/clearline" || req.nextUrl.pathname.startsWith("/clearline/")) {
-    const requestHeaders = new Headers(req.headers);
-    requestHeaders.set("x-clearline-mentor-demo-route", "1");
-    return NextResponse.next({ request: { headers: requestHeaders } });
+  if (isConsolePath(pathname)) return { action: "next", consoleShell: true };
+  if (env.CLEARLINE_FUNDING_ONLY === "1") {
+    const ok = ["/", "/funding", "/api/funding", "/icon.svg", "/favicon.ico"].includes(pathname) || pathname.startsWith("/_next/");
+    return ok ? { action: "next", consoleShell: false } : { action: "not_found", noStore: false };
   }
-  if(process.env.CLEARLINE_FUNDING_ONLY === '1') {
-    const p=req.nextUrl.pathname;
-    if(!['/','/funding','/api/funding','/icon.svg','/favicon.ico'].includes(p)&&!p.startsWith('/_next/')) return new NextResponse('Not found',{status:404});
-    return NextResponse.next();
-  }
-  const user = process.env.PREVIEW_USER;
-  const password = process.env.PREVIEW_PASSWORD;
-  if (!user || !password) return NextResponse.next();
+  const user = env.PREVIEW_USER;
+  const password = env.PREVIEW_PASSWORD;
+  if (!user || !password) return { action: "next", consoleShell: false };
   // The sender's payment page is customer-facing: it carries its own unguessable link ID.
-  if (req.nextUrl.pathname.startsWith("/pay/")) return NextResponse.next();
-  const header = req.headers.get("authorization") ?? "";
+  if (pathname.startsWith("/pay/")) return { action: "next", consoleShell: false };
+  const header = authorization ?? "";
   if (header.startsWith("Basic ")) {
     let decoded = "";
     try { decoded = atob(header.slice(6)); } catch { /* malformed: ask again */ }
     const i = decoded.indexOf(":");
-    if (i >= 0 && same(decoded.slice(0, i), user) && same(decoded.slice(i + 1), password)) return NextResponse.next();
+    if (i >= 0 && same(decoded.slice(0, i), user) && same(decoded.slice(i + 1), password)) return { action: "next", consoleShell: false };
   }
-  return new NextResponse("Sign in to view this preview.", {
-    status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="Investigation Desk preview", charset="UTF-8"' },
-  });
+  return { action: "unauthorized" };
+}
+
+/** The response for a refused request, or null when the request may proceed. Same bytes from middleware and routes. */
+export function gateResponse(decision: GateDecision, requestUrl: string): Response | null {
+  switch (decision.action) {
+    case "next": return null;
+    case "redirect": return NextResponse.redirect(new URL(decision.location, requestUrl));
+    case "not_found": return decision.noStore
+      ? new NextResponse("Not found", { status: 404, headers: { "Cache-Control": "no-store" } })
+      : new NextResponse("Not found", { status: 404 });
+    case "unauthorized": return new NextResponse("Sign in to view this preview.", {
+      status: 401,
+      headers: { "WWW-Authenticate": 'Basic realm="Investigation Desk preview", charset="UTF-8"' },
+    });
+  }
+}
+
+// ---- R2: nonce-based Content-Security-Policy ----------------------------------------------------
+// Directives other than script-src are identical to the static fallback policy in next.config.mjs
+// (a test checks this). style-src keeps 'unsafe-inline': React renders `style={...}` props as inline
+// style attributes in the server HTML, which a nonce cannot cover (see SECURITY_PLATFORM_RC3.md).
+export function nonceContentSecurityPolicy(nonce: string, dev = process.env.NODE_ENV !== "production"): string {
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    `connect-src 'self'${dev ? " ws: wss:" : ""}`,
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join("; ");
+}
+
+/** 128 random bits, base64. */
+export function newNonce(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return btoa(String.fromCharCode(...bytes));
+}
+
+export function middleware(req: NextRequest) {
+  const decision = deploymentGate(req.nextUrl.pathname, req.headers.get("authorization"), process.env);
+  const refused = gateResponse(decision, req.url);
+  if (refused) return refused;
+  if (decision.action !== "next") return NextResponse.next(); // unreachable: gateResponse handled it
+  const nonce = newNonce();
+  const csp = nonceContentSecurityPolicy(nonce);
+  const h = new Headers(req.headers);
+  if (decision.consoleShell) h.set("x-clearline-mentor-demo-route", "1");
+  // Next reads the nonce from the request's CSP header and puts it on its own scripts; the root layout
+  // reads x-nonce for its inline theme script.
+  h.set("x-nonce", nonce);
+  h.set("Content-Security-Policy", csp);
+  const res = NextResponse.next({ request: { headers: h } });
+  res.headers.set("Content-Security-Policy", csp);
+  return res;
 }
 
 // QA L1: exclusions are anchored, so lookalike paths (/favicon.icox, /_next/imagex) still pass through the middleware.
-export const config = { matcher: ["/((?!_next/static/|_next/image$|favicon\\.ico$).*)"] };
+// QA L3: /api/clearline/test/v1/<segments> and /api/clearline/test/<segment> are excluded ONLY when every segment is
+// [A-Za-z0-9_-]+ (no dots, no percent-encoding, no empty segments). Such a path can only be routed to the v1
+// catch-all or the retired legacy route, which run deploymentGate() themselves. Anything else (an encoded or
+// dotted path that Next might normalise to another route) still goes through this middleware.
+export const TEST_API_EXCLUSION = "api/clearline/test/v1/[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*$|api/clearline/test/[A-Za-z0-9_-]+$";
+export const config = { matcher: ["/((?!_next/static/|_next/image$|favicon\\.ico$|api/clearline/test/v1/[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*$|api/clearline/test/[A-Za-z0-9_-]+$).*)"] };
