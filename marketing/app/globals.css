@@ -171,3 +171,14 @@ a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,
 @media(max-width:1040px){.hero-layout,.example-grid,.funding-grid{gap:45px}.hero-copy h1{font-size:clamp(3.9rem,6.4vw,6rem)}.product-intro,.product-row,.process-layout{gap:45px}}
 @media(max-width:820px){.hero-layout,.example-grid,.product-intro,.product-row,.process-layout,.funding-grid,.replay-layout,.faq-layout{grid-template-columns:1fr}.hero-layout{padding:70px 0}.hero-copy h1{font-size:clamp(3.8rem,9vw,6.6rem)}.hero-art{max-width:590px;transform:none;box-shadow:10px 10px 0 #263544}.hero-footer,.hero-topline{font-size:9px}.editorial-title{font-size:clamp(2.7rem,7vw,4.5rem)}.section-kicker{margin-bottom:43px}.stage-grid{grid-template-columns:1fr}.founder-layout{grid-template-columns:160px 1fr;gap:38px}.funding-ledger{max-width:600px}}
 @media(max-width:580px){.hero-topline{align-items:flex-start;flex-direction:column;gap:8px}.hero-layout{padding:55px 0 68px}.hero-copy h1{font-size:clamp(3.5rem,12.5vw,5rem)}.hero-copy h1 em{white-space:normal}.hero-lede{font-size:17px}.hero-footer{flex-wrap:wrap;gap:10px}.hero-diagram{padding:14px}.diagram-node{padding:13px}.statement-strip .container-site{align-items:flex-start;flex-direction:column}.example-section,.product-section,.process-section,.funding-section,.stage-section,.faq-section,.founder-section{padding:72px 0}.example-caption{align-items:flex-start;flex-direction:column}.product-row{padding:30px 0}.product-row-heading h3{font-size:55px}.replay-layout h2{font-size:clamp(2.8rem,11vw,4.3rem)}.replay-section{padding:65px 0}.funding-ledger{box-shadow:7px 7px 0 #283748}.founder-layout{grid-template-columns:1fr}.founder-photo{max-width:210px}.demo-content{padding:17px 14px}.demo-scenarios button{font-size:10px}}
+
+/* Text contrast and smaller-screen final pass. */
+.hero-copy h1 em{font-size:.72em;white-space:normal}
+.studio-hero .hero-index,.studio-hero .section-number{color:#F9A182}
+.eyebrow.text-pine,.section-number,.section-kicker+.section-number,.product-row-heading>span,.process-item>span,.stage-grid a,.example-caption a,.inline-link,.founder-layout a{color:#A73925}
+.funding-section .editorial-title em,.studio-hero .hero-copy h1 em{color:#F9A182}
+.funding-section .section-kicker,.studio-hero .hero-topline,.studio-hero .hero-footer{color:#E1D9D1}
+.replay-section{background:#B63F2B}
+.demo-next span,.demo-overline{color:#A33C28}
+@media(max-width:1050px){.hero-copy h1{font-size:clamp(3.5rem,6vw,5.5rem)}}
+@media(max-width:580px){.hero-copy h1{font-size:clamp(3.35rem,11vw,4.6rem)}}
