@@ -12,10 +12,17 @@ import { loadWorkspace } from "@/lib/workspace/live";
 import { DEMO_ACTOR, isDemoMode } from "@/lib/mode";
 import { DEMO_BUSINESS } from "@/lib/requests/demo";
 
-export const metadata: Metadata = {
-  title: process.env.CLEARLINE_FUNDING_ONLY === "1" ? "Clearline Funding Desk" : isDemoMode() ? "Stablecoin payment requests · Demo" : "Investigation desk",
-  description: process.env.CLEARLINE_FUNDING_ONLY === "1" ? "Review advances and track what is still owed." : "Get paid in stablecoins without the mess (prototype)",
-};
+/** Customer-preview deployments show only the Clearline console; nothing from the legacy app. */
+const isCustomerPreview = () => process.env.CLEARLINE_CUSTOMER_PREVIEW === "1";
+
+export async function generateMetadata(): Promise<Metadata> {
+  // QA residual R1: a 404 in the customer preview carries a neutral Clearline title, never the legacy app's.
+  if (isCustomerPreview()) return { title: "Not found — Clearline", description: "Clearline test-mode preview." };
+  return {
+    title: process.env.CLEARLINE_FUNDING_ONLY === "1" ? "Clearline Funding Desk" : isDemoMode() ? "Stablecoin payment requests · Demo" : "Investigation desk",
+    description: process.env.CLEARLINE_FUNDING_ONLY === "1" ? "Review advances and track what is still owed." : "Get paid in stablecoins without the mess (prototype)",
+  };
+}
 
 // Applies the saved theme before first paint so dark mode never flashes light.
 const themeScript = `try{var t=localStorage.getItem("desk.theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}`;
@@ -24,7 +31,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // The mentor demo is an entirely synthetic standalone UI, not the
   // authenticated provider workspace and not the legacy stablecoin shell.
   const isMentorDemo = (await headers()).get("x-clearline-mentor-demo-route") === "1";
-  if (isMentorDemo) return <html lang="en"><body>{children}</body></html>;
+  // QA residual R1: in the customer preview every page, including a 404, skips the legacy shell.
+  if (isMentorDemo || isCustomerPreview()) return <html lang="en"><body>{children}</body></html>;
   if (process.env.CLEARLINE_FUNDING_ONLY === "1") return <html lang="en"><body>{children}</body></html>;
   // The sidebar must not call uploaded data "fabricated" (real-data test, 24 Oct 2026).
   const demoMode = isDemoMode();

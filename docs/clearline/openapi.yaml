@@ -1,0 +1,512 @@
+openapi: 3.1.0
+info:
+  title: Clearline engine — test-mode API (sandbox)
+  version: 1.0.0-sandbox
+  summary: Stateless, synthetic test API over the Clearline sandbox engine.
+  description: |
+    **TEST MODE ONLY.** Fictional organisations, providers, beneficiaries and amounts. No provider
+    calls, no money movement, no custody, keys, lending or compliance decisions. Nothing is
+    persisted server-side (`persisted: false`).
+
+    **Stateless model.** Every POST accepts an optional `workspace` (the object returned by a previous
+    response, or held in the console's browser storage). Omit it to start from the deterministic
+    sample workspace. Every successful POST returns the new `workspace` and the `audit` events
+    appended. GET endpoints read the sample workspace.
+
+    **Authentication.** `Authorization: Bearer cl_test_demo` — a public example key, not a credential.
+
+    **Actors.** `X-Clearline-Actor` (or body `actorId`) selects the fictional actor. Defaults:
+    `usr_maya` (operator) for maker actions, `usr_daniel` (approver) for approvals and advance
+    decisions. Maker and checker must differ.
+
+    **Simulated clock.** Body `at` (ISO-8601) sets the action instant; default is `workspace.asOf`.
+    It may never be earlier than `workspace.asOf`.
+
+    **Amounts.** Integer minor units (`amountMinor`) plus a currency code. USDC has 6 decimals.
+    Amounts in different currencies are never added.
+
+    **Status dimensions.** A payment has three separate dimensions — `execution`, `settlement`
+    (+ `settlementScope`) and `reconciliation`. A provider "completed" report never sets settlement
+    `verified` or reconciliation `matched`.
+
+    **Idempotency.** `POST /intents` requires an idempotency key (header `Idempotency-Key` or body
+    `input.idempotencyKey`). Same key + same body → the original intent (`outcome: idempotent_replay`,
+    HTTP 200). Same key + different body → HTTP 409 `idempotency_conflict`. Fingerprints use a
+    canonical (sorted-key) JSON of the input.
+
+    **Returns.** When the provider reports a returned payout, `reconciliation` becomes `exception` and
+    `returnStatus: provider_reported`. A return/reversal statement line carrying the trusted provider
+    reference is allocated with code `RC_RETURN_CONFIRMS_PROVIDER_RETURN` and sets
+    `returnStatus: confirmed_by_statement`. Reconciliation stays `exception` until a person resolves
+    the `returned_payout` exception.
+
+    **Separation of duties.** The maker of an instruction (or preparer of an advance, or submitter of
+    hold documents) always receives `maker_checker_violation` when trying to check their own work.
+    This is checked before the role check.
+
+    **Time.** `at` must be an ISO-8601 instant (HTTP 400 otherwise). It is stored as UTC (`…Z`). Business
+    dates (due dates, overdue, expiry, reconciliation window) use the organisation's time zone.
+
+    **Evidence rules.** A provider settlement report is provider-reported evidence only, whether it
+    arrives before or after the bank line. It is never allocated, never treated as a duplicate of a
+    bank line, and never makes a payment `matched`; a bank statement line does. A returned payout is
+    never shown as settled: settlement `none`, and reconciliation `matched` only net of a
+    statement-confirmed return. Chain observations apply
+    only to a submitted USDC payout on the Base Sepolia route, to the beneficiary's registered wallet,
+    for the quoted amount. One transaction hash evidences at most one payout. A `contradicted`
+    settlement changes only after a person resolves the contradiction.
+
+    **Roles in this stateless API are advisory.** The caller supplies the workspace (including the actor
+    list) and picks the actor with `X-Clearline-Actor`. Role and maker ≠ checker checks show the
+    product's rules but are not a security boundary here.
+
+    **Robustness.** Malformed JSON, damaged workspaces and malformed provider payloads return 4xx JSON,
+    never 500. Limits: request body ≤ 512 KB (422 `invalid_json`); each workspace collection ≤ 1,000
+    items, audit ≤ 10,000 (400 `invalid_field`); nesting depth ≤ 32. While a payout is on a partner hold,
+    provider events never move it; leaving a hold needs the compliance reviewer.
+
+    **Legacy endpoints** under `/api/clearline/test/{intents,quotes,transitions,webhooks,payments,health}`
+    are **retired** and execute nothing. A request that is invalid under the old contract gets HTTP 422
+    (`invalid_request`); every other request, any method, gets HTTP 410 (`endpoint_retired`). Both carry
+    `error.replacement: "/api/clearline/test/v1"`.
+
+    ## Error-code catalogue
+    | code | HTTP | meaning |
+    |---|---|---|
+    | unauthenticated | 401 | Missing example bearer key |
+    | webhook_signature_invalid | 401 | Reserved; webhook ingestion records invalid signatures with outcome `rejected_signature` |
+    | unauthorized_actor | 403 | Unknown actor or role not permitted for this action |
+    | maker_checker_violation | 403 | Checker is the maker (instruction, advance, hold documents) |
+    | not_found / unknown_endpoint | 404 | Entity or endpoint does not exist |
+    | idempotency_conflict | 409 | Key reused with a different body |
+    | duplicate_statement_line | 409 | Same (source, accountRef, lineId) already ingested |
+    | invalid_transition | 409 | Execution/case/hold transition not allowed |
+    | resolution_not_permitted | 409 | Resolution conditions not met (message carries the reason code) |
+    | hold_requires_human_decision | 409 | A case with an undecided compliance hold cannot be resolved |
+    | quote_expired | 409 | Quote past `expiresAt` |
+    | invalid_amount | 422 | Not a positive safe integer of minor units |
+    | invalid_currency | 422 | Unsupported currency |
+    | currency_mismatch | 422 | Operation would combine currencies |
+    | invalid_field / invalid_json | 422 | Malformed or non-fictional input |
+    | quote_ineligible | 422 | Route not eligible (reason in message) |
+    | precondition_failed | 422 | A required prior step is missing |
+    | unsupported_token_or_network | 422 | Reserved; chain ingestion records these as exceptions |
+
+    Errors: `{ "error": { "code", "message", "help", "field?", "entityId?" } }`.
+servers:
+  - url: /api/clearline/test/v1
+    description: Test mode only (same origin as the console)
+security:
+  - exampleKey: []
+tags:
+  - name: intents
+  - name: quotes
+  - name: instructions
+  - name: events
+  - name: reconciliation
+  - name: exceptions
+  - name: liquidity
+  - name: funding-advances
+  - name: repayments
+  - name: investigations
+  - name: actions
+paths:
+  /health:
+    get:
+      security: []
+      summary: Service health (public)
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { mode: { const: test }, canMoveMoney: { const: false } } } } } }
+  /workspace:
+    get:
+      summary: The deterministic sample workspace
+      responses: { "200": { $ref: "#/components/responses/Read" } }
+  /intents:
+    get:
+      tags: [intents]
+      summary: List sample intents
+      responses: { "200": { $ref: "#/components/responses/Read" } }
+    post:
+      tags: [intents]
+      summary: Create a payment intent (idempotent)
+      parameters:
+        - { name: Idempotency-Key, in: header, required: false, schema: { type: string, pattern: "^[A-Za-z0-9_\\-:.]{8,80}$" } }
+        - { $ref: "#/components/parameters/Actor" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StatefulRequest"
+                - type: object
+                  required: [input]
+                  properties: { input: { $ref: "#/components/schemas/CreateIntentInput" } }
+      responses:
+        "201": { $ref: "#/components/responses/Action" }
+        "200": { description: Idempotent replay, content: { application/json: { schema: { $ref: "#/components/schemas/ActionResponse" } } } }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /intents/{intentId}:
+    get:
+      tags: [intents]
+      parameters: [{ $ref: "#/components/parameters/IntentId" }]
+      responses: { "200": { $ref: "#/components/responses/Read" }, "404": { $ref: "#/components/responses/Error" } }
+  /intents/{intentId}/quotes:
+    post:
+      tags: [quotes]
+      summary: Request indicative sandbox quotes from every route (eligible and ineligible, with reasons)
+      description: "Each quote carries `label: \"Indicative sandbox quote — not executable\"`, source, quotedAt, expiresAt (15 min) and freshness."
+      parameters: [{ $ref: "#/components/parameters/IntentId" }, { $ref: "#/components/parameters/Actor" }]
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/StatefulRequest" } } } }
+      responses: { "201": { $ref: "#/components/responses/Action" }, "409": { $ref: "#/components/responses/Error" } }
+  /intents/{intentId}/cancel:
+    post:
+      tags: [intents]
+      parameters: [{ $ref: "#/components/parameters/IntentId" }]
+      requestBody: { content: { application/json: { schema: { allOf: [{ $ref: "#/components/schemas/StatefulRequest" }, { type: object, required: [reason], properties: { reason: { type: string } } }] } } } }
+      responses: { "200": { $ref: "#/components/responses/Action" }, "409": { $ref: "#/components/responses/Error" } }
+  /instructions:
+    get:
+      tags: [instructions]
+      responses: { "200": { $ref: "#/components/responses/Read" } }
+    post:
+      tags: [instructions]
+      summary: Choose a route — creates a PaymentInstruction pending checker approval (maker = actor)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StatefulRequest"
+                - { type: object, required: [intentId, quoteId], properties: { intentId: { type: string }, quoteId: { type: string } } }
+      responses: { "201": { $ref: "#/components/responses/Action" }, "409": { $ref: "#/components/responses/Error" }, "422": { $ref: "#/components/responses/Error" } }
+  /instructions/{instructionId}/approve:
+    post:
+      tags: [instructions]
+      summary: Checker approval (must differ from maker; approver role)
+      parameters: [{ $ref: "#/components/parameters/InstructionId" }, { $ref: "#/components/parameters/Actor" }]
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/StatefulRequest" } } } }
+      responses: { "200": { $ref: "#/components/responses/Action" }, "403": { $ref: "#/components/responses/Error" }, "409": { $ref: "#/components/responses/Error" } }
+  /instructions/{instructionId}/reject:
+    post:
+      tags: [instructions]
+      parameters: [{ $ref: "#/components/parameters/InstructionId" }]
+      requestBody: { content: { application/json: { schema: { allOf: [{ $ref: "#/components/schemas/StatefulRequest" }, { type: object, required: [reason], properties: { reason: { type: string } } }] } } } }
+      responses: { "200": { $ref: "#/components/responses/Action" } }
+  /instructions/{instructionId}/submit:
+    post:
+      tags: [instructions]
+      summary: Submit an approved instruction to the sandbox adapter (assigns providerPaymentId)
+      parameters: [{ $ref: "#/components/parameters/InstructionId" }]
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/StatefulRequest" } } } }
+      responses: { "200": { $ref: "#/components/responses/Action" }, "409": { $ref: "#/components/responses/Error" } }
+  /events:
+    get:
+      tags: [events]
+      summary: Provider events (with processingOutcome, provenance, signatureResult)
+      responses: { "200": { $ref: "#/components/responses/Read" } }
+  /events/simulate:
+    post:
+      tags: [events]
+      summary: Simulate the provider's next event, optionally injecting a failure
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StatefulRequest"
+                - type: object
+                  required: [intentId]
+                  properties:
+                    intentId: { type: string }
+                    injection: { type: string, enum: [none, timeout, duplicate, out_of_order, contradictory, bad_signature] }
+      responses: { "200": { $ref: "#/components/responses/Action" } }
+  /events/webhook:
+    post:
+      tags: [events]
+      summary: Ingest a signed sandbox webhook
+      description: |
+        Signature header format `t=<unix seconds>,v1=<hex HMAC-SHA256(secret, t + "." + rawBody)>`,
+        tolerance 300 s, constant-time compare. Sandbox secrets are public (`test_whsec_<providerId>_public_example`)
+        and protect nothing. Invalid signatures are recorded with `processingOutcome: rejected_signature`
+        and never applied. Dedupe is by (provider, event id).
+      parameters: [{ name: X-Sandbox-Signature, in: header, schema: { type: string } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StatefulRequest"
+                - type: object
+                  required: [providerId, rawBody]
+                  properties:
+                    providerId: { type: string, enum: [prv_northline, prv_harbour, prv_tidewater] }
+                    rawBody: { type: string, description: "JSON-encoded SandboxWebhookPayload" }
+                    signatureHeader: { type: string }
+      responses: { "200": { $ref: "#/components/responses/Action" } }
+  /webhooks/verify:
+    post:
+      tags: [events]
+      summary: Sample webhook verifier (no workspace needed)
+      description: |
+        Reference implementation (TypeScript, from `@/lib/clearline`):
+        ```ts
+        import { verifySandboxWebhook, sandboxWebhookSecret } from "@/lib/clearline";
+        const result = verifySandboxWebhook(rawBody, req.headers.get("x-sandbox-signature") ?? "",
+          sandboxWebhookSecret("prv_northline"), Math.floor(Date.now() / 1000));
+        if (!result.valid) return new Response(result.reason, { status: 401 });
+        ```
+        Verify against the raw bytes received, before JSON parsing. Production would need per-endpoint
+        secrets, rotation, replay protection and delivery retries (not built).
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [providerId, rawBody, signatureHeader]
+              properties: { providerId: { type: string }, rawBody: { type: string }, signatureHeader: { type: string }, at: { type: string, format: date-time } }
+      responses:
+        "200":
+          description: Verification result
+          content: { application/json: { schema: { type: object, properties: { data: { oneOf: [{ type: object, properties: { valid: { const: true }, timestamp: { type: integer } } }, { type: object, properties: { valid: { const: false }, reason: { enum: [malformed_header, timestamp_outside_tolerance, signature_mismatch] } } }] } } } } }
+  /reconciliation:
+    get:
+      tags: [reconciliation]
+      summary: Statement lines and allocations (sample)
+      responses: { "200": { $ref: "#/components/responses/Read" } }
+  /reconciliation/statement-lines:
+    post:
+      tags: [reconciliation]
+      summary: Ingest a statement line and reconcile it
+      description: |
+        Automatic allocation only on a trusted reference (provider payment id for payouts, repayment
+        reference for repayments) + amount + currency + value-date window (submission −1 day … +7 days).
+        Amount-only, ambiguous, duplicate, currency-mismatched, outside-window or over-amount lines
+        raise exceptions with explanation codes (`RC_*`) and are never allocated.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StatefulRequest"
+                - { type: object, required: [line], properties: { line: { $ref: "#/components/schemas/StatementLineInput" } } }
+      responses: { "201": { $ref: "#/components/responses/Action" }, "409": { $ref: "#/components/responses/Error" } }
+  /exceptions:
+    get:
+      tags: [exceptions]
+      summary: Unresolved exceptions (sample), severity-ordered
+      responses: { "200": { $ref: "#/components/responses/Read" } }
+  /exceptions/{exceptionId}/{operation}:
+    post:
+      tags: [exceptions]
+      summary: assign | notes | evidence | resolve | reopen
+      description: Resolution is allowed only when category conditions are met (e.g. hold decided, finality reached, outstanding zero, evidence attached). Resolving never allocates funds or closes an obligation.
+      parameters:
+        - { name: exceptionId, in: path, required: true, schema: { type: string } }
+        - { name: operation, in: path, required: true, schema: { type: string, enum: [assign, notes, evidence, resolve, reopen] } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StatefulRequest"
+                - type: object
+                  properties:
+                    ownerId: { type: string }
+                    text: { type: string }
+                    note: { type: string }
+                    reason: { type: string }
+                    evidence: { $ref: "#/components/schemas/AttachEvidenceInput" }
+      responses: { "200": { $ref: "#/components/responses/Action" }, "409": { $ref: "#/components/responses/Error" } }
+  /liquidity:
+    get:
+      tags: [liquidity]
+      summary: Liquidity view (sample)
+      description: usable = eligible − restricted − safeguarded − committed payouts − buffer, under an explicit labelled provider-defined policy. Stale snapshots are flagged and excluded from `currentUsableByCurrency`.
+      responses: { "200": { $ref: "#/components/responses/Read" } }
+    post:
+      tags: [liquidity]
+      summary: Liquidity view for a supplied workspace / instant
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/StatefulRequest" } } } }
+      responses: { "200": { $ref: "#/components/responses/Read" } }
+  /funding-advances:
+    get:
+      tags: [funding-advances]
+      summary: Funding Desk projection (sample) — a projection, not a shared ledger
+      responses: { "200": { $ref: "#/components/responses/Read" } }
+    post:
+      tags: [funding-advances]
+      summary: Prepare an advance funding a supplier payout (maker)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StatefulRequest"
+                - type: object
+                  required: [input]
+                  properties:
+                    input:
+                      type: object
+                      required: [intentId, customerRef, customerName, supplierName, invoiceRef, dueDate, repaymentReference]
+                      properties:
+                        intentId: { type: string }
+                        customerRef: { type: string }
+                        customerName: { type: string }
+                        supplierName: { type: string }
+                        invoiceRef: { type: string }
+                        dueDate: { type: string, format: date }
+                        repaymentReference: { type: string, pattern: "^[A-Z0-9][A-Z0-9\\-]{5,39}$" }
+      responses: { "201": { $ref: "#/components/responses/Action" } }
+  /funding-advances/{advanceId}/decision:
+    post:
+      tags: [funding-advances]
+      summary: Treasury decision (checker ≠ preparer). An open funding_shortfall blocks approval.
+      parameters: [{ name: advanceId, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StatefulRequest"
+                - { type: object, required: [outcome, reason], properties: { outcome: { enum: [approve, decline] }, reason: { type: string } } }
+      responses: { "200": { $ref: "#/components/responses/Action" }, "403": { $ref: "#/components/responses/Error" } }
+  /repayments:
+    get:
+      tags: [repayments]
+      summary: Repayment obligations and allocations (sample)
+      responses: { "200": { $ref: "#/components/responses/Read" } }
+    post:
+      tags: [repayments]
+      summary: Ingest a customer receipt (credit statement line). Allocated only by the repayment reference.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StatefulRequest"
+                - { type: object, required: [line], properties: { line: { $ref: "#/components/schemas/StatementLineInput" } } }
+      responses: { "201": { $ref: "#/components/responses/Action" } }
+  /investigations/{intentId}:
+    get:
+      tags: [investigations]
+      parameters: [{ $ref: "#/components/parameters/IntentId" }]
+      responses: { "200": { $ref: "#/components/responses/Read" } }
+    post:
+      tags: [investigations]
+      parameters: [{ $ref: "#/components/parameters/IntentId" }]
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/StatefulRequest" } } } }
+      responses: { "200": { $ref: "#/components/responses/Read" } }
+  /actions:
+    post:
+      tags: [actions]
+      summary: Apply any engine WorkspaceAction (see docs/clearline/ENGINE_API.md)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StatefulRequest"
+                - { type: object, required: [action], properties: { action: { type: object, required: [type], properties: { type: { type: string } } } } }
+      responses: { "200": { $ref: "#/components/responses/Action" } }
+components:
+  securitySchemes:
+    exampleKey: { type: http, scheme: bearer, description: "Public example key `cl_test_demo`; not a credential." }
+  parameters:
+    Actor: { name: X-Clearline-Actor, in: header, required: false, schema: { type: string, enum: [usr_maya, usr_sam, usr_daniel, usr_priya, usr_alex] } }
+    IntentId: { name: intentId, in: path, required: true, schema: { type: string } }
+    InstructionId: { name: instructionId, in: path, required: true, schema: { type: string } }
+  responses:
+    Read:
+      description: Synthetic data
+      content: { application/json: { schema: { type: object, properties: { data: {}, mode: { const: synthetic }, disclaimer: { type: string } } } } }
+    Action:
+      description: Action applied
+      content: { application/json: { schema: { $ref: "#/components/schemas/ActionResponse" } } }
+    Error:
+      description: Typed error
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+  schemas:
+    Money:
+      type: object
+      required: [amountMinor, currency]
+      properties: { amountMinor: { type: integer, minimum: 1 }, currency: { $ref: "#/components/schemas/Currency" } }
+    Currency: { type: string, enum: [SGD, USD, PHP, EUR, USDC], description: "USDC: 6 decimals; others 2" }
+    StatefulRequest:
+      type: object
+      properties:
+        workspace: { type: object, description: "Workspace from a previous response; omit to use the sample" }
+        actorId: { type: string }
+        at: { type: string, format: date-time }
+    ActionResponse:
+      type: object
+      properties:
+        data: {}
+        outcome: { type: string, examples: [applied, idempotent_replay, rejected_signature, duplicate_ignored, stored_late_no_regression, contradictory_exception_raised, timeout_exception_raised, no_event_pending, allocated, exception_raised] }
+        audit: { type: array, items: { $ref: "#/components/schemas/AuditEvent" } }
+        workspace: { type: object }
+        mode: { const: synthetic }
+        persisted: { const: false }
+    AuditEvent:
+      type: object
+      properties: { id: { type: string }, at: { type: string }, actorId: { type: string }, action: { type: string }, entityType: { type: string }, entityId: { type: string }, summary: { type: string } }
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties: { code: { type: string }, message: { type: string }, help: { type: string }, field: { type: string }, entityId: { type: string } }
+    StatusDimensions:
+      type: object
+      properties:
+        execution: { enum: [created, quoted, approved, submitted, in_transit, provider_reported_completed, awaiting_information, on_hold, failed, returned, cancelled, expired] }
+        settlement: { enum: [none, observed, pending_finality, verified, contradicted] }
+        settlementScope: { enum: [none, provider_report, bank_statement, onchain_transfer] }
+        reconciliation: { enum: [not_started, pending, matched, partially_matched, exception] }
+    PaymentIntentReturn:
+      type: object
+      properties:
+        returnStatus: { enum: [provider_reported, confirmed_by_statement], description: "Optional; present only for returned payouts" }
+    CreateIntentInput:
+      type: object
+      required: [internalReference, amountMinor, sourceCurrency, destinationCurrency, purpose, beneficiaryRef, beneficiaryName, destinationCountry, requestedExecutionDate]
+      properties:
+        internalReference: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._\\-/]{1,47}$" }
+        amountMinor: { type: integer, minimum: 1 }
+        sourceCurrency: { $ref: "#/components/schemas/Currency" }
+        destinationCurrency: { $ref: "#/components/schemas/Currency" }
+        purpose: { type: string }
+        beneficiaryRef: { type: string, pattern: "^[A-Za-z0-9_\\-]{3,40}$", description: "Opaque fictional reference — never bank details" }
+        beneficiaryName: { type: string }
+        destinationCountry: { type: string, pattern: "^[A-Z]{2}$" }
+        requestedExecutionDate: { type: string, format: date }
+        idempotencyKey: { type: string }
+        metadata: { type: object, additionalProperties: { type: string, maxLength: 120 }, maxProperties: 10 }
+        sandboxOutcome: { enum: [success, return, hold, chain_delay, submission_failure], description: "Sandbox control for the deterministic provider script" }
+        correctsIntentId: { type: string }
+    StatementLineInput:
+      type: object
+      required: [lineId, source, accountRef, direction, kind, amountMinor, currency, reference, counterparty, valueDate]
+      properties:
+        lineId: { type: string }
+        source: { enum: [bank_statement, provider_settlement_report] }
+        accountRef: { type: string }
+        direction: { enum: [debit, credit] }
+        kind: { enum: [payment, return, reversal] }
+        amountMinor: { type: integer, minimum: 1 }
+        currency: { $ref: "#/components/schemas/Currency" }
+        reference: { type: string, maxLength: 140 }
+        counterparty: { type: string }
+        valueDate: { type: string, format: date }
+        receivedAt: { type: string, format: date-time }
+    AttachEvidenceInput:
+      type: object
+      required: [kind, description]
+      properties:
+        kind: { enum: [document_metadata, funds_returned_confirmation, beneficiary_correction, note] }
+        description: "{ type: string }"
+        documentName: { type: string, description: "Metadata only; no file is stored" }
+        reference: { type: string }
+        sha256: { type: string, pattern: "^[0-9a-f]{64}$" }

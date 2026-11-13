@@ -1,0 +1,75 @@
+"use client";
+import Link from "../Link";
+import { FUNDING_PROJECTION_LABEL, formatMinor, formatMoney, fundingProjection, type CurrencyCode } from "@/lib/clearline";
+import { useWorkspace } from "../workspace";
+import { AdvChip, ExcChip, ExecChip, SettleChip, human, exceptionTitle } from "../labels";
+import { Code, Dl, Empty, Notice, PageHead, Panel, fmtDate, fmtTime, ui } from "../ui";
+
+export default function Funding() {
+  const { ws, actorName } = useWorkspace();
+  const p = fundingProjection(ws);
+  const totals = Object.entries(p.outstandingByCurrency) as [CurrencyCode, number][];
+  return (
+    <>
+      <PageHead eyebrow="Control" title="Funding exposure"
+        lede="Advances a provider made to pay suppliers before its customer reimburses it, linked to the supplier payout and to repayments matched by reference." />
+      <Notice info>{FUNDING_PROJECTION_LABEL} The detailed Funding Desk prototype remains at <Link href="/mentor-demo">/mentor-demo</Link>.</Notice>
+      <Panel title="Outstanding by currency" id="totals">
+        <div className={ui.panelBody}>
+          <Dl items={totals.length ? totals.map(([c, m]) => [c, <strong key={c} className="num">{formatMinor(m, c)}</strong>]) : [["Outstanding", "None"]]} />
+        </div>
+      </Panel>
+      {p.rows.length === 0 ? <Panel><Empty>No advances in this workspace.</Empty></Panel> : p.rows.map((r) => {
+        const linkedEx = ws.exceptions.filter((e) => r.exceptionIds.includes(e.id));
+        return (
+          <Panel key={r.advanceId} id={r.advanceId} title={<>Advance <span className="mono">{r.advanceId}</span> · {r.customerName}</>} actions={<AdvChip v={r.state} />}>
+            <div className={ui.panelBody}>
+              <div className={ui.grid3} data-testid="funding-figures">
+                <div><p className={ui.eyebrow}>Advanced (principal)</p><p className="num" style={{ fontSize: 20, fontWeight: 650, margin: 0 }} data-testid="funding-principal">{formatMoney(r.principal)}</p></div>
+                <div><p className={ui.eyebrow}>Repaid by reference</p><p className="num" style={{ fontSize: 20, fontWeight: 650, margin: 0 }} data-testid="funding-repaid">{formatMoney(r.repaid)}</p></div>
+                <div><p className={ui.eyebrow}>Outstanding</p><p className="num" style={{ fontSize: 20, fontWeight: 650, margin: 0, color: "var(--cl-signal-text)" }} data-testid="funding-outstanding">{formatMoney(r.outstanding)}</p>
+                  <p className={ui.hint} style={{ margin: 0 }}>Due {r.obligation ? fmtDate(r.obligation.dueDate + "T00:00:00+08:00") : "—"}{r.overdue ? " — overdue" : ""}</p></div>
+              </div>
+              <div style={{ marginTop: 14 }}>
+                <Dl items={[
+                  ["Supplier / invoice", <>{r.supplierName} · {r.invoiceRef}</>],
+                  ["Supplier payout", <><Link href={`/clearline/payments/${r.intentId}`} className="mono">{r.intentId}</Link><br /><ExecChip v={r.supplierPayout.execution} /> <SettleChip v={r.supplierPayout.settlement} /></>],
+                  ["Treasury approval", r.treasuryApproval ? <>{human(r.treasuryApproval.outcome)} — maker {actorName(r.treasuryApproval.makerId)}, checker {actorName(r.treasuryApproval.checkerId)} · {fmtTime(r.treasuryApproval.at)}</> : "Not decided"],
+                  ["Repayment reference", r.obligation ? <Code>{r.obligation.reference}</Code> : "—"],
+                  ["Funding Desk stage", r.fundingDeskStage],
+                ]} />
+              </div>
+            </div>
+            <div className={ui.panelHead} style={{ borderTop: "1px solid var(--cl-line)" }}><h3>Repayments allocated (evidence)</h3></div>
+            {r.allocations.length === 0 ? <Empty>No repayments allocated yet.</Empty> : (
+              <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Repayments allocated">
+                <table className={`${ui.table} ${ui.stack}`}>
+                  <thead><tr><th>Allocated</th><th>Statement line</th><th className={ui.r}>Amount</th><th>Matched by</th><th>Evidence</th></tr></thead>
+                  <tbody>{r.allocations.map((a) => (
+                    <tr key={a.id}>
+                      <td data-label="Allocated" className={ui.num}>{fmtTime(a.at)}</td>
+                      <td data-label="Statement line"><Link href={`/clearline/control/reconciliation#${a.statementLineId}`} className="mono">{a.statementLineId}</Link></td>
+                      <td data-label="Amount" className={`${ui.r} ${ui.num}`}>{formatMinor(a.amountMinor, a.currency)}</td>
+                      <td data-label="Matched by">{human(a.matchedBy)}</td>
+                      <td data-label="Evidence" className="mono">{a.evidenceId}</td>
+                    </tr>))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {linkedEx.length > 0 && (
+              <>
+                <div className={ui.panelHead} style={{ borderTop: "1px solid var(--cl-line)" }}><h3>Exceptions (not allocated to this advance)</h3></div>
+                <ul className={ui.panelBody} style={{ margin: 0, paddingLeft: 30 }} data-testid="funding-exceptions">
+                  {linkedEx.map((e) => (
+                    <li key={e.id}><Link href={`/clearline/exceptions?view=all#${e.id}`}>{exceptionTitle(e)}</Link> — {e.explanation} {e.impact && <strong className="num">{formatMoney(e.impact)}</strong>} <ExcChip v={e.status} /> <Code>{e.explanationCode}</Code></li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </Panel>
+        );
+      })}
+    </>
+  );
+}

@@ -12,3 +12,5 @@ demo/video/src/voices/*.onnx*
 website/out/
 out/
 funding-browser-artifacts/
+test-results/
+playwright-report/
