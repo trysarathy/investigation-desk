@@ -284,7 +284,7 @@ const REPORT_ROW_CODE: Record<string, string> = {
   SUBJECT: "Payment and case",
   HEADLINE: "Summary",
   REQUESTED: "Requested amount",
-  MATCHED: "Amount reconciled",
+  MATCHED: "Amount matched to statement debits or a final chain transfer",
   UNRECONCILED: "Amount not yet reconciled",
   PRINCIPAL: "Advance principal",
   REPAID: "Repaid by reference",
