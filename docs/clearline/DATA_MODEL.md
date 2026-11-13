@@ -26,7 +26,9 @@ Source of truth: `src/lib/clearline/types.ts`. All data is fictional sandbox dat
 | `FundingDecision` | advanceId, makerId, checkerId, outcome, reason | maker ≠ checker. |
 | `RepaymentObligation` | advanceId, principal, dueDate, reference | Created on approval. |
 | `RepaymentAllocation` | obligationId, statementLineId, amount, `matchedBy: trusted_reference`, evidenceId | |
-| `AuditEvent` | at, actorId, action, entityType, entityId, summary | Appended by every action. |
+| `AuditEvent` | at, actorId, action, entityType, entityId, summary | Appended by every action, and by `resetScenario` (`action: "scenario.reset"`, `entityType: "scenario"`). Never removed. |
+| `ReturnPosition` (rc3, on `InvestigationView.returnPosition`, read model only) | returnStatus, debited, returnCredited, netMovement?, netMovementZero, `beneficiaryPaid: false`, code (`RT_NET_ZERO` / `RT_NET_NOT_ZERO` / `RT_RETURN_NOT_ON_STATEMENT` / `RT_DEBIT_NOT_ON_STATEMENT`), text | Present for a returned payout. Keeps "net movement is zero" separate from "beneficiary unpaid". Not stored. |
+| `SyntheticCaseReport` (rc3, `buildCaseReport`, read model only) | reportVersion 1, marking, `fictional: true`, `sandbox: true`, generatedAt (= `ws.asOf`), subject, summary, threeTruths, timeline, findings, amounts, exceptions, disclaimer | Every amount is a `DecimalAmount` `{value: "50000.00", currency}` exact decimal string. Serialised by `caseReportToJson` / `caseReportToCsv`. Not stored. |
 
 ## Status dimensions
 
@@ -50,7 +52,7 @@ reconciliation: not_started → pending → partially_matched → matched ; any 
 ## Mandatory funding scenario (seeded as `s5_funding`)
 
 1. Payment `INV-PM-5011`: SGD 50,000.00 to "Pacific Metals (fictional supplier)". Advance prepared by `usr_maya`, approved by `usr_daniel` (a different person). Obligation reference `RPY-SEABRIGHT-0001`, due 2026-11-20.
-2. A bank debit referencing the provider payment id is matched: settlement `verified (bank_statement)`, reconciliation `matched`.
+2. A bank debit referencing the provider payment id (statement line `SIMBANK-0003`; rc3 renamed the sample line ids from `DBS-SIM-000N`) is matched: settlement `verified (bank_statement)`, reconciliation `matched`.
 3. A credit of SGD 30,000.00 referencing `RPY-SEABRIGHT-0001` is allocated (`RC_REPAYMENT_BY_REFERENCE`, `RC_PARTIAL_AMOUNT`). SGD 20,000.00 is outstanding.
 4. A credit of SGD 20,000.00 with **no reference** is **not** allocated. It raises `missing_payment_reference` / `RC_AMOUNT_ONLY_CANDIDATES` with the obligation listed as a candidate. Outstanding stays at SGD 20,000.00, and resolving the exception does not allocate it.
 
@@ -82,3 +84,20 @@ reconciliation: not_started → pending → partially_matched → matched ; any 
 - A provider settlement report on an `on_hold` payout is recorded and flagged (`contradictory_evidence` / `RC_REPORT_ON_HELD_PAYOUT`); settlement is unchanged.
 - The same short provider report again (same reference, amount, currency, value date) while the first one's exception is open is linked to that exception (`RC_DUPLICATE_SUSPECTED` on the repeat line, outcome `duplicate_report_linked`), not opened again.
 - `parseWorkspace` rejects an `amountDifference` whose line id, currency, source or reported amount disagrees with its own line (or the exception's linked line), or whose code does not fit its source.
+
+## Rules added in rc3 (2026-11-13, Priority A — critical correctness)
+
+- **Chain.** A rejected (unsupported chain or token) observation is never updated into a counted one. A tx hash already observed on another chain or network is not counted again (`CH_TX_HASH_ON_OTHER_CHAIN`). The same transaction in a different block is a reorg (`CH_BLOCK_CHANGED`). A reorg sets reconciliation to `exception`, and a chain allocation counts as a match only while its observation is `final`. An on-chain transfer observed before the payout failed or was cancelled raises `CH_TRANSFER_FOR_TERMINAL_PAYOUT`.
+- **Terminal payouts.** A `failed`, `cancelled`, `expired` or `returned` payout never carries settlement `verified`: it is `contradicted` while a contradiction is open, otherwise `none`. The evidence stays on record. `parseWorkspace` refuses a stored workspace that says otherwise.
+- **Integrity (`parseWorkspace`, run by every action).**
+  - Allocations: every allocation names an existing line (and is listed in its `allocationIds`, in the same currency) or a chain observation of the same payout. One line or observation is never allocated to two targets, and never above its amount. One line repays at most one obligation, once.
+  - Approvals and holds: `checkerId ≠ makerId` on instructions and funding decisions. A hold is `released`/`rejected` only with the matching reviewer decision.
+  - Routes: `platformFeeBps` is an integer.
+- **Money.** Basis-point amounts are computed with BigInt (`applyBpsFloor`).
+- **Cases.** A case on a sent, non-terminal payout closes only when settlement is `verified` and reconciliation is `matched` (`EVIDENCE_OUTSTANDING`). A case whose payment funds an advance closes only when nothing is outstanding (`OUTSTANDING_REMAINS`).
+- **Returns.** `InvestigationView.returnPosition` states both facts for a returned payout: whether the debit and the return credit net to zero, and `beneficiaryPaid: false`. `HUMAN_LABELS.returnStatus.confirmed_by_statement` is "Return confirmed on the statement".
+- **Evidence timeline.** It includes provider settlement reports recorded as evidence, marked `independent: false`.
+- **Per-scenario reset (`resetScenario`).**
+  - Ownership: each sample intent or advance belongs to its case. Each person-created intent or advance belongs to the person. Every other record belongs to the owners of the records it references by id, transitively; a statement line also follows the trusted reference it carries.
+  - Records owned only by the reset case are replaced by the sample versions. Everything else is unchanged; the audit trail only grows.
+  - The reset is refused when a record links the case to anything else.

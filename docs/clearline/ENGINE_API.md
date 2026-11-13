@@ -1,5 +1,47 @@
 # Clearline sandbox engine — public API (for the console UI)
 
+> **CHANGE 7 (2026-11-13, rc3 Priority A — critical correctness, branch `rc3/wip-engine`). STATUS: LANDED.** Tests: `tests/clearline/rc3-*.test.ts` (9 files). No existing test changed or weakened.
+>
+> **New exports (all pure; import from `@/lib/clearline`):**
+>
+> ```ts
+> // (a) per-scenario reset — scenarios.ts
+> canResetScenario(ws: Workspace, scenario: string): ResetCheck
+> resetScenario(ws: Workspace, scenario: string, ctx: { actorId: string; at: string }): Result<ResetScenarioOutput>
+> // scenario = "s1_success" | "s2_returned" | "s3_hold" | "s4_chain" | "s5_funding", or that case's sample payment id or case id
+> interface ResetCheck { allowed: boolean; code: ResetBlockCode; reason: string; scenario?: SampleScenario; blockers: string[] }
+> type ResetBlockCode = "RESETTABLE" | "NOT_A_SAMPLE_SCENARIO" | "SCENARIO_NOT_IN_WORKSPACE" | "ID_CONFLICT" | "REFERENCED_BY_OTHER_RECORDS" | "REFERENCE_IN_USE"
+> interface ResetScenarioOutput { workspace: Workspace; scenario: SampleScenario; removedIds: string[]; restoredIds: string[]; audit: AuditEvent[] }
+>
+> // (b) synthetic case report — report.ts
+> buildCaseReport(ws: Workspace, ref: string | { paymentId: string } | { caseId: string }): Result<SyntheticCaseReport>
+> caseReportToJson(report: SyntheticCaseReport): string   // sorted keys, 2-space indent, trailing "\n"
+> caseReportToCsv(report: SyntheticCaseReport): string    // RFC 4180, CRLF, columns CASE_REPORT_CSV_COLUMNS
+> CASE_REPORT_MARKING, CASE_REPORT_CSV_COLUMNS            // constants
+> ```
+>
+> - **resetScenario** restores one guided case's records to the sample and leaves the other four cases, every person-created record and the global data (routes, liquidity, policy, actors, organisation, clock) byte-identical. Ownership is computed: sample intents/advances anchor their case; person-created intents/advances anchor themselves; every other record belongs to the anchors it references by id (transitively) and, for a statement line, by the trusted reference it carries (provider payment id / repayment reference). Records owned **only** by the case — including activity a person added on it (a statement line matched to its payment, a note, attached evidence, a resolution) — are replaced by the sample versions. The audit trail is append-only: nothing is removed and one `scenario.reset` event is appended. The clock is not rewound (advance state is re-derived at the current clock). **Errors:** `invalid_field` (damaged workspace, or `ctx.at` earlier than `ws.asOf`), `unauthorized_actor` (unknown actor; any known actor may reset), `not_found` (`NOT_A_SAMPLE_SCENARIO`), `precondition_failed` for every other refusal — `error.message` starts with the `ResetBlockCode` (`"REFERENCED_BY_OTHER_RECORDS: …"`) and `error.entityId` is the first blocker. Refusals: **REFERENCED_BY_OTHER_RECORDS** (a record links this case and another case or a person-created intent/advance — e.g. a correction intent for the returned payout, an advance on the case's payment, a line whose candidates span two payouts; `blockers` lists the person-created anchors first), **REFERENCE_IN_USE** (a person's active payment uses the internal reference the reset would reactivate), **SCENARIO_NOT_IN_WORKSPACE** / **ID_CONFLICT** (workspace not derived from the sample). `canResetScenario` returns the same decision without changing anything (use it to enable the button and show `reason`). Labels: `HUMAN_LABELS.resetCode`.
+> - **buildCaseReport** — pure; the same workspace always gives byte-identical JSON and CSV; `generatedAt` is `ws.asOf`. A string `ref` is tried as a payment id, then a case id. Errors: `not_found`, `invalid_field` (empty ref), `precondition_failed` (a case with no payment). The report carries `marking` (`CASE_REPORT_MARKING`, "FICTIONAL · SANDBOX …"), `fictional: true`, `sandbox: true`, `subject`, `summary` (headline = `describeStatus().summary`, who acts), `threeTruths` (execution with basis `provider_claim`; settlement state + scope + `independent`; reconciliation with `matched` / `unreconciled`), `timeline` (every `evidenceTimelineFor` entry with source, provenance, independence), `findings` (section, code, label, text, refs, amount), `amounts` (requested, matched, unreconciled, differences, funding, returnPosition) and `exceptions`. **Every amount is a `DecimalAmount` `{ value: "24651.37", currency: "SGD" }` exact decimal string** (USDC 6 dp); no amount is a number. CSV: row 1 header, row 2 `marking,FICTIONAL_SANDBOX,FICTIONAL / SANDBOX,…`; text cells that start with `= + - @`, tab or CR are prefixed with `'`; newlines are flattened. `exportCaseReport` is unchanged.
+> - **InvestigationView.returnPosition** (new, optional; `ReturnPosition`) — for a returned payout: `debited`, `returnCredited`, `netMovement` (only when both legs are on the statement), `netMovementZero`, **`beneficiaryPaid: false`**, `code` (`RT_NET_ZERO` / `RT_NET_NOT_ZERO` / `RT_RETURN_NOT_ON_STATEMENT` / `RT_DEBIT_NOT_ON_STATEMENT`) and `text`. `explanationCodes` gains the code and `RT_BENEFICIARY_UNPAID`. `HUMAN_LABELS.returnStatus` labels `PaymentIntent.returnStatus` ("Return confirmed on the statement").
+>
+> **Behaviour changes (each with a test that fails without it):**
+>
+> | Id | Change | Test |
+> |---|---|---|
+> | C-1 | A rejected (unsupported) chain observation is never updated into a counted one; the same tx hash already seen on another chain/network raises `CH_TX_HASH_ON_OTHER_CHAIN` and is not counted. Before: a chain-1 observation was revived to `final` and the payout showed `verified`. | `rc3-chain.test.ts` |
+> | C-2 | The same transaction in a different block raises `CH_BLOCK_CHANGED` (reorg); settlement `contradicted`. | `rc3-chain.test.ts` |
+> | C-3 | A reorg (confirmations down or block changed) sets reconciliation `exception`; a chain allocation counts as a match only while its observation is final (recompute, investigate, `tryAllocateChain`). | `rc3-chain.test.ts` |
+> | M-1 | Basis-point amounts (liquidity buffer, platform fee) use BigInt (`applyBpsFloor`). Before: off by one above 2^53. `parseWorkspace` requires an integer `route.platformFeeBps`. | `rc3-money.test.ts` |
+> | X-1 | `canResolveCase` / `resolve` on a case: **`EVIDENCE_OUTSTANDING`** for a sent, non-terminal payout unless settlement `verified` and reconciliation `matched`; **`OUTSTANDING_REMAINS`** while the linked advance's obligation has an outstanding amount. Before: a case on a provider-completed payout with no statement could close. | `rc3-close-contradictions.test.ts` |
+> | T-1 | An on-chain transfer observed before `payout.failed` (or a reviewer's reject → `cancelled`) raises `CH_TRANSFER_FOR_TERMINAL_PAYOUT` (`contradictory_evidence`), settlement `contradicted`. Before: `failed / verified`. | `rc3-integrity-truths.test.ts` |
+> | T-2 | After a person resolves the contradiction on a failed, cancelled or expired payout, the recompute gives settlement `none` (evidence stays on record), never `verified`. | `rc3-integrity-truths.test.ts` |
+> | I-1 | `parseWorkspace` (run by every `applyAction`) refuses a workspace where one statement line or chain observation is allocated to two payouts/obligations or above its amount, an allocation is missing from its line, a repayment is counted twice, maker = checker on an instruction or funding decision, a hold is released/rejected without the reviewer's decision, or a failed/cancelled/expired/returned payout carries `verified`. | `rc3-integrity-truths.test.ts` |
+> | E-1 | `evidenceTimelineFor` includes provider settlement reports recorded as evidence (no allocation, no exception), `independent: false`. | `rc3-integrity-truths.test.ts` |
+> | R-1 | `InvestigationView.returnPosition` (above). | `rc3-returns.test.ts` |
+> | D-1 | Sample statement line ids renamed `DBS-SIM-000N` → `SIMBANK-000N` (DBS is a real bank). Amounts, references and outcomes unchanged. | `rc3-data-exposure.test.ts` |
+>
+> New explanation / resolution codes (all labelled): `CH_TX_HASH_ON_OTHER_CHAIN`, `CH_BLOCK_CHANGED`, `CH_TRANSFER_FOR_TERMINAL_PAYOUT`, `EVIDENCE_OUTSTANDING`, `RT_NET_ZERO`, `RT_NET_NOT_ZERO`, `RT_RETURN_NOT_ON_STATEMENT`, `RT_DEBIT_NOT_ON_STATEMENT`, `RT_BENEFICIARY_UNPAID`, the `ResetBlockCode` values and the CSV row codes (`HUMAN_LABELS.reportRowCode`). Console impact: a case's Resolve button may now be disabled with `EVIDENCE_OUTSTANDING` / `OUTSTANDING_REMAINS` (`canResolveCase` already drives it).
+
 > **CHANGE 6 (2026-11-13, code review v2 of c498da6 — `docs/release/CODE_REVIEW_V2.md`). STATUS: LANDED.** Tests: `tests/clearline/review-v2.test.ts` (36 tests: 26 for the review, 7 for re-review N1, 3 for final-check C1/C2). No existing test changed.
 >
 > - **M1 — F1 is order-independent.** `setExecution` (events.ts) now calls `onExecutionChanged` (reconciliation.ts) on every execution change. When a payout becomes `failed`, `cancelled`, `expired` or `returned` (`TERMINAL_FOR_SETTLEMENT_REPORT`, now defined once in `state.ts`), every provider settlement report already recorded for it (debit payment lines carrying its provider payment id, not ambiguous, not already flagged) raises the same `contradictory_evidence` / `RC_REPORT_ON_TERMINAL_PAYOUT` exception as a report arriving afterwards (the report's existing evidence item is reused; reconciliation becomes `exception`). If settlement rested on a provider report only, it goes back to `none` / `none`, which is the state the report-after order leaves, so both orders end in the same status and the same open exceptions. Through the engine, `cancelled` after submission is reachable only by the compliance reviewer's `reject` on a held payout; `expired` only before submission (no report can link), so for stored workspaces `investigate()` also **derives** the finding: a terminal payout with an agreeing, unflagged provider report shows `RC_REPORT_ON_TERMINAL_PAYOUT` in `contradictions`. Same order-independence for a bank debit matched before `payout.failed`: `RC_DEBIT_FOR_FAILED_PAYOUT` and settlement `contradicted`, as in the debit-after order.
@@ -148,6 +190,8 @@ The whole sandbox state is one serialisable object, `Workspace` (see `types.ts`)
 | Function | Signature | Notes |
 |---|---|---|
 | `sampleWorkspace` | `() => Workspace` | Deterministic sample with the five seeded scenarios. Use for "Reset to sample". |
+| `resetScenario` | `(ws, scenario, ctx) => Result<ResetScenarioOutput>` | rc3: restore ONE guided case to the sample; other cases and person-created records unchanged. Refuses with `precondition_failed` when a person's record links the case. See CHANGE 7. |
+| `canResetScenario` | `(ws, scenario) => ResetCheck` | rc3: same decision with `code`, `reason`, `blockers`, without changing anything. |
 | `emptyWorkspace` | `() => Workspace` | Same organisation, actors, routes, policy; no payments. |
 | `serializeWorkspace` | `(ws) => string` | JSON string. |
 | `parseWorkspace` | `(text) => Result<Workspace>` | Validates `schemaVersion`/`mode`; on error the UI should reset to sample. |
@@ -201,10 +245,12 @@ Error codes (`EngineErrorCode`): `invalid_amount, invalid_currency, currency_mis
 | Function | Signature |
 |---|---|
 | `evidenceTimelineFor` | `(ws, intentId) => EvidenceTimelineEntry[]` — unified ordered evidence timeline (R2) |
-| `canResolveCase` | `(ws, caseId) => { allowed, code, reason }` |
+| `canResolveCase` | `(ws, caseId) => { allowed, code, reason }` — rc3: also `EVIDENCE_OUTSTANDING` (sent, non-terminal payout not verified + matched) and `OUTSTANDING_REMAINS` (linked advance still owed) |
 | `scenarioIntentId` / `intentForScenario` | `(ws, scenario) => string \| undefined` |
 | `investigate` | `(ws, intentId) => Result<InvestigationView>` — requested / provider / provider-reported / independent evidence / unknowns / contradictions / outstanding / who acts / next actions, each with explanation codes |
 | `exportCaseReport` | `(ws, caseId) => Result<CaseReport>` → `{ json, text }` |
+| `buildCaseReport` | `(ws, paymentIdOrCaseId \| {paymentId} \| {caseId}) => Result<SyntheticCaseReport>` — rc3: deterministic structured report, FICTIONAL / sandbox, three truths, timeline with sources, findings, amounts as exact decimal strings |
+| `caseReportToJson` / `caseReportToCsv` | `(report) => string` — rc3: deterministic JSON (sorted keys) / RFC 4180 CSV (CRLF, formula-safe) |
 | `timelineFor` | `(ws, intentId) => ProviderEvent[]` (sorted by received time; includes rejected/duplicate/late entries with their `processingOutcome`) |
 | `listExceptions` | `(ws, filter?: { status?, category?, intentId? }) => ReconciliationException[]` |
 | `getIntent` | `(ws, id) => PaymentIntent \| undefined` |
