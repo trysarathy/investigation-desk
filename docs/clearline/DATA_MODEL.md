@@ -56,6 +56,16 @@ reconciliation: not_started → pending → partially_matched → matched ; any 
 3. A credit of SGD 30,000.00 referencing `RPY-SEABRIGHT-0001` is allocated (`RC_REPAYMENT_BY_REFERENCE`, `RC_PARTIAL_AMOUNT`). SGD 20,000.00 is outstanding.
 4. A credit of SGD 20,000.00 with **no reference** is **not** allocated. It raises `missing_payment_reference` / `RC_AMOUNT_ONLY_CANDIDATES` with the obligation listed as a candidate. Outstanding stays at SGD 20,000.00, and resolving the exception does not allocate it.
 
+## Returned-payout sample (seeded as `s2_returned`, rc3)
+
+1. Payment `INV-2026-141` (`pi_00027`): USD 12,784.90 to "Redwood Supplies Ltd (fictional)" via Northline, approved by a different person, submitted, reported in transit.
+2. Bank statement line `SIMBANK-0002` (debit, payment, USD 12,784.90, reference `NORTHLINE PAYOUT <provider payment id>`, value 2026-11-12) is matched by the trusted reference: settlement `verified (bank_statement)`, reconciliation `matched` — for now.
+3. The provider reports `payout.returned` (beneficiary account invalid). A `returned_payout` exception opens; settlement becomes `contradicted` (the return contradicts the debit evidence; never verified); reconciliation `exception`.
+4. Bank statement line `SIMBANK-0006` (credit, return, USD 12,784.90, reference `RETURN <provider payment id> ACCOUNT INVALID`) is allocated (`RC_RETURN_CONFIRMS_PROVIDER_RETURN`); `returnStatus` becomes `confirmed_by_statement`.
+5. The case and the exception are owned by `usr_maya`, with a note. The exception stays open: the supplier has still not been paid.
+
+Result: `investigate().returnPosition` = `RT_NET_ZERO` (debited = return credited = USD 12,784.90, `netMovement` 0.00, `netMovementZero: true`) **and** `beneficiaryPaid: false` (`RT_BENEFICIARY_UNPAID`, `OS_RETURN_RECEIVED_SUPPLIER_UNPAID`). Once a person resolves the return (funds-returned confirmation or correction intent), the recompute gives settlement `none` and reconciliation `matched` (net zero), labelled "Returned — net zero (supplier still unpaid)".
+
 ## Rules added by the code review (2026-11-13)
 
 - A contradicted settlement stays contradicted until a person resolves the contradiction with evidence other than a plain note. Dimensions are then recomputed from recorded evidence.
