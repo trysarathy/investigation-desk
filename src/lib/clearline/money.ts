@@ -36,6 +36,16 @@ export function parseAmount(text: string, currency: CurrencyCode): Result<number
   return ok(Number(minor));
 }
 
+/**
+ * rc3 (M-1): floor(amountMinor × bps / 10 000) computed with BigInt. A float product loses integer
+ * precision above 2^53 (e.g. 9007199254740839 × 500 / 10000 is 450359962737041, but the float
+ * expression gives 450359962737042). Inputs must be non-negative safe integers.
+ */
+export function applyBpsFloor(amountMinor: number, bps: number): number {
+  if (!Number.isSafeInteger(amountMinor) || amountMinor < 0 || !Number.isSafeInteger(bps) || bps < 0) throw new RangeError("applyBpsFloor needs non-negative safe integers");
+  return Number((BigInt(amountMinor) * BigInt(bps)) / 10_000n);
+}
+
 /** Exact decimal string for minor units, e.g. formatDecimal(5000000, "SGD") === "50000.00". */
 export function formatDecimal(amountMinor: number, currency: CurrencyCode): string {
   const decimals = CURRENCIES[currency];

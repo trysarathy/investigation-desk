@@ -1,4 +1,5 @@
 import type { CurrencyCode, ExecutionState, LiquidityRow, LiquidityView, Workspace } from "./types";
+import { applyBpsFloor } from "./money";
 import { minutesBetween } from "./tx";
 
 /** Execution states whose amount is committed against provider liquidity. */
@@ -24,7 +25,7 @@ export function computeLiquidity(ws: Workspace, at: string = ws.asOf): Liquidity
   }
   const rows: LiquidityRow[] = ws.liquidity.map((snap) => {
     const committed = committedBy.get(`${snap.providerId}|${snap.currency}`) ?? 0;
-    const bufferMinor = Math.max(policy.minBufferMinor[snap.currency] ?? 0, Math.floor((snap.eligibleMinor * policy.bufferBps) / 10000));
+    const bufferMinor = Math.max(policy.minBufferMinor[snap.currency] ?? 0, applyBpsFloor(snap.eligibleMinor, policy.bufferBps));
     const usableMinor = snap.eligibleMinor - snap.restrictedMinor - snap.safeguardedMinor - committed - bufferMinor;
     const rawAge = minutesBetween(snap.asOf, at);
     // M8: an age that cannot be computed (invalid instant) is stale, never fresh.

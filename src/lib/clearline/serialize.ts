@@ -58,7 +58,7 @@ const RECON = ["not_started", "pending", "matched", "partially_matched", "except
 /** Element validators: each throws Invalid with a field path. */
 const ELEMENTS: Partial<Record<keyof Workspace, (e: Obj, p: string) => void>> = {
   actors: (e, p) => { str(e, "name", p); oneOf(e, "role", p, ["operator", "approver", "compliance", "viewer"]); },
-  routes: (e, p) => { str(e, "providerId", p); str(e, "providerName", p); arr(e, "sourceCurrencies", p); need(isObj(e.providerFees), `${p}.providerFees`, "must be an object"); },
+  routes: (e, p) => { str(e, "providerId", p); str(e, "providerName", p); arr(e, "sourceCurrencies", p); need(isObj(e.providerFees), `${p}.providerFees`, "must be an object"); int(e, "platformFeeBps", p); },
   intents: (e, p) => {
     str(e, "internalReference", p); int(e, "amountMinor", p, 1); cur(e, "sourceCurrency", p); cur(e, "destinationCurrency", p); str(e, "beneficiaryRef", p);
     instant(e, "createdAt", p); arr(e, "quoteIds", p); need(isObj(e.metadata), `${p}.metadata`, "must be an object");
