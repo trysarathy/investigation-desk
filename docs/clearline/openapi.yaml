@@ -58,7 +58,9 @@ info:
     product's rules but are not a security boundary here.
 
     **Robustness.** Malformed JSON, damaged workspaces and malformed provider payloads return 4xx JSON,
-    never 500.
+    never 500. Limits: request body ≤ 512 KB (422 `invalid_json`); each workspace collection ≤ 1,000
+    items, audit ≤ 10,000 (400 `invalid_field`); nesting depth ≤ 32. While a payout is on a partner hold,
+    provider events never move it; leaving a hold needs the compliance reviewer.
 
     **Legacy endpoints** under `/api/clearline/test/{intents,quotes,transitions,webhooks,payments,health}`
     are **retired**: every method returns HTTP 410 with `error.replacement: "/api/clearline/test/v1"`.
