@@ -5,7 +5,8 @@
 import { openException } from "./exceptions";
 import { obligationOutstanding } from "./funding";
 import { formatMinor } from "./money";
-import type { AmountDifference, ExecutionState, ReconciliationAllocation, ReconciliationCode, RepaymentObligation, Severity, StatementLine } from "./types";
+import { TERMINAL_FOR_SETTLEMENT_REPORT, isTerminalForSettlementReport } from "./state";
+import type { AmountDifference, PaymentIntent, ReconciliationAllocation, ReconciliationCode, RepaymentObligation, Severity, StatementLine } from "./types";
 import { addDays, daysBetween, referenceTokens, type Tx } from "./tx";
 
 /** Value date must fall within [submission date − 1 day, submission date + N days]. */
@@ -33,6 +34,7 @@ export const RECONCILIATION_CODE_TEXT: Readonly<Record<ReconciliationCode, strin
   RC_REPAYMENT_BY_REFERENCE: "Repayment allocated to the obligation by its reliable repayment reference.",
   RC_UNDER_AMOUNT_REPORT: "The provider settlement report shows less than the payout amount; the payout is not treated as settled in full.",
   RC_REPORT_ON_TERMINAL_PAYOUT: "The provider reports settlement for a payout that is failed, cancelled, expired or returned; the two claims contradict each other.",
+  RC_REPORT_ON_HELD_PAYOUT: "The provider reports settlement for a payout that is on a partner compliance hold; the report is recorded but not counted as settlement.",
 };
 
 /** Display group for each code (for filters). Rows should still show the raw codes. */
@@ -57,10 +59,31 @@ export const RECONCILIATION_CODE_GROUP: Readonly<Record<ReconciliationCode, Reco
   RC_PROVIDER_REPORT_ONLY: "informational",
   RC_UNDER_AMOUNT_REPORT: "partial",
   RC_REPORT_ON_TERMINAL_PAYOUT: "contradiction",
+  RC_REPORT_ON_HELD_PAYOUT: "contradiction",
 };
 
-/** CHANGE 5 (F1): executions on which a provider settlement report is a contradiction, not evidence. */
-export const TERMINAL_FOR_SETTLEMENT_REPORT: readonly ExecutionState[] = ["failed", "cancelled", "expired", "returned"];
+export { TERMINAL_FOR_SETTLEMENT_REPORT, isTerminalForSettlementReport };
+
+/** Codes on a provider-report line that mean it is NOT settlement evidence (it disagreed or contradicted). */
+const REPORT_DISQUALIFYING: readonly ReconciliationCode[] = [
+  "RC_UNDER_AMOUNT_REPORT", "RC_REPORT_ON_TERMINAL_PAYOUT", "RC_REPORT_ON_HELD_PAYOUT", "RC_OVERPAYMENT", "RC_CURRENCY_MISMATCH",
+  "RC_OUTSIDE_TIME_WINDOW", "RC_AMBIGUOUS_REFERENCE", "RC_AMOUNT_ONLY_CANDIDATES", "RC_UNMATCHED_INCOMING", "RC_UNMATCHED_OUTGOING", "RC_DUPLICATE_SUSPECTED",
+];
+
+/** Provider settlement report lines (outgoing payment debits) that carry this payout's provider payment id. */
+export function providerReportLinesFor(ws: { statementLines: StatementLine[]; instructions: { id: string; providerPaymentId?: string }[] }, intent: PaymentIntent): StatementLine[] {
+  const ppid = ws.instructions.find((x) => x.id === intent.instructionId)?.providerPaymentId?.toUpperCase();
+  if (!ppid) return [];
+  return ws.statementLines.filter((l) => l.source === "provider_settlement_report" && l.direction === "debit" && l.kind === "payment" && referenceTokens(l.reference).includes(ppid));
+}
+
+/**
+ * Review v2 (m1): a provider report counts as (provider-reported) settlement evidence only if it was
+ * recorded as agreeing with the payout — never one that raised an under-amount, terminal, hold,
+ * currency, window, overpayment, duplicate or ambiguity exception, even after a person resolves it.
+ */
+export const isAgreeingProviderReport = (line: StatementLine): boolean =>
+  line.source === "provider_settlement_report" && line.explanationCodes.includes("RC_PROVIDER_REPORT_ONLY") && !line.explanationCodes.some((c) => REPORT_DISQUALIFYING.includes(c));
 
 /** CHANGE 5 (F2): next action for an amount difference (deterministic text). */
 export function amountDifferenceAction(code: AmountDifference["code"], differenceMinor: number, currency: AmountDifference["currency"]): string {
@@ -113,10 +136,10 @@ function lineEvidence(tx: Tx, line: StatementLine, link: { intentId?: string; ad
   return ev.id;
 }
 
-function exceptionFor(tx: Tx, line: StatementLine, code: ReconciliationCode, extra: { intentId?: string; advanceId?: string; obligationId?: string; candidates?: string[]; category?: "unmatched_reconciliation" | "missing_payment_reference" | "contradictory_evidence" | "duplicate_event"; note?: string; amountDifference?: AmountDifference; severity?: Severity }) {
+function exceptionFor(tx: Tx, line: StatementLine, code: ReconciliationCode, extra: { intentId?: string; advanceId?: string; obligationId?: string; candidates?: string[]; category?: "unmatched_reconciliation" | "missing_payment_reference" | "contradictory_evidence" | "duplicate_event"; note?: string; amountDifference?: AmountDifference; severity?: Severity; evidenceId?: string }) {
   line.status = line.allocationIds.length ? "partially_allocated" : "exception";
   if (!line.explanationCodes.includes(code)) line.explanationCodes.push(code);
-  const evidenceId = lineEvidence(tx, line, { intentId: extra.intentId, advanceId: extra.advanceId });
+  const evidenceId = extra.evidenceId ?? lineEvidence(tx, line, { intentId: extra.intentId, advanceId: extra.advanceId });
   return openException(tx, {
     category: extra.category ?? (line.reference.trim() ? "unmatched_reconciliation" : "missing_payment_reference"),
     explanationCode: code,
@@ -210,11 +233,23 @@ export function reconcileLine(tx: Tx, line: StatementLine): string {
   // CHANGE 5 (F1): a settlement report on a payout whose execution is terminal (failed, cancelled,
   // expired, returned) contradicts the provider's own status. It is never recorded as ordinary
   // evidence: it raises contradictory_evidence and leaves settlement unchanged.
-  if (line.source === "provider_settlement_report" && TERMINAL_FOR_SETTLEMENT_REPORT.includes(intent.status.execution)) {
+  // The reverse order (report first, terminal state later) is handled by onExecutionChanged.
+  if (line.source === "provider_settlement_report" && isTerminalForSettlementReport(intent.status.execution)) {
     exceptionFor(tx, line, "RC_REPORT_ON_TERMINAL_PAYOUT", {
       intentId: intent.id,
       category: "contradictory_evidence",
       note: `The payout's execution status is "${intent.status.execution}"; settlement was left unchanged (${intent.status.settlement}).`,
+    });
+    return "contradictory_exception_raised";
+  }
+
+  // Review v2 (m2): a payout on a partner compliance hold has not been paid out. A provider settlement
+  // report for it is recorded (evidence + line) and flagged for a person; settlement is unchanged.
+  if (line.source === "provider_settlement_report" && intent.status.execution === "on_hold") {
+    exceptionFor(tx, line, "RC_REPORT_ON_HELD_PAYOUT", {
+      intentId: intent.id,
+      category: "contradictory_evidence",
+      note: `The payout is on a partner compliance hold; settlement was left unchanged (${intent.status.settlement}). A provider claim never moves a held payout.`,
     });
     return "contradictory_exception_raised";
   }
@@ -244,6 +279,24 @@ export function reconcileLine(tx: Tx, line: StatementLine): string {
     if (line.amountMinor < intent.amountMinor) {
       // CHANGE 5 (F2): a report for less than the payout is a disagreement, never silent evidence.
       // Settlement is not upgraded; the structured difference is on the line and the exception.
+      // Review v2 (m3): the same short report again (same reference, amount, currency and value date)
+      // while the first one's exception is open is linked to that exception, not opened again.
+      const ppid = instr.providerPaymentId!.toUpperCase();
+      const firstOpen = ws.exceptions.find((e) => {
+        if (e.status === "resolved" || e.intentId !== intent.id || e.explanationCode !== "RC_UNDER_AMOUNT_REPORT") return false;
+        const l = ws.statementLines.find((x) => x.id === e.statementLineId);
+        return !!l && l.id !== line.id && l.amountMinor === line.amountMinor && l.currency === line.currency && l.valueDate === line.valueDate && referenceTokens(l.reference).includes(ppid);
+      });
+      if (firstOpen) {
+        line.status = "exception";
+        line.explanationCodes.push("RC_PROVIDER_REPORT_ONLY", "RC_UNDER_AMOUNT_REPORT", "RC_DUPLICATE_SUSPECTED");
+        const evidenceId = lineEvidence(tx, line, { intentId: intent.id, advanceId: intent.advanceId });
+        firstOpen.supportingEvidenceIds.push(evidenceId);
+        firstOpen.history.push({ at: tx.at, actorId: tx.actorId, action: "recurred", detail: `Same short provider report received again as line ${line.lineId} (${formatMinor(line.amountMinor, line.currency)}, value ${line.valueDate}); linked here, no new exception.` });
+        firstOpen.lastUpdatedAt = tx.at;
+        tx.log("reconciliation.duplicate_report_linked", "statement_line", line.id, `Duplicate short provider report linked to ${firstOpen.id}`);
+        return "duplicate_report_linked";
+      }
       const d = difference(line, "RC_UNDER_AMOUNT_REPORT", intent.amountMinor);
       line.amountDifference = d;
       line.explanationCodes.push("RC_PROVIDER_REPORT_ONLY");
@@ -361,3 +414,54 @@ function reconcileIncoming(tx: Tx, line: StatementLine, tokens: string[]): strin
   return "allocated";
 }
 
+
+/**
+ * Review v2 (M1 + M2): called on every execution change (events.setExecution), so the F1 rule does not
+ * depend on the order in which the provider's settlement report and its terminal status arrive.
+ *
+ * - M1: when a payout becomes failed, cancelled, expired or returned, every provider settlement report
+ *   already recorded for it raises the same contradictory_evidence / RC_REPORT_ON_TERMINAL_PAYOUT
+ *   exception as a report arriving afterwards, and stops counting as settlement: if settlement rested
+ *   on a provider report only, it goes back to none (the state the report-after order leaves).
+ * - M2: a returned payout never keeps settlement evidence as success. If independent evidence (bank
+ *   debit or chain transfer) had settlement observed/pending/verified, it becomes "contradicted": the
+ *   provider says the money came back, so the evidence of a completed payout no longer stands.
+ */
+export function onExecutionChanged(tx: Tx, intent: PaymentIntent): void {
+  if (!isTerminalForSettlementReport(intent.status.execution)) return;
+  const state = intent.status.execution;
+  for (const line of providerReportLinesFor(tx.ws, intent)) {
+    if (line.explanationCodes.includes("RC_REPORT_ON_TERMINAL_PAYOUT") || line.explanationCodes.includes("RC_AMBIGUOUS_REFERENCE")) continue;
+    const existing = tx.ws.evidence.find((e) => e.intentId === intent.id && e.kind === "provider_settlement_report" && e.reference === line.lineId);
+    exceptionFor(tx, line, "RC_REPORT_ON_TERMINAL_PAYOUT", {
+      intentId: intent.id,
+      category: "contradictory_evidence",
+      evidenceId: existing?.id,
+      note: `The report was recorded before the payout became "${state}". It no longer counts as settlement evidence.`,
+    });
+  }
+  const s = intent.status;
+  if (s.settlementScope === "provider_report" && s.settlement !== "contradicted") {
+    s.settlement = "none";
+    s.settlementScope = "none";
+  }
+  const evidenced = s.settlement === "observed" || s.settlement === "pending_finality" || s.settlement === "verified";
+  if (state === "returned" && evidenced) {
+    tx.log("intent.settlement", "intent", intent.id, `${s.settlement} → contradicted · provider reported the payout returned`);
+    s.settlement = "contradicted";
+  }
+  // Same order-independence for a bank debit that was matched BEFORE the provider reported failure
+  // (the debit-after-failure order already raises RC_DEBIT_FOR_FAILED_PAYOUT in reconcileLine).
+  if (state === "failed" && evidenced && s.settlementScope === "bank_statement") {
+    const lineIds = tx.ws.allocations.filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id && a.evidenceKind === "statement_line").map((a) => a.statementLineId);
+    openException(tx, {
+      category: "contradictory_evidence",
+      explanationCode: "RC_DEBIT_FOR_FAILED_PAYOUT",
+      explanation: "A statement debit matches a payout the provider reported as failed.",
+      intentId: intent.id,
+      statementLineId: lineIds[0],
+      supportingEvidenceIds: tx.ws.evidence.filter((e) => e.intentId === intent.id && e.kind === "bank_statement_line").map((e) => e.id),
+    });
+    s.settlement = "contradicted";
+  }
+}

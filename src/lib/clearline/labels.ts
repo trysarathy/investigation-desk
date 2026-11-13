@@ -220,6 +220,7 @@ const ACTION_OUTCOME: Record<string, string> = {
   exception_raised: "Needs review — exception raised",
   recorded_no_state_change: "Recorded — no status change",
   recorded_provider_report: "Provider report recorded (not independent evidence)",
+  duplicate_report_linked: "Same short provider report again — linked to the open exception",
   no_eligible_route: "No eligible route",
 };
 const ERROR_CODE: Record<EngineErrorCode, string> = {
@@ -302,6 +303,7 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   RC_REPAYMENT_BY_REFERENCE: "Repayment matched by its reference",
   RC_UNDER_AMOUNT_REPORT: "Provider reports less than the payout amount",
   RC_REPORT_ON_TERMINAL_PAYOUT: "Provider reports settlement on a failed, cancelled, expired or returned payout",
+  RC_REPORT_ON_HELD_PAYOUT: "Provider reports settlement on a payout that is on hold — not counted",
   RC_DEBIT_FOR_FAILED_PAYOUT: "Bank debit for a payout the provider reported as failed",
   RC_NO_STATEMENT_AFTER_COMPLETION: "No statement line after provider-reported completion",
   // Provider events

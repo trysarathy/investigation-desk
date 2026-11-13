@@ -4,7 +4,8 @@
  */
 import { fundingProjection, obligationOutstanding } from "./funding";
 import { formatMinor } from "./money";
-import { RECONCILIATION_CODE_TEXT } from "./reconciliation";
+import { RECONCILIATION_CODE_TEXT, isAgreeingProviderReport, providerReportLinesFor } from "./reconciliation";
+import { isTerminalForSettlementReport } from "./state";
 import type {
   CaseReport,
   EvidenceTimelineEntry,
@@ -97,6 +98,11 @@ export function investigate(ws: Workspace, intentId: string): Result<Investigati
   // CHANGE 5 (F2): a provider report below the payout amount is a disagreement with the payout.
   for (const e of open.filter((x) => x.explanationCode === "RC_UNDER_AMOUNT_REPORT" && !contradictions.some((c) => c.refs[0] === x.id)))
     add(contradictions, f(e.explanationCode, e.explanation, [e.id, ...(e.statementLineId ? [e.statementLineId] : [])]));
+  // Review v2 (M1, derived): a stored workspace can carry a terminal payout with a provider report that
+  // was never flagged (e.g. saved before this rule). It is still shown as a contradiction.
+  if (isTerminalForSettlementReport(s.execution))
+    for (const l of providerReportLinesFor(ws, intent).filter((x) => isAgreeingProviderReport(x)))
+      add(contradictions, f("RC_REPORT_ON_TERMINAL_PAYOUT", `${RECONCILIATION_CODE_TEXT.RC_REPORT_ON_TERMINAL_PAYOUT} Line ${l.lineId}; the payout is ${s.execution}.`, [l.id]));
   if (s.settlement === "contradicted" && !contradictions.length) add(contradictions, f("CT_SETTLEMENT_CONTRADICTED", "Settlement evidence is contradicted by another source."));
 
   // Financially outstanding
@@ -111,7 +117,7 @@ export function investigate(ws: Workspace, intentId: string): Result<Investigati
   if (s.execution === "returned") {
     const returned = ws.allocations.filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id && a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN")).reduce((t, a) => t + a.amountMinor, 0);
     outstanding.push({ code: returned ? "OS_RETURN_RECEIVED_SUPPLIER_UNPAID" : "OS_RETURN_NOT_YET_RECEIVED", text: returned ? "Returned funds appear on the statement; the supplier remains unpaid." : "Provider reports a return; returned funds not yet seen on a statement. The supplier remains unpaid.", amount: money(intent.amountMinor) });
-  } else if (submitted && !["failed", "cancelled", "expired"].includes(s.execution) && matched < intent.amountMinor)
+  } else if (submitted && !isTerminalForSettlementReport(s.execution) && matched < intent.amountMinor)
     outstanding.push({ code: matched ? "OS_PARTIALLY_RECONCILED" : "OS_NOT_RECONCILED", text: matched ? "Part of the payout is reconciled; the remainder is not." : "The payout amount is not yet reconciled to a statement.", amount: money(intent.amountMinor - matched) });
   if (funding && funding.outstanding.amountMinor > 0)
     outstanding.push({ code: funding.overdue ? "OS_ADVANCE_OVERDUE" : "OS_ADVANCE_OUTSTANDING", text: `Customer repayment outstanding on advance ${funding.advanceId}${funding.obligation ? `, due ${funding.obligation.dueDate}, reference ${funding.obligation.reference}` : ""}.`, amount: funding.outstanding });
@@ -124,7 +130,22 @@ export function investigate(ws: Workspace, intentId: string): Result<Investigati
     ...ws.allocations.filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id).map((a) => a.statementLineId),
     ...ws.exceptions.filter((x) => x.intentId === intent.id && x.statementLineId).map((x) => x.statementLineId!),
   ]);
-  const amountDifferences = ws.statementLines.filter((l) => l.amountDifference && linkedLineIds.has(l.id)).map((l) => ({ ...l.amountDifference! }));
+  // Review v2 (M3): only differences that still apply are current ("financially outstanding"); the rest
+  // are history. A bank partial applies while the payout's bank allocations are below its amount (and
+  // the payout is not terminal); a provider under-amount report applies while its exception is open.
+  const remainderOpen = submitted && !isTerminalForSettlementReport(s.execution) && matched < intent.amountMinor;
+  const allDifferences = ws.statementLines
+    .filter((l) => l.amountDifference && linkedLineIds.has(l.id))
+    .map((l) => {
+      const d = l.amountDifference!;
+      const outstanding =
+        d.code === "RC_UNDER_AMOUNT_REPORT"
+          ? ws.exceptions.some((x) => x.statementLineId === l.id && x.explanationCode === "RC_UNDER_AMOUNT_REPORT" && x.status !== "resolved")
+          : remainderOpen;
+      return { ...d, outstanding };
+    });
+  const amountDifferences = allDifferences.filter((d) => d.outstanding);
+  const resolvedAmountDifferences = allDifferences.filter((d) => !d.outstanding);
   codes.push(...amountDifferences.map((d) => d.code));
 
   // Who acts
@@ -194,6 +215,7 @@ export function investigate(ws: Workspace, intentId: string): Result<Investigati
       caseId: intent.caseId,
       explanationCodes: [...new Set(codes)],
       amountDifferences,
+      resolvedAmountDifferences,
       disclaimer: ENGINE_DISCLAIMER,
     },
   };

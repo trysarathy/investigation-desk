@@ -35,6 +35,21 @@ const amountDifference = (o: Obj, p: string) => {
   need(d.expectedMinor === (d.reportedMinor as number) + (d.differenceMinor as number), `${q}.differenceMinor`, "must equal expectedMinor − reportedMinor");
 };
 
+/**
+ * Review v2 (m4): a difference must describe the line it sits on (statement line) or the line its
+ * exception is linked to: same internal line id, currency, source and reported amount, and a code that
+ * fits the source (provider reports give RC_UNDER_AMOUNT_REPORT, bank lines RC_PARTIAL_AMOUNT).
+ */
+const differenceMatchesLine = (d: Obj, line: Obj | undefined, q: string) => {
+  need(line !== undefined, `${q}.statementLineId`, "must identify a statement line in this workspace");
+  const l = line as Obj;
+  need(d.statementLineId === l.id, `${q}.statementLineId`, "must equal the id of its statement line");
+  need(d.currency === l.currency, `${q}.currency`, "must equal its statement line's currency");
+  need(d.source === l.source, `${q}.source`, "must equal its statement line's source");
+  need(d.reportedMinor === l.amountMinor, `${q}.reportedMinor`, "must equal its statement line's amount");
+  need((d.code === "RC_UNDER_AMOUNT_REPORT") === (d.source === "provider_settlement_report"), `${q}.code`, "must be RC_UNDER_AMOUNT_REPORT for a provider report and RC_PARTIAL_AMOUNT for a bank line");
+};
+
 const EXECUTION = ["created", "quoted", "approved", "submitted", "in_transit", "provider_reported_completed", "awaiting_information", "on_hold", "failed", "returned", "cancelled", "expired"];
 const SETTLEMENT = ["none", "observed", "pending_finality", "verified", "contradicted"];
 const SCOPE = ["none", "provider_report", "bank_statement", "onchain_transfer"];
@@ -113,6 +128,18 @@ function validate(w: unknown): Workspace {
       check(e as Obj, path);
     });
   }
+  // Review v2 (m4): cross-check every amount difference against its own / linked statement line.
+  const lines = ws.statementLines as Obj[];
+  lines.forEach((l, i) => {
+    if (l.amountDifference !== undefined) differenceMatchesLine(l.amountDifference as Obj, l, `statementLines[${i}].amountDifference`);
+  });
+  (ws.exceptions as Obj[]).forEach((e, i) => {
+    if (e.amountDifference === undefined) return;
+    const q = `exceptions[${i}].amountDifference`;
+    need(typeof e.statementLineId === "string", `exceptions[${i}].statementLineId`, "must be set when the exception carries an amount difference");
+    need((e.amountDifference as Obj).statementLineId === e.statementLineId, `${q}.statementLineId`, "must equal the exception's statementLineId");
+    differenceMatchesLine(e.amountDifference as Obj, lines.find((l) => l.id === e.statementLineId), q);
+  });
   return ws as unknown as Workspace;
 }
 

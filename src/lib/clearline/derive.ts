@@ -3,6 +3,8 @@
  * Used only after a PERSON resolves an exception (M3 / m3): an open contradiction keeps settlement
  * "contradicted"; open reconciliation exceptions keep reconciliation "exception".
  */
+import { isAgreeingProviderReport, providerReportLinesFor } from "./reconciliation";
+import { isTerminalForSettlementReport } from "./state";
 import type { PaymentIntent, Workspace } from "./types";
 
 const RECON_BLOCKING = ["contradictory_evidence", "unmatched_reconciliation", "missing_payment_reference", "duplicate_event", "returned_payout"];
@@ -15,9 +17,12 @@ export function recomputeDimensions(ws: Workspace, intent: PaymentIntent): void 
     .reduce((s, a) => s + a.amountMinor, 0);
   const chainAlloc = ws.allocations.some((a) => a.evidenceKind === "chain_observation" && a.target.kind === "payment" && a.target.intentId === intent.id);
   const obs = ws.chainObservations.find((o) => o.intentId === intent.id && o.status !== "rejected_unsupported");
-  // CHANGE 5 (F1): a settlement report on a failed/cancelled/expired payout is a contradiction, never settlement evidence.
-  const terminal = ["failed", "cancelled", "expired"].includes(intent.status.execution);
-  const providerReport = !terminal && ws.evidence.some((e) => e.intentId === intent.id && e.kind === "provider_settlement_report");
+  // CHANGE 5 (F1): a settlement report on a terminal payout (TERMINAL_FOR_SETTLEMENT_REPORT; "returned"
+  // is handled by its own branch below) is a contradiction, never settlement evidence.
+  // Review v2 (m1): only a report recorded as AGREEING with the payout counts; one that raised an
+  // exception (under-amount, terminal, hold, currency, window, ...) never does, even once resolved.
+  const terminal = isTerminalForSettlementReport(intent.status.execution);
+  const providerReport = !terminal && providerReportLinesFor(ws, intent).some(isAgreeingProviderReport);
 
   // Re-review N2: a returned payout never settled with the beneficiary. Settlement is "none"
   // (scope "none") — the debit and return evidence stay on record and in the investigation — and
@@ -27,7 +32,11 @@ export function recomputeDimensions(ws: Workspace, intent: PaymentIntent): void 
     const returned = ws.allocations
       .filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id && a.evidenceKind === "statement_line" && a.currency === intent.sourceCurrency && a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN"))
       .reduce((s, a) => s + a.amountMinor, 0);
-    intent.status.settlement = open.some((e) => e.category === "contradictory_evidence") ? "contradicted" : "none";
+    // Review v2 (M2): while the return is still open and settlement evidence (bank debit or chain
+    // transfer) exists, that evidence is contradicted by the return (never shown as success).
+    const evidenced = bank > 0 || Boolean(obs);
+    intent.status.settlement =
+      open.some((e) => e.category === "contradictory_evidence") || (evidenced && open.some((e) => e.category === "returned_payout")) ? "contradicted" : "none";
     intent.status.settlementScope = "none";
     const netZero = returned > 0 && returned === bank && intent.returnStatus === "confirmed_by_statement";
     intent.status.reconciliation = !open.some((e) => RECON_BLOCKING.includes(e.category)) && netZero ? "matched" : "exception";

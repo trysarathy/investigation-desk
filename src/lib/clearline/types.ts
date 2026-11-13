@@ -432,8 +432,10 @@ export type ReconciliationCode =
   | "RC_REPAYMENT_BY_REFERENCE"
   /** CHANGE 5 (F2): a provider settlement report for less than the payout amount. */
   | "RC_UNDER_AMOUNT_REPORT"
-  /** CHANGE 5 (F1): a provider settlement report on a failed, cancelled, expired or returned payout. */
-  | "RC_REPORT_ON_TERMINAL_PAYOUT";
+  /** CHANGE 5 (F1): a provider settlement report on a failed, cancelled, expired or returned payout (in either order). */
+  | "RC_REPORT_ON_TERMINAL_PAYOUT"
+  /** Review v2 (m2): a provider settlement report on a payout that is on a partner compliance hold. */
+  | "RC_REPORT_ON_HELD_PAYOUT";
 
 /**
  * CHANGE 5 (F2): structured amount difference between what a payout needs and what one statement
@@ -451,6 +453,11 @@ export interface AmountDifference {
   source: StatementSource;
   statementLineId: string;
   requiredNextAction: string;
+}
+
+/** Review v2 (M3): an amount difference as shown by investigate(), with whether it still applies. */
+export interface InvestigationAmountDifference extends AmountDifference {
+  outstanding: boolean;
 }
 
 export interface ReconciliationAllocation {
@@ -725,7 +732,9 @@ export interface FundingProjectionRow {
   /**
    * CHANGE 5 (m5): what "supplier paid" rests on. `provider_reported` = only the provider's completion
    * claim; `verified_settlement` = settlement evidence is verified (bank statement or final chain
-   * transfer); `none` = neither. The state name `supplier_paid` is kept for compatibility.
+   * transfer) AND the payout is not failed, cancelled, expired or returned; `none` = neither (always
+   * `none` for a failed, cancelled, expired or returned payout, whatever the settlement field says —
+   * review v2 M2). The state name `supplier_paid` is kept for compatibility.
    */
   supplierPaidBasis: "none" | "provider_reported" | "verified_settlement";
   /** Corresponding stage name in the existing Funding Desk (src/lib/mentor-demo). */
@@ -894,8 +903,16 @@ export interface InvestigationView {
   funding?: FundingProjectionRow;
   caseId?: string;
   explanationCodes: string[];
-  /** CHANGE 5 (F2): every under-amount / partial line recorded for this payout (provider reports and bank lines). */
-  amountDifferences: AmountDifference[];
+  /**
+   * CHANGE 5 (F2) + review v2 (M3): amount differences that are still OUTSTANDING for this payout.
+   * A bank partial (RC_PARTIAL_AMOUNT) is outstanding while the payout's bank-statement allocations are
+   * below the payout amount and the payout is not failed/cancelled/expired/returned. A provider
+   * under-amount report (RC_UNDER_AMOUNT_REPORT) is outstanding while its exception is not resolved.
+   * Every entry has `outstanding: true`. Only these belong under "Financially outstanding".
+   */
+  amountDifferences: InvestigationAmountDifference[];
+  /** Review v2 (M3): history — differences recorded for this payout that no longer apply (gap closed or exception resolved). Every entry has `outstanding: false`. */
+  resolvedAmountDifferences: InvestigationAmountDifference[];
   disclaimer: string;
 }
 

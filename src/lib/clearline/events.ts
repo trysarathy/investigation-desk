@@ -13,6 +13,7 @@
 import { getAdapter } from "./adapters";
 import { tryAllocateChain } from "./chain";
 import { ensureCase, openException } from "./exceptions";
+import { onExecutionChanged } from "./reconciliation";
 import { sha256Hex } from "./sha256";
 import { EVENT_TARGET, PROGRESS_RANK, canTransitionExecution } from "./state";
 import type { ComplianceHold, EventProvenance, PaymentIntent, ProviderEvent, SandboxWebhookPayload, SignatureResult } from "./types";
@@ -37,6 +38,8 @@ export function setExecution(tx: Tx, intent: PaymentIntent, to: PaymentIntent["s
   intent.status.execution = to;
   intent.updatedAt = tx.at;
   tx.log("intent.execution", "intent", intent.id, `${from} → ${to} · ${why}`);
+  // Review v2 (M1/M2): re-check recorded settlement reports and evidence on every transition.
+  if (from !== to) onExecutionChanged(tx, intent);
 }
 
 export function ingestPayload(tx: Tx, input: IngestInput): { outcome: ProviderEvent["processingOutcome"]; event: ProviderEvent } {
