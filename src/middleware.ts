@@ -1,4 +1,4 @@
-// Deployment gates.
+// Deployment gates and the per-request Content-Security-Policy.
 //
 // Gates (unchanged semantics, now one pure function shared with the test-API routes):
 // - CLEARLINE_CUSTOMER_PREVIEW=1: an allow-list (only the console, /mentor-demo, the test API and assets).
@@ -81,14 +81,48 @@ export function gateResponse(decision: GateDecision, requestUrl: string): Respon
   }
 }
 
+// ---- R2: nonce-based Content-Security-Policy ----------------------------------------------------
+// Directives other than script-src are identical to the static fallback policy in next.config.mjs
+// (a test checks this). style-src keeps 'unsafe-inline': React renders `style={...}` props as inline
+// style attributes in the server HTML, which a nonce cannot cover (see SECURITY_PLATFORM_RC3.md).
+export function nonceContentSecurityPolicy(nonce: string, dev = process.env.NODE_ENV !== "production"): string {
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    `connect-src 'self'${dev ? " ws: wss:" : ""}`,
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join("; ");
+}
+
+/** 128 random bits, base64. */
+export function newNonce(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return btoa(String.fromCharCode(...bytes));
+}
+
 export function middleware(req: NextRequest) {
   const decision = deploymentGate(req.nextUrl.pathname, req.headers.get("authorization"), process.env);
   const refused = gateResponse(decision, req.url);
   if (refused) return refused;
-  if (decision.action !== "next" || !decision.consoleShell) return NextResponse.next();
+  if (decision.action !== "next") return NextResponse.next(); // unreachable: gateResponse handled it
+  const nonce = newNonce();
+  const csp = nonceContentSecurityPolicy(nonce);
   const h = new Headers(req.headers);
-  h.set("x-clearline-mentor-demo-route", "1");
-  return NextResponse.next({ request: { headers: h } });
+  if (decision.consoleShell) h.set("x-clearline-mentor-demo-route", "1");
+  // Next reads the nonce from the request's CSP header and puts it on its own scripts; the root layout
+  // reads x-nonce for its inline theme script.
+  h.set("x-nonce", nonce);
+  h.set("Content-Security-Policy", csp);
+  const res = NextResponse.next({ request: { headers: h } });
+  res.headers.set("Content-Security-Policy", csp);
+  return res;
 }
 
 // QA L1: exclusions are anchored, so lookalike paths (/favicon.icox, /_next/imagex) still pass through the middleware.

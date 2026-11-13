@@ -1,10 +1,15 @@
-// Security headers for every route (QA L2). Next's App Router emits inline bootstrap scripts and the
-// root layout has an inline theme script, so script-src keeps 'unsafe-inline' (a nonce-based CSP is a
-// tracked follow-up). Dev mode additionally needs 'unsafe-eval' for React Refresh.
+// Security headers for every route (QA L2).
+// R2 (rc3): every page passes through src/middleware.ts, which REPLACES this Content-Security-Policy with a
+// per-request nonce policy (script-src 'self' 'nonce-…' 'strict-dynamic', no 'unsafe-inline'). This static
+// policy is the fallback for responses the middleware does not produce: the test API (excluded from the
+// matcher for QA L3), static files, and the middleware's own 401/404/redirect answers. None of them needs
+// an inline script, so the fallback has no 'unsafe-inline' either: a page that ever missed the middleware
+// would fail closed (its inline scripts blocked), not open. Directives other than script-src match the
+// nonce policy (tests/platform checks this). Dev mode additionally needs 'unsafe-eval' for React Refresh.
 const isDev = process.env.NODE_ENV !== 'production';
 export const contentSecurityPolicy = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
+  `script-src 'self'${isDev ? " 'unsafe-eval'" : ''}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
