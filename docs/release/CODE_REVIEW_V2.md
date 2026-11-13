@@ -166,3 +166,64 @@ None.
 **CHANGES REQUESTED dd52f88.** M1, M3, all the Minors and the Nits are resolved and proven by tests that fail without the fixes. M2 is resolved for the return-after-evidence order only. **N1** (the debit-after-return order) must be fixed, with a test, before "a returned payout never renders green or verified" holds. L1 is optional. No wrong amount is posted and no record is lost, so this is not a BLOCK. Merging stays approval-only. Not reviewed this round: lint, Playwright (including the Link regression test), visual design, the `openapi.yaml` schema validity (read only), and `DATA_MODEL.md` / `ENGINE_API.md` wording beyond the CHANGE notes.
 
 — code-reviewer (general-purpose subagent in the code-reviewer role) · https://claude.ai/code/session_015s4Kk7vKgcSQ7csnYmEH5j · 2026-11-13 SGT
+
+---
+
+# Final check: CODE REVIEW: APPROVE ce96a35
+
+**APPROVAL-ONLY: needs Aashmiin's merge.**
+
+**In plain English:** N1 is fixed. A bank debit matched to a payout that is already returned, failed, cancelled or expired is still recorded, but it never makes the payout "verified". It now ends in exactly the same state as when the debit came first. I re-ran every earlier probe, and none of them shows a returned or failed payout as verified any more. Two small points remain. Neither stops a fictional-data trial, and both can follow later.
+
+| | |
+|---|---|
+| Scope | `a80d383..ce96a35` (one commit: `reconciliation.ts`, `labels.ts`, docs, +7 tests in `review-v2.test.ts`) |
+| Frozen copy | `git archive ce96a35` into scratch. **The live working tree now has uncommitted edits to 10+ console files** (`src/components/clearline/pages/*`, `src/app/clearline/docs/page.tsx`). **I did not review those edits**, and this verdict does not cover them. |
+| Independence caveat | Unchanged: the fix comes from the same orchestrating session that requested this review. I wrote and suggested no code. |
+
+## Checks I ran (ce96a35)
+
+| Check | Result |
+|---|---|
+| `npx tsc --noEmit` | exit 0 |
+| `npx vitest run` | 52 files passed, 1 skipped; **1112 passed**, 57 skipped |
+| `npx next build` | exit 0 |
+| Proving the tests fail without the fix | Disabling the new terminal block in `reconcileLine` fails 6 of 33 review-v2 tests (N1 returned, N1 partial-after-return, N1 cancelled, N1 failed, N1 expired, M1 debit-before-failed). |
+| All earlier probes (P1–P13, R1–R7) plus new ones (F1–F3) | Results below |
+| Lint, Playwright | Not run (no browser here) |
+
+## Point by point
+
+- **Debit after a terminal status → `contradicted`: confirmed.**
+  - **R1/F1** (completed → `payout.returned` → full bank debit): `returned / contradicted / bank_statement / exception`, summary "Provider reports returned · Settlement evidence contradicted (Bank statement) · Needs review". It was `verified` at dd52f88.
+  - A partial debit after the return is also contradicted (covered by a test).
+  - **R3/R7** (failed): `RC_DEBIT_FOR_FAILED_PAYOUT` in both orders. Settlement is set to `contradicted` *after* the code that would otherwise set `verified`, so nothing can overwrite it within the same line.
+- **`RC_DEBIT_FOR_TERMINAL_PAYOUT` for cancelled/expired: confirmed.**
+  - **F3** (sample `s3_hold`, the reviewer rejects → `cancelled`): debit-then-reject and reject-then-debit end identically: `cancelled / contradicted / bank_statement / exception`, with an open `RC_DEBIT_FOR_TERMINAL_PAYOUT`.
+  - Expired is reachable only from stored data (M7), and a test covers it. The code has a label, so the coverage tests pass.
+  - `openTerminalDebitException` is the one shared helper for both orders.
+- **Order independence: confirmed for every pair I tried.** report↔failed (P1/R4), report↔returned (P1b/R5), debit↔failed (R3), debit↔returned (P9/R1), debit↔cancelled (F3), chain↔returned (R2), debit↔on_hold (F3: `verified` either way). The funding basis is `none` for every terminal payout (R6/P10).
+- **`on_hold` left non-terminal: I agree with this engine choice, with one caveat for the console.**
+  - Why it is right in the engine:
+    - A held payout has not ended, so it can still be released or rejected.
+    - A bank debit while it is held is the payout's own outgoing leg, not a disagreement.
+    - The settlement scope `bank_statement` already means only "money left our account". The investigation still lists `UK_BENEFICIARY_CREDIT_NOT_EVIDENCED`.
+    - If the hold ends in rejection, the payout becomes `cancelled`, and `onExecutionChanged` turns that debit into `RC_DEBIT_FOR_TERMINAL_PAYOUT` (F3). So nothing is lost.
+    - A provider *settlement report* on a held payout stays a contradiction (m2), and that is consistent: a provider that says both "settled" and "held" is contradicting itself, while a bank debit is independent and expected.
+  - **Caveat (Minor, C1):** for a held payout with a matched debit, the console shows a green "Verified" settlement chip and "Matched" (F3: `on_hold / verified / matched`). If such a payout funded an advance, `supplierPaidBasis` would read `verified_settlement` ("Supplier payout verified by independent evidence"), even though the partner still holds the money. Fix (in words): treat `on_hold` like the terminal states for `supplierPaidBasis` (or add a "held" basis), and show the hold next to the settlement truth on the payment page ("money left the account; the partner holds it"). The sample has no held payout with an advance, so this is not reachable in the guided trial.
+
+## Remaining (non-blocking)
+
+- **C1 (Minor):** the held + debited payout wording, above.
+- **C2 (Minor): a late debit after a person has already resolved the return leaves `contradicted` with nothing to resolve.**
+  - Evidence (F2): `payout.returned` → the person resolves the `returned_payout` exception (settlement `none`) → a bank debit arrives. Result: `returned / contradicted`, open exceptions `[]`, contradictions `[CT_SETTLEMENT_CONTRADICTED]`.
+  - The value is safe (never verified), but no open item tells a person to act, and it only clears when some other exception on that payout is resolved.
+  - Cause: `reconciliation.ts`, the returned branch of the new terminal block, only attaches evidence when an *open* `returned_payout` exception exists.
+  - Fix (in words): when none is open, reopen it, or open a `contradictory_evidence` exception as the failed/cancelled path does.
+- L1 (Link fallback on a slow server) from the re-review still stands as an optional improvement.
+
+## Final verdict
+
+**APPROVE ce96a35** for a public, fictional-data trial PR. Blockers: none. Majors: none open. M1–M3 and N1 are fixed in both orders, each with a test that fails without its fix. C1, C2 and L1 are Minors that can follow. **APPROVAL-ONLY: needs Aashmiin's merge.** This approval covers commit ce96a35 only, not the uncommitted console edits now in the working tree. Because of the shared-session independence caveat, Aashmiin or a second reviewer should still read N1/M2 before merging.
+
+— code-reviewer (general-purpose subagent in the code-reviewer role) · https://claude.ai/code/session_015s4Kk7vKgcSQ7csnYmEH5j · 2026-11-13 SGT
