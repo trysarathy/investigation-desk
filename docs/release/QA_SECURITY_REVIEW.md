@@ -320,3 +320,155 @@ A static server over a copy of `out/`, then a Playwright pass for links, anchors
 - `docs/release/QA_SECURITY_REVIEW.md` (this report)
 
 I modified no source file, committed nothing and pushed nothing.
+
+---
+
+## 7. Re-check: 2026-11-13, about 11:45 to 12:15 UTC, commit **cfadef9**
+
+**Scope.** The integration lead asked for this re-check after the engine team reported the findings fixed. I froze HEAD (cfadef9) with `git archive` into my scratchpad and ran everything against that copy. The worktree was clean at the time.
+
+**HEAD has moved since.** By the end of the re-check HEAD was **44f2fdf**, with uncommitted edits to `src/app/api/clearline/test/v1/[...path]/route.ts` and docs. The verdicts below apply to cfadef9 only. Re-run `npx vitest run tests/qa-release` and the probe scripts on whatever revision actually ships.
+
+My earlier test files are unchanged at cfadef9 (byte-identical).
+
+### 7.1 Commands and results (cfadef9)
+
+**Baseline**
+
+| Check | Result |
+|---|---|
+| `npx vitest run` × 3 | 49 files passed, 1 skipped; **1014 passed, 57 skipped (1071)**; identical 3 of 3. |
+| `npx tsc --noEmit` | exit 0 (also with the new re-check test file). |
+| `npx next build` | exit 0, 29.5 s. |
+| `npx vitest run tests/qa-release` × 3 | **108 passed, 1 failed (109)**; identical 3 of 3. The one failure is the new residual DEFECT in 7.3. |
+
+The 109 tests are the original 97 plus 12 new ones in `tests/qa-release/recheck-release.test.ts`.
+
+**End-to-end**
+
+Playwright with `--retries=0`, using a copy of `playwright.clearline.config.ts` with only the port changed to 3395 (3184 is often taken by other agents): **33 passed, 1 skipped**, 23.3 s. I deleted `test-results/` in my copy afterwards.
+
+**Preview server probes**
+
+`CLEARLINE_CUSTOMER_PREVIEW=1 npx next start -p 3391`:
+
+- **Route isolation:** all 65 built routes × GET, POST, PUT, PATCH and DELETE, 325 requests.
+
+  | Status | Count | Routes |
+  |---|---|---|
+  | 200 | 87 | `/clearline/**` (including the new `/clearline/docs/openapi.yaml`), `/mentor-demo`, `/icon.svg` |
+  | 307 | 5 | `/` → `/clearline`, same origin; a spoofed `Host` did not change it |
+  | 401 | 2 | v1 without the key |
+  | 404 | 215 | everything else, including every legacy app and API route, plain "Not found", no data |
+  | 405 | 11 | unsupported methods |
+  | 410 | 5 | the retired legacy test API |
+
+- **Middleware bypasses:** the `x-middleware-subrequest` (2 variants), `x-invoke-path` and `x-clearline-mentor-demo-route` headers, plus encoded and dot-segment paths, all returned 404 or a 308 to a 404.
+- **Security headers:** all present on pages, API responses (200, 401 and 410), `/_next/static` assets, and 404s.
+  - `Content-Security-Policy`: `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`.
+  - Also `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy` and `Permissions-Policy`.
+  - `X-Powered-By` is gone.
+  - With the CSP active, Chromium logged no violations on 15 pages, including `/mentor-demo` and `/clearline/docs`, and the console hydrated on all 12 console pages.
+
+**Request limits and malformed input** (script: `scratchpad/probes/recheck-api.mjs`)
+
+- **512 KB body cap:** 512 KB − 100 B was accepted (200). 512 KB + 1 B with Content-Length was refused (422). A 3 MB chunked body with no Content-Length was refused (422), but only after being read in full; see 7.3.
+- **1,000-item cap:** 1,001 `statementLines` gave 400 and 1,001 `intents` gave 422.
+  - `audit` is allowed 10,000 items. That is moot in practice, because 10,000 audit rows are about 1.8 MB, which the 512 KB cap refuses; 10,001 rows also gave 422.
+- **Depth 32:** `organization.extra` nested 29 deep was accepted; 30 or more gave 422 "Workspace nests deeper than 32 levels". A raw 200,000-deep `workspace` gave 422.
+  - Bodies about 200,000 deep *outside* `workspace` (`input`, `line`, `action.input.metadata`) all gave 4xx. A deep string in `rawBody` was stored as unparseable (200).
+- **Malformed-input fuzz:** 412 requests.
+  - 37 hand-built malformed bodies across every POST endpoint.
+  - 75 structurally valid workspaces, each with one broken item (`null`, `1`, `"x"`, `[]`, `{}` in 14 arrays, plus 5 broken headers), each sent to 5 operations.
+  - Results: **400 × 4, 404 × 8, 422 × 399, 200 × 1, and zero 5xx.**
+
+**CPU cost** (script: `scratchpad/probes/recheck-cpu.mjs`)
+
+For each of 5 shapes I filled the workspace with the largest number of sample-shaped items that fit under 512 KB: 175 to 352 intents with instructions, events, liquidity or exceptions. I then hit `/liquidity`, `/actions` (advance_clock), `/reconciliation/statement-lines`, `/investigations` and `/events/simulate`. **Every request finished in 12–41 ms.**
+
+The minimal-shape payload that took 16.5 s at 6fb9433 now returns 200 in 14 ms. Eight parallel requests with the 1.5 MB worst shape were all refused by the body cap (422), 88 ms in total.
+
+**Hold, chain and correction fixes through the real API**
+
+Webhooks were signed with the public sandbox secret.
+
+- **Held payout (s3):**
+  - Signed `payout.in_transit` → `contradictory_exception_raised`; execution stays `on_hold`, hold `open`.
+  - Signed `payout.completed` → same outcome.
+  - `payout.hold_released` with no reviewer decision → `partner_release_reported`; still `on_hold`.
+- **Chain evidence:**
+  - Reusing s4's txHash for a different USDC payout → `contradictory_exception_raised`, settlement `none`.
+  - A fresh tx with the right wallet, right amount and 12 confirmations → `applied`, settlement `verified`. The positive path works.
+  - The same fresh txHash for a second payout → contradiction, settlement `none`.
+  - Wrong wallet → contradiction, settlement `none`.
+  - A fiat payout (s1) with amount 1 → 422 `precondition_failed`.
+  - An amount different from the quote → contradiction, settlement `none`.
+  - Chain 8453 (Base mainnet) → `unsupported_token_or_network`, settlement `none`.
+- **Corrections:** correction #1 for s2 → 201; correction #2 → 422.
+- **Idempotency:** the key `constructor` → 201 `applied`.
+- **Notes:** a note containing a newline is accepted, and the export now flattens it (see L6).
+
+**Browser:** localStorage tampering (invalid JSON, wrong schema, a null intent, a null `intent.status`, no actors, XSS strings) on all 12 console pages: **no crashes, no page errors, no script execution**. Malformed stored workspaces now fail validation and fall back to the sample. There is still no `src/app/clearline/error.tsx`.
+
+**Cleanup:** every server I started (3391, plus 3392 for the `DEMO_MODE=off` check) is stopped.
+
+### 7.2 Per-finding verdicts
+
+| ID | Finding | Verdict at cfadef9 | Evidence |
+|---|---|---|---|
+| H1 | Same txHash counted for two payouts | **Fixed** | Real API: contradiction, settlement `none`; vitest passes. |
+| H2 | Chain evidence verifies any payment | **Fixed** | Real API: 422 `precondition_failed` for a fiat payout; contradiction on amount mismatch. |
+| H3 | Provider event moves a held payout | **Fixed** | Real API: `in_transit` and `completed` on hold give a contradiction, execution stays `on_hold`. |
+| M1 | Duplicate correction intents | **Fixed** | Real API: second correction gives 422. |
+| M2 | Wrong-wallet transfer counted | **Fixed** | Real API: contradiction, settlement `none`. |
+| M3 | CPU DoS on `/liquidity` | **Fixed** | Linear cost, 512 KB / 1,000-item / depth-32 caps; worst case 41 ms. |
+| L1 | Middleware matcher lookalikes | **Fixed with a residue** | Matcher anchored; `/favicon.icox` gives a plain 404. Residue in 7.3. |
+| L2 | Security headers | **Fixed, with `script-src 'unsafe-inline'`** | All headers on every response type; no CSP violations. See 7.3. |
+| L3 | Malformed workspace → 500 or console crash | **Fixed** | 0 of 412 fuzz requests returned 5xx; no console crashes. An error boundary would still be good defence in depth. |
+| L4 | Deep nesting → 500 | **Fixed** | 200,000-deep inside or outside `workspace` gives 4xx. |
+| L5 | Prototype-name idempotency keys | **Fixed** | `constructor` gives 201. |
+| L6 | Newline in a note forges report lines | **Fixed for notes, history and findings; residue for case title** | See 7.3. |
+| L7 | Legacy API weaker than v1 | **Fixed (retired)** | 410 Gone for valid legacy requests; 422 for invalid ones. |
+| L8 | Maker/checker is not an auth boundary | **Documented** | `openapi.yaml:58` now says the actor rules "are not a security boundary here". |
+
+### 7.3 Remaining items
+
+**R1. Lookalike paths render the legacy not-found text.** Low; does **not** block.
+- **Which paths:** `/_next/imagex`, `/_next/staticx`, `/_next/image/x`, `/_next/foo`. Also encoded dot paths under the console prefix, such as `/clearline/..%2fbooks` and `/clearline/%2e%2e%2fbooks`, which the engine team's note did not mention.
+- **What they show:** a 404 containing the legacy `<title>` ("Stablecoin payment requests · Demo", or "Investigation desk" when `DEMO_MODE=off`) and the generic "Case not found" text.
+- **What they don't show:** the legacy Shell, business name, workspace badge or search index. They render inside the minimal `<html><body>` branch, so `loadWorkspace()` and `searchIndex()` never run. I confirmed this with `DEMO_MODE=off`: zero Shell or index markers.
+- **Impact:** confusing branding on a 404, and it reveals that a legacy app is deployed. No data.
+- **Suggested fix:** give the root layout's preview branch its own metadata and not-found, or render `not-found` from the console layout whenever `CLEARLINE_CUSTOMER_PREVIEW=1`.
+
+**R2. CSP keeps `script-src 'unsafe-inline'`.** Low; does **not** block a synthetic-data release.
+- **What it weakens:** the CSP as a second line of defence against XSS.
+- **Why that is acceptable here:**
+  - I found no first-line XSS sink. React escapes all output, there is no `dangerouslySetInnerHTML` in the Clearline UI, input is validated, and injected payloads render as text.
+  - The deployment has no cookies, sessions or credentials, and no data beyond the visitor's own synthetic localStorage.
+  - `frame-ancestors 'none'`, `object-src 'none'`, `base-uri 'self'` and `form-action 'self'` are all in force.
+- **When it becomes a blocker:** move to a nonce-based CSP before any authenticated or real-data deployment.
+
+**R3. Case title with a newline still forges a `STATUS` line in the text export.** Low; does **not** block.
+- **Cause:** `exportCaseReport` writes `Title: ${c.title}` without the new `one()` flattening, and `parseWorkspace` accepts a stored title containing `\n`.
+- **Who can trigger it:** only someone holding the workspace, meaning the visitor's own localStorage or their own API copy. Titles built by the engine come from validated fields that cannot contain newlines, so this is self-inflicted only.
+- **Test:** `recheck-release.test.ts` › "DEFECT (Low, residual L6) …" fails until it is fixed.
+- **Fix:** apply `one()` to the title, or reject control characters in `parseWorkspace`.
+
+**R4. Bodies without Content-Length are buffered in full before the 512 KB check.** Informational.
+- **Observed:** a 3 MB chunked body was read in full, then refused with 422.
+- **Bound:** per-request memory is limited by `middlewareClientMaxBodySize` (21 MB) and the host's own limit.
+- **Fix:** stream the body and stop reading at 512 KB.
+
+### 7.4 Overall release verdict (cfadef9)
+
+**Ready for a public synthetic-data release from a QA and security standpoint.**
+
+- All 3 High and 3 Medium findings are fixed, verified through the real API and in vitest.
+- Production/demo separation holds: 325 route × method probes found no leak.
+- The new limits hold, and malformed input never produced a 5xx.
+- R1–R4 are Low or informational. None exposes data or lets money be counted wrongly, and none blocks the release.
+
+**Conditions:**
+1. **Ship what was tested.** Ship cfadef9, or re-run `npx vitest run tests/qa-release` (109 tests; only the R3 DEFECT test may fail) and these probes on the revision that actually ships. HEAD was already 44f2fdf with uncommitted `route.ts` edits at the end of this re-check.
+2. **Website claims.** The three claims flagged in section 4 ("holds never released automatically", attribution "by its exact reference", self-approval refused) are now backed by cfadef9's behaviour. I did not re-review the website itself in this re-check.
+3. **Before any real-data or authenticated deployment:** a nonce-based CSP (R2), server-side identity for maker/checker (L8), and streamed body limits (R4).
