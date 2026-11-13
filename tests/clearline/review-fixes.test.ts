@@ -372,3 +372,84 @@ describe("QA L1/L2/L7: middleware matcher, security headers, retired legacy API"
     expect(Date.now() - t).toBeLessThan(200);
   });
 });
+
+describe("Re-review of cfadef9 (N1, N2, minors)", () => {
+  const completedPayout = () => {
+    let s = submitted();
+    s = { ...s, ws: sim(sim(s.ws, s.id).workspace, s.id).workspace };
+    return s;
+  };
+  const providerReport = (ppid: string, o: Record<string, unknown> = {}) => debitLine({ source: "provider_settlement_report", accountRef: "prv_northline:settlement", reference: ppid, ...o });
+
+  it("N1: a provider settlement report after a bank match is corroborating evidence, not a duplicate", () => {
+    let { ws, id, ppid } = completedPayout();
+    ws = run(ws, "usr_maya", { type: "ingest_statement_line", line: debitLine({ reference: ppid }) }).workspace;
+    expect(st(ws, id)).toMatchObject({ settlement: "verified", reconciliation: "matched" });
+    const r = run(ws, "usr_maya", { type: "ingest_statement_line", line: providerReport(ppid) });
+    expect(r.outcome).toBe("recorded_provider_report");
+    expect(st(r.workspace, id)).toMatchObject({ settlement: "verified", settlementScope: "bank_statement", reconciliation: "matched" });
+    expect(r.workspace.exceptions.filter((e) => e.status !== "resolved")).toHaveLength(0);
+    const line = r.workspace.statementLines.at(-1)!;
+    expect(line.explanationCodes).toEqual(["RC_PROVIDER_REPORT_ONLY"]);
+    expect(line.allocationIds).toHaveLength(0);
+  });
+  it("N1: a provider report that disagrees (over the payout amount or other currency) raises an exception, in either order", () => {
+    const { ws, ppid } = completedPayout();
+    expect(run(ws, "usr_maya", { type: "ingest_statement_line", line: providerReport(ppid, { amountMinor: 1_000_001 }) }).workspace.exceptions.at(-1)!.explanationCode).toBe("RC_OVERPAYMENT");
+    expect(run(ws, "usr_maya", { type: "ingest_statement_line", line: providerReport(ppid, { currency: "USD" }) }).workspace.exceptions.at(-1)!.explanationCode).toBe("RC_CURRENCY_MISMATCH");
+  });
+  it("N2: a resolved returned payout is never shown as settled; reconciliation is matched only net of a confirmed return", () => {
+    let { ws, id, ppid } = completedPayout();
+    ws = run(ws, "usr_maya", { type: "ingest_statement_line", line: debitLine({ reference: ppid }) }).workspace;
+    ws = run(ws, "usr_maya", { type: "ingest_webhook", delivery: signedDelivery(ws, "prv_northline", { id: ppid + "-E9", type: "payout.returned", provider_payment_id: ppid, sequence: 9, occurred_at: ws.asOf, reason: "beneficiary_account_invalid" }) }).workspace;
+    const e = listExceptions(ws, { intentId: id, category: "returned_payout" })[0];
+    ws = run(ws, "usr_maya", { type: "assign_owner", target: { kind: "exception", id: e.id }, ownerId: "usr_maya" }).workspace;
+    ws = run(ws, "usr_maya", { type: "attach_evidence", target: { kind: "exception", id: e.id }, evidence: { kind: "funds_returned_confirmation", description: "Bank confirms funds back (fictional)" } }).workspace;
+    // resolved before the return line arrives: return unconfirmed by statement → exception stays visible
+    const early = run(ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: e.id }, note: "Returned funds confirmed by bank email" }).workspace;
+    expect(st(early, id)).toMatchObject({ execution: "returned", settlement: "none", reconciliation: "exception" });
+    // with the return line allocated first, the recompute nets debit and return to zero
+    ws = run(ws, "usr_maya", { type: "ingest_statement_line", line: debitLine({ direction: "credit", kind: "return", reference: ppid }) }).workspace;
+    ws = run(ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: e.id }, note: "Returned funds confirmed" }).workspace;
+    const s = st(ws, id);
+    expect(s.settlement).not.toBe("verified");
+    expect(s).toMatchObject({ execution: "returned", settlement: "none", settlementScope: "none", reconciliation: "matched" });
+    expect(intent(ws, id).returnStatus).toBe("confirmed_by_statement");
+    const v = investigate(ws, id);
+    expect(v.ok && v.value.outstanding.map((o) => o.code)).toContain("OS_RETURN_RECEIVED_SUPPLIER_UNPAID");
+  });
+  it("m-new-2: a signed return received while on hold raises a human-handled exception, and its redelivery applies after the hold ends", () => {
+    let { ws, id, ppid } = submitted({ sandboxOutcome: "hold", destinationCurrency: "USD", destinationCountry: "US" }, "prv_harbour");
+    ws = sim(sim(ws, id).workspace, id).workspace;
+    const d = signedDelivery(ws, "prv_harbour", { id: ppid + "-E7", type: "payout.returned", provider_payment_id: ppid, sequence: 7, occurred_at: ws.asOf, reason: "beneficiary_account_invalid" });
+    let r = run(ws, "usr_maya", { type: "ingest_webhook", delivery: d });
+    expect(r.outcome).toBe("contradictory_exception_raised");
+    const exc = r.workspace.exceptions.at(-1)!;
+    expect(exc.explanationCode).toBe("EV_TERMINAL_EVENT_WHILE_ON_HOLD");
+    expect(exc.requiredAction + exc.explanation).toMatch(/redeliver/i);
+    ws = r.workspace;
+    // still on hold: a redelivery is a duplicate
+    expect(run(ws, "usr_maya", { type: "ingest_webhook", delivery: signedDelivery(ws, "prv_harbour", JSON.parse(d.rawBody)) }).outcome).toBe("duplicate_ignored");
+    // the hold ends through the reviewer (documents → partner release → reviewer release)
+    const holdId = ws.holds[0].id;
+    ws = run(ws, "usr_maya", { type: "submit_hold_documents", holdId, documents: ["Supporting commercial invoice"] }).workspace;
+    ws = run(ws, "usr_maya", { type: "ingest_webhook", delivery: signedDelivery(ws, "prv_harbour", { id: ppid + "-E8", type: "payout.hold_released", provider_payment_id: ppid, sequence: 8, occurred_at: ws.asOf }) }).workspace;
+    ws = run(ws, "usr_priya", { type: "assign_hold_reviewer", holdId, reviewerId: "usr_priya" }).workspace;
+    ws = run(ws, "usr_priya", { type: "record_hold_decision", holdId, decision: "release", reason: "Documents reviewed" }).workspace;
+    expect(st(ws, id).execution).toBe("in_transit");
+    r = run(ws, "usr_maya", { type: "ingest_webhook", delivery: signedDelivery(ws, "prv_harbour", JSON.parse(d.rawBody)) });
+    expect(r.outcome).toBe("applied");
+    expect(st(r.workspace, id).execution).toBe("returned");
+  });
+  it("m-new-1: unexpected engine errors are not masked under test; damaged workspaces still get a typed error", () => {
+    const damaged = JSON.parse(serializeWorkspace(sampleWorkspace()));
+    damaged.intents = [{}];
+    const r = applyAction(damaged, { type: "advance_clock", to: later(damaged, 1) }, { actorId: "usr_maya", at: damaged.asOf });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.code).toBe("invalid_field");
+  });
+  it("m-new-5: RC_PROVIDER_REPORT_ONLY is informational, never exact", async () => {
+    const { RECONCILIATION_CODE_GROUP } = await import("@/lib/clearline");
+    expect(RECONCILIATION_CODE_GROUP.RC_PROVIDER_REPORT_ONLY).toBe("informational");
+  });
+});

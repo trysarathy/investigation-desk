@@ -197,6 +197,25 @@ export function reconcileLine(tx: Tx, line: StatementLine): string {
     exceptionFor(tx, line, "RC_OUTSIDE_TIME_WINDOW", { intentId: intent.id });
     return "exception_raised";
   }
+  if (line.source === "provider_settlement_report") {
+    // M1 + re-review N1: a provider settlement report is provider-reported evidence only, in either
+    // order relative to the bank line. It is recorded, never allocated, never a duplicate of a bank
+    // line, and never changes a reconciled status. Only a report that disagrees (currency — checked
+    // above — or an amount above the payout) raises an exception.
+    if (line.amountMinor > intent.amountMinor) {
+      exceptionFor(tx, line, "RC_OVERPAYMENT", { intentId: intent.id });
+      return "exception_raised";
+    }
+    lineEvidence(tx, line, { intentId: intent.id, advanceId: intent.advanceId });
+    line.explanationCodes.push("RC_PROVIDER_REPORT_ONLY");
+    if (isLate(tx, line)) line.explanationCodes.push("RC_LATE_STATEMENT");
+    if (intent.status.settlement === "none") {
+      intent.status.settlement = "observed";
+      intent.status.settlementScope = "provider_report";
+    }
+    tx.log("reconciliation.provider_report_recorded", "statement_line", line.id, `Provider settlement report for ${intent.id} recorded as provider-reported evidence; not allocated`);
+    return "recorded_provider_report";
+  }
   const already = allocatedTo(tx, intent.id, "payment");
   const remaining = intent.amountMinor - already;
   const dupe = ws.statementLines.some(
@@ -212,18 +231,6 @@ export function reconcileLine(tx: Tx, line: StatementLine): string {
   }
   const codes: ReconciliationCode[] = [line.amountMinor === remaining ? "RC_EXACT_REFERENCE_AMOUNT_CURRENCY_WINDOW" : "RC_PARTIAL_AMOUNT"];
   if (isLate(tx, line)) codes.push("RC_LATE_STATEMENT");
-  if (line.source === "provider_settlement_report") {
-    // M1: a provider settlement report is provider-reported evidence only. It is recorded, never
-    // allocated, and never sets reconciliation "matched"; a later bank line allocates.
-    lineEvidence(tx, line, { intentId: intent.id, advanceId: intent.advanceId });
-    line.explanationCodes.push(...codes, "RC_PROVIDER_REPORT_ONLY");
-    if (intent.status.settlement === "none") {
-      intent.status.settlement = "observed";
-      intent.status.settlementScope = "provider_report";
-    }
-    tx.log("reconciliation.provider_report_recorded", "statement_line", line.id, `Provider settlement report for ${intent.id} recorded as provider-reported evidence; not allocated`);
-    return "recorded_provider_report";
-  }
   const evidenceId = lineEvidence(tx, line, { intentId: intent.id, advanceId: intent.advanceId });
   allocate(tx, line, { kind: "payment", intentId: intent.id }, line.amountMinor, codes);
   const full = line.amountMinor === remaining;

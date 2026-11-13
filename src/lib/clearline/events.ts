@@ -85,7 +85,10 @@ export function ingestPayload(tx: Tx, input: IngestInput): { outcome: ProviderEv
   }
 
   // Dedupe
-  const prior = ws.providerEvents.find((e) => e.dedupeKey === base.dedupeKey && e.processingOutcome !== "rejected_signature" && e.processingOutcome !== "duplicate_ignored");
+  const holdEnded = intent.status.execution !== "on_hold";
+  const prior = ws.providerEvents.find(
+    (e) => e.dedupeKey === base.dedupeKey && e.processingOutcome !== "rejected_signature" && e.processingOutcome !== "duplicate_ignored" && !(holdEnded && e.detail.suppressedOnHold),
+  );
   if (prior) {
     const ev = record(tx, { ...base, processingOutcome: "duplicate_ignored" });
     if (prior.payloadHash !== payloadHash)
@@ -121,12 +124,18 @@ export function ingestPayload(tx: Tx, input: IngestInput): { outcome: ProviderEv
 
   // H3: while a payout is on hold, NO signed provider event moves it. Only the partner's release
   // report is recorded; leaving the hold needs the compliance reviewer's decision path.
+  // Re-review m-new-2: the suppressed event is kept (flag suppressedOnHold) and a human-handled
+  // exception is raised. It is NOT applied later automatically; once the hold has ended, the
+  // provider's redelivery of the same event is processed normally (it is not treated as a duplicate).
   if (intent.status.execution === "on_hold" && p.type !== "payout.hold_released") {
-    const ev = record(tx, { ...base, processingOutcome: "contradictory_exception_raised" });
+    const ev = record(tx, { ...base, detail: { ...base.detail, suppressedOnHold: 1 }, processingOutcome: "contradictory_exception_raised" });
+    const terminal = p.type === "payout.returned" || p.type === "payout.failed";
     openException(tx, {
       category: "contradictory_evidence",
-      explanationCode: "EV_PROVIDER_EVENT_WHILE_ON_HOLD",
-      explanation: `Provider reported ${p.type} (seq ${p.sequence}) while the payout is on a partner compliance hold with no reviewer decision. State not changed; the hold ends only through the reviewer.`,
+      explanationCode: terminal ? "EV_TERMINAL_EVENT_WHILE_ON_HOLD" : "EV_PROVIDER_EVENT_WHILE_ON_HOLD",
+      explanation: terminal
+        ? `Provider reported ${p.type} (seq ${p.sequence}) while the payout is on a partner compliance hold. It was recorded but NOT applied. The compliance reviewer must decide the hold first; after the hold ends, ask the provider to redeliver this event and it will be applied (a redelivery during the hold is ignored as a duplicate).`
+        : `Provider reported ${p.type} (seq ${p.sequence}) while the payout is on a partner compliance hold with no reviewer decision. State not changed; the hold ends only through the reviewer. After the hold ends, a redelivery of this event is processed normally.`,
       intentId: intent.id,
       supportingEventIds: [ev.id],
     });
@@ -159,7 +168,10 @@ export function ingestPayload(tx: Tx, input: IngestInput): { outcome: ProviderEv
     const ev = record(tx, { ...base, processingOutcome: "recorded_no_state_change" });
     return { outcome: "recorded_no_state_change", event: ev };
   }
-  if (canTransitionExecution(current, target) && p.sequence > maxApplied) {
+  // A redelivery, after the hold ended, of an event suppressed during the hold is evaluated on its
+  // transition alone (its sequence predates the partner's release by construction).
+  const redeliveredAfterHold = holdEnded && ws.providerEvents.some((e) => e.dedupeKey === base.dedupeKey && e.detail.suppressedOnHold);
+  if (canTransitionExecution(current, target) && (p.sequence > maxApplied || redeliveredAfterHold)) {
     const ev = record(tx, { ...base, processingOutcome: "applied" });
     applySideEffects(tx, intent, p, ev);
     setExecution(tx, intent, target, `Provider reported ${p.type} (${adapter.capabilities().providerName})`);

@@ -60,3 +60,6 @@ reconciliation: not_started → pending → partially_matched → matched ; any 
 - Return lines are checked for currency, duplicates and over-amount.
 - A held payout cannot be cancelled. A provider `in_transit` received while on hold is recorded as the partner's release; it does not end the hold.
 - `parseWorkspace` validates every element and rejects damaged data with a field path.
+- A provider settlement report is provider-reported evidence in either order relative to the bank line. It never duplicates or changes a bank match.
+- A returned payout is never "settled". Settlement is `none`; reconciliation is `matched` only net of a statement-confirmed return (`returnStatus: confirmed_by_statement`).
+- Provider events received during a hold are kept (`detail.suppressedOnHold`) and raise a human-handled exception. A redelivery after the hold ends is processed.

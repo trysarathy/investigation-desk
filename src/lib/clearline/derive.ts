@@ -17,6 +17,21 @@ export function recomputeDimensions(ws: Workspace, intent: PaymentIntent): void 
   const obs = ws.chainObservations.find((o) => o.intentId === intent.id && o.status !== "rejected_unsupported");
   const providerReport = ws.evidence.some((e) => e.intentId === intent.id && e.kind === "provider_settlement_report");
 
+  // Re-review N2: a returned payout never settled with the beneficiary. Settlement is "none"
+  // (scope "none") — the debit and return evidence stay on record and in the investigation — and
+  // reconciliation is "matched" only when the debit AND an equal statement-confirmed return are both
+  // allocated (net zero, returnStatus "confirmed_by_statement"); otherwise it stays "exception".
+  if (intent.status.execution === "returned") {
+    const returned = ws.allocations
+      .filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id && a.evidenceKind === "statement_line" && a.currency === intent.sourceCurrency && a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN"))
+      .reduce((s, a) => s + a.amountMinor, 0);
+    intent.status.settlement = open.some((e) => e.category === "contradictory_evidence") ? "contradicted" : "none";
+    intent.status.settlementScope = "none";
+    const netZero = returned > 0 && returned === bank && intent.returnStatus === "confirmed_by_statement";
+    intent.status.reconciliation = !open.some((e) => RECON_BLOCKING.includes(e.category)) && netZero ? "matched" : "exception";
+    return;
+  }
+
   if (open.some((e) => e.category === "contradictory_evidence")) intent.status.settlement = "contradicted";
   else if (obs) {
     intent.status.settlementScope = "onchain_transfer";

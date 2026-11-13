@@ -18,6 +18,9 @@ export { sampleWorkspace, emptyWorkspace, SAMPLE_AS_OF, SAMPLE_ACTORS, SAMPLE_SC
 export type { SampleScenario } from "./sample";
 export { serializeWorkspace, parseWorkspace, parseWorkspaceValue, MAX_WORKSPACE_DEPTH } from "./serialize";
 
+// Validation helpers
+export { isIsoInstant, isIsoDate } from "./tx";
+
 // Actions (pure: (workspace, action, ctx) => Result<{ workspace, audit, outcome, createdIds }>)
 export { applyAction } from "./actions";
 

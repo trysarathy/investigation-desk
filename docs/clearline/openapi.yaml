@@ -47,8 +47,11 @@ info:
     **Time.** `at` must be an ISO-8601 instant (HTTP 400 otherwise). It is stored as UTC (`…Z`). Business
     dates (due dates, overdue, expiry, reconciliation window) use the organisation's time zone.
 
-    **Evidence rules.** A provider settlement report is provider-reported evidence only. It is never
-    allocated and never makes a payment `matched`; a bank statement line does. Chain observations apply
+    **Evidence rules.** A provider settlement report is provider-reported evidence only, whether it
+    arrives before or after the bank line. It is never allocated, never treated as a duplicate of a
+    bank line, and never makes a payment `matched`; a bank statement line does. A returned payout is
+    never shown as settled: settlement `none`, and reconciliation `matched` only net of a
+    statement-confirmed return. Chain observations apply
     only to a submitted USDC payout on the Base Sepolia route, to the beneficiary's registered wallet,
     for the quoted amount. One transaction hash evidences at most one payout. A `contradicted`
     settlement changes only after a person resolves the contradiction.
@@ -63,7 +66,9 @@ info:
     provider events never move it; leaving a hold needs the compliance reviewer.
 
     **Legacy endpoints** under `/api/clearline/test/{intents,quotes,transitions,webhooks,payments,health}`
-    are **retired**: every method returns HTTP 410 with `error.replacement: "/api/clearline/test/v1"`.
+    are **retired** and execute nothing. A request that is invalid under the old contract gets HTTP 422
+    (`invalid_request`); every other request, any method, gets HTTP 410 (`endpoint_retired`). Both carry
+    `error.replacement: "/api/clearline/test/v1"`.
 
     ## Error-code catalogue
     | code | HTTP | meaning |

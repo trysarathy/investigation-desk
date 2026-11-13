@@ -14,6 +14,7 @@ import {
   investigate,
   listExceptions,
   parseWorkspaceValue,
+  isIsoInstant,
   sampleWorkspace,
   sandboxWebhookSecret,
   verifySandboxWebhook,
@@ -81,8 +82,8 @@ function workspaceFrom(body: Record<string, unknown>): Workspace | Response {
 }
 
 /** M8: an `at` that is not an ISO-8601 instant is a 400, never silently replaced or treated as fresh. */
-const isInstant = (v: unknown): v is string =>
-  typeof v === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/.test(v) && !Number.isNaN(Date.parse(v));
+// Re-review m-new-4: the same instant check as the engine (no copy).
+const isInstant = isIsoInstant;
 const badAt = () => respond({ error: { code: "invalid_field", field: "at", message: "at must be an ISO-8601 instant, e.g. 2026-11-13T02:00:00Z.", help: "Test mode only." } }, 400);
 
 function act(ws: Workspace, action: WorkspaceAction, body: Record<string, unknown>, req: NextRequest, defaultActor: string, pick?: (ws: Workspace, created: string[]) => unknown) {

@@ -12,6 +12,7 @@ import { computeLiquidity } from "./liquidity";
 import { isCurrency, validateAmountMinor } from "./money";
 import { reconcileLine } from "./reconciliation";
 import { recomputeDimensions } from "./derive";
+import { parseWorkspaceValue } from "./serialize";
 import { canTransitionExecution } from "./state";
 import {
   Abort,
@@ -45,6 +46,7 @@ import type {
   WorkspaceAction,
 } from "./types";
 
+const STRICT = typeof process !== "undefined" && !!process.env && (process.env.VITEST === "true" || process.env.CLEARLINE_ENGINE_STRICT === "1");
 const unix = (iso: string) => Math.floor(Date.parse(iso) / 1000);
 
 export function applyAction(ws: Workspace, action: WorkspaceAction, ctx: ActionContext): ActionResult {
@@ -52,7 +54,15 @@ export function applyAction(ws: Workspace, action: WorkspaceAction, ctx: ActionC
   if (!ctx || !isIsoInstant(ctx.at)) return { ok: false, error: { code: "invalid_field", message: "ctx.at must be an ISO-8601 instant.", field: "at" } };
   if (Date.parse(ctx.at) < Date.parse(ws.asOf))
     return { ok: false, error: { code: "invalid_field", message: "ctx.at must not be earlier than the workspace clock (asOf).", field: "at" } };
-  const tx = new Tx(ws, ctx);
+  let tx: Tx;
+  try {
+    tx = new Tx(ws, ctx);
+  } catch {
+    return { ok: false, error: { code: "invalid_field", message: "The workspace could not be copied (malformed data). Reset to the sample.", field: "workspace" } };
+  }
+  // Re-review m-new-1: damaged data is caught by validation (a typed error), not by a catch-all.
+  const valid = parseWorkspaceValue(tx.ws);
+  if (!valid.ok) return valid;
   try {
     if (!tx.actor()) fail("unauthorized_actor", "Unknown actor.", { field: "actorId" });
     if (Date.parse(ctx.at) > Date.parse(tx.ws.asOf)) tx.ws.asOf = new Date(Date.parse(ctx.at)).toISOString();
@@ -61,8 +71,12 @@ export function applyAction(ws: Workspace, action: WorkspaceAction, ctx: ActionC
     return { ok: true, value: { workspace: tx.ws, audit: tx.audit, outcome, createdIds: tx.created } };
   } catch (e) {
     if (e instanceof Abort) return { ok: false, error: e.engineError };
-    // M6/M9: the engine never throws to its caller; damaged or malformed data is a typed error.
-    return { ok: false, error: { code: "invalid_field", message: "The workspace or action is malformed and could not be processed. Reset to the sample if this persists." } };
+    // Re-review m-new-1: an unexpected error is a programming defect. Under tests (VITEST) or with
+    // CLEARLINE_ENGINE_STRICT=1 it is rethrown so it cannot hide; otherwise (browser, API) the caller
+    // gets a typed error naming the error class and action, and the API layer never returns 500.
+    if (STRICT) throw e;
+    const name = e instanceof Error ? e.name : "UnknownError";
+    return { ok: false, error: { code: "invalid_field", message: `Internal engine error (${name}) while applying ${String((action as { type?: unknown } | null)?.type ?? "unknown action")}. Please report it; reset to the sample if it persists.` } };
   }
 }
 
