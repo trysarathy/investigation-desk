@@ -1,0 +1,301 @@
+{
+ "capturedAt": "2026-11-13",
+ "revision": "d806bb4",
+ "examples": [
+  {
+   "id": "health",
+   "title": "Health (no key needed)",
+   "method": "GET",
+   "path": "/api/clearline/test/v1/health",
+   "headers": [
+    "Authorization: Bearer cl_test_demo"
+   ],
+   "request": null,
+   "status": 200,
+   "response": "{\n  \"mode\": \"test\",\n  \"canMoveMoney\": false,\n  \"persisted\": false,\n  \"service\": \"Clearline engine sandbox v1\"\n}",
+   "note": null
+  },
+  {
+   "id": "create-intent",
+   "title": "Create a payment intent from the sample workspace",
+   "method": "POST",
+   "path": "/api/clearline/test/v1/intents",
+   "headers": [
+    "Authorization: Bearer cl_test_demo",
+    "Content-Type: application/json"
+   ],
+   "request": "{\n  \"input\": {\n    \"internalReference\": \"INV-DOCS-0001\",\n    \"amountMinor\": 1250000,\n    \"sourceCurrency\": \"SGD\",\n    \"destinationCurrency\": \"PHP\",\n    \"purpose\": \"Supplier invoice\",\n    \"beneficiaryRef\": \"ben_docs_1\",\n    \"beneficiaryName\": \"Example Supplier (fictional)\",\n    \"destinationCountry\": \"PH\",\n    \"requestedExecutionDate\": \"2026-11-14\",\n    \"idempotencyKey\": \"docs-example-0001\"\n  }\n}",
+   "status": 201,
+   "response": "{\n  \"data\": {\n    \"id\": \"pi_00165\",\n    \"orgId\": \"org_lumen_pay\",\n    \"internalReference\": \"INV-DOCS-0001\",\n    \"amountMinor\": 1250000,\n    \"sourceCurrency\": \"SGD\",\n    \"destinationCurrency\": \"PHP\",\n    \"purpose\": \"Supplier invoice\",\n    \"beneficiaryRef\": \"ben_docs_1\",\n    \"beneficiaryName\": \"Example Supplier (fictional)\",\n    \"destinationCountry\": \"PH\",\n    \"requestedExecutionDate\": \"2026-11-14\",\n    \"railEligibility\": [\n      \"fiat_local\",\n      \"fiat_correspondent\"\n    ],\n    \"idempotencyKey\": \"docs-example-0001\",\n    \"metadata\": {},\n    \"sandboxOutcome\": \"success\",\n    \"status\": {\n      \"execution\": \"created\",\n      \"settlement\": \"none\",\n      \"settlementScope\": \"none\",\n      \"reconciliation\": \"not_started\"\n    },\n    \"quoteIds\": [],\n    \"createdBy\": \"usr_maya\",\n    \"createdAt\": \"2026-11-13T02:00:00.000Z\",\n    \"updatedAt\": \"2026-11-13T02:00:00.000Z\"\n  },\n  \"outcome\": \"applied\",\n  \"audit\": [\n    {\n      \"id\": \"aud_00166\",\n      \"at\": \"2026-11-13T02:00:00.000Z\",\n      \"actorId\": \"usr_maya\",\n      \"action\": \"intent.created\",\n      \"entityType\": \"intent\",\n      \"entityId\": \"pi_00165\",\n      \"summary\": \"INV-DOCS-0001 · SGD→PHP\"\n    }\n  ],\n  \"workspace\": { /* full workspace, about 76 KB, abridged here */ },\n  \"mode\": \"synthetic\",\n  \"persisted\": false,\n  \"disclaimer\": \"TEST MODE · fictional sandbox data. Provider statuses are provider claims; settlement evidence is shown separately. Clearline does not move money, hold funds or make compliance or credit decisions.\"\n}",
+   "note": null
+  },
+  {
+   "id": "replay",
+   "title": "Same idempotency key, same body: the original intent",
+   "method": "POST",
+   "path": "/api/clearline/test/v1/intents",
+   "headers": [
+    "Authorization: Bearer cl_test_demo",
+    "Content-Type: application/json"
+   ],
+   "request": "{\n  \"workspace\": { /* the workspace from the previous response */ },\n  \"input\": {\n    \"internalReference\": \"INV-DOCS-0001\",\n    \"amountMinor\": 1250000,\n    \"sourceCurrency\": \"SGD\",\n    \"destinationCurrency\": \"PHP\",\n    \"purpose\": \"Supplier invoice\",\n    \"beneficiaryRef\": \"ben_docs_1\",\n    \"beneficiaryName\": \"Example Supplier (fictional)\",\n    \"destinationCountry\": \"PH\",\n    \"requestedExecutionDate\": \"2026-11-14\",\n    \"idempotencyKey\": \"docs-example-0001\"\n  }\n}",
+   "status": 200,
+   "response": "{\n  \"data\": {\n    \"id\": \"pi_00165\",\n    \"status\": {\n      \"execution\": \"created\",\n      \"settlement\": \"none\",\n      \"settlementScope\": \"none\",\n      \"reconciliation\": \"not_started\"\n    }\n  },\n  \"outcome\": \"idempotent_replay\",\n  \"audit\": []\n}",
+   "note": null
+  },
+  {
+   "id": "conflict",
+   "title": "Same idempotency key, different body",
+   "method": "POST",
+   "path": "/api/clearline/test/v1/intents",
+   "headers": [
+    "Authorization: Bearer cl_test_demo",
+    "Content-Type: application/json"
+   ],
+   "request": "{\n  \"workspace\": { /* the workspace from the previous response */ },\n  \"input\": {\n    \"internalReference\": \"INV-DOCS-0001\",\n    \"amountMinor\": 1250001,\n    \"sourceCurrency\": \"SGD\",\n    \"destinationCurrency\": \"PHP\",\n    \"purpose\": \"Supplier invoice\",\n    \"beneficiaryRef\": \"ben_docs_1\",\n    \"beneficiaryName\": \"Example Supplier (fictional)\",\n    \"destinationCountry\": \"PH\",\n    \"requestedExecutionDate\": \"2026-11-14\",\n    \"idempotencyKey\": \"docs-example-0001\"\n  }\n}",
+   "status": 409,
+   "response": "{\n  \"error\": {\n    \"code\": \"idempotency_conflict\",\n    \"message\": \"This idempotency key was already used with a different request body.\",\n    \"help\": \"Test mode only. Use fictional data. See /clearline/docs and docs/clearline/openapi.yaml.\",\n    \"field\": \"idempotencyKey\",\n    \"entityId\": \"pi_00165\"\n  }\n}",
+   "note": null
+  },
+  {
+   "id": "quotes",
+   "title": "Request indicative quotes",
+   "method": "POST",
+   "path": "/api/clearline/test/v1/intents/pi_00165/quotes",
+   "headers": [
+    "Authorization: Bearer cl_test_demo",
+    "Content-Type: application/json"
+   ],
+   "request": "{\n  \"workspace\": { /* the workspace from the previous response */ }\n}",
+   "status": 201,
+   "response": "{\n  \"data\": [\n    {\n      \"id\": \"qt_00167\",\n      \"intentId\": \"pi_00165\",\n      \"providerId\": \"prv_northline\",\n      \"providerName\": \"Northline Payments (sandbox)\",\n      \"routeId\": \"rt_northline_local\",\n      \"rail\": \"fiat_local\",\n      \"sourceCurrency\": \"SGD\",\n      \"destinationCurrency\": \"PHP\",\n      \"indicativeRate\": \"42.1738\",\n      \"providerFeeMinor\": 1845,\n      \"platformFeeMinor\": 1250,\n      \"estimatedRecipientMinor\": 52586722,\n      \"expiresAt\": \"2026-11-13T02:15:00.000Z\",\n      \"etaLabel\": \"Within 2 hours (sandbox)\",\n      \"prerequisites\": [\n        \"Beneficiary details validated by provider sandbox\"\n      ],\n      \"eligible\": true,\n      \"eligibilityReason\": \"Corridor, currency, country and amount are within this sandbox route's limits.\",\n      \"source\": \"Northline Payments (sandbox) quote simulator (fixed illustrative rates)\",\n      \"quotedAt\": \"2026-11-13T02:00:00.000Z\",\n      \"freshness\": \"fresh\",\n      \"label\": \"Indicative sandbox quote — not executable\"\n    },\n    {\n      \"id\": \"qt_00169\",\n      \"intentId\": \"pi_00165\",\n      \"providerId\": \"prv_harbour\",\n      \"providerName\": \"Harbour FX (sandbox)\",\n      \"routeId\": \"rt_harbour_php_local\",\n      \"rail\": \"fiat_local\",\n      \"sourceCurrency\": \"SGD\",\n      \"destinationCurrency\": \"PHP\",\n      \"indicativeRate\": \"—\",\n      \"providerFeeMinor\": 0,\n      \"platformFeeMinor\": 0,\n      \"estimatedRecipientMinor\": 0,\n      \"expiresAt\": \"2026-11-13T02:15:00.000Z\",\n      \"etaLabel\": \"Same day (sandbox)\",\n      \"prerequisites\": [\n        \"KYC tier 3\"\n      ],\n      \"eligible\": false,\n      \"eligibilityReason\": \"Sandbox corridor requires KYC tier 3, which this fictional organisation does not hold.\",\n      \"source\": \"Harbour FX (sandbox) quote simulator (fixed illustrative rates)\",\n      \"quotedAt\": \"2026-11-13T02:00:00.000Z\",\n      \"freshness\": \"fresh\",\n      \"label\": \"Indicative sandbox quote — not executable\"\n    },\n    /* 1 more */\n  ],\n  \"outcome\": \"applied\",\n  \"audit\": [\n    {\n      \"id\": \"aud_00171\",\n      \"at\": \"2026-11-13T02:00:00.000Z\",\n      \"actorId\": \"usr_maya\",\n      \"action\": \"quotes.requested\",\n      \"entityType\": \"intent\",\n      \"entityId\": \"pi_00165\",\n      \"summary\": \"2 eligible of 4 indicative sandbox quotes\"\n    },\n    {\n      \"id\": \"aud_00172\",\n      \"at\": \"2026-11-13T02:00:00.000Z\",\n      \"actorId\": \"usr_maya\",\n      \"action\": \"intent.execution\",\n      \"entityType\": \"intent\",\n      \"entityId\": \"pi_00165\",\n      \"summary\": \"created → quoted · Indicative quotes received\"\n    }\n  ],\n  \"workspace\": { /* full workspace, about 79 KB, abridged here */ },\n  \"mode\": \"synthetic\",\n  \"persisted\": false,\n  \"disclaimer\": \"TEST MODE · fictional sandbox data. Provider statuses are provider claims; settlement evidence is shown separately. Clearline does not move money, hold funds or make compliance or credit decisions.\"\n}",
+   "note": null
+  },
+  {
+   "id": "choose-route",
+   "title": "Choose a route (the maker)",
+   "method": "POST",
+   "path": "/api/clearline/test/v1/instructions",
+   "headers": [
+    "Authorization: Bearer cl_test_demo",
+    "Content-Type: application/json"
+   ],
+   "request": "{\n  \"workspace\": { /* the workspace from the previous response */ },\n  \"intentId\": \"pi_00165\",\n  \"quoteId\": \"qt_00167\"\n}",
+   "status": 201,
+   "response": "{\n  \"data\": {\n    \"id\": \"ins_00173\",\n    \"intentId\": \"pi_00165\",\n    \"quoteId\": \"qt_00167\",\n    \"routeId\": \"rt_northline_local\",\n    \"providerId\": \"prv_northline\",\n    \"amountMinor\": 1250000,\n    \"currency\": \"SGD\",\n    \"makerId\": \"usr_maya\",\n    \"madeAt\": \"2026-11-13T02:00:00.000Z\",\n    \"status\": \"pending_approval\"\n  },\n  \"outcome\": \"applied\",\n  \"audit\": [\n    {\n      \"id\": \"aud_00174\",\n      \"at\": \"2026-11-13T02:00:00.000Z\",\n      \"actorId\": \"usr_maya\",\n      \"action\": \"instruction.created\",\n      \"entityType\": \"instruction\",\n      \"entityId\": \"ins_00173\",\n      \"summary\": \"Route rt_northline_local chosen by maker; awaiting a different checker\"\n    }\n  ],\n  \"workspace\": { /* full workspace, about 80 KB, abridged here */ },\n  \"mode\": \"synthetic\",\n  \"persisted\": false,\n  \"disclaimer\": \"TEST MODE · fictional sandbox data. Provider statuses are provider claims; settlement evidence is shown separately. Clearline does not move money, hold funds or make compliance or credit decisions.\"\n}",
+   "note": null
+  },
+  {
+   "id": "self-approve",
+   "title": "The maker tries to approve their own instruction",
+   "method": "POST",
+   "path": "/api/clearline/test/v1/instructions/ins_00173/approve",
+   "headers": [
+    "Authorization: Bearer cl_test_demo",
+    "Content-Type: application/json",
+    "X-Clearline-Actor: usr_maya"
+   ],
+   "request": "{\n  \"workspace\": { /* the workspace from the previous response */ }\n}",
+   "status": 403,
+   "response": "{\n  \"error\": {\n    \"code\": \"maker_checker_violation\",\n    \"message\": \"The checker must be a different person from the maker.\",\n    \"help\": \"Test mode only. Use fictional data. See /clearline/docs and docs/clearline/openapi.yaml.\",\n    \"entityId\": \"ins_00173\"\n  }\n}",
+   "note": null
+  },
+  {
+   "id": "approve",
+   "title": "A different checker approves",
+   "method": "POST",
+   "path": "/api/clearline/test/v1/instructions/ins_00173/approve",
+   "headers": [
+    "Authorization: Bearer cl_test_demo",
+    "Content-Type: application/json",
+    "X-Clearline-Actor: usr_daniel"
+   ],
+   "request": "{\n  \"workspace\": { /* the workspace from the previous response */ }\n}",
+   "status": 200,
+   "response": "{\n  \"data\": {\n    \"id\": \"ins_00173\",\n    \"intentId\": \"pi_00165\",\n    \"quoteId\": \"qt_00167\",\n    \"routeId\": \"rt_northline_local\",\n    \"providerId\": \"prv_northline\",\n    \"amountMinor\": 1250000,\n    \"currency\": \"SGD\",\n    \"makerId\": \"usr_maya\",\n    \"madeAt\": \"2026-11-13T02:00:00.000Z\",\n    \"status\": \"approved\",\n    \"checkerId\": \"usr_daniel\",\n    \"checkedAt\": \"2026-11-13T02:00:00.000Z\"\n  },\n  \"outcome\": \"applied\",\n  \"audit\": [\n    {\n      \"id\": \"aud_00175\",\n      \"at\": \"2026-11-13T02:00:00.000Z\",\n      \"actorId\": \"usr_daniel\",\n      \"action\": \"intent.execution\",\n      \"entityType\": \"intent\",\n      \"entityId\": \"pi_00165\",\n      \"summary\": \"quoted → approved · Approved by checker usr_daniel (maker usr_maya)\"\n    },\n    {\n      \"id\": \"aud_00176\",\n      \"at\": \"2026-11-13T02:00:00.000Z\",\n      \"actorId\": \"usr_daniel\",\n      \"action\": \"instruction.approved\",\n      \"entityType\": \"instruction\",\n      \"entityId\": \"ins_00173\",\n      \"summary\": \"Checker usr_daniel approved maker usr_maya's instruction\"\n    }\n  ],\n  \"workspace\": { /* full workspace, about 80 KB, abridged here */ },\n  \"mode\": \"synthetic\",\n  \"persisted\": false,\n  \"disclaimer\": \"TEST MODE · fictional sandbox data. Provider statuses are provider claims; settlement evidence is shown separately. Clearline does not move money, hold funds or make compliance or credit decisions.\"\n}",
+   "note": null
+  },
+  {
+   "id": "submit",
+   "title": "Submit to the sandbox provider",
+   "method": "POST",
+   "path": "/api/clearline/test/v1/instructions/ins_00173/submit",
+   "headers": [
+    "Authorization: Bearer cl_test_demo",
+    "Content-Type: application/json"
+   ],
+   "request": "{\n  \"workspace\": { /* the workspace from the previous response */ }\n}",
+   "status": 200,
+   "response": "{\n  \"data\": {\n    \"id\": \"ins_00173\",\n    \"intentId\": \"pi_00165\",\n    \"quoteId\": \"qt_00167\",\n    \"routeId\": \"rt_northline_local\",\n    \"providerId\": \"prv_northline\",\n    \"amountMinor\": 1250000,\n    \"currency\": \"SGD\",\n    \"makerId\": \"usr_maya\",\n    \"madeAt\": \"2026-11-13T02:00:00.000Z\",\n    \"status\": \"submitted\",\n    \"checkerId\": \"usr_daniel\",\n    \"checkedAt\": \"2026-11-13T02:00:00.000Z\",\n    \"submittedAt\": \"2026-11-13T02:00:00.000Z\",\n    \"providerPaymentId\": \"NLPO-DDD7783842\"\n  },\n  \"outcome\": \"applied\",\n  \"audit\": [\n    {\n      \"id\": \"aud_00177\",\n      \"at\": \"2026-11-13T02:00:00.000Z\",\n      \"actorId\": \"usr_maya\",\n      \"action\": \"intent.execution\",\n      \"entityType\": \"intent\",\n      \"entityId\": \"pi_00165\",\n      \"summary\": \"approved → submitted · Instruction accepted by provider sandbox\"\n    },\n    {\n      \"id\": \"aud_00179\",\n      \"at\": \"2026-11-13T02:00:00.000Z\",\n      \"actorId\": \"usr_maya\",\n      \"action\": \"instruction.submitted\",\n      \"entityType\": \"instruction\",\n      \"entityId\": \"ins_00173\",\n      \"summary\": \"Provider payment id NLPO-DDD7783842\"\n    }\n  ],\n  \"workspace\": { /* full workspace, about 82 KB, abridged here */ },\n  \"mode\": \"synthetic\",\n  \"persisted\": false,\n  \"disclaimer\": \"TEST MODE · fictional sandbox data. Provider statuses are provider claims; settlement evidence is shown separately. Clearline does not move money, hold funds or make compliance or credit decisions.\"\n}",
+   "note": "Status afterwards (from response.workspace): {\"execution\":\"submitted\",\"settlement\":\"none\",\"settlementScope\":\"none\",\"reconciliation\":\"pending\"}"
+  },
+  {
+   "id": "simulate",
+   "title": "Simulate the provider's next event",
+   "method": "POST",
+   "path": "/api/clearline/test/v1/events/simulate",
+   "headers": [
+    "Authorization: Bearer cl_test_demo",
+    "Content-Type: application/json"
+   ],
+   "request": "{\n  \"workspace\": { /* the workspace from the previous response */ },\n  \"intentId\": \"pi_00165\"\n}",
+   "status": 200,
+   "response": "{\n  \"data\": [\n    {\n      \"providerEventId\": \"NLPO-DDD7783842-E1\",\n      \"normalizedType\": \"payout.accepted\",\n      \"sequence\": 1,\n      \"processingOutcome\": \"recorded_no_state_change\",\n      \"provenance\": \"provider_api_response\"\n    },\n    {\n      \"providerEventId\": \"NLPO-DDD7783842-E2\",\n      \"normalizedType\": \"payout.in_transit\",\n      \"sequence\": 2,\n      \"processingOutcome\": \"applied\",\n      \"provenance\": \"provider_webhook\"\n    }\n  ],\n  \"outcome\": \"applied\",\n  \"audit\": [\n    {\n      \"id\": \"aud_00182\",\n      \"at\": \"2026-11-13T02:00:00.000Z\",\n      \"actorId\": \"usr_maya\",\n      \"action\": \"intent.execution\",\n      \"entityType\": \"intent\",\n      \"entityId\": \"pi_00165\",\n      \"summary\": \"submitted → in_transit · Provider reported payout.in_transit (Northline Payments (sandbox))\"\n    }\n  ],\n  \"workspace\": { /* full workspace, about 83 KB, abridged here */ },\n  \"mode\": \"synthetic\",\n  \"persisted\": false,\n  \"disclaimer\": \"TEST MODE · fictional sandbox data. Provider statuses are provider claims; settlement evidence is shown separately. Clearline does not move money, hold funds or make compliance or credit decisions.\"\n}",
+   "note": "Status afterwards: {\"execution\":\"in_transit\",\"settlement\":\"none\",\"settlementScope\":\"none\",\"reconciliation\":\"pending\"}"
+  },
+  {
+   "id": "webhook",
+   "title": "Signed webhook: provider reports completed",
+   "method": "POST",
+   "path": "/api/clearline/test/v1/events/webhook",
+   "headers": [
+    "Authorization: Bearer cl_test_demo",
+    "Content-Type: application/json",
+    "X-Sandbox-Signature: t=1794535200,v1=793692596784b6af3a38de1f6b221bbc6ec591b3e6f61515c675e5efdc971752"
+   ],
+   "request": "{\n  \"workspace\": { /* the workspace from the previous response */ },\n  \"providerId\": \"prv_northline\",\n  \"rawBody\": \"{\\\"id\\\":\\\"evt_docs_completed\\\",\\\"type\\\":\\\"payout.completed\\\",\\\"provider_payment_id\\\":\\\"NLPO-DDD7783842\\\",\\\"sequence\\\":5,\\\"occurred_at\\\":\\\"2026-11-13T02:00:00.000Z\\\"}\"\n}",
+   "status": 200,
+   "response": "{\n  \"data\": {\n    \"providerEventId\": \"evt_docs_completed\",\n    \"normalizedType\": \"payout.completed\",\n    \"sequence\": 5,\n    \"signatureResult\": \"valid\",\n    \"dedupeKey\": \"prv_northline:evt_docs_completed\",\n    \"processingOutcome\": \"applied\",\n    \"provenance\": \"provider_webhook\"\n  },\n  \"outcome\": \"applied\",\n  \"audit\": [\n    {\n      \"id\": \"aud_00185\",\n      \"at\": \"2026-11-13T02:00:00.000Z\",\n      \"actorId\": \"usr_maya\",\n      \"action\": \"intent.execution\",\n      \"entityType\": \"intent\",\n      \"entityId\": \"pi_00165\",\n      \"summary\": \"in_transit → provider_reported_completed · Provider reported payout.completed (Northline Payments (sandbox))\"\n    }\n  ],\n  \"workspace\": { /* full workspace, about 84 KB, abridged here */ }\n}",
+   "note": "Status afterwards: {\"execution\":\"provider_reported_completed\",\"settlement\":\"none\",\"settlementScope\":\"none\",\"reconciliation\":\"pending\"}"
+  },
+  {
+   "id": "webhook-duplicate",
+   "title": "The same delivery again",
+   "method": "POST",
+   "path": "/api/clearline/test/v1/events/webhook",
+   "headers": [
+    "Authorization: Bearer cl_test_demo",
+    "Content-Type: application/json",
+    "X-Sandbox-Signature: t=1794535200,v1=793692596784b6af3a38de1f6b221bbc6ec591b3e6f61515c675e5efdc971752"
+   ],
+   "request": "{\n  \"workspace\": { /* the workspace from the previous response */ },\n  \"providerId\": \"prv_northline\",\n  \"rawBody\": \"{\\\"id\\\":\\\"evt_docs_completed\\\",\\\"type\\\":\\\"payout.completed\\\",\\\"provider_payment_id\\\":\\\"NLPO-DDD7783842\\\",\\\"sequence\\\":5,\\\"occurred_at\\\":\\\"2026-11-13T02:00:00.000Z\\\"}\"\n}",
+   "status": 200,
+   "response": "{\n  \"data\": {\n    \"providerEventId\": \"evt_docs_completed\",\n    \"normalizedType\": \"payout.completed\",\n    \"sequence\": 5,\n    \"signatureResult\": \"valid\",\n    \"dedupeKey\": \"prv_northline:evt_docs_completed\",\n    \"processingOutcome\": \"duplicate_ignored\",\n    \"provenance\": \"provider_webhook\"\n  },\n  \"outcome\": \"duplicate_ignored\",\n  \"audit\": [\n    {\n      \"id\": \"aud_00187\",\n      \"at\": \"2026-11-13T02:00:00.000Z\",\n      \"actorId\": \"usr_maya\",\n      \"action\": \"event.duplicate\",\n      \"entityType\": \"provider_event\",\n      \"entityId\": \"pev_00186\",\n      \"summary\": \"Duplicate of pev_00183; ignored\"\n    }\n  ],\n  \"workspace\": { /* full workspace, about 85 KB, abridged here */ }\n}",
+   "note": "Status afterwards: {\"execution\":\"provider_reported_completed\",\"settlement\":\"none\",\"settlementScope\":\"none\",\"reconciliation\":\"pending\"}"
+  },
+  {
+   "id": "webhook-late",
+   "title": "An earlier event arrives late (sequence 3 after 5)",
+   "method": "POST",
+   "path": "/api/clearline/test/v1/events/webhook",
+   "headers": [
+    "Authorization: Bearer cl_test_demo",
+    "Content-Type: application/json",
+    "X-Sandbox-Signature: t=1794535200,v1=c009e4eb7cac15c6315cbf23b05696f725d3836c71a7d41894ad922a68f199eb"
+   ],
+   "request": "{\n  \"workspace\": { /* the workspace from the previous response */ },\n  \"providerId\": \"prv_northline\",\n  \"rawBody\": \"{\\\"id\\\":\\\"evt_docs_in_transit_late\\\",\\\"type\\\":\\\"payout.in_transit\\\",\\\"provider_payment_id\\\":\\\"NLPO-DDD7783842\\\",\\\"sequence\\\":3,\\\"occurred_at\\\":\\\"2026-11-13T02:00:00.000Z\\\"}\"\n}",
+   "status": 200,
+   "response": "{\n  \"data\": {\n    \"providerEventId\": \"evt_docs_in_transit_late\",\n    \"normalizedType\": \"payout.in_transit\",\n    \"sequence\": 3,\n    \"signatureResult\": \"valid\",\n    \"dedupeKey\": \"prv_northline:evt_docs_in_transit_late\",\n    \"processingOutcome\": \"stored_late_no_regression\",\n    \"provenance\": \"provider_webhook\"\n  },\n  \"outcome\": \"stored_late_no_regression\",\n  \"audit\": [\n    {\n      \"id\": \"aud_00187\",\n      \"at\": \"2026-11-13T02:00:00.000Z\",\n      \"actorId\": \"usr_maya\",\n      \"action\": \"event.late\",\n      \"entityType\": \"provider_event\",\n      \"entityId\": \"pev_00186\",\n      \"summary\": \"Late payout.in_transit (seq 3 < 5); stored, state kept at provider_reported_completed\"\n    }\n  ],\n  \"workspace\": { /* full workspace, about 86 KB, abridged here */ }\n}",
+   "note": "Status afterwards: {\"execution\":\"provider_reported_completed\",\"settlement\":\"none\",\"settlementScope\":\"none\",\"reconciliation\":\"pending\"}"
+  },
+  {
+   "id": "webhook-bad-signature",
+   "title": "Body changed after signing",
+   "method": "POST",
+   "path": "/api/clearline/test/v1/events/webhook",
+   "headers": [
+    "Authorization: Bearer cl_test_demo",
+    "Content-Type: application/json",
+    "X-Sandbox-Signature: t=1794535200,v1=c009e4eb7cac15c6315cbf23b05696f725d3836c71a7d41894ad922a68f199eb"
+   ],
+   "request": "{\n  \"workspace\": { /* the workspace from the previous response */ },\n  \"providerId\": \"prv_northline\",\n  \"rawBody\": \"{\\\"id\\\":\\\"evt_docs_in_transit_tampered\\\",\\\"type\\\":\\\"payout.in_transit\\\",\\\"provider_payment_id\\\":\\\"NLPO-DDD7783842\\\",\\\"sequence\\\":3,\\\"occurred_at\\\":\\\"2026-11-13T02:00:00.000Z\\\"}\"\n}",
+   "status": 200,
+   "response": "{\n  \"data\": {\n    \"providerEventId\": \"evt_docs_in_transit_tampered\",\n    \"normalizedType\": \"payout.in_transit\",\n    \"sequence\": 3,\n    \"signatureResult\": \"invalid\",\n    \"dedupeKey\": \"prv_northline:evt_docs_in_transit_tampered\",\n    \"processingOutcome\": \"rejected_signature\",\n    \"provenance\": \"provider_webhook\"\n  },\n  \"outcome\": \"rejected_signature\",\n  \"audit\": [\n    {\n      \"id\": \"aud_00187\",\n      \"at\": \"2026-11-13T02:00:00.000Z\",\n      \"actorId\": \"usr_maya\",\n      \"action\": \"event.rejected_signature\",\n      \"entityType\": \"provider_event\",\n      \"entityId\": \"pev_00186\",\n      \"summary\": \"Webhook signature invalid; not applied\"\n    }\n  ],\n  \"workspace\": { /* full workspace, about 86 KB, abridged here */ }\n}",
+   "note": "Status afterwards: {\"execution\":\"provider_reported_completed\",\"settlement\":\"none\",\"settlementScope\":\"none\",\"reconciliation\":\"pending\"}"
+  },
+  {
+   "id": "webhook-stale",
+   "title": "Valid signature, but 301 s outside the window",
+   "method": "POST",
+   "path": "/api/clearline/test/v1/events/webhook",
+   "headers": [
+    "Authorization: Bearer cl_test_demo",
+    "Content-Type: application/json",
+    "X-Sandbox-Signature: t=1794535200,v1=c009e4eb7cac15c6315cbf23b05696f725d3836c71a7d41894ad922a68f199eb"
+   ],
+   "request": "{\n  \"workspace\": { /* the workspace from the previous response */ },\n  \"providerId\": \"prv_northline\",\n  \"rawBody\": \"{\\\"id\\\":\\\"evt_docs_in_transit_late\\\",\\\"type\\\":\\\"payout.in_transit\\\",\\\"provider_payment_id\\\":\\\"NLPO-DDD7783842\\\",\\\"sequence\\\":3,\\\"occurred_at\\\":\\\"2026-11-13T02:00:00.000Z\\\"}\",\n  \"at\": \"2026-11-13T02:05:01.000Z\"\n}",
+   "status": 200,
+   "response": "{\n  \"data\": {\n    \"providerEventId\": \"evt_docs_in_transit_late\",\n    \"normalizedType\": \"payout.in_transit\",\n    \"sequence\": 3,\n    \"signatureResult\": \"invalid\",\n    \"dedupeKey\": \"prv_northline:evt_docs_in_transit_late\",\n    \"processingOutcome\": \"rejected_signature\",\n    \"provenance\": \"provider_webhook\"\n  },\n  \"outcome\": \"rejected_signature\",\n  \"audit\": [\n    {\n      \"id\": \"aud_00187\",\n      \"at\": \"2026-11-13T02:05:01.000Z\",\n      \"actorId\": \"usr_maya\",\n      \"action\": \"event.rejected_signature\",\n      \"entityType\": \"provider_event\",\n      \"entityId\": \"pev_00186\",\n      \"summary\": \"Webhook signature invalid; not applied\"\n    }\n  ],\n  \"workspace\": { /* full workspace, about 86 KB, abridged here */ }\n}",
+   "note": "Status afterwards: {\"execution\":\"provider_reported_completed\",\"settlement\":\"none\",\"settlementScope\":\"none\",\"reconciliation\":\"pending\"}"
+  },
+  {
+   "id": "verify",
+   "title": "Sample verifier",
+   "method": "POST",
+   "path": "/api/clearline/test/v1/webhooks/verify",
+   "headers": [
+    "Authorization: Bearer cl_test_demo",
+    "Content-Type: application/json"
+   ],
+   "request": "{\n  \"providerId\": \"prv_northline\",\n  \"rawBody\": \"{\\\"id\\\":\\\"evt_docs_completed\\\",\\\"type\\\":\\\"payout.completed\\\",\\\"provider_payment_id\\\":\\\"NLPO-DDD7783842\\\",\\\"sequence\\\":5,\\\"occurred_at\\\":\\\"2026-11-13T02:00:00.000Z\\\"}\",\n  \"signatureHeader\": \"t=1794535200,v1=793692596784b6af3a38de1f6b221bbc6ec591b3e6f61515c675e5efdc971752\",\n  \"at\": \"2026-11-13T02:00:00.000Z\"\n}",
+   "status": 200,
+   "response": "{\n  \"data\": {\n    \"valid\": true,\n    \"timestamp\": 1794535200\n  },\n  \"mode\": \"synthetic\"\n}",
+   "note": null
+  },
+  {
+   "id": "verify-stale",
+   "title": "Sample verifier, 301 s later",
+   "method": "POST",
+   "path": "/api/clearline/test/v1/webhooks/verify",
+   "headers": [
+    "Authorization: Bearer cl_test_demo",
+    "Content-Type: application/json"
+   ],
+   "request": "{\n  \"providerId\": \"prv_northline\",\n  \"rawBody\": \"{\\\"id\\\":\\\"evt_docs_completed\\\",\\\"type\\\":\\\"payout.completed\\\",\\\"provider_payment_id\\\":\\\"NLPO-DDD7783842\\\",\\\"sequence\\\":5,\\\"occurred_at\\\":\\\"2026-11-13T02:00:00.000Z\\\"}\",\n  \"signatureHeader\": \"t=1794535200,v1=793692596784b6af3a38de1f6b221bbc6ec591b3e6f61515c675e5efdc971752\",\n  \"at\": \"2026-11-13T02:05:01.000Z\"\n}",
+   "status": 200,
+   "response": "{\n  \"data\": {\n    \"valid\": false,\n    \"reason\": \"timestamp_outside_tolerance\"\n  },\n  \"mode\": \"synthetic\"\n}",
+   "note": null
+  },
+  {
+   "id": "investigation",
+   "title": "Investigation of sample scenario 1",
+   "method": "GET",
+   "path": "/api/clearline/test/v1/investigations/pi_00001",
+   "headers": [
+    "Authorization: Bearer cl_test_demo"
+   ],
+   "request": null,
+   "status": 200,
+   "response": "{\n  \"data\": {\n    \"intentId\": \"pi_00001\",\n    \"status\": {\n      \"execution\": \"provider_reported_completed\",\n      \"settlement\": \"verified\",\n      \"settlementScope\": \"bank_statement\",\n      \"reconciliation\": \"matched\"\n    },\n    \"provider\": {\n      \"providerId\": \"prv_northline\",\n      \"providerName\": \"Northline Payments (sandbox)\",\n      \"routeId\": \"rt_northline_local\",\n      \"rail\": \"fiat_local\",\n      \"providerPaymentId\": \"NLPO-047422AD85\"\n    },\n    \"providerReported\": {\n      \"events\": [\n        {\n          \"providerEventId\": \"NLPO-047422AD85-E1\",\n          \"normalizedType\": \"payout.accepted\",\n          \"confidence\": \"provider_claim\",\n          \"processingOutcome\": \"recorded_no_state_change\"\n        },\n        {\n          \"providerEventId\": \"NLPO-047422AD85-E2\",\n          \"normalizedType\": \"payout.in_transit\",\n          \"confidence\": \"provider_claim\",\n          \"processingOutcome\": \"applied\"\n        },\n        /* 1 more */\n      ],\n      \"lastReported\": \"payout.completed\",\n      \"findings\": [\n        {\n          \"code\": \"PR_LAST_PAYOUT_COMPLETED\",\n          \"text\": \"Last provider report: payout.completed (provider claim, provider_webhook).\",\n          \"refs\": [\n            \"pev_00019\"\n          ]\n        },\n        {\n          \"code\": \"PR_COMPLETED_IS_PROVIDER_CLAIM\",\n          \"text\": \"The provider reports completion. This is the provider's claim, not settlement evidence.\",\n          \"refs\": [\n            \"pev_00019\"\n          ]\n        }\n      ]\n    },\n    \"independentEvidence\": [\n      {\n        \"code\": \"IE_BANK_STATEMENT_LINE\",\n        \"text\": \"debit SGD 24,651.37 · NORTHLINE PAYOUT NLPO-047422AD85 · value 2026-11-12\",\n        \"refs\": [\n          \"evd_00024\"\n        ]\n      }\n    ],\n    \"unknowns\": [\n      {\n        \"code\": \"UK_BENEFICIARY_CREDIT_NOT_EVIDENCED\",\n        \"text\": \"The bank statement evidences the payout debit, not the beneficiary's credit.\",\n        \"refs\": []\n      }\n    ],\n    \"contradictions\": [],\n    \"outstanding\": [],\n    \"whoActs\": {\n      \"role\": \"no one — nothing outstanding\",\n      \"code\": \"WA_NONE\"\n    },\n    \"nextActions\": [\n      {\n        \"code\": \"NA_NONE\",\n        \"text\": \"No action required.\",\n        \"refs\": []\n      }\n    ],\n    \"exceptions\": [],\n    \"explanationCodes\": [\n      \"PR_LAST_PAYOUT_COMPLETED\",\n      \"PR_COMPLETED_IS_PROVIDER_CLAIM\",\n      /* 4 more */\n    ],\n    \"disclaimer\": \"TEST MODE · fictional sandbox data. Provider statuses are provider claims; settlement evidence is shown separately. Clearline does not move money, hold funds or make compliance or credit decisions.\"\n  },\n  \"mode\": \"synthetic\",\n  \"source\": \"sample workspace\",\n  \"disclaimer\": \"TEST MODE · fictional sandbox data. Provider statuses are provider claims; settlement evidence is shown separately. Clearline does not move money, hold funds or make compliance or credit decisions.\"\n}",
+   "note": null
+  },
+  {
+   "id": "no-key",
+   "title": "Missing key",
+   "method": "GET",
+   "path": "/api/clearline/test/v1/intents",
+   "headers": [],
+   "request": null,
+   "status": 401,
+   "response": "{\n  \"error\": {\n    \"code\": \"unauthenticated\",\n    \"message\": \"Send Authorization: Bearer cl_test_demo (a public example key, not a credential).\",\n    \"help\": \"Test mode only. Use fictional data. See /clearline/docs and docs/clearline/openapi.yaml.\"\n  }\n}",
+   "note": null
+  },
+  {
+   "id": "unknown",
+   "title": "Unknown endpoint",
+   "method": "GET",
+   "path": "/api/clearline/test/v1/payments-v2",
+   "headers": [
+    "Authorization: Bearer cl_test_demo"
+   ],
+   "request": null,
+   "status": 404,
+   "response": "{\n  \"error\": {\n    \"code\": \"unknown_endpoint\",\n    \"message\": \"Unknown endpoint.\",\n    \"help\": \"Test mode only. Use fictional data. See /clearline/docs and docs/clearline/openapi.yaml.\"\n  }\n}",
+   "note": null
+  },
+  {
+   "id": "bad-amount",
+   "title": "Amount not in integer minor units",
+   "method": "POST",
+   "path": "/api/clearline/test/v1/intents",
+   "headers": [
+    "Authorization: Bearer cl_test_demo",
+    "Content-Type: application/json"
+   ],
+   "request": "{\n  \"input\": {\n    \"internalReference\": \"INV-DOCS-0001\",\n    \"amountMinor\": 12.5,\n    \"sourceCurrency\": \"SGD\",\n    \"destinationCurrency\": \"PHP\",\n    \"purpose\": \"Supplier invoice\",\n    \"beneficiaryRef\": \"ben_docs_1\",\n    \"beneficiaryName\": \"Example Supplier (fictional)\",\n    \"destinationCountry\": \"PH\",\n    \"requestedExecutionDate\": \"2026-11-14\",\n    \"idempotencyKey\": \"docs-example-0002\"\n  }\n}",
+   "status": 422,
+   "response": "{\n  \"error\": {\n    \"code\": \"invalid_amount\",\n    \"message\": \"Amount must be a positive integer number of minor units.\",\n    \"help\": \"Test mode only. Use fictional data. See /clearline/docs and docs/clearline/openapi.yaml.\",\n    \"field\": \"amountMinor\"\n  }\n}",
+   "note": null
+  }
+ ]
+}

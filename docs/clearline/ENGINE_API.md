@@ -1,6 +1,18 @@
 # Clearline sandbox engine — public API (for the console UI)
 
-> **CHANGE (2026-11-13, after first draft):**
+> **CHANGE 2 (2026-11-13, console requests R1–R10 in UI_REQUESTS.md):**
+> - **R1** Sample ids are sequential and deterministic: `s1_success → pi_00001`, `s2_returned → pi_00027`, `s3_hold → pi_00060`, `s4_chain → pi_00090`, `s5_funding → pi_00119` (advance `adv_00121`). Use `scenarioIntentId(ws, key)` (alias `intentForScenario`) rather than hard-coding them; the ids change if the sample script changes.
+> - **R2** `evidenceTimelineFor(ws, intentId) → EvidenceTimelineEntry[]` gives one ordered timeline of intent, quotes, maker/checker, provider events (incl. rejected/duplicate/late/timer), statement lines, matching decisions, chain observations, attached evidence, hold decisions, exceptions and missing-evidence items. Each entry has `at, kind, title, source, provenance, independent, codes, refs`.
+> - **R3** `InvestigationView.lastEventAt`, `lastEventType`, `lastIndependentVerificationAt` (+ alias `lastVerifiedAt`), all optional.
+> - **R4** `canResolveCase(ws, caseId) → { allowed, code, reason }`. Codes: `NOT_FOUND`, `ALREADY_RESOLVED`, `OWNER_REQUIRED`, `OPEN_EXCEPTIONS`, `OPEN_INFO_REQUESTS`, `HOLD_UNDECIDED`, `RESOLVABLE`. The `resolve` action now uses it, and its error message starts with the code.
+> - **R5** Every exception gets a `dueDate`: the explicit date (e.g. the obligation due date for `overdue_advance`), otherwise creation date + `EXCEPTION_DUE_DAYS[severity]` (critical 1, high 1, medium 3, low 5; an illustrative sandbox policy).
+> - **R6** Separation of duties is checked **before** the role check: the maker of an instruction, the preparer of an advance, or the person who submitted hold documents now gets `maker_checker_violation`. Approvers may now also `choose_route` (prepare an instruction) and can never approve their own. Non-makers without the role still get `unauthorized_actor`.
+> - **R8** `formatMinorPlain(minor, currency) → "12500.00"`. **R9** `RECONCILIATION_CODE_GROUP` (+ type `ReconciliationCodeGroup`: `exact | partial | unmatched | duplicate | ambiguous | currency_mismatch | contradiction | return | informational`).
+> - **R10** `providerName` is now a required field on `ProviderEvent` and `LiquidityRow`.
+> - **Returns:** new optional `PaymentIntent.returnStatus: "provider_reported" | "confirmed_by_statement"`. When the provider reports a return, `status.reconciliation` becomes `exception` (it used to stay `pending`). A return/reversal statement line with the trusted reference is allocated with `RC_RETURN_CONFIRMS_PROVIDER_RETURN` and sets `returnStatus = "confirmed_by_statement"`. Reconciliation stays `exception` until a person resolves the `returned_payout` exception, because the supplier is still unpaid. No new `ReconciliationState` value was added, so existing label maps keep compiling.
+> - **Not done:** R7 `resetScenario` (use whole-workspace reset).
+>
+> **CHANGE 1 (2026-11-13, after first draft):**
 > 1. Sample intent ids are sequential (`pi_00001`, …), not `pi_s1_success`. Find a scenario by `intent.scenario` (`"s1_success" … "s5_funding"`); `SAMPLE_SCENARIOS` (exported) describes each. Ids are deterministic but may shift if the sample changes — do not hard-code them.
 > 2. `ProviderRoute.providerFeeMinor: number` became `providerFees: Partial<Record<CurrencyCode, number>>` (per source currency, minor units).
 > 3. `ProviderEvent.rawBody?: string` added (sandbox payload, for duplicate replay).
@@ -36,7 +48,7 @@ Pure: never mutates `ws`, never reads the wall clock (`ctx.at` is the simulated 
 |---|---|---|
 | `create_intent` | `input: CreateIntentInput` (amountMinor integer, idempotencyKey required) | operator |
 | `request_quotes` | `intentId` | operator |
-| `choose_route` | `intentId, quoteId` → creates a `PaymentInstruction` (maker = actor) | operator |
+| `choose_route` | `intentId, quoteId` → creates a `PaymentInstruction` (maker = actor) | operator or approver |
 | `approve_instruction` / `reject_instruction` | `instructionId` (+`reason`) — checker must differ from maker | approver |
 | `submit_instruction` | `instructionId` | operator |
 | `cancel_intent` | `intentId, reason` | operator |
@@ -69,6 +81,9 @@ Error codes (`EngineErrorCode`): `invalid_amount, invalid_currency, currency_mis
 
 | Function | Signature |
 |---|---|
+| `evidenceTimelineFor` | `(ws, intentId) => EvidenceTimelineEntry[]` — unified ordered evidence timeline (R2) |
+| `canResolveCase` | `(ws, caseId) => { allowed, code, reason }` |
+| `scenarioIntentId` / `intentForScenario` | `(ws, scenario) => string \| undefined` |
 | `investigate` | `(ws, intentId) => Result<InvestigationView>` — requested / provider / provider-reported / independent evidence / unknowns / contradictions / outstanding / who acts / next actions, each with explanation codes |
 | `exportCaseReport` | `(ws, caseId) => Result<CaseReport>` → `{ json, text }` |
 | `timelineFor` | `(ws, intentId) => ProviderEvent[]` (sorted by received time; includes rejected/duplicate/late entries with their `processingOutcome`) |
@@ -87,11 +102,11 @@ Error codes (`EngineErrorCode`): `invalid_amount, invalid_currency, currency_mis
 
 | Scenario | `intent.scenario` | What to show |
 |---|---|---|
-| 1 Successful payment | `s1_success` | provider-reported completed; bank statement line matched separately |
-| 2 Returned payout | `s2_returned` | beneficiary rejected → return event + return statement line; case with owner; correction workflow |
-| 3 Compliance hold | `s3_hold` | partner document request; reviewer; never auto-released |
-| 4 Base Sepolia delay | `s4_chain` | observed → pending finality → verified (advance with `simulate_provider_event`) |
-| 5 Funding exposure | `s5_funding` (+ `intent.advanceId`) | SGD 50,000.00 advance, SGD 30,000.00 repaid by reference, SGD 20,000.00 outstanding; unreferenced SGD 20,000.00 receipt stays an exception |
+| 1 Successful payment | `s1_success` (`pi_00001`) | provider-reported completed; bank statement line matched separately |
+| 2 Returned payout | `s2_returned` (`pi_00027`) | beneficiary rejected → return event + return statement line; case with owner; correction workflow |
+| 3 Compliance hold | `s3_hold` (`pi_00060`) | partner document request; reviewer; never auto-released |
+| 4 Base Sepolia delay | `s4_chain` (`pi_00090`) | observed → pending finality → verified (advance with `simulate_provider_event`) |
+| 5 Funding exposure | `s5_funding` (`pi_00119`, advance `adv_00121`) | SGD 50,000.00 advance, SGD 30,000.00 repaid by reference, SGD 20,000.00 outstanding; unreferenced SGD 20,000.00 receipt stays an exception |
 
 ## Test-mode HTTP API
 

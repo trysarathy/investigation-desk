@@ -162,3 +162,10 @@ export function sampleWorkspace(): Workspace {
   b.run("usr_maya", { type: "advance_clock", to: SAMPLE_AS_OF });
   return b.ws;
 }
+
+/** Real id of a seeded scenario's payment intent (ids are sequential, e.g. pi_00001). */
+export function scenarioIntentId(ws: Workspace, scenario: SampleScenario | string): string | undefined {
+  return ws.intents.find((i) => i.scenario === scenario)?.id;
+}
+/** Alias requested by the console (UI_REQUESTS R1). */
+export const intentForScenario = scenarioIntentId;

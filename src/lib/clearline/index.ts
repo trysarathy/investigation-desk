@@ -11,10 +11,10 @@
 export * from "./types";
 
 // Money
-export { CURRENCIES, currencyDecimals, isCurrency, parseAmount, formatMoney, formatMinor } from "./money";
+export { CURRENCIES, currencyDecimals, isCurrency, parseAmount, formatMoney, formatMinor, formatMinorPlain } from "./money";
 
 // Workspace lifecycle
-export { sampleWorkspace, emptyWorkspace, SAMPLE_AS_OF, SAMPLE_ACTORS, SAMPLE_SCENARIOS } from "./sample";
+export { sampleWorkspace, emptyWorkspace, SAMPLE_AS_OF, SAMPLE_ACTORS, SAMPLE_SCENARIOS, scenarioIntentId, intentForScenario } from "./sample";
 export type { SampleScenario } from "./sample";
 export { serializeWorkspace, parseWorkspace } from "./serialize";
 
@@ -32,11 +32,13 @@ export { SandboxAdapter, SANDBOX_PROVIDERS, sandboxRoutes, getAdapter } from "./
 export { signSandboxWebhook, verifySandboxWebhook, sandboxWebhookSecret, WEBHOOK_TOLERANCE_SECONDS } from "./webhooks";
 
 // Reconciliation, exceptions, liquidity, chain, funding
-export { RECONCILIATION_CODE_TEXT, RECONCILIATION_WINDOW_DAYS } from "./reconciliation";
-export { canResolveException, EXCEPTION_REQUIRED_ACTION } from "./exceptions";
+export { RECONCILIATION_CODE_TEXT, RECONCILIATION_CODE_GROUP, RECONCILIATION_WINDOW_DAYS } from "./reconciliation";
+export type { ReconciliationCodeGroup } from "./reconciliation";
+export { canResolveException, canResolveCase, EXCEPTION_REQUIRED_ACTION, EXCEPTION_DUE_DAYS } from "./exceptions";
+export type { ResolutionCheck } from "./exceptions";
 export { computeLiquidity } from "./liquidity";
 export { BASE_SEPOLIA_CHAIN_ID, ALLOWLISTED_TOKENS, FINALITY_THRESHOLD, CHAIN_LABEL } from "./chain";
 export { fundingProjection, obligationOutstanding, FUNDING_PROJECTION_LABEL } from "./funding";
 
 // Read models
-export { investigate, exportCaseReport, timelineFor, listExceptions, getIntent, ENGINE_DISCLAIMER } from "./investigation";
+export { investigate, evidenceTimelineFor, exportCaseReport, timelineFor, listExceptions, getIntent, ENGINE_DISCLAIMER } from "./investigation";

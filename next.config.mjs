@@ -4,6 +4,9 @@ const nextConfig = {
   webpack(config) {
     // Existing CLI modules use Node-style .js specifiers for TypeScript sources.
     config.resolve.extensionAlias = { ...config.resolve.extensionAlias, '.js': ['.ts', '.tsx', '.js'] };
+    // YAML files are bundled as plain strings at build time (e.g. the OpenAPI document served at
+    // /clearline/docs/openapi.yaml), so no route reads the filesystem at runtime.
+    config.module.rules.push({ test: /\.ya?ml$/, type: 'asset/source' });
     return config;
   },
   experimental: {

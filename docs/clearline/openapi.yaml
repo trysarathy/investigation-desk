@@ -34,6 +34,16 @@ info:
     HTTP 200). Same key + different body → HTTP 409 `idempotency_conflict`. Fingerprints use a
     canonical (sorted-key) JSON of the input.
 
+    **Returns.** When the provider reports a returned payout, `reconciliation` becomes `exception` and
+    `returnStatus: provider_reported`. A return/reversal statement line carrying the trusted provider
+    reference is allocated with code `RC_RETURN_CONFIRMS_PROVIDER_RETURN` and sets
+    `returnStatus: confirmed_by_statement`. Reconciliation stays `exception` until a person resolves
+    the `returned_payout` exception.
+
+    **Separation of duties.** The maker of an instruction (or preparer of an advance, or submitter of
+    hold documents) always receives `maker_checker_violation` when trying to check their own work.
+    This is checked before the role check.
+
     **Legacy endpoints** under `/api/clearline/test/{intents,quotes,transitions,webhooks,payments,health}`
     (docs/CONNECT_TEST_API.md) are unchanged and not described here.
 
@@ -432,6 +442,10 @@ components:
         settlement: { enum: [none, observed, pending_finality, verified, contradicted] }
         settlementScope: { enum: [none, provider_report, bank_statement, onchain_transfer] }
         reconciliation: { enum: [not_started, pending, matched, partially_matched, exception] }
+    PaymentIntentReturn:
+      type: object
+      properties:
+        returnStatus: { enum: [provider_reported, confirmed_by_statement], description: "Optional; present only for returned payouts" }
     CreateIntentInput:
       type: object
       required: [internalReference, amountMinor, sourceCurrency, destinationCurrency, purpose, beneficiaryRef, beneficiaryName, destinationCountry, requestedExecutionDate]

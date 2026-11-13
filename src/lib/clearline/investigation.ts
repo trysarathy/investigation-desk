@@ -4,8 +4,10 @@
  */
 import { fundingProjection, obligationOutstanding } from "./funding";
 import { formatMinor } from "./money";
+import { RECONCILIATION_CODE_TEXT } from "./reconciliation";
 import type {
   CaseReport,
+  EvidenceTimelineEntry,
   ExceptionCategory,
   ExceptionStatus,
   Finding,
@@ -136,10 +138,20 @@ export function investigate(ws: Workspace, intentId: string): Result<Investigati
   if (chain && chain.status !== "final" && chain.status !== "rejected_unsupported") add(next, f("NA_AWAIT_FINALITY", `Wait for ${chain.finalityThreshold - chain.confirmations} more confirmations.`, [chain.id]));
   if (!next.length) add(next, f("NA_NONE", "No action required."));
 
+  const lastProvider = [...providerEvents].sort((x, y) => x.receivedAt.localeCompare(y.receivedAt)).at(-1);
+  const independentTimes = [
+    ...ws.evidence.filter((e) => e.intentId === intent.id && e.independent).map((e) => e.recordedAt),
+    ...ws.chainObservations.filter((o) => o.intentId === intent.id && o.status !== "rejected_unsupported").map((o) => o.updatedAt),
+  ].sort();
+  const lastIndependent = independentTimes.at(-1);
   return {
     ok: true,
     value: {
       intentId: intent.id,
+      lastEventAt: lastProvider?.receivedAt,
+      lastEventType: lastProvider?.normalizedType,
+      lastIndependentVerificationAt: lastIndependent,
+      lastVerifiedAt: lastIndependent,
       status: { ...s },
       requested: {
         internalReference: intent.internalReference,
@@ -210,4 +222,43 @@ export function exportCaseReport(ws: Workspace, caseId: string): Result<CaseRepo
   L.push("HISTORY");
   for (const h of c.history) L.push(`  ${h.at} ${h.actorId} ${h.action}: ${h.detail}`);
   return { ok: true, value: { json, text: L.join("\n") } };
+}
+
+/**
+ * Unified, ordered evidence timeline for one payment (console UI_REQUESTS R2). Every entry says
+ * where it came from and whether it is independent. Provider events are provider claims.
+ */
+export function evidenceTimelineFor(ws: Workspace, intentId: string): EvidenceTimelineEntry[] {
+  const intent = getIntent(ws, intentId);
+  if (!intent) return [];
+  const out: EvidenceTimelineEntry[] = [];
+  const name = (id?: string) => ws.actors.find((a) => a.id === id)?.name ?? id ?? "unknown";
+  out.push({ id: intent.id, at: intent.createdAt, kind: "intent_created", title: `Intent ${intent.internalReference} created`, source: name(intent.createdBy), provenance: "clearline_user_action", independent: false, codes: [], refs: [intent.id] });
+  for (const q of ws.quotes.filter((x) => x.intentId === intent.id))
+    out.push({ id: q.id, at: q.quotedAt, kind: "quote", title: `${q.providerName}: ${q.eligible ? "eligible" : "ineligible"} indicative quote`, source: q.source, provenance: "provider_quote_simulator", independent: false, codes: [q.eligible ? "QT_ELIGIBLE" : "QT_INELIGIBLE"], refs: [q.routeId] });
+  for (const i of ws.instructions.filter((x) => x.intentId === intent.id)) {
+    out.push({ id: i.id + ":made", at: i.madeAt, kind: "instruction_made", title: `Instruction prepared (maker ${name(i.makerId)})`, source: name(i.makerId), provenance: "clearline_user_action", independent: false, codes: ["MC_MAKER"], refs: [i.id, i.quoteId] });
+    if (i.checkedAt) out.push({ id: i.id + ":checked", at: i.checkedAt, kind: "instruction_checked", title: `Instruction ${i.status === "rejected" ? "rejected" : "approved"} (checker ${name(i.checkerId)})`, source: name(i.checkerId), provenance: "clearline_user_action", independent: false, codes: ["MC_CHECKER"], refs: [i.id] });
+  }
+  for (const e of timelineFor(ws, intent.id))
+    out.push({ id: e.id, at: e.receivedAt, kind: "provider_event", title: `${e.normalizedType} · ${e.processingOutcome}`, source: e.provenance === "clearline_timer" ? "Clearline timer" : e.providerName, provenance: e.provenance, independent: false, codes: ["PE_" + e.processingOutcome.toUpperCase()], refs: [e.id] });
+  const allocs = ws.allocations.filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id);
+  const lineIds = new Set([...allocs.map((a) => a.statementLineId), ...ws.exceptions.filter((x) => x.intentId === intent.id && x.statementLineId).map((x) => x.statementLineId!)]);
+  for (const l of ws.statementLines.filter((x) => lineIds.has(x.id)))
+    out.push({ id: l.id, at: l.receivedAt, kind: "statement_line", title: `${l.source === "bank_statement" ? "Bank statement" : "Provider settlement report"} ${l.direction} ${l.kind} · value ${l.valueDate}`, source: l.accountRef, provenance: l.source, independent: l.source === "bank_statement", codes: l.explanationCodes, refs: [l.id] });
+  for (const a of allocs)
+    out.push({ id: a.id, at: a.createdAt, kind: "allocation", title: a.codes.map((c) => RECONCILIATION_CODE_TEXT[c]).join(" "), source: "Clearline reconciliation rules", provenance: "matching_decision", independent: false, codes: a.codes, refs: [a.statementLineId] });
+  for (const o of ws.chainObservations.filter((x) => x.intentId === intent.id))
+    out.push({ id: o.id, at: o.updatedAt, kind: "chain_observation", title: `Synthetic Base Sepolia transfer ${o.status} (${o.confirmations}/${o.finalityThreshold})`, source: "Synthetic chain observer (testnet)", provenance: "chain_observer_synthetic", independent: o.status !== "rejected_unsupported", codes: ["CH_" + o.status.toUpperCase()], refs: [o.id, o.txHash] });
+  for (const ev of ws.evidence.filter((x) => x.intentId === intent.id && !["bank_statement_line", "provider_settlement_report", "chain_observation", "provider_status_report"].includes(x.kind)))
+    out.push({ id: ev.id, at: ev.recordedAt, kind: "evidence", title: ev.description, source: ev.source, provenance: ev.recordedBy === "system" ? "system" : "user_attached_metadata", independent: ev.independent, codes: ["EV_" + ev.kind.toUpperCase()], refs: [ev.id] });
+  for (const h of ws.holds.filter((x) => x.intentId === intent.id))
+    for (const d of h.decisions)
+      out.push({ id: `${h.id}:${d.at}:${d.decision}`, at: d.at, kind: "hold_decision", title: `Compliance reviewer: ${d.decision} — ${d.reason}`, source: name(d.reviewerId), provenance: "clearline_user_action", independent: false, codes: ["HD_" + d.decision.toUpperCase()], refs: [h.id] });
+  for (const x of ws.exceptions.filter((e) => e.intentId === intent.id || (intent.advanceId && e.advanceId === intent.advanceId)))
+    out.push({ id: x.id, at: x.createdAt, kind: "exception", title: `${x.category} (${x.severity}, ${x.status})`, source: "Clearline exception rules", provenance: "engine_rule", independent: false, codes: [x.explanationCode], refs: [x.id, ...x.candidates] });
+  const v = investigate(ws, intent.id);
+  if (v.ok) for (const u of v.value.unknowns)
+    out.push({ id: "missing:" + u.code, at: ws.asOf, kind: "missing_evidence", title: u.text, source: "Clearline investigation rules", provenance: "engine_rule", independent: false, codes: [u.code], refs: u.refs });
+  return out.sort((a, b) => (a.at === b.at ? 0 : a.at < b.at ? -1 : 1));
 }

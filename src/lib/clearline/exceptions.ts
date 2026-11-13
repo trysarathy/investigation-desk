@@ -38,6 +38,14 @@ const DEFAULT_SEVERITY: Readonly<Record<ExceptionCategory, Severity>> = {
   contradictory_evidence: "critical",
 };
 
+/**
+ * Sandbox follow-up policy: days from creation until an exception is due, by severity.
+ * Illustrative only (a provider would set its own). Overdue advances use the obligation's due date.
+ */
+export const EXCEPTION_DUE_DAYS: Readonly<Record<Severity, number>> = { critical: 1, high: 1, medium: 3, low: 5 };
+
+const dueFrom = (at: string, severity: Severity) => new Date(Date.parse(at) + EXCEPTION_DUE_DAYS[severity] * 86_400_000).toISOString().slice(0, 10);
+
 export interface OpenExceptionSpec {
   category: ExceptionCategory;
   explanationCode: string;
@@ -103,10 +111,11 @@ export function openException(tx: Tx, spec: OpenExceptionSpec): ReconciliationEx
     same.lastUpdatedAt = tx.at;
     return same;
   }
+  const severity = spec.severity ?? DEFAULT_SEVERITY[spec.category];
   const exc: ReconciliationException = {
     id: tx.id("exc"),
     category: spec.category,
-    severity: spec.severity ?? DEFAULT_SEVERITY[spec.category],
+    severity,
     status: "open",
     explanationCode: spec.explanationCode,
     explanation: spec.explanation,
@@ -119,7 +128,7 @@ export function openException(tx: Tx, spec: OpenExceptionSpec): ReconciliationEx
     supportingEvidenceIds: [...(spec.supportingEvidenceIds ?? [])],
     ownerId: spec.ownerId,
     impact: spec.impact,
-    dueDate: spec.dueDate,
+    dueDate: spec.dueDate ?? dueFrom(tx.at, severity),
     requiredAction: EXCEPTION_REQUIRED_ACTION[spec.category],
     createdAt: tx.at,
     lastUpdatedAt: tx.at,
@@ -209,4 +218,19 @@ export function canResolveException(ws: Workspace, exceptionId: string): Resolut
       break;
   }
   return { allowed: true, code: "RESOLVABLE", reason: "Conditions met; a note is required. Resolving never allocates funds or closes an obligation." };
+}
+
+/** Whether a person may resolve this case now (mirrors the resolve action's checks). */
+export function canResolveCase(ws: Workspace, caseId: string): ResolutionCheck {
+  const c = ws.cases.find((x) => x.id === caseId);
+  if (!c) return deny("NOT_FOUND", "Case not found.");
+  if (c.status === "resolved") return deny("ALREADY_RESOLVED", "Case is already resolved.");
+  if (!c.ownerId) return deny("OWNER_REQUIRED", "Assign an owner before resolving.");
+  const open = ws.exceptions.filter((e) => c.exceptionIds.includes(e.id) && e.status !== "resolved");
+  if (open.length) return deny("OPEN_EXCEPTIONS", `${open.length} linked exception(s) must be resolved first: ${open.map((e) => e.id).join(", ")}.`);
+  const req = c.requestedInfo.filter((q) => q.status === "open");
+  if (req.length) return deny("OPEN_INFO_REQUESTS", `${req.length} requested item(s) not yet provided.`);
+  const hold = c.intentId ? ws.holds.find((h) => h.intentId === c.intentId && h.status !== "released" && h.status !== "rejected") : undefined;
+  if (hold) return deny("HOLD_UNDECIDED", "The compliance hold has no final reviewer decision.");
+  return { allowed: true, code: "RESOLVABLE", reason: "Owner assigned, linked exceptions resolved, no open requests or undecided hold. A note is required." };
 }
