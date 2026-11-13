@@ -1,5 +1,6 @@
 import { obligationOutstanding } from "./funding";
 import { computeLiquidity } from "./liquidity";
+import { isTerminalForSettlementReport } from "./state";
 import type { AmountDifference, ExceptionCategory, InvestigationCase, Money, ReconciliationException, Severity, Workspace } from "./types";
 import { addDays, type Tx } from "./tx";
 
@@ -240,5 +241,17 @@ export function canResolveCase(ws: Workspace, caseId: string): ResolutionCheck {
   if (req.length) return deny("OPEN_INFO_REQUESTS", `${req.length} requested item(s) not yet provided.`);
   const hold = c.intentId ? ws.holds.find((h) => h.intentId === c.intentId && h.status !== "released" && h.status !== "rejected") : undefined;
   if (hold) return deny("HOLD_UNDECIDED", "The compliance hold has no final reviewer decision.");
-  return { allowed: true, code: "RESOLVABLE", reason: "Owner assigned, linked exceptions resolved, no open requests or undecided hold. A note is required." };
+  // rc3 (X-1): nothing closes a case without matching evidence. A payout that was sent and has not ended
+  // (not failed, cancelled, expired or returned) must be evidenced: settlement verified (bank statement
+  // or final chain transfer) AND reconciliation matched. A provider's completion claim is not enough.
+  const intent = c.intentId ? ws.intents.find((i) => i.id === c.intentId) : undefined;
+  const sent = intent ? Boolean(ws.instructions.find((i) => i.id === intent.instructionId)?.providerPaymentId) : false;
+  if (intent && sent && !isTerminalForSettlementReport(intent.status.execution) && (intent.status.settlement !== "verified" || intent.status.reconciliation !== "matched"))
+    return deny("EVIDENCE_OUTSTANDING", `The payment is not yet evidenced (settlement ${intent.status.settlement}, reconciliation ${intent.status.reconciliation}); a matched bank statement line or a final on-chain transfer is needed before the case can close.`);
+  // rc3 (X-1): a case whose payment funded an advance stays open while the customer still owes money.
+  const advanceId = c.advanceId ?? intent?.advanceId;
+  const obligationId = advanceId ? ws.advances.find((a) => a.id === advanceId)?.obligationId : undefined;
+  if (obligationId && obligationOutstanding(ws, obligationId).amountMinor > 0)
+    return deny("OUTSTANDING_REMAINS", "The customer's repayment on the linked advance is still outstanding; it closes only by repayments allocated by reference.");
+  return { allowed: true, code: "RESOLVABLE", reason: "Owner assigned, linked exceptions resolved, no open requests or undecided hold, and the payment is evidenced. A note is required." };
 }

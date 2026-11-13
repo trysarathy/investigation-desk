@@ -468,6 +468,20 @@ export function onExecutionChanged(tx: Tx, intent: PaymentIntent): void {
     openTerminalDebitException(tx, intent, lineIds[0], tx.ws.evidence.filter((e) => e.intentId === intent.id && e.kind === "bank_statement_line").map((e) => e.id));
     s.settlement = "contradicted";
   }
+  // rc3 (T-1): the same for an on-chain transfer observed BEFORE the payout failed or was cancelled.
+  // Before: settlement stayed "verified" on a failed payout with no contradiction.
+  if (state !== "returned" && evidenced && s.settlementScope === "onchain_transfer") {
+    const obs = tx.ws.chainObservations.filter((o) => o.intentId === intent.id && o.status !== "rejected_unsupported");
+    openException(tx, {
+      category: "contradictory_evidence",
+      explanationCode: "CH_TRANSFER_FOR_TERMINAL_PAYOUT",
+      explanation: `An on-chain transfer to the beneficiary's registered wallet was observed, but the provider reports the payout ${state}. The two sources disagree.`,
+      intentId: intent.id,
+      supportingEventIds: obs.map((o) => o.id),
+    });
+    s.settlement = "contradicted";
+    if (tx.ws.allocations.some((a) => a.evidenceKind === "chain_observation" && a.target.kind === "payment" && a.target.intentId === intent.id)) s.reconciliation = "exception";
+  }
 }
 
 /** A bank debit for a payout that failed (RC_DEBIT_FOR_FAILED_PAYOUT), or was cancelled/expired/returned-and-resolved (RC_DEBIT_FOR_TERMINAL_PAYOUT). */

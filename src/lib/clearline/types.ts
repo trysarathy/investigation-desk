@@ -921,7 +921,30 @@ export interface InvestigationView {
   amountDifferences: InvestigationAmountDifference[];
   /** Review v2 (M3): history — differences recorded for this payout that no longer apply (gap closed or exception resolved). Every entry has `outstanding: false`. */
   resolvedAmountDifferences: InvestigationAmountDifference[];
+  /** rc3 (R-1): present for a returned payout (or one with a provider-reported return): net movement vs beneficiary unpaid. */
+  returnPosition?: ReturnPosition;
   disclaimer: string;
+}
+
+/**
+ * rc3 (R-1): the two separate facts about a returned payout. "Net financial movement is zero" (the
+ * outgoing debit and the return credit are both on the statement and equal) is NOT "the beneficiary
+ * was paid": a returned payout's beneficiary is always unpaid (`beneficiaryPaid: false`).
+ */
+export interface ReturnPosition {
+  returnStatus: "provider_reported" | "confirmed_by_statement";
+  /** Outgoing debit(s) on the bank statement allocated to this payout. */
+  debited: Money;
+  /** Return / reversal credit(s) on the statement allocated to this payout (RC_RETURN_CONFIRMS_PROVIDER_RETURN). */
+  returnCredited: Money;
+  /** debited − returnCredited, present only when both legs are on the statement. */
+  netMovement?: Money;
+  /** True only when both legs are on the statement and equal. */
+  netMovementZero: boolean;
+  /** Always false: money that came back did not pay the beneficiary. */
+  beneficiaryPaid: false;
+  code: "RT_NET_ZERO" | "RT_NET_NOT_ZERO" | "RT_RETURN_NOT_ON_STATEMENT" | "RT_DEBIT_NOT_ON_STATEMENT";
+  text: string;
 }
 
 export interface CaseReport {

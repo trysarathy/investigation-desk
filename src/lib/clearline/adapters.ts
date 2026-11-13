@@ -3,7 +3,7 @@
  * No network calls, no keys, no real payouts. Every response is generated from the inputs.
  */
 import { BASE_SEPOLIA_CHAIN_ID, ALLOWLISTED_TOKENS, expectedBeneficiaryWallet } from "./chain";
-import { convertMinor, isCurrency } from "./money";
+import { applyBpsFloor, convertMinor, isCurrency } from "./money";
 import { sha256Hex } from "./sha256";
 import { addMinutes, isIsoInstant } from "./tx";
 import { signSandboxWebhook, sandboxWebhookSecret, verifySandboxWebhook, type WebhookVerification } from "./webhooks";
@@ -221,14 +221,14 @@ export class SandboxAdapter implements ProviderAdapter {
     if (intent.amountMinor > route.maxAmountMinor) return { eligible: false, code: "ABOVE_MAXIMUM", reason: "Amount exceeds the route maximum." };
     const fee = route.providerFees[intent.sourceCurrency];
     if (fee === undefined) return { eligible: false, code: "FEE_UNDEFINED", reason: "No sandbox fee schedule for this source currency." };
-    if (intent.amountMinor <= fee + Math.floor((intent.amountMinor * route.platformFeeBps) / 10000)) return { eligible: false, code: "AMOUNT_BELOW_FEES", reason: "Amount does not cover fees." };
+    if (intent.amountMinor <= fee + applyBpsFloor(intent.amountMinor, route.platformFeeBps)) return { eligible: false, code: "AMOUNT_BELOW_FEES", reason: "Amount does not cover fees." };
     return { eligible: true, code: "ELIGIBLE", reason: "Corridor, currency, country and amount are within this sandbox route's limits." };
   }
 
   quote(intent: PaymentIntent, route: ProviderRoute, at: string, quoteId: string): Quote {
     let e = this.eligibility(intent, route);
     let providerFeeMinor = e.eligible ? route.providerFees[intent.sourceCurrency] ?? 0 : 0;
-    let platformFeeMinor = e.eligible ? Math.floor((intent.amountMinor * route.platformFeeBps) / 10000) : 0;
+    let platformFeeMinor = e.eligible ? applyBpsFloor(intent.amountMinor, route.platformFeeBps) : 0;
     const rate = e.eligible ? route.indicativeRates[`${intent.sourceCurrency}:${intent.destinationCurrency}`] ?? "—" : "—";
     // CHANGE 5 (m11): a bad rate or a non-positive recipient amount makes the quote ineligible; it never shows 0 as eligible.
     let estimatedRecipientMinor = 0;

@@ -122,12 +122,12 @@ export function sampleWorkspace(): Workspace {
   // 1. Successful payment
   const s1 = b.pay("s1_success", { internalReference: "INV-2026-126", amountMinor: 2_465_137, sourceCurrency: "SGD", destinationCurrency: "PHP", beneficiaryRef: "BEN-OAKWELL-01", beneficiaryName: "Oakwell Engineering (fictional)", destinationCountry: "PH" }, "prv_northline");
   b.sim(s1, 2); // in_transit, provider_reported_completed
-  b.run("usr_maya", { type: "ingest_statement_line", line: { lineId: "DBS-SIM-0001", source: "bank_statement", accountRef: "BANK-SGD-OPS (fictional)", direction: "debit", kind: "payment", amountMinor: 2_465_137, currency: "SGD", reference: `NORTHLINE PAYOUT ${b.ppid(s1)}`, counterparty: "Northline Payments (sandbox)", valueDate: "2026-11-12" } });
+  b.run("usr_maya", { type: "ingest_statement_line", line: { lineId: "SIMBANK-0001", source: "bank_statement", accountRef: "BANK-SGD-OPS (fictional)", direction: "debit", kind: "payment", amountMinor: 2_465_137, currency: "SGD", reference: `NORTHLINE PAYOUT ${b.ppid(s1)}`, counterparty: "Northline Payments (sandbox)", valueDate: "2026-11-12" } });
 
   // 2. Returned payout
   const s2 = b.pay("s2_returned", { internalReference: "INV-2026-141", amountMinor: 1_278_490, sourceCurrency: "USD", destinationCurrency: "SGD", beneficiaryRef: "BEN-REDWOOD-07", beneficiaryName: "Redwood Supplies Ltd (fictional)", destinationCountry: "SG", sandboxOutcome: "return" }, "prv_northline");
   b.sim(s2, 2); // in_transit, returned
-  b.run("usr_maya", { type: "ingest_statement_line", line: { lineId: "DBS-SIM-0002", source: "bank_statement", accountRef: "BANK-USD-OPS (fictional)", direction: "credit", kind: "return", amountMinor: 1_278_490, currency: "USD", reference: `RETURN ${b.ppid(s2)} ACCOUNT INVALID`, counterparty: "Northline Payments (sandbox)", valueDate: "2026-11-12" } });
+  b.run("usr_maya", { type: "ingest_statement_line", line: { lineId: "SIMBANK-0002", source: "bank_statement", accountRef: "BANK-USD-OPS (fictional)", direction: "credit", kind: "return", amountMinor: 1_278_490, currency: "USD", reference: `RETURN ${b.ppid(s2)} ACCOUNT INVALID`, counterparty: "Northline Payments (sandbox)", valueDate: "2026-11-12" } });
   const s2case = b.intent(s2).caseId!;
   const s2exc = b.ws.exceptions.find((e) => e.intentId === s2 && e.category === "returned_payout")!.id;
   b.run("usr_maya", { type: "assign_owner", target: { kind: "case", id: s2case }, ownerId: "usr_maya" });
@@ -155,9 +155,9 @@ export function sampleWorkspace(): Workspace {
     },
   });
   b.sim(s5, 2);
-  b.run("usr_maya", { type: "ingest_statement_line", line: { lineId: "DBS-SIM-0003", source: "bank_statement", accountRef: "BANK-SGD-OPS (fictional)", direction: "debit", kind: "payment", amountMinor: 5_000_000, currency: "SGD", reference: `NORTHLINE PAYOUT ${b.ppid(s5)}`, counterparty: "Northline Payments (sandbox)", valueDate: "2026-11-12" } });
-  b.run("usr_maya", { type: "ingest_statement_line", line: { lineId: "DBS-SIM-0004", source: "bank_statement", accountRef: "BANK-SGD-OPS (fictional)", direction: "credit", kind: "payment", amountMinor: 3_000_000, currency: "SGD", reference: "RPY-SEABRIGHT-0001 PART PAYMENT", counterparty: "SEABRIGHT TRADING", valueDate: "2026-11-12" } });
-  b.run("usr_maya", { type: "ingest_statement_line", line: { lineId: "DBS-SIM-0005", source: "bank_statement", accountRef: "BANK-SGD-OPS (fictional)", direction: "credit", kind: "payment", amountMinor: 2_000_000, currency: "SGD", reference: "", counterparty: "SEABRIGHT TRADING", valueDate: "2026-11-12" } });
+  b.run("usr_maya", { type: "ingest_statement_line", line: { lineId: "SIMBANK-0003", source: "bank_statement", accountRef: "BANK-SGD-OPS (fictional)", direction: "debit", kind: "payment", amountMinor: 5_000_000, currency: "SGD", reference: `NORTHLINE PAYOUT ${b.ppid(s5)}`, counterparty: "Northline Payments (sandbox)", valueDate: "2026-11-12" } });
+  b.run("usr_maya", { type: "ingest_statement_line", line: { lineId: "SIMBANK-0004", source: "bank_statement", accountRef: "BANK-SGD-OPS (fictional)", direction: "credit", kind: "payment", amountMinor: 3_000_000, currency: "SGD", reference: "RPY-SEABRIGHT-0001 PART PAYMENT", counterparty: "SEABRIGHT TRADING", valueDate: "2026-11-12" } });
+  b.run("usr_maya", { type: "ingest_statement_line", line: { lineId: "SIMBANK-0005", source: "bank_statement", accountRef: "BANK-SGD-OPS (fictional)", direction: "credit", kind: "payment", amountMinor: 2_000_000, currency: "SGD", reference: "", counterparty: "SEABRIGHT TRADING", valueDate: "2026-11-12" } });
 
   b.run("usr_maya", { type: "advance_clock", to: SAMPLE_AS_OF });
   return b.ws;

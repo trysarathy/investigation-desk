@@ -21,6 +21,7 @@ import type {
   HoldStatus,
   InstructionStatus,
   NormalizedEventType,
+  PaymentIntent,
   ProcessingOutcome,
   ProviderErrorClass,
   ReconciliationState,
@@ -264,7 +265,33 @@ const RESOLUTION_CODE: Record<string, string> = {
   RETURN_NOT_ADDRESSED: "Confirm the returned funds or create a correction first.",
   NO_PROVIDER_RESPONSE: "The provider has not responded since the timeout.",
   EVIDENCE_REQUIRED: "Attach supporting evidence first (a note alone is not enough).",
+  EVIDENCE_OUTSTANDING: "The payment is not yet evidenced by a matched statement line or a final on-chain transfer.",
   RESOLVABLE: "Can be resolved (a note is required).",
+};
+/** rc3: canResetScenario / resetScenario codes. */
+const RESET_CODE: Record<string, string> = {
+  RESETTABLE: "This guided case can be reset to the sample",
+  NOT_A_SAMPLE_SCENARIO: "Not one of the five guided sample cases",
+  SCENARIO_NOT_IN_WORKSPACE: "This workspace does not contain the sample case",
+  REFERENCED_BY_OTHER_RECORDS: "Other cases or your own records link to this case",
+  ID_CONFLICT: "The case's sample ids are used by other records",
+  REFERENCE_IN_USE: "One of your active payments uses this case's internal reference",
+};
+/** rc3: row codes of the synthetic case report CSV (caseReportToCsv). */
+const REPORT_ROW_CODE: Record<string, string> = {
+  FICTIONAL_SANDBOX: "Fictional sandbox report",
+  GENERATED_AT: "Generated at (simulated clock)",
+  SUBJECT: "Payment and case",
+  HEADLINE: "Summary",
+  REQUESTED: "Requested amount",
+  MATCHED: "Amount reconciled",
+  UNRECONCILED: "Amount not yet reconciled",
+  PRINCIPAL: "Advance principal",
+  REPAID: "Repaid by reference",
+  OUTSTANDING: "Outstanding",
+  DEBITED: "Debited on the statement",
+  RETURN_CREDITED: "Return credited on the statement",
+  NET_MOVEMENT: "Net movement (debit − return)",
 };
 /** Quote eligibility codes (ProviderAdapter.eligibility). */
 const ELIGIBILITY_CODE: Record<string, string> = {
@@ -317,6 +344,9 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   CH_AMOUNT_DIFFERS_FROM_QUOTE: "On-chain amount differs from the quote",
   CH_BELOW_FINALITY_THRESHOLD: "Below the finality threshold",
   CH_CONFIRMATIONS_DECREASED: "Confirmations went down (possible reorg)",
+  CH_BLOCK_CHANGED: "Transaction moved to another block (reorg)",
+  CH_TRANSFER_FOR_TERMINAL_PAYOUT: "On-chain transfer for a payout the provider reports failed or cancelled",
+  CH_TX_HASH_ON_OTHER_CHAIN: "Same transaction hash seen on another chain — not counted",
   CH_SECOND_TX_FOR_PAYOUT: "A second transaction for the same payout",
   CH_TX_ALREADY_LINKED: "Transaction already linked to another payout",
   CH_TX_DIFFERS_FROM_PROVIDER: "Transaction differs from the one the provider reported",
@@ -356,6 +386,11 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   OS_PARTIALLY_RECONCILED: "Partly reconciled — remainder outstanding",
   OS_RETURN_NOT_YET_RECEIVED: "Return not yet seen on a statement — supplier unpaid",
   OS_RETURN_RECEIVED_SUPPLIER_UNPAID: "Returned funds received — supplier still unpaid",
+  RT_NET_ZERO: "Debit and return credit net to zero",
+  RT_NET_NOT_ZERO: "Debit and return credit do not net to zero",
+  RT_RETURN_NOT_ON_STATEMENT: "Return credit not yet on the statement",
+  RT_DEBIT_NOT_ON_STATEMENT: "Outgoing debit not on the statement — net zero not established",
+  RT_BENEFICIARY_UNPAID: "Beneficiary not paid (payout returned)",
   OS_ADVANCE_OUTSTANDING: "Advance repayment outstanding",
   OS_ADVANCE_OVERDUE: "Advance repayment overdue",
   OS_UNALLOCATED_RECEIPT: "Receipt not allocated",
@@ -380,6 +415,13 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   MC_MAKER: "Prepared by the maker",
   MC_CHECKER: "Checked by a different person",
   ...Object.fromEntries(Object.entries(ELIGIBILITY_CODE)),
+  ...RESET_CODE,
+  ...REPORT_ROW_CODE,
+};
+
+const RETURN_STATUS: Record<NonNullable<PaymentIntent["returnStatus"]>, string> = {
+  provider_reported: "Return reported by the provider (not yet on a statement)",
+  confirmed_by_statement: "Return confirmed on the statement",
 };
 
 /** All human labels, keyed by dimension. Every member of every engine union has an entry. */
@@ -411,6 +453,12 @@ export const HUMAN_LABELS = {
   apiErrorCode: API_ERROR_CODE,
   resolutionCode: RESOLUTION_CODE,
   eligibilityCode: ELIGIBILITY_CODE,
+  /** rc3: canResetScenario / resetScenario codes. */
+  resetCode: RESET_CODE,
+  /** rc3: case report CSV row codes. */
+  reportRowCode: REPORT_ROW_CODE,
+  /** rc3 (R-1): PaymentIntent.returnStatus. */
+  returnStatus: RETURN_STATUS,
 } as const;
 
 const own = <T>(o: Readonly<Record<string, T>>, k: string): T | undefined => (Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined);

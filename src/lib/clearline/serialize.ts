@@ -58,7 +58,7 @@ const RECON = ["not_started", "pending", "matched", "partially_matched", "except
 /** Element validators: each throws Invalid with a field path. */
 const ELEMENTS: Partial<Record<keyof Workspace, (e: Obj, p: string) => void>> = {
   actors: (e, p) => { str(e, "name", p); oneOf(e, "role", p, ["operator", "approver", "compliance", "viewer"]); },
-  routes: (e, p) => { str(e, "providerId", p); str(e, "providerName", p); arr(e, "sourceCurrencies", p); need(isObj(e.providerFees), `${p}.providerFees`, "must be an object"); },
+  routes: (e, p) => { str(e, "providerId", p); str(e, "providerName", p); arr(e, "sourceCurrencies", p); need(isObj(e.providerFees), `${p}.providerFees`, "must be an object"); int(e, "platformFeeBps", p); },
   intents: (e, p) => {
     str(e, "internalReference", p); int(e, "amountMinor", p, 1); cur(e, "sourceCurrency", p); cur(e, "destinationCurrency", p); str(e, "beneficiaryRef", p);
     instant(e, "createdAt", p); arr(e, "quoteIds", p); need(isObj(e.metadata), `${p}.metadata`, "must be an object");
@@ -140,7 +140,80 @@ function validate(w: unknown): Workspace {
     need((e.amountDifference as Obj).statementLineId === e.statementLineId, `${q}.statementLineId`, "must equal the exception's statementLineId");
     differenceMatchesLine(e.amountDifference as Obj, lines.find((l) => l.id === e.statementLineId), q);
   });
+  crossCheck(ws);
   return ws as unknown as Workspace;
+}
+
+const TERMINAL = ["failed", "cancelled", "expired", "returned"];
+
+/**
+ * rc3 (I-1): cross-field integrity. Every action re-validates the workspace it is given (applyAction →
+ * parseWorkspaceValue), so a stored or posted workspace that breaks one of these financial invariants is
+ * refused with a typed error instead of being built on:
+ * - an allocation names an existing statement line (listed in its allocationIds, same currency) or an
+ *   existing chain observation of the same payout;
+ * - one statement line or chain observation is never allocated to two different payouts or obligations,
+ *   and never above its own amount;
+ * - a repayment allocation is unique per statement line and matches that line's repayment allocation;
+ * - maker ≠ checker on every recorded instruction check and funding decision;
+ * - a hold is released or rejected only with a matching reviewer decision;
+ * - a failed, cancelled, expired or returned payout never carries settlement "verified".
+ */
+function crossCheck(ws: Obj) {
+  const lines = ws.statementLines as Obj[];
+  const lineById = new Map(lines.map((l) => [l.id as string, l]));
+  const obsById = new Map((ws.chainObservations as Obj[]).map((o) => [o.id as string, o]));
+  const owner = new Map<string, string>();
+  const total = new Map<string, number>();
+  const allocById = new Map<string, Obj>();
+  (ws.allocations as Obj[]).forEach((a, i) => {
+    const p = `allocations[${i}]`;
+    const t = a.target as Obj;
+    const okTarget = (t.kind === "payment" && typeof t.intentId === "string") || (t.kind === "repayment" && typeof t.obligationId === "string");
+    need(okTarget, `${p}.target`, "must be {kind:'payment', intentId} or {kind:'repayment', obligationId}");
+    need(!allocById.has(a.id as string), `${p}.id`, "must be unique");
+    allocById.set(a.id as string, a);
+    const key = t.kind === "payment" ? `payment:${t.intentId}` : `repayment:${t.obligationId}`;
+    const ref = a.statementLineId as string;
+    if (a.evidenceKind === "statement_line") {
+      const l = lineById.get(ref);
+      need(l !== undefined, `${p}.statementLineId`, "must identify a statement line in this workspace");
+      need((l!.allocationIds as unknown[]).includes(a.id), `${p}.id`, "must be listed in its statement line's allocationIds");
+      need(a.currency === l!.currency, `${p}.currency`, "must equal its statement line's currency");
+    } else {
+      const o = obsById.get(ref);
+      need(o !== undefined, `${p}.statementLineId`, "must identify a chain observation in this workspace");
+      need(t.kind === "payment" && o!.intentId === t.intentId, `${p}.target`, "a chain observation can evidence only its own payout");
+    }
+    const prev = owner.get(ref);
+    need(prev === undefined || prev === key, `${p}.target`, "one statement line or chain observation cannot be allocated to two different payouts or obligations");
+    owner.set(ref, key);
+    total.set(ref, (total.get(ref) ?? 0) + (a.amountMinor as number));
+  });
+  lines.forEach((l, i) => {
+    need((total.get(l.id as string) ?? 0) <= (l.amountMinor as number), `statementLines[${i}].allocationIds`, "allocations exceed the line amount");
+    for (const id of l.allocationIds as unknown[]) need(typeof id === "string" && allocById.get(id)?.statementLineId === l.id, `statementLines[${i}].allocationIds`, "must list only allocations of this line");
+  });
+  const repaid = new Set<string>();
+  (ws.repaymentAllocations as Obj[]).forEach((r, i) => {
+    const ref = r.statementLineId as string;
+    need(!repaid.has(ref), `repaymentAllocations[${i}].statementLineId`, "one statement line can repay at most one obligation once");
+    repaid.add(ref);
+    need(owner.get(ref) === `repayment:${r.obligationId}`, `repaymentAllocations[${i}].obligationId`, "must match its statement line's repayment allocation");
+  });
+  (ws.instructions as Obj[]).forEach((x, i) => {
+    if (x.checkerId !== undefined) need(x.checkerId !== x.makerId, `instructions[${i}].checkerId`, "maker and checker must be different people");
+  });
+  (ws.fundingDecisions as Obj[]).forEach((d, i) => need(d.checkerId !== d.makerId, `fundingDecisions[${i}].checkerId`, "maker and checker must be different people"));
+  (ws.holds as Obj[]).forEach((h, i) => {
+    const decided = (h.decisions as Obj[]).map((d) => (isObj(d) ? d.decision : undefined));
+    if (h.status === "released") need(decided.includes("release"), `holds[${i}].status`, "a hold is released only after the compliance reviewer's release decision");
+    if (h.status === "rejected") need(decided.includes("reject"), `holds[${i}].status`, "a hold is rejected only by the compliance reviewer's decision");
+  });
+  (ws.intents as Obj[]).forEach((x, i) => {
+    const s = x.status as Obj;
+    need(!(TERMINAL.includes(s.execution as string) && s.settlement === "verified"), `intents[${i}].status.settlement`, `a ${String(s.execution)} payout cannot carry verified settlement`);
+  });
 }
 
 /** Maximum nesting depth accepted in a workspace value (QA L4). Real workspaces nest < 10 deep. */

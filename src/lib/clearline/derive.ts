@@ -15,8 +15,10 @@ export function recomputeDimensions(ws: Workspace, intent: PaymentIntent): void 
   const bank = ws.allocations
     .filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id && a.evidenceKind === "statement_line" && a.currency === intent.sourceCurrency && !a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN"))
     .reduce((s, a) => s + a.amountMinor, 0);
-  const chainAlloc = ws.allocations.some((a) => a.evidenceKind === "chain_observation" && a.target.kind === "payment" && a.target.intentId === intent.id);
   const obs = ws.chainObservations.find((o) => o.intentId === intent.id && o.status !== "rejected_unsupported");
+  // rc3 (C-3): a chain allocation counts as a match only while its observation is final (after a reorg
+  // the observation drops below finality and the allocation no longer evidences the payout).
+  const chainAlloc = obs?.status === "final" && ws.allocations.some((a) => a.evidenceKind === "chain_observation" && a.target.kind === "payment" && a.target.intentId === intent.id && a.statementLineId === obs.id);
   // CHANGE 5 (F1): a settlement report on a terminal payout (TERMINAL_FOR_SETTLEMENT_REPORT; "returned"
   // is handled by its own branch below) is a contradiction, never settlement evidence.
   // Review v2 (m1): only a report recorded as AGREEING with the payout counts; one that raised an
@@ -43,7 +45,13 @@ export function recomputeDimensions(ws: Workspace, intent: PaymentIntent): void 
     return;
   }
 
-  if (open.some((e) => e.category === "contradictory_evidence")) intent.status.settlement = "contradicted";
+  // rc3 (T-2): a failed, cancelled or expired payout never shows settlement evidence as success once a
+  // person resolves the contradiction: the evidence stays on record and in the investigation, but the
+  // settlement dimension is "none" (as for a returned payout, N2). Before: the recompute set "verified".
+  if (terminal) {
+    intent.status.settlement = open.some((e) => e.category === "contradictory_evidence") ? "contradicted" : "none";
+    if (intent.status.settlement === "none") intent.status.settlementScope = "none";
+  } else if (open.some((e) => e.category === "contradictory_evidence")) intent.status.settlement = "contradicted";
   else if (obs) {
     intent.status.settlementScope = "onchain_transfer";
     intent.status.settlement = obs.status === "final" ? "verified" : obs.status === "pending_finality" ? "pending_finality" : "observed";

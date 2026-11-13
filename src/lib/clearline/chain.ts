@@ -102,7 +102,12 @@ export function tryAllocateChain(tx: Tx, intent: PaymentIntent): void {
   const ws = tx.ws;
   const obs = ws.chainObservations.find((o) => o.intentId === intent.id && o.status !== "rejected_unsupported");
   if (!obs || obs.status !== "final" || intent.status.settlement !== "verified") return;
-  if (ws.allocations.some((a) => a.evidenceKind === "chain_observation" && (a.statementLineId === obs.id || (a.target.kind === "payment" && a.target.intentId === intent.id)))) return;
+  const prior = ws.allocations.find((a) => a.evidenceKind === "chain_observation" && (a.statementLineId === obs.id || (a.target.kind === "payment" && a.target.intentId === intent.id)));
+  if (prior) {
+    // rc3 (C-3): the same observation final again (after a person resolved a reorg contradiction) restores the match.
+    if (prior.statementLineId === obs.id && prior.target.kind === "payment" && prior.target.intentId === intent.id && intent.status.reconciliation !== "exception") intent.status.reconciliation = "matched";
+    return;
+  }
   const reported = ws.providerEvents.filter((e) => e.intentId === intent.id && typeof e.detail.txHash === "string" && (e.processingOutcome === "applied" || e.processingOutcome === "recorded_no_state_change"));
   if (!reported.length) return;
   if (reported.some((e) => e.detail.txHash !== obs.txHash)) {
@@ -141,6 +146,21 @@ export function ingestChainObservation(tx: Tx, input: ChainObservationInput): st
     });
     tx.log("chain.rejected_unsupported", "chain_observation", obs.id, "Unsupported token or network; not counted");
     return "exception_raised";
+  }
+  // rc3 (C-3): the same transaction hash already seen on ANOTHER chain or network (any payout, even a
+  // rejected observation) is never counted here: a hash identifies a transaction only together with its
+  // chain. The earlier record is never overwritten or "revived" by this one.
+  const otherChain = ws.chainObservations.find((o) => o.txHash === txHash && (o.chainId !== input.chainId || o.network !== input.network));
+  if (otherChain) {
+    openException(tx, {
+      category: "contradictory_evidence",
+      explanationCode: "CH_TX_HASH_ON_OTHER_CHAIN",
+      explanation: `Transaction ${txHash.slice(0, 12)}… was already observed on chain ${otherChain.chainId} (${otherChain.network}); the same hash on chain ${input.chainId} (${input.network}) is not counted.`,
+      intentId: intent.id,
+      supportingEventIds: [otherChain.id],
+    });
+    tx.log("chain.hash_on_other_chain", "chain_observation", otherChain.id, "Same tx hash on another chain; not counted");
+    return "contradictory_exception_raised";
   }
   // B2: one transaction can evidence at most one payout.
   const linkedElsewhere = ws.chainObservations.find((o) => o.txHash === txHash && o.intentId !== intent.id && o.status !== "rejected_unsupported");
@@ -187,27 +207,35 @@ export function ingestChainObservation(tx: Tx, input: ChainObservationInput): st
     });
     return "contradictory_exception_raised";
   }
-  const existing = ws.chainObservations.find((o) => o.txHash === txHash && o.intentId === intent.id);
+  // rc3 (C-1): a rejected (unsupported) observation is never updated into a counted one.
+  const existing = ws.chainObservations.find((o) => o.txHash === txHash && o.intentId === intent.id && o.status !== "rejected_unsupported");
   let obs: ChainObservation;
   if (existing) {
     const decreased = input.confirmations < existing.confirmations;
+    // rc3 (C-2): the same transaction in a different block means it was re-included after a reorg.
+    const moved = input.blockNumber !== existing.blockNumber;
     const before = existing.confirmations;
+    const beforeBlock = existing.blockNumber;
     existing.confirmations = input.confirmations;
     existing.blockNumber = input.blockNumber;
     existing.updatedAt = tx.at;
     existing.status = statusFor(input.confirmations);
     obs = existing;
-    if (decreased) {
+    if (decreased || moved) {
       openException(tx, {
         category: "contradictory_evidence",
-        explanationCode: "CH_CONFIRMATIONS_DECREASED",
-        explanation: `Confirmations dropped from ${before} to ${input.confirmations}; possible reorganisation. Finality is not assumed.`,
+        explanationCode: decreased ? "CH_CONFIRMATIONS_DECREASED" : "CH_BLOCK_CHANGED",
+        explanation: decreased
+          ? `Confirmations dropped from ${before} to ${input.confirmations}; possible reorganisation. Finality is not assumed.`
+          : `The transaction moved from block ${beforeBlock} to block ${input.blockNumber}; it was re-included after a reorganisation. Finality is not assumed.`,
         intentId: intent.id,
         supportingEventIds: [existing.id],
       });
       intent.status.settlement = "contradicted";
       intent.status.settlementScope = "onchain_transfer";
-      tx.log("chain.confirmations_decreased", "chain_observation", existing.id, "Confirmations decreased");
+      // rc3 (C-3): an allocation made on the earlier (final) observation no longer stands as a match.
+      intent.status.reconciliation = "exception";
+      tx.log(decreased ? "chain.confirmations_decreased" : "chain.block_changed", "chain_observation", existing.id, decreased ? "Confirmations decreased" : "Block number changed");
       return "contradictory_exception_raised";
     }
   } else {

@@ -90,6 +90,26 @@ info:
     `RC_DEBIT_FOR_TERMINAL_PAYOUT`, so there is always an open item. Funding rows carry
     `supplierPaidBasis`, which is always `none` for a failed, cancelled, expired or returned payout.
 
+    **rc3 (Priority A — critical correctness).** Behaviour visible through this API:
+    - **Chain evidence.** An observation rejected for its chain or token is never revived. The same tx hash on
+      another chain or network is not counted (`CH_TX_HASH_ON_OTHER_CHAIN`). The same transaction in a new block
+      is a reorg (`CH_BLOCK_CHANGED`). A reorg sets reconciliation to `exception`. A transfer observed before
+      `payout.failed` is a contradiction (`CH_TRANSFER_FOR_TERMINAL_PAYOUT`).
+    - **Terminal payouts.** A failed, cancelled, expired or returned payout never reports settlement `verified`.
+    - **Case resolution.** Resolving a case answers 409 `resolution_not_permitted` with reason
+      `EVIDENCE_OUTSTANDING` until a sent, non-terminal payout is settlement `verified` AND reconciliation
+      `matched`. It answers `OUTSTANDING_REMAINS` while the linked advance is still owed.
+    - **Workspace integrity.** A posted `workspace` is refused (4xx `invalid_field`, with a field path) when:
+      one statement line or chain observation is allocated to two targets or above its amount; a repayment is
+      counted twice; maker = checker on an instruction or funding decision; a hold is released or rejected
+      without a reviewer decision; or a terminal payout carries `verified`.
+    - **Returns.** `InvestigationView.returnPosition` keeps "net movement is zero" separate from "beneficiary
+      unpaid" (`beneficiaryPaid` is always false).
+    - **Not on this API.** The per-scenario reset (`resetScenario` / `canResetScenario`) and the synthetic case
+      report (`buildCaseReport`, `caseReportToJson`, `caseReportToCsv`) are pure engine functions used by the
+      console. No v1 endpoint exposes them yet. Their output shapes are documented here as `ResetCheck` and
+      `SyntheticCaseReport` for a future endpoint.
+
     **Legacy endpoints** under `/api/clearline/test/{intents,quotes,transitions,webhooks,payments,health}`
     are **retired** and execute nothing. A request that is invalid under the old contract gets HTTP 422
     (`invalid_request`); every other request, any method, gets HTTP 410 (`endpoint_retired`). Both carry
@@ -496,7 +516,7 @@ components:
     ReconciliationCode:
       type: string
       enum: [RC_EXACT_REFERENCE_AMOUNT_CURRENCY_WINDOW, RC_PARTIAL_AMOUNT, RC_OVERPAYMENT, RC_CURRENCY_MISMATCH, RC_OUTSIDE_TIME_WINDOW, RC_LATE_STATEMENT, RC_NO_REFERENCE, RC_UNKNOWN_REFERENCE, RC_AMOUNT_ONLY_CANDIDATES, RC_AMBIGUOUS_REFERENCE, RC_DUPLICATE_SUSPECTED, RC_RETURN_CONFIRMS_PROVIDER_RETURN, RC_RETURN_CONTRADICTS_PROVIDER_STATUS, RC_UNMATCHED_INCOMING, RC_UNMATCHED_OUTGOING, RC_PROVIDER_REPORT_ONLY, RC_REPAYMENT_BY_REFERENCE, RC_UNDER_AMOUNT_REPORT, RC_REPORT_ON_TERMINAL_PAYOUT, RC_REPORT_ON_HELD_PAYOUT]
-      description: Statement-line explanation codes (`RECONCILIATION_CODE_TEXT` / `RECONCILIATION_CODE_GROUP`). Exceptions may also carry `RC_DEBIT_FOR_FAILED_PAYOUT`, `RC_DEBIT_FOR_TERMINAL_PAYOUT` and `RC_NO_STATEMENT_AFTER_COMPLETION`.
+      description: Statement-line explanation codes (`RECONCILIATION_CODE_TEXT` / `RECONCILIATION_CODE_GROUP`). Exceptions may also carry `RC_DEBIT_FOR_FAILED_PAYOUT`, `RC_DEBIT_FOR_TERMINAL_PAYOUT` and `RC_NO_STATEMENT_AFTER_COMPLETION`, and (rc3) the chain codes `CH_TX_HASH_ON_OTHER_CHAIN`, `CH_BLOCK_CHANGED`, `CH_TRANSFER_FOR_TERMINAL_PAYOUT`.
     AmountDifference:
       type: object
       description: >-
@@ -550,6 +570,7 @@ components:
         explanationCodes: { type: array, items: { type: string }, description: "Includes the codes of outstanding amount differences only" }
         amountDifferences: { type: array, items: { $ref: "#/components/schemas/InvestigationAmountDifference" }, description: "Outstanding differences only (every entry outstanding: true). Show these under financially outstanding." }
         resolvedAmountDifferences: { type: array, items: { $ref: "#/components/schemas/InvestigationAmountDifference" }, description: "History: differences that no longer apply (every entry outstanding: false)." }
+        returnPosition: { $ref: "#/components/schemas/ReturnPosition" }
         disclaimer: { type: string }
     FundingProjectionRow:
       type: object
@@ -584,6 +605,80 @@ components:
         Codes of the adapter's eligibility check (`HUMAN_LABELS.eligibilityCode`). A quote carries the matching
         `eligible` flag and `eligibilityReason` text. `RATE_UNAVAILABLE` (CHANGE 5 m11): no usable indicative rate,
         so the quote is ineligible with `estimatedRecipientMinor: 0`; an eligible quote never shows 0.
+    ReturnPosition:
+      type: object
+      description: >-
+        rc3 (R-1). Present on InvestigationView for a returned payout. Keeps two facts apart: whether the
+        outgoing debit and the return credit net to zero on the statement, and that the beneficiary was not paid.
+      required: [returnStatus, debited, returnCredited, netMovementZero, beneficiaryPaid, code, text]
+      properties:
+        returnStatus: { enum: [provider_reported, confirmed_by_statement] }
+        debited: { $ref: "#/components/schemas/Money" }
+        returnCredited: { $ref: "#/components/schemas/Money" }
+        netMovement: { type: object, description: "debited − returnCredited (integer minor units, may be negative); present only when both legs are on the statement", properties: { amountMinor: { type: integer }, currency: { $ref: "#/components/schemas/Currency" } } }
+        netMovementZero: { type: boolean, description: "True only when both legs are on the statement and equal" }
+        beneficiaryPaid: { const: false }
+        code: { enum: [RT_NET_ZERO, RT_NET_NOT_ZERO, RT_RETURN_NOT_ON_STATEMENT, RT_DEBIT_NOT_ON_STATEMENT] }
+        text: { type: string }
+    DecimalAmount:
+      type: object
+      description: rc3. An exact amount as a decimal string with the currency's exact number of decimals (USDC 6, others 2). Never a number.
+      required: [value, currency]
+      properties:
+        value: { type: string, pattern: "^-?\\d+\\.\\d{2,6}$", examples: ["24651.37", "6427.830000"] }
+        currency: { $ref: "#/components/schemas/Currency" }
+    SyntheticCaseReport:
+      type: object
+      description: >-
+        rc3 feature (b). Output of the engine function `buildCaseReport(ws, paymentId | caseId)`, which is pure
+        and deterministic (generatedAt = the workspace's simulated clock). It is serialised by `caseReportToJson`
+        (sorted keys) and `caseReportToCsv` (RFC 4180, CRLF; columns section, code, label, at, source, independent,
+        amount, currency, text, refs; row 2 is the FICTIONAL_SANDBOX marking; formula-like text cells prefixed
+        with '). There is no v1 endpoint yet.
+      required: [reportVersion, marking, fictional, sandbox, generatedAt, subject, summary, threeTruths, timeline, findings, amounts, exceptions, disclaimer]
+      properties:
+        reportVersion: { const: 1 }
+        marking: { type: string, description: "CASE_REPORT_MARKING — starts with \"FICTIONAL · SANDBOX\"" }
+        fictional: { const: true }
+        sandbox: { const: true }
+        generatedAt: { type: string, format: date-time }
+        subject: { type: object, required: [paymentId, internalReference, organization], properties: { paymentId: { type: string }, caseId: { type: string }, scenario: { type: string }, internalReference: { type: string }, organization: { type: string } } }
+        summary:
+          type: object
+          required: [headline, requested, whoActs]
+          properties:
+            headline: { type: string, description: "describeStatus().summary — the three truths on one line, never merged" }
+            requested: { $ref: "#/components/schemas/DecimalAmount" }
+            whoActs: { type: object, properties: { code: { type: string }, label: { type: string }, role: { type: string }, ownerName: { type: string } } }
+        threeTruths:
+          type: object
+          required: [execution, settlement, reconciliation]
+          properties:
+            execution: { type: object, properties: { state: { type: string }, label: { type: string }, basis: { const: provider_claim }, lastProviderEvent: { type: string }, lastProviderEventAt: { type: string, format: date-time } } }
+            settlement: { type: object, properties: { state: { type: string }, label: { type: string }, scope: { type: string }, scopeLabel: { type: string }, independent: { type: boolean }, lastIndependentEvidenceAt: { type: string, format: date-time } } }
+            reconciliation: { type: object, properties: { state: { type: string }, label: { type: string }, matched: { $ref: "#/components/schemas/DecimalAmount" }, unreconciled: { $ref: "#/components/schemas/DecimalAmount" } } }
+        timeline:
+          type: array
+          items: { type: object, required: [at, kind, title, source, provenance, independent, codes, refs], properties: { at: { type: string, format: date-time }, kind: { type: string }, title: { type: string }, source: { type: string }, provenance: { type: string }, independent: { type: boolean }, codes: { type: array, items: { type: string } }, refs: { type: array, items: { type: string } } } }
+        findings:
+          type: array
+          items: { type: object, required: [section, code, label, text, refs], properties: { section: { enum: [provider_reported, independent_evidence, unknown, contradiction, outstanding, next_action] }, code: { type: string }, label: { type: string }, text: { type: string }, refs: { type: array, items: { type: string } }, amount: { $ref: "#/components/schemas/DecimalAmount" } } }
+        amounts: { type: object, description: "requested, matched, unreconciled (DecimalAmount); differences[]; funding? {principal, repaid, outstanding, reference, dueDate, state, supplierPaidBasis}; returnPosition? — every amount a DecimalAmount" }
+        exceptions: { type: array, items: { type: object } }
+        disclaimer: { type: string }
+    ResetCheck:
+      type: object
+      description: >-
+        rc3 feature (a). Output of the engine function `canResetScenario(ws, scenario)`. `resetScenario(ws,
+        scenario, ctx)` returns the same refusal as a `precondition_failed` error ("<code>: <reason>", entityId
+        = first blocker) or `not_found` for NOT_A_SAMPLE_SCENARIO. There is no v1 endpoint yet.
+      required: [allowed, code, reason, blockers]
+      properties:
+        allowed: { type: boolean }
+        code: { enum: [RESETTABLE, NOT_A_SAMPLE_SCENARIO, SCENARIO_NOT_IN_WORKSPACE, ID_CONFLICT, REFERENCED_BY_OTHER_RECORDS, REFERENCE_IN_USE] }
+        reason: { type: string }
+        scenario: { enum: [s1_success, s2_returned, s3_hold, s4_chain, s5_funding] }
+        blockers: { type: array, items: { type: string }, description: "Ids of the records that block the reset (person-created anchors first)" }
     PaymentIntentReturn:
       type: object
       properties:
