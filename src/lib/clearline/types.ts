@@ -155,6 +155,13 @@ export interface PaymentIntent {
   advanceId?: string;
   /** If this intent corrects a returned payout. */
   correctsIntentId?: string;
+  /**
+   * Return tracking, separate from the reconciliation dimension: "provider_reported" when the
+   * provider reports a returned payout (reconciliation becomes "exception"); "confirmed_by_statement"
+   * once a return/reversal statement line with the trusted reference is allocated
+   * (code RC_RETURN_CONFIRMS_PROVIDER_RETURN). The supplier is still unpaid in both cases.
+   */
+  returnStatus?: "provider_reported" | "confirmed_by_statement";
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -297,6 +304,7 @@ export type ProviderErrorClass =
 export interface ProviderEvent {
   id: string;
   providerId: string;
+  providerName: string;
   providerEventId: string;
   /** Clearline payment intent id, when resolved. */
   intentId?: string;
@@ -555,6 +563,7 @@ export interface LiquiditySnapshot {
 
 export interface LiquidityRow extends LiquiditySnapshot {
   committedPayoutsMinor: number;
+  providerName: string;
   bufferMinor: number;
   usableMinor: number;
   ageMinutes: number;
@@ -817,6 +826,13 @@ export interface Finding {
 
 export interface InvestigationView {
   intentId: string;
+  /** Latest provider-side event (any outcome, excluding Clearline timers). */
+  lastEventAt?: string;
+  lastEventType?: NormalizedEventType;
+  /** Latest independent evidence (bank statement line or synthetic chain observation). */
+  lastIndependentVerificationAt?: string;
+  /** Alias of lastIndependentVerificationAt. */
+  lastVerifiedAt?: string;
   status: StatusDimensions;
   requested: {
     internalReference: string;
@@ -848,4 +864,36 @@ export interface InvestigationView {
 export interface CaseReport {
   json: Record<string, unknown>;
   text: string;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Unified evidence timeline (read model)
+// ---------------------------------------------------------------------------------------------
+
+export type EvidenceTimelineKind =
+  | "intent_created"
+  | "quote"
+  | "instruction_made"
+  | "instruction_checked"
+  | "provider_event"
+  | "statement_line"
+  | "allocation"
+  | "chain_observation"
+  | "evidence"
+  | "hold_decision"
+  | "exception"
+  | "missing_evidence";
+
+export interface EvidenceTimelineEntry {
+  id: string;
+  /** ISO instant; missing-evidence items use the workspace clock. */
+  at: string;
+  kind: EvidenceTimelineKind;
+  title: string;
+  source: string;
+  provenance: string;
+  /** True only for bank statement lines and (synthetic) chain observations. */
+  independent: boolean;
+  codes: string[];
+  refs: string[];
 }
