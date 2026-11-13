@@ -5,7 +5,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { ActorSelect } from "./ActorSelect";
 import { useWorkspace } from "./workspace";
 import { download } from "./download";
-import { CONTACT_MAILTO, MARKETING_URL, PRIMARY, SECONDARY, crumbsFor, isActive } from "./nav";
+import { CONTACT_MAILTO, FUNDING_DESK_HREF, MARKETING_URL, PRIMARY, SECONDARY, crumbsFor, isActive } from "./nav";
+import { loadFully, useNavPending, useNavStuck } from "./navguard";
 import s from "./ui.module.css";
 
 function safeDecode(v: string): string {
@@ -18,6 +19,7 @@ function safeDecode(v: string): string {
  */
 function DiscardedNotice() {
   const { discarded, replaceDiscarded } = useWorkspace();
+  const [failure, setFailure] = useState<string | null>(null);
   if (!discarded) return null;
   return (
     <div className={s.notice} role="alert" data-testid="workspace-discarded">
@@ -25,13 +27,49 @@ function DiscardedNotice() {
       <p style={{ margin: "0 0 8px" }}>Reason: {discarded.reason}</p>
       <div className={s.actions}>
         <button type="button" className={`${s.btn} ${s.small}`} onClick={() => download("clearline-workspace-unreadable.json", discarded.raw, "application/json")}>Download the unreadable copy</button>
-        <button type="button" className={`${s.btn} ${s.small} ${s.primary}`} onClick={replaceDiscarded}>Replace it with the sample (keeps a backup in this browser)</button>
+        <button type="button" className={`${s.btn} ${s.small} ${s.primary}`} onClick={() => { const r = replaceDiscarded(); setFailure(r.ok ? null : r.reason); }}>Replace it with the sample (keeps a backup in this browser)</button>
       </div>
+      {failure && (
+        <div style={{ marginTop: 8 }} data-testid="replace-failed">
+          <p className={`${s.status} ${s.statusErr}`}>{failure}</p>
+          <button type="button" className={`${s.btn} ${s.small}`} onClick={() => replaceDiscarded({ withoutBackup: true })}>Replace without a backup (the unreadable copy is deleted)</button>
+        </div>
+      )}
     </div>
   );
 }
 
+/** Shown only while a page change takes longer than usual; announced politely to screen readers. */
+function NavPending() {
+  const pending = useNavPending();
+  return (
+    <p className={s.navPending} role="status" data-testid="nav-pending" data-pending={pending ? "true" : "false"}>
+      {pending ? "Loading page…" : ""}
+    </p>
+  );
+}
+
+/** A page change stalled while a full load would lose unsaved work: ask, never reload silently. */
+function NavStuck() {
+  const stuck = useNavStuck();
+  if (!stuck) return null;
+  return (
+    <div className={s.notice} role="alert" data-testid="nav-stuck">
+      <p style={{ margin: "0 0 8px" }}><strong>This page is taking long to load.</strong> Loading it in full would discard what you did in this tab: {stuck.reason}</p>
+      <button type="button" className={`${s.btn} ${s.small}`} onClick={loadFully}>Load the page fully (unsaved changes in this tab are lost)</button>
+    </div>
+  );
+}
+
+/** Until the saved workspace has been read, nothing from the sample is shown as if it were yours. */
+function Hydrated({ children }: { children: ReactNode }) {
+  const { hydrated } = useWorkspace();
+  if (!hydrated) return <p className={s.empty} role="status" data-testid="workspace-loading">Loading your test workspace…</p>;
+  return <>{children}</>;
+}
+
 export default function AppShell({ children }: { children: ReactNode }) {
+  const pending = useNavPending();
   const pathname = usePathname() ?? "/clearline";
   const [open, setOpen] = useState(false);
   useEffect(() => setOpen(false), [pathname]);
@@ -81,14 +119,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
             ))}
             <div className={s.navFoot}>
               <Link href="/clearline/trial">Guided trial (5 cases)</Link>
-              <Link href="/mentor-demo">Funding Desk prototype</Link>
+              <Link href={FUNDING_DESK_HREF}>Funding Desk (specialist workflow)</Link>
               <a href={MARKETING_URL}>Clearline website</a>
               <a href={CONTACT_MAILTO}>Contact / feedback</a>
             </div>
           </nav>
           </div>
         </aside>
-        <main id="cl-main" className={s.main} tabIndex={-1}>
+        <main id="cl-main" className={s.main} tabIndex={-1} aria-busy={pending ? true : undefined}>
           <div className={s.topRow}>
           <nav aria-label="Breadcrumb" className={s.crumbs}>
             <ol>
@@ -99,10 +137,12 @@ export default function AppShell({ children }: { children: ReactNode }) {
               ))}
             </ol>
           </nav>
+          <NavPending />
           <ActorSelect id="cl-actor-global" />
           </div>
+          <NavStuck />
           <DiscardedNotice />
-          {children}
+          <Hydrated>{children}</Hydrated>
           <footer className={s.footer}>
             Clearline test-mode console. All organisations, providers, quotes, balances and statements are fictional.
             No custody, payout execution, lending or compliance decisions. <a href={MARKETING_URL}>Website</a> ·{" "}

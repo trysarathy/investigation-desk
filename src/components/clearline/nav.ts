@@ -9,8 +9,14 @@ export type NavSection = NavItem & {
 
 /** Public website for this build: resolved from clearline-release.json by next.config.mjs. */
 export const MARKETING_URL = process.env.NEXT_PUBLIC_CLEARLINE_MARKETING_URL ?? "https://clearline-marketing.vercel.app";
-/** Specialist Funding Desk demonstration (separate static site). */
-export const FUNDING_DESK_URL = process.env.NEXT_PUBLIC_CLEARLINE_FUNDING_DESK_URL ?? "https://clearline-funding-desk.vercel.app";
+/**
+ * The specialist Funding Desk workflow (advance review, treasury approval, supplier payout and
+ * repayment) runs in this same deployment at /mentor-demo. The older separate static site is no
+ * longer linked from the console.
+ */
+export const FUNDING_DESK_HREF = "/mentor-demo";
+/** Shown next to every control that switches the simulated person acting in the sandbox. */
+export const SIMULATED_ROLE_NOTE = "Simulated role — not sign-in or access control";
 export const CONTACT_MAILTO =
   "mailto:aashmiin.k.2025@accountancy.smu.edu.sg?subject=Clearline%20console%20feedback";
 

@@ -12,7 +12,7 @@ export function QuotesRoutes() {
     <>
       <PageHead eyebrow="Routes & Providers" title="Quotes and routes" lede={<>Sandbox provider routes and every quote requested in this workspace. Each quote is labelled <strong>{QUOTE_LABEL}</strong>.</>} />
       <Panel title={`Routes (${ws.routes.length})`} id="routes">
-        <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Routes (scrollable table)">
+        <div className={ui.tableWrap} role="group" tabIndex={0} aria-label="Routes table">
           <table className={`${ui.table} ${ui.stack}`}>
             <thead><tr><th>Provider</th><th>Rail</th><th>Corridors</th><th className={ui.r}>Limits</th><th>ETA</th><th>Prerequisites / restriction</th></tr></thead>
             <tbody>{ws.routes.map((r) => (
@@ -30,7 +30,7 @@ export function QuotesRoutes() {
       </Panel>
       <Panel title={`Quotes (${quotes.length})`} id="quotes">
         {quotes.length === 0 ? <Empty>No quotes yet. <Link href="/clearline/routes/new">Create an intent and request quotes</Link>.</Empty> : (
-          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Quotes (scrollable table)">
+          <div className={ui.tableWrap} role="group" tabIndex={0} aria-label="Quotes table">
             <table className={`${ui.table} ${ui.stack}`}>
               <thead><tr><th>Quote</th><th>Payment</th><th>Provider</th><th className={ui.r}>Rate</th><th>Eligibility</th><th>Freshness</th></tr></thead>
               <tbody>{quotes.map((q) => (
@@ -60,7 +60,7 @@ export function ProviderActivity() {
         lede="Every event received from sandbox providers, including duplicates, late arrivals and rejected signatures, with how Clearline processed it. Provider events are claims, not settlement proof." />
       <Panel title={`${events.length} event${events.length === 1 ? "" : "s"}`} id="events">
         {events.length === 0 ? <Empty>No provider events yet. Submit an instruction in <Link href="/clearline/routes/new">New payment intent</Link> and simulate an event.</Empty> : (
-          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Provider events (scrollable table)">
+          <div className={ui.tableWrap} role="group" tabIndex={0} aria-label="Provider events table">
             <table className={`${ui.table} ${ui.stack}`}>
               <thead><tr><th>Received</th><th>Event</th><th>Payment</th><th>Provenance</th><th>Signature</th><th>Processing</th></tr></thead>
               <tbody>{events.map((e) => (
