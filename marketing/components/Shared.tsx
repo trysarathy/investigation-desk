@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type {ReactNode} from "react";
 export const DEMO="https://investigation-desk-git-demo-mentor-funding-desk-sarathyv2.vercel.app/mentor-demo";
-export const PRODUCT_DEMO=process.env.NEXT_PUBLIC_PRODUCT_DEMO_URL?.startsWith("https://")?process.env.NEXT_PUBLIC_PRODUCT_DEMO_URL:"https://clearline-customer-trial-git-trial-clearline-c-8be65a-sarathyv2.vercel.app/clearline/trial";
+export const PRODUCT_DEMO=process.env.NEXT_PUBLIC_PRODUCT_DEMO_URL?.startsWith("https://")?process.env.NEXT_PUBLIC_PRODUCT_DEMO_URL:"https://clearline-customer-trial-sarathyv2.vercel.app/clearline/trial";
 export const LINKEDIN="https://www.linkedin.com/in/aashmiin-kaur-479665391";
 export const EMAIL="aashmiin.k.2025@accountancy.smu.edu.sg";
 export const BOOKING=process.env.NEXT_PUBLIC_BOOKING_URL?.startsWith("https://")?process.env.NEXT_PUBLIC_BOOKING_URL:undefined;
