@@ -2,6 +2,7 @@
 import { computeLiquidity, formatMinor, type CurrencyCode } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
 import { Chip, Code, Notice, PageHead, Panel, fmtTime, ui } from "../ui";
+import { FundingDeskPanel } from "../FundingDesk";
 
 export default function Liquidity() {
   const { ws } = useWorkspace();
@@ -24,7 +25,7 @@ export default function Liquidity() {
         </div>
       </Panel>
       <Panel title="Provider balances" id="balances">
-        <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Provider balances (scrollable table)">
+        <div className={ui.tableWrap} role="group" tabIndex={0} aria-label="Provider balances table">
           <table className={`${ui.table} ${ui.stack}`}>
             <thead><tr><th>Provider / account</th><th>Source and as-of</th><th className={ui.r}>Reported eligible</th><th className={ui.r}>Restricted</th><th className={ui.r}>Safeguarded</th><th className={ui.r}>Committed payouts</th><th className={ui.r}>Buffer</th><th className={ui.r}>Usable</th><th>Freshness</th></tr></thead>
             <tbody>
@@ -46,6 +47,7 @@ export default function Liquidity() {
         </div>
         <p className={ui.panelBody + " " + ui.hint} style={{ margin: 0 }}>Formula (from the engine): <Code>{v.rows[0]?.formula ?? "usable = eligible − restricted − safeguarded − committed − buffer"}</Code></p>
       </Panel>
+      <FundingDeskPanel />
     </>
   );
 }

@@ -2,20 +2,23 @@
 import Link from "../Link";
 import { useMemo, useState, type ReactNode } from "react";
 import {
-  evidenceTimelineFor, exportCaseReport, formatMinor, formatMoney, getIntent, investigate,
+  evidenceTimelineFor, formatMinor, formatMoney, getIntent, investigate,
   type AmountDifference, type EvidenceTimelineEntry, type Finding, type InvestigationView, type ProcessingOutcome, type Workspace,
 } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
-import { EXECUTION, RECON, settlementTone, ExecChip, ReconChip, SCOPE, SettleChip, RAIL, HoldChip, AdvChip, OutcomeChip, exceptionTitle } from "../labels";
+import { EXECUTION, RECON, settlementTone, ExecChip, ReconChip, scopeText, SettleChip, RAIL, HoldChip, AdvChip, OutcomeChip, exceptionTitle } from "../labels";
 import { SimulateEvent } from "../SimulateEvent";
 import { TargetActions } from "../TargetActions";
-import { ActionButton, gateOf, useRun, type Gate } from "../Action";
-import { describeCode, label, statusSummary } from "../human";
+import { ActionButton, gateOf, useRun, useSettled, type Gate } from "../Action";
+import { describeCode, engineLabel, label, statusSummary } from "../human";
 import { Chip, Code, Empty, Field, Notice, PageHead, Panel, Status, fmtTime, ui, type Tone } from "../ui";
-import { download } from "../download";
+import { SourceLine, attributionOf } from "../evidence";
+import { SyntheticReportView, useCaseReport, useSyntheticReport } from "../CaseReport";
+import { ResetCaseButton } from "../ResetCase";
 
 const PROBLEM_OUTCOMES: ProcessingOutcome[] = ["duplicate_ignored", "stored_late_no_regression", "contradictory_exception_raised", "rejected_signature", "rejected_unknown_payment"];
-const RETURN_STATUS = { provider_reported: "Return reported by provider", confirmed_by_statement: "Return confirmed by statement" } as const;
+/** Return status in the engine's words (HUMAN_LABELS.returnStatus); no local copy that could drift. */
+const returnStatusText = (v: string) => label("returnStatus", v);
 const TRUTH_CLASS: Record<Tone, string> = { ok: ui.truthOk, warn: ui.truthWarn, bad: ui.truthBad, info: ui.truthInfo, neutral: ui.truthNeutral };
 
 /** Engine CHANGE 5 (F2): structured under-amount detail; read optionally so older workspaces still render. */
@@ -29,9 +32,9 @@ const resolvedDiffsOf = (v: InvestigationView): Diff[] => [
   ...((v as InvestigationView & DiffView).resolvedAmountDifferences ?? []),
 ];
 
-function FindingList({ items, empty }: { items: Finding[]; empty: string }) {
+function FindingList({ items, empty, ws }: { items: Finding[]; empty: string; ws: Workspace }) {
   if (!items.length) return <p className={ui.hint} style={{ margin: 0 }}>{empty}</p>;
-  return <ul>{items.map((f, i) => <li key={i}>{f.text} <Code>{f.code}</Code></li>)}</ul>;
+  return <ul>{items.map((f, i) => <li key={i}>{f.text} <Code>{f.code}</Code><SourceLine ws={ws} refs={f.refs} /></li>)}</ul>;
 }
 
 function AmountDiff({ d }: { d: AmountDifference }) {
@@ -116,10 +119,14 @@ export default function Investigation({ id }: { id: string }) {
   const { ws, hydrated, actorName, preview, actorId } = useWorkspace();
   const { msg, run } = useRun();
   const [cancelReason, setCancelReason] = useState("");
+  const [showReport, setShowReport] = useState(false);
+  const settledCancel = useSettled(cancelReason);
   const intent = getIntent(ws, id);
   const res = useMemo(() => (intent ? investigate(ws, id) : null), [ws, id, intent]);
   const view = res && res.ok ? res.value : null;
   const tl = useMemo(() => (view ? evidenceTimelineFor(ws, id) : []), [ws, id, view]);
+  const caseReport = useCaseReport(view?.caseId);
+  const synthetic = useSyntheticReport(intent ? { paymentId: id } : undefined);
 
   if (!intent || !view) {
     if (!hydrated) return <p className={ui.empty} role="status">Loading payment…</p>;
@@ -142,23 +149,28 @@ export default function Investigation({ id }: { id: string }) {
   const openExceptions = view.exceptions.filter((e) => e.status !== "resolved");
 
   // E. Payment-level actions, each gated by an engine dry run.
-  const cancelAction = { type: "cancel_intent", intentId: id, reason: "Dry run" } as const;
+  const cancelAction = { type: "cancel_intent", intentId: id, reason: settledCancel.trim() ? settledCancel : "Dry run" } as const;
   const gCancel = gateOf(preview(cancelAction), ws, false);
+  // The engine's refusal (e.g. already submitted) is shown first; then the missing reason.
   const gCancelInput: Gate = gCancel.ok && !cancelReason.trim() ? { ok: false, reason: "Give a reason for cancelling first." } : gCancel;
   const gExport: Gate = kase ? { ok: true } : { ok: false, reason: "No investigation case is open for this payment. The engine opens one when a payment needs a person." };
-  const exportReport = (fmt: "txt" | "json") => {
-    if (!kase) return;
-    const r = exportCaseReport(ws, kase.id);
-    if (!r.ok) return;
-    if (fmt === "txt") download(`${kase.id}.txt`, r.value.text, "text/plain");
-    else download(`${kase.id}.json`, JSON.stringify(r.value.json, null, 2), "application/json");
-  };
+  const exportReport = (fmt: "txt" | "json") => { caseReport.save(fmt); };
+  const caseEvidence = kase ? ws.evidence.filter((e) => kase.evidenceIds.includes(e.id)) : [];
 
   return (
     <>
       <PageHead eyebrow="Payment investigation" title={`${view.requested.internalReference} · ${view.requested.beneficiaryName}`}
         lede={view.disclaimer}
         actions={<Link href="/clearline/payments" className={`${ui.btn} ${ui.small}`}>All payments</Link>} />
+      <nav aria-label="On this page">
+        <ul className={ui.jump}>
+          <li><a href="#summary">A. Summary</a></li>
+          <li><a href="#truths">B. Three truths</a></li>
+          <li><a href="#timeline">C. Evidence timeline</a></li>
+          <li><a href="#findings">D. Findings</a></li>
+          <li><a href="#actions">E. Actions</a></li>
+        </ul>
+      </nav>
 
       {/* A. Summary */}
       <Panel title={<><span className={ui.sectionLetter} aria-hidden="true">A</span>Summary</>} id="summary">
@@ -191,12 +203,19 @@ export default function Investigation({ id }: { id: string }) {
           </Truth>
           <Truth testId="dim-settlement" title="Settlement evidence" question="What independent evidence establishes" tone={settlementTone(st.settlement, st.execution)}
             value={<SettleChip v={st.settlement} execution={st.execution} showValue />}>
-            <p>Scope: {SCOPE[st.settlementScope]} <span className={ui.apiValue}>{st.settlementScope}</span></p>
+            <p>Scope: {scopeText(st.settlementScope)} <span className={ui.apiValue}>{st.settlementScope}</span></p>
             <p className={ui.hint}>{view.lastIndependentVerificationAt ? `Last independent evidence ${fmtTime(view.lastIndependentVerificationAt)}.` : "No bank statement line or final on-chain transfer yet."}{view.chain ? ` ${view.chain.confirmations} of ${view.chain.finalityThreshold} confirmations on ${view.chain.network}; an on-chain transfer is not a bank credit.` : ""}</p>
           </Truth>
           <Truth testId="dim-reconciliation" title="Reconciliation" question="Whether the records match" tone={netZero ? "warn" : RECON[st.reconciliation][1]}
             value={<ReconChip v={st.reconciliation} returnStatus={intent.returnStatus} showValue />}>
-            {intent.returnStatus && <p data-testid="return-status">{RETURN_STATUS[intent.returnStatus]}. The supplier is still unpaid. <span className={ui.apiValue}>returnStatus {intent.returnStatus}</span></p>}
+            {intent.returnStatus && <p data-testid="return-status">{returnStatusText(intent.returnStatus)}. The supplier is still unpaid. <span className={ui.apiValue}>returnStatus {intent.returnStatus}</span></p>}
+            {view.returnPosition && (
+              <ul data-testid="return-position" style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13 }}>
+                <li><strong>Net movement:</strong> {view.returnPosition.netMovementZero ? "zero — the debit and the return credit are both on the statement and equal" : view.returnPosition.netMovement ? `${formatMoney(view.returnPosition.netMovement)} (not zero)` : "not established — one leg is not on the statement yet"}</li>
+                <li><strong>Beneficiary paid:</strong> No</li>
+                <li>{view.returnPosition.text} <span className={ui.apiValue}>{view.returnPosition.code}</span></li>
+              </ul>
+            )}
             <p className={ui.hint}>{matches.length ? `${matches.length} record${matches.length === 1 ? "" : "s"} matched by trusted reference.` : "No record matched to this payment yet."}{openExceptions.length ? ` ${openExceptions.length} open exception${openExceptions.length === 1 ? "" : "s"}.` : ""}</p>
           </Truth>
         </div>
@@ -205,7 +224,7 @@ export default function Investigation({ id }: { id: string }) {
       {/* C. Evidence timeline */}
       <Panel title={<><span className={ui.sectionLetter} aria-hidden="true">C</span>Evidence timeline</>} id="timeline">
         {tl.length === 0 ? <Empty>No evidence recorded yet.</Empty> : (
-          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Evidence timeline (scrollable table)" data-testid="section-c">
+          <div className={ui.tableWrap} role="group" tabIndex={0} aria-label="Evidence timeline table" data-testid="section-c">
             <table className={`${ui.table} ${ui.stack}`} data-testid="evidence-timeline">
               <caption className={ui.srOnly}>Every record about this payment, oldest first. Fictional sandbox data.</caption>
               <thead><tr><th scope="col">Time (SGT)</th><th scope="col">Source</th><th scope="col">Event</th><th scope="col">Processing outcome</th><th scope="col">Supporting reference</th><th scope="col">Why it matters</th></tr></thead>
@@ -235,10 +254,10 @@ export default function Investigation({ id }: { id: string }) {
       <Panel title={<><span className={ui.sectionLetter} aria-hidden="true">D</span>Findings</>} id="findings">
         <div className={ui.findings} data-testid="explanation">
           <section data-testid="finding-known"><h3>What we know</h3>
-            <FindingList items={[...view.providerReported.findings, ...view.independentEvidence]} empty="Nothing confirmed yet." />
+            <FindingList ws={ws} items={[...view.providerReported.findings, ...view.independentEvidence]} empty="Nothing confirmed yet." />
           </section>
-          <section data-testid="finding-unknown"><h3>Still unknown</h3><FindingList items={view.unknowns} empty="No open questions." /></section>
-          <section data-testid="finding-contradicts"><h3>What contradicts</h3><FindingList items={view.contradictions} empty="No contradictions found." /></section>
+          <section data-testid="finding-unknown"><h3>Still unknown</h3><FindingList ws={ws} items={view.unknowns} empty="No open questions." /></section>
+          <section data-testid="finding-contradicts"><h3>What contradicts</h3><FindingList ws={ws} items={view.contradictions} empty="No contradictions found." /></section>
           <section data-testid="finding-outstanding"><h3>Financially outstanding</h3>
             {view.outstanding.length === 0 && diffs.length === 0 ? <p className={ui.hint} style={{ margin: 0 }}>Nothing outstanding.</p> :
               <ul>{view.outstanding.map((o, i) => <li key={i}>{o.amount && <strong className="num">{formatMoney(o.amount)} </strong>}{o.text} <Code>{o.code}</Code></li>)}</ul>}
@@ -252,7 +271,7 @@ export default function Investigation({ id }: { id: string }) {
           </section>
           <section className={ui.wide} data-testid="finding-owner"><h3>Who owns the next step</h3>
             <p style={{ margin: "0 0 4px" }}><strong>{view.whoActs.ownerName ?? "Unassigned"}</strong> — {label("role", view.whoActs.role)} <Code>{view.whoActs.code}</Code></p>
-            <FindingList items={view.nextActions} empty="No action needed." />
+            <FindingList ws={ws} items={view.nextActions} empty="No action needed." />
           </section>
           {view.exceptions.length > 0 && (
             <section className={ui.wide} id="exceptions"><h3>Exceptions on this payment</h3>
@@ -291,6 +310,21 @@ export default function Investigation({ id }: { id: string }) {
               <div><ActionButton size="small" gate={gExport} onClick={() => exportReport("txt")}>Export case report (.txt)</ActionButton></div>
               <div><ActionButton size="small" gate={gExport} onClick={() => exportReport("json")}>Export case report (.json)</ActionButton></div>
             </div>
+            <h4 className={ui.eyebrow} style={{ marginTop: 16 }}>Synthetic case report</h4>
+            <p className={ui.hint} style={{ marginTop: 0 }}>The engine&apos;s report for this payment: the three truths, exact amounts, findings, sourced timeline and exceptions. Marked fictional; generated in your browser.</p>
+            <div className={ui.actions} data-testid="synthetic-report-actions">
+              <button type="button" className={`${ui.btn} ${ui.small}`} aria-expanded={showReport} aria-controls="inv-case-report" onClick={() => setShowReport((v) => !v)}>{showReport ? "Hide case report" : "View case report"}</button>
+              <ActionButton size="small" gate={synthetic.report ? { ok: true } : { ok: false, reason: synthetic.error ?? "The report could not be produced." }} onClick={() => synthetic.save("json")}>Download case report (.json)</ActionButton>
+              <ActionButton size="small" gate={synthetic.report ? { ok: true } : { ok: false, reason: synthetic.error ?? "The report could not be produced." }} onClick={() => synthetic.save("csv")}>Download case report (.csv)</ActionButton>
+            </div>
+            {showReport && <SyntheticReportView reportRef={{ paymentId: id }} id="inv-case-report" />}
+            {intent.scenario && (
+              <>
+                <h4 className={ui.eyebrow} style={{ marginTop: 16 }}>Guided case</h4>
+                <p className={ui.hint} style={{ marginTop: 0 }}>Restores only this guided case to its starting state. Other cases and records you created are not changed.</p>
+                <ResetCaseButton scenario={intent.id}>Reset this guided case</ResetCaseButton>
+              </>
+            )}
           </div>
           <div id="case" style={{ borderTop: "1px solid var(--cl-line)" }}>
             <h3 className={ui.panelBody + " " + ui.eyebrow} style={{ margin: 0, paddingBottom: 0 }}>{kase ? <>Case · {kase.title}</> : "Case"}</h3>
@@ -306,6 +340,15 @@ export default function Investigation({ id }: { id: string }) {
                     <div><dt>Information requests</dt><dd>{kase.requestedInfo.length} ({kase.requestedInfo.filter((r) => r.status === "open").length} open)</dd></div>
                   </dl>
                   {kase.notes.length > 0 && <ul>{kase.notes.map((n, i) => <li key={i}>{n.text} <span className={ui.hint}>— {actorName(n.actorId)}, {fmtTime(n.at)}</span></li>)}</ul>}
+                  {caseEvidence.length > 0 && (
+                    <>
+                      <h4 className={ui.eyebrow} style={{ marginTop: 12 }}>Evidence attached to this case</h4>
+                      <ul data-testid="case-evidence">{caseEvidence.map((e) => {
+                        const a = attributionOf(ws, e.id);
+                        return <li key={e.id}>{e.description} <span className={ui.hint}>({label("evidenceKind", e.kind)}{e.documentName ? ` · ${e.documentName}, metadata only` : ""})</span><span className={ui.sub}>Source: {e.source}{a ? ` — ${a.basis === "independent" ? "independent evidence" : a.basis === "provider_claim" ? "provider claim" : "recorded by a person"}` : ""} · {actorName(e.recordedBy)}, {fmtTime(e.recordedAt)}</span></li>;
+                      })}</ul>
+                    </>
+                  )}
                   {kase.requestedInfo.length > 0 && <ul>{kase.requestedInfo.map((r) => <li key={r.id}>Requested from {r.from}: {r.request} <Chip tone={r.status === "open" ? "warn" : "neutral"}>{r.status}</Chip></li>)}</ul>}
                   <details>
                     <summary>Case history ({kase.history.length})</summary>

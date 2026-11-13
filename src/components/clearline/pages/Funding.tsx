@@ -4,6 +4,8 @@ import { FUNDING_PROJECTION_LABEL, formatMinor, formatMoney, fundingProjection, 
 import { useWorkspace } from "../workspace";
 import { AdvChip, ExcChip, ExecChip, HoldChip, SettleChip, human, exceptionTitle } from "../labels";
 import { Chip, Code, Dl, Empty, Notice, PageHead, Panel, fmtDate, fmtTime, ui } from "../ui";
+import { FundingDeskPanel } from "../FundingDesk";
+import { attributionOf } from "../evidence";
 
 const BASIS: Record<"none" | "provider_reported" | "verified_settlement", string> = {
   none: "No report that the supplier was paid",
@@ -19,7 +21,7 @@ export default function Funding() {
     <>
       <PageHead eyebrow="Treasury & Funding" title="Funding exposure"
         lede="Advances a provider made to pay suppliers before its customer reimburses it, linked to the supplier payout and to repayments matched by reference." />
-      <Notice info>{FUNDING_PROJECTION_LABEL} The detailed Funding Desk prototype remains at <Link href="/mentor-demo">/mentor-demo</Link>.</Notice>
+      <Notice info>{FUNDING_PROJECTION_LABEL} For the full advance-and-repayment workflow, use the specialist Funding Desk at <Link href="/mentor-demo">/mentor-demo</Link> (below).</Notice>
       <Panel title="Outstanding by currency" id="totals">
         <div className={ui.panelBody}>
           <Dl items={totals.length ? totals.map(([c, m]) => [c, <strong key={c} className="num">{formatMinor(m, c)}</strong>]) : [["Outstanding", "None"]]} />
@@ -40,9 +42,9 @@ export default function Funding() {
                 <Dl items={[
                   ["Supplier / invoice", <>{r.supplierName} · {r.invoiceRef}</>],
                   ["Supplier payout", <><Link href={`/clearline/payments/${r.intentId}`} className="mono">{r.intentId}</Link><br /><ExecChip v={r.supplierPayout.execution} /> <SettleChip v={r.supplierPayout.settlement} execution={r.supplierPayout.execution} />
-                    {r.supplierPayout.onHold && (
+                    {(r.supplierPayout.onHold || r.supplierPayout.hold) && (
                       <span style={{ display: "block", marginTop: 4 }} data-testid="supplier-payout-hold">
-                        <Chip tone="warn" title="API value: supplierPayout.onHold true">Partner holds the payout — supplier not paid</Chip>{" "}
+                        <Chip tone="warn" title={`API value: supplierPayout.onHold ${String(r.supplierPayout.onHold)}${r.supplierPayout.hold ? `, hold ${r.supplierPayout.hold.status}` : ""}`}>Partner holds the payout — supplier not paid</Chip>{" "}
                         {r.supplierPayout.hold && <><HoldChip v={r.supplierPayout.hold.status} /> <Link href={`/clearline/holds#${r.supplierPayout.hold.id}`}>Open the hold</Link></>}
                       </span>
                     )}</>],
@@ -55,7 +57,7 @@ export default function Funding() {
             </div>
             <div className={ui.panelHead} style={{ borderTop: "1px solid var(--cl-line)" }}><h3>Repayments allocated (evidence)</h3></div>
             {r.allocations.length === 0 ? <Empty>No repayments allocated yet.</Empty> : (
-              <div className={ui.tableWrap} role="region" tabIndex={0} aria-label={`Repayments allocated to ${r.advanceId} (scrollable table)`}>
+              <div className={ui.tableWrap} role="group" tabIndex={0} aria-label={`Repayments allocated to ${r.advanceId} table`}>
                 <table className={`${ui.table} ${ui.stack}`}>
                   <thead><tr><th>Allocated</th><th>Statement line</th><th className={ui.r}>Amount</th><th>Matched by</th><th>Evidence</th></tr></thead>
                   <tbody>{r.allocations.map((a) => (
@@ -64,7 +66,7 @@ export default function Funding() {
                       <td data-label="Statement line"><Link href={`/clearline/reconciliation#${a.statementLineId}`} className="mono">{a.statementLineId}</Link></td>
                       <td data-label="Amount" className={`${ui.r} ${ui.num}`}>{formatMinor(a.amountMinor, a.currency)}</td>
                       <td data-label="Matched by">{human(a.matchedBy)}</td>
-                      <td data-label="Evidence" className="mono">{a.evidenceId}</td>
+                      <td data-label="Evidence"><span className="mono">{a.evidenceId}</span>{(() => { const at = attributionOf(ws, a.evidenceId) ?? attributionOf(ws, a.statementLineId); return at ? <span className={ui.sub} data-testid="allocation-source">Source: {at.source}</span> : null; })()}</td>
                     </tr>))}
                   </tbody>
                 </table>
@@ -83,6 +85,7 @@ export default function Funding() {
           </Panel>
         );
       })}
+      <FundingDeskPanel />
     </>
   );
 }

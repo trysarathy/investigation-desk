@@ -5,40 +5,41 @@ import { MARKETING_URL, CONTACT_MAILTO } from "../nav";
 import { scenarioIntentId } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
 import { Btn, LinkBtn, Notice, Panel, Status, ui } from "../ui";
+import { ResetCaseButton } from "../ResetCase";
 
-type Case = { n: string; title: string; area: string; href: string; scenario?: string; start: string; action: string[]; expect: string[]; limits: string };
+type Case = { n: string; title: string; area: string; href: string; scenario?: string; reset: string; start: string; action: string[]; expect: string[]; limits: string };
 
 const CASES: Case[] = [
   {
-    n: "01", title: "Successful payment", area: "Payments · Investigation", href: "/clearline/payments", scenario: "s1_success",
+    n: "01", reset: "s1_success", title: "Successful payment", area: "Payments · Investigation", href: "/clearline/payments", scenario: "s1_success",
     start: "A supplier payout the sandbox provider reports as completed, plus a separate bank statement line.",
     action: ["Open the payment.", "Read the three separate truths (section B): execution, settlement evidence, reconciliation.", "In the evidence timeline (section C), find the provider event and the bank statement line, each with its source and why it matters."],
     expect: ["Execution says the provider reports completion — not “payment successful”.", "Settlement evidence comes from the bank statement line, matched by trusted reference (code RC_EXACT_REFERENCE_AMOUNT_CURRENCY_WINDOW).", "Reconciliation is shown separately as matched."],
     limits: "The statement line is fictional; no bank is connected.",
   },
   {
-    n: "02", title: "Returned payout", area: "Investigations · Exceptions queue", href: "/clearline/payments", scenario: "s2_returned",
+    n: "02", reset: "s2_returned", title: "Returned payout", area: "Investigations · Exceptions queue", href: "/clearline/payments", scenario: "s2_returned",
     start: "The beneficiary's bank rejected the payout; the provider reported a return and a return line arrived on the statement.",
     action: ["Open the payment and read the findings (section D).", "In Actions (section E), assign an owner and add a note to the case.", "Try to resolve the case, then open its exception in the Exceptions queue."],
     expect: ["The findings name what is known, what is still unknown, what contradicts, what is financially outstanding and who owns the next step.", "Resolve stays disabled until the engine's conditions are met, and the engine's reason is shown under the button.", "Every action appears in the case history and the audit log (Reports)."],
     limits: "Beneficiary details are opaque test references; no real account is checked.",
   },
   {
-    n: "03", title: "Compliance hold", area: "Compliance Holds", href: "/clearline/holds",
+    n: "03", reset: "s3_hold", title: "Compliance hold", area: "Compliance Holds", href: "/clearline/holds",
     start: "The partner placed the payout on hold and asked for supporting documents.",
     action: ["Submit the requested document names (metadata only).", "Assign the compliance reviewer.", "Switch “Acting as” to Priya (compliance) and record a decision with a reason."],
     expect: ["There is no release button; Clearline only records the reviewer's decision.", "A decision by anyone other than the assigned reviewer is refused with the reason.", "The hold never releases on a timer or a provider event alone."],
     limits: "Clearline makes no compliance decision; the partner and your reviewer do.",
   },
   {
-    n: "04", title: "Base Sepolia finality delay", area: "Payments · Investigation", href: "/clearline/payments", scenario: "s4_chain",
+    n: "04", reset: "s4_chain", title: "Base Sepolia finality delay", area: "Payments · Investigation", href: "/clearline/payments", scenario: "s4_chain",
     start: "A testnet USDC transfer has been observed on Base Sepolia but does not yet have enough confirmations.",
     action: ["Open the payment and read the settlement evidence truth (section B).", "In Actions (section E), use “Simulate next provider event” to deliver more confirmations.", "Watch settlement evidence move from awaiting finality to verified by on-chain transfer."],
     expect: ["Settlement evidence is awaiting finality until the confirmation threshold is reached.", "The scope says on-chain transfer — it never claims a bank credit.", "Only the allow-listed testnet token on chain 84532 is accepted."],
     limits: "Synthetic testnet observations; no live chain lookup in this console.",
   },
   {
-    n: "05", title: "Funding exposure", area: "Treasury & Funding · Funding exposure", href: "/clearline/treasury/funding",
+    n: "05", reset: "s5_funding", title: "Funding exposure", area: "Treasury & Funding · Funding exposure", href: "/clearline/treasury/funding",
     start: "The provider advanced SGD 50,000.00 to pay a supplier before its customer reimbursed it.",
     action: ["Open Treasury & Funding › Funding exposure.", "Check principal, repaid and outstanding, with the due date and repayment evidence.", "Follow the exception for the receipt that quoted no reference."],
     expect: ["SGD 50,000.00 advanced → SGD 30,000.00 repaid by reference → SGD 20,000.00 outstanding.", "An unreferenced SGD 20,000.00 receipt is an exception, not a close — even though the amount equals what is owed.", "The supplier payout links to its own investigation page."],
@@ -51,18 +52,18 @@ export default function Trial() {
   // Scenario payments are looked up in the workspace (ids come from the engine); after "start empty" the link falls back to the payments list.
   const hrefOf = (c: Case) => { const id = c.scenario ? scenarioIntentId(ws, c.scenario) : undefined; return id ? `/clearline/payments/${id}` : c.href; };
   const [msg, setMsg] = useState<{ text: string } | null>(null);
-  const doReset = () => { reset("sample"); setMsg({ text: "Workspace reset to the sample. All five cases are back at their starting state." }); };
+  const doReset = () => { const r = reset("sample"); setMsg({ text: r.ok ? "Workspace reset to the sample. All five cases are back at their starting state, and anything you added in this browser was removed." : r.reason }); };
   return (
     <>
       <div className={ui.pageHead}>
         <div>
           <p className={ui.eyebrow}>Guided trial · about 15 minutes</p>
           <h1>Follow five payments from instruction to evidence.</h1>
-          <p className={ui.lede}>Clearline shows payment providers what happened to each payout, what evidence supports it, and who must act next. Everything here is fictional test data in your browser.</p>
+          <p className={ui.lede}>Clearline shows payment providers what happened to each payout, what evidence supports it, and who must act next. Everything here is fictional test data in your browser. No sign-up: open the console and start.</p>
         </div>
         <div className={ui.actions}>
           <LinkBtn href="/clearline" kind="primary">Open the console</LinkBtn>
-          <Btn onClick={doReset}>Reset all cases</Btn>
+          <Btn onClick={doReset}>Reset the whole workspace</Btn>
         </div>
       </div>
       <Status msg={msg} />
@@ -89,8 +90,8 @@ export default function Trial() {
             <p className={ui.hint}><strong>Limitation:</strong> {c.limits}</p>
             <div className={ui.actions}>
               <LinkBtn href={hrefOf(c)} kind="primary">Start case {c.n}: {c.title}</LinkBtn>
-              <Btn size="small" onClick={doReset}>Reset to starting state</Btn>
             </div>
+            <div style={{ marginTop: 10 }}><ResetCaseButton scenario={c.reset}>{`Reset case ${c.n} to its starting state`}</ResetCaseButton></div>
           </div>
         </Panel>
       ))}
@@ -104,8 +105,8 @@ export default function Trial() {
 
       <Panel title="Funding Desk and the console" id="funding-desk">
         <div className={ui.panelBody}>
-          <p style={{ marginTop: 0 }}>The console&apos;s Treasury &amp; Funding › Funding exposure page is a <strong>projection</strong> from the same engine: it links each advance to the supplier payout it funded, the maker–checker treasury approval, the repayment obligation and the statement lines allocated to it by reference, and computes what is still outstanding. It is not a shared production ledger. The original, more detailed Funding Desk prototype is still available separately.</p>
-          <LinkBtn href="/mentor-demo">Open Funding Desk prototype</LinkBtn>
+          <p style={{ marginTop: 0 }}>The console&apos;s Treasury &amp; Funding › Funding exposure page is a <strong>projection</strong> from the same engine: it links each advance to the supplier payout it funded, the maker–checker treasury approval, the repayment obligation and the statement lines allocated to it by reference, and computes what is still outstanding. It is not a shared production ledger. For one advance end to end, the specialist Funding Desk workflow runs separately in this deployment.</p>
+          <LinkBtn href="/mentor-demo">Open the Funding Desk workflow</LinkBtn>
         </div>
       </Panel>
 
