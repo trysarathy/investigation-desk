@@ -201,6 +201,12 @@ function crossCheck(ws: Obj) {
     repaid.add(ref);
     need(owner.get(ref) === `repayment:${r.obligationId}`, `repaymentAllocations[${i}].obligationId`, "must match its statement line's repayment allocation");
   });
+  // Review m-3: a superseded chain observation is a rejected one, superseded by a person's resolved conflict exception.
+  (ws.chainObservations as Obj[]).forEach((o, i) => {
+    if (o.supersededBy === undefined) return;
+    const e = (ws.exceptions as Obj[]).find((x) => x.id === o.supersededBy);
+    need(o.status === "rejected_unsupported" && !!e && e.status === "resolved" && (e.supportingEventIds as unknown[]).includes(o.id), `chainObservations[${i}].supersededBy`, "must name a resolved hash-conflict exception about this rejected observation");
+  });
   (ws.instructions as Obj[]).forEach((x, i) => {
     if (x.checkerId !== undefined) need(x.checkerId !== x.makerId, `instructions[${i}].checkerId`, "maker and checker must be different people");
   });

@@ -653,6 +653,8 @@ export interface ChainObservation extends ChainObservationInput {
   updatedAt: string;
   finalityThreshold: number;
   status: "observed" | "pending_finality" | "final" | "rejected_unsupported";
+  /** Review m-3: set on a REJECTED observation when a person resolves the hash-conflict exception it caused (that exception's id). It stays on record but no longer blocks the same hash. */
+  supersededBy?: string;
   label: "Synthetic Base Sepolia testnet observation";
 }
 

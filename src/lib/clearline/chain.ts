@@ -147,19 +147,26 @@ export function ingestChainObservation(tx: Tx, input: ChainObservationInput): st
     tx.log("chain.rejected_unsupported", "chain_observation", obs.id, "Unsupported token or network; not counted");
     return "exception_raised";
   }
-  // rc3 (C-3): the same transaction hash already seen on ANOTHER chain or network (any payout, even a
-  // rejected observation) is never counted here: a hash identifies a transaction only together with its
-  // chain. The earlier record is never overwritten or "revived" by this one.
-  const otherChain = ws.chainObservations.find((o) => o.txHash === txHash && (o.chainId !== input.chainId || o.network !== input.network));
-  if (otherChain) {
+  // rc3 (C-1) + review M-3: the same transaction hash already recorded with a DIFFERENT identity — another
+  // chain or network, another token contract or symbol, or rejected as unsupported (on any chain, for any
+  // payout) — is never counted: a hash judged unsupported or seen elsewhere cannot later evidence a payout.
+  // The earlier record is never overwritten or "revived" by this one. Review m-3: a record a person has
+  // superseded (by resolving the conflict exception, see actions.ts resolve) no longer blocks.
+  const sameIdentity = (o: ChainObservation) =>
+    o.chainId === input.chainId && o.network === input.network && o.tokenContract.toLowerCase() === input.tokenContract.toLowerCase() && o.tokenSymbol === input.tokenSymbol;
+  const conflict = ws.chainObservations.find((o) => o.txHash === txHash && !o.supersededBy && (o.status === "rejected_unsupported" || !sameIdentity(o)));
+  if (conflict) {
+    const otherChain = conflict.chainId !== input.chainId || conflict.network !== input.network;
     openException(tx, {
       category: "contradictory_evidence",
-      explanationCode: "CH_TX_HASH_ON_OTHER_CHAIN",
-      explanation: `Transaction ${txHash.slice(0, 12)}… was already observed on chain ${otherChain.chainId} (${otherChain.network}); the same hash on chain ${input.chainId} (${input.network}) is not counted.`,
+      explanationCode: otherChain ? "CH_TX_HASH_ON_OTHER_CHAIN" : "CH_TX_HASH_CONFLICT",
+      explanation: otherChain
+        ? `Transaction ${txHash.slice(0, 12)}… was already observed on chain ${conflict.chainId} (${conflict.network}); the same hash on chain ${input.chainId} (${input.network}) is not counted.`
+        : `Transaction ${txHash.slice(0, 12)}… was already recorded on this chain as ${conflict.tokenSymbol} at ${conflict.tokenContract}${conflict.status === "rejected_unsupported" ? " (not counted: unsupported token)" : ""}; the same hash reported as ${input.tokenSymbol} is not counted.`,
       intentId: intent.id,
-      supportingEventIds: [otherChain.id],
+      supportingEventIds: [conflict.id],
     });
-    tx.log("chain.hash_on_other_chain", "chain_observation", otherChain.id, "Same tx hash on another chain; not counted");
+    tx.log(otherChain ? "chain.hash_on_other_chain" : "chain.hash_conflict", "chain_observation", conflict.id, "Same tx hash recorded with another identity; not counted");
     return "contradictory_exception_raised";
   }
   // B2: one transaction can evidence at most one payout.

@@ -82,3 +82,62 @@ describe("rc3 C-3: a reorg after finality un-matches the chain allocation", () =
     expect(intent(ws, id).status).toMatchObject({ settlement: "verified", reconciliation: "matched" });
   });
 });
+
+describe("review M-3: a hash rejected on the SAME chain (unsupported token) never later counts", () => {
+  it("unsupported token first, then the same hash as allowlisted USDC on Base Sepolia: CH_TX_HASH_CONFLICT, not counted", () => {
+    let { ws, id } = usdc();
+    ws = sim(ws, id).workspace;
+    ws = ingest(ws, obsFor(ws, id, { tokenContract: "0x" + "99".repeat(20), tokenSymbol: "USDT", confirmations: 20 })).workspace;
+    const r = ingest(ws, obsFor(ws, id, { confirmations: 20 }));
+    // Before the fix: outcome "applied", a second observation "final" and settlement "verified".
+    expect(r.outcome).toBe("contradictory_exception_raised");
+    expect(intent(r.workspace, id).status.settlement).toBe("none");
+    expect(r.workspace.chainObservations.filter((o) => o.intentId === id).map((o) => o.status)).toEqual(["rejected_unsupported"]);
+    expect(listExceptions(r.workspace, { intentId: id, category: "contradictory_evidence" }).map((e) => e.explanationCode)).toContain("CH_TX_HASH_CONFLICT");
+  });
+  it("a hash rejected for ANOTHER payout (unsupported token) cannot evidence this payout either", () => {
+    const a = usdc();
+    a.ws = sim(a.ws, a.id).workspace;
+    a.ws = ingest(a.ws, obsFor(a.ws, a.id, { tokenSymbol: "USDT", tokenContract: "0x" + "98".repeat(20) })).workspace;
+    const b = submitted({ amountMinor: 6_427_830_000, sourceCurrency: "USDC", destinationCurrency: "USDC", destinationCountry: "SG", sandboxOutcome: "chain_delay", internalReference: "INV-RC3-M3-B" }, "prv_tidewater", a.ws);
+    const w = sim(b.ws, b.id).workspace;
+    const r = ingest(w, obsFor(w, b.id, { confirmations: 20 }));
+    expect(r.outcome).toBe("contradictory_exception_raised");
+    expect(intent(r.workspace, b.id).status.settlement).toBe("none");
+  });
+});
+
+describe("review m-3: a mistaken first entry is recoverable once a person resolves the conflict", () => {
+  for (const wrong of [{ chainId: 1, network: "ethereum" }, { tokenSymbol: "USDT", tokenContract: "0x" + "97".repeat(20) }])
+    it(`wrong ${Object.keys(wrong)[0]} first → conflict → person resolves → the correct observation counts; the rejected record stays, marked superseded`, () => {
+      let { ws, id } = usdc();
+      ws = sim(ws, id).workspace;
+      ws = ingest(ws, obsFor(ws, id, { ...wrong, confirmations: 20 })).workspace;
+      ws = ingest(ws, obsFor(ws, id, { confirmations: 20 })).workspace;
+      const exc = listExceptions(ws, { intentId: id, category: "contradictory_evidence" })[0];
+      // still blocked while the conflict is open
+      expect(ingest(ws, obsFor(ws, id, { confirmations: 20 })).outcome).toBe("contradictory_exception_raised");
+      ws = run(ws, "usr_maya", { type: "assign_owner", target: { kind: "exception", id: exc.id }, ownerId: "usr_maya" }).workspace;
+      ws = run(ws, "usr_maya", { type: "attach_evidence", target: { kind: "exception", id: exc.id }, evidence: { kind: "document_metadata", description: "Explorer shows the transfer on Base Sepolia (fictional)" } }).workspace;
+      ws = run(ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: exc.id }, note: "The first entry had the wrong network; the Base Sepolia record is correct" }).workspace;
+      const rejected = ws.chainObservations.find((o) => o.intentId === id && o.status === "rejected_unsupported")!;
+      expect(rejected.supersededBy).toBe(exc.id);
+      // Before the fix: a new CH_TX_HASH_ON_OTHER_CHAIN on every later ingest (dead end).
+      const r = ingest(ws, obsFor(ws, id, { confirmations: 20 }));
+      expect(r.outcome).toBe("applied");
+      expect(intent(r.workspace, id).status.settlement).toBe("verified");
+      expect(r.workspace.chainObservations.filter((o) => o.intentId === id)).toHaveLength(2);
+    });
+});
+
+describe("review m-3: supersededBy cannot be forged in a stored workspace", () => {
+  it("a supersededBy on a counted observation, or naming an open exception, is refused", async () => {
+    const { parseWorkspaceValue } = await import("@/lib/clearline");
+    const ws = sampleWorkspace();
+    const w = structuredClone(ws);
+    w.chainObservations[0].supersededBy = w.exceptions.find((e) => e.status !== "resolved")!.id;
+    const r = parseWorkspaceValue(w);
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.error.field).toBe("chainObservations[0].supersededBy");
+  });
+});

@@ -635,6 +635,14 @@ function resolve(tx: Tx, t: TargetRef, note: string): string {
     r.e.history.push({ at: tx.at, actorId: tx.actorId, action: "resolved", detail: note });
     r.e.lastUpdatedAt = tx.at;
     tx.log("exception.resolved", "exception", r.e.id, note.slice(0, 80));
+    // Review m-3: a person resolving a tx-hash conflict supersedes the REJECTED observation it names, so the
+    // correctly identified observation of that hash can be evaluated (the rejected record stays on record).
+    if (r.e.explanationCode === "CH_TX_HASH_ON_OTHER_CHAIN" || r.e.explanationCode === "CH_TX_HASH_CONFLICT")
+      for (const o of tx.ws.chainObservations)
+        if (r.e.supportingEventIds.includes(o.id) && o.status === "rejected_unsupported" && !o.supersededBy) {
+          o.supersededBy = r.e.id;
+          tx.log("chain.observation_superseded", "chain_observation", o.id, `Superseded by the person's resolution of ${r.e.id}; kept on record, no longer blocks this hash`);
+        }
     // M3/m3: after a person resolves an exception, re-derive the dimensions from recorded evidence.
     const linked = r.e.intentId ? tx.ws.intents.find((i) => i.id === r.e.intentId) : undefined;
     if (linked && linked.instructionId) {
