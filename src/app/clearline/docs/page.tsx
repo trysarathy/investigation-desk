@@ -94,7 +94,7 @@ const ERRORS = ([
   ["invalid_currency", 422, "Unsupported currency."],
   ["currency_mismatch", 422, "The operation would combine currencies."],
   ["invalid_field", 422, "Missing or malformed field, or the workspace failed validation. A malformed `at` (not an ISO-8601 instant) is HTTP 400 with field: at."],
-  ["invalid_json", 422, "Not application/json, not a JSON object, or over 2 MB."],
+  ["invalid_json", 422, "Not application/json, not a JSON object, or over 512 KB."],
   ["invalid_request", 422, "Any other input the handler could not process. Never an HTTP 500."],
   ["quote_ineligible", 422, "Route not eligible; the reason is in the message."],
   ["precondition_failed", 422, "A required earlier step is missing (e.g. simulate before submit)."],
@@ -290,7 +290,7 @@ if (!result.valid) return new Response(result.reason, { status: 401 });
             <li>No real provider, bank, wallet or chain is connected. Quotes are indicative and not executable.</li>
             <li>No server state: concurrent clients holding different workspaces never see each other&apos;s changes.</li>
             <li>No outbound webhooks, retries or delivery queue; you post deliveries in. Secrets are public; there is no rotation or per-endpoint secret.</li>
-            <li>Bodies are limited to 2 MB; the full workspace is about 80–100 KB.</li>
+            <li>Bodies are limited to 512 KB, workspace collections to 1,000 items (audit log 10,000) and nesting to 32 levels; the sample workspace is about 80–100 KB.</li>
             <li>Sample IDs are deterministic but change if the sample changes. Find scenarios by <code className={ui.code}>intent.scenario</code>.</li>
             <li>The example key is shared by everyone. There are no accounts, rate limits or service-level commitments.</li>
           </ul>
