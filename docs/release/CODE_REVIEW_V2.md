@@ -104,3 +104,65 @@ None.
 **CHANGES REQUESTED c498da6** for a public, fictional-data trial PR. Fix M1–M3, each with a test that fails without the fix. The Minors can follow in a later change, and m1 and m4 are each a few lines. Merging stays approval-only: `APPROVAL-ONLY: needs Aashmiin's merge`. **Independence caveat:** the same orchestrating session produced this code and requested this review. A second reviewer, or Aashmiin, should read M1–M3.
 
 — code-reviewer (general-purpose subagent in the code-reviewer role) · https://claude.ai/code/session_015s4Kk7vKgcSQ7csnYmEH5j · 2026-11-13 SGT
+
+---
+
+# Re-review: CODE REVIEW: CHANGES REQUESTED dd52f88
+
+**APPROVAL-ONLY: needs Aashmiin's merge.**
+
+**In plain English:** almost everything is fixed, and each fix has a test that fails without it. M1 now works in both orders. "Financially outstanding" now lists only gaps that are still open. The new link fallback cannot loop or send anyone off-site. One hole remains in M2. If the provider reports a payout **returned first**, and the bank statement showing the outgoing debit arrives **afterwards** (which is the usual order, because statements lag), the payout shows a green **"Settlement verified (Bank statement)"**. The Funding page is now safe in that case, but the payment page and the status chip are not. That is the same kind of order problem M1 had, and a small, local fix.
+
+| | |
+|---|---|
+| Scope | `c498da6..dd52f88`: e3336da (engine) and dd52f88 (console). 27 files, +1,122 / −89. |
+| Frozen copy | `git archive dd52f88` into scratch. The working tree was clean. `docs/release/CODE_REVIEW_V2.md` in dd52f88 is byte-identical to the report above. |
+| Independence caveat | Unchanged: the fixes come from the same orchestrating session (`session_015s4Kk7…`) that requested this review. I wrote and suggested no code. |
+
+## Checks I ran (dd52f88)
+
+| Check | Result |
+|---|---|
+| `npx tsc --noEmit` | exit 0 |
+| `npx vitest run` | 52 files passed, 1 skipped; **1105 passed**, 57 skipped (26 new in `tests/clearline/review-v2.test.ts`) |
+| `npx next build` | exit 0 |
+| Proving the tests fail without the fix | Disabling the `onExecutionChanged` call (`events.ts:42`) fails 7 of 26 review-v2 tests. Removing the outstanding filter in `investigation.ts` fails 3. Removing the terminal guard in `supplierPaidBasis` fails 1. |
+| Earlier probes P1–P13, plus new probes R1–R7 (scratch `rr/tests/probes/`) | Results below |
+| Lint, Playwright (including the new Link regression test in `clearline-console.spec.ts`) | **Not run.** There is still no browser here. |
+
+## Finding by finding
+
+| Finding | Status | Evidence |
+|---|---|---|
+| **M1** F1 order | **Resolved** | `setExecution` (`events.ts:36-42`) is the only path to any execution change: `transition()` in `actions.ts:130-133` and the webhook handler both use it. It calls `onExecutionChanged` (`reconciliation.ts`), which raises `RC_REPORT_ON_TERMINAL_PAYOUT` for reports recorded earlier. **P1** (report → `payout.failed`): `failed / none / none`, contradiction present. **P1b/R5** (report → returned): contradiction present. **R4**: after a person resolves it, the status stays `failed / none`. A bank debit matched *before* `payout.failed` now also raises `RC_DEBIT_FOR_FAILED_PAYOUT` (**R3**, **R7**). |
+| **M2** returned shown as verified | **Partly resolved — see N1 below** | Return *after* evidence: **P9/R6** `returned / contradicted`, funding basis `none`. **R2** (chain `pending_finality` → returned → more confirmations): stays `contradicted`. `supplierPaidBasis` (`funding.ts`) is `none` for any terminal payout. `AdvChip` shows the green "Supplier paid — verified" only for `supplier_paid` + `verified_settlement`, which a terminal payout can no longer have. **But R1 shows the debit-after-return order still produces `verified`.** |
+| **M3** stale differences | **Resolved** | `investigate` splits `amountDifferences` (still outstanding) from `resolvedAmountDifferences` (`investigation.ts:133-160`). **P4** (2,500 + 7,500): 0 current differences, `RC_PARTIAL_AMOUNT` gone from the codes. **P3** (under-amount resolved): 0 current. The console lists only `outstanding !== false` under "Financially outstanding" and puts the rest in a collapsed "Earlier differences, no longer outstanding" block (`Investigation.tsx:20-30, 243-251`). |
+| m1 resolved short report counted | Resolved | P3: settlement stays `none` after resolution (`isAgreeingProviderReport`). |
+| m2 report on held payout | Resolved | P13: `RC_REPORT_ON_HELD_PAYOUT`, `contradictory_exception_raised`, settlement `none`. |
+| m3 duplicate short reports | Resolved | P3b: the third, identical report is linked (`duplicate_report_linked`), not opened again. |
+| m4 serializer cross-check | Resolved | P7: a wrong line id or currency is now rejected. |
+| m5 layout errors | Resolved | `ConsoleBoundary` wraps `WorkspaceProvider` + `AppShell` and uses no context. "Try again" clears state. Reset moves the saved copy to `BACKUP_KEY` and reloads once. Nothing happens automatically. |
+| m6 unreadable copy overwritten | Resolved | Writes are held (`holdWrites`) until the person chooses. Download and backup-then-replace are offered. The notice says honestly that nothing is saved meanwhile. |
+| m7 dry-run cost | Resolved | Previews are cached per workspace object, actor and action (a `WeakMap`, deterministic `nextInstant`). |
+| m8 openapi schemas | Resolved | +127 lines of schemas (read, not validated with a tool). |
+| Nits | Resolved | `statusText` removed. `moved()` with an unknown key → 404 (P12). One shared `TERMINAL_FOR_SETTLEMENT_REPORT` in `state.ts`. `AdvChip` is consistent with the basis. |
+
+## Link.tsx full-load fallback (`src/components/clearline/Link.tsx`)
+
+- **Open redirect: none.** `target()` and `ensureNavigation` both require `URL.origin === window.location.origin`. `//evil.example` and `javascript:` hrefs resolve to another origin or `"null"` and are ignored. `navigate()` is only called with hrefs built in code (`Connect.tsx:91, 204`).
+- **Loop: none.** The timer is module state in the old document. After `location.assign` the new page starts with no pending timer, and nothing re-arms it on load.
+- **Double navigation:** at most one fallback is pending (`clearTimeout` before re-arming). It fires only if the URL is *still exactly* the origin path+search after 2.5 s. Back/Forward cancels it. Modified clicks, `_blank`, already-prevented clicks and same-page or hash links are skipped. **Residual (Minor, L1):** on a slow connection where the server takes more than 2.5 s to answer a dynamic route (prefetch is off), a legitimate client navigation still in flight will be replaced by a full page load. The result is one extra load of the same target, not a loop or a wrong page. During the unreadable-workspace notice, that reload discards unsaved in-memory changes. The notice already says nothing is being saved. Consider a longer delay, or arming only after the router's request has visibly stalled.
+- Each click adds a `popstate` listener (`{ once: true }`). The listeners pile up until the next Back/Forward, which is harmless. Nit.
+
+## New finding
+
+**N1 (Major): the debit-after-return order still shows a returned payout as "Settlement verified" in green.**
+- Where: `src/lib/clearline/reconciliation.ts`, the outgoing-debit branch of `reconcileLine` (bank allocation → `settlement = full ? "verified" : "observed"`). It has a guard for `failed` (`RC_DEBIT_FOR_FAILED_PAYOUT`) but none for `returned`. `onExecutionChanged` only covers evidence that already existed when the return arrived.
+- Evidence (R1): completed payout → signed `payout.returned` → full bank debit with the trusted reference (`allocated`). Result: `{"execution":"returned","settlement":"verified","settlementScope":"bank_statement","reconciliation":"exception"}`. `describeStatus` gives "Provider reports returned · **Settlement verified (Bank statement)** · Needs review". `SettleChip` renders that as the green, solid "Verified" chip on the investigation page and in lists. Funding is safe (basis `none`). This is the normal real-world order, because bank statements arrive after the provider's webhook. None of the review-v2 tests covers it.
+- Fix (in words): when a bank debit is allocated to a payout whose execution is already `returned`, still allocate it (the debit really happened). But set settlement to `contradicted`, as `onExecutionChanged` does for the other order. A later person resolution then gives the `derive.ts` returned branch outcome (`none`). Add an R1-style test. Optionally, as defence in depth, the console could never use the green tone for `verified` when execution is returned or failed.
+
+## Re-review verdict
+
+**CHANGES REQUESTED dd52f88.** M1, M3, all the Minors and the Nits are resolved and proven by tests that fail without the fixes. M2 is resolved for the return-after-evidence order only. **N1** (the debit-after-return order) must be fixed, with a test, before "a returned payout never renders green or verified" holds. L1 is optional. No wrong amount is posted and no record is lost, so this is not a BLOCK. Merging stays approval-only. Not reviewed this round: lint, Playwright (including the Link regression test), visual design, the `openapi.yaml` schema validity (read only), and `DATA_MODEL.md` / `ENGINE_API.md` wording beyond the CHANGE notes.
+
+— code-reviewer (general-purpose subagent in the code-reviewer role) · https://claude.ai/code/session_015s4Kk7vKgcSQ7csnYmEH5j · 2026-11-13 SGT
