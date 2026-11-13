@@ -1,4 +1,5 @@
 import {ImageResponse} from "next/og";
+export const dynamic = "force-static";
 export const alt="Clearline — Every advance. Traceable. Explainable. Controlled.";
 export const size={width:1200,height:630};
 export const contentType="image/png";
