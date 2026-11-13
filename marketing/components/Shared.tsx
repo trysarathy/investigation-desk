@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { EMAIL, LINKEDIN, SOFTWARE_URL, TRIAL_URL, API_DOCS_URL, mailto } from "@/lib/site";
+import { NOT_BUILT, OUT_OF_SCOPE, WORKING_TODAY } from "@/lib/disclosure";
 
 export function Logo() {
   return (
@@ -42,11 +43,11 @@ export function Eyebrow({ children }: { children: ReactNode }) {
   return <p className="eyebrow">{children}</p>;
 }
 
-export type StageKind = "synthetic" | "illustrative" | "development" | "none";
+export type StageKind = "synthetic" | "prototype" | "design" | "none";
 const stageText: Record<StageKind, string> = {
   synthetic: "Working synthetic engine",
-  illustrative: "Illustrative UI",
-  development: "In development",
+  prototype: "Interactive prototype",
+  design: "Design only, not built",
   none: "No third-party integration",
 };
 /** Honest stage label. Always text, never colour alone. */
@@ -86,6 +87,24 @@ export function Section({ id, eyebrow, title, intro, children, tone = "canvas" }
         {children}
       </div>
     </section>
+  );
+}
+
+/** The single working-today / not-built disclosure (lib/disclosure.ts). `headingId` must be unique on the page. */
+export function Disclosure({ headingId = "disclosure-title", title = "What works today, and what does not" }: { headingId?: string; title?: string }) {
+  return (
+    <div className="disclosure" role="group" aria-labelledby={headingId}>
+      <h3 id={headingId} className="sr-only">{title}</h3>
+      <div className="disclosure-col">
+        <p className="disclosure-head"><Stage kind="synthetic" /> Works today in the sandbox</p>
+        <ul>{WORKING_TODAY.map(i => <li key={i.text}><span className="disclosure-area">{i.area}</span>{i.text}</li>)}</ul>
+      </div>
+      <div className="disclosure-col">
+        <p className="disclosure-head"><Stage kind="none" /> Not built yet</p>
+        <ul>{NOT_BUILT.map(i => <li key={i.text}><span className="disclosure-area">{i.area}</span>{i.text}</li>)}</ul>
+        <p className="disclosure-scope"><b>Out of scope.</b> {OUT_OF_SCOPE}</p>
+      </div>
+    </div>
   );
 }
 

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ButtonLink, ContactBand, ExtLink, Section } from "@/components/Shared";
 import { EMAIL, LINKEDIN, mailto } from "@/lib/site";
 import { pageMeta } from "@/lib/meta";
@@ -18,7 +19,7 @@ export default function About() {
           <div>
             <p className="eyebrow">About · Singapore</p>
             <h1 id="about-title" className="h1">Aashmiin Kaur, <em>founder.</em></h1>
-            <div className="lede"><p>I&rsquo;m 19 and in my second year of Accountancy at Singapore Management University, with a second major in Finance. I&rsquo;m building Clearline in Singapore, mostly in the evenings around classes.</p></div>
+            <div className="lede"><p>I&rsquo;m 19 and in my second year of Accountancy at Singapore Management University, with a second major in Finance. I&rsquo;m building Clearline in Singapore.</p></div>
             <div className="actions">
               <ButtonLink href={mailto("Hello from the Clearline website")} main>Email Aashmiin</ButtonLink>
               <ButtonLink href={LINKEDIN} variant="secondary">LinkedIn</ButtonLink>
@@ -37,22 +38,23 @@ export default function About() {
       <Section eyebrow="Where it stands" title="What exists, and what does not">
         <div className="grid-2">
           <div className="prose">
-            <p className="label">Exists</p>
+            <p className="label">Exists today</p>
             <ul className="bullets">
               <li>A test-mode engine and console with fictional providers and data.</li>
               <li>A guided five-case sandbox anyone can open.</li>
-              <li>A Funding Desk prototype, linked to sandbox payments through a tested projection (not a shared production ledger).</li>
+              <li>The Funding Desk workflow in Control, linked to sandbox payments through a tested projection (not a shared production ledger), and an interactive Funding Desk demo.</li>
             </ul>
           </div>
           <div className="prose">
             <p className="label">Does not exist yet</p>
             <ul className="bullets">
               <li>Customers, partners or investors.</li>
-              <li>Any connection to a real provider, bank or wallet.</li>
+              <li>Any connection to a real provider, bank or wallet, or any real payment.</li>
               <li>A team beyond me. I use AI software tools for parts of the engineering and drafting, and I review what ships.</li>
             </ul>
           </div>
         </div>
+        <p style={{ marginTop: 24 }}><Link className="text-link" href="/platform#stage">The full list of what works today and what is not built</Link></p>
       </Section>
 
       <Section tone="canvas" eyebrow="Still learning" title="What I do not know yet">

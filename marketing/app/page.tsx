@@ -1,11 +1,10 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
 import InvestigationView from "@/components/InvestigationView";
-import { ButtonLink, ExtLink, Stage, type StageKind } from "@/components/Shared";
+import { ButtonLink, Disclosure, ExtLink, Stage } from "@/components/Shared";
 import { ExecStatus, ReconStatus, SettlementStatus } from "@/components/Status";
 import { SAMPLE_EXCEPTIONS, SAMPLE_PAYMENTS } from "@/lib/sample";
-import { TRIAL_CASES } from "@/lib/cases";
-import { BOOKING_URL, EMAIL, TRIAL_URL, mailto } from "@/lib/site";
+import { TRIAL_CASES, TRY_CONNECT } from "@/lib/cases";
+import { BOOKING_URL, EMAIL, FUNDING_DESK_URL, TRIAL_URL, mailto } from "@/lib/site";
 import { pageMeta } from "@/lib/meta";
 
 export const metadata = pageMeta(
@@ -25,35 +24,13 @@ const storyGaps = [
   ["The bank statement shows the return credit, allocated by its trusted reference: returnStatus confirmed_by_statement.", "Nothing about the supplier: they are still unpaid, so the exception stays open."],
 ];
 
-const principles: [string, ReactNode][] = [
-  ["A provider report is a claim.", <>&ldquo;Completed&rdquo; is recorded as <code>provider_reported_completed</code>. On its own it never sets settlement <code>verified</code> or reconciliation <code>matched</code>, and a provider report on a failed or returned payout is a contradiction (<code>RC_REPORT_ON_TERMINAL_PAYOUT</code>).</>],
-  ["Match by reference, never by amount alone.", <>A statement line is allocated only on a trusted reference plus amount, currency and a value-date window. A line that agrees only on amount becomes an exception (<code>RC_AMOUNT_ONLY_CANDIDATES</code>).</>],
-  ["Evidence carries its scope.", <>A matched bank-statement debit is <code>verified</code> with scope <code>bank_statement</code>: the payout left the account. The beneficiary&rsquo;s credit can still be unknown, and the record says so.</>],
-  ["Observation is not finality.", <>A synthetic testnet transfer counts as verified only past the finality threshold (12 confirmations on the Base Sepolia route), and never proves a supplier&rsquo;s bank credit.</>],
-  ["Short is never settled.", <>A bank line with a trusted reference but only part of the amount is <code>partially_matched</code>; the remainder stays outstanding (<code>RC_PARTIAL_AMOUNT</code>). A provider report below the payout needs review (<code>RC_UNDER_AMOUNT_REPORT</code>), with expected, reported and difference stated.</>],
-  ["A return is an exception until a person resolves it.", <>A statement line can confirm the return (<code>confirmed_by_statement</code>). The exception stays open, with its owner and due date, because the supplier is still unpaid.</>],
-];
-
-const roles = [
-  ["Payment operations", "Where is this payout, and who acts next?", "One record per payment with a sourced timeline, the owner of each exception and the next action, across providers."],
-  ["Finance and reconciliation", "Does this tie to the statement, by reference?", "Statement lines allocated on trusted references, explanation codes for everything that is not, and partial amounts kept visible."],
-  ["Treasury", "What can we actually use, and what is still owed?", "Usable balance net of restricted, safeguarded and committed amounts, and funding exposure from supplier payout to repayment."],
-];
-
-const stages: [StageKind, string][] = [
-  ["synthetic", "The engine runs and is tested: idempotent intents, quotes, maker-checker approval, provider events, reconciliation by reference, exceptions, liquidity and a funding projection. Fictional data only."],
-  ["illustrative", "Console views for investigation, reconciliation, liquidity, holds and funding exposure, on fictional data, plus the detailed Funding Desk prototype."],
-  ["development", "Onchain verification on testnet (Base Sepolia). Not available for real transfers."],
-  ["none", "No licensed provider, bank or wallet is connected. No real payment has been executed. No customers yet."],
-];
-
 export default function Home() {
   return (
     <main id="main">
       <section className="home-hero" aria-labelledby="hero-title">
         <div className="container hero-grid">
           <div>
-            <p className="eyebrow">Payment operations · Singapore · Early product</p>
+            <p className="eyebrow">Payment operations software · Singapore · Early product</p>
             <h1 id="hero-title" className="h1">Every payment. <em>One clear answer.</em></h1>
             <p className="lede">Clearline connects payment instructions, provider events and financial evidence&mdash;so operations teams can understand what happened and what needs attention.</p>
             <div className="actions">
@@ -63,10 +40,12 @@ export default function Home() {
             <p className="cta-note">{BOOKING_URL ? "Book a time, or email " + EMAIL + "." : "Opens an email to the founder. Booking link pending."}</p>
           </div>
           <div className="hero-aside">
+            <p className="hero-aside-title">Clearline in 30 seconds</p>
             <dl>
-              <div><dt>For</dt><dd>Payment operations, finance and treasury teams that send or settle cross-border payouts.</dd></div>
-              <div><dt>Today</dt><dd>A working synthetic engine with five fictional cases. No real provider, bank or wallet connected.</dd></div>
-              <div><dt>Try it</dt><dd>15&ndash;20 minutes, no sign-up.</dd></div>
+              <div><dt>For</dt><dd>Payment operations, finance and treasury teams that send or settle cross-border payouts across more than one provider.</dd></div>
+              <div><dt>Connect</dt><dd>Instructs payouts the same way on every route: intent, quotes, approval by a second person, one status model.</dd></div>
+              <div><dt>Control</dt><dd>Shows what happened after submission: evidence, reconciliation by reference, exceptions with an owner.</dd></div>
+              <div><dt>Try it</dt><dd>Five fictional cases, 15&ndash;20 minutes, no sign-up. No real provider, bank or wallet is connected.</dd></div>
             </dl>
           </div>
         </div>
@@ -74,17 +53,18 @@ export default function Home() {
 
       <section className="iv-band" aria-labelledby="iv-title">
         <div className="container iv-pull">
-          <h2 id="iv-title" className="sr-only">A payment investigation, three separate truths</h2>
+          <h2 id="iv-title" className="sr-only">The Clearline console: a payment investigation with three separate truths</h2>
           <InvestigationView />
+          <p className="iv-caption">The console&rsquo;s investigation page, rendered from the tested engine&rsquo;s fictional sample. Choose a payment above, or <ExtLink href={TRIAL_URL}>open the same cases in the console</ExtLink>.</p>
         </div>
       </section>
 
       <section className="section section-white" aria-labelledby="story-title">
         <div className="container story">
           <div className="story-lead">
-            <p className="eyebrow">The problem, through one payment</p>
+            <p className="eyebrow">Why the coordination matters</p>
             <h2 id="story-title" className="h2">One payout. Four messages. <em>No single answer.</em></h2>
-            <p className="section-intro">{returned.amount} to {returned.beneficiary} ({returned.reference}). Each message below is true. None of them alone tells operations whether the supplier was paid, whose job it is now, or what to do next.</p>
+            <p className="section-intro">{returned.amount} to {returned.beneficiary} ({returned.reference}). Each message below is true. None of them alone tells operations whether the supplier was paid, whose job it is now, or what to do next. That answer needs the instruction from Connect and the evidence in Control on one record.</p>
           </div>
           <div>
             <ol className="story-steps">
@@ -139,7 +119,8 @@ export default function Home() {
                 <div><dt>Exceptions</dt><dd>Every disagreement gets an owner and a due date.</dd></div>
                 <div><dt>Liquidity and holds</dt><dd>Usable balance net of what is not yours to spend. Holds owned by a named reviewer.</dd></div>
               </dl>
-              <div className="stage-row"><Stage kind="illustrative" /><Stage kind="synthetic" /></div>
+              <p className="duo-note"><b>Funding Desk</b> is Control&rsquo;s specialist workflow for providers that pay a supplier before their customer repays: the advance, a treasury decision by a second person, and the repayment, linked to the payout. <ExtLink href={FUNDING_DESK_URL}>Open the Funding Desk demo</ExtLink></p>
+              <div className="stage-row"><Stage kind="synthetic" /><Stage kind="none" /></div>
               <p style={{ marginTop: 20 }}><Link className="text-link" href="/control">How Control works</Link></p>
             </div>
           </div>
@@ -160,16 +141,17 @@ export default function Home() {
         <div className="container">
           <div className="section-head-split">
             <div className="section-head">
-              <p className="eyebrow">Explore Clearline · fictional data</p>
+              <p className="eyebrow">What you can try today · fictional data</p>
               <h2 id="cases-title" className="h2">Five cases. <em>15&ndash;20 minutes.</em></h2>
             </div>
             <p className="section-intro" style={{ margin: 0 }}>No sign-up, bank login or integration. Providers, quotes, webhooks, balances and statements are all synthetic.</p>
           </div>
           <ol className="cases">
             {TRIAL_CASES.map(c => (
-              <li key={c.n}><span className="idx">{c.n}</span><h3 className="h3">{c.title}</h3><p>{c.text}</p><span className="area">{c.area}</span></li>
+              <li key={c.n}><span className="idx">{c.n}</span><h3 className="h3">{c.title}</h3><p>{c.text}</p><span className="area">{c.product}</span></li>
             ))}
           </ol>
+          <p className="muted" style={{ marginTop: 24, maxWidth: "70ch" }}>{TRY_CONNECT}</p>
           <div className="actions">
             <ExtLink href={TRIAL_URL}>Open the guided trial</ExtLink>
             <Link className="text-link" href="/trial">How the trial works, including your own historical cases</Link>
@@ -177,53 +159,29 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="section section-midnight" aria-labelledby="principles-title">
-        <div className="container">
-          <div className="section-head">
-            <p className="eyebrow">Evidence and reconciliation</p>
-            <h2 id="principles-title" className="h2">Six rules the engine enforces. <em>The interface only repeats them.</em></h2>
-          </div>
-          <ol className="principles">
-            {principles.map(([t, d]) => <li key={t}><h3>{t}</h3><p>{d}</p></li>)}
-          </ol>
-        </div>
-      </section>
-
-      <section className="section section-white" aria-labelledby="roles-title">
-        <div className="container">
-          <div className="section-head">
-            <p className="eyebrow">Who it is for</p>
-            <h2 id="roles-title" className="h2">Teams who have to explain a payment, <em>not just send it.</em></h2>
-          </div>
-          <div className="roles">
-            {roles.map(([r, q, d]) => <div className="card" key={r}><h3 className="h3">{r}</h3><p className="asks">&ldquo;{q}&rdquo;</p><p className="muted" style={{ marginTop: 12 }}>{d}</p></div>)}
-          </div>
-          <p className="note" style={{ marginTop: 48 }}>Clearline does not hold funds, execute payouts, lend or make compliance decisions.</p>
-        </div>
-      </section>
-
       <section className="section section-canvas" aria-labelledby="stage-title">
         <div className="container">
-          <div className="section-head">
-            <p className="eyebrow">The real stage</p>
-            <h2 id="stage-title" className="h2">An early product. <em>No pretending otherwise.</em></h2>
+          <div className="section-head-split">
+            <div className="section-head">
+              <p className="eyebrow">The real stage</p>
+              <h2 id="stage-title" className="h2">What works today. <em>What does not.</em></h2>
+            </div>
+            <p className="section-intro" style={{ margin: 0 }}>Clearline is an early product with no customers. Everything below &ldquo;works today&rdquo; can be shown in the public sandbox on fictional data. Nothing else is claimed.</p>
           </div>
-          <dl className="stages">
-            {stages.map(([k, d]) => <div key={k}><dt><Stage kind={k} /></dt><dd>{d}</dd></div>)}
-          </dl>
-          <p style={{ marginTop: 20 }}><Link className="text-link" href="/onchain">Onchain work in development</Link></p>
+          <Disclosure headingId="home-disclosure" />
+          <p style={{ marginTop: 24 }}><Link className="text-link" href="/platform#rules">The six evidence rules the engine enforces</Link> · <Link className="text-link" href="/onchain">Onchain design</Link></p>
         </div>
       </section>
 
       <section className="section section-white" aria-labelledby="founder-title">
         <div className="container founder">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="founder-photo" src="/founder.jpg" alt="Aashmiin Kaur" width={144} height={180} />
+          <img className="founder-photo" src="/founder.jpg" alt="Aashmiin Kaur" width={120} height={150} />
           <div className="prose">
             <p className="eyebrow">Who is building it</p>
             <h2 id="founder-title" className="h2">Aashmiin Kaur, founder</h2>
             <p className="section-intro">19, in her second year of Accountancy at Singapore Management University, with a second major in Finance. Building Clearline in Singapore.</p>
-            <p style={{ marginTop: 16 }}>She is speaking with people who run payments, treasury and reconciliation to find where this approach is genuinely useful, and where it is not.</p>
+            <p style={{ marginTop: 16 }}>She builds and answers for Clearline herself. Email reaches her directly: <a className="text-link" href={mailto("A payment problem")}>{EMAIL}</a>.</p>
             <p><Link className="text-link" href="/about">About Clearline and the founder</Link></p>
           </div>
         </div>
