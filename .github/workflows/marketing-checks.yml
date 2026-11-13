@@ -26,5 +26,9 @@ jobs:
         run: npm run test
       - name: TypeScript
         run: npm run typecheck
+      - name: Verify founder photograph decodes
+        run: |
+          python -m pip install --quiet pillow
+          python -c "from PIL import Image; image=Image.open('public/founder.jpg'); image.load(); print('Founder photo:', image.size)"
       - name: Static build
         run: npm run build
