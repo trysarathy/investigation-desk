@@ -12,8 +12,8 @@ export const metadata = pageMeta(
 export default function Contact() {
   return (
     <main id="main">
-      <PageHero eyebrow="Contact" title={<>Talk to us about <em>your workflow.</em></>}
-        actions={<><ButtonLink href={mailto("Clearline: our payment workflow")} main>Email the founder</ButtonLink><ButtonLink href={TRIAL_URL} variant="secondary">Explore the sandbox first</ButtonLink></>}>
+      <PageHero eyebrow="Contact" title={<>Talk about a <em>payment problem.</em></>}
+        actions={<><ButtonLink href={mailto("Clearline: our payment workflow")} main>Email the founder</ButtonLink><ButtonLink href={TRIAL_URL} variant="secondary">Explore Clearline first</ButtonLink></>}>
         <p>A few sentences are enough: which payments are hard to explain, who owns the exception, and what you use today. Aashmiin Kaur reads and replies to every email herself.</p>
       </PageHero>
 

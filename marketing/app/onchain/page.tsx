@@ -39,7 +39,7 @@ export default function Onchain() {
         </div>
       </Section>
 
-      <Section tone="bluegrey" eyebrow="What exists today" title="Observed is not final">
+      <Section tone="canvas" eyebrow="What exists today" title="Observed is not final">
         <div className="prose">
           <p>The sandbox engine includes one synthetic Base Sepolia case (scenario s4_chain): USDC 6,427.830000 to Stonebridge Exports. The provider reports completion (<ExecStatus state="provider_reported_completed" />), but the transfer has 6 of 12 confirmations, so settlement is <SettlementStatus state="pending_finality" scope="onchain_transfer" />. It moves from observed to pending_finality to verified only as confirmations reach the threshold, and a drop in confirmations is treated as contradicting evidence. Reconciliation would become matched only if the provider had reported the same transaction hash.</p><p>Even when verified, an on-chain transfer never proves a supplier&rsquo;s bank credit, and the sandbox does not verify who controls the receiving wallet.</p>
           <p>There is no Safe integration, key management or payout execution. Payment services, data protection and licensing obligations need a jurisdiction-specific professional assessment before any real operation.</p>

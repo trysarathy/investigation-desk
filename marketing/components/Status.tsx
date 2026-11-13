@@ -2,38 +2,88 @@
  * The engine's three status dimensions, rendered separately (never one combined badge).
  * Names match src/lib/clearline/types.ts on the engine branch:
  *   intent.status = { execution, settlement, settlementScope, reconciliation }
- *  - Execution (ExecutionState): tinted rounded tag — what the payment/provider state machine says.
- *  - Settlement (SettlementEvidenceState + SettlementScope): outlined pill with a shape marker;
- *    dashed border = not (yet) verified, solid = verified or contradicted. The scope says what was evidenced.
- *  - Reconciliation (ReconciliationState): square mono uppercase tag with a left rule.
+ * Each tag shows a HUMAN label first and the EXACT API value second (mono, secondary).
+ *  - Execution (ExecutionState): rounded tag — what the provider / state machine says.
+ *  - Settlement (SettlementEvidenceState + SettlementScope): pill with a shape marker;
+ *    dashed = not (yet) verified, solid = verified or contradicted. Scope says what was evidenced.
+ *  - Reconciliation (ReconciliationState): square tag with a left rule.
+ * Tones (docs/design/DESIGN_SYSTEM.md §2, §8): green only for evidenced success; amber pending/uncertain;
+ * red failed/returned/contradicted/exception; provider claims are NEUTRAL — never blue or green.
  */
+import type { ReactNode } from "react";
+
 export type ExecState =
   | "created" | "quoted" | "approved" | "submitted" | "in_transit" | "provider_reported_completed"
   | "awaiting_information" | "on_hold" | "failed" | "returned" | "cancelled" | "expired";
-const execTone: Record<ExecState, string> = {
-  created: "neutral", quoted: "neutral", approved: "neutral", submitted: "info", in_transit: "info",
-  provider_reported_completed: "info", awaiting_information: "warning", on_hold: "warning",
-  failed: "danger", returned: "danger", cancelled: "neutral", expired: "neutral",
-};
-export function ExecStatus({ state }: { state: ExecState }) {
-  return <span className={"st-exec tone-" + execTone[state]}><span className="sr-only">Execution: </span>{state}</span>;
-}
-
 export type SettlementState = "none" | "observed" | "pending_finality" | "verified" | "contradicted";
 export type SettlementScope = "none" | "provider_report" | "bank_statement" | "onchain_transfer";
+export type ReconState = "not_started" | "pending" | "matched" | "partially_matched" | "exception";
+type Tone = "neutral" | "warning" | "danger" | "success";
+
+/** Human labels: EXACT strings from the engine's HUMAN_LABELS (src/lib/clearline/labels.ts @ 0490e40, CHANGE 5),
+ * so the website and the console read identically. Do not reword here; change the engine first. */
+export const EXEC_LABEL: Record<ExecState, string> = {
+  created: "Created", quoted: "Quoted", approved: "Approved — not yet sent", submitted: "Sent to provider",
+  in_transit: "Provider reports in transit", provider_reported_completed: "Provider reports completed",
+  awaiting_information: "Provider requests information", on_hold: "On hold with the partner",
+  failed: "Provider reports failed", returned: "Provider reports returned", cancelled: "Cancelled", expired: "Expired",
+};
+const execTone: Record<ExecState, Tone> = {
+  created: "neutral", quoted: "neutral", approved: "neutral", submitted: "neutral", in_transit: "neutral",
+  provider_reported_completed: "neutral", awaiting_information: "warning", on_hold: "warning",
+  failed: "danger", returned: "danger", cancelled: "neutral", expired: "neutral",
+};
+
+export const SETTLEMENT_LABEL: Record<SettlementState, string> = {
+  none: "No settlement evidence", observed: "Settlement observed (not verified)", pending_finality: "Awaiting finality",
+  verified: "Settlement verified", contradicted: "Settlement evidence contradicted",
+};
+export const SCOPE_LABEL: Record<SettlementScope, string> = {
+  none: "No evidence", provider_report: "Provider report only", bank_statement: "Bank statement", onchain_transfer: "On-chain transfer (synthetic testnet)",
+};
+const settlementTone: Record<SettlementState, Tone> = { none: "neutral", observed: "warning", pending_finality: "warning", verified: "success", contradicted: "danger" };
 const settlementMark: Record<SettlementState, string> = { none: "○", observed: "◇", pending_finality: "◇", verified: "◆", contradicted: "✕" };
-export function SettlementStatus({ state, scope }: { state: SettlementState; scope?: SettlementScope }) {
+
+export const RECON_LABEL: Record<ReconState, string> = {
+  not_started: "Not started", pending: "Awaiting statement", matched: "Matched", partially_matched: "Partially matched", exception: "Needs review",
+};
+const reconTone: Record<ReconState, Tone> = { not_started: "neutral", pending: "warning", matched: "success", partially_matched: "warning", exception: "danger" };
+
+/** `api`: show the exact API value as secondary detail (default true). */
+type Opts = { api?: boolean };
+
+export function ExecStatus({ state, api = true }: { state: ExecState } & Opts) {
   return (
-    <span className={"st-settlement stl-" + state}>
-      <span aria-hidden="true">{settlementMark[state]}</span>
-      <span className="sr-only">Settlement evidence: </span>{state}
-      {scope && scope !== "none" && <span className="stl-scope"> · {scope}</span>}
+    <span className={"st st-exec tone-" + execTone[state]}>
+      <span className="sr-only">Execution: </span>
+      <span className="st-label">{EXEC_LABEL[state]}</span>
+      {api && <code className="st-api"><span className="sr-only">, API value </span>{state}</code>}
     </span>
   );
 }
 
-export type ReconState = "not_started" | "pending" | "matched" | "partially_matched" | "exception";
-const reconTone: Record<ReconState, string> = { not_started: "neutral", pending: "neutral", matched: "success", partially_matched: "warning", exception: "danger" };
-export function ReconStatus({ state }: { state: ReconState }) {
-  return <span className={"st-recon tone-" + reconTone[state]}><span className="sr-only">Reconciliation: </span>{state}</span>;
+export function SettlementStatus({ state, scope, api = true }: { state: SettlementState; scope?: SettlementScope } & Opts) {
+  const sc = scope && scope !== "none" ? scope : undefined;
+  return (
+    <span className={"st st-settlement stl-" + state + " tone-" + settlementTone[state]}>
+      <span className="sr-only">Settlement evidence: </span>
+      <span className="st-label"><span className="stl-mark" aria-hidden="true">{settlementMark[state]}</span> {SETTLEMENT_LABEL[state]}{sc && <> ({SCOPE_LABEL[sc]})</>}</span>
+      {api && <code className="st-api"><span className="sr-only">, API value </span>{state}{sc && <span className="stl-scope"> · {sc}</span>}</code>}
+    </span>
+  );
+}
+
+export function ReconStatus({ state, api = true }: { state: ReconState } & Opts) {
+  return (
+    <span className={"st st-recon tone-" + reconTone[state]}>
+      <span className="sr-only">Reconciliation: </span>
+      <span className="st-label">{RECON_LABEL[state]}</span>
+      {api && <code className="st-api"><span className="sr-only">, API value </span>{state}</code>}
+    </span>
+  );
+}
+
+/** A plain tone tag for non-status values (eligibility, severity, freshness). */
+export function Tag({ tone, children }: { tone: Tone | "info"; children: ReactNode }) {
+  return <span className={"tag tone-" + tone}>{children}</span>;
 }

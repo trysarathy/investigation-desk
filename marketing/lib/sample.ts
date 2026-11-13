@@ -1,7 +1,8 @@
 /**
  * Fictional sample records taken from the TESTED sandbox engine's deterministic sample
  * (src/lib/clearline/sample.ts → sampleWorkspace(), scenarios s1–s5, on
- * release/clearline-unified-20261113 @ b250bb4, ENGINE_API CHANGE 2). Values were read by running the engine's own read models
+ * release/clearline-unified-20261113 @ b250bb4, ENGINE_API CHANGE 2; re-run against 0490e40 (CHANGE 5) on 13 Nov 2026:
+ * every status, statement line, exception and due date is unchanged; the funding row gained supplierPaidBasis). Values were read by running the engine's own read models
  * (investigate, timelineFor, listExceptions, computeLiquidity, fundingProjection) and its
  * formatMinor(); times are the engine's simulated clock converted to SGT (UTC+8).
  * Engine intent ids are sequential and may shift, so the site shows internal references instead.
@@ -138,6 +139,8 @@ export const SAMPLE_FUNDING = {
   repaid: "SGD 30,000.00",
   outstanding: "SGD 20,000.00",
   state: "partly_repaid",
+  /** CHANGE 5 m5: the evidence basis behind "supplier paid". Here the supplier debit is bank-statement verified. */
+  supplierPaidBasis: "verified_settlement" as "none" | "provider_reported" | "verified_settlement",
   exception: "SGD 20,000.00 receipt without a reference stays an exception (missing_payment_reference); it is not allocated by amount.",
 };
 
@@ -150,3 +153,11 @@ export const SAMPLE_EXCEPTIONS = [
   { category: "missing_payment_reference", reference: "DBS-SIM-0005", severity: "medium", status: "open", owner: "Unassigned", dueDate: "2026-11-15", action: "Ask the remitter for the payment reference; without it the receipt cannot be allocated." },
   { category: "pending_finality", reference: "INV-2026-149", severity: "low", status: "open", owner: "Unassigned", dueDate: "2026-11-17", action: "Wait until the finality threshold is reached; observation is not finality." },
 ];
+
+/** CHANGE 5 (F2) worked example, using the engine's own amountDifferenceAction() wording and its F2 test amounts
+ * (tests/clearline/change5.test.ts: payout SGD 10,000.00, provider report SGD 4,000.00). Not part of the s1–s5 sample. */
+export const UNDER_AMOUNT_EXAMPLE = {
+  code: "RC_UNDER_AMOUNT_REPORT", category: "unmatched_reconciliation", source: "provider_settlement_report",
+  expected: "SGD 10,000.00", reported: "SGD 4,000.00", difference: "SGD 6,000.00", currency: "SGD",
+  requiredNextAction: "Ask the provider to explain the SGD 6,000.00 shortfall (fees, partial settlement or a further report) and obtain the bank statement line for the payout. Do not treat the payout as settled until the full amount is evidenced.",
+};

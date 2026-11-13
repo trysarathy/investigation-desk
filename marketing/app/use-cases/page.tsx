@@ -13,7 +13,7 @@ export const metadata = pageMeta(
 );
 
 function UseCase({ id, n, title, situation, shows, limits, stages, children, tone }: {
-  id: string; n: string; title: string; situation: string; shows: string[]; limits: string; stages: StageKind[]; children?: ReactNode; tone: "white" | "ivory";
+  id: string; n: string; title: string; situation: string; shows: string[]; limits: string; stages: StageKind[]; children?: ReactNode; tone: "white" | "canvas";
 }) {
   return (
     <Section id={id} tone={tone} eyebrow={n + " · Fictional example"} title={title}>
@@ -58,9 +58,9 @@ export default function UseCases() {
         </div>
       </UseCase>
 
-      <UseCase id="reconciliation" n="02" tone="ivory" title="Settlement reconciliation"
+      <UseCase id="reconciliation" n="02" tone="canvas" title="Settlement reconciliation"
         situation="Five fictional bank-statement lines arrive. Finance needs to know which payments and repayments they belong to, and which it cannot attribute."
-        shows={["Payout debits allocated on the provider payment id, amount, currency and value-date window. Settlement becomes verified with scope bank_statement; the beneficiary's credit is still listed as unknown.", "A partial repayment allocated by its repayment reference, with the remainder left outstanding.", "An SGD 20,000.00 credit with no reference becomes an exception, even though the amount matches what is owed."]}
+        shows={["Payout debits allocated on the provider payment id, amount, currency and value-date window. Settlement becomes verified with scope bank_statement; the beneficiary's credit is still listed as unknown.", "A partial repayment allocated by its repayment reference, with the remainder left outstanding.", "An SGD 20,000.00 credit with no reference becomes an exception, even though the amount matches what is owed.", "If a provider settlement report showed less than the payout, it would become an exception (RC_UNDER_AMOUNT_REPORT) with the expected, reported and difference amounts and a required next action; a report on a failed or returned payout is treated as a contradiction (RC_REPORT_ON_TERMINAL_PAYOUT)."]}
         limits="It does not post entries to a ledger or accounting system in this sandbox."
         stages={["synthetic"]}>
         <ReconTable />
@@ -74,7 +74,7 @@ export default function UseCases() {
         <QuotesTable />
       </UseCase>
 
-      <UseCase id="funding" n="04" tone="ivory" title="Funding exposure"
+      <UseCase id="funding" n="04" tone="canvas" title="Funding exposure"
         situation="A provider pays a supplier SGD 50,000.00 before its customer, Seabright Trading, repays. Treasury needs the decision recorded and the outstanding amount tracked. (Engine scenario s5_funding.)"
         shows={["The supplier payout linked to the advance, the treasury approval (maker ≠ checker), the repayment obligation and its allocations.", "SGD 30,000.00 repaid by reference; SGD 20,000.00 outstanding.", "An unreferenced SGD 20,000.00 receipt kept as an exception rather than allocated by amount."]}
         limits="This is a tested projection over the sandbox workspace, not a shared production ledger. Clearline does not lend, supply capital or make credit decisions. The detailed Funding Desk prototype remains at /mentor-demo in the product."

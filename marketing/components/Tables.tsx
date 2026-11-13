@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import {
   EXCEPTION_DUE_POLICY, FUNDING_PROJECTION_LABEL, LIQUIDITY_POLICY_LABEL, SAMPLE_EXCEPTIONS, QUOTE_LABEL, SAMPLE_FUNDING, SAMPLE_LIQUIDITY, SAMPLE_PAYMENTS,
-  SAMPLE_QUOTES, SAMPLE_STATEMENT_LINES, SAMPLE_USABLE_NOW,
+  SAMPLE_QUOTES, SAMPLE_STATEMENT_LINES, SAMPLE_USABLE_NOW, UNDER_AMOUNT_EXAMPLE,
 } from "@/lib/sample";
 import { ExecStatus, ReconStatus, SettlementStatus } from "@/components/Status";
 
@@ -39,7 +39,7 @@ export function ReconTable() {
       <tbody>{SAMPLE_STATEMENT_LINES.map(l => (
         <tr key={l.lineId}>
           <td className="mono">{l.lineId}</td><td>{l.direction} · {l.kind}</td><td className="r num">{l.amount}</td><td className="mono">{l.reference}</td>
-          <td>{l.result === "allocated" ? <span className="st-recon tone-success">allocated</span> : <span className="st-recon tone-danger">exception</span>}</td>
+          <td>{l.result === "allocated" ? <span className="st st-recon tone-success"><span className="st-label">Allocated</span><code className="st-api">allocated</code></span> : <span className="st st-recon tone-danger"><span className="st-label">Needs review</span><code className="st-api">exception</code></span>}</td>
           <td><span className="mono caption">{l.code}</span>{l.text}</td>
         </tr>
       ))}</tbody>
@@ -85,7 +85,8 @@ export function FundingTable() {
     ["Treasury approval", f.approval],
     ["Repayment obligation", f.obligation],
     ["Allocations", f.allocations],
-    ["Repaid / outstanding", <><span className="num">{f.repaid}</span> repaid · <b className="num">{f.outstanding}</b> outstanding · <span className="st-exec tone-warning">{f.state}</span></>],
+    ["Supplier paid basis", <><span className="mono">supplierPaidBasis: {f.supplierPaidBasis}</span><span className="caption">The supplier debit is bank-statement verified. When the basis is provider_reported, the console labels the stage &ldquo;Supplier paid (provider-reported)&rdquo;.</span></>],
+    ["Repaid / outstanding", <><span className="num">{f.repaid}</span> repaid · <b className="num">{f.outstanding}</b> outstanding · <span className="st st-exec tone-warning"><span className="st-label">Partly repaid</span><code className="st-api">{f.state}</code></span></>],
     ["Exception", f.exception],
   ];
   return (
@@ -108,6 +109,24 @@ export function ExceptionsTable() {
           <td>{e.owner}</td><td className="num">{e.dueDate}</td><td>{e.action}</td>
         </tr>
       ))}</tbody>
+    </TableWrap>
+  );
+}
+
+/** CHANGE 5 (F2): the structured amount difference the engine attaches to an under-amount provider report. */
+export function AmountDifferenceTable() {
+  const d = UNDER_AMOUNT_EXAMPLE;
+  return (
+    <TableWrap label="Structured amount difference for an under-amount provider report" caption="The engine's F2 test case (fictional amounts): a provider settlement report below the payout. The same fields appear on the statement line, the exception and investigate().amountDifferences. A bank line below the remainder carries the same structure with code RC_PARTIAL_AMOUNT and stays partially matched.">
+      <thead><tr><th scope="col">Field</th><th scope="col">Value</th></tr></thead>
+      <tbody>
+        <tr><th scope="row" className="row-head">code · exception</th><td><span className="mono">{d.code}</span> · <span className="mono">{d.category}</span><br /><ReconStatus state="exception" /></td></tr>
+        <tr><th scope="row" className="row-head">source</th><td className="mono">{d.source}</td></tr>
+        <tr><th scope="row" className="row-head">expected</th><td className="num">{d.expected}</td></tr>
+        <tr><th scope="row" className="row-head">reported</th><td className="num">{d.reported}</td></tr>
+        <tr><th scope="row" className="row-head">difference</th><td className="num"><b>{d.difference}</b></td></tr>
+        <tr><th scope="row" className="row-head">requiredNextAction</th><td>{d.requiredNextAction}</td></tr>
+      </tbody>
     </TableWrap>
   );
 }

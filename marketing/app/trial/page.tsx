@@ -1,6 +1,7 @@
 import { ButtonLink, ContactBand, ExtLink, PageHero, Section } from "@/components/Shared";
 import { FUNDING_DESK_URL, SOFTWARE_URL, TRIAL_URL, mailto } from "@/lib/site";
 import { pageMeta } from "@/lib/meta";
+import { TRIAL_CASES } from "@/lib/cases";
 
 export const metadata = pageMeta(
   "Customer trial",
@@ -8,13 +9,6 @@ export const metadata = pageMeta(
   "/trial",
 );
 
-const cases = [
-  ["01", "Create an intent", "Connect", "Create a fictional payment, compare three sandbox quotes and one excluded route, choose a route and follow it to provider-reported completion."],
-  ["02", "Investigate a return", "Control", "Inspect a returned payout and identify the beneficiary-details correction required, and who owns it."],
-  ["03", "Handle a compliance hold", "Control", "See the provider's document request and the human owner. Clearline records holds; it does not clear them."],
-  ["04", "Inspect stablecoin finality", "Control", "Distinguish a synthetic Base Sepolia transaction observation from proof of final settlement."],
-  ["05", "Follow an advance", "Funding Desk", "Follow an SGD 50,000.00 advance from the supplier payout to treasury approval (maker ≠ checker), SGD 30,000.00 repaid by reference and SGD 20,000.00 outstanding, then open the detailed Funding Desk prototype."],
-];
 
 const safe = [
   ["Agree the question first", "One workflow, and what a useful finding would look like. No data changes hands at this step."],
@@ -35,8 +29,8 @@ export default function Trial() {
 
       <Section tone="white" eyebrow="Part one · explore" title="The five cases">
         <ol className="list-rows">
-          {cases.map(([n, t, area, d]) => (
-            <li key={n}><span className="idx">{n}</span><div><p className="label">{area}</p><h3 className="h3">{t}</h3><p>{d}</p></div></li>
+          {TRIAL_CASES.map(c => (
+            <li key={c.n}><span className="idx">{c.n}</span><div><p className="label">{c.area}</p><h3 className="h3">{c.title}</h3><p>{c.text}</p></div></li>
           ))}
         </ol>
         <div className="actions">
@@ -55,7 +49,7 @@ export default function Trial() {
         <p style={{ marginTop: 20 }}><a className="text-link" href={mailto("Clearline trial: our answers")}>Send your answers by email</a></p>
       </Section>
 
-      <Section id="historical" tone="bluegrey" eyebrow="Part two · historical cases" title="How to evaluate your own history safely"
+      <Section id="historical" tone="canvas" eyebrow="Part two · historical cases" title="How to evaluate your own history safely"
         intro={<p>If the fictional cases look relevant, we can discuss replaying up to five of your closed, redacted cases. That only happens after we agree the scope and how the data will be handled securely, in writing, and never through the public sandbox.</p>}>
         <ol className="list-rows">
           {safe.map(([t, d], i) => <li key={t}><span className="idx">{String(i + 1).padStart(2, "0")}</span><div><h3 className="h3">{t}</h3><p>{d}</p></div></li>)}
