@@ -456,3 +456,66 @@ describe("re-review N1: debit after a terminal status", () => {
     expect(TERMINAL_FOR_SETTLEMENT_REPORT).not.toContain("on_hold");
   });
 });
+
+// ---------------------------------------------------------------------------------------------
+// Final check C1/C2
+// ---------------------------------------------------------------------------------------------
+
+describe("final check C1: a held payout with a matched debit is never 'supplier paid'", () => {
+  function heldWithAdvance() {
+    const h = heldPayout();
+    const a = run(h.ws, "usr_maya", { type: "create_advance", input: { intentId: h.id, customerRef: "CUST-C1", customerName: "C1 Customer (fictional)", supplierName: "Test Supplier (fictional)", invoiceRef: "INV-C1-0001", dueDate: "2026-12-20", repaymentReference: "RPY-C1-000001" } });
+    const advanceId = a.createdIds[0];
+    const ws = run(a.workspace, "usr_daniel", { type: "decide_advance", advanceId, outcome: "approve", reason: "Within limit (fictional review)." }).workspace;
+    return { ...h, ws, advanceId };
+  }
+  it("C1: on_hold + verified bank debit → settlement stays verified, basis none, hold exposed on the funding row and in the investigation", () => {
+    const h = heldWithAdvance();
+    const ws = ingest(h.ws, debitLine({ reference: h.ppid })).workspace;
+    expect(st(ws, h.id)).toMatchObject({ execution: "on_hold", settlement: "verified", settlementScope: "bank_statement" });
+    const row = fundingProjection(ws).rows.find((r) => r.advanceId === h.advanceId)!;
+    expect(row.supplierPaidBasis).toBe("none");
+    expect(row.supplierPayout).toMatchObject({ execution: "on_hold", settlement: "verified", onHold: true, hold: { id: h.holdId } });
+    expect(row.state).not.toBe("supplier_paid");
+    const v = view(ws, h.id);
+    expect(v.unknowns.map((u) => u.code)).toContain("UK_DEBITED_FUNDS_HELD_BY_PARTNER");
+    expect(CODE_LABELS.UK_DEBITED_FUNDS_HELD_BY_PARTNER).toBeTruthy();
+  });
+  it("C1: once the reviewer releases the hold (→ in_transit), the verified debit is the basis again and the hold is no longer exposed", () => {
+    const h = heldWithAdvance();
+    let ws = ingest(h.ws, debitLine({ reference: h.ppid })).workspace;
+    ws = run(ws, "usr_maya", { type: "submit_hold_documents", holdId: h.holdId, documents: ["Supporting commercial invoice"] }).workspace;
+    ws = run(ws, "usr_priya", { type: "record_hold_decision", holdId: h.holdId, decision: "release", reason: "Documents reviewed (fictional)" }).workspace;
+    ws = sim(ws, h.id).workspace;
+    expect(st(ws, h.id).execution).toBe("in_transit");
+    const row = fundingProjection(ws).rows.find((r) => r.advanceId === h.advanceId)!;
+    expect(row.supplierPayout.onHold).toBe(false);
+    expect(row.supplierPayout.hold).toBeUndefined();
+    expect(row.supplierPaidBasis).toBe("verified_settlement");
+    expect(view(ws, h.id).unknowns.map((u) => u.code)).not.toContain("UK_DEBITED_FUNDS_HELD_BY_PARTNER");
+  });
+});
+
+describe("final check C2: a late debit after the return was resolved always has an open item", () => {
+  it("C2: return → person resolves → debit: contradicted WITH an open RC_DEBIT_FOR_TERMINAL_PAYOUT exception; resolving it gives none", () => {
+    const s = completedPayout();
+    let ws = webhook(s.ws, s.ppid, "payout.returned", 9);
+    const ret = listExceptions(ws, { intentId: s.id, category: "returned_payout" })[0];
+    ws = run(ws, "usr_maya", { type: "assign_owner", target: { kind: "exception", id: ret.id }, ownerId: "usr_maya" }).workspace;
+    ws = run(ws, "usr_maya", { type: "attach_evidence", target: { kind: "exception", id: ret.id }, evidence: { kind: "funds_returned_confirmation", description: "Bank confirms funds back (fictional)" } }).workspace;
+    ws = run(ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: ret.id }, note: "Return confirmed" }).workspace;
+    expect(st(ws, s.id).settlement).toBe("none");
+    const r = ingest(ws, debitLine({ reference: s.ppid, lineId: "D-LATE" }));
+    expect(r.outcome).toBe("allocated");
+    ws = r.workspace;
+    expect(st(ws, s.id)).toMatchObject({ execution: "returned", settlement: "contradicted", settlementScope: "bank_statement" });
+    const open = listExceptions(ws, { intentId: s.id, status: "unresolved" });
+    expect(open.map((e) => e.explanationCode)).toEqual(["RC_DEBIT_FOR_TERMINAL_PAYOUT"]);
+    expect(open[0].category).toBe("contradictory_evidence");
+    const v = view(ws, s.id);
+    expect(v.contradictions.map((c) => c.code)).toContain("RC_DEBIT_FOR_TERMINAL_PAYOUT");
+    expect(v.whoActs.code).not.toBe("WA_NONE");
+    ws = resolveByPerson(ws, open[0].id);
+    expect(st(ws, s.id)).toMatchObject({ execution: "returned", settlement: "none", settlementScope: "none" });
+  });
+});

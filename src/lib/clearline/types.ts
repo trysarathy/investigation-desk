@@ -717,7 +717,15 @@ export interface RepaymentAllocation {
 export interface FundingProjectionRow {
   advanceId: string;
   intentId: string;
-  supplierPayout: { execution: ExecutionState; settlement: SettlementEvidenceState; providerPaymentId?: string };
+  supplierPayout: {
+    execution: ExecutionState;
+    settlement: SettlementEvidenceState;
+    providerPaymentId?: string;
+    /** Final check C1: true while the payout is on a partner hold (supplierPaidBasis is then "none"). */
+    onHold: boolean;
+    /** Final check C1: the undecided partner hold on this payout, if any. */
+    hold?: { id: string; status: HoldStatus };
+  };
   customerName: string;
   supplierName: string;
   invoiceRef: string;
@@ -734,7 +742,7 @@ export interface FundingProjectionRow {
    * claim; `verified_settlement` = settlement evidence is verified (bank statement or final chain
    * transfer) AND the payout is not failed, cancelled, expired or returned; `none` = neither (always
    * `none` for a failed, cancelled, expired or returned payout, whatever the settlement field says —
-   * review v2 M2). The state name `supplier_paid` is kept for compatibility.
+   * review v2 M2 — and for an on_hold payout, final check C1). The state name `supplier_paid` is kept for compatibility.
    */
   supplierPaidBasis: "none" | "provider_reported" | "verified_settlement";
   /** Corresponding stage name in the existing Funding Desk (src/lib/mentor-demo). */

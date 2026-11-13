@@ -61,6 +61,9 @@ export function deriveAdvanceState(ws: Workspace, advanceId: string, at: string 
  */
 export function supplierPaidBasis(intent: PaymentIntent | undefined): FundingProjectionRow["supplierPaidBasis"] {
   if (!intent || isTerminalForSettlementReport(intent.status.execution)) return "none";
+  // Final check C1: while the partner holds the payout the supplier is not paid, even if the bank
+  // debit is verified (money left the account; it has not reached the supplier). See supplierPayout.hold.
+  if (intent.status.execution === "on_hold") return "none";
   if (intent.status.settlement === "verified") return "verified_settlement";
   return intent.status.execution === "provider_reported_completed" ? "provider_reported" : "none";
 }
@@ -74,6 +77,7 @@ export function fundingProjection(ws: Workspace, at: string = ws.asOf): FundingP
     const allocations = ob ? ws.repaymentAllocations.filter((a) => a.obligationId === ob.id) : [];
     const outstanding = ob ? obligationOutstanding(ws, ob.id) : { amountMinor: 0, currency: adv.currency };
     const state = deriveAdvanceState(ws, adv.id, at);
+    const hold = intent ? ws.holds.find((h) => h.intentId === intent.id && h.status !== "released" && h.status !== "rejected") : undefined;
     return {
       advanceId: adv.id,
       intentId: adv.intentId,
@@ -81,6 +85,8 @@ export function fundingProjection(ws: Workspace, at: string = ws.asOf): FundingP
         execution: intent?.status.execution ?? "created",
         settlement: intent?.status.settlement ?? "none",
         providerPaymentId: instr?.providerPaymentId,
+        onHold: intent?.status.execution === "on_hold",
+        ...(hold ? { hold: { id: hold.id, status: hold.status } } : {}),
       },
       customerName: adv.customerName,
       supplierName: adv.supplierName,

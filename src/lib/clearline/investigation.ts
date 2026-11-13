@@ -89,6 +89,10 @@ export function investigate(ws: Workspace, intentId: string): Result<Investigati
   if (applied.some((e) => e.normalizedType === "payout.completed") && !providerEvents.some((e) => e.normalizedType === "payout.in_transit"))
     add(unknowns, f("UK_IN_TRANSIT_NOT_REPORTED", "The provider never reported an in-transit event; none was inferred."));
   if (open.some((e) => e.category === "provider_timeout")) add(unknowns, f("UK_PROVIDER_OUTCOME_UNKNOWN", "The provider has not responded; the payout's outcome is unknown."));
+  // Final check C1: a verified/observed bank debit on a held payout means the money left the account,
+  // not that the supplier was paid.
+  if (s.execution === "on_hold" && s.settlementScope === "bank_statement" && (s.settlement === "verified" || s.settlement === "observed"))
+    add(unknowns, f("UK_DEBITED_FUNDS_HELD_BY_PARTNER", "Money left the account (bank debit), but the partner holds the payout. The supplier has not been paid.", hold ? [hold.id] : []));
   if (hold && hold.status !== "released" && hold.status !== "rejected") add(unknowns, f("UK_HOLD_OUTCOME_PENDING", `Partner hold is ${hold.status}; the outcome depends on the partner and your compliance reviewer.`, [hold.id]));
 
   // Contradictions

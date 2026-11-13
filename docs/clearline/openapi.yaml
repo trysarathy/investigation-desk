@@ -86,7 +86,8 @@ info:
     `payout.failed` is likewise `contradicted` with `RC_DEBIT_FOR_FAILED_PAYOUT`. A bank debit matched AFTER the
     payout is failed, cancelled, expired or returned is allocated but settlement is `contradicted`
     (`RC_DEBIT_FOR_FAILED_PAYOUT`, `RC_DEBIT_FOR_TERMINAL_PAYOUT`, or evidence on the open return exception),
-    so the end state does not depend on the order. Funding rows carry
+    so the end state does not depend on the order; a debit after a person resolved the return opens
+    `RC_DEBIT_FOR_TERMINAL_PAYOUT`, so there is always an open item. Funding rows carry
     `supplierPaidBasis`, which is always `none` for a failed, cancelled, expired or returned payout.
 
     **Legacy endpoints** under `/api/clearline/test/{intents,quotes,transitions,webhooks,payments,health}`
@@ -563,6 +564,8 @@ components:
             execution: { $ref: "#/components/schemas/StatusDimensions/properties/execution" }
             settlement: { $ref: "#/components/schemas/StatusDimensions/properties/settlement" }
             providerPaymentId: { type: string }
+            onHold: { type: boolean, description: "True while the payout is on a partner hold (supplierPaidBasis is then none)" }
+            hold: { type: object, properties: { id: { type: string }, status: { enum: [open, documents_submitted, partner_release_reported] } }, description: "The undecided partner hold, if any" }
         principal: { $ref: "#/components/schemas/Money" }
         repaid: { type: object, properties: { amountMinor: { type: integer, minimum: 0 }, currency: { $ref: "#/components/schemas/Currency" } } }
         outstanding: { type: object, properties: { amountMinor: { type: integer, minimum: 0 }, currency: { $ref: "#/components/schemas/Currency" } } }
@@ -573,7 +576,7 @@ components:
           description: >-
             `verified_settlement` = settlement verified (bank statement or final chain transfer) and the payout is
             not failed/cancelled/expired/returned; `provider_reported` = only the provider's completion claim;
-            `none` otherwise, and always for a failed, cancelled, expired or returned payout.
+            `none` otherwise, and always for a failed, cancelled, expired, returned or on_hold payout.
     QuoteEligibilityCode:
       type: string
       enum: [ELIGIBLE, ROUTE_RESTRICTED, SOURCE_CURRENCY_UNSUPPORTED, DESTINATION_CURRENCY_UNSUPPORTED, COUNTRY_UNSUPPORTED, PAIR_UNSUPPORTED, BELOW_MINIMUM, ABOVE_MAXIMUM, FEE_UNDEFINED, AMOUNT_BELOW_FEES, RATE_UNAVAILABLE]

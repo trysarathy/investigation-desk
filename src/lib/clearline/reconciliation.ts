@@ -362,6 +362,11 @@ export function reconcileLine(tx: Tx, line: StatementLine): string {
         ret.supportingEvidenceIds.push(evidenceId);
         ret.history.push({ at: tx.at, actorId: tx.actorId, action: "evidence_added", detail: `Outgoing debit ${line.lineId} matched after the provider reported the return; settlement contradicted.` });
         ret.lastUpdatedAt = tx.at;
+      } else {
+        // Final check C2: the return was already resolved by a person. A late debit must still leave
+        // an open item with an owner, so it raises its own contradiction (the recompute gives
+        // "none" again once a person resolves it).
+        openTerminalDebitException(tx, intent, line.id, [evidenceId]);
       }
     } else openTerminalDebitException(tx, intent, line.id, [evidenceId]);
     intent.status.settlement = "contradicted";
@@ -465,15 +470,18 @@ export function onExecutionChanged(tx: Tx, intent: PaymentIntent): void {
   }
 }
 
-/** A bank debit for a payout that failed (RC_DEBIT_FOR_FAILED_PAYOUT) or was cancelled/expired (RC_DEBIT_FOR_TERMINAL_PAYOUT). */
+/** A bank debit for a payout that failed (RC_DEBIT_FOR_FAILED_PAYOUT), or was cancelled/expired/returned-and-resolved (RC_DEBIT_FOR_TERMINAL_PAYOUT). */
 function openTerminalDebitException(tx: Tx, intent: PaymentIntent, statementLineId: string | undefined, evidenceIds: string[]) {
-  const failed = intent.status.execution === "failed";
+  const exec = intent.status.execution;
+  const failed = exec === "failed";
   openException(tx, {
     category: "contradictory_evidence",
     explanationCode: failed ? "RC_DEBIT_FOR_FAILED_PAYOUT" : "RC_DEBIT_FOR_TERMINAL_PAYOUT",
     explanation: failed
       ? "A statement debit matches a payout the provider reported as failed."
-      : `A statement debit matches a payout that is ${intent.status.execution}; money left the account for a payout that did not proceed.`,
+      : exec === "returned"
+        ? "A statement debit matches a payout the provider reported as returned, after the return was resolved. Confirm the debit and the returned funds net to zero."
+        : `A statement debit matches a payout that is ${exec}; money left the account for a payout that did not proceed.`,
     intentId: intent.id,
     statementLineId,
     supportingEvidenceIds: evidenceIds,

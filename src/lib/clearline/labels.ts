@@ -305,7 +305,7 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   RC_REPORT_ON_TERMINAL_PAYOUT: "Provider reports settlement on a failed, cancelled, expired or returned payout",
   RC_REPORT_ON_HELD_PAYOUT: "Provider reports settlement on a payout that is on hold — not counted",
   RC_DEBIT_FOR_FAILED_PAYOUT: "Bank debit for a payout the provider reported as failed",
-  RC_DEBIT_FOR_TERMINAL_PAYOUT: "Bank debit for a payout that was cancelled or expired",
+  RC_DEBIT_FOR_TERMINAL_PAYOUT: "Bank debit for a payout that was cancelled, expired, or returned and already resolved",
   RC_NO_STATEMENT_AFTER_COMPLETION: "No statement line after provider-reported completion",
   // Provider events
   EV_AMOUNT_DIFFERS_FROM_INSTRUCTION: "Provider amount differs from the approved instruction",
@@ -350,6 +350,7 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   UK_IN_TRANSIT_NOT_REPORTED: "Provider never reported in transit",
   UK_PROVIDER_OUTCOME_UNKNOWN: "Provider outcome unknown",
   UK_HOLD_OUTCOME_PENDING: "Hold outcome pending",
+  UK_DEBITED_FUNDS_HELD_BY_PARTNER: "Money left the account; the partner holds it — supplier not paid",
   CT_SETTLEMENT_CONTRADICTED: "Settlement evidence contradicted",
   OS_NOT_RECONCILED: "Not yet reconciled to a statement",
   OS_PARTIALLY_RECONCILED: "Partly reconciled — remainder outstanding",
