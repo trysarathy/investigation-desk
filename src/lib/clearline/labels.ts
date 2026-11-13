@@ -277,6 +277,22 @@ const RESET_CODE: Record<string, string> = {
   ID_CONFLICT: "The case's sample ids are used by other records",
   REFERENCE_IN_USE: "One of your active payments uses this case's internal reference",
 };
+/** rc3: row codes of the synthetic case report CSV (caseReportToCsv). */
+const REPORT_ROW_CODE: Record<string, string> = {
+  FICTIONAL_SANDBOX: "Fictional sandbox report",
+  GENERATED_AT: "Generated at (simulated clock)",
+  SUBJECT: "Payment and case",
+  HEADLINE: "Summary",
+  REQUESTED: "Requested amount",
+  MATCHED: "Amount reconciled",
+  UNRECONCILED: "Amount not yet reconciled",
+  PRINCIPAL: "Advance principal",
+  REPAID: "Repaid by reference",
+  OUTSTANDING: "Outstanding",
+  DEBITED: "Debited on the statement",
+  RETURN_CREDITED: "Return credited on the statement",
+  NET_MOVEMENT: "Net movement (debit − return)",
+};
 /** Quote eligibility codes (ProviderAdapter.eligibility). */
 const ELIGIBILITY_CODE: Record<string, string> = {
   ELIGIBLE: "Eligible route",
@@ -400,6 +416,7 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   MC_CHECKER: "Checked by a different person",
   ...Object.fromEntries(Object.entries(ELIGIBILITY_CODE)),
   ...RESET_CODE,
+  ...REPORT_ROW_CODE,
 };
 
 const RETURN_STATUS: Record<NonNullable<PaymentIntent["returnStatus"]>, string> = {
@@ -438,6 +455,8 @@ export const HUMAN_LABELS = {
   eligibilityCode: ELIGIBILITY_CODE,
   /** rc3: canResetScenario / resetScenario codes. */
   resetCode: RESET_CODE,
+  /** rc3: case report CSV row codes. */
+  reportRowCode: REPORT_ROW_CODE,
   /** rc3 (R-1): PaymentIntent.returnStatus. */
   returnStatus: RETURN_STATUS,
 } as const;

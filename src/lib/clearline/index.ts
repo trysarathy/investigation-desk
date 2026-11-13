@@ -49,6 +49,10 @@ export { fundingProjection, obligationOutstanding, FUNDING_PROJECTION_LABEL } fr
 // Read models
 export { investigate, evidenceTimelineFor, exportCaseReport, timelineFor, listExceptions, getIntent, ENGINE_DISCLAIMER } from "./investigation";
 
+// rc3: deterministic synthetic case report (JSON + CSV)
+export { buildCaseReport, caseReportToJson, caseReportToCsv, CASE_REPORT_MARKING, CASE_REPORT_CSV_COLUMNS } from "./report";
+export type { SyntheticCaseReport, CaseReportRef, CaseReportFinding, CaseReportTimelineEntry, DecimalAmount } from "./report";
+
 // Human-readable labels (CHANGE 5)
 export { HUMAN_LABELS, CODE_LABELS, describeCode, explainCode, isKnownCode, describeStatus, describeError } from "./labels";
 export type { HumanError, StatusDescription } from "./labels";
