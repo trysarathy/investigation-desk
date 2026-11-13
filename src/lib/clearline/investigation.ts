@@ -150,6 +150,35 @@ export function investigate(ws: Workspace, intentId: string): Result<Investigati
           : remainderOpen;
       return { ...d, outstanding };
     });
+  // rc3 (R-1): a returned payout states BOTH facts — whether the net movement is zero, and that the
+  // beneficiary is unpaid — so "net zero" can never be read as "delivered".
+  let returnPosition: InvestigationView["returnPosition"];
+  if (s.execution === "returned" || intent.returnStatus) {
+    const payAllocs = ws.allocations.filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id && a.evidenceKind === "statement_line" && a.currency === intent.sourceCurrency);
+    const debitedMinor = payAllocs.filter((a) => !a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN")).reduce((t, a) => t + a.amountMinor, 0);
+    const returnedMinor = payAllocs.filter((a) => a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN")).reduce((t, a) => t + a.amountMinor, 0);
+    const both = debitedMinor > 0 && returnedMinor > 0;
+    const code: NonNullable<InvestigationView["returnPosition"]>["code"] = !returnedMinor ? "RT_RETURN_NOT_ON_STATEMENT" : !debitedMinor ? "RT_DEBIT_NOT_ON_STATEMENT" : debitedMinor === returnedMinor ? "RT_NET_ZERO" : "RT_NET_NOT_ZERO";
+    const fm = (m: number) => formatMinor(m, intent.sourceCurrency);
+    const text = {
+      RT_NET_ZERO: `The debit and the return credit (${fm(debitedMinor)} each) net to zero on the statement. The beneficiary was not paid.`,
+      RT_NET_NOT_ZERO: `The debit (${fm(debitedMinor)}) and the return credit (${fm(returnedMinor)}) do not net to zero. The beneficiary was not paid.`,
+      RT_RETURN_NOT_ON_STATEMENT: "The provider reports the return; no return credit is on the statement yet. The beneficiary was not paid.",
+      RT_DEBIT_NOT_ON_STATEMENT: `The return credit (${fm(returnedMinor)}) is on the statement but the outgoing debit is not, so a net-zero movement is not established. The beneficiary was not paid.`,
+    }[code];
+    returnPosition = {
+      returnStatus: intent.returnStatus ?? "provider_reported",
+      debited: money(debitedMinor),
+      returnCredited: money(returnedMinor),
+      ...(both ? { netMovement: money(debitedMinor - returnedMinor) } : {}),
+      netMovementZero: code === "RT_NET_ZERO",
+      beneficiaryPaid: false,
+      code,
+      text,
+    };
+    codes.push(code, "RT_BENEFICIARY_UNPAID");
+  }
+
   const amountDifferences = allDifferences.filter((d) => d.outstanding);
   const resolvedAmountDifferences = allDifferences.filter((d) => !d.outstanding);
   codes.push(...amountDifferences.map((d) => d.code));
@@ -222,6 +251,7 @@ export function investigate(ws: Workspace, intentId: string): Result<Investigati
       explanationCodes: [...new Set(codes)],
       amountDifferences,
       resolvedAmountDifferences,
+      ...(returnPosition ? { returnPosition } : {}),
       disclaimer: ENGINE_DISCLAIMER,
     },
   };

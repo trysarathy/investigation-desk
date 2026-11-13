@@ -21,6 +21,7 @@ import type {
   HoldStatus,
   InstructionStatus,
   NormalizedEventType,
+  PaymentIntent,
   ProcessingOutcome,
   ProviderErrorClass,
   ReconciliationState,
@@ -360,6 +361,11 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   OS_PARTIALLY_RECONCILED: "Partly reconciled — remainder outstanding",
   OS_RETURN_NOT_YET_RECEIVED: "Return not yet seen on a statement — supplier unpaid",
   OS_RETURN_RECEIVED_SUPPLIER_UNPAID: "Returned funds received — supplier still unpaid",
+  RT_NET_ZERO: "Debit and return credit net to zero",
+  RT_NET_NOT_ZERO: "Debit and return credit do not net to zero",
+  RT_RETURN_NOT_ON_STATEMENT: "Return credit not yet on the statement",
+  RT_DEBIT_NOT_ON_STATEMENT: "Outgoing debit not on the statement — net zero not established",
+  RT_BENEFICIARY_UNPAID: "Beneficiary not paid (payout returned)",
   OS_ADVANCE_OUTSTANDING: "Advance repayment outstanding",
   OS_ADVANCE_OVERDUE: "Advance repayment overdue",
   OS_UNALLOCATED_RECEIPT: "Receipt not allocated",
@@ -384,6 +390,11 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   MC_MAKER: "Prepared by the maker",
   MC_CHECKER: "Checked by a different person",
   ...Object.fromEntries(Object.entries(ELIGIBILITY_CODE)),
+};
+
+const RETURN_STATUS: Record<NonNullable<PaymentIntent["returnStatus"]>, string> = {
+  provider_reported: "Return reported by the provider (not yet on a statement)",
+  confirmed_by_statement: "Return confirmed on the statement",
 };
 
 /** All human labels, keyed by dimension. Every member of every engine union has an entry. */
@@ -415,6 +426,8 @@ export const HUMAN_LABELS = {
   apiErrorCode: API_ERROR_CODE,
   resolutionCode: RESOLUTION_CODE,
   eligibilityCode: ELIGIBILITY_CODE,
+  /** rc3 (R-1): PaymentIntent.returnStatus. */
+  returnStatus: RETURN_STATUS,
 } as const;
 
 const own = <T>(o: Readonly<Record<string, T>>, k: string): T | undefined => (Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined);
