@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
-import { SAMPLE_QUOTES, SAMPLE_RECON, SAMPLE_LIQUIDITY, SAMPLE_PAYMENTS } from "@/lib/sample";
-import { ExecStatus, EvidenceStatus, ReconStatus } from "@/components/Status";
+import {
+  FUNDING_PROJECTION_LABEL, LIQUIDITY_POLICY_LABEL, QUOTE_LABEL, SAMPLE_FUNDING, SAMPLE_LIQUIDITY, SAMPLE_PAYMENTS,
+  SAMPLE_QUOTES, SAMPLE_STATEMENT_LINES, SAMPLE_USABLE_NOW,
+} from "@/lib/sample";
+import { ExecStatus, ReconStatus, SettlementStatus } from "@/components/Status";
 
 /** Scrollable, keyboard-focusable table region. The page itself never scrolls sideways. */
 export function TableWrap({ label, caption, children }: { label: string; caption: string; children: ReactNode }) {
@@ -16,13 +19,13 @@ export function TableWrap({ label, caption, children }: { label: string; caption
 
 export function QuotesTable() {
   return (
-    <TableWrap label="Sample route quotes" caption="Output of the test-mode quote engine for SGD 48,215.37 → PHP at KYC tier 2. Fixed illustrations, not executable offers.">
-      <thead><tr><th scope="col">Quote</th><th scope="col">Provider</th><th scope="col">Route</th><th scope="col" className="r">Rate</th><th scope="col" className="r">Fee</th><th scope="col">ETA</th><th scope="col">Eligibility</th></tr></thead>
+    <TableWrap label="Sample route quotes" caption={`The engine's quotes for INV-2026-126 (SGD 24,651.37 → PHP). Every quote is labelled "${QUOTE_LABEL}" and expires after 15 minutes.`}>
+      <thead><tr><th scope="col">Provider</th><th scope="col">Rail</th><th scope="col" className="r">Rate</th><th scope="col" className="r">Provider fee</th><th scope="col" className="r">Platform fee</th><th scope="col" className="r">Est. recipient</th><th scope="col">ETA</th><th scope="col">Eligibility</th></tr></thead>
       <tbody>{SAMPLE_QUOTES.map(q => (
-        <tr key={q.id}>
-          <td className="mono">{q.id}</td><td>{q.provider}</td><td>{q.route}</td>
-          <td className="r num">{q.rate}</td><td className="r num">{q.fee}</td><td>{q.eta}</td>
-          <td>{q.eligible ? <span className="st-exec tone-neutral">eligible</span> : <span className="st-exec tone-warning">excluded: {q.reason}</span>}</td>
+        <tr key={q.provider + q.rail}>
+          <td>{q.provider}</td><td className="mono">{q.rail}</td>
+          <td className="r num">{q.rate}</td><td className="r num">{q.providerFee}</td><td className="r num">{q.platformFee}</td><td className="r num">{q.recipient}</td><td>{q.eta}</td>
+          <td>{q.eligible ? <span className="st-exec tone-neutral">eligible</span> : <><span className="st-exec tone-warning">ineligible</span><span className="caption">{q.reason}</span></>}</td>
         </tr>
       ))}</tbody>
     </TableWrap>
@@ -31,12 +34,13 @@ export function QuotesTable() {
 
 export function ReconTable() {
   return (
-    <TableWrap label="Sample reconciliation" caption="Output of the test-mode reconcile step. A matching amount alone is never treated as attribution; references and payment IDs must agree.">
-      <thead><tr><th scope="col">Reference</th><th scope="col">Payment</th><th scope="col" className="r">Amount</th><th scope="col">Source</th><th scope="col">Result</th><th scope="col">Reason</th></tr></thead>
-      <tbody>{SAMPLE_RECON.map(r => (
-        <tr key={r.reference}>
-          <td className="mono">{r.reference}</td><td className="mono">{r.paymentId}</td><td className="r num">{r.amount}</td>
-          <td>{r.source}</td><td><ReconStatus state={r.recon} /></td><td>{r.reason}</td>
+    <TableWrap label="Sample statement lines and reconciliation results" caption="The engine's statement lines after the sample build. Automatic allocation only on a trusted reference + amount + currency + value-date window; everything else becomes an exception with an RC_* explanation code. Fictional bank lines.">
+      <thead><tr><th scope="col">Line</th><th scope="col">Direction</th><th scope="col" className="r">Amount</th><th scope="col">Reference</th><th scope="col">Result</th><th scope="col">Explanation</th></tr></thead>
+      <tbody>{SAMPLE_STATEMENT_LINES.map(l => (
+        <tr key={l.lineId}>
+          <td className="mono">{l.lineId}</td><td>{l.direction} · {l.kind}</td><td className="r num">{l.amount}</td><td className="mono">{l.reference}</td>
+          <td>{l.result === "allocated" ? <span className="st-recon tone-success">allocated</span> : <span className="st-recon tone-danger">exception</span>}</td>
+          <td><span className="mono caption">{l.code}</span>{l.text}</td>
         </tr>
       ))}</tbody>
     </TableWrap>
@@ -45,12 +49,14 @@ export function ReconTable() {
 
 export function LiquidityTable() {
   return (
-    <TableWrap label="Sample liquidity by provider" caption="Free = balance − safeguarded − pending − buffer. Restricted amounts are subtracted, never shown as spendable. Fictional balances.">
-      <thead><tr><th scope="col">Provider</th><th scope="col">Ccy</th><th scope="col" className="r">Balance</th><th scope="col" className="r">Safeguarded</th><th scope="col" className="r">Pending</th><th scope="col" className="r">Buffer</th><th scope="col" className="r">Free</th></tr></thead>
+    <TableWrap label="Sample liquidity by account" caption={`usable = eligible − restricted − safeguarded − committed payouts − buffer. Stale snapshots are flagged and excluded from usable now: ${SAMPLE_USABLE_NOW}. Currencies are never added together. ${LIQUIDITY_POLICY_LABEL}`}>
+      <thead><tr><th scope="col">Account</th><th scope="col">Ccy</th><th scope="col" className="r">Eligible</th><th scope="col" className="r">Restricted</th><th scope="col" className="r">Safeguarded</th><th scope="col" className="r">Committed</th><th scope="col" className="r">Buffer</th><th scope="col" className="r">Usable</th><th scope="col">Snapshot</th></tr></thead>
       <tbody>{SAMPLE_LIQUIDITY.map(l => (
-        <tr key={l.provider}>
-          <td>{l.provider}</td><td className="mono">{l.currency}</td><td className="r num">{l.balance}</td><td className="r num">{l.safeguarded}</td>
-          <td className="r num">{l.pending}</td><td className="r num">{l.buffer}</td><td className="r num"><b>{l.free}</b></td>
+        <tr key={l.account}>
+          <td>{l.provider}<span className="caption mono">{l.account}</span></td><td className="mono">{l.currency}</td>
+          <td className="r num">{l.eligible}</td><td className="r num">{l.restricted}</td><td className="r num">{l.safeguarded}</td>
+          <td className="r num">{l.committed}</td><td className="r num">{l.buffer}</td><td className="r num"><b>{l.usable}</b></td>
+          <td>{l.freshness.startsWith("stale") ? <span className="st-exec tone-warning">{l.freshness}</span> : <span className="caption">{l.freshness}</span>}</td>
         </tr>
       ))}</tbody>
     </TableWrap>
@@ -59,14 +65,33 @@ export function LiquidityTable() {
 
 export function PaymentsTable() {
   return (
-    <TableWrap label="Sample payments with three separate statuses" caption="The five seeded test-mode payments. Execution, evidence and reconciliation are tracked separately.">
-      <thead><tr><th scope="col">Payment</th><th scope="col">Reference</th><th scope="col">Beneficiary</th><th scope="col" className="r">Amount</th><th scope="col">Execution</th><th scope="col">Evidence</th><th scope="col">Reconciliation</th></tr></thead>
+    <TableWrap label="Sample payments with three separate status dimensions" caption="The engine's five seeded scenarios (s1–s5). execution, settlement (+ scope) and reconciliation are separate fields on every payment intent.">
+      <thead><tr><th scope="col">Scenario</th><th scope="col">Reference</th><th scope="col">Beneficiary</th><th scope="col" className="r">Amount</th><th scope="col">execution</th><th scope="col">settlement</th><th scope="col">reconciliation</th></tr></thead>
       <tbody>{SAMPLE_PAYMENTS.map(p => (
-        <tr key={p.id}>
-          <td className="mono">{p.id}</td><td className="mono">{p.reference}</td><td>{p.beneficiary}</td><td className="r num">{p.amount}</td>
-          <td><ExecStatus state={p.exec} /></td><td><EvidenceStatus state={p.evidence} /></td><td><ReconStatus state={p.recon} /></td>
+        <tr key={p.scenario}>
+          <td className="mono">{p.scenario}</td><td className="mono">{p.reference}</td><td>{p.beneficiary}</td><td className="r num">{p.amount}</td>
+          <td><ExecStatus state={p.execution} /></td><td><SettlementStatus state={p.settlement} scope={p.settlementScope} /></td><td><ReconStatus state={p.reconciliation} /></td>
         </tr>
       ))}</tbody>
+    </TableWrap>
+  );
+}
+
+export function FundingTable() {
+  const f = SAMPLE_FUNDING;
+  const rows: [string, ReactNode][] = [
+    ["Supplier payout (Connect intent)", <>{f.supplierPayout}<br /><ExecStatus state={f.payoutStatus.execution} /> <SettlementStatus state={f.payoutStatus.settlement} scope="bank_statement" /></>],
+    ["Advance", <>{f.principal} for {f.customer}</>],
+    ["Treasury approval", f.approval],
+    ["Repayment obligation", f.obligation],
+    ["Allocations", f.allocations],
+    ["Repaid / outstanding", <><span className="num">{f.repaid}</span> repaid · <b className="num">{f.outstanding}</b> outstanding · <span className="st-exec tone-warning">{f.state}</span></>],
+    ["Exception", f.exception],
+  ];
+  return (
+    <TableWrap label="Sample funding projection" caption={FUNDING_PROJECTION_LABEL}>
+      <thead><tr><th scope="col">Link in the projection</th><th scope="col">s5_funding (fictional)</th></tr></thead>
+      <tbody>{rows.map(([k, v]) => <tr key={k}><th scope="row" className="row-head">{k}</th><td>{v}</td></tr>)}</tbody>
     </TableWrap>
   );
 }

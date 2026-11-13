@@ -109,11 +109,13 @@ b, strong { font-weight: 600; }
 .tone-danger { --t: var(--cl-danger); --tb: var(--cl-danger-bg); }
 /* Execution: tinted rounded tag */
 .st-exec { display: inline-block; padding: 2px 8px; border-radius: var(--cl-radius-sm); background: var(--tb); color: var(--t); font-family: var(--cl-font-mono); font-size: var(--cl-text-xs); white-space: nowrap; }
-/* Evidence: outlined, shape marker; dashed = reported only, solid = verified */
-.st-evidence { display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; border-radius: 999px; font-family: var(--cl-font-mono); font-size: var(--cl-text-xs); white-space: nowrap; background: var(--cl-white); }
-.ev-none { color: var(--cl-muted); border: 1px dashed var(--cl-line-strong); }
-.ev-provider_reported_completed { color: var(--cl-warning); border: 1px dashed var(--cl-warning); }
-.ev-settlement_evidence_verified { color: var(--cl-info); border: 1px solid var(--cl-info); }
+/* Settlement evidence: outlined, shape marker; dashed = not verified, solid = verified/contradicted */
+.st-settlement { display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; border-radius: 999px; font-family: var(--cl-font-mono); font-size: var(--cl-text-xs); white-space: nowrap; background: var(--cl-white); }
+.stl-none { color: var(--cl-muted); border: 1px dashed var(--cl-line-strong); }
+.stl-observed, .stl-pending_finality { color: var(--cl-warning); border: 1px dashed var(--cl-warning); }
+.stl-verified { color: var(--cl-info); border: 1px solid var(--cl-info); }
+.stl-contradicted { color: var(--cl-danger); border: 1px solid var(--cl-danger); }
+.stl-scope { color: var(--cl-muted); }
 /* Reconciliation: square, uppercase, left rule */
 .st-recon { display: inline-block; padding: 2px 8px 2px 6px; border-left: 3px solid var(--t); background: var(--tb); color: var(--t); font-family: var(--cl-font-mono); font-size: var(--cl-text-xs); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
 
@@ -174,7 +176,7 @@ b, strong { font-weight: 600; }
 @media (min-width: 640px) { .record-status { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .record-status dt { font-family: var(--cl-font-mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--cl-muted); margin-bottom: 4px; }
 .record-status dd { min-width: 0; overflow-wrap: anywhere; }
-.record-status .st-evidence, .record-status .st-exec, .record-status .st-recon { white-space: normal; overflow-wrap: anywhere; }
+.record-status .st-settlement, .record-status .st-exec, .record-status .st-recon { white-space: normal; overflow-wrap: anywhere; }
 .record-cols { display: grid; gap: var(--cl-space-5); margin-top: var(--cl-space-4); }
 @media (min-width: 640px) { .record-cols { grid-template-columns: 1.15fr .85fr; } }
 .record-explain { background: var(--cl-bluegrey); border-radius: var(--cl-radius-md); padding: var(--cl-space-4); align-self: start; }
@@ -259,5 +261,12 @@ code.inline { font-size: .9em; background: var(--cl-sand); padding: 1px 5px; bor
 .text-link, .footer-col a, .glance dd, .caption { overflow-wrap: anywhere; }
 pre.code { max-width: 100%; }
 /* Contain visually hidden (.sr-only, absolutely positioned) text inside scroll regions and tags. */
-.table-wrap, .st-exec, .st-evidence, .st-recon, .btn, .stage, pre.code { position: relative; }
+.table-wrap, .st-exec, .st-settlement, .st-recon, .btn, .stage, pre.code { position: relative; }
 body { overflow-wrap: break-word; } p, li, dd { overflow-wrap: anywhere; }
+
+.data-table th.row-head { text-transform: none; letter-spacing: 0; font-family: var(--cl-font-sans); font-size: var(--cl-text-sm); font-weight: 600; color: var(--cl-ink); background: var(--cl-white); white-space: normal; vertical-align: top; }
+.data-table td .caption { margin-top: 2px; }
+/* Long explanation cells keep a readable width; the table scrolls inside its region instead of growing tall. */
+.data-table td:last-child { min-width: 240px; }
+.data-table td.mono { overflow-wrap: anywhere; }
+.data-table td.num, .data-table td.r { white-space: nowrap; }

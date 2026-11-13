@@ -4,7 +4,7 @@ Next.js 15 + Tailwind static site (`output: "export"` → `out/`). No backend, n
 
 Pages: `/` Home · `/platform` · `/connect` · `/control` · `/use-cases` · `/developers` · `/trial` (Customer trial) · `/onchain` · `/about` · `/contact` · `/privacy`.
 
-Route decisions: every page in the founder's brief got its own page. `/replay` (the Studio V2 trial page) is kept only as a `noindex` page that forwards to `/trial` so old links keep working. The Funding Desk has no page of its own: it is a separate prototype, covered under Control, Use cases (funding exposure) and Trial case 05.
+Route decisions: every page in the founder's brief got its own page. `/replay` (the Studio V2 trial page) is kept only as a `noindex` page that forwards to `/trial` so old links keep working. The Funding Desk has no page of its own: the engine links it to payments through a tested projection (not a shared production ledger), covered under Control, Use cases (funding exposure) and Trial case 05; the detailed prototype stays at `/mentor-demo`.
 
 ## Design system
 
@@ -45,6 +45,6 @@ npx next build      # writes out/
 ## Content rules
 
 - Stage labels only: Working synthetic engine · Illustrative UI · In development · No third-party integration. Never "live", "production" or "enterprise-ready".
-- Sample tables come from the test-mode engine (`src/lib/clearline/core.ts`); data is fictional and labelled.
+- Sample tables come from the tested sandbox engine (`src/lib/clearline/sample.ts`, scenarios s1–s5, read through its own read models); data is fictional and labelled. Status names must match `src/lib/clearline/types.ts`.
 - No customers, logos, testimonials, metrics, team or investors. `public/` holds only the founder's real photo.
 - Contact: the founder's verified email. Never ask for payment records.

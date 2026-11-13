@@ -1,5 +1,5 @@
 import { ButtonLink, ContactBand, PageHero, Section, Stage } from "@/components/Shared";
-import { EvidenceStatus } from "@/components/Status";
+import { ExecStatus, SettlementStatus } from "@/components/Status";
 import { SOFTWARE_URL } from "@/lib/site";
 import { pageMeta } from "@/lib/meta";
 
@@ -41,7 +41,7 @@ export default function Onchain() {
 
       <Section tone="bluegrey" eyebrow="What exists today" title="Observed is not final">
         <div className="prose">
-          <p>The sandbox includes one synthetic Base Sepolia case: USDC 6,427.83 to Stonebridge Exports, reported in transit and awaiting finality. Its evidence status stays <EvidenceStatus state="none" /> until finality is confirmed and checked.</p>
+          <p>The sandbox engine includes one synthetic Base Sepolia case (scenario s4_chain): USDC 6,427.830000 to Stonebridge Exports. The provider reports completion (<ExecStatus state="provider_reported_completed" />), but the transfer has 6 of 12 confirmations, so settlement is <SettlementStatus state="pending_finality" scope="onchain_transfer" />. It moves from observed to pending_finality to verified only as confirmations reach the threshold, and a drop in confirmations is treated as contradicting evidence.</p><p>Even when verified, an on-chain transfer never proves a supplier&rsquo;s bank credit, and the sandbox does not verify who controls the receiving wallet.</p>
           <p>There is no Safe integration, key management or payout execution. Payment services, data protection and licensing obligations need a jurisdiction-specific professional assessment before any real operation.</p>
         </div>
       </Section>

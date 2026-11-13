@@ -6,15 +6,15 @@ import { pageMeta } from "@/lib/meta";
 
 export const metadata = pageMeta(
   "Connect",
-  "Clearline Connect: one payment-instruction model across providers. Intents, route quotes with eligibility reasons, approvals and a single state model. Test mode with fictional providers.",
+  "Clearline Connect: one payment-instruction model across providers. Idempotent intents, route quotes with eligibility reasons, maker-checker approval and one execution model. Test mode with fictional providers.",
   "/connect",
 );
 
 const steps = [
-  ["Create an intent", "Amount, currency pair, beneficiary, purpose and your reference. Fields are validated; free text is restricted to plain characters."],
-  ["Compare routes", "Each eligible route shows provider, rate, fee and ETA. Ineligible routes stay visible with the reason, for example a KYC tier requirement."],
-  ["Approve", "A person records the approval before anything is submitted. Approval is an event on the record, not a flag."],
-  ["Submit and follow", "Provider events move the payment through allowed states only. Illegal transitions are rejected, not silently accepted."],
+  ["Create an intent", "Amount in integer minor units, currency pair, beneficiary reference, destination country, requested date and your internal reference. An idempotency key is required: the same key and body returns the original intent; a different body is rejected."],
+  ["Request quotes", "Every sandbox route is quoted, eligible or not. Each quote shows rate, provider and platform fees, estimated recipient amount and ETA, is labelled indicative and not executable, and expires after 15 minutes."],
+  ["Choose and approve", "Choosing a route creates an instruction with the operator as maker. A different person must approve it as checker; self-approval is refused."],
+  ["Submit and follow", "Provider events move execution through allowed states only. Duplicates are ignored, late events never move a payment backwards, bad signatures are rejected and contradictions raise an exception."],
 ];
 
 export default function Connect() {
@@ -42,10 +42,10 @@ export default function Connect() {
           <ul className="bullets">
             <li>No licensed provider, bank or wallet is connected. Providers named in the sandbox are fictional.</li>
             <li>No real payment instruction leaves the system. Rates, fees and ETAs are fixed illustrations.</li>
-            <li>The test API is stateless: it does not store a payment between requests.</li>
+            <li>The test API is stateless: the caller passes its workspace back with each request, or starts from the sample. Nothing is persisted.</li>
           </ul>
           <ul className="bullets">
-            <li>Webhooks are signed test events with a public example secret. There is no real delivery, retry queue or replay protection.</li>
+            <li>Provider webhooks are signed sandbox events with public example secrets. There is no real outbound delivery, endpoint registration or retry queue.</li>
             <li>Clearline does not hold funds or signing keys, and does not make compliance decisions.</li>
             <li>Execution with real partners would need authorised partners and legal and security review first.</li>
           </ul>

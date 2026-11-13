@@ -8,7 +8,7 @@ One identity for the **website** (`marketing/`) and the **product console** (`/c
 
 ## 1. Principles
 
-1. **Evidence first, status second.** Never let one badge stand for three facts (see §8).
+1. **Evidence first, status second.** Never let one badge stand for three facts: execution, settlement and reconciliation (see §8).
 2. **Say the stage.** Every product surface carries one of four stage labels (§9). Never use "live", "production" or "enterprise-ready".
 3. **Real data shapes, fictional data.** Tables use the test-mode engine's actual fields and values (`src/lib/clearline/core.ts`). No invented metrics, logos, testimonials, customers, team members or partners, even as placeholders.
 4. **Minimal decoration.** No gradients, glows, stock imagery, 3D or fake dashboards. Use rules, whitespace, one accent colour and type.
@@ -43,7 +43,7 @@ One identity for the **website** (`marketing/`) and the **product console** (`/c
 | warning | #7A4F0E | #F6EBD3 | 6.01:1 | Waiting on a person or a source |
 | danger | #A93A24 | #F8E3DC | 5.13:1 | Failed, returned, exception |
 | info | #2C5A7A | #E6EDF0 | 6.22:1 | In progress, matched, verified evidence |
-| neutral | #3B4650 | #EFEBE2 | 8.11:1 | Created, quoted, unreconciled |
+| neutral | #3B4650 | #EFEBE2 | 8.11:1 | Created, quoted, not_started |
 
 Colour is never the only signal: every status carries its text label, and the three status families also differ in shape (§8).
 
@@ -104,21 +104,25 @@ Label above field, 14px/500. Input 44px high, 1px `#8C8478` border, white fill, 
 
 Website rule: **no form is shown unless its processor is configured** (Formspree ID). Otherwise show the email address. Never claim a message was sent unless the processor returned success. Never ask for payment records, beneficiary details, statements, credentials or keys.
 
-## 8. Status indicators: three separate families
+## 8. Status indicators: three separate dimensions
 
-A payment has three independent statuses. They never share a style.
+Names match the tested sandbox engine (`src/lib/clearline/types.ts`): `intent.status = { execution, settlement, settlementScope, reconciliation }`. There is no combined status, and they never share a style.
 
-| Family | Values | Style | Why this shape |
+| Dimension | Values | Style | Why this shape |
 |---|---|---|---|
-| **Execution** (state machine) | created, quoted, approved, submitted, in_transit, on_hold, completed, returned, failed | Tinted rounded tag, mono 12px, value in snake_case | "What the system/provider state is" |
-| **Evidence** | none ○, provider_reported_completed ◇, settlement_evidence_verified ◆ | Outlined pill with a shape marker. **Dashed** border = reported only. **Solid** = verified | Reads as "how much do we know" |
-| **Reconciliation** | unreconciled, matched, exception, reconciled | Square tag, 3px left rule, mono uppercase | Reads as a ledger mark |
+| **execution** (`ExecutionState`) | created, quoted, approved, submitted, in_transit, provider_reported_completed, awaiting_information, on_hold, failed, returned, cancelled, expired | Tinted rounded tag, mono 12px, snake_case value | "What the state machine / provider says" |
+| **settlement** (`SettlementEvidenceState` + `SettlementScope`) | none ○, observed ◇, pending_finality ◇, verified ◆, contradicted ✕; scope provider_report · bank_statement · onchain_transfer shown after the value | Outlined pill with a shape marker. **Dashed** = not verified (none, observed, pending_finality). **Solid** = verified or contradicted | Reads as "how much do we actually know, and from what" |
+| **reconciliation** (`ReconciliationState`) | not_started, pending, matched, partially_matched, exception | Square tag, 3px left rule, mono uppercase | Reads as a ledger mark |
 
-Tone mapping: execution created/quoted/approved neutral, submitted/in_transit info, on_hold warning, completed success, returned/failed danger. Evidence: none muted, reported warning (dashed), verified info (solid). Reconciliation: unreconciled neutral, matched info, exception danger, reconciled success.
+Tone mapping. execution: created/quoted/approved/cancelled/expired neutral; submitted/in_transit/provider_reported_completed info (a provider claim is never shown as success); awaiting_information/on_hold warning; failed/returned danger. settlement: none muted; observed/pending_finality warning (dashed); verified info (solid); contradicted danger (solid). reconciliation: not_started/pending neutral; matched success; partially_matched warning; exception danger.
 
-Rules: `completed` alone never renders as success-with-evidence. `reconciled` requires `settlement_evidence_verified`. Each tag includes visually hidden text naming its family ("Evidence status: …").
+Rules (enforced by the engine, mirrored by the UI):
+- A provider "completed" report sets execution `provider_reported_completed` and never, on its own, settlement `verified` or reconciliation `matched`.
+- A full-amount bank-statement match sets settlement `verified` with scope `bank_statement`. Always show the scope: it proves the payout left the account, not that the beneficiary was credited.
+- A provider settlement report or a partial bank line gives at most `observed`. An on-chain transfer is `verified` only past the finality threshold and never proves a bank credit.
+- Each tag includes visually hidden text naming its dimension ("Settlement evidence: …").
 
-Implementation: `marketing/components/Status.tsx` (`.st-exec`, `.st-evidence`, `.st-recon`).
+Implementation: `marketing/components/Status.tsx` (`.st-exec`, `.st-settlement` + `.stl-*`, `.st-recon`).
 
 ## 9. Stage labels
 
@@ -137,7 +141,7 @@ White surface, 1px line border, 6px radius. Header: sand fill, mono 11px upperca
 
 ## 11. Timeline
 
-Vertical 1px rule; 7px ink dot per event, signal dot on the latest. Each row: time (mono, `SGT`), event label (600), then `source · evidence label` in caption style. Every event names its source and evidence class ("Partner-reported sandbox event; not independent settlement proof").
+Vertical 1px rule; 7px ink dot per event, signal dot on the latest. Each row: time (mono, `SGT`), event label (600), then `source · evidence label` in caption style. Every event names its provenance (provider API response, provider webhook, bank statement line, synthetic chain observation) and the engine's processing outcome (applied, duplicate_ignored, rejected_signature, stored_late_no_regression…).
 
 ## 12. Toasts, empty, error and loading states
 
@@ -162,4 +166,5 @@ Skip link; one `h1`; landmarks (`header`, `nav` with labels, `main#main`, `foote
 
 ## Change log
 
+- 2026-11-13: v1.1. Status dimensions renamed to the tested engine's ExecutionState / SettlementEvidenceState (+ scope) / ReconciliationState; evidence family renamed settlement.
 - 2026-11-13: v1. Studio V2 palette consolidated; `#D04B31` restricted to large text/accents; `#A93A24` introduced for small text and buttons; `#5A6670` added for text on blue-grey; three status families and four stage labels defined.

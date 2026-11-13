@@ -15,7 +15,7 @@ export const TRIAL_URL = PRODUCT_DEMO_URL + "/clearline/trial";
 export const SOFTWARE_URL = PRODUCT_DEMO_URL + "/clearline";
 /** Test-mode API reference served by the product. */
 export const API_DOCS_URL = PRODUCT_DEMO_URL + "/clearline/docs";
-/** Separate Funding Desk prototype (not linked to Connect payment IDs). */
+/** Detailed Funding Desk prototype. Sandbox payments link to advances via the engine's tested projection. */
 export const FUNDING_DESK_URL = PRODUCT_DEMO_URL + "/mentor-demo";
 
 const envSite = process.env.NEXT_PUBLIC_SITE_URL;

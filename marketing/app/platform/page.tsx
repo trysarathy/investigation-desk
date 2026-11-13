@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { ButtonLink, ContactBand, PageHero, Section, Stage } from "@/components/Shared";
 import { PaymentsTable } from "@/components/Tables";
-import { ExecStatus, EvidenceStatus, ReconStatus } from "@/components/Status";
+import { ExecStatus, ReconStatus, SettlementStatus } from "@/components/Status";
 import { SOFTWARE_URL } from "@/lib/site";
 import { pageMeta } from "@/lib/meta";
 
 export const metadata = pageMeta(
   "Platform",
-  "How Clearline is structured: Connect sends instructions, Control follows the outcome, and both write to one shared payment record with separate execution, evidence and reconciliation statuses.",
+  "How Clearline is structured: Connect sends instructions, Control follows the outcome, and both write to one shared payment record with separate execution, settlement and reconciliation statuses.",
   "/platform",
 );
 
@@ -27,18 +27,18 @@ export default function Platform() {
             <p className="label">Sources</p>
             <div className="arch-box"><b>Payment instructions</b><span className="caption">Connect API: intents, quotes, approvals</span><Stage kind="synthetic" /></div>
             <div className="arch-box"><b>Provider status events</b><span className="caption">Submitted, in transit, completed, returned, on hold</span><Stage kind="synthetic" /></div>
-            <div className="arch-box"><b>Statements and settlement exports</b><span className="caption">Bank or provider files</span><Stage kind="illustrative" /></div>
-            <div className="arch-box"><b>Chain observations</b><span className="caption">Stablecoin transfers, finality</span><Stage kind="development" /></div>
+            <div className="arch-box"><b>Statement lines</b><span className="caption">Bank statements or provider settlement reports (fictional inputs)</span><Stage kind="synthetic" /></div>
+            <div className="arch-box"><b>Chain observations</b><span className="caption">Synthetic Base Sepolia transfers and confirmations; real chain reads in development</span><Stage kind="development" /></div>
           </div>
           <div className="arch-arrow" aria-hidden="true">→</div>
           <div className="arch-core">
             <p className="label">Shared payment record</p>
             <dl>
               <div><dt>identity</dt><dd>payment id · reference · beneficiary · amount · corridor</dd></div>
-              <div><dt>execution status</dt><dd>from the Connect state machine</dd></div>
-              <div><dt>evidence status</dt><dd>reported vs. verified, kept separate</dd></div>
-              <div><dt>reconciliation status</dt><dd>matched by reference, or an exception</dd></div>
-              <div><dt>timeline</dt><dd>every event with its source and evidence label</dd></div>
+              <div><dt>status.execution</dt><dd>from the Connect state machine and provider events</dd></div>
+              <div><dt>status.settlement · settlementScope</dt><dd>none · observed · pending_finality · verified · contradicted, and what was evidenced</dd></div>
+              <div><dt>status.reconciliation</dt><dd>not_started · pending · matched · partially_matched · exception</dd></div>
+              <div><dt>timeline · audit</dt><dd>every event with its provenance and processing outcome; every action audited</dd></div>
               <div><dt>owner · next action</dt><dd>who acts, and on what</dd></div>
             </dl>
           </div>
@@ -49,23 +49,23 @@ export default function Platform() {
             <div className="arch-box"><b>Reconciliation</b><span className="caption">Matches and exceptions by reference</span></div>
             <div className="arch-box"><b>Liquidity</b><span className="caption">Free balance net of restricted amounts</span></div>
             <div className="arch-box"><b>Holds and exceptions</b><span className="caption">Owner and requested action</span></div>
-            <div className="arch-box"><b>Funding exposure</b><span className="caption">Separate Funding Desk prototype</span></div>
+            <div className="arch-box"><b>Funding exposure</b><span className="caption">Funding projection: payment ↔ advance ↔ repayment</span></div>
           </div>
         </div>
-        <p className="caption" style={{ marginTop: 16 }}>Stage labels describe today. The Funding Desk is a separate prototype and does not yet share persisted records with Connect.</p>
+        <p className="caption" style={{ marginTop: 16 }}>Stage labels describe today. In the sandbox engine a funded payout is linked to its advance, treasury approval and repayment obligation through a tested projection. That is a projection over the sandbox workspace, not a shared production ledger.</p>
       </Section>
 
-      <Section eyebrow="Why three statuses" title="Reported, evidenced and reconciled are different facts"
+      <Section eyebrow="Why three statuses" title="Reported, evidenced and matched are different facts"
         intro={<p>A single &ldquo;status&rdquo; column hides the question a CFO actually asks: do we know, or were we told? Clearline keeps three fields and gives each its own visual style.</p>}>
         <div className="grid-3">
-          <div className="card"><p className="label">Execution</p><p><ExecStatus state="completed" /></p><p>What the payment&rsquo;s state machine says, driven by Connect and provider events.</p></div>
-          <div className="card"><p className="label">Evidence</p><p><EvidenceStatus state="provider_reported_completed" /> <EvidenceStatus state="settlement_evidence_verified" /></p><p>Whether completion is only reported, or supported by independent settlement evidence.</p></div>
-          <div className="card"><p className="label">Reconciliation</p><p><ReconStatus state="matched" /> <ReconStatus state="exception" /> <ReconStatus state="reconciled" /></p><p>Whether the instruction, evidence and ledger agree by reference.</p></div>
+          <div className="card"><p className="label">execution</p><p><ExecStatus state="provider_reported_completed" /></p><p>What the payment&rsquo;s state machine says, driven by Connect and provider events. &ldquo;Completed&rdquo; is recorded as a provider claim.</p></div>
+          <div className="card"><p className="label">settlement</p><p><SettlementStatus state="pending_finality" scope="onchain_transfer" /> <SettlementStatus state="verified" scope="bank_statement" /></p><p>What independent evidence shows, and its scope. A matched bank debit proves the payout left; the beneficiary&rsquo;s credit can still be unknown.</p></div>
+          <div className="card"><p className="label">reconciliation</p><p><ReconStatus state="matched" /> <ReconStatus state="partially_matched" /> <ReconStatus state="exception" /></p><p>Whether statement lines were allocated by trusted reference, amount, currency and date window.</p></div>
         </div>
       </Section>
 
-      <Section tone="white" eyebrow="The seeded sandbox" title="Five payments, as the test-mode engine holds them"
-        intro={<p>No sample payment reaches <code className="inline">settlement_evidence_verified</code> or <code className="inline">reconciled</code>: the sandbox has no independent settlement evidence, so it does not claim any.</p>}>
+      <Section tone="white" eyebrow="The seeded sandbox" title="Five scenarios, as the sandbox engine holds them"
+        intro={<p>A provider &ldquo;completed&rdquo; report alone never sets settlement <code className="inline">verified</code>. In s1 and s5 a fictional bank-statement debit was matched, so settlement is <code className="inline">verified</code> with scope <code className="inline">bank_statement</code>. In s4 the testnet transfer has 6 of 12 confirmations, so it stays <code className="inline">pending_finality</code>.</p>}>
         <PaymentsTable />
         <p style={{ marginTop: 24 }}><Link className="text-link" href="/developers#status-model">Full status model and transitions</Link></p>
       </Section>

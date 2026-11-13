@@ -13,7 +13,7 @@ const cases = [
   ["02", "Investigate a return", "Control", "Inspect a returned payout and identify the beneficiary-details correction required, and who owns it."],
   ["03", "Handle a compliance hold", "Control", "See the provider's document request and the human owner. Clearline records holds; it does not clear them."],
   ["04", "Inspect stablecoin finality", "Control", "Distinguish a synthetic Base Sepolia transaction observation from proof of final settlement."],
-  ["05", "Follow an advance", "Funding Desk", "Review maker-checker approvals, the outstanding ledger and a repayment exception in the separate Funding Desk prototype."],
+  ["05", "Follow an advance", "Funding Desk", "Follow an SGD 50,000.00 advance from the supplier payout to treasury approval (maker ≠ checker), SGD 30,000.00 repaid by reference and SGD 20,000.00 outstanding, then open the detailed Funding Desk prototype."],
 ];
 
 const safe = [
@@ -43,7 +43,7 @@ export default function Trial() {
           <ButtonLink href={TRIAL_URL}>Open the guided trial</ButtonLink>
           <ButtonLink href={SOFTWARE_URL} variant="secondary">Go straight to the console</ButtonLink>
         </div>
-        <p className="caption" style={{ marginTop: 12 }}>Case 05 opens the <ExtLink href={FUNDING_DESK_URL}>Funding Desk prototype</ExtLink>, which does not share records with Connect yet.</p>
+        <p className="caption" style={{ marginTop: 12 }}>Case 05 opens the <ExtLink href={FUNDING_DESK_URL}>Funding Desk prototype</ExtLink>. In the sandbox, payments and advances are linked by a tested projection, not a shared production ledger.</p>
       </Section>
 
       <Section eyebrow="Three questions for your team" title="Would this change your operating day?">

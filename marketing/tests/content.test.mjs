@@ -41,7 +41,7 @@ test("every page has a main landmark and exactly one marked main CTA", () => {
 
 test("no banned stage words in copy: live, production, production-ready, enterprise-ready", () => {
   for (const f of copySources) {
-    const s = read(f).replace(/aria-live="[a-z]+"/g, "");
+    const s = read(f).replace(/aria-live="[a-z]+"/g, "").replace(/not a shared production ledger/gi, ""); // the engine's own negative disclaimer is allowed
     for (const re of [/\blive\b/i, /\bproduction\b/i, /production-ready/i, /enterprise-ready/i])
       assert.equal(re.test(s), false, f + " contains " + re);
   }
@@ -96,11 +96,64 @@ test("founder facts match the brief and invent nothing", () => {
   assert.match(about, /Customers, partners or investors/);
 });
 
-test("status model separates provider-reported, evidence-verified and reconciled", () => {
+// Status names must match the TESTED engine (src/lib/clearline/types.ts on the engine branch).
+const ENGINE = {
+  execution: ["created", "quoted", "approved", "submitted", "in_transit", "provider_reported_completed", "awaiting_information", "on_hold", "failed", "returned", "cancelled", "expired"],
+  settlement: ["none", "observed", "pending_finality", "verified", "contradicted"],
+  settlementScope: ["none", "provider_report", "bank_statement", "onchain_transfer"],
+  reconciliation: ["not_started", "pending", "matched", "partially_matched", "exception"],
+};
+const unionOf = (src, name) => {
+  const m = src.match(new RegExp("export type " + name + " =([^;]+);"));
+  assert.ok(m, name + " type missing");
+  return [...m[1].matchAll(/"([a-z_]+)"/g)].map(x => x[1]).sort();
+};
+
+test("Status.tsx types are exactly the engine's three status dimensions", () => {
+  const st = read("components/Status.tsx");
+  assert.deepEqual(unionOf(st, "ExecState"), [...ENGINE.execution].sort());
+  assert.deepEqual(unionOf(st, "SettlementState"), [...ENGINE.settlement].sort());
+  assert.deepEqual(unionOf(st, "SettlementScope"), [...ENGINE.settlementScope].sort());
+  assert.deepEqual(unionOf(st, "ReconState"), [...ENGINE.reconciliation].sort());
+  assert.match(st, /st-exec/); assert.match(st, /st-settlement/); assert.match(st, /st-recon/);
+});
+
+test("pre-engine status names are gone everywhere", () => {
+  const files = [...sources, "../docs/design/DESIGN_SYSTEM.md", "README.md"];
+  for (const f of files) {
+    const s = fs.readFileSync(path.resolve(root, f), "utf8");
+    for (const re of [/settlement_evidence_verified/, /\bunreconciled\b/, /\breconciled\b/, /st-evidence/, /EvidenceStatus/, /\bev-(none|provider)/])
+      assert.equal(re.test(s), false, f + " still contains " + re);
+  }
+  // The old fictional reconciliation line from the legacy prototype must not reappear.
+  for (const f of copySources) assert.equal(/INV-2026-008|SGD 148\.93/.test(read(f)), false, f);
+});
+
+test("Developers page documents the v1 engine API, three status fields and limitations", () => {
   const dev = read("app/developers/page.tsx");
-  for (const t of ["provider_reported_completed", "settlement_evidence_verified", "reconciled", "Webhooks", "Limitations", "Quickstart"]) assert.ok(dev.includes(t), t);
-  const status = read("components/Status.tsx");
-  assert.match(status, /st-exec/); assert.match(status, /st-evidence/); assert.match(status, /st-recon/);
+  assert.match(dev, /"\/api\/clearline\/test\/v1"/);
+  for (const ep of ["/intents", "/intents/{intentId}/quotes", "/instructions/{id}/approve", "/events/simulate", "/events/webhook", "/webhooks/verify",
+    "/reconciliation/statement-lines", "/exceptions", "/liquidity", "/funding-advances", "/repayments", "/investigations/{intentId}"]) assert.ok(dev.includes(ep), ep);
+  for (const t of ["execution", "settlement", "settlementScope", "reconciliation", "provider_reported_completed", "pending_finality", "partially_matched", "not_started", "bank_statement", "Idempotency-Key", "persisted"]) assert.ok(dev.includes(t), t);
+  assert.match(dev, /beneficiary&rsquo;s credit can still be unknown/);
+  for (const t of ["Quickstart", "Webhooks", "Limitations", "No persistence", "Sandbox only"]) assert.ok(dev.includes(t), t);
+  assert.equal(/"\/api\/clearline\/test"\s*;/.test(dev), false, "legacy unversioned base must not be the quickstart base");
+});
+
+test("Funding Desk is described as a tested projection, not a shared ledger or an unlinked prototype", () => {
+  const all = copySources.map(read).join("\n");
+  assert.equal(/not yet linked to Connect|does not share records with Connect|not yet share persisted records/.test(all), false);
+  assert.match(read("lib/sample.ts"), /Not a shared production ledger/);
+  for (const f of ["app/control/page.tsx", "app/use-cases/page.tsx", "app/platform/page.tsx"]) assert.match(read(f), /projection/, f);
+  assert.match(read("app/control/page.tsx"), /not a shared production ledger/);
+});
+
+test("sample data is derived from the engine's s1–s5 scenarios", () => {
+  const s = read("lib/sample.ts");
+  for (const sc of ["s1_success", "s2_returned", "s3_hold", "s4_chain", "s5_funding"]) assert.ok(s.includes(`"${sc}"`), sc);
+  assert.match(s, /src\/lib\/clearline\/sample\.ts/);
+  assert.equal(/core\.ts/.test(s), false, "sample must not be derived from the legacy core.ts");
+  for (const v of ["SGD 24,651.37", "USD 12,784.90", "SGD 8,839.50", "USDC 6,427.830000", "SGD 50,000.00", "SGD 30,000.00", "SGD 20,000.00", "RPY-SEABRIGHT-0001", "RC_AMOUNT_ONLY_CANDIDATES", "Indicative sandbox quote — not executable"]) assert.ok(s.includes(v), v);
 });
 
 test("design tokens are exported for the console and used by the site", () => {
@@ -112,6 +165,7 @@ test("design tokens are exported for the console and used by the site", () => {
 
 test("sample data is fictional and labelled", () => {
   assert.match(read("lib/sample.ts"), /Fictional sample records/);
+  assert.match(read("lib/sample.ts"), /Every organisation, provider, person and amount is fictional/);
   assert.match(read("components/PaymentPreview.tsx"), /fictional/i);
 });
 

@@ -57,7 +57,7 @@ export default function Home() {
       </Section>
 
       <Section id="sandbox" tone="white" eyebrow="Try it here · fictional data" title="One payment record. Three separate statuses."
-        intro={<><p>Pick a payment. Execution, evidence and reconciliation are shown separately, so &ldquo;the provider said completed&rdquo; never reads as &ldquo;settled&rdquo;. These are the test-mode engine&rsquo;s own seeded records.</p><p><ExtLink href={TRIAL_URL}>Open the full guided sandbox</ExtLink></p></>}>
+        intro={<><p>Pick a payment. execution, settlement and reconciliation are separate fields, so &ldquo;the provider said completed&rdquo; never reads as &ldquo;settled&rdquo;. These are the sandbox engine&rsquo;s five seeded scenarios.</p><p><ExtLink href={TRIAL_URL}>Open the full guided sandbox</ExtLink></p></>}>
         <PaymentPreview />
       </Section>
 
@@ -90,8 +90,8 @@ export default function Home() {
 
       <Section eyebrow="The real stage" title={<>An early product. <em>No pretending otherwise.</em></>}>
         <div className="grid-4">
-          <div className="card"><Stage kind="synthetic" /><p>Test-mode engine: intents, quotes, allowed state transitions, reconciliation rules, liquidity arithmetic, signed test webhooks.</p></div>
-          <div className="card"><Stage kind="illustrative" /><p>Console views for investigation, reconciliation, liquidity and holds, on fictional data. The separate Funding Desk prototype.</p></div>
+          <div className="card"><Stage kind="synthetic" /><p>Sandbox engine: idempotent intents, quotes, maker-checker approval, provider events, reconciliation by reference, exceptions, liquidity and a funding projection. Fictional data.</p></div>
+          <div className="card"><Stage kind="illustrative" /><p>Console views for investigation, reconciliation, liquidity, holds and funding exposure, on fictional data, plus the detailed Funding Desk prototype.</p></div>
           <div className="card"><Stage kind="development" /><p>Onchain verification on testnet: Safe payout proposals, evidence fingerprints on Base, stablecoin repayment checks. <Link className="text-link" href="/onchain">Details</Link></p></div>
           <div className="card"><Stage kind="none" /><p>No licensed provider, bank or wallet is connected. No real payment has been executed. No customers yet.</p></div>
         </div>

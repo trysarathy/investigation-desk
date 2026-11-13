@@ -1,6 +1,7 @@
 import { ButtonLink, ContactBand, PageHero, Section, Stage, type StageKind } from "@/components/Shared";
-import { ExecStatus, EvidenceStatus, ReconStatus } from "@/components/Status";
-import { QuotesTable, ReconTable } from "@/components/Tables";
+import { ExecStatus, ReconStatus, SettlementStatus } from "@/components/Status";
+import { SAMPLE_PAYMENTS } from "@/lib/sample";
+import { FundingTable, QuotesTable, ReconTable } from "@/components/Tables";
 import { TRIAL_URL } from "@/lib/site";
 import { pageMeta } from "@/lib/meta";
 import type { ReactNode } from "react";
@@ -16,18 +17,20 @@ function UseCase({ id, n, title, situation, shows, limits, stages, children, ton
 }) {
   return (
     <Section id={id} tone={tone} eyebrow={n + " · Fictional example"} title={title}>
-      <div className="split">
+      <div className="grid-2">
         <div className="prose">
           <p className="label">Situation</p>
           <p>{situation}</p>
-          <p className="label" style={{ marginTop: 20 }}>What Clearline shows</p>
-          <ul className="bullets">{shows.map(s => <li key={s}>{s}</li>)}</ul>
           <p className="label" style={{ marginTop: 20 }}>What it does not do</p>
           <p>{limits}</p>
           <div className="stage-row">{stages.map(s => <Stage key={s} kind={s} />)}</div>
         </div>
-        <div>{children}</div>
+        <div className="prose">
+          <p className="label">What Clearline shows</p>
+          <ul className="bullets">{shows.map(s => <li key={s}>{s}</li>)}</ul>
+        </div>
       </div>
+      <div style={{ marginTop: 32 }}>{children}</div>
     </Section>
   );
 }
@@ -41,51 +44,42 @@ export default function UseCases() {
       </PageHero>
 
       <UseCase id="investigation" n="01" tone="white" title="Payment investigation"
-        situation="A USD 12,784.90 payout to Redwood Supplies Ltd (INV-2026-141) via Harbour FX comes back. Operations needs to know why, and who fixes it."
-        shows={["The full timeline with each event's source: created, priced, approved, submitted, in transit, returned.", "The provider's reason: beneficiary account details rejected.", "A plain-English explanation and the next action: check beneficiary details before reissuing."]}
-        limits="It does not correct beneficiary details or reissue the payment. A person decides."
-        stages={["illustrative", "synthetic"]}>
+        situation="A USD 12,784.90 payout to Redwood Supplies Ltd (INV-2026-141) via Northline Payments comes back. Operations needs to know why, what is proven, and who fixes it. (Engine scenario s2_returned.)"
+        shows={["Each provider event with its provenance and what the engine did with it: accepted, in transit, returned.", "The return credit line on the bank statement confirming the provider's return.", "Who acts (the named exception owner) and the next action: verify beneficiary details with the supplier, confirm the returned funds, then create a correction intent."]}
+        limits="It does not correct beneficiary details or reissue the payment. A person creates the correction intent."
+        stages={["synthetic", "illustrative"]}>
         <div className="panel">
-          <p className="label">pi_3p6x92wa · INV-2026-141</p>
-          <p><ExecStatus state="returned" /> <EvidenceStatus state="none" /> <ReconStatus state="unreconciled" /></p>
+          <p className="label">s2_returned · INV-2026-141</p>
+          <p><ExecStatus state="returned" /> <SettlementStatus state="none" /> <ReconStatus state="pending" /></p>
           <ol className="timeline">
-            <li><span className="timeline-time mono">17:13 SGT</span><div><b>Instruction sent to sandbox partner</b><span className="caption">Sandbox provider · partner-reported</span></div></li>
-            <li><span className="timeline-time mono">17:22 SGT</span><div><b>Partner reports payout in progress</b><span className="caption">Sandbox provider · partner-reported</span></div></li>
-            <li><span className="timeline-time mono">17:31 SGT</span><div><b>Returned: beneficiary account details rejected</b><span className="caption">Sandbox provider · partner-reported</span></div></li>
+            {SAMPLE_PAYMENTS[1].events.map(e => <li key={e.time}><span className="timeline-time mono">{e.time}</span><div><b>{e.label}</b><span className="caption">{e.source} · {e.outcome}</span></div></li>)}
           </ol>
+          <p className="caption">{SAMPLE_PAYMENTS[1].whoActs}</p>
         </div>
       </UseCase>
 
       <UseCase id="reconciliation" n="02" tone="ivory" title="Settlement reconciliation"
-        situation="Two lines arrive from fictional provider files: a Northline settlement export and a Harbour statement. Finance needs to know which payments they belong to."
-        shows={["INV-2026-126 matches on reference, payment ID, currency and amount, and is still labelled unverified.", "INV-2026-008 (SGD 148.93) has no matching payment, so it becomes an exception instead of being force-matched by amount.", "Reconciled status is reserved for payments with independent settlement evidence."]}
+        situation="Five fictional bank-statement lines arrive. Finance needs to know which payments and repayments they belong to, and which it cannot attribute."
+        shows={["Payout debits allocated on the provider payment id, amount, currency and value-date window. Settlement becomes verified with scope bank_statement; the beneficiary's credit is still listed as unknown.", "A partial repayment allocated by its repayment reference, with the remainder left outstanding.", "An SGD 20,000.00 credit with no reference becomes an exception, even though the amount matches what is owed."]}
         limits="It does not post entries to a ledger or accounting system in this sandbox."
-        stages={["synthetic", "illustrative"]}>
+        stages={["synthetic"]}>
         <ReconTable />
       </UseCase>
 
       <UseCase id="orchestration" n="03" tone="white" title="Provider orchestration"
-        situation="A SGD 48,215.37 supplier payment to the Philippines (INV-2026-137) can go three ways. Treasury wants to see the options and record who chose."
-        shows={["Three eligible sandbox routes with rate, fee and ETA, and one excluded route with its reason.", "The approval recorded as an event before submission.", "One state model whichever provider is chosen."]}
-        limits="Quotes are fixed illustrations, not executable offers. No real provider receives the instruction."
+        situation="An SGD 24,651.37 supplier payment to the Philippines (INV-2026-126) could take several routes. Operations chooses one; a different person approves it. (Engine scenario s1_success.)"
+        shows={["Every route quoted, including ineligible ones with the reason.", "Choosing a route creates an instruction; approval must come from a different person (maker ≠ checker).", "One execution model whichever provider is chosen, with provider events applied, deduplicated or rejected."]}
+        limits="Quotes are indicative and not executable. No real provider receives the instruction."
         stages={["synthetic", "none"]}>
         <QuotesTable />
       </UseCase>
 
       <UseCase id="funding" n="04" tone="ivory" title="Funding exposure"
-        situation="A provider pays an overseas supplier SGD 48,215.37 (ADV-2026-153) before its own customer repays. Treasury needs the checks prepared and the outstanding amount tracked."
-        shows={["Five prepared checks: invoice not previously funded, customer within recorded limit, earlier overdue advances, terms recorded, genuinely free cash.", "A maker-checker treasury decision recorded by a person.", "What remains owed, and repayments matched by exact reference."]}
-        limits="Clearline does not lend, supply capital or make credit decisions. The Funding Desk is a separate prototype, not yet linked to Connect payment IDs."
-        stages={["illustrative"]}>
-        <div className="panel">
-          <p className="label">Advance review · ADV-2026-153 · illustrative</p>
-          <p className="num" style={{ fontSize: 28 }}>SGD 48,215.37</p>
-          <p><span className="st-exec tone-warning">awaiting treasury</span></p>
-          <ol className="list-rows">
-            {["Invoice not previously funded", "Customer within recorded limit", "Earlier overdue advances", "Terms recorded", "Genuinely free cash"].map((c, i) => <li key={c}><span className="idx">{String(i + 1).padStart(2, "0")}</span><p>{c}</p></li>)}
-          </ol>
-          <p className="caption">Clearline prepares. Treasury decides.</p>
-        </div>
+        situation="A provider pays a supplier SGD 50,000.00 before its customer, Seabright Trading, repays. Treasury needs the decision recorded and the outstanding amount tracked. (Engine scenario s5_funding.)"
+        shows={["The supplier payout linked to the advance, the treasury approval (maker ≠ checker), the repayment obligation and its allocations.", "SGD 30,000.00 repaid by reference; SGD 20,000.00 outstanding.", "An unreferenced SGD 20,000.00 receipt kept as an exception rather than allocated by amount."]}
+        limits="This is a tested projection over the sandbox workspace, not a shared production ledger. Clearline does not lend, supply capital or make credit decisions. The detailed Funding Desk prototype remains at /mentor-demo in the product."
+        stages={["synthetic"]}>
+        <FundingTable />
       </UseCase>
 
       <ContactBand title="Which of these does your team handle by hand?" />

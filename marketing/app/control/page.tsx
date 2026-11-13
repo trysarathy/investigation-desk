@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ButtonLink, ContactBand, ExtLink, PageHero, Section, Stage } from "@/components/Shared";
-import { LiquidityTable, ReconTable } from "@/components/Tables";
+import { FundingTable, LiquidityTable, ReconTable } from "@/components/Tables";
 import PaymentPreview from "@/components/PaymentPreview";
 import { FUNDING_DESK_URL, SOFTWARE_URL } from "@/lib/site";
 import { pageMeta } from "@/lib/meta";
@@ -21,17 +21,17 @@ export default function Control() {
       </PageHero>
 
       <Section tone="white" eyebrow="Investigation" title="A timeline with sources, not a status badge"
-        intro={<p>Every event shows who reported it and what kind of evidence it is. The explanation and next action are written for the person who has to act.</p>}>
+        intro={<p>Every event shows its provenance and what the engine did with it. The investigation view separates what the provider reported from independent evidence, lists what is still unknown, and names who acts next.</p>}>
         <PaymentPreview />
       </Section>
 
       <Section eyebrow="Reconciliation" title="Match by reference. Never by amount alone."
-        intro={<p>A settlement line is matched only when the reference, payment ID, currency and amount agree. Even then it is marked unverified until independent evidence exists. Anything else is an exception.</p>}>
+        intro={<p>A statement line is allocated automatically only on a trusted reference (the provider payment id for payouts, the repayment reference for repayments) plus amount, currency and a value-date window. Amount-only, ambiguous, duplicate, currency-mismatched or out-of-window lines become exceptions with an explanation code. A full bank-statement match sets settlement verified (scope bank_statement); it shows the payout left the account, not that the beneficiary was credited.</p>}>
         <ReconTable />
       </Section>
 
-      <Section tone="white" eyebrow="Liquidity" title="Free balance, net of what is not yours to spend"
-        intro={<p>Safeguarded funds, pending payouts and buffers are subtracted before anything is shown as free.</p>}>
+      <Section tone="white" eyebrow="Liquidity" title="Usable balance, net of what is not yours to spend"
+        intro={<p>Restricted and safeguarded amounts, committed payouts and a policy buffer are subtracted before anything is shown as usable. Stale snapshots are flagged and left out. The classifications follow an illustrative, provider-defined policy, not a regulatory one.</p>}>
         <LiquidityTable />
       </Section>
 
@@ -39,16 +39,17 @@ export default function Control() {
         <div className="grid-2">
           <div className="panel">
             <h3 className="h3">Holds</h3>
-            <p>When a provider holds a payout and asks for documents, Control records the request and names the owner. It does not clear holds or decide compliance questions.</p>
-            <Stage kind="illustrative" />
+            <p>When a provider holds a payout and asks for documents, Control records the request, assigns a compliance reviewer and records their decision. Holds are never released automatically, and Clearline makes no compliance decision.</p>
+            <div className="stage-row"><Stage kind="synthetic" /></div>
           </div>
           <div className="panel">
             <h3 className="h3">Funding exposure</h3>
-            <p>Some providers pay a supplier before their customer repays. The Funding Desk prototype prepares checks, records the treasury decision and tracks what is still owed. It is a separate module and is not yet linked to Connect payment IDs.</p>
-            <div className="stage-row"><Stage kind="illustrative" /></div>
-            <p><ExtLink href={FUNDING_DESK_URL}>Open the Funding Desk prototype</ExtLink></p>
+            <p>Some providers pay a supplier before their customer repays. In the sandbox engine, the supplier payout is linked through a tested projection to the advance, the treasury approval (maker ≠ checker), the repayment obligation and its allocations. It is a projection over the sandbox workspace, not a shared production ledger, and the provider makes every credit decision.</p>
+            <div className="stage-row"><Stage kind="synthetic" /></div>
+            <p><ExtLink href={FUNDING_DESK_URL}>Open the detailed Funding Desk prototype</ExtLink></p>
           </div>
         </div>
+        <div style={{ marginTop: 32 }}><FundingTable /></div>
         <p style={{ marginTop: 24 }}><Link className="text-link" href="/use-cases">Worked examples for each workflow</Link></p>
       </Section>
 

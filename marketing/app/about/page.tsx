@@ -41,7 +41,7 @@ export default function About() {
             <ul className="bullets">
               <li>A test-mode engine and console with fictional providers and data.</li>
               <li>A guided five-case sandbox anyone can open.</li>
-              <li>A separate Funding Desk prototype.</li>
+              <li>A Funding Desk prototype, linked to sandbox payments through a tested projection (not a shared production ledger).</li>
             </ul>
           </div>
           <div className="prose">
