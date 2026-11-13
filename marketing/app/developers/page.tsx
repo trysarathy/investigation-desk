@@ -1,7 +1,7 @@
 import { ButtonLink, ContactBand, ExtLink, PageHero, Section } from "@/components/Shared";
 import { ExecStatus, ReconStatus, SettlementStatus, type ExecState } from "@/components/Status";
 import { TableWrap } from "@/components/Tables";
-import { API_DOCS_URL, PRODUCT_DEMO_URL } from "@/lib/site";
+import { API_DOCS_URL, OPENAPI_URL, PRODUCT_DEMO_URL } from "@/lib/site";
 import { pageMeta } from "@/lib/meta";
 
 export const metadata = pageMeta(
@@ -132,12 +132,13 @@ export default function Developers() {
         </div>
         <p className="code-title" style={{ marginTop: 32 }}>Then: quote, choose, approve, submit, simulate, reconcile</p>
         <pre className="code" tabIndex={0} aria-label="Full flow sketch">{flow}</pre>
+        <p className="note" style={{ marginTop: 24 }}><b>Maker-checker here is a workflow rule, not an authentication boundary.</b> The public test API is stateless and uses a public example key, so any caller can choose any simulated actor with <code className="inline">X-Clearline-Actor</code>, and nothing is stored server-side. The engine enforces separation of duties for honest callers (a maker approving their own instruction gets 403 <code className="inline">maker_checker_violation</code>), but it cannot stop someone from claiming to be a different actor. A real deployment would need authenticated users and server-side state.</p>
         <p className="caption" style={{ marginTop: 12 }}>Actors are fictional: <code className="inline">usr_maya</code> (operator, default maker), <code className="inline">usr_daniel</code> (approver, default checker), <code className="inline">usr_priya</code> (compliance), <code className="inline">usr_sam</code>, <code className="inline">usr_alex</code> (viewer). Select one with <code className="inline">X-Clearline-Actor</code>.</p>
       </Section>
 
       <Section id="endpoints" eyebrow="Endpoints" title="Everything under /api/clearline/test/v1"
-        intro={<p>Every successful POST returns <code className="inline">data</code>, <code className="inline">outcome</code>, the appended <code className="inline">audit</code> events, the new <code className="inline">workspace</code> and <code className="inline">persisted: false</code>. GET endpoints read the sample workspace.</p>}>
-        <TableWrap label="Test API endpoints" caption="As described in the engine's OpenAPI 3.1 file (docs/clearline/openapi.yaml in the engine repository). The earlier unversioned test endpoints remain for the legacy console.">
+        intro={<p>Every successful POST returns <code className="inline">data</code>, <code className="inline">outcome</code>, the appended <code className="inline">audit</code> events, the new <code className="inline">workspace</code> and <code className="inline">persisted: false</code>. GET endpoints read the sample workspace. The full contract is the <ExtLink href={OPENAPI_URL}>OpenAPI 3.1 document</ExtLink>.</p>}>
+        <TableWrap label="Test API endpoints" caption="As described in the OpenAPI 3.1 document served at /clearline/docs/openapi.yaml. The earlier unversioned test endpoints are retired and return 410 endpoint_retired; use /v1.">
           <thead><tr><th scope="col">Method</th><th scope="col">Path</th><th scope="col">What it does</th></tr></thead>
           <tbody>{endpoints.map(([m, p, d]) => <tr key={p + m}><td className="mono">{m}</td><td className="mono">{p}</td><td>{d}</td></tr>)}</tbody>
         </TableWrap>
@@ -215,7 +216,7 @@ export default function Developers() {
             <li>No credit, lending or compliance decisions. Holds are never released automatically. Do not send real data.</li>
           </ul>
         </div>
-        <p style={{ marginTop: 24 }}><ExtLink href={API_DOCS_URL}>Open the API reference in the console</ExtLink></p>
+        <p style={{ marginTop: 24 }}><ExtLink href={API_DOCS_URL}>Open the API reference in the console</ExtLink> · <ExtLink href={OPENAPI_URL}>OpenAPI 3.1 document (openapi.yaml)</ExtLink></p>
       </Section>
 
       <ContactBand title="Building payment operations tooling? Compare notes." />

@@ -15,6 +15,8 @@ export const TRIAL_URL = PRODUCT_DEMO_URL + "/clearline/trial";
 export const SOFTWARE_URL = PRODUCT_DEMO_URL + "/clearline";
 /** Test-mode API reference served by the product. */
 export const API_DOCS_URL = PRODUCT_DEMO_URL + "/clearline/docs";
+/** OpenAPI 3.1 document for the v1 test API, served by the console. */
+export const OPENAPI_URL = PRODUCT_DEMO_URL + "/clearline/docs/openapi.yaml";
 /** Detailed Funding Desk prototype. Sandbox payments link to advances via the engine's tested projection. */
 export const FUNDING_DESK_URL = PRODUCT_DEMO_URL + "/mentor-demo";
 

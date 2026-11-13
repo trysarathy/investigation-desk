@@ -180,6 +180,21 @@ test("returns match engine CHANGE 2: reconciliation exception + returnStatus; ex
   assert.match(read("../docs/design/DESIGN_SYSTEM.md"), /returnStatus/);
 });
 
+test("OpenAPI link derives from PRODUCT_DEMO_URL; legacy test endpoints are not linked; maker-checker caveat present", () => {
+  assert.match(read("lib/site.ts"), /OPENAPI_URL = PRODUCT_DEMO_URL \+ "\/clearline\/docs\/openapi\.yaml"/);
+  const dev = read("app/developers/page.tsx");
+  assert.ok((dev.match(/href=\{OPENAPI_URL\}/g) || []).length >= 1, "Developers links the OpenAPI document");
+  assert.match(dev, /workflow rule, not an authentication boundary/);
+  assert.match(dev, /any caller can choose any simulated actor/);
+  assert.match(dev, /nothing is stored server-side/);
+  assert.match(dev, /410 endpoint_retired/);
+  // No page or component may reference the retired unversioned endpoints.
+  for (const f of copySources) {
+    const s = read(f);
+    for (const m of s.matchAll(/api\/clearline\/test(\/[A-Za-z0-9_-]+)?/g)) assert.equal(m[1], "/v1", f + " references a retired endpoint: " + m[0]);
+  }
+});
+
 test("sample data is fictional and labelled", () => {
   assert.match(read("lib/sample.ts"), /Fictional sample records/);
   assert.match(read("lib/sample.ts"), /Every organisation, provider, person and amount is fictional/);
