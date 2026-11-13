@@ -110,7 +110,9 @@ describe("QA v2 — financial invariants (pinned)", () => {
   it("a returned payout is never described as delivered or settled", () => {
     const st = intent(s, sid("s2_returned")).status;
     const d = describeStatus(st);
-    expect(st.settlement).toBe("none");
+    // rc3: the s2 sample now has the outgoing debit and the return credit on the statement, so settlement is
+    // "contradicted" while the return is open (M2/N1 rule) — still never verified or delivered.
+    expect(st.settlement).toBe("contradicted");
     expect(d.summary).toMatch(/returned/i);
     expect(d.summary).not.toMatch(/delivered|settlement verified|paid(?! )/i);
   });

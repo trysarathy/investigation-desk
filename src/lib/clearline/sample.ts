@@ -8,6 +8,8 @@ import { sandboxRoutes } from "./adapters";
 import type { Actor, LiquidityPolicy, LiquiditySnapshot, PaymentIntent, Workspace, WorkspaceAction } from "./types";
 
 export const SAMPLE_AS_OF = "2026-11-13T02:00:00.000Z";
+/** The id/time footprint of the v2 sample's s2 return steps (seq 45–59, 5 actions), kept unused in rc3. */
+const S2_V2_TAIL = { ids: 15, actions: 5 } as const;
 const BUILD_START = "2026-11-12T00:00:00.000Z";
 
 export const SAMPLE_ACTORS: Actor[] = [
@@ -21,7 +23,7 @@ export const SAMPLE_ACTORS: Actor[] = [
 /** Scenario keys stored on `intent.scenario`. */
 export const SAMPLE_SCENARIOS = {
   s1_success: "Successful payment: provider-reported completion, then a bank statement line matched separately",
-  s2_returned: "Returned payout: beneficiary details rejected, return event and return statement line",
+  s2_returned: "Returned payout: outgoing debit on the statement, beneficiary details rejected, return event, then the return credit for the same amount (net movement zero; beneficiary unpaid)",
   s3_hold: "Compliance hold: partner requested documents; reviewer assigned; never auto-released",
   s4_chain: "Base Sepolia stablecoin delay: observed, pending finality, then verified after the threshold",
   s5_funding: "Funding exposure: SGD 50,000.00 advance, SGD 30,000.00 repaid by reference, SGD 20,000.00 outstanding",
@@ -107,6 +109,11 @@ class Builder {
     this.run("usr_maya", { type: "submit_instruction", instructionId: ins });
     return id;
   }
+  /** Leave `ids` sequence numbers and `actions` simulated steps unused (keeps later scenarios' ids and times stable). */
+  skip(ids: number, actions: number) {
+    this.ws.seq += ids;
+    this.t += actions * 3 * 60_000;
+  }
   sim(intentId: string, times = 1) {
     for (let i = 0; i < times; i++) this.run("usr_maya", { type: "simulate_provider_event", intentId });
   }
@@ -124,15 +131,13 @@ export function sampleWorkspace(): Workspace {
   b.sim(s1, 2); // in_transit, provider_reported_completed
   b.run("usr_maya", { type: "ingest_statement_line", line: { lineId: "SIMBANK-0001", source: "bank_statement", accountRef: "BANK-SGD-OPS (fictional)", direction: "debit", kind: "payment", amountMinor: 2_465_137, currency: "SGD", reference: `NORTHLINE PAYOUT ${b.ppid(s1)}`, counterparty: "Northline Payments (sandbox)", valueDate: "2026-11-12" } });
 
-  // 2. Returned payout
+  // 2. Returned payout — opened here (so its payment keeps id pi_00027); the statement and return
+  //    steps are recorded after scenario 5 (see "2, continued"), because they now include the outgoing
+  //    debit. The ids and simulated minutes the v2 sample used for those steps are left unused, so the
+  //    other four scenarios keep exactly the same ids and timestamps.
   const s2 = b.pay("s2_returned", { internalReference: "INV-2026-141", amountMinor: 1_278_490, sourceCurrency: "USD", destinationCurrency: "SGD", beneficiaryRef: "BEN-REDWOOD-07", beneficiaryName: "Redwood Supplies Ltd (fictional)", destinationCountry: "SG", sandboxOutcome: "return" }, "prv_northline");
-  b.sim(s2, 2); // in_transit, returned
-  b.run("usr_maya", { type: "ingest_statement_line", line: { lineId: "SIMBANK-0002", source: "bank_statement", accountRef: "BANK-USD-OPS (fictional)", direction: "credit", kind: "return", amountMinor: 1_278_490, currency: "USD", reference: `RETURN ${b.ppid(s2)} ACCOUNT INVALID`, counterparty: "Northline Payments (sandbox)", valueDate: "2026-11-12" } });
-  const s2case = b.intent(s2).caseId!;
-  const s2exc = b.ws.exceptions.find((e) => e.intentId === s2 && e.category === "returned_payout")!.id;
-  b.run("usr_maya", { type: "assign_owner", target: { kind: "case", id: s2case }, ownerId: "usr_maya" });
-  b.run("usr_maya", { type: "assign_owner", target: { kind: "exception", id: s2exc }, ownerId: "usr_maya" });
-  b.run("usr_maya", { type: "add_note", target: { kind: "case", id: s2case }, text: "Supplier asked to reconfirm account details through the known contact on file. Do not reissue until confirmed." });
+  b.sim(s2, 1); // in_transit
+  b.skip(S2_V2_TAIL.ids, S2_V2_TAIL.actions);
 
   // 3. Compliance hold
   const s3 = b.pay("s3_hold", { internalReference: "INV-2026-145", amountMinor: 883_950, sourceCurrency: "SGD", destinationCurrency: "USD", beneficiaryRef: "BEN-EASTPORT-03", beneficiaryName: "Eastport Trading (fictional)", destinationCountry: "US", sandboxOutcome: "hold" }, "prv_harbour");
@@ -158,6 +163,20 @@ export function sampleWorkspace(): Workspace {
   b.run("usr_maya", { type: "ingest_statement_line", line: { lineId: "SIMBANK-0003", source: "bank_statement", accountRef: "BANK-SGD-OPS (fictional)", direction: "debit", kind: "payment", amountMinor: 5_000_000, currency: "SGD", reference: `NORTHLINE PAYOUT ${b.ppid(s5)}`, counterparty: "Northline Payments (sandbox)", valueDate: "2026-11-12" } });
   b.run("usr_maya", { type: "ingest_statement_line", line: { lineId: "SIMBANK-0004", source: "bank_statement", accountRef: "BANK-SGD-OPS (fictional)", direction: "credit", kind: "payment", amountMinor: 3_000_000, currency: "SGD", reference: "RPY-SEABRIGHT-0001 PART PAYMENT", counterparty: "SEABRIGHT TRADING", valueDate: "2026-11-12" } });
   b.run("usr_maya", { type: "ingest_statement_line", line: { lineId: "SIMBANK-0005", source: "bank_statement", accountRef: "BANK-SGD-OPS (fictional)", direction: "credit", kind: "payment", amountMinor: 2_000_000, currency: "SGD", reference: "", counterparty: "SEABRIGHT TRADING", valueDate: "2026-11-12" } });
+
+  // 2, continued. The bank statement shows the outgoing debit (matched to the payout by its provider
+  // payment id), then the provider reports the payout returned, then the statement shows the return
+  // credit for the same amount. Net movement is zero; the beneficiary is unpaid. Settlement is
+  // "contradicted" (the return contradicts the earlier debit evidence), never verified, and the
+  // returned_payout exception stays open with an owner: the supplier still has to be paid.
+  b.run("usr_maya", { type: "ingest_statement_line", line: { lineId: "SIMBANK-0002", source: "bank_statement", accountRef: "BANK-USD-OPS (fictional)", direction: "debit", kind: "payment", amountMinor: 1_278_490, currency: "USD", reference: `NORTHLINE PAYOUT ${b.ppid(s2)}`, counterparty: "Northline Payments (sandbox)", valueDate: "2026-11-12" } });
+  b.sim(s2, 1); // returned
+  b.run("usr_maya", { type: "ingest_statement_line", line: { lineId: "SIMBANK-0006", source: "bank_statement", accountRef: "BANK-USD-OPS (fictional)", direction: "credit", kind: "return", amountMinor: 1_278_490, currency: "USD", reference: `RETURN ${b.ppid(s2)} ACCOUNT INVALID`, counterparty: "Northline Payments (sandbox)", valueDate: "2026-11-12" } });
+  const s2case = b.intent(s2).caseId!;
+  const s2exc = b.ws.exceptions.find((e) => e.intentId === s2 && e.category === "returned_payout")!.id;
+  b.run("usr_maya", { type: "assign_owner", target: { kind: "case", id: s2case }, ownerId: "usr_maya" });
+  b.run("usr_maya", { type: "assign_owner", target: { kind: "exception", id: s2exc }, ownerId: "usr_maya" });
+  b.run("usr_maya", { type: "add_note", target: { kind: "case", id: s2case }, text: "Supplier asked to reconfirm account details through the known contact on file. Do not reissue until confirmed." });
 
   b.run("usr_maya", { type: "advance_clock", to: SAMPLE_AS_OF });
   return b.ws;

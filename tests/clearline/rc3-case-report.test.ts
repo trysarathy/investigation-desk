@@ -110,7 +110,9 @@ describe("buildCaseReport: structure, determinism, marking", () => {
 
   it("findings: returned payout states net movement and beneficiary unpaid; the hold names its reviewer; funding outstanding is an amount", () => {
     const s2 = report(ws, scenarioIntentId(ws, "s2_returned")!);
-    expect(s2.amounts.returnPosition).toMatchObject({ code: "RT_DEBIT_NOT_ON_STATEMENT", beneficiaryPaid: false, netMovementZero: false, returnCredited: { value: "12784.90", currency: "USD" } });
+    // rc3 follow-up: the s2 sample now has the outgoing debit and the equal return credit on the statement.
+    expect(s2.amounts.returnPosition).toMatchObject({ code: "RT_NET_ZERO", beneficiaryPaid: false, netMovementZero: true, debited: { value: "12784.90", currency: "USD" }, returnCredited: { value: "12784.90", currency: "USD" }, netMovement: { value: "0.00", currency: "USD" } });
+    expect(s2.threeTruths.settlement).toMatchObject({ state: "contradicted", scope: "bank_statement" });
     expect(s2.findings.find((f) => f.code === "OS_RETURN_RECEIVED_SUPPLIER_UNPAID")).toMatchObject({ section: "outstanding", amount: { value: "12784.90", currency: "USD" } });
     const s3 = report(ws, scenarioIntentId(ws, "s3_hold")!);
     expect(s3.summary.whoActs).toMatchObject({ code: "WA_COMPLIANCE_REVIEWER" });
