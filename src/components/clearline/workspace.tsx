@@ -11,8 +11,14 @@ import {
 } from "@/lib/clearline";
 import { describeError } from "./human";
 
-const KEY = "clearline.console.workspace.v1";
+export const WORKSPACE_KEY = "clearline.console.workspace.v1";
+const KEY = WORKSPACE_KEY;
 const ACTOR_KEY = "clearline.console.actor.v1";
+/** Where an unreadable saved workspace is kept when the person chooses to replace it (review m6). */
+export const BACKUP_KEY = "clearline.console.workspace.v1.unreadable-backup";
+
+/** A saved workspace that could not be read. It stays in storage untouched until the person decides. */
+export type Discarded = { reason: string; raw: string };
 
 type Ctx = {
   ws: Workspace;
@@ -27,15 +33,19 @@ type Ctx = {
   /** Dry run: asks the engine whether the action would be accepted now, without changing anything. */
   preview: (action: WorkspaceAction, opts?: { actorId?: string }) => ActionResult;
   reset: (kind?: "sample" | "empty") => void;
-  /** Set when a stored workspace could not be read and was replaced by the sample. */
-  discarded: string | null;
-  dismissDiscarded: () => void;
+  /**
+   * Set when the saved workspace could not be read. The console shows the sample instead, but the
+   * saved copy is NOT overwritten and nothing is saved until the person chooses (review m6).
+   */
+  discarded: Discarded | null;
+  /** Keeps the unreadable copy under BACKUP_KEY, then saves the sample in its place. */
+  replaceDiscarded: () => void;
   actorName: (id?: string) => string;
 };
 
 const WorkspaceContext = createContext<Ctx | null>(null);
 
-function readStored(): { ws: Workspace | null; actor: string | null; ok: boolean; discarded?: string } {
+function readStored(): { ws: Workspace | null; actor: string | null; ok: boolean; discarded?: Discarded } {
   try {
     const raw = window.localStorage.getItem(KEY);
     const actor = window.localStorage.getItem(ACTOR_KEY);
@@ -44,7 +54,7 @@ function readStored(): { ws: Workspace | null; actor: string | null; ok: boolean
     if (parsed.ok) return { ws: parsed.value, actor, ok: true };
     // Never discard silently: say what was dropped and why (engine words + exact code).
     const why = describeError(parsed.error);
-    return { ws: null, actor, ok: true, discarded: `${why.text} (${parsed.error.code}${parsed.error.field ? ` · ${parsed.error.field}` : ""})` };
+    return { ws: null, actor, ok: true, discarded: { raw, reason: `${why.text} (${parsed.error.code}${parsed.error.field ? ` · ${parsed.error.field}` : ""})` } };
   } catch {
     return { ws: null, actor: null, ok: false };
   }
@@ -71,17 +81,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [actorId, setActor] = useState<string>("usr_maya");
   const [hydrated, setHydrated] = useState(false);
   const [storage, setStorage] = useState<"available" | "unavailable">("available");
-  const [discarded, setDiscarded] = useState<string | null>(null);
+  const [discarded, setDiscarded] = useState<Discarded | null>(null);
   const wsRef = useRef(ws);
   wsRef.current = ws;
+  // While an unreadable saved copy is waiting for a decision, nothing is written over it.
+  const holdWrites = useRef(false);
+  const discardedRef = useRef<Discarded | null>(null);
+  discardedRef.current = discarded;
 
   useEffect(() => {
     const stored = readStored();
     if (stored.ws) setWs(stored.ws);
     if (stored.discarded) {
+      holdWrites.current = true;
       setDiscarded(stored.discarded);
-      // Replace the unreadable copy so the notice is shown once, for the reset that actually happened.
-      write(KEY, serializeWorkspace(sampleWorkspace()));
     }
     if (stored.actor && SAMPLE_ACTORS.some((a) => a.id === stored.actor)) setActor(stored.actor);
     setStorage(stored.ok ? "available" : "unavailable");
@@ -89,6 +102,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const persist = useCallback((next: Workspace) => {
+    if (holdWrites.current) return;
     setStorage(write(KEY, serializeWorkspace(next)) ? "available" : "unavailable");
   }, []);
 
@@ -103,17 +117,34 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     return result;
   }, [actorId, persist]);
 
+  // Dry runs are pure functions of (workspace version, actor, action): cache them per workspace object,
+  // so re-renders and keystrokes do not re-run the engine for unchanged buttons (review m7).
+  const previews = useRef(new WeakMap<Workspace, Map<string, ActionResult>>());
   const preview = useCallback((action: WorkspaceAction, opts?: { actorId?: string }): ActionResult => {
     const current = wsRef.current;
-    return applyAction(current, action, { actorId: opts?.actorId ?? actorId, at: nextInstant(current.asOf) });
+    const who = opts?.actorId ?? actorId;
+    let cache = previews.current.get(current);
+    if (!cache) { cache = new Map(); previews.current.set(current, cache); }
+    const key = who + "\u0000" + JSON.stringify(action);
+    const hit = cache.get(key);
+    if (hit) return hit;
+    const r = applyAction(current, action, { actorId: who, at: nextInstant(current.asOf) });
+    cache.set(key, r);
+    return r;
   }, [actorId]);
 
   const reset = useCallback((kind: "sample" | "empty" = "sample") => {
+    // An explicit reset is the person's decision: keep any unreadable copy as a backup, then save.
+    if (holdWrites.current && discardedRef.current) write(BACKUP_KEY, discardedRef.current.raw);
+    holdWrites.current = false;
+    setDiscarded(null);
     const next = kind === "empty" ? emptyWorkspace() : sampleWorkspace();
     wsRef.current = next;
     setWs(next);
     persist(next);
   }, [persist]);
+
+  const replaceDiscarded = useCallback(() => reset("sample"), [reset]);
 
   const setActorId = useCallback((id: string) => {
     setActor(id);
@@ -124,13 +155,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Ctx>(() => ({
     ws, hydrated, storage, actorId, actors,
     actor: actors.find((a) => a.id === actorId),
-    setActorId, dispatch, preview, reset, discarded, dismissDiscarded: () => setDiscarded(null),
+    setActorId, dispatch, preview, reset, discarded, replaceDiscarded,
     actorName: (id?: string) => {
       if (!id) return "Unassigned";
       const a = actors.find((x) => x.id === id);
       return a ? a.name : id;
     },
-  }), [ws, hydrated, storage, actorId, actors, setActorId, dispatch, preview, reset, discarded]);
+  }), [ws, hydrated, storage, actorId, actors, setActorId, dispatch, preview, reset, discarded, replaceDiscarded]);
 
   return (
     <WorkspaceContext.Provider value={value}>

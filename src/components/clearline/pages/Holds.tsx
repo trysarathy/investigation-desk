@@ -18,7 +18,7 @@ function HoldCard({ h }: { h: ComplianceHold }) {
   const docList = docs.split(",").map((s) => s.trim()).filter(Boolean);
   const aDocs = { type: "submit_hold_documents", holdId: h.id, documents: docList } as const;
   const aReviewer = { type: "assign_hold_reviewer", holdId: h.id, reviewerId: reviewer } as const;
-  const aDecision = { type: "record_hold_decision", holdId: h.id, decision, reason: reason || "Dry run" } as const;
+  const aDecision = { type: "record_hold_decision", holdId: h.id, decision, reason: "Dry run" } as const;
   const gDocs = gateOf(closed ? null : preview(aDocs), ws, !docList.length && "List at least one document name first.");
   const gReviewer = gateOf(closed ? null : preview(aReviewer), ws);
   const gDecision = gateOf(closed ? null : preview(aDecision), ws);

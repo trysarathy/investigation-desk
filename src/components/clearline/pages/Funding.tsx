@@ -28,7 +28,7 @@ export default function Funding() {
       {p.rows.length === 0 ? <Panel><Empty>No advances in this workspace.</Empty></Panel> : p.rows.map((r) => {
         const linkedEx = ws.exceptions.filter((e) => r.exceptionIds.includes(e.id));
         return (
-          <Panel key={r.advanceId} id={r.advanceId} title={<>Advance <span className="mono">{r.advanceId}</span> · {r.customerName}</>} actions={<AdvChip v={r.state} />}>
+          <Panel key={r.advanceId} id={r.advanceId} title={<>Advance <span className="mono">{r.advanceId}</span> · {r.customerName}</>} actions={<AdvChip v={r.state} basis={r.supplierPaidBasis} />}>
             <div className={ui.panelBody}>
               <div className={ui.grid3} data-testid="funding-figures">
                 <div><p className={ui.eyebrow}>Advanced (principal)</p><p className="num" style={{ fontSize: 20, fontWeight: 650, margin: 0 }} data-testid="funding-principal">{formatMoney(r.principal)}</p></div>

@@ -20,7 +20,14 @@ const TRUTH_CLASS: Record<Tone, string> = { ok: ui.truthOk, warn: ui.truthWarn, 
 
 /** Engine CHANGE 5 (F2): structured under-amount detail; read optionally so older workspaces still render. */
 type WithDiff = { amountDifference?: AmountDifference };
-const diffsOf = (v: InvestigationView): AmountDifference[] => (v as InvestigationView & { amountDifferences?: AmountDifference[] }).amountDifferences ?? [];
+type Diff = AmountDifference & { outstanding?: boolean };
+type DiffView = { amountDifferences?: Diff[]; resolvedAmountDifferences?: Diff[] };
+/** Review v2 M3: only differences the engine marks outstanding count as financially outstanding; the rest are history. */
+const diffsOf = (v: InvestigationView): Diff[] => ((v as InvestigationView & DiffView).amountDifferences ?? []).filter((d) => d.outstanding !== false);
+const resolvedDiffsOf = (v: InvestigationView): Diff[] => [
+  ...((v as InvestigationView & DiffView).amountDifferences ?? []).filter((d) => d.outstanding === false),
+  ...((v as InvestigationView & DiffView).resolvedAmountDifferences ?? []),
+];
 
 function FindingList({ items, empty }: { items: Finding[]; empty: string }) {
   if (!items.length) return <p className={ui.hint} style={{ margin: 0 }}>{empty}</p>;
@@ -128,13 +135,14 @@ export default function Investigation({ id }: { id: string }) {
   const kase = view.caseId ? ws.cases.find((c) => c.id === view.caseId) : undefined;
   const quote = ws.quotes.find((q) => q.id === intent.selectedQuoteId);
   const diffs = diffsOf(view);
+  const resolvedDiffs = resolvedDiffsOf(view);
   const lastProvider = tl.filter((e) => e.kind === "provider_event").at(-1);
   const matches = tl.filter((e) => e.kind === "allocation");
   const netZero = st.reconciliation === "matched" && intent.returnStatus === "confirmed_by_statement";
   const openExceptions = view.exceptions.filter((e) => e.status !== "resolved");
 
   // E. Payment-level actions, each gated by an engine dry run.
-  const cancelAction = { type: "cancel_intent", intentId: id, reason: cancelReason || "Dry run" } as const;
+  const cancelAction = { type: "cancel_intent", intentId: id, reason: "Dry run" } as const;
   const gCancel = gateOf(preview(cancelAction), ws, false);
   const gCancelInput: Gate = gCancel.ok && !cancelReason.trim() ? { ok: false, reason: "Give a reason for cancelling first." } : gCancel;
   const gExport: Gate = kase ? { ok: true } : { ok: false, reason: "No investigation case is open for this payment. The engine opens one when a payment needs a person." };
@@ -235,6 +243,12 @@ export default function Investigation({ id }: { id: string }) {
             {view.outstanding.length === 0 && diffs.length === 0 ? <p className={ui.hint} style={{ margin: 0 }}>Nothing outstanding.</p> :
               <ul>{view.outstanding.map((o, i) => <li key={i}>{o.amount && <strong className="num">{formatMoney(o.amount)} </strong>}{o.text} <Code>{o.code}</Code></li>)}</ul>}
             {diffs.map((d) => <AmountDiff key={d.statementLineId + d.code} d={d} />)}
+            {resolvedDiffs.length > 0 && (
+              <details style={{ marginTop: 8 }} data-testid="resolved-differences">
+                <summary>Earlier differences, no longer outstanding ({resolvedDiffs.length})</summary>
+                {resolvedDiffs.map((d) => <AmountDiff key={"r" + d.statementLineId + d.code} d={d} />)}
+              </details>
+            )}
           </section>
           <section className={ui.wide} data-testid="finding-owner"><h3>Who owns the next step</h3>
             <p style={{ margin: "0 0 4px" }}><strong>{view.whoActs.ownerName ?? "Unassigned"}</strong> — {label("role", view.whoActs.role)} <Code>{view.whoActs.code}</Code></p>

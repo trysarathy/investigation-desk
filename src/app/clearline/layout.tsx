@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import "./tokens.css";
 import AppShell from "@/components/clearline/AppShell";
 import { WorkspaceProvider } from "@/components/clearline/workspace";
+import { ConsoleBoundary } from "@/components/clearline/ConsoleBoundary";
 
 export const metadata: Metadata = {
   title: { default: "Clearline console — test mode", template: "%s · Clearline test mode" },
@@ -12,9 +13,11 @@ export const metadata: Metadata = {
 export default function ClearlineLayout({ children }: { children: ReactNode }) {
   return (
     <div className="cl">
-      <WorkspaceProvider>
-        <AppShell>{children}</AppShell>
-      </WorkspaceProvider>
+      <ConsoleBoundary>
+        <WorkspaceProvider>
+          <AppShell>{children}</AppShell>
+        </WorkspaceProvider>
+      </ConsoleBoundary>
     </div>
   );
 }

@@ -33,14 +33,14 @@ export function TargetActions({ target, status, idPrefix }: { target: TargetRef;
   const sample = "Dry run";
 
   const gAssign = gateOf(preview({ type: "assign_owner", target, ownerId: owner }), ws);
-  const gNote = gateOf(preview({ type: "add_note", target, text: note || sample }), ws, !note.trim() && "Write a note first.");
-  const gInfo = target.kind === "case" ? gateOf(preview({ type: "request_info", caseId: target.id, from: infoFrom || sample, request: infoReq || sample }), ws, !infoReq.trim() && "Describe what you need first.") : null;
-  const gEvidence = gateOf(preview({ type: "attach_evidence", target, evidence: { kind: evKind, description: evDesc || sample } }), ws, !evDesc.trim() && "Describe the evidence first.");
+  const gNote = gateOf(preview({ type: "add_note", target, text: sample }), ws, !note.trim() && "Write a note first.");
+  const gInfo = target.kind === "case" ? gateOf(preview({ type: "request_info", caseId: target.id, from: sample, request: sample }), ws, !infoReq.trim() && "Describe what you need first.") : null;
+  const gEvidence = gateOf(preview({ type: "attach_evidence", target, evidence: { kind: evKind, description: sample } }), ws, !evDesc.trim() && "Describe the evidence first.");
   const check = target.kind === "exception" ? canResolveException(ws, target.id) : canResolveCase(ws, target.id);
   const gResolve: Gate = !check.allowed
     ? { ok: false, reason: describeResolution(check.code, check.reason, ws, target.id), code: check.code }
-    : gateOf(preview({ type: "resolve", target, note: resolution || sample }), ws, !resolution.trim() && "Write a resolution note first.");
-  const gReopen = gateOf(preview({ type: "reopen", target, reason: reopenReason || sample }), ws, !reopenReason.trim() && "Give a reason to reopen first.");
+    : gateOf(preview({ type: "resolve", target, note: sample }), ws, !resolution.trim() && "Write a resolution note first.");
+  const gReopen = gateOf(preview({ type: "reopen", target, reason: sample }), ws, !reopenReason.trim() && "Give a reason to reopen first.");
 
   return (
     <div className={ui.panelBody}>

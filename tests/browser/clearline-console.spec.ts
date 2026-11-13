@@ -459,17 +459,39 @@ test("rendered console uses the v2 brand: midnight sidebar, canvas workspace, El
   expect(await page.evaluate(() => getComputedStyle(document.activeElement!).outlineColor)).toBe("rgb(55, 107, 235)");
 });
 
-test("a stored workspace that cannot be read is replaced by the sample and the page says so", async ({ page }) => {
+test("an unreadable saved workspace is kept untouched until the person chooses, then backed up and replaced", async ({ page }) => {
   await page.addInitScript(() => { try { if (!sessionStorage.getItem("seeded")) { localStorage.setItem("clearline.console.workspace.v1", "{not json"); sessionStorage.setItem("seeded", "1"); } } catch { /* blocked */ } });
   await open(page, "/clearline");
   const n = page.getByTestId("workspace-discarded");
-  await expect(n).toContainText("could not be read and was replaced by the sample workspace");
-  await expect(n).toContainText("Nothing from it was kept. Reason:");
-  await n.getByRole("button", { name: "Dismiss" }).click();
-  await expect(n).toHaveCount(0);
+  await expect(n).toContainText("Your saved workspace could not be read.");
+  await expect(n).toContainText("The saved copy has not been changed");
+  await expect(n).toContainText("Reason:");
+  const stored = () => page.evaluate(() => ({ main: localStorage.getItem("clearline.console.workspace.v1"), backup: localStorage.getItem("clearline.console.workspace.v1.unreadable-backup") }));
+  // Acting in the console does not overwrite the unreadable copy.
+  await open(page, "/clearline/routes/new");
+  await page.getByLabel("Customer reference").fill("INV-NOT-SAVED");
+  await page.getByRole("button", { name: "Create test intent" }).click();
+  await expect(page.getByTestId("intent-id")).toBeVisible();
+  expect(await stored()).toEqual({ main: "{not json", backup: null });
   await page.reload();
   await expect(page.getByTestId("cl-workspace")).toHaveAttribute("data-hydrated", "true");
-  await expect(page.getByTestId("workspace-discarded")).toHaveCount(0); // the sample was saved; no repeat notice
+  await expect(page.getByTestId("workspace-discarded")).toBeVisible(); // still undecided: notice again
+  // The person decides: backup kept, sample saved, notice gone for good.
+  await page.getByRole("button", { name: /Replace it with the sample/ }).click();
+  await expect(page.getByTestId("workspace-discarded")).toHaveCount(0);
+  const after = await stored();
+  expect(after.backup).toBe("{not json");
+  expect(after.main).toContain('"schemaVersion"');
+  await page.reload();
+  await expect(page.getByTestId("cl-workspace")).toHaveAttribute("data-hydrated", "true");
+  await expect(page.getByTestId("workspace-discarded")).toHaveCount(0);
+});
+
+test("a moved URL missing from the redirect table can never send Location: undefined", async ({ request }) => {
+  for (const from of Object.keys(REDIRECTS)) {
+    const r = await request.get(from, { maxRedirects: 0 });
+    expect(r.headers()["location"] ?? "", from).not.toContain("undefined");
+  }
 });
 
 /* ---------- Engine CHANGE 4: states built through the real v1 API, then loaded into the browser ---------- */
@@ -578,4 +600,20 @@ test("F1: a provider settlement report on a returned payout is shown as a contra
   await expect(page.getByTestId("finding-contradicts")).toContainText("RC_REPORT_ON_TERMINAL_PAYOUT");
   await expect(page.getByTestId("evidence-timeline")).toContainText("PSR-E2E-F1");
   await expect(page.getByTestId("dim-execution").locator('[data-api-value="returned"]')).toBeVisible();
+});
+
+test("a link click is never swallowed: if client navigation stalls, the page loads the target in full", async ({ page }) => {
+  await open(page, "/clearline/trial");
+  // Stall every client-side (RSC) fetch for the payment page: the soft navigation starts but never commits
+  // (an aborted fetch would make Next fall back to a full load by itself and prove nothing).
+  let blocked = 0;
+  await page.route("**/clearline/payments/**", (route) => {
+    if (route.request().headers()["rsc"]) { blocked++; return; } // never answered
+    return route.continue();
+  });
+  await page.getByRole("link", { name: "Start case 01: Successful payment" }).click();
+  await expect(page).toHaveURL(/\/clearline\/payments\/pi_\d+$/, { timeout: 15_000 });
+  await expect(page.getByTestId("cl-workspace")).toHaveAttribute("data-hydrated", "true");
+  await expect(page.getByTestId("dim-execution")).toBeVisible();
+  expect(blocked, "the soft navigation was attempted and blocked").toBeGreaterThan(0);
 });

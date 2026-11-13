@@ -122,7 +122,14 @@ export const ReconChip = ({ v, returnStatus, showValue }: V<ReconciliationState>
 export const SevChip = ({ v }: { v: Severity }) => chipFrom("severity", SEVERITY, v);
 export const ExcChip = ({ v }: { v: ExceptionStatus }) => chipFrom("exceptionStatus", EXC_STATUS, v);
 export const HoldChip = ({ v }: { v: HoldStatus }) => chipFrom("holdStatus", HOLD, v);
-export const AdvChip = ({ v }: { v: AdvanceState }) => chipFrom("advanceState", ADVANCE, v);
+/**
+ * Advance state. `supplier_paid` alone is the provider's report; when the engine's supplierPaidBasis says the
+ * payout is verified by independent evidence, the chip says so, so the card never reads two ways (review nit).
+ */
+export const AdvChip = ({ v, basis }: { v: AdvanceState; basis?: "none" | "provider_reported" | "verified_settlement" }) =>
+  v === "supplier_paid" && basis === "verified_settlement"
+    ? <span className="cl-tag" data-api-value={v}><Chip tone="ok" title={`API value: ${v} (supplierPaidBasis verified_settlement)`}>Supplier paid — verified<span className={ui.srOnly}>, API value {v}</span></Chip></span>
+    : chipFrom("advanceState", ADVANCE, v);
 /** `held`: the event arrived during a compliance hold and was recorded but not applied (engine detail.suppressedOnHold). */
 export const OutcomeChip = ({ v, held }: { v: ProcessingOutcome; held?: boolean }) =>
   held ? <Chip tone="warn" title="Recorded during a compliance hold; a person decides. Not applied.">Held: not applied</Chip> : chipFrom("processingOutcome", OUTCOME, v);
@@ -134,9 +141,3 @@ const CODE_TITLE: Record<string, string> = {
 };
 export const exceptionTitle = (e: { category: string; explanationCode: string }) => CODE_TITLE[e.explanationCode] ?? engineLabel("exceptionCategory", e.category) ?? human(e.category);
 
-/** Words for one status dimension value: the engine's HUMAN_LABELS, else the console's map. */
-const LOCAL = { execution: EXECUTION, settlement: SETTLEMENT, reconciliation: RECON } as const;
-export function statusText<K extends keyof typeof LOCAL>(table: K, v: string): string {
-  const m = LOCAL[table] as Record<string, [string, Tone]>;
-  return engineLabel(table, v) ?? m[v]?.[0] ?? human(v);
-}

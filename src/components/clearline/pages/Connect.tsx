@@ -1,5 +1,5 @@
 "use client";
-import Link from "../Link";
+import Link, { navigate } from "../Link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
@@ -88,7 +88,7 @@ export default function Connect() {
   const [checker, setChecker] = useState("usr_daniel");
   const [rejectReason, setRejectReason] = useState("");
 
-  const go = (id: string) => router.replace(`/clearline/routes/new?intent=${encodeURIComponent(id)}`);
+  const go = (id: string) => navigate(router, `/clearline/routes/new?intent=${encodeURIComponent(id)}`, "replace");
   const act = (label: string, r: ReturnType<typeof dispatch>) => {
     setMsg(r.ok ? { text: `${label} — recorded by the engine (${humanLabel("actionOutcome", r.value.outcome)}).` } : { text: `${label} not applied — ${errorText(r, ws)}`, error: true });
     return r.ok;
@@ -99,7 +99,7 @@ export default function Connect() {
   const step = !intent ? 0 : !quotes.length ? 1 : !instr ? 2 : instr.status === "pending_approval" ? 3 : instr.status === "approved" ? 4 : instr.status === "submitted" ? 5 : 2;
   const gQuote = intent ? gateOf(preview({ type: "request_quotes", intentId: intent.id }), ws) : null;
   const gApprove = instr ? gateOf(preview({ type: "approve_instruction", instructionId: instr.id }, { actorId: checker }), ws) : null;
-  const gReject = instr ? gateOf(preview({ type: "reject_instruction", instructionId: instr.id, reason: rejectReason || "Dry run" }, { actorId: checker }), ws, false) : null;
+  const gReject = instr ? gateOf(preview({ type: "reject_instruction", instructionId: instr.id, reason: "Dry run" }, { actorId: checker }), ws, false) : null;
   const gSubmit = instr ? gateOf(preview({ type: "submit_instruction", instructionId: instr.id }), ws) : null;
   const inFlight = ws.intents.filter((i) => ["created", "quoted", "approved", "submitted"].includes(i.status.execution));
 
@@ -201,7 +201,7 @@ export default function Connect() {
 
       {intent && step === 5 && (
         <Panel title="6. Simulate the provider's next event" id="event">
-          <SimulateEvent intentId={intent.id} idPrefix="connect" onDone={() => router.push(`/clearline/payments/${intent.id}`)} />
+          <SimulateEvent intentId={intent.id} idPrefix="connect" onDone={() => navigate(router, `/clearline/payments/${intent.id}`)} />
         </Panel>
       )}
 

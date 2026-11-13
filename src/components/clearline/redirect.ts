@@ -6,6 +6,8 @@ import { REDIRECTS } from "./nav";
  */
 export function moved(from: string) {
   const to = REDIRECTS[from];
+  // A key missing from REDIRECTS answers a plain 404, never `Location: undefined` (review nit).
+  if (!to) return () => new Response("Not found", { status: 404, headers: { "Cache-Control": "no-store" } });
   const handler = (req: Request) => {
     const url = new URL(req.url);
     return new Response(null, { status: 308, headers: { Location: to + url.search, "Cache-Control": "no-store" } });

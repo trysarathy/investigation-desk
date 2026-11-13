@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { ActorSelect } from "./ActorSelect";
 import { useWorkspace } from "./workspace";
+import { download } from "./download";
 import { CONTACT_MAILTO, MARKETING_URL, PRIMARY, SECONDARY, crumbsFor, isActive } from "./nav";
 import s from "./ui.module.css";
 
@@ -11,14 +12,21 @@ function safeDecode(v: string): string {
   try { return decodeURIComponent(v); } catch { return v; }
 }
 
-/** A stored workspace that could not be read is never replaced silently (code review nit). */
+/**
+ * A saved workspace that cannot be read is never replaced silently (review m6): the sample is shown,
+ * nothing is saved over the old copy, and the person chooses what happens to it.
+ */
 function DiscardedNotice() {
-  const { discarded, dismissDiscarded } = useWorkspace();
+  const { discarded, replaceDiscarded } = useWorkspace();
   if (!discarded) return null;
   return (
     <div className={s.notice} role="alert" data-testid="workspace-discarded">
-      <strong>Your saved workspace could not be read and was replaced by the sample workspace.</strong> Nothing from it was kept. Reason: {discarded}{" "}
-      <button type="button" className={`${s.btn} ${s.small}`} onClick={dismissDiscarded}>Dismiss</button>
+      <p style={{ margin: "0 0 6px" }}><strong>Your saved workspace could not be read.</strong> You are seeing the sample workspace instead. The saved copy has not been changed, and nothing you do now is saved until you choose below.</p>
+      <p style={{ margin: "0 0 8px" }}>Reason: {discarded.reason}</p>
+      <div className={s.actions}>
+        <button type="button" className={`${s.btn} ${s.small}`} onClick={() => download("clearline-workspace-unreadable.json", discarded.raw, "application/json")}>Download the unreadable copy</button>
+        <button type="button" className={`${s.btn} ${s.small} ${s.primary}`} onClick={replaceDiscarded}>Replace it with the sample (keeps a backup in this browser)</button>
+      </div>
     </div>
   );
 }
