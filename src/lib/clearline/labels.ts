@@ -264,6 +264,7 @@ const RESOLUTION_CODE: Record<string, string> = {
   RETURN_NOT_ADDRESSED: "Confirm the returned funds or create a correction first.",
   NO_PROVIDER_RESPONSE: "The provider has not responded since the timeout.",
   EVIDENCE_REQUIRED: "Attach supporting evidence first (a note alone is not enough).",
+  EVIDENCE_OUTSTANDING: "The payment is not yet evidenced by a matched statement line or a final on-chain transfer.",
   RESOLVABLE: "Can be resolved (a note is required).",
 };
 /** Quote eligibility codes (ProviderAdapter.eligibility). */
