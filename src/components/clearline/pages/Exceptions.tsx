@@ -3,7 +3,7 @@ import Link from "../Link";
 import { useSearchParams } from "next/navigation";
 import { formatMoney, listExceptions, type ExceptionCategory } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
-import { ExcChip, SevChip, human } from "../labels";
+import { ExcChip, SevChip, human, exceptionTitle } from "../labels";
 import { TargetActions } from "../TargetActions";
 import { Code, Empty, PageHead, Panel, fmtDate, fmtTime, ui } from "../ui";
 
@@ -37,7 +37,7 @@ export default function Exceptions() {
               <tbody>
                 {rows.map((e) => (
                   <tr key={e.id}>
-                    <td data-label="Category"><a href={`#${e.id}`}>{human(e.category)}</a><span className={ui.sub}><Code>{e.explanationCode}</Code></span></td>
+                    <td data-label="Category"><a href={`#${e.id}`}>{exceptionTitle(e)}</a><span className={ui.sub}><Code>{e.explanationCode}</Code></span></td>
                     <td data-label="Severity"><SevChip v={e.severity} /></td>
                     <td data-label="Status"><ExcChip v={e.status} /></td>
                     <td data-label="Owner">{actorName(e.ownerId)}</td>
@@ -53,7 +53,7 @@ export default function Exceptions() {
       )}
       {rows.length === 0 ? <Panel><Empty>No exceptions in this view.</Empty></Panel> : rows.map((e) => (
         <Panel key={e.id} id={e.id} headingLevel={2}
-          title={<>{human(e.category)} <span className={ui.sub} style={{ display: "inline" }}>· <span className="mono">{e.id}</span></span></>}
+          title={<>{exceptionTitle(e)} <span className={ui.sub} style={{ display: "inline" }}>· <span className="mono">{e.id}</span></span></>}
           actions={<><SevChip v={e.severity} /><ExcChip v={e.status} /></>}>
           <div className={ui.panelBody}>
             <dl className={ui.dl}>

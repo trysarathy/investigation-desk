@@ -70,7 +70,7 @@ export function ProviderActivity() {
                   <td data-label="Payment">{e.intentId ? <Link href={`/clearline/payments/${e.intentId}`} className="mono">{e.intentId}</Link> : "Unresolved"}</td>
                   <td data-label="Provenance">{e.provenance.replace(/_/g, " ")}<span className={ui.sub}>{e.confidence.replace(/_/g, " ")}</span></td>
                   <td data-label="Signature"><Chip tone={e.signatureResult === "invalid" ? "bad" : e.signatureResult === "valid" ? "ok" : "neutral"}>{e.signatureResult.replace(/_/g, " ")}</Chip></td>
-                  <td data-label="Processing"><OutcomeChip v={e.processingOutcome} /></td>
+                  <td data-label="Processing"><OutcomeChip v={e.processingOutcome} held={Boolean(e.detail?.suppressedOnHold)} /></td>
                 </tr>))}
               </tbody>
             </table>

@@ -2,7 +2,7 @@
 import Link from "../Link";
 import { FUNDING_PROJECTION_LABEL, formatMinor, formatMoney, fundingProjection, type CurrencyCode } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
-import { AdvChip, ExcChip, ExecChip, SettleChip, human } from "../labels";
+import { AdvChip, ExcChip, ExecChip, SettleChip, human, exceptionTitle } from "../labels";
 import { Code, Dl, Empty, Notice, PageHead, Panel, fmtDate, fmtTime, ui } from "../ui";
 
 export default function Funding() {
@@ -62,7 +62,7 @@ export default function Funding() {
                 <div className={ui.panelHead} style={{ borderTop: "1px solid var(--cl-line)" }}><h3>Exceptions (not allocated to this advance)</h3></div>
                 <ul className={ui.panelBody} style={{ margin: 0, paddingLeft: 30 }} data-testid="funding-exceptions">
                   {linkedEx.map((e) => (
-                    <li key={e.id}><Link href={`/clearline/exceptions?view=all#${e.id}`}>{human(e.category)}</Link> — {e.explanation} {e.impact && <strong className="num">{formatMoney(e.impact)}</strong>} <ExcChip v={e.status} /> <Code>{e.explanationCode}</Code></li>
+                    <li key={e.id}><Link href={`/clearline/exceptions?view=all#${e.id}`}>{exceptionTitle(e)}</Link> — {e.explanation} {e.impact && <strong className="num">{formatMoney(e.impact)}</strong>} <ExcChip v={e.status} /> <Code>{e.explanationCode}</Code></li>
                   ))}
                 </ul>
               </>

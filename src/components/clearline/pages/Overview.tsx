@@ -2,7 +2,7 @@
 import Link from "../Link";
 import { fundingProjection, formatMinor, listExceptions, type CurrencyCode } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
-import { ExcChip, SevChip, human } from "../labels";
+import { ExcChip, SevChip, human, exceptionTitle } from "../labels";
 import { Code, Empty, LinkBtn, Metric, Notice, PageHead, Panel, fmtTime, ui } from "../ui";
 
 export default function Overview() {
@@ -47,7 +47,7 @@ export default function Overview() {
               <tbody>
                 {open.slice(0, 8).map((e) => (
                   <tr key={e.id}>
-                    <td data-label="Exception"><Link href={`/clearline/exceptions#${e.id}`}>{human(e.category)}</Link><span className={ui.sub}><Code>{e.explanationCode}</Code></span></td>
+                    <td data-label="Exception"><Link href={`/clearline/exceptions#${e.id}`}>{exceptionTitle(e)}</Link><span className={ui.sub}><Code>{e.explanationCode}</Code></span></td>
                     <td data-label="Severity"><SevChip v={e.severity} /></td>
                     <td data-label="Status"><ExcChip v={e.status} /></td>
                     <td data-label="Owner">{actorName(e.ownerId)}</td>

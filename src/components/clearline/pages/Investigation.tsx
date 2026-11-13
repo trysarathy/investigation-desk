@@ -3,7 +3,7 @@ import Link from "../Link";
 import { useMemo } from "react";
 import { evidenceTimelineFor, exportCaseReport, formatMoney, getIntent, investigate, type EvidenceTimelineKind, type Finding, type ProcessingOutcome } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
-import { ExecChip, ReconChip, SCOPE, SettleChip, RAIL, HoldChip, AdvChip, OutcomeChip, human } from "../labels";
+import { ExecChip, ReconChip, SCOPE, SettleChip, RAIL, HoldChip, AdvChip, OutcomeChip, exceptionTitle, human } from "../labels";
 import { SimulateEvent } from "../SimulateEvent";
 import { TargetActions } from "../TargetActions";
 import { Btn, Chip, Code, Empty, Notice, PageHead, Panel, fmtTime, ui } from "../ui";
@@ -29,7 +29,7 @@ export default function Investigation({ id }: { id: string }) {
   const view = res && res.ok ? res.value : null;
   // The engine's unified evidence timeline (UI_REQUESTS R2); provider events are looked up only to show their outcome chip.
   const tl = useMemo(() => (view ? evidenceTimelineFor(ws, id) : []), [ws, id, view]);
-  const outcomeOf = (eventId: string) => ws.providerEvents.find((e) => e.id === eventId)?.processingOutcome;
+  const eventOf = (eventId: string) => ws.providerEvents.find((e) => e.id === eventId);
 
   if (!intent || !view) {
     if (!hydrated) return <p className={ui.empty} role="status">Loading payment…</p>;
@@ -73,7 +73,7 @@ export default function Investigation({ id }: { id: string }) {
           <dl className={ui.dl} style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--cl-line)" }} data-testid="status-dimensions">
             <div><dt>Execution (provider-reported)</dt><dd data-testid="dim-execution"><ExecChip v={view.status.execution} /></dd></div>
             <div><dt>Settlement evidence</dt><dd data-testid="dim-settlement"><SettleChip v={view.status.settlement} /><span className={ui.sub}>Scope: {SCOPE[view.status.settlementScope]}</span></dd></div>
-            <div><dt>Reconciliation</dt><dd data-testid="dim-reconciliation"><ReconChip v={view.status.reconciliation} />{intent.returnStatus && <span className={ui.sub} data-testid="return-status">{RETURN_STATUS[intent.returnStatus]}. The supplier is still unpaid.</span>}</dd></div>
+            <div><dt>Reconciliation</dt><dd data-testid="dim-reconciliation"><ReconChip v={view.status.reconciliation} returnStatus={intent.returnStatus} />{intent.returnStatus && <span className={ui.sub} data-testid="return-status">{RETURN_STATUS[intent.returnStatus]}. The supplier is still unpaid.</span>}</dd></div>
             <div><dt>Last event</dt><dd className="num" data-testid="last-event">{view.lastEventAt ? <>{view.lastEventType}<span className={ui.sub}>{fmtTime(view.lastEventAt)}</span></> : "No provider events yet"}</dd></div>
             <div><dt>Last independent verification</dt><dd className="num" data-testid="last-verification">{view.lastIndependentVerificationAt ? fmtTime(view.lastIndependentVerificationAt) : "None yet"}</dd></div>
           </dl>
@@ -135,7 +135,9 @@ export default function Investigation({ id }: { id: string }) {
         {tl.length === 0 ? <Empty>No evidence recorded yet.</Empty> : (
           <ol className={ui.timeline} data-testid="evidence-timeline">
             {tl.map((e) => {
-              const outcome = e.kind === "provider_event" ? outcomeOf(e.refs[0]) : undefined;
+              const pev = e.kind === "provider_event" ? eventOf(e.refs[0]) : undefined;
+              const outcome = pev?.processingOutcome;
+              const held = Boolean(pev?.detail?.suppressedOnHold);
               const problem = e.kind === "missing_evidence" || e.kind === "exception" || (outcome !== undefined && PROBLEM_OUTCOMES.includes(outcome));
               return (
                 <li key={e.id} className={`${ui.tlItem} ${problem ? ui.tlProblem : ""}`}>
@@ -144,7 +146,7 @@ export default function Investigation({ id }: { id: string }) {
                     <p className={ui.tlTitle}>
                       <Chip tone={e.kind === "missing_evidence" || e.kind === "exception" ? "bad" : e.independent ? "ok" : "neutral"}>{KIND_LABEL[e.kind]}</Chip>
                       {e.title}
-                      {outcome && <OutcomeChip v={outcome} />}
+                      {outcome && <OutcomeChip v={outcome} held={held} />}
                       <Chip tone={e.independent ? "ok" : "neutral"}>{e.independent ? "Independent" : "Not independent"}</Chip>
                     </p>
                     <p className={ui.tlMeta}>Source: {e.source} · Provenance: {human(e.provenance)}</p>
@@ -160,7 +162,7 @@ export default function Investigation({ id }: { id: string }) {
       {view.exceptions.length > 0 && (
         <Panel title="Exceptions on this payment" id="exceptions">
           <ul className={ui.panelBody} style={{ margin: 0, paddingLeft: 30 }}>
-            {view.exceptions.map((e) => <li key={e.id}><Link href={`/clearline/exceptions?view=all&intent=${id}#${e.id}`}>{human(e.category)}</Link> — {e.status.replace("_", " ")} · <Code>{e.explanationCode}</Code></li>)}
+            {view.exceptions.map((e) => <li key={e.id}><Link href={`/clearline/exceptions?view=all&intent=${id}#${e.id}`}>{exceptionTitle(e)}</Link> — {e.status.replace("_", " ")} · <Code>{e.explanationCode}</Code></li>)}
           </ul>
         </Panel>
       )}

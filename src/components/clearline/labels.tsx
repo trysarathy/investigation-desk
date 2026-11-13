@@ -1,8 +1,8 @@
 "use client";
-/** Display text + tone for engine enum values. No status is derived here; each maps 1:1. */
+/** Display text + tone for engine enum values. No status is computed here; labels read engine fields only. */
 import type {
   AdvanceState, ExceptionStatus, ExecutionState, HoldStatus, ProcessingOutcome, ReconciliationState,
-  SettlementEvidenceState, SettlementScope, Severity, RailKind,
+  SettlementEvidenceState, SettlementScope, Severity, RailKind, PaymentIntent,
 } from "@/lib/clearline";
 import { Chip, type Family, type Tone } from "./ui";
 
@@ -98,9 +98,25 @@ const EVIDENCE_SHAPE: Record<SettlementEvidenceState, string> = { none: "○", o
 
 export const ExecChip = ({ v }: { v: ExecutionState }) => chipFrom(EXECUTION, v, "exec");
 export const SettleChip = ({ v }: { v: SettlementEvidenceState }) => chipFrom(SETTLEMENT, v, "evidence", { shape: EVIDENCE_SHAPE[v], solid: v === "verified" });
-export const ReconChip = ({ v }: { v: ReconciliationState }) => chipFrom(RECON, v, "recon");
+/**
+ * Reconciliation chip. A returned payout whose bank debit and statement-confirmed return are both
+ * allocated is "matched" by the engine but nets to zero: the supplier is still unpaid (CHANGE 4, N2).
+ */
+export const ReconChip = ({ v, returnStatus }: { v: ReconciliationState; returnStatus?: PaymentIntent["returnStatus"] }) =>
+  v === "matched" && returnStatus === "confirmed_by_statement"
+    ? <Chip tone="warn" family="recon" title="Debit and return both evidenced; the supplier is still unpaid.">Returned — net zero</Chip>
+    : chipFrom(RECON, v, "recon");
 export const SevChip = ({ v }: { v: Severity }) => chipFrom(SEVERITY, v);
 export const ExcChip = ({ v }: { v: ExceptionStatus }) => chipFrom(EXC_STATUS, v);
 export const HoldChip = ({ v }: { v: HoldStatus }) => chipFrom(HOLD, v);
 export const AdvChip = ({ v }: { v: AdvanceState }) => chipFrom(ADVANCE, v);
-export const OutcomeChip = ({ v }: { v: ProcessingOutcome }) => chipFrom(OUTCOME, v);
+/** `held`: the event arrived during a compliance hold and was recorded but not applied (engine detail.suppressedOnHold). */
+export const OutcomeChip = ({ v, held }: { v: ProcessingOutcome; held?: boolean }) =>
+  held ? <Chip tone="warn" title="Recorded during a compliance hold; a person decides. Not applied.">Held: not applied</Chip> : chipFrom(OUTCOME, v);
+
+/** Titles for explanation codes that need more than the category name. */
+const CODE_TITLE: Record<string, string> = {
+  EV_TERMINAL_EVENT_WHILE_ON_HOLD: "Payout returned or failed during a compliance hold (not applied)",
+  EV_PROVIDER_EVENT_WHILE_ON_HOLD: "Provider event during a compliance hold (not applied)",
+};
+export const exceptionTitle = (e: { category: string; explanationCode: string }) => CODE_TITLE[e.explanationCode] ?? human(e.category);

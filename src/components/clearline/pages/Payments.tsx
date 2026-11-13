@@ -49,7 +49,7 @@ export default function Payments() {
                       <td data-label="Provider / rail">{q ? q.providerName : "Not chosen"}<span className={ui.sub}>{q ? RAIL[q.rail] : "—"}{pp ? ` · ${pp}` : ""}</span></td>
                       <td data-label="Execution"><ExecChip v={i.status.execution} /></td>
                       <td data-label="Settlement evidence"><SettleChip v={i.status.settlement} /><span className={ui.sub}>{SCOPE[i.status.settlementScope]}</span></td>
-                      <td data-label="Reconciliation"><ReconChip v={i.status.reconciliation} /></td>
+                      <td data-label="Reconciliation"><ReconChip v={i.status.reconciliation} returnStatus={i.returnStatus} /></td>
                       <td data-label="Open exceptions" className={ui.num}>{ex > 0 ? <Link href={`/clearline/exceptions?intent=${i.id}`}>{ex}</Link> : "0"}</td>
                     </tr>
                   );

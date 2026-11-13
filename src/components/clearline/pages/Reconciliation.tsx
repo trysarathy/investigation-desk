@@ -19,7 +19,7 @@ const GROUPS: { key: ReconciliationCodeGroup; label: string; tone: Tone }[] = [
   { key: "currency_mismatch", label: "Currency mismatch", tone: "bad" },
   { key: "contradiction", label: "Contradicts provider", tone: "bad" },
   { key: "return", label: "Returns", tone: "warn" },
-  { key: "informational", label: "Informational", tone: "neutral" },
+  { key: "informational", label: "Informational (provider reports, late lines)", tone: "neutral" },
 ];
 const inGroup = (l: StatementLine, key: string) => l.explanationCodes.some((c) => RECONCILIATION_CODE_GROUP[c] === key);
 
@@ -88,7 +88,8 @@ export default function Reconciliation() {
               <thead><tr><th>Line</th><th>Source</th><th>Direction</th><th className={ui.r}>Amount</th><th>Reference</th><th>Value date</th><th>Status</th><th>Explanation</th><th>Allocated to</th></tr></thead>
               <tbody>{lines.map((l) => {
                 const allocs = ws.allocations.filter((a) => a.statementLineId === l.id);
-                const st = LINE_STATUS[l.status];
+                // A provider settlement report is provider-reported evidence: recorded, never allocated (CHANGE 4, N1).
+                const st: [string, Tone] = l.explanationCodes.includes("RC_PROVIDER_REPORT_ONLY") && l.status === "unallocated" ? ["Provider report (not allocated)", "neutral"] : LINE_STATUS[l.status];
                 return (
                   <tr key={l.id} id={l.id}>
                     <td data-label="Line" className="mono">{l.lineId}<span className={ui.sub}>{l.id}</span></td>
