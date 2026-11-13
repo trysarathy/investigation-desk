@@ -5,7 +5,7 @@
  *   never "nobody" while a contradiction is shown (property over a battery of adversarial flows).
  */
 import { describe, expect, it } from "vitest";
-import { canResolveCase, investigate, listExceptions, sampleWorkspace, scenarioIntentId, type Workspace } from "@/lib/clearline";
+import { ALLOWLISTED_TOKENS, canResolveCase, getAdapter, investigate, listExceptions, sampleWorkspace, scenarioIntentId, type Workspace } from "@/lib/clearline";
 import { debitLine, intent, run, sim, signedDelivery, submitted } from "./helpers";
 
 const assign = (ws: Workspace, kind: "case" | "exception", id: string) => run(ws, "usr_maya", { type: "assign_owner", target: { kind, id }, ownerId: "usr_maya" }).workspace;
@@ -132,5 +132,79 @@ describe("rc3 X-2: every contradiction has an open owner", () => {
         expect(`${name} ${i.id}: open=${open.length}`).not.toBe(`${name} ${i.id}: open=0`);
       }
     }
+  });
+});
+
+describe("review M-2: an evidenced success case can close after a person accepts a disagreeing bank line", () => {
+  const completed = () => {
+    let { ws, id, ppid } = submitted();
+    ws = sim(sim(ws, id).workspace, id).workspace;
+    return { ws, id, ppid };
+  };
+  const resolveAll = (ws: Workspace, id: string) => {
+    for (const e of listExceptions(ws, { intentId: id, status: "unresolved" })) {
+      ws = assign(ws, "exception", e.id);
+      ws = evidence(ws, e.id);
+      ws = run(ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: e.id }, note: "Bank fee of SGD 0.50 added on top; confirmed with the bank" }).workspace;
+    }
+    return ws;
+  };
+  it("bank debits SGD 10,000.50 for a SGD 10,000.00 payout → RC_OVERPAYMENT → person resolves with evidence → the case can close", () => {
+    let { ws, id, ppid } = completed();
+    ws = run(ws, "usr_maya", { type: "ingest_statement_line", line: debitLine({ reference: `PAYOUT ${ppid}`, amountMinor: 1_000_050 }) }).workspace;
+    expect(listExceptions(ws, { intentId: id }).map((e) => e.explanationCode)).toContain("RC_OVERPAYMENT");
+    ws = resolveAll(ws, id);
+    const caseId = intent(ws, id).caseId!;
+    ws = assign(ws, "case", caseId);
+    // Before the fix: EVIDENCE_OUTSTANDING forever (no action can allocate the line).
+    const check = canResolveCase(ws, caseId);
+    expect(check).toMatchObject({ allowed: true, code: "RESOLVABLE" });
+    expect(check.reason).toMatch(/RC_OVERPAYMENT/);
+    expect(run(ws, "usr_maya", { type: "resolve", target: { kind: "case", id: caseId }, note: "Paid; fee accepted" }).workspace.cases.find((c) => c.id === caseId)!.status).toBe("resolved");
+  });
+  it("still blocked: the same over-amount line from a provider settlement report (not independent evidence)", () => {
+    let { ws, id, ppid } = completed();
+    ws = run(ws, "usr_maya", { type: "ingest_statement_line", line: debitLine({ source: "provider_settlement_report", accountRef: "prv_northline:settlement", reference: ppid, amountMinor: 1_000_050 }) }).workspace;
+    ws = resolveAll(ws, id);
+    const caseId = intent(ws, id).caseId!;
+    ws = assign(ws, "case", caseId);
+    expect(canResolveCase(ws, caseId).code).toBe("EVIDENCE_OUTSTANDING");
+  });
+  it("still blocked: a debit with no reference that only matches on amount (it names no payout), even once resolved", () => {
+    let { ws, id, ppid } = completed();
+    // open the payout's case with a duplicate-payload event (resolvable with a note)
+    const d1 = signedDelivery(ws, "prv_northline", { id: `${ppid}-E9`, type: "payout.completed", provider_payment_id: ppid, sequence: 9, occurred_at: ws.asOf });
+    ws = run(ws, "usr_maya", { type: "ingest_webhook", delivery: d1 }).workspace;
+    const d2 = signedDelivery(ws, "prv_northline", { id: `${ppid}-E9`, type: "payout.completed", provider_payment_id: ppid, sequence: 9, occurred_at: ws.asOf, reason: "timeout" });
+    ws = run(ws, "usr_maya", { type: "ingest_webhook", delivery: d2 }).workspace;
+    ws = run(ws, "usr_maya", { type: "ingest_statement_line", line: debitLine({ reference: "", amountMinor: 1_000_000 }) }).workspace;
+    const amountOnly = ws.exceptions.at(-1)!;
+    expect(amountOnly.explanationCode).toBe("RC_AMOUNT_ONLY_CANDIDATES");
+    expect(amountOnly.candidates).toContain(id);
+    ws = assign(ws, "exception", amountOnly.id);
+    ws = evidence(ws, amountOnly.id);
+    ws = run(ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: amountOnly.id }, note: "Looks like ours" }).workspace;
+    ws = resolveAll(ws, id);
+    const caseId = intent(ws, id).caseId!;
+    ws = assign(ws, "case", caseId);
+    expect(canResolveCase(ws, caseId).code).toBe("EVIDENCE_OUTSTANDING");
+  });
+});
+
+describe("review m-5: X-1 needs reconciliation matched as well as verified settlement", () => {
+  it("a final chain transfer the provider never named (verified, reconciliation pending) cannot close the case", () => {
+    let { ws, id } = submitted({ amountMinor: 6_427_830_000, sourceCurrency: "USDC", destinationCurrency: "USDC", destinationCountry: "SG", sandboxOutcome: "chain_delay" }, "prv_tidewater");
+    ws = sim(ws, id).workspace; // in_transit
+    const i = intent(ws, id);
+    const obs = { intentId: id, chainId: 84532, network: "base-sepolia", tokenContract: ALLOWLISTED_TOKENS[0].contract, tokenSymbol: "USDC", txHash: "0x" + "77".repeat(32), toAddress: getAdapter("prv_tidewater")!.expectedWallet!(i), amountMinor: ws.quotes.find((q) => q.id === i.selectedQuoteId)!.estimatedRecipientMinor, blockNumber: 9, confirmations: 3 };
+    ws = run(ws, "usr_maya", { type: "ingest_chain_observation", observation: obs }).workspace; // pending_finality → exception + case
+    ws = run(ws, "usr_maya", { type: "ingest_chain_observation", observation: { ...obs, confirmations: 12 } }).workspace;
+    expect(intent(ws, id).status).toMatchObject({ settlement: "verified", reconciliation: "pending" });
+    const pf = listExceptions(ws, { intentId: id, category: "pending_finality" })[0];
+    ws = assign(ws, "exception", pf.id);
+    ws = run(ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: pf.id }, note: "Final" }).workspace;
+    const caseId = intent(ws, id).caseId!;
+    ws = assign(ws, "case", caseId);
+    expect(canResolveCase(ws, caseId).code).toBe("EVIDENCE_OUTSTANDING");
   });
 });
