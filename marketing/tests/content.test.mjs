@@ -4,23 +4,10 @@ import fs from "node:fs";
 import path from "node:path";
 const root=path.resolve(import.meta.dirname,"..");
 const read=p=>fs.readFileSync(path.join(root,p),"utf8");
-test("every required marketing page exists",()=>{
- for(const p of ["app/page.tsx","app/replay/page.tsx","app/onchain/page.tsx","app/privacy/page.tsx"])assert.ok(fs.existsSync(path.join(root,p)),p);
-});
-test("current capabilities and onchain stage are distinct",()=>{
- const home=read("app/page.tsx"),onchain=read("app/onchain/page.tsx");
- assert.match(home,/FICTIONAL DEMO DATA/);assert.match(home,/IN DEVELOPMENT/);
- assert.match(onchain,/TESTNET/);assert.match(onchain,/Safe/);
-});
-test("contact form cannot submit without valid Formspree configuration",()=>{
- const form=read("components/ContactForm.tsx");
- assert.match(form,/id!==\"FORM_ID\"/);
- assert.match(form,/disabled=\{state===\"sending\"\|\|!enabled\}/);
-});
-test("all required metadata endpoints present",()=>{
- for(const p of ["app/sitemap.ts","app/robots.ts","app/opengraph-image.tsx","app/icon.svg"])assert.ok(fs.existsSync(path.join(root,p)),p);
-});
-test("no pretend production integrations",()=>{
- const files=["app/page.tsx","app/replay/page.tsx","app/onchain/page.tsx"];
- for(const file of files){const s=read(file);for(const phrase of ["trusted by 1000","audit-ready","AI-powered","guaranteed returns"])assert.equal(s.toLowerCase().includes(phrase),false,file+" contains "+phrase);}
-});
+test("all four marketing routes exist",()=>{for(const p of ["app/page.tsx","app/replay/page.tsx","app/onchain/page.tsx","app/privacy/page.tsx"])assert.ok(fs.existsSync(path.join(root,p)),p)});
+test("main page introduces Connect and Control separately",()=>{const h=read("app/page.tsx");assert.match(h,/Clearline Connect/);assert.match(h,/Clearline Control/);assert.match(h,/One clear answer/);});
+test("sample evidence is not presented as independent settlement",()=>{const p=read("components/PaymentPreview.tsx");assert.match(p,/not independent settlement proof/);assert.match(p,/Synthetic event/);assert.match(p,/fictional transactions/i);});
+test("marketing contact does not submit without a real Formspree ID",()=>{const p=read("components/ContactForm.tsx");assert.match(p,/id!=="FORM_ID"/);assert.match(p,/disabled=\{state==="sending"\|\|!enabled\}/);});
+test("onchain stage remains explicit and no real execution is implied",()=>{const p=read("app/onchain/page.tsx");assert.match(p,/IN DEVELOPMENT/);assert.match(p,/No live key management/);});
+test("photo and metadata files are present",()=>{for(const p of ["public/founder.jpg","app/sitemap.ts","app/robots.ts","app/opengraph-image.tsx","app/icon.svg"])assert.ok(fs.existsSync(path.join(root,p)),p);});
+test("no invented endorsement or traction",()=>{for(const pathName of ["app/page.tsx","app/onchain/page.tsx","app/replay/page.tsx"]){const s=read(pathName).toLowerCase();for(const phrase of ["trusted by","ai-powered","audit-ready","our customers include","guaranteed savings"])assert.equal(s.includes(phrase),false,pathName+" contains "+phrase);}});
