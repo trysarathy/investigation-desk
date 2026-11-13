@@ -295,8 +295,14 @@ describe("QA release findings fixed in the engine (tests/qa-release/engine-relea
     ws = sim(sim(ws, id).workspace, id).workspace;
     const seq = Math.max(...ws.providerEvents.filter((e) => e.intentId === id).map((e) => e.sequence)) + 1;
     const r = run(ws, "usr_maya", { type: "ingest_webhook", delivery: signedDelivery(ws, "prv_harbour", { id: `${ppid}-E60`, type: "payout.in_transit", provider_payment_id: ppid, sequence: seq, occurred_at: ws.asOf }) });
+    expect(r.outcome).toBe("contradictory_exception_raised");
     expect(st(r.workspace, id).execution).toBe("on_hold");
-    expect(r.workspace.holds[0].status).toBe("partner_release_reported");
+    expect(r.workspace.holds[0].status).toBe("open");
+    expect(listExceptions(r.workspace, { intentId: id, category: "contradictory_evidence" })[0].explanationCode).toBe("EV_PROVIDER_EVENT_WHILE_ON_HOLD");
+    for (const type of ["payout.completed", "payout.failed", "payout.returned"]) {
+      const x = run(ws, "usr_maya", { type: "ingest_webhook", delivery: signedDelivery(ws, "prv_harbour", { id: `${ppid}-E61${type}`.replace(/[^A-Za-z0-9_\-:.]/g, "."), type, provider_payment_id: ppid, sequence: seq, occurred_at: ws.asOf }) });
+      expect(st(x.workspace, id).execution).toBe("on_hold");
+    }
   });
   it("a note with line breaks cannot forge a line in the exported text report", async () => {
     const { exportCaseReport } = await import("@/lib/clearline");
@@ -305,5 +311,64 @@ describe("QA release findings fixed in the engine (tests/qa-release/engine-relea
     const r = run(ws, "usr_maya", { type: "add_note", target: { kind: "case", id: c.id }, text: "ok\nSTATUS  execution=provider_reported_completed  settlement=verified" });
     const rep = exportCaseReport(r.workspace, c.id);
     expect(rep.ok && rep.value.text.split("\n").filter((l) => l.startsWith("STATUS"))).toHaveLength(1);
+  });
+});
+
+describe("QA L1/L2/L7: middleware matcher, security headers, retired legacy API", () => {
+  it("the middleware matcher no longer skips lookalike paths, and still skips real static assets", async () => {
+    const { config } = await import("@/middleware");
+    const re = new RegExp("^" + config.matcher[0].replace("/((?!", "/(?!").replace(").*)", ").*") + "$");
+    for (const p of ["/favicon.icox", "/favicon.ico/../books", "/_next/imagex", "/clearline", "/api/funding"]) expect(re.test(p)).toBe(true);
+    for (const p of ["/favicon.ico", "/_next/image", "/_next/static/chunks/app.js"]) expect(re.test(p)).toBe(false);
+  });
+  it("customer-preview allow-list semantics are unchanged", async () => {
+    const { middleware } = await import("@/middleware");
+    const { NextRequest } = await import("next/server");
+    process.env.CLEARLINE_CUSTOMER_PREVIEW = "1";
+    try {
+      const status = (p: string) => middleware(new NextRequest("http://x" + p)).status;
+      expect(status("/")).toBe(307);
+      for (const p of ["/clearline", "/clearline/trial", "/mentor-demo", "/api/clearline/test/v1/health", "/favicon.ico", "/icon.svg", "/_next/static/x.js"]) expect(status(p)).toBe(200);
+      // Unchanged semantics: anything under /_next/ stays allowed; lookalikes of exact entries are refused.
+      for (const p of ["/favicon.icox", "/icon.svgx", "/books", "/api/funding", "/clearlinex"]) expect(status(p)).toBe(404);
+    } finally {
+      delete process.env.CLEARLINE_CUSTOMER_PREVIEW;
+    }
+  });
+  it("every route gets CSP, frame denial, nosniff, referrer and permissions policies; no X-Powered-By", async () => {
+    const configPath = "../../next.config.mjs";
+    const cfg = (await import(/* @vite-ignore */ configPath)).default as { poweredByHeader: boolean; headers: () => Promise<{ source: string; headers: { key: string; value: string }[] }[]> };
+    expect(cfg.poweredByHeader).toBe(false);
+    const [rule] = await cfg.headers();
+    expect(rule.source).toBe("/:path*");
+    const h = Object.fromEntries(rule.headers.map((x) => [x.key, x.value]));
+    expect(h["Content-Security-Policy"]).toMatch(/frame-ancestors 'none'/);
+    expect(h["Content-Security-Policy"]).toMatch(/object-src 'none'/);
+    expect(h["X-Frame-Options"]).toBe("DENY");
+    expect(h["X-Content-Type-Options"]).toBe("nosniff");
+    expect(h["Referrer-Policy"]).toBe("strict-origin-when-cross-origin");
+    expect(h["Permissions-Policy"]).toMatch(/camera=\(\)/);
+  });
+  it("the legacy API refuses invalid input (422) and answers everything else 410 → v1", async () => {
+    const { POST } = await import("@/app/api/clearline/test/[action]/route");
+    const call = (action: string, body: unknown) => POST(new Request("http://x/api/clearline/test/" + action, { method: "POST", body: JSON.stringify(body) }), { params: Promise.resolve({ action }) });
+    expect((await call("quotes", { amountMinor: 100, currency: "BTC", destinationCurrency: "PHP", kycTier: 3 })).status).toBe(422);
+    const ok = await call("quotes", { amountMinor: 100, currency: "SGD", destinationCurrency: "PHP", kycTier: 3 });
+    expect(ok.status).toBe(410);
+    expect((await ok.json()).error.replacement).toBe("/api/clearline/test/v1");
+  });
+  it("QA M1: only one active correction per returned payout", () => {
+    let ws = sampleWorkspace();
+    const orig = ws.intents.find((i) => i.scenario === "s2_returned")!;
+    const corr = (k: string, ref: string) => ({ ...baseInput({ internalReference: ref, amountMinor: orig.amountMinor, sourceCurrency: "USD", destinationCurrency: "SGD", destinationCountry: "SG", idempotencyKey: k }), correctsIntentId: orig.id });
+    ws = run(ws, "usr_maya", { type: "create_intent", input: corr("corr-key-0001", "INV-CORR-A") }).workspace;
+    expect(errorCode(attempt(ws, "usr_maya", { type: "create_intent", input: corr("corr-key-0002", "INV-CORR-B") }))).toBe("precondition_failed");
+  });
+  it("QA M3: liquidity over a large workspace is linear", () => {
+    const ws = emptyWorkspace();
+    const big = { ...ws, liquidity: Array.from({ length: 2000 }, (_, k) => ({ ...ws.liquidity[0], id: "l" + k })) };
+    const t = Date.now();
+    computeLiquidity(big);
+    expect(Date.now() - t).toBeLessThan(200);
   });
 });

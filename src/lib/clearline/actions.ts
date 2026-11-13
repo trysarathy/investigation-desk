@@ -164,6 +164,9 @@ function createIntent(tx: Tx, input: CreateIntentInput): string {
   if (input.correctsIntentId !== undefined) {
     const orig = intentById(tx, input.correctsIntentId);
     if (orig.status.execution !== "returned" && orig.status.execution !== "failed") fail("precondition_failed", "Only a returned or failed payout can be corrected.", { entityId: orig.id });
+    // QA M1: at most one live correction per returned/failed payout (no double re-payment).
+    const live = tx.ws.intents.find((i) => i.correctsIntentId === orig.id && !["cancelled", "expired", "failed", "returned"].includes(i.status.execution));
+    if (live) fail("precondition_failed", `Payout ${orig.id} already has an active correction (${live.id}).`, { entityId: live.id });
   }
   const rails = [...new Set(tx.ws.routes.filter((r) => !r.restriction && r.sourceCurrencies.includes(input.sourceCurrency) && r.destinationCurrencies.includes(input.destinationCurrency)).map((r) => r.rail))];
   const intent: PaymentIntent = {

@@ -19,12 +19,12 @@ export function middleware(req: NextRequest) {
       path === "/mentor-demo" || path.startsWith("/api/clearline/test/") ||
       path === "/favicon.ico" || path === "/icon.svg" || path.startsWith("/_next/");
     if (!allowed) return new NextResponse("Not found", { status: 404, headers: { "Cache-Control": "no-store" } });
-    if (path === "/mentor-demo" || path === "/clearline" || path.startsWith("/clearline/")) {
-      const h = new Headers(req.headers);
-      h.set("x-clearline-mentor-demo-route", "1");
-      return NextResponse.next({ request: { headers: h } });
-    }
-    return NextResponse.next();
+    // QA L1: every allowed request in the customer preview renders with the console layout, so a
+    // 404 for an allowed-prefix lookalike (e.g. /_next/imagex) can never show the legacy app shell.
+    // The allow-list itself (what is allowed vs 404) is unchanged.
+    const h = new Headers(req.headers);
+    h.set("x-clearline-mentor-demo-route", "1");
+    return NextResponse.next({ request: { headers: h } });
   }
   // Self-contained, synthetic-only mentor demonstration. It neither touches
   // the private funding store nor exposes the real approval API.
@@ -56,4 +56,5 @@ export function middleware(req: NextRequest) {
   });
 }
 
-export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"] };
+// QA L1: exclusions are anchored, so lookalike paths (/favicon.icox, /_next/imagex) still pass through the middleware.
+export const config = { matcher: ["/((?!_next/static/|_next/image$|favicon\\.ico$).*)"] };

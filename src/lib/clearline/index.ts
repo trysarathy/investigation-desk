@@ -16,7 +16,7 @@ export { CURRENCIES, currencyDecimals, isCurrency, parseAmount, formatMoney, for
 // Workspace lifecycle
 export { sampleWorkspace, emptyWorkspace, SAMPLE_AS_OF, SAMPLE_ACTORS, SAMPLE_SCENARIOS, scenarioIntentId, intentForScenario } from "./sample";
 export type { SampleScenario } from "./sample";
-export { serializeWorkspace, parseWorkspace } from "./serialize";
+export { serializeWorkspace, parseWorkspace, parseWorkspaceValue, MAX_WORKSPACE_DEPTH } from "./serialize";
 
 // Actions (pure: (workspace, action, ctx) => Result<{ workspace, audit, outcome, createdIds }>)
 export { applyAction } from "./actions";

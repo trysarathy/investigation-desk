@@ -119,9 +119,22 @@ export function ingestPayload(tx: Tx, input: IngestInput): { outcome: ProviderEv
     return { outcome: "contradictory_exception_raised", event: ev };
   }
 
-  // Partner reports hold released — or, while on hold, reports the payout moving again: either is
-  // recorded as the partner's release and never leaves on_hold without the reviewer's decision.
-  if (p.type === "payout.hold_released" || (p.type === "payout.in_transit" && intent.status.execution === "on_hold")) {
+  // H3: while a payout is on hold, NO signed provider event moves it. Only the partner's release
+  // report is recorded; leaving the hold needs the compliance reviewer's decision path.
+  if (intent.status.execution === "on_hold" && p.type !== "payout.hold_released") {
+    const ev = record(tx, { ...base, processingOutcome: "contradictory_exception_raised" });
+    openException(tx, {
+      category: "contradictory_evidence",
+      explanationCode: "EV_PROVIDER_EVENT_WHILE_ON_HOLD",
+      explanation: `Provider reported ${p.type} (seq ${p.sequence}) while the payout is on a partner compliance hold with no reviewer decision. State not changed; the hold ends only through the reviewer.`,
+      intentId: intent.id,
+      supportingEventIds: [ev.id],
+    });
+    return { outcome: "contradictory_exception_raised", event: ev };
+  }
+
+  // Partner reports hold released: recorded, never releases by itself.
+  if (p.type === "payout.hold_released") {
     const hold = ws.holds.find((h) => h.intentId === intent.id && h.status !== "released" && h.status !== "rejected");
     if (!hold || current !== "on_hold") {
       const ev = record(tx, { ...base, processingOutcome: "recorded_no_state_change" });

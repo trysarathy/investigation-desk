@@ -11,14 +11,19 @@ const COMMITTED: readonly ExecutionState[] = ["approved", "submitted", "in_trans
  */
 export function computeLiquidity(ws: Workspace, at: string = ws.asOf): LiquidityView {
   const policy = ws.liquidityPolicy;
+  // QA M3: linear in workspace size — one pass builds committed totals per provider and currency.
+  const instructions = new Map(ws.instructions.map((x) => [x.id, x]));
+  const providerNames = new Map(ws.routes.map((r) => [r.providerId, r.providerName]));
+  const committedBy = new Map<string, number>();
+  for (const i of ws.intents) {
+    if (!COMMITTED.includes(i.status.execution)) continue;
+    const instr = i.instructionId ? instructions.get(i.instructionId) : undefined;
+    if (!instr || instr.status === "rejected") continue;
+    const key = `${instr.providerId}|${i.sourceCurrency}`;
+    committedBy.set(key, (committedBy.get(key) ?? 0) + i.amountMinor);
+  }
   const rows: LiquidityRow[] = ws.liquidity.map((snap) => {
-    const committed = ws.intents
-      .filter((i) => COMMITTED.includes(i.status.execution) && i.sourceCurrency === snap.currency)
-      .filter((i) => {
-        const instr = ws.instructions.find((x) => x.id === i.instructionId);
-        return instr?.providerId === snap.providerId && instr.status !== "rejected";
-      })
-      .reduce((sum, i) => sum + i.amountMinor, 0);
+    const committed = committedBy.get(`${snap.providerId}|${snap.currency}`) ?? 0;
     const bufferMinor = Math.max(policy.minBufferMinor[snap.currency] ?? 0, Math.floor((snap.eligibleMinor * policy.bufferBps) / 10000));
     const usableMinor = snap.eligibleMinor - snap.restrictedMinor - snap.safeguardedMinor - committed - bufferMinor;
     const rawAge = minutesBetween(snap.asOf, at);
@@ -28,7 +33,7 @@ export function computeLiquidity(ws: Workspace, at: string = ws.asOf): Liquidity
     return {
       ...snap,
       committedPayoutsMinor: committed,
-      providerName: ws.routes.find((r) => r.providerId === snap.providerId)?.providerName ?? snap.providerId,
+      providerName: providerNames.get(snap.providerId) ?? snap.providerId,
       bufferMinor,
       usableMinor,
       ageMinutes,

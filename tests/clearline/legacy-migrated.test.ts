@@ -88,10 +88,10 @@ describe("migrated: Control derives from Connect events (was clearline-control.t
 });
 
 describe("M10: the legacy unversioned API is retired", () => {
-  it("returns 410 with a pointer to /api/clearline/test/v1 for every action", async () => {
-    for (const action of ["health", "payments", "intents", "quotes", "transitions", "webhooks"]) {
+  it("returns 410 with a pointer to /api/clearline/test/v1 (GET, and POST without a legacy validation error)", async () => {
+    for (const action of ["health", "payments", "unknown"]) {
       const g = await LEGACY_GET();
-      const p = await LEGACY_POST();
+      const p = await LEGACY_POST(new Request("http://x/api/clearline/test/" + action, { method: "POST", body: "{}" }), { params: Promise.resolve({ action }) });
       for (const r of [g, p]) {
         expect(r.status).toBe(410);
         expect((await r.json()).error.replacement).toBe("/api/clearline/test/v1");

@@ -13,7 +13,7 @@ import {
   getAdapter,
   investigate,
   listExceptions,
-  parseWorkspace,
+  parseWorkspaceValue,
   sampleWorkspace,
   sandboxWebhookSecret,
   verifySandboxWebhook,
@@ -26,7 +26,11 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const HEADERS = { "Cache-Control": "no-store", "X-Clearline-Mode": "synthetic-test-only" };
-const MAX_BODY = 2_000_000;
+/** QA M3: request bodies are capped in BYTES (checked from Content-Length first, then the body). */
+const MAX_BODY_BYTES = 512 * 1024;
+/** QA M3: per-collection item caps for caller-supplied workspaces (audit is append-only, so larger). */
+const MAX_ITEMS = 1000;
+const MAX_AUDIT_ITEMS = 10_000;
 
 const STATUS: Partial<Record<EngineErrorCode | "unauthenticated" | "unknown_endpoint" | "invalid_json", number>> = {
   unauthenticated: 401,
@@ -51,8 +55,10 @@ const authed = (req: NextRequest) => req.headers.get("authorization") === "Beare
 
 async function readBody(req: NextRequest): Promise<Record<string, unknown> | Response> {
   if (!req.headers.get("content-type")?.startsWith("application/json")) return fail("invalid_json", "Content-Type: application/json required.");
+  const declared = Number(req.headers.get("content-length") ?? "0");
+  if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) return fail("invalid_json", "Request body exceeds 512 KB.");
   const text = await req.text();
-  if (text.length > MAX_BODY) return fail("invalid_json", "Request body exceeds 2 MB.");
+  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) return fail("invalid_json", "Request body exceeds 512 KB.");
   try {
     const v: unknown = text ? JSON.parse(text) : {};
     if (!v || typeof v !== "object" || Array.isArray(v)) return fail("invalid_json", "JSON object required.");
@@ -64,8 +70,14 @@ async function readBody(req: NextRequest): Promise<Record<string, unknown> | Res
 
 function workspaceFrom(body: Record<string, unknown>): Workspace | Response {
   if (body.workspace === undefined) return sampleWorkspace();
-  const parsed = parseWorkspace(JSON.stringify(body.workspace));
-  return parsed.ok ? parsed.value : fail(parsed.error.code, parsed.error.message, { field: "workspace" });
+  const w = body.workspace as Record<string, unknown> | null;
+  if (w && typeof w === "object" && !Array.isArray(w))
+    for (const [k, v] of Object.entries(w))
+      if (Array.isArray(v) && v.length > (k === "audit" ? MAX_AUDIT_ITEMS : MAX_ITEMS))
+        return respond({ error: { code: "invalid_field", field: `workspace.${k}`, message: `workspace.${k} has more than ${k === "audit" ? MAX_AUDIT_ITEMS : MAX_ITEMS} items.`, help: "Test mode only." } }, 400);
+  // Depth-checked, structure-validated, no re-serialisation (QA L3/L4).
+  const parsed = parseWorkspaceValue(body.workspace);
+  return parsed.ok ? parsed.value : fail(parsed.error.code, parsed.error.message, { field: parsed.error.field ?? "workspace" });
 }
 
 /** M8: an `at` that is not an ISO-8601 instant is a 400, never silently replaced or treated as fresh. */

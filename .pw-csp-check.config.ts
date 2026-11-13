@@ -1,0 +1,20 @@
+import { defineConfig, devices } from "@playwright/test";
+import { existsSync } from "node:fs";
+
+// Use a preinstalled Chromium when Playwright's own pinned build is absent (no download in CI sandboxes).
+const preinstalled = [process.env.CLEARLINE_PW_CHROMIUM, "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find((p) => p && existsSync(p));
+const launchOptions = preinstalled ? { executablePath: preinstalled } : {};
+export default defineConfig({
+  testDir: "./tests/browser",
+  testMatch: "clearline-*.spec.ts",
+  timeout: 60000,
+  retries: 1,
+  workers: 2,
+  use: { baseURL: "http://127.0.0.1:3377", trace: "retain-on-failure", screenshot: "only-on-failure", launchOptions },
+  projects: [
+    { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
+    { name: "mobile", use: { ...devices["iPhone 13"], browserName: "chromium" } },
+  ],
+  reporter: [["line"]],
+});
+

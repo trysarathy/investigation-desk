@@ -102,6 +102,32 @@ function validate(w: unknown): Workspace {
   return ws as unknown as Workspace;
 }
 
+/** Maximum nesting depth accepted in a workspace value (QA L4). Real workspaces nest < 10 deep. */
+export const MAX_WORKSPACE_DEPTH = 32;
+
+/** Iterative (no recursion, no stack overflow) depth check. */
+function depthWithin(v: unknown, max: number): boolean {
+  const stack: [unknown, number][] = [[v, 1]];
+  while (stack.length) {
+    const [x, d] = stack.pop()!;
+    if (x === null || typeof x !== "object") continue;
+    if (d > max) return false;
+    for (const child of Array.isArray(x) ? x : Object.values(x as Obj)) if (child !== null && typeof child === "object") stack.push([child, d + 1]);
+  }
+  return true;
+}
+
+/** Validate an already-parsed value as a workspace (used by the API, which receives parsed JSON). */
+export function parseWorkspaceValue(v: unknown): Result<Workspace> {
+  if (!depthWithin(v, MAX_WORKSPACE_DEPTH)) return { ok: false, error: { code: "invalid_field", message: `Workspace nests deeper than ${MAX_WORKSPACE_DEPTH} levels.`, field: "workspace" } };
+  try {
+    return { ok: true, value: validate(v) };
+  } catch (e) {
+    if (e instanceof Invalid) return { ok: false, error: { code: "invalid_field", message: `Damaged workspace — ${e.message}. Reset to the sample.`, field: e.field } };
+    return { ok: false, error: { code: "invalid_field", message: "Damaged workspace; reset to the sample.", field: "workspace" } };
+  }
+}
+
 /** Parse stored workspace JSON, validating its structure. On any error the UI should reset to the sample. */
 export function parseWorkspace(text: string): Result<Workspace> {
   let v: unknown;
@@ -110,10 +136,5 @@ export function parseWorkspace(text: string): Result<Workspace> {
   } catch {
     return { ok: false, error: { code: "invalid_field", message: "Stored workspace is not valid JSON.", field: "workspace" } };
   }
-  try {
-    return { ok: true, value: validate(v) };
-  } catch (e) {
-    if (e instanceof Invalid) return { ok: false, error: { code: "invalid_field", message: `Damaged workspace — ${e.message}. Reset to the sample.`, field: e.field } };
-    return { ok: false, error: { code: "invalid_field", message: "Damaged workspace; reset to the sample.", field: "workspace" } };
-  }
+  return parseWorkspaceValue(v);
 }
