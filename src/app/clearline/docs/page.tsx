@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/clearline/Link";
 import { Notice, PageHead, Panel, ui } from "@/components/clearline/ui";
 
 export const metadata: Metadata = {
@@ -14,7 +14,7 @@ const examples = [
   { title: "Create signed test event", path: "POST /api/clearline/test/webhooks", summary: "Returns a sample HMAC signature and simulated delivery outcome. Nothing is sent outside the server.", body: '{"type":"payout.completed","paymentId":"pi_test_example"}' },
 ];
 
-const pre: React.CSSProperties = { background: "var(--cl-ink)", color: "#F5F1E8", borderRadius: 5, padding: 14, overflowX: "auto", fontSize: 12, lineHeight: 1.7, fontFamily: "var(--cl-font-mono)", margin: "8px 0 0", whiteSpace: "pre" };
+const pre: React.CSSProperties = { background: "var(--cl-ink)", color: "var(--cl-on-ink)", borderRadius: 5, padding: 14, overflowX: "auto", fontSize: 12, lineHeight: 1.7, fontFamily: "var(--cl-font-mono)", margin: "8px 0 0", whiteSpace: "pre" };
 const preLight: React.CSSProperties = { ...pre, background: "var(--cl-paper-2)", color: "var(--cl-ink)", border: "1px solid var(--cl-line)" };
 
 export default function Docs() {

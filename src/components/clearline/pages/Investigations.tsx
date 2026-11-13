@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import Link from "../Link";
 import { useWorkspace } from "../workspace";
 import { Chip, Empty, PageHead, Panel, fmtTime, ui } from "../ui";
 

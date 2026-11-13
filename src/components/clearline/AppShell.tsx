@@ -1,7 +1,7 @@
 "use client";
-import Link from "next/link";
+import Link from "./Link";
 import { usePathname } from "next/navigation";
-import { Suspense, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ActorSelect } from "./ActorSelect";
 import { CONTACT_MAILTO, MARKETING_URL, NAV, crumbsFor, isActive } from "./nav";
 import s from "./ui.module.css";
@@ -74,7 +74,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </nav>
           <ActorSelect id="cl-actor-global" />
           </div>
-          <Suspense fallback={<p className={s.empty} role="status">Loading workspace…</p>}>{children}</Suspense>
+          {children}
           <footer className={s.footer}>
             Clearline test-mode console. All organisations, providers, quotes, balances and statements are fictional.
             No custody, payout execution, lending or compliance decisions. <a href={MARKETING_URL}>Website</a> ·{" "}

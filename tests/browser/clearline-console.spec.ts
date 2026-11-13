@@ -229,3 +229,10 @@ test.describe("Clearline console", () => {
     await expect(page.getByRole("heading", { name: "Build on one payment lifecycle." })).toBeVisible();
   });
 });
+
+test("breadcrumbs name the right section", async ({ page }) => {
+  await page.goto("/clearline/control/funding");
+  await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toHaveText("ConsoleControlFunding exposure");
+  await page.goto("/clearline/payments/pi_s2_returned");
+  await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText("Payments");
+});

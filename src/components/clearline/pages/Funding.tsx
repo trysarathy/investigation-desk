@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import Link from "../Link";
 import { FUNDING_PROJECTION_LABEL, formatMinor, formatMoney, fundingProjection, type CurrencyCode } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
 import { AdvChip, ExcChip, ExecChip, SettleChip, human } from "../labels";

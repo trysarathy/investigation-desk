@@ -50,11 +50,12 @@ LABELS["/clearline/trial"] = "Guided trial";
 export function crumbsFor(pathname: string, detail?: string): NavItem[] {
   const out: NavItem[] = [{ href: "/clearline", label: "Console" }];
   if (pathname === "/clearline") return [...out, { href: "/clearline", label: "Overview" }];
-  const group = NAV.find((g) => g.items.some((i) => pathname === i.href || pathname.startsWith(i.href + "/")));
+  const match = (href: string) => pathname === href || (href !== "/clearline" && pathname.startsWith(href + "/"));
+  const group = NAV.find((g) => g.items.some((i) => match(i.href)));
   if (group) {
     const item = [...group.items]
       .sort((a, b) => b.href.length - a.href.length)
-      .find((i) => pathname === i.href || pathname.startsWith(i.href + "/"))!;
+      .find((i) => match(i.href))!;
     out.push({ href: group.items[0].href, label: group.title });
     out.push(item);
     if (detail && pathname !== item.href) out.push({ href: pathname, label: detail });

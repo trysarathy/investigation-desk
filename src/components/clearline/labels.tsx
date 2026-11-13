@@ -4,7 +4,7 @@ import type {
   AdvanceState, ExceptionStatus, ExecutionState, HoldStatus, ProcessingOutcome, ReconciliationState,
   SettlementEvidenceState, SettlementScope, Severity, RailKind,
 } from "@/lib/clearline";
-import { Chip, type Tone } from "./ui";
+import { Chip, type Family, type Tone } from "./ui";
 
 type Map<T extends string> = Record<T, [string, Tone]>;
 
@@ -14,7 +14,7 @@ export const EXECUTION: Map<ExecutionState> = {
   approved: ["Approved", "info"],
   submitted: ["Submitted to provider", "info"],
   in_transit: ["In transit (provider-reported)", "info"],
-  provider_reported_completed: ["Provider reports completed", "info"],
+  provider_reported_completed: ["Provider reports completed", "ok"],
   awaiting_information: ["Awaiting information", "warn"],
   on_hold: ["On hold (partner)", "warn"],
   failed: ["Failed", "bad"],
@@ -25,9 +25,9 @@ export const EXECUTION: Map<ExecutionState> = {
 
 export const SETTLEMENT: Map<SettlementEvidenceState> = {
   none: ["No settlement evidence", "neutral"],
-  observed: ["Evidence observed", "info"],
+  observed: ["Evidence observed", "warn"],
   pending_finality: ["Pending finality", "warn"],
-  verified: ["Evidence verified", "ok"],
+  verified: ["Evidence verified", "info"],
   contradicted: ["Evidence contradicted", "bad"],
 };
 
@@ -41,7 +41,7 @@ export const SCOPE: Record<SettlementScope, string> = {
 export const RECON: Map<ReconciliationState> = {
   not_started: ["Not started", "neutral"],
   pending: ["Pending", "neutral"],
-  matched: ["Matched", "ok"],
+  matched: ["Matched", "info"],
   partially_matched: ["Partially matched", "warn"],
   exception: ["Exception", "bad"],
 };
@@ -88,15 +88,17 @@ export function human(code: string): string {
   return code.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 }
 
-function chipFrom<T extends string>(m: Map<T>, v: T | undefined) {
-  if (!v) return <Chip>Unknown</Chip>;
+function chipFrom<T extends string>(m: Map<T>, v: T | undefined, family?: Family, extra?: { shape?: string; solid?: boolean }) {
+  if (!v) return <Chip family={family}>Unknown</Chip>;
   const e = m[v] ?? [human(v), "neutral" as Tone];
-  return <Chip tone={e[1]}>{e[0]}</Chip>;
+  return <Chip tone={e[1]} family={family} {...extra}>{e[0]}</Chip>;
 }
 
-export const ExecChip = ({ v }: { v: ExecutionState }) => chipFrom(EXECUTION, v);
-export const SettleChip = ({ v }: { v: SettlementEvidenceState }) => chipFrom(SETTLEMENT, v);
-export const ReconChip = ({ v }: { v: ReconciliationState }) => chipFrom(RECON, v);
+const EVIDENCE_SHAPE: Record<SettlementEvidenceState, string> = { none: "○", observed: "◇", pending_finality: "◇", verified: "◆", contradicted: "◇" };
+
+export const ExecChip = ({ v }: { v: ExecutionState }) => chipFrom(EXECUTION, v, "exec");
+export const SettleChip = ({ v }: { v: SettlementEvidenceState }) => chipFrom(SETTLEMENT, v, "evidence", { shape: EVIDENCE_SHAPE[v], solid: v === "verified" });
+export const ReconChip = ({ v }: { v: ReconciliationState }) => chipFrom(RECON, v, "recon");
 export const SevChip = ({ v }: { v: Severity }) => chipFrom(SEVERITY, v);
 export const ExcChip = ({ v }: { v: ExceptionStatus }) => chipFrom(EXC_STATUS, v);
 export const HoldChip = ({ v }: { v: HoldStatus }) => chipFrom(HOLD, v);

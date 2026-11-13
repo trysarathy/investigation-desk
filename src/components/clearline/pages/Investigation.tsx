@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import Link from "../Link";
 import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { exportCaseReport, formatMoney, getIntent, investigate, timelineFor, type Finding } from "@/lib/clearline";

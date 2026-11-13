@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import Link from "../Link";
 import { ENGINE_DISCLAIMER, exportCaseReport, serializeWorkspace } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
 import { download } from "../download";

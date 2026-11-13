@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import Link from "../Link";
 import { useState } from "react";
 import { MARKETING_URL, CONTACT_MAILTO } from "../nav";
 import { useWorkspace } from "../workspace";
@@ -12,7 +12,7 @@ const CASES: Case[] = [
     n: "01", title: "Successful payment", area: "Workspace · Investigation", href: "/clearline/payments/pi_s1_success",
     start: "A supplier payout the sandbox provider reports as completed, plus a separate bank statement line.",
     action: ["Open the payment.", "Read the three status dimensions in the header.", "In the evidence timeline, find the provider event and the statement line, each with its source."],
-    expect: ["Execution says the provider reports completion — not “payment successful”.", "Settlement evidence comes from the bank statement line, matched by trusted reference with code RC_EXACT_REFERENCE_AMOUNT_CURRENCY_WINDOW.", "Reconciliation is shown separately as matched."],
+    expect: ["Execution says the provider reports completion — not “payment successful”.", "Settlement evidence comes from the bank statement line, matched by trusted reference (code RC_EXACT_REFERENCE_AMOUNT_CURRENCY_WINDOW).", "Reconciliation is shown separately as matched."],
     limits: "The statement line is fictional; no bank is connected.",
   },
   {

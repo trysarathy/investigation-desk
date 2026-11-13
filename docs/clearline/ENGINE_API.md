@@ -1,5 +1,11 @@
 # Clearline sandbox engine — public API (for the console UI)
 
+> **CHANGE (2026-11-13, after first draft):**
+> 1. Sample intent ids are sequential (`pi_00001`, …), not `pi_s1_success`. Find a scenario by `intent.scenario` (`"s1_success" … "s5_funding"`); `SAMPLE_SCENARIOS` (exported) describes each. Ids are deterministic but may shift if the sample changes — do not hard-code them.
+> 2. `ProviderRoute.providerFeeMinor: number` became `providerFees: Partial<Record<CurrencyCode, number>>` (per source currency, minor units).
+> 3. `ProviderEvent.rawBody?: string` added (sandbox payload, for duplicate replay).
+> 4. `SampleScenario` type and `SAMPLE_SCENARIOS` exported. `SAMPLE_ACTORS` is `Actor[]`.
+
 **Status:** sandbox / test mode only. Fictional organisations, providers and amounts. No money movement, custody, keys, lending or compliance decisions.
 **Import:** `import { … } from "@/lib/clearline"` (file `src/lib/clearline/index.ts`). Do not import internal modules directly. The legacy prototype `src/lib/clearline/core.ts` stays for the existing console; it is not part of this API.
 **Stability:** names and signatures below are stable. Any change is announced in a `CHANGE` note at the top of this file.
@@ -77,12 +83,16 @@ Error codes (`EngineErrorCode`): `invalid_amount, invalid_currency, currency_mis
 
 `formatMoney({amountMinor, currency})`, `formatMinor(minor, currency)`, `parseAmount("50000.00","SGD") → Result<number>`, `currencyDecimals`, `CURRENCIES`, `QUOTE_LABEL`, `CHAIN_LABEL`, `FUNDING_PROJECTION_LABEL`, `ENGINE_DISCLAIMER`, `RECONCILIATION_CODE_TEXT`, `EXCEPTION_REQUIRED_ACTION`, `BASE_SEPOLIA_CHAIN_ID` (84532), `ALLOWLISTED_TOKENS`, `FINALITY_THRESHOLD`, `EXECUTION_TRANSITIONS`, `canTransitionExecution`, `SANDBOX_PROVIDERS`, `sandboxRoutes()`, `getAdapter(providerId)`, `signSandboxWebhook`, `verifySandboxWebhook`, `sandboxWebhookSecret`.
 
-## Seeded sample scenarios (ids are stable)
+## Seeded sample scenarios
 
-| Scenario | Intent | What to show |
+| Scenario | `intent.scenario` | What to show |
 |---|---|---|
-| 1 Successful payment | `pi_s1_success` | provider-reported completed; bank statement line matched separately |
-| 2 Returned payout | `pi_s2_returned` | beneficiary rejected → return event + return statement line; case with owner; correction workflow |
-| 3 Compliance hold | `pi_s3_hold` | partner document request; reviewer; never auto-released |
-| 4 Base Sepolia delay | `pi_s4_chain` | observed → pending finality → verified (advance with `simulate_provider_event`) |
-| 5 Funding exposure | `pi_s5_funding` / `adv_s5` | SGD 50,000.00 advance, SGD 30,000.00 repaid by reference, SGD 20,000.00 outstanding; unreferenced SGD 20,000.00 receipt stays an exception |
+| 1 Successful payment | `s1_success` | provider-reported completed; bank statement line matched separately |
+| 2 Returned payout | `s2_returned` | beneficiary rejected → return event + return statement line; case with owner; correction workflow |
+| 3 Compliance hold | `s3_hold` | partner document request; reviewer; never auto-released |
+| 4 Base Sepolia delay | `s4_chain` | observed → pending finality → verified (advance with `simulate_provider_event`) |
+| 5 Funding exposure | `s5_funding` (+ `intent.advanceId`) | SGD 50,000.00 advance, SGD 30,000.00 repaid by reference, SGD 20,000.00 outstanding; unreferenced SGD 20,000.00 receipt stays an exception |
+
+## Test-mode HTTP API
+
+`/api/clearline/test/v1/*` exposes the same engine statelessly (send the `workspace` you hold, or omit it to use the sample). See `docs/clearline/openapi.yaml`. Legacy `/api/clearline/test/{intents,quotes,transitions,webhooks,payments,health}` is unchanged.

@@ -14,7 +14,8 @@ export * from "./types";
 export { CURRENCIES, currencyDecimals, isCurrency, parseAmount, formatMoney, formatMinor } from "./money";
 
 // Workspace lifecycle
-export { sampleWorkspace, emptyWorkspace, SAMPLE_AS_OF, SAMPLE_ACTORS } from "./sample";
+export { sampleWorkspace, emptyWorkspace, SAMPLE_AS_OF, SAMPLE_ACTORS, SAMPLE_SCENARIOS } from "./sample";
+export type { SampleScenario } from "./sample";
 export { serializeWorkspace, parseWorkspace } from "./serialize";
 
 // Actions (pure: (workspace, action, ctx) => Result<{ workspace, audit, outcome, createdIds }>)

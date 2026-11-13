@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import Link from "../Link";
 import { useState } from "react";
 import type { ComplianceHold } from "@/lib/clearline";
 import { errorText, useWorkspace } from "../workspace";

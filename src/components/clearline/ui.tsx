@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import Link from "./Link";
 import type { ReactNode } from "react";
 import s from "./ui.module.css";
 
@@ -8,8 +8,22 @@ export { s as ui };
 export type Tone = "ok" | "warn" | "bad" | "info" | "neutral";
 
 /** Status chip: tone is decoration; the text always carries the meaning. */
-export function Chip({ tone = "neutral", children, title }: { tone?: Tone; children: ReactNode; title?: string }) {
-  return <span className={`${s.chip} ${s[tone]}`} title={title}>{children}</span>;
+export type Family = "exec" | "evidence" | "recon";
+const FAMILY: Record<Family, [string, string]> = { exec: ["fExec", "Execution status"], evidence: ["fEvidence", "Evidence status"], recon: ["fRecon", "Reconciliation status"] };
+
+/**
+ * Status chip. Tone is decoration; the text always carries the meaning. A `family` gives the
+ * three payment status families their distinct shapes and a hidden family name (DESIGN_SYSTEM §8).
+ */
+export function Chip({ tone = "neutral", children, title, family, shape, solid }: { tone?: Tone; children: ReactNode; title?: string; family?: Family; shape?: string; solid?: boolean }) {
+  const f = family ? FAMILY[family] : null;
+  return (
+    <span className={[s.chip, s[tone], f ? s[f[0]] : "", solid ? s.verified : ""].join(" ")} title={title}>
+      {f && <span className={s.srOnly}>{f[1]}: </span>}
+      {shape && <span className={s.shape} aria-hidden="true">{shape}</span>}
+      {children}
+    </span>
+  );
 }
 
 /** Explanation/engine code shown verbatim in mono. */

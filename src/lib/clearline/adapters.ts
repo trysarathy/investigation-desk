@@ -3,7 +3,7 @@
  * No network calls, no keys, no real payouts. Every response is generated from the inputs.
  */
 import { BASE_SEPOLIA_CHAIN_ID, ALLOWLISTED_TOKENS } from "./chain";
-import { convertMinor, currencyDecimals } from "./money";
+import { convertMinor } from "./money";
 import { sha256Hex } from "./sha256";
 import { addMinutes } from "./tx";
 import { signSandboxWebhook, sandboxWebhookSecret, verifySandboxWebhook, type WebhookVerification } from "./webhooks";
@@ -381,6 +381,3 @@ export class SandboxAdapter implements ProviderAdapter {
 const ADAPTERS = new Map<string, SandboxAdapter>(Object.values(P).map((p) => [p.id, new SandboxAdapter(p.id, p.name, p.prefix)]));
 
 export const getAdapter = (providerId: string): ProviderAdapter | undefined => ADAPTERS.get(providerId);
-
-/** Exposed for tests/docs: decimals helper re-export keeps adapters self-describing. */
-export const sourceDecimals = (c: CurrencyCode) => currencyDecimals(c);

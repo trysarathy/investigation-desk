@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import Link from "../Link";
 import { QUOTE_LABEL, formatMinor } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
 import { OutcomeChip, RAIL } from "../labels";

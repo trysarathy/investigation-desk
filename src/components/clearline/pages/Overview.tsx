@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import Link from "../Link";
 import { fundingProjection, formatMinor, listExceptions, type CurrencyCode } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
 import { ExcChip, SevChip, human } from "../labels";
