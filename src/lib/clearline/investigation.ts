@@ -323,7 +323,9 @@ export function evidenceTimelineFor(ws: Workspace, intentId: string): EvidenceTi
   for (const e of timelineFor(ws, intent.id))
     out.push({ id: e.id, at: e.receivedAt, kind: "provider_event", title: `${e.normalizedType} · ${e.processingOutcome}`, source: e.provenance === "clearline_timer" ? "Clearline timer" : e.providerName, provenance: e.provenance, independent: false, codes: ["PE_" + e.processingOutcome.toUpperCase()], refs: [e.id] });
   const allocs = ws.allocations.filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id);
-  const lineIds = new Set([...allocs.map((a) => a.statementLineId), ...ws.exceptions.filter((x) => x.intentId === intent.id && x.statementLineId).map((x) => x.statementLineId!)]);
+  // rc3 (E-1): also every provider settlement report that names this payout's provider payment id — one
+  // recorded as provider-reported evidence has no allocation or exception, and was missing from the timeline.
+  const lineIds = new Set([...allocs.map((a) => a.statementLineId), ...ws.exceptions.filter((x) => x.intentId === intent.id && x.statementLineId).map((x) => x.statementLineId!), ...providerReportLinesFor(ws, intent).map((l) => l.id)]);
   for (const l of ws.statementLines.filter((x) => lineIds.has(x.id)))
     out.push({ id: l.id, at: l.receivedAt, kind: "statement_line", title: `${l.source === "bank_statement" ? "Bank statement" : "Provider settlement report"} ${l.direction} ${l.kind} · value ${l.valueDate}`, source: l.accountRef, provenance: l.source, independent: l.source === "bank_statement", codes: l.explanationCodes, refs: [l.id], ...(l.amountDifference ? { amountDifference: { ...l.amountDifference } } : {}) });
   for (const a of allocs)

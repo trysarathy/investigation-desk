@@ -4,7 +4,7 @@
  * - I-1 failed before serialize.ts crossCheck: a tampered workspace was accepted and built on.
  */
 import { describe, expect, it } from "vitest";
-import { ALLOWLISTED_TOKENS, applyAction, getAdapter, investigate, listExceptions, parseWorkspace, parseWorkspaceValue, sampleWorkspace, scenarioIntentId, serializeWorkspace, type Workspace } from "@/lib/clearline";
+import { ALLOWLISTED_TOKENS, applyAction, evidenceTimelineFor, getAdapter, investigate, listExceptions, parseWorkspace, parseWorkspaceValue, sampleWorkspace, scenarioIntentId, serializeWorkspace, type Workspace } from "@/lib/clearline";
 import { debitLine, intent, run, sim, signedDelivery, submitted } from "./helpers";
 
 const clone = (ws: Workspace) => JSON.parse(serializeWorkspace(ws)) as Workspace;
@@ -148,5 +148,19 @@ describe("rc3 invariant 2: three truths stay separate (property over the sample 
       }
     }
     expect(checked).toBeGreaterThan(5);
+  });
+});
+
+describe("rc3 E-1: the evidence timeline lists every source", () => {
+  it("a provider settlement report recorded as evidence (no allocation, no exception) appears, marked provider-reported and not independent", () => {
+    let { ws, id, ppid } = submitted();
+    ws = sim(sim(ws, id).workspace, id).workspace;
+    const r = run(ws, "usr_maya", { type: "ingest_statement_line", line: debitLine({ source: "provider_settlement_report", accountRef: "prv_northline:settlement", reference: ppid }) });
+    expect(r.outcome).toBe("recorded_provider_report");
+    const lineId = r.createdIds[0];
+    // Before the fix: the line was missing from the timeline although settlement rested on it.
+    const entry = evidenceTimelineFor(r.workspace, id).find((e) => e.id === lineId)!;
+    expect(entry).toMatchObject({ kind: "statement_line", provenance: "provider_settlement_report", independent: false });
+    expect(entry.codes).toContain("RC_PROVIDER_REPORT_ONLY");
   });
 });
