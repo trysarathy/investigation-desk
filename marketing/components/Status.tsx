@@ -64,9 +64,8 @@ export function SettlementStatus({ state, scope, api = true }: { state: Settleme
   const sc = scope && scope !== "none" ? scope : undefined;
   return (
     <span className={"st st-settlement stl-" + state + " tone-" + settlementTone[state]}>
-      <span className="stl-mark" aria-hidden="true">{settlementMark[state]}</span>
       <span className="sr-only">Settlement evidence: </span>
-      <span className="st-label">{SETTLEMENT_LABEL[state]}{sc && <> {SCOPE_LABEL[sc]}</>}</span>
+      <span className="st-label"><span className="stl-mark" aria-hidden="true">{settlementMark[state]}</span> {SETTLEMENT_LABEL[state]}{sc && <> {SCOPE_LABEL[sc]}</>}</span>
       {api && <code className="st-api"><span className="sr-only">, API value </span>{state}{sc && <span className="stl-scope"> · {sc}</span>}</code>}
     </span>
   );
