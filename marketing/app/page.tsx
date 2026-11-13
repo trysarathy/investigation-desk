@@ -20,8 +20,9 @@ const returnedException = SAMPLE_EXCEPTIONS.find(e => e.reference === returned.r
 const storyGaps = [
   ["The provider has the instruction.", "Not that any money has moved."],
   ["The provider says it is on its way.", "Not where it is, or when it will arrive."],
-  ["The provider says it came back. Clearline makes reconciliation an exception at once, with an owner and a due date.", "Why it came back, and whether the money is really back."],
-  ["The bank statement shows the return credit, allocated by its trusted reference: returnStatus confirmed_by_statement.", "Nothing about the supplier: they are still unpaid, so the exception stays open."],
+  ["The bank statement shows the payout left the account, allocated by its trusted reference.", "Not that the supplier was credited."],
+  ["The provider says it came back. Clearline makes reconciliation an exception at once, with an owner and a due date, and marks the earlier debit evidence as contradicted.", "Why it came back, and whether the money is really back."],
+  ["The return credit is on the statement, allocated by its trusted reference. The debit and the credit net to zero (RT_NET_ZERO).", "Nothing about the supplier: the beneficiary was not paid, so the exception stays open."],
 ];
 
 export default function Home() {
@@ -63,8 +64,8 @@ export default function Home() {
         <div className="container story">
           <div className="story-lead">
             <p className="eyebrow">Why the coordination matters</p>
-            <h2 id="story-title" className="h2">One payout. Four messages. <em>No single answer.</em></h2>
-            <p className="section-intro">{returned.amount} to {returned.beneficiary} ({returned.reference}). Each message below is true. None of them alone tells operations whether the supplier was paid, whose job it is now, or what to do next. That answer needs the instruction from Connect and the evidence in Control on one record.</p>
+            <h2 id="story-title" className="h2">One payout. Five messages. <em>No single answer.</em></h2>
+            <p className="section-intro">{returned.amount} to {returned.beneficiary} ({returned.reference}). Each message below is true. Net movement ends at zero, yet the supplier was never paid. None of them alone tells operations whether the supplier was paid, whose job it is now, or what to do next. That answer needs the instruction from Connect and the evidence in Control on one record.</p>
           </div>
           <div>
             <ol className="story-steps">
@@ -82,7 +83,7 @@ export default function Home() {
             </ol>
             <div className="panel" style={{ marginTop: 32 }}>
               <p className="label">Clearline&rsquo;s answer</p>
-              <div className="status-line"><ExecStatus state={returned.execution} /><SettlementStatus state={returned.settlement} /><ReconStatus state={returned.reconciliation} /></div>
+              <div className="status-line"><ExecStatus state={returned.execution} /><SettlementStatus state={returned.settlement} scope={returned.settlementScope} /><ReconStatus state={returned.reconciliation} /></div>
               <p style={{ marginTop: 16 }}><b>{returned.nextAction}</b></p>
               <p className="caption" style={{ marginTop: 8 }}>Owner {returnedException.owner} · due <span className="num">{returnedException.dueDate}</span> · exception <span className="mono">{returnedException.category}</span>. Fictional data.</p>
             </div>

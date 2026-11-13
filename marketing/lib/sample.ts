@@ -3,7 +3,8 @@
  * (src/lib/clearline/sample.ts → sampleWorkspace(), scenarios s1–s5, on
  * release/clearline-unified-20261113 @ b250bb4, ENGINE_API CHANGE 2; re-run against 0490e40 (CHANGE 5) and against
  * rc3/clearline-app @ cf8732e and efabe6a on 13 Nov 2026: every status, statement line, exception, quote and due date agrees
- * (efabe6a renamed the fictional statement line ids to SIMBANK-000N so that no real bank is named); exact engine
+ * (efabe6a renamed the fictional statement line ids to SIMBANK-000N so that no real bank is named; 338861c changed s2:
+ * outgoing debit SIMBANK-0002, then the return, then the return credit SIMBANK-0006, net movement zero, beneficiary unpaid); exact engine
  * strings restored for the eligible-quote reason, the hold exception action and the s5 next action).
  * The investigation view reads lib/investigations.ts, which is generated from the engine (scripts/engine-investigations.gen.ts). Values were read by running the engine's own read models
  * (investigate, timelineFor, listExceptions, computeLiquidity, fundingProjection) and its
@@ -44,15 +45,16 @@ export const SAMPLE_PAYMENTS: SamplePayment[] = [
   {
     scenario: "s2_returned", reference: "INV-2026-141", beneficiary: "Redwood Supplies Ltd", amount: "USD 12,784.90", corridor: "USD → SGD",
     provider: "Northline Payments (sandbox)", label: "Returned",
-    execution: "returned", settlement: "none", settlementScope: "none", reconciliation: "exception", returnStatus: "confirmed_by_statement",
+    execution: "returned", settlement: "contradicted", settlementScope: "bank_statement", reconciliation: "exception", returnStatus: "confirmed_by_statement",
     whoActs: "Exception owner: Maya Tan, Operations (fictional)",
     nextAction: "Verify beneficiary details with the supplier, confirm the returned funds, then create a correction intent.",
-    unknown: "No bank statement or chain evidence of settlement yet.",
+    unknown: "The bank statement evidences the payout debit, not the beneficiary's credit.",
     events: [
       { time: "08:39 SGT", label: "payout.accepted", source: API, outcome: "recorded, no state change" },
       { time: "08:42 SGT", label: "payout.in_transit", source: HOOK, outcome: "applied" },
-      { time: "08:45 SGT", label: "payout.returned", source: HOOK, outcome: "applied → returned; reconciliation exception (returnStatus provider_reported)" },
-      { time: "08:48 SGT", label: "Return credit USD 12,784.90 · SIMBANK-0002", source: BANK, outcome: "allocated → returnStatus confirmed_by_statement; still an exception: supplier unpaid" },
+      { time: "10:30 SGT", label: "Debit USD 12,784.90 · SIMBANK-0002", source: BANK, outcome: "allocated by trusted reference: the payout left the account" },
+      { time: "10:33 SGT", label: "payout.returned", source: HOOK, outcome: "applied → returned; reconciliation exception; settlement contradicted (bank_statement)" },
+      { time: "10:36 SGT", label: "Return credit USD 12,784.90 · SIMBANK-0006", source: BANK, outcome: "allocated → returnStatus confirmed_by_statement; RT_NET_ZERO, beneficiary unpaid: still an exception" },
     ],
   },
   {
@@ -110,13 +112,14 @@ export const SAMPLE_QUOTES = [
   { provider: "Tidewater Digital (testnet sandbox)", rail: "stablecoin_testnet", rate: "—", providerFee: "—", platformFee: "—", recipient: "—", eta: "After 12 testnet confirmations (sandbox)", eligible: false, reason: "PHP payouts are not offered on this route." },
 ];
 
-/** ws.statementLines after the sample build, with the engine's RC_* explanation codes and texts. */
+/** ws.statementLines after the sample build, in the engine's order (by receipt), with its RC_* explanation codes and texts. */
 export const SAMPLE_STATEMENT_LINES: { lineId: string; direction: string; kind: string; amount: string; reference: string; result: "allocated" | "exception"; code: string; text: string }[] = [
   { lineId: "SIMBANK-0001", direction: "debit", kind: "payment", amount: "SGD 24,651.37", reference: "NORTHLINE PAYOUT NLPO-047422AD85", result: "allocated", code: "RC_EXACT_REFERENCE_AMOUNT_CURRENCY_WINDOW", text: "Trusted reference, amount, currency and time window all agree." },
-  { lineId: "SIMBANK-0002", direction: "credit", kind: "return", amount: "USD 12,784.90", reference: "RETURN NLPO-F93A65C106 ACCOUNT INVALID", result: "allocated", code: "RC_RETURN_CONFIRMS_PROVIDER_RETURN", text: "Return line agrees with the provider's returned-payout report." },
   { lineId: "SIMBANK-0003", direction: "debit", kind: "payment", amount: "SGD 50,000.00", reference: "NORTHLINE PAYOUT NLPO-BD03EA879C", result: "allocated", code: "RC_EXACT_REFERENCE_AMOUNT_CURRENCY_WINDOW", text: "Trusted reference, amount, currency and time window all agree." },
   { lineId: "SIMBANK-0004", direction: "credit", kind: "payment", amount: "SGD 30,000.00", reference: "RPY-SEABRIGHT-0001 PART PAYMENT", result: "allocated", code: "RC_REPAYMENT_BY_REFERENCE · RC_PARTIAL_AMOUNT", text: "Repayment allocated by its repayment reference; the remainder stays outstanding." },
   { lineId: "SIMBANK-0005", direction: "credit", kind: "payment", amount: "SGD 20,000.00", reference: "(none)", result: "exception", code: "RC_AMOUNT_ONLY_CANDIDATES", text: "Only the amount agrees with one or more items. Amount alone is never treated as attribution." },
+  { lineId: "SIMBANK-0002", direction: "debit", kind: "payment", amount: "USD 12,784.90", reference: "NORTHLINE PAYOUT NLPO-F93A65C106", result: "allocated", code: "RC_EXACT_REFERENCE_AMOUNT_CURRENCY_WINDOW", text: "Trusted reference, amount, currency and time window all agree." },
+  { lineId: "SIMBANK-0006", direction: "credit", kind: "return", amount: "USD 12,784.90", reference: "RETURN NLPO-F93A65C106 ACCOUNT INVALID", result: "allocated", code: "RC_RETURN_CONFIRMS_PROVIDER_RETURN", text: "Return line agrees with the provider's returned-payout report." },
 ];
 
 /** computeLiquidity(sampleWorkspace()). usable = eligible − restricted − safeguarded − committed payouts − buffer. */
@@ -151,8 +154,8 @@ export const SAMPLE_FUNDING = {
  * EXCEPTION_DUE_DAYS[severity] (critical 1, high 1, medium 3, low 5 — an illustrative sandbox policy). */
 export const EXCEPTION_DUE_POLICY = "Due dates follow an illustrative sandbox policy: critical and high 1 day, medium 3 days, low 5 days from creation, unless a date is set explicitly.";
 export const SAMPLE_EXCEPTIONS = [
-  { category: "returned_payout", reference: "INV-2026-141", severity: "high", status: "in_review", owner: "Maya Tan (fictional)", dueDate: "2026-11-13", action: "Verify beneficiary details with the supplier, confirm the returned funds, then create a correction intent." },
   { category: "compliance_hold", reference: "INV-2026-145", severity: "high", status: "in_review", owner: "Priya Nair (fictional)", dueDate: "2026-11-13", action: "The partner requested documents. Your compliance reviewer decides the response; the hold is never released automatically." },
+  { category: "returned_payout", reference: "INV-2026-141", severity: "high", status: "in_review", owner: "Maya Tan (fictional)", dueDate: "2026-11-13", action: "Verify beneficiary details with the supplier, confirm the returned funds, then create a correction intent." },
   { category: "missing_payment_reference", reference: "SIMBANK-0005", severity: "medium", status: "open", owner: "Unassigned", dueDate: "2026-11-15", action: "Ask the remitter for the payment reference; without it the receipt cannot be allocated." },
   { category: "pending_finality", reference: "INV-2026-149", severity: "low", status: "open", owner: "Unassigned", dueDate: "2026-11-17", action: "Wait until the finality threshold is reached; observation is not finality." },
 ];

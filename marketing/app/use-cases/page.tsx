@@ -45,12 +45,12 @@ export default function UseCases() {
 
       <UseCase id="investigation" n="01" tone="white" title="Payment investigation"
         situation="A USD 12,784.90 payout to Redwood Supplies Ltd (INV-2026-141) via Northline Payments comes back. Operations needs to know why, what is proven, and who fixes it. (Engine scenario s2_returned.)"
-        shows={["Each provider event with its provenance and what the engine did with it: accepted, in transit, returned. The return makes reconciliation an exception straight away.", "The return credit line on the bank statement, allocated by the trusted reference, which sets returnStatus to confirmed_by_statement. The exception stays open, due within one day: the supplier is still unpaid.", "Who acts (the named exception owner) and the next action: verify beneficiary details with the supplier, confirm the returned funds, then create a correction intent."]}
+        shows={["Each provider event with its provenance and what the engine did with it: accepted, in transit, returned. The return makes reconciliation an exception straight away, and the earlier bank debit becomes contradicted settlement evidence.", "The outgoing debit and the return credit on the bank statement, each allocated by the trusted reference. returnStatus becomes confirmed_by_statement and the return position is RT_NET_ZERO: net movement zero, beneficiary not paid. The exception stays open, due within one day.", "Who acts (the named exception owner) and the next action: verify beneficiary details with the supplier, confirm the returned funds, then create a correction intent."]}
         limits="It does not correct beneficiary details or reissue the payment. A person creates the correction intent."
         stages={["synthetic"]}>
         <div className="panel">
           <p className="label">s2_returned · INV-2026-141</p>
-          <p><ExecStatus state="returned" /> <SettlementStatus state="none" /> <ReconStatus state="exception" /> <span className="caption mono">returnStatus: confirmed_by_statement</span></p>
+          <p><ExecStatus state="returned" /> <SettlementStatus state="contradicted" scope="bank_statement" /> <ReconStatus state="exception" /> <span className="caption mono">returnStatus: confirmed_by_statement</span></p>
           <ol className="timeline">
             {SAMPLE_PAYMENTS[1].events.map(e => <li key={e.time}><span className="timeline-time mono">{e.time}</span><div><b>{e.label}</b><span className="caption">{e.source} · {e.outcome}</span></div></li>)}
           </ol>
@@ -59,7 +59,7 @@ export default function UseCases() {
       </UseCase>
 
       <UseCase id="reconciliation" n="02" tone="canvas" title="Settlement reconciliation"
-        situation="Five fictional bank-statement lines arrive. Finance needs to know which payments and repayments they belong to, and which it cannot attribute."
+        situation="Six fictional bank-statement lines arrive. Finance needs to know which payments and repayments they belong to, and which it cannot attribute."
         shows={["Payout debits allocated on the provider payment id, amount, currency and value-date window. Settlement becomes verified with scope bank_statement; the beneficiary's credit is still listed as unknown.", "A partial repayment allocated by its repayment reference, with the remainder left outstanding.", "An SGD 20,000.00 credit with no reference becomes an exception, even though the amount matches what is owed.", "If a provider settlement report showed less than the payout, it would become an exception (RC_UNDER_AMOUNT_REPORT) with the expected, reported and difference amounts and a required next action; a report on a failed or returned payout is treated as a contradiction (RC_REPORT_ON_TERMINAL_PAYOUT)."]}
         limits="It does not post entries to a ledger or accounting system in this sandbox."
         stages={["synthetic"]}>

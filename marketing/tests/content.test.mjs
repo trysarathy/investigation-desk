@@ -470,8 +470,8 @@ test("rc3 product view is generated from the tested engine and uses the console'
     for (const k of ["execution", "settlement", "settlementScope", "reconciliation"]) assert.ok(block.slice(0, 900).includes(`${k}: "${d.status[k]}"`), d.scenario + " " + k);
     assert.ok(sample.includes(d.amount), d.amount);
   }
-  // Engine summaries, e.g. "Provider reports returned · No settlement evidence · Needs review".
-  assert.equal(data[1].summary, "Provider reports returned · No settlement evidence · Needs review");
+  // Engine summaries (describeStatus), as of rc3/clearline-app 338861c.
+  assert.equal(data[1].summary, "Provider reports returned · Settlement evidence contradicted (Bank statement) · Needs review");
   // Console section names and truth questions (pages/Investigation.tsx).
   const iv = read("components/InvestigationView.tsx");
   for (const t of ["Three separate truths — never one badge", "What the provider reported", "What independent evidence establishes", "Whether the records match", "Evidence timeline", "Findings", "Who owns the next step", "Still unknown", "Financially outstanding", "Console <span"]) assert.ok(iv.includes(t), t);
@@ -560,15 +560,31 @@ test("rc3 no real bank, payment company or institution is named in sample data o
   assert.ok(re.test("Debit SGD 1.00 · DBS-SIM-0001") && re.test("via HSBC") && !re.test("otherwise a filled circle"));
 });
 
-test("rc3 return position is the engine's own, and net zero is never claimed when the engine does not establish it", () => {
+test("rc3 return position: net zero and beneficiary unpaid are stated in the engine's own words, never merged", () => {
   const inv = read("lib/investigations.ts");
   const data = JSON.parse(inv.slice(inv.indexOf("INVESTIGATIONS: Investigation[] = ") + 34, inv.lastIndexOf(";")));
   const s2 = data.find(d => d.scenario === "s2_returned");
+  // The engine (rc3/clearline-app 338861c+) demonstrates net zero on the sample return: debit SIMBANK-0002, return credit SIMBANK-0006.
   assert.equal(s2.returnStatusText, "Return confirmed on the statement");
-  assert.ok(s2.returnPosition && s2.returnPosition.beneficiaryPaid === false);
+  assert.deepEqual({ code: s2.returnPosition.code, zero: s2.returnPosition.netMovementZero, paid: s2.returnPosition.beneficiaryPaid }, { code: "RT_NET_ZERO", zero: true, paid: false });
+  const ENGINE_TEXT = "The debit and the return credit (USD 12,784.90 each) net to zero on the statement. The beneficiary was not paid.";
+  assert.equal(s2.returnPosition.text, ENGINE_TEXT);
+  assert.deepEqual(s2.status, { execution: "returned", settlement: "contradicted", settlementScope: "bank_statement", reconciliation: "exception" });
   assert.match(read("components/InvestigationView.tsx"), /p\.returnPosition\.text/);
-  if (!s2.returnPosition.netMovementZero) for (const f of copySources.filter(f => !f.endsWith("investigations.ts")))
-    assert.equal(/net (movement )?(is )?zero(?! only| is not| not)/i.test(read(f).replace(/net zero is not established/g, "")), false, f + " claims a net-zero return the engine does not establish");
+  // Control quotes the engine's sentence exactly (as HTML entities for the quotes).
+  assert.ok(read("app/control/page.tsx").includes("&ldquo;" + ENGINE_TEXT + "&rdquo;"), "Control must quote the engine's return-position text");
+  // Wherever copy says net zero, it also says the beneficiary/supplier was not paid in the same sentence or the next.
+  for (const f of copySources.filter(f => !f.endsWith("investigations.ts"))) {
+    const s = read(f);
+    for (const m of s.matchAll(/net (movement )?(is |ends at |to )?zero/gi)) {
+      const around = s.slice(Math.max(0, m.index - 200), m.index + 260);
+      assert.match(around, /(beneficiary|supplier)[^.]{0,40}(not|never|unpaid|was never)|unpaid|not paid/i, f + ": net zero stated without 'beneficiary not paid': " + around.replace(/\s+/g, " ").slice(0, 160));
+    }
+  }
+  // The homepage story and the sample tables follow the new statement: debit SIMBANK-0002, then return credit SIMBANK-0006.
+  const sample = read("lib/sample.ts");
+  assert.match(sample, /lineId: "SIMBANK-0002", direction: "debit"/); assert.match(sample, /lineId: "SIMBANK-0006", direction: "credit", kind: "return"/);
+  assert.match(read("app/page.tsx"), /One payout\. Five messages\./);
   // Engine functions not yet in the console are not described as available.
   for (const f of copySources) assert.equal(/buildCaseReport|resetScenario|reset (a|one|each) case|per-case reset|CSV case report/i.test(read(f)), false, f);
 });
