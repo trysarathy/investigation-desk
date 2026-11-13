@@ -46,6 +46,9 @@ export function formatDecimal(amountMinor: number, currency: CurrencyCode): stri
   return (negative ? "-" : "") + whole + frac;
 }
 
+/** "50000.00" — plain decimal string (no symbol, no grouping), e.g. for prefilling inputs. */
+export const formatMinorPlain = (amountMinor: number, currency: CurrencyCode): string => formatDecimal(amountMinor, currency);
+
 /** "SGD 50,000.00" / "USDC 6,427.830000" — exact, no floating point. */
 export function formatMinor(amountMinor: number, currency: CurrencyCode): string {
   const [whole, frac] = formatDecimal(amountMinor, currency).split(".");

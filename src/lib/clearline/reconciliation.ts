@@ -33,6 +33,28 @@ export const RECONCILIATION_CODE_TEXT: Readonly<Record<ReconciliationCode, strin
   RC_REPAYMENT_BY_REFERENCE: "Repayment allocated to the obligation by its reliable repayment reference.",
 };
 
+/** Display group for each code (for filters). Rows should still show the raw codes. */
+export type ReconciliationCodeGroup = "exact" | "partial" | "unmatched" | "duplicate" | "ambiguous" | "currency_mismatch" | "contradiction" | "return" | "informational";
+export const RECONCILIATION_CODE_GROUP: Readonly<Record<ReconciliationCode, ReconciliationCodeGroup>> = {
+  RC_EXACT_REFERENCE_AMOUNT_CURRENCY_WINDOW: "exact",
+  RC_REPAYMENT_BY_REFERENCE: "exact",
+  RC_PARTIAL_AMOUNT: "partial",
+  RC_OVERPAYMENT: "unmatched",
+  RC_CURRENCY_MISMATCH: "currency_mismatch",
+  RC_OUTSIDE_TIME_WINDOW: "unmatched",
+  RC_LATE_STATEMENT: "informational",
+  RC_NO_REFERENCE: "unmatched",
+  RC_UNKNOWN_REFERENCE: "unmatched",
+  RC_AMOUNT_ONLY_CANDIDATES: "unmatched",
+  RC_AMBIGUOUS_REFERENCE: "ambiguous",
+  RC_DUPLICATE_SUSPECTED: "duplicate",
+  RC_RETURN_CONFIRMS_PROVIDER_RETURN: "return",
+  RC_RETURN_CONTRADICTS_PROVIDER_STATUS: "contradiction",
+  RC_UNMATCHED_INCOMING: "unmatched",
+  RC_UNMATCHED_OUTGOING: "unmatched",
+  RC_PROVIDER_REPORT_ONLY: "informational",
+};
+
 const SUBMITTED_STATES = ["submitted", "in_transit", "provider_reported_completed", "on_hold", "awaiting_information", "returned", "failed"];
 
 function allocatedTo(tx: Tx, intentId: string, kind: "payment" | "return"): number {
@@ -130,6 +152,7 @@ export function reconcileLine(tx: Tx, line: StatementLine): string {
     }
     if (intent.status.execution === "returned") {
       const evidenceId = lineEvidence(tx, line, { intentId: intent.id });
+      intent.returnStatus = "confirmed_by_statement";
       allocate(tx, line, { kind: "payment", intentId: intent.id }, line.amountMinor, ["RC_RETURN_CONFIRMS_PROVIDER_RETURN"]);
       const exc = ws.exceptions.find((e) => e.intentId === intent.id && e.category === "returned_payout");
       if (exc) {

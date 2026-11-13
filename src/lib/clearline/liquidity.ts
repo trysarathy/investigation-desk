@@ -26,6 +26,7 @@ export function computeLiquidity(ws: Workspace, at: string = ws.asOf): Liquidity
     return {
       ...snap,
       committedPayoutsMinor: committed,
+      providerName: ws.routes.find((r) => r.providerId === snap.providerId)?.providerName ?? snap.providerId,
       bufferMinor,
       usableMinor,
       ageMinutes,

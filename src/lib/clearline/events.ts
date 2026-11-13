@@ -48,6 +48,7 @@ export function ingestPayload(tx: Tx, input: IngestInput): { outcome: ProviderEv
   const intent = instr ? ws.intents.find((i) => i.id === instr.intentId) : undefined;
   const base = {
     providerId: input.providerId,
+    providerName: adapter.capabilities().providerName,
     providerEventId: p?.id ?? "unparsed",
     intentId: intent?.id,
     providerPaymentId: p?.provider_payment_id,
@@ -207,6 +208,8 @@ function applySideEffects(tx: Tx, intent: PaymentIntent, p: SandboxWebhookPayloa
   }
   if (p.type === "payout.returned") {
     const r = adapter.reportReturn(p);
+    intent.returnStatus = "provider_reported";
+    intent.status.reconciliation = "exception";
     openException(tx, {
       category: "returned_payout",
       explanationCode: "PV_RETURNED_" + r.errorClass.toUpperCase(),

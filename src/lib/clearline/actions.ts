@@ -6,7 +6,7 @@
 import { getAdapter, type ScriptStep } from "./adapters";
 import { ingestChainObservation, validateChainInput } from "./chain";
 import { ingestPayload, setExecution } from "./events";
-import { canResolveException, ensureCase, openException } from "./exceptions";
+import { canResolveCase, canResolveException, ensureCase, openException } from "./exceptions";
 import { deriveAdvanceState, obligationOutstanding } from "./funding";
 import { computeLiquidity } from "./liquidity";
 import { isCurrency, validateAmountMinor } from "./money";
@@ -222,7 +222,8 @@ function requestQuotes(tx: Tx, intentId: string): string {
 }
 
 function chooseRoute(tx: Tx, intentId: string, quoteId: string): string {
-  requireRole(tx, ["operator"]);
+  // Approvers may also prepare instructions; they can then never check their own.
+  requireRole(tx, ["operator", "approver"]);
   const intent = intentById(tx, intentId);
   if (intent.status.execution !== "quoted") fail("invalid_transition", "A route can be chosen only while the intent is quoted.", { entityId: intent.id });
   const q = tx.ws.quotes.find((x) => x.id === quoteId && x.intentId === intent.id);
@@ -253,11 +254,12 @@ function chooseRoute(tx: Tx, intentId: string, quoteId: string): string {
 }
 
 function decideInstruction(tx: Tx, instructionId: string, approve: boolean, reason: string): string {
-  requireRole(tx, ["approver"]);
   const instr = tx.ws.instructions.find((i) => i.id === instructionId);
   if (!instr) fail("not_found", "Instruction not found.", { entityId: instructionId });
-  if (instr.status !== "pending_approval") fail("invalid_transition", `Instruction is ${instr.status}, not pending approval.`, { entityId: instr.id });
+  // Separation of duties is checked first so the maker always sees maker_checker_violation.
   if (instr.makerId === tx.actorId) fail("maker_checker_violation", "The checker must be a different person from the maker.", { entityId: instr.id });
+  requireRole(tx, ["approver"]);
+  if (instr.status !== "pending_approval") fail("invalid_transition", `Instruction is ${instr.status}, not pending approval.`, { entityId: instr.id });
   const intent = intentById(tx, instr.intentId);
   instr.checkerId = tx.actorId;
   instr.checkedAt = tx.at;
@@ -360,7 +362,7 @@ function simulate(tx: Tx, intentId: string, injection: FailureInjection): string
       return deliverStep(tx, instr.providerId, adapter.pollStatus(tx.ws, intent, instr, tx.at), true);
     case "timeout": {
       tx.ws.providerEvents.push({
-        id: tx.id("pev"), providerId: instr.providerId, providerEventId: `timeout-${tx.ws.seq}`, intentId: intent.id, providerPaymentId: instr.providerPaymentId,
+        id: tx.id("pev"), providerId: instr.providerId, providerName: adapter.capabilities().providerName, providerEventId: `timeout-${tx.ws.seq}`, intentId: intent.id, providerPaymentId: instr.providerPaymentId,
         payloadRef: "none", payloadHash: "none", providerTimestamp: tx.at, receivedAt: tx.at, sequence: 0, signatureResult: "not_applicable",
         dedupeKey: `timer:${intent.id}:${tx.at}`, normalizedType: "payout.timeout", processingOutcome: "recorded_no_state_change",
         provenance: "clearline_timer", confidence: "observed", errorClass: "timeout", detail: { note: "Clearline timer: no provider response; not a provider event" },
@@ -614,14 +616,9 @@ function resolve(tx: Tx, t: TargetRef, note: string): string {
     return "applied";
   }
   const c = r.c;
-  if (c.status === "resolved") fail("invalid_transition", "Case is already resolved.", { entityId: c.id });
-  if (!c.ownerId) fail("resolution_not_permitted", "OWNER_REQUIRED: assign an owner first.", { entityId: c.id });
-  const openExc = tx.ws.exceptions.filter((e) => c.exceptionIds.includes(e.id) && e.status !== "resolved");
-  if (openExc.length) fail("resolution_not_permitted", `OPEN_EXCEPTIONS: ${openExc.map((e) => e.id).join(", ")} must be resolved first.`, { entityId: c.id });
-  const openReq = c.requestedInfo.filter((q) => q.status === "open");
-  if (openReq.length) fail("resolution_not_permitted", `OPEN_INFO_REQUESTS: ${openReq.length} requested item(s) not provided.`, { entityId: c.id });
-  const hold = c.intentId ? tx.ws.holds.find((h) => h.intentId === c.intentId && h.status !== "released" && h.status !== "rejected") : undefined;
-  if (hold) fail("hold_requires_human_decision", "The compliance hold has no final reviewer decision.", { entityId: hold.id });
+  const check = canResolveCase(tx.ws, c.id);
+  if (!check.allowed)
+    fail(check.code === "ALREADY_RESOLVED" ? "invalid_transition" : check.code === "HOLD_UNDECIDED" ? "hold_requires_human_decision" : "resolution_not_permitted", `${check.code}: ${check.reason}`, { entityId: c.id });
   c.status = "resolved";
   c.history.push({ at: tx.at, actorId: tx.actorId, action: "resolved", detail: note });
   c.updatedAt = tx.at;
@@ -692,8 +689,9 @@ function assignHoldReviewer(tx: Tx, holdId: string, reviewerId: string): string 
 }
 
 function holdDecision(tx: Tx, holdId: string, decision: "release" | "reject" | "request_more", reason: string): string {
-  requireRole(tx, ["compliance"]);
   const h = holdById(tx, holdId);
+  if (h.submittedDocuments.some((d) => d.by === tx.actorId)) fail("maker_checker_violation", "The reviewer must not be the person who submitted the documents.", { entityId: h.id });
+  requireRole(tx, ["compliance"]);
   if (h.reviewerId !== tx.actorId) fail("unauthorized_actor", "Only the assigned compliance reviewer can decide this hold.", { entityId: h.id });
   if (h.status === "released" || h.status === "rejected") fail("invalid_transition", "Hold already decided.", { entityId: h.id });
   if (!["release", "reject", "request_more"].includes(decision)) fail("invalid_field", "Unknown decision.", { field: "decision" });
@@ -760,11 +758,11 @@ function createAdvance(tx: Tx, input: CreateAdvanceInput): string {
 }
 
 function decideAdvance(tx: Tx, advanceId: string, outcome: "approve" | "decline", reason: string): string {
-  requireRole(tx, ["approver"]);
   const adv = tx.ws.advances.find((a) => a.id === advanceId);
   if (!adv) fail("not_found", "Advance not found.", { entityId: advanceId });
-  if (adv.decisionId) fail("invalid_transition", "Advance already decided.", { entityId: adv.id });
   if (adv.preparedBy === tx.actorId) fail("maker_checker_violation", "Treasury approval must come from a different person than the preparer.", { entityId: adv.id });
+  requireRole(tx, ["approver"]);
+  if (adv.decisionId) fail("invalid_transition", "Advance already decided.", { entityId: adv.id });
   if (outcome !== "approve" && outcome !== "decline") fail("invalid_field", "outcome must be approve or decline.", { field: "outcome" });
   if (!safeNote(reason, 300)) fail("invalid_field", "A decision reason is required.", { field: "reason" });
   if (outcome === "approve" && tx.ws.exceptions.some((e) => e.advanceId === adv.id && e.category === "funding_shortfall" && e.status !== "resolved"))
