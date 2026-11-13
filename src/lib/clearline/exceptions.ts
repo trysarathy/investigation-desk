@@ -1,7 +1,7 @@
 import { obligationOutstanding } from "./funding";
 import { computeLiquidity } from "./liquidity";
 import type { ExceptionCategory, InvestigationCase, Money, ReconciliationException, Severity, Workspace } from "./types";
-import type { Tx } from "./tx";
+import { addDays, type Tx } from "./tx";
 
 /** Required action shown for each category (deterministic text, no generated prose). */
 export const EXCEPTION_REQUIRED_ACTION: Readonly<Record<ExceptionCategory, string>> = {
@@ -44,7 +44,8 @@ const DEFAULT_SEVERITY: Readonly<Record<ExceptionCategory, Severity>> = {
  */
 export const EXCEPTION_DUE_DAYS: Readonly<Record<Severity, number>> = { critical: 1, high: 1, medium: 3, low: 5 };
 
-const dueFrom = (at: string, severity: Severity) => new Date(Date.parse(at) + EXCEPTION_DUE_DAYS[severity] * 86_400_000).toISOString().slice(0, 10);
+/** Due date as an organisation calendar date (Organization.timezone). */
+const dueFrom = (tx: Tx, severity: Severity) => addDays(tx.today, EXCEPTION_DUE_DAYS[severity]);
 
 export interface OpenExceptionSpec {
   category: ExceptionCategory;
@@ -128,7 +129,7 @@ export function openException(tx: Tx, spec: OpenExceptionSpec): ReconciliationEx
     supportingEvidenceIds: [...(spec.supportingEvidenceIds ?? [])],
     ownerId: spec.ownerId,
     impact: spec.impact,
-    dueDate: spec.dueDate ?? dueFrom(tx.at, severity),
+    dueDate: spec.dueDate ?? dueFrom(tx, severity),
     requiredAction: EXCEPTION_REQUIRED_ACTION[spec.category],
     createdAt: tx.at,
     lastUpdatedAt: tx.at,
@@ -201,7 +202,7 @@ export function canResolveException(ws: Workspace, exceptionId: string): Resolut
       break;
     }
     case "provider_timeout": {
-      const responded = ws.providerEvents.some((p) => p.intentId === e.intentId && p.processingOutcome === "applied" && p.receivedAt > e.createdAt);
+      const responded = ws.providerEvents.some((p) => p.intentId === e.intentId && p.processingOutcome === "applied" && Date.parse(p.receivedAt) > Date.parse(e.createdAt));
       if (!responded) return deny("NO_PROVIDER_RESPONSE", "No provider status has been applied since the timeout.");
       break;
     }
@@ -210,8 +211,12 @@ export function canResolveException(ws: Workspace, exceptionId: string): Resolut
     case "missing_payment_reference":
     case "beneficiary_mismatch":
     case "missing_statement": {
-      const attached = e.supportingEvidenceIds.some((id) => ws.evidence.find((ev) => ev.id === id)?.recordedBy !== "system");
-      if (!attached) return deny("EVIDENCE_REQUIRED", "Attach evidence (metadata) that supports the resolution.");
+      // m3: a plain note is not evidence. A person must attach a document, confirmation or correction.
+      const attached = e.supportingEvidenceIds.some((id) => {
+        const ev = ws.evidence.find((x) => x.id === id);
+        return ev !== undefined && ev.recordedBy !== "system" && ev.kind !== "note";
+      });
+      if (!attached) return deny("EVIDENCE_REQUIRED", "Attach evidence (a document, confirmation or correction — not just a note) that supports the resolution.");
       break;
     }
     default:

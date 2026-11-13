@@ -37,7 +37,11 @@ Prepared by a general-purpose AI subagent working under the repository role brie
 
 ### Legacy prototype
 
-`src/lib/clearline/core.ts` and `/api/clearline/test/[action]` are kept unchanged for the existing console and `tests/clearline-core.test.ts` / `tests/clearline-control.test.ts`. New work should use `@/lib/clearline`.
+Retired on 2026-11-13 (code review M10). `src/lib/clearline/core.ts` was removed. `/api/clearline/test/[action]` now returns 410 Gone pointing to `/api/clearline/test/v1`. The legacy tests' assertions were moved to `tests/clearline/legacy-migrated.test.ts`.
+
+### Time
+
+Every stored instant is a UTC `…Z` string; actions normalise any offset they receive. Business dates — execution-date expiry, due dates, overdue, the reconciliation window and late statements — are calendar dates in `Organization.timezone` (Asia/Singapore in the sample).
 
 ### Funding Desk relationship
 

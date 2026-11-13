@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ALLOWLISTED_TOKENS, BASE_SEPOLIA_CHAIN_ID, CHAIN_LABEL, FINALITY_THRESHOLD, canResolveException, investigate, listExceptions } from "@/lib/clearline";
+import { getAdapter, ALLOWLISTED_TOKENS, BASE_SEPOLIA_CHAIN_ID, CHAIN_LABEL, FINALITY_THRESHOLD, canResolveException, investigate, listExceptions } from "@/lib/clearline";
 import { attempt, errorCode, intent, run, sim, submitted } from "./helpers";
 
 const usdc = () => submitted({ amountMinor: 6_427_830_000, sourceCurrency: "USDC", destinationCurrency: "USDC", destinationCountry: "SG", sandboxOutcome: "chain_delay" }, "prv_tidewater");
@@ -35,7 +35,7 @@ describe("synthetic Base Sepolia chain evidence", () => {
   });
   const obsFor = (ws: ReturnType<typeof usdc>["ws"], id: string, o: Record<string, unknown> = {}) => ({
     intentId: id, chainId: 84532, network: "base-sepolia", tokenContract: ALLOWLISTED_TOKENS[0].contract, tokenSymbol: "USDC",
-    txHash: "0x" + "ab".repeat(32), toAddress: "0x" + "cd".repeat(20),
+    txHash: "0x" + "ab".repeat(32), toAddress: getAdapter("prv_tidewater")!.expectedWallet!(intent(ws, id)),
     amountMinor: ws.quotes.find((q) => q.id === intent(ws, id).selectedQuoteId)!.estimatedRecipientMinor, blockNumber: 100, confirmations: 3, ...o,
   });
   it("unsupported network or token raises an exception and is never counted", () => {

@@ -340,6 +340,8 @@ export interface SandboxWebhookPayload {
   currency?: CurrencyCode;
   reason?: string;
   requested_documents?: string[];
+  /** Stablecoin routes: the on-chain transaction the provider says carries this payout. */
+  tx_hash?: string;
 }
 
 export interface WebhookDelivery {
@@ -429,7 +431,9 @@ export type ReconciliationCode =
 
 export interface ReconciliationAllocation {
   id: string;
+  /** The statement line id, or the chain observation id when evidenceKind is "chain_observation". */
   statementLineId: string;
+  evidenceKind: "statement_line" | "chain_observation";
   target: { kind: "payment"; intentId: string } | { kind: "repayment"; obligationId: string };
   amountMinor: number;
   currency: CurrencyCode;

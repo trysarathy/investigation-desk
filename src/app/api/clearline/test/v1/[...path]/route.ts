@@ -68,8 +68,14 @@ function workspaceFrom(body: Record<string, unknown>): Workspace | Response {
   return parsed.ok ? parsed.value : fail(parsed.error.code, parsed.error.message, { field: "workspace" });
 }
 
+/** M8: an `at` that is not an ISO-8601 instant is a 400, never silently replaced or treated as fresh. */
+const isInstant = (v: unknown): v is string =>
+  typeof v === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/.test(v) && !Number.isNaN(Date.parse(v));
+const badAt = () => respond({ error: { code: "invalid_field", field: "at", message: "at must be an ISO-8601 instant, e.g. 2026-11-13T02:00:00Z.", help: "Test mode only." } }, 400);
+
 function act(ws: Workspace, action: WorkspaceAction, body: Record<string, unknown>, req: NextRequest, defaultActor: string, pick?: (ws: Workspace, created: string[]) => unknown) {
   const actorId = req.headers.get("x-clearline-actor") ?? (typeof body.actorId === "string" ? body.actorId : defaultActor);
+  if (body.at !== undefined && !isInstant(body.at)) return badAt();
   const at = typeof body.at === "string" ? body.at : ws.asOf;
   const r = applyAction(ws, action, { actorId, at });
   if (!r.ok) return fail(r.error.code, r.error.message, { field: r.error.field, entityId: r.error.entityId });
@@ -80,7 +86,17 @@ function act(ws: Workspace, action: WorkspaceAction, body: Record<string, unknow
   );
 }
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+type Ctx = { params: Promise<{ path: string[] }> };
+/** M6: malformed input must never surface as an HTTP 500 or leak internals. */
+const guarded = (handler: (req: NextRequest, ctx: Ctx) => Promise<Response>) => async (req: NextRequest, ctx: Ctx) => {
+  try {
+    return await handler(req, ctx);
+  } catch {
+    return respond({ error: { code: "invalid_request", message: "The request could not be processed; check the JSON shape against docs/clearline/openapi.yaml.", help: "Test mode only." } }, 422);
+  }
+};
+
+export const GET = guarded(async (req: NextRequest, { params }: Ctx) => {
   const path = (await params).path;
   if (path.join("/") === "health") return respond({ mode: "test", canMoveMoney: false, persisted: false, service: "Clearline engine sandbox v1" });
   if (!authed(req)) return fail("unauthenticated", "Send Authorization: Bearer cl_test_demo (a public example key, not a credential).");
@@ -104,9 +120,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
     }
     default: return fail("unknown_endpoint", "Unknown endpoint.");
   }
-}
+});
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+export const POST = guarded(async (req: NextRequest, { params }: Ctx) => {
   const path = (await params).path;
   if (!authed(req)) return fail("unauthenticated", "Send Authorization: Bearer cl_test_demo (a public example key, not a credential).");
   const body = await readBody(req);
@@ -117,7 +133,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
   if (route === "webhooks/verify") {
     const { providerId, rawBody, signatureHeader, at } = body as Record<string, string>;
     if (!getAdapter(providerId) || typeof rawBody !== "string" || typeof signatureHeader !== "string") return fail("invalid_field", "providerId, rawBody and signatureHeader required.");
-    const now = typeof at === "string" && !Number.isNaN(Date.parse(at)) ? Math.floor(Date.parse(at) / 1000) : Math.floor(Date.now() / 1000);
+    if (at !== undefined && !isInstant(at)) return badAt();
+    const now = at !== undefined ? Math.floor(Date.parse(at) / 1000) : Math.floor(Date.now() / 1000);
     return respond({ data: verifySandboxWebhook(rawBody, signatureHeader, sandboxWebhookSecret(providerId), now), mode: "synthetic" });
   }
 
@@ -177,10 +194,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
     return act(ws, { type: "create_advance", input: body.input as never }, body, req, "usr_maya", (w, c) => fundingProjection(w).rows.find((r) => r.advanceId === c[0]));
   if (root === "funding-advances" && id && verb === "decision")
     return act(ws, { type: "decide_advance", advanceId: id, outcome: body.outcome as never, reason: String(body.reason ?? "") }, body, req, "usr_daniel", (w) => fundingProjection(w).rows.find((r) => r.advanceId === id));
-  if (root === "liquidity" && !id) return respond({ data: computeLiquidity(ws, typeof body.at === "string" ? body.at : ws.asOf), mode: "synthetic" });
+  if (root === "liquidity" && !id) {
+    if (body.at !== undefined && !isInstant(body.at)) return badAt();
+    return respond({ data: computeLiquidity(ws, typeof body.at === "string" ? body.at : ws.asOf), mode: "synthetic" });
+  }
   if (root === "investigations" && id) {
     const v = investigate(ws, id);
     return v.ok ? respond({ data: v.value, mode: "synthetic" }) : fail(v.error.code, v.error.message);
   }
   return fail("unknown_endpoint", "Unknown endpoint.");
-}
+});

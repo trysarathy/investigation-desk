@@ -9,8 +9,18 @@ export class Tx {
   readonly ws: Workspace;
   readonly audit: AuditEvent[] = [];
   readonly created: string[] = [];
-  constructor(source: Workspace, readonly ctx: ActionContext) {
+  readonly ctx: ActionContext;
+  constructor(source: Workspace, ctx: ActionContext) {
     this.ws = structuredClone(source);
+    // M4: every stored instant is a canonical UTC string, whatever offset the caller used.
+    this.ctx = { actorId: ctx.actorId, at: new Date(Date.parse(ctx.at)).toISOString() };
+  }
+  /** Today's calendar date in the organisation's time zone (M5). */
+  get today(): string {
+    return orgDate(this.ctx.at, this.ws.organization.timezone);
+  }
+  orgDate(iso: string): string {
+    return orgDate(iso, this.ws.organization.timezone);
   }
   get at(): string {
     return this.ctx.at;
@@ -63,7 +73,35 @@ export const isIsoDate = (v: unknown): v is string => {
 export const ms = (iso: string) => Date.parse(iso);
 export const minutesBetween = (a: string, b: string) => Math.floor((ms(b) - ms(a)) / 60000);
 export const addMinutes = (iso: string, minutes: number) => new Date(ms(iso) + minutes * 60000).toISOString();
+/** UTC calendar date of an instant. Prefer orgDate for business rules. */
 export const dateOf = (iso: string) => new Date(ms(iso)).toISOString().slice(0, 10);
+/** Canonical UTC instant ("…Z"); every stored timestamp uses this form. */
+export const toUtc = (iso: string) => new Date(ms(iso)).toISOString();
+
+const DATE_FMT = new Map<string, Intl.DateTimeFormat>();
+/** Calendar date (YYYY-MM-DD) of an instant in an IANA time zone (the organisation's). */
+export function orgDate(iso: string, timeZone: string): string {
+  let f = DATE_FMT.get(timeZone);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" });
+    DATE_FMT.set(timeZone, f);
+  }
+  const parts = Object.fromEntries(f.formatToParts(new Date(ms(iso))).map((p) => [p.type, p.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+export const isTimeZone = (tz: unknown): tz is string => {
+  if (typeof tz !== "string" || !tz) return false;
+  try {
+    new Intl.DateTimeFormat("en-CA", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+};
+/** Add whole days to a YYYY-MM-DD calendar date. */
+export const addDays = (date: string, days: number) => new Date(Date.parse(date + "T00:00:00Z") + days * 86_400_000).toISOString().slice(0, 10);
+/** Whole days from calendar date a to calendar date b. */
+export const daysBetween = (a: string, b: string) => Math.round((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / 86_400_000);
 
 /** Fictional free text: letters, digits and simple punctuation only (no markup). */
 export const safeText = (v: unknown, min = 2, max = 120): v is string =>

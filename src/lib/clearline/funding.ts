@@ -8,6 +8,7 @@
  * unreferenced stays unallocated for a person to review.
  */
 import type { Stage as FundingDeskStage } from "@/lib/mentor-demo/engine";
+import { orgDate } from "./tx";
 import type { AdvanceState, FundingProjection, FundingProjectionRow, Money, Workspace } from "./types";
 
 export const FUNDING_PROJECTION_LABEL =
@@ -46,7 +47,7 @@ export function deriveAdvanceState(ws: Workspace, advanceId: string, at: string 
   const outstanding = obligationOutstanding(ws, ob.id).amountMinor;
   const repaid = ob.principalMinor - outstanding;
   if (outstanding === 0) return "repaid";
-  if (at.slice(0, 10) > ob.dueDate) return "overdue";
+  if (orgDate(at, ws.organization.timezone) > ob.dueDate) return "overdue";
   if (repaid > 0) return "partly_repaid";
   if (intent && ["provider_reported_completed"].includes(intent.status.execution)) return "supplier_paid";
   return "approved";

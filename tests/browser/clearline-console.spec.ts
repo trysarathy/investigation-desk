@@ -259,7 +259,7 @@ test.describe("Clearline console", () => {
     await expect(page.getByTestId("example-webhook-duplicate")).toContainText('"outcome": "duplicate_ignored"');
     await expect(page.getByTestId("example-webhook-stale")).toContainText('"processingOutcome": "rejected_signature"');
     await expect(page.getByTestId("example-self-approve")).toContainText("HTTP 403");
-    await expect(page.locator("#legacy")).toContainText("legacy");
+    await expect(page.locator("#legacy")).toContainText("Legacy endpoints");
     // The live API still answers the way the captured example says.
     const live = await request.post("/api/clearline/test/v1/intents", { headers: { Authorization: "Bearer cl_test_demo" }, data: { input: { amountMinor: 12.5 } } });
     expect(live.status()).toBe(422);

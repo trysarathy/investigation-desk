@@ -44,8 +44,24 @@ info:
     hold documents) always receives `maker_checker_violation` when trying to check their own work.
     This is checked before the role check.
 
+    **Time.** `at` must be an ISO-8601 instant (HTTP 400 otherwise). It is stored as UTC (`…Z`). Business
+    dates (due dates, overdue, expiry, reconciliation window) use the organisation's time zone.
+
+    **Evidence rules.** A provider settlement report is provider-reported evidence only. It is never
+    allocated and never makes a payment `matched`; a bank statement line does. Chain observations apply
+    only to a submitted USDC payout on the Base Sepolia route, to the beneficiary's registered wallet,
+    for the quoted amount. One transaction hash evidences at most one payout. A `contradicted`
+    settlement changes only after a person resolves the contradiction.
+
+    **Roles in this stateless API are advisory.** The caller supplies the workspace (including the actor
+    list) and picks the actor with `X-Clearline-Actor`. Role and maker ≠ checker checks show the
+    product's rules but are not a security boundary here.
+
+    **Robustness.** Malformed JSON, damaged workspaces and malformed provider payloads return 4xx JSON,
+    never 500.
+
     **Legacy endpoints** under `/api/clearline/test/{intents,quotes,transitions,webhooks,payments,health}`
-    (docs/CONNECT_TEST_API.md) are unchanged and not described here.
+    are **retired**: every method returns HTTP 410 with `error.replacement: "/api/clearline/test/v1"`.
 
     ## Error-code catalogue
     | code | HTTP | meaning |

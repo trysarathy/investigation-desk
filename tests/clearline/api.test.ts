@@ -71,8 +71,24 @@ describe("test-mode API v1", () => {
     expect(rep.data.rows[0].outstanding.amountMinor).toBe(2_000_000);
     expect((await get("nope")).status).toBe(404);
   });
-  it("legacy endpoints keep working", async () => {
-    const r = await LEGACY_GET(new NextRequest("http://x/api/clearline/test/health"), { params: Promise.resolve({ action: "health" }) });
-    expect((await r.json()).canMoveMoney).toBe(false);
+  it("legacy unversioned endpoints are retired with 410 (review M10)", async () => {
+    const r = await LEGACY_GET();
+    expect(r.status).toBe(410);
+    expect((await r.json()).error.replacement).toBe("/api/clearline/test/v1");
+  });
+  it("malformed input and invalid clocks never produce a 500 (review M6/M8)", async () => {
+    expect((await post("liquidity", { at: "garbage" })).status).toBe(400);
+    expect((await post("actions", { action: { type: "advance_clock", to: "2026-11-14T00:00:00Z" }, at: "not-a-time" })).status).toBe(400);
+    const damaged = JSON.parse(JSON.stringify(sampleWorkspace()));
+    damaged.intents = [{}];
+    const r = await post("actions", { workspace: damaged, action: { type: "advance_clock", to: "2026-11-14T00:00:00Z" } });
+    expect(r.status).toBe(422);
+    expect((await r.json()).error.code).toBe("invalid_field");
+    const weird = await post("events/webhook", { providerId: "prv_northline", rawBody: { not: "a string" }, signatureHeader: 5 });
+    expect(weird.status).toBeLessThan(500);
+    const chain = await post("actions", { action: { type: "ingest_chain_observation", observation: { intentId: 5 } } });
+    expect(chain.status).toBe(422);
+    const nullAction = await post("actions", { action: null });
+    expect(nullAction.status).toBe(422);
   });
 });

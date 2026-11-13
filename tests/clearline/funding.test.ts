@@ -48,7 +48,7 @@ describe("Funding Desk projection: SGD 50,000 / 30,000 / 20,000", () => {
     expect(row(r.workspace).exceptionIds).toContain(e.id);
     // resolving the exception never allocates
     let ws2 = run(r.workspace, "usr_maya", { type: "assign_owner", target: { kind: "exception", id: e.id }, ownerId: "usr_maya" }).workspace;
-    ws2 = run(ws2, "usr_maya", { type: "attach_evidence", target: { kind: "exception", id: e.id }, evidence: { kind: "note", description: "Customer says this was for another invoice" } }).workspace;
+    ws2 = run(ws2, "usr_maya", { type: "attach_evidence", target: { kind: "exception", id: e.id }, evidence: { kind: "document_metadata", description: "Customer email says this was for another invoice (fictional)", documentName: "customer-email.eml" } }).workspace;
     ws2 = run(ws2, "usr_maya", { type: "resolve", target: { kind: "exception", id: e.id }, note: "Not attributable without reference" }).workspace;
     expect(formatMoney(row(ws2).outstanding)).toBe("SGD 20,000.00");
     // a referenced 20,000 then closes it

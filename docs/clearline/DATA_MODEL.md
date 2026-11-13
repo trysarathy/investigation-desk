@@ -6,22 +6,22 @@ Source of truth: `src/lib/clearline/types.ts`. All data is fictional sandbox dat
 
 | Entity | Key fields | Notes |
 |---|---|---|
-| `Organization` | id, name, `fictional: true`, baseCurrency, timezone | One per workspace. |
+| `Organization` | id, name, `fictional: true`, baseCurrency, timezone | One per workspace. `timezone` (IANA) defines every business calendar date: expiry, due dates, overdue, reconciliation window. Stored instants are UTC. |
 | `Actor` | id, name, role (`operator`, `approver`, `compliance`, `viewer`) | Maker = operator; checker = approver. |
-| `PaymentIntent` | id, orgId, internalReference, amountMinor, sourceCurrency, destinationCurrency, purpose, beneficiaryRef, beneficiaryName, destinationCountry, requestedExecutionDate, railEligibility, idempotencyKey, metadata, sandboxOutcome, **status {execution, settlement, settlementScope, reconciliation}**, quoteIds, selectedQuoteId, instructionId, caseId, advanceId, correctsIntentId | The shared payment identity. |
+| `PaymentIntent` (+ `returnStatus?`: `provider_reported` or `confirmed_by_statement`) | id, orgId, internalReference, amountMinor, sourceCurrency, destinationCurrency, purpose, beneficiaryRef, beneficiaryName, destinationCountry, requestedExecutionDate, railEligibility, idempotencyKey, metadata, sandboxOutcome, **status {execution, settlement, settlementScope, reconciliation}**, quoteIds, selectedQuoteId, instructionId, caseId, advanceId, correctsIntentId | The shared payment identity. |
 | `ProviderRoute` | id, providerId, rail, currencies, countries, indicativeRates, providerFees, platformFeeBps, eta, limits, prerequisites, restriction?, network? | 4 routes across 3 fictional providers; one is restricted. |
 | `Quote` | provider, routeId, currencies, indicativeRate, providerFeeMinor, platformFeeMinor, estimatedRecipientMinor, expiresAt, etaLabel, prerequisites, eligible + eligibilityReason, source, quotedAt, freshness, `label: "Indicative sandbox quote — not executable"` | |
 | `PaymentInstruction` | intentId, quoteId, routeId, providerId, amount, makerId, checkerId, status (`pending_approval`, `approved`, `rejected`, `submitted`), providerPaymentId, submittedAt | providerPaymentId is the trusted reconciliation reference. |
 | `ProviderEvent` | providerEventId, intentId, payloadRef, payloadHash, providerTimestamp, receivedAt, sequence, signatureResult, dedupeKey, normalizedType, processingOutcome, provenance, confidence, errorClass | Rejected, duplicate and late events are kept along with their outcome. |
 | `EvidenceRecord` | kind, intentId/caseId/advanceId, description, source, **independent**, reference, documentName/sha256 (metadata only), recordedBy | Files are never stored. |
 | `StatementLine` | lineId, source (`bank_statement`, `provider_settlement_report`), accountRef, direction, kind (`payment`, `return`, `reversal`), amount, reference, counterparty, valueDate, receivedAt, status, explanationCodes | Unique by (source, accountRef, lineId). |
-| `ReconciliationAllocation` | statementLineId, target (payment or repayment), amount, `matchedBy: trusted_reference`, codes | Created only from a trusted reference. |
+| `ReconciliationAllocation` | statementLineId, **evidenceKind** (`statement_line` or `chain_observation`), target (payment or repayment), amount, `matchedBy: trusted_reference`, codes | Created only from a trusted reference: the provider payment id on a bank line, the repayment reference, or the provider-reported tx hash for a final chain transfer. Provider settlement reports are never allocated. |
 | `ReconciliationException` | category, severity, status, explanationCode, explanation, links (intent/advance/obligation/statementLine/case), **candidates** (ambiguity preserved), supporting events/evidence, owner, impact, dueDate, requiredAction, history, resolution | 14 categories. |
 | `InvestigationCase` | intentId or advanceId, owner, notes, requestedInfo, evidenceIds, exceptionIds, history, status (`open`, `resolved`, `reopened`) | One per payment. |
 | `ComplianceHold` | intentId, providerId, `reportedBy: partner`, reason, requestedDocuments, submittedDocuments, reviewerId, partnerReleaseReportedAt, decisions, status, `autoRelease: false` | |
 | `LiquidityPolicy` | label, definedBy, bufferBps, minBufferMinor, maxAgeMinutes | Illustrative and provider-defined; not a regulatory classification. |
 | `LiquiditySnapshot` | providerId, accountRef, currency, eligibleMinor, restrictedMinor, safeguardedMinor, source, asOf | |
-| `ChainObservation` | chainId, network, tokenContract, tokenSymbol, txHash, toAddress, amountMinor, blockNumber, confirmations, finalityThreshold, status (`observed`, `pending_finality`, `final`, `rejected_unsupported`) | Synthetic Base Sepolia (84532). |
+| `ChainObservation` | (only for a submitted USDC payout on the testnet route, to the beneficiary's registered wallet, for the quoted amount; one tx hash per payout) chainId, network, tokenContract, tokenSymbol, txHash, toAddress, amountMinor, blockNumber, confirmations, finalityThreshold, status (`observed`, `pending_finality`, `final`, `rejected_unsupported`) | Synthetic Base Sepolia (84532). |
 | `FundingAdvance` | intentId, customer, supplier, invoiceRef, principal, preparedBy, dueDate, repaymentReference, state, decisionId, obligationId | Projection-side only. |
 | `FundingDecision` | advanceId, makerId, checkerId, outcome, reason | maker ≠ checker. |
 | `RepaymentObligation` | advanceId, principal, dueDate, reference | Created on approval. |
@@ -53,3 +53,10 @@ reconciliation: not_started → pending → partially_matched → matched ; any 
 2. A bank debit referencing the provider payment id is matched: settlement `verified (bank_statement)`, reconciliation `matched`.
 3. A credit of SGD 30,000.00 referencing `RPY-SEABRIGHT-0001` is allocated (`RC_REPAYMENT_BY_REFERENCE`, `RC_PARTIAL_AMOUNT`). SGD 20,000.00 is outstanding.
 4. A credit of SGD 20,000.00 with **no reference** is **not** allocated. It raises `missing_payment_reference` / `RC_AMOUNT_ONLY_CANDIDATES` with the obligation listed as a candidate. Outstanding stays at SGD 20,000.00, and resolving the exception does not allocate it.
+
+## Rules added by the code review (2026-11-13)
+
+- A contradicted settlement stays contradicted until a person resolves the contradiction with evidence other than a plain note. Dimensions are then recomputed from recorded evidence.
+- Return lines are checked for currency, duplicates and over-amount.
+- A held payout cannot be cancelled. A provider `in_transit` received while on hold is recorded as the partner's release; it does not end the hold.
+- `parseWorkspace` validates every element and rejects damaged data with a field path.

@@ -21,8 +21,10 @@ export function computeLiquidity(ws: Workspace, at: string = ws.asOf): Liquidity
       .reduce((sum, i) => sum + i.amountMinor, 0);
     const bufferMinor = Math.max(policy.minBufferMinor[snap.currency] ?? 0, Math.floor((snap.eligibleMinor * policy.bufferBps) / 10000));
     const usableMinor = snap.eligibleMinor - snap.restrictedMinor - snap.safeguardedMinor - committed - bufferMinor;
-    const ageMinutes = Math.max(0, minutesBetween(snap.asOf, at));
-    const stale = ageMinutes > policy.maxAgeMinutes;
+    const rawAge = minutesBetween(snap.asOf, at);
+    // M8: an age that cannot be computed (invalid instant) is stale, never fresh.
+    const ageMinutes = Number.isFinite(rawAge) ? Math.max(0, rawAge) : Number.POSITIVE_INFINITY;
+    const stale = !(ageMinutes <= policy.maxAgeMinutes);
     return {
       ...snap,
       committedPayoutsMinor: committed,

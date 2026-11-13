@@ -11,11 +11,12 @@
  * - The engine never fabricates intermediate events the provider did not send.
  */
 import { getAdapter } from "./adapters";
+import { tryAllocateChain } from "./chain";
 import { ensureCase, openException } from "./exceptions";
 import { sha256Hex } from "./sha256";
 import { EVENT_TARGET, PROGRESS_RANK, canTransitionExecution } from "./state";
 import type { ComplianceHold, EventProvenance, PaymentIntent, ProviderEvent, SandboxWebhookPayload, SignatureResult } from "./types";
-import type { Tx } from "./tx";
+import { fail, toUtc, type Tx } from "./tx";
 
 export interface IngestInput {
   providerId: string;
@@ -55,7 +56,7 @@ export function ingestPayload(tx: Tx, input: IngestInput): { outcome: ProviderEv
     payloadRef: `payload:${payloadHash.slice(0, 16)}`,
     payloadHash,
     rawBody: input.rawBody,
-    providerTimestamp: p?.occurred_at ?? tx.at,
+    providerTimestamp: p ? toUtc(p.occurred_at) : tx.at,
     sequence: p?.sequence ?? 0,
     signatureResult: input.signatureResult,
     dedupeKey: `${input.providerId}:${p?.id ?? payloadHash}`,
@@ -67,6 +68,7 @@ export function ingestPayload(tx: Tx, input: IngestInput): { outcome: ProviderEv
       ...(p?.amount_minor !== undefined ? { amountMinor: p.amount_minor } : {}),
       ...(p?.currency ? { currency: p.currency } : {}),
       ...(p?.reason ? { reason: p.reason } : {}),
+      ...(p?.tx_hash ? { txHash: p.tx_hash } : {}),
     },
   };
   if (input.signatureResult === "invalid") {
@@ -74,6 +76,8 @@ export function ingestPayload(tx: Tx, input: IngestInput): { outcome: ProviderEv
     tx.log("event.rejected_signature", "provider_event", ev.id, "Webhook signature invalid; not applied");
     return { outcome: "rejected_signature", event: ev };
   }
+  // M6: a correctly signed but malformed payload is refused with a typed error (nothing recorded).
+  if (!parsed.ok) fail(parsed.error.code, `Malformed provider payload: ${parsed.error.message}`, { field: parsed.error.field });
   if (!p || !intent || !instr) {
     const ev = record(tx, { ...base, processingOutcome: "rejected_unknown_payment" });
     tx.log("event.rejected_unknown", "provider_event", ev.id, "Unknown or unparseable provider payment; not applied");
@@ -115,8 +119,9 @@ export function ingestPayload(tx: Tx, input: IngestInput): { outcome: ProviderEv
     return { outcome: "contradictory_exception_raised", event: ev };
   }
 
-  // Partner reports hold released: recorded, never releases by itself.
-  if (p.type === "payout.hold_released") {
+  // Partner reports hold released — or, while on hold, reports the payout moving again: either is
+  // recorded as the partner's release and never leaves on_hold without the reviewer's decision.
+  if (p.type === "payout.hold_released" || (p.type === "payout.in_transit" && intent.status.execution === "on_hold")) {
     const hold = ws.holds.find((h) => h.intentId === intent.id && h.status !== "released" && h.status !== "rejected");
     if (!hold || current !== "on_hold") {
       const ev = record(tx, { ...base, processingOutcome: "recorded_no_state_change" });
@@ -145,6 +150,7 @@ export function ingestPayload(tx: Tx, input: IngestInput): { outcome: ProviderEv
     const ev = record(tx, { ...base, processingOutcome: "applied" });
     applySideEffects(tx, intent, p, ev);
     setExecution(tx, intent, target, `Provider reported ${p.type} (${adapter.capabilities().providerName})`);
+    if (p.tx_hash) tryAllocateChain(tx, intent);
     return { outcome: "applied", event: ev };
   }
   if (p.sequence < maxApplied && PROGRESS_RANK[target] <= PROGRESS_RANK[current]) {

@@ -29,6 +29,7 @@ export function verifySandboxWebhook(
 ): WebhookVerification {
   const m = /^t=(\d{1,12}),v1=([0-9a-f]{64})$/.exec(typeof signatureHeader === "string" ? signatureHeader : "");
   if (!m) return { valid: false, reason: "malformed_header" };
+  if (typeof nowUnixSeconds !== "number" || !Number.isFinite(nowUnixSeconds)) return { valid: false, reason: "timestamp_outside_tolerance" };
   const t = Number(m[1]);
   if (Math.abs(nowUnixSeconds - t) > toleranceSeconds) return { valid: false, reason: "timestamp_outside_tolerance" };
   const expected = hmacSha256Hex(secret, `${t}.${rawBody}`);

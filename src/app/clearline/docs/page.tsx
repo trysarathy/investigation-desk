@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "@/components/clearline/Link";
-import { Notice, PageHead, Panel, ui } from "@/components/clearline/ui";
+import { Notice, PageHead, Panel } from "@/components/clearline/ui";
+// Imported directly: ui.tsx is a client module, so its re-exported class map is not readable in this server component.
+import ui from "@/components/clearline/ui.module.css";
 import captured from "@/components/clearline/docs-examples.json";
 import {
   SAMPLE_ACTORS,
@@ -157,7 +159,7 @@ function ValueTable({ caption, rows }: { caption: string; rows: readonly (readon
       <table className={ui.table}>
         <caption className={ui.hint} style={{ captionSide: "bottom", textAlign: "left", padding: "6px 10px" }}>{caption}</caption>
         <thead><tr><th scope="col">Value</th><th scope="col">Meaning</th></tr></thead>
-        <tbody>{rows.map(([v, m]) => <tr key={v}><td><code className={ui.code}>{v}</code></td><td>{m}</td></tr>)}</tbody>
+        <tbody>{rows.map(([v, m]) => <tr key={v}><td><code className={ui.code} style={{ whiteSpace: "nowrap", overflowWrap: "normal" }}>{v}</code></td><td>{m}</td></tr>)}</tbody>
       </table>
     </div>
   );
@@ -262,7 +264,7 @@ if (!result.valid) return new Response(result.reason, { status: 401 });
             <table className={ui.table}>
               <caption className={ui.hint} style={{ captionSide: "bottom", textAlign: "left", padding: "6px 10px" }}>Error codes and HTTP statuses, from the v1 route handler.</caption>
               <thead><tr><th scope="col">code</th><th scope="col" className={ui.r}>HTTP</th><th scope="col">Meaning</th></tr></thead>
-              <tbody>{ERRORS.map(([c, s, m]) => <tr key={c}><td><code className={ui.code}>{c}</code></td><td className={`${ui.r} ${ui.num}`}>{s}</td><td>{m}</td></tr>)}</tbody>
+              <tbody>{ERRORS.map(([c, s, m]) => <tr key={c}><td><code className={ui.code} style={{ whiteSpace: "nowrap", overflowWrap: "normal" }}>{c}</code></td><td className={`${ui.r} ${ui.num}`}>{s}</td><td>{m}</td></tr>)}</tbody>
             </table>
           </div>
           <ExampleBlock id="no-key" />

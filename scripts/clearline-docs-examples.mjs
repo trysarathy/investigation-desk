@@ -122,7 +122,7 @@ await call("unknown", "Unknown endpoint", "GET", "/payments-v2");
 await call("bad-amount", "Amount not in integer minor units", "POST", "/intents", { input: { ...input, idempotencyKey: "docs-example-0002", amountMinor: 12.5 } });
 
 let revision = "unknown";
-try { revision = execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim(); } catch { /* not a checkout */ }
+try { revision = execSync("git describe --always --dirty", { encoding: "utf8" }).trim(); } catch { /* not a checkout */ }
 const out = { capturedAt: new Date().toISOString().slice(0, 10), revision, examples };
 writeFileSync(new URL("../src/components/clearline/docs-examples.json", import.meta.url), JSON.stringify(out, null, 1) + "\n");
 console.log(`Wrote ${examples.length} examples (revision ${revision}).`);

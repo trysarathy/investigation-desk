@@ -81,11 +81,13 @@ describe("reconciliation", () => {
     const { ws, ppid } = completed();
     expect(ingest(ws, debitLine({ reference: ppid, amountMinor: 1_000_001 })).workspace.exceptions.at(-1)!.explanationCode).toBe("RC_OVERPAYMENT");
   });
-  it("a provider settlement report is provider-reported: observed, not verified", () => {
+  it("a provider settlement report is provider-reported: observed, never allocated or matched (review M1)", () => {
     const { ws, id, ppid } = completed();
     const r = ingest(ws, debitLine({ reference: ppid, source: "provider_settlement_report", accountRef: "prv_northline:settlement" }));
-    expect(intent(r.workspace, id).status).toMatchObject({ settlement: "observed", settlementScope: "provider_report", reconciliation: "matched" });
-    expect(r.workspace.allocations[0].codes).toContain("RC_PROVIDER_REPORT_ONLY");
+    expect(r.outcome).toBe("recorded_provider_report");
+    expect(intent(r.workspace, id).status).toMatchObject({ settlement: "observed", settlementScope: "provider_report", reconciliation: "pending" });
+    expect(r.workspace.allocations).toHaveLength(0);
+    expect(r.workspace.statementLines.at(-1)!.explanationCodes).toContain("RC_PROVIDER_REPORT_ONLY");
   });
   it("a return line confirms a provider-reported return", () => {
     let { ws, id, ppid } = submitted({ sandboxOutcome: "return" });

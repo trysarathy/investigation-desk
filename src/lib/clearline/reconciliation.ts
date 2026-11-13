@@ -6,7 +6,7 @@ import { openException } from "./exceptions";
 import { obligationOutstanding } from "./funding";
 import { formatMinor } from "./money";
 import type { ReconciliationAllocation, ReconciliationCode, RepaymentObligation, StatementLine } from "./types";
-import { dateOf, minutesBetween, referenceTokens, type Tx } from "./tx";
+import { addDays, daysBetween, referenceTokens, type Tx } from "./tx";
 
 /** Value date must fall within [submission date − 1 day, submission date + N days]. */
 export const RECONCILIATION_WINDOW_DAYS = 7;
@@ -57,15 +57,17 @@ export const RECONCILIATION_CODE_GROUP: Readonly<Record<ReconciliationCode, Reco
 
 const SUBMITTED_STATES = ["submitted", "in_transit", "provider_reported_completed", "on_hold", "awaiting_information", "returned", "failed"];
 
+/** Bank-statement allocations only, in the payout's source currency (chain allocations are a separate leg). */
 function allocatedTo(tx: Tx, intentId: string, kind: "payment" | "return"): number {
+  const intent = tx.ws.intents.find((i) => i.id === intentId);
   return tx.ws.allocations
-    .filter((a) => a.target.kind === "payment" && a.target.intentId === intentId)
+    .filter((a) => a.target.kind === "payment" && a.target.intentId === intentId && a.evidenceKind === "statement_line" && a.currency === intent?.sourceCurrency)
     .filter((a) => (kind === "return") === a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN"))
     .reduce((s, a) => s + a.amountMinor, 0);
 }
 
 function allocate(tx: Tx, line: StatementLine, target: ReconciliationAllocation["target"], amountMinor: number, codes: ReconciliationCode[]): ReconciliationAllocation {
-  const a: ReconciliationAllocation = { id: tx.id("alc"), statementLineId: line.id, target, amountMinor, currency: line.currency, matchedBy: "trusted_reference", codes, createdAt: tx.at };
+  const a: ReconciliationAllocation = { id: tx.id("alc"), statementLineId: line.id, evidenceKind: "statement_line", target, amountMinor, currency: line.currency, matchedBy: "trusted_reference", codes, createdAt: tx.at };
   tx.ws.allocations.push(a);
   line.allocationIds.push(a.id);
   line.status = "allocated";
@@ -110,13 +112,13 @@ function exceptionFor(tx: Tx, line: StatementLine, code: ReconciliationCode, ext
   });
 }
 
-const inWindow = (valueDate: string, submittedAt: string) => {
-  const start = dateOf(new Date(Date.parse(submittedAt) - 86400000).toISOString());
-  const end = dateOf(new Date(Date.parse(submittedAt) + RECONCILIATION_WINDOW_DAYS * 86400000).toISOString());
-  return valueDate >= start && valueDate <= end;
+/** Window and lateness use organisation calendar dates (Organization.timezone). */
+const inWindow = (tx: Tx, valueDate: string, submittedAt: string) => {
+  const submitted = tx.orgDate(submittedAt);
+  return valueDate >= addDays(submitted, -1) && valueDate <= addDays(submitted, RECONCILIATION_WINDOW_DAYS);
 };
 
-const isLate = (line: StatementLine) => minutesBetween(line.valueDate + "T00:00:00Z", line.receivedAt) > LATE_STATEMENT_DAYS * 1440;
+const isLate = (tx: Tx, line: StatementLine) => daysBetween(line.valueDate, tx.orgDate(line.receivedAt)) > LATE_STATEMENT_DAYS;
 
 /** Reconcile one freshly ingested statement line. Returns the processing outcome. */
 export function reconcileLine(tx: Tx, line: StatementLine): string {
@@ -151,6 +153,20 @@ export function reconcileLine(tx: Tx, line: StatementLine): string {
       return "exception_raised";
     }
     if (intent.status.execution === "returned") {
+      // M2: the same amount, duplicate and over-amount checks as outgoing lines.
+      const returned = allocatedTo(tx, intent.id, "return");
+      const ppid = instr.providerPaymentId!.toUpperCase();
+      const dupeReturn = ws.statementLines.some(
+        (l) => l.id !== line.id && l.allocationIds.length > 0 && (l.kind === "return" || l.kind === "reversal") && l.amountMinor === line.amountMinor && l.valueDate === line.valueDate && referenceTokens(l.reference).includes(ppid),
+      );
+      if (dupeReturn || returned >= intent.amountMinor) {
+        exceptionFor(tx, line, "RC_DUPLICATE_SUSPECTED", { intentId: intent.id });
+        return "exception_raised";
+      }
+      if (line.amountMinor > intent.amountMinor - returned) {
+        exceptionFor(tx, line, "RC_OVERPAYMENT", { intentId: intent.id });
+        return "exception_raised";
+      }
       const evidenceId = lineEvidence(tx, line, { intentId: intent.id });
       intent.returnStatus = "confirmed_by_statement";
       allocate(tx, line, { kind: "payment", intentId: intent.id }, line.amountMinor, ["RC_RETURN_CONFIRMS_PROVIDER_RETURN"]);
@@ -177,7 +193,7 @@ export function reconcileLine(tx: Tx, line: StatementLine): string {
     exceptionFor(tx, line, "RC_CURRENCY_MISMATCH", { intentId: intent.id });
     return "exception_raised";
   }
-  if (!instr.submittedAt || !inWindow(line.valueDate, instr.submittedAt)) {
+  if (!instr.submittedAt || !inWindow(tx, line.valueDate, instr.submittedAt)) {
     exceptionFor(tx, line, "RC_OUTSIDE_TIME_WINDOW", { intentId: intent.id });
     return "exception_raised";
   }
@@ -195,8 +211,19 @@ export function reconcileLine(tx: Tx, line: StatementLine): string {
     return "exception_raised";
   }
   const codes: ReconciliationCode[] = [line.amountMinor === remaining ? "RC_EXACT_REFERENCE_AMOUNT_CURRENCY_WINDOW" : "RC_PARTIAL_AMOUNT"];
-  if (isLate(line)) codes.push("RC_LATE_STATEMENT");
-  if (line.source === "provider_settlement_report") codes.push("RC_PROVIDER_REPORT_ONLY");
+  if (isLate(tx, line)) codes.push("RC_LATE_STATEMENT");
+  if (line.source === "provider_settlement_report") {
+    // M1: a provider settlement report is provider-reported evidence only. It is recorded, never
+    // allocated, and never sets reconciliation "matched"; a later bank line allocates.
+    lineEvidence(tx, line, { intentId: intent.id, advanceId: intent.advanceId });
+    line.explanationCodes.push(...codes, "RC_PROVIDER_REPORT_ONLY");
+    if (intent.status.settlement === "none") {
+      intent.status.settlement = "observed";
+      intent.status.settlementScope = "provider_report";
+    }
+    tx.log("reconciliation.provider_report_recorded", "statement_line", line.id, `Provider settlement report for ${intent.id} recorded as provider-reported evidence; not allocated`);
+    return "recorded_provider_report";
+  }
   const evidenceId = lineEvidence(tx, line, { intentId: intent.id, advanceId: intent.advanceId });
   allocate(tx, line, { kind: "payment", intentId: intent.id }, line.amountMinor, codes);
   const full = line.amountMinor === remaining;
@@ -267,7 +294,7 @@ function reconcileIncoming(tx: Tx, line: StatementLine, tokens: string[]): strin
     return "exception_raised";
   }
   const codes: ReconciliationCode[] = ["RC_REPAYMENT_BY_REFERENCE", line.amountMinor === outstanding ? "RC_EXACT_REFERENCE_AMOUNT_CURRENCY_WINDOW" : "RC_PARTIAL_AMOUNT"];
-  if (isLate(line)) codes.push("RC_LATE_STATEMENT");
+  if (isLate(tx, line)) codes.push("RC_LATE_STATEMENT");
   const evidenceId = lineEvidence(tx, line, { advanceId: ob.advanceId, intentId: adv?.intentId });
   allocate(tx, line, { kind: "repayment", obligationId: ob.id }, line.amountMinor, codes);
   ws.repaymentAllocations.push({ id: tx.id("rpa"), obligationId: ob.id, statementLineId: line.id, amountMinor: line.amountMinor, currency: line.currency, matchedBy: "trusted_reference", evidenceId, at: tx.at });

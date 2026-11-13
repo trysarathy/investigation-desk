@@ -25,7 +25,7 @@ export const ENGINE_DISCLAIMER =
 export const getIntent = (ws: Workspace, id: string): PaymentIntent | undefined => ws.intents.find((i) => i.id === id);
 
 export const timelineFor = (ws: Workspace, intentId: string): ProviderEvent[] =>
-  ws.providerEvents.filter((e) => e.intentId === intentId).sort((a, b) => (a.receivedAt === b.receivedAt ? a.id.localeCompare(b.id) : a.receivedAt.localeCompare(b.receivedAt)));
+  ws.providerEvents.filter((e) => e.intentId === intentId).sort((a, b) => Date.parse(a.receivedAt) - Date.parse(b.receivedAt) || a.id.localeCompare(b.id));
 
 export function listExceptions(ws: Workspace, filter: { status?: ExceptionStatus | "unresolved"; category?: ExceptionCategory; intentId?: string } = {}): ReconciliationException[] {
   const rank = { critical: 0, high: 1, medium: 2, low: 3 } as const;
@@ -33,7 +33,7 @@ export function listExceptions(ws: Workspace, filter: { status?: ExceptionStatus
     .filter((e) => !filter.status || (filter.status === "unresolved" ? e.status !== "resolved" : e.status === filter.status))
     .filter((e) => !filter.category || e.category === filter.category)
     .filter((e) => !filter.intentId || e.intentId === filter.intentId)
-    .sort((a, b) => rank[a.severity] - rank[b.severity] || a.createdAt.localeCompare(b.createdAt));
+    .sort((a, b) => rank[a.severity] - rank[b.severity] || Date.parse(a.createdAt) - Date.parse(b.createdAt));
 }
 
 const f = (code: string, text: string, refs: string[] = []): Finding => ({ code, text, refs });
@@ -98,7 +98,12 @@ export function investigate(ws: Workspace, intentId: string): Result<Investigati
 
   // Financially outstanding
   const outstanding: InvestigationView["outstanding"] = [];
-  const matched = ws.allocations.filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id && !a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN")).reduce((t, a) => t + a.amountMinor, 0);
+  const chainMatched = ws.allocations.some((a) => a.evidenceKind === "chain_observation" && a.target.kind === "payment" && a.target.intentId === intent.id);
+  const matched = chainMatched
+    ? intent.amountMinor
+    : ws.allocations
+        .filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id && a.evidenceKind === "statement_line" && a.currency === intent.sourceCurrency && !a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN"))
+        .reduce((t, a) => t + a.amountMinor, 0);
   const money = (amountMinor: number) => ({ amountMinor, currency: intent.sourceCurrency });
   if (s.execution === "returned") {
     const returned = ws.allocations.filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id && a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN")).reduce((t, a) => t + a.amountMinor, 0);
@@ -138,11 +143,11 @@ export function investigate(ws: Workspace, intentId: string): Result<Investigati
   if (chain && chain.status !== "final" && chain.status !== "rejected_unsupported") add(next, f("NA_AWAIT_FINALITY", `Wait for ${chain.finalityThreshold - chain.confirmations} more confirmations.`, [chain.id]));
   if (!next.length) add(next, f("NA_NONE", "No action required."));
 
-  const lastProvider = [...providerEvents].sort((x, y) => x.receivedAt.localeCompare(y.receivedAt)).at(-1);
+  const lastProvider = [...providerEvents].sort((x, y) => Date.parse(x.receivedAt) - Date.parse(y.receivedAt)).at(-1);
   const independentTimes = [
     ...ws.evidence.filter((e) => e.intentId === intent.id && e.independent).map((e) => e.recordedAt),
     ...ws.chainObservations.filter((o) => o.intentId === intent.id && o.status !== "rejected_unsupported").map((o) => o.updatedAt),
-  ].sort();
+  ].sort((x, y) => Date.parse(x) - Date.parse(y));
   const lastIndependent = independentTimes.at(-1);
   return {
     ok: true,
@@ -201,12 +206,14 @@ export function exportCaseReport(ws: Workspace, caseId: string): Result<CaseRepo
     audit: ws.audit.filter((a) => a.entityId === c.id || a.entityId === c.intentId || exceptions.some((e) => e.id === a.entityId)),
   };
   const L: string[] = [];
+  // User-entered text is flattened to one line so it can never forge a report line.
+  const one = (t: string) => t.replace(/[\r\n\u2028\u2029]+/g, " ⏎ ");
   L.push(`CLEARLINE CASE REPORT — ${c.id}`, ENGINE_DISCLAIMER, `Generated (simulated clock): ${ws.asOf}`, `Title: ${c.title}`, `Status: ${c.status}   Owner: ${c.ownerId ?? "unassigned"}`, "");
   if (v) {
     L.push("REQUESTED", `  ${v.requested.internalReference} · ${formatMinor(v.requested.amount.amountMinor, v.requested.amount.currency)} → ${v.requested.destinationCurrency} · ${v.requested.beneficiaryName} (${v.requested.destinationCountry})`);
     L.push(`STATUS  execution=${v.status.execution}  settlement=${v.status.settlement} (${v.status.settlementScope})  reconciliation=${v.status.reconciliation}`);
     L.push(`PROVIDER  ${v.provider ? `${v.provider.providerName} · ${v.provider.routeId} · ${v.provider.providerPaymentId ?? "not submitted"}` : "none selected"}`);
-    const sec = (title: string, items: { code: string; text: string }[]) => { L.push(title); for (const i of items) L.push(`  [${i.code}] ${i.text}`); if (!items.length) L.push("  (none)"); };
+    const sec = (title: string, items: { code: string; text: string }[]) => { L.push(title); for (const i of items) L.push(`  [${i.code}] ${one(i.text)}`); if (!items.length) L.push("  (none)"); };
     sec("PROVIDER REPORTED", v.providerReported.findings);
     sec("INDEPENDENT EVIDENCE", v.independentEvidence);
     sec("UNKNOWN", v.unknowns);
@@ -218,9 +225,9 @@ export function exportCaseReport(ws: Workspace, caseId: string): Result<CaseRepo
   L.push("EXCEPTIONS");
   for (const e of exceptions) L.push(`  ${e.id} ${e.category} ${e.severity} ${e.status} [${e.explanationCode}] owner=${e.ownerId ?? "unassigned"}`);
   L.push("NOTES");
-  for (const n of c.notes) L.push(`  ${n.at} ${n.actorId}: ${n.text}`);
+  for (const n of c.notes) L.push(`  ${n.at} ${n.actorId}: ${one(n.text)}`);
   L.push("HISTORY");
-  for (const h of c.history) L.push(`  ${h.at} ${h.actorId} ${h.action}: ${h.detail}`);
+  for (const h of c.history) L.push(`  ${h.at} ${h.actorId} ${h.action}: ${one(h.detail)}`);
   return { ok: true, value: { json, text: L.join("\n") } };
 }
 
@@ -260,5 +267,5 @@ export function evidenceTimelineFor(ws: Workspace, intentId: string): EvidenceTi
   const v = investigate(ws, intent.id);
   if (v.ok) for (const u of v.value.unknowns)
     out.push({ id: "missing:" + u.code, at: ws.asOf, kind: "missing_evidence", title: u.text, source: "Clearline investigation rules", provenance: "engine_rule", independent: false, codes: [u.code], refs: u.refs });
-  return out.sort((a, b) => (a.at === b.at ? 0 : a.at < b.at ? -1 : 1));
+  return out.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
 }

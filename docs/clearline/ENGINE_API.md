@@ -1,5 +1,20 @@
 # Clearline sandbox engine — public API (for the console UI)
 
+> **CHANGE 3 (2026-11-13, code review docs/release/CODE_REVIEW.md + QA release findings):**
+> - **Chain evidence (B1/B2):** `ingest_chain_observation` returns `precondition_failed` unless the payout uses the Base Sepolia stablecoin route, pays out USDC, and is `submitted`, `in_transit` or `provider_reported_completed`. A wrong wallet (`CH_WALLET_NOT_BENEFICIARY`), wrong amount (`CH_AMOUNT_DIFFERS_FROM_QUOTE`), a tx hash already linked to another payout (`CH_TX_ALREADY_LINKED`, both payouts as `candidates`) or a second tx for one payout (`CH_SECOND_TX_FOR_PAYOUT`) raises `contradictory_evidence` and changes no status. Finality sets **settlement** only. Reconciliation becomes `matched` only through an allocation (`evidenceKind: "chain_observation"`) when the provider reported the same tx hash (`tx_hash` in its `payout.completed` payload). New helpers: `ProviderAdapter.expectedWallet?(intent)` and the `beneficiary_wallet` intent metadata override.
+> - **`ReconciliationAllocation.evidenceKind: "statement_line" | "chain_observation"`** (new, required). For a chain allocation, `statementLineId` holds the chain observation id.
+> - **Provider settlement reports (M1):** never allocated and never set reconciliation `matched`. They set settlement `observed / provider_report` (if nothing better) and add `RC_PROVIDER_REPORT_ONLY` to the line, which stays `unallocated`. Outcome: `recorded_provider_report`. A later bank line allocates and verifies.
+> - **Return lines (M2):** checked for currency, duplicates (`RC_DUPLICATE_SUSPECTED`) and over-amount (`RC_OVERPAYMENT`) before allocation.
+> - **Contradictions (M3/m3):** a `contradicted` settlement is never overwritten by later evidence; the evidence is stored and noted on the open exception (outcome `recorded_no_state_change`). Resolving `contradictory_evidence`, `unmatched_reconciliation`, `missing_payment_reference`, `beneficiary_mismatch` or `missing_statement` needs user-attached evidence other than `kind: "note"`. After any exception is resolved, the payout's settlement and reconciliation are **recomputed from recorded evidence** (audit action `intent.dimensions_recomputed`).
+> - **Time (M4/M5):** all stored instants are UTC `…Z`; comparisons and ordering use parsed instants. **Date-based rules use `Organization.timezone`** (Asia/Singapore in the sample): execution-date expiry, overdue advances, exception due dates, the reconciliation window and late-statement detection.
+> - **Malformed input (M6):** a correctly signed but malformed provider payload is refused with `invalid_field` (nothing recorded); a badly signed one is still recorded as `rejected_signature`. `parseWebhook` validates every field type. Chain observations are fully type-checked. The engine returns `invalid_field` instead of throwing on a damaged workspace.
+> - **Cancellation (M7):** `cancel_intent` is refused (`invalid_transition`) after submission, including `on_hold` and `awaiting_information`; a held payout ends through the reviewer.
+> - **Holds:** a provider `payout.in_transit` received while `on_hold` is recorded as the partner's release (hold `partner_release_reported`) and never leaves `on_hold` without the reviewer's release (QA finding). `request_more` after a partner release keeps `partner_release_reported` (m12).
+> - **Liquidity (M8):** an invalid `at` makes every row stale (never fresh). The v1 API answers 400 for an invalid `at`.
+> - **`parseWorkspace` (M9)** validates every element's structure and returns `invalid_field` with a field path (e.g. `intents[0].status.execution`). Stored workspaces without `evidenceKind`/`providerName` are migrated.
+> - **Legacy retired (M10):** `src/lib/clearline/core.ts` is removed; `/api/clearline/test/[action]` returns 410 pointing to `/api/clearline/test/v1`.
+> - **Minor:** idempotency keys such as `constructor`/`__proto__` work (own-property lookup, m1); `verifySandboxWebhook` rejects a non-finite clock (m2); an advance cannot fund a cancelled/expired/failed/returned payout and approval re-checks fresh liquidity (m4); one active intent per internal reference, corrections included (m6); text reports flatten line breaks in user text (QA).
+>
 > **CHANGE 2 (2026-11-13, console requests R1–R10 in UI_REQUESTS.md):**
 > - **R1** Sample ids are sequential and deterministic: `s1_success → pi_00001`, `s2_returned → pi_00027`, `s3_hold → pi_00060`, `s4_chain → pi_00090`, `s5_funding → pi_00119` (advance `adv_00121`). Use `scenarioIntentId(ws, key)` (alias `intentForScenario`) rather than hard-coding them; the ids change if the sample script changes.
 > - **R2** `evidenceTimelineFor(ws, intentId) → EvidenceTimelineEntry[]` gives one ordered timeline of intent, quotes, maker/checker, provider events (incl. rejected/duplicate/late/timer), statement lines, matching decisions, chain observations, attached evidence, hold decisions, exceptions and missing-evidence items. Each entry has `at, kind, title, source, provenance, independent, codes, refs`.
@@ -19,7 +34,7 @@
 > 4. `SampleScenario` type and `SAMPLE_SCENARIOS` exported. `SAMPLE_ACTORS` is `Actor[]`.
 
 **Status:** sandbox / test mode only. Fictional organisations, providers and amounts. No money movement, custody, keys, lending or compliance decisions.
-**Import:** `import { … } from "@/lib/clearline"` (file `src/lib/clearline/index.ts`). Do not import internal modules directly. The legacy prototype `src/lib/clearline/core.ts` stays for the existing console; it is not part of this API.
+**Import:** `import { … } from "@/lib/clearline"` (file `src/lib/clearline/index.ts`). Do not import internal modules directly. The legacy prototype `core.ts` has been **removed** (CHANGE 3).
 **Stability:** names and signatures below are stable. Any change is announced in a `CHANGE` note at the top of this file.
 
 ## Workspace model
@@ -42,7 +57,7 @@ applyAction(ws: Workspace, action: WorkspaceAction, ctx: { actorId: string; at: 
 // ActionResult = { ok: true; value: { workspace, audit, outcome, createdIds } } | { ok: false; error: { code, message, field?, entityId? } }
 ```
 
-Pure: never mutates `ws`, never reads the wall clock (`ctx.at` is the simulated instant — pass `ws.asOf` or later), never throws for business errors. Every successful action appends `AuditEvent`s.
+Pure: never mutates `ws`, never reads the wall clock, and **never throws** — business errors and malformed or damaged input both come back as typed errors (CHANGE 3). `ctx.at` is the simulated instant: any ISO-8601 offset is accepted and **stored as a UTC `…Z` instant**; it must not be earlier than `ws.asOf`. Every successful action appends `AuditEvent`s.
 
 | `action.type` | Payload | Who |
 |---|---|---|
@@ -51,11 +66,11 @@ Pure: never mutates `ws`, never reads the wall clock (`ctx.at` is the simulated 
 | `choose_route` | `intentId, quoteId` → creates a `PaymentInstruction` (maker = actor) | operator or approver |
 | `approve_instruction` / `reject_instruction` | `instructionId` (+`reason`) — checker must differ from maker | approver |
 | `submit_instruction` | `instructionId` | operator |
-| `cancel_intent` | `intentId, reason` | operator |
+| `cancel_intent` | `intentId, reason` — only while `created`, `quoted` or `approved`; never after submission (incl. `on_hold`) | operator or approver |
 | `simulate_provider_event` | `intentId, injection?: "none"\|"timeout"\|"duplicate"\|"out_of_order"\|"contradictory"\|"bad_signature"` | operator |
 | `ingest_webhook` | `delivery: { providerId, rawBody, signatureHeader }` | operator |
-| `ingest_statement_line` | `line: StatementLineInput` | operator |
-| `ingest_chain_observation` | `observation: ChainObservationInput` | operator |
+| `ingest_statement_line` | `line: StatementLineInput` — a `provider_settlement_report` line is recorded as provider-reported evidence only (never allocated or `matched`) | operator |
+| `ingest_chain_observation` | `observation: ChainObservationInput` — only for a submitted USDC payout on the Base Sepolia route, to the beneficiary's registered wallet, for the quoted amount (6 decimals) | operator |
 | `advance_clock` | `to` (ISO) — runs timeouts, overdue, quote expiry | any non-viewer |
 | `assign_owner` / `add_note` / `attach_evidence` / `resolve` / `reopen` | `target: {kind:"case"\|"exception", id}` | non-viewer |
 | `request_info` | `caseId, from, request` | non-viewer |
@@ -110,4 +125,4 @@ Error codes (`EngineErrorCode`): `invalid_amount, invalid_currency, currency_mis
 
 ## Test-mode HTTP API
 
-`/api/clearline/test/v1/*` exposes the same engine statelessly (send the `workspace` you hold, or omit it to use the sample). See `docs/clearline/openapi.yaml`. Legacy `/api/clearline/test/{intents,quotes,transitions,webhooks,payments,health}` is unchanged.
+`/api/clearline/test/v1/*` exposes the same engine statelessly (send the `workspace` you hold, or omit it to use the sample). See `docs/clearline/openapi.yaml`. The unversioned legacy endpoints `/api/clearline/test/{intents,quotes,transitions,webhooks,payments,health}` now return **410 Gone** with `error.replacement: "/api/clearline/test/v1"`.

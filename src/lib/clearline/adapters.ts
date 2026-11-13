@@ -2,10 +2,10 @@
  * Provider adapter contract + deterministic SandboxAdapter for three FICTIONAL providers.
  * No network calls, no keys, no real payouts. Every response is generated from the inputs.
  */
-import { BASE_SEPOLIA_CHAIN_ID, ALLOWLISTED_TOKENS } from "./chain";
-import { convertMinor } from "./money";
+import { BASE_SEPOLIA_CHAIN_ID, ALLOWLISTED_TOKENS, expectedBeneficiaryWallet } from "./chain";
+import { convertMinor, isCurrency } from "./money";
 import { sha256Hex } from "./sha256";
-import { addMinutes } from "./tx";
+import { addMinutes, isIsoInstant } from "./tx";
 import { signSandboxWebhook, sandboxWebhookSecret, verifySandboxWebhook, type WebhookVerification } from "./webhooks";
 import {
   QUOTE_LABEL,
@@ -23,6 +23,8 @@ import {
   type StatementLineInput,
   type Workspace,
 } from "./types";
+
+const syntheticTxHash = (ppid: string) => "0x" + sha256Hex("synthetic-tx:" + ppid);
 
 export interface ProviderCapabilities {
   providerId: string;
@@ -71,6 +73,8 @@ export interface ProviderAdapter {
   submit(instruction: PaymentInstruction, intent: PaymentIntent, at: string): Result<SubmitAck>;
   /** Normalised acknowledgement event for an accepted submission. */
   acknowledge(ack: SubmitAck): SandboxWebhookPayload;
+  /** Stablecoin routes: the beneficiary's registered (synthetic) wallet address. */
+  expectedWallet?(intent: PaymentIntent): string;
   /** Deterministic next status the provider would report (polling / simulation). */
   pollStatus(ws: Workspace, intent: PaymentIntent, instruction: PaymentInstruction, at: string): ScriptStep;
   /** Sign a webhook body the way this provider would (sandbox secret is public). */
@@ -290,7 +294,10 @@ export class SandboxAdapter implements ProviderAdapter {
         const obs = ws.chainObservations.find((o) => o.intentId === intent.id && o.status !== "rejected_unsupported");
         if (!obs) return { kind: "chain", observation: this.chainObservation(intent, ppid, quote?.estimatedRecipientMinor ?? 0, 0) };
       }
-      return { kind: "webhook", payload: { ...base, type: "payout.completed", amount_minor: instruction.amountMinor, currency: instruction.currency } };
+      return {
+        kind: "webhook",
+        payload: { ...base, type: "payout.completed", amount_minor: instruction.amountMinor, currency: instruction.currency, ...(chainRoute ? { tx_hash: syntheticTxHash(ppid) } : {}) },
+      };
     }
     if (exec === "on_hold") {
       const hold = ws.holds.find((h) => h.intentId === intent.id);
@@ -317,12 +324,16 @@ export class SandboxAdapter implements ProviderAdapter {
       network: token.network,
       tokenContract: token.contract,
       tokenSymbol: token.symbol,
-      txHash: "0x" + sha256Hex("synthetic-tx:" + ppid),
-      toAddress: "0x" + sha256Hex("synthetic-wallet:" + intent.beneficiaryRef).slice(0, 40),
+      txHash: syntheticTxHash(ppid),
+      toAddress: expectedBeneficiaryWallet(intent),
       amountMinor,
       blockNumber: 18_000_000 + parseInt(sha256Hex(ppid).slice(0, 4), 16),
       confirmations,
     };
+  }
+
+  expectedWallet(intent: PaymentIntent): string {
+    return expectedBeneficiaryWallet(intent);
   }
 
   signWebhook(rawBody: string, unixSeconds: number): string {
@@ -334,19 +345,34 @@ export class SandboxAdapter implements ProviderAdapter {
   }
 
   parseWebhook(rawBody: string): Result<SandboxWebhookPayload> {
+    const bad = (message: string, field: string): Result<SandboxWebhookPayload> => ({ ok: false, error: { code: "invalid_field", message, field } });
     let v: unknown;
     try {
       v = JSON.parse(rawBody);
     } catch {
-      return { ok: false, error: { code: "invalid_field", message: "Webhook body is not JSON.", field: "rawBody" } };
+      return bad("Webhook body is not JSON.", "rawBody");
     }
-    const p = v as Partial<SandboxWebhookPayload>;
+    if (!v || typeof v !== "object" || Array.isArray(v)) return bad("Webhook body must be a JSON object.", "rawBody");
+    const p = v as Record<string, unknown>;
     const types = ["payout.accepted", "payout.in_transit", "payout.completed", "payout.failed", "payout.returned", "payout.on_hold", "payout.information_requested", "payout.hold_released"];
-    if (!p || typeof p !== "object" || typeof p.id !== "string" || !types.includes(p.type as string) || typeof p.provider_payment_id !== "string" || !Number.isSafeInteger(p.sequence) || typeof p.occurred_at !== "string")
-      return { ok: false, error: { code: "invalid_field", message: "Webhook payload is missing required fields.", field: "rawBody" } };
-    if (p.amount_minor !== undefined && (!Number.isSafeInteger(p.amount_minor) || p.amount_minor <= 0))
-      return { ok: false, error: { code: "invalid_amount", message: "Webhook amount_minor must be a positive integer.", field: "amount_minor" } };
-    return { ok: true, value: p as SandboxWebhookPayload };
+    if (typeof p.id !== "string" || !/^[A-Za-z0-9_\-:.]{1,120}$/.test(p.id)) return bad("id must be a short identifier string.", "id");
+    if (typeof p.type !== "string" || !types.includes(p.type)) return bad("Unknown event type.", "type");
+    if (typeof p.provider_payment_id !== "string" || !/^[A-Za-z0-9_\-]{1,64}$/.test(p.provider_payment_id)) return bad("provider_payment_id must be a short identifier string.", "provider_payment_id");
+    if (typeof p.sequence !== "number" || !Number.isSafeInteger(p.sequence) || p.sequence < 1) return bad("sequence must be a positive integer.", "sequence");
+    if (!isIsoInstant(p.occurred_at)) return bad("occurred_at must be an ISO-8601 instant.", "occurred_at");
+    if (p.amount_minor !== undefined && (typeof p.amount_minor !== "number" || !Number.isSafeInteger(p.amount_minor) || p.amount_minor <= 0)) return bad("amount_minor must be a positive integer.", "amount_minor");
+    if (p.currency !== undefined && !isCurrency(p.currency)) return bad("currency must be a supported code.", "currency");
+    if (p.reason !== undefined && (typeof p.reason !== "string" || !Object.prototype.hasOwnProperty.call(ERRORS, p.reason))) return bad("reason must be a known provider code.", "reason");
+    if (p.requested_documents !== undefined && (!Array.isArray(p.requested_documents) || p.requested_documents.length < 1 || p.requested_documents.length > 10 || !p.requested_documents.every((d) => typeof d === "string" && d.length >= 2 && d.length <= 120 && !/[<>]/.test(d))))
+      return bad("requested_documents must be an array of 1–10 short document names.", "requested_documents");
+    if (p.tx_hash !== undefined && (typeof p.tx_hash !== "string" || !/^0x[0-9a-f]{64}$/.test(p.tx_hash))) return bad("tx_hash must be 0x + 64 lowercase hex.", "tx_hash");
+    const out: SandboxWebhookPayload = { id: p.id, type: p.type as SandboxWebhookPayload["type"], provider_payment_id: p.provider_payment_id, sequence: p.sequence, occurred_at: p.occurred_at };
+    if (p.amount_minor !== undefined) out.amount_minor = p.amount_minor as number;
+    if (p.currency !== undefined) out.currency = p.currency as CurrencyCode;
+    if (p.reason !== undefined) out.reason = p.reason as string;
+    if (p.requested_documents !== undefined) out.requested_documents = [...(p.requested_documents as string[])];
+    if (p.tx_hash !== undefined) out.tx_hash = p.tx_hash as string;
+    return { ok: true, value: out };
   }
 
   ingestStatementRow(row: { id: string; payment_id: string; amount_minor: number; currency: CurrencyCode; value_date: string; type: "payout" | "return" }): StatementLineInput {

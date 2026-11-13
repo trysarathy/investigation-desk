@@ -11,11 +11,12 @@ import { deriveAdvanceState, obligationOutstanding } from "./funding";
 import { computeLiquidity } from "./liquidity";
 import { isCurrency, validateAmountMinor } from "./money";
 import { reconcileLine } from "./reconciliation";
+import { recomputeDimensions } from "./derive";
 import { canTransitionExecution } from "./state";
 import {
   Abort,
   Tx,
-  dateOf,
+  toUtc,
   fail,
   isIsoDate,
   isIsoInstant,
@@ -60,7 +61,8 @@ export function applyAction(ws: Workspace, action: WorkspaceAction, ctx: ActionC
     return { ok: true, value: { workspace: tx.ws, audit: tx.audit, outcome, createdIds: tx.created } };
   } catch (e) {
     if (e instanceof Abort) return { ok: false, error: e.engineError };
-    throw e;
+    // M6/M9: the engine never throws to its caller; damaged or malformed data is a typed error.
+    return { ok: false, error: { code: "invalid_field", message: "The workspace or action is malformed and could not be processed. Reset to the sample if this persists." } };
   }
 }
 
@@ -79,10 +81,9 @@ function dispatch(tx: Tx, a: WorkspaceAction): string {
     case "ingest_chain_observation": {
       requireRole(tx, ["operator"]);
       const o = a.observation;
-      if (!o || typeof o !== "object") fail("invalid_field", "observation required.");
-      if (!tx.ws.intents.some((i) => i.id === o.intentId)) fail("not_found", "Intent not found.", { entityId: o.intentId });
       const problem = validateChainInput(o);
       if (problem) fail("invalid_field", problem);
+      if (!tx.ws.intents.some((i) => i.id === o.intentId)) fail("not_found", "Intent not found.", { entityId: o.intentId });
       return ingestChainObservation(tx, o);
     }
     case "advance_clock": return advanceClock(tx, a.to);
@@ -135,7 +136,8 @@ function createIntent(tx: Tx, input: CreateIntentInput): string {
   if (!input || typeof input !== "object") fail("invalid_field", "input required.");
   if (typeof input.idempotencyKey !== "string" || !KEY_RE.test(input.idempotencyKey)) fail("invalid_field", "idempotencyKey must be 8–80 characters [A-Za-z0-9_-:.].", { field: "idempotencyKey" });
   const fingerprint = stableStringify({ ...input, metadata: input.metadata ?? {}, sandboxOutcome: input.sandboxOutcome ?? "success" });
-  const prior = tx.ws.idempotency[input.idempotencyKey];
+  // m1: own-property lookup only, so keys like "constructor" never hit Object.prototype.
+  const prior = Object.prototype.hasOwnProperty.call(tx.ws.idempotency, input.idempotencyKey) ? tx.ws.idempotency[input.idempotencyKey] : undefined;
   if (prior) {
     if (prior.fingerprint !== fingerprint) fail("idempotency_conflict", "This idempotency key was already used with a different request body.", { field: "idempotencyKey", entityId: prior.intentId });
     tx.created.push(prior.intentId);
@@ -146,8 +148,9 @@ function createIntent(tx: Tx, input: CreateIntentInput): string {
   if (!isCurrency(input.sourceCurrency)) fail("invalid_currency", "Unsupported source currency.", { field: "sourceCurrency" });
   if (!isCurrency(input.destinationCurrency)) fail("invalid_currency", "Unsupported destination currency.", { field: "destinationCurrency" });
   if (typeof input.internalReference !== "string" || !REF_RE.test(input.internalReference)) fail("invalid_field", "internalReference must be 2–48 characters [A-Za-z0-9._-/].", { field: "internalReference" });
-  if (tx.ws.intents.some((i) => i.internalReference === input.internalReference && i.status.execution !== "cancelled" && i.correctsIntentId === undefined && input.correctsIntentId === undefined))
-    fail("invalid_field", "An active intent already uses this internal reference (duplicate intent). Use a correction intent or a new reference.", { field: "internalReference" });
+  // m6: one active intent per internal reference, corrections included.
+  if (tx.ws.intents.some((i) => i.internalReference === input.internalReference && !["cancelled", "expired", "failed", "returned"].includes(i.status.execution)))
+    fail("invalid_field", "An active intent already uses this internal reference (duplicate intent). Use a new reference.", { field: "internalReference" });
   if (!safeText(input.purpose)) fail("invalid_field", "purpose must be 2–120 plain characters.", { field: "purpose" });
   if (!safeText(input.beneficiaryName)) fail("invalid_field", "beneficiaryName must be 2–120 plain characters (fictional).", { field: "beneficiaryName" });
   if (typeof input.beneficiaryRef !== "string" || !/^[A-Za-z0-9_\-]{3,40}$/.test(input.beneficiaryRef)) fail("invalid_field", "beneficiaryRef must be an opaque 3–40 character reference, never bank details.", { field: "beneficiaryRef" });
@@ -187,7 +190,7 @@ function createIntent(tx: Tx, input: CreateIntentInput): string {
     updatedAt: tx.at,
   };
   tx.ws.intents.push(intent);
-  tx.ws.idempotency[input.idempotencyKey] = { intentId: intent.id, fingerprint };
+  Object.defineProperty(tx.ws.idempotency, input.idempotencyKey, { value: { intentId: intent.id, fingerprint }, enumerable: true, writable: true, configurable: true });
   tx.created.push(intent.id);
   tx.log("intent.created", "intent", intent.id, `${input.internalReference} · ${input.sourceCurrency}→${input.destinationCurrency}`);
   if (input.correctsIntentId) {
@@ -315,8 +318,10 @@ function cancelIntent(tx: Tx, intentId: string, reason: string): string {
   requireRole(tx, ["operator", "approver"]);
   const intent = intentById(tx, intentId);
   if (!safeNote(reason, 300)) fail("invalid_field", "A cancellation reason is required.", { field: "reason" });
-  if (["submitted", "in_transit", "provider_reported_completed"].includes(intent.status.execution))
-    fail("invalid_transition", "A submitted payout cannot be cancelled in Clearline; ask the provider.", { entityId: intent.id });
+  // M7: once submitted (including on_hold / awaiting_information) a payout ends only through the
+  // provider or, for a hold, the compliance reviewer's decision.
+  if (!["created", "quoted", "approved"].includes(intent.status.execution))
+    fail("invalid_transition", `A ${intent.status.execution} payout cannot be cancelled in Clearline; it was already submitted to the provider.`, { entityId: intent.id });
   transition(tx, intent, "cancelled", reason);
   return "applied";
 }
@@ -433,7 +438,7 @@ function ingestStatement(tx: Tx, input: StatementLineInput): string {
   if (input.receivedAt !== undefined && !isIsoInstant(input.receivedAt)) fail("invalid_field", "receivedAt must be ISO-8601.", { field: "receivedAt" });
   const dup = tx.ws.statementLines.find((l) => l.source === input.source && l.accountRef === input.accountRef && l.lineId === input.lineId);
   if (dup) fail("duplicate_statement_line", `Statement line ${input.lineId} was already ingested.`, { entityId: dup.id });
-  const line: StatementLine = { ...input, id: tx.id("stl"), receivedAt: input.receivedAt ?? tx.at, allocationIds: [], status: "unallocated", explanationCodes: [] };
+  const line: StatementLine = { ...input, id: tx.id("stl"), receivedAt: input.receivedAt !== undefined ? toUtc(input.receivedAt) : tx.at, allocationIds: [], status: "unallocated", explanationCodes: [] };
   tx.ws.statementLines.push(line);
   tx.created.push(line.id);
   tx.log("statement.ingested", "statement_line", line.id, `${input.source} ${input.direction} ${input.amountMinor} ${input.currency} ref "${input.reference}"`);
@@ -456,7 +461,7 @@ function advanceClock(tx: Tx, to: string): string {
   for (const q of ws.quotes) if (q.freshness === "fresh" && Date.parse(q.expiresAt) < Date.parse(now)) q.freshness = "expired";
   for (const intent of ws.intents) {
     const exec = intent.status.execution;
-    if (["created", "quoted", "approved"].includes(exec) && intent.requestedExecutionDate < dateOf(now)) {
+    if (["created", "quoted", "approved"].includes(exec) && intent.requestedExecutionDate < tx.orgDate(now)) {
       setExecution(tx, intent, "expired", "Requested execution date passed before submission");
       continue;
     }
@@ -464,7 +469,7 @@ function advanceClock(tx: Tx, to: string): string {
     const route = ws.routes.find((r) => r.id === instr?.routeId);
     const lastProvider = ws.providerEvents
       .filter((e) => e.intentId === intent.id && e.provenance !== "clearline_timer" && e.processingOutcome !== "rejected_signature")
-      .reduce((m, e) => (e.receivedAt > m ? e.receivedAt : m), instr?.submittedAt ?? "");
+      .reduce((m, e) => (!m || Date.parse(e.receivedAt) > Date.parse(m) ? e.receivedAt : m), instr?.submittedAt ?? "");
     if ((exec === "submitted" || exec === "in_transit") && lastProvider && route) {
       const limit = Math.max(route.etaMinutes * 2, TIMEOUT_MIN_MINUTES);
       if (minutesBetween(lastProvider, now) > limit)
@@ -489,7 +494,7 @@ function advanceClock(tx: Tx, to: string): string {
   }
   for (const ob of ws.obligations) {
     const out = obligationOutstanding(ws, ob.id);
-    if (out.amountMinor > 0 && dateOf(now) > ob.dueDate)
+    if (out.amountMinor > 0 && tx.orgDate(now) > ob.dueDate)
       openException(tx, {
         category: "overdue_advance",
         explanationCode: "FD_OUTSTANDING_AFTER_DUE_DATE",
@@ -613,6 +618,13 @@ function resolve(tx: Tx, t: TargetRef, note: string): string {
     r.e.history.push({ at: tx.at, actorId: tx.actorId, action: "resolved", detail: note });
     r.e.lastUpdatedAt = tx.at;
     tx.log("exception.resolved", "exception", r.e.id, note.slice(0, 80));
+    // M3/m3: after a person resolves an exception, re-derive the dimensions from recorded evidence.
+    const linked = r.e.intentId ? tx.ws.intents.find((i) => i.id === r.e.intentId) : undefined;
+    if (linked && linked.instructionId) {
+      const before = JSON.stringify(linked.status);
+      recomputeDimensions(tx.ws, linked);
+      if (JSON.stringify(linked.status) !== before) tx.log("intent.dimensions_recomputed", "intent", linked.id, `After resolving ${r.e.id}: ${JSON.stringify(linked.status)}`);
+    }
     return "applied";
   }
   const c = r.c;
@@ -710,7 +722,8 @@ function holdDecision(tx: Tx, holdId: string, decision: "release" | "reject" | "
     h.status = "rejected";
     transition(tx, intent, "cancelled", "Compliance reviewer declined to proceed with the held payout");
   } else {
-    h.status = "open";
+    // m12: keep the partner's release visible if it was already reported.
+    h.status = h.partnerReleaseReportedAt ? "partner_release_reported" : "open";
     h.requestedDocuments.push(reason);
     const c = ensureCase(tx, { intentId: h.intentId });
     c.requestedInfo.push({ id: tx.id("req"), at: tx.at, actorId: tx.actorId, from: "operations", request: reason, status: "open" });
@@ -728,6 +741,8 @@ function createAdvance(tx: Tx, input: CreateAdvanceInput): string {
   if (!input || typeof input !== "object") fail("invalid_field", "input required.");
   const intent = intentById(tx, input.intentId);
   if (intent.advanceId) fail("precondition_failed", "This payment already has an advance.", { entityId: intent.advanceId });
+  if (["cancelled", "expired", "failed", "returned"].includes(intent.status.execution))
+    fail("precondition_failed", `An advance cannot fund a ${intent.status.execution} payment.`, { entityId: intent.id });
   if (!safeText(input.customerRef, 2, 40) || !safeText(input.customerName) || !safeText(input.supplierName) || !safeText(input.invoiceRef, 2, 48))
     fail("invalid_field", "customerRef, customerName, supplierName and invoiceRef are required plain text.");
   if (!isIsoDate(input.dueDate)) fail("invalid_field", "dueDate must be YYYY-MM-DD.", { field: "dueDate" });
@@ -767,6 +782,13 @@ function decideAdvance(tx: Tx, advanceId: string, outcome: "approve" | "decline"
   if (!safeNote(reason, 300)) fail("invalid_field", "A decision reason is required.", { field: "reason" });
   if (outcome === "approve" && tx.ws.exceptions.some((e) => e.advanceId === adv.id && e.category === "funding_shortfall" && e.status !== "resolved"))
     fail("precondition_failed", "An open funding_shortfall exception blocks approval.", { entityId: adv.id });
+  if (outcome === "approve") {
+    // m4: re-check fresh liquidity at decision time (balances may have gone stale since preparation).
+    const funded = tx.ws.intents.find((i) => i.id === adv.intentId);
+    const ownCommitment = funded && ["approved", "submitted", "in_transit", "on_hold", "awaiting_information"].includes(funded.status.execution) ? funded.amountMinor : 0;
+    const usable = (computeLiquidity(tx.ws).currentUsableByCurrency[adv.currency] ?? 0) + ownCommitment;
+    if (usable < adv.principalMinor) fail("precondition_failed", "Fresh usable liquidity no longer covers this advance; stale balances are excluded.", { entityId: adv.id });
+  }
   const id = tx.id("fdec");
   tx.ws.fundingDecisions.push({ id, advanceId: adv.id, makerId: adv.preparedBy, checkerId: tx.actorId, outcome, reason, at: tx.at });
   adv.decisionId = id;
