@@ -32,7 +32,7 @@ export default function ContactForm(){
  <div className="hidden" aria-hidden="true"><input name="_gotcha" tabIndex={-1} autoComplete="off"/></div>
  <p className="text-xs leading-6 text-quiet">By submitting, you agree that Clearline may use your details to respond to this enquiry. See our <a href="/privacy" className="underline">privacy notice</a>.</p>
  {state==="failed"&&<div className="rounded bg-[#FFF1EE] p-3 text-sm text-brick" role="alert">{error}</div>}
- {!enabled&&<div className="rounded border border-[#E4D7BF] bg-[#FFF9ED] px-3 py-2 text-xs text-[#79541E]">Form not activated yet · Formspree ID required</div>}
+ {!enabled&&<div className="rounded border border-[#E4D7BF] bg-[#FFF9ED] px-3 py-3 text-xs leading-6 text-[#79541E]">The website form is being configured. To request a replay now, <a className="font-semibold underline underline-offset-2" href="mailto:aashmiin.k.2025@accountancy.smu.edu.sg?subject=Clearline%20five-case%20replay%20enquiry">email Clearline directly</a>. Do not attach confidential case records.</div>}
  <button disabled={state==="sending"||!enabled} type="submit" className="btn btn-primary w-fit">{state==="sending"?"Sending…":"Request a five-case replay"} <span aria-hidden="true">→</span></button>
  </form>;
 }
