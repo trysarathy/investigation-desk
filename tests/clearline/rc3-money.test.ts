@@ -43,7 +43,7 @@ describe("rc3 invariant 1: no floating point on money paths (static scan of src/
   });
   it("Number(...) is only used on an already bounds-checked BigInt result or on a webhook timestamp", () => {
     const uses = Object.entries(src).flatMap(([f, text]) => text.split("\n").filter((l) => /\bNumber\(/.test(l)).map((l) => `${f}: ${l.trim()}`));
-    for (const u of uses) expect(u).toMatch(/^(money\.ts: (return ok\(Number\((minor|out)\)\);|return Number\(\(BigInt\(amountMinor\) \* BigInt\(bps\)\) \/ 10_000n\);)|webhooks\.ts: const t = Number\(m\[1\]\);)$/);
+    for (const u of uses) expect(u).toMatch(/^(money\.ts: (return ok\(Number\((minor|out)\)\);|return Number\(\(BigInt\(amountMinor\) \* BigInt\(bps\)\) \/ 10_000n\);)|webhooks\.ts: const t = Number\(m\[1\]\);|scenarios\.ts: return m \? Number\(m\[1\]\) : Number\.MAX_SAFE_INTEGER;)$/);
   });
   it("decimal strings round-trip exactly, USDC at 6 decimals", () => {
     const p = parseAmount("6427.830000", "USDC");

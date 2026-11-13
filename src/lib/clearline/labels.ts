@@ -268,6 +268,15 @@ const RESOLUTION_CODE: Record<string, string> = {
   EVIDENCE_OUTSTANDING: "The payment is not yet evidenced by a matched statement line or a final on-chain transfer.",
   RESOLVABLE: "Can be resolved (a note is required).",
 };
+/** rc3: canResetScenario / resetScenario codes. */
+const RESET_CODE: Record<string, string> = {
+  RESETTABLE: "This guided case can be reset to the sample",
+  NOT_A_SAMPLE_SCENARIO: "Not one of the five guided sample cases",
+  SCENARIO_NOT_IN_WORKSPACE: "This workspace does not contain the sample case",
+  REFERENCED_BY_OTHER_RECORDS: "Other cases or your own records link to this case",
+  ID_CONFLICT: "The case's sample ids are used by other records",
+  REFERENCE_IN_USE: "One of your active payments uses this case's internal reference",
+};
 /** Quote eligibility codes (ProviderAdapter.eligibility). */
 const ELIGIBILITY_CODE: Record<string, string> = {
   ELIGIBLE: "Eligible route",
@@ -390,6 +399,7 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   MC_MAKER: "Prepared by the maker",
   MC_CHECKER: "Checked by a different person",
   ...Object.fromEntries(Object.entries(ELIGIBILITY_CODE)),
+  ...RESET_CODE,
 };
 
 const RETURN_STATUS: Record<NonNullable<PaymentIntent["returnStatus"]>, string> = {
@@ -426,6 +436,8 @@ export const HUMAN_LABELS = {
   apiErrorCode: API_ERROR_CODE,
   resolutionCode: RESOLUTION_CODE,
   eligibilityCode: ELIGIBILITY_CODE,
+  /** rc3: canResetScenario / resetScenario codes. */
+  resetCode: RESET_CODE,
   /** rc3 (R-1): PaymentIntent.returnStatus. */
   returnStatus: RETURN_STATUS,
 } as const;

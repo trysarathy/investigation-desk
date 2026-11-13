@@ -17,6 +17,9 @@ export { CURRENCIES, currencyDecimals, isCurrency, parseAmount, formatMoney, for
 export { sampleWorkspace, emptyWorkspace, SAMPLE_AS_OF, SAMPLE_ACTORS, SAMPLE_SCENARIOS, scenarioIntentId, intentForScenario } from "./sample";
 export type { SampleScenario } from "./sample";
 export { serializeWorkspace, parseWorkspace, parseWorkspaceValue, MAX_WORKSPACE_DEPTH } from "./serialize";
+// rc3: per-scenario reset of the five guided cases
+export { resetScenario, canResetScenario } from "./scenarios";
+export type { ResetCheck, ResetBlockCode, ResetScenarioOutput } from "./scenarios";
 
 // Validation helpers
 export { isIsoInstant, isIsoDate } from "./tx";
