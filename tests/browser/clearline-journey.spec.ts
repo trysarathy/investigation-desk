@@ -69,7 +69,7 @@ function axeSource(): string | null {
   return found ? readFileSync(found, "utf8") : null;
 }
 async function axeViolations(page: Page, axe: string): Promise<string[]> {
-  await page.addScriptTag({ content: axe });
+  await page.evaluate(axe); // evaluated over CDP: the nonce CSP (rc3) blocks injected inline <script> tags
   return page.evaluate(async () => {
     const r = await (window as unknown as { axe: { run: (o: unknown) => Promise<{ violations: { id: string; impact: string; nodes: unknown[] }[] }> } }).axe.run({ resultTypes: ["violations"] });
     return r.violations.map((x) => `${x.id} (${x.impact}, ${x.nodes.length})`);
@@ -616,6 +616,12 @@ test("step 19: a guided case resets on its own; other cases and your records sta
 
 test("a returned payout states both facts: net movement and beneficiary unpaid", async ({ page, request }) => {
   await open(page, `/clearline/payments/${await scenarioId(request, "s2_returned")}`);
+  const top = page.getByTestId("return-position-summary");
+  await expect(top).toContainText("Net movement: zero on the statement");
+  await expect(top).toContainText("Beneficiary paid: No");
+  await expect(top).toContainText("RT_NET_ZERO");
+  await expect(top).toContainText("The beneficiary was not paid.");
+  await expect(page.getByTestId("dim-settlement").locator('[data-api-value="contradicted"]')).toBeVisible();
   const rp = page.getByTestId("return-position");
   await expect(rp).toContainText("Net movement:");
   await expect(rp).toContainText("Beneficiary paid: No");
@@ -815,14 +821,21 @@ test("console boundary: Try again recovers without touching the saved workspace"
 
 test("console boundary: reset keeps a backup in its own slot, never over an earlier backup, and Settings can download it", async ({ page }) => {
   await armableProviderFailure(page);
-  await page.addInitScript(() => { try { if (!sessionStorage.getItem("seeded")) { localStorage.setItem("clearline.console.workspace.v1.unreadable-backup", "{earlier unreadable copy"); sessionStorage.setItem("seeded", "1"); } } catch { /* blocked */ } });
+  await page.addInitScript(() => { try { if (!sessionStorage.getItem("seeded")) {
+    localStorage.setItem("clearline.console.workspace.v1.unreadable-backup", "{earlier unreadable copy");
+    localStorage.setItem("clearline.console.workspace.v1.boundary-backup", "{earlier boundary backup");
+    sessionStorage.setItem("seeded", "1"); } } catch { /* blocked */ } });
   await crashConsole(page);
   const saved = await stored(page, MAIN_KEY);
   await page.getByRole("button", { name: "Reset saved workspace (keeps a backup)" }).click();
-  await expect(page.getByTestId("console-boundary").getByRole("status")).toContainText("clearline.console.workspace.v1.boundary-backup");
+  await expect(page.getByTestId("console-boundary").getByRole("status")).toContainText("clearline.console.workspace.v1.boundary-backup.");
   await expect(page).toHaveURL(/\/clearline$/, { timeout: 10_000 });
   await hydrated(page);
-  expect(await stored(page, "clearline.console.workspace.v1.boundary-backup")).toBe(saved);
+  // The slot was taken, so the new backup went next to it: both earlier backups are intact.
+  expect(await stored(page, "clearline.console.workspace.v1.boundary-backup")).toBe("{earlier boundary backup");
+  const newKey = await page.evaluate(() => Object.keys(localStorage).find((k) => k.startsWith("clearline.console.workspace.v1.boundary-backup.")));
+  expect(newKey).toBeTruthy();
+  expect(await stored(page, newKey!)).toBe(saved);
   expect(await stored(page, "clearline.console.workspace.v1.unreadable-backup")).toBe("{earlier unreadable copy");
   expect(await stored(page, MAIN_KEY)).toBeNull();
   await goNav(page, "Settings");
@@ -830,10 +843,10 @@ test("console boundary: reset keeps a backup in its own slot, never over an earl
   const list = page.getByTestId("backup-list");
   await expect(list).toContainText("Saved workspace removed after a console error");
   await expect(list).toContainText("Unreadable saved workspace");
-  const [dl] = await Promise.all([page.waitForEvent("download"), list.getByRole("button", { name: /^Download clearline\.console\.workspace\.v1\.boundary-backup$/ }).click()]);
+  const [dl] = await Promise.all([page.waitForEvent("download"), list.getByRole("button", { name: `Download ${newKey}` }).click()]);
   expect(readFileSync(await dl.path(), "utf8")).toBe(saved);
   // Restore puts it back (backing up the current workspace first).
-  await list.getByRole("button", { name: /^Restore clearline\.console\.workspace\.v1\.boundary-backup/ }).click();
+  await list.getByRole("button", { name: new RegExp(`^Restore ${newKey!.replace(/[.]/g, "\\.")}`) }).click();
   await expect(page).toHaveURL(/\/clearline\/settings#backups$/);
   await hydrated(page);
   expect(await stored(page, MAIN_KEY)).toBe(saved);
@@ -1028,7 +1041,7 @@ test("M1: a held payout whose bank debit is matched never shows green, and says 
   const intent = ws.intents.find((i: { scenario?: string }) => i.scenario === "s3_hold");
   const instr = ws.instructions.find((x: { intentId: string }) => x.intentId === intent.id);
   const r = await request.post(`${API}/reconciliation/statement-lines`, { headers: AUTH, data: { workspace: ws, line: {
-    lineId: "DBS-E2E-M1", source: "bank_statement", accountRef: "BANK-SGD-OPS (fictional)", direction: "debit", kind: "payment",
+    lineId: "SIMBANK-E2E-M1", source: "bank_statement", accountRef: "BANK-SGD-OPS (fictional)", direction: "debit", kind: "payment",
     amountMinor: intent.amountMinor, currency: intent.sourceCurrency, reference: `HARBOUR PAYOUT ${instr.providerPaymentId}`, counterparty: "Harbour FX (sandbox)", valueDate: "2026-11-12" } } });
   expect(r.ok()).toBe(true);
   ws = (await r.json()).workspace;

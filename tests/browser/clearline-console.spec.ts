@@ -535,7 +535,7 @@ test("returned payout with debit and confirmed return both allocated shows net z
   let ws = await sample(request);
   const { intent, instr } = pick(ws, "s2_returned");
   ws = await v1(request, "/reconciliation/statement-lines", { workspace: ws, line: {
-    lineId: "DBS-E2E-9001", source: "bank_statement", accountRef: "BANK-USD-OPS (fictional)", direction: "debit", kind: "payment",
+    lineId: "SIMBANK-E2E-9001", source: "bank_statement", accountRef: "BANK-USD-OPS (fictional)", direction: "debit", kind: "payment",
     amountMinor: intent.amountMinor, currency: intent.sourceCurrency, reference: `NORTHLINE PAYOUT ${instr.providerPaymentId}`, counterparty: "Northline Payments (sandbox)", valueDate: "2026-11-12" } });
   for (const e of ws.exceptions.filter((x) => x.intentId === intent.id && x.status !== "resolved")) {
     ws = await v1(request, `/exceptions/${e.id}/assign`, { workspace: ws, ownerId: "usr_maya" });
@@ -694,7 +694,7 @@ test("every console page has unique landmarks; axe finds no violations when axe-
     const dup = await duplicateLandmarks(page);
     expect(dup, `${path} duplicate landmarks`).toEqual([]);
     if (axe) {
-      await page.addScriptTag({ content: axe });
+      await page.evaluate(axe); // evaluated over CDP: the nonce CSP (rc3) blocks injected inline <script> tags
       const v = await page.evaluate(async () => {
         const r = await (window as unknown as { axe: { run: (o: unknown) => Promise<{ violations: { id: string; impact: string; nodes: unknown[] }[] }> } }).axe.run({ resultTypes: ["violations"] });
         return r.violations.map((x) => `${x.id} (${x.impact}, ${x.nodes.length})`);
@@ -750,7 +750,7 @@ test("Funding: an advance on a payout the partner holds says so next to settleme
   const { intent, instr } = pick(ws, "s3_hold");
   // C1: the bank debit for the held payout is matched, so settlement is verified, yet the partner holds the money.
   ws = await v1(request, "/reconciliation/statement-lines", { workspace: ws, line: {
-    lineId: "DBS-E2E-HOLD1", source: "bank_statement", accountRef: "BANK-SGD-OPS (fictional)", direction: "debit", kind: "payment",
+    lineId: "SIMBANK-E2E-HOLD1", source: "bank_statement", accountRef: "BANK-SGD-OPS (fictional)", direction: "debit", kind: "payment",
     amountMinor: intent.amountMinor, currency: intent.sourceCurrency, reference: `HARBOUR PAYOUT ${instr.providerPaymentId}`, counterparty: "Harbour FX (sandbox)", valueDate: "2026-11-12" } });
   expect((ws as unknown as { intents: { id: string; status: { execution: string; settlement: string } }[] }).intents.find((i) => i.id === intent.id)!.status).toMatchObject({ execution: "on_hold", settlement: "verified" });
   const r = await request.post(API + "/funding-advances", { headers: { ...AUTH, "X-Clearline-Actor": "usr_maya" }, data: { workspace: ws, input: {
