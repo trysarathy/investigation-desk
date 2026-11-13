@@ -6,7 +6,7 @@ import {
   type AmountDifference, type EvidenceTimelineEntry, type Finding, type InvestigationView, type ProcessingOutcome, type Workspace,
 } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
-import { EXECUTION, RECON, SETTLEMENT, ExecChip, ReconChip, SCOPE, SettleChip, RAIL, HoldChip, AdvChip, OutcomeChip, exceptionTitle } from "../labels";
+import { EXECUTION, RECON, settlementTone, ExecChip, ReconChip, SCOPE, SettleChip, RAIL, HoldChip, AdvChip, OutcomeChip, exceptionTitle } from "../labels";
 import { SimulateEvent } from "../SimulateEvent";
 import { TargetActions } from "../TargetActions";
 import { ActionButton, gateOf, useRun, type Gate } from "../Action";
@@ -189,8 +189,8 @@ export default function Investigation({ id }: { id: string }) {
             <p>{lastProvider ? <>Latest: {lastProvider.title} <span className={ui.sub}>{fmtTime(lastProvider.at)} · {lastProvider.source}</span></> : "The provider has not reported anything yet."}</p>
             <p className={ui.hint}>A provider report is a claim. It never proves settlement on its own.</p>
           </Truth>
-          <Truth testId="dim-settlement" title="Settlement evidence" question="What independent evidence establishes" tone={SETTLEMENT[st.settlement][1]}
-            value={<SettleChip v={st.settlement} showValue />}>
+          <Truth testId="dim-settlement" title="Settlement evidence" question="What independent evidence establishes" tone={settlementTone(st.settlement, st.execution)}
+            value={<SettleChip v={st.settlement} execution={st.execution} showValue />}>
             <p>Scope: {SCOPE[st.settlementScope]} <span className={ui.apiValue}>{st.settlementScope}</span></p>
             <p className={ui.hint}>{view.lastIndependentVerificationAt ? `Last independent evidence ${fmtTime(view.lastIndependentVerificationAt)}.` : "No bank statement line or final on-chain transfer yet."}{view.chain ? ` ${view.chain.confirmations} of ${view.chain.finalityThreshold} confirmations on ${view.chain.network}; an on-chain transfer is not a bank credit.` : ""}</p>
           </Truth>
@@ -205,7 +205,7 @@ export default function Investigation({ id }: { id: string }) {
       {/* C. Evidence timeline */}
       <Panel title={<><span className={ui.sectionLetter} aria-hidden="true">C</span>Evidence timeline</>} id="timeline">
         {tl.length === 0 ? <Empty>No evidence recorded yet.</Empty> : (
-          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Evidence timeline" data-testid="section-c">
+          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Evidence timeline (scrollable table)" data-testid="section-c">
             <table className={`${ui.table} ${ui.stack}`} data-testid="evidence-timeline">
               <caption className={ui.srOnly}>Every record about this payment, oldest first. Fictional sandbox data.</caption>
               <thead><tr><th scope="col">Time (SGT)</th><th scope="col">Source</th><th scope="col">Event</th><th scope="col">Processing outcome</th><th scope="col">Supporting reference</th><th scope="col">Why it matters</th></tr></thead>

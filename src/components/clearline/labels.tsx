@@ -110,7 +110,18 @@ const EVIDENCE_SHAPE: Record<SettlementEvidenceState, string> = { none: "○", o
 
 type V<T> = { v: T; showValue?: boolean };
 export const ExecChip = ({ v, showValue }: V<ExecutionState>) => chipFrom("execution", EXECUTION, v, "exec", { showValue });
-export const SettleChip = ({ v, showValue }: V<SettlementEvidenceState>) => chipFrom("settlement", SETTLEMENT, v, "evidence", { shape: EVIDENCE_SHAPE[v], solid: v === "verified" || v === "contradicted", showValue });
+/** Execution states after which "settled" must never look like success (defence in depth; the engine already prevents it). */
+export const NO_GREEN_SETTLEMENT: readonly ExecutionState[] = ["returned", "failed", "cancelled", "expired"];
+/** Tone for a settlement value, never green when the payout ended returned/failed/cancelled/expired. */
+export function settlementTone(v: SettlementEvidenceState, execution?: ExecutionState): Tone {
+  const t = SETTLEMENT[v]?.[1] ?? "neutral";
+  return t === "ok" && execution && NO_GREEN_SETTLEMENT.includes(execution) ? "warn" : t;
+}
+export const SettleChip = ({ v, showValue, execution }: V<SettlementEvidenceState> & { execution?: ExecutionState }) => {
+  const tone = settlementTone(v, execution);
+  const map: Map<SettlementEvidenceState> = tone === SETTLEMENT[v]?.[1] ? SETTLEMENT : { ...SETTLEMENT, [v]: [SETTLEMENT[v][0], tone] };
+  return chipFrom("settlement", map, v, "evidence", { shape: EVIDENCE_SHAPE[v], solid: v === "verified" || v === "contradicted", showValue });
+};
 /**
  * Reconciliation chip. A returned payout whose bank debit and statement-confirmed return are both
  * allocated is "matched" by the engine but nets to zero: the supplier is still unpaid (CHANGE 4, N2).

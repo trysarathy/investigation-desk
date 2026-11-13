@@ -43,7 +43,7 @@ export default function Overview() {
 
       <Panel title="Needs attention" id="attention" actions={<Link href="/clearline/exceptions">All exceptions</Link>}>
         {open.length === 0 ? <Empty>No open exceptions. New ones appear here when the engine raises them.</Empty> : (
-          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Needs attention">
+          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Needs attention (scrollable table)">
             <table className={`${ui.table} ${ui.stack}`}>
               <thead><tr><th>Exception</th><th>Severity</th><th>Status</th><th>Owner</th><th>Required action</th><th>Payment</th></tr></thead>
               <tbody>

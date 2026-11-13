@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { createRequire } from "node:module";
 import { join } from "node:path";
 
 /** Sample scenario intent ids come from the engine (via the v1 test API), never hard-coded. */
@@ -616,4 +617,133 @@ test("a link click is never swallowed: if client navigation stalls, the page loa
   await expect(page.getByTestId("cl-workspace")).toHaveAttribute("data-hydrated", "true");
   await expect(page.getByTestId("dim-execution")).toBeVisible();
   expect(blocked, "the soft navigation was attempted and blocked").toBeGreaterThan(0);
+});
+
+/* ---------- QA v2: overflow at tablet / small-laptop widths (L2) and unique landmarks + axe (L4) ---------- */
+const CONSOLE_PAGES = ["/clearline", "/clearline/payments", "s1_success", "s2_returned", "s3_hold", "s4_chain", "s5_funding",
+  "/clearline/investigations", "/clearline/exceptions", "/clearline/reconciliation", "/clearline/treasury", "/clearline/treasury/funding",
+  "/clearline/routes", "/clearline/routes/activity", "/clearline/routes/new", "/clearline/holds", "/clearline/reports",
+  "/clearline/docs", "/clearline/settings", "/clearline/trial"];
+const pathOf = async (request: APIRequestContext, p: string) => (p.startsWith("/") ? p : scenario(request, p));
+
+for (const width of [768, 1024]) {
+  test(`no horizontal page overflow on any console page at ${width}px`, async ({ page, request, isMobile }) => {
+    test.skip(isMobile, "viewport widths set explicitly; runs once");
+    await page.setViewportSize({ width, height: 900 });
+    for (const p of CONSOLE_PAGES) {
+      const path = await pathOf(request, p);
+      await open(page, path);
+      await noHorizontalOverflow(page, `${path} @${width}`);
+    }
+  });
+}
+
+/** Landmarks of the same role must have unique accessible names (axe landmark-unique), checked without dependencies. */
+async function duplicateLandmarks(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const nameOf = (el: Element) => {
+      const by = el.getAttribute("aria-labelledby");
+      if (by) return by.split(/\s+/).map((id) => document.getElementById(id)?.textContent?.trim() ?? "").join(" ").trim();
+      return (el.getAttribute("aria-label") ?? "").trim();
+    };
+    const roleOf = (el: Element): string | null => {
+      const r = el.getAttribute("role");
+      if (r) return ["region", "navigation", "main", "complementary", "banner", "contentinfo", "form", "search"].includes(r) ? r : null;
+      const t = el.tagName.toLowerCase();
+      if (t === "nav") return "navigation";
+      if (t === "main") return "main";
+      if (t === "aside") return "complementary";
+      if (t === "section") return nameOf(el) ? "region" : null;
+      if (t === "form") return nameOf(el) ? "form" : null;
+      if (t === "header" || t === "footer") return el.closest("main, section, article, aside, nav") ? null : t === "header" ? "banner" : "contentinfo";
+      return null;
+    };
+    const seen = new Map<string, number>();
+    for (const el of document.querySelectorAll("body *")) {
+      const r = roleOf(el);
+      if (!r) continue;
+      const style = getComputedStyle(el);
+      if (style.display === "none" || style.visibility === "hidden") continue;
+      const k = `${r}: "${nameOf(el)}"`;
+      seen.set(k, (seen.get(k) ?? 0) + 1);
+    }
+    return [...seen].filter(([, n]) => n > 1).map(([k, n]) => `${k} ×${n}`);
+  });
+}
+
+function axeSource(): string | null {
+  const req = createRequire(join(process.cwd(), "package.json"));
+  const candidates = [process.env.CLEARLINE_AXE_PATH];
+  try { candidates.push(req.resolve("axe-core/axe.min.js")); } catch { /* not installed in this repo */ }
+  const found = candidates.find((p) => p && existsSync(p));
+  return found ? readFileSync(found, "utf8") : null;
+}
+
+test("every console page has unique landmarks; axe finds no violations when axe-core is available", async ({ page, request }) => {
+  const axe = axeSource();
+  const report: string[] = [];
+  for (const p of CONSOLE_PAGES) {
+    const path = await pathOf(request, p);
+    await open(page, path);
+    const dup = await duplicateLandmarks(page);
+    expect(dup, `${path} duplicate landmarks`).toEqual([]);
+    if (axe) {
+      await page.addScriptTag({ content: axe });
+      const v = await page.evaluate(async () => {
+        const r = await (window as unknown as { axe: { run: (o: unknown) => Promise<{ violations: { id: string; impact: string; nodes: unknown[] }[] }> } }).axe.run({ resultTypes: ["violations"] });
+        return r.violations.map((x) => `${x.id} (${x.impact}, ${x.nodes.length})`);
+      });
+      if (v.length) report.push(`${path}: ${v.join(", ")}`);
+    }
+  }
+  expect(report, report.join("\n")).toEqual([]);
+  if (!axe) test.info().annotations.push({ type: "axe", description: "axe-core not installed; set CLEARLINE_AXE_PATH to run the full axe check. Landmark uniqueness was still checked." });
+});
+
+test("defence in depth: settlement `verified` is never green when execution is returned, failed, cancelled or expired", async ({ page, request }) => {
+  // The engine never produces this state; a hand-edited workspace does, so the console's own guard is what is tested.
+  const base = await sample(request) as unknown as { intents: { scenario?: string; status: Record<string, string> }[] };
+  const green = "rgb(20, 108, 67)"; // --cl-success
+  for (const exec of ["returned", "failed", "cancelled", "expired"]) {
+    const ws = JSON.parse(JSON.stringify(base));
+    const i = ws.intents.find((x: { scenario?: string }) => x.scenario === "s1_success");
+    i.status = { ...i.status, execution: exec, settlement: "verified", settlementScope: "bank_statement" };
+    await page.context().clearCookies();
+    await page.goto("/clearline");
+    await page.evaluate((t) => localStorage.setItem("clearline.console.workspace.v1", t), JSON.stringify(ws));
+    await open(page, `/clearline/payments/${(await scenario(request, "s1_success")).split("/").pop()}`);
+    await expect(page.getByTestId("workspace-discarded"), exec).toHaveCount(0);
+    const chip = page.getByTestId("dim-settlement").locator('[data-api-value="verified"] [title^="API value:"]');
+    await expect(chip, exec).toBeVisible();
+    expect(await chip.evaluate((e) => getComputedStyle(e).color), exec).not.toBe(green);
+    expect(await page.getByTestId("dim-settlement").evaluate((e) => getComputedStyle(e).borderTopColor), exec).not.toBe(green);
+    await open(page, "/clearline/payments");
+    const row = page.locator('#payments [data-api-value="verified"] [title^="API value:"]').first();
+    expect(await row.evaluate((e) => getComputedStyle(e).color), `${exec} list`).not.toBe(green);
+  }
+  // Control: a normal verified payment is green.
+  await page.evaluate(() => localStorage.removeItem("clearline.console.workspace.v1"));
+  await open(page, await scenario(request, "s1_success"));
+  expect(await page.getByTestId("dim-settlement").locator('[data-api-value="verified"] [title^="API value:"]').evaluate((e) => getComputedStyle(e).color)).toBe(green);
+});
+
+test("Funding: an advance on a payout the partner holds says so next to settlement, with a link to the hold", async ({ page, request }) => {
+  let ws = await sample(request);
+  const { intent } = pick(ws, "s3_hold");
+  const r = await request.post(API + "/funding-advances", { headers: { ...AUTH, "X-Clearline-Actor": "usr_maya" }, data: { workspace: ws, input: {
+    intentId: intent.id, customerRef: "CUST-E2E-HOLD", customerName: "Hold Customer (fictional)", supplierName: "Hold Supplier (fictional)",
+    invoiceRef: "INV-E2E-HOLD", dueDate: "2026-12-20", repaymentReference: "RPY-E2E-HOLD1" } } });
+  const j = await r.json();
+  expect(r.ok(), JSON.stringify(j.error)).toBe(true);
+  ws = j.workspace;
+  const advanceId = (j.createdIds ?? j.value?.createdIds ?? [])[0] ?? (ws as unknown as { advances: { id: string; intentId: string }[] }).advances.find((a) => a.intentId === intent.id)!.id;
+  const d = await request.post(`${API}/funding-advances/${advanceId}/decision`, { headers: { ...AUTH, "X-Clearline-Actor": "usr_daniel" }, data: { workspace: ws, outcome: "approve", reason: "Within limit (fictional review)." } });
+  if (d.ok()) ws = (await d.json()).workspace;
+  await load(page, ws, "/clearline/treasury/funding");
+  const held = page.locator(`[id="${advanceId}"]`).getByTestId("supplier-payout-hold");
+  await expect(held).toContainText("Partner holds the payout — supplier not paid");
+  await expect(held.getByRole("link", { name: "Open the hold" })).toHaveAttribute("href", /^\/clearline\/holds#hold_/);
+  await expect(page.locator(`[id="${advanceId}"]`).getByTestId("supplier-paid-basis")).toContainText("none");
+  // Only the held payout's advance carries the notice; the sample's own advance is not held.
+  await expect(page.getByTestId("supplier-payout-hold")).toHaveCount(1);
 });

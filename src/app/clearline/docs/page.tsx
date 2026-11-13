@@ -261,7 +261,7 @@ if (!result.valid) return new Response(result.reason, { status: 401 });
       <Panel title="Errors" id="errors">
         <Body>
           <P>Shape: <code className={ui.code}>{'{ "error": { "code", "message", "help", "field?", "entityId?" } }'}</code>.</P>
-          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Error code catalogue">
+          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Error code catalogue (scrollable table)">
             <table className={ui.table}>
               <caption className={ui.hint} style={{ captionSide: "bottom", textAlign: "left", padding: "6px 10px" }}>Error codes and HTTP statuses, from the v1 route handler.</caption>
               <thead><tr><th scope="col">code</th><th scope="col" className={ui.r}>HTTP</th><th scope="col">Meaning</th></tr></thead>
@@ -275,7 +275,7 @@ if (!result.valid) return new Response(result.reason, { status: 401 });
       </Panel>
 
       <Panel title="Endpoints" id="endpoints">
-        <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Endpoint index">
+        <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Endpoint index (scrollable table)">
           <table className={ui.table}>
             <caption className={ui.hint} style={{ captionSide: "bottom", textAlign: "left", padding: "6px 10px" }}>All paths are under /api/clearline/test/v1. Full schemas: <a href="/clearline/docs/openapi.yaml">openapi.yaml</a>.</caption>
             <thead><tr><th scope="col">Method</th><th scope="col">Path</th><th scope="col">Purpose</th></tr></thead>

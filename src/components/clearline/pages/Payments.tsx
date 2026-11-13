@@ -33,7 +33,7 @@ export default function Payments() {
       )}
       <Panel title={`${rows.length} payment${rows.length === 1 ? "" : "s"}`} id="payments">
         {rows.length === 0 ? <Empty>No payments match. <Link href="/clearline/routes/new">Create a payment intent</Link> or <Link href="/clearline/settings">reset to the sample workspace</Link>.</Empty> : (
-          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Payments">
+          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Payments (scrollable table)">
             <table className={`${ui.table} ${ui.stack}`}>
               <thead><tr><th>Payment</th><th>Beneficiary</th><th className={ui.r}>Amount</th><th>Provider / rail</th><th>Execution</th><th>Settlement evidence</th><th>Reconciliation</th><th>Open exceptions</th></tr></thead>
               <tbody>
@@ -48,7 +48,7 @@ export default function Payments() {
                       <td data-label="Amount" className={`${ui.r} ${ui.num}`}>{formatMoney({ amountMinor: i.amountMinor, currency: i.sourceCurrency })}</td>
                       <td data-label="Provider / rail">{q ? q.providerName : "Not chosen"}<span className={ui.sub}>{q ? RAIL[q.rail] : "—"}{pp ? ` · ${pp}` : ""}</span></td>
                       <td data-label="Execution"><ExecChip v={i.status.execution} /></td>
-                      <td data-label="Settlement evidence"><SettleChip v={i.status.settlement} /><span className={ui.sub}>{SCOPE[i.status.settlementScope]}</span></td>
+                      <td data-label="Settlement evidence"><SettleChip v={i.status.settlement} execution={i.status.execution} /><span className={ui.sub}>{SCOPE[i.status.settlementScope]}</span></td>
                       <td data-label="Reconciliation"><ReconChip v={i.status.reconciliation} returnStatus={i.returnStatus} /></td>
                       <td data-label="Open exceptions" className={ui.num}>{ex > 0 ? <Link href={`/clearline/exceptions?intent=${i.id}`}>{ex}</Link> : "0"}</td>
                     </tr>

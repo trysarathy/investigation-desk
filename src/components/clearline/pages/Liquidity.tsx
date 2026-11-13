@@ -24,7 +24,7 @@ export default function Liquidity() {
         </div>
       </Panel>
       <Panel title="Provider balances" id="balances">
-        <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Provider balances">
+        <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Provider balances (scrollable table)">
           <table className={`${ui.table} ${ui.stack}`}>
             <thead><tr><th>Provider / account</th><th>Source and as-of</th><th className={ui.r}>Reported eligible</th><th className={ui.r}>Restricted</th><th className={ui.r}>Safeguarded</th><th className={ui.r}>Committed payouts</th><th className={ui.r}>Buffer</th><th className={ui.r}>Usable</th><th>Freshness</th></tr></thead>
             <tbody>

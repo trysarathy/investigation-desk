@@ -140,7 +140,7 @@ export default function Connect() {
 
       {intent && quotes.length > 0 && (
         <Panel title="Compare routes" id="routes" actions={<Chip tone="warn">{QUOTE_LABEL}</Chip>}>
-          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Route comparison">
+          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Route comparison (scrollable table)">
             <table className={`${ui.table} ${ui.stack}`}>
               <thead><tr><th>Provider</th><th>Rail</th><th className={ui.r}>Indicative rate</th><th className={ui.r}>Fees</th><th className={ui.r}>Est. recipient</th><th>ETA</th><th>Eligibility</th><th>Freshness</th><th><span className={ui.srOnly}>Action</span></th></tr></thead>
               <tbody>
@@ -207,7 +207,7 @@ export default function Connect() {
 
       <Panel title="Intents in progress" id="inflight">
         {inFlight.length === 0 ? <Empty>No intents waiting on a step.</Empty> : (
-          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Intents in progress">
+          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Intents in progress (scrollable table)">
             <table className={`${ui.table} ${ui.stack}`}>
               <thead><tr><th>Intent</th><th>Execution</th><th className={ui.r}>Amount</th><th>Idempotency key</th><th><span className={ui.srOnly}>Action</span></th></tr></thead>
               <tbody>{inFlight.map((i) => (

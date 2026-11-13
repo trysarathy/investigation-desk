@@ -31,7 +31,7 @@ export default function Exceptions() {
       </nav>
       {rows.length > 0 && (
         <Panel title={`Queue — ${rows.length} exception${rows.length === 1 ? "" : "s"}`} id="queue">
-          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Exceptions queue">
+          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Exceptions queue (scrollable table)">
             <table className={`${ui.table} ${ui.stack}`}>
               <thead><tr><th>Category</th><th>Severity</th><th>Status</th><th>Owner</th><th>Due</th><th className={ui.r}>Impact</th><th>Required action</th></tr></thead>
               <tbody>

@@ -83,7 +83,7 @@ export default function Reconciliation() {
       </nav>
       <Panel title={`Statement lines (${lines.length})`} id="lines">
         {lines.length === 0 ? <Empty>No statement lines in this view. Ingest a sample line below.</Empty> : (
-          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Statement lines">
+          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Statement lines (scrollable table)">
             <table className={`${ui.table} ${ui.stack}`}>
               <thead><tr><th>Line</th><th>Source</th><th>Direction</th><th className={ui.r}>Amount</th><th>Reference</th><th>Value date</th><th>Status</th><th>Explanation</th><th>Allocated to</th></tr></thead>
               <tbody>{lines.map((l) => {

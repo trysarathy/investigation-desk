@@ -19,7 +19,7 @@ export default function Reports() {
       <p className={ui.hint}>{ENGINE_DISCLAIMER}</p>
       <Panel title="Case reports" id="cases">
         {ws.cases.length === 0 ? <Empty>No cases to export.</Empty> : (
-          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Case reports">
+          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Case reports (scrollable table)">
             <table className={`${ui.table} ${ui.stack}`}>
               <thead><tr><th>Case</th><th>Status</th><th>Payment</th><th><span className={ui.srOnly}>Export</span></th></tr></thead>
               <tbody>{ws.cases.map((c) => (
@@ -36,7 +36,7 @@ export default function Reports() {
       </Panel>
       <Panel title={`Evidence register (${ws.evidence.length})`} id="evidence">
         {ws.evidence.length === 0 ? <Empty>No evidence recorded.</Empty> : (
-          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Evidence register">
+          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Evidence register (scrollable table)">
             <table className={`${ui.table} ${ui.stack}`}>
               <thead><tr><th>Recorded</th><th>Evidence</th><th>Source</th><th>Independent</th><th>Linked to</th></tr></thead>
               <tbody>{[...ws.evidence].reverse().map((e) => (
@@ -54,7 +54,7 @@ export default function Reports() {
       </Panel>
       <Panel title={`Audit log (${ws.audit.length})`} id="audit">
         {ws.audit.length === 0 ? <Empty>No audit events.</Empty> : (
-          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Audit log">
+          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Audit log (scrollable table)">
             <table className={`${ui.table} ${ui.stack}`}>
               <thead><tr><th>At</th><th>Actor</th><th>Action</th><th>Summary</th></tr></thead>
               <tbody>{[...ws.audit].reverse().slice(0, 200).map((a) => (

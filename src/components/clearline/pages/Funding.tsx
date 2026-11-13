@@ -2,8 +2,8 @@
 import Link from "../Link";
 import { FUNDING_PROJECTION_LABEL, formatMinor, formatMoney, fundingProjection, type CurrencyCode } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
-import { AdvChip, ExcChip, ExecChip, SettleChip, human, exceptionTitle } from "../labels";
-import { Code, Dl, Empty, Notice, PageHead, Panel, fmtDate, fmtTime, ui } from "../ui";
+import { AdvChip, ExcChip, ExecChip, HoldChip, SettleChip, human, exceptionTitle } from "../labels";
+import { Chip, Code, Dl, Empty, Notice, PageHead, Panel, fmtDate, fmtTime, ui } from "../ui";
 
 const BASIS: Record<"none" | "provider_reported" | "verified_settlement", string> = {
   none: "No report that the supplier was paid",
@@ -39,7 +39,13 @@ export default function Funding() {
               <div style={{ marginTop: 14 }}>
                 <Dl items={[
                   ["Supplier / invoice", <>{r.supplierName} · {r.invoiceRef}</>],
-                  ["Supplier payout", <><Link href={`/clearline/payments/${r.intentId}`} className="mono">{r.intentId}</Link><br /><ExecChip v={r.supplierPayout.execution} /> <SettleChip v={r.supplierPayout.settlement} /></>],
+                  ["Supplier payout", <><Link href={`/clearline/payments/${r.intentId}`} className="mono">{r.intentId}</Link><br /><ExecChip v={r.supplierPayout.execution} /> <SettleChip v={r.supplierPayout.settlement} execution={r.supplierPayout.execution} />
+                    {r.supplierPayout.onHold && (
+                      <span style={{ display: "block", marginTop: 4 }} data-testid="supplier-payout-hold">
+                        <Chip tone="warn" title="API value: supplierPayout.onHold true">Partner holds the payout — supplier not paid</Chip>{" "}
+                        {r.supplierPayout.hold && <><HoldChip v={r.supplierPayout.hold.status} /> <Link href={`/clearline/holds#${r.supplierPayout.hold.id}`}>Open the hold</Link></>}
+                      </span>
+                    )}</>],
                   ["Supplier paid — basis", <span key="b" data-testid="supplier-paid-basis">{BASIS[r.supplierPaidBasis]} <span className={ui.apiValue}>{r.supplierPaidBasis}</span></span>],
                   ["Treasury approval", r.treasuryApproval ? <>{human(r.treasuryApproval.outcome)} — maker {actorName(r.treasuryApproval.makerId)}, checker {actorName(r.treasuryApproval.checkerId)} · {fmtTime(r.treasuryApproval.at)}</> : "Not decided"],
                   ["Repayment reference", r.obligation ? <Code>{r.obligation.reference}</Code> : "—"],
@@ -49,7 +55,7 @@ export default function Funding() {
             </div>
             <div className={ui.panelHead} style={{ borderTop: "1px solid var(--cl-line)" }}><h3>Repayments allocated (evidence)</h3></div>
             {r.allocations.length === 0 ? <Empty>No repayments allocated yet.</Empty> : (
-              <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Repayments allocated">
+              <div className={ui.tableWrap} role="region" tabIndex={0} aria-label={`Repayments allocated to ${r.advanceId} (scrollable table)`}>
                 <table className={`${ui.table} ${ui.stack}`}>
                   <thead><tr><th>Allocated</th><th>Statement line</th><th className={ui.r}>Amount</th><th>Matched by</th><th>Evidence</th></tr></thead>
                   <tbody>{r.allocations.map((a) => (
