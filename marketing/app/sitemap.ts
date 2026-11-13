@@ -1,6 +1,6 @@
-import type {MetadataRoute} from "next";
+import type { MetadataRoute } from "next";
+import { ROUTES, SITE_URL } from "@/lib/site";
 export const dynamic = "force-static";
-export default function sitemap():MetadataRoute.Sitemap{
- const site=process.env.NEXT_PUBLIC_SITE_URL?.startsWith("https://")?process.env.NEXT_PUBLIC_SITE_URL:"https://clearline.example";
- return ["","/replay","/onchain","/privacy"].map((route)=>({url:site+route,changeFrequency:"monthly" as const,priority:route?0.65:1}));
+export default function sitemap(): MetadataRoute.Sitemap {
+  return ROUTES.map(r => ({ url: SITE_URL + r.path, changeFrequency: "monthly" as const, priority: r.path === "/" ? 1 : 0.7 }));
 }

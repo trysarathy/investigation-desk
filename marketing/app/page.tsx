@@ -1,50 +1,116 @@
 import Link from "next/link";
 import PaymentPreview from "@/components/PaymentPreview";
-import {PRODUCT_DEMO,DEMO,EMAIL,LINKEDIN,Tag,ButtonLink,ContactCTA} from "@/components/Shared";
-const questions=[
-["What is Clearline?","A proposed coordination and operations layer for cross-border payments. Connect handles the instruction workflow; Control follows the payment record and related financial operations."],
-["Does it execute payments?","Not today. The public sandbox uses fictional providers and simulated payment events. Live execution would require appropriately authorised partners and further legal and security review."],
-["What actually works?","The sandbox demonstrates payment intents, quotes, state changes and investigation views. A separate Funding Desk demonstrates advance reviews, approvals and repayment tracking with fictional data."],
-["Who is it for?","We're speaking with cross-border payment providers and teams responsible for treasury, finance and payment operations. The specific customer and paid product are still being validated."],
-["How do I try it?","Open the fictional sandbox, explore the four payment outcomes, then tell us where your team's actual workflow breaks down. We can discuss a small, carefully scoped historical case replay."],
-["Is Onchain available?","No live Onchain payment service is available. Safe payout proposals, hash anchoring and stablecoin repayment checks are in development and labeled as such."],
-["What does it cost?","There isn't a public price list. Any future pilot scope and commercial terms would be agreed with each provider."]
+import { ButtonLink, ContactBand, ExtLink, Section, Stage } from "@/components/Shared";
+import { EMAIL, TRIAL_URL, mailto } from "@/lib/site";
+import { pageMeta } from "@/lib/meta";
+
+export const metadata = pageMeta(
+  "Money moves. Context gets lost.",
+  "Clearline is building the coordination and financial operations layer for cross-border payments. One place to follow payment instructions, provider updates, reconciliation and exceptions. Try the fictional-data sandbox.",
+  "/",
+);
+
+const useCases = [
+  ["Payment investigation", "A payout was returned or held. Find what was reported, by whom, and who acts next."],
+  ["Settlement reconciliation", "Tie provider reports and statements to payment references, not amounts alone."],
+  ["Provider orchestration", "Compare eligible routes, record the approval, follow one status model across providers."],
+  ["Funding exposure", "Track what is still owed after a supplier is paid before the customer repays."],
 ];
-export default function Home(){return <main id="main">
-<section className="studio-hero">
- <div className="container-site">
-  <div className="hero-topline"><span>FINANCIAL INFRASTRUCTURE / SINGAPORE</span><span>EARLY PRODUCT · PUBLIC SANDBOX</span></div>
-  <div className="hero-layout">
-   <div className="hero-copy"><span className="hero-index">01 — THE IDEA</span>
-    <h1>Money moves.<br/><em>Context gets lost.</em></h1>
-    <p className="hero-lede">A payout can cross several providers. Getting a straight answer about it shouldn't require five dashboards and a long email thread.</p>
-    <p className="hero-explain">I'm building Clearline to bring payment instructions, provider updates and financial operations into one place—so the people responsible can see what happened and what needs doing.</p>
-    <div className="hero-actions"><ButtonLink href={PRODUCT_DEMO} external>Open the test-mode product</ButtonLink><Link href="/replay" className="hero-link">Talk through a real problem <span aria-hidden="true">↗</span></Link></div>
-   </div>
-   <div className="hero-art"><div className="hero-diagram-label"><span>FIELD NOTE / 001</span><span>NO ACTUAL PAYMENT DATA</span></div><div className="hero-diagram"><div className="diagram-node"><span>01</span><b>Instruction</b><small>What was requested?</small></div><div className="diagram-connector">↘</div><div className="diagram-node diagram-node-emphasis"><span>02</span><b>Provider</b><small>What was reported?</small></div><div className="diagram-connector">↘</div><div className="diagram-node"><span>03</span><b>Evidence</b><small>What can we prove?</small></div></div><div className="hero-art-bottom">A SINGLE RECORD, NOT THREE DIFFERENT STORIES <span>↓</span></div></div>
-  </div>
-  <div className="hero-footer"><span>CONNECT / CONTROL / FUNDING DESK</span><span>Scroll to explore <span aria-hidden="true">↓</span></span></div>
- </div>
-</section>
-<section className="statement-strip"><div className="container-site"><div><span className="section-number">THE PROBLEM</span><p>The payment has a status.<br/><strong>The business still needs an answer.</strong></p></div><a href="#example" className="text-sm font-semibold">See the example ↘</a></div></section>
-<section id="example" className="example-section"><div className="container-site"><div className="section-kicker"><span>02 / INSIDE A PAYMENT</span><span>INTERACTIVE EXAMPLE · FICTIONAL DATA</span></div>
- <div className="example-grid"><div><h2 className="editorial-title">Not another <em>status page.</em></h2><p className="editorial-body">A payment can be submitted, delayed, returned or held. Each outcome requires different evidence and a different next action.</p><p className="editorial-body">Select a case to see the kind of answer Clearline is being designed to give an operator.</p><div className="example-aside"><span>WHY THIS MATTERS</span><p>“Completed” is a provider report. It is not automatically proof of final beneficiary receipt.</p></div></div><PaymentPreview/></div>
- <div className="example-caption"><span>AN INTERACTIVE PRODUCT EXAMPLE, NOT AN ACTUAL CUSTOMER RECORD</span><a href={PRODUCT_DEMO} target="_blank" rel="noreferrer">Try the full sandbox ↗</a></div></div></section>
-<section id="platform" className="product-section"><div className="container-site"><div className="section-kicker"><span>03 / WHAT WE'RE BUILDING</span><span>TWO PARTS · ONE PAYMENT STORY</span></div>
- <div className="product-intro"><h2 className="editorial-title">One layer to move the instruction.<br/><em>One to understand the outcome.</em></h2><p>Clearline is not trying to become the bank or the payment rail. It is being built as software between the teams using those rails and the partners operating them.</p></div>
- <div className="product-row"><div className="product-row-heading"><span>01 / API</span><h3>Connect<span className="accent-period">.</span></h3><p>The instruction side.</p></div><div className="product-row-copy"><h4>One way to work with different payment routes.</h4><p>Create payment intents, compare eligible sandbox routes, record approvals and follow a common payment-state model across provider events.</p><div className="product-detail"><span>INTENT</span><span>QUOTE</span><span>ROUTE</span><span>INSTRUCTION</span><span>STATUS</span></div><small>Today's demo: synthetic provider quotes and test API. No live partner execution.</small></div></div>
- <div className="product-row"><div className="product-row-heading"><span>02 / OPERATIONS</span><h3>Control<span className="accent-period">.</span></h3><p>The evidence side.</p></div><div className="product-row-copy"><h4>Understand what happened after submission.</h4><p>Reconcile records, see liquidity constraints, investigate exceptions, document holds and track the funding exposure that can remain after a supplier is paid.</p><div className="product-detail"><span>RECONCILE</span><span>LIQUIDITY</span><span>HOLDS</span><span>EVIDENCE</span><span>NEXT ACTION</span></div><small>Today's demo: fictional Control views. Funding Desk remains a separate module.</small></div></div>
- </div></section>
-<section id="how-it-works" className="process-section"><div className="container-site"><div className="section-kicker"><span>04 / HOW THE RECORD WORKS</span><span>THE PAYMENT PAGE IS THE CENTRE</span></div>
- <div className="process-layout"><div><h2 className="editorial-title">What happened?<br/><em>Show your work.</em></h2><p className="editorial-body">Every payment should have a legible trail. Not just green and red statuses, but who reported something, what was checked, and where the evidence ends.</p><a className="inline-link" href={PRODUCT_DEMO} target="_blank" rel="noreferrer">Walk through a payment ↗</a></div>
- <div className="process-list">{[["01","Record the intent","Amount, currency, beneficiary, reference and chosen route."],["02","Keep provider events","Submission, in-transit updates, completion, failure, return or hold."],["03","Bring in other evidence","Bank statements, on-chain confirmations and reconciliation records—when available."],["04","Explain the exception","What is known, what is still unverified, and who should act next."]].map(([n,t,d])=><div className="process-item" key={n}><span>{n}</span><div><h3>{t}</h3><p>{d}</p></div></div>)}</div></div>
- </div></section>
-<section className="funding-section"><div className="container-site"><div className="section-kicker"><span>05 / A MORE SPECIFIC WORKFLOW</span><span>THE FUNDING DESK</span></div>
- <div className="funding-grid"><div><h2 className="editorial-title">Sometimes the payment ends.<br/><em>The obligation doesn't.</em></h2><p className="editorial-body">Some providers pay an overseas supplier before their customer repays them. Clearline's separate Funding Desk prototype explores the work around that advance: preparing checks, recording a treasury decision and following what is still owed.</p><ButtonLink href={DEMO} external>Explore Funding Desk</ButtonLink><p className="fine-note">Fictional data. No lending or automated credit decisions. The Funding Desk is not yet linked to Connect's payment identifiers.</p></div>
- <div className="funding-ledger"><div className="ledger-head"><span>ADVANCE REVIEW / SAMPLE CASE</span><b>Awaiting treasury</b></div><div className="ledger-amount"><span>ADVANCE REQUEST</span><strong>SGD 48,215.37</strong><small>ADV-2026-153 · Illustrative</small></div>{[["Invoice not previously funded","CHECK"],["Customer within recorded limit","CHECK"],["Earlier overdue advances","CHECK"],["Terms recorded","CHECK"],["Genuinely free cash","CHECK"]].map(([name,state],i)=><div key={name} className="ledger-line"><span>{String(i+1).padStart(2,"0")}</span><p>{name}</p><b>{state}</b></div>)}<div className="ledger-foot">CLEARLINE PREPARES. TREASURY DECIDES.</div></div></div>
- </div></section>
-<section className="stage-section"><div className="container-site"><div className="section-kicker"><span>06 / THE REAL STAGE</span><span>WHAT'S REAL · WHAT ISN'T</span></div><h2 className="editorial-title">An early product.<br/><em>No pretending otherwise.</em></h2><div className="stage-grid"><div><span className="stage-label stage-yes">IN THE DEMO TODAY</span><p>Fictional payment intents, quote comparison, event timelines, exception scenarios, reconciliation and liquidity views. A separate advance-and-repayment Funding Desk.</p></div><div><span className="stage-label stage-no">NOT LIVE YET</span><p>Licensed provider execution, production bank integrations, independently verified settlement across networks, a shared Funding Desk ledger or real customer-money processing.</p></div><div><span className="stage-label stage-dev">IN DEVELOPMENT / TESTNET</span><p>Safe payout proposals, evidence anchoring on Base and on-chain repayment verification. <Link href="/onchain">Read the technical direction ↗</Link></p></div></div></div></section>
-<section id="replay" className="replay-section"><div className="container-site"><div className="replay-layout"><div><span>07 / A BETTER FIRST CONVERSATION</span><h2>Bring one difficult payment.<br/><em>We'll start there.</em></h2></div><div><p>I'm looking for the workflows that genuinely break down—returned funds, missing information, unresolved settlement, funding exposure. Start with the fictional sandbox. If useful, we can discuss a small historical replay under agreed data-handling terms.</p><Link href="/replay" className="replay-button">Talk through a trial <span aria-hidden="true">↗</span></Link></div></div></div></section>
-<section className="faq-section"><div className="container-site"><div className="faq-layout"><div><div className="section-kicker"><span>08 / PRACTICAL QUESTIONS</span></div><h2 className="editorial-title">Before you ask.</h2></div><div className="border-t border-line">{questions.map(([q,a],i)=><details key={q} className="faq-line" open={i===0}><summary>{q}</summary><p>{a}</p></details>)}</div></div></div></section>
-<section className="founder-section"><div className="container-site"><div className="founder-layout"><div className="founder-photo"><img src="/founder.jpg" alt="Aashmiin Kaur, founder of Clearline" width="170" height="213" className="w-full object-cover" loading="lazy"/><span>FOUNDER / SINGAPORE</span></div><div><span className="section-number">A NOTE FROM THE FOUNDER</span><h2>I'm building the tool I wish finance teams didn't have to piece together.</h2><p>I'm Aashmiin Kaur, a second-year Accountancy student at SMU. Clearline is early, and I don't have paying customers yet. I'm building the software and speaking with people who handle payments, treasury and reconciliation to find where this approach is actually useful.</p><div><a href={"mailto:"+EMAIL}>Email me ↗</a><a href={LINKEDIN} target="_blank" rel="noreferrer">LinkedIn ↗</a></div></div></div></div></section>
-<ContactCTA/></main>;}
+
+export default function Home() {
+  return (
+    <main id="main">
+      <section className="home-hero" aria-labelledby="hero-title">
+        <div className="container home-hero-grid">
+          <div>
+            <p className="eyebrow">Cross-border payment operations · Singapore</p>
+            <h1 id="hero-title" className="h1">Money moves. <em>Context gets lost.</em></h1>
+            <p className="lede">Clearline is building the coordination and financial operations layer for cross-border payments. One place to follow payment instructions, provider updates, reconciliation and exceptions.</p>
+            <p className="hero-sub">Built for payment-operations, finance and treasury teams. When a payout crosses several providers, the status sits in one portal, the statement in another and the explanation in an email thread. Clearline keeps them on one record.</p>
+            <div className="actions">
+              <ButtonLink href={TRIAL_URL} main>Explore the sandbox</ButtonLink>
+              <ButtonLink href="/contact" variant="secondary">Talk to us about your workflow</ButtonLink>
+            </div>
+          </div>
+          <aside className="glance" aria-label="Clearline at a glance">
+            <div className="glance-head"><span className="label">At a glance</span><span className="label">Early product</span></div>
+            <dl>
+              <div><dt>For</dt><dd>Payment operations, finance and treasury teams that send or settle cross-border payouts.</dd></div>
+              <div><dt>Problem</dt><dd>Provider status, settlement evidence and the books disagree, and no one holds the whole story.</dd></div>
+              <div><dt>Connect</dt><dd>One instruction model across providers: intents, route quotes, approvals, status events.<br /><Stage kind="synthetic" /></dd></div>
+              <div><dt>Control</dt><dd>What happened after: evidence, reconciliation, liquidity, holds and exceptions.<br /><Stage kind="illustrative" /></dd></div>
+              <div><dt>Try today</dt><dd>A guided sandbox with five fictional cases and a test-mode API. No sign-up.</dd></div>
+              <div><dt>Not yet</dt><dd>Provider integrations and onchain verification (testnet).<br /><Stage kind="none" /><Stage kind="development" /></dd></div>
+              <div><dt>Contact</dt><dd>Aashmiin Kaur, founder. <a className="text-link" href={mailto("Clearline: our payment workflow")}>Email</a></dd></div>
+            </dl>
+          </aside>
+        </div>
+      </section>
+
+      <Section eyebrow="The problem" title={<>The payment has a status. <em>The business still needs an answer.</em></>}
+        intro={<p>&ldquo;Completed&rdquo; is what a provider reported. It is not proof that money settled, and it is not the same as the books agreeing. Teams reconstruct the difference by hand.</p>}>
+        <div className="grid-3">
+          <div className="card"><p className="label">What the provider says</p><h3 className="h3">Status events</h3><p>Submitted, in transit, completed, returned, on hold. Each provider names them differently and sends them on its own schedule.</p></div>
+          <div className="card"><p className="label">What can be shown</p><h3 className="h3">Settlement evidence</h3><p>A statement line, a settlement export or a confirmed transaction. Often arrives later, from a different system, under a different reference.</p></div>
+          <div className="card"><p className="label">What finance needs</p><h3 className="h3">Reconciliation</h3><p>The instruction, the evidence and the ledger agree by reference. Anything that does not becomes an exception with an owner.</p></div>
+        </div>
+      </Section>
+
+      <Section id="sandbox" tone="white" eyebrow="Try it here · fictional data" title="One payment record. Three separate statuses."
+        intro={<><p>Pick a payment. execution, settlement and reconciliation are separate fields, so &ldquo;the provider said completed&rdquo; never reads as &ldquo;settled&rdquo;. These are the sandbox engine&rsquo;s five seeded scenarios.</p><p><ExtLink href={TRIAL_URL}>Open the full guided sandbox</ExtLink></p></>}>
+        <PaymentPreview />
+      </Section>
+
+      <Section eyebrow="What we are building" title={<>Connect moves the instruction. <em>Control explains the outcome.</em></>}
+        intro={<p>Clearline is software between the teams using payment rails and the partners operating them. It is not a bank, a payment provider or a wallet, and it does not hold funds.</p>}>
+        <div className="grid-2">
+          <div className="panel">
+            <p className="label">Clearline Connect</p>
+            <h3 className="h3">One instruction model across providers</h3>
+            <ul className="bullets"><li>Payment intents with validated fields</li><li>Route quotes with eligibility reasons</li><li>Approvals before submission</li><li>One state model for provider events, with signed test webhooks</li></ul>
+            <div className="stage-row"><Stage kind="synthetic" /><Stage kind="none" /></div>
+            <p><Link className="text-link" href="/connect">How Connect works</Link></p>
+          </div>
+          <div className="panel">
+            <p className="label">Clearline Control</p>
+            <h3 className="h3">What happened after submission</h3>
+            <ul className="bullets"><li>Payment investigation with sourced timelines</li><li>Reconciliation by reference, with exceptions</li><li>Liquidity net of restricted balances</li><li>Holds, owners and funding exposure</li></ul>
+            <div className="stage-row"><Stage kind="illustrative" /><Stage kind="synthetic" /></div>
+            <p><Link className="text-link" href="/control">How Control works</Link></p>
+          </div>
+        </div>
+      </Section>
+
+      <Section tone="bluegrey" eyebrow="Use cases" title="Four workflows we are testing" intro={<p>Worked through with fictional examples. These are not validated customer outcomes.</p>}>
+        <div className="grid-4">
+          {useCases.map(([t, d]) => <div className="card" key={t}><h3 className="h3">{t}</h3><p>{d}</p></div>)}
+        </div>
+        <p style={{ marginTop: 24 }}><Link className="text-link" href="/use-cases">Read the four examples</Link></p>
+      </Section>
+
+      <Section eyebrow="The real stage" title={<>An early product. <em>No pretending otherwise.</em></>}>
+        <div className="grid-4">
+          <div className="card"><Stage kind="synthetic" /><p>Sandbox engine: idempotent intents, quotes, maker-checker approval, provider events, reconciliation by reference, exceptions, liquidity and a funding projection. Fictional data.</p></div>
+          <div className="card"><Stage kind="illustrative" /><p>Console views for investigation, reconciliation, liquidity, holds and funding exposure, on fictional data, plus the detailed Funding Desk prototype.</p></div>
+          <div className="card"><Stage kind="development" /><p>Onchain verification on testnet: Safe payout proposals, evidence fingerprints on Base, stablecoin repayment checks. <Link className="text-link" href="/onchain">Details</Link></p></div>
+          <div className="card"><Stage kind="none" /><p>No licensed provider, bank or wallet is connected. No real payment has been executed. No customers yet.</p></div>
+        </div>
+      </Section>
+
+      <Section tone="white" eyebrow="Who is building it">
+        <div className="founder">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="founder-photo" src="/founder.jpg" alt="Aashmiin Kaur" width={120} height={150} />
+          <div className="prose">
+            <h2 className="h3">Aashmiin Kaur, founder</h2>
+            <p className="muted">Accountancy student at Singapore Management University, second major in Finance. Building Clearline in Singapore.</p>
+            <p>I am speaking with people who run payments, treasury and reconciliation to find where this approach is genuinely useful, and where it is not.</p>
+            <p><Link className="text-link" href="/about">About Clearline and the founder</Link> · <a className="text-link" href={"mailto:" + EMAIL}>{EMAIL}</a></p>
+          </div>
+        </div>
+      </Section>
+
+      <ContactBand />
+    </main>
+  );
+}

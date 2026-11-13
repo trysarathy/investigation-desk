@@ -1,12 +1,38 @@
-import type {Metadata} from "next";
 import Link from "next/link";
-import {Tag} from "@/components/Shared";
-export const metadata:Metadata={title:"Privacy",description:"How Clearline's marketing site intends to handle contact enquiries and replay requests."};
-export default function Privacy(){const email=process.env.NEXT_PUBLIC_PRIVACY_EMAIL || "aashmiin.k.2025@accountancy.smu.edu.sg";const sections=[
- ["Information you provide","The contact form may collect your name, work email, company, role and message. Do not include banking credentials, private keys, customer financial records or other confidential payment data."],
- ["Why we use it","We use submitted information to respond to enquiries, discuss a product evaluation and arrange a conversation about Clearline. The marketing form does not initiate transactions or make credit decisions."],
- ["Form processing","The planned form uses Formspree, a third-party service. It will be activated only once a valid form ID has been configured. Actual processor arrangements and applicable terms must be reviewed before collecting enquiries."],
- ["Cookies and analytics","No optional analytics or advertising trackers are configured at this stage. Hosting may still process essential connection data needed to deliver the site. Any future non-essential tracking will require a notice and consent where applicable."],
- ["Historical replay data","Do not submit case files through the public contact form. Replay data handling must be agreed separately, including permitted records, transfer method, access, retention and deletion."],
- ["Retention and requests","The specific retention schedule and operational privacy contact must be confirmed before public intake is enabled. You may request access, correction or deletion of information you have submitted, subject to applicable law."]
- ];return <main id="main" className="bg-white"><section className="border-b border-line bg-canvas py-24"><div className="container-site"><Tag>INFORMATION HANDLING</Tag><h1 className="mt-6 text-[clamp(3rem,6vw,5.7rem)] font-semibold tracking-[-.065em]">Privacy, plainly.</h1><p className="mt-6 max-w-[760px] text-[16px] leading-8 text-quiet">Clearline is an early-stage project built in Singapore. This notice explains the intended handling of information sent through this marketing website.</p><p className="mt-6 rounded border border-[#E8D9B9] bg-[#FFF7E5] px-4 py-3 text-[12px] leading-6 text-[#805D28]">Draft policy · Final privacy contact, form processing configuration and retention practices must be checked before enquiry collection is enabled.</p></div></section><section className="py-20"><div className="container-site max-w-[900px]"><div className="divide-y divide-line border-t border-line">{sections.map(([title,body],i)=><article key={title} className="grid gap-4 py-8 md:grid-cols-[48px_220px_1fr]"><span className="font-mono text-xs text-pine">{String(i+1).padStart(2,"0")}</span><h2 className="text-base font-semibold">{title}</h2><p className="text-[13px] leading-8 text-quiet">{body}</p></article>)}</div><div className="mt-12 rounded-lg border border-line bg-canvas p-8"><h2 className="font-semibold">Contact about your information</h2>{email?<a href={"mailto:"+email} className="mt-3 inline-block text-sm text-pine underline">{email}</a>:<p className="mt-3 text-[13px] text-quiet">Privacy contact email: to be confirmed before launch.</p>}<p className="mt-6 text-[12px] leading-6 text-quiet">This notice is not a representation that all operational policies or regulatory checks have been completed. <Link href="/replay" className="text-pine underline underline-offset-4">Learn about replay data handling.</Link></p></div></div></section></main>;}
+import { ButtonLink, PageHero, Section } from "@/components/Shared";
+import { FORM_ENABLED } from "@/components/ContactForm";
+import { EMAIL, PRODUCT_DEMO_URL, mailto } from "@/lib/site";
+import { pageMeta } from "@/lib/meta";
+
+export const metadata = pageMeta(
+  "Privacy",
+  "How the Clearline website handles information: no analytics or tracking, fonts served from this site, email to the founder's university mailbox, and a separate test-mode sandbox.",
+  "/privacy",
+);
+
+export default function Privacy() {
+  const rows: [string, string][] = [
+    ["Who we are", "Clearline is an early-stage project run by Aashmiin Kaur in Singapore. It is not yet an incorporated company with a dedicated privacy officer; questions go to the founder directly."],
+    ["Hosting", "This website is static and hosted on Vercel, which processes standard connection data (such as IP address and request logs) to deliver pages. We do not receive or use those logs for marketing."],
+    ["Analytics and cookies", "None. The site sets no cookies, runs no analytics and loads no advertising or social tracking scripts. Fonts are served from this site, not from a third-party font service."],
+    ["Email", "If you email " + EMAIL + ", your message is held in the founder's Singapore Management University mailbox, under the university's email arrangements. It is used only to reply to you and is not added to a mailing list."],
+    ["Web form", FORM_ENABLED ? "The contact form is processed by Formspree, a third-party form service, which forwards your message to the founder." : "There is no web form on this site at the moment. Nothing you type on this website is collected."],
+    ["The sandbox", "The sandbox at " + PRODUCT_DEMO_URL + " is a separate test-mode application with fictional data. Its console keeps your test session in your own browser's local storage. Do not enter real information there."],
+    ["Payment records", "Never send payment records, beneficiary details, statements, credentials or keys through this website or by email. Any historical-case evaluation needs written data terms first."],
+    ["Your requests", "You can ask what information we hold about you, or ask us to correct or delete it, by emailing the founder."],
+  ];
+  return (
+    <main id="main">
+      <PageHero eyebrow="Privacy" title={<>Privacy, <em>plainly.</em></>}
+        actions={<ButtonLink href={mailto("Privacy question")} main>Ask a privacy question</ButtonLink>}>
+        <p>What this website collects (very little), who processes it, and what never to send us. Last updated 13 November 2026.</p>
+      </PageHero>
+      <Section tone="white">
+        <div className="list-rows prose">
+          {rows.map(([t, d], i) => <div key={t}><span className="idx">{String(i + 1).padStart(2, "0")}</span><div><h2 className="h3">{t}</h2><p>{d}</p></div></div>)}
+        </div>
+        <p className="caption" style={{ marginTop: 24 }}>This is a provisional notice describing the website as built. It has not been reviewed by a lawyer, and it does not claim compliance with any privacy law. Uploading confidential financial data is disabled on this site and in the public sandbox until a security review, data-handling terms and the necessary controls are in place. See also <Link className="text-link" href="/trial#historical">how historical-case evaluations handle data</Link>.</p>
+      </Section>
+    </main>
+  );
+}

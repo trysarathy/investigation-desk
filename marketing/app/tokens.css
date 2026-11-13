@@ -1,0 +1,86 @@
+/*
+ * Clearline design tokens — shared by the website (marketing/) and the product console.
+ * Source of truth: docs/design/DESIGN_SYSTEM.md. Copy this file verbatim into the console;
+ * do not fork values. Contrast ratios are WCAG 2.x, computed from these hex values.
+ * Light theme only (the site sets color-scheme: light).
+ */
+:root {
+  /* ---- Core identity ---- */
+  --cl-ink: #17212D;            /* Midnight ink. Text, primary surfaces. 14.42:1 on ivory */
+  --cl-ivory: #F5F1E8;          /* Warm ivory. Page background */
+  --cl-signal: #D04B31;         /* Signal orange-red. Accents, rules, large text (>=24px or >=18.66px bold) only. 3.94:1 on ivory */
+  --cl-signal-strong: #A93A24;  /* Signal for small text, links, primary button fill. 5.62:1 on ivory, 6.33:1 white-on-it */
+  --cl-signal-on-ink: #F08A6E;  /* Signal used as text on ink surfaces. 6.63:1 on ink */
+  --cl-bluegrey: #E6EDF0;       /* Cool blue-grey. Secondary surface, evidence/info areas */
+  --cl-white: #FFFFFF;          /* Raised surfaces: tables, cards, inputs */
+  --cl-line: #DED6C9;           /* Decorative dividers only (not a UI boundary: 1.28:1) */
+  --cl-line-strong: #8C8478;    /* Input and control borders. 3.69:1 on white (UI component 3:1) */
+  --cl-quiet: #63707A;          /* Secondary text on ivory/white only. 4.51:1 ivory, 5.09:1 white */
+  --cl-muted: #5A6670;          /* Secondary text on any light surface incl. blue-grey. 4.97:1 on blue-grey */
+  --cl-ink-2: #222E3B;          /* Raised surface on ink (code blocks, dark panels) */
+  --cl-on-ink: #F5F1E8;         /* Text on ink. 14.42:1 */
+  --cl-on-ink-muted: #B7C2CA;   /* Secondary text on ink. 8.97:1 */
+  --cl-sand: #EFEBE2;           /* Subtle fill: table header, neutral status */
+
+  /* ---- Semantic status (text / tint background). Every pair >= 4.5:1 ---- */
+  --cl-success: #2E6A4B;  --cl-success-bg: #E3EFE7;  /* 5.42:1 */
+  --cl-warning: #7A4F0E;  --cl-warning-bg: #F6EBD3;  /* 6.01:1 */
+  --cl-danger:  #A93A24;  --cl-danger-bg:  #F8E3DC;  /* 5.13:1 */
+  --cl-info:    #2C5A7A;  --cl-info-bg:    #E6EDF0;  /* 6.22:1 */
+  --cl-neutral: #3B4650;  --cl-neutral-bg: #EFEBE2;  /* 8.11:1 */
+
+  /* ---- Focus ---- */
+  --cl-focus: #A93A24;          /* 3px outline, 3px offset; >= 3:1 against ivory, white, blue-grey */
+  --cl-focus-on-ink: #F08A6E;
+
+  /* ---- Type ---- */
+  --cl-font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --cl-font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --cl-font-editorial: Georgia, "Times New Roman", serif; /* italic accent inside headings only */
+  /* Limited scale (px): 12 / 14 / 16 / 20 / 28 / 40 / 56 */
+  --cl-text-xs: 0.75rem;     /* 12 — labels, captions, table meta (mono) */
+  --cl-text-sm: 0.875rem;    /* 14 — body small, table cells, buttons */
+  --cl-text-md: 1rem;        /* 16 — body */
+  --cl-text-lg: 1.25rem;     /* 20 — lede, h4 */
+  --cl-text-xl: 1.75rem;     /* 28 — h3 / console page title */
+  --cl-text-2xl: 2.5rem;     /* 40 — h2 (website) */
+  --cl-text-3xl: 3.5rem;     /* 56 — h1 display (website only) */
+  --cl-leading-tight: 1.1;
+  --cl-leading-snug: 1.3;
+  --cl-leading-body: 1.6;
+  --cl-tracking-display: -0.035em;
+  --cl-tracking-heading: -0.02em;
+  --cl-tracking-label: 0.08em;  /* uppercase mono labels */
+
+  /* ---- Spacing (4px base) ---- */
+  --cl-space-1: 4px;  --cl-space-2: 8px;  --cl-space-3: 12px; --cl-space-4: 16px;
+  --cl-space-5: 24px; --cl-space-6: 32px; --cl-space-7: 48px; --cl-space-8: 64px;
+  --cl-space-9: 96px;
+  --cl-gutter: 16px;            /* phone side gutter; 32px >= 640, 40px >= 1024 */
+  --cl-max-width: 1200px;
+  --cl-measure: 68ch;           /* max line length for prose */
+
+  /* ---- Borders, radii, elevation ---- */
+  --cl-border: 1px solid var(--cl-line);
+  --cl-border-strong: 1px solid var(--cl-line-strong);
+  --cl-radius-sm: 3px;          /* status tags, code */
+  --cl-radius-md: 6px;          /* buttons, inputs, cards, tables */
+  --cl-radius-lg: 10px;         /* website panels only */
+  --cl-shadow-none: none;       /* Default. No glow, no gradients. */
+  --cl-shadow-overlay: 0 8px 24px rgba(23, 33, 45, 0.12); /* menus, toasts only */
+
+  /* ---- Controls ---- */
+  --cl-control-height: 44px;    /* buttons/inputs on website; meets 24px target size with margin */
+  --cl-control-height-dense: 32px; /* console dense tables/toolbars (still >= 24px target) */
+
+  /* ---- Motion ---- */
+  --cl-duration: 150ms;
+  --cl-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* ---- Breakpoints (reference; use in media queries as literals) ----
+     sm 640px · md 768px · lg 1024px · xl 1280px. Test at 390, 768, 1440. */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --cl-duration: 0ms; }
+}
