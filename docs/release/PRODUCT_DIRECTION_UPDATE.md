@@ -1,7 +1,9 @@
 # Product direction update — proposal for founder approval (13 Nov 2026)
 
-**Status: proposed, not yet approved.** Governance documents are not edited by this release; this file records the
-conflict and the proposed resolution so Aashmiin can approve or amend it.
+**Status: APPROVED by Aashmiin Kaur on 13 Nov 2026** (in the build session): "Clearline Connect + Clearline Control is
+the current direction, with Funding Desk as a specialist funding-exposure workflow." All existing governance, safety,
+financial-control and repository restrictions are preserved. Any change to `COMPANY_RULES.md`, `PRODUCT_FACTS.md` or
+`AGENTS.md` that reflects this direction needs her separate approval before it is merged into `main`.
 
 ## The conflict found in the repository
 | Document | What it says Clearline is |
@@ -22,7 +24,6 @@ conflict and the proposed resolution so Aashmiin can approve or amend it.
    fabricated customers/partners/metrics, no real money or keys, label every claim, human approval for funding and
    compliance decisions, no outbound customer communication.
 
-## What needs Aashmiin's decision
-- Approve (or amend) items 1–3 so `COMPANY_RULES.md`, `PRODUCT_FACTS.md` and `AGENTS.md` can be updated in a
-  separate, reviewable change.
-- Until then, agents should treat this file as the working direction for the customer-trial release only.
+## Next step
+- Items 1–3 above are approved. Updating `COMPANY_RULES.md`, `PRODUCT_FACTS.md` and `AGENTS.md` to match is a separate,
+  reviewable change that needs Aashmiin's own approval before merging into `main`; it is not part of this release.
