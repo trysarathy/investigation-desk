@@ -1,6 +1,6 @@
 "use client";
 import Link from "./Link";
-import type { ReactNode } from "react";
+import { cloneElement, isValidElement, useId, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { isTabActive, sectionFor } from "./nav";
 import s from "./ui.module.css";
@@ -109,13 +109,19 @@ export function LinkBtn({ href, kind, size, children }: { href: string; kind?: "
   return <Link href={href} className={[s.btn, kind ? s[kind] : "", size ? s[size] : ""].join(" ")}>{children}</Link>;
 }
 
+/** Label wraps its control; hint and error are linked to the control with aria-describedby. */
 export function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string; children: ReactNode }) {
+  const id = useId();
+  const described = [hint ? `${id}-hint` : "", error ? `${id}-err` : ""].filter(Boolean).join(" ") || undefined;
+  const control = isValidElement<{ "aria-describedby"?: string; "aria-invalid"?: boolean }>(children)
+    ? cloneElement(children, { "aria-describedby": described, ...(error ? { "aria-invalid": true } : {}) })
+    : children;
   return (
     <label className={s.field}>
       <span>{label}</span>
-      {children}
-      {hint && <span className={s.hint}>{hint}</span>}
-      {error && <span className={s.err} role="alert">{error}</span>}
+      {control}
+      {hint && <span className={s.hint} id={`${id}-hint`}>{hint}</span>}
+      {error && <span className={s.err} id={`${id}-err`} role="alert">{error}</span>}
     </label>
   );
 }

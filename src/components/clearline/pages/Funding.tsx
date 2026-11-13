@@ -5,6 +5,12 @@ import { useWorkspace } from "../workspace";
 import { AdvChip, ExcChip, ExecChip, SettleChip, human, exceptionTitle } from "../labels";
 import { Code, Dl, Empty, Notice, PageHead, Panel, fmtDate, fmtTime, ui } from "../ui";
 
+const BASIS: Record<"none" | "provider_reported" | "verified_settlement", string> = {
+  none: "No report that the supplier was paid",
+  provider_reported: "Supplier paid (provider-reported) — not verified",
+  verified_settlement: "Supplier payout verified by independent evidence",
+};
+
 export default function Funding() {
   const { ws, actorName } = useWorkspace();
   const p = fundingProjection(ws);
@@ -34,6 +40,7 @@ export default function Funding() {
                 <Dl items={[
                   ["Supplier / invoice", <>{r.supplierName} · {r.invoiceRef}</>],
                   ["Supplier payout", <><Link href={`/clearline/payments/${r.intentId}`} className="mono">{r.intentId}</Link><br /><ExecChip v={r.supplierPayout.execution} /> <SettleChip v={r.supplierPayout.settlement} /></>],
+                  ["Supplier paid — basis", <span key="b" data-testid="supplier-paid-basis">{BASIS[r.supplierPaidBasis]} <span className={ui.apiValue}>{r.supplierPaidBasis}</span></span>],
                   ["Treasury approval", r.treasuryApproval ? <>{human(r.treasuryApproval.outcome)} — maker {actorName(r.treasuryApproval.makerId)}, checker {actorName(r.treasuryApproval.checkerId)} · {fmtTime(r.treasuryApproval.at)}</> : "Not decided"],
                   ["Repayment reference", r.obligation ? <Code>{r.obligation.reference}</Code> : "—"],
                   ["Funding Desk stage", r.fundingDeskStage],

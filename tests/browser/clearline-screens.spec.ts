@@ -1,12 +1,14 @@
 import { test, expect } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 
-// Desktop project: 1440×900. Mobile project: iPhone 13, 390×844.
+// Desktop project: 1440×900. Mobile project: iPhone 13, 390×844. Viewport-sized, deterministic:
+// fresh context = the deterministic sample workspace; animations off; caret hidden.
 const SHOTS: [string, string][] = [
   ["overview", "/clearline"],
-  ["investigation", "s2_returned"],
-  ["exceptions", "/clearline/exceptions"],
-  ["funding-exposure", "/clearline/control/funding"],
+  ["investigation-scenario1", "s1_success"],
+  ["investigation-scenario2", "s2_returned"],
+  ["reconciliation", "/clearline/reconciliation"],
+  ["treasury-funding", "/clearline/treasury/funding"],
   ["trial", "/clearline/trial"],
 ];
 
@@ -21,6 +23,7 @@ test("screenshots for docs/trial/screenshots", async ({ page, request }, info) =
     await page.goto(path.startsWith("/") ? path : `/clearline/payments/${byScenario.get(path)}`);
     await expect(page.getByTestId("cl-workspace")).toHaveAttribute("data-hydrated", "true");
     await expect(page.getByTestId("test-mode-marker")).toBeVisible();
-    await page.screenshot({ path: `${dir}/${name}-${size}.png` });
+    await page.evaluate(() => document.fonts.ready);
+    await page.screenshot({ path: `${dir}/${name}-${size}.png`, animations: "disabled", caret: "hide" });
   }
 });

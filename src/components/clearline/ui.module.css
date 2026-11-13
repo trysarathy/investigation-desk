@@ -12,7 +12,8 @@
 
 /* ---------- Layout: Midnight sidebar, light workspace ---------- */
 .frame { display: grid; grid-template-columns: var(--cl-sidebar) minmax(0, 1fr); min-height: calc(100vh - 34px); }
-.sidebar { background: var(--cl-nav-bg); color: var(--cl-nav-text); padding: 16px 12px 24px; position: sticky; top: 34px; align-self: start; height: calc(100vh - 34px); overflow-y: auto; }
+.sidebar { background: var(--cl-nav-bg); color: var(--cl-nav-text); align-self: stretch; }
+.sidebarInner { padding: 16px 12px 24px; position: sticky; top: 34px; max-height: calc(100vh - 34px); overflow-y: auto; }
 .sidebar a { color: var(--cl-nav-text); }
 .sidebar a:hover { color: var(--cl-nav-text-active); }
 .sidebar :focus-visible { outline-color: var(--cl-focus-on-midnight); }
@@ -39,7 +40,7 @@
 
 @media (max-width: 959px) {
   .frame { grid-template-columns: minmax(0, 1fr); }
-  .sidebar { position: static; height: auto; padding: 8px 16px; }
+  .sidebarInner { position: static; max-height: none; padding: 8px 16px; }
   .sidebarTop { display: flex; justify-content: space-between; align-items: center; }
   .brand { padding: 4px 0; }
   .menuBtn { display: inline-flex; }
@@ -220,3 +221,7 @@
 .fRecon { border-radius: 0; border-left: 3px solid currentColor; font-family: var(--cl-font-mono); text-transform: uppercase; font-size: 11px; letter-spacing: .04em; }
 .fRecon::before { content: none; }
 .table tbody tr:target .sub, .table tbody tr[aria-selected="true"] .sub { color: var(--cl-text-secondary-on-tint); }
+
+/* Menu toggle only on narrow screens (declared after .btn so it wins). */
+.sidebar .menuBtn { display: none; }
+@media (max-width: 959px) { .sidebar .menuBtn { display: inline-flex; } }

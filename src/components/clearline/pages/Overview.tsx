@@ -2,7 +2,7 @@
 import Link from "../Link";
 import { fundingProjection, formatMinor, listExceptions, type CurrencyCode } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
-import { ExcChip, SevChip, human, exceptionTitle } from "../labels";
+import { ExcChip, SevChip, exceptionTitle } from "../labels";
 import { Code, Empty, LinkBtn, Metric, Notice, PageHead, Panel, fmtTime, ui } from "../ui";
 
 export default function Overview() {
@@ -12,7 +12,8 @@ export default function Overview() {
   const reconExc = ws.intents.filter((i) => i.status.reconciliation === "exception");
   const holds = ws.holds.filter((h) => h.status !== "released" && h.status !== "rejected");
   const cases = ws.cases.filter((c) => c.status !== "resolved");
-  const lines = ws.statementLines.filter((l) => l.status === "unallocated" || l.status === "exception");
+  // m8: every line the engine has not fully allocated (unallocated, partially allocated or in exception).
+  const lines = ws.statementLines.filter((l) => l.status !== "allocated");
   const funding = fundingProjection(ws);
   const outstanding = (Object.entries(funding.outstandingByCurrency) as [CurrencyCode, number][])
     .filter(([, v]) => v > 0).map(([c, v]) => formatMinor(v, c));
@@ -36,7 +37,7 @@ export default function Overview() {
         <Metric href="/clearline/exceptions" label="Open exceptions" value={open.length} note="Open exceptions queue" />
         <Metric href="/clearline/investigations" label="Open investigations" value={cases.length} note="View cases" />
         <Metric href="/clearline/holds" label="Compliance holds awaiting a human" value={holds.length} note="View holds" />
-        <Metric href="/clearline/reconciliation?status=open" label="Statement lines not allocated" value={lines.length} note="View statement lines" />
+        <Metric href="/clearline/reconciliation?status=open" label="Statement lines not fully allocated" value={lines.length} note="View statement lines" />
         <Metric href="/clearline/treasury/funding" label="Funding outstanding" value={outstanding.length ? outstanding.join(" · ") : "None"} note="View advances" />
       </div>
 

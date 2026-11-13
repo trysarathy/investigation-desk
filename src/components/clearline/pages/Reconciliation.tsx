@@ -52,7 +52,7 @@ export default function Reconciliation() {
   const q = useSearchParams();
   const group = q?.get("group") ?? "";
   const status = q?.get("status") ?? "";
-  const lines = ws.statementLines.filter((l) => (!group || inGroup(l, group)) && (!status || (status === "open" ? l.status === "unallocated" || l.status === "exception" : l.status === status)));
+  const lines = ws.statementLines.filter((l) => (!group || inGroup(l, group)) && (!status || (status === "open" ? l.status !== "allocated" : l.status === status)));
   const ps = presets(ws);
   const [form, setForm] = useState<Form>(ps[0].form);
   const [msg, setMsg] = useState<{ text: string; error?: boolean } | null>(null);

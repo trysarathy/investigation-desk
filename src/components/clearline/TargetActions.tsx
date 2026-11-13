@@ -38,7 +38,7 @@ export function TargetActions({ target, status, idPrefix }: { target: TargetRef;
   const gEvidence = gateOf(preview({ type: "attach_evidence", target, evidence: { kind: evKind, description: evDesc || sample } }), ws, !evDesc.trim() && "Describe the evidence first.");
   const check = target.kind === "exception" ? canResolveException(ws, target.id) : canResolveCase(ws, target.id);
   const gResolve: Gate = !check.allowed
-    ? { ok: false, reason: describeResolution(check.code, check.reason), code: check.code }
+    ? { ok: false, reason: describeResolution(check.code, check.reason, ws, target.id), code: check.code }
     : gateOf(preview({ type: "resolve", target, note: resolution || sample }), ws, !resolution.trim() && "Write a resolution note first.");
   const gReopen = gateOf(preview({ type: "reopen", target, reason: reopenReason || sample }), ws, !reopenReason.trim() && "Give a reason to reopen first.");
 

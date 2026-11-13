@@ -3,11 +3,24 @@ import Link from "./Link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { ActorSelect } from "./ActorSelect";
+import { useWorkspace } from "./workspace";
 import { CONTACT_MAILTO, MARKETING_URL, PRIMARY, SECONDARY, crumbsFor, isActive } from "./nav";
 import s from "./ui.module.css";
 
 function safeDecode(v: string): string {
   try { return decodeURIComponent(v); } catch { return v; }
+}
+
+/** A stored workspace that could not be read is never replaced silently (code review nit). */
+function DiscardedNotice() {
+  const { discarded, dismissDiscarded } = useWorkspace();
+  if (!discarded) return null;
+  return (
+    <div className={s.notice} role="alert" data-testid="workspace-discarded">
+      <strong>Your saved workspace could not be read and was replaced by the sample workspace.</strong> Nothing from it was kept. Reason: {discarded}{" "}
+      <button type="button" className={`${s.btn} ${s.small}`} onClick={dismissDiscarded}>Dismiss</button>
+    </div>
+  );
 }
 
 export default function AppShell({ children }: { children: ReactNode }) {
@@ -32,6 +45,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       </div>
       <div className={s.frame}>
         <aside className={s.sidebar}>
+          <div className={s.sidebarInner}>
           <div className={s.sidebarTop}>
             <Link href="/clearline" className={s.brand} aria-label="Clearline console overview">
               <span className={s.brandMark} aria-hidden="true">C</span>
@@ -64,6 +78,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
               <a href={CONTACT_MAILTO}>Contact / feedback</a>
             </div>
           </nav>
+          </div>
         </aside>
         <main id="cl-main" className={s.main} tabIndex={-1}>
           <div className={s.topRow}>
@@ -78,6 +93,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </nav>
           <ActorSelect id="cl-actor-global" />
           </div>
+          <DiscardedNotice />
           {children}
           <footer className={s.footer}>
             Clearline test-mode console. All organisations, providers, quotes, balances and statements are fictional.

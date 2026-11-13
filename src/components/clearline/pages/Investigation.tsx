@@ -3,10 +3,10 @@ import Link from "../Link";
 import { useMemo, useState, type ReactNode } from "react";
 import {
   evidenceTimelineFor, exportCaseReport, formatMinor, formatMoney, getIntent, investigate,
-  type AmountDifference, type EvidenceTimelineEntry, type Finding, type InvestigationView, type ProcessingOutcome, type StatementLine, type Workspace,
+  type AmountDifference, type EvidenceTimelineEntry, type Finding, type InvestigationView, type ProcessingOutcome, type Workspace,
 } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
-import { EXECUTION, RECON, SETTLEMENT, statusText, ExecChip, ReconChip, SCOPE, SettleChip, RAIL, HoldChip, AdvChip, OutcomeChip, exceptionTitle } from "../labels";
+import { EXECUTION, RECON, SETTLEMENT, ExecChip, ReconChip, SCOPE, SettleChip, RAIL, HoldChip, AdvChip, OutcomeChip, exceptionTitle } from "../labels";
 import { SimulateEvent } from "../SimulateEvent";
 import { TargetActions } from "../TargetActions";
 import { ActionButton, gateOf, useRun, type Gate } from "../Action";
@@ -17,7 +17,6 @@ import { download } from "../download";
 const PROBLEM_OUTCOMES: ProcessingOutcome[] = ["duplicate_ignored", "stored_late_no_regression", "contradictory_exception_raised", "rejected_signature", "rejected_unknown_payment"];
 const RETURN_STATUS = { provider_reported: "Return reported by provider", confirmed_by_statement: "Return confirmed by statement" } as const;
 const TRUTH_CLASS: Record<Tone, string> = { ok: ui.truthOk, warn: ui.truthWarn, bad: ui.truthBad, info: ui.truthInfo, neutral: ui.truthNeutral };
-const LINE_STATUS: Record<StatementLine["status"], string> = { unallocated: "Not allocated", allocated: "Allocated", partially_allocated: "Partly allocated", exception: "Exception raised" };
 
 /** Engine CHANGE 5 (F2): structured under-amount detail; read optionally so older workspaces still render. */
 type WithDiff = { amountDifference?: AmountDifference };
@@ -55,7 +54,7 @@ function outcomeOf(e: EvidenceTimelineEntry, ws: Workspace): ReactNode {
     const l = ws.statementLines.find((x) => x.id === e.refs[0]);
     if (!l) return "Recorded";
     const reportOnly = l.explanationCodes.includes("RC_PROVIDER_REPORT_ONLY") && l.status === "unallocated";
-    return <Chip tone={reportOnly ? "neutral" : l.status === "allocated" ? "ok" : l.status === "exception" ? "bad" : "warn"} title={`API value: ${l.status}`}>{reportOnly ? "Recorded, not allocated" : LINE_STATUS[l.status]}</Chip>;
+    return <Chip tone={reportOnly ? "neutral" : l.status === "allocated" ? "ok" : l.status === "exception" ? "bad" : "warn"} title={`API value: ${l.status}`}>{reportOnly ? "Recorded, not allocated" : label("statementLineStatus", l.status)}</Chip>;
   }
   if (e.kind === "allocation") return <Chip tone="ok">Allocated by trusted reference</Chip>;
   if (e.kind === "exception") {
@@ -65,7 +64,7 @@ function outcomeOf(e: EvidenceTimelineEntry, ws: Workspace): ReactNode {
   if (e.kind === "missing_evidence") return <Chip tone="warn">Not yet received</Chip>;
   if (e.kind === "chain_observation") {
     const o = ws.chainObservations.find((x) => x.id === e.refs[0]);
-    return o ? <Chip tone={o.status === "final" ? "ok" : "warn"} title={`API value: ${o.status}`}>{label("chainStatus", o.status)}</Chip> : "Recorded";
+    return o ? <Chip tone={o.status === "final" ? "ok" : "warn"} title={`API value: ${o.status}`}>{label("chainObservationStatus", o.status)}</Chip> : "Recorded";
   }
   return "Recorded";
 }
@@ -97,10 +96,10 @@ function whyOf(e: EvidenceTimelineEntry): string {
 
 function Truth({ testId, title, question, tone, value, children }: { testId: string; title: string; question: string; tone: Tone; value: ReactNode; children?: ReactNode }) {
   return (
-    <section className={`${ui.truth} ${TRUTH_CLASS[tone]}`} aria-labelledby={`${testId}-h`}>
+    <section className={`${ui.truth} ${TRUTH_CLASS[tone]}`} aria-labelledby={`${testId}-h`} data-testid={testId}>
       <h3 id={`${testId}-h`}>{title}</h3>
       <p className={ui.q}>{question}</p>
-      <div className={ui.truthValue} data-testid={testId}>{value}</div>
+      <div className={ui.truthValue}>{value}</div>
       {children}
     </section>
   );
@@ -132,7 +131,6 @@ export default function Investigation({ id }: { id: string }) {
   const lastProvider = tl.filter((e) => e.kind === "provider_event").at(-1);
   const matches = tl.filter((e) => e.kind === "allocation");
   const netZero = st.reconciliation === "matched" && intent.returnStatus === "confirmed_by_statement";
-  const headline = `${statusText("execution", st.execution)} · ${statusText("settlement", st.settlement)}${st.settlementScope !== "none" ? ` (${SCOPE[st.settlementScope]})` : ""} · ${netZero ? "Returned — net zero" : statusText("reconciliation", st.reconciliation)}`;
   const openExceptions = view.exceptions.filter((e) => e.status !== "resolved");
 
   // E. Payment-level actions, each gated by an engine dry run.
@@ -158,7 +156,7 @@ export default function Investigation({ id }: { id: string }) {
       <Panel title={<><span className={ui.sectionLetter} aria-hidden="true">A</span>Summary</>} id="summary">
         <div className={ui.panelBody} data-testid="section-a">
           <p className={`${ui.headline} ${ui.neutral}`} data-testid="operational-status">
-            <span className={ui.srOnly}>Current operational status: </span>{netZero ? headline : statusSummary(st) ?? headline}
+            <span className={ui.srOnly}>Current operational status: </span>{statusSummary(st)}
           </p>
           <dl className={ui.summaryGrid}>
             <div><dt>Payment ID</dt><dd className="mono" data-testid="payment-id">{intent.id}</dd></div>

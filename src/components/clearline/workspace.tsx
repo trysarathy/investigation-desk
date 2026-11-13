@@ -27,18 +27,24 @@ type Ctx = {
   /** Dry run: asks the engine whether the action would be accepted now, without changing anything. */
   preview: (action: WorkspaceAction, opts?: { actorId?: string }) => ActionResult;
   reset: (kind?: "sample" | "empty") => void;
+  /** Set when a stored workspace could not be read and was replaced by the sample. */
+  discarded: string | null;
+  dismissDiscarded: () => void;
   actorName: (id?: string) => string;
 };
 
 const WorkspaceContext = createContext<Ctx | null>(null);
 
-function readStored(): { ws: Workspace | null; actor: string | null; ok: boolean } {
+function readStored(): { ws: Workspace | null; actor: string | null; ok: boolean; discarded?: string } {
   try {
     const raw = window.localStorage.getItem(KEY);
     const actor = window.localStorage.getItem(ACTOR_KEY);
     if (!raw) return { ws: null, actor, ok: true };
     const parsed = parseWorkspace(raw);
-    return { ws: parsed.ok ? parsed.value : null, actor, ok: true };
+    if (parsed.ok) return { ws: parsed.value, actor, ok: true };
+    // Never discard silently: say what was dropped and why (engine words + exact code).
+    const why = describeError(parsed.error);
+    return { ws: null, actor, ok: true, discarded: `${why.text} (${parsed.error.code}${parsed.error.field ? ` · ${parsed.error.field}` : ""})` };
   } catch {
     return { ws: null, actor: null, ok: false };
   }
@@ -65,12 +71,18 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [actorId, setActor] = useState<string>("usr_maya");
   const [hydrated, setHydrated] = useState(false);
   const [storage, setStorage] = useState<"available" | "unavailable">("available");
+  const [discarded, setDiscarded] = useState<string | null>(null);
   const wsRef = useRef(ws);
   wsRef.current = ws;
 
   useEffect(() => {
     const stored = readStored();
     if (stored.ws) setWs(stored.ws);
+    if (stored.discarded) {
+      setDiscarded(stored.discarded);
+      // Replace the unreadable copy so the notice is shown once, for the reset that actually happened.
+      write(KEY, serializeWorkspace(sampleWorkspace()));
+    }
     if (stored.actor && SAMPLE_ACTORS.some((a) => a.id === stored.actor)) setActor(stored.actor);
     setStorage(stored.ok ? "available" : "unavailable");
     setHydrated(true);
@@ -112,13 +124,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Ctx>(() => ({
     ws, hydrated, storage, actorId, actors,
     actor: actors.find((a) => a.id === actorId),
-    setActorId, dispatch, preview, reset,
+    setActorId, dispatch, preview, reset, discarded, dismissDiscarded: () => setDiscarded(null),
     actorName: (id?: string) => {
       if (!id) return "Unassigned";
       const a = actors.find((x) => x.id === id);
       return a ? a.name : id;
     },
-  }), [ws, hydrated, storage, actorId, actors, setActorId, dispatch, preview, reset]);
+  }), [ws, hydrated, storage, actorId, actors, setActorId, dispatch, preview, reset, discarded]);
 
   return (
     <WorkspaceContext.Provider value={value}>
