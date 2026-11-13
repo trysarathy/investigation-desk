@@ -13,7 +13,7 @@ export default function Reports() {
   };
   return (
     <>
-      <PageHead eyebrow="Control" title="Reports and evidence"
+      <PageHead eyebrow="Oversight" title="Reports and evidence"
         lede="Export case reports and the whole sandbox workspace. Files are generated in your browser; nothing is sent anywhere."
         actions={<Btn kind="primary" onClick={() => download(`clearline-workspace-${ws.asOf.slice(0, 10)}.json`, serializeWorkspace(ws), "application/json")}>Export workspace (.json)</Btn>} />
       <p className={ui.hint}>{ENGINE_DISCLAIMER}</p>
@@ -25,7 +25,7 @@ export default function Reports() {
               <tbody>{ws.cases.map((c) => (
                 <tr key={c.id}>
                   <td data-label="Case">{c.title}<span className={ui.sub + " mono"}>{c.id}</span></td>
-                  <td data-label="Status"><Chip tone={c.status === "resolved" ? "ok" : "warn"}>{c.status}</Chip></td>
+                  <td data-label="Status"><Chip tone={c.status === "resolved" ? "neutral" : "warn"}>{c.status}</Chip></td>
                   <td data-label="Payment">{c.intentId ? <Link href={`/clearline/payments/${c.intentId}`} className="mono">{c.intentId}</Link> : "—"}</td>
                   <td data-label="Export"><Btn size="small" onClick={() => exportCase(c.id)} aria-label={`Export case report ${c.id}`}>Export report</Btn></td>
                 </tr>))}
@@ -44,7 +44,7 @@ export default function Reports() {
                   <td data-label="Recorded" className={ui.num}>{fmtTime(e.recordedAt)}<span className={ui.sub}>{actorName(e.recordedBy)}</span></td>
                   <td data-label="Evidence">{e.description}<span className={ui.sub}>{e.kind.replace(/_/g, " ")}{e.documentName ? ` · ${e.documentName} (metadata only)` : ""}</span></td>
                   <td data-label="Source">{e.source}</td>
-                  <td data-label="Independent"><Chip tone={e.independent ? "ok" : "neutral"}>{e.independent ? "Independent" : "Not independent"}</Chip></td>
+                  <td data-label="Independent"><Chip tone={e.independent ? "info" : "neutral"}>{e.independent ? "Independent" : "Not independent"}</Chip></td>
                   <td data-label="Linked to">{e.intentId ? <Link href={`/clearline/payments/${e.intentId}`} className="mono">{e.intentId}</Link> : e.advanceId ?? e.caseId ?? "—"}</td>
                 </tr>))}
               </tbody>

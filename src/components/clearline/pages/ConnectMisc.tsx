@@ -10,7 +10,7 @@ export function QuotesRoutes() {
   const quotes = [...ws.quotes].reverse();
   return (
     <>
-      <PageHead eyebrow="Connect" title="Quotes and routes" lede={<>Sandbox provider routes and every quote requested in this workspace. Each quote is labelled <strong>{QUOTE_LABEL}</strong>.</>} />
+      <PageHead eyebrow="Routes & Providers" title="Quotes and routes" lede={<>Sandbox provider routes and every quote requested in this workspace. Each quote is labelled <strong>{QUOTE_LABEL}</strong>.</>} />
       <Panel title={`Routes (${ws.routes.length})`} id="routes">
         <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Routes">
           <table className={`${ui.table} ${ui.stack}`}>
@@ -29,7 +29,7 @@ export function QuotesRoutes() {
         </div>
       </Panel>
       <Panel title={`Quotes (${quotes.length})`} id="quotes">
-        {quotes.length === 0 ? <Empty>No quotes yet. <Link href="/clearline/connect">Create an intent and request quotes</Link>.</Empty> : (
+        {quotes.length === 0 ? <Empty>No quotes yet. <Link href="/clearline/routes/new">Create an intent and request quotes</Link>.</Empty> : (
           <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Quotes">
             <table className={`${ui.table} ${ui.stack}`}>
               <thead><tr><th>Quote</th><th>Payment</th><th>Provider</th><th className={ui.r}>Rate</th><th>Eligibility</th><th>Freshness</th></tr></thead>
@@ -39,8 +39,8 @@ export function QuotesRoutes() {
                   <td data-label="Payment"><Link href={`/clearline/payments/${q.intentId}`} className="mono">{q.intentId}</Link></td>
                   <td data-label="Provider">{q.providerName}</td>
                   <td data-label="Rate" className={`${ui.r} ${ui.num}`}>{q.indicativeRate}</td>
-                  <td data-label="Eligibility"><Chip tone={q.eligible ? "ok" : "bad"}>{q.eligible ? "Eligible" : "Not eligible"}</Chip><span className={ui.sub}>{q.eligibilityReason}</span></td>
-                  <td data-label="Freshness"><Chip tone={q.freshness === "fresh" ? "ok" : "neutral"}>{q.freshness === "fresh" ? "Fresh" : "Expired"}</Chip><span className={ui.sub}>Expires {fmtTime(q.expiresAt)}</span></td>
+                  <td data-label="Eligibility"><Chip tone={q.eligible ? "info" : "bad"}>{q.eligible ? "Eligible" : "Not eligible"}</Chip><span className={ui.sub}>{q.eligibilityReason}</span></td>
+                  <td data-label="Freshness"><Chip tone={q.freshness === "fresh" ? "info" : "neutral"}>{q.freshness === "fresh" ? "Fresh" : "Expired"}</Chip><span className={ui.sub}>Expires {fmtTime(q.expiresAt)}</span></td>
                 </tr>))}
               </tbody>
             </table>
@@ -56,10 +56,10 @@ export function ProviderActivity() {
   const events = [...ws.providerEvents].sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
   return (
     <>
-      <PageHead eyebrow="Connect" title="Provider activity"
+      <PageHead eyebrow="Routes & Providers" title="Provider activity"
         lede="Every event received from sandbox providers, including duplicates, late arrivals and rejected signatures, with how Clearline processed it. Provider events are claims, not settlement proof." />
       <Panel title={`${events.length} event${events.length === 1 ? "" : "s"}`} id="events">
-        {events.length === 0 ? <Empty>No provider events yet. Submit an instruction in <Link href="/clearline/connect">Payment intents</Link> and simulate an event.</Empty> : (
+        {events.length === 0 ? <Empty>No provider events yet. Submit an instruction in <Link href="/clearline/routes/new">New payment intent</Link> and simulate an event.</Empty> : (
           <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Provider events">
             <table className={`${ui.table} ${ui.stack}`}>
               <thead><tr><th>Received</th><th>Event</th><th>Payment</th><th>Provenance</th><th>Signature</th><th>Processing</th></tr></thead>
@@ -69,7 +69,7 @@ export function ProviderActivity() {
                   <td data-label="Event"><Code>{e.normalizedType}</Code><span className={ui.sub}>{e.providerName} · <span className="mono">{e.providerEventId}</span></span></td>
                   <td data-label="Payment">{e.intentId ? <Link href={`/clearline/payments/${e.intentId}`} className="mono">{e.intentId}</Link> : "Unresolved"}</td>
                   <td data-label="Provenance">{e.provenance.replace(/_/g, " ")}<span className={ui.sub}>{e.confidence.replace(/_/g, " ")}</span></td>
-                  <td data-label="Signature"><Chip tone={e.signatureResult === "invalid" ? "bad" : e.signatureResult === "valid" ? "ok" : "neutral"}>{e.signatureResult.replace(/_/g, " ")}</Chip></td>
+                  <td data-label="Signature"><Chip tone={e.signatureResult === "invalid" ? "bad" : e.signatureResult === "valid" ? "info" : "neutral"}>{e.signatureResult.replace(/_/g, " ")}</Chip></td>
                   <td data-label="Processing"><OutcomeChip v={e.processingOutcome} held={Boolean(e.detail?.suppressedOnHold)} /></td>
                 </tr>))}
               </tbody>

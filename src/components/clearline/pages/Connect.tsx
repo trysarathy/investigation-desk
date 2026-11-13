@@ -8,7 +8,9 @@ import {
 } from "@/lib/clearline";
 import { errorText, useWorkspace } from "../workspace";
 import { ExecChip, RAIL } from "../labels";
+import { label as humanLabel } from "../human";
 import { SimulateEvent } from "../SimulateEvent";
+import { ActionButton, gateOf } from "../Action";
 import { Btn, Chip, Code, Empty, Field, Notice, PageHead, Panel, Status, fmtTime, ui } from "../ui";
 
 type Msg = { text: string; error?: boolean } | null;
@@ -77,7 +79,7 @@ function CreateForm({ onCreated }: { onCreated: (id: string) => void }) {
 }
 
 export default function Connect() {
-  const { ws, dispatch, actors, actorName } = useWorkspace();
+  const { ws, dispatch, preview, actors, actorName } = useWorkspace();
   const router = useRouter();
   const q = useSearchParams();
   const intentId = q?.get("intent") ?? "";
@@ -86,20 +88,24 @@ export default function Connect() {
   const [checker, setChecker] = useState("usr_daniel");
   const [rejectReason, setRejectReason] = useState("");
 
-  const go = (id: string) => router.replace(`/clearline/connect?intent=${encodeURIComponent(id)}`);
+  const go = (id: string) => router.replace(`/clearline/routes/new?intent=${encodeURIComponent(id)}`);
   const act = (label: string, r: ReturnType<typeof dispatch>) => {
-    setMsg(r.ok ? { text: `${label}: ${r.value.outcome.replace(/_/g, " ")}.` } : { text: `${label} not applied — ${errorText(r)}`, error: true });
+    setMsg(r.ok ? { text: `${label} — recorded by the engine (${humanLabel("actionOutcome", r.value.outcome)}).` } : { text: `${label} not applied — ${errorText(r, ws)}`, error: true });
     return r.ok;
   };
 
   const quotes = intent ? ws.quotes.filter((x) => x.intentId === intent.id) : [];
   const instr = intent?.instructionId ? ws.instructions.find((x) => x.id === intent.instructionId) : undefined;
   const step = !intent ? 0 : !quotes.length ? 1 : !instr ? 2 : instr.status === "pending_approval" ? 3 : instr.status === "approved" ? 4 : instr.status === "submitted" ? 5 : 2;
+  const gQuote = intent ? gateOf(preview({ type: "request_quotes", intentId: intent.id }), ws) : null;
+  const gApprove = instr ? gateOf(preview({ type: "approve_instruction", instructionId: instr.id }, { actorId: checker }), ws) : null;
+  const gReject = instr ? gateOf(preview({ type: "reject_instruction", instructionId: instr.id, reason: rejectReason || "Dry run" }, { actorId: checker }), ws, false) : null;
+  const gSubmit = instr ? gateOf(preview({ type: "submit_instruction", instructionId: instr.id }), ws) : null;
   const inFlight = ws.intents.filter((i) => ["created", "quoted", "approved", "submitted"].includes(i.status.execution));
 
   return (
     <>
-      <PageHead eyebrow="Connect" title="Payment intents"
+      <PageHead eyebrow="Routes & Providers" title="New payment intent"
         lede="Create a fictional payment, compare indicative sandbox quotes, prepare and approve it with two different people, submit it, then simulate what the provider reports." />
       <Notice>No partner is contacted. Quotes are indicative and not executable; the provider is a sandbox adapter.</Notice>
       <ol className={ui.steps} aria-label="Progress">
@@ -112,7 +118,7 @@ export default function Connect() {
           <CreateForm onCreated={(id) => go(id)} />
         </Panel>
       ) : (
-        <Panel title={`Intent ${intent.internalReference}`} id="intent" actions={<><ExecChip v={intent.status.execution} /><Link href={`/clearline/payments/${intent.id}`}>Investigation view</Link><Link href="/clearline/connect">Start another</Link></>}>
+        <Panel title={`Intent ${intent.internalReference}`} id="intent" actions={<><ExecChip v={intent.status.execution} /><Link href={`/clearline/payments/${intent.id}`}>Investigation view</Link><Link href="/clearline/routes/new">Start another</Link></>}>
           <div className={ui.panelBody}>
             <dl className={ui.dl}>
               <div><dt>Internal ID</dt><dd className="mono" data-testid="intent-id">{intent.id}</dd></div>
@@ -128,7 +134,7 @@ export default function Connect() {
 
       {intent && step === 1 && (
         <Panel title="2. Request quotes" id="quote">
-          <div className={ui.panelBody}><Btn kind="primary" onClick={() => act("Quotes requested", dispatch({ type: "request_quotes", intentId: intent.id }))}>Request quotes</Btn></div>
+          <div className={ui.panelBody}><ActionButton kind="primary" gate={gQuote!} onClick={() => act("Quotes requested", dispatch({ type: "request_quotes", intentId: intent.id }))}>Request quotes</ActionButton></div>
         </Panel>
       )}
 
@@ -146,12 +152,13 @@ export default function Connect() {
                     <td data-label="Fees" className={`${ui.r} ${ui.num}`}>{formatMinor(qt.providerFeeMinor, qt.sourceCurrency)} + {formatMinor(qt.platformFeeMinor, qt.sourceCurrency)}</td>
                     <td data-label="Est. recipient" className={`${ui.r} ${ui.num}`}>{qt.eligible ? formatMinor(qt.estimatedRecipientMinor, qt.destinationCurrency) : "—"}</td>
                     <td data-label="ETA">{qt.etaLabel}</td>
-                    <td data-label="Eligibility"><Chip tone={qt.eligible ? "ok" : "bad"}>{qt.eligible ? "Eligible" : "Not eligible"}</Chip><span className={ui.sub}>{qt.eligibilityReason}</span>{qt.prerequisites.length > 0 && <span className={ui.sub}>Needs: {qt.prerequisites.join(", ")}</span>}</td>
-                    <td data-label="Freshness"><Chip tone={qt.freshness === "fresh" ? "ok" : "neutral"}>{qt.freshness === "fresh" ? "Fresh" : "Expired"}</Chip><span className={ui.sub}>Quoted {fmtTime(qt.quotedAt)}, expires {fmtTime(qt.expiresAt)}</span></td>
+                    <td data-label="Eligibility"><Chip tone={qt.eligible ? "info" : "bad"}>{qt.eligible ? "Eligible" : "Not eligible"}</Chip><span className={ui.sub}>{qt.eligibilityReason}</span>{qt.prerequisites.length > 0 && <span className={ui.sub}>Needs: {qt.prerequisites.join(", ")}</span>}</td>
+                    <td data-label="Freshness"><Chip tone={qt.freshness === "fresh" ? "info" : "neutral"}>{qt.freshness === "fresh" ? "Fresh" : "Expired"}</Chip><span className={ui.sub}>Quoted {fmtTime(qt.quotedAt)}, expires {fmtTime(qt.expiresAt)}</span></td>
                     <td data-label="Action">
                       {intent.selectedQuoteId === qt.id ? <Chip tone="info">Selected</Chip> : step === 2 ? (
-                        <Btn size="small" disabled={!qt.eligible} aria-label={`Choose ${qt.providerName}`}
-                          onClick={() => act(`Route ${qt.providerName} chosen`, dispatch({ type: "choose_route", intentId: intent.id, quoteId: qt.id }))}>Choose route</Btn>
+                        <ActionButton size="small" ariaLabel={`Choose ${qt.providerName}`} name="Choose route"
+                          gate={qt.eligible ? gateOf(preview({ type: "choose_route", intentId: intent.id, quoteId: qt.id }), ws) : { ok: false, reason: `Not eligible: ${qt.eligibilityReason}` }}
+                          onClick={() => act(`Route ${qt.providerName} chosen`, dispatch({ type: "choose_route", intentId: intent.id, quoteId: qt.id }))}>Choose route</ActionButton>
                       ) : null}
                     </td>
                   </tr>
@@ -173,11 +180,11 @@ export default function Connect() {
                   {actors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
               </Field>
-              <Btn kind="primary" onClick={() => act("Checker approval", dispatch({ type: "approve_instruction", instructionId: instr.id }, { actorId: checker }))}>Approve as checker</Btn>
+              <div><ActionButton kind="primary" gate={gApprove!} onClick={() => act("Checker approval", dispatch({ type: "approve_instruction", instructionId: instr.id }, { actorId: checker }))}>Approve as checker</ActionButton></div>
             </div>
             <div className={ui.actions} style={{ alignItems: "flex-end", marginTop: 12 }}>
               <Field label="Rejection reason"><input value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} /></Field>
-              <Btn disabled={!rejectReason.trim()} onClick={() => act("Rejection", dispatch({ type: "reject_instruction", instructionId: instr.id, reason: rejectReason }, { actorId: checker }))}>Reject</Btn>
+              <div><ActionButton gate={gReject!.ok && !rejectReason.trim() ? { ok: false, reason: "Give a rejection reason first." } : gReject!} onClick={() => act("Rejection", dispatch({ type: "reject_instruction", instructionId: instr.id, reason: rejectReason }, { actorId: checker }))}>Reject</ActionButton></div>
             </div>
           </div>
         </Panel>
@@ -187,7 +194,7 @@ export default function Connect() {
         <Panel title="5. Submit to provider" id="submit">
           <div className={ui.panelBody}>
             <p style={{ marginTop: 0 }}>Approved by {actorName(instr.checkerId)}. Submitting sends the instruction to the sandbox adapter, which returns a provider payment id.</p>
-            <Btn kind="primary" onClick={() => act("Submission", dispatch({ type: "submit_instruction", instructionId: instr.id }))}>Submit instruction</Btn>
+            <ActionButton kind="primary" gate={gSubmit!} onClick={() => act("Submission", dispatch({ type: "submit_instruction", instructionId: instr.id }))}>Submit instruction</ActionButton>
           </div>
         </Panel>
       )}
@@ -209,7 +216,7 @@ export default function Connect() {
                   <td data-label="Execution"><ExecChip v={i.status.execution} /></td>
                   <td data-label="Amount" className={`${ui.r} ${ui.num}`}>{formatMoney({ amountMinor: i.amountMinor, currency: i.sourceCurrency })}</td>
                   <td data-label="Idempotency key"><Code>{i.idempotencyKey}</Code></td>
-                  <td data-label="Action"><Link href={`/clearline/connect?intent=${i.id}`}>Continue</Link></td>
+                  <td data-label="Action"><Link href={`/clearline/routes/new?intent=${i.id}`}>Continue</Link></td>
                 </tr>))}
               </tbody>
             </table>

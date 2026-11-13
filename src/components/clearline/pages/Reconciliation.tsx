@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import {
   CURRENCIES, RECONCILIATION_CODE_GROUP, RECONCILIATION_CODE_TEXT, formatMinor, formatMinorPlain, parseAmount,
-  type CurrencyCode, type ReconciliationCodeGroup, type StatementLine, type StatementLineInput, type Workspace,
+  type AmountDifference, type CurrencyCode, type ReconciliationCodeGroup, type StatementLine, type StatementLineInput, type Workspace,
 } from "@/lib/clearline";
 import { errorText, useWorkspace } from "../workspace";
 import { Btn, Chip, Code, Empty, Field, Notice, PageHead, Panel, Status, type Tone, ui } from "../ui";
@@ -72,13 +72,13 @@ export default function Reconciliation() {
 
   return (
     <>
-      <PageHead eyebrow="Control" title="Reconciliation"
+      <PageHead eyebrow="Operations" title="Reconciliation"
         lede="Statement lines are matched to payments and repayments only by a trusted reference. An equal amount alone never attributes a line; it stays an exception for a person." />
       <nav aria-label="Reconciliation filters" className={ui.actions} style={{ marginBottom: 12 }}>
-        <Link href="/clearline/control/reconciliation" className={`${ui.btn} ${ui.small} ${!group && !status ? ui.primary : ""}`}>All ({ws.statementLines.length})</Link>
+        <Link href="/clearline/reconciliation" className={`${ui.btn} ${ui.small} ${!group && !status ? ui.primary : ""}`}>All ({ws.statementLines.length})</Link>
         {GROUPS.map((g) => {
           const c = ws.statementLines.filter((l) => inGroup(l, g.key)).length;
-          return <Link key={g.key} href={`/clearline/control/reconciliation?group=${g.key}`} className={`${ui.btn} ${ui.small} ${group === g.key ? ui.primary : ""}`}>{g.label} ({c})</Link>;
+          return <Link key={g.key} href={`/clearline/reconciliation?group=${g.key}`} className={`${ui.btn} ${ui.small} ${group === g.key ? ui.primary : ""}`}>{g.label} ({c})</Link>;
         })}
       </nav>
       <Panel title={`Statement lines (${lines.length})`} id="lines">
@@ -99,10 +99,13 @@ export default function Reconciliation() {
                     <td data-label="Reference" className="mono">{l.reference || <em>none</em>}<span className={ui.sub}>{l.counterparty}</span></td>
                     <td data-label="Value date" className={ui.num}>{l.valueDate}</td>
                     <td data-label="Status"><Chip tone={st[1]}>{st[0]}</Chip></td>
-                    <td data-label="Explanation">{l.explanationCodes.map((c) => <span key={c} style={{ display: "block" }}><Code>{c}</Code> <span className={ui.sub} style={{ display: "inline" }}>{RECONCILIATION_CODE_TEXT[c]}</span></span>)}</td>
+                    <td data-label="Explanation">{l.explanationCodes.map((c) => <span key={c} style={{ display: "block" }}><Code>{c}</Code> <span className={ui.sub} style={{ display: "inline" }}>{RECONCILIATION_CODE_TEXT[c]}</span></span>)}
+                      {(() => { const d = (l as StatementLine & { amountDifference?: AmountDifference }).amountDifference; return d ? (
+                        <span className={ui.sub} data-testid="line-amount-difference">Expected <span className="mono">{formatMinor(d.expectedMinor, d.currency)}</span> · reported <span className="mono">{formatMinor(d.reportedMinor, d.currency)}</span> · difference <strong className="mono">{formatMinor(d.differenceMinor, d.currency)}</strong>. {d.requiredNextAction}</span>
+                      ) : null; })()}</td>
                     <td data-label="Allocated to">{allocs.length === 0 ? "—" : allocs.map((a) => a.target.kind === "payment"
                       ? <Link key={a.id} href={`/clearline/payments/${a.target.intentId}`} className="mono" style={{ display: "block" }}>{a.target.intentId}</Link>
-                      : <Link key={a.id} href="/clearline/control/funding" className="mono" style={{ display: "block" }}>{a.target.obligationId}</Link>)}</td>
+                      : <Link key={a.id} href="/clearline/treasury/funding" className="mono" style={{ display: "block" }}>{a.target.obligationId}</Link>)}</td>
                   </tr>
                 );
               })}</tbody>

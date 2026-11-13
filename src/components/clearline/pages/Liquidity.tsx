@@ -9,7 +9,7 @@ export default function Liquidity() {
   const usable = Object.entries(v.currentUsableByCurrency) as [CurrencyCode, number][];
   return (
     <>
-      <PageHead eyebrow="Control" title="Liquidity"
+      <PageHead eyebrow="Treasury & Funding" title="Liquidity"
         lede={<>Reported balances from sandbox provider statements, and what is usable under the policy below. As of <span className="num">{fmtTime(v.asOf)}</span>.</>} />
       <Notice>
         <strong>Policy: {v.policy.label}</strong> — defined by {v.policy.definedBy}. Buffer {v.policy.bufferBps / 100}% (with minimums); snapshots older than {v.policy.maxAgeMinutes} minutes are stale and excluded from usable totals. This is an illustrative provider-defined policy, not a regulatory classification.
@@ -38,7 +38,7 @@ export default function Liquidity() {
                   <td data-label="Committed payouts" className={`${ui.r} ${ui.num}`}>{formatMinor(r.committedPayoutsMinor, r.currency)}</td>
                   <td data-label="Buffer" className={`${ui.r} ${ui.num}`}>{formatMinor(r.bufferMinor, r.currency)}</td>
                   <td data-label="Usable" className={`${ui.r} ${ui.num}`}><strong>{formatMinor(r.usableMinor, r.currency)}</strong></td>
-                  <td data-label="Freshness"><Chip tone={r.stale ? "warn" : "ok"}>{r.stale ? "Stale — excluded" : "Fresh"}</Chip></td>
+                  <td data-label="Freshness"><Chip tone={r.stale ? "warn" : "info"}>{r.stale ? "Stale — excluded" : "Fresh"}</Chip></td>
                 </tr>
               ))}
             </tbody>

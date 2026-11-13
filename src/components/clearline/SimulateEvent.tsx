@@ -1,8 +1,9 @@
 "use client";
 import { useState } from "react";
 import type { FailureInjection } from "@/lib/clearline";
-import { errorText, useWorkspace } from "./workspace";
-import { Btn, Field, Status, ui } from "./ui";
+import { useWorkspace } from "./workspace";
+import { ActionButton, gateOf, useRun } from "./Action";
+import { Field, Status, ui } from "./ui";
 
 export const INJECTIONS: [FailureInjection, string][] = [
   ["none", "Next scheduled event (no fault)"],
@@ -15,16 +16,15 @@ export const INJECTIONS: [FailureInjection, string][] = [
 
 /** Asks the sandbox provider adapter for its next event, optionally with an injected fault. */
 export function SimulateEvent({ intentId, idPrefix, onDone }: { intentId: string; idPrefix: string; onDone?: (outcome: string) => void }) {
-  const { dispatch } = useWorkspace();
+  const { ws, preview } = useWorkspace();
+  const { msg, run } = useRun();
   const [inj, setInj] = useState<FailureInjection>("none");
-  const [msg, setMsg] = useState<{ text: string; error?: boolean } | null>(null);
+  const action = { type: "simulate_provider_event", intentId, injection: inj } as const;
+  const gate = gateOf(preview(action), ws);
   return (
     <form className={ui.panelBody} onSubmit={(e) => {
       e.preventDefault();
-      const r = dispatch({ type: "simulate_provider_event", intentId, injection: inj });
-      if (!r.ok) { setMsg({ text: `No event simulated — ${errorText(r)}`, error: true }); return; }
-      setMsg({ text: `Provider event processed: ${r.value.outcome.replace(/_/g, " ")}.` });
-      onDone?.(r.value.outcome);
+      run("Simulate next provider event", action, { onOk: (r) => onDone?.(r.value.outcome) });
     }}>
       <div className={ui.actions} style={{ alignItems: "flex-end" }}>
         <Field label="Failure injection">
@@ -32,7 +32,7 @@ export function SimulateEvent({ intentId, idPrefix, onDone }: { intentId: string
             {INJECTIONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </select>
         </Field>
-        <Btn type="submit">Simulate next provider event</Btn>
+        <div><ActionButton type="submit" gate={gate}>Simulate next provider event</ActionButton></div>
       </div>
       <p className={ui.hint}>Sandbox provider only. A simulated event is a provider claim, never independent settlement evidence.</p>
       <Status msg={msg} />

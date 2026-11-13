@@ -19,13 +19,14 @@ export default function Overview() {
 
   return (
     <>
-      <PageHead eyebrow="Workspace" title="Overview"
+      <PageHead eyebrow="Operations" title="Overview"
         lede={<>Simulated clock: <span className="num">{fmtTime(ws.asOf)}</span>. Each figure links to the payments or cases behind it.</>}
-        actions={<><LinkBtn href="/clearline/connect" kind="primary">New payment intent</LinkBtn><LinkBtn href="/clearline/trial">Guided trial</LinkBtn></>} />
+        actions={<><LinkBtn href="/clearline/routes/new" kind="primary">New payment intent</LinkBtn><LinkBtn href="/clearline/trial">Guided trial</LinkBtn></>} />
 
       <Notice info>
-        <strong>{ws.organization.name}</strong> is a fictional organisation. A provider saying “completed” is a provider claim;
-        Clearline shows execution, settlement evidence and reconciliation as three separate states.
+        <strong>First time here?</strong> The <Link href="/clearline/trial">guided trial</Link> walks through five payments in about 15 minutes.
+        {" "}<strong>{ws.organization.name}</strong> is fictional. A provider saying “completed” is a claim: every payment shows what the provider
+        reported, what independent evidence establishes and whether the records match — three separate truths.
       </Notice>
 
       <div className={ui.metrics} aria-label="Workspace summary">
@@ -34,9 +35,9 @@ export default function Overview() {
         <Metric href="/clearline/payments?reconciliation=exception" label="Payments with a reconciliation exception" value={reconExc.length} note="View these payments" />
         <Metric href="/clearline/exceptions" label="Open exceptions" value={open.length} note="Open exceptions queue" />
         <Metric href="/clearline/investigations" label="Open investigations" value={cases.length} note="View cases" />
-        <Metric href="/clearline/control/holds" label="Compliance holds awaiting a human" value={holds.length} note="View holds" />
-        <Metric href="/clearline/control/reconciliation?status=open" label="Statement lines not allocated" value={lines.length} note="View statement lines" />
-        <Metric href="/clearline/control/funding" label="Funding outstanding" value={outstanding.length ? outstanding.join(" · ") : "None"} note="View advances" />
+        <Metric href="/clearline/holds" label="Compliance holds awaiting a human" value={holds.length} note="View holds" />
+        <Metric href="/clearline/reconciliation?status=open" label="Statement lines not allocated" value={lines.length} note="View statement lines" />
+        <Metric href="/clearline/treasury/funding" label="Funding outstanding" value={outstanding.length ? outstanding.join(" · ") : "None"} note="View advances" />
       </div>
 
       <Panel title="Needs attention" id="attention" actions={<Link href="/clearline/exceptions">All exceptions</Link>}>
@@ -52,7 +53,7 @@ export default function Overview() {
                     <td data-label="Status"><ExcChip v={e.status} /></td>
                     <td data-label="Owner">{actorName(e.ownerId)}</td>
                     <td data-label="Required action">{e.requiredAction}</td>
-                    <td data-label="Payment">{e.intentId ? <Link href={`/clearline/payments/${e.intentId}`} className="mono">{e.intentId}</Link> : e.advanceId ? <Link href="/clearline/control/funding">{e.advanceId}</Link> : "—"}</td>
+                    <td data-label="Payment">{e.intentId ? <Link href={`/clearline/payments/${e.intentId}`} className="mono">{e.intentId}</Link> : e.advanceId ? <Link href="/clearline/treasury/funding">{e.advanceId}</Link> : "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -61,7 +62,7 @@ export default function Overview() {
         )}
       </Panel>
 
-      <Panel title="Recent activity" id="activity" actions={<Link href="/clearline/control/reports">Audit log</Link>}>
+      <Panel title="Recent activity" id="activity" actions={<Link href="/clearline/reports">Audit log</Link>}>
         {ws.audit.length === 0 ? <Empty>No activity yet.</Empty> : (
           <ol className={ui.timeline}>
             {[...ws.audit].slice(-6).reverse().map((a) => (

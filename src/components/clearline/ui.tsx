@@ -1,6 +1,8 @@
 "use client";
 import Link from "./Link";
 import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
+import { isTabActive, sectionFor } from "./nav";
 import s from "./ui.module.css";
 
 export { s as ui };
@@ -31,16 +33,37 @@ export function Code({ children }: { children: ReactNode }) {
   return <code className={s.code}>{children}</code>;
 }
 
-export function PageHead({ eyebrow, title, lede, actions }: { eyebrow?: string; title: string; lede?: ReactNode; actions?: ReactNode }) {
+/** Tabs for the sub-pages of the current nav section (e.g. Treasury & Funding › Liquidity | Funding exposure). */
+export function SectionTabs() {
+  const pathname = usePathname() ?? "/clearline";
+  const sec = sectionFor(pathname);
+  if (!sec?.tabs) return null;
   return (
-    <div className={s.pageHead}>
-      <div>
-        {eyebrow && <p className={s.eyebrow}>{eyebrow}</p>}
-        <h1>{title}</h1>
-        {lede && <p className={s.lede}>{lede}</p>}
+    <nav aria-label={`${sec.label} pages`}>
+      <ul className={s.tabs}>
+        {sec.tabs.map((t) => (
+          <li key={t.href}>
+            <Link href={t.href} className={s.tab} aria-current={isTabActive(pathname, sec.tabs!, t.href) ? "page" : undefined}>{t.label}</Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
+export function PageHead({ eyebrow, title, lede, actions, tabs = true }: { eyebrow?: string; title: string; lede?: ReactNode; actions?: ReactNode; tabs?: boolean }) {
+  return (
+    <>
+      <div className={s.pageHead}>
+        <div>
+          {eyebrow && <p className={s.eyebrow}>{eyebrow}</p>}
+          <h1>{title}</h1>
+          {lede && <p className={s.lede}>{lede}</p>}
+        </div>
+        {actions && <div className={s.actions}>{actions}</div>}
       </div>
-      {actions && <div className={s.actions}>{actions}</div>}
-    </div>
+      {tabs && <SectionTabs />}
+    </>
   );
 }
 

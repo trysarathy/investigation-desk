@@ -25,14 +25,14 @@ export default function Payments() {
 
   return (
     <>
-      <PageHead eyebrow="Workspace" title="Payments"
+      <PageHead eyebrow="Operations" title="Payments"
         lede="Every payment shows three separate states: what the provider reports (execution), what evidence of settlement exists, and whether it reconciles."
-        actions={<LinkBtn href="/clearline/connect" kind="primary">New payment intent</LinkBtn>} />
+        actions={<LinkBtn href="/clearline/routes/new" kind="primary">New payment intent</LinkBtn>} />
       {filters.length > 0 && (
         <p className={ui.actions} role="status">Filtered by {filters.join(", ")}. <Link href="/clearline/payments">Clear filter</Link></p>
       )}
       <Panel title={`${rows.length} payment${rows.length === 1 ? "" : "s"}`} id="payments">
-        {rows.length === 0 ? <Empty>No payments match. <Link href="/clearline/connect">Create a payment intent</Link> or <Link href="/clearline/settings">reset to the sample workspace</Link>.</Empty> : (
+        {rows.length === 0 ? <Empty>No payments match. <Link href="/clearline/routes/new">Create a payment intent</Link> or <Link href="/clearline/settings">reset to the sample workspace</Link>.</Empty> : (
           <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Payments">
             <table className={`${ui.table} ${ui.stack}`}>
               <thead><tr><th>Payment</th><th>Beneficiary</th><th className={ui.r}>Amount</th><th>Provider / rail</th><th>Execution</th><th>Settlement evidence</th><th>Reconciliation</th><th>Open exceptions</th></tr></thead>

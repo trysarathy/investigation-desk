@@ -11,7 +11,7 @@ export default function Funding() {
   const totals = Object.entries(p.outstandingByCurrency) as [CurrencyCode, number][];
   return (
     <>
-      <PageHead eyebrow="Control" title="Funding exposure"
+      <PageHead eyebrow="Treasury & Funding" title="Funding exposure"
         lede="Advances a provider made to pay suppliers before its customer reimburses it, linked to the supplier payout and to repayments matched by reference." />
       <Notice info>{FUNDING_PROJECTION_LABEL} The detailed Funding Desk prototype remains at <Link href="/mentor-demo">/mentor-demo</Link>.</Notice>
       <Panel title="Outstanding by currency" id="totals">
@@ -27,7 +27,7 @@ export default function Funding() {
               <div className={ui.grid3} data-testid="funding-figures">
                 <div><p className={ui.eyebrow}>Advanced (principal)</p><p className="num" style={{ fontSize: 20, fontWeight: 650, margin: 0 }} data-testid="funding-principal">{formatMoney(r.principal)}</p></div>
                 <div><p className={ui.eyebrow}>Repaid by reference</p><p className="num" style={{ fontSize: 20, fontWeight: 650, margin: 0 }} data-testid="funding-repaid">{formatMoney(r.repaid)}</p></div>
-                <div><p className={ui.eyebrow}>Outstanding</p><p className="num" style={{ fontSize: 20, fontWeight: 650, margin: 0, color: "var(--cl-signal-text)" }} data-testid="funding-outstanding">{formatMoney(r.outstanding)}</p>
+                <div><p className={ui.eyebrow}>Outstanding</p><p className="num" style={{ fontSize: 20, fontWeight: 650, margin: 0, color: "var(--cl-warning)" }} data-testid="funding-outstanding">{formatMoney(r.outstanding)}</p>
                   <p className={ui.hint} style={{ margin: 0 }}>Due {r.obligation ? fmtDate(r.obligation.dueDate + "T00:00:00+08:00") : "—"}{r.overdue ? " — overdue" : ""}</p></div>
               </div>
               <div style={{ marginTop: 14 }}>
@@ -48,7 +48,7 @@ export default function Funding() {
                   <tbody>{r.allocations.map((a) => (
                     <tr key={a.id}>
                       <td data-label="Allocated" className={ui.num}>{fmtTime(a.at)}</td>
-                      <td data-label="Statement line"><Link href={`/clearline/control/reconciliation#${a.statementLineId}`} className="mono">{a.statementLineId}</Link></td>
+                      <td data-label="Statement line"><Link href={`/clearline/reconciliation#${a.statementLineId}`} className="mono">{a.statementLineId}</Link></td>
                       <td data-label="Amount" className={`${ui.r} ${ui.num}`}>{formatMinor(a.amountMinor, a.currency)}</td>
                       <td data-label="Matched by">{human(a.matchedBy)}</td>
                       <td data-label="Evidence" className="mono">{a.evidenceId}</td>

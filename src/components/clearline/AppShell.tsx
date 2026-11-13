@@ -3,15 +3,19 @@ import Link from "./Link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { ActorSelect } from "./ActorSelect";
-import { CONTACT_MAILTO, MARKETING_URL, NAV, crumbsFor, isActive } from "./nav";
+import { CONTACT_MAILTO, MARKETING_URL, PRIMARY, SECONDARY, crumbsFor, isActive } from "./nav";
 import s from "./ui.module.css";
+
+function safeDecode(v: string): string {
+  try { return decodeURIComponent(v); } catch { return v; }
+}
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "/clearline";
   const [open, setOpen] = useState(false);
   useEffect(() => setOpen(false), [pathname]);
   const segs = pathname.split("/");
-  const detail = segs.length > 3 && segs[2] === "payments" ? decodeURIComponent(segs[3]) : undefined;
+  const detail = segs.length > 3 && segs[2] === "payments" ? safeDecode(segs[3]) : undefined;
   const crumbs = crumbsFor(pathname, detail);
 
   return (
@@ -39,13 +43,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </button>
           </div>
           <nav id="cl-nav" aria-label="Console" className={s.navWrap} data-open={open ? "true" : "false"}>
-            {NAV.map((g) => (
-              <div key={g.title} className={s.navGroup}>
-                <p className={s.navTitle}>{g.title}</p>
-                <ul className={s.navList}>
-                  {g.items.map((i) => (
+            {([["Operations", PRIMARY, ""], ["Set-up and reference", SECONDARY, s.navSecondary]] as const).map(([title, items, cls]) => (
+              <div key={title} className={`${s.navGroup} ${cls}`}>
+                <p className={s.navTitle} id={`nav-${cls ? "secondary" : "primary"}`}>{title}</p>
+                <ul className={s.navList} aria-labelledby={`nav-${cls ? "secondary" : "primary"}`}>
+                  {items.map((i) => (
                     <li key={i.href}>
-                      <Link href={i.href} className={s.navLink} aria-current={isActive(pathname, i.href) ? "page" : undefined}>
+                      <Link href={i.href} className={s.navLink} aria-current={isActive(pathname, i) ? "page" : undefined}>
                         {i.label}
                       </Link>
                     </li>
@@ -56,7 +60,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <div className={s.navFoot}>
               <Link href="/clearline/trial">Guided trial (5 cases)</Link>
               <Link href="/mentor-demo">Funding Desk prototype</Link>
-              <a href={MARKETING_URL}>← clearline-marketing.vercel.app</a>
+              <a href={MARKETING_URL}>Clearline website</a>
               <a href={CONTACT_MAILTO}>Contact / feedback</a>
             </div>
           </nav>

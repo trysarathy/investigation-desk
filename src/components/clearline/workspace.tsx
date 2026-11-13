@@ -9,6 +9,7 @@ import {
   SAMPLE_ACTORS, applyAction, emptyWorkspace, parseWorkspace, sampleWorkspace, serializeWorkspace,
   type ActionResult, type Actor, type Workspace, type WorkspaceAction,
 } from "@/lib/clearline";
+import { describeError } from "./human";
 
 const KEY = "clearline.console.workspace.v1";
 const ACTOR_KEY = "clearline.console.actor.v1";
@@ -23,6 +24,8 @@ type Ctx = {
   setActorId: (id: string) => void;
   /** Applies an engine action at the next simulated instant. */
   dispatch: (action: WorkspaceAction, opts?: { actorId?: string }) => ActionResult;
+  /** Dry run: asks the engine whether the action would be accepted now, without changing anything. */
+  preview: (action: WorkspaceAction, opts?: { actorId?: string }) => ActionResult;
   reset: (kind?: "sample" | "empty") => void;
   actorName: (id?: string) => string;
 };
@@ -88,6 +91,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     return result;
   }, [actorId, persist]);
 
+  const preview = useCallback((action: WorkspaceAction, opts?: { actorId?: string }): ActionResult => {
+    const current = wsRef.current;
+    return applyAction(current, action, { actorId: opts?.actorId ?? actorId, at: nextInstant(current.asOf) });
+  }, [actorId]);
+
   const reset = useCallback((kind: "sample" | "empty" = "sample") => {
     const next = kind === "empty" ? emptyWorkspace() : sampleWorkspace();
     wsRef.current = next;
@@ -104,13 +112,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Ctx>(() => ({
     ws, hydrated, storage, actorId, actors,
     actor: actors.find((a) => a.id === actorId),
-    setActorId, dispatch, reset,
+    setActorId, dispatch, preview, reset,
     actorName: (id?: string) => {
       if (!id) return "Unassigned";
       const a = actors.find((x) => x.id === id);
       return a ? a.name : id;
     },
-  }), [ws, hydrated, storage, actorId, actors, setActorId, dispatch, reset]);
+  }), [ws, hydrated, storage, actorId, actors, setActorId, dispatch, preview, reset]);
 
   return (
     <WorkspaceContext.Provider value={value}>
@@ -127,7 +135,9 @@ export function useWorkspace(): Ctx {
   return c;
 }
 
-/** Plain-English rendering of an engine error, keeping its code visible. */
-export function errorText(r: ActionResult): string {
-  return r.ok ? "" : `${r.error.message} (${r.error.code})`;
+/** Plain-English rendering of an engine error (engine describeError), keeping its exact code visible. */
+export function errorText(r: ActionResult, ws?: Workspace): string {
+  if (r.ok) return "";
+  const h = describeError(r.error, ws);
+  return `${h.text} (${r.error.code}${h.reasonCode ? ` · ${h.reasonCode}` : ""})`;
 }
