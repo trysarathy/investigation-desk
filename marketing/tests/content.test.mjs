@@ -195,6 +195,29 @@ test("OpenAPI link derives from PRODUCT_DEMO_URL; legacy test endpoints are not 
   }
 });
 
+test("engine CHANGE 3 claims: holds, chain attribution, provider reports, cancellation, request limits", () => {
+  const dev = read("app/developers/page.tsx"), control = read("app/control/page.tsx"), onchain = read("app/onchain/page.tsx");
+  // Holds: precise release path, no bare "never released automatically" claim in site copy (engine-quoted text in sample.ts is allowed).
+  for (const s of [dev, control]) {
+    assert.match(s, /partner reports the release and the assigned (compliance )?reviewer records a release decision/);
+    assert.equal(/Holds are never released automatically/.test(s), false);
+  }
+  // Chain: no vague "exact reference" attribution; the precise engine rule instead.
+  assert.equal(/by its exact reference/.test(onchain), false);
+  for (const s of [dev, onchain]) {
+    assert.match(s, /USDC payout on the Base Sepolia route/);
+    assert.match(s, /one (payout per transaction hash|transaction hash can evidence only one payout)/);
+    assert.match(s, /reconciliation becomes (<code className="inline">)?matched(<\/code>)? only (when|if) the provider (had )?reported the same transaction hash/);
+  }
+  assert.match(dev, /precondition_failed/); assert.match(dev, /contradictory_evidence/);
+  // Provider settlement reports never reconcile on their own.
+  assert.match(dev, /never allocated and never reconciles on its own/); assert.match(dev, /RC_PROVIDER_REPORT_ONLY/);
+  // No cancellation after submission.
+  assert.match(dev, /only before submission \(created, quoted, approved\)/);
+  // Request limits.
+  for (const t of ["512 KB", "1,000 items", "32 levels"]) assert.ok(dev.includes(t), t);
+});
+
 test("sample data is fictional and labelled", () => {
   assert.match(read("lib/sample.ts"), /Fictional sample records/);
   assert.match(read("lib/sample.ts"), /Every organisation, provider, person and amount is fictional/);

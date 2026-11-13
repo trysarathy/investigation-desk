@@ -41,7 +41,7 @@ export default function Control() {
         <div className="grid-2">
           <div className="panel">
             <h3 className="h3">Holds</h3>
-            <p>When a provider holds a payout and asks for documents, Control records the request, assigns a compliance reviewer and records their decision. Holds are never released automatically, and Clearline makes no compliance decision.</p>
+            <p>When a provider holds a payout and asks for documents, Control records the request, assigns a compliance reviewer and records their decision. No provider event moves a held payout on its own: it is released only after the partner reports the release and the assigned reviewer records a release decision, or it ends when the reviewer rejects. Clearline makes no compliance decision.</p>
             <div className="stage-row"><Stage kind="synthetic" /></div>
           </div>
           <div className="panel">

@@ -75,7 +75,7 @@ const endpoints: [string, string, string][] = [
   ["GET · POST", "/intents", "List sample intents · create an intent (Idempotency-Key required)"],
   ["GET", "/intents/{intentId}", "One intent, including status.execution / settlement / settlementScope / reconciliation"],
   ["POST", "/intents/{intentId}/quotes", "Indicative sandbox quotes from every route, eligible and ineligible with reasons"],
-  ["POST", "/intents/{intentId}/cancel", "Cancel with a reason"],
+  ["POST", "/intents/{intentId}/cancel", "Cancel with a reason, only before submission (created, quoted, approved); afterwards 409 invalid_transition"],
   ["GET · POST", "/instructions", "List · choose a route (creates an instruction; maker = actor)"],
   ["POST", "/instructions/{id}/approve · /reject · /submit", "Checker approval (must differ from maker), rejection, submission to the sandbox adapter"],
   ["GET", "/events", "Provider events with processingOutcome, provenance and signatureResult"],
@@ -109,8 +109,8 @@ const execRows: [ExecState, string][] = [
   ["approved", "submitted, cancelled, expired"],
   ["submitted", "in_transit, provider_reported_completed, awaiting_information, on_hold, failed, returned"],
   ["in_transit", "provider_reported_completed, awaiting_information, on_hold, failed, returned"],
-  ["awaiting_information", "in_transit, on_hold, failed, cancelled"],
-  ["on_hold", "in_transit, failed, returned, cancelled"],
+  ["awaiting_information", "in_transit, on_hold, failed, cancelled (an operator cannot cancel after submission)"],
+  ["on_hold", "in_transit only after the partner's release report and the reviewer's release; cancelled only by the reviewer's reject. Any other provider event is recorded as a contradiction and changes nothing"],
   ["provider_reported_completed", "returned"],
   ["failed", "terminal"], ["returned", "terminal"], ["cancelled", "terminal"], ["expired", "terminal"],
 ];
@@ -152,7 +152,8 @@ export default function Developers() {
       <Section id="status-model" tone="white" eyebrow="Status model" title="execution, settlement, reconciliation"
         intro={<><p>Every payment intent carries <code className="inline">status: {"{"} execution, settlement, settlementScope, reconciliation {"}"}</code>. There is no combined status. A provider&rsquo;s &ldquo;completed&rdquo; sets execution to <code className="inline">provider_reported_completed</code> and never, on its own, sets settlement <code className="inline">verified</code> or reconciliation <code className="inline">matched</code>.</p>
           <p>When a bank-statement debit is matched to the payout by its trusted reference, amount, currency and value-date window, settlement becomes <code className="inline">verified</code> with scope <code className="inline">bank_statement</code> and reconciliation becomes <code className="inline">matched</code>. That evidences the payout leaving your account. <b>The beneficiary&rsquo;s credit can still be unknown</b>, and the investigation view says so.</p>
-          <p>Returned payouts also carry <code className="inline">returnStatus</code>: <code className="inline">provider_reported</code> when the provider reports the return, then <code className="inline">confirmed_by_statement</code> once a return line with the trusted reference is allocated (<code className="inline">RC_RETURN_CONFIRMS_PROVIDER_RETURN</code>). Reconciliation is <code className="inline">exception</code> from the moment of the return and stays so until a person resolves the <code className="inline">returned_payout</code> exception, because the supplier is still unpaid.</p></>}>
+          <p>Returned payouts also carry <code className="inline">returnStatus</code>: <code className="inline">provider_reported</code> when the provider reports the return, then <code className="inline">confirmed_by_statement</code> once a return line with the trusted reference is allocated (<code className="inline">RC_RETURN_CONFIRMS_PROVIDER_RETURN</code>). Reconciliation is <code className="inline">exception</code> from the moment of the return and stays so until a person resolves the <code className="inline">returned_payout</code> exception, because the supplier is still unpaid.</p>
+          <p>Chain evidence (synthetic testnet) applies only to a USDC payout on the Base Sepolia route that is <code className="inline">submitted</code>, <code className="inline">in_transit</code> or <code className="inline">provider_reported_completed</code>; anything else is refused with <code className="inline">precondition_failed</code>. The transfer must go to the beneficiary wallet for the exact expected amount, and one transaction hash can evidence only one payout. A wrong wallet, wrong amount, reused hash or second hash raises <code className="inline">contradictory_evidence</code> and changes no status. Finality sets settlement only; reconciliation becomes <code className="inline">matched</code> only when the provider reported the same transaction hash.</p></>}>
         <h3 className="h3" style={{ marginBottom: 12 }}>execution (ExecutionState)</h3>
         <TableWrap label="Execution states and allowed transitions" caption="EXECUTION_TRANSITIONS in the engine. Anything else is rejected with invalid_transition.">
           <thead><tr><th scope="col">State</th><th scope="col">Allowed next</th></tr></thead>
@@ -165,9 +166,9 @@ export default function Developers() {
               <thead><tr><th scope="col">State</th><th scope="col">Meaning</th></tr></thead>
               <tbody>
                 <tr><td><SettlementStatus state="none" /></td><td>No settlement evidence recorded.</td></tr>
-                <tr><td><SettlementStatus state="observed" /></td><td>Some evidence exists but does not settle the question: a chain transfer at 0 confirmations, a provider settlement report (scope <code className="inline">provider_report</code>), or a bank line covering only part of the amount.</td></tr>
+                <tr><td><SettlementStatus state="observed" /></td><td>Some evidence exists but does not settle the question: a chain transfer at 0 confirmations, a bank line covering only part of the amount, or a provider settlement report (scope <code className="inline">provider_report</code>). A provider settlement report is never allocated and never reconciles on its own (<code className="inline">RC_PROVIDER_REPORT_ONLY</code>, outcome <code className="inline">recorded_provider_report</code>); a later bank line allocates and verifies.</td></tr>
                 <tr><td><SettlementStatus state="pending_finality" /></td><td>Confirmations are accumulating below the threshold (12 on the testnet route).</td></tr>
-                <tr><td><SettlementStatus state="verified" scope="bank_statement" /></td><td>A full-amount bank-statement match (scope <code className="inline">bank_statement</code>), or a chain transfer past the finality threshold (scope <code className="inline">onchain_transfer</code>). The scope limits what it proves.</td></tr>
+                <tr><td><SettlementStatus state="verified" scope="bank_statement" /></td><td>A full-amount bank-statement match (scope <code className="inline">bank_statement</code>), or a synthetic Base Sepolia transfer past the 12-confirmation finality threshold (scope <code className="inline">onchain_transfer</code>). The scope limits what it proves.</td></tr>
                 <tr><td><SettlementStatus state="contradicted" /></td><td>Sources disagree, e.g. a return line against a completed report or a chain amount that differs. A <code className="inline">contradictory_evidence</code> exception is raised.</td></tr>
               </tbody>
             </TableWrap>
@@ -213,7 +214,8 @@ export default function Developers() {
           <ul className="bullets">
             <li>No real outbound webhooks, endpoint registration, secret rotation, replay protection or delivery retries.</li>
             <li>No real settlement evidence: statement lines and chain observations are fictional inputs you supply.</li>
-            <li>No credit, lending or compliance decisions. Holds are never released automatically. Do not send real data.</li>
+            <li>No credit, lending or compliance decisions. A held payout leaves the hold only through people: the partner reports the release and the assigned compliance reviewer records a release decision, or the reviewer rejects it. No provider event alone moves it. Do not send real data.</li>
+            <li>Request limits: bodies up to 512 KB (else 422 <code className="inline">invalid_json</code>), at most 1,000 items per workspace collection (audit 10,000; else 400), and workspace nesting no deeper than 32 levels.</li>
           </ul>
         </div>
         <p style={{ marginTop: 24 }}><ExtLink href={API_DOCS_URL}>Open the API reference in the console</ExtLink> · <ExtLink href={OPENAPI_URL}>OpenAPI 3.1 document (openapi.yaml)</ExtLink></p>
