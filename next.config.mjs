@@ -22,9 +22,20 @@ export const securityHeaders = [
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=()' },
 ];
 
+import { loadRelease, resolveReleaseUrls } from './release-urls.mjs';
+
+// Website/software URLs for this build (clearline-release.json); inlined into client and server code.
+const releaseUrls = resolveReleaseUrls(process.env, loadRelease(new URL('./clearline-release.json', import.meta.url)));
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  env: {
+    NEXT_PUBLIC_CLEARLINE_PRODUCT_URL: releaseUrls.product,
+    NEXT_PUBLIC_CLEARLINE_MARKETING_URL: releaseUrls.marketing,
+    NEXT_PUBLIC_CLEARLINE_FUNDING_DESK_URL: releaseUrls.fundingDesk,
+    NEXT_PUBLIC_CLEARLINE_RELEASE_SOURCE: releaseUrls.source,
+  },
   poweredByHeader: false,
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
