@@ -40,13 +40,13 @@ No credentials, wallet private keys, real banking data, account numbers, identit
 
 ## Release acceptance
 
-- [ ] TypeScript passes at trial branch SHA.
-- [ ] Unit tests pass at trial branch SHA.
-- [ ] Next.js build passes at trial branch SHA.
-- [ ] Desktop and mobile browser tests pass.
-- [ ] Original Funding Desk regression tests pass.
-- [ ] Vercel preview is READY and links checked.
-- [ ] Security/privacy review by an independent person, including the known production-app issues in main.
+- [x] TypeScript passes (5853620).
+- [x] Unit tests pass (1034 passed, 57 skipped).
+- [x] Next.js build passes.
+- [x] Desktop and mobile browser tests pass (39 passed, 1 skipped).
+- [x] Original Funding Desk regression tests pass (funding 4, mentor 6).
+- [ ] Vercel preview is READY and links checked — preview status recorded in the release handoff; live links not verifiable from the build session.
+- [ ] Security/privacy review by an independent **person** (agent QA/security review and code review done — see docs/release/), including the known production-app issues in main.
 - [ ] Founder approves the customer-facing link and trial language.
 
 This release checklist never treats a test-only API as production payment readiness. There are no paying customers or established live execution partners.
