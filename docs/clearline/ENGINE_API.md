@@ -1,5 +1,67 @@
 # Clearline sandbox engine — public API (for the console UI)
 
+> **CHANGE 5 (2026-11-13, branch release/clearline-v2-20261113 — human labels, F1/F2, deferred minors). STATUS: LANDED.** Tests: `tests/clearline/change5.test.ts` (44 tests) plus updated `tests/clearline/money-webhooks.test.ts`.
+>
+> **Human-readable labels (for the console). Import from `@/lib/clearline` (file `labels.ts`):**
+> ```ts
+> HUMAN_LABELS: {
+>   execution: Record<ExecutionState, string>;            // provider_reported_completed → "Provider reports completed"
+>   settlement: Record<SettlementEvidenceState, string>;  // observed → "Settlement observed (not verified)"
+>   settlementScope: Record<SettlementScope, string>;     // provider_report → "Provider report only"
+>   reconciliation: Record<ReconciliationState, string>;  // exception → "Needs review"
+>   exceptionCategory: Record<ExceptionCategory, string>; exceptionBlocker: Record<ExceptionCategory, string>; // "Settlement evidence is still missing."
+>   severity; exceptionStatus; caseStatus; holdStatus; holdDecision; advanceState; instructionStatus;
+>   eventType: Record<NormalizedEventType, string>;       processingOutcome: Record<ProcessingOutcome, string>;
+>   evidenceKind; statementSource; statementLineStatus; chainObservationStatus; providerErrorClass;
+>   reconciliationCodeGroup: Record<ReconciliationCodeGroup, string>;
+>   timelineKind: Record<EvidenceTimelineKind, string>;   actionOutcome: Record<string, string>; // applyAction outcome strings
+>   errorCode: Record<EngineErrorCode, string>;           // maker_checker_violation → "The same person cannot prepare and approve."
+>   apiErrorCode: { unauthenticated, unknown_endpoint, invalid_json, invalid_request };  // v1-only codes
+>   resolutionCode: Record<string, string>;               // OPEN_EXCEPTIONS, EVIDENCE_REQUIRED, HOLD_UNDECIDED, …
+>   eligibilityCode: Record<string, string>;              // quote eligibility codes incl. new RATE_UNAVAILABLE
+> }
+> CODE_LABELS: Readonly<Record<string, string>>  // every static code: RC_*, EV_*, CH_*, PV_*, FD_*, IE_*, UK_*, PR_*, OS_*, NA_*, WA_*, QT_*, MC_*, CT_*
+> describeCode(code): string   // static codes + dynamic families PR_LAST_<EVENT>, PV_FAILED_<CLASS>, PV_RETURNED_<CLASS>, NA_<CATEGORY>,
+>                              //   PE_<OUTCOME>, CH_<OBSERVATION_STATUS>, EV_<EVIDENCE_KIND>, HD_<DECISION>; unknown → "Unrecognised code (XYZ)"; never throws
+> explainCode(code): string    // long RECONCILIATION_CODE_TEXT where one exists, else describeCode
+> isKnownCode(code): boolean
+> describeStatus(s: StatusDimensions): { execution; settlement; settlementScope; reconciliation; summary; executionFinal }
+>   // summary keeps the dimensions apart: "Provider reports completed · Settlement verified (Bank statement) · Matched";
+>   // returned + matched → reconciliation "Returned — net zero (supplier still unpaid)"; executionFinal from EXECUTION_TRANSITIONS.
+> describeError(err: { code: string; message: string; field?; entityId? }, ws?: Workspace): HumanError
+>   // HumanError = { code; reasonCode?; headline; detail; text }. reasonCode = the "CODE:" prefix of resolve refusals.
+>   // Case close refused while a missing_statement exception is open (ws passed):
+>   //   "Payment cannot be closed. Settlement evidence is still missing."   (without ws: "… Linked exceptions are still open.")
+>   // invalid_field keeps the field: 'Some information is missing or not valid. Check "line.reference": …'
+> ```
+> Coverage test: every member of every union above (read from `types.ts`), every code string literal in `src/lib/clearline/*.ts`, every dynamic family over its source enum, every code the sample workspace produces, every `applyAction` outcome and every `deny(...)` resolution code has a non-fallback label.
+>
+> **Engine changes:**
+> - **F1** A `provider_settlement_report` line on a payout whose execution is `failed`, `cancelled`, `expired` or `returned` (`TERMINAL_FOR_SETTLEMENT_REPORT`) is not recorded as ordinary evidence: it raises `contradictory_evidence` / **`RC_REPORT_ON_TERMINAL_PAYOUT`** (outcome `contradictory_exception_raised`, line status `exception`, reconciliation `exception`) and leaves settlement and scope unchanged. After a person resolves it, the recompute never counts a provider report as settlement on a failed/cancelled/expired payout. The engine itself never moves a submitted payout to `cancelled`/`expired` (M7), so those two cases are defence in depth for stored workspaces; tests set the state on stored data.
+> - **F2** A provider report **below** the payout amount raises `unmatched_reconciliation` / **`RC_UNDER_AMOUNT_REPORT`** (outcome `exception_raised`); settlement is not upgraded. New type **`AmountDifference`** `{ code: "RC_UNDER_AMOUNT_REPORT" | "RC_PARTIAL_AMOUNT"; expectedMinor; reportedMinor; differenceMinor; currency; source; statementLineId; requiredNextAction }` on `StatementLine.amountDifference?`, `ReconciliationException.amountDifference?` (the exception's `requiredAction` is its `requiredNextAction`), `EvidenceTimelineEntry.amountDifference?`, and **`InvestigationView.amountDifferences: AmountDifference[]`** (new, always present). The under-amount report also appears in `investigate().contradictions`. A **bank** line below the remainder is still allocated as partial (`RC_PARTIAL_AMOUNT`, reconciliation `partially_matched`, settlement `observed`) and now carries the same object (`expectedMinor` = the unreconciled remainder before that line). `parseWorkspace` validates the object (`differenceMinor = expectedMinor − reportedMinor`).
+> - `ReconciliationCode` gains `RC_UNDER_AMOUNT_REPORT` (group `partial`) and `RC_REPORT_ON_TERMINAL_PAYOUT` (group `contradiction`), so `RECONCILIATION_CODE_TEXT` / `RECONCILIATION_CODE_GROUP` have two more keys.
+> - **m11** `convertMinor(amountMinor, from, to, rate)` now returns **`Result<number>`** (exported): a malformed, zero or missing rate is `invalid_field` with `field: "rate"`; a negative/non-integer amount is `invalid_amount`. `SandboxAdapter.quote` turns a failed conversion into an **ineligible** quote (`RATE_UNAVAILABLE`, `estimatedRecipientMinor: 0`), and a non-positive recipient amount into `AMOUNT_BELOW_FEES`; an eligible quote can no longer show 0. No new `EngineErrorCode` was added (the console's error catalogue is exhaustive).
+> - **m5** `FundingProjectionRow.supplierPaidBasis: "none" | "provider_reported" | "verified_settlement"` (new, required on the output). The `supplier_paid` state name is **kept** (renaming would break the Funding Desk stage map and the console's exhaustive `AdvanceState` maps); its label is "Supplier paid (provider-reported)".
+> - **R4 (QA)** The v1 route streams the body (`src/lib/clearline/bodylimit.ts`, internal) and stops reading at 512 KB, cancelling the stream; a chunked body without Content-Length is no longer buffered in full. Byte (not character) counting is unchanged.
+>
+> **Re-triage of every open/deferred review item (CODE_REVIEW.md, QA_SECURITY_REVIEW.md §7, RELEASE_MANIFEST limitations):**
+>
+> | Item | Verdict | Test / reason |
+> |---|---|---|
+> | F1 report on failed payout | **Fixed** (failed, cancelled, expired, returned) | `change5.test.ts` › "F1 failed/returned/cancelled/expired …", "F1: after a person resolves …", "F1: a provider report on a live completed payout …" |
+> | F2 under-amount report | **Fixed** (+ bank partial difference) | `change5.test.ts` › 5 "F2: …" tests |
+> | m11 `convertMinor` 0 on bad rate | **Fixed** | `money-webhooks.test.ts` › "CHANGE 5 m11 …"; `change5.test.ts` › "m11: a route with a malformed rate …" |
+> | QA R4 chunked bodies read before size check | **Fixed** | `change5.test.ts` › "R4: readBodyLimited …", "R4: the route refuses an endless chunked body …" (the old `req.text()` path exhausted the test worker's memory on the same input), "R4: a multi-byte body …" |
+> | m5 `supplier_paid` naming | **Partly fixed** — evidence basis added, name kept | `change5.test.ts` › "m5: every funding row states …". Rename deferred: the value is shared with `src/lib/mentor-demo` stage names and console maps outside this workstream. |
+> | Nit: route size limit compared string length | Already fixed (CHANGE 3, bytes); still covered | `change5.test.ts` › "R4: a multi-byte body …" |
+> | m1–m4, m6, m9, m10, m12, N1, N2, m-new-1…5, QA R1, R3 | Already resolved (code review final check, 5853620) | existing suites (re-run green) |
+> | Nit: preview root `generateMetadata` default title "Not found — Clearline" | **Deferred — not engine-owned** | `src/app/layout.tsx` / `src/app/not-found.tsx` are outside `src/lib/clearline/**` and the console tree; harmless today (every allowed route sets its own title). Owner: integration lead. Fix in words: neutral default title in the layout, 404 title in `not-found.tsx`. |
+> | QA R2 `script-src 'unsafe-inline'` | **Deferred — not engine-owned; not a blocker for fictional data** | `next.config.mjs`. Needed before any real-data or logged-in deployment (nonce CSP). |
+> | QA L8 / m10 maker-checker not an auth boundary | **Accepted limitation (documented)** | Inherent to the stateless test API; documented in `openapi.yaml`. Needs server-side identity before real data. |
+> | m7 reconciliation filter groups, m8 Overview "not allocated" count, Nit `aria-describedby`, Nit silent workspace reset, no `error.tsx` boundary | **Console-owned** | `src/components/clearline/**`, `src/app/clearline/**`. m7: the console now uses `RECONCILIATION_CODE_GROUP` (verified by reading `Reconciliation.tsx`). m8: Overview still counts only `unallocated`/`exception` lines — console to include `partially_allocated` or rename the label. Labels for all states are now available from `HUMAN_LABELS`. |
+> | UI_REQUESTS R7 per-scenario reset | **Deferred** | Scenarios share sequential ids, routes and liquidity; a safe partial reset needs a scenario-scoped replay. Whole-workspace reset remains. Not needed for a fictional-data trial. |
+> | B3 change size (> 300 lines) | **Process — unchanged** | Split before merging to `main` (approval-only). |
+>
 > **CHANGE 4 (2026-11-13, code re-review of cfadef9):**
 > - **N1:** a `provider_settlement_report` line is handled as provider-reported evidence **before** the duplicate and remaining-amount checks, in either order relative to the bank line. Arriving after a bank match, it is recorded (`recorded_provider_report`; the line carries only `RC_PROVIDER_REPORT_ONLY`, plus `RC_LATE_STATEMENT` if late) and changes no status. It raises an exception only when it disagrees: a different currency (`RC_CURRENCY_MISMATCH`) or more than the payout (`RC_OVERPAYMENT`). Provider-report lines no longer carry `RC_EXACT_…`. Their status stays `unallocated`; `RECONCILIATION_CODE_GROUP.RC_PROVIDER_REPORT_ONLY` is `"informational"`.
 > - **N2:** a returned payout is never shown as settled. After a person resolves an exception, the recompute gives a returned payout settlement `none` (scope `none`); the debit and return evidence stay on record and in `investigate`. Reconciliation is `matched` only when the bank debit and an equal statement-confirmed return are both allocated (net zero, `returnStatus: "confirmed_by_statement"`), and `exception` otherwise. Console label suggestion: "Returned — net zero" when `execution === "returned" && reconciliation === "matched"`.

@@ -25,9 +25,16 @@ describe("money in integer minor units", () => {
     expect(addMoney({ amountMinor: 1, currency: "SGD" }, { amountMinor: 2, currency: "SGD" })).toEqual({ ok: true, value: { amountMinor: 3, currency: "SGD" } });
   });
   it("converts with BigInt, rounding down, across decimal scales", () => {
-    expect(convertMinor(100, "SGD", "PHP", "42.1738")).toBe(4217);
-    expect(convertMinor(100, "USDC", "USDC", "1")).toBe(100);
-    expect(convertMinor(100, "SGD", "USDC", "0.7448")).toBe(744_800);
+    expect(convertMinor(100, "SGD", "PHP", "42.1738")).toEqual({ ok: true, value: 4217 });
+    expect(convertMinor(100, "USDC", "USDC", "1")).toEqual({ ok: true, value: 100 });
+    expect(convertMinor(100, "SGD", "USDC", "0.7448")).toEqual({ ok: true, value: 744_800 });
+  });
+  it("CHANGE 5 m11: a malformed or zero rate is a typed error, never a silent 0", () => {
+    for (const rate of ["", "abc", "-1", "1e3", "0", "0.000", "1.1234567890123", " 1", undefined as unknown as string, "—"])
+      expect(convertMinor(100, "SGD", "PHP", rate)).toMatchObject({ ok: false, error: { code: "invalid_field", field: "rate" } });
+    expect(convertMinor(-1, "SGD", "PHP", "1")).toMatchObject({ ok: false, error: { code: "invalid_amount" } });
+    expect(convertMinor(1.5, "SGD", "PHP", "1")).toMatchObject({ ok: false, error: { code: "invalid_amount" } });
+    expect(convertMinor(100, "SGD", "XYZ" as never, "1")).toMatchObject({ ok: false, error: { code: "invalid_currency" } });
   });
 });
 

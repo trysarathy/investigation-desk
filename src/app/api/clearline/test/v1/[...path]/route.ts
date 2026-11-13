@@ -22,6 +22,7 @@ import {
   type Workspace,
   type WorkspaceAction,
 } from "@/lib/clearline";
+import { readBodyLimited } from "@/lib/clearline/bodylimit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -58,8 +59,10 @@ async function readBody(req: NextRequest): Promise<Record<string, unknown> | Res
   if (!req.headers.get("content-type")?.startsWith("application/json")) return fail("invalid_json", "Content-Type: application/json required.");
   const declared = Number(req.headers.get("content-length") ?? "0");
   if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) return fail("invalid_json", "Request body exceeds 512 KB.");
-  const text = await req.text();
-  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) return fail("invalid_json", "Request body exceeds 512 KB.");
+  // CHANGE 5 (QA R4): stream the body and stop reading at 512 KB (chunked bodies are never read in full).
+  const body = await readBodyLimited(req.body, MAX_BODY_BYTES);
+  if (!body.ok) return fail("invalid_json", body.reason === "too_large" ? "Request body exceeds 512 KB." : "Request body could not be read.");
+  const text = body.text;
   try {
     const v: unknown = text ? JSON.parse(text) : {};
     if (!v || typeof v !== "object" || Array.isArray(v)) return fail("invalid_json", "JSON object required.");

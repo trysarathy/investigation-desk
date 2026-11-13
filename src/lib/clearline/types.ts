@@ -408,6 +408,8 @@ export interface StatementLine extends StatementLineInput {
   allocationIds: string[];
   status: "unallocated" | "allocated" | "partially_allocated" | "exception";
   explanationCodes: ReconciliationCode[];
+  /** CHANGE 5 (F2): set when the line shows less than the payout needs. */
+  amountDifference?: AmountDifference;
 }
 
 export type ReconciliationCode =
@@ -427,7 +429,29 @@ export type ReconciliationCode =
   | "RC_UNMATCHED_INCOMING"
   | "RC_UNMATCHED_OUTGOING"
   | "RC_PROVIDER_REPORT_ONLY"
-  | "RC_REPAYMENT_BY_REFERENCE";
+  | "RC_REPAYMENT_BY_REFERENCE"
+  /** CHANGE 5 (F2): a provider settlement report for less than the payout amount. */
+  | "RC_UNDER_AMOUNT_REPORT"
+  /** CHANGE 5 (F1): a provider settlement report on a failed, cancelled, expired or returned payout. */
+  | "RC_REPORT_ON_TERMINAL_PAYOUT";
+
+/**
+ * CHANGE 5 (F2): structured amount difference between what a payout needs and what one statement
+ * line or provider report shows. Carried on the line, on its exception, in investigate() and in the
+ * evidence timeline. All amounts are integer minor units of `currency`.
+ */
+export interface AmountDifference {
+  code: "RC_UNDER_AMOUNT_REPORT" | "RC_PARTIAL_AMOUNT";
+  /** What this line was expected to cover: the payout amount (provider report) or the unreconciled remainder before this line (bank line). */
+  expectedMinor: number;
+  reportedMinor: number;
+  /** expectedMinor − reportedMinor (> 0). */
+  differenceMinor: number;
+  currency: CurrencyCode;
+  source: StatementSource;
+  statementLineId: string;
+  requiredNextAction: string;
+}
 
 export interface ReconciliationAllocation {
   id: string;
@@ -490,6 +514,8 @@ export interface ReconciliationException {
   supportingEvidenceIds: string[];
   ownerId?: string;
   impact?: Money;
+  /** CHANGE 5 (F2): structured under-amount detail (RC_UNDER_AMOUNT_REPORT). */
+  amountDifference?: AmountDifference;
   dueDate?: string;
   requiredAction: string;
   createdAt: string;
@@ -696,6 +722,12 @@ export interface FundingProjectionRow {
   outstanding: Money;
   overdue: boolean;
   state: AdvanceState;
+  /**
+   * CHANGE 5 (m5): what "supplier paid" rests on. `provider_reported` = only the provider's completion
+   * claim; `verified_settlement` = settlement evidence is verified (bank statement or final chain
+   * transfer); `none` = neither. The state name `supplier_paid` is kept for compatibility.
+   */
+  supplierPaidBasis: "none" | "provider_reported" | "verified_settlement";
   /** Corresponding stage name in the existing Funding Desk (src/lib/mentor-demo). */
   fundingDeskStage: string;
   exceptionIds: string[];
@@ -862,6 +894,8 @@ export interface InvestigationView {
   funding?: FundingProjectionRow;
   caseId?: string;
   explanationCodes: string[];
+  /** CHANGE 5 (F2): every under-amount / partial line recorded for this payout (provider reports and bank lines). */
+  amountDifferences: AmountDifference[];
   disclaimer: string;
 }
 
@@ -900,4 +934,6 @@ export interface EvidenceTimelineEntry {
   independent: boolean;
   codes: string[];
   refs: string[];
+  /** CHANGE 5 (F2): present on statement-line and exception entries that carry an amount difference. */
+  amountDifference?: AmountDifference;
 }

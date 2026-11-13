@@ -11,7 +11,7 @@
 export * from "./types";
 
 // Money
-export { CURRENCIES, currencyDecimals, isCurrency, parseAmount, formatMoney, formatMinor, formatMinorPlain } from "./money";
+export { CURRENCIES, currencyDecimals, isCurrency, parseAmount, formatMoney, formatMinor, formatMinorPlain, convertMinor } from "./money";
 
 // Workspace lifecycle
 export { sampleWorkspace, emptyWorkspace, SAMPLE_AS_OF, SAMPLE_ACTORS, SAMPLE_SCENARIOS, scenarioIntentId, intentForScenario } from "./sample";
@@ -45,3 +45,8 @@ export { fundingProjection, obligationOutstanding, FUNDING_PROJECTION_LABEL } fr
 
 // Read models
 export { investigate, evidenceTimelineFor, exportCaseReport, timelineFor, listExceptions, getIntent, ENGINE_DISCLAIMER } from "./investigation";
+
+// Human-readable labels (CHANGE 5)
+export { HUMAN_LABELS, CODE_LABELS, describeCode, explainCode, isKnownCode, describeStatus, describeError } from "./labels";
+export type { HumanError, StatusDescription } from "./labels";
+export { TERMINAL_FOR_SETTLEMENT_REPORT } from "./reconciliation";

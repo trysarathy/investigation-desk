@@ -15,7 +15,9 @@ export function recomputeDimensions(ws: Workspace, intent: PaymentIntent): void 
     .reduce((s, a) => s + a.amountMinor, 0);
   const chainAlloc = ws.allocations.some((a) => a.evidenceKind === "chain_observation" && a.target.kind === "payment" && a.target.intentId === intent.id);
   const obs = ws.chainObservations.find((o) => o.intentId === intent.id && o.status !== "rejected_unsupported");
-  const providerReport = ws.evidence.some((e) => e.intentId === intent.id && e.kind === "provider_settlement_report");
+  // CHANGE 5 (F1): a settlement report on a failed/cancelled/expired payout is a contradiction, never settlement evidence.
+  const terminal = ["failed", "cancelled", "expired"].includes(intent.status.execution);
+  const providerReport = !terminal && ws.evidence.some((e) => e.intentId === intent.id && e.kind === "provider_settlement_report");
 
   // Re-review N2: a returned payout never settled with the beneficiary. Settlement is "none"
   // (scope "none") — the debit and return evidence stay on record and in the investigation — and

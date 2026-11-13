@@ -94,6 +94,9 @@ export function investigate(ws: Workspace, intentId: string): Result<Investigati
   const contradictions: Finding[] = [];
   for (const e of open.filter((x) => x.category === "contradictory_evidence" || x.explanationCode === "EV_SAME_ID_DIFFERENT_PAYLOAD"))
     add(contradictions, f(e.explanationCode, e.explanation, [e.id, ...e.supportingEventIds]));
+  // CHANGE 5 (F2): a provider report below the payout amount is a disagreement with the payout.
+  for (const e of open.filter((x) => x.explanationCode === "RC_UNDER_AMOUNT_REPORT" && !contradictions.some((c) => c.refs[0] === x.id)))
+    add(contradictions, f(e.explanationCode, e.explanation, [e.id, ...(e.statementLineId ? [e.statementLineId] : [])]));
   if (s.settlement === "contradicted" && !contradictions.length) add(contradictions, f("CT_SETTLEMENT_CONTRADICTED", "Settlement evidence is contradicted by another source."));
 
   // Financially outstanding
@@ -115,6 +118,14 @@ export function investigate(ws: Workspace, intentId: string): Result<Investigati
   for (const e of open.filter((x) => x.category === "missing_payment_reference" || x.explanationCode === "RC_AMOUNT_ONLY_CANDIDATES"))
     outstanding.push({ code: "OS_UNALLOCATED_RECEIPT", text: `Unallocated receipt (${e.impact ? formatMinor(e.impact.amountMinor, e.impact.currency) : "amount unknown"}) — not applied to any obligation without a reference.`, amount: e.impact });
   codes.push(...outstanding.map((o) => o.code));
+
+  // CHANGE 5 (F2): structured differences from provider reports and bank lines linked to this payout.
+  const linkedLineIds = new Set([
+    ...ws.allocations.filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id).map((a) => a.statementLineId),
+    ...ws.exceptions.filter((x) => x.intentId === intent.id && x.statementLineId).map((x) => x.statementLineId!),
+  ]);
+  const amountDifferences = ws.statementLines.filter((l) => l.amountDifference && linkedLineIds.has(l.id)).map((l) => ({ ...l.amountDifference! }));
+  codes.push(...amountDifferences.map((d) => d.code));
 
   // Who acts
   const c = ws.cases.find((x) => x.id === intent.caseId);
@@ -182,6 +193,7 @@ export function investigate(ws: Workspace, intentId: string): Result<Investigati
       funding,
       caseId: intent.caseId,
       explanationCodes: [...new Set(codes)],
+      amountDifferences,
       disclaimer: ENGINE_DISCLAIMER,
     },
   };
@@ -255,7 +267,7 @@ export function evidenceTimelineFor(ws: Workspace, intentId: string): EvidenceTi
   const allocs = ws.allocations.filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id);
   const lineIds = new Set([...allocs.map((a) => a.statementLineId), ...ws.exceptions.filter((x) => x.intentId === intent.id && x.statementLineId).map((x) => x.statementLineId!)]);
   for (const l of ws.statementLines.filter((x) => lineIds.has(x.id)))
-    out.push({ id: l.id, at: l.receivedAt, kind: "statement_line", title: `${l.source === "bank_statement" ? "Bank statement" : "Provider settlement report"} ${l.direction} ${l.kind} · value ${l.valueDate}`, source: l.accountRef, provenance: l.source, independent: l.source === "bank_statement", codes: l.explanationCodes, refs: [l.id] });
+    out.push({ id: l.id, at: l.receivedAt, kind: "statement_line", title: `${l.source === "bank_statement" ? "Bank statement" : "Provider settlement report"} ${l.direction} ${l.kind} · value ${l.valueDate}`, source: l.accountRef, provenance: l.source, independent: l.source === "bank_statement", codes: l.explanationCodes, refs: [l.id], ...(l.amountDifference ? { amountDifference: { ...l.amountDifference } } : {}) });
   for (const a of allocs)
     out.push({ id: a.id, at: a.createdAt, kind: "allocation", title: a.codes.map((c) => RECONCILIATION_CODE_TEXT[c]).join(" "), source: "Clearline reconciliation rules", provenance: "matching_decision", independent: false, codes: a.codes, refs: [a.statementLineId] });
   for (const o of ws.chainObservations.filter((x) => x.intentId === intent.id))
@@ -266,7 +278,7 @@ export function evidenceTimelineFor(ws: Workspace, intentId: string): EvidenceTi
     for (const d of h.decisions)
       out.push({ id: `${h.id}:${d.at}:${d.decision}`, at: d.at, kind: "hold_decision", title: `Compliance reviewer: ${d.decision} — ${d.reason}`, source: name(d.reviewerId), provenance: "clearline_user_action", independent: false, codes: ["HD_" + d.decision.toUpperCase()], refs: [h.id] });
   for (const x of ws.exceptions.filter((e) => e.intentId === intent.id || (intent.advanceId && e.advanceId === intent.advanceId)))
-    out.push({ id: x.id, at: x.createdAt, kind: "exception", title: `${x.category} (${x.severity}, ${x.status})`, source: "Clearline exception rules", provenance: "engine_rule", independent: false, codes: [x.explanationCode], refs: [x.id, ...x.candidates] });
+    out.push({ id: x.id, at: x.createdAt, kind: "exception", title: `${x.category} (${x.severity}, ${x.status})`, source: "Clearline exception rules", provenance: "engine_rule", independent: false, codes: [x.explanationCode], refs: [x.id, ...x.candidates], ...(x.amountDifference ? { amountDifference: { ...x.amountDifference } } : {}) });
   const v = investigate(ws, intent.id);
   if (v.ok) for (const u of v.value.unknowns)
     out.push({ id: "missing:" + u.code, at: ws.asOf, kind: "missing_evidence", title: u.text, source: "Clearline investigation rules", provenance: "engine_rule", independent: false, codes: [u.code], refs: u.refs });

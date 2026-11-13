@@ -23,6 +23,18 @@ const instant = (o: Obj, k: string, path: string) => need(isIsoInstant(o[k]), `$
 const date = (o: Obj, k: string, path: string) => need(isIsoDate(o[k]), `${path}.${k}`, "must be YYYY-MM-DD");
 const arr = (o: Obj, k: string, path: string) => need(Array.isArray(o[k]), `${path}.${k}`, "must be an array");
 
+/** CHANGE 5 (F2): optional structured amount difference on statement lines and exceptions. */
+const amountDifference = (o: Obj, p: string) => {
+  if (o.amountDifference === undefined) return;
+  need(isObj(o.amountDifference), `${p}.amountDifference`, "must be an object");
+  const d = o.amountDifference as Obj;
+  const q = `${p}.amountDifference`;
+  oneOf(d, "code", q, ["RC_UNDER_AMOUNT_REPORT", "RC_PARTIAL_AMOUNT"]);
+  int(d, "expectedMinor", q, 1); int(d, "reportedMinor", q, 1); int(d, "differenceMinor", q, 1); cur(d, "currency", q);
+  oneOf(d, "source", q, ["bank_statement", "provider_settlement_report"]); str(d, "statementLineId", q); str(d, "requiredNextAction", q);
+  need(d.expectedMinor === (d.reportedMinor as number) + (d.differenceMinor as number), `${q}.differenceMinor`, "must equal expectedMinor − reportedMinor");
+};
+
 const EXECUTION = ["created", "quoted", "approved", "submitted", "in_transit", "provider_reported_completed", "awaiting_information", "on_hold", "failed", "returned", "cancelled", "expired"];
 const SETTLEMENT = ["none", "observed", "pending_finality", "verified", "contradicted"];
 const SCOPE = ["none", "provider_report", "bank_statement", "onchain_transfer"];
@@ -46,12 +58,14 @@ const ELEMENTS: Partial<Record<keyof Workspace, (e: Obj, p: string) => void>> = 
   statementLines: (e, p) => {
     int(e, "amountMinor", p, 1); cur(e, "currency", p); oneOf(e, "direction", p, ["debit", "credit"]); oneOf(e, "kind", p, ["payment", "return", "reversal"]);
     oneOf(e, "status", p, ["unallocated", "allocated", "partially_allocated", "exception"]); arr(e, "allocationIds", p); arr(e, "explanationCodes", p); date(e, "valueDate", p); need(typeof e.reference === "string", `${p}.reference`, "must be a string");
+    amountDifference(e, p);
   },
   allocations: (e, p) => { str(e, "statementLineId", p); need(isObj(e.target), `${p}.target`, "must be an object"); int(e, "amountMinor", p, 1); cur(e, "currency", p); arr(e, "codes", p); oneOf(e, "evidenceKind", p, ["statement_line", "chain_observation"]); },
   exceptions: (e, p) => {
     str(e, "category", p); oneOf(e, "status", p, ["open", "in_review", "resolved", "reopened"]); oneOf(e, "severity", p, ["low", "medium", "high", "critical"]);
     for (const k of ["candidates", "supportingEventIds", "supportingEvidenceIds", "history"]) arr(e, k, p);
     instant(e, "createdAt", p);
+    amountDifference(e, p);
   },
   cases: (e, p) => { oneOf(e, "status", p, ["open", "resolved", "reopened"]); for (const k of ["notes", "requestedInfo", "evidenceIds", "exceptionIds", "history"]) arr(e, k, p); },
   holds: (e, p) => {

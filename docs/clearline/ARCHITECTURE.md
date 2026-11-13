@@ -23,6 +23,8 @@ Prepared by a general-purpose AI subagent working under the repository role brie
    │   ├ funding.ts        Funding Desk projection (not a ledger)                     │
    │   └ liquidity.ts      usable-liquidity policy                                    │
    │ investigation.ts  read model: what was requested / reported / evidenced / unknown │
+   │ labels.ts         HUMAN_LABELS, describeCode/Status/Error (CHANGE 5; text only)   │
+   │ bodylimit.ts      streamed 512 KB body reader for the v1 route (internal, R4)     │
    │ money.ts, sha256.ts, webhooks.ts, tx.ts, sample.ts, serialize.ts, types.ts       │
    └──────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -34,6 +36,8 @@ Prepared by a general-purpose AI subagent working under the repository role brie
 - **Nothing resolves itself.** Exceptions are closed only by a person, and only when `canResolveException` allows it. New events append history; they never close an exception. New contradicting evidence reopens a resolved case.
 - **Compliance holds** are partner-reported. Release needs both the partner's release report and the assigned compliance reviewer's decision. Neither a timer nor a provider event alone releases a hold.
 - **No custody or execution.** Adapters are deterministic simulators: no network, no keys, no payouts. The webhook secrets are public test strings.
+
+- **Human labels live next to the rules (CHANGE 5).** `labels.ts` maps every status value, explanation code and error code to deterministic English. A test reads the type unions and the engine source and fails if any value or emitted code has no label, so a new rule cannot ship with an unlabelled code.
 
 ### Legacy prototype
 

@@ -81,6 +81,7 @@ export function fundingProjection(ws: Workspace, at: string = ws.asOf): FundingP
       outstanding,
       overdue: state === "overdue",
       state,
+      supplierPaidBasis: intent?.status.settlement === "verified" ? "verified_settlement" : intent?.status.execution === "provider_reported_completed" ? "provider_reported" : "none",
       fundingDeskStage: STAGE_MAP[state],
       exceptionIds: ws.exceptions.filter((e) => e.advanceId === adv.id || (e.obligationId && e.obligationId === ob?.id) || e.candidates.includes(ob?.id ?? "\u0000")).map((e) => e.id),
       evidenceIds: ws.evidence.filter((e) => e.advanceId === adv.id).map((e) => e.id),

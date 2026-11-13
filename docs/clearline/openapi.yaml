@@ -61,9 +61,21 @@ info:
     product's rules but are not a security boundary here.
 
     **Robustness.** Malformed JSON, damaged workspaces and malformed provider payloads return 4xx JSON,
-    never 500. Limits: request body ≤ 512 KB (422 `invalid_json`); each workspace collection ≤ 1,000
+    never 500. Limits: request body ≤ 512 KB (422 `invalid_json`; the body is streamed and reading stops at
+    the limit, also for chunked bodies without Content-Length); each workspace collection ≤ 1,000
     items, audit ≤ 10,000 (400 `invalid_field`); nesting depth ≤ 32. While a payout is on a partner hold,
     provider events never move it; leaving a hold needs the compliance reviewer.
+
+    **Provider settlement reports (CHANGE 5).** A report on a payout whose execution is `failed`,
+    `cancelled`, `expired` or `returned` is a contradiction (`contradictory_evidence` /
+    `RC_REPORT_ON_TERMINAL_PAYOUT`, outcome `contradictory_exception_raised`); settlement is unchanged.
+    A report for less than the payout amount raises `unmatched_reconciliation` / `RC_UNDER_AMOUNT_REPORT`
+    and does not upgrade settlement. The line and the exception carry `amountDifference`
+    `{code, expectedMinor, reportedMinor, differenceMinor, currency, source, statementLineId,
+    requiredNextAction}`; a bank line below the remainder is allocated as partial and carries the same
+    object with `code: RC_PARTIAL_AMOUNT`. `GET/POST …/investigations` returns them in
+    `amountDifferences`. Funding rows carry `supplierPaidBasis` (`none | provider_reported |
+    verified_settlement`).
 
     **Legacy endpoints** under `/api/clearline/test/{intents,quotes,transitions,webhooks,payments,health}`
     are **retired** and execute nothing. A request that is invalid under the old contract gets HTTP 422

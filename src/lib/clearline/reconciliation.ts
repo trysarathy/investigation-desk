@@ -5,7 +5,7 @@
 import { openException } from "./exceptions";
 import { obligationOutstanding } from "./funding";
 import { formatMinor } from "./money";
-import type { ReconciliationAllocation, ReconciliationCode, RepaymentObligation, StatementLine } from "./types";
+import type { AmountDifference, ExecutionState, ReconciliationAllocation, ReconciliationCode, RepaymentObligation, Severity, StatementLine } from "./types";
 import { addDays, daysBetween, referenceTokens, type Tx } from "./tx";
 
 /** Value date must fall within [submission date − 1 day, submission date + N days]. */
@@ -31,6 +31,8 @@ export const RECONCILIATION_CODE_TEXT: Readonly<Record<ReconciliationCode, strin
   RC_UNMATCHED_OUTGOING: "Outgoing funds with no matching submitted payment.",
   RC_PROVIDER_REPORT_ONLY: "Matched against a provider settlement report, which is provider-reported rather than independent bank evidence.",
   RC_REPAYMENT_BY_REFERENCE: "Repayment allocated to the obligation by its reliable repayment reference.",
+  RC_UNDER_AMOUNT_REPORT: "The provider settlement report shows less than the payout amount; the payout is not treated as settled in full.",
+  RC_REPORT_ON_TERMINAL_PAYOUT: "The provider reports settlement for a payout that is failed, cancelled, expired or returned; the two claims contradict each other.",
 };
 
 /** Display group for each code (for filters). Rows should still show the raw codes. */
@@ -53,7 +55,25 @@ export const RECONCILIATION_CODE_GROUP: Readonly<Record<ReconciliationCode, Reco
   RC_UNMATCHED_INCOMING: "unmatched",
   RC_UNMATCHED_OUTGOING: "unmatched",
   RC_PROVIDER_REPORT_ONLY: "informational",
+  RC_UNDER_AMOUNT_REPORT: "partial",
+  RC_REPORT_ON_TERMINAL_PAYOUT: "contradiction",
 };
+
+/** CHANGE 5 (F1): executions on which a provider settlement report is a contradiction, not evidence. */
+export const TERMINAL_FOR_SETTLEMENT_REPORT: readonly ExecutionState[] = ["failed", "cancelled", "expired", "returned"];
+
+/** CHANGE 5 (F2): next action for an amount difference (deterministic text). */
+export function amountDifferenceAction(code: AmountDifference["code"], differenceMinor: number, currency: AmountDifference["currency"]): string {
+  const amt = formatMinor(differenceMinor, currency);
+  return code === "RC_UNDER_AMOUNT_REPORT"
+    ? `Ask the provider to explain the ${amt} shortfall (fees, partial settlement or a further report) and obtain the bank statement line for the payout. Do not treat the payout as settled until the full amount is evidenced.`
+    : `Find the statement line for the remaining ${amt}. The remainder stays outstanding until a line with the trusted reference evidences it.`;
+}
+
+function difference(line: StatementLine, code: AmountDifference["code"], expectedMinor: number): AmountDifference {
+  const differenceMinor = expectedMinor - line.amountMinor;
+  return { code, expectedMinor, reportedMinor: line.amountMinor, differenceMinor, currency: line.currency, source: line.source, statementLineId: line.id, requiredNextAction: amountDifferenceAction(code, differenceMinor, line.currency) };
+}
 
 const SUBMITTED_STATES = ["submitted", "in_transit", "provider_reported_completed", "on_hold", "awaiting_information", "returned", "failed"];
 
@@ -93,7 +113,7 @@ function lineEvidence(tx: Tx, line: StatementLine, link: { intentId?: string; ad
   return ev.id;
 }
 
-function exceptionFor(tx: Tx, line: StatementLine, code: ReconciliationCode, extra: { intentId?: string; advanceId?: string; obligationId?: string; candidates?: string[]; category?: "unmatched_reconciliation" | "missing_payment_reference" | "contradictory_evidence" | "duplicate_event" }) {
+function exceptionFor(tx: Tx, line: StatementLine, code: ReconciliationCode, extra: { intentId?: string; advanceId?: string; obligationId?: string; candidates?: string[]; category?: "unmatched_reconciliation" | "missing_payment_reference" | "contradictory_evidence" | "duplicate_event"; note?: string; amountDifference?: AmountDifference; severity?: Severity }) {
   line.status = line.allocationIds.length ? "partially_allocated" : "exception";
   if (!line.explanationCodes.includes(code)) line.explanationCodes.push(code);
   const evidenceId = lineEvidence(tx, line, { intentId: extra.intentId, advanceId: extra.advanceId });
@@ -101,7 +121,8 @@ function exceptionFor(tx: Tx, line: StatementLine, code: ReconciliationCode, ext
     category: extra.category ?? (line.reference.trim() ? "unmatched_reconciliation" : "missing_payment_reference"),
     explanationCode: code,
     explanation: `${RECONCILIATION_CODE_TEXT[code]} Line ${line.lineId}: ${line.direction} ${formatMinor(line.amountMinor, line.currency)}, reference "${line.reference}".` +
-      (extra.candidates?.length ? ` Candidates (not allocated): ${extra.candidates.join(", ")}.` : ""),
+      (extra.candidates?.length ? ` Candidates (not allocated): ${extra.candidates.join(", ")}.` : "") +
+      (extra.note ? ` ${extra.note}` : ""),
     intentId: extra.intentId,
     advanceId: extra.advanceId,
     obligationId: extra.obligationId,
@@ -109,6 +130,8 @@ function exceptionFor(tx: Tx, line: StatementLine, code: ReconciliationCode, ext
     candidates: extra.candidates,
     supportingEvidenceIds: [evidenceId],
     impact: { amountMinor: line.amountMinor, currency: line.currency },
+    amountDifference: extra.amountDifference,
+    severity: extra.severity,
   });
 }
 
@@ -184,6 +207,18 @@ export function reconcileLine(tx: Tx, line: StatementLine): string {
     return "contradictory_exception_raised";
   }
 
+  // CHANGE 5 (F1): a settlement report on a payout whose execution is terminal (failed, cancelled,
+  // expired, returned) contradicts the provider's own status. It is never recorded as ordinary
+  // evidence: it raises contradictory_evidence and leaves settlement unchanged.
+  if (line.source === "provider_settlement_report" && TERMINAL_FOR_SETTLEMENT_REPORT.includes(intent.status.execution)) {
+    exceptionFor(tx, line, "RC_REPORT_ON_TERMINAL_PAYOUT", {
+      intentId: intent.id,
+      category: "contradictory_evidence",
+      note: `The payout's execution status is "${intent.status.execution}"; settlement was left unchanged (${intent.status.settlement}).`,
+    });
+    return "contradictory_exception_raised";
+  }
+
   // Outgoing payment line
   if (line.direction !== "debit") {
     exceptionFor(tx, line, "RC_UNMATCHED_INCOMING", { intentId: intent.id });
@@ -204,6 +239,21 @@ export function reconcileLine(tx: Tx, line: StatementLine): string {
     // above — or an amount above the payout) raises an exception.
     if (line.amountMinor > intent.amountMinor) {
       exceptionFor(tx, line, "RC_OVERPAYMENT", { intentId: intent.id });
+      return "exception_raised";
+    }
+    if (line.amountMinor < intent.amountMinor) {
+      // CHANGE 5 (F2): a report for less than the payout is a disagreement, never silent evidence.
+      // Settlement is not upgraded; the structured difference is on the line and the exception.
+      const d = difference(line, "RC_UNDER_AMOUNT_REPORT", intent.amountMinor);
+      line.amountDifference = d;
+      line.explanationCodes.push("RC_PROVIDER_REPORT_ONLY");
+      if (isLate(tx, line)) line.explanationCodes.push("RC_LATE_STATEMENT");
+      exceptionFor(tx, line, "RC_UNDER_AMOUNT_REPORT", {
+        intentId: intent.id,
+        category: "unmatched_reconciliation",
+        amountDifference: d,
+        note: `Expected ${formatMinor(d.expectedMinor, d.currency)}, reported ${formatMinor(d.reportedMinor, d.currency)}, difference ${formatMinor(d.differenceMinor, d.currency)}.`,
+      });
       return "exception_raised";
     }
     lineEvidence(tx, line, { intentId: intent.id, advanceId: intent.advanceId });
@@ -234,6 +284,8 @@ export function reconcileLine(tx: Tx, line: StatementLine): string {
   const evidenceId = lineEvidence(tx, line, { intentId: intent.id, advanceId: intent.advanceId });
   allocate(tx, line, { kind: "payment", intentId: intent.id }, line.amountMinor, codes);
   const full = line.amountMinor === remaining;
+  // CHANGE 5 (F2): a bank line below the remainder stays partial, with the structured difference.
+  if (!full) line.amountDifference = difference(line, "RC_PARTIAL_AMOUNT", remaining);
   if (intent.status.reconciliation !== "exception") intent.status.reconciliation = full ? "matched" : "partially_matched";
   if (intent.status.settlement !== "contradicted") {
     if (line.source === "bank_statement") {
