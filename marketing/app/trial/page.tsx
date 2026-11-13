@@ -56,7 +56,7 @@ export default function Trial() {
       </Section>
 
       <Section id="historical" tone="bluegrey" eyebrow="Part two · historical cases" title="How to evaluate your own history safely"
-        intro={<p>If the fictional cases look relevant, the next step is a small replay of closed cases. It happens only under written terms, and never through the public sandbox.</p>}>
+        intro={<p>If the fictional cases look relevant, we can discuss replaying up to five of your closed, redacted cases. That only happens after we agree the scope and how the data will be handled securely, in writing, and never through the public sandbox.</p>}>
         <ol className="list-rows">
           {safe.map(([t, d], i) => <li key={t}><span className="idx">{String(i + 1).padStart(2, "0")}</span><div><h3 className="h3">{t}</h3><p>{d}</p></div></li>)}
         </ol>

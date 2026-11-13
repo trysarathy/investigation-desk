@@ -13,7 +13,7 @@ export const metadata = pageMeta(
 export default function Privacy() {
   const rows: [string, string][] = [
     ["Who we are", "Clearline is an early-stage project run by Aashmiin Kaur in Singapore. It is not yet an incorporated company with a dedicated privacy officer; questions go to the founder directly."],
-    ["Hosting", "This website is static and is intended to be hosted on Vercel, which processes standard connection data (such as IP address and request logs) to deliver pages. We do not receive or use those logs for marketing."],
+    ["Hosting", "This website is static and hosted on Vercel, which processes standard connection data (such as IP address and request logs) to deliver pages. We do not receive or use those logs for marketing."],
     ["Analytics and cookies", "None. The site sets no cookies, runs no analytics and loads no advertising or social tracking scripts. Fonts are served from this site, not from a third-party font service."],
     ["Email", "If you email " + EMAIL + ", your message is held in the founder's Singapore Management University mailbox, under the university's email arrangements. It is used only to reply to you and is not added to a mailing list."],
     ["Web form", FORM_ENABLED ? "The contact form is processed by Formspree, a third-party form service, which forwards your message to the founder." : "There is no web form on this site at the moment. Nothing you type on this website is collected."],
@@ -31,7 +31,7 @@ export default function Privacy() {
         <div className="list-rows prose">
           {rows.map(([t, d], i) => <div key={t}><span className="idx">{String(i + 1).padStart(2, "0")}</span><div><h2 className="h3">{t}</h2><p>{d}</p></div></div>)}
         </div>
-        <p className="caption" style={{ marginTop: 24 }}>This notice describes the website as built. It has not been reviewed by a lawyer. See also <Link className="text-link" href="/trial#historical">how historical-case evaluations handle data</Link>.</p>
+        <p className="caption" style={{ marginTop: 24 }}>This is a provisional notice describing the website as built. It has not been reviewed by a lawyer, and it does not claim compliance with any privacy law. Uploading confidential financial data is disabled on this site and in the public sandbox until a security review, data-handling terms and the necessary controls are in place. See also <Link className="text-link" href="/trial#historical">how historical-case evaluations handle data</Link>.</p>
       </Section>
     </main>
   );

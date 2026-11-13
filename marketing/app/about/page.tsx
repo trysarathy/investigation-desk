@@ -4,7 +4,7 @@ import { pageMeta } from "@/lib/meta";
 
 export const metadata = pageMeta(
   "About the founder",
-  "Clearline is built in Singapore by Aashmiin Kaur, an Accountancy student at Singapore Management University with a second major in Finance. What exists, what does not, and what she is still learning.",
+  "Clearline is built in Singapore by Aashmiin Kaur, 19, a second-year Accountancy student at Singapore Management University with a second major in Finance. What exists, what does not, and what she is still learning.",
   "/about",
 );
 
@@ -18,7 +18,7 @@ export default function About() {
           <div>
             <p className="eyebrow">About · Singapore</p>
             <h1 id="about-title" className="h1">Aashmiin Kaur, <em>founder.</em></h1>
-            <div className="lede"><p>Accountancy student at Singapore Management University, with a second major in Finance. I am building Clearline in Singapore.</p></div>
+            <div className="lede"><p>I&rsquo;m 19 and in my second year of Accountancy at Singapore Management University, with a second major in Finance. I&rsquo;m building Clearline in Singapore, mostly in the evenings around classes.</p></div>
             <div className="actions">
               <ButtonLink href={mailto("Hello from the Clearline website")} main>Email Aashmiin</ButtonLink>
               <ButtonLink href={LINKEDIN} variant="secondary">LinkedIn</ButtonLink>

@@ -127,3 +127,17 @@ test("built output (if present) has the email, metadata and no stale hosts", { s
     assert.equal(/sarathyv2|investigation-desk-git/.test(html), false, p);
   }
 });
+
+// Founder-approved facts and terms (13 Nov 2026).
+import { readFileSync as _rf } from "node:fs";
+test("founder-approved about, trial and privacy wording", () => {
+  const about = _rf(new URL("../app/about/page.tsx", import.meta.url), "utf8");
+  assert.match(about, /19/); assert.match(about, /second year of Accountancy at Singapore Management University/);
+  assert.match(about, /second major in Finance/);
+  const trial = _rf(new URL("../app/trial/page.tsx", import.meta.url), "utf8");
+  assert.match(trial, /15–20 minutes/); assert.match(trial, /up to five of your closed, redacted cases/);
+  assert.match(trial, /agree the scope and how the data will be handled securely/);
+  const privacy = _rf(new URL("../app/privacy/page.tsx", import.meta.url), "utf8");
+  assert.match(privacy, /provisional notice/); assert.match(privacy, /hosted on Vercel/);
+  assert.match(privacy, /does not claim compliance/); assert.match(privacy, /confidential financial data is disabled/);
+});
