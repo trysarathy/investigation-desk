@@ -5,7 +5,7 @@ import path from "node:path";
 const root=path.resolve(import.meta.dirname,"..");
 const read=p=>fs.readFileSync(path.join(root,p),"utf8");
 test("all four marketing routes exist",()=>{for(const p of ["app/page.tsx","app/replay/page.tsx","app/onchain/page.tsx","app/privacy/page.tsx"])assert.ok(fs.existsSync(path.join(root,p)),p)});
-test("main page introduces Connect and Control separately",()=>{const h=read("app/page.tsx");assert.match(h,/Clearline Connect/);assert.match(h,/Clearline Control/);assert.match(h,/One clear answer/);});
+test("main page introduces Connect and Control separately",()=>{const h=read("app/page.tsx");assert.match(h,/Connect/);assert.match(h,/Control/);assert.match(h,/Context gets lost/);assert.match(h,/No pretending otherwise/);});
 test("sample evidence is not presented as independent settlement",()=>{const p=read("components/PaymentPreview.tsx");assert.match(p,/not independent settlement proof/);assert.match(p,/Synthetic event/);assert.match(p,/fictional transactions/i);});
 test("marketing contact does not submit without a real Formspree ID",()=>{const p=read("components/ContactForm.tsx");assert.match(p,/id!=="FORM_ID"/);assert.match(p,/disabled=\{state==="sending"\|\|!enabled\}/);});
 test("onchain stage remains explicit and no real execution is implied",()=>{const p=read("app/onchain/page.tsx");assert.match(p,/IN DEVELOPMENT/);assert.match(p,/No live key management/);});
