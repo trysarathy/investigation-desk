@@ -45,7 +45,13 @@ export function recomputeDimensions(ws: Workspace, intent: PaymentIntent): void 
     return;
   }
 
-  if (open.some((e) => e.category === "contradictory_evidence")) intent.status.settlement = "contradicted";
+  // rc3 (T-2): a failed, cancelled or expired payout never shows settlement evidence as success once a
+  // person resolves the contradiction: the evidence stays on record and in the investigation, but the
+  // settlement dimension is "none" (as for a returned payout, N2). Before: the recompute set "verified".
+  if (terminal) {
+    intent.status.settlement = open.some((e) => e.category === "contradictory_evidence") ? "contradicted" : "none";
+    if (intent.status.settlement === "none") intent.status.settlementScope = "none";
+  } else if (open.some((e) => e.category === "contradictory_evidence")) intent.status.settlement = "contradicted";
   else if (obs) {
     intent.status.settlementScope = "onchain_transfer";
     intent.status.settlement = obs.status === "final" ? "verified" : obs.status === "pending_finality" ? "pending_finality" : "observed";
