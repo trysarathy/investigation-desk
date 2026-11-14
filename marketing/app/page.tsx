@@ -26,7 +26,7 @@ export default function Home() {
             <ButtonLink href={TRIAL_URL} main>Explore Clearline</ButtonLink>
             <ButtonLink href={BOOKING_URL ?? mailto("A payment problem")} variant="secondary" onMidnight>Talk about a payment problem</ButtonLink>
           </div>
-          <p className="quiet-hero-footnote">An early, fictional-data product. No real provider connected.</p>
+          <p className="quiet-hero-footnote">An early, fictional-data product. No real provider connected. {BOOKING_URL ? "Book a time through the link above." : "Booking link pending; email the founder instead."}</p>
         </div>
       </section>
 
