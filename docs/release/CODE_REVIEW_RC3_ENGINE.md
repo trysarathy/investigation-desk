@@ -783,3 +783,110 @@ Each mutant was reapplied to 668e4ca:
 **APPROVE 668e4ca.** R3-B1 is fixed: reopen withdraws the acceptance or supersede, recomputes and keeps the history. No combination of reopen cycles, resets at later clocks or migrated v2 starts produced a workspace that fails to load or migrates. All 7 R3-m1 mutants and 6 new reopen mutants are caught.
 
 One minor, non-blocking item: widen the committed property generator to the payment lifecycle actions, migrated-fixture starts and later-clock resets, or narrow the CHANGE 11 wording to match. The merge commit after 2c70766 should carry this same engine tree.
+
+---
+
+# Fifth check: rc3-engine at 942d421 (QA rc3 L1 `evidenceCeiling` / migration rule E, L2 decision actors)
+
+**CODE REVIEW: APPROVE 942d421**
+
+APPROVAL-ONLY: needs Aashmiin's merge. This touches case-close rules, evidence status and how workspaces load.
+
+**In plain English.**
+
+The two QA hardening fixes are correct.
+- **L1, status cap.** A stored status can no longer claim more than the recorded evidence supports, and a case no longer closes on a status alone.
+- **L2, decision roles.** Every recorded decision must name a real person with the right role.
+
+I could not make the new cap fire on any genuine state:
+- 640 real v2 and efabe6a workspaces, built by random use of those engines;
+- 260 random rc3 sequences;
+- hand-built held, returned, partial and provider-report cases.
+
+The role check refused none of the 640 older workspaces.
+
+One limit remains, and the docs should say it. A *crafted* workspace can still close a case by forging an evidence record rather than a status: for example an allocation from a credit line with no payment reference, or from a provider report. That is defense in depth, not a regression.
+
+Scope: `git -C /home/user/rel/rc3-engine diff 668e4ca 942d421 -- src/lib/clearline tests docs/clearline` (9d82673 tests and docs; 942d421 L1/L2). I wrote none of it, although 9d82673 adopts the property-test extension I wrote as a probe. That test code is mine, so I have not counted its passing as independent evidence; everything below I ran myself.
+
+## Checks I ran
+- **Setup.** I deleted cr8 first. Fresh frozen copy at `scratchpad/cr9` (`git archive 942d421`, node_modules symlinked).
+- **Typecheck.** `npx tsc --noEmit`: pass.
+- **Tests.** `npx vitest run` (full suite): 72 files pass, 1 skipped; 1491 tests pass, 57 skipped.
+- **Mutation checks.** 17 mutants (`scratchpad/mut9.py`): 15 killed, 2 survived.
+- **Probes.** In `scratchpad/probes9/`:
+  - `loadv2.test.ts`;
+  - `forge.test.ts`;
+  - `ceil.test.ts`;
+  - `prop-more.test.ts` (the adopted property test, run on seeds 61–260 with 120 steps each).
+- **Older-engine workspaces.** I generated them with the real old engines: `scratchpad/walker.test.ts` run in minimal archives of cf8732e and efabe6a, written to `scratchpad/v2walk/`. The archives were deleted afterwards.
+
+## Can `evidenceCeiling` wrongly cap a legitimate rc3 state? No case found
+
+**Random rc3 sequences.** The adopted property test (60 seeds × 90 steps) passes. I also ran 200 more seeds (61–260) with 120 steps each, including starts from migrated v2 fixtures and resets at later clocks: **207 / 207 pass**. Every intermediate workspace loads with migrations `[]`, rule E included, and byte-identical JSON.
+
+**Hand-built legitimate states** (`ceil.test.ts`). For each, the stored status is within the ceiling and loading changes nothing:
+
+| State | Stored status | Ceiling | Load |
+|---|---|---|---|
+| s2 sample | returned / contradicted | verified, matched | `[]` |
+| s2 after the return is resolved (net zero) | returned / none / matched | supports matched | `[]` |
+| s3 held, with a matching debit (C1) | on_hold / verified / matched | supports both | `[]` |
+| Agreeing provider report only | observed (provider_report) | observed | `[]` |
+| Partial debit | observed / partially_matched | observed, partiallyMatched | `[]` |
+| Two debits making up the full amount | verified / matched | verified, matched | `[]` |
+
+**Real v2 and efabe6a workspaces** (`loadv2.test.ts`). I loaded 320 snapshots per engine, taken every 15 steps of 40 random 120-step walks. The walks covered webhooks of every type, injections, bank and provider lines, chain observations (including chain 1, block moves and fewer confirmations), resolve, reopen, holds, advances and the full payment lifecycle.
+
+| Engine | Loaded | Idempotent | Next action OK | Migrations |
+|---|---|---|---|---|
+| cf8732e (v2) | 320 / 320 | 320 | 320 | `reorg_reconciliation` ×9, `chain_observation_not_allowlisted` ×7 |
+| efabe6a | 320 / 320 | 320 | 320 | none |
+
+**Rule E (`status_exceeds_evidence`) fired on none of them.**
+
+## Can L2 refuse a workspace a real v2 or rc3 user could have saved? No case found
+- **Same roles as v2.** cf8732e enforces the same roles L2 checks:
+  - `choose_route`: operator or approver;
+  - `approve_instruction`: approver;
+  - `create_advance`: operator;
+  - `decide_advance`: approver;
+  - hold reviewer: compliance only;
+  - hold decisions: recorded with a `reviewerId` that must be the assigned compliance reviewer.
+- **Same actors.** `SAMPLE_ACTORS` is identical in v2 and rc3.
+- **Refusals.** 0 of the 640 older-engine snapshots were refused, 0 rc3 property states were refused, and all committed v2 fixtures load.
+- **Tests.** Every L2 rule is pinned by a test: instruction maker, instruction checker, funding maker, funding checker, hold reviewer, hold-decision reviewer, accepter is staff, approver is staff — all 8 mutants killed.
+
+## Can `canResolveCase` still be fooled? Only by forging evidence records (minor, R5-m1)
+- **Fixed.** A status-only forgery (QA L1) now migrates to `status_exceeds_evidence` and the case stays `EVIDENCE_OUTSTANDING`. Reverting to the stored status is caught by the tests.
+- **Still possible** (`forge.test.ts`). These workspaces load with migrations `[]` and the case becomes `RESOLVABLE`:
+  - **Provider-report allocation.** A provider settlement report line allocated to the payout for its full amount, with the status set to verified / matched. rc3 never allocates provider reports.
+  - **Unreferenced credit line.** A bank **credit** line with reference "NOTHING", allocated to the payout.
+- **Why it matters little.** Anyone crafting a workspace can equally forge a correct-looking bank debit with the right reference, so this is defense in depth.
+- **Cheap structural checks in `crossCheck`** would refuse shapes rc3 never produces: a payment allocation must come from a bank-statement debit of kind payment carrying the payout's provider payment id, or from a return credit with `RC_RETURN_CONFIRMS_PROVIDER_RETURN`.
+- **Docs.** CHANGE 13 says "even a workspace object that was never loaded cannot close a case on its stored status". That is true, but add that forged *evidence records* are not re-validated beyond the crossCheck shape rules.
+
+## Test strength (minor, R5-m2)
+Of the 17 mutants, 15 were killed:
+- `canResolveCase` trusting the stored status;
+- ceiling: pending counted as verified;
+- ceiling: a partial bank amount counted as verified;
+- ceiling: `partiallyMatched` always true;
+- rule E off; settlement not capped; reconciliation not capped;
+- all 8 L2 rules.
+
+Two survived:
+- the ceiling's `matched` accepting a chain allocation whose observation is *not* final;
+- `returnMatched` without `returnStatus: confirmed_by_statement`.
+
+Their effect is masked: rule D handles the first on load, and the settlement ceiling limits both. Still, the ceiling is exported and documented as exact on these points, so add one test for each.
+
+## Summary
+**APPROVE 942d421.**
+- L1 and L2 are correct.
+- The ceiling never capped a legitimate state: 260 rc3 random sequences, hand-built edge states, and 640 real v2 and efabe6a workspaces.
+- L2 refused nothing a real user could have saved.
+
+Minor follow-ups:
+- **R5-m1:** refuse evidence-record shapes rc3 never produces (provider-report or unreferenced credit allocations), and qualify the CHANGE 13 sentence.
+- **R5-m2:** two ceiling mutants survive.
