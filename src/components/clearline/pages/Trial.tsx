@@ -19,9 +19,9 @@ const CASES: Case[] = [
   },
   {
     n: "02", reset: "s2_returned", title: "Returned payout", area: "Investigations · Exceptions queue", href: "/clearline/payments", scenario: "s2_returned",
-    start: "The beneficiary's bank rejected the payout; the provider reported a return and a return line arrived on the statement.",
+    start: "The beneficiary's bank rejected the payout. The bank statement shows the outgoing debit and then the return credit, for the same amount.",
     action: ["Open the payment and read the findings (section D).", "In Actions (section E), assign an owner and add a note to the case.", "Try to resolve the case, then open its exception in the Exceptions queue."],
-    expect: ["The findings name what is known, what is still unknown, what contradicts, what is financially outstanding and who owns the next step.", "Resolve stays disabled until the engine's conditions are met, and the engine's reason is shown under the button.", "Every action appears in the case history and the audit log (Reports)."],
+    expect: ["Settlement evidence is contradicted: money left and came back, so nothing proves the supplier was paid.", "The return position states both facts separately: net movement zero on the statement, and the beneficiary was not paid.", "Resolve stays disabled until the engine's conditions are met, and the engine's reason is shown under the button; every action appears in the case history and the audit log (Reports)."],
     limits: "Beneficiary details are opaque test references; no real account is checked.",
   },
   {

@@ -178,6 +178,16 @@ export default function Investigation({ id }: { id: string }) {
           <p className={`${ui.headline} ${ui.neutral}`} data-testid="operational-status">
             <span className={ui.srOnly}>Current operational status: </span>{statusSummary(st)}
           </p>
+          {view.returnPosition && (
+            <div className={ui.notice} data-testid="return-position-summary" style={{ borderLeftColor: "var(--cl-danger)" }}>
+              <p style={{ margin: "0 0 4px" }}><strong>Returned payout — two separate facts</strong></p>
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                <li><strong>Net movement:</strong> {view.returnPosition.netMovementZero ? "zero on the statement (the debit and the return credit are equal)" : view.returnPosition.netMovement ? `${formatMoney(view.returnPosition.netMovement)}, not zero` : "not established yet: one leg is not on the statement"}</li>
+                <li><strong>Beneficiary paid:</strong> No</li>
+              </ul>
+              <p style={{ margin: "4px 0 0" }}>{view.returnPosition.text} <span className={ui.apiValue}>{view.returnPosition.code}</span></p>
+            </div>
+          )}
           <dl className={ui.summaryGrid}>
             <div><dt>Payment ID</dt><dd className="mono" data-testid="payment-id">{intent.id}</dd></div>
             <div><dt>Customer reference</dt><dd className="mono">{view.requested.internalReference}</dd></div>

@@ -146,7 +146,7 @@
 .tlItem { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--cl-line); }
 .tlItem:last-child { border-bottom: 0; }
 .tlTime { font: 500 12px/1.5 var(--cl-font-mono); color: var(--cl-text-secondary); font-variant-numeric: tabular-nums; }
-.tlTitle { font-weight: 600; margin: 0 0 2px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tlTitle { font-weight: 600; margin: 0 0 2px; overflow-wrap: anywhere; }
 .tlMeta { font-size: 12px; color: var(--cl-text-secondary); margin: 2px 0 0; overflow-wrap: anywhere; }
 .tlWhy { font-size: 13px; margin: 4px 0 0; color: var(--cl-text); }
 .tlProblem { box-shadow: inset 3px 0 0 var(--cl-danger); }
