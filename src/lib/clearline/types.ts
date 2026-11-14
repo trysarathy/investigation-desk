@@ -528,7 +528,12 @@ export interface ReconciliationException {
   createdAt: string;
   lastUpdatedAt: string;
   history: HistoryEntry[];
-  resolution?: { at: string; actorId: string; note: string };
+  /**
+   * Who resolved it, when and why. `acceptedDifference` (re-review R-M2): set only when the person resolved an
+   * RC_OVERPAYMENT exception with `acceptDifference: true` on a bank debit that otherwise matches the payout
+   * (see acceptedBankLine): the over-amount the person accepted.
+   */
+  resolution?: { at: string; actorId: string; note: string; acceptedDifference?: { statementLineId: string; differenceMinor: number; currency: CurrencyCode } };
 }
 
 /** Alias: the brief calls every exception a ReconciliationException; categories go wider. */
@@ -829,7 +834,8 @@ export type WorkspaceAction =
   | { type: "add_note"; target: TargetRef; text: string }
   | { type: "request_info"; caseId: string; from: string; request: string }
   | { type: "attach_evidence"; target: TargetRef; evidence: AttachEvidenceInput }
-  | { type: "resolve"; target: TargetRef; note: string }
+  /** acceptDifference (re-review R-M2): only for an RC_OVERPAYMENT exception whose bank debit names the payout, in its currency and window, at most ACCEPTED_OVERAGE_BPS over; records the accepted difference so the payout's case may close. */
+  | { type: "resolve"; target: TargetRef; note: string; acceptDifference?: boolean }
   | { type: "reopen"; target: TargetRef; reason: string }
   | { type: "submit_hold_documents"; holdId: string; documents: string[] }
   | { type: "assign_hold_reviewer"; holdId: string; reviewerId: string }

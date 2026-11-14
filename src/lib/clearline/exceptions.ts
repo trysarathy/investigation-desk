@@ -1,8 +1,9 @@
 import { obligationOutstanding } from "./funding";
 import { computeLiquidity } from "./liquidity";
+import { applyBpsFloor, formatMinor } from "./money";
 import { isTerminalForSettlementReport } from "./state";
 import type { AmountDifference, ExceptionCategory, InvestigationCase, Money, ReconciliationException, Severity, Workspace } from "./types";
-import { addDays, referenceTokens, type Tx } from "./tx";
+import { addDays, inMatchingWindow, referenceTokens, type Tx } from "./tx";
 
 /** Required action shown for each category (deterministic text, no generated prose). */
 export const EXCEPTION_REQUIRED_ACTION: Readonly<Record<ExceptionCategory, string>> = {
@@ -257,32 +258,73 @@ export function canResolveCase(ws: Workspace, caseId: string): ResolutionCheck {
   if (obligationId && obligationOutstanding(ws, obligationId).amountMinor > 0)
     return deny("OUTSTANDING_REMAINS", "The customer's repayment on the linked advance is still outstanding; it closes only by repayments allocated by reference.");
   if (accepted)
-    return { allowed: true, code: "RESOLVABLE", reason: `Owner assigned, linked exceptions resolved, no open requests or undecided hold. The payment is evidenced by bank line ${accepted.lineId}, whose ${accepted.code} difference a person accepted (${accepted.exceptionId}). A note is required.` };
+    return { allowed: true, code: "RESOLVABLE", reason: `Owner assigned, linked exceptions resolved, no open requests or undecided hold. The bank debit ${accepted.lineId} (${formatMinor(accepted.lineAmountMinor, accepted.currency)}) carries this payment's reference but was not matched; ${accepted.actorId} accepted the ${formatMinor(accepted.differenceMinor, accepted.currency)} over-amount (${accepted.exceptionId}). A note is required.` };
   return { allowed: true, code: "RESOLVABLE", reason: "Owner assigned, linked exceptions resolved, no open requests or undecided hold, and the payment is evidenced. A note is required." };
 }
 
-/**
- * Review M-2: amount/currency/window disagreements a person may accept for X-1. The line is real,
- * independent evidence that names this payout by its trusted reference; only its amount, currency or date
- * disagreed, so it was not allocated. Ambiguous or amount-only lines (no single payout named), duplicates
- * and provider reports (not independent) never count.
- */
-const ACCEPTABLE_LINE_DIFFERENCES = ["RC_OVERPAYMENT", "RC_CURRENCY_MISMATCH", "RC_OUTSIDE_TIME_WINDOW"];
+/** Re-review R-M2: the largest over-amount a person may accept on a bank debit, as basis points of the payout (1%). */
+export const ACCEPTED_OVERAGE_BPS = 100;
+
+export interface AcceptableDifference {
+  ok: boolean;
+  /** Why the difference cannot be accepted (when ok is false). */
+  reason: string;
+  statementLineId?: string;
+  lineId?: string;
+  lineAmountMinor?: number;
+  differenceMinor?: number;
+  currency?: Money["currency"];
+}
 
 /**
- * Review M-2: a bank-statement debit carrying this payout's provider payment id, whose disagreement
- * exception (ACCEPTABLE_LINE_DIFFERENCES) a PERSON resolved — which already required an owner, attached
- * non-system evidence and a note (canResolveException). Counts as matching evidence for closing the case.
+ * Re-review R-M2: whether a person may ACCEPT the difference on this exception's bank line, so that the payout's
+ * case can close although the line was not allocated. The rule (all must hold):
+ * - the exception is RC_OVERPAYMENT on a payout that was sent (a currency mismatch or a line outside the
+ *   matching window never qualifies: they are not the payout's money movement);
+ * - its line is a bank-statement DEBIT of kind payment that carries the payout's provider payment id;
+ * - the line is in the payout's source currency and its value date is inside the matching window;
+ * - the line covers the payout and exceeds it by at most ACCEPTED_OVERAGE_BPS of the payout amount (a bank or
+ *   provider fee added on top), computed exactly.
+ * The person states the acceptance explicitly (resolve with acceptDifference: true); a resolution alone never
+ * counts. Provider reports, credits, amount-only or ambiguous lines never qualify.
  */
-export function acceptedBankLine(ws: Workspace, intentId: string): { exceptionId: string; code: string; lineId: string } | undefined {
-  const intent = ws.intents.find((i) => i.id === intentId);
-  const ppid = ws.instructions.find((i) => i.id === intent?.instructionId)?.providerPaymentId?.toUpperCase();
-  if (!ppid) return undefined;
+export function acceptableDifference(ws: Workspace, exceptionId: string): AcceptableDifference {
+  const no = (reason: string): AcceptableDifference => ({ ok: false, reason });
+  const e = ws.exceptions.find((x) => x.id === exceptionId);
+  if (!e) return no("Exception not found.");
+  if (e.explanationCode !== "RC_OVERPAYMENT") return no("Only an over-amount bank debit (RC_OVERPAYMENT) can be accepted; a currency mismatch, a line outside the matching window, an amount-only or ambiguous line cannot.");
+  const intent = ws.intents.find((i) => i.id === e.intentId);
+  const instr = ws.instructions.find((i) => i.id === intent?.instructionId);
+  const ppid = instr?.providerPaymentId?.toUpperCase();
+  if (!intent || !instr?.submittedAt || !ppid) return no("The exception is not about a payout that was sent.");
+  const line = ws.statementLines.find((l) => l.id === e.statementLineId);
+  if (!line) return no("The exception has no statement line.");
+  if (line.source !== "bank_statement" || line.direction !== "debit" || line.kind !== "payment") return no("Only an outgoing bank-statement debit can be accepted (not a provider report, credit, return or reversal).");
+  if (!referenceTokens(line.reference).includes(ppid)) return no("The line does not carry this payout's provider payment id.");
+  if (line.currency !== intent.sourceCurrency) return no(`The line is in ${line.currency}; the payout is in ${intent.sourceCurrency}.`);
+  if (!inMatchingWindow(line.valueDate, instr.submittedAt, ws.organization.timezone)) return no("The line's value date is outside the matching window.");
+  const differenceMinor = line.amountMinor - intent.amountMinor;
+  const limit = applyBpsFloor(intent.amountMinor, ACCEPTED_OVERAGE_BPS);
+  if (differenceMinor <= 0) return no("The line does not exceed the payout amount.");
+  if (differenceMinor > limit) return no(`The line exceeds the payout by ${formatMinor(differenceMinor, line.currency)}, more than the ${ACCEPTED_OVERAGE_BPS / 100}% (${formatMinor(limit, line.currency)}) a person may accept.`);
+  return { ok: true, reason: `The debit ${line.lineId} of ${formatMinor(line.amountMinor, line.currency)} carries this payout's reference and exceeds the ${formatMinor(intent.amountMinor, intent.sourceCurrency)} payout by ${formatMinor(differenceMinor, line.currency)}.`, statementLineId: line.id, lineId: line.lineId, lineAmountMinor: line.amountMinor, differenceMinor, currency: line.currency };
+}
+
+const STAFF_ROLES = ["operator", "approver", "compliance"];
+
+/**
+ * Review M-2 + re-review R-M2: the bank debit whose over-amount a STAFF person explicitly accepted (resolved with
+ * acceptDifference), re-checked against the line as it stands. Counts for closing the payout's case.
+ */
+export function acceptedBankLine(ws: Workspace, intentId: string): { exceptionId: string; lineId: string; differenceMinor: number; currency: Money["currency"]; actorId: string; lineAmountMinor: number } | undefined {
   for (const e of ws.exceptions) {
-    if (e.intentId !== intentId || e.status !== "resolved" || !e.resolution || e.resolution.actorId === "system" || !e.statementLineId || !ACCEPTABLE_LINE_DIFFERENCES.includes(e.explanationCode)) continue;
-    const line = ws.statementLines.find((l) => l.id === e.statementLineId);
-    if (line && line.source === "bank_statement" && line.direction === "debit" && line.kind === "payment" && referenceTokens(line.reference).includes(ppid))
-      return { exceptionId: e.id, code: e.explanationCode, lineId: line.lineId };
+    if (e.intentId !== intentId || e.status !== "resolved" || !e.resolution?.acceptedDifference) continue;
+    const actor = ws.actors.find((a) => a.id === e.resolution!.actorId);
+    if (!actor || !STAFF_ROLES.includes(actor.role)) continue;
+    const d = acceptableDifference(ws, e.id);
+    const acc = e.resolution.acceptedDifference;
+    if (d.ok && acc.statementLineId === d.statementLineId && acc.differenceMinor === d.differenceMinor && acc.currency === d.currency)
+      return { exceptionId: e.id, lineId: d.lineId!, differenceMinor: d.differenceMinor!, currency: d.currency!, actorId: actor.id, lineAmountMinor: d.lineAmountMinor! };
   }
   return undefined;
 }

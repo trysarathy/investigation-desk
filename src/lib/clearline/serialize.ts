@@ -347,6 +347,16 @@ function crossCheck(ws: Obj) {
     const e = (ws.exceptions as Obj[]).find((x) => x.id === o.supersededBy);
     need(o.status === "rejected_unsupported" && !!e && e.status === "resolved" && (e.supportingEventIds as unknown[]).includes(o.id), `chainObservations[${i}].supersededBy`, "must name a resolved hash-conflict exception about this rejected observation");
   });
+  // Re-review R-M2: an accepted difference describes its own exception's line.
+  (ws.exceptions as Obj[]).forEach((e, i) => {
+    const res = e.resolution;
+    if (!isObj(res) || res.acceptedDifference === undefined) return;
+    const d = res.acceptedDifference;
+    const q = `exceptions[${i}].resolution.acceptedDifference`;
+    need(isObj(d), q, "must be an object");
+    need(e.status === "resolved" && e.explanationCode === "RC_OVERPAYMENT" && (d as Obj).statementLineId === e.statementLineId, q, "must belong to a resolved RC_OVERPAYMENT exception and name its statement line");
+    amt(d as Obj, "differenceMinor", q, 1); cur(d as Obj, "currency", q);
+  });
   (ws.instructions as Obj[]).forEach((x, i) => {
     if (x.checkerId !== undefined) need(x.checkerId !== x.makerId, `instructions[${i}].checkerId`, "maker and checker must be different people");
   });

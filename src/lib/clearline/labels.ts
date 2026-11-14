@@ -266,6 +266,7 @@ const RESOLUTION_CODE: Record<string, string> = {
   NO_PROVIDER_RESPONSE: "The provider has not responded since the timeout.",
   EVIDENCE_REQUIRED: "Attach supporting evidence first (a note alone is not enough).",
   EVIDENCE_OUTSTANDING: "The payment is not yet evidenced by a matched statement line or a final on-chain transfer.",
+  DIFFERENCE_NOT_ACCEPTABLE: "This difference cannot be accepted: only a small over-amount on a bank debit that matches the payment can.",
   RESOLVABLE: "Can be resolved (a note is required).",
 };
 /** rc3: canResetScenario / resetScenario codes. */

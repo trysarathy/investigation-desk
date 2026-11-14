@@ -5,8 +5,8 @@
  *   never "nobody" while a contradiction is shown (property over a battery of adversarial flows).
  */
 import { describe, expect, it } from "vitest";
-import { ALLOWLISTED_TOKENS, canResolveCase, getAdapter, investigate, listExceptions, sampleWorkspace, scenarioIntentId, type Workspace } from "@/lib/clearline";
-import { debitLine, intent, run, sim, signedDelivery, submitted } from "./helpers";
+import { ALLOWLISTED_TOKENS, canResolveCase, getAdapter, investigate, listExceptions, sampleWorkspace, scenarioIntentId, serializeWorkspace, type Workspace } from "@/lib/clearline";
+import { attempt, debitLine, errorCode, intent, run, sim, signedDelivery, submitted } from "./helpers";
 
 const assign = (ws: Workspace, kind: "case" | "exception", id: string) => run(ws, "usr_maya", { type: "assign_owner", target: { kind, id }, ownerId: "usr_maya" }).workspace;
 const evidence = (ws: Workspace, id: string) => run(ws, "usr_maya", { type: "attach_evidence", target: { kind: "exception", id }, evidence: { kind: "document_metadata", description: "Supporting document (fictional)" } }).workspace;
@@ -153,13 +153,23 @@ describe("review M-2: an evidenced success case can close after a person accepts
     let { ws, id, ppid } = completed();
     ws = run(ws, "usr_maya", { type: "ingest_statement_line", line: debitLine({ reference: `PAYOUT ${ppid}`, amountMinor: 1_000_050 }) }).workspace;
     expect(listExceptions(ws, { intentId: id }).map((e) => e.explanationCode)).toContain("RC_OVERPAYMENT");
-    ws = resolveAll(ws, id);
+    // Re-review R-M2: acceptance is explicit. A plain resolution of the over-amount exception does not count…
+    const over = listExceptions(ws, { intentId: id }).find((e) => e.explanationCode === "RC_OVERPAYMENT")!;
+    const plain = resolveAll(ws, id);
     const caseId = intent(ws, id).caseId!;
+    expect(canResolveCase(assign(plain, "case", caseId), caseId).code).toBe("EVIDENCE_OUTSTANDING");
+    // …the person accepts the SGD 0.50 difference explicitly (resolve with acceptDifference: true).
+    ws = assign(ws, "exception", over.id);
+    ws = evidence(ws, over.id);
+    ws = run(ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: over.id }, note: "Bank fee of SGD 0.50 added on top; confirmed with the bank", acceptDifference: true }).workspace;
+    expect(ws.exceptions.find((e) => e.id === over.id)!.resolution!.acceptedDifference).toMatchObject({ differenceMinor: 50, currency: "SGD" });
     ws = assign(ws, "case", caseId);
     // Before the fix: EVIDENCE_OUTSTANDING forever (no action can allocate the line).
     const check = canResolveCase(ws, caseId);
     expect(check).toMatchObject({ allowed: true, code: "RESOLVABLE" });
-    expect(check.reason).toMatch(/RC_OVERPAYMENT/);
+    // (value change, R-M2: the reason no longer says "evidenced by"; it names the line, the person and the accepted amount)
+    expect(check.reason).toMatch(/bank debit .* carries this payment's reference but was not matched; usr_maya accepted the SGD 0\.50 over-amount/);
+    expect(check.reason).not.toMatch(/evidenced by/);
     expect(run(ws, "usr_maya", { type: "resolve", target: { kind: "case", id: caseId }, note: "Paid; fee accepted" }).workspace.cases.find((c) => c.id === caseId)!.status).toBe("resolved");
   });
   it("still blocked: the same over-amount line from a provider settlement report (not independent evidence)", () => {
@@ -206,5 +216,87 @@ describe("review m-5: X-1 needs reconciliation matched as well as verified settl
     const caseId = intent(ws, id).caseId!;
     ws = assign(ws, "case", caseId);
     expect(canResolveCase(ws, caseId).code).toBe("EVIDENCE_OUTSTANDING");
+  });
+});
+
+describe("re-review R-M2: only a small over-amount on a debit that matches the payment, explicitly accepted by a person, lets the case close", () => {
+  const completed = () => {
+    let { ws, id, ppid } = submitted();
+    ws = sim(sim(ws, id).workspace, id).workspace;
+    return { ws, id, ppid };
+  };
+  const lineException = (ws: Workspace, id: string) => ws.exceptions.filter((e) => e.intentId === id && e.statementLineId).at(-1)!;
+  const tryAccept = (ws: Workspace, excId: string) => {
+    ws = assign(ws, "exception", excId);
+    ws = evidence(ws, excId);
+    return { ws, r: attempt(ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: excId }, note: "Accept", acceptDifference: true }) };
+  };
+  const accepted = () => {
+    let { ws, id, ppid } = completed();
+    ws = run(ws, "usr_maya", { type: "ingest_statement_line", line: debitLine({ reference: `PAYOUT ${ppid}`, amountMinor: 1_000_050 }) }).workspace;
+    const exc = lineException(ws, id);
+    const t = tryAccept(ws, exc.id);
+    if (!t.r.ok) throw new Error(t.r.error.message);
+    ws = t.r.value.workspace;
+    const caseId = intent(ws, id).caseId!;
+    ws = assign(ws, "case", caseId);
+    expect(canResolveCase(ws, caseId).code).toBe("RESOLVABLE");
+    return { ws, id, caseId, excId: exc.id };
+  };
+
+  const bad: [string, Record<string, unknown>, string][] = [
+    ["USD 0.01 (other currency)", { currency: "USD", accountRef: "BANK-USD-TEST", amountMinor: 1 }, "RC_CURRENCY_MISMATCH"],
+    ["SGD 9,999,999.00 (far above the payout)", { amountMinor: 999_999_900 }, "RC_OVERPAYMENT"],
+    ["value date 2025-01-01 (outside the window)", { valueDate: "2025-01-01" }, "RC_OUTSIDE_TIME_WINDOW"],
+    ["SGD 10,100.01 (1% + 0.01 over)", { amountMinor: 1_010_001 }, "RC_OVERPAYMENT"],
+  ];
+  for (const [what, line, code] of bad)
+    it(`refused: ${what} — cannot be accepted, and a plain resolution ("not ours") never lets the case close`, () => {
+      let { ws, id, ppid } = completed();
+      ws = run(ws, "usr_maya", { type: "ingest_statement_line", line: debitLine({ reference: `PAYOUT ${ppid}`, ...line }) }).workspace;
+      const exc = lineException(ws, id);
+      expect(exc.explanationCode).toBe(code);
+      const t = tryAccept(ws, exc.id);
+      expect(errorCode(t.r)).toBe("precondition_failed");
+      expect(!t.r.ok && t.r.error.message).toMatch(/^DIFFERENCE_NOT_ACCEPTABLE: /);
+      // Before the fix: resolving with any note let the case close ("The payment is evidenced by bank line …").
+      ws = run(t.ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: exc.id }, note: "This line is not ours; recall requested" }).workspace;
+      const caseId = intent(ws, id).caseId!;
+      ws = assign(ws, "case", caseId);
+      expect(canResolveCase(ws, caseId).code).toBe("EVIDENCE_OUTSTANDING");
+    });
+
+  it("boundary: exactly 1% over (SGD 10,100.00 on SGD 10,000.00) can be accepted", () => {
+    let { ws, id, ppid } = completed();
+    ws = run(ws, "usr_maya", { type: "ingest_statement_line", line: debitLine({ reference: `PAYOUT ${ppid}`, amountMinor: 1_010_000 }) }).workspace;
+    const t = tryAccept(ws, lineException(ws, id).id);
+    expect(t.r.ok).toBe(true);
+  });
+
+  it("stored data: the acceptance stops counting if the line no longer names the payout, became a credit, changed currency, or was 'accepted' by the system", () => {
+    const base = accepted();
+    const tamper = (f: (w: Workspace) => void) => {
+      const w = JSON.parse(serializeWorkspace(base.ws)) as Workspace;
+      f(w);
+      return canResolveCase(w, base.caseId).code;
+    };
+    const lineOf = (w: Workspace) => w.statementLines.find((l) => l.id === w.exceptions.find((e) => e.id === base.excId)!.statementLineId)!;
+    expect(tamper(() => {})).toBe("RESOLVABLE");
+    expect(tamper((w) => { lineOf(w).reference = "PAYOUT SOMETHING-ELSE"; })).toBe("EVIDENCE_OUTSTANDING");
+    expect(tamper((w) => { lineOf(w).direction = "credit"; })).toBe("EVIDENCE_OUTSTANDING");
+    expect(tamper((w) => { lineOf(w).currency = "USD"; })).toBe("EVIDENCE_OUTSTANDING");
+    expect(tamper((w) => { w.exceptions.find((e) => e.id === base.excId)!.resolution!.actorId = "system"; })).toBe("EVIDENCE_OUTSTANDING");
+    expect(tamper((w) => { delete w.exceptions.find((e) => e.id === base.excId)!.resolution!.acceptedDifference; })).toBe("EVIDENCE_OUTSTANDING");
+    // each rule on its own (other checks kept satisfied):
+    const exc = (w: Workspace) => w.exceptions.find((e) => e.id === base.excId)!;
+    expect(tamper((w) => { lineOf(w).currency = "USD"; exc(w).resolution!.acceptedDifference!.currency = "USD"; })).toBe("EVIDENCE_OUTSTANDING");
+    expect(tamper((w) => { lineOf(w).valueDate = "2025-01-01"; })).toBe("EVIDENCE_OUTSTANDING");
+    expect(tamper((w) => { exc(w).explanationCode = "RC_DUPLICATE_SUSPECTED"; })).toBe("EVIDENCE_OUTSTANDING");
+  });
+
+  it("acceptDifference is refused on a case target and validated as a boolean", () => {
+    const { ws, caseId } = accepted();
+    expect(errorCode(attempt(ws, "usr_maya", { type: "resolve", target: { kind: "case", id: caseId }, note: "x", acceptDifference: true }))).toBe("invalid_field");
+    expect(errorCode(attempt(ws, "usr_maya", { type: "resolve", target: { kind: "case", id: caseId }, note: "x", acceptDifference: "yes" as unknown as boolean }))).toBe("invalid_field");
   });
 });

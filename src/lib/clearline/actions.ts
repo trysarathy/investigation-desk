@@ -6,7 +6,7 @@
 import { getAdapter, type ScriptStep } from "./adapters";
 import { ingestChainObservation, validateChainInput } from "./chain";
 import { ingestPayload, setExecution } from "./events";
-import { canResolveCase, canResolveException, ensureCase, openException } from "./exceptions";
+import { acceptableDifference, canResolveCase, canResolveException, ensureCase, openException } from "./exceptions";
 import { deriveAdvanceState, obligationOutstanding } from "./funding";
 import { computeLiquidity } from "./liquidity";
 import { MAX_AMOUNT_MINOR, isCurrency, validateAmountMinor, withinTotal } from "./money";
@@ -110,7 +110,7 @@ function dispatch(tx: Tx, a: WorkspaceAction): string {
     case "add_note": return addNote(tx, a.target, a.text);
     case "request_info": return requestInfo(tx, a.caseId, a.from, a.request);
     case "attach_evidence": return attachEvidence(tx, a.target, a.evidence);
-    case "resolve": return resolve(tx, a.target, a.note);
+    case "resolve": return resolve(tx, a.target, a.note, a.acceptDifference);
     case "reopen": return reopen(tx, a.target, a.reason);
     case "submit_hold_documents": return submitHoldDocuments(tx, a.holdId, a.documents);
     case "assign_hold_reviewer": return assignHoldReviewer(tx, a.holdId, a.reviewerId);
@@ -645,15 +645,24 @@ function attachEvidence(tx: Tx, t: TargetRef, input: { kind: EvidenceKind; descr
   return "applied";
 }
 
-function resolve(tx: Tx, t: TargetRef, note: string): string {
+function resolve(tx: Tx, t: TargetRef, note: string, acceptDifference?: boolean): string {
   requireRole(tx, [...STAFF]);
   if (!safeNote(note, 500)) fail("invalid_field", "A resolution note is required.", { field: "note" });
+  if (acceptDifference !== undefined && typeof acceptDifference !== "boolean") fail("invalid_field", "acceptDifference must be true or false.", { field: "acceptDifference" });
   const r = target(tx, t);
+  if (acceptDifference && r.kind !== "exception") fail("invalid_field", "acceptDifference applies to an exception, not a case.", { field: "acceptDifference" });
   if (r.kind === "exception") {
     const check = canResolveException(tx.ws, r.e.id);
     if (!check.allowed) fail("resolution_not_permitted", `${check.code}: ${check.reason}`, { entityId: r.e.id });
+    // Re-review R-M2: accepting a difference is explicit and only for a debit that otherwise matches the payout.
+    const accepted = acceptDifference ? acceptableDifference(tx.ws, r.e.id) : undefined;
+    if (accepted && !accepted.ok) fail("precondition_failed", `DIFFERENCE_NOT_ACCEPTABLE: ${accepted.reason}`, { entityId: r.e.id, field: "acceptDifference" });
     r.e.status = "resolved";
-    r.e.resolution = { at: tx.at, actorId: tx.actorId, note };
+    r.e.resolution = {
+      at: tx.at, actorId: tx.actorId, note,
+      ...(accepted ? { acceptedDifference: { statementLineId: accepted.statementLineId!, differenceMinor: accepted.differenceMinor!, currency: accepted.currency! } } : {}),
+    };
+    if (accepted) tx.log("exception.difference_accepted", "exception", r.e.id, accepted.reason);
     r.e.history.push({ at: tx.at, actorId: tx.actorId, action: "resolved", detail: note });
     r.e.lastUpdatedAt = tx.at;
     tx.log("exception.resolved", "exception", r.e.id, note.slice(0, 80));

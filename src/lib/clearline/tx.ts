@@ -123,3 +123,11 @@ export function stableStringify(value: unknown): string {
 /** Reference tokens for exact reference matching (case-insensitive, whole tokens only). */
 export const referenceTokens = (reference: string): string[] =>
   reference.normalize("NFKC").toUpperCase().split(/[^A-Z0-9_\-]+/).filter(Boolean);
+
+/** Days after submission within which a statement line's value date matches a payout (one day before is allowed too). */
+export const MATCHING_WINDOW_DAYS = 7;
+/** Whether a value date falls in [submission date − 1 day, submission date + MATCHING_WINDOW_DAYS], in the organisation's time zone. */
+export function inMatchingWindow(valueDate: string, submittedAt: string, timeZone: string): boolean {
+  const submitted = orgDate(submittedAt, timeZone);
+  return valueDate >= addDays(submitted, -1) && valueDate <= addDays(submitted, MATCHING_WINDOW_DAYS);
+}
