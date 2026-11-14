@@ -119,6 +119,12 @@ function allocate(tx: Tx, line: StatementLine, target: ReconciliationAllocation[
   return a;
 }
 
+/** "Bank statement <account> (fictional)": the fictional marker once, also when the account ref already carries it. */
+export function evidenceSourceLabel(line: Pick<StatementLine, "source" | "accountRef">): string {
+  const kind = line.source === "bank_statement" ? "Bank statement" : "Provider settlement report";
+  return /\(fictional\)/i.test(line.accountRef) ? `${kind} ${line.accountRef}` : `${kind} ${line.accountRef} (fictional)`;
+}
+
 function lineEvidence(tx: Tx, line: StatementLine, link: { intentId?: string; advanceId?: string }) {
   const ev = {
     id: tx.id("evd"),
@@ -126,7 +132,7 @@ function lineEvidence(tx: Tx, line: StatementLine, link: { intentId?: string; ad
     intentId: link.intentId,
     advanceId: link.advanceId,
     description: `${line.direction} ${formatMinor(line.amountMinor, line.currency)} · ${line.reference || "(no reference)"} · value ${line.valueDate}`,
-    source: line.source === "bank_statement" ? `Bank statement ${line.accountRef} (fictional)` : `Provider settlement report ${line.accountRef} (fictional)`,
+    source: evidenceSourceLabel(line),
     independent: line.source === "bank_statement",
     reference: line.lineId,
     recordedBy: "system",

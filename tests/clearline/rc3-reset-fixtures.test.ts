@@ -90,3 +90,30 @@ describe("re-review R-B1: reset on a workspace saved by an earlier sample versio
     }
   });
 });
+
+describe("per-case reset through the console's path (src/components/clearline/workspace.tsx: parseWorkspace → resetScenario at asOf + 1 min → persist → actions at asOf + 1 min each → reload)", () => {
+  const nextInstant = (asOf: string) => new Date(Date.parse(asOf) + 60_000).toISOString();
+  for (const f of ["v2_sample.json", "v2_va.json", "v2_vb.json", "v2_t1.json"])
+    it(`${f}: every case reset in turn as the console does it, with work between resets; storage round-trips and ids stay unique`, () => {
+      let stored = readFileSync(path.join(__dirname, "fixtures", f), "utf8");
+      for (const sc of SCENARIOS) {
+        const parsed = parseWorkspace(stored);
+        if (!parsed.ok) throw new Error(`${sc}: reload refused: ${parsed.error.message}`);
+        let current = parsed.value;
+        const r = resetScenario(current, sc, { actorId: "usr_maya", at: nextInstant(current.asOf) });
+        if (!r.ok) throw new Error(`${sc}: ${r.error.message}`);
+        current = r.value.workspace;
+        stored = serializeWorkspace(current); // persist
+        for (let k = 0; k < 4; k++) {
+          const a = applyAction(current, { type: "ingest_statement_line", line: debitLine({ lineId: `CON-${sc}-${k}`, accountRef: "BANK-SGD-CON", amountMinor: 2_000 + k, reference: `UNKNOWN ${k}` }) }, { actorId: "usr_maya", at: nextInstant(current.asOf) });
+          if (!a.ok) throw new Error(`${sc} action ${k}: ${a.error.message}`);
+          current = a.value.workspace;
+        }
+        expect(`${sc}: ${duplicates(current).join(",")}`).toBe(`${sc}: `);
+        stored = serializeWorkspace(current);
+      }
+      const final = parseWorkspace(stored);
+      expect(final.ok).toBe(true);
+      expect(final.ok && final.value.audit.filter((a) => a.action === "scenario.reset")).toHaveLength(5);
+    }, 120_000);
+});

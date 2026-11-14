@@ -18,6 +18,7 @@ import type {
   ExceptionCategory,
   ExceptionStatus,
   ExecutionState,
+  FundingProjectionRow,
   HoldStatus,
   InstructionStatus,
   NormalizedEventType,
@@ -421,6 +422,12 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   ...REPORT_ROW_CODE,
 };
 
+const SUPPLIER_PAID_BASIS: Record<FundingProjectionRow["supplierPaidBasis"], string> = {
+  none: "Supplier not shown as paid",
+  provider_reported: "Supplier paid — provider-reported only (not verified)",
+  verified_settlement: "Supplier payout verified by independent evidence",
+};
+
 const RETURN_STATUS: Record<NonNullable<PaymentIntent["returnStatus"]>, string> = {
   provider_reported: "Return reported by the provider (not yet on a statement)",
   confirmed_by_statement: "Return confirmed on the statement",
@@ -440,6 +447,8 @@ export const HUMAN_LABELS = {
   holdStatus: HOLD_STATUS,
   holdDecision: HOLD_DECISION,
   advanceState: ADVANCE_STATE,
+  /** FundingProjectionRow.supplierPaidBasis (console request: the engine is the only source). */
+  supplierPaidBasis: SUPPLIER_PAID_BASIS,
   instructionStatus: INSTRUCTION_STATUS,
   eventType: EVENT_TYPE,
   processingOutcome: PROCESSING_OUTCOME,
