@@ -1,5 +1,11 @@
 # Clearline sandbox engine — public API (for the console UI)
 
+> **CHANGE 14 (2026-11-14, console final check). STATUS: LANDED.** **The case report no longer says "Resolved" for an acceptance that still awaits a second approval.**
+> - **Status.** `SyntheticCaseReport.exceptions[].status` is now the new type `ReportExceptionStatus`. It is the exception's own status, except that a resolved exception whose accepted over-amount still awaits a second, different person's approval is reported as **`accepted_awaiting_second_approval`**, labelled **"Accepted — awaiting second approval"**. The label comes from `HUMAN_LABELS.reportExceptionStatus`, and each row carries it as `statusLabel`. `engineStatus` keeps the exception's own `ExceptionStatus`. The case itself stays blocked (`SECOND_APPROVAL_REQUIRED`), as before.
+> - **Acceptance.** When the resolution accepted a bank debit, `acceptance` reports `acceptedBy`, `acceptedAt`, `statementLineId`, `difference`, `lateValueDate?`, `secondApproval` (`not_required` | `pending` | `approved`), `approvedBy?`, `approvedAt?` and a plain `text`. Once approved, the status is `resolved` ("Resolved") and the text names both people: "Accepted by usr_maya (the 500.00 SGD over-amount); approved by usr_sam."
+> - **CSV.** The `exception` row's label now ends with `statusLabel` (before: the raw status). A new `exception_acceptance` row follows it, with code `ACCEPTED_AWAITING_SECOND_APPROVAL`, `ACCEPTANCE_APPROVED` or `ACCEPTANCE_NOT_REQUIRED`, the accepted difference, the text, and refs `<exception id> <line id> <accepter> [<approver>]`.
+> - **Tests.** Tests in `rc3-case-report.test.ts` cover JSON and CSV for pending, approved, within 1%, after a reopen, and a crafted non-resolved exception. All 11 mutants of the change are killed. `HUMAN_LABELS.reportExceptionStatus` is covered by the label-completeness test.
+
 > **CHANGE 13 (2026-11-14, independent QA/security pass on rc3, L1 and L2). STATUS: LANDED.** The console loads workspaces that visitors craft or paste, so neither a stored status nor a stored decision is trusted.
 >
 > **L1: a stored status never exceeds its evidence.**
