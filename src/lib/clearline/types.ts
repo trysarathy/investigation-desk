@@ -495,6 +495,12 @@ export type ExceptionCategory =
 
 export type Severity = "low" | "medium" | "high" | "critical";
 export type ExceptionStatus = "open" | "in_review" | "resolved" | "reopened";
+/**
+ * Console final check: an exception's status as the synthetic case report states it. It equals ExceptionStatus, except
+ * that a resolved exception whose accepted over-amount still awaits a second person's approval is reported as
+ * "accepted_awaiting_second_approval" (the case stays blocked; "resolved" would overstate it).
+ */
+export type ReportExceptionStatus = "open" | "in_review" | "resolved" | "reopened" | "accepted_awaiting_second_approval";
 
 export interface HistoryEntry {
   at: string;

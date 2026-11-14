@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from "vitest";
 import {
-  CASE_REPORT_CSV_COLUMNS, CASE_REPORT_MARKING, SAMPLE_SCENARIOS, buildCaseReport, caseReportToCsv, caseReportToJson, sampleWorkspace,
+  CASE_REPORT_CSV_COLUMNS, CASE_REPORT_MARKING, HUMAN_LABELS, SAMPLE_SCENARIOS, buildCaseReport, caseReportToCsv, caseReportToJson, sampleWorkspace,
   scenarioIntentId, serializeWorkspace, type SampleScenario, type SyntheticCaseReport, type Workspace,
 } from "@/lib/clearline";
 import { created, debitLine, errorCode, intent, run, signedDelivery, sim, submitted } from "./helpers";
@@ -251,4 +251,98 @@ describe("review m-5: the CSV formula guard covers a leading tab and a leading m
       expect(cells).toContain("'" + payload);
       for (const c of cells) expect(c).not.toMatch(/^[=+\-@\t]/);
     });
+});
+
+// -------------------------------------------------------------------------------------------------
+// Console final check: an accepted over-amount awaiting a second person's approval is not reported as "Resolved".
+describe("case report: an acceptance awaiting a second approval", () => {
+  /** A provider-completed SGD 10,000.00 payout with a bank debit of `lineMinor` naming it, the debit's exception accepted by usr_maya. */
+  function accepted(lineMinor: number) {
+    let { ws, id, ppid } = submitted();
+    ws = sim(sim(ws, id).workspace, id).workspace;
+    const r = run(ws, "usr_maya", { type: "ingest_statement_line", line: debitLine({ amountMinor: lineMinor, reference: `NORTHLINE PAYOUT ${ppid}` }) });
+    ws = r.workspace;
+    const excId = ws.exceptions.find((e) => e.statementLineId === r.createdIds[0])!.id;
+    ws = run(ws, "usr_maya", { type: "assign_owner", target: { kind: "exception", id: excId }, ownerId: "usr_maya" }).workspace;
+    ws = run(ws, "usr_maya", { type: "attach_evidence", target: { kind: "exception", id: excId }, evidence: { kind: "document_metadata", description: "Bank fee advice (fictional)" } }).workspace;
+    ws = run(ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: excId }, note: "Bank fee accepted", acceptDifference: true }).workspace;
+    return { ws, id, excId, caseId: intent(ws, id).caseId!, lineId: r.createdIds[0] };
+  }
+  const report = (ws: Parameters<typeof buildCaseReport>[0], caseId: string) => {
+    const r = buildCaseReport(ws, caseId);
+    if (!r.ok) throw new Error(r.error.message);
+    return r.value;
+  };
+  const csvRows = (csv: string, excId: string) => csv.split("\r\n").filter((l) => l.startsWith("exception") && l.includes(excId));
+
+  it("above 1% and not yet approved: status accepted_awaiting_second_approval, labelled, naming the accepter and the pending approval (JSON and CSV)", () => {
+    const a = accepted(1_050_000);
+    expect(a.ws.exceptions.find((e) => e.id === a.excId)!.status).toBe("resolved"); // the engine's own status
+    const r = report(a.ws, a.caseId);
+    const e = r.exceptions.find((x) => x.id === a.excId)!;
+    expect(e).toMatchObject({ status: "accepted_awaiting_second_approval", statusLabel: "Accepted — awaiting second approval", engineStatus: "resolved" });
+    expect(e.acceptance).toMatchObject({ acceptedBy: "usr_maya", secondApproval: "pending", statementLineId: a.lineId, difference: { value: "500.00", currency: "SGD" } });
+    expect(e.acceptance!.approvedBy).toBeUndefined();
+    expect(e.acceptance!.text).toMatch(/Accepted by usr_maya .*second, different person's approval is still pending/);
+    const json = JSON.parse(caseReportToJson(r));
+    expect(json.exceptions.find((x: { id: string }) => x.id === a.excId)).toMatchObject({ status: "accepted_awaiting_second_approval", statusLabel: "Accepted — awaiting second approval", acceptance: { acceptedBy: "usr_maya", secondApproval: "pending" } });
+    const rows = csvRows(caseReportToCsv(r), a.excId);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatch(/· Accepted — awaiting second approval/);
+    expect(rows.join("\n")).not.toMatch(/Resolved|· resolved/);
+    expect(rows[1]).toMatch(/^exception_acceptance,ACCEPTED_AWAITING_SECOND_APPROVAL,/);
+    expect(rows[1].endsWith(`,${a.excId} ${a.lineId} usr_maya`)).toBe(true);
+    expect(rows[1]).toMatch(/still pending/);
+  });
+
+  it("once a second person approves: Resolved, naming both people (JSON and CSV)", () => {
+    const a = accepted(1_050_000);
+    const ws = run(a.ws, "usr_sam", { type: "approve_acceptance", exceptionId: a.excId, note: "Checked the fee advice" }).workspace;
+    const r = report(ws, a.caseId);
+    const e = r.exceptions.find((x) => x.id === a.excId)!;
+    expect(e).toMatchObject({ status: "resolved", statusLabel: "Resolved", engineStatus: "resolved" });
+    expect(e.acceptance).toMatchObject({ acceptedBy: "usr_maya", secondApproval: "approved", approvedBy: "usr_sam", approvedAt: ws.asOf });
+    expect(e.acceptance!.text).toBe("Accepted by usr_maya (the 500.00 SGD over-amount); approved by usr_sam.");
+    const json = JSON.parse(caseReportToJson(r));
+    expect(json.exceptions.find((x: { id: string }) => x.id === a.excId)).toMatchObject({ status: "resolved", acceptance: { acceptedBy: "usr_maya", approvedBy: "usr_sam", secondApproval: "approved" } });
+    const rows = csvRows(caseReportToCsv(r), a.excId);
+    expect(rows[0]).toMatch(/· Resolved,/);
+    expect(rows[1]).toMatch(/^exception_acceptance,ACCEPTANCE_APPROVED,/);
+    // the refs column names the exception, the line and both people
+    expect(rows[1].endsWith(`,${a.excId} ${a.lineId} usr_maya usr_sam`)).toBe(true);
+  });
+
+  it("within 1%: Resolved with no second approval required; an exception without an acceptance carries none", () => {
+    const a = accepted(1_005_000);
+    const r = report(a.ws, a.caseId);
+    const e = r.exceptions.find((x) => x.id === a.excId)!;
+    expect(e).toMatchObject({ status: "resolved", statusLabel: "Resolved", acceptance: { acceptedBy: "usr_maya", secondApproval: "not_required" } });
+    expect(csvRows(caseReportToCsv(r), a.excId)[1]).toMatch(/^exception_acceptance,ACCEPTANCE_NOT_REQUIRED,/);
+    const ws = sampleWorkspace();
+    for (const c of ws.cases) {
+      const rr = buildCaseReport(ws, c.id);
+      if (!rr.ok) continue;
+      for (const x of rr.value.exceptions) {
+        expect(x.acceptance).toBeUndefined();
+        expect(x.status).toBe(x.engineStatus);
+        expect(x.statusLabel).toBe(HUMAN_LABELS.exceptionStatus[x.engineStatus]);
+      }
+    }
+  });
+
+  it("after a reopen the acceptance is withdrawn: the report shows the reopened status and no acceptance", () => {
+    const a = accepted(1_050_000);
+    const ws = run(a.ws, "usr_daniel", { type: "reopen", target: { kind: "exception", id: a.excId }, reason: "Wrong advice" }).workspace;
+    const e = report(ws, a.caseId).exceptions.find((x) => x.id === a.excId)!;
+    expect(e.status).not.toBe("accepted_awaiting_second_approval");
+    expect(e.status).toBe(e.engineStatus);
+    expect(e.acceptance).toBeUndefined();
+    // Defence in depth: even an object (never loaded) that still carries the acceptance on a non-resolved exception
+    // reports no acceptance and its own status.
+    const crafted = JSON.parse(JSON.stringify(a.ws)) as Workspace;
+    crafted.exceptions.find((x) => x.id === a.excId)!.status = "in_review";
+    const c = report(crafted, a.caseId).exceptions.find((x) => x.id === a.excId)!;
+    expect(c).toMatchObject({ status: "in_review", statusLabel: "In review" });
+    expect(c.acceptance).toBeUndefined();
+  });
 });

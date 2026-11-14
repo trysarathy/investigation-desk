@@ -13,7 +13,7 @@
 import { evidenceTimelineFor, investigate, matchedMinorFor, ENGINE_DISCLAIMER } from "./investigation";
 import { HUMAN_LABELS, describeCode, describeStatus } from "./labels";
 import { formatDecimal } from "./money";
-import type { CurrencyCode, EngineError, ExceptionCategory, ExceptionStatus, Money, ReconciliationState, Result, SettlementEvidenceState, SettlementScope, Severity, ExecutionState, Workspace } from "./types";
+import type { CurrencyCode, EngineError, ExceptionCategory, ExceptionStatus, Money, ReportExceptionStatus, ReconciliationException, ReconciliationState, Result, SettlementEvidenceState, SettlementScope, Severity, ExecutionState, Workspace } from "./types";
 
 export const CASE_REPORT_MARKING = "FICTIONAL · SANDBOX — synthetic data from the Clearline test-mode engine. Not a real payment, bank, chain or compliance record." as const;
 
@@ -45,6 +45,21 @@ export interface CaseReportTimelineEntry {
   codes: string[];
   refs: string[];
   amountDifference?: { code: string; expected: DecimalAmount; reported: DecimalAmount; difference: DecimalAmount };
+}
+
+/** Console final check: who accepted a disagreeing bank debit on an exception, and the state of the second approval. */
+export interface ReportAcceptance {
+  acceptedBy: string;
+  acceptedAt: string;
+  statementLineId: string;
+  /** The accepted over-amount (0.00 for a late-date-only acceptance). */
+  difference: DecimalAmount;
+  lateValueDate?: string;
+  /** not_required: within one person's limit; pending: a second, different person must approve; approved: approvedBy did. */
+  secondApproval: "not_required" | "pending" | "approved";
+  approvedBy?: string;
+  approvedAt?: string;
+  text: string;
 }
 
 export interface SyntheticCaseReport {
@@ -85,7 +100,16 @@ export interface SyntheticCaseReport {
     funding?: { advanceId: string; principal: DecimalAmount; repaid: DecimalAmount; outstanding: DecimalAmount; reference?: string; dueDate?: string; state: string; supplierPaidBasis: string };
     returnPosition?: { code: string; debited: DecimalAmount; returnCredited: DecimalAmount; netMovement?: DecimalAmount; netMovementZero: boolean; beneficiaryPaid: false; text: string };
   };
-  exceptions: { id: string; category: ExceptionCategory; categoryLabel: string; severity: Severity; status: ExceptionStatus; code: string; label: string; ownerId?: string; dueDate?: string; impact?: DecimalAmount }[];
+  /**
+   * status: the report's status (ReportExceptionStatus) — "accepted_awaiting_second_approval" for a resolved exception whose
+   * accepted over-amount still needs a second person's approval; engineStatus: the exception's own ExceptionStatus.
+   * acceptance: present when the resolution accepted a bank debit's over-amount and/or late value date.
+   */
+  exceptions: {
+    id: string; category: ExceptionCategory; categoryLabel: string; severity: Severity; status: ReportExceptionStatus; statusLabel: string; engineStatus: ExceptionStatus;
+    code: string; label: string; ownerId?: string; dueDate?: string; impact?: DecimalAmount;
+    acceptance?: ReportAcceptance;
+  }[];
   disclaimer: string;
 }
 
@@ -180,13 +204,42 @@ export function buildCaseReport(ws: Workspace, ref: CaseReportRef): Result<Synth
       ...(f ? { funding: { advanceId: f.advanceId, principal: dec(f.principal), repaid: dec(f.repaid), outstanding: dec(f.outstanding), ...(f.obligation ? { reference: f.obligation.reference, dueDate: f.obligation.dueDate } : {}), state: f.state, supplierPaidBasis: f.supplierPaidBasis } } : {}),
       ...(rp ? { returnPosition: { code: rp.code, debited: dec(rp.debited), returnCredited: dec(rp.returnCredited), ...(rp.netMovement ? { netMovement: dec(rp.netMovement) } : {}), netMovementZero: rp.netMovementZero, beneficiaryPaid: false as const, text: rp.text } } : {}),
     },
-    exceptions: view.exceptions.map((e) => ({
-      id: e.id, category: e.category, categoryLabel: HUMAN_LABELS.exceptionCategory[e.category], severity: e.severity, status: e.status, code: e.explanationCode, label: describeCode(e.explanationCode),
-      ...(e.ownerId ? { ownerId: e.ownerId } : {}), ...(e.dueDate ? { dueDate: e.dueDate } : {}), ...(e.impact ? { impact: dec(e.impact) } : {}),
-    })),
+    exceptions: view.exceptions.map((e) => {
+      const acceptance = reportAcceptance(e);
+      const status: ReportExceptionStatus = e.status === "resolved" && acceptance?.secondApproval === "pending" ? "accepted_awaiting_second_approval" : e.status;
+      return {
+        id: e.id, category: e.category, categoryLabel: HUMAN_LABELS.exceptionCategory[e.category], severity: e.severity,
+        status, statusLabel: HUMAN_LABELS.reportExceptionStatus[status], engineStatus: e.status,
+        code: e.explanationCode, label: describeCode(e.explanationCode),
+        ...(e.ownerId ? { ownerId: e.ownerId } : {}), ...(e.dueDate ? { dueDate: e.dueDate } : {}), ...(e.impact ? { impact: dec(e.impact) } : {}),
+        ...(acceptance ? { acceptance } : {}),
+      };
+    }),
     disclaimer: ENGINE_DISCLAIMER,
   };
   return { ok: true, value: report };
+}
+
+/** Console final check: the acceptance recorded on a resolved exception's resolution, if any. */
+function reportAcceptance(e: ReconciliationException): ReportAcceptance | undefined {
+  const res = e.resolution;
+  const acc = e.status === "resolved" ? res?.acceptedDifference : undefined;
+  if (!res || !acc) return undefined;
+  const sa = acc.secondApproval;
+  const secondApproval = !sa ? "not_required" : sa.approvedBy ? "approved" : "pending";
+  const difference = dec({ amountMinor: acc.differenceMinor, currency: acc.currency });
+  const what = [acc.differenceMinor > 0 ? `the ${difference.value} ${difference.currency} over-amount` : "", acc.lateValueDate ? `the late value date ${acc.lateValueDate}` : ""].filter(Boolean).join(" and ");
+  const text = secondApproval === "approved"
+    ? `Accepted by ${res.actorId} (${what}); approved by ${sa!.approvedBy}.`
+    : secondApproval === "pending"
+      ? `Accepted by ${res.actorId} (${what}); a second, different person's approval is still pending, so the case stays open.`
+      : `Accepted by ${res.actorId} (${what}); no second approval required.`;
+  return {
+    acceptedBy: res.actorId, acceptedAt: res.at, statementLineId: acc.statementLineId, difference,
+    ...(acc.lateValueDate ? { lateValueDate: acc.lateValueDate } : {}),
+    secondApproval, ...(sa?.approvedBy ? { approvedBy: sa.approvedBy, ...(sa.approvedAt ? { approvedAt: sa.approvedAt } : {}) } : {}),
+    text,
+  };
 }
 
 function sortKeys(v: unknown): unknown {
@@ -239,7 +292,11 @@ export function caseReportToCsv(r: SyntheticCaseReport): string {
     if (a.returnPosition.netMovement) row("amount_return", { code: "NET_MOVEMENT", amount: a.returnPosition.netMovement });
     row("amount_return", { code: a.returnPosition.code, label: describeCode(a.returnPosition.code), text: `${a.returnPosition.text} netMovementZero=${a.returnPosition.netMovementZero} beneficiaryPaid=false` });
   }
-  for (const e of r.exceptions) row("exception", { code: e.code, label: `${e.categoryLabel} · ${e.severity} · ${e.status}`, at: e.dueDate, amount: e.impact, text: e.label, refs: [e.id, ...(e.ownerId ? [e.ownerId] : [])] });
+  for (const e of r.exceptions) {
+    row("exception", { code: e.code, label: `${e.categoryLabel} · ${e.severity} · ${e.statusLabel}`, at: e.dueDate, amount: e.impact, text: e.label, refs: [e.id, ...(e.ownerId ? [e.ownerId] : [])] });
+    // Console final check: who accepted, and whether the second approval is pending or by whom it was given.
+    if (e.acceptance) row("exception_acceptance", { code: e.status === "accepted_awaiting_second_approval" ? "ACCEPTED_AWAITING_SECOND_APPROVAL" : `ACCEPTANCE_${e.acceptance.secondApproval.toUpperCase()}`, label: e.statusLabel, at: e.acceptance.approvedAt ?? e.acceptance.acceptedAt, amount: e.acceptance.difference, text: e.acceptance.text, refs: [e.id, e.acceptance.statementLineId, e.acceptance.acceptedBy, ...(e.acceptance.approvedBy ? [e.acceptance.approvedBy] : [])] });
+  }
   row("disclaimer", { text: r.disclaimer });
   return [CASE_REPORT_CSV_COLUMNS.join(","), ...rows.map((x) => x.join(","))].join("\r\n") + "\r\n";
 }

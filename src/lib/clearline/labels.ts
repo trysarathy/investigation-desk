@@ -17,6 +17,7 @@ import type {
   EvidenceTimelineKind,
   ExceptionCategory,
   ExceptionStatus,
+  ReportExceptionStatus,
   ExecutionState,
   FundingProjectionRow,
   HoldStatus,
@@ -109,6 +110,8 @@ const CATEGORY_BLOCKER: Record<ExceptionCategory, string> = {
 
 const SEVERITY: Record<Severity, string> = { low: "Low", medium: "Medium", high: "High", critical: "Critical" };
 const EXCEPTION_STATUS: Record<ExceptionStatus, string> = { open: "Open", in_review: "In review", resolved: "Resolved", reopened: "Reopened" };
+/** Console final check: the case report's exception status (ReportExceptionStatus). */
+const REPORT_EXCEPTION_STATUS: Record<ReportExceptionStatus, string> = { ...EXCEPTION_STATUS, accepted_awaiting_second_approval: "Accepted — awaiting second approval" };
 const CASE_STATUS: Record<"open" | "resolved" | "reopened", string> = { open: "Open", resolved: "Closed", reopened: "Reopened" };
 const HOLD_STATUS: Record<HoldStatus, string> = {
   open: "Documents requested",
@@ -444,6 +447,7 @@ export const HUMAN_LABELS = {
   exceptionBlocker: CATEGORY_BLOCKER,
   severity: SEVERITY,
   exceptionStatus: EXCEPTION_STATUS,
+  reportExceptionStatus: REPORT_EXCEPTION_STATUS,
   caseStatus: CASE_STATUS,
   holdStatus: HOLD_STATUS,
   holdDecision: HOLD_DECISION,

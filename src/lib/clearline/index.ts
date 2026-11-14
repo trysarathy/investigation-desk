@@ -51,7 +51,7 @@ export { investigate, evidenceTimelineFor, exportCaseReport, timelineFor, listEx
 
 // rc3: deterministic synthetic case report (JSON + CSV)
 export { buildCaseReport, caseReportToJson, caseReportToCsv, CASE_REPORT_MARKING, CASE_REPORT_CSV_COLUMNS } from "./report";
-export type { SyntheticCaseReport, CaseReportRef, CaseReportFinding, CaseReportTimelineEntry, DecimalAmount } from "./report";
+export type { SyntheticCaseReport, CaseReportRef, CaseReportFinding, CaseReportTimelineEntry, DecimalAmount, ReportAcceptance } from "./report";
 
 // Human-readable labels (CHANGE 5)
 export { HUMAN_LABELS, CODE_LABELS, describeCode, explainCode, isKnownCode, describeStatus, describeError } from "./labels";

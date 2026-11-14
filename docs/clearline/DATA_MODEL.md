@@ -28,7 +28,7 @@ Source of truth: `src/lib/clearline/types.ts`. All data is fictional sandbox dat
 | `RepaymentAllocation` | obligationId, statementLineId, amount, `matchedBy: trusted_reference`, evidenceId | |
 | `AuditEvent` | at, actorId, action, entityType, entityId, summary | Appended by every action, and by `resetScenario` (`action: "scenario.reset"`, `entityType: "scenario"`). Never removed. |
 | `ReturnPosition` (rc3, on `InvestigationView.returnPosition`, read model only) | returnStatus, debited, returnCredited, netMovement?, netMovementZero, `beneficiaryPaid: false`, code (`RT_NET_ZERO` / `RT_NET_NOT_ZERO` / `RT_RETURN_NOT_ON_STATEMENT` / `RT_DEBIT_NOT_ON_STATEMENT`), text | Present for a returned payout. Keeps "net movement is zero" separate from "beneficiary unpaid". Not stored. |
-| `SyntheticCaseReport` (rc3, `buildCaseReport`, read model only) | reportVersion 1, marking, `fictional: true`, `sandbox: true`, generatedAt (= `ws.asOf`), subject, summary, threeTruths, timeline, findings, amounts, exceptions, disclaimer | Every amount is a `DecimalAmount` `{value: "50000.00", currency}` exact decimal string. Serialised by `caseReportToJson` / `caseReportToCsv`. Not stored. |
+| `SyntheticCaseReport` (rc3, `buildCaseReport`, read model only) | reportVersion 1, marking, `fictional: true`, `sandbox: true`, generatedAt (= `ws.asOf`), subject, summary, threeTruths, timeline, findings, amounts, exceptions (`status`: `ReportExceptionStatus`, incl. `accepted_awaiting_second_approval` since CHANGE 14; `statusLabel`, `engineStatus`, `acceptance?`), disclaimer | Every amount is a `DecimalAmount` `{value: "50000.00", currency}` exact decimal string. Serialised by `caseReportToJson` / `caseReportToCsv`. Not stored. |
 
 ## Status dimensions
 
