@@ -1411,3 +1411,137 @@ test("reopening an accepted over-amount withdraws the acceptance: it reloads cle
   await expect(resolve).toBeDisabled();
   await expect(await reasonOf(page, resolve)).not.toHaveText("");
 });
+
+/* ================================================================================================
+ * Final code review (rc3 console): m-A held migration, m-B pending second approval, m-C backups.
+ * ============================================================================================== */
+test("m-A: if the original cannot be backed up before an update, nothing is saved until the person chooses", async ({ page }) => {
+  const raw = readFileSync("tests/clearline/fixtures/v2_t1.json", "utf8");
+  await page.addInitScript((t) => {
+    try { if (!sessionStorage.getItem("seeded")) { localStorage.setItem("clearline.console.workspace.v1", t); sessionStorage.setItem("seeded", "1"); } } catch { /* blocked */ }
+    const setItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k: string, v: string) {
+      if (k.includes("before-migration-backup")) throw new DOMException("quota", "QuotaExceededError");
+      return setItem.call(this, k, v);
+    };
+  }, raw);
+  await open(page, "/clearline/settings");
+  const n = page.getByTestId("workspace-migrated");
+  await expect(n).toHaveAttribute("data-held", "true");
+  await expect(n).toContainText("a backup of the original could not be written");
+  await expect(n).toContainText("nothing you do is saved until you choose");
+  await expect(n.getByRole("button", { name: "Dismiss" })).toHaveCount(0);
+  const stored = () => page.evaluate(() => localStorage.getItem("clearline.console.workspace.v1"));
+  // An action does not overwrite the original.
+  await page.getByRole("button", { name: "Advance 1 hour" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Clock advanced" })).toBeVisible();
+  expect(await stored()).toBe(raw);
+  // The original can be downloaded as it was.
+  const [dl] = await Promise.all([page.waitForEvent("download"), n.getByRole("button", { name: "Download the original" }).click()]);
+  expect(readFileSync(await dl.path(), "utf8")).toBe(raw);
+  // Continue without saving: still nothing saved, and the notice says so.
+  await n.getByRole("button", { name: "Continue without saving" }).click();
+  await expect(n).toContainText("Not saving.");
+  await page.getByRole("button", { name: "Advance 1 hour" }).click();
+  expect(await stored()).toBe(raw);
+  // Explicit replace (no backup): the updated workspace is saved now.
+  await n.getByRole("button", { name: /Replace the original with the updated workspace/ }).click();
+  await expect(page.getByTestId("workspace-migrated")).toHaveCount(0);
+  const now = await stored();
+  expect(now).not.toBe(raw);
+  expect(now).toContain('"schemaVersion"');
+});
+
+test("m-B: an over-amount accepted above 1% shows 'Accepted — awaiting second approval' (amber) and stays visible until approved", async ({ page }) => {
+  test.setTimeout(240_000);
+  await completedPayout(page, "INV-AWAIT-3PCT");
+  const { panel, excId } = await debitException(page, "INV-AWAIT-3PCT", { factor: 1.03, code: "RC_OVERPAYMENT" });
+  const accept = panel.getByTestId("accept-difference");
+  await accept.getByLabel("Why the over-amount is accepted").fill("Supplier surcharge of 3% (fictional).");
+  await accept.getByRole("button", { name: "Accept the over-amount" }).click();
+  // Its own queue, with a count; amber, never plain "Resolved".
+  await open(page, "/clearline/exceptions");
+  const nav = page.getByRole("navigation", { name: "Exception filters" });
+  await expect(nav.getByRole("link", { name: /^Awaiting approval \(1\)$/ })).toBeVisible();
+  await nav.getByRole("link", { name: /^Awaiting approval/ }).click();
+  await expect(page).toHaveURL(/view=awaiting/);
+  const row = page.locator("#queue tbody tr").filter({ hasText: "RC_OVERPAYMENT" });
+  await expect(row).toHaveCount(1);
+  const chip = row.locator('[data-awaiting-approval="true"] [title^="API value:"]');
+  await expect(chip).toHaveText(/Accepted — awaiting second approval/);
+  expect(await chip.evaluate((e) => getComputedStyle(e).color)).toBe("rgb(138, 83, 0)"); // --cl-warning
+  await expect(row).not.toContainText(/^Resolved$/);
+  // The Resolved view does not list it as done.
+  await open(page, "/clearline/exceptions?view=resolved");
+  await expect(page.locator("#queue tbody tr").filter({ hasText: excId })).toHaveCount(0);
+  // Overview counts it and lists it under Needs attention, linking to its queue.
+  await open(page, "/clearline");
+  await expect(page.getByRole("link", { name: /Accepted, awaiting a second approval\s*1/ })).toBeVisible();
+  const att = page.locator("#attention tbody tr").filter({ hasText: "RC_OVERPAYMENT" });
+  await expect(att).toContainText("Accepted — awaiting second approval");
+  await expect(att.getByRole("link").first()).toHaveAttribute("href", `/clearline/exceptions?view=awaiting#${excId}`);
+  // Approved by a different person: it becomes plain Resolved and leaves the awaiting queue.
+  await open(page, `/clearline/exceptions?view=awaiting`);
+  const sec = page.locator(`section[id="${excId}"]`);
+  await sec.getByText("Work this exception").click();
+  const second = sec.getByTestId("second-approval");
+  await second.getByLabel("Approver").selectOption("usr_daniel");
+  await second.getByLabel("Approval note").fill("Surcharge confirmed.");
+  await second.getByRole("button", { name: "Approve the acceptance" }).click();
+  // Approved: it leaves the awaiting view at once.
+  await expect(page.locator(`section[id="${excId}"]`)).toHaveCount(0);
+  await open(page, "/clearline/exceptions?view=awaiting");
+  await expect(page.locator("#queue tbody tr").filter({ hasText: excId })).toHaveCount(0);
+  await open(page, `/clearline/exceptions?view=resolved&q=${excId}`);
+  await expect(page.locator("#queue tbody tr").filter({ hasText: excId }).locator('[data-api-value="resolved"]')).toBeVisible();
+  await expect(page.locator("#queue tbody tr").filter({ hasText: excId })).not.toContainText("awaiting");
+});
+
+test("m-C: backups show sizes and a total, can be deleted after a confirmation, are capped per kind, and never collide", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-11-14T08:00:00Z")); // every backup in the same millisecond
+  await page.addInitScript(() => {
+    try { if (!sessionStorage.getItem("seeded")) {
+      localStorage.setItem("clearline.console.workspace.v1.boundary-backup", '{"b":"A"}');
+      localStorage.setItem("clearline.console.workspace.v1.boundary-backup.2026-11-10T00:00:00.000Z", '{"b":"B"}');
+      localStorage.setItem("clearline.console.workspace.v1.boundary-backup.2026-11-11T00:00:00.000Z", '{"b":"C"}');
+      sessionStorage.setItem("seeded", "1"); } } catch { /* blocked */ }
+  });
+  await open(page, "/clearline/settings");
+  // Three resets in the same millisecond each keep what they replaced (no collision), and only 3 of a kind are kept.
+  const contents: string[] = [];
+  for (let i = 0; i < 4; i++) {
+    for (let k = 0; k <= i; k++) { // a different workspace each time
+      await page.getByRole("button", { name: "Advance 1 hour" }).click();
+      await expect(page.getByRole("status").filter({ hasText: "Clock advanced" })).toBeVisible();
+    }
+    contents.push((await page.evaluate(() => localStorage.getItem("clearline.console.workspace.v1")))!);
+    await page.getByRole("button", { name: "Reset to sample" }).click();
+    await expect(page.getByText("The previous workspace is kept as a backup below.").first()).toBeVisible();
+  }
+  const resets = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("clearline.console.workspace.v1.before-reset-backup")).map((k) => localStorage.getItem(k)));
+  expect(resets).toHaveLength(3);
+  expect(new Set(resets).size).toBe(3);
+  for (const c of contents.slice(1)) expect(resets).toContain(c); // the newest three survive, the oldest was pruned
+  expect(resets).not.toContain(contents[0]);
+  // Other kinds are untouched by that cap.
+  expect(await page.evaluate(() => localStorage.getItem("clearline.console.workspace.v1.boundary-backup"))).toBe('{"b":"A"}');
+  // Sizes and total; delete only after confirming.
+  await page.reload();
+  await hydrated(page);
+  await expect(page.getByTestId("backup-total")).toContainText("6 backups");
+  await expect(page.getByTestId("backup-size").first()).toHaveText(/^\d+\.\d KB$/);
+  const list = page.getByTestId("backup-list");
+  await list.getByRole("button", { name: "Delete clearline.console.workspace.v1.boundary-backup", exact: true }).click();
+  expect(await page.evaluate(() => localStorage.getItem("clearline.console.workspace.v1.boundary-backup"))).toBe('{"b":"A"}'); // not yet
+  await list.getByRole("button", { name: "Confirm delete clearline.console.workspace.v1.boundary-backup", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "deleted" })).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem("clearline.console.workspace.v1.boundary-backup"))).toBeNull();
+  await expect(page.getByTestId("backup-total")).toContainText("5 backups");
+});
+
+test("download file names are restricted to safe characters", async ({ page }) => {
+  await page.addInitScript(() => { try { localStorage.setItem("clearline.console.workspace.v1.boundary-backup", '{"x":1}'); localStorage.setItem("clearline.console.workspace.v1.boundary-backup.2026-11-14T08:00:00.000Z", '{"x":2}'); } catch { /* blocked */ } });
+  await open(page, "/clearline/settings");
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.getByTestId("backup-list").getByRole("button", { name: "Download clearline.console.workspace.v1.boundary-backup.2026-11-14T08:00:00.000Z" }).click()]);
+  expect(dl.suggestedFilename()).toMatch(/^[A-Za-z0-9._-]+$/);
+});

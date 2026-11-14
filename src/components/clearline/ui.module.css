@@ -230,7 +230,7 @@
 @media (max-width: 959px) { .sidebar .menuBtn { display: inline-flex; } }
 
 /* ---------- Table filters (query-string backed) ---------- */
-.filterBar { background: var(--cl-surface); border: 1px solid var(--cl-line); border-radius: var(--cl-radius-md); padding: 10px 14px; margin: 0 0 12px; }
+.filterBar { position: relative; background: var(--cl-surface); border: 1px solid var(--cl-line); border-radius: var(--cl-radius-md); padding: 10px 14px; margin: 0 0 12px; }
 .filterFields { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px 12px; align-items: end; }
 .searchField { grid-column: span 2; }
 @media (max-width: 640px) { .searchField { grid-column: auto; } }

@@ -2,7 +2,7 @@
 import Link from "../Link";
 import { useEffect, useState } from "react";
 import { ENGINE_DISCLAIMER, SANDBOX_PROVIDERS } from "@/lib/clearline";
-import { RESTORE_BACKUP_KEY, WORKSPACE_KEY, errorText, listBackups, useWorkspace, writeBackup, type Backup } from "../workspace";
+import { BACKUPS_PER_KIND, RESTORE_BACKUP_KEY, WORKSPACE_KEY, deleteBackup, errorText, listBackups, useWorkspace, writeBackup, type Backup } from "../workspace";
 import { download } from "../download";
 import { ActorSelect } from "../ActorSelect";
 import { Btn, Chip, Dl, Notice, PageHead, Panel, Status, fmtTime, ui } from "../ui";
@@ -11,6 +11,9 @@ export default function Settings() {
   const { ws, storage, reset, dispatch } = useWorkspace();
   const [msg, setMsg] = useState<{ text: string; error?: boolean } | null>(null);
   const [backups, setBackups] = useState<Backup[]>([]);
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const kb = (n: number) => `${(n / 1024).toFixed(1)} KB`;
+  const total = backups.reduce((t, b) => t + b.size, 0);
   useEffect(() => setBackups(listBackups()), []);
   const restore = (b: Backup) => {
     let raw: string | null = null;
@@ -46,26 +49,35 @@ export default function Settings() {
             ["Payments / exceptions / cases", `${ws.intents.length} / ${ws.exceptions.length} / ${ws.cases.length}`],
           ]} />
           <div className={ui.actions} style={{ marginTop: 14 }}>
-            <Btn kind="primary" onClick={() => { const r = reset("sample"); setMsg(r.ok ? { text: "Workspace reset to the sample with five scenarios." } : { text: r.reason, error: true }); setBackups(listBackups()); }}>Reset to sample</Btn>
-            <Btn onClick={() => { const r = reset("empty"); setMsg(r.ok ? { text: "Workspace emptied (organisation, users and routes kept)." } : { text: r.reason, error: true }); setBackups(listBackups()); }}>Start empty workspace</Btn>
+            <Btn kind="primary" onClick={() => { const r = reset("sample"); setMsg(r.ok ? { text: `Workspace reset to the sample with five scenarios.${r.backupKey ? " The previous workspace is kept as a backup below." : ""}` } : { text: r.reason, error: true }); setBackups(listBackups()); }}>Reset to sample</Btn>
+            <Btn onClick={() => { const r = reset("empty"); setMsg(r.ok ? { text: `Workspace emptied (organisation, users and routes kept).${r.backupKey ? " The previous workspace is kept as a backup below." : ""}` } : { text: r.reason, error: true }); setBackups(listBackups()); }}>Start empty workspace</Btn>
           </div>
         </div>
       </Panel>
       <Panel title="Backups in this browser" id="backups">
         <div className={ui.panelBody}>
-          {backups.length === 0 ? <p style={{ margin: 0 }} className={ui.hint}>No backups. A backup is kept here when you replace an unreadable saved workspace, reset after a console error, or restore a backup.</p> : (
+          {backups.length === 0 ? <p style={{ margin: 0 }} className={ui.hint}>No backups. A backup is kept here when you reset the workspace, replace an unreadable saved workspace, reset after a console error, restore a backup, or when this version updates your saved workspace.</p> : (
+            <>
+            <p className={ui.hint} style={{ marginTop: 0 }} data-testid="backup-total">{backups.length} backup{backups.length === 1 ? "" : "s"}, {kb(total)} in this browser&apos;s storage. The newest {BACKUPS_PER_KIND} of each kind are kept; an older one is removed only after a newer one was saved.</p>
             <ul style={{ margin: 0, paddingLeft: 18 }} data-testid="backup-list">
               {backups.map((b) => (
                 <li key={b.key} style={{ marginBottom: 8 }}>
-                  {b.kind === "unreadable" ? "Unreadable saved workspace" : b.kind === "boundary" ? "Saved workspace removed after a console error" : b.kind === "before-migration" ? "Saved workspace as it was before this version updated it" : "Workspace saved before a restore"}
-                  {b.savedAt ? `, ${b.savedAt}` : ""} <span className={ui.hint}>({b.size.toLocaleString("en-US")} characters · <span className="mono">{b.key}</span>)</span>
+                  {b.kind === "unreadable" ? "Unreadable saved workspace" : b.kind === "boundary" ? "Saved workspace removed after a console error" : b.kind === "before-migration" ? "Saved workspace as it was before this version updated it" : b.kind === "before-reset" ? "Workspace saved before a reset" : "Workspace saved before a restore"}
+                  {b.savedAt ? `, ${b.savedAt}` : ""} <span className={ui.hint}>(<span data-testid="backup-size">{kb(b.size)}</span> · <span className="mono">{b.key}</span>)</span>
                   <span className={ui.actions} style={{ marginTop: 4 }}>
                     <Btn size="small" onClick={() => { try { const raw = window.localStorage.getItem(b.key); if (raw !== null) download(`${b.key}.json`, raw, "application/json"); } catch { setMsg({ text: "Browser storage is blocked; the backup cannot be read.", error: true }); } }}>Download<span className={ui.srOnly}> {b.key}</span></Btn>
                     <Btn size="small" onClick={() => restore(b)}>Restore<span className={ui.srOnly}> {b.key}</span> (backs up the current workspace first)</Btn>
+                    {confirming === b.key ? (
+                      <>
+                        <Btn size="small" onClick={() => { const ok = deleteBackup(b.key); setConfirming(null); setBackups(listBackups()); setMsg(ok ? { text: `Backup ${b.key} deleted.` } : { text: "The backup could not be deleted (browser storage is blocked).", error: true }); }}>Confirm delete<span className={ui.srOnly}> {b.key}</span></Btn>
+                        <Btn size="small" kind="ghost" onClick={() => setConfirming(null)}>Keep it</Btn>
+                      </>
+                    ) : <Btn size="small" onClick={() => setConfirming(b.key)}>Delete<span className={ui.srOnly}> {b.key}</span></Btn>}
                   </span>
                 </li>
               ))}
             </ul>
+            </>
           )}
         </div>
       </Panel>

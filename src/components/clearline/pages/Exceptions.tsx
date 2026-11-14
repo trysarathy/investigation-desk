@@ -2,7 +2,7 @@
 import Link from "../Link";
 import { formatMinor, formatMoney, listExceptions, type AmountDifference, type ExceptionCategory, type ReconciliationException, type Workspace } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
-import { ExcChip, SEVERITY, SevChip, human, exceptionTitle } from "../labels";
+import { ExcStatusChip, SEVERITY, SevChip, awaitingSecondApproval, exceptionTitle } from "../labels";
 import { TargetActions } from "../TargetActions";
 import { OwnerControl } from "../OwnerControl";
 import { engineLabel, label } from "../human";
@@ -31,7 +31,10 @@ export default function Exceptions() {
     (!currency || exceptionCurrency(ws, e) === currency) &&
     (!owner || (owner === "unassigned" ? !e.ownerId : e.ownerId === owner)) &&
     matchesText(text, e.id, exceptionTitle(e), e.explanationCode, e.explanation, e.requiredAction, e.intentId, e.advanceId, e.statementLineId, actorName(e.ownerId)));
-  const rows = view === "all" ? all : view === "resolved" ? all.filter((e) => e.status === "resolved") : all.filter((e) => e.status !== "resolved");
+  const rows = view === "all" ? all
+    : view === "resolved" ? all.filter((e) => e.status === "resolved" && !awaitingSecondApproval(e))
+    : view === "awaiting" ? all.filter((e) => awaitingSecondApproval(e))
+    : all.filter((e) => e.status !== "resolved"); // pending second approvals have their own view (count shown on its link)
   const qs = (v: string) => hrefWith({ view: v });
   const currencies = [...new Set(listExceptions(ws).map((e) => exceptionCurrency(ws, e)).filter(Boolean) as string[])].sort();
   const active = [
@@ -46,15 +49,15 @@ export default function Exceptions() {
       <PageHead eyebrow="Investigations" title="Exceptions queue"
         lede="Raised by the engine's rules. Each shows its category, severity, owner, due date, financial impact, the action required and its full history." />
       <nav aria-label="Exception filters" className={ui.actions} style={{ marginBottom: 12 }}>
-        {["open", "resolved", "all"].map((v) => (
+        {["open", "awaiting", "resolved", "all"].map((v) => (
           <Link key={v} href={qs(v)} aria-current={view === v ? "true" : undefined} className={`${ui.btn} ${ui.small} ${view === v ? ui.toggleOn : ""}`}>
-            {v === "open" ? "Open and reopened" : v === "resolved" ? "Resolved" : "All"}
+            {v === "open" ? "Open and reopened" : v === "awaiting" ? `Awaiting approval (${listExceptions(ws).filter((e) => awaitingSecondApproval(e)).length})` : v === "resolved" ? "Resolved" : "All"}
           </Link>
         ))}
         {(intent || category) && <span>Filtered by {intent && <>payment <Code>{intent}</Code></>} {category && <>category <Code>{category}</Code></>} — <Link href={hrefWith({ intent: null, category: null })}>clear</Link></span>}
       </nav>
       <FilterBar label="Filter exceptions" onClear={clearText} clear={active.length ? ["severity", "currency", "owner", "q"] : undefined}
-        summary={<>Showing {rows.length} exception{rows.length === 1 ? "" : "s"} in “{view === "open" ? "Open and reopened" : view === "resolved" ? "Resolved" : "All"}”{active.length ? <> · filtered by {active.join(", ")}</> : null}.</>}>
+        summary={<>Showing {rows.length} exception{rows.length === 1 ? "" : "s"} in “{view === "open" ? "Open and reopened" : view === "awaiting" ? "Awaiting approval" : view === "resolved" ? "Resolved" : "All"}”{active.length ? <> · filtered by {active.join(", ")}</> : null}.</>}>
         <SearchFilter label="Search" placeholder="ID, code, payment, owner…" value={text} onChange={setText} onCommit={commitText} />
         <SelectFilter param="severity" label="Severity" options={(Object.keys(SEVERITY) as (keyof typeof SEVERITY)[]).map((v) => ({ value: v, label: engineLabel("severity", v) ?? SEVERITY[v][0] }))} />
         <SelectFilter param="currency" label="Currency" options={currencies.map((c) => ({ value: c, label: c }))} />
@@ -70,7 +73,7 @@ export default function Exceptions() {
                   <tr key={e.id}>
                     <td data-label="Category"><a href={`#${e.id}`}>{exceptionTitle(e)}</a><span className={ui.sub}><Code>{e.explanationCode}</Code></span></td>
                     <td data-label="Severity"><SevChip v={e.severity} /></td>
-                    <td data-label="Status"><ExcChip v={e.status} /></td>
+                    <td data-label="Status"><ExcStatusChip e={e} /></td>
                     <td data-label="Owner"><OwnerControl target={{ kind: "exception", id: e.id }} ownerId={e.ownerId} /></td>
                     <td data-label="Due" className={ui.num}>{fmtDate(e.dueDate)}</td>
                     <td data-label="Impact" className={`${ui.r} ${ui.num}`}>{e.impact ? formatMoney(e.impact) : "—"}</td>
@@ -85,7 +88,7 @@ export default function Exceptions() {
       {rows.length === 0 ? <Panel><Empty>{active.length === 0 ? "No exceptions in this view." : "No exceptions match these filters. Clear the filters to see the others."}</Empty></Panel> : rows.map((e) => (
         <Panel key={e.id} id={e.id} headingLevel={2}
           title={<>{exceptionTitle(e)} <span className={ui.sub} style={{ display: "inline" }}>· <span className="mono">{e.id}</span></span></>}
-          actions={<><SevChip v={e.severity} /><ExcChip v={e.status} /></>}>
+          actions={<><SevChip v={e.severity} /><ExcStatusChip e={e} /></>}>
           <div className={ui.panelBody}>
             <dl className={ui.dl}>
               <div><dt>Explanation</dt><dd>{e.explanation} <Code>{e.explanationCode}</Code></dd></div>

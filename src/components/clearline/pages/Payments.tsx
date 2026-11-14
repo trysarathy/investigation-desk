@@ -2,7 +2,7 @@
 import Link from "../Link";
 import { formatMoney, listExceptions, type CurrencyCode } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
-import { EXECUTION, ExecChip, RECON, ReconChip, scopeText, SETTLEMENT, SettleChip, RAIL } from "../labels";
+import { needsAttention, EXECUTION, ExecChip, RECON, ReconChip, scopeText, SETTLEMENT, SettleChip, RAIL } from "../labels";
 import { engineLabel } from "../human";
 import { FilterBar, SearchFilter, SelectFilter, matchesText, useQuery, useSearchText } from "../filters";
 import { Empty, LinkBtn, PageHead, Panel, ui } from "../ui";
@@ -59,7 +59,7 @@ export default function Payments() {
               <tbody>
                 {rows.map((i) => {
                   const q = quoteOf(i.selectedQuoteId);
-                  const ex = listExceptions(ws, { intentId: i.id }).filter((e) => e.status !== "resolved").length;
+                  const ex = listExceptions(ws, { intentId: i.id }).filter((e) => needsAttention(e)).length;
                   const pp = instr(i.instructionId)?.providerPaymentId;
                   return (
                     <tr key={i.id}>
