@@ -222,7 +222,9 @@ describe("R2-M1: the migration never upgrades evidence", () => {
     // a full, matched bank debit already on record for this payout
     const tmplLine = g.statementLines.find((l) => l.allocationIds.length && l.direction === "debit")!;
     const tmplAlloc = g.allocations.find((a) => a.statementLineId === tmplLine.id)!;
-    g.statementLines.push({ ...tmplLine, id: "stl_99990", lineId: "UPG-1", currency: i.sourceCurrency, amountMinor: i.amountMinor, allocationIds: ["alc_99991"], amountDifference: undefined });
+    // R5-m1: the line carries this payout's own provider payment id, as every engine version requires for an allocation.
+    const ppidB = g.instructions.find((x) => x.id === i.instructionId)!.providerPaymentId!;
+    g.statementLines.push({ ...tmplLine, id: "stl_99990", lineId: "UPG-1", reference: `PAYOUT ${ppidB}`, currency: i.sourceCurrency, amountMinor: i.amountMinor, allocationIds: ["alc_99991"], amountDifference: undefined });
     g.allocations.push({ ...tmplAlloc, id: "alc_99991", statementLineId: "stl_99990", currency: i.sourceCurrency, amountMinor: i.amountMinor, target: { kind: "payment", intentId: i.id } });
     const r = loadWorkspace(JSON.stringify(g));
     if (!r.ok) throw new Error(r.error.message);
@@ -306,7 +308,9 @@ describe("third re-review R3-m1: migration rules pinned one by one", () => {
     const s4 = g.intents.find((x) => x.scenario === "s4_chain")!;
     const tmplLine = g.statementLines.find((l) => l.allocationIds.length && l.direction === "debit")!;
     const tmplAlloc = g.allocations.find((a) => a.statementLineId === tmplLine.id)!;
-    g.statementLines.push({ ...tmplLine, id: "stl_99980", lineId: "R3-D-1", accountRef: "BANK-USDC (fictional)", currency: "USDC", amountMinor: s4.amountMinor, allocationIds: ["alc_99981"], amountDifference: undefined });
+    // R5-m1: the line carries s4's own provider payment id, as every engine version requires for an allocation.
+    const ppid4 = g.instructions.find((x) => x.id === s4.instructionId)!.providerPaymentId!;
+    g.statementLines.push({ ...tmplLine, id: "stl_99980", lineId: "R3-D-1", accountRef: "BANK-USDC (fictional)", reference: `PAYOUT ${ppid4}`, currency: "USDC", amountMinor: s4.amountMinor, allocationIds: ["alc_99981"], amountDifference: undefined });
     g.allocations.push({ ...tmplAlloc, id: "alc_99981", statementLineId: "stl_99980", currency: "USDC", amountMinor: s4.amountMinor, target: { kind: "payment", intentId: s4.id } });
     const r = loadWorkspace(JSON.stringify(g));
     if (!r.ok) throw new Error(r.error.message);

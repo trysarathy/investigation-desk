@@ -157,6 +157,10 @@ info:
       actor who does not exist or lacks the role: instruction checker (approver) and maker (operator or approver),
       funding checker (approver) and maker (operator), hold reviewer and every hold decision (compliance, in
       `reviewerId`), and an accepted difference's accepter and second approver (staff).
+    - **Forged evidence records** are checked for shape only. A payment allocation must come from a bank
+      statement debit of kind payment, or a return confirmation from a return or reversal line. Either way the
+      line is in the payout's currency and carries its provider payment id. A provider report or a credit
+      allocated to a payout is refused (422). A well-formed forged debit cannot be detected.
 
     **Legacy endpoints** under `/api/clearline/test/{intents,quotes,transitions,webhooks,payments,health}`
     are **retired** and execute nothing. A request that is invalid under the old contract gets HTTP 422
