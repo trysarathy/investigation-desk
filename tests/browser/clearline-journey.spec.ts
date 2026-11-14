@@ -80,7 +80,7 @@ async function axeViolations(page: Page, axe: string): Promise<string[]> {
  * The whole journey, in order.
  * ============================================================================================== */
 test("founder acceptance journey: all 20 steps in order, by clicking", async ({ page, baseURL }) => {
-  test.setTimeout(240_000);
+  test.setTimeout(360_000); // ~60 interactions across 20 steps; a loaded machine once needed more than 240 s
   await fakeWebsite(page, baseURL!);
   const REF = "INV-JOURNEY-001";
 
