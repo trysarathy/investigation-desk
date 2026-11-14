@@ -2,12 +2,14 @@
 import Link from "../Link";
 import { fundingProjection, formatMinor, listExceptions, type CurrencyCode } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
-import { ExcChip, SevChip, exceptionTitle } from "../labels";
+import { ExcStatusChip, SevChip, exceptionTitle, needsAttention } from "../labels";
 import { Code, Empty, LinkBtn, Metric, Notice, PageHead, Panel, fmtTime, ui } from "../ui";
 
 export default function Overview() {
   const { ws, actorName } = useWorkspace();
-  const open = listExceptions(ws).filter((e) => e.status !== "resolved");
+  const attention = listExceptions(ws).filter((e) => needsAttention(e));
+  const open = attention.filter((e) => e.status !== "resolved");
+  const awaiting = attention.filter((e) => e.status === "resolved");
   const providerOnly = ws.intents.filter((i) => i.status.execution === "provider_reported_completed" && i.status.settlement !== "verified");
   const reconExc = ws.intents.filter((i) => i.status.reconciliation === "exception");
   const holds = ws.holds.filter((h) => h.status !== "released" && h.status !== "rejected");
@@ -35,6 +37,7 @@ export default function Overview() {
         <Metric href="/clearline/payments?execution=provider_reported_completed" label="Provider-reported complete, settlement not verified" value={providerOnly.length} note="View these payments" />
         <Metric href="/clearline/payments?reconciliation=exception" label="Payments with a reconciliation exception" value={reconExc.length} note="View these payments" />
         <Metric href="/clearline/exceptions" label="Open exceptions" value={open.length} note="Open exceptions queue" />
+        {awaiting.length > 0 && <Metric href="/clearline/exceptions?view=awaiting" label="Accepted, awaiting a second approval" value={awaiting.length} note="View these exceptions" />}
         <Metric href="/clearline/investigations" label="Open investigations" value={cases.length} note="View cases" />
         <Metric href="/clearline/holds" label="Compliance holds awaiting a human" value={holds.length} note="View holds" />
         <Metric href="/clearline/reconciliation?status=open" label="Statement lines not fully allocated" value={lines.length} note="View statement lines" />
@@ -42,16 +45,16 @@ export default function Overview() {
       </div>
 
       <Panel title="Needs attention" id="attention" actions={<Link href="/clearline/exceptions">All exceptions</Link>}>
-        {open.length === 0 ? <Empty>No open exceptions. New ones appear here when the engine raises them.</Empty> : (
+        {attention.length === 0 ? <Empty>No open exceptions. New ones appear here when the engine raises them.</Empty> : (
           <div className={ui.tableWrap} role="group" tabIndex={0} aria-label="Needs attention table">
             <table className={`${ui.table} ${ui.stack}`}>
               <thead><tr><th>Exception</th><th>Severity</th><th>Status</th><th>Owner</th><th>Required action</th><th>Payment</th></tr></thead>
               <tbody>
-                {open.slice(0, 8).map((e) => (
+                {attention.slice(0, 8).map((e) => (
                   <tr key={e.id}>
-                    <td data-label="Exception"><Link href={`/clearline/exceptions#${e.id}`}>{exceptionTitle(e)}</Link><span className={ui.sub}><Code>{e.explanationCode}</Code></span></td>
+                    <td data-label="Exception"><Link href={e.status === "resolved" ? `/clearline/exceptions?view=awaiting#${e.id}` : `/clearline/exceptions#${e.id}`}>{exceptionTitle(e)}</Link><span className={ui.sub}><Code>{e.explanationCode}</Code></span></td>
                     <td data-label="Severity"><SevChip v={e.severity} /></td>
-                    <td data-label="Status"><ExcChip v={e.status} /></td>
+                    <td data-label="Status"><ExcStatusChip e={e} /></td>
                     <td data-label="Owner">{actorName(e.ownerId)}</td>
                     <td data-label="Required action">{e.requiredAction}</td>
                     <td data-label="Payment">{e.intentId ? <Link href={`/clearline/payments/${e.intentId}`} className="mono">{e.intentId}</Link> : e.advanceId ? <Link href="/clearline/treasury/funding">{e.advanceId}</Link> : "—"}</td>

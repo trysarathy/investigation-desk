@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { ActorSelect } from "./ActorSelect";
 import { useWorkspace } from "./workspace";
-import { download } from "./download";
+import { download, download as downloadFile } from "./download";
 import { CONTACT_MAILTO, FUNDING_DESK_HREF, MARKETING_URL, PRIMARY, SECONDARY, crumbsFor, isActive } from "./nav";
 import { loadFully, useNavPending, useNavStuck } from "./navguard";
 import s from "./ui.module.css";
@@ -54,21 +54,52 @@ function NavPending() {
  * migrations). Each change is listed in the engine's words, with links; the person dismisses it.
  */
 function MigrationNotice() {
-  const { migrations, dismissMigrations } = useWorkspace();
+  const { migrations, dismissMigrations, continueUnsaved, replaceOriginalUnbacked } = useWorkspace();
   if (!migrations) return null;
+  const list = (
+    <ul style={{ margin: "0 0 8px", paddingLeft: 18 }}>
+      {migrations.items.map((m) => (
+        <li key={m.auditId}>
+          Your saved workspace was updated by this version: {m.text}{" "}
+          <Link href={`/clearline/payments/${m.intentId}`}>Open payment {m.internalReference}</Link>
+          {m.exceptionId && <> · <Link href={`/clearline/exceptions?view=all&intent=${m.intentId}#${m.exceptionId}`}>exception {m.exceptionId}</Link></>}
+        </li>
+      ))}
+    </ul>
+  );
+  const download = (
+    <button type="button" className={`${s.btn} ${s.small}`} onClick={() => downloadFile("clearline-workspace-original.json", migrations.raw, "application/json")}>Download the original</button>
+  );
+  const replace = (
+    <button type="button" className={`${s.btn} ${s.small}`} onClick={replaceOriginalUnbacked}>Replace the original with the updated workspace (no backup)</button>
+  );
+  if (migrations.held) {
+    // Review rc3 final m-A: no backup, so nothing is saved until the person chooses.
+    return (
+      <div className={s.notice} role="alert" data-testid="workspace-migrated" data-held="true">
+        {migrations.choice === "unsaved" ? (
+          <>
+            <p style={{ margin: "0 0 8px" }}><strong>Not saving.</strong> You chose to continue without saving: your saved workspace is still the original, and changes in this tab last only until you reload.</p>
+            <div className={s.actions}>{download}{replace}</div>
+          </>
+        ) : (
+          <>
+            <p style={{ margin: "0 0 6px" }}><strong>Your saved workspace was updated by this version, but a backup of the original could not be written</strong> (browser storage is full). The original is unchanged, and <strong>nothing you do is saved until you choose</strong>:</p>
+            {list}
+            <div className={s.actions}>
+              {download}
+              <button type="button" className={`${s.btn} ${s.small}`} onClick={continueUnsaved}>Continue without saving</button>
+              {replace}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
   return (
-    <div className={`${s.notice} ${s.noticeInfo}`} role="status" data-testid="workspace-migrated">
-      <p style={{ margin: "0 0 6px" }}><strong>Your saved workspace was updated by this version.</strong>{" "}
-        {migrations.saved ? "The copy as it was is kept as a backup in Settings." : "The update could not be saved in this browser, so the saved copy is unchanged and it will be updated again next time."}</p>
-      <ul style={{ margin: "0 0 8px", paddingLeft: 18 }}>
-        {migrations.items.map((m) => (
-          <li key={m.auditId}>
-            Your saved workspace was updated by this version: {m.text}{" "}
-            <Link href={`/clearline/payments/${m.intentId}`}>Open payment {m.internalReference}</Link>
-            {m.exceptionId && <> · <Link href={`/clearline/exceptions?view=all&intent=${m.intentId}#${m.exceptionId}`}>exception {m.exceptionId}</Link></>}
-          </li>
-        ))}
-      </ul>
+    <div className={`${s.notice} ${s.noticeInfo}`} role="status" data-testid="workspace-migrated" data-held="false">
+      <p style={{ margin: "0 0 6px" }}><strong>Your saved workspace was updated by this version.</strong> The copy as it was is kept as a backup in Settings.</p>
+      {list}
       <button type="button" className={`${s.btn} ${s.small}`} onClick={dismissMigrations}>Dismiss</button>
     </div>
   );

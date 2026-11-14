@@ -52,7 +52,7 @@ export default function Trial() {
   // Scenario payments are looked up in the workspace (ids come from the engine); after "start empty" the link falls back to the payments list.
   const hrefOf = (c: Case) => { const id = c.scenario ? scenarioIntentId(ws, c.scenario) : undefined; return id ? `/clearline/payments/${id}` : c.href; };
   const [msg, setMsg] = useState<{ text: string } | null>(null);
-  const doReset = () => { const r = reset("sample"); setMsg({ text: r.ok ? "Workspace reset to the sample. All five cases are back at their starting state, and anything you added in this browser was removed." : r.reason }); };
+  const doReset = () => { const r = reset("sample"); setMsg({ text: r.ok ? `Workspace reset to the sample. All five cases are back at their starting state, and anything you added in this browser was removed.${r.backupKey ? " The previous workspace is kept as a backup in Settings." : ""}` : r.reason }); };
   return (
     <>
       <div className={ui.pageHead}>

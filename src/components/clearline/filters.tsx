@@ -62,13 +62,21 @@ export function matchesText(q: string, ...fields: (string | number | undefined |
 
 export function FilterBar({ label, children, summary, clear, onClear }: { label: string; children: ReactNode; summary: ReactNode; clear?: string[]; onClear?: () => void }) {
   const { update } = useQuery();
+  const summaryRef = useRef<HTMLSpanElement>(null);
+  const [announced, setAnnounced] = useState("");
+  useEffect(() => {
+    const t = window.setTimeout(() => setAnnounced(summaryRef.current?.textContent ?? ""), 700);
+    return () => window.clearTimeout(t);
+  });
   return (
     <form role="search" aria-label={label} className={s.filterBar} onSubmit={(e) => e.preventDefault()}>
       <div className={s.filterFields}>{children}</div>
-      <p className={s.filterSummary} role="status" data-testid="filter-summary">
-        {summary}
+      <p className={s.filterSummary} data-testid="filter-summary">
+        <span ref={summaryRef}>{summary}</span>
         {clear && clear.length > 0 && <> <button type="button" className={`${s.btn} ${s.small} ${s.ghost}`} onClick={() => { onClear?.(); update(Object.fromEntries(clear.map((k) => [k, null]))); }}>Clear filters</button></>}
       </p>
+      {/* Announced politely once the person pauses, not on every keystroke (review nit n8). */}
+      <p className={s.srOnly} role="status" aria-live="polite">{announced}</p>
     </form>
   );
 }

@@ -6,7 +6,7 @@ import {
   type AmountDifference, type EvidenceTimelineEntry, type Finding, type InvestigationView, type ProcessingOutcome, type Workspace,
 } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
-import { EXECUTION, RECON, settlementTone, ExecChip, ReconChip, scopeText, SettleChip, RAIL, HoldChip, AdvChip, OutcomeChip, exceptionTitle } from "../labels";
+import { awaitingSecondApproval, needsAttention, EXECUTION, RECON, settlementTone, ExecChip, ReconChip, scopeText, SettleChip, RAIL, HoldChip, AdvChip, OutcomeChip, exceptionTitle } from "../labels";
 import { SimulateEvent } from "../SimulateEvent";
 import { TargetActions } from "../TargetActions";
 import { ActionButton, gateOf, useRun, useSettled, type Gate } from "../Action";
@@ -70,6 +70,7 @@ function outcomeOf(e: EvidenceTimelineEntry, ws: Workspace): ReactNode {
   if (e.kind === "allocation") return <Chip tone="ok">Allocated by trusted reference</Chip>;
   if (e.kind === "exception") {
     const x = ws.exceptions.find((y) => y.id === e.refs[0]);
+    if (x && awaitingSecondApproval(x)) return <Chip tone="warn" title={`API value: ${x.status} (secondApproval pending)`}>Accepted — awaiting second approval</Chip>;
     return x ? <Chip tone={x.status === "resolved" ? "neutral" : "bad"} title={`API value: ${x.status}`}>{`Exception ${label("exceptionStatus", x.status).toLowerCase()}`}</Chip> : "Exception";
   }
   if (e.kind === "missing_evidence") return <Chip tone="warn">Not yet received</Chip>;
@@ -147,7 +148,7 @@ export default function Investigation({ id }: { id: string }) {
   const lastProvider = tl.filter((e) => e.kind === "provider_event").at(-1);
   const matches = tl.filter((e) => e.kind === "allocation");
   const netZero = st.reconciliation === "matched" && intent.returnStatus === "confirmed_by_statement";
-  const openExceptions = view.exceptions.filter((e) => e.status !== "resolved");
+  const openExceptions = view.exceptions.filter((e) => needsAttention(e));
 
   // E. Payment-level actions, each gated by an engine dry run.
   const cancelAction = { type: "cancel_intent", intentId: id, reason: settledCancel.trim() ? settledCancel : "Dry run" } as const;
@@ -286,7 +287,7 @@ export default function Investigation({ id }: { id: string }) {
           </section>
           {view.exceptions.length > 0 && (
             <section className={ui.wide} id="exceptions"><h3>Exceptions on this payment</h3>
-              <ul>{view.exceptions.map((e) => <li key={e.id}><Link href={`/clearline/exceptions?view=all&intent=${id}#${e.id}`}>{exceptionTitle(e)}</Link> — {label("exceptionStatus", e.status)} · owner {actorName(e.ownerId)} · due <span className="mono">{e.dueDate ?? "—"}</span> <Code>{e.explanationCode}</Code></li>)}</ul>
+              <ul>{view.exceptions.map((e) => <li key={e.id}><Link href={`/clearline/exceptions?view=all&intent=${id}#${e.id}`}>{exceptionTitle(e)}</Link> — {awaitingSecondApproval(e) ? "Accepted — awaiting second approval" : label("exceptionStatus", e.status)} · owner {actorName(e.ownerId)} · due <span className="mono">{e.dueDate ?? "—"}</span> <Code>{e.explanationCode}</Code></li>)}</ul>
             </section>
           )}
           {(view.hold || view.chain || view.funding) && (

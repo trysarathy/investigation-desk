@@ -158,6 +158,22 @@ export const ReconChip = ({ v, returnStatus, showValue }: V<ReconciliationState>
     : chipFrom("reconciliation", RECON, v, "recon", { showValue });
 export const SevChip = ({ v }: { v: Severity }) => chipFrom("severity", SEVERITY, v);
 export const ExcChip = ({ v }: { v: ExceptionStatus }) => chipFrom("exceptionStatus", EXC_STATUS, v);
+/**
+ * An over-amount accepted above 1% is `resolved` in the engine but waits for a second, different staff
+ * person (resolution.acceptedDifference.secondApproval). It is not done: it is shown amber, stays in the open
+ * queue and counts as needing attention (review rc3 final m-B).
+ */
+export function awaitingSecondApproval(e: { status: ExceptionStatus; resolution?: { acceptedDifference?: { secondApproval?: { required: true; approvedBy?: string } } } }): boolean {
+  const sa = e.resolution?.acceptedDifference?.secondApproval;
+  return e.status === "resolved" && Boolean(sa?.required && !sa.approvedBy);
+}
+/** Needs a person: not resolved, or resolved but still awaiting a second approval. */
+export const needsAttention = (e: Parameters<typeof awaitingSecondApproval>[0]) => e.status !== "resolved" || awaitingSecondApproval(e);
+/** Exception status chip that never shows a pending acceptance as plain "Resolved". */
+export const ExcStatusChip = ({ e }: { e: Parameters<typeof awaitingSecondApproval>[0] }) =>
+  awaitingSecondApproval(e)
+    ? <span className="cl-tag" data-api-value={e.status} data-awaiting-approval="true"><Chip tone="warn" title="API value: resolved (accepted difference; secondApproval pending)">Accepted — awaiting second approval<span className={ui.srOnly}>, API value {e.status}</span></Chip></span>
+    : <ExcChip v={e.status} />;
 export const HoldChip = ({ v }: { v: HoldStatus }) => chipFrom("holdStatus", HOLD, v);
 /**
  * Advance state. `supplier_paid` alone is the provider's report; when the engine's supplierPaidBasis says the
