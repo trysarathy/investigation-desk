@@ -1117,3 +1117,124 @@ test("m1: with browser storage blocked, a stalled page change asks before a full
   await hydrated(page);
   expect(documents).toBe(1);
 });
+
+/* ================================================================================================
+ * rc3 engine follow-ups: workspace migration on load, accepting a small over-amount.
+ * ============================================================================================== */
+test("a workspace saved by v2 is updated on load: the notice lists each change with links, keeps a backup, and can be dismissed", async ({ page }) => {
+  const raw = readFileSync("tests/clearline/fixtures/v2_t1.json", "utf8");
+  await page.addInitScript((t) => { try { if (!sessionStorage.getItem("seeded")) { localStorage.setItem("clearline.console.workspace.v1", t); sessionStorage.setItem("seeded", "1"); } } catch { /* blocked */ } }, raw);
+  await open(page, "/clearline");
+  const n = page.getByTestId("workspace-migrated");
+  await expect(n).toContainText("Your saved workspace was updated by this version:");
+  await expect(n).toContainText("The copy as it was is kept as a backup in Settings.");
+  await expect(page.getByTestId("workspace-discarded")).toHaveCount(0);
+  // The original is backed up byte for byte; the migrated workspace is what is saved now.
+  expect(await page.evaluate(() => localStorage.getItem("clearline.console.workspace.v1.before-migration-backup"))).toBe(raw);
+  expect(await page.evaluate(() => localStorage.getItem("clearline.console.workspace.v1"))).not.toBe(raw);
+  // Each change links to its payment.
+  const link = n.getByRole("link", { name: /^Open payment / }).first();
+  const href = await link.getAttribute("href");
+  await link.click();
+  await expect(page).toHaveURL(new RegExp(`${href}$`));
+  await hydrated(page);
+  await expect(page.getByTestId("dim-settlement").locator('[data-api-value="verified"]')).toHaveCount(0);
+  await page.getByTestId("workspace-migrated").getByRole("button", { name: "Dismiss" }).click();
+  await expect(page.getByTestId("workspace-migrated")).toHaveCount(0);
+  // Saved: a reload has nothing left to migrate.
+  await page.reload();
+  await hydrated(page);
+  await expect(page.getByTestId("workspace-migrated")).toHaveCount(0);
+  await goNav(page, "Settings");
+  await hydrated(page);
+  await expect(page.getByTestId("backup-list")).toContainText("Saved workspace as it was before this version updated it");
+});
+
+test("a v2 workspace with nothing to change loads without a migration notice", async ({ page }) => {
+  const raw = readFileSync("tests/clearline/fixtures/v2_sample.json", "utf8");
+  await page.addInitScript((t) => { try { localStorage.setItem("clearline.console.workspace.v1", t); } catch { /* blocked */ } }, raw);
+  await open(page, "/clearline");
+  await expect(page.getByTestId("workspace-discarded")).toHaveCount(0);
+  await expect(page.getByTestId("workspace-migrated")).toHaveCount(0);
+});
+
+/** Create → quote → route → approve → submit → provider reports completed, through the console. */
+async function completedPayout(page: Page, ref: string): Promise<string> {
+  await open(page, "/clearline/routes/new");
+  await page.getByLabel("Customer reference").fill(ref);
+  await page.getByRole("button", { name: "Create test intent" }).click();
+  await expect(page.getByTestId("intent-id")).toBeVisible();
+  const id = (await page.getByTestId("intent-id").innerText()).trim();
+  await page.getByRole("button", { name: "Request quotes" }).click();
+  await page.locator("#routes").getByRole("button", { name: /^Choose / }).and(page.locator(":enabled")).first().click();
+  await page.locator("#checker").selectOption("usr_daniel");
+  await page.getByRole("button", { name: "Approve as checker" }).click();
+  await page.getByRole("button", { name: "Submit instruction" }).click();
+  await page.getByRole("button", { name: "Simulate next provider event" }).click();
+  await expect(page).toHaveURL(new RegExp(`/clearline/payments/${id}$`));
+  await hydrated(page);
+  for (let i = 0; i < 6; i++) {
+    if (await page.getByTestId("dim-execution").locator('[data-api-value="provider_reported_completed"]').count()) break;
+    await page.getByRole("button", { name: "Simulate next provider event" }).click();
+    await expect(page.locator("#simulate").getByRole("status")).toContainText(/recorded by the engine|not applied/);
+  }
+  return id;
+}
+
+/** Ingests a bank debit carrying the payout's reference for `factor` × the amount; returns the over-amount exception's panel. */
+async function overAmountException(page: Page, ref: string, factor: number) {
+  await goNav(page, "Reconciliation");
+  await expect(page).toHaveURL(/\/clearline\/reconciliation$/);
+  await hydrated(page);
+  const form = page.getByRole("form", { name: "Ingest statement line" });
+  await form.getByRole("button", { name: `Debit for ${ref} (by provider reference)` }).click();
+  const amount = form.getByRole("textbox", { name: /^Amount/ });
+  const base = Number((await amount.inputValue()).replace(/,/g, ""));
+  await amount.fill((Math.round(base * factor * 100) / 100).toFixed(2));
+  await form.getByRole("button", { name: "Ingest statement line" }).click();
+  await expect(form.getByRole("status")).toContainText("RC_OVERPAYMENT");
+  await open(page, "/clearline/exceptions?q=RC_OVERPAYMENT");
+  const row = page.locator("#queue tbody tr").filter({ hasText: "RC_OVERPAYMENT" }).last();
+  const excId = (await row.getByRole("link").first().getAttribute("href"))!.slice(1);
+  const panel = page.locator(`section[id="${excId}"]`);
+  await panel.getByText("Work this exception").click();
+  // The engine's other conditions for any resolution come first: an owner and supporting evidence.
+  await panel.getByRole("button", { name: "Assign owner" }).click();
+  await expect(panel.getByRole("status").first()).toContainText("Assign owner — recorded by the engine");
+  await panel.getByLabel("Description").fill("Bank fee advice for the over-amount (fictional)");
+  await panel.getByRole("button", { name: "Attach evidence metadata" }).click();
+  await expect(panel.getByRole("status").first()).toContainText("Attach evidence — recorded by the engine");
+  return panel;
+}
+
+test("an over-amount bank debit within 1% can be accepted explicitly; a larger one is refused in the engine's words", async ({ page }) => {
+  test.setTimeout(180_000);
+  // Larger than 1%: the option is there, refused before the click, with the engine's reason.
+  await completedPayout(page, "INV-OVER-5PCT");
+  let panel = await overAmountException(page, "INV-OVER-5PCT", 1.05);
+  let accept = panel.getByTestId("accept-over-amount");
+  await accept.getByLabel("Why the over-amount is accepted").fill("Trying to accept 5%.");
+  const btn = accept.getByRole("button", { name: "Accept the over-amount" });
+  await expect(btn).toBeDisabled();
+  const reason = page.locator(`[id="${await btn.getAttribute("aria-describedby")}"]`);
+  await expect(reason).toContainText("DIFFERENCE_NOT_ACCEPTABLE");
+  await expect(reason).toContainText("This difference cannot be accepted");
+
+  // Within 1%: accepted once the person gives a reason, and the engine records it.
+  await completedPayout(page, "INV-OVER-HALF");
+  panel = await overAmountException(page, "INV-OVER-HALF", 1.005);
+  accept = panel.getByTestId("accept-over-amount");
+  const ok = accept.getByRole("button", { name: "Accept the over-amount" });
+  await expect(ok).toBeDisabled(); // no reason written yet
+  await expect(page.locator(`[id="${await ok.getAttribute("aria-describedby")}"]`)).toHaveText("Write why you accept the difference first.");
+  await accept.getByLabel("Why the over-amount is accepted").fill("Bank charged a fee of 0.5%; accepted.");
+  await expect(ok).toBeEnabled();
+  const excId = await panel.getAttribute("id");
+  await ok.click();
+  // Resolved, so it leaves the open queue; the "All" view shows the engine's record of the resolution.
+  await expect(page.locator(`section[id="${excId}"]`)).toHaveCount(0);
+  await open(page, `/clearline/exceptions?view=all&q=${excId}`);
+  const done = page.locator(`section[id="${excId}"]`);
+  await expect(done.locator('[data-api-value="resolved"]').first()).toBeVisible();
+  await expect(done).toContainText("Bank charged a fee of 0.5%; accepted.");
+});

@@ -6,12 +6,8 @@ import { AdvChip, ExcChip, ExecChip, HoldChip, SettleChip, human, exceptionTitle
 import { Chip, Code, Dl, Empty, Notice, PageHead, Panel, fmtDate, fmtTime, ui } from "../ui";
 import { FundingDeskPanel } from "../FundingDesk";
 import { attributionOf } from "../evidence";
+import { label } from "../human";
 
-const BASIS: Record<"none" | "provider_reported" | "verified_settlement", string> = {
-  none: "No report that the supplier was paid",
-  provider_reported: "Supplier paid (provider-reported) — not verified",
-  verified_settlement: "Supplier payout verified by independent evidence",
-};
 
 export default function Funding() {
   const { ws, actorName } = useWorkspace();
@@ -48,7 +44,7 @@ export default function Funding() {
                         {r.supplierPayout.hold && <><HoldChip v={r.supplierPayout.hold.status} /> <Link href={`/clearline/holds#${r.supplierPayout.hold.id}`}>Open the hold</Link></>}
                       </span>
                     )}</>],
-                  ["Supplier paid — basis", <span key="b" data-testid="supplier-paid-basis">{BASIS[r.supplierPaidBasis]} <span className={ui.apiValue}>{r.supplierPaidBasis}</span></span>],
+                  ["Supplier paid — basis", <span key="b" data-testid="supplier-paid-basis">{label("supplierPaidBasis", r.supplierPaidBasis)} <span className={ui.apiValue}>{r.supplierPaidBasis}</span></span>],
                   ["Treasury approval", r.treasuryApproval ? <>{human(r.treasuryApproval.outcome)} — maker {actorName(r.treasuryApproval.makerId)}, checker {actorName(r.treasuryApproval.checkerId)} · {fmtTime(r.treasuryApproval.at)}</> : "Not decided"],
                   ["Repayment reference", r.obligation ? <Code>{r.obligation.reference}</Code> : "—"],
                   ["Funding Desk stage", r.fundingDeskStage],

@@ -710,9 +710,9 @@ test("defence in depth: settlement `verified` is never green when execution is r
   // The engine never produces this state; a hand-edited workspace does, so the console's own guard is what is tested.
   const base = await sample(request) as unknown as { intents: { scenario?: string; status: Record<string, string> }[] };
   const green = "rgb(20, 108, 67)"; // --cl-success
-  // rc3: the engine's parseWorkspace now refuses a terminal payout carrying verified settlement, so for those
-  // states the stronger guarantee holds (never rendered at all); on_hold / awaiting_information are valid
-  // engine states (review rc3 M1) and keep exercising the console's own guard.
+  // rc3: the engine repairs a stored terminal payout carrying verified settlement into a contradiction (asserted
+  // below); on_hold / awaiting_information are valid engine states (review rc3 M1) and keep exercising the
+  // console's own colour guard.
   let guarded = 0;
   for (const exec of ["returned", "failed", "cancelled", "expired", "on_hold", "awaiting_information"]) {
     const ws = JSON.parse(JSON.stringify(base));
@@ -722,11 +722,18 @@ test("defence in depth: settlement `verified` is never green when execution is r
     await page.goto("/clearline");
     await page.evaluate((t) => localStorage.setItem("clearline.console.workspace.v1", t), JSON.stringify(ws));
     await open(page, `/clearline/payments/${(await scenario(request, "s1_success")).split("/").pop()}`);
-    if (await page.getByTestId("workspace-discarded").count()) {
-      expect(["returned", "failed", "cancelled", "expired"], `${exec} must not be refused`).toContain(exec);
-      await expect(page.getByTestId("workspace-discarded"), exec).toContainText("status.settlement");
-      // The refused state is never rendered: the page shows the sample's own payment instead.
-      await expect(page.getByTestId("dim-execution").locator(`[data-api-value="${exec}"]`), exec).toHaveCount(0);
+    if (["returned", "failed", "cancelled", "expired"].includes(exec)) {
+      // rc3: the engine REPAIRS a stored terminal + verified payout that has evidence (loadWorkspace migration):
+      // it loads as a contradiction with an owned exception, says so, and is never verified or green.
+      await expect(page.getByTestId("workspace-discarded"), exec).toHaveCount(0);
+      const settle = page.getByTestId("dim-settlement");
+      await expect(settle.locator('[data-api-value="verified"]'), exec).toHaveCount(0);
+      const contradicted = settle.locator('[data-api-value="contradicted"] [title^="API value:"]');
+      await expect(contradicted, exec).toBeVisible();
+      expect(await contradicted.evaluate((e) => getComputedStyle(e).color), exec).toBe("rgb(180, 35, 24)"); // --cl-danger
+      expect(await settle.evaluate((e) => getComputedStyle(e).borderTopColor), exec).not.toBe(green);
+      await expect(page.locator("#exceptions"), exec).toContainText("owner");
+      await expect(page.locator("#exceptions"), exec).not.toContainText("owner Unassigned");
       continue;
     }
     guarded++;

@@ -57,7 +57,7 @@ export default function Settings() {
             <ul style={{ margin: 0, paddingLeft: 18 }} data-testid="backup-list">
               {backups.map((b) => (
                 <li key={b.key} style={{ marginBottom: 8 }}>
-                  {b.kind === "unreadable" ? "Unreadable saved workspace" : b.kind === "boundary" ? "Saved workspace removed after a console error" : "Workspace saved before a restore"}
+                  {b.kind === "unreadable" ? "Unreadable saved workspace" : b.kind === "boundary" ? "Saved workspace removed after a console error" : b.kind === "before-migration" ? "Saved workspace as it was before this version updated it" : "Workspace saved before a restore"}
                   {b.savedAt ? `, ${b.savedAt}` : ""} <span className={ui.hint}>({b.size.toLocaleString("en-US")} characters · <span className="mono">{b.key}</span>)</span>
                   <span className={ui.actions} style={{ marginTop: 4 }}>
                     <Btn size="small" onClick={() => { try { const raw = window.localStorage.getItem(b.key); if (raw !== null) download(`${b.key}.json`, raw, "application/json"); } catch { setMsg({ text: "Browser storage is blocked; the backup cannot be read.", error: true }); } }}>Download<span className={ui.srOnly}> {b.key}</span></Btn>
