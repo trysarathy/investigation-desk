@@ -1,6 +1,6 @@
 import { MAX_AMOUNT_MINOR, isCurrency, withinTotal } from "./money";
 import { migrateToRc3 } from "./migrate";
-import { isIsoDate, isIsoInstant, isTimeZone } from "./tx";
+import { isIsoDate, isIsoInstant, isTimeZone, referenceTokens } from "./tx";
 import type { Result, Workspace, WorkspaceLoad, WorkspaceMigration } from "./types";
 
 export const serializeWorkspace = (ws: Workspace): string => JSON.stringify(ws);
@@ -216,6 +216,27 @@ function crossCheck(ws: Obj) {
     need(prev === undefined || prev === key, `${p}.target`, "one statement line or chain observation cannot be allocated to two different payouts or obligations");
     owner.set(ref, key);
     total.set(ref, (total.get(ref) ?? 0) + (a.amountMinor as number));
+  });
+  // Review R5-m1: a payment allocation from a statement line has one of the two shapes every engine version (v2,
+  // efabe6a, rc3: reconciliation.ts reconcileLine) produces; anything else is a forged evidence record.
+  // - a return confirmation (code RC_RETURN_CONFIRMS_PROVIDER_RETURN) from a return or reversal line;
+  // - otherwise a bank_statement DEBIT of kind payment.
+  // Both are in the payout's source currency and carry the payout's provider payment id as a reference token.
+  const intentById = new Map((ws.intents as Obj[]).map((x) => [x.id as string, x]));
+  const instrById = new Map((ws.instructions as Obj[]).map((x) => [x.id as string, x]));
+  (ws.allocations as Obj[]).forEach((a, i) => {
+    const t = a.target as Obj;
+    if (a.evidenceKind !== "statement_line" || t.kind !== "payment") return;
+    const p = `allocations[${i}]`;
+    const l = lineById.get(a.statementLineId as string)!;
+    const intent = intentById.get(t.intentId as string);
+    need(intent !== undefined, `${p}.target.intentId`, "must identify a payment intent in this workspace");
+    const ppid = instrById.get(intent!.instructionId as string)?.providerPaymentId;
+    need(typeof ppid === "string" && referenceTokens(String(l.reference)).includes(ppid.toUpperCase()), `${p}.statementLineId`, "a payment allocation's statement line must carry the payout's provider payment id as its reference");
+    need(l.currency === intent!.sourceCurrency, `${p}.currency`, "a payment allocation must be in the payout's source currency");
+    const isReturn = Array.isArray(a.codes) && (a.codes as unknown[]).includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN");
+    if (isReturn) need(l.kind === "return" || l.kind === "reversal", `${p}.codes`, "a return confirmation must come from a return or reversal line");
+    else need(l.source === "bank_statement" && l.direction === "debit" && l.kind === "payment", `${p}.statementLineId`, "a payment allocation must come from a bank statement debit (a provider report or a credit is never allocated to a payout)");
   });
   lines.forEach((l, i) => {
     need((total.get(l.id as string) ?? 0) <= (l.amountMinor as number), `statementLines[${i}].allocationIds`, "allocations exceed the line amount");
