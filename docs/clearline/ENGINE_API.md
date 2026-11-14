@@ -1,8 +1,27 @@
 # Clearline sandbox engine — public API (for the console UI)
 
-> **CHANGE 10 (2026-11-14, second re-review of 7e521f5, CHANGES REQUESTED). STATUS: LANDED.** Each fix has a test that fails without it (file reverted or line mutated in place).
+> **CHANGE 11 (2026-11-14, third re-review of 3e66fa7, BLOCK). STATUS: LANDED.**
 >
-> **R2-M1: the load-time migration re-validates stored evidence against rc3's rules** (new `migrate.ts`, run by every parse/load/action). It corrects only states no rc3 action sequence can reach, never upgrades evidence, raises the exception rc3 raises (with an owner), audits and reports each change, and is idempotent. A property test over 16 seeded random rc3 action sequences and 5 scripted families shows it is a no-op on rc3 workspaces (migrations `[]`, byte-identical).
+> **R3-B1: `reopen` reverses what the exception's resolution did.** Before: the workspace no longer loaded after a reopen.
+> - An accepted difference and any second approval are withdrawn. They are kept in the exception's history (`acceptance_withdrawn`) and audited (`exception.acceptance_withdrawn`). The payout's case is blocked again until a staff person accepts again (above 1%: a second person approves again).
+> - A hash-conflict supersede is withdrawn (`supersede_withdrawn`, audited `chain.supersede_withdrawn`). The rejected observation blocks the hash again, and the payout is recomputed: settlement `contradicted` while the conflict is reopened. Resolving it again supersedes again.
+> - Proven by explicit accept → reopen → reload and supersede → reopen → reload tests, and by the property test. Its generator now also issues `reopen` (exceptions and cases), `cancel_intent`, `create_advance` / `decide_advance`, `add_note`, `request_info`, case evidence and new payments. Its scripted families reopen after an acceptance, after a supersede and after a case closes, and a coverage check asserts those states are reached. **After every successful action the workspace loads with migrations `[]` and byte-identical JSON.**
+> - With `actions.ts` reverted, 7 tests fail.
+>
+> **R3-m1: one test per surviving mutant, 7 of 7 killed:**
+> - rule A raises its exception;
+> - rule B honours a supersede that freed the hash for another payout;
+> - rule D leaves a bank-backed match alone;
+> - a short (late) debit can never be accepted;
+> - late plus over-amount needs `acceptDifference` too;
+> - the close-time late-date re-check;
+> - `approve_acceptance` re-checks the line.
+>
+> **Console API:** unchanged. Reopen needs no new parameter: it now withdraws the acceptance or supersede itself, and the case shows `EVIDENCE_OUTSTANDING` again until someone accepts afresh. After reopening an approved >1% acceptance, accepting again shows `SECOND_APPROVAL_REQUIRED` again.
+
+> **CHANGE 10 (2026-11-14, second re-review of 7e521f5, CHANGES REQUESTED). STATUS: LANDED.** Each fix has a test that fails without it (file reverted or line mutated in place). *Correction (CHANGE 11):* the third re-review then found 7 mutants that still survived — rule A's exception, rule B's supersede link, rule D's bank-match guard, the close-time late-date re-check, the short-debit refusal, `approve_acceptance`'s line re-check, and `resolve` requiring `acceptDifference`. Tests for all 7 were added in CHANGE 11.
+>
+> **R2-M1: the load-time migration re-validates stored evidence against rc3's rules** (new `migrate.ts`, run by every parse/load/action). It corrects only states no rc3 action sequence can reach, never upgrades evidence, raises the exception rc3 raises (with an owner), audits and reports each change, and is idempotent. A property test over 16 seeded random rc3 action sequences and 5 scripted families shows it is a no-op on rc3 workspaces (migrations `[]`, byte-identical). *Correction (CHANGE 11):* that test did not issue `reopen` and other actions, and the claim that every rc3 workspace loads was false. A reopen after an accepted difference or a supersede left a workspace that could not load (R3-B1). This is fixed in CHANGE 11, and the property now covers those actions.
 >
 > | Rule | Stored state (earlier engine) | Becomes | `WorkspaceMigration.kind` / `outcome` |
 > |---|---|---|---|

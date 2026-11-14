@@ -145,7 +145,9 @@ Status values:
 - **Migration of older workspaces (CHANGE 8 M-1, CHANGE 9 R-M1 / R-m1, CHANGE 10 R2-M1).** On load, stored evidence is
   re-validated against rc3's rules: chain allowlist and identity, earlier hash conflicts, the terminal-payout rule
   for any evidenced settlement, and the reorg rule. States rc3 cannot produce are corrected, never upgraded, and each
-  correction is reported by `loadWorkspace`. A property test shows this is a no-op on rc3 workspaces. A v2 C-2
+  correction is reported by `loadWorkspace`. A property test shows this is a no-op on rc3 workspaces. Since CHANGE 11
+  that includes reopen, cancel, advances, notes and info requests; a reopen withdraws the resolution's acceptance or
+  supersede, so every workspace an action produces loads. A v2 C-2
   block change cannot be detected from stored data. Any other state the integrity check refuses is refused, not
   repaired.
 - **Reset on older workspaces (CHANGE 9 R-B1).** The reset raises the id counter past the restored ids, so the
