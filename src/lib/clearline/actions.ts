@@ -134,7 +134,7 @@ function transition(tx: Tx, intent: PaymentIntent, to: PaymentIntent["status"]["
 }
 
 /** Keep stored advance states consistent with the projection rules. */
-function syncDerived(tx: Tx) {
+export function syncDerived(tx: Tx) {
   for (const adv of tx.ws.advances) adv.state = deriveAdvanceState(tx.ws, adv.id, tx.ws.asOf);
 }
 
@@ -476,11 +476,25 @@ const MISSING_STATEMENT_MINUTES = 2 * 1440;
 function advanceClock(tx: Tx, to: string): string {
   requireRole(tx, ["operator", "approver", "compliance"]);
   if (!isIsoInstant(to) || Date.parse(to) < Date.parse(tx.ws.asOf)) fail("invalid_field", "to must be an ISO instant not earlier than asOf.", { field: "to" });
+  tx.ws.asOf = new Date(Date.parse(to)).toISOString();
+  applyClockRules(tx);
+  tx.log("clock.advanced", "workspace", "clock", `Simulated clock moved to ${tx.ws.asOf}`);
+  return "applied";
+}
+
+/**
+ * The time-dependent rules at the workspace clock (`ws.asOf`): quote expiry, execution-date expiry,
+ * provider timeout, missing statement after completion, overdue repayment. `advance_clock` runs them on
+ * everything; review m-2: `resetScenario` runs them on the restored case's records only (`only` = their
+ * ids), so a case restored under a later clock is in the state the clock implies, and nothing else changes.
+ */
+export function applyClockRules(tx: Tx, only?: ReadonlySet<string>): void {
   const ws = tx.ws;
-  ws.asOf = new Date(Date.parse(to)).toISOString();
   const now = ws.asOf;
-  for (const q of ws.quotes) if (q.freshness === "fresh" && Date.parse(q.expiresAt) < Date.parse(now)) q.freshness = "expired";
+  const inScope = (id: string) => !only || only.has(id);
+  for (const q of ws.quotes) if (inScope(q.id) && q.freshness === "fresh" && Date.parse(q.expiresAt) < Date.parse(now)) q.freshness = "expired";
   for (const intent of ws.intents) {
+    if (!inScope(intent.id)) continue;
     const exec = intent.status.execution;
     if (["created", "quoted", "approved"].includes(exec) && intent.requestedExecutionDate < tx.orgDate(now)) {
       setExecution(tx, intent, "expired", "Requested execution date passed before submission");
@@ -514,6 +528,7 @@ function advanceClock(tx: Tx, to: string): string {
     }
   }
   for (const ob of ws.obligations) {
+    if (!inScope(ob.id)) continue;
     const out = obligationOutstanding(ws, ob.id);
     if (out.amountMinor > 0 && tx.orgDate(now) > ob.dueDate)
       openException(tx, {
@@ -526,8 +541,6 @@ function advanceClock(tx: Tx, to: string): string {
         dueDate: ob.dueDate,
       });
   }
-  tx.log("clock.advanced", "workspace", "clock", `Simulated clock moved to ${now}`);
-  return "applied";
 }
 
 // ---------------------------------------------------------------------------------------------
