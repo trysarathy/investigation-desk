@@ -218,6 +218,7 @@ describe("CHANGE 5 human labels", () => {
     ["exceptionBlocker", "ExceptionCategory"],
     ["severity", "Severity"],
     ["exceptionStatus", "ExceptionStatus"],
+    ["reportExceptionStatus", "ReportExceptionStatus"],
     ["holdStatus", "HoldStatus"],
     ["advanceState", "AdvanceState"],
     ["instructionStatus", "InstructionStatus"],

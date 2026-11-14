@@ -716,7 +716,34 @@ components:
           type: array
           items: { type: object, required: [section, code, label, text, refs], properties: { section: { enum: [provider_reported, independent_evidence, unknown, contradiction, outstanding, next_action] }, code: { type: string }, label: { type: string }, text: { type: string }, refs: { type: array, items: { type: string } }, amount: { $ref: "#/components/schemas/DecimalAmount" } } }
         amounts: { type: object, description: "requested, matched, unreconciled (DecimalAmount); differences[]; funding? {principal, repaid, outstanding, reference, dueDate, state, supplierPaidBasis}; returnPosition? — every amount a DecimalAmount" }
-        exceptions: { type: array, items: { type: object } }
+        exceptions:
+          type: array
+          description: >-
+            CHANGE 14: `status` is the report's status: the exception's own status, except that a resolved exception
+            whose accepted over-amount still awaits a second person's approval is `accepted_awaiting_second_approval`
+            ("Accepted — awaiting second approval"). `statusLabel` is its label and `engineStatus` the exception's own
+            status. `acceptance` (when the resolution accepted a bank debit) names `acceptedBy`, `secondApproval`
+            (not_required, pending or approved) and `approvedBy`. The CSV adds an `exception_acceptance` row.
+          items:
+            type: object
+            required: [id, category, categoryLabel, severity, status, statusLabel, engineStatus, code, label]
+            properties:
+              status: { enum: [open, in_review, resolved, reopened, accepted_awaiting_second_approval] }
+              statusLabel: { type: string }
+              engineStatus: { enum: [open, in_review, resolved, reopened] }
+              acceptance:
+                type: object
+                required: [acceptedBy, acceptedAt, statementLineId, difference, secondApproval, text]
+                properties:
+                  acceptedBy: { type: string }
+                  acceptedAt: { type: string, format: date-time }
+                  statementLineId: { type: string }
+                  difference: { type: object }
+                  lateValueDate: { type: string, format: date }
+                  secondApproval: { enum: [not_required, pending, approved] }
+                  approvedBy: { type: string }
+                  approvedAt: { type: string, format: date-time }
+                  text: { type: string }
         disclaimer: { type: string }
     ResetCheck:
       type: object
