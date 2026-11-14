@@ -122,6 +122,15 @@ info:
     - **Case report.** `matched` is the allocated amount.
     - **Reset.** It does not move the clock.
 
+    **CHANGE 9 (re-review of 725c3a1).**
+    - **Reset ids.** A per-case reset never reuses ids.
+    - **Migration.** It maps a terminal `verified` payout to `none` only when the rc3 rule's own exception was
+      resolved.
+    - **Closing a case on an unmatched debit.** This needs the engine `resolve` action with
+      `acceptDifference: true`, and only for an over-amount of at most 1% on a bank debit that names the payout
+      in its currency and window. That field is not exposed by these v1 endpoints.
+    - **Migration report.** The engine's `loadWorkspace` returns `migrations[]` (engine function, no endpoint).
+
     **Legacy endpoints** under `/api/clearline/test/{intents,quotes,transitions,webhooks,payments,health}`
     are **retired** and execute nothing. A request that is invalid under the old contract gets HTTP 422
     (`invalid_request`); every other request, any method, gets HTTP 410 (`endpoint_retired`). Both carry
