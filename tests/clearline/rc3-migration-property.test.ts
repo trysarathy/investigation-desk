@@ -56,8 +56,10 @@ function candidates(ws: Workspace, r: () => number): { actor: string; action: Wo
   if (exc) {
     out.push({ actor: "usr_maya", action: { type: "assign_owner", target: { kind: "exception", id: exc.id }, ownerId: "usr_maya" } });
     out.push({ actor: "usr_maya", action: { type: "attach_evidence", target: { kind: "exception", id: exc.id }, evidence: { kind: pick(["document_metadata", "funds_returned_confirmation"] as const)!, description: "Evidence (fictional)" } } });
-    out.push({ actor: pick(["usr_maya", "usr_sam", "usr_daniel"])!, action: { type: "resolve", target: { kind: "exception", id: exc.id }, note: "Reviewed", ...(r() < 0.3 ? { acceptDifference: true } : {}) } });
+    out.push({ actor: pick(["usr_maya", "usr_sam", "usr_daniel"])!, action: { type: "resolve", target: { kind: "exception", id: exc.id }, note: "Reviewed", ...(r() < 0.3 ? { acceptDifference: true } : {}), ...(r() < 0.2 ? { acceptLateDate: true } : {}) } });
   }
+  const awaiting = pick(ws.exceptions.filter((e) => e.resolution?.acceptedDifference?.secondApproval && !e.resolution.acceptedDifference.secondApproval.approvedBy));
+  if (awaiting) out.push({ actor: pick(["usr_sam", "usr_daniel", "usr_maya"])!, action: { type: "approve_acceptance", exceptionId: awaiting.id, note: "Second person checked the bank charge" } });
   const hold = pick(ws.holds.filter((h) => h.status !== "released" && h.status !== "rejected"));
   if (hold) {
     out.push({ actor: "usr_maya", action: { type: "submit_hold_documents", holdId: hold.id, documents: ["Supporting commercial invoice"] } });
@@ -80,6 +82,7 @@ function note(ws: Workspace) {
   for (const code of ["CH_CONFIRMATIONS_DECREASED", "CH_BLOCK_CHANGED", "CH_TX_HASH_CONFLICT", "CH_TX_HASH_ON_OTHER_CHAIN", "CH_TRANSFER_FOR_TERMINAL_PAYOUT", "RC_DEBIT_FOR_FAILED_PAYOUT", "RC_OVERPAYMENT", "RC_OUTSIDE_TIME_WINDOW"])
     if (ws.exceptions.some((e) => e.explanationCode === code)) seen.add(code);
   if (ws.exceptions.some((e) => e.status === "resolved")) seen.add("resolved exception");
+  if (ws.exceptions.some((e) => e.resolution?.acceptedDifference?.secondApproval?.approvedBy)) seen.add("second approval");
 }
 function start(): Workspace {
   let ws = sampleWorkspace();
@@ -208,13 +211,17 @@ describe("R2-M1: the migration never fires on a workspace rc3 produced", () => {
       const e = ws.exceptions.filter((x) => x.intentId === id && x.statementLineId).at(-1)!;
       ws = act(ws, "usr_maya", { type: "assign_owner", target: { kind: "exception", id: e.id }, ownerId: "usr_maya" }, "owner");
       ws = act(ws, "usr_maya", { type: "attach_evidence", target: { kind: "exception", id: e.id }, evidence: { kind: "document_metadata", description: "Bank advice (fictional)" } }, "evidence");
-      const r = applyAction(ws, { type: "resolve", target: { kind: "exception", id: e.id }, note: "Reviewed", ...(accept ? { acceptDifference: true } : {}) }, { actorId: "usr_maya", at: ws.asOf });
-      if (r.ok) noop(r.value.workspace, `resolve ${JSON.stringify(line)} accept=${accept}`);
+      const late = "valueDate" in line;
+      const r = applyAction(ws, { type: "resolve", target: { kind: "exception", id: e.id }, note: "Reviewed", ...(accept && !late ? { acceptDifference: true } : {}), ...(accept && late ? { acceptLateDate: true } : {}) }, { actorId: "usr_maya", at: ws.asOf });
+      if (!r.ok) throw new Error(`resolve ${JSON.stringify(line)}: ${r.error.message}`);
+      noop(r.value.workspace, `resolve ${JSON.stringify(line)} accept=${accept}`);
+      if (r.value.workspace.exceptions.find((x) => x.id === e.id)!.resolution!.acceptedDifference?.secondApproval)
+        act(r.value.workspace, "usr_sam", { type: "approve_acceptance", exceptionId: e.id, note: "Bank tariff checked (fictional)" }, "second approval");
     }
   });
 
   it("the sequences really reached the states the migration rules are about (the property is not vacuous)", () => {
-    const wanted = ["terminal payout with chain evidence", "terminal payout with a bank debit", "final chain transfer", "rejected observation", "CH_CONFIRMATIONS_DECREASED", "CH_TRANSFER_FOR_TERMINAL_PAYOUT", "RC_DEBIT_FOR_FAILED_PAYOUT", "RC_OVERPAYMENT", "RC_OUTSIDE_TIME_WINDOW", "resolved exception"];
+    const wanted = ["second approval", "terminal payout with chain evidence", "terminal payout with a bank debit", "final chain transfer", "rejected observation", "CH_CONFIRMATIONS_DECREASED", "CH_TRANSFER_FOR_TERMINAL_PAYOUT", "RC_DEBIT_FOR_FAILED_PAYOUT", "RC_OVERPAYMENT", "RC_OUTSIDE_TIME_WINDOW", "resolved exception"];
     expect(wanted.filter((x) => !seen.has(x))).toEqual([]);
   });
 });

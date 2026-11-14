@@ -231,15 +231,26 @@ function crossCheck(ws: Obj) {
     const e = (ws.exceptions as Obj[]).find((x) => x.id === o.supersededBy);
     need(o.status === "rejected_unsupported" && !!e && e.status === "resolved" && (e.supportingEventIds as unknown[]).includes(o.id), `chainObservations[${i}].supersededBy`, "must name a resolved hash-conflict exception about this rejected observation");
   });
-  // Re-review R-M2: an accepted difference describes its own exception's line.
+  // Re-review R-M2 / R2-M2: an accepted difference describes its own exception's line and payout exactly, and a
+  // second approval comes from a different person than the one who accepted.
   (ws.exceptions as Obj[]).forEach((e, i) => {
     const res = e.resolution;
     if (!isObj(res) || res.acceptedDifference === undefined) return;
     const d = res.acceptedDifference;
     const q = `exceptions[${i}].resolution.acceptedDifference`;
     need(isObj(d), q, "must be an object");
-    need(e.status === "resolved" && e.explanationCode === "RC_OVERPAYMENT" && (d as Obj).statementLineId === e.statementLineId, q, "must belong to a resolved RC_OVERPAYMENT exception and name its statement line");
-    amt(d as Obj, "differenceMinor", q, 1); cur(d as Obj, "currency", q);
+    const a = d as Obj;
+    need(e.status === "resolved" && (e.explanationCode === "RC_OVERPAYMENT" || e.explanationCode === "RC_OUTSIDE_TIME_WINDOW") && a.statementLineId === e.statementLineId, q, "must belong to a resolved RC_OVERPAYMENT or RC_OUTSIDE_TIME_WINDOW exception and name its statement line");
+    amt(a, "differenceMinor", q, 0); cur(a, "currency", q);
+    const line = lines.find((l) => l.id === e.statementLineId);
+    const intent = (ws.intents as Obj[]).find((x) => x.id === e.intentId);
+    need(!!line && !!intent && a.differenceMinor === (line.amountMinor as number) - (intent.amountMinor as number) && a.currency === line.currency, `${q}.differenceMinor`, "must equal its line's amount minus the payout amount, in the line's currency");
+    if (a.lateValueDate !== undefined) need(a.lateValueDate === line!.valueDate, `${q}.lateValueDate`, "must equal its line's value date");
+    if (a.secondApproval !== undefined) {
+      const sa = a.secondApproval as Obj;
+      need(isObj(sa) && sa.required === true, `${q}.secondApproval`, "must be { required: true, … }");
+      if (sa.approvedBy !== undefined) need(typeof sa.approvedBy === "string" && sa.approvedBy !== res.actorId && isIsoInstant(sa.approvedAt), `${q}.secondApproval.approvedBy`, "must be a different person than the one who accepted, with an approval time");
+    }
   });
   (ws.instructions as Obj[]).forEach((x, i) => {
     if (x.checkerId !== undefined) need(x.checkerId !== x.makerId, `instructions[${i}].checkerId`, "maker and checker must be different people");

@@ -533,7 +533,20 @@ export interface ReconciliationException {
    * RC_OVERPAYMENT exception with `acceptDifference: true` on a bank debit that otherwise matches the payout
    * (see acceptedBankLine): the over-amount the person accepted.
    */
-  resolution?: { at: string; actorId: string; note: string; acceptedDifference?: { statementLineId: string; differenceMinor: number; currency: CurrencyCode } };
+  resolution?: {
+    at: string; actorId: string; note: string;
+    /**
+     * R-M2 / R2-M2: what the resolving staff person accepted about this exception's bank debit — an over-amount
+     * (differenceMinor > 0, acceptDifference) and/or a late value date (lateValueDate, acceptLateDate). An
+     * over-amount above ACCEPTED_OVERAGE_BPS carries secondApproval, approved by a DIFFERENT staff person
+     * (approve_acceptance) before the case may close.
+     */
+    acceptedDifference?: {
+      statementLineId: string; differenceMinor: number; currency: CurrencyCode;
+      lateValueDate?: string;
+      secondApproval?: { required: true; approvedBy?: string; approvedAt?: string; note?: string };
+    };
+  };
 }
 
 /** Alias: the brief calls every exception a ReconciliationException; categories go wider. */
@@ -835,7 +848,9 @@ export type WorkspaceAction =
   | { type: "request_info"; caseId: string; from: string; request: string }
   | { type: "attach_evidence"; target: TargetRef; evidence: AttachEvidenceInput }
   /** acceptDifference (re-review R-M2): only for an RC_OVERPAYMENT exception whose bank debit names the payout, in its currency and window, at most ACCEPTED_OVERAGE_BPS over; records the accepted difference so the payout's case may close. */
-  | { type: "resolve"; target: TargetRef; note: string; acceptDifference?: boolean }
+  | { type: "resolve"; target: TargetRef; note: string; acceptDifference?: boolean; acceptLateDate?: boolean }
+  /** R2-M2: a second, different staff person approves an accepted over-amount above ACCEPTED_OVERAGE_BPS. */
+  | { type: "approve_acceptance"; exceptionId: string; note: string }
   | { type: "reopen"; target: TargetRef; reason: string }
   | { type: "submit_hold_documents"; holdId: string; documents: string[] }
   | { type: "assign_hold_reviewer"; holdId: string; reviewerId: string }

@@ -58,7 +58,8 @@ describe("console request: the fictional marker appears once in evidence sources
   it("HUMAN_LABELS.supplierPaidBasis labels every basis value", async () => {
     const { HUMAN_LABELS } = await import("@/lib/clearline");
     expect(Object.keys(HUMAN_LABELS.supplierPaidBasis).sort()).toEqual(["none", "provider_reported", "verified_settlement"]);
-    expect(HUMAN_LABELS.supplierPaidBasis.provider_reported).toMatch(/provider-reported only/);
+    // (value change, second re-review R2-m4: lead with the source)
+    expect(HUMAN_LABELS.supplierPaidBasis.provider_reported).toBe("Provider reports the supplier paid (not verified)");
     expect(HUMAN_LABELS.supplierPaidBasis.verified_settlement).toMatch(/verified by independent evidence/);
   });
 });

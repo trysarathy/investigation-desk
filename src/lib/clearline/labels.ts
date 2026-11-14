@@ -267,7 +267,8 @@ const RESOLUTION_CODE: Record<string, string> = {
   NO_PROVIDER_RESPONSE: "The provider has not responded since the timeout.",
   EVIDENCE_REQUIRED: "Attach supporting evidence first (a note alone is not enough).",
   EVIDENCE_OUTSTANDING: "The payment is not yet evidenced by a matched statement line or a final on-chain transfer.",
-  DIFFERENCE_NOT_ACCEPTABLE: "This difference cannot be accepted: only a small over-amount on a bank debit that matches the payment can.",
+  DIFFERENCE_NOT_ACCEPTABLE: "This bank debit cannot be accepted as the payment: only an over-amount or a late value date on a bank debit with the payment's reference and currency can.",
+  SECOND_APPROVAL_REQUIRED: "The accepted over-amount needs a second person's approval.",
   RESOLVABLE: "Can be resolved (a note is required).",
 };
 /** rc3: canResetScenario / resetScenario codes. */
@@ -424,7 +425,7 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
 
 const SUPPLIER_PAID_BASIS: Record<FundingProjectionRow["supplierPaidBasis"], string> = {
   none: "Supplier not shown as paid",
-  provider_reported: "Supplier paid — provider-reported only (not verified)",
+  provider_reported: "Provider reports the supplier paid (not verified)",
   verified_settlement: "Supplier payout verified by independent evidence",
 };
 
