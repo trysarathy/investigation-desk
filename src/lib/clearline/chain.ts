@@ -10,6 +10,7 @@
  *   on-chain symbol()/decimals() check — not from memory).
  */
 import { openException } from "./exceptions";
+import { MAX_AMOUNT_MINOR } from "./money";
 import { sha256Hex } from "./sha256";
 import type { AllowlistedToken, ChainObservation, ChainObservationInput, PaymentIntent } from "./types";
 import { fail, type Tx } from "./tx";
@@ -42,7 +43,7 @@ export function validateChainInput(o: ChainObservationInput): string | null {
   if (typeof o.tokenSymbol !== "string" || !/^[A-Za-z0-9]{1,12}$/.test(o.tokenSymbol)) return "tokenSymbol must be a short alphanumeric string.";
   if (typeof o.txHash !== "string" || !isHex(o.txHash, 64)) return "txHash must be 0x + 64 lowercase hex characters.";
   if (typeof o.toAddress !== "string" || !isHex(o.toAddress, 40)) return "toAddress must be 0x + 40 lowercase hex characters.";
-  if (typeof o.amountMinor !== "number" || !Number.isSafeInteger(o.amountMinor) || o.amountMinor <= 0) return "amountMinor must be a positive integer (token minor units, 6 decimals).";
+  if (typeof o.amountMinor !== "number" || !Number.isSafeInteger(o.amountMinor) || o.amountMinor <= 0 || o.amountMinor > MAX_AMOUNT_MINOR) return `amountMinor must be a positive integer up to ${MAX_AMOUNT_MINOR} (token minor units, 6 decimals).`;
   if (typeof o.blockNumber !== "number" || !Number.isSafeInteger(o.blockNumber) || o.blockNumber < 0) return "blockNumber must be a non-negative integer.";
   if (typeof o.confirmations !== "number" || !Number.isSafeInteger(o.confirmations) || o.confirmations < 0) return "confirmations must be a non-negative integer.";
   return null;
@@ -102,7 +103,12 @@ export function tryAllocateChain(tx: Tx, intent: PaymentIntent): void {
   const ws = tx.ws;
   const obs = ws.chainObservations.find((o) => o.intentId === intent.id && o.status !== "rejected_unsupported");
   if (!obs || obs.status !== "final" || intent.status.settlement !== "verified") return;
-  if (ws.allocations.some((a) => a.evidenceKind === "chain_observation" && (a.statementLineId === obs.id || (a.target.kind === "payment" && a.target.intentId === intent.id)))) return;
+  const prior = ws.allocations.find((a) => a.evidenceKind === "chain_observation" && (a.statementLineId === obs.id || (a.target.kind === "payment" && a.target.intentId === intent.id)));
+  if (prior) {
+    // rc3 (C-3): the same observation final again (after a person resolved a reorg contradiction) restores the match.
+    if (prior.statementLineId === obs.id && prior.target.kind === "payment" && prior.target.intentId === intent.id && intent.status.reconciliation !== "exception") intent.status.reconciliation = "matched";
+    return;
+  }
   const reported = ws.providerEvents.filter((e) => e.intentId === intent.id && typeof e.detail.txHash === "string" && (e.processingOutcome === "applied" || e.processingOutcome === "recorded_no_state_change"));
   if (!reported.length) return;
   if (reported.some((e) => e.detail.txHash !== obs.txHash)) {
@@ -141,6 +147,28 @@ export function ingestChainObservation(tx: Tx, input: ChainObservationInput): st
     });
     tx.log("chain.rejected_unsupported", "chain_observation", obs.id, "Unsupported token or network; not counted");
     return "exception_raised";
+  }
+  // rc3 (C-1) + review M-3: the same transaction hash already recorded with a DIFFERENT identity — another
+  // chain or network, another token contract or symbol, or rejected as unsupported (on any chain, for any
+  // payout) — is never counted: a hash judged unsupported or seen elsewhere cannot later evidence a payout.
+  // The earlier record is never overwritten or "revived" by this one. Review m-3: a record a person has
+  // superseded (by resolving the conflict exception, see actions.ts resolve) no longer blocks.
+  const sameIdentity = (o: ChainObservation) =>
+    o.chainId === input.chainId && o.network === input.network && o.tokenContract.toLowerCase() === input.tokenContract.toLowerCase() && o.tokenSymbol === input.tokenSymbol;
+  const conflict = ws.chainObservations.find((o) => o.txHash === txHash && !o.supersededBy && (o.status === "rejected_unsupported" || !sameIdentity(o)));
+  if (conflict) {
+    const otherChain = conflict.chainId !== input.chainId || conflict.network !== input.network;
+    openException(tx, {
+      category: "contradictory_evidence",
+      explanationCode: otherChain ? "CH_TX_HASH_ON_OTHER_CHAIN" : "CH_TX_HASH_CONFLICT",
+      explanation: otherChain
+        ? `Transaction ${txHash.slice(0, 12)}… was already observed on chain ${conflict.chainId} (${conflict.network}); the same hash on chain ${input.chainId} (${input.network}) is not counted.`
+        : `Transaction ${txHash.slice(0, 12)}… was already recorded on this chain as ${conflict.tokenSymbol} at ${conflict.tokenContract}${conflict.status === "rejected_unsupported" ? " (not counted: unsupported token)" : ""}; the same hash reported as ${input.tokenSymbol} is not counted.`,
+      intentId: intent.id,
+      supportingEventIds: [conflict.id],
+    });
+    tx.log(otherChain ? "chain.hash_on_other_chain" : "chain.hash_conflict", "chain_observation", conflict.id, "Same tx hash recorded with another identity; not counted");
+    return "contradictory_exception_raised";
   }
   // B2: one transaction can evidence at most one payout.
   const linkedElsewhere = ws.chainObservations.find((o) => o.txHash === txHash && o.intentId !== intent.id && o.status !== "rejected_unsupported");
@@ -187,27 +215,35 @@ export function ingestChainObservation(tx: Tx, input: ChainObservationInput): st
     });
     return "contradictory_exception_raised";
   }
-  const existing = ws.chainObservations.find((o) => o.txHash === txHash && o.intentId === intent.id);
+  // rc3 (C-1): a rejected (unsupported) observation is never updated into a counted one.
+  const existing = ws.chainObservations.find((o) => o.txHash === txHash && o.intentId === intent.id && o.status !== "rejected_unsupported");
   let obs: ChainObservation;
   if (existing) {
     const decreased = input.confirmations < existing.confirmations;
+    // rc3 (C-2): the same transaction in a different block means it was re-included after a reorg.
+    const moved = input.blockNumber !== existing.blockNumber;
     const before = existing.confirmations;
+    const beforeBlock = existing.blockNumber;
     existing.confirmations = input.confirmations;
     existing.blockNumber = input.blockNumber;
     existing.updatedAt = tx.at;
     existing.status = statusFor(input.confirmations);
     obs = existing;
-    if (decreased) {
+    if (decreased || moved) {
       openException(tx, {
         category: "contradictory_evidence",
-        explanationCode: "CH_CONFIRMATIONS_DECREASED",
-        explanation: `Confirmations dropped from ${before} to ${input.confirmations}; possible reorganisation. Finality is not assumed.`,
+        explanationCode: decreased ? "CH_CONFIRMATIONS_DECREASED" : "CH_BLOCK_CHANGED",
+        explanation: decreased
+          ? `Confirmations dropped from ${before} to ${input.confirmations}; possible reorganisation. Finality is not assumed.`
+          : `The transaction moved from block ${beforeBlock} to block ${input.blockNumber}; it was re-included after a reorganisation. Finality is not assumed.`,
         intentId: intent.id,
         supportingEventIds: [existing.id],
       });
       intent.status.settlement = "contradicted";
       intent.status.settlementScope = "onchain_transfer";
-      tx.log("chain.confirmations_decreased", "chain_observation", existing.id, "Confirmations decreased");
+      // rc3 (C-3): an allocation made on the earlier (final) observation no longer stands as a match.
+      intent.status.reconciliation = "exception";
+      tx.log(decreased ? "chain.confirmations_decreased" : "chain.block_changed", "chain_observation", existing.id, decreased ? "Confirmations decreased" : "Block number changed");
       return "contradictory_exception_raised";
     }
   } else {

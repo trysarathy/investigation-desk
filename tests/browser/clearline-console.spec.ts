@@ -222,7 +222,7 @@ test.describe("Clearline console", () => {
     await open(page, await scenario(request, "s2_returned"));
     await expect(page.getByTestId("dim-execution").locator('[data-api-value="returned"]')).toBeVisible();
     await expect(page.getByTestId("dim-reconciliation").locator('[data-api-value="exception"]')).toBeVisible();
-    await expect(page.getByTestId("return-status")).toContainText(/Return (reported by provider|confirmed by statement)/);
+    await expect(page.getByTestId("return-status")).toContainText(/Return (reported by (the )?provider|confirmed (by|on the) statement)/) // engine HUMAN_LABELS.returnStatus (rc3);
     const kase = page.locator("#case");
     await kase.getByLabel("Assign owner").selectOption("usr_maya");
     await kase.getByRole("button", { name: "Assign owner" }).click();
@@ -535,7 +535,7 @@ test("returned payout with debit and confirmed return both allocated shows net z
   let ws = await sample(request);
   const { intent, instr } = pick(ws, "s2_returned");
   ws = await v1(request, "/reconciliation/statement-lines", { workspace: ws, line: {
-    lineId: "DBS-E2E-9001", source: "bank_statement", accountRef: "BANK-USD-OPS (fictional)", direction: "debit", kind: "payment",
+    lineId: "SIMBANK-E2E-9001", source: "bank_statement", accountRef: "BANK-USD-OPS (fictional)", direction: "debit", kind: "payment",
     amountMinor: intent.amountMinor, currency: intent.sourceCurrency, reference: `NORTHLINE PAYOUT ${instr.providerPaymentId}`, counterparty: "Northline Payments (sandbox)", valueDate: "2026-11-12" } });
   for (const e of ws.exceptions.filter((x) => x.intentId === intent.id && x.status !== "resolved")) {
     ws = await v1(request, `/exceptions/${e.id}/assign`, { workspace: ws, ownerId: "usr_maya" });
@@ -641,11 +641,18 @@ for (const width of [768, 1024]) {
 /** Landmarks of the same role must have unique accessible names (axe landmark-unique), checked without dependencies. */
 async function duplicateLandmarks(page: Page): Promise<string[]> {
   return page.evaluate(() => {
+    // Accessible-name text: aria-hidden subtrees are not part of a name (review rc3 m4).
+    const visibleText = (n: Node): string => {
+      if (n.nodeType === Node.TEXT_NODE) return n.textContent ?? "";
+      if (!(n instanceof Element) || n.getAttribute("aria-hidden") === "true") return "";
+      return [...n.childNodes].map(visibleText).join("");
+    };
     const nameOf = (el: Element) => {
       const by = el.getAttribute("aria-labelledby");
-      if (by) return by.split(/\s+/).map((id) => document.getElementById(id)?.textContent?.trim() ?? "").join(" ").trim();
+      if (by) return by.split(/\s+/).map((id) => { const t = document.getElementById(id); return t ? visibleText(t).replace(/\s+/g, " ").trim() : ""; }).join(" ").trim();
       return (el.getAttribute("aria-label") ?? "").trim();
     };
+    const hidden = (el: Element) => { for (let e: Element | null = el; e; e = e.parentElement) { const st = getComputedStyle(e); if (st.display === "none" || st.visibility === "hidden" || e.getAttribute("aria-hidden") === "true") return true; } return false; };
     const roleOf = (el: Element): string | null => {
       const r = el.getAttribute("role");
       if (r) return ["region", "navigation", "main", "complementary", "banner", "contentinfo", "form", "search"].includes(r) ? r : null;
@@ -662,8 +669,7 @@ async function duplicateLandmarks(page: Page): Promise<string[]> {
     for (const el of document.querySelectorAll("body *")) {
       const r = roleOf(el);
       if (!r) continue;
-      const style = getComputedStyle(el);
-      if (style.display === "none" || style.visibility === "hidden") continue;
+      if (hidden(el)) continue;
       const k = `${r}: "${nameOf(el)}"`;
       seen.set(k, (seen.get(k) ?? 0) + 1);
     }
@@ -688,7 +694,7 @@ test("every console page has unique landmarks; axe finds no violations when axe-
     const dup = await duplicateLandmarks(page);
     expect(dup, `${path} duplicate landmarks`).toEqual([]);
     if (axe) {
-      await page.addScriptTag({ content: axe });
+      await page.evaluate(axe); // evaluated over CDP: the nonce CSP (rc3) blocks injected inline <script> tags
       const v = await page.evaluate(async () => {
         const r = await (window as unknown as { axe: { run: (o: unknown) => Promise<{ violations: { id: string; impact: string; nodes: unknown[] }[] }> } }).axe.run({ resultTypes: ["violations"] });
         return r.violations.map((x) => `${x.id} (${x.impact}, ${x.nodes.length})`);
@@ -700,11 +706,15 @@ test("every console page has unique landmarks; axe finds no violations when axe-
   if (!axe) test.info().annotations.push({ type: "axe", description: "axe-core not installed; set CLEARLINE_AXE_PATH to run the full axe check. Landmark uniqueness was still checked." });
 });
 
-test("defence in depth: settlement `verified` is never green when execution is returned, failed, cancelled or expired", async ({ page, request }) => {
+test("defence in depth: settlement `verified` is never green when execution is returned, failed, cancelled, expired, on hold or awaiting information", async ({ page, request }) => {
   // The engine never produces this state; a hand-edited workspace does, so the console's own guard is what is tested.
   const base = await sample(request) as unknown as { intents: { scenario?: string; status: Record<string, string> }[] };
   const green = "rgb(20, 108, 67)"; // --cl-success
-  for (const exec of ["returned", "failed", "cancelled", "expired"]) {
+  // rc3: the engine repairs a stored terminal payout carrying verified settlement into a contradiction (asserted
+  // below); on_hold / awaiting_information are valid engine states (review rc3 M1) and keep exercising the
+  // console's own colour guard.
+  let guarded = 0;
+  for (const exec of ["returned", "failed", "cancelled", "expired", "on_hold", "awaiting_information"]) {
     const ws = JSON.parse(JSON.stringify(base));
     const i = ws.intents.find((x: { scenario?: string }) => x.scenario === "s1_success");
     i.status = { ...i.status, execution: exec, settlement: "verified", settlementScope: "bank_statement" };
@@ -712,7 +722,21 @@ test("defence in depth: settlement `verified` is never green when execution is r
     await page.goto("/clearline");
     await page.evaluate((t) => localStorage.setItem("clearline.console.workspace.v1", t), JSON.stringify(ws));
     await open(page, `/clearline/payments/${(await scenario(request, "s1_success")).split("/").pop()}`);
-    await expect(page.getByTestId("workspace-discarded"), exec).toHaveCount(0);
+    if (["returned", "failed", "cancelled", "expired"].includes(exec)) {
+      // rc3: the engine REPAIRS a stored terminal + verified payout that has evidence (loadWorkspace migration):
+      // it loads as a contradiction with an owned exception, says so, and is never verified or green.
+      await expect(page.getByTestId("workspace-discarded"), exec).toHaveCount(0);
+      const settle = page.getByTestId("dim-settlement");
+      await expect(settle.locator('[data-api-value="verified"]'), exec).toHaveCount(0);
+      const contradicted = settle.locator('[data-api-value="contradicted"] [title^="API value:"]');
+      await expect(contradicted, exec).toBeVisible();
+      expect(await contradicted.evaluate((e) => getComputedStyle(e).color), exec).toBe("rgb(180, 35, 24)"); // --cl-danger
+      expect(await settle.evaluate((e) => getComputedStyle(e).borderTopColor), exec).not.toBe(green);
+      await expect(page.locator("#exceptions"), exec).toContainText("owner");
+      await expect(page.locator("#exceptions"), exec).not.toContainText("owner Unassigned");
+      continue;
+    }
+    guarded++;
     const chip = page.getByTestId("dim-settlement").locator('[data-api-value="verified"] [title^="API value:"]');
     await expect(chip, exec).toBeVisible();
     expect(await chip.evaluate((e) => getComputedStyle(e).color), exec).not.toBe(green);
@@ -721,6 +745,7 @@ test("defence in depth: settlement `verified` is never green when execution is r
     const row = page.locator('#payments [data-api-value="verified"] [title^="API value:"]').first();
     expect(await row.evaluate((e) => getComputedStyle(e).color), `${exec} list`).not.toBe(green);
   }
+  expect(guarded, "on_hold and awaiting_information exercise the console guard").toBeGreaterThanOrEqual(2);
   // Control: a normal verified payment is green.
   await page.evaluate(() => localStorage.removeItem("clearline.console.workspace.v1"));
   await open(page, await scenario(request, "s1_success"));
@@ -729,7 +754,12 @@ test("defence in depth: settlement `verified` is never green when execution is r
 
 test("Funding: an advance on a payout the partner holds says so next to settlement, with a link to the hold", async ({ page, request }) => {
   let ws = await sample(request);
-  const { intent } = pick(ws, "s3_hold");
+  const { intent, instr } = pick(ws, "s3_hold");
+  // C1: the bank debit for the held payout is matched, so settlement is verified, yet the partner holds the money.
+  ws = await v1(request, "/reconciliation/statement-lines", { workspace: ws, line: {
+    lineId: "SIMBANK-E2E-HOLD1", source: "bank_statement", accountRef: "BANK-SGD-OPS (fictional)", direction: "debit", kind: "payment",
+    amountMinor: intent.amountMinor, currency: intent.sourceCurrency, reference: `HARBOUR PAYOUT ${instr.providerPaymentId}`, counterparty: "Harbour FX (sandbox)", valueDate: "2026-11-12" } });
+  expect((ws as unknown as { intents: { id: string; status: { execution: string; settlement: string } }[] }).intents.find((i) => i.id === intent.id)!.status).toMatchObject({ execution: "on_hold", settlement: "verified" });
   const r = await request.post(API + "/funding-advances", { headers: { ...AUTH, "X-Clearline-Actor": "usr_maya" }, data: { workspace: ws, input: {
     intentId: intent.id, customerRef: "CUST-E2E-HOLD", customerName: "Hold Customer (fictional)", supplierName: "Hold Supplier (fictional)",
     invoiceRef: "INV-E2E-HOLD", dueDate: "2026-12-20", repaymentReference: "RPY-E2E-HOLD1" } } });
@@ -738,7 +768,8 @@ test("Funding: an advance on a payout the partner holds says so next to settleme
   ws = j.workspace;
   const advanceId = (j.createdIds ?? j.value?.createdIds ?? [])[0] ?? (ws as unknown as { advances: { id: string; intentId: string }[] }).advances.find((a) => a.intentId === intent.id)!.id;
   const d = await request.post(`${API}/funding-advances/${advanceId}/decision`, { headers: { ...AUTH, "X-Clearline-Actor": "usr_daniel" }, data: { workspace: ws, outcome: "approve", reason: "Within limit (fictional review)." } });
-  if (d.ok()) ws = (await d.json()).workspace;
+  expect(d.ok(), JSON.stringify((await d.json()).error ?? null)).toBe(true);
+  ws = (await d.json()).workspace;
   await load(page, ws, "/clearline/treasury/funding");
   const held = page.locator(`[id="${advanceId}"]`).getByTestId("supplier-payout-hold");
   await expect(held).toContainText("Partner holds the payout — supplier not paid");

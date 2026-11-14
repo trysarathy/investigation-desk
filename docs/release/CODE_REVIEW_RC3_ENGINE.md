@@ -1,0 +1,963 @@
+# Code review: rc3 financial-backend engine (cf8732e..efabe6a)
+
+**CODE REVIEW: BLOCK efabe6a**
+
+APPROVAL-ONLY: needs Aashmiin's merge. The diff changes how money amounts are computed and reported, and `resetScenario` deletes records.
+
+**In plain English.** Most of the rc3 fixes work, and their tests do fail when the fix is removed. I am still blocking for one reason: the new case report states a wrong amount. For a failed, cancelled or never-sent payment it reports the full requested amount as "Amount reconciled" (for example SGD 10,000.00 reconciled on a payment that failed with no evidence). There are also three major problems:
+- The new integrity check throws away a whole saved browser workspace when a v2-era payout carries the old bug state. There is no repair path.
+- A case whose bank debit includes a fee can never be closed. This is a regression.
+- The fix for revived chain observations (C-1) misses the same-chain case.
+
+Scope reviewed: `git diff cf8732e efabe6a -- src/lib/clearline tests/clearline docs/clearline` (11 engine commits and 1 test-timeout commit). I did not write any of this code.
+
+---
+
+## Checks I ran (frozen tree `scratchpad/cr4` = `git archive efabe6a`; node_modules symlinked)
+
+| Check | Result |
+|---|---|
+| `npx tsc --noEmit` | pass (0 errors) |
+| `npx vitest run tests/clearline` | 24 files, 314 tests: pass |
+| `npx vitest run` (full suite) | 64 files pass, 1 skipped; 1222 tests pass, 57 skipped |
+| Mutation testing (separate copy `scratchpad/cr4m`, 25 mutants, `scratchpad/mut.py`) | 18 killed, 7 survived (see "Test strength") |
+| Probe tests (copy `scratchpad/cr4p/tests/probe/*.test.ts`) and a base-tree comparison (`scratchpad/cr4base` = `cf8732e`) | findings below |
+| Build | not run (not needed, per the brief) |
+
+---
+
+## Findings
+
+### BLOCKER
+
+**B-1. The case report shows the full amount as "reconciled" for failed, cancelled and never-sent payouts.**
+`src/lib/clearline/report.ts:114-116`
+
+`matchedMinor` is computed as `intent.amountMinor − (OS_NOT_RECONCILED + OS_PARTIALLY_RECONCILED outstanding)`, and returned payouts are special-cased to 0. `investigate()` emits no `OS_NOT_RECONCILED` for terminal or unsent payouts, so `matched` comes out as the full requested amount.
+
+Reproduced on rc3 (probe E):
+
+| Payout | Status | Report `matched` / `unreconciled` |
+|---|---|---|
+| created, never sent | reconciliation `not_started` | **10000.00** / 0.00 SGD |
+| `payout.failed`, no evidence | `failed / none / pending` | **10000.00** / 0.00 SGD |
+| s3 hold rejected | `cancelled / none / pending` | **8839.50** / 0.00 SGD |
+
+These values appear in `threeTruths.reconciliation.matched`, in `amounts.matched`, and in the CSV row `amount,MATCHED`, whose label is "Amount reconciled". A finance user reading the export sees a failed payment as fully reconciled. That is wrong money, so it is a BLOCK under our rules.
+
+Not caught by tests. The only check is s1/s4 at `rc3-case-report.test.ts:87`. Mutant 13 (drop the returned special case) survived.
+
+**Fix (in words):** derive `matched` from the allocations themselves, the same way `investigate()` computes its own `matched`:
+- bank-statement allocations in the source currency, excluding return credits;
+- or the full amount only while a chain allocation's observation is final.
+
+Never derive it from requested minus outstanding. Add report tests for a failed payout, a cancelled payout and a created payout, each asserting `matched` 0.00.
+
+### MAJOR
+
+**M-1. I-1 throws away workspaces that users saved with v2, with no migration or repair.**
+`src/lib/clearline/serialize.ts:215` (via `crossCheck`, run on every `parseWorkspace` and `applyAction`); console at `src/components/clearline/workspace.tsx:53-57`.
+
+The v2 engine itself produced `failed / verified`. Those are exactly the T-1 and T-2 bugs. I built both states on `cf8732e`, serialised them, and parsed them with rc3 (probe A):
+- `v2_t1.json`: `invalid_field intents[5].status.settlement — "Damaged workspace … a failed payout cannot carry verified settlement. Reset to the sample."`
+- `v2_t2.json`: the same, at `intents[0]`.
+
+The storage key is unchanged (`clearline.console.workspace.v1`). So a person who hit T-1 or T-2 under v2 opens rc3 and their *entire* workspace is set aside: every case, not only the one bad payout.
+
+The console does not brick: it shows the sample, holds writes, and keeps a backup through `replaceDiscarded`. But the only way forward is to lose the data. The message also calls the data "Damaged" when our own engine wrote it.
+
+The same applies to any workspace saved before CHANGE 6 that has `returned / verified`.
+
+**Fix:** before `crossCheck`, add a normalising migration in `parseWorkspace` that applies the rc3 rules to a terminal payout stored as `verified`:
+- `contradicted` with a `CH_TRANSFER_FOR_TERMINAL_PAYOUT` or `RC_DEBIT_FOR_*` exception when the evidence exists;
+- otherwise `none`.
+
+Keep refusing only for states the engine could never have produced (maker = checker, double allocation). Add a test that loads a v2-produced fixture.
+
+**M-2. X-1 makes a real success case impossible to close (a regression).**
+`src/lib/clearline/exceptions.ts:249-250`
+
+Scenario (probe D, base comparison in `cr4base/tests/probe/x1.test.ts`):
+1. A provider-completed SGD 10,000.00 payout.
+2. The bank debits 10,000.50 (fee added on top). This raises `RC_OVERPAYMENT`, and the debit is not allocated.
+3. The operator assigns, attaches evidence and resolves the exception. The payout is left at `provider_reported_completed / none / pending`.
+4. `canResolveCase` now returns `EVIDENCE_OUTSTANDING` permanently.
+
+On `cf8732e` the same flow returns `RESOLVABLE`. No action exists to allocate the line by hand or to accept the difference, so the Resolve button stays disabled for good. The same dead end applies to:
+- a batched or ambiguous debit (`RC_AMBIGUOUS_REFERENCE` is never allocated);
+- a `RC_NO_STATEMENT_AFTER_COMPLETION` case where the statement line never arrives.
+
+**Fix:** give the person an evidenced way out. Either:
+- let a resolved amount-difference exception count as accepted evidence for X-1 (record `EVIDENCE_ACCEPTED_BY_PERSON` with note and evidence, maker ≠ checker if wanted); or
+- allocate an over-amount debit up to the payout amount with the difference kept as an amount-difference record.
+
+Add the overpayment case to `rc3-close-contradictions.test.ts`.
+
+**M-3. The C-1 fix is incomplete: a rejected observation's hash still evidences the payout on the same chain.**
+`src/lib/clearline/chain.ts:153` and `:211`
+
+The new `otherChain` check only fires when the chain id or network differs. Scenario (probe B), on Base Sepolia (84532):
+1. Observation with hash H and a non-allowlisted token: `rejected_unsupported`.
+2. The same H reported as allowlisted USDC: outcome `applied`, a second observation `chn_…` `final`, payout settlement **`verified`**.
+3. No contradiction is raised.
+
+One transaction is now recorded both as an unsupported-token transfer and as a counted USDC transfer. The old record is no longer "revived", but the effect C-1 was meant to stop (a hash judged unsupported ends up counting) still happens.
+
+**Fix:** treat any earlier observation with the same hash, including a rejected one on the same chain and network, as a contradiction (`CH_TX_HASH_CONFLICT` or reuse `CH_TX_HASH_ON_OTHER_CHAIN` with chain-agnostic wording), and do not count it. Add the same-chain test.
+
+### MINOR
+
+**m-1. No parse-time bound on amounts or totals, and the docs overstate the bound.**
+`src/lib/clearline/serialize.ts:19` (`int(..., min)` has no maximum); `docs/clearline/ARCHITECTURE.md:110`.
+
+`parseWorkspaceValue` accepts `amountMinor = 2^53−1`, which is above `MAX_AMOUNT_MINOR` (10^15). The architecture doc says stored amounts are "at most `MAX_AMOUNT_MINOR`… each", and that is not true for a parsed or posted workspace.
+
+A parse-accepted crafted workspace (two committed Northline SGD intents of 4503599627370497 and 4503599627370498) gives `computeLiquidity().committedPayoutsMinor = 9007199254740996`. The exact value is …995 (probe `overflow.test.ts`). The API route accepts posted workspaces, so anyone can send one.
+
+**Fix:** bound every `amountMinor`, `principalMinor` and liquidity field at parse to ≤ `MAX_AMOUNT_MINOR`. Either refuse when a per-currency sum the engine computes exceeds `Number.MAX_SAFE_INTEGER`, or do those sums in BigInt. Correct the doc.
+
+**m-2. `resetScenario` moves the clock but does not apply what moving the clock implies.**
+`src/lib/clearline/scenarios.ts:224-226`; doc `ENGINE_API.md:23` says the clock stays "byte-identical".
+
+When `ctx.at > asOf`, the reset sets `asOf = ctx.at` but re-derives only the restored advances.
+
+Probe H, reset of s1 at 2026-11-25:
+- s5's advance is left `partly_repaid`. The very next action at the same instant shows `overdue` (`syncDerived`).
+- Resetting s5 at that clock restores the advance as `overdue` but with no `FD_OUTSTANDING_AFTER_DUE_DATE` exception. `advance_clock` would have opened one.
+
+**Fix:** either do not move `asOf` (and fix the doc), or re-derive every advance as `syncDerived` does and run the overdue rule. Test both at a later `ctx.at`. All current tests use `ctx.at = ws.asOf`.
+
+**m-3. A wrong-chain entry by an operator is a dead end.**
+`src/lib/clearline/chain.ts:153`
+
+If the first observation of the real hash is entered with the wrong chain id, every later correct ingest of that hash raises another `CH_TX_HASH_ON_OTHER_CHAIN`. That happens even after the person resolves the exception, which opens new exceptions each time (probe C). Together with X-1, the payout's case can only close through some other observation. It is conservative, but there is no recovery path.
+
+**Fix:** let a person's resolution of `CH_TX_HASH_ON_OTHER_CHAIN` mark the rejected record as superseded (it stays on record), so the correct-chain observation can be evaluated.
+
+**m-4. The reset deletes person-entered records, and the audit trail keeps only a count.**
+`src/lib/clearline/scenarios.ts:228-231`
+
+A statement line, note or evidence a person added on the case is removed. The `scenario.reset` audit event records only "N record(s) replaced". This is documented, but after the fact the trail cannot say *what* was deleted.
+
+**Fix:** put `removedIds`, and for statement lines `lineId`/`accountRef`/amount, in the audit event.
+
+**m-5. Test gaps: surviving mutants on stated behaviour.**
+- CSV guard, tab/CR (`report.ts:204`): removing `\t\r` from the guard survives. ENGINE_API promises it.
+- CSV guard, leading `-`: removing it survives. The test payload only starts with `=`.
+- X-1 reconciliation clause (`exceptions.ts:249`): dropping `|| reconciliation !== "matched"` survives.
+- `resetScenario`: three mutants survive:
+  - removing `ID_CONFLICT`;
+  - not moving `asOf`;
+  - not re-deriving the restored advance state.
+- Report `matched`: see B-1.
+
+### NIT
+
+- **n-1.** `chain.ts:150`: the comment says "rc3 (C-3)" for the other-chain check, but the docs call it C-1.
+- **n-2.** `tests/browser/clearline-console.spec.ts:538` still uses `lineId: "DBS-E2E-9001"`. It is outside the D-1 scope, but it is the same real-bank-name issue.
+- **n-3.** "Damaged workspace … Reset to the sample" is the wrong wording for a workspace the engine itself wrote (see M-1).
+
+---
+
+## What I verified holds
+
+**Money (M-1).** `applyBpsFloor` is used for the liquidity buffer and the platform fee in both `eligibility` and `quote`. The float mutant was killed (3 tests). The static scan test passes.
+
+**Chain.**
+- C-1, other-chain: the mutant was killed.
+- C-2, block moved: the mutant was killed.
+- C-3: reconciliation goes to `exception` on a reorg, and a chain allocation counts only while its observation is final, in `derive`, `investigate` and `tryAllocateChain`. Both mutants were killed.
+
+I walked through the other event orders:
+- reorg then `payout.failed`: the reorg exception stays open, and the recompute after resolution gives `none`;
+- `payout.failed` then observation: refused (B1, documented);
+- pending observation then `payout.returned`: M2 gives `contradicted`.
+
+I found no regression in those orders.
+
+**Three truths.** The T-1 and T-2 mutants were killed. The property test over the sample and its injections passes.
+
+**I-1 robustness.** `crossCheck` refuses malformed shapes with a typed error, never a throw. I tried 8 corruptions: missing `decisions`, `allocationIds`, `status`, a null target, and others. The full suite (every action revalidates) passes, so the engine never produces a state `crossCheck` rejects. The only legitimate inputs it rejects are v2 bug states (M-1).
+
+**returnPosition (R-1).**
+- Codes and amounts are correct for s2 (`RT_DEBIT_NOT_ON_STATEMENT`).
+- `beneficiaryPaid` is always false.
+- The inverted-compare mutant was killed.
+- A return credit on a completed payout raises a contradiction, not a `returnPosition`.
+
+**resetScenario.**
+- Ownership is a two-way fixed point, so no kept record can point at a removed one.
+- No sample record is unowned: every pristine record is owned by exactly one scenario.
+- Ids come from the global `seq`, so restored ids cannot collide with new ones.
+- Idempotency keys follow their intents.
+- The audit trail is append-only.
+- The input workspace is not mutated.
+- Byte-identity is tested per record for all 15 collections and the global objects (the sort mutant was killed). The full-sample round-trip also covers `idempotency`.
+
+**Case report.**
+- JSON and CSV are deterministic: two independent samples give identical output for all five cases.
+- Keys are sorted; `generatedAt` is `ws.asOf`.
+- The FICTIONAL marking is always in the JSON and is CSV row 2. Dropping the row is a killed mutant.
+- The CSV guard holds against person-reachable input: references and counterparties with a leading tab, `=`, `+`, `-` or `@`, accountRefs starting with `+`, notes and evidence descriptions. I found no unguarded cell, and every row has 10 columns.
+- Embedded CR/LF are flattened, and quoting is correct.
+- Leading whitespace before `=` cannot reach a cell (`safeText` blocks it).
+
+**D-1.** No real bank, PSP or issuer names remain in `src/lib/clearline` or the rc3 tests.
+
+**E-1.** The mutant was killed.
+
+**Docs and OpenAPI.**
+- `resolution_not_permitted` maps to 409, and posted-workspace errors map to `invalid_field` with a field path, as documented.
+- `DecimalAmount` pattern `\d{2,6}` fits every configured currency (all 2 dp, USDC 6).
+- "No existing test changed" holds: the diff only adds `rc3-*.test.ts`.
+
+Inaccuracies:
+- `ARCHITECTURE.md:110` (per-amount bound, m-1);
+- `ENGINE_API.md:23` ("clock byte-identical", m-2);
+- ARCHITECTURE §4 marks row 5 as "Fixed" while the same-chain C-1 case is open (M-3).
+
+---
+
+## Summary
+
+The engine fixes C-1 (other chain), C-2, C-3, T-1, T-2, M-1, E-1, R-1, D-1 and most of I-1 and X-1 are correct, and their tests fail without them.
+
+Blocking: the case report states the full requested amount as reconciled for failed, cancelled and unsent payouts (B-1).
+
+Also needed before merge:
+- a migration so v2-saved workspaces with the old bug state are not thrown away (M-1);
+- a way to close an evidenced case after an over-amount debit (M-2);
+- the same-chain C-1 gap (M-3).
+
+Minor: no parse-time amount bound, reset clock side effects, a chain dead end, reset audit detail, and seven surviving mutants.
+
+---
+
+# Re-review: 725c3a1 (fixes for the review above, plus the s2 sample change from 28874db)
+
+**CODE REVIEW: BLOCK 725c3a1**
+
+APPROVAL-ONLY: needs Aashmiin's merge. This still changes money amounts, the case-close rules and record deletion (reset).
+
+**In plain English.** Every finding from the first review is fixed. Each fix has a test that fails when the fix is removed. The new s2 sample (debit, then return, then return credit) is correct.
+
+I am still blocking, for one new defect. Take a workspace that a person saved under v2 (or efabe6a), reset the returned-payout case (s2) on it, and then add a few ordinary statement lines. The workspace ends up with duplicate record ids, and the engine then refuses to load it. The console would set the whole workspace aside. This comes from the new s2 sample: its records now use higher ids than older saved workspaces have reached, and the reset does not move the id counter past them.
+
+Two more problems need fixing:
+- In one real v2 state, the new load-time migration quietly removes a contradiction.
+- The new way to close a case accepts a USD 0.01 line for an SGD 10,000 payment.
+
+Scope: `git diff efabe6a 725c3a1 -- src/lib/clearline tests/clearline docs/clearline`. That is 7 fix commits plus the s2 sample change (28874db, 338861c). I wrote none of it.
+
+## Checks I ran
+
+- **Fresh frozen copy.** I made `scratchpad/cr5` with `git archive 725c3a1` and symlinked node_modules. I first deleted the old cr4, cr4m, cr4base and cr4p copies.
+- **Old engine for comparison.** `scratchpad/cr5base` is a minimal archive of cf8732e, used to produce v2 states with the real v2 engine.
+- **Typecheck.** `npx tsc --noEmit`: pass.
+- **Tests.** `npx vitest run` (full suite, my probes removed): 68 files pass, 1 skipped; 1338 tests pass, 57 skipped.
+- **Mutation testing.** I made a separate copy (`scratchpad/cr5m`, script `scratchpad/mut5.py`) and ran 23 mutants. See the table below.
+- **Probes.** I reran all earlier probes and added new ones in `scratchpad/probes5/`: `rr.test.ts`, `rr2.test.ts`, `rr3.test.ts`, plus the earlier files.
+
+## Status of the first review's findings
+
+| Id | Status | Evidence |
+|---|---|---|
+| B-1 report "matched" | **Fixed** | Probe E: created 0.00, failed 0.00, cancelled 0.00; s1 24651.37; s5 50000.00; s4 (pending) 0.00. Mutants killed: requested − outstanding, counting return credits, chain without finality (killed by rc3-chain). |
+| M-1 v2 workspaces refused | **Fixed, with a new defect (R-M1)** | Both v2 fixtures and my own v2_t1/v2_t2 now load. The migration is idempotent: parsing a second time gives byte-identical JSON, with no duplicate ids. The next action is accepted. Mutants killed: migration removed, open-contradiction ignored, "resolved" branch never taken / always taken. |
+| M-2 unclosable case | **Fixed, with a new defect (R-M2)** | The over-amount debit case closes after a person resolves it (probe D). Mutants killed: path removed, provider report allowed. |
+| M-3 same-chain revival | **Fixed** | Probe B: a rejected USDT observation, then the same hash as USDC: not counted, `CH_TX_HASH_CONFLICT`. Removing both identity clauses is killed. Each clause alone survives because the other covers it, which is acceptable. |
+| m-1 amount bounds | **Fixed** | Parse refuses amounts above 10^15. Per-currency totals are checked in BigInt; create and ingest refuse a total over the limit. The overflow probe is now refused at parse. |
+| m-2 reset clock | **Fixed** | The clock no longer moves. Clock rules are applied only to the restored records (probe H). |
+| m-3 wrong-chain dead end | **Fixed** | Resolving the conflict supersedes the rejected record, and the correct observation is then counted (probe C: `applied`, verified). A forged `supersededBy` is refused at parse. The supersede mutant is killed. |
+| m-4 reset audit | **Fixed** | The audit summary lists the removed ids and each removed line. |
+| m-5 surviving mutants | **Fixed** | All are now killed: CSV tab/CR, CSV `-`, X-1 reconciliation clause, ID_CONFLICT, advance re-derivation. The clock mutant no longer applies. |
+| n-1, n-3 | **Fixed** | — |
+
+On the one changed I-1 test: it now uses an s3 payout stored as cancelled/verified with no evidence. That is justified: s2 now has a debit, so returned/verified on s2 is a state v2 could really produce, and it is migrated. The test was not weakened.
+
+## New findings
+
+### BLOCKER
+
+**R-B1. Resetting s2 on a v2- or efabe6a-saved workspace creates duplicate ids, and the workspace can no longer be loaded.**
+`src/lib/clearline/scenarios.ts:228-244` together with `src/lib/clearline/sample.ts` (s2 now runs after s5).
+
+Why it happens:
+- The rc3 sample's s2 records now have ids up to seq 180 (the sample ends at seq 185).
+- A v2-saved sample ends at seq 164.
+- `resetScenario` restores the s2 records (`evd_00166`, `alc_00167`, `pev_00169`, `evd_00170`, `exc_00171`, `case_00172`, `stl_00177`, `evd_00179`, `alc_00180`) but leaves `ws.seq` at 165.
+- The `ID_CONFLICT` check only compares ids that exist *now*. It does not look at ids that later actions will generate.
+
+Reproduction (`probes5/rr3.test.ts`):
+1. Take the v2 sample, saved by the cf8732e engine.
+2. `canResetScenario(s2)` returns RESETTABLE; reset it.
+3. Add one note, then 6 ordinary statement lines.
+4. The workspace now holds duplicate `stl_00177` and `evd_00179`.
+5. The next `applyAction` returns: "This workspace cannot be loaded: allocations[4].id: must be listed in its statement line's allocationIds…"
+
+At that point every action fails, and on reload the console sets the whole workspace aside. These are records lost through an ordinary flow on exactly the workspaces M-1 is meant to rescue. `resetScenario` is not wired into the console or the API yet, so no user can hit this today. It will happen as soon as the documented Reset button is built.
+
+Fix:
+- After restoring, set `seq` to at least the highest seq of any restored id.
+- Better, refuse or renumber when restored ids lie above the current `seq`.
+- Add a test that resets s2 on the committed v2 fixture and then runs several more actions, asserting all ids are unique.
+
+### MAJOR
+
+**R-M1. The migration hides a contradiction when an unrelated one was already resolved.**
+`src/lib/clearline/serialize.ts:194` (`resolvedByPerson` matches *any* resolved `contradictory_evidence` or `returned_payout` exception on the payout).
+
+A real v2 state, produced with the cf8732e engine (`cr5base/tests/probe/v2.test.ts` → `v2_va.json`):
+1. A USDC payout gets a `contradictory` provider event (`EV_AMOUNT_DIFFERS_FROM_INSTRUCTION`), which a person resolves.
+2. The chain transfer is final, so settlement is `verified`.
+3. Then `payout.failed` arrives. v2 stores `failed / verified`.
+
+rc3 migrates this to `failed / none` with **no exception**. The audit says "a person already resolved the contradiction", but the resolved contradiction was about something else.
+
+For the same facts, the rc3 engine gives `failed / contradicted` with an **open `CH_TRANSFER_FOR_TERMINAL_PAYOUT`** (same probe, run on rc3). So the migration does not upgrade evidence, but it does remove a contradiction rc3 would show. Mutant 7 ("any resolved exception counts") survives, so the tests do not pin this.
+
+Fix: take the `none` branch only when the resolved exception is the specific one the terminal rule raises: `RC_DEBIT_FOR_FAILED_PAYOUT` / `RC_DEBIT_FOR_TERMINAL_PAYOUT` / `CH_TRANSFER_FOR_TERMINAL_PAYOUT`, or the `returned_payout` exception for a returned payout. Otherwise open the T-1 exception. Add the v2_va fixture as a test.
+
+**R-M2. The "accepted bank line" close path accepts any amount, any currency and any date, and treats any resolution as acceptance.**
+`src/lib/clearline/exceptions.ts:278-288`.
+
+Provider reports and amount-only lines are correctly excluded (the probes show `EVIDENCE_OUTSTANDING` and no case). But for an SGD 10,000.00 payout, each of these bank debits carries the provider payment id, and each lets the case close once its exception is resolved. In my probe the person's resolution note was "This line is not ours; recall requested":
+- **USD 0.01** (`RC_CURRENCY_MISMATCH`);
+- **SGD 9,999,999.00** (`RC_OVERPAYMENT`);
+- a line dated **2025-01-01** (`RC_OUTSIDE_TIME_WINDOW`).
+
+The `RESOLVABLE` reason then says "The payment is evidenced by bank line …". Settlement stays `none`, so this does not upgrade evidence. But "nothing closes a case without matching evidence" (invariant 8a) is no longer true, and the close message is wrong.
+
+Four mutants survive:
+- the reference check dropped;
+- system resolutions allowed;
+- credit lines allowed;
+- (mutant 7, listed under R-M1).
+
+Fix:
+- Count only a line whose amount covers the payout in the source currency, up to a bounded overage.
+- Do not count a currency mismatch at all, unless the case also records the converted amount.
+- Require an explicit "accept difference" outcome (or a checker other than the person who resolved), not any resolution.
+- Add tests that kill the three line-shape mutants.
+
+### MINOR
+
+**R-m1. Migration side effects are recorded but not returned.**
+The migration writes `workspace.migrated` audit events, and possibly a new case and exception, inside `parseWorkspaceValue`. They are not part of `ActionResult.audit`, and nothing tells the person that loading their workspace changed it. This is documented, but the console should say so.
+
+## What I checked on the s2 sample change (28874db)
+
+- **Status.** s2 is `returned / contradicted (bank_statement) / exception`, `returnStatus: confirmed_by_statement`.
+- **Return position.** `returnPosition` is `RT_NET_ZERO` with `netMovement 0.00` and `beneficiaryPaid: false`. The `returned_payout` exception is in review and owned by `usr_maya`, so the case cannot close (OPEN_EXCEPTIONS).
+- **Report.** `matched` is 12784.90, which is the debit, and matches the new label "matched to statement debits".
+- **Other cases.** s1, s3, s4 and s5 ids are pinned by `rc3-sample-stability.test.ts`.
+- **Docs.** ENGINE_API and DATA_MODEL describe the new flow correctly.
+
+The one defect it introduces is R-B1.
+
+## Mutation summary (re-review)
+
+**Killed (18):**
+- B-1: requested − outstanding, counting return credits, chain without finality.
+- M-1: migration removed, open contradiction ignored, "resolved" never taken, "resolved" always taken.
+- M-2: path removed, provider report allowed.
+- M-3: both identity clauses dropped.
+- m-3: supersede ignored.
+- m-5 recheck: CSV tab/CR, CSV `-`, ID_CONFLICT, advance re-derivation, X-1 reconciliation clause.
+
+**Survived (6):**
+- M-1: "any resolved exception" (this is R-M1).
+- M-2: reference check, system resolution, credit line.
+- M-3: each single identity clause on its own (acceptable: each is redundant with the other).
+
+## Docs
+
+- **CHANGE 8 M-1 row.** It describes the `none` branch as "a person already resolved one". That is the R-M1 behaviour; correct it with the fix.
+- **CHANGE 8 M-2 row.** It is accurate about what is excluded, but it implies the accepted line is matching evidence, which it may not be (R-M2).
+- **resetScenario paragraph.** It claims no dangling or contradictory references, but says nothing about future id collisions (R-B1).
+- **OpenAPI.** I checked the M-2 and m-1 additions against the code and they match.
+
+## Summary
+
+Every finding from the first review is fixed and pinned by a test that fails without it. Verdict: **BLOCK 725c3a1**. Resetting s2 on a workspace saved under v2 or efabe6a creates duplicate ids, after which the workspace cannot be loaded (R-B1). It is latent until the Reset button is wired. Before merge, also fix:
+- the migration's "already resolved" branch, which hides a terminal-payout contradiction (R-M1);
+- the accepted-line close path, which treats any resolution of any wrong-amount, wrong-currency or wrong-date debit as matching evidence (R-M2).
+
+---
+
+# Second re-review: 7e521f5 (fixes for R-B1, R-M1, R-M2, R-m1, plus two label changes the console asked for)
+
+**CODE REVIEW: CHANGES REQUESTED 7e521f5**
+
+APPROVAL-ONLY: needs Aashmiin's merge. This still touches money and evidence status, case-close rules and record deletion.
+
+**In plain English.** All four re-review findings are fixed, and each fix has a test that fails without it:
+- The reset no longer creates duplicate ids.
+- The migration no longer hides the contradiction it used to hide.
+- A case can now close on an unmatched debit only after a staff person explicitly accepts a fee of at most 1% that sits on top of the payment.
+- The console is told what changed when a saved workspace is loaded.
+
+Nothing here blocks the merge.
+
+Two things still need fixing first:
+- The load-time migration only covers one of the faulty states v2 could save. A payment that v2 "verified" from an Ethereum-mainnet observation still loads as **Settlement verified**.
+- The new 1% rule leaves real cases that can never be closed: a bank debit posted late, or a fixed fee larger than 1% on a small payment.
+
+Scope: `git diff 8c4f575 7e521f5 -- src/lib/clearline tests/clearline docs/clearline`, which is 5 engine commits. 725c3a1..8c4f575 has no engine changes. I wrote none of it.
+
+## Checks I ran
+- **Copies.** I deleted cr5, cr5m and cr5base first. The fresh frozen copy is `scratchpad/cr6` (`git archive 7e521f5`, node_modules symlinked). `scratchpad/cr6base` is a minimal cf8732e archive, used to produce real v2 states.
+- **tsc.** `npx tsc --noEmit`: pass.
+- **vitest.** `npx vitest run`, full suite: 69 files pass, 1 skipped; 1367 tests pass, 57 skipped.
+- **Mutation checks.** 18 mutants in a separate copy (`scratchpad/mut6.py`; copy deleted afterwards): 14 killed, 4 survived.
+- **Probes.** I reran probes5 and added new probes; they are kept in `scratchpad/probes6/`.
+
+## Status of the re-review findings
+
+### R-B1 (reset ids): Fixed
+- **Repro.** My R-B1 reproduction (`rr3`) now reports "no dups found".
+- **Seq.** After a reset on the v2 sample, `seq` is 181 and no restored id is above it.
+- **Wider probe.** I ran 20 variants on the v2 sample: 0 to 19 person-ingested lines before the reset, 8 after, then a reload. All 20 resets succeeded, with 0 `ID_CONFLICT` refusals, 0 duplicate ids and 0 unloadable workspaces.
+- **The other direction.** `seq` only rises, so a removed id is never generated again. Restored ids that already exist are still refused by `ID_CONFLICT`. On a workspace derived from rc3 the raise does nothing, because the restored ids are at or below `seq`. I found no collision either way.
+- **Mutation.** Removing the raise is caught by `rc3-reset-fixtures.test.ts`.
+
+### R-M1 (migration hides a contradiction): Fixed
+- `v2_va` now migrates to `failed / contradicted` with `CH_TRANSFER_FOR_TERMINAL_PAYOUT` (in review, owned by `usr_maya`). That is what rc3 gives for the same events.
+- `v2_t1` raises the rule exception; `v2_t2` gives `none` (resolved_by_person). Both match rc3.
+- Loading is idempotent and leaves no duplicate ids, and the next action is accepted.
+- **Mutants killed:** "any resolved contradiction counts", the chain rule ignoring which observation it is about, the bank rule ignoring which line.
+- **Mutant survived:** ignoring `otherOpen` (a different contradiction still open while the rule exception is resolved). See R2-m2.
+
+### R-m1 (migrations not reported): Fixed
+- `loadWorkspace` / `loadWorkspaceValue` return `migrations[]`, each with a plain-English `text`.
+- The migration's audit events are now in `ActionResult.audit` (killed when removed).
+- The console still loads through `parseWorkspace`, so a person will not see this text until `workspace.tsx` switches to `loadWorkspace`. That is noted in CHANGE 9 and is console scope.
+
+### R-M2 (accepted-line close path): Fixed, but legitimate closes are now blocked (R2-M2)
+Abuse probes (`rr6`), each for an SGD 10,000.00 payout:
+
+| Bank line | Result |
+|---|---|
+| +0.50 | can be accepted; case closes |
+| exactly +1% | can be accepted; case closes |
+| +1% + 0.01 | `DIFFERENCE_NOT_ACCEPTABLE` |
+| USD 0.01 | refused |
+| dated 2025 | refused |
+| provider report | refused |
+| any plain resolve (no `acceptDifference`) | case stays `EVIDENCE_OUTSTANDING` |
+| a viewer resolving with `acceptDifference` | `unauthorized_actor` |
+
+- Settlement stays `none` throughout, so evidence is never upgraded.
+- The close-time check re-reads the line as it stands, and parse checks a stored `acceptedDifference` against its own exception's line.
+- **Mutants killed:** code check, 1% cap, `>` vs `>=` on the cap, currency, window, reference, debit-only, staff role, explicit flag required.
+- **Mutants survived:** see R2-m2.
+
+## New findings
+
+### MAJOR
+
+**R2-M1. The load-time migration covers only "terminal + verified". Other v2 states load unchanged and untrue.**
+- Where: `src/lib/clearline/serialize.ts` (`migrateTerminalVerified` / `crossCheck`).
+- How I produced them: with the real v2 engine (`cr6base/tests/probe/v2b.test.ts` → `v2_gaps.json`), then loaded into rc3. `migrations` comes back as `[]`.
+
+The three states:
+
+1. **C-1 revival (the worst).** v2 updated a rejected chain-1 observation in place to `final`. rc3 loads payout `pi_00195` as `in_transit / verified (onchain_transfer)`. The case report headline reads "Settlement verified". But the only observation is `[chainId 1, ethereum, final]`, which is not on the allowlist, and `CH_UNSUPPORTED_TOKEN_OR_NETWORK` is still open. rc3 would never count this observation.
+2. **T-1 before finality.** A chain transfer was pending, then `payout.failed` arrived. rc3 loads `failed / pending_finality` with no `CH_TRANSFER_FOR_TERMINAL_PAYOUT`, although rc3's T-1 rule raises it for observed and pending transfers too. The headline reads "Provider reports failed · Awaiting finality".
+3. **C-3 reorg.** A final, matched transfer then saw a reorg. rc3 loads `contradicted / matched`, with the headline "… Matched". rc3 gives reconciliation `exception`.
+
+None is "terminal + verified", so `crossCheck` accepts all three. The CHANGE 8/9 docs say the migration repairs v2 states "to what rc3 gives for the same facts". That is true only for that one pattern.
+
+**Fix (in words):**
+- On load, refuse to count a chain observation whose chain, network or token is not allowlisted. Return it to `rejected_unsupported` and recompute that payout.
+- Extend the terminal rule to observed and pending chain evidence: raise `CH_TRANSFER_FOR_TERMINAL_PAYOUT`, settlement `contradicted`.
+- Set reconciliation to `exception` when a chain allocation's observation is no longer final.
+- Report each of these as a `WorkspaceMigration`, and add `v2_gaps.json` as a fixture.
+
+**R2-M2. The 1% / RC_OVERPAYMENT-only rule leaves legitimate success cases that can never close.**
+- Where: `src/lib/clearline/exceptions.ts` (`acceptableDifference`).
+- Each case below is a provider-completed payout, so there is no other way to evidence it:
+  - **Late posting.** The bank posts the full SGD 10,000.00 debit with a value date 10 days after submission. This raises `RC_OUTSIDE_TIME_WINDOW` and cannot be accepted, so the case is `EVIDENCE_OUTSTANDING` forever.
+  - **Fixed fee on a small payment.** An SGD 100.00 payout debited as SGD 115.00 (an SGD 15 bank charge) is 15% over the payment. The engine refuses it as `DIFFERENCE_NOT_ACCEPTABLE`, so the case is never closable.
+  - **Currency.** A currency-mismatch debit is never acceptable at all.
+
+No action exists to get past any of these. This is the same kind of dead end as the original M-2, now for a narrower set of cases. Blocking the 2025-dated USD 0.01 line is right. But a correct-amount, correct-reference debit that is merely late is real evidence. And a fixed fee is not a percentage.
+
+**Fix:**
+- Accept an out-of-window debit when the amount and currency match exactly.
+- Express the overage cap as max(1%, a small fixed amount per currency), or make it a policy value.
+- Or allow a wider acceptance only with a second staff person's approval (the checker differs from the person accepting).
+- Whichever rule is chosen, document it and test the late-posting and small-payment cases. Aashmiin may decide the strict rule is intended; if so, say it plainly in the docs and the Resolve button copy.
+
+### MINOR
+
+**R2-m1. The `EVIDENCE_OUTSTANDING` message still describes the old rule.**
+- Where: `src/lib/clearline/exceptions.ts:254`.
+- It still says "or a person must resolve, with evidence, the exception on a bank line that carries this payment's reference". A plain resolution no longer counts: only an explicit `acceptDifference` of at most 1% on an RC_OVERPAYMENT debit does.
+- Fix: say so in the message.
+
+**R2-m2. Four mutants survive on stated rules.**
+- **Source check** (`exceptions.ts`): drop the `line.source !== "bank_statement"` part, and a provider settlement report's over-amount becomes acceptable. My probe shows provider reports do raise `RC_OVERPAYMENT`, so this matters.
+- **Close-time re-check:** dropping the `d.ok && …` re-check survives.
+- **Parse check on a forged `acceptedDifference`:** survives.
+- **Migration `otherOpen` branch:** survives.
+- Fix: add one test for each.
+
+**R2-m3. One person can both bring in the debit and accept its fee.**
+- The acceptance needs a staff role, an owner, evidence and a note, but no second person. Every other money decision in Clearline is maker ≠ checker.
+- Fix: consider requiring the accepter to differ from whoever ingested the line, or from the payment's maker.
+
+**R2-m4. The new label `HUMAN_LABELS.supplierPaidBasis.provider_reported` begins with an unverified claim.**
+- It reads "Supplier paid — provider-reported only (not verified)".
+- Fix: lead with the source, e.g. "Provider reports the supplier paid (not verified)". This keeps the three truths apart in the wording too.
+
+## Other checks
+- **Fictional-marker label.** The `evidenceSourceLabel` change is correct: "(fictional)" now appears once.
+- **Earlier probes.** The probes5 reruns show no regressions:
+  - B-1: created, failed and cancelled payouts all show 0.00 matched.
+  - M-3 conflict and m-3 recovery behave as before.
+  - m-1 bounds hold.
+  - CSV guard: unchanged.
+  - s2: RT_NET_ZERO, beneficiary unpaid, case open.
+- **API.** The v1 API does not pass `acceptDifference`. That is documented.
+
+## Summary
+Every finding from the first two reviews is now fixed and caught by a test, so nothing blocks. Verdict: **CHANGES REQUESTED 7e521f5**. Before merge:
+- **R2-M1:** make the load-time migration complete. A v2 C-1 revival still loads as "Settlement verified" on an Ethereum-mainnet observation, and the v2 T-1-before-finality and C-3 states load unchanged.
+- **R2-M2:** give late-posted and fixed-fee debits a way to close, or have Aashmiin confirm the strict rule and document it.
+
+Minor:
+- the stale `EVIDENCE_OUTSTANDING` message;
+- four untested rules;
+- single-person fee acceptance;
+- the supplier-paid label wording.
+
+---
+
+# Third re-review: 3e66fa7 (R2-M1 general load migration, R2-M2 acceptance policy, minors)
+
+**CODE REVIEW: BLOCK 3e66fa7**
+
+APPROVAL-ONLY: needs Aashmiin's merge. This change touches evidence status, case-close rules and how stored workspaces load.
+
+**In plain English.**
+
+The new fixes work:
+- **Load migration (migrate.ts).** It corrects every v2 state I could produce, and never raises evidence to a higher level.
+- **Acceptance policy.** The late-date, ≤1%, ≤50%-with-second-approval and no-FX rules hold against every abuse I tried.
+
+I am blocking for a problem that is older than this change but now very easy to hit. A person can do two ordinary things in the console:
+1. Accept a fee on a bank line, which is the new "Accept the over-amount" button.
+2. Later, reopen that same exception with the Reopen button.
+
+After that, the engine refuses to load the workspace: "This workspace cannot be loaded … acceptedDifference: must belong to a resolved … exception". Every next action fails, and on reload the console sets the whole workspace aside.
+
+The same thing happens when someone reopens a resolved hash-conflict exception that had superseded a wrong-chain record. That has been reachable since 725c3a1 (m-3), and I should have caught it in the earlier re-reviews.
+
+Scope: `git diff 4c1af26 3e66fa7 -- src/lib/clearline tests/clearline docs/clearline`. I read only the engine paths; 7e521f5..4c1af26 has no engine changes. I wrote none of it.
+
+## Checks I ran
+- **Setup.** I deleted cr6 and cr6base first. The fresh frozen copy is `scratchpad/cr7` (`git archive 3e66fa7`, node_modules symlinked).
+- **Typecheck and tests.** `npx tsc --noEmit`: pass. `npx vitest run` (full suite): 70 files pass, 1 skipped; 1406 tests pass, 57 skipped.
+- **Mutation checks.** 23 mutants (`scratchpad/mut7.py`): 16 killed, 7 survived.
+- **Probes.** I reran probes6 (rr, rr3, rr6). New probes are in `scratchpad/probes7/`:
+  - `rr7.test.ts`: reopen, approval, tampering, late dates, dead ends;
+  - `prop-reopen.test.ts`: the property generator with `reopen` added.
+
+## BLOCKER
+
+**R3-B1. Reopening an exception that a resolution changed leaves a workspace the engine cannot load.**
+
+Where:
+- `src/lib/clearline/actions.ts:733-749` (`reopen`) together with `src/lib/clearline/serialize.ts:243`;
+- and `src/lib/clearline/actions.ts:733-749` together with `src/lib/clearline/serialize.ts:232`.
+
+What happens:
+- `reopen` sets the exception's status to `reopened`. It keeps `resolution.acceptedDifference`, and it keeps the `supersededBy` link on the rejected observation.
+- `crossCheck` requires both of those to point at a **resolved** exception.
+- Both buttons are wired in the console: `AcceptDifference.tsx`, and Reopen in `TargetActions.tsx`.
+
+Reproduction (`probes7/rr7.test.ts`):
+1. **Accepted fee.** SGD 10,000.00 payout, SGD 10,000.50 bank debit, resolve with `acceptDifference: true` (the case becomes RESOLVABLE), then reopen the exception. The next `applyAction` returns "This workspace cannot be loaded: exceptions[0].resolution.acceptedDifference: must belong to a resolved RC_OVERPAYMENT or RC_OUTSIDE_TIME_WINDOW exception …", and a reload fails the same way.
+2. **Superseded wrong-chain record.**
+   - A wrong-chain observation is followed by the correct one, which raises `CH_TX_HASH_ON_OTHER_CHAIN`.
+   - Resolving it supersedes the rejected record, and the payout is verified.
+   - Reopening that exception gives the next action: "chainObservations[0].supersededBy: must name a resolved hash-conflict exception …".
+
+These are lost records through ordinary use: the workspace is set aside with only a backup. The property test misses it because its generator has no `reopen` action.
+
+**Fix (in words):** when an exception is reopened, reverse what its resolution did, and recompute:
+- **Accepted difference:** drop it, or keep it only as history outside `resolution`.
+- **Supersede:** remove the `supersededBy` link. The conflict then blocks the hash again, so the recompute must handle the now-counted observation as rc3 would. The simplest option is to refuse reopening a hash-conflict exception whose supersede has already let an observation count.
+
+Alternatively, have `crossCheck` accept a `reopened` exception that carries those fields, and have the close check ignore them. Then add `reopen` and `cancel_intent` to the property generator, and add a scripted "accept → reopen → reload" and "supersede → reopen → reload" test.
+
+## Status of the second re-review findings
+
+| Id | Status | Evidence |
+|---|---|---|
+| **R2-M1** migration incomplete | **Fixed** | `v2_gaps` now migrates every state (details below). |
+| **R2-M2** legitimate cases unclosable | **Fixed** | The four acceptance cases behave as specified (details below). |
+| **R2-m1** stale message | **Fixed** | The `EVIDENCE_OUTSTANDING` text describes the explicit acceptance, and the FX text explains why currency cannot be accepted. |
+| **R2-m2** surviving mutants | **Partly fixed** | The four I named are now killed. Seven new ones survive (see "Test strength"). |
+| **R2-m3** one person, ≤1% | **Documented** as a product decision in `ARCHITECTURE.md` (around line 144) and the CHANGE 10 table in `ENGINE_API.md`. |
+| **R2-m4** supplier-paid label | **Fixed** | Now "Provider reports the supplier paid (not verified)". |
+
+**R2-M1 detail** (`v2_gaps` migrations: `observation_not_counted`, `contradiction_raised`, `reorg_reconciliation`):
+- The Ethereum-mainnet "verified" payout becomes `none`; the observation becomes `rejected_unsupported`; the headline is "No settlement evidence".
+- T-1 before finality becomes `contradicted` with `CH_TRANSFER_FOR_TERMINAL_PAYOUT`.
+- The reorg case's reconciliation becomes `exception`.
+- v2_t1, v2_t2 and v2_va still migrate correctly and idempotently.
+
+**R2-M2 detail:**
+- **(a) Late date, exact amount.** +10 and +59 days are accepted and the case closes. +70 days and a date before submission are refused.
+- **(b) Over-amount ≤1%.** +0.5% is accepted by one person and the case closes.
+- **(c) Over-amount >1% and ≤50%.** 15% and 30% give `SECOND_APPROVAL_REQUIRED`. Approval by the acceptor gives `maker_checker_violation`; by a viewer or `system`, `unauthorized_actor`; by a different staff person, RESOLVABLE. 51% is refused. `approve_acceptance` on a ≤1% acceptance gives `invalid_transition`.
+- **(d) Currency.** A currency mismatch is refused, with the FX explanation.
+
+## Your specific questions
+
+**Can migrate.ts upgrade evidence or change an rc3-produced workspace?**
+- **Upgrading.** No. `recomputeSettlement` only allows moving down or to `contradicted`. The "recompute may upgrade" mutant is killed.
+- **Changing an rc3 workspace.** I found no rc3 sequence that makes a migration *fire*. I tried rule B through resets, rule D after resolving a reorg, and rule C through reopen. I also ran the property test with `reopen` added (40 seeds): migrations stayed `[]`.
+- **But the claim behind it is incomplete.** "Every rc3 workspace loads" is false: see R3-B1. The generator also never produces `reopen`, `cancel_intent`, advances, `add_note` or `request_info`.
+- **Rule A and stored data.** Rule A raises `CH_UNSUPPORTED_TOKEN_OR_NETWORK` only if no matching exception exists. The mutant that never raises it survives (see "Test strength").
+
+**Can acceptance or approval be bypassed or forged?**
+- **Through actions: no.** The acceptor cannot approve their own acceptance, and neither can a viewer or `system`. A plain resolve never counts. A flag that doesn't match the line's facts is refused. The line is re-checked at close.
+- **Through stored-data tampering:**
+  - `approvedBy` set to the acceptor is refused at load.
+  - `approvedBy` set to a viewer loads, but the case stays `EVIDENCE_OUTSTANDING`.
+  - Removing `secondApproval` loads, but the case stays `EVIDENCE_OUTSTANDING`.
+  - `approvedBy` set to a *different staff member's* id would pass. That is inherent to a workspace the client holds, where any field can be forged, so I don't count it as a finding.
+
+**Is any legitimate case still impossible to close?** Beyond currency mismatch:
+- **A batched debit** naming two payouts (`RC_AMBIGUOUS_REFERENCE`) never closes either payout, if they have cases. In my probe no case had opened.
+- **A short debit** (fee deducted; `partially_matched`) keeps an existing case at `EVIDENCE_OUTSTANDING`.
+- **A statement line that never arrives**, because there is no manual allocation.
+
+`ARCHITECTURE.md` now lists all three as stated limitations, which is acceptable as a product decision.
+
+**Are the docs accurate?** Mostly. Two corrections:
+- CHANGE 10 says "each fix has a test that fails without it", but seven mutants survive (see "Test strength").
+- The R2-M1 paragraph says the migration "corrects only states no rc3 action sequence can reach". That is right, but it implies every rc3 workspace loads, which R3-B1 disproves.
+
+The acceptance table, the error codes, the stored-record shape and the R2-m3 decision match the code.
+
+## Test strength (minor, R3-m1)
+
+**Killed (16):**
+- **Migration:** A off, B off, B order, C only-verified, D off, recompute may upgrade.
+- **Acceptance:** 60-day limit, before-submission, 50% cap, second approval required, pending approval ignored, approver = resolver at close, non-staff approver at close, currency mismatch.
+- **Approve and resolve actions:** maker ≠ checker on approve, late-date flag required on resolve.
+
+**Survived (7):**
+- **Rule A never raises its exception.** The migration test does not assert the exception.
+- **Rule B ignores `supersededBy`.** The m-3 supersede path is never loaded through the migration in a test.
+- **Rule D ignores a full bank match.**
+- **The close-time `lateValueDate` re-check is dropped.**
+- **The short-debit refusal is dropped.** This one matters: without it, a *late* SGD 1.00 debit for an SGD 10,000 payout could be accepted with `acceptLateDate`, and the case would close.
+- **`approve_acceptance` stops re-checking the line.**
+- **`resolve` stops requiring `acceptDifference` when there is an over-amount.**
+
+Fix: add one test for each.
+
+## Summary
+
+R2-M1 is fixed, R2-M2 is fixed by policy, and the minors are fixed or documented. R2-m3 is documented as Aashmiin's product decision. Verdict: **BLOCK 3e66fa7**.
+
+Blocking: in the console, a person can accept a fee and then reopen that exception, or reopen a resolved hash conflict that superseded a wrong-chain record. Either leaves a workspace the engine refuses to load (R3-B1). The fix is small: reverse the resolution's effects on reopen, or let `crossCheck` accept a reopened exception that still carries them. Add `reopen` to the property generator, and add tests for the seven surviving mutants.
+
+Note for the pack: R3-B1's hash-conflict half has been reachable since 725c3a1, so it escaped my two previous reviews. Proposed checklist addition: "for every new stored field that `crossCheck` ties to an exception's status, check every action that changes that status (`reopen` included)".
+
+---
+
+# Fourth check: rc3/wip-engine at 668e4ca (R3-B1, R3-m1)
+
+**CODE REVIEW: APPROVE 668e4ca5dfbc0d058e28523dcb53dacfc932a0be**
+
+APPROVAL-ONLY: needs Aashmiin's merge. This touches case-close rules, evidence status and how stored workspaces load.
+
+The merge into rc3/clearline-app does not exist yet; it will be the next merge commit after 2c70766. This verdict is for the engine at 668e4ca. If the merge commit's `src/lib/clearline` and `tests/clearline` differ from 668e4ca, it needs its own check.
+
+**In plain English.** Reopening an exception now undoes what its resolution did, and the history is kept:
+- An accepted fee, and any second approval, is withdrawn.
+- A superseded wrong-chain record blocks its transaction again.
+- The payment's status is recomputed.
+
+I could not produce a workspace that fails to load. I tried:
+- repeated accept → approve → reopen cycles, swapping people;
+- supersede → reopen → resolve → reopen cycles;
+- resets at later clocks;
+- random action sequences starting from the migrated v2 fixtures.
+
+All 7 earlier surviving mutants are now caught, and so are the new reopen mutants.
+
+Scope: `git diff 2c70766 rc3/wip-engine -- src/lib/clearline tests/clearline docs/clearline` (4a58896, 950ab98, 668e4ca). 3e66fa7..2c70766 has no engine changes. I wrote none of it.
+
+## Checks I ran
+- **Setup.** I deleted cr7 first. The fresh frozen copy is `scratchpad/cr8` (`git archive 668e4ca`, node_modules symlinked).
+- **Typecheck.** `npx tsc --noEmit`: pass.
+- **Tests.** `npx vitest run` (full suite): 70 files pass, 1 skipped; 1417 tests pass, 57 skipped.
+- **Mutation checks.** `scratchpad/mut8.py`, 13 mutants, all killed (table below).
+- **Probes.** In `scratchpad/probes8/`:
+  - `cycles.test.ts`: scripted reopen cycles;
+  - `prop-ext.test.ts`: the engine's own property test, extended with more action kinds and starts (described below).
+
+## Findings
+
+### Reopen withdraws and recomputes, and the history is kept: verified
+- **Accepted fee.** In `cycles.test.ts`, three cycles on an SGD 100.00 payout with an SGD 115.00 debit that is also late (15% plus a late value date):
+  - after acceptance the case shows `SECOND_APPROVAL_REQUIRED`;
+  - after a different person approves it is `RESOLVABLE`;
+  - after reopen it is `OPEN_EXCEPTIONS`; `resolution` (who, when, note) is kept and `acceptedDifference` is removed.
+  - The history accumulates `resolved, acceptance_approved, reopened, acceptance_withdrawn` per cycle, and the withdrawal entry names the accepter, the amount, the late date and the approver.
+  - In cycle 1 the same person tried to approve their own acceptance: `maker_checker_violation`, and the case stayed blocked.
+- **Supersede.** Wrong chain, then the conflict, resolve, the transfer counts (`verified`), then reopen:
+  - settlement becomes `contradicted` and reconciliation `exception`, and `supersededBy` is cleared;
+  - an observation ingested while reopened joins the open conflict rather than counting;
+  - resolving again supersedes again (`verified`);
+  - a second reopen, then all five resets: every state loads with migrations `[]` and byte-identical.
+- **Mutants killed:** undo removed; acceptance not withdrawn; supersede not withdrawn; no recompute after withdrawal; either history entry missing.
+
+### Repeated cycles combined with reset or migration: no unloadable workspace found
+`prop-ext.test.ts` is the engine's property test with these changes:
+- 60 seeds × 90 steps;
+- every 3rd seed starts from a *migrated* v2 fixture (`v2_sample`, `v2_t1`, `v2_va`, `v2_gaps`, `v2_vb`);
+- resets run with `ctx.at` up to 30 days after the workspace clock;
+- extra actions: `request_quotes`, `choose_route`, `approve_instruction` (including by the maker), `reject_instruction`, `submit_instruction`, `assign_hold_reviewer`, repayments against the property test's own new advances, over-amount and late debits of every size;
+- acceptance resolutions with every flag combination, followed by double reopens.
+
+Result: 67 of 67 tests pass. After every successful action and every reset, the workspace loads with migrations `[]` and byte-identical JSON.
+
+Applied counts over the run include:
+
+| Action | Count |
+|---|---|
+| reopen | 76 |
+| resolve with `acceptDifference` + `acceptLateDate` | 19 |
+| resolve with `acceptDifference` | 6 |
+| plain resolve | 71 |
+| request_quotes | 24 |
+| choose_route | 7 |
+| approve_instruction | 2 |
+| reject_instruction | 3 |
+| cancel_intent | 25 |
+| create_advance | 98 |
+| decide_advance | 30 |
+
+The run reached both `acceptance withdrawn on reopen` and `supersede withdrawn on reopen`.
+
+### Action kinds the engine's generator still misses (minor, R4-m1)
+The committed property test now covers `reopen`, `cancel_intent`, `create_advance`/`decide_advance`, `add_note`, `request_info`, case evidence and new payments.
+
+Still not covered:
+- **Payment lifecycle:** `request_quotes`, `choose_route`, `approve_instruction`, `reject_instruction`, `submit_instruction`. The new payments it creates never go past `created`.
+- **Holds:** `assign_hold_reviewer`.
+- **Repayments:** against its own new advances; its lines only ever quote `RPY-SEABRIGHT-0001`.
+- **Starts:** it never starts from a migrated v2 fixture.
+- **Resets:** it never resets at a clock later than the workspace's.
+
+My extension covers all of these except a successful `submit_instruction` and a random-walk `approve_acceptance`; the scripted families cover the latter. It found nothing, so this is a robustness note, not a defect. CHANGE 11's sentence "after every successful action the workspace loads…" should say which action kinds the generator covers. Better, add these kinds and a fixture start to the committed test.
+
+### All 7 R3-m1 mutants are now killed: verified
+Each mutant was reapplied to 668e4ca:
+
+| Mutant | Result |
+|---|---|
+| Rule A never raises its exception | killed |
+| Rule B ignores the supersede | killed |
+| Rule D ignores the bank match | killed |
+| Close-time `lateValueDate` re-check dropped | killed |
+| Short-debit refusal dropped | killed |
+| `approve_acceptance` line re-check dropped | killed |
+| `resolve` not requiring `acceptDifference` | killed |
+
+### Docs: accurate
+- CHANGE 11 describes the undo, the history entries, the audit events and the tests correctly.
+- The CHANGE 10 corrections are fair: the 7 survivors and the false "every rc3 workspace loads" claim are both acknowledged.
+- R2-m3 (one person for a ≤1% fee) remains documented as a product decision.
+- Only the generator-coverage wording in R4-m1 needs tightening.
+
+## Summary
+**APPROVE 668e4ca.** R3-B1 is fixed: reopen withdraws the acceptance or supersede, recomputes and keeps the history. No combination of reopen cycles, resets at later clocks or migrated v2 starts produced a workspace that fails to load or migrates. All 7 R3-m1 mutants and 6 new reopen mutants are caught.
+
+One minor, non-blocking item: widen the committed property generator to the payment lifecycle actions, migrated-fixture starts and later-clock resets, or narrow the CHANGE 11 wording to match. The merge commit after 2c70766 should carry this same engine tree.
+
+---
+
+# Fifth check: rc3-engine at 942d421 (QA rc3 L1 `evidenceCeiling` / migration rule E, L2 decision actors)
+
+**CODE REVIEW: APPROVE 942d421**
+
+APPROVAL-ONLY: needs Aashmiin's merge. This touches case-close rules, evidence status and how workspaces load.
+
+**In plain English.**
+
+The two QA hardening fixes are correct.
+- **L1, status cap.** A stored status can no longer claim more than the recorded evidence supports, and a case no longer closes on a status alone.
+- **L2, decision roles.** Every recorded decision must name a real person with the right role.
+
+I could not make the new cap fire on any genuine state:
+- 640 real v2 and efabe6a workspaces, built by random use of those engines;
+- 260 random rc3 sequences;
+- hand-built held, returned, partial and provider-report cases.
+
+The role check refused none of the 640 older workspaces.
+
+One limit remains, and the docs should say it. A *crafted* workspace can still close a case by forging an evidence record rather than a status: for example an allocation from a credit line with no payment reference, or from a provider report. That is defense in depth, not a regression.
+
+Scope: `git -C /home/user/rel/rc3-engine diff 668e4ca 942d421 -- src/lib/clearline tests docs/clearline` (9d82673 tests and docs; 942d421 L1/L2). I wrote none of it, although 9d82673 adopts the property-test extension I wrote as a probe. That test code is mine, so I have not counted its passing as independent evidence; everything below I ran myself.
+
+## Checks I ran
+- **Setup.** I deleted cr8 first. Fresh frozen copy at `scratchpad/cr9` (`git archive 942d421`, node_modules symlinked).
+- **Typecheck.** `npx tsc --noEmit`: pass.
+- **Tests.** `npx vitest run` (full suite): 72 files pass, 1 skipped; 1491 tests pass, 57 skipped.
+- **Mutation checks.** 17 mutants (`scratchpad/mut9.py`): 15 killed, 2 survived.
+- **Probes.** In `scratchpad/probes9/`:
+  - `loadv2.test.ts`;
+  - `forge.test.ts`;
+  - `ceil.test.ts`;
+  - `prop-more.test.ts` (the adopted property test, run on seeds 61–260 with 120 steps each).
+- **Older-engine workspaces.** I generated them with the real old engines: `scratchpad/walker.test.ts` run in minimal archives of cf8732e and efabe6a, written to `scratchpad/v2walk/`. The archives were deleted afterwards.
+
+## Can `evidenceCeiling` wrongly cap a legitimate rc3 state? No case found
+
+**Random rc3 sequences.** The adopted property test (60 seeds × 90 steps) passes. I also ran 200 more seeds (61–260) with 120 steps each, including starts from migrated v2 fixtures and resets at later clocks: **207 / 207 pass**. Every intermediate workspace loads with migrations `[]`, rule E included, and byte-identical JSON.
+
+**Hand-built legitimate states** (`ceil.test.ts`). For each, the stored status is within the ceiling and loading changes nothing:
+
+| State | Stored status | Ceiling | Load |
+|---|---|---|---|
+| s2 sample | returned / contradicted | verified, matched | `[]` |
+| s2 after the return is resolved (net zero) | returned / none / matched | supports matched | `[]` |
+| s3 held, with a matching debit (C1) | on_hold / verified / matched | supports both | `[]` |
+| Agreeing provider report only | observed (provider_report) | observed | `[]` |
+| Partial debit | observed / partially_matched | observed, partiallyMatched | `[]` |
+| Two debits making up the full amount | verified / matched | verified, matched | `[]` |
+
+**Real v2 and efabe6a workspaces** (`loadv2.test.ts`). I loaded 320 snapshots per engine, taken every 15 steps of 40 random 120-step walks. The walks covered webhooks of every type, injections, bank and provider lines, chain observations (including chain 1, block moves and fewer confirmations), resolve, reopen, holds, advances and the full payment lifecycle.
+
+| Engine | Loaded | Idempotent | Next action OK | Migrations |
+|---|---|---|---|---|
+| cf8732e (v2) | 320 / 320 | 320 | 320 | `reorg_reconciliation` ×9, `chain_observation_not_allowlisted` ×7 |
+| efabe6a | 320 / 320 | 320 | 320 | none |
+
+**Rule E (`status_exceeds_evidence`) fired on none of them.**
+
+## Can L2 refuse a workspace a real v2 or rc3 user could have saved? No case found
+- **Same roles as v2.** cf8732e enforces the same roles L2 checks:
+  - `choose_route`: operator or approver;
+  - `approve_instruction`: approver;
+  - `create_advance`: operator;
+  - `decide_advance`: approver;
+  - hold reviewer: compliance only;
+  - hold decisions: recorded with a `reviewerId` that must be the assigned compliance reviewer.
+- **Same actors.** `SAMPLE_ACTORS` is identical in v2 and rc3.
+- **Refusals.** 0 of the 640 older-engine snapshots were refused, 0 rc3 property states were refused, and all committed v2 fixtures load.
+- **Tests.** Every L2 rule is pinned by a test: instruction maker, instruction checker, funding maker, funding checker, hold reviewer, hold-decision reviewer, accepter is staff, approver is staff — all 8 mutants killed.
+
+## Can `canResolveCase` still be fooled? Only by forging evidence records (minor, R5-m1)
+- **Fixed.** A status-only forgery (QA L1) now migrates to `status_exceeds_evidence` and the case stays `EVIDENCE_OUTSTANDING`. Reverting to the stored status is caught by the tests.
+- **Still possible** (`forge.test.ts`). These workspaces load with migrations `[]` and the case becomes `RESOLVABLE`:
+  - **Provider-report allocation.** A provider settlement report line allocated to the payout for its full amount, with the status set to verified / matched. rc3 never allocates provider reports.
+  - **Unreferenced credit line.** A bank **credit** line with reference "NOTHING", allocated to the payout.
+- **Why it matters little.** Anyone crafting a workspace can equally forge a correct-looking bank debit with the right reference, so this is defense in depth.
+- **Cheap structural checks in `crossCheck`** would refuse shapes rc3 never produces: a payment allocation must come from a bank-statement debit of kind payment carrying the payout's provider payment id, or from a return credit with `RC_RETURN_CONFIRMS_PROVIDER_RETURN`.
+- **Docs.** CHANGE 13 says "even a workspace object that was never loaded cannot close a case on its stored status". That is true, but add that forged *evidence records* are not re-validated beyond the crossCheck shape rules.
+
+## Test strength (minor, R5-m2)
+Of the 17 mutants, 15 were killed:
+- `canResolveCase` trusting the stored status;
+- ceiling: pending counted as verified;
+- ceiling: a partial bank amount counted as verified;
+- ceiling: `partiallyMatched` always true;
+- rule E off; settlement not capped; reconciliation not capped;
+- all 8 L2 rules.
+
+Two survived:
+- the ceiling's `matched` accepting a chain allocation whose observation is *not* final;
+- `returnMatched` without `returnStatus: confirmed_by_statement`.
+
+Their effect is masked: rule D handles the first on load, and the settlement ceiling limits both. Still, the ceiling is exported and documented as exact on these points, so add one test for each.
+
+## Summary
+**APPROVE 942d421.**
+- L1 and L2 are correct.
+- The ceiling never capped a legitimate state: 260 rc3 random sequences, hand-built edge states, and 640 real v2 and efabe6a workspaces.
+- L2 refused nothing a real user could have saved.
+
+Minor follow-ups:
+- **R5-m1:** refuse evidence-record shapes rc3 never produces (provider-report or unreferenced credit allocations), and qualify the CHANGE 13 sentence.
+- **R5-m2:** two ceiling mutants survive.
+
+---
+
+# Final check (8c8ee72): R5-m1 allocation-shape rule, R5-m2 ceiling tests
+
+**CODE REVIEW: APPROVE 8c8ee72**
+
+APPROVAL-ONLY: needs Aashmiin's merge. This changes how stored workspaces load: the integrity check now refuses more shapes.
+
+**In plain English.** The integrity check now refuses a payment allocation whose shape no engine version produces. Both of the forged shapes I found are refused. None of my 640 v2 and efabe6a workspaces are refused. The two weak tests from the fifth check are now strong.
+
+Scope: `git -C /home/user/rel/trial diff 942d421 8c8ee72 -- src/lib/clearline tests/clearline docs/clearline`. That is 23 lines in `serialize.ts:crossCheck`, plus tests and docs. I wrote none of it.
+
+## Checks I ran
+- **Copy.** I deleted cr9 first. Fresh frozen copy at `scratchpad/cr10` (`git archive 8c8ee72`).
+- **Typecheck.** `npx tsc --noEmit`: pass.
+- **Tests.** `npx vitest run` (full suite, which includes the adopted property test): 72 files pass, 1 skipped; 1498 tests pass, 57 skipped.
+- **Probes.** I reran `loadv2`, `forge` and `ceil` (saved in `scratchpad/probes10/`).
+- **Mutation checks.** 9 mutants (`scratchpad/mut10.py`).
+
+## Findings
+
+**1. The shape rule refuses nothing an engine produced.**
+- I reloaded the v2walk set: 320 cf8732e and 320 efabe6a snapshots.
+- All 640 load. Each one loads idempotently and accepts a next action. Migrations are the same as in the fifth check (v2: reorg ×9, not-allowlisted ×7; efabe6a: none).
+- The set contains 2,036 payment allocations from statement lines, so the rule really ran against engine output:
+
+| Line shape | Count |
+|---|---|
+| Bank-statement debit, kind payment | 1,372 |
+| Bank-statement credit, kind return (return confirmation) | 640 |
+| Bank-statement debit, kind return (return confirmation) | 8 |
+| Provider-report debit, kind return (return confirmation) | 16 |
+
+- Each matches one of the two permitted shapes. The return branch deliberately does not require a bank source, because the engines also confirm returns from provider-report return lines.
+- The rule mirrors `reconcileLine`, which allocates only by the provider-payment-id token. Hand-built legitimate states (`ceil`) also load unchanged.
+
+**2. Both forge shapes are refused** (`forge.test.ts`):
+- **Provider-report line allocated to the payout:** "a payment allocation must come from a bank statement debit…".
+- **Credit line with reference "NOTHING" allocated to the payout:** "…must carry the payout's provider payment id as its reference".
+- **Status-only forgery:** still capped by rule E, and the case stays `EVIDENCE_OUTSTANDING`.
+
+**3. The two fixture edits in `rc3-migration.test.ts` are legitimate.**
+- **Lines ~225 and ~311.** Each test's synthetic debit now carries its own payout's provider payment id (`PAYOUT <ppid>`) instead of the template line's reference, which was another payout's.
+- **Why this is needed.** The old fixtures only existed because the old crossCheck accepted the forged shape. The new rule would have refused them before they reached the behaviour under test.
+- **What each test still checks.** The first test still verifies that the migration never upgrades a status using a full matched debit. The second (rule D) still uses a full bank match for s4.
+- **Nothing weakened.** Each test asserts the same outcome as before.
+
+**4. The surviving mutants are killed.**
+- **R5-m2:** both killed.
+  - The ceiling treating a non-final chain allocation as matched.
+  - `returnMatched` without statement confirmation.
+- **R5-m1 rule:** six killed.
+  - Rule off.
+  - Reference check off.
+  - Currency check off.
+  - Return-kind check off.
+  - Provider-report debit allowed.
+  - Credit allowed.
+- **Nit, one survivor: the `intent !== undefined` check.** The check only gives a clear message. Without it, a missing intent still fails on the next line as a generic "cannot be loaded" refusal, so nothing is accepted that should not be.
+
+**5. The docs are accurate.**
+- DATA_MODEL, ENGINE_API (CHANGE 13, qualified) and openapi all describe the rule.
+- They state plainly that a well-formed forged debit cannot be detected. This qualification is what R5-m1 asked for.
+
+## Summary
+**APPROVE 8c8ee72.**
+- R5-m1 refuses the forged allocation shapes, and none of 640 genuine older-engine workspaces or any rc3 property state.
+- The fixture edits correct test data that only worked because of the gap.
+- R5-m2's two mutants and the six new shape-rule mutants are killed.
+- One nit: the intent-existence check only improves the error message.

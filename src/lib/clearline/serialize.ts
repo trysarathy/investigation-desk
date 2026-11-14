@@ -1,6 +1,7 @@
-import { isCurrency } from "./money";
-import { isIsoDate, isIsoInstant, isTimeZone } from "./tx";
-import type { Result, Workspace } from "./types";
+import { MAX_AMOUNT_MINOR, isCurrency, withinTotal } from "./money";
+import { migrateToRc3 } from "./migrate";
+import { isIsoDate, isIsoInstant, isTimeZone, referenceTokens } from "./tx";
+import type { Result, Workspace, WorkspaceLoad, WorkspaceMigration } from "./types";
 
 export const serializeWorkspace = (ws: Workspace): string => JSON.stringify(ws);
 
@@ -16,6 +17,11 @@ const need = (cond: boolean, field: string, what: string) => {
   if (!cond) throw new Invalid(field, `${field}: ${what}`);
 };
 const str = (o: Obj, k: string, path: string) => need(typeof o[k] === "string" && (o[k] as string).length > 0, `${path}.${k}`, "must be a non-empty string");
+/** Review m-1: an amount is a safe integer ≥ min and ≤ MAX_AMOUNT_MINOR (10^15 minor units), like validateAmountMinor. */
+const amt = (o: Obj, k: string, path: string, min = 0) =>
+  need(typeof o[k] === "number" && Number.isSafeInteger(o[k]) && (o[k] as number) >= min && (o[k] as number) <= MAX_AMOUNT_MINOR, `${path}.${k}`, `must be an integer number of minor units from ${min} to ${MAX_AMOUNT_MINOR}`);
+/** Review m-1: basis points are an integer from 0 to 10 000. */
+const bps = (o: Obj, k: string, path: string) => need(typeof o[k] === "number" && Number.isSafeInteger(o[k]) && (o[k] as number) >= 0 && (o[k] as number) <= 10_000, `${path}.${k}`, "must be an integer number of basis points from 0 to 10000");
 const int = (o: Obj, k: string, path: string, min = 0) => need(typeof o[k] === "number" && Number.isSafeInteger(o[k]) && (o[k] as number) >= min, `${path}.${k}`, `must be a safe integer ≥ ${min}`);
 const cur = (o: Obj, k: string, path: string) => need(isCurrency(o[k]), `${path}.${k}`, "must be a supported currency");
 const oneOf = (o: Obj, k: string, path: string, values: readonly string[]) => need(values.includes(o[k] as string), `${path}.${k}`, `must be one of ${values.join(", ")}`);
@@ -58,24 +64,24 @@ const RECON = ["not_started", "pending", "matched", "partially_matched", "except
 /** Element validators: each throws Invalid with a field path. */
 const ELEMENTS: Partial<Record<keyof Workspace, (e: Obj, p: string) => void>> = {
   actors: (e, p) => { str(e, "name", p); oneOf(e, "role", p, ["operator", "approver", "compliance", "viewer"]); },
-  routes: (e, p) => { str(e, "providerId", p); str(e, "providerName", p); arr(e, "sourceCurrencies", p); need(isObj(e.providerFees), `${p}.providerFees`, "must be an object"); },
+  routes: (e, p) => { str(e, "providerId", p); str(e, "providerName", p); arr(e, "sourceCurrencies", p); need(isObj(e.providerFees), `${p}.providerFees`, "must be an object"); bps(e, "platformFeeBps", p); },
   intents: (e, p) => {
-    str(e, "internalReference", p); int(e, "amountMinor", p, 1); cur(e, "sourceCurrency", p); cur(e, "destinationCurrency", p); str(e, "beneficiaryRef", p);
+    str(e, "internalReference", p); amt(e, "amountMinor", p, 1); cur(e, "sourceCurrency", p); cur(e, "destinationCurrency", p); str(e, "beneficiaryRef", p);
     instant(e, "createdAt", p); arr(e, "quoteIds", p); need(isObj(e.metadata), `${p}.metadata`, "must be an object");
     need(isObj(e.status), `${p}.status`, "must be an object");
     const s = e.status as Obj;
     oneOf(s, "execution", `${p}.status`, EXECUTION); oneOf(s, "settlement", `${p}.status`, SETTLEMENT); oneOf(s, "settlementScope", `${p}.status`, SCOPE); oneOf(s, "reconciliation", `${p}.status`, RECON);
   },
-  quotes: (e, p) => { str(e, "intentId", p); str(e, "routeId", p); need(typeof e.eligible === "boolean", `${p}.eligible`, "must be boolean"); int(e, "estimatedRecipientMinor", p); instant(e, "expiresAt", p); },
-  instructions: (e, p) => { str(e, "intentId", p); str(e, "quoteId", p); str(e, "makerId", p); int(e, "amountMinor", p, 1); cur(e, "currency", p); oneOf(e, "status", p, ["pending_approval", "approved", "rejected", "submitted"]); },
+  quotes: (e, p) => { str(e, "intentId", p); str(e, "routeId", p); need(typeof e.eligible === "boolean", `${p}.eligible`, "must be boolean"); amt(e, "estimatedRecipientMinor", p); instant(e, "expiresAt", p); },
+  instructions: (e, p) => { str(e, "intentId", p); str(e, "quoteId", p); str(e, "makerId", p); amt(e, "amountMinor", p, 1); cur(e, "currency", p); oneOf(e, "status", p, ["pending_approval", "approved", "rejected", "submitted"]); },
   providerEvents: (e, p) => { str(e, "providerId", p); instant(e, "receivedAt", p); int(e, "sequence", p); str(e, "processingOutcome", p); need(isObj(e.detail), `${p}.detail`, "must be an object"); },
   evidence: (e, p) => { str(e, "kind", p); instant(e, "recordedAt", p); need(typeof e.independent === "boolean", `${p}.independent`, "must be boolean"); },
   statementLines: (e, p) => {
-    int(e, "amountMinor", p, 1); cur(e, "currency", p); oneOf(e, "direction", p, ["debit", "credit"]); oneOf(e, "kind", p, ["payment", "return", "reversal"]);
+    amt(e, "amountMinor", p, 1); cur(e, "currency", p); oneOf(e, "direction", p, ["debit", "credit"]); oneOf(e, "kind", p, ["payment", "return", "reversal"]);
     oneOf(e, "status", p, ["unallocated", "allocated", "partially_allocated", "exception"]); arr(e, "allocationIds", p); arr(e, "explanationCodes", p); date(e, "valueDate", p); need(typeof e.reference === "string", `${p}.reference`, "must be a string");
     amountDifference(e, p);
   },
-  allocations: (e, p) => { str(e, "statementLineId", p); need(isObj(e.target), `${p}.target`, "must be an object"); int(e, "amountMinor", p, 1); cur(e, "currency", p); arr(e, "codes", p); oneOf(e, "evidenceKind", p, ["statement_line", "chain_observation"]); },
+  allocations: (e, p) => { str(e, "statementLineId", p); need(isObj(e.target), `${p}.target`, "must be an object"); amt(e, "amountMinor", p, 1); cur(e, "currency", p); arr(e, "codes", p); oneOf(e, "evidenceKind", p, ["statement_line", "chain_observation"]); },
   exceptions: (e, p) => {
     str(e, "category", p); oneOf(e, "status", p, ["open", "in_review", "resolved", "reopened"]); oneOf(e, "severity", p, ["low", "medium", "high", "critical"]);
     for (const k of ["candidates", "supportingEventIds", "supportingEvidenceIds", "history"]) arr(e, k, p);
@@ -87,12 +93,12 @@ const ELEMENTS: Partial<Record<keyof Workspace, (e: Obj, p: string) => void>> = 
     str(e, "intentId", p); oneOf(e, "status", p, ["open", "documents_submitted", "partner_release_reported", "released", "rejected"]); need(e.autoRelease === false, `${p}.autoRelease`, "must be false");
     for (const k of ["requestedDocuments", "submittedDocuments", "decisions"]) arr(e, k, p);
   },
-  liquidity: (e, p) => { str(e, "providerId", p); cur(e, "currency", p); int(e, "eligibleMinor", p); int(e, "restrictedMinor", p); int(e, "safeguardedMinor", p); instant(e, "asOf", p); },
-  chainObservations: (e, p) => { str(e, "intentId", p); str(e, "txHash", p); int(e, "confirmations", p); int(e, "amountMinor", p, 1); oneOf(e, "status", p, ["observed", "pending_finality", "final", "rejected_unsupported"]); },
-  advances: (e, p) => { str(e, "intentId", p); int(e, "principalMinor", p, 1); cur(e, "currency", p); date(e, "dueDate", p); str(e, "preparedBy", p); str(e, "repaymentReference", p); },
+  liquidity: (e, p) => { str(e, "providerId", p); cur(e, "currency", p); amt(e, "eligibleMinor", p); amt(e, "restrictedMinor", p); amt(e, "safeguardedMinor", p); instant(e, "asOf", p); },
+  chainObservations: (e, p) => { str(e, "intentId", p); str(e, "txHash", p); int(e, "confirmations", p); amt(e, "amountMinor", p, 1); oneOf(e, "status", p, ["observed", "pending_finality", "final", "rejected_unsupported"]); },
+  advances: (e, p) => { str(e, "intentId", p); amt(e, "principalMinor", p, 1); cur(e, "currency", p); date(e, "dueDate", p); str(e, "preparedBy", p); str(e, "repaymentReference", p); },
   fundingDecisions: (e, p) => { str(e, "advanceId", p); str(e, "makerId", p); str(e, "checkerId", p); oneOf(e, "outcome", p, ["approve", "decline"]); },
-  obligations: (e, p) => { str(e, "advanceId", p); int(e, "principalMinor", p, 1); cur(e, "currency", p); date(e, "dueDate", p); str(e, "reference", p); },
-  repaymentAllocations: (e, p) => { str(e, "obligationId", p); str(e, "statementLineId", p); int(e, "amountMinor", p, 1); cur(e, "currency", p); },
+  obligations: (e, p) => { str(e, "advanceId", p); amt(e, "principalMinor", p, 1); cur(e, "currency", p); date(e, "dueDate", p); str(e, "reference", p); },
+  repaymentAllocations: (e, p) => { str(e, "obligationId", p); str(e, "statementLineId", p); amt(e, "amountMinor", p, 1); cur(e, "currency", p); },
   audit: (e, p) => { instant(e, "at", p); str(e, "action", p); },
 };
 
@@ -102,7 +108,7 @@ function migrate(w: Obj) {
   if (Array.isArray(w.providerEvents)) for (const e of w.providerEvents) if (isObj(e) && e.providerName === undefined) e.providerName = e.providerId;
 }
 
-function validate(w: unknown): Workspace {
+function validate(w: unknown): { ws: Workspace; migrations: WorkspaceMigration[] } {
   need(isObj(w), "workspace", "must be a JSON object");
   const ws = w as Obj;
   need(ws.schemaVersion === 1 && ws.mode === "sandbox", "schemaVersion", "unsupported workspace schema; reset to sample");
@@ -114,8 +120,9 @@ function validate(w: unknown): Workspace {
   need(isTimeZone(org.timezone), "organization.timezone", "must be an IANA time zone");
   need(isObj(ws.liquidityPolicy), "liquidityPolicy", "must be an object");
   const pol = ws.liquidityPolicy as Obj;
-  str(pol, "label", "liquidityPolicy"); int(pol, "bufferBps", "liquidityPolicy"); int(pol, "maxAgeMinutes", "liquidityPolicy", 1);
+  str(pol, "label", "liquidityPolicy"); bps(pol, "bufferBps", "liquidityPolicy"); int(pol, "maxAgeMinutes", "liquidityPolicy", 1);
   need(isObj(pol.minBufferMinor), "liquidityPolicy.minBufferMinor", "must be an object");
+  for (const k of Object.keys(pol.minBufferMinor as Obj)) amt(pol.minBufferMinor as Obj, k, "liquidityPolicy.minBufferMinor");
   need(isObj(ws.idempotency), "idempotency", "must be an object");
   for (const [k, v] of Object.entries(ws.idempotency as Obj)) need(isObj(v) && typeof v.intentId === "string" && typeof v.fingerprint === "string", `idempotency.${k}`, "must be {intentId, fingerprint}");
   migrate(ws);
@@ -140,7 +147,169 @@ function validate(w: unknown): Workspace {
     need((e.amountDifference as Obj).statementLineId === e.statementLineId, `${q}.statementLineId`, "must equal the exception's statementLineId");
     differenceMatchesLine(e.amountDifference as Obj, lines.find((l) => l.id === e.statementLineId), q);
   });
-  return ws as unknown as Workspace;
+  // Review M-1, re-review R-M1 / R-m1, second re-review R2-M1: correct states earlier engine versions saved (migrate.ts).
+  const migrations = migrateToRc3(ws as unknown as Workspace);
+  crossCheck(ws);
+  return { ws: ws as unknown as Workspace, migrations };
+}
+
+const TERMINAL = ["failed", "cancelled", "expired", "returned"];
+
+/**
+ * rc3 (I-1): cross-field integrity. Every action re-validates the workspace it is given (applyAction →
+ * parseWorkspaceValue), so a stored or posted workspace that breaks one of these financial invariants is
+ * refused with a typed error instead of being built on:
+ * - an allocation names an existing statement line (listed in its allocationIds, same currency) or an
+ *   existing chain observation of the same payout;
+ * - one statement line or chain observation is never allocated to two different payouts or obligations,
+ *   and never above its own amount;
+ * - a repayment allocation is unique per statement line and matches that line's repayment allocation;
+ * - maker ≠ checker on every recorded instruction check and funding decision;
+ * - every recorded decision names an existing actor with the role its action requires (instruction maker /
+ *   checker, funding maker / checker, hold reviewer and each hold decision, accepted difference and its second
+ *   approval) — QA rc3 L2;
+ * - a hold is released or rejected only with a matching compliance reviewer's decision;
+ * - a failed, cancelled, expired or returned payout never carries settlement "verified".
+ */
+function crossCheck(ws: Obj) {
+  // Review m-1: every per-currency total of an amount-bearing collection stays within MAX_AMOUNT_MINOR, so each
+  // sum the engine computes (committed payouts, allocations per payout, repaid / outstanding, liquidity
+  // totals — each a sum of at most these collections) stays far below 2^53 and is exact in number arithmetic.
+  const totals: [string, Obj[], string, string][] = [
+    ["intents", ws.intents as Obj[], "amountMinor", "sourceCurrency"],
+    ["statementLines", ws.statementLines as Obj[], "amountMinor", "currency"],
+    ["liquidity", ws.liquidity as Obj[], "eligibleMinor", "currency"],
+    ["liquidity", ws.liquidity as Obj[], "restrictedMinor", "currency"],
+    ["liquidity", ws.liquidity as Obj[], "safeguardedMinor", "currency"],
+  ];
+  for (const [coll, items, field, curField] of totals) {
+    const sums = new Map<string, bigint>();
+    for (const x of items) sums.set(x[curField] as string, (sums.get(x[curField] as string) ?? 0n) + BigInt(x[field] as number));
+    for (const [c, total] of sums) need(total <= BigInt(MAX_AMOUNT_MINOR), coll, `the ${c} total of ${field} exceeds ${MAX_AMOUNT_MINOR} minor units (sandbox limit that keeps every sum exact)`);
+  }
+  const lines = ws.statementLines as Obj[];
+  const lineById = new Map(lines.map((l) => [l.id as string, l]));
+  const obsById = new Map((ws.chainObservations as Obj[]).map((o) => [o.id as string, o]));
+  const owner = new Map<string, string>();
+  const total = new Map<string, number>();
+  const allocById = new Map<string, Obj>();
+  (ws.allocations as Obj[]).forEach((a, i) => {
+    const p = `allocations[${i}]`;
+    const t = a.target as Obj;
+    const okTarget = (t.kind === "payment" && typeof t.intentId === "string") || (t.kind === "repayment" && typeof t.obligationId === "string");
+    need(okTarget, `${p}.target`, "must be {kind:'payment', intentId} or {kind:'repayment', obligationId}");
+    need(!allocById.has(a.id as string), `${p}.id`, "must be unique");
+    allocById.set(a.id as string, a);
+    const key = t.kind === "payment" ? `payment:${t.intentId}` : `repayment:${t.obligationId}`;
+    const ref = a.statementLineId as string;
+    if (a.evidenceKind === "statement_line") {
+      const l = lineById.get(ref);
+      need(l !== undefined, `${p}.statementLineId`, "must identify a statement line in this workspace");
+      need((l!.allocationIds as unknown[]).includes(a.id), `${p}.id`, "must be listed in its statement line's allocationIds");
+      need(a.currency === l!.currency, `${p}.currency`, "must equal its statement line's currency");
+    } else {
+      const o = obsById.get(ref);
+      need(o !== undefined, `${p}.statementLineId`, "must identify a chain observation in this workspace");
+      need(t.kind === "payment" && o!.intentId === t.intentId, `${p}.target`, "a chain observation can evidence only its own payout");
+    }
+    const prev = owner.get(ref);
+    need(prev === undefined || prev === key, `${p}.target`, "one statement line or chain observation cannot be allocated to two different payouts or obligations");
+    owner.set(ref, key);
+    total.set(ref, (total.get(ref) ?? 0) + (a.amountMinor as number));
+  });
+  // Review R5-m1: a payment allocation from a statement line has one of the two shapes every engine version (v2,
+  // efabe6a, rc3: reconciliation.ts reconcileLine) produces; anything else is a forged evidence record.
+  // - a return confirmation (code RC_RETURN_CONFIRMS_PROVIDER_RETURN) from a return or reversal line;
+  // - otherwise a bank_statement DEBIT of kind payment.
+  // Both are in the payout's source currency and carry the payout's provider payment id as a reference token.
+  const intentById = new Map((ws.intents as Obj[]).map((x) => [x.id as string, x]));
+  const instrById = new Map((ws.instructions as Obj[]).map((x) => [x.id as string, x]));
+  (ws.allocations as Obj[]).forEach((a, i) => {
+    const t = a.target as Obj;
+    if (a.evidenceKind !== "statement_line" || t.kind !== "payment") return;
+    const p = `allocations[${i}]`;
+    const l = lineById.get(a.statementLineId as string)!;
+    const intent = intentById.get(t.intentId as string);
+    need(intent !== undefined, `${p}.target.intentId`, "must identify a payment intent in this workspace");
+    const ppid = instrById.get(intent!.instructionId as string)?.providerPaymentId;
+    need(typeof ppid === "string" && referenceTokens(String(l.reference)).includes(ppid.toUpperCase()), `${p}.statementLineId`, "a payment allocation's statement line must carry the payout's provider payment id as its reference");
+    need(l.currency === intent!.sourceCurrency, `${p}.currency`, "a payment allocation must be in the payout's source currency");
+    const isReturn = Array.isArray(a.codes) && (a.codes as unknown[]).includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN");
+    if (isReturn) need(l.kind === "return" || l.kind === "reversal", `${p}.codes`, "a return confirmation must come from a return or reversal line");
+    else need(l.source === "bank_statement" && l.direction === "debit" && l.kind === "payment", `${p}.statementLineId`, "a payment allocation must come from a bank statement debit (a provider report or a credit is never allocated to a payout)");
+  });
+  lines.forEach((l, i) => {
+    need((total.get(l.id as string) ?? 0) <= (l.amountMinor as number), `statementLines[${i}].allocationIds`, "allocations exceed the line amount");
+    for (const id of l.allocationIds as unknown[]) need(typeof id === "string" && allocById.get(id)?.statementLineId === l.id, `statementLines[${i}].allocationIds`, "must list only allocations of this line");
+  });
+  const repaid = new Set<string>();
+  (ws.repaymentAllocations as Obj[]).forEach((r, i) => {
+    const ref = r.statementLineId as string;
+    need(!repaid.has(ref), `repaymentAllocations[${i}].statementLineId`, "one statement line can repay at most one obligation once");
+    repaid.add(ref);
+    need(owner.get(ref) === `repayment:${r.obligationId}`, `repaymentAllocations[${i}].obligationId`, "must match its statement line's repayment allocation");
+  });
+  // Review m-3: a superseded chain observation is a rejected one, superseded by a person's resolved conflict exception.
+  (ws.chainObservations as Obj[]).forEach((o, i) => {
+    if (o.supersededBy === undefined) return;
+    const e = (ws.exceptions as Obj[]).find((x) => x.id === o.supersededBy);
+    need(o.status === "rejected_unsupported" && !!e && e.status === "resolved" && (e.supportingEventIds as unknown[]).includes(o.id), `chainObservations[${i}].supersededBy`, "must name a resolved hash-conflict exception about this rejected observation");
+  });
+  const staffIds = new Set((ws.actors as Obj[]).filter((a) => a.role !== "viewer").map((a) => a.id as string));
+  // Re-review R-M2 / R2-M2: an accepted difference describes its own exception's line and payout exactly, and a
+  // second approval comes from a different person than the one who accepted.
+  (ws.exceptions as Obj[]).forEach((e, i) => {
+    const res = e.resolution;
+    if (!isObj(res) || res.acceptedDifference === undefined) return;
+    const d = res.acceptedDifference;
+    const q = `exceptions[${i}].resolution.acceptedDifference`;
+    need(isObj(d), q, "must be an object");
+    const a = d as Obj;
+    // QA rc3 L2: the person who accepted is an existing staff member (resolve requires a staff role).
+    need(staffIds.has(res.actorId as string), `exceptions[${i}].resolution.actorId`, "an accepted difference must be accepted by an existing staff member");
+    need(e.status === "resolved" && (e.explanationCode === "RC_OVERPAYMENT" || e.explanationCode === "RC_OUTSIDE_TIME_WINDOW") && a.statementLineId === e.statementLineId, q, "must belong to a resolved RC_OVERPAYMENT or RC_OUTSIDE_TIME_WINDOW exception and name its statement line");
+    amt(a, "differenceMinor", q, 0); cur(a, "currency", q);
+    const line = lines.find((l) => l.id === e.statementLineId);
+    const intent = (ws.intents as Obj[]).find((x) => x.id === e.intentId);
+    need(!!line && !!intent && a.differenceMinor === (line.amountMinor as number) - (intent.amountMinor as number) && a.currency === line.currency, `${q}.differenceMinor`, "must equal its line's amount minus the payout amount, in the line's currency");
+    if (a.lateValueDate !== undefined) need(a.lateValueDate === line!.valueDate, `${q}.lateValueDate`, "must equal its line's value date");
+    if (a.secondApproval !== undefined) {
+      const sa = a.secondApproval as Obj;
+      need(isObj(sa) && sa.required === true, `${q}.secondApproval`, "must be { required: true, … }");
+      if (sa.approvedBy !== undefined) need(typeof sa.approvedBy === "string" && sa.approvedBy !== res.actorId && isIsoInstant(sa.approvedAt), `${q}.secondApproval.approvedBy`, "must be a different person than the one who accepted, with an approval time");
+      // QA rc3 L2: the approver is an existing staff member (approve_acceptance requires a staff role).
+      if (sa.approvedBy !== undefined) need(staffIds.has(sa.approvedBy as string), `${q}.secondApproval.approvedBy`, "must be an existing staff member (operator, approver or compliance)");
+    }
+  });
+  // QA rc3 L2: every recorded decision names an existing actor with the role the action requires (the same roles in
+  // every engine version, v2 included), and a checker differs from the maker. A workspace that breaks this was not
+  // produced by any engine version, so it is refused, not migrated.
+  const roleOf = new Map((ws.actors as Obj[]).map((a) => [a.id as string, a.role as string]));
+  const hasRole = (id: unknown, roles: string[]) => typeof id === "string" && roles.includes(roleOf.get(id) ?? "");
+  (ws.instructions as Obj[]).forEach((x, i) => {
+    need(hasRole(x.makerId, ["operator", "approver"]), `instructions[${i}].makerId`, "must be an existing operator or approver (choose_route)");
+    if (x.checkerId !== undefined) {
+      need(x.checkerId !== x.makerId, `instructions[${i}].checkerId`, "maker and checker must be different people");
+      need(hasRole(x.checkerId, ["approver"]), `instructions[${i}].checkerId`, "must be an existing approver");
+    }
+  });
+  (ws.fundingDecisions as Obj[]).forEach((d, i) => {
+    need(d.checkerId !== d.makerId, `fundingDecisions[${i}].checkerId`, "maker and checker must be different people");
+    need(hasRole(d.makerId, ["operator"]), `fundingDecisions[${i}].makerId`, "must be an existing operator (create_advance)");
+    need(hasRole(d.checkerId, ["approver"]), `fundingDecisions[${i}].checkerId`, "must be an existing approver");
+  });
+  (ws.holds as Obj[]).forEach((h, i) => {
+    if (h.reviewerId !== undefined) need(hasRole(h.reviewerId, ["compliance"]), `holds[${i}].reviewerId`, "must be an existing compliance reviewer");
+    (h.decisions as unknown[]).forEach((d, j) =>
+      need(isObj(d) && hasRole(d.reviewerId, ["compliance"]) && ["release", "reject", "request_more"].includes(d.decision as string), `holds[${i}].decisions[${j}]`, "must be a release, reject or request_more decision by an existing compliance reviewer (reviewerId)"));
+    const decided = (h.decisions as Obj[]).map((d) => d.decision);
+    if (h.status === "released") need(decided.includes("release"), `holds[${i}].status`, "a hold is released only after the compliance reviewer's release decision");
+    if (h.status === "rejected") need(decided.includes("reject"), `holds[${i}].status`, "a hold is rejected only by the compliance reviewer's decision");
+  });
+  (ws.intents as Obj[]).forEach((x, i) => {
+    const s = x.status as Obj;
+    need(!(TERMINAL.includes(s.execution as string) && s.settlement === "verified"), `intents[${i}].status.settlement`, `a ${String(s.execution)} payout cannot carry verified settlement`);
+  });
 }
 
 /** Maximum nesting depth accepted in a workspace value (QA L4). Real workspaces nest < 10 deep. */
@@ -160,22 +329,40 @@ function depthWithin(v: unknown, max: number): boolean {
 
 /** Validate an already-parsed value as a workspace (used by the API, which receives parsed JSON). */
 export function parseWorkspaceValue(v: unknown): Result<Workspace> {
-  if (!depthWithin(v, MAX_WORKSPACE_DEPTH)) return { ok: false, error: { code: "invalid_field", message: `Workspace nests deeper than ${MAX_WORKSPACE_DEPTH} levels.`, field: "workspace" } };
-  try {
-    return { ok: true, value: validate(v) };
-  } catch (e) {
-    if (e instanceof Invalid) return { ok: false, error: { code: "invalid_field", message: `Damaged workspace — ${e.message}. Reset to the sample.`, field: e.field } };
-    return { ok: false, error: { code: "invalid_field", message: "Damaged workspace; reset to the sample.", field: "workspace" } };
-  }
+  const r = loadWorkspaceValue(v);
+  return r.ok ? { ok: true, value: r.value.workspace } : r;
 }
 
 /** Parse stored workspace JSON, validating its structure. On any error the UI should reset to the sample. */
 export function parseWorkspace(text: string): Result<Workspace> {
+  const r = loadWorkspace(text);
+  return r.ok ? { ok: true, value: r.value.workspace } : r;
+}
+
+/**
+ * Re-review R-m1: like parseWorkspaceValue, and also returns what the load-time migration changed (empty for an
+ * rc3 workspace). Parsing may change the passed object in place (older-field fills and this migration); pass a
+ * copy to keep the original.
+ */
+export function loadWorkspaceValue(v: unknown): Result<WorkspaceLoad> {
+  if (!depthWithin(v, MAX_WORKSPACE_DEPTH)) return { ok: false, error: { code: "invalid_field", message: `Workspace nests deeper than ${MAX_WORKSPACE_DEPTH} levels.`, field: "workspace" } };
+  try {
+    const { ws, migrations } = validate(v);
+    return { ok: true, value: { workspace: ws, migrations } };
+  } catch (e) {
+    // Review M-1 / n-3: the workspace may have been written by this engine; say what is wrong, not "damaged".
+    if (e instanceof Invalid) return { ok: false, error: { code: "invalid_field", message: `This workspace cannot be loaded: ${e.message}. No version of the engine produces this, so it was not repaired automatically. Reset to the sample to continue.`, field: e.field } };
+    return { ok: false, error: { code: "invalid_field", message: "This workspace cannot be loaded: its structure is not a Clearline workspace. Reset to the sample to continue.", field: "workspace" } };
+  }
+}
+
+/** Re-review R-m1: parse stored workspace JSON and return the workspace plus the migrations applied on load. */
+export function loadWorkspace(text: string): Result<WorkspaceLoad> {
   let v: unknown;
   try {
     v = JSON.parse(text);
   } catch {
     return { ok: false, error: { code: "invalid_field", message: "Stored workspace is not valid JSON.", field: "workspace" } };
   }
-  return parseWorkspaceValue(v);
+  return loadWorkspaceValue(v);
 }

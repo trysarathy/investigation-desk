@@ -43,7 +43,7 @@ describe("QA v2 — 308 redirects (IA v2)", () => {
 });
 
 describe("QA v2 — F1/F2 through the v1 route (pinned)", () => {
-  it("provider settlement report on the returned sample payout → contradiction, settlement none", async () => {
+  it("provider settlement report on the returned sample payout → contradiction, settlement stays contradicted (never upgraded)", async () => {
     const ws = sampleWorkspace();
     const id = scenarioIntentId(ws, "s2_returned")!;
     const ppid = ws.instructions.find((x) => x.id === ws.intents.find((i) => i.id === id)!.instructionId)!.providerPaymentId!;
@@ -55,7 +55,7 @@ describe("QA v2 — F1/F2 through the v1 route (pinned)", () => {
     const j = await r.json();
     expect(r.status).toBeLessThan(300);
     expect(j.outcome).toBe("contradictory_exception_raised");
-    expect(j.workspace.intents.find((i: { id: string }) => i.id === id).status.settlement).toBe("none");
+    expect(j.workspace.intents.find((i: { id: string }) => i.id === id).status.settlement).toBe("contradicted"); // rc3 s2: debited then returned
     const v = await (await post(`investigations/${id}`, { workspace: j.workspace })).json();
     expect(v.data.contradictions.map((c: { code: string }) => c.code)).toContain("RC_REPORT_ON_TERMINAL_PAYOUT");
   });

@@ -39,6 +39,21 @@ export function listExceptions(ws: Workspace, filter: { status?: ExceptionStatus
 
 const f = (code: string, text: string, refs: string[] = []): Finding => ({ code, text, refs });
 
+/**
+ * Amount of a payout matched to evidence, from the allocations themselves (never "requested − outstanding"):
+ * the full amount while a chain allocation's observation is final (rc3 C-3), otherwise the outgoing
+ * bank-statement allocations in the payout's source currency, excluding return credits. 0 when nothing
+ * is allocated (created, failed with no evidence, cancelled, …). Used by investigate() and the case report.
+ */
+export function matchedMinorFor(ws: Workspace, intent: PaymentIntent): number {
+  const finalObs = ws.chainObservations.find((o) => o.intentId === intent.id && o.status === "final");
+  const chainMatched = !!finalObs && ws.allocations.some((a) => a.evidenceKind === "chain_observation" && a.target.kind === "payment" && a.target.intentId === intent.id && a.statementLineId === finalObs.id);
+  if (chainMatched) return intent.amountMinor;
+  return ws.allocations
+    .filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id && a.evidenceKind === "statement_line" && a.currency === intent.sourceCurrency && !a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN"))
+    .reduce((t, a) => t + a.amountMinor, 0);
+}
+
 export function investigate(ws: Workspace, intentId: string): Result<InvestigationView> {
   const intent = getIntent(ws, intentId);
   if (!intent) return { ok: false, error: { code: "not_found", message: "Intent not found.", entityId: intentId } };
@@ -111,12 +126,7 @@ export function investigate(ws: Workspace, intentId: string): Result<Investigati
 
   // Financially outstanding
   const outstanding: InvestigationView["outstanding"] = [];
-  const chainMatched = ws.allocations.some((a) => a.evidenceKind === "chain_observation" && a.target.kind === "payment" && a.target.intentId === intent.id);
-  const matched = chainMatched
-    ? intent.amountMinor
-    : ws.allocations
-        .filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id && a.evidenceKind === "statement_line" && a.currency === intent.sourceCurrency && !a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN"))
-        .reduce((t, a) => t + a.amountMinor, 0);
+  const matched = matchedMinorFor(ws, intent);
   const money = (amountMinor: number) => ({ amountMinor, currency: intent.sourceCurrency });
   if (s.execution === "returned") {
     const returned = ws.allocations.filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id && a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN")).reduce((t, a) => t + a.amountMinor, 0);
@@ -148,6 +158,35 @@ export function investigate(ws: Workspace, intentId: string): Result<Investigati
           : remainderOpen;
       return { ...d, outstanding };
     });
+  // rc3 (R-1): a returned payout states BOTH facts — whether the net movement is zero, and that the
+  // beneficiary is unpaid — so "net zero" can never be read as "delivered".
+  let returnPosition: InvestigationView["returnPosition"];
+  if (s.execution === "returned" || intent.returnStatus) {
+    const payAllocs = ws.allocations.filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id && a.evidenceKind === "statement_line" && a.currency === intent.sourceCurrency);
+    const debitedMinor = payAllocs.filter((a) => !a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN")).reduce((t, a) => t + a.amountMinor, 0);
+    const returnedMinor = payAllocs.filter((a) => a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN")).reduce((t, a) => t + a.amountMinor, 0);
+    const both = debitedMinor > 0 && returnedMinor > 0;
+    const code: NonNullable<InvestigationView["returnPosition"]>["code"] = !returnedMinor ? "RT_RETURN_NOT_ON_STATEMENT" : !debitedMinor ? "RT_DEBIT_NOT_ON_STATEMENT" : debitedMinor === returnedMinor ? "RT_NET_ZERO" : "RT_NET_NOT_ZERO";
+    const fm = (m: number) => formatMinor(m, intent.sourceCurrency);
+    const text = {
+      RT_NET_ZERO: `The debit and the return credit (${fm(debitedMinor)} each) net to zero on the statement. The beneficiary was not paid.`,
+      RT_NET_NOT_ZERO: `The debit (${fm(debitedMinor)}) and the return credit (${fm(returnedMinor)}) do not net to zero. The beneficiary was not paid.`,
+      RT_RETURN_NOT_ON_STATEMENT: "The provider reports the return; no return credit is on the statement yet. The beneficiary was not paid.",
+      RT_DEBIT_NOT_ON_STATEMENT: `The return credit (${fm(returnedMinor)}) is on the statement but the outgoing debit is not, so a net-zero movement is not established. The beneficiary was not paid.`,
+    }[code];
+    returnPosition = {
+      returnStatus: intent.returnStatus ?? "provider_reported",
+      debited: money(debitedMinor),
+      returnCredited: money(returnedMinor),
+      ...(both ? { netMovement: money(debitedMinor - returnedMinor) } : {}),
+      netMovementZero: code === "RT_NET_ZERO",
+      beneficiaryPaid: false,
+      code,
+      text,
+    };
+    codes.push(code, "RT_BENEFICIARY_UNPAID");
+  }
+
   const amountDifferences = allDifferences.filter((d) => d.outstanding);
   const resolvedAmountDifferences = allDifferences.filter((d) => !d.outstanding);
   codes.push(...amountDifferences.map((d) => d.code));
@@ -220,6 +259,7 @@ export function investigate(ws: Workspace, intentId: string): Result<Investigati
       explanationCodes: [...new Set(codes)],
       amountDifferences,
       resolvedAmountDifferences,
+      ...(returnPosition ? { returnPosition } : {}),
       disclaimer: ENGINE_DISCLAIMER,
     },
   };
@@ -291,7 +331,9 @@ export function evidenceTimelineFor(ws: Workspace, intentId: string): EvidenceTi
   for (const e of timelineFor(ws, intent.id))
     out.push({ id: e.id, at: e.receivedAt, kind: "provider_event", title: `${e.normalizedType} · ${e.processingOutcome}`, source: e.provenance === "clearline_timer" ? "Clearline timer" : e.providerName, provenance: e.provenance, independent: false, codes: ["PE_" + e.processingOutcome.toUpperCase()], refs: [e.id] });
   const allocs = ws.allocations.filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id);
-  const lineIds = new Set([...allocs.map((a) => a.statementLineId), ...ws.exceptions.filter((x) => x.intentId === intent.id && x.statementLineId).map((x) => x.statementLineId!)]);
+  // rc3 (E-1): also every provider settlement report that names this payout's provider payment id — one
+  // recorded as provider-reported evidence has no allocation or exception, and was missing from the timeline.
+  const lineIds = new Set([...allocs.map((a) => a.statementLineId), ...ws.exceptions.filter((x) => x.intentId === intent.id && x.statementLineId).map((x) => x.statementLineId!), ...providerReportLinesFor(ws, intent).map((l) => l.id)]);
   for (const l of ws.statementLines.filter((x) => lineIds.has(x.id)))
     out.push({ id: l.id, at: l.receivedAt, kind: "statement_line", title: `${l.source === "bank_statement" ? "Bank statement" : "Provider settlement report"} ${l.direction} ${l.kind} · value ${l.valueDate}`, source: l.accountRef, provenance: l.source, independent: l.source === "bank_statement", codes: l.explanationCodes, refs: [l.id], ...(l.amountDifference ? { amountDifference: { ...l.amountDifference } } : {}) });
   for (const a of allocs)

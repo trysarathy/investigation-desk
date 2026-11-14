@@ -495,6 +495,12 @@ export type ExceptionCategory =
 
 export type Severity = "low" | "medium" | "high" | "critical";
 export type ExceptionStatus = "open" | "in_review" | "resolved" | "reopened";
+/**
+ * Console final check: an exception's status as the synthetic case report states it. It equals ExceptionStatus, except
+ * that a resolved exception whose accepted over-amount still awaits a second person's approval is reported as
+ * "accepted_awaiting_second_approval" (the case stays blocked; "resolved" would overstate it).
+ */
+export type ReportExceptionStatus = "open" | "in_review" | "resolved" | "reopened" | "accepted_awaiting_second_approval";
 
 export interface HistoryEntry {
   at: string;
@@ -528,7 +534,25 @@ export interface ReconciliationException {
   createdAt: string;
   lastUpdatedAt: string;
   history: HistoryEntry[];
-  resolution?: { at: string; actorId: string; note: string };
+  /**
+   * Who resolved it, when and why. `acceptedDifference` (re-review R-M2): set only when the person resolved an
+   * RC_OVERPAYMENT exception with `acceptDifference: true` on a bank debit that otherwise matches the payout
+   * (see acceptedBankLine): the over-amount the person accepted.
+   */
+  resolution?: {
+    at: string; actorId: string; note: string;
+    /**
+     * R-M2 / R2-M2: what the resolving staff person accepted about this exception's bank debit — an over-amount
+     * (differenceMinor > 0, acceptDifference) and/or a late value date (lateValueDate, acceptLateDate). An
+     * over-amount above ACCEPTED_OVERAGE_BPS carries secondApproval, approved by a DIFFERENT staff person
+     * (approve_acceptance) before the case may close.
+     */
+    acceptedDifference?: {
+      statementLineId: string; differenceMinor: number; currency: CurrencyCode;
+      lateValueDate?: string;
+      secondApproval?: { required: true; approvedBy?: string; approvedAt?: string; note?: string };
+    };
+  };
 }
 
 /** Alias: the brief calls every exception a ReconciliationException; categories go wider. */
@@ -653,6 +677,8 @@ export interface ChainObservation extends ChainObservationInput {
   updatedAt: string;
   finalityThreshold: number;
   status: "observed" | "pending_finality" | "final" | "rejected_unsupported";
+  /** Review m-3: set on a REJECTED observation when a person resolves the hash-conflict exception it caused (that exception's id). It stays on record but no longer blocks the same hash. */
+  supersededBy?: string;
   label: "Synthetic Base Sepolia testnet observation";
 }
 
@@ -827,7 +853,10 @@ export type WorkspaceAction =
   | { type: "add_note"; target: TargetRef; text: string }
   | { type: "request_info"; caseId: string; from: string; request: string }
   | { type: "attach_evidence"; target: TargetRef; evidence: AttachEvidenceInput }
-  | { type: "resolve"; target: TargetRef; note: string }
+  /** acceptDifference (re-review R-M2): only for an RC_OVERPAYMENT exception whose bank debit names the payout, in its currency and window, at most ACCEPTED_OVERAGE_BPS over; records the accepted difference so the payout's case may close. */
+  | { type: "resolve"; target: TargetRef; note: string; acceptDifference?: boolean; acceptLateDate?: boolean }
+  /** R2-M2: a second, different staff person approves an accepted over-amount above ACCEPTED_OVERAGE_BPS. */
+  | { type: "approve_acceptance"; exceptionId: string; note: string }
   | { type: "reopen"; target: TargetRef; reason: string }
   | { type: "submit_hold_documents"; holdId: string; documents: string[] }
   | { type: "assign_hold_reviewer"; holdId: string; reviewerId: string }
@@ -921,7 +950,68 @@ export interface InvestigationView {
   amountDifferences: InvestigationAmountDifference[];
   /** Review v2 (M3): history — differences recorded for this payout that no longer apply (gap closed or exception resolved). Every entry has `outstanding: false`. */
   resolvedAmountDifferences: InvestigationAmountDifference[];
+  /** rc3 (R-1): present for a returned payout (or one with a provider-reported return): net movement vs beneficiary unpaid. */
+  returnPosition?: ReturnPosition;
   disclaimer: string;
+}
+
+/**
+ * rc3 (R-1): the two separate facts about a returned payout. "Net financial movement is zero" (the
+ * outgoing debit and the return credit are both on the statement and equal) is NOT "the beneficiary
+ * was paid": a returned payout's beneficiary is always unpaid (`beneficiaryPaid: false`).
+ */
+export interface ReturnPosition {
+  returnStatus: "provider_reported" | "confirmed_by_statement";
+  /** Outgoing debit(s) on the bank statement allocated to this payout. */
+  debited: Money;
+  /** Return / reversal credit(s) on the statement allocated to this payout (RC_RETURN_CONFIRMS_PROVIDER_RETURN). */
+  returnCredited: Money;
+  /** debited − returnCredited, present only when both legs are on the statement. */
+  netMovement?: Money;
+  /** True only when both legs are on the statement and equal. */
+  netMovementZero: boolean;
+  /** Always false: money that came back did not pay the beneficiary. */
+  beneficiaryPaid: false;
+  code: "RT_NET_ZERO" | "RT_NET_NOT_ZERO" | "RT_RETURN_NOT_ON_STATEMENT" | "RT_DEBIT_NOT_ON_STATEMENT";
+  text: string;
+}
+
+/**
+ * Re-review R-m1: one change the load-time migration made to a workspace saved by an earlier engine version
+ * (see loadWorkspace). `text` is plain English the console can show ("Your saved workspace was updated: …").
+ */
+export interface WorkspaceMigration {
+  /**
+   * terminal_payout_verified / terminal_payout_evidence: a failed, cancelled, expired or returned payout still showing evidence
+   * (verified, resp. observed / pending finality); chain_observation_not_allowlisted: a counted transfer not on the allowlist;
+   * chain_hash_conflict: a counted transfer whose hash was recorded earlier with another identity; reorg_reconciliation:
+   * matched on a chain transfer that is no longer final; status_exceeds_evidence: a stored settlement or reconciliation
+   * above what the recorded evidence supports, capped (QA rc3 L1). See migrate.ts.
+   */
+  kind: "terminal_payout_verified" | "terminal_payout_evidence" | "chain_observation_not_allowlisted" | "chain_hash_conflict" | "reorg_reconciliation" | "status_exceeds_evidence";
+  intentId: string;
+  internalReference: string;
+  from: StatusDimensions;
+  to: StatusDimensions;
+  /** contradiction_raised: the rc3 rule's exception was created; contradicted_open: an open exception already covers it; resolved_by_person: a person had resolved the rule's exception. */
+  outcome: "contradiction_raised" | "contradicted_open" | "resolved_by_person" | "observation_not_counted" | "reconciliation_reopened" | "status_capped";
+  /** The chain observation concerned (chain kinds). */
+  observationId?: string;
+  /** The exception created (contradiction_raised), still open (contradicted_open) or already resolved (resolved_by_person). */
+  exceptionId?: string;
+  exceptionCode?: string;
+  ownerId?: string;
+  caseId?: string;
+  /** The `workspace.migrated` audit event recording this change. */
+  auditId: string;
+  text: string;
+}
+
+/** Re-review R-m1: result of loadWorkspace / loadWorkspaceValue. */
+export interface WorkspaceLoad {
+  workspace: Workspace;
+  /** Empty for a workspace written by this engine version. */
+  migrations: WorkspaceMigration[];
 }
 
 export interface CaseReport {

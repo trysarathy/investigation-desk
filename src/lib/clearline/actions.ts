@@ -6,13 +6,13 @@
 import { getAdapter, type ScriptStep } from "./adapters";
 import { ingestChainObservation, validateChainInput } from "./chain";
 import { ingestPayload, setExecution } from "./events";
-import { canResolveCase, canResolveException, ensureCase, openException } from "./exceptions";
+import { acceptableDifference, canResolveCase, canResolveException, ensureCase, openException } from "./exceptions";
 import { deriveAdvanceState, obligationOutstanding } from "./funding";
 import { computeLiquidity } from "./liquidity";
-import { isCurrency, validateAmountMinor } from "./money";
+import { MAX_AMOUNT_MINOR, isCurrency, validateAmountMinor, withinTotal } from "./money";
 import { reconcileLine } from "./reconciliation";
 import { recomputeDimensions } from "./derive";
-import { parseWorkspaceValue } from "./serialize";
+import { loadWorkspaceValue } from "./serialize";
 import { canTransitionExecution } from "./state";
 import {
   Abort,
@@ -61,8 +61,13 @@ export function applyAction(ws: Workspace, action: WorkspaceAction, ctx: ActionC
     return { ok: false, error: { code: "invalid_field", message: "The workspace could not be copied (malformed data). Reset to the sample.", field: "workspace" } };
   }
   // Re-review m-new-1: damaged data is caught by validation (a typed error), not by a catch-all.
-  const valid = parseWorkspaceValue(tx.ws);
+  const valid = loadWorkspaceValue(tx.ws);
   if (!valid.ok) return valid;
+  // Re-review R-m1: the migration's audit events are part of this action's result, not hidden in the log.
+  for (const m of valid.value.migrations) {
+    const ev = tx.ws.audit.find((a) => a.id === m.auditId);
+    if (ev) tx.audit.push(ev);
+  }
   try {
     if (!tx.actor()) fail("unauthorized_actor", "Unknown actor.", { field: "actorId" });
     if (Date.parse(ctx.at) > Date.parse(tx.ws.asOf)) tx.ws.asOf = new Date(Date.parse(ctx.at)).toISOString();
@@ -105,7 +110,8 @@ function dispatch(tx: Tx, a: WorkspaceAction): string {
     case "add_note": return addNote(tx, a.target, a.text);
     case "request_info": return requestInfo(tx, a.caseId, a.from, a.request);
     case "attach_evidence": return attachEvidence(tx, a.target, a.evidence);
-    case "resolve": return resolve(tx, a.target, a.note);
+    case "resolve": return resolve(tx, a.target, a.note, a.acceptDifference, a.acceptLateDate);
+    case "approve_acceptance": return approveAcceptance(tx, a.exceptionId, a.note);
     case "reopen": return reopen(tx, a.target, a.reason);
     case "submit_hold_documents": return submitHoldDocuments(tx, a.holdId, a.documents);
     case "assign_hold_reviewer": return assignHoldReviewer(tx, a.holdId, a.reviewerId);
@@ -134,7 +140,7 @@ function transition(tx: Tx, intent: PaymentIntent, to: PaymentIntent["status"]["
 }
 
 /** Keep stored advance states consistent with the projection rules. */
-function syncDerived(tx: Tx) {
+export function syncDerived(tx: Tx) {
   for (const adv of tx.ws.advances) adv.state = deriveAdvanceState(tx.ws, adv.id, tx.ws.asOf);
 }
 
@@ -160,6 +166,8 @@ function createIntent(tx: Tx, input: CreateIntentInput): string {
   const amount = validateAmountMinor(input.amountMinor);
   if (!amount.ok) fail(amount.error.code, amount.error.message, { field: "amountMinor" });
   if (!isCurrency(input.sourceCurrency)) fail("invalid_currency", "Unsupported source currency.", { field: "sourceCurrency" });
+  if (!withinTotal(tx.ws.intents.filter((i) => i.sourceCurrency === input.sourceCurrency).map((i) => i.amountMinor), input.amountMinor))
+    fail("invalid_amount", `The workspace's total of ${input.sourceCurrency} payments would exceed the sandbox limit of ${MAX_AMOUNT_MINOR} minor units.`, { field: "amountMinor" });
   if (!isCurrency(input.destinationCurrency)) fail("invalid_currency", "Unsupported destination currency.", { field: "destinationCurrency" });
   if (typeof input.internalReference !== "string" || !REF_RE.test(input.internalReference)) fail("invalid_field", "internalReference must be 2–48 characters [A-Za-z0-9._-/].", { field: "internalReference" });
   // m6: one active intent per internal reference, corrections included.
@@ -449,6 +457,8 @@ function ingestStatement(tx: Tx, input: StatementLineInput): string {
   const amt = validateAmountMinor(input.amountMinor);
   if (!amt.ok) fail(amt.error.code, amt.error.message, { field: "amountMinor" });
   if (!isCurrency(input.currency)) fail("invalid_currency", "Unsupported currency.", { field: "currency" });
+  if (!withinTotal(tx.ws.statementLines.filter((l) => l.currency === input.currency).map((l) => l.amountMinor), input.amountMinor))
+    fail("invalid_amount", `The workspace's total of ${input.currency} statement lines would exceed the sandbox limit of ${MAX_AMOUNT_MINOR} minor units.`, { field: "amountMinor" });
   if (typeof input.reference !== "string" || input.reference.length > 140 || /[<>]/.test(input.reference)) fail("invalid_field", "reference must be plain text ≤ 140 chars (may be empty).", { field: "reference" });
   if (typeof input.counterparty !== "string" || input.counterparty.length > 120 || /[<>]/.test(input.counterparty)) fail("invalid_field", "counterparty must be plain text.", { field: "counterparty" });
   if (!isIsoDate(input.valueDate)) fail("invalid_field", "valueDate must be YYYY-MM-DD.", { field: "valueDate" });
@@ -472,11 +482,25 @@ const MISSING_STATEMENT_MINUTES = 2 * 1440;
 function advanceClock(tx: Tx, to: string): string {
   requireRole(tx, ["operator", "approver", "compliance"]);
   if (!isIsoInstant(to) || Date.parse(to) < Date.parse(tx.ws.asOf)) fail("invalid_field", "to must be an ISO instant not earlier than asOf.", { field: "to" });
+  tx.ws.asOf = new Date(Date.parse(to)).toISOString();
+  applyClockRules(tx);
+  tx.log("clock.advanced", "workspace", "clock", `Simulated clock moved to ${tx.ws.asOf}`);
+  return "applied";
+}
+
+/**
+ * The time-dependent rules at the workspace clock (`ws.asOf`): quote expiry, execution-date expiry,
+ * provider timeout, missing statement after completion, overdue repayment. `advance_clock` runs them on
+ * everything; review m-2: `resetScenario` runs them on the restored case's records only (`only` = their
+ * ids), so a case restored under a later clock is in the state the clock implies, and nothing else changes.
+ */
+export function applyClockRules(tx: Tx, only?: ReadonlySet<string>): void {
   const ws = tx.ws;
-  ws.asOf = new Date(Date.parse(to)).toISOString();
   const now = ws.asOf;
-  for (const q of ws.quotes) if (q.freshness === "fresh" && Date.parse(q.expiresAt) < Date.parse(now)) q.freshness = "expired";
+  const inScope = (id: string) => !only || only.has(id);
+  for (const q of ws.quotes) if (inScope(q.id) && q.freshness === "fresh" && Date.parse(q.expiresAt) < Date.parse(now)) q.freshness = "expired";
   for (const intent of ws.intents) {
+    if (!inScope(intent.id)) continue;
     const exec = intent.status.execution;
     if (["created", "quoted", "approved"].includes(exec) && intent.requestedExecutionDate < tx.orgDate(now)) {
       setExecution(tx, intent, "expired", "Requested execution date passed before submission");
@@ -510,6 +534,7 @@ function advanceClock(tx: Tx, to: string): string {
     }
   }
   for (const ob of ws.obligations) {
+    if (!inScope(ob.id)) continue;
     const out = obligationOutstanding(ws, ob.id);
     if (out.amountMinor > 0 && tx.orgDate(now) > ob.dueDate)
       openException(tx, {
@@ -522,8 +547,6 @@ function advanceClock(tx: Tx, to: string): string {
         dueDate: ob.dueDate,
       });
   }
-  tx.log("clock.advanced", "workspace", "clock", `Simulated clock moved to ${now}`);
-  return "applied";
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -623,18 +646,48 @@ function attachEvidence(tx: Tx, t: TargetRef, input: { kind: EvidenceKind; descr
   return "applied";
 }
 
-function resolve(tx: Tx, t: TargetRef, note: string): string {
+function resolve(tx: Tx, t: TargetRef, note: string, acceptDifference?: boolean, acceptLateDate?: boolean): string {
   requireRole(tx, [...STAFF]);
   if (!safeNote(note, 500)) fail("invalid_field", "A resolution note is required.", { field: "note" });
+  if (acceptDifference !== undefined && typeof acceptDifference !== "boolean") fail("invalid_field", "acceptDifference must be true or false.", { field: "acceptDifference" });
+  if (acceptLateDate !== undefined && typeof acceptLateDate !== "boolean") fail("invalid_field", "acceptLateDate must be true or false.", { field: "acceptLateDate" });
   const r = target(tx, t);
+  if ((acceptDifference || acceptLateDate) && r.kind !== "exception") fail("invalid_field", "acceptDifference / acceptLateDate apply to an exception, not a case.", { field: acceptDifference ? "acceptDifference" : "acceptLateDate" });
   if (r.kind === "exception") {
     const check = canResolveException(tx.ws, r.e.id);
     if (!check.allowed) fail("resolution_not_permitted", `${check.code}: ${check.reason}`, { entityId: r.e.id });
+    // Re-review R-M2 / R2-M2: accepting is explicit, and each flag must match the line's facts.
+    let accepted: ReturnType<typeof acceptableDifference> | undefined;
+    if (acceptDifference || acceptLateDate) {
+      accepted = acceptableDifference(tx.ws, r.e.id);
+      const refuse = (why: string, field: string) => fail("precondition_failed", `DIFFERENCE_NOT_ACCEPTABLE: ${why}`, { entityId: r.e.id, field });
+      if (!accepted.ok) refuse(accepted.reason, acceptDifference ? "acceptDifference" : "acceptLateDate");
+      if (accepted.late && !acceptLateDate) refuse(`The value date ${accepted.valueDate} is outside the matching window; accept it explicitly with acceptLateDate.`, "acceptLateDate");
+      if (!accepted.late && acceptLateDate) refuse("The value date is inside the matching window; there is no late date to accept.", "acceptLateDate");
+      if ((accepted.differenceMinor ?? 0) > 0 && !acceptDifference) refuse("The line exceeds the payout; accept the over-amount explicitly with acceptDifference.", "acceptDifference");
+      if ((accepted.differenceMinor ?? 0) === 0 && acceptDifference) refuse("The line's amount equals the payout; there is no over-amount to accept.", "acceptDifference");
+    }
     r.e.status = "resolved";
-    r.e.resolution = { at: tx.at, actorId: tx.actorId, note };
+    r.e.resolution = {
+      at: tx.at, actorId: tx.actorId, note,
+      ...(accepted ? { acceptedDifference: {
+        statementLineId: accepted.statementLineId!, differenceMinor: accepted.differenceMinor!, currency: accepted.currency!,
+        ...(accepted.late ? { lateValueDate: accepted.valueDate! } : {}),
+        ...(accepted.needsSecondApproval ? { secondApproval: { required: true as const } } : {}),
+      } } : {}),
+    };
+    if (accepted) tx.log("exception.difference_accepted", "exception", r.e.id, accepted.reason + (accepted.needsSecondApproval ? " Awaiting a second person's approval." : ""));
     r.e.history.push({ at: tx.at, actorId: tx.actorId, action: "resolved", detail: note });
     r.e.lastUpdatedAt = tx.at;
     tx.log("exception.resolved", "exception", r.e.id, note.slice(0, 80));
+    // Review m-3: a person resolving a tx-hash conflict supersedes the REJECTED observation it names, so the
+    // correctly identified observation of that hash can be evaluated (the rejected record stays on record).
+    if (r.e.explanationCode === "CH_TX_HASH_ON_OTHER_CHAIN" || r.e.explanationCode === "CH_TX_HASH_CONFLICT")
+      for (const o of tx.ws.chainObservations)
+        if (r.e.supportingEventIds.includes(o.id) && o.status === "rejected_unsupported" && !o.supersededBy) {
+          o.supersededBy = r.e.id;
+          tx.log("chain.observation_superseded", "chain_observation", o.id, `Superseded by the person's resolution of ${r.e.id}; kept on record, no longer blocks this hash`);
+        }
     // M3/m3: after a person resolves an exception, re-derive the dimensions from recorded evidence.
     const linked = r.e.intentId ? tx.ws.intents.find((i) => i.id === r.e.intentId) : undefined;
     if (linked && linked.instructionId) {
@@ -655,6 +708,61 @@ function resolve(tx: Tx, t: TargetRef, note: string): string {
   return "applied";
 }
 
+/**
+ * Second re-review R2-M2: a second, DIFFERENT staff person approves an accepted over-amount above
+ * ACCEPTED_OVERAGE_BPS (maker ≠ checker). The line is re-checked; until approved, the payout's case cannot close.
+ */
+function approveAcceptance(tx: Tx, exceptionId: string, note: string): string {
+  requireRole(tx, [...STAFF]);
+  if (!safeNote(note, 500)) fail("invalid_field", "An approval note is required.", { field: "note" });
+  const e = tx.ws.exceptions.find((x) => x.id === exceptionId);
+  if (!e) fail("not_found", "Exception not found.", { entityId: exceptionId });
+  const acc = e.resolution?.acceptedDifference;
+  if (e.status !== "resolved" || !acc?.secondApproval) fail("invalid_transition", "There is no accepted difference awaiting a second approval on this exception.", { entityId: e.id });
+  if (acc.secondApproval.approvedBy) fail("invalid_transition", `Already approved by ${acc.secondApproval.approvedBy}.`, { entityId: e.id });
+  if (e.resolution!.actorId === tx.actorId) fail("maker_checker_violation", "The approval must come from a different person than the one who accepted the difference.", { entityId: e.id });
+  const d = acceptableDifference(tx.ws, e.id);
+  if (!d.ok || d.statementLineId !== acc.statementLineId || d.differenceMinor !== acc.differenceMinor) fail("precondition_failed", `DIFFERENCE_NOT_ACCEPTABLE: ${d.ok ? "The line no longer matches what was accepted." : d.reason}`, { entityId: e.id });
+  acc.secondApproval = { required: true, approvedBy: tx.actorId, approvedAt: tx.at, note };
+  e.history.push({ at: tx.at, actorId: tx.actorId, action: "acceptance_approved", detail: `Second approval of the accepted ${acc.differenceMinor} ${acc.currency} minor-unit over-amount (accepted by ${e.resolution!.actorId}): ${note}` });
+  e.lastUpdatedAt = tx.at;
+  tx.log("exception.acceptance_approved", "exception", e.id, `Approved by ${tx.actorId} (accepted by ${e.resolution!.actorId})`);
+  return "applied";
+}
+
+/**
+ * Third re-review R3-B1: reopening an exception reverses what its resolution did, so the workspace stays in a
+ * state the engine produces (and loads):
+ * - an accepted difference (and any second approval) is withdrawn — kept in the exception's history — so the
+ *   payout's case is blocked again until someone accepts afresh;
+ * - a hash-conflict resolution's supersede is withdrawn: the rejected observation blocks the hash again, and the
+ *   payout's dimensions are recomputed (the reopened contradiction makes settlement "contradicted").
+ * Each undo is audited.
+ */
+function undoResolutionEffects(tx: Tx, e: ReconciliationException): void {
+  const acc = e.resolution?.acceptedDifference;
+  if (acc) {
+    const what = `${acc.differenceMinor} ${acc.currency} minor-unit over-amount${acc.lateValueDate ? `, late value date ${acc.lateValueDate}` : ""}${acc.secondApproval?.approvedBy ? `, approved by ${acc.secondApproval.approvedBy}` : ""}`;
+    delete e.resolution!.acceptedDifference;
+    e.history.push({ at: tx.at, actorId: tx.actorId, action: "acceptance_withdrawn", detail: `Reopened: the acceptance by ${e.resolution!.actorId} (${what}) no longer counts; the case is blocked until it is accepted again.` });
+    tx.log("exception.acceptance_withdrawn", "exception", e.id, `Accepted ${what} withdrawn on reopen`);
+  }
+  if (e.explanationCode === "CH_TX_HASH_ON_OTHER_CHAIN" || e.explanationCode === "CH_TX_HASH_CONFLICT") {
+    const superseded = tx.ws.chainObservations.filter((o) => o.supersededBy === e.id);
+    for (const o of superseded) {
+      delete o.supersededBy;
+      e.history.push({ at: tx.at, actorId: tx.actorId, action: "supersede_withdrawn", detail: `Reopened: observation ${o.id} blocks transaction ${o.txHash.slice(0, 12)}… again.` });
+      tx.log("chain.supersede_withdrawn", "chain_observation", o.id, `No longer superseded by ${e.id} (reopened)`);
+    }
+    const intent = e.intentId ? tx.ws.intents.find((i) => i.id === e.intentId) : undefined;
+    if (superseded.length && intent?.instructionId) {
+      const before = JSON.stringify(intent.status);
+      recomputeDimensions(tx.ws, intent);
+      if (JSON.stringify(intent.status) !== before) tx.log("intent.dimensions_recomputed", "intent", intent.id, `After reopening ${e.id}: ${JSON.stringify(intent.status)}`);
+    }
+  }
+}
+
 function reopen(tx: Tx, t: TargetRef, reason: string): string {
   requireRole(tx, [...STAFF]);
   if (!safeNote(reason, 500)) fail("invalid_field", "A reason is required.", { field: "reason" });
@@ -668,6 +776,7 @@ function reopen(tx: Tx, t: TargetRef, reason: string): string {
     r.e.status = "reopened"; r.e.history.push(entry); r.e.lastUpdatedAt = tx.at;
     const c = tx.ws.cases.find((x) => x.id === r.e.caseId);
     if (c && c.status === "resolved") { c.status = "reopened"; c.history.push(entry); c.updatedAt = tx.at; }
+    undoResolutionEffects(tx, r.e);
   }
   tx.log(`${t.kind}.reopened`, t.kind, t.id, reason.slice(0, 80));
   return "applied";

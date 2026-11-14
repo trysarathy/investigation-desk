@@ -6,6 +6,7 @@ import type {
 } from "@/lib/clearline";
 import { Chip, ui, type Family, type Tone } from "./ui";
 import { engineLabel } from "./human";
+import { TERMINAL_FOR_SETTLEMENT_REPORT } from "@/lib/clearline";
 
 type Map<T extends string> = Record<T, [string, Tone]>;
 
@@ -34,12 +35,16 @@ export const SETTLEMENT: Map<SettlementEvidenceState> = {
   contradicted: ["Evidence contradicts", "bad"],
 };
 
+/** Fallback only: the words shown come from the engine (scopeText → HUMAN_LABELS.settlementScope). */
 export const SCOPE: Record<SettlementScope, string> = {
   none: "no evidence yet",
   provider_report: "provider report only",
   bank_statement: "by bank statement",
   onchain_transfer: "by on-chain transfer (not a bank credit)",
 };
+
+/** Settlement scope in the engine's words (HUMAN_LABELS.settlementScope). */
+export const scopeText = (v: SettlementScope): string => engineLabel("settlementScope", v) ?? SCOPE[v];
 
 export const RECON: Map<ReconciliationState> = {
   not_started: ["Not started", "neutral"],
@@ -92,10 +97,10 @@ export function human(code: string): string {
 }
 
 /** Human label with the exact API value as hidden text and tooltip ("Execution: Provider reports completed, API value provider_reported_completed"). */
-function chipFrom<T extends string>(table: string, m: Map<T>, v: T | undefined, family?: Family, extra?: { shape?: string; solid?: boolean; showValue?: boolean }) {
+function chipFrom<T extends string>(table: string, m: Map<T>, v: T | undefined, family?: Family, extra?: { shape?: string; solid?: boolean; showValue?: boolean; preferLocal?: boolean }) {
   if (!v) return <Chip family={family}>Unknown</Chip>;
   const local = m[v] ?? [human(v), "neutral" as Tone];
-  const e: [string, Tone] = [engineLabel(table, v) ?? local[0], local[1]];
+  const e: [string, Tone] = [extra?.preferLocal ? local[0] : engineLabel(table, v) ?? local[0], local[1]];
   return (
     <span className="cl-tag" data-api-value={v}>
       <Chip tone={e[1]} family={family} shape={extra?.shape} solid={extra?.solid} title={`API value: ${v}`}>
@@ -110,17 +115,38 @@ const EVIDENCE_SHAPE: Record<SettlementEvidenceState, string> = { none: "○", o
 
 type V<T> = { v: T; showValue?: boolean };
 export const ExecChip = ({ v, showValue }: V<ExecutionState>) => chipFrom("execution", EXECUTION, v, "exec", { showValue });
-/** Execution states after which "settled" must never look like success (defence in depth; the engine already prevents it). */
-export const NO_GREEN_SETTLEMENT: readonly ExecutionState[] = ["returned", "failed", "cancelled", "expired"];
-/** Tone for a settlement value, never green when the payout ended returned/failed/cancelled/expired. */
+/**
+ * Execution states in which settlement must never look like success (green), whatever evidence
+ * exists: the engine's own terminal list (TERMINAL_FOR_SETTLEMENT_REPORT: failed, cancelled, expired,
+ * returned) plus the states where the partner still has the money or needs something first
+ * (code review rc3 M1). Derived from the engine so the two lists cannot drift.
+ */
+export const NO_GREEN_SETTLEMENT: readonly ExecutionState[] = [...TERMINAL_FOR_SETTLEMENT_REPORT, "on_hold", "awaiting_information"];
+/** Tone for a settlement value, never green when the payout is terminal, held or awaiting information. */
 export function settlementTone(v: SettlementEvidenceState, execution?: ExecutionState): Tone {
   const t = SETTLEMENT[v]?.[1] ?? "neutral";
   return t === "ok" && execution && NO_GREEN_SETTLEMENT.includes(execution) ? "warn" : t;
 }
+/** Words added when verified evidence is not success, so the meaning never rests on colour alone. */
+const QUALIFIER: Partial<Record<ExecutionState, string>> = {
+  on_hold: "supplier not paid (partner hold)",
+  awaiting_information: "supplier not confirmed paid (provider needs information)",
+  returned: "supplier not paid (payout returned)",
+  failed: "supplier not paid (payout failed)",
+  cancelled: "supplier not paid (payout cancelled)",
+  expired: "supplier not paid (payout expired)",
+};
+export function settlementQualifier(v: SettlementEvidenceState, execution?: ExecutionState): string | undefined {
+  return v === "verified" && execution && NO_GREEN_SETTLEMENT.includes(execution) ? QUALIFIER[execution] : undefined;
+}
 export const SettleChip = ({ v, showValue, execution }: V<SettlementEvidenceState> & { execution?: ExecutionState }) => {
   const tone = settlementTone(v, execution);
-  const map: Map<SettlementEvidenceState> = tone === SETTLEMENT[v]?.[1] ? SETTLEMENT : { ...SETTLEMENT, [v]: [SETTLEMENT[v][0], tone] };
-  return chipFrom("settlement", map, v, "evidence", { shape: EVIDENCE_SHAPE[v], solid: v === "verified" || v === "contradicted", showValue });
+  const base = SETTLEMENT[v];
+  if (!base) return chipFrom("settlement", SETTLEMENT, v, "evidence", { showValue });
+  const q = settlementQualifier(v, execution);
+  const words = `${engineLabel("settlement", v) ?? base[0]}${q ? ` — ${q}` : ""}`;
+  const map: Map<SettlementEvidenceState> = { ...SETTLEMENT, [v]: [words, tone] };
+  return chipFrom("settlement", map, v, "evidence", { shape: EVIDENCE_SHAPE[v], solid: v === "verified" || v === "contradicted", showValue, preferLocal: Boolean(q) });
 };
 /**
  * Reconciliation chip. A returned payout whose bank debit and statement-confirmed return are both
@@ -132,6 +158,22 @@ export const ReconChip = ({ v, returnStatus, showValue }: V<ReconciliationState>
     : chipFrom("reconciliation", RECON, v, "recon", { showValue });
 export const SevChip = ({ v }: { v: Severity }) => chipFrom("severity", SEVERITY, v);
 export const ExcChip = ({ v }: { v: ExceptionStatus }) => chipFrom("exceptionStatus", EXC_STATUS, v);
+/**
+ * An over-amount accepted above 1% is `resolved` in the engine but waits for a second, different staff
+ * person (resolution.acceptedDifference.secondApproval). It is not done: it is shown amber, stays in the open
+ * queue and counts as needing attention (review rc3 final m-B).
+ */
+export function awaitingSecondApproval(e: { status: ExceptionStatus; resolution?: { acceptedDifference?: { secondApproval?: { required: true; approvedBy?: string } } } }): boolean {
+  const sa = e.resolution?.acceptedDifference?.secondApproval;
+  return e.status === "resolved" && Boolean(sa?.required && !sa.approvedBy);
+}
+/** Needs a person: not resolved, or resolved but still awaiting a second approval. */
+export const needsAttention = (e: Parameters<typeof awaitingSecondApproval>[0]) => e.status !== "resolved" || awaitingSecondApproval(e);
+/** Exception status chip that never shows a pending acceptance as plain "Resolved". */
+export const ExcStatusChip = ({ e }: { e: Parameters<typeof awaitingSecondApproval>[0] }) =>
+  awaitingSecondApproval(e)
+    ? <span className="cl-tag" data-api-value={e.status} data-awaiting-approval="true"><Chip tone="warn" title="API value: resolved (accepted difference; secondApproval pending)">Accepted — awaiting second approval<span className={ui.srOnly}>, API value {e.status}</span></Chip></span>
+    : <ExcChip v={e.status} />;
 export const HoldChip = ({ v }: { v: HoldStatus }) => chipFrom("holdStatus", HOLD, v);
 /**
  * Advance state. `supplier_paid` alone is the provider's report; when the engine's supplierPaidBasis says the

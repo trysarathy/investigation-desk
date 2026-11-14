@@ -146,7 +146,7 @@ export default function MentorDemo() {
           <button type="button" className={styles.resetLink} onClick={() => { setState(initialDemo()); setPanel("overview"); setSelected("ADV-001"); setQueueFilter("all"); setQueueQuery(""); setMessage("Demo reset to the original fictional records."); setWarning(""); }}>Reset demo</button>
         </div>
       </header>
-      <div className={styles.sandboxBar}>Pilot workspace — sandbox payouts and approvals are simulated; no live payments.</div>
+      <aside className={styles.sandboxBar} aria-label="Sandbox notice">Pilot workspace — sandbox payouts and approvals are simulated; no live payments.</aside>
       <main className={styles.main}>
         <div className={styles.body}>
           <div className={styles.pageHead}>

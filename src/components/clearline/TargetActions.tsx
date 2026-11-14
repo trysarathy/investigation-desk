@@ -2,8 +2,9 @@
 import { useState } from "react";
 import { canResolveCase, canResolveException, type EvidenceKind, type TargetRef } from "@/lib/clearline";
 import { useWorkspace } from "./workspace";
-import { ActionButton, gateOf, useRun, type Gate } from "./Action";
+import { ActionButton, gateOf, useRun, useSettled, type Gate } from "./Action";
 import { describeResolution, label } from "./human";
+import { AcceptDifference, AcceptanceStatus } from "./AcceptDifference";
 import { Field, Status, ui } from "./ui";
 
 const EVIDENCE_KINDS: EvidenceKind[] = [
@@ -14,6 +15,8 @@ const EVIDENCE_KINDS: EvidenceKind[] = [
  * Case / exception actions. Every action goes to the engine; the engine decides whether it is
  * allowed (dry run before the click) and the UI shows its reason in words when not.
  */
+const VERBATIM = ["SECOND_APPROVAL_REQUIRED", "EVIDENCE_OUTSTANDING"];
+
 export function TargetActions({ target, status, idPrefix }: { target: TargetRef; status: string; idPrefix: string }) {
   const { ws, preview, actors } = useWorkspace();
   const { msg, run } = useRun();
@@ -30,20 +33,29 @@ export function TargetActions({ target, status, idPrefix }: { target: TargetRef;
 
   const resolved = status === "resolved";
   const id = (s: string) => `${idPrefix}-${s}`;
-  const sample = "Dry run";
+  // Dry runs use what the person typed (settled), so the gate matches what the engine will decide.
+  const tNote = useSettled(note), tInfoFrom = useSettled(infoFrom), tInfoReq = useSettled(infoReq), tEvDesc = useSettled(evDesc);
+  const tEvName = useSettled(evName), tEvRef = useSettled(evRef), tResolution = useSettled(resolution), tReopen = useSettled(reopenReason);
 
   const gAssign = gateOf(preview({ type: "assign_owner", target, ownerId: owner }), ws);
-  const gNote = gateOf(preview({ type: "add_note", target, text: sample }), ws, !note.trim() && "Write a note first.");
-  const gInfo = target.kind === "case" ? gateOf(preview({ type: "request_info", caseId: target.id, from: sample, request: sample }), ws, !infoReq.trim() && "Describe what you need first.") : null;
-  const gEvidence = gateOf(preview({ type: "attach_evidence", target, evidence: { kind: evKind, description: sample } }), ws, !evDesc.trim() && "Describe the evidence first.");
+  const gNote = gateOf(preview({ type: "add_note", target, text: tNote }), ws, !note.trim() && "Write a note first.");
+  const gInfo = target.kind === "case" ? gateOf(preview({ type: "request_info", caseId: target.id, from: tInfoFrom, request: tInfoReq }), ws, !infoReq.trim() && "Describe what you need first.") : null;
+  const gEvidence = gateOf(preview({ type: "attach_evidence", target, evidence: { kind: evKind, description: tEvDesc, documentName: tEvName || undefined, reference: tEvRef || undefined } }), ws, !evDesc.trim() && "Describe the evidence first.");
   const check = target.kind === "exception" ? canResolveException(ws, target.id) : canResolveCase(ws, target.id);
   const gResolve: Gate = !check.allowed
-    ? { ok: false, reason: describeResolution(check.code, check.reason, ws, target.id), code: check.code }
-    : gateOf(preview({ type: "resolve", target, note: sample }), ws, !resolution.trim() && "Write a resolution note first.");
-  const gReopen = gateOf(preview({ type: "reopen", target, reason: sample }), ws, !reopenReason.trim() && "Give a reason to reopen first.");
+    ? {
+      ok: false,
+      // These two carry facts a person needs (who may approve; why the evidence does not count): shown as the engine wrote them.
+      reason: VERBATIM.includes(check.code) ? `${label("resolutionCode", check.code)} ${check.reason}` : describeResolution(check.code, check.reason, ws, target.id),
+      code: check.code,
+    }
+    : gateOf(preview({ type: "resolve", target, note: tResolution }), ws, !resolution.trim() && "Write a resolution note first.");
+  const exc = target.kind === "exception" ? ws.exceptions.find((x) => x.id === target.id) : undefined;
+  const gReopen = gateOf(preview({ type: "reopen", target, reason: tReopen }), ws, !reopenReason.trim() && "Give a reason to reopen first.");
 
   return (
     <div className={ui.panelBody}>
+      {exc?.resolution?.acceptedDifference && <AcceptanceStatus exception={exc} idPrefix={idPrefix} />}
       <Status msg={msg} />
       <div className={ui.formGrid}>
         <form onSubmit={(e) => { e.preventDefault(); run("Assign owner", { type: "assign_owner", target, ownerId: owner }); }}>
@@ -80,6 +92,7 @@ export function TargetActions({ target, status, idPrefix }: { target: TargetRef;
           <Field label="Reference (optional)"><input id={id("ev-ref")} value={evRef} onChange={(e) => setEvRef(e.target.value)} /></Field>
           <div style={{ marginTop: 6 }}><ActionButton type="submit" size="small" gate={gEvidence}>Attach evidence metadata</ActionButton></div>
         </form>
+        {exc && !resolved && <AcceptDifference exception={exc} idPrefix={idPrefix} onRun={run} />}
         {!resolved ? (
           <form onSubmit={(e) => { e.preventDefault(); run(target.kind === "case" ? "Close case" : "Resolve exception", { type: "resolve", target, note: resolution }, { onOk: () => setResolution("") }); }}>
             <Field label="Resolution note"><textarea id={id("resolve")} value={resolution} onChange={(e) => setResolution(e.target.value)} /></Field>

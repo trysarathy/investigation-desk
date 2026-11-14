@@ -15,8 +15,10 @@ export function recomputeDimensions(ws: Workspace, intent: PaymentIntent): void 
   const bank = ws.allocations
     .filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id && a.evidenceKind === "statement_line" && a.currency === intent.sourceCurrency && !a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN"))
     .reduce((s, a) => s + a.amountMinor, 0);
-  const chainAlloc = ws.allocations.some((a) => a.evidenceKind === "chain_observation" && a.target.kind === "payment" && a.target.intentId === intent.id);
   const obs = ws.chainObservations.find((o) => o.intentId === intent.id && o.status !== "rejected_unsupported");
+  // rc3 (C-3): a chain allocation counts as a match only while its observation is final (after a reorg
+  // the observation drops below finality and the allocation no longer evidences the payout).
+  const chainAlloc = obs?.status === "final" && ws.allocations.some((a) => a.evidenceKind === "chain_observation" && a.target.kind === "payment" && a.target.intentId === intent.id && a.statementLineId === obs.id);
   // CHANGE 5 (F1): a settlement report on a terminal payout (TERMINAL_FOR_SETTLEMENT_REPORT; "returned"
   // is handled by its own branch below) is a contradiction, never settlement evidence.
   // Review v2 (m1): only a report recorded as AGREEING with the payout counts; one that raised an
@@ -24,9 +26,14 @@ export function recomputeDimensions(ws: Workspace, intent: PaymentIntent): void 
   const terminal = isTerminalForSettlementReport(intent.status.execution);
   const providerReport = !terminal && providerReportLinesFor(ws, intent).some(isAgreeingProviderReport);
 
-  // Re-review N2: a returned payout never settled with the beneficiary. Settlement is "none"
-  // (scope "none") — the debit and return evidence stay on record and in the investigation — and
-  // reconciliation is "matched" only when the debit AND an equal statement-confirmed return are both
+  // Re-review N2 + review v2 M2 + rc3 scope rule: a returned payout never settled with the beneficiary.
+  // - While the return (or another contradiction) is open AND settlement evidence exists (bank debit or
+  //   chain transfer), settlement is "contradicted" and the scope names the contradicted evidence
+  //   ("bank_statement" for a debit, else "onchain_transfer") — exactly what onExecutionChanged leaves, so
+  //   a recompute never changes the scope of the same facts.
+  // - Otherwise (no evidence, or a person resolved the return) settlement is "none" with scope "none"; the
+  //   debit and return evidence stay on record and in the investigation (returnPosition).
+  // Reconciliation is "matched" only when the debit AND an equal statement-confirmed return are both
   // allocated (net zero, returnStatus "confirmed_by_statement"); otherwise it stays "exception".
   if (intent.status.execution === "returned") {
     const returned = ws.allocations
@@ -37,13 +44,19 @@ export function recomputeDimensions(ws: Workspace, intent: PaymentIntent): void 
     const evidenced = bank > 0 || Boolean(obs);
     intent.status.settlement =
       open.some((e) => e.category === "contradictory_evidence") || (evidenced && open.some((e) => e.category === "returned_payout")) ? "contradicted" : "none";
-    intent.status.settlementScope = "none";
+    intent.status.settlementScope = intent.status.settlement === "contradicted" ? (bank > 0 ? "bank_statement" : obs ? "onchain_transfer" : "none") : "none";
     const netZero = returned > 0 && returned === bank && intent.returnStatus === "confirmed_by_statement";
     intent.status.reconciliation = !open.some((e) => RECON_BLOCKING.includes(e.category)) && netZero ? "matched" : "exception";
     return;
   }
 
-  if (open.some((e) => e.category === "contradictory_evidence")) intent.status.settlement = "contradicted";
+  // rc3 (T-2): a failed, cancelled or expired payout never shows settlement evidence as success once a
+  // person resolves the contradiction: the evidence stays on record and in the investigation, but the
+  // settlement dimension is "none" (as for a returned payout, N2). Before: the recompute set "verified".
+  if (terminal) {
+    intent.status.settlement = open.some((e) => e.category === "contradictory_evidence") ? "contradicted" : "none";
+    if (intent.status.settlement === "none") intent.status.settlementScope = "none";
+  } else if (open.some((e) => e.category === "contradictory_evidence")) intent.status.settlement = "contradicted";
   else if (obs) {
     intent.status.settlementScope = "onchain_transfer";
     intent.status.settlement = obs.status === "final" ? "verified" : obs.status === "pending_finality" ? "pending_finality" : "observed";
@@ -62,4 +75,50 @@ export function recomputeDimensions(ws: Workspace, intent: PaymentIntent): void 
   else if (chainAlloc || bank >= intent.amountMinor) intent.status.reconciliation = "matched";
   else if (bank > 0) intent.status.reconciliation = "partially_matched";
   else intent.status.reconciliation = instr?.providerPaymentId ? "pending" : "not_started";
+}
+
+/** QA rc3 L1: settlement levels ordered by strength of evidence (contradicted is outside the order: always a downgrade). */
+export const SETTLEMENT_RANK: Record<string, number> = { none: 0, observed: 1, pending_finality: 2, verified: 3 };
+
+export interface EvidenceCeiling {
+  /** The highest settlement level the recorded evidence can support (an upper bound of recomputeDimensions). */
+  settlement: "none" | "observed" | "pending_finality" | "verified";
+  /** Recorded allocations can support reconciliation "matched". */
+  matched: boolean;
+  /** Recorded allocations can support reconciliation "partially_matched". */
+  partiallyMatched: boolean;
+}
+
+/**
+ * QA rc3 L1: the most the recorded EVIDENCE can support for a payout, whatever its stored status says. It is an
+ * upper bound of what rc3's own derive (recomputeDimensions) and its incremental rules can set, so a status above
+ * it was not produced by rc3 from this evidence:
+ * - verified needs a counted FINAL chain observation, or bank statement allocations in the payout's currency
+ *   covering the full amount;
+ * - pending_finality needs a counted chain observation; observed needs any counted chain observation, any bank
+ *   allocation, or a provider settlement report naming the payout;
+ * - matched needs a final chain observation allocated to the payout, bank allocations covering the full amount, or
+ *   (returned payout) a statement-confirmed return; partially_matched needs any allocation to the payout.
+ */
+export function evidenceCeiling(ws: Workspace, intent: PaymentIntent): EvidenceCeiling {
+  const allocs = ws.allocations.filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id);
+  const bank = allocs
+    .filter((a) => a.evidenceKind === "statement_line" && a.currency === intent.sourceCurrency && !a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN"))
+    .reduce((s, a) => s + a.amountMinor, 0);
+  const obs = ws.chainObservations.filter((o) => o.intentId === intent.id && o.status !== "rejected_unsupported");
+  const finalObs = obs.filter((o) => o.status === "final");
+  const settlement: EvidenceCeiling["settlement"] =
+    finalObs.length || bank >= intent.amountMinor ? "verified"
+      : obs.some((o) => o.status === "pending_finality") ? "pending_finality"
+        : obs.length || bank > 0 || allocs.length || providerReportLinesFor(ws, intent).length ? "observed" : "none";
+  const chainMatched = allocs.some((a) => a.evidenceKind === "chain_observation" && finalObs.some((o) => o.id === a.statementLineId));
+  const returnMatched = intent.status.execution === "returned" && intent.returnStatus === "confirmed_by_statement" && allocs.some((a) => a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN"));
+  return { settlement, matched: chainMatched || bank >= intent.amountMinor || returnMatched, partiallyMatched: allocs.length > 0 };
+}
+
+/** QA rc3 L1: the stored status claims settlement "verified" and reconciliation "matched", AND the evidence supports both. */
+export function evidencedVerifiedAndMatched(ws: Workspace, intent: PaymentIntent): boolean {
+  if (intent.status.settlement !== "verified" || intent.status.reconciliation !== "matched") return false;
+  const c = evidenceCeiling(ws, intent);
+  return c.settlement === "verified" && c.matched;
 }

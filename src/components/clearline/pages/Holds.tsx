@@ -1,10 +1,11 @@
 "use client";
 import Link from "../Link";
 import { useState } from "react";
-import { ActionButton, gateOf, useRun } from "../Action";
+import { ActionButton, gateOf, useRun, useSettled } from "../Action";
 import type { ComplianceHold } from "@/lib/clearline";
 import { useWorkspace } from "../workspace";
-import { HoldChip, human } from "../labels";
+import { HoldChip } from "../labels";
+import { label } from "../human";
 import { Dl, Empty, Field, Notice, PageHead, Panel, Status, fmtTime, ui } from "../ui";
 
 function HoldCard({ h }: { h: ComplianceHold }) {
@@ -18,11 +19,13 @@ function HoldCard({ h }: { h: ComplianceHold }) {
   const docList = docs.split(",").map((s) => s.trim()).filter(Boolean);
   const aDocs = { type: "submit_hold_documents", holdId: h.id, documents: docList } as const;
   const aReviewer = { type: "assign_hold_reviewer", holdId: h.id, reviewerId: reviewer } as const;
-  const aDecision = { type: "record_hold_decision", holdId: h.id, decision, reason: "Dry run" } as const;
-  const gDocs = gateOf(closed ? null : preview(aDocs), ws, !docList.length && "List at least one document name first.");
+  const tReason = useSettled(reason);
+  const aDecision = { type: "record_hold_decision", holdId: h.id, decision, reason: tReason } as const;
+  const tDocList = useSettled(docs).split(",").map((x) => x.trim()).filter(Boolean);
+  const gDocs = gateOf(closed ? null : preview({ ...aDocs, documents: tDocList }), ws, !docList.length && "List at least one document name first.");
   const gReviewer = gateOf(closed ? null : preview(aReviewer), ws);
-  const gDecision = gateOf(closed ? null : preview(aDecision), ws);
-  const gDecisionInput = gDecision.ok && !reason.trim() ? { ok: false as const, reason: "Give the reviewer's reason first." } : gDecision;
+  const gDecision = gateOf(closed ? null : preview(aDecision), ws, !reason.trim() && "Give the reviewer's reason first.");
+  const gDecisionInput = gDecision;
 
   return (
     <Panel id={h.id} title={<>Hold on <Link href={`/clearline/payments/${h.intentId}`} className="mono">{h.intentId}</Link></>} actions={<HoldChip v={h.status} />}>
@@ -39,7 +42,7 @@ function HoldCard({ h }: { h: ComplianceHold }) {
         {h.decisions.length > 0 && (
           <>
             <h3 style={{ fontSize: 13, margin: "14px 0 4px" }}>Reviewer decisions</h3>
-            <ul style={{ margin: 0 }}>{h.decisions.map((d, i) => <li key={i}>{human(d.decision)} — {d.reason} <span className={ui.hint}>({actorName(d.reviewerId)}, {fmtTime(d.at)})</span></li>)}</ul>
+            <ul style={{ margin: 0 }}>{h.decisions.map((d, i) => <li key={i}>{label("holdDecision", d.decision)} — {d.reason} <span className={ui.hint}>({actorName(d.reviewerId)}, {fmtTime(d.at)})</span></li>)}</ul>
           </>
         )}
         <Status msg={msg} />
