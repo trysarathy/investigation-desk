@@ -165,7 +165,10 @@ const TERMINAL = ["failed", "cancelled", "expired", "returned"];
  *   and never above its own amount;
  * - a repayment allocation is unique per statement line and matches that line's repayment allocation;
  * - maker ≠ checker on every recorded instruction check and funding decision;
- * - a hold is released or rejected only with a matching reviewer decision;
+ * - every recorded decision names an existing actor with the role its action requires (instruction maker /
+ *   checker, funding maker / checker, hold reviewer and each hold decision, accepted difference and its second
+ *   approval) — QA rc3 L2;
+ * - a hold is released or rejected only with a matching compliance reviewer's decision;
  * - a failed, cancelled, expired or returned payout never carries settlement "verified".
  */
 function crossCheck(ws: Obj) {
@@ -231,6 +234,7 @@ function crossCheck(ws: Obj) {
     const e = (ws.exceptions as Obj[]).find((x) => x.id === o.supersededBy);
     need(o.status === "rejected_unsupported" && !!e && e.status === "resolved" && (e.supportingEventIds as unknown[]).includes(o.id), `chainObservations[${i}].supersededBy`, "must name a resolved hash-conflict exception about this rejected observation");
   });
+  const staffIds = new Set((ws.actors as Obj[]).filter((a) => a.role !== "viewer").map((a) => a.id as string));
   // Re-review R-M2 / R2-M2: an accepted difference describes its own exception's line and payout exactly, and a
   // second approval comes from a different person than the one who accepted.
   (ws.exceptions as Obj[]).forEach((e, i) => {
@@ -240,6 +244,8 @@ function crossCheck(ws: Obj) {
     const q = `exceptions[${i}].resolution.acceptedDifference`;
     need(isObj(d), q, "must be an object");
     const a = d as Obj;
+    // QA rc3 L2: the person who accepted is an existing staff member (resolve requires a staff role).
+    need(staffIds.has(res.actorId as string), `exceptions[${i}].resolution.actorId`, "an accepted difference must be accepted by an existing staff member");
     need(e.status === "resolved" && (e.explanationCode === "RC_OVERPAYMENT" || e.explanationCode === "RC_OUTSIDE_TIME_WINDOW") && a.statementLineId === e.statementLineId, q, "must belong to a resolved RC_OVERPAYMENT or RC_OUTSIDE_TIME_WINDOW exception and name its statement line");
     amt(a, "differenceMinor", q, 0); cur(a, "currency", q);
     const line = lines.find((l) => l.id === e.statementLineId);
@@ -250,14 +256,32 @@ function crossCheck(ws: Obj) {
       const sa = a.secondApproval as Obj;
       need(isObj(sa) && sa.required === true, `${q}.secondApproval`, "must be { required: true, … }");
       if (sa.approvedBy !== undefined) need(typeof sa.approvedBy === "string" && sa.approvedBy !== res.actorId && isIsoInstant(sa.approvedAt), `${q}.secondApproval.approvedBy`, "must be a different person than the one who accepted, with an approval time");
+      // QA rc3 L2: the approver is an existing staff member (approve_acceptance requires a staff role).
+      if (sa.approvedBy !== undefined) need(staffIds.has(sa.approvedBy as string), `${q}.secondApproval.approvedBy`, "must be an existing staff member (operator, approver or compliance)");
     }
   });
+  // QA rc3 L2: every recorded decision names an existing actor with the role the action requires (the same roles in
+  // every engine version, v2 included), and a checker differs from the maker. A workspace that breaks this was not
+  // produced by any engine version, so it is refused, not migrated.
+  const roleOf = new Map((ws.actors as Obj[]).map((a) => [a.id as string, a.role as string]));
+  const hasRole = (id: unknown, roles: string[]) => typeof id === "string" && roles.includes(roleOf.get(id) ?? "");
   (ws.instructions as Obj[]).forEach((x, i) => {
-    if (x.checkerId !== undefined) need(x.checkerId !== x.makerId, `instructions[${i}].checkerId`, "maker and checker must be different people");
+    need(hasRole(x.makerId, ["operator", "approver"]), `instructions[${i}].makerId`, "must be an existing operator or approver (choose_route)");
+    if (x.checkerId !== undefined) {
+      need(x.checkerId !== x.makerId, `instructions[${i}].checkerId`, "maker and checker must be different people");
+      need(hasRole(x.checkerId, ["approver"]), `instructions[${i}].checkerId`, "must be an existing approver");
+    }
   });
-  (ws.fundingDecisions as Obj[]).forEach((d, i) => need(d.checkerId !== d.makerId, `fundingDecisions[${i}].checkerId`, "maker and checker must be different people"));
+  (ws.fundingDecisions as Obj[]).forEach((d, i) => {
+    need(d.checkerId !== d.makerId, `fundingDecisions[${i}].checkerId`, "maker and checker must be different people");
+    need(hasRole(d.makerId, ["operator"]), `fundingDecisions[${i}].makerId`, "must be an existing operator (create_advance)");
+    need(hasRole(d.checkerId, ["approver"]), `fundingDecisions[${i}].checkerId`, "must be an existing approver");
+  });
   (ws.holds as Obj[]).forEach((h, i) => {
-    const decided = (h.decisions as Obj[]).map((d) => (isObj(d) ? d.decision : undefined));
+    if (h.reviewerId !== undefined) need(hasRole(h.reviewerId, ["compliance"]), `holds[${i}].reviewerId`, "must be an existing compliance reviewer");
+    (h.decisions as unknown[]).forEach((d, j) =>
+      need(isObj(d) && hasRole(d.reviewerId, ["compliance"]) && ["release", "reject", "request_more"].includes(d.decision as string), `holds[${i}].decisions[${j}]`, "must be a release, reject or request_more decision by an existing compliance reviewer (reviewerId)"));
+    const decided = (h.decisions as Obj[]).map((d) => d.decision);
     if (h.status === "released") need(decided.includes("release"), `holds[${i}].status`, "a hold is released only after the compliance reviewer's release decision");
     if (h.status === "rejected") need(decided.includes("reject"), `holds[${i}].status`, "a hold is rejected only by the compliance reviewer's decision");
   });

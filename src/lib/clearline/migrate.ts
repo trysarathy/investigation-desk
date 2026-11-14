@@ -24,10 +24,13 @@
  *    terminal rule: contradicted with its rule exception, or none if a person resolved exactly that exception.
  * D. Reconciliation "matched" on a chain allocation whose observation is no longer final, without a full bank
  *    match (v2 C-3 reorg). → reconciliation exception.
+ * E. (QA rc3 L1) A settlement or reconciliation above what the recorded evidence can support (derive.ts
+ *    evidenceCeiling), e.g. a crafted "verified / matched" with only a pending-finality transfer. → capped to rc3's
+ *    own derive (recomputeDimensions), never upgraded; no exception is raised (the evidence itself is unchanged).
  * Not detectable from stored data: a v2 C-2 block change that was applied silently (the earlier block is not kept).
  */
 import { tokenAllowed } from "./chain";
-import { recomputeDimensions } from "./derive";
+import { evidenceCeiling, recomputeDimensions } from "./derive";
 import { EXCEPTION_DUE_DAYS, EXCEPTION_REQUIRED_ACTION } from "./exceptions";
 import { addDays, orgDate } from "./tx";
 import type { ChainObservation, ExceptionCategory, PaymentIntent, ReconciliationException, Severity, StatusDimensions, Workspace, WorkspaceMigration } from "./types";
@@ -212,6 +215,40 @@ export function migrateToRc3(ws: Workspace): WorkspaceMigration[] {
     record(intent, from, {
       kind: "reorg_reconciliation", outcome: "reconciliation_reopened", observationId: chainAllocs[0].statementLineId,
       text: `Payment ${intent.internalReference} (${intent.id}): the on-chain transfer it was matched to is no longer final (reorganisation), so it is no longer shown as matched. Reconciliation matched → exception.`,
+    });
+  }
+
+  // E. (QA rc3 L1) A stored settlement or reconciliation above what the recorded evidence can support (a crafted or
+  // corrupted workspace; no engine version sets a status without its evidence). → capped to rc3's own derive,
+  // never upgraded. A terminal payout stored as verified is left to the integrity check, which refuses it.
+  for (const intent of ws.intents) {
+    const st = intent.status;
+    const ceiling = evidenceCeiling(ws, intent);
+    const sExceeds = st.settlement !== "contradicted" && (RANK[st.settlement] ?? 0) > RANK[ceiling.settlement] && !(TERMINAL.includes(st.execution) && st.settlement === "verified");
+    const rExceeds = (st.reconciliation === "matched" && !ceiling.matched) || (st.reconciliation === "partially_matched" && !ceiling.partiallyMatched);
+    if (!sExceeds && !rExceeds) continue;
+    const from = { ...st };
+    const probe = structuredClone(intent);
+    recomputeDimensions(ws, probe);
+    if (sExceeds) {
+      const derived = probe.status.settlement;
+      if (derived === "contradicted" || (RANK[derived] ?? 0) <= RANK[ceiling.settlement]) {
+        st.settlement = derived;
+        st.settlementScope = probe.status.settlementScope;
+      } else {
+        st.settlement = ceiling.settlement;
+        if (ceiling.settlement === "none") st.settlementScope = "none";
+      }
+    }
+    if (rExceeds) {
+      const derived = probe.status.reconciliation;
+      const ok = (derived !== "matched" || ceiling.matched) && (derived !== "partially_matched" || ceiling.partiallyMatched);
+      st.reconciliation = ok ? derived : ws.instructions.find((i) => i.id === intent.instructionId)?.providerPaymentId ? "pending" : "not_started";
+    }
+    const lvl = (x: string) => (x === "pending_finality" ? "pending finality" : x === "partially_matched" ? "partially matched" : x.replace("_", " "));
+    record(intent, from, {
+      kind: "status_exceeds_evidence", outcome: "status_capped",
+      text: `Payment ${intent.internalReference} (${intent.id}) was stored with settlement ${lvl(from.settlement)} and reconciliation ${lvl(from.reconciliation)}, more than its recorded evidence supports. It now shows settlement ${lvl(st.settlement)} and reconciliation ${lvl(st.reconciliation)}, as rc3 derives them from the evidence (never upgraded).`,
     });
   }
   return out;

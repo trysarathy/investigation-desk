@@ -76,3 +76,49 @@ export function recomputeDimensions(ws: Workspace, intent: PaymentIntent): void 
   else if (bank > 0) intent.status.reconciliation = "partially_matched";
   else intent.status.reconciliation = instr?.providerPaymentId ? "pending" : "not_started";
 }
+
+/** QA rc3 L1: settlement levels ordered by strength of evidence (contradicted is outside the order: always a downgrade). */
+export const SETTLEMENT_RANK: Record<string, number> = { none: 0, observed: 1, pending_finality: 2, verified: 3 };
+
+export interface EvidenceCeiling {
+  /** The highest settlement level the recorded evidence can support (an upper bound of recomputeDimensions). */
+  settlement: "none" | "observed" | "pending_finality" | "verified";
+  /** Recorded allocations can support reconciliation "matched". */
+  matched: boolean;
+  /** Recorded allocations can support reconciliation "partially_matched". */
+  partiallyMatched: boolean;
+}
+
+/**
+ * QA rc3 L1: the most the recorded EVIDENCE can support for a payout, whatever its stored status says. It is an
+ * upper bound of what rc3's own derive (recomputeDimensions) and its incremental rules can set, so a status above
+ * it was not produced by rc3 from this evidence:
+ * - verified needs a counted FINAL chain observation, or bank statement allocations in the payout's currency
+ *   covering the full amount;
+ * - pending_finality needs a counted chain observation; observed needs any counted chain observation, any bank
+ *   allocation, or a provider settlement report naming the payout;
+ * - matched needs a final chain observation allocated to the payout, bank allocations covering the full amount, or
+ *   (returned payout) a statement-confirmed return; partially_matched needs any allocation to the payout.
+ */
+export function evidenceCeiling(ws: Workspace, intent: PaymentIntent): EvidenceCeiling {
+  const allocs = ws.allocations.filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id);
+  const bank = allocs
+    .filter((a) => a.evidenceKind === "statement_line" && a.currency === intent.sourceCurrency && !a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN"))
+    .reduce((s, a) => s + a.amountMinor, 0);
+  const obs = ws.chainObservations.filter((o) => o.intentId === intent.id && o.status !== "rejected_unsupported");
+  const finalObs = obs.filter((o) => o.status === "final");
+  const settlement: EvidenceCeiling["settlement"] =
+    finalObs.length || bank >= intent.amountMinor ? "verified"
+      : obs.some((o) => o.status === "pending_finality") ? "pending_finality"
+        : obs.length || bank > 0 || allocs.length || providerReportLinesFor(ws, intent).length ? "observed" : "none";
+  const chainMatched = allocs.some((a) => a.evidenceKind === "chain_observation" && finalObs.some((o) => o.id === a.statementLineId));
+  const returnMatched = intent.status.execution === "returned" && intent.returnStatus === "confirmed_by_statement" && allocs.some((a) => a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN"));
+  return { settlement, matched: chainMatched || bank >= intent.amountMinor || returnMatched, partiallyMatched: allocs.length > 0 };
+}
+
+/** QA rc3 L1: the stored status claims settlement "verified" and reconciliation "matched", AND the evidence supports both. */
+export function evidencedVerifiedAndMatched(ws: Workspace, intent: PaymentIntent): boolean {
+  if (intent.status.settlement !== "verified" || intent.status.reconciliation !== "matched") return false;
+  const c = evidenceCeiling(ws, intent);
+  return c.settlement === "verified" && c.matched;
+}

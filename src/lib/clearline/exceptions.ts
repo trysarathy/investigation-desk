@@ -1,3 +1,4 @@
+import { evidencedVerifiedAndMatched } from "./derive";
 import { obligationOutstanding } from "./funding";
 import { computeLiquidity } from "./liquidity";
 import { applyBpsFloor, formatMinor } from "./money";
@@ -249,7 +250,8 @@ export function canResolveCase(ws: Workspace, caseId: string): ResolutionCheck {
   // payout (acceptedBankLine), with a second person's approval when the policy requires one.
   const intent = c.intentId ? ws.intents.find((i) => i.id === c.intentId) : undefined;
   const sent = intent ? Boolean(ws.instructions.find((i) => i.id === intent.instructionId)?.providerPaymentId) : false;
-  const evidenced = intent ? intent.status.settlement === "verified" && intent.status.reconciliation === "matched" : false;
+  // QA rc3 L1: never trust a stored status the recorded evidence cannot support (a crafted workspace).
+  const evidenced = intent ? evidencedVerifiedAndMatched(ws, intent) : false;
   const accepted = intent && sent && !evidenced ? acceptedBankLine(ws, intent.id) : undefined;
   const live = intent && sent && !isTerminalForSettlementReport(intent.status.execution) && !evidenced;
   if (live && accepted?.pendingSecondApproval)
@@ -257,7 +259,7 @@ export function canResolveCase(ws: Workspace, caseId: string): ResolutionCheck {
   if (live && !accepted) {
     const fx = currencyMismatchLine(ws, intent!.id);
     return deny("EVIDENCE_OUTSTANDING",
-      `The payment is not yet evidenced (settlement ${intent!.status.settlement}, reconciliation ${intent!.status.reconciliation}). It closes on a matched bank statement line or a final on-chain transfer, or once a staff person explicitly accepts a bank debit that carries this payment's reference: an over-amount (acceptDifference; above ${ACCEPTED_OVERAGE_BPS / 100}% a second person approves) or a late value date (acceptLateDate).` +
+      `The payment is not yet evidenced (settlement ${intent!.status.settlement}, reconciliation ${intent!.status.reconciliation}${intent!.status.settlement === "verified" || intent!.status.reconciliation === "matched" ? "; the recorded evidence does not support that stored status" : ""}). It closes on a matched bank statement line or a final on-chain transfer, or once a staff person explicitly accepts a bank debit that carries this payment's reference: an over-amount (acceptDifference; above ${ACCEPTED_OVERAGE_BPS / 100}% a second person approves) or a late value date (acceptLateDate).` +
       (fx ? ` Bank debit ${fx.lineId} carries this payment's reference but is in ${fx.currency}, not ${intent!.sourceCurrency}: it cannot be accepted, because the sandbox holds no FX evidence linking the two amounts (an FX confirmation with the rate and both amounts would be needed). Obtain the ${intent!.sourceCurrency} statement line instead.` : ""));
   }
   // rc3 (X-1): a case whose payment funded an advance stays open while the customer still owes money.

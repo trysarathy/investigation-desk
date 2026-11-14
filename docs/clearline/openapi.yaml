@@ -148,6 +148,16 @@ info:
 
       A currency mismatch is never acceptable: there is no FX evidence in the sandbox.
 
+    **CHANGE 13 (QA/security pass on rc3, L1 and L2).** No request or response shape changes.
+    - **A posted status above its evidence.** A posted workspace whose settlement or reconciliation is higher than
+      its recorded evidence supports (for example `verified` / `matched` with only a pending-finality transfer) is
+      capped on load to what the engine derives from the evidence, never upgraded, and reported in
+      `migrations[]` (kind `status_exceeds_evidence`). A case never closes on a stored status alone.
+    - **Who decided.** A posted workspace is refused (`invalid_field`, 422) when a recorded decision names an
+      actor who does not exist or lacks the role: instruction checker (approver) and maker (operator or approver),
+      funding checker (approver) and maker (operator), hold reviewer and every hold decision (compliance, in
+      `reviewerId`), and an accepted difference's accepter and second approver (staff).
+
     **Legacy endpoints** under `/api/clearline/test/{intents,quotes,transitions,webhooks,payments,health}`
     are **retired** and execute nothing. A request that is invalid under the old contract gets HTTP 422
     (`invalid_request`); every other request, any method, gets HTTP 410 (`endpoint_retired`). Both carry
