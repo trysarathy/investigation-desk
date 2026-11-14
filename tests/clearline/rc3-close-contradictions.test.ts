@@ -480,3 +480,45 @@ describe("third re-review R3-B1: reopening an accepted exception withdraws the a
       expect(canResolveCase(ws, caseId).code).toBe("RESOLVABLE");
     });
 });
+
+describe("third re-review R3-m1: acceptance rules pinned one by one", () => {
+  const payoutWithLine = (amountMinor: number, line: Record<string, unknown>) => {
+    let { ws, id, ppid } = submitted({ amountMinor });
+    ws = sim(sim(ws, id).workspace, id).workspace;
+    ws = run(ws, "usr_maya", { type: "ingest_statement_line", line: debitLine(Object.assign({ reference: `PAYOUT ${ppid}`, amountMinor }, line)) }).workspace;
+    const exc = ws.exceptions.filter((e) => e.intentId === id && e.statementLineId).at(-1)!;
+    ws = assign(ws, "exception", exc.id);
+    ws = evidence(ws, exc.id);
+    return { ws, id, exc, caseId: intent(ws, id).caseId! };
+  };
+  it("a SHORT late debit (SGD 1.00 for a SGD 10,000.00 payout) can never be accepted as the payout", () => {
+    const { ws, exc } = payoutWithLine(1_000_000, { amountMinor: 100, valueDate: "2026-11-30" });
+    expect(exc.explanationCode).toBe("RC_OUTSIDE_TIME_WINDOW");
+    const r = attempt(ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: exc.id }, note: "Late", acceptLateDate: true });
+    expect(!r.ok && r.error.message).toMatch(/^DIFFERENCE_NOT_ACCEPTABLE: The line is for less than the payout/);
+  });
+  it("a late AND over-amount line needs acceptDifference too (acceptLateDate alone is refused)", () => {
+    const { ws, exc } = payoutWithLine(1_000_000, { amountMinor: 1_000_050, valueDate: "2026-11-30" });
+    const r = attempt(ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: exc.id }, note: "Late", acceptLateDate: true });
+    expect(!r.ok && r.error.message).toMatch(/accept the over-amount explicitly with acceptDifference/);
+  });
+  it("close-time: an accepted late line whose recorded late date is missing does not close the case", () => {
+    const p = payoutWithLine(1_000_000, { valueDate: "2026-11-30" });
+    let ws = run(p.ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: p.exc.id }, note: "Late", acceptLateDate: true }).workspace;
+    ws = assign(ws, "case", p.caseId);
+    expect(canResolveCase(ws, p.caseId).code).toBe("RESOLVABLE");
+    const w = JSON.parse(serializeWorkspace(ws)) as Workspace;
+    delete w.exceptions.find((e) => e.id === p.exc.id)!.resolution!.acceptedDifference!.lateValueDate;
+    expect(canResolveCase(w, p.caseId).code).toBe("EVIDENCE_OUTSTANDING");
+  });
+  it("approve_acceptance re-checks the line: if it no longer qualifies (now a provider report), the approval is refused", () => {
+    const p = payoutWithLine(10_000, { amountMinor: 11_500 });
+    const ws = run(p.ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: p.exc.id }, note: "Fee", acceptDifference: true }).workspace;
+    const w = JSON.parse(serializeWorkspace(ws)) as Workspace;
+    const line = w.statementLines.find((l) => l.id === p.exc.statementLineId)!;
+    line.source = "provider_settlement_report";
+    line.accountRef = "prv_northline:settlement";
+    const r = attempt(w, "usr_sam", { type: "approve_acceptance", exceptionId: p.exc.id, note: "Checked" });
+    expect(!r.ok && r.error.message).toMatch(/^DIFFERENCE_NOT_ACCEPTABLE: Only an outgoing bank-statement debit/);
+  });
+});

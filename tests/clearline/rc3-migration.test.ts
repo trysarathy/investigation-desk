@@ -263,3 +263,53 @@ describe("R2-M1 rule B: a hash recorded earlier as rejected never counts later (
     expect(r.ok && r.value.migrations).toEqual([]);
   });
 });
+
+describe("third re-review R3-m1: migration rules pinned one by one", () => {
+  it("rule A raises CH_UNSUPPORTED_TOKEN_OR_NETWORK (owned) when the stored workspace lacks it", () => {
+    const g = raw("v2_gaps.json");
+    const i = g.intents.find((x) => x.internalReference === "INV-V2-B")!;
+    const drop = g.exceptions.filter((e) => e.intentId === i.id && e.explanationCode === "CH_UNSUPPORTED_TOKEN_OR_NETWORK").map((e) => e.id);
+    g.exceptions = g.exceptions.filter((e) => !drop.includes(e.id));
+    for (const c of g.cases) c.exceptionIds = c.exceptionIds.filter((x) => !drop.includes(x));
+    const r = loadWorkspace(JSON.stringify(g));
+    if (!r.ok) throw new Error(r.error.message);
+    const m = r.value.migrations.find((x) => x.kind === "chain_observation_not_allowlisted")!;
+    expect(m).toMatchObject({ exceptionCode: "CH_UNSUPPORTED_TOKEN_OR_NETWORK", ownerId: "usr_maya" });
+    expect(r.value.workspace.exceptions.find((e) => e.id === m.exceptionId)).toMatchObject({ category: "unsupported_token_or_network", status: "in_review" });
+  });
+
+  it("rule B honours a person's supersede: the freed hash later counted for ANOTHER payout is an rc3 state and is left alone", () => {
+    const usdc = (ws0: Workspace, ref: string) => {
+      const s = submitted({ amountMinor: 6_427_830_000, sourceCurrency: "USDC", destinationCurrency: "USDC", destinationCountry: "SG", sandboxOutcome: "chain_delay", internalReference: ref }, "prv_tidewater", ws0);
+      return { ws: sim(s.ws, s.id).workspace, id: s.id };
+    };
+    const obs = (ws: Workspace, id: string, o: Record<string, unknown> = {}) => {
+      const i = ws.intents.find((x) => x.id === id)!;
+      return { intentId: id, chainId: 84532, network: "base-sepolia", tokenContract: ALLOWLISTED_TOKENS[0].contract, tokenSymbol: "USDC", txHash: "0x" + "3c".repeat(32), toAddress: getAdapter("prv_tidewater")!.expectedWallet!(i), amountMinor: ws.quotes.find((q) => q.id === i.selectedQuoteId)!.estimatedRecipientMinor, blockNumber: 80, confirmations: 20, ...o };
+    };
+    let { ws, id: x } = usdc(sampleWorkspace(), "INV-R3-X");
+    ws = run(ws, "usr_maya", { type: "ingest_chain_observation", observation: obs(ws, x, { chainId: 1, network: "ethereum" }) }).workspace;
+    ws = run(ws, "usr_maya", { type: "ingest_chain_observation", observation: obs(ws, x) }).workspace; // conflict on X
+    const exc = ws.exceptions.find((e) => e.intentId === x && e.explanationCode === "CH_TX_HASH_ON_OTHER_CHAIN")!;
+    ws = run(ws, "usr_maya", { type: "assign_owner", target: { kind: "exception", id: exc.id }, ownerId: "usr_maya" }).workspace;
+    ws = run(ws, "usr_maya", { type: "attach_evidence", target: { kind: "exception", id: exc.id }, evidence: { kind: "document_metadata", description: "Explorer (fictional)" } }).workspace;
+    ws = run(ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: exc.id }, note: "Wrong network on the first entry" }).workspace;
+    const y = usdc(ws, "INV-R3-Y");
+    ws = run(y.ws, "usr_maya", { type: "ingest_chain_observation", observation: obs(y.ws, y.id) }).workspace; // counted for Y
+    expect(ws.chainObservations.some((o) => o.intentId === y.id && o.status === "final")).toBe(true);
+    const r = loadWorkspace(serializeWorkspace(ws));
+    expect(r.ok && r.value.migrations).toEqual([]);
+  });
+
+  it("rule D leaves a payout alone when a full bank match backs the 'matched' (the chain transfer is no longer final)", () => {
+    const g = raw("v2_gaps.json");
+    const s4 = g.intents.find((x) => x.scenario === "s4_chain")!;
+    const tmplLine = g.statementLines.find((l) => l.allocationIds.length && l.direction === "debit")!;
+    const tmplAlloc = g.allocations.find((a) => a.statementLineId === tmplLine.id)!;
+    g.statementLines.push({ ...tmplLine, id: "stl_99980", lineId: "R3-D-1", accountRef: "BANK-USDC (fictional)", currency: "USDC", amountMinor: s4.amountMinor, allocationIds: ["alc_99981"], amountDifference: undefined });
+    g.allocations.push({ ...tmplAlloc, id: "alc_99981", statementLineId: "stl_99980", currency: "USDC", amountMinor: s4.amountMinor, target: { kind: "payment", intentId: s4.id } });
+    const r = loadWorkspace(JSON.stringify(g));
+    if (!r.ok) throw new Error(r.error.message);
+    expect(r.value.migrations.filter((m) => m.kind === "reorg_reconciliation")).toEqual([]);
+  });
+});
