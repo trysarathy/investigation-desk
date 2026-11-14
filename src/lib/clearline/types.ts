@@ -949,6 +949,35 @@ export interface ReturnPosition {
   text: string;
 }
 
+/**
+ * Re-review R-m1: one change the load-time migration made to a workspace saved by an earlier engine version
+ * (see loadWorkspace). `text` is plain English the console can show ("Your saved workspace was updated: …").
+ */
+export interface WorkspaceMigration {
+  kind: "terminal_payout_verified";
+  intentId: string;
+  internalReference: string;
+  from: StatusDimensions;
+  to: StatusDimensions;
+  /** contradiction_raised: the rc3 rule's exception was created; contradicted_open: an open exception already covers it; resolved_by_person: a person had resolved the rule's exception. */
+  outcome: "contradiction_raised" | "contradicted_open" | "resolved_by_person";
+  /** The exception created (contradiction_raised), still open (contradicted_open) or already resolved (resolved_by_person). */
+  exceptionId?: string;
+  exceptionCode?: string;
+  ownerId?: string;
+  caseId?: string;
+  /** The `workspace.migrated` audit event recording this change. */
+  auditId: string;
+  text: string;
+}
+
+/** Re-review R-m1: result of loadWorkspace / loadWorkspaceValue. */
+export interface WorkspaceLoad {
+  workspace: Workspace;
+  /** Empty for a workspace written by this engine version. */
+  migrations: WorkspaceMigration[];
+}
+
 export interface CaseReport {
   json: Record<string, unknown>;
   text: string;

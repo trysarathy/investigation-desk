@@ -12,7 +12,7 @@ import { computeLiquidity } from "./liquidity";
 import { MAX_AMOUNT_MINOR, isCurrency, validateAmountMinor, withinTotal } from "./money";
 import { reconcileLine } from "./reconciliation";
 import { recomputeDimensions } from "./derive";
-import { parseWorkspaceValue } from "./serialize";
+import { loadWorkspaceValue } from "./serialize";
 import { canTransitionExecution } from "./state";
 import {
   Abort,
@@ -61,8 +61,13 @@ export function applyAction(ws: Workspace, action: WorkspaceAction, ctx: ActionC
     return { ok: false, error: { code: "invalid_field", message: "The workspace could not be copied (malformed data). Reset to the sample.", field: "workspace" } };
   }
   // Re-review m-new-1: damaged data is caught by validation (a typed error), not by a catch-all.
-  const valid = parseWorkspaceValue(tx.ws);
+  const valid = loadWorkspaceValue(tx.ws);
   if (!valid.ok) return valid;
+  // Re-review R-m1: the migration's audit events are part of this action's result, not hidden in the log.
+  for (const m of valid.value.migrations) {
+    const ev = tx.ws.audit.find((a) => a.id === m.auditId);
+    if (ev) tx.audit.push(ev);
+  }
   try {
     if (!tx.actor()) fail("unauthorized_actor", "Unknown actor.", { field: "actorId" });
     if (Date.parse(ctx.at) > Date.parse(tx.ws.asOf)) tx.ws.asOf = new Date(Date.parse(ctx.at)).toISOString();
