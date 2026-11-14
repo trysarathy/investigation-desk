@@ -196,3 +196,89 @@ describe("QA rc3 L2: every recorded decision names an existing actor with the re
     }
   });
 });
+
+describe("Fifth check R5-m2: evidenceCeiling is exact on chain finality and on return confirmation", () => {
+  it("a chain allocation whose observation is not final does not support matched (nor verified)", () => {
+    const ws0 = sampleWorkspace();
+    const id = scenarioIntentId(ws0, "s4_chain")!;
+    const o = ws0.chainObservations.find((x) => x.intentId === id)!;
+    const obs = { intentId: id, chainId: o.chainId, network: o.network, tokenContract: o.tokenContract, tokenSymbol: o.tokenSymbol, txHash: o.txHash, toAddress: o.toAddress, amountMinor: o.amountMinor, blockNumber: o.blockNumber };
+    const fin = run(ws0, "usr_maya", { type: "ingest_chain_observation", observation: { ...obs, confirmations: 100 } }).workspace;
+    const finIntent = fin.intents.find((x) => x.id === id)!;
+    expect(fin.allocations.some((a) => a.evidenceKind === "chain_observation" && a.target.kind === "payment" && a.target.intentId === id)).toBe(true);
+    expect(evidenceCeiling(fin, finIntent)).toMatchObject({ settlement: "verified", matched: true });
+    // The same allocation, its observation dropped below finality (crafted: no reload, so rule D does not mask it).
+    const crafted = clone(fin);
+    for (const x of crafted.chainObservations) if (x.intentId === id) x.status = "pending_finality";
+    const c = evidenceCeiling(crafted, crafted.intents.find((x) => x.id === id)!);
+    expect(c.matched).toBe(false);
+    expect(c.settlement).toBe("pending_finality");
+    expect(c.partiallyMatched).toBe(true);
+  });
+
+  it("a returned payout's return allocation supports matched only once the return is confirmed by the statement", () => {
+    const ws = sampleWorkspace();
+    const id = scenarioIntentId(ws, "s2_returned")!;
+    const i = ws.intents.find((x) => x.id === id)!;
+    expect(i.status.execution).toBe("returned");
+    expect(i.returnStatus).toBe("confirmed_by_statement");
+    expect(ws.allocations.some((a) => a.target.kind === "payment" && a.target.intentId === id && a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN"))).toBe(true);
+    // Remove the debit allocations so only the return allocation can support matched.
+    const onlyReturn = clone(ws);
+    onlyReturn.allocations = onlyReturn.allocations.filter((a) => !(a.target.kind === "payment" && a.target.intentId === id && !a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN")));
+    const ir = onlyReturn.intents.find((x) => x.id === id)!;
+    expect(evidenceCeiling(onlyReturn, ir).matched).toBe(true);
+    const unconfirmed = clone(onlyReturn);
+    const iu = unconfirmed.intents.find((x) => x.id === id)!;
+    iu.returnStatus = "provider_reported";
+    expect(evidenceCeiling(unconfirmed, iu).matched).toBe(false);
+  });
+});
+
+describe("Fifth check R5-m1: forged evidence records that no engine version produces are refused", () => {
+  /** A provider-completed SGD 10,000.00 payout, nothing allocated. */
+  const live = () => {
+    let { ws, id, ppid } = submitted();
+    ws = sim(sim(ws, id).workspace, id).workspace;
+    return { ws: clone(ws), id, ppid };
+  };
+  const forgeLine = (ws: Workspace, id: string, line: Record<string, unknown>, codes: string[] = ["RC_EXACT_REFERENCE_AMOUNT_CURRENCY_WINDOW"]) => {
+    const l = { id: "stl_99902", lineId: "FORGED-1", source: "bank_statement", accountRef: "BANK-SGD", direction: "debit", kind: "payment", amountMinor: 1_000_000, currency: "SGD", reference: "NOTHING", counterparty: "X (fictional)", valueDate: "2026-11-13", receivedAt: ws.asOf, status: "allocated", allocationIds: ["alc_99903"], explanationCodes: [], ...line };
+    ws.statementLines.push(l as never);
+    ws.allocations.push({ id: "alc_99903", statementLineId: l.id, evidenceKind: "statement_line", target: { kind: "payment", intentId: id }, amountMinor: 1_000_000, currency: l.currency, matchedBy: "trusted_reference", codes, createdAt: ws.asOf } as never);
+    Object.assign(ws.intents.find((x) => x.id === id)!.status, { settlement: "verified", settlementScope: "bank_statement", reconciliation: "matched" });
+    return ws;
+  };
+
+  it("the genuine shape loads (a bank debit carrying the provider payment id), so the probes isolate one field each", () => {
+    const { ws, id, ppid } = live();
+    expect(parseWorkspaceValue(forgeLine(ws, id, { reference: `NORTHLINE PAYOUT ${ppid}` })).ok).toBe(true);
+  });
+
+  it("a provider settlement report allocated to a payout is refused", () => {
+    const { ws, id, ppid } = live();
+    refused(forgeLine(ws, id, { source: "provider_settlement_report", accountRef: "prv_northline:settlement", reference: ppid }), /provider report or a credit is never allocated/);
+  });
+
+  it("a bank credit, and a credit without the payout's reference, allocated to a payout are refused", () => {
+    const a = live();
+    refused(forgeLine(a.ws, a.id, { direction: "credit", reference: "NOTHING" }), /provider payment id/);
+    const b = live();
+    refused(forgeLine(b.ws, b.id, { direction: "credit", reference: `NORTHLINE ${b.ppid}` }), /never allocated to a payout/);
+  });
+
+  it("a bank debit without the payout's provider payment id, or in another currency, is refused", () => {
+    const a = live();
+    refused(forgeLine(a.ws, a.id, { reference: "NORTHLINE PAYOUT" }), /provider payment id/);
+    const b = live();
+    refused(forgeLine(b.ws, b.id, { reference: b.ppid, currency: "USD" }), /source currency/);
+  });
+
+  it("a return confirmation must come from a return or reversal line", () => {
+    const a = live();
+    refused(forgeLine(a.ws, a.id, { reference: a.ppid }, ["RC_RETURN_CONFIRMS_PROVIDER_RETURN"]), /return or reversal line/);
+    const b = live();
+    expect(parseWorkspaceValue(forgeLine(b.ws, b.id, { reference: b.ppid, kind: "return", direction: "credit" }, ["RC_RETURN_CONFIRMS_PROVIDER_RETURN"])).ok).toBe(true);
+  });
+});
+
