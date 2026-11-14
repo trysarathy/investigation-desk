@@ -128,7 +128,8 @@ info:
       resolved.
     - **Closing a case on an unmatched debit.** This needs the engine `resolve` action with
       `acceptDifference: true`, and only for an over-amount of at most 1% on a bank debit that names the payout
-      in its currency and window. That field is not exposed by these v1 endpoints.
+      in its currency and window. `POST /exceptions/{id}/resolve` does not take that field; the generic
+      `POST /actions` passes the engine action through unchanged, under the same engine rules.
     - **Migration report.** The engine's `loadWorkspace` returns `migrations[]` (engine function, no endpoint).
 
     **CHANGE 10 (second re-review of 7e521f5).**
@@ -140,7 +141,8 @@ info:
       - matched on a transfer that is no longer final.
 
       Evidence is never upgraded.
-    - **Closing a case on a disagreeing bank debit** (engine actions, not exposed by these v1 endpoints):
+    - **Closing a case on a disagreeing bank debit** (engine actions; available through the generic `POST /actions`,
+      not through `POST /exceptions/{id}/resolve`, which drops these flags):
       - a late value date: `resolve { acceptLateDate: true }`;
       - an over-amount up to 1%: `resolve { acceptDifference: true }`;
       - an over-amount up to 50%: additionally `approve_acceptance` by a different staff person. Until then the
