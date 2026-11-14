@@ -18,7 +18,7 @@ const rules: [string, ReactNode][] = [
   ["Evidence carries its scope.", <>A matched bank-statement debit is <code>verified</code> with scope <code>bank_statement</code>: the payout left the account. The beneficiary&rsquo;s credit can still be unknown, and the record says so.</>],
   ["Observation is not finality.", <>A synthetic testnet transfer counts as verified only past the finality threshold (12 confirmations on the Base Sepolia route), and never proves a supplier&rsquo;s bank credit.</>],
   ["Short is never settled.", <>A bank line with a trusted reference but only part of the amount is <code>partially_matched</code>; the remainder stays outstanding (<code>RC_PARTIAL_AMOUNT</code>). A provider report below the payout needs review (<code>RC_UNDER_AMOUNT_REPORT</code>), with expected, reported and difference stated.</>],
-  ["A return is an exception until a person resolves it.", <>A statement line can confirm the return (<code>confirmed_by_statement</code>). The exception stays open, with its owner and due date, because the supplier is still unpaid.</>],
+  ["A return is an exception until a person resolves it.", <>A statement line can confirm the return (<code>confirmed_by_statement</code>). The exception stays open, with its due date and the owner a person assigned, because the supplier is still unpaid.</>],
 ];
 
 export default function Platform() {

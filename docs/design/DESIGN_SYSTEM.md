@@ -209,7 +209,7 @@ The exact API value is always shown as secondary detail (mono, slate, after the 
 - Funding: `supplier_paid` is labelled "Supplier paid (provider-reported)". Always show `supplierPaidBasis` (`none` · `provider_reported` · `verified_settlement`); only `verified_settlement` may use the success tone.
 - A provider settlement report gives at most `observed` and never reconciles on its own. An on-chain transfer is `verified` only past the finality threshold and never proves a bank credit.
 - A provider-reported return sets reconciliation `exception` immediately. Show `returnStatus` (`provider_reported` → `confirmed_by_statement`) beside it; a confirmed return is still an exception until a person resolves it.
-- Exceptions always show their owner and `dueDate` (ISO date, mono); overdue items use the danger tone.
+- Exceptions always show their `dueDate` (ISO date, mono; set by the engine at creation) and their owner, or "Unassigned": the engine creates exceptions unassigned and a person assigns the owner. Overdue items use the danger tone.
 
 Implementation: `marketing/components/Status.tsx` (`.st-exec`, `.st-settlement` + `.stl-*`, `.st-recon`, human-label maps exported for the console).
 
@@ -261,6 +261,8 @@ The website's large product demonstration is the console's payment investigation
 One source: `marketing/lib/disclosure.ts`, rendered by `<Disclosure />` on Home, Platform and Trial. Two ruled columns (works today in the sandbox · not built yet) with a mono area label per row, and an ice "Out of scope" note. An item may sit under "works today" only if the released engine and console can demonstrate it. Never a card grid.
 
 ## Change log
+
+- 2026-11-14: QA L3. Copy no longer says exceptions are created with an owner: the engine sets the due date at creation and creates exceptions unassigned; a person assigns the owner (two of the four sample exceptions are unassigned). Guarded by a test.
 
 - 2026-11-14: v2.2.2. Product view regenerated from rc3/clearline-app @ 7e521f5 (engine data unchanged); statement-line sources use the console's attribution wording ("Bank statement · BANK-SGD-OPS (fictional)"). The disclosure (§16) and Customer trial add the console features shipped at 7e521f5: synthetic case report, per-case reset, filters and owner assignment, simulated roles, Funding Desk from Treasury & Funding; all marked console-only.
 

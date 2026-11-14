@@ -17,7 +17,7 @@ export default function Control() {
       <PageHero eyebrow="Clearline Control" title={<>Understand what happened <em>after submission.</em></>}
         stages={["synthetic", "none"]}
         actions={<><ButtonLink href={SOFTWARE_URL} main>Open Control in test mode</ButtonLink><ButtonLink href="/use-cases" variant="secondary">See the use cases</ButtonLink></>}>
-        <p>Control is the operations side: it follows each payment after it leaves, separates what was reported from what can be shown, and turns disagreements into exceptions with an owner.</p>
+        <p>Control is the operations side: it follows each payment after it leaves, separates what was reported from what can be shown, and turns disagreements into exceptions in a queue, where a person assigns each owner.</p>
       </PageHero>
 
       <Section tone="white" eyebrow="Investigation" title="A timeline with sources, not a status badge"
@@ -35,7 +35,8 @@ export default function Control() {
           <p>A provider settlement report on a payout that is failed, cancelled, expired or returned is a contradiction, not evidence. It raises <code className="inline">contradictory_evidence</code> (<code className="inline">RC_REPORT_ON_TERMINAL_PAYOUT</code>), reconciliation becomes an exception, and settlement is left unchanged.</p>
         </div>
         <AmountDifferenceTable />
-        <h3 className="h3" style={{ margin: "40px 0 12px" }}>Exceptions, owners and due dates</h3>
+        <h3 className="h3" style={{ margin: "40px 0 12px" }}>Exceptions, due dates and owners</h3>
+        <p className="prose" style={{ marginBottom: 16 }}>The engine creates every exception with a due date: an explicit date, or the creation date plus 1 day (critical, high), 3 days (medium) or 5 days (low). It creates them unassigned. A person assigns the owner in the console, and an exception cannot be resolved without one. In the sample, two of the four open exceptions have been assigned; two are still unassigned.</p>
         <ExceptionsTable />
       </Section>
 

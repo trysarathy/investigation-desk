@@ -21,7 +21,7 @@ const storyGaps = [
   ["The provider has the instruction.", "Not that any money has moved."],
   ["The provider says it is on its way.", "Not where it is, or when it will arrive."],
   ["The bank statement shows the payout left the account, allocated by its trusted reference.", "Not that the supplier was credited."],
-  ["The provider says it came back. Clearline makes reconciliation an exception at once, with an owner and a due date, and marks the earlier debit evidence as contradicted.", "Why it came back, and whether the money is really back."],
+  ["The provider says it came back. Clearline makes reconciliation an exception at once, with a due date, and marks the earlier debit evidence as contradicted.", "Why it came back, and whether the money is really back."],
   ["The return credit is on the statement, allocated by its trusted reference. The debit and the credit net to zero (RT_NET_ZERO).", "Nothing about the supplier: the beneficiary was not paid, so the exception stays open."],
 ];
 
@@ -45,7 +45,7 @@ export default function Home() {
             <dl>
               <div><dt>For</dt><dd>Payment operations, finance and treasury teams that send or settle cross-border payouts across more than one provider.</dd></div>
               <div><dt>Connect</dt><dd>Instructs payouts the same way on every route: intent, quotes, approval by a second person, one status model.</dd></div>
-              <div><dt>Control</dt><dd>Shows what happened after submission: evidence, reconciliation by reference, exceptions with an owner.</dd></div>
+              <div><dt>Control</dt><dd>Shows what happened after submission: evidence, reconciliation by reference, and an exceptions queue where a person assigns each owner.</dd></div>
               <div><dt>Try it</dt><dd>Five fictional cases, 15&ndash;20 minutes, no sign-up. No real provider, bank or wallet is connected.</dd></div>
             </dl>
           </div>
@@ -85,7 +85,7 @@ export default function Home() {
               <p className="label">Clearline&rsquo;s answer</p>
               <div className="status-line"><ExecStatus state={returned.execution} /><SettlementStatus state={returned.settlement} scope={returned.settlementScope} /><ReconStatus state={returned.reconciliation} /></div>
               <p style={{ marginTop: 16 }}><b>{returned.nextAction}</b></p>
-              <p className="caption" style={{ marginTop: 8 }}>Owner {returnedException.owner} · due <span className="num">{returnedException.dueDate}</span> · exception <span className="mono">{returnedException.category}</span>. Fictional data.</p>
+              <p className="caption" style={{ marginTop: 8 }}>Owner {returnedException.owner} (assigned by a person) · due <span className="num">{returnedException.dueDate}</span> · exception <span className="mono">{returnedException.category}</span>. Fictional data.</p>
             </div>
           </div>
         </div>
@@ -117,7 +117,7 @@ export default function Home() {
               <dl className="spec">
                 <div><dt>Investigation</dt><dd>A sourced timeline, what is still unknown, who acts and the next action.</dd></div>
                 <div><dt>Reconciliation</dt><dd>Statement lines allocated by trusted reference. Amount alone is never attribution.</dd></div>
-                <div><dt>Exceptions</dt><dd>Every disagreement gets an owner and a due date.</dd></div>
+                <div><dt>Exceptions</dt><dd>Every disagreement becomes an exception in the queue with a due date set by severity; a person assigns its owner.</dd></div>
                 <div><dt>Liquidity and holds</dt><dd>Usable balance net of what is not yours to spend. Holds owned by a named reviewer.</dd></div>
               </dl>
               <p className="duo-note"><b>Funding Desk</b> is Control&rsquo;s specialist workflow for providers that pay a supplier before their customer repays: the advance, a treasury decision by a second person, and the repayment, linked to the payout. <ExtLink href={FUNDING_DESK_URL}>Open the Funding Desk demo</ExtLink></p>
@@ -133,7 +133,7 @@ export default function Home() {
             <li><span className="idx">02</span><div><span className="flow-owner">Connect</span><b>Follow</b><p>Provider events move execution, and only execution.</p></div></li>
             <li><span className="idx">03</span><div><span className="flow-owner">Control</span><b>Evidence</b><p>Statement lines or chain observations set settlement, with their scope.</p></div></li>
             <li><span className="idx">04</span><div><span className="flow-owner">Control</span><b>Reconcile</b><p>Allocation by trusted reference; partial amounts stay partly matched.</p></div></li>
-            <li><span className="idx">05</span><div><span className="flow-owner">Control</span><b>Resolve</b><p>Whatever disagrees becomes an exception with an owner and a due date.</p></div></li>
+            <li><span className="idx">05</span><div><span className="flow-owner">Control</span><b>Resolve</b><p>Whatever disagrees becomes an exception in the queue with a due date; a person assigns the owner.</p></div></li>
           </ol>
         </div>
       </section>

@@ -84,7 +84,7 @@ const endpoints: [string, string, string][] = [
   ["POST", "/webhooks/verify", "Sample verifier; no workspace needed"],
   ["GET", "/reconciliation", "Statement lines and allocations"],
   ["POST", "/reconciliation/statement-lines", "Ingest a bank or provider settlement line and reconcile it"],
-  ["GET", "/exceptions", "Unresolved exceptions, severity-ordered, each with an owner and a dueDate"],
+  ["GET", "/exceptions", "Unresolved exceptions, severity-ordered, each with a dueDate and an ownerId once a person assigns one"],
   ["POST", "/exceptions/{id}/{assign|notes|evidence|resolve|reopen}", "Resolution only when its conditions are met; never allocates funds"],
   ["GET · POST", "/liquidity", "Liquidity view (sample, or for a supplied workspace / instant)"],
   ["GET · POST", "/funding-advances", "Funding projection · prepare an advance funding a supplier payout"],
@@ -182,7 +182,7 @@ export default function Developers() {
                 <tr><td><ReconStatus state="pending" /></td><td>Submitted; no allocated statement line yet.</td></tr>
                 <tr><td><ReconStatus state="matched" /></td><td>A line was allocated on trusted reference, amount, currency and value-date window.</td></tr>
                 <tr><td><ReconStatus state="partially_matched" /></td><td>A bank line with the trusted reference covers only part of the amount; the remainder stays outstanding (<code className="inline">RC_PARTIAL_AMOUNT</code>, settlement <code className="inline">observed</code>). The line carries <code className="inline">amountDifference</code>.</td></tr>
-                <tr><td><ReconStatus state="exception" /></td><td>Something disagrees, or the provider reported a return. Each exception has an owner and a due date. A return stays an exception even after a statement line confirms it, until a person resolves it.</td></tr>
+                <tr><td><ReconStatus state="exception" /></td><td>Something disagrees, or the provider reported a return. Each exception gets a due date when it is created; it starts unassigned until a person assigns an owner, and it cannot be resolved without one (<code className="inline">OWNER_REQUIRED</code>). A return stays an exception even after a statement line confirms it, until a person resolves it.</td></tr>
               </tbody>
             </TableWrap>
           </div>

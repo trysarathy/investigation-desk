@@ -613,3 +613,23 @@ test("rc3 console features shipped at 7e521f5 are disclosed exactly, as console 
   // Workspace repair is not described as shipped.
   for (const f of copySources) assert.equal(/repair(s|ed)? (your|saved|old) workspace/i.test(read(f)), false, f);
 });
+
+test("rc3 exceptions: due dates are set at creation, owners are assigned by a person (QA L3)", () => {
+  // The engine creates exceptions unassigned (exceptions.ts openException: ownerId only if given; dueDate = explicit or
+  // creation date + EXCEPTION_DUE_DAYS); resolving needs an owner (OWNER_REQUIRED). 2 of the 4 sample exceptions have none.
+  const claims = [/(exception|disagreement)s? (gets?|has|have|with|carr(y|ies)) an owner/i, /with an owner and a due ?date/i, /each with an owner/i,
+    /every (exception|disagreement)[^.]{0,40}\bowner\b(?![^.]{0,60}(assign|person))/i, /exceptions? with (its|their) owner and due/i, /turns disagreements into exceptions with an owner/i];
+  for (const f of [...copySources.filter(f => !f.endsWith("investigations.ts")), "../docs/design/DESIGN_SYSTEM.md"]) {
+    const s = read(f);
+    for (const re of claims) assert.equal(re.test(s), false, f + " claims exceptions are created with an owner: " + re);
+  }
+  // The sample shows the truth: some exceptions unassigned.
+  const sample = read("lib/sample.ts");
+  const ex = sample.slice(sample.indexOf("export const SAMPLE_EXCEPTIONS"));
+  assert.equal((ex.match(/owner: "Unassigned"/g) || []).length, 2, "two sample exceptions are unassigned, as in the engine");
+  // The correct wording is present where the claim used to be.
+  assert.match(read("lib/disclosure.ts"), /anything else becomes an exception in the queue with a due date set by severity, and a person assigns its owner\./);
+  assert.match(read("app/control/page.tsx"), /The engine creates every exception with a due date: an explicit date, or the creation date plus 1 day \(critical, high\), 3 days \(medium\) or 5 days \(low\)\. It creates them unassigned\./);
+  assert.match(read("app/developers/page.tsx"), /OWNER_REQUIRED/);
+  assert.match(sample, /critical and high 1 day, medium 3 days, low 5 days from creation, unless a date is set explicitly/);
+});

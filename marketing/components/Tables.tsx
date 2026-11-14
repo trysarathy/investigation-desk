@@ -103,7 +103,7 @@ export function FundingTable() {
 export function ExceptionsTable() {
   const sev: Record<string, string> = { critical: "danger", high: "danger", medium: "warning", low: "neutral" };
   return (
-    <TableWrap label="Sample exceptions with owners and due dates" caption={"The engine's unresolved exceptions, severity-ordered. " + EXCEPTION_DUE_POLICY}>
+    <TableWrap label="Sample exceptions with due dates and assigned owners" caption={"The engine's unresolved exceptions, severity-ordered. " + EXCEPTION_DUE_POLICY}>
       <thead><tr><th scope="col">Category</th><th scope="col">Item</th><th scope="col">Severity</th><th scope="col">Status</th><th scope="col">Owner</th><th scope="col">Due</th><th scope="col">Required action</th></tr></thead>
       <tbody>{SAMPLE_EXCEPTIONS.map(e => (
         <tr key={e.category}>
