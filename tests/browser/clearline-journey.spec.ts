@@ -1454,7 +1454,7 @@ test("m-A: if the original cannot be backed up before an update, nothing is save
 
 test("m-B: an over-amount accepted above 1% shows 'Accepted — awaiting second approval' (amber) and stays visible until approved", async ({ page }) => {
   test.setTimeout(240_000);
-  await completedPayout(page, "INV-AWAIT-3PCT");
+  const payId = await completedPayout(page, "INV-AWAIT-3PCT");
   const { panel, excId } = await debitException(page, "INV-AWAIT-3PCT", { factor: 1.03, code: "RC_OVERPAYMENT" });
   const accept = panel.getByTestId("accept-difference");
   await accept.getByLabel("Why the over-amount is accepted").fill("Supplier surcharge of 3% (fictional).");
@@ -1480,6 +1480,12 @@ test("m-B: an over-amount accepted above 1% shows 'Accepted — awaiting second 
   const att = page.locator("#attention tbody tr").filter({ hasText: "RC_OVERPAYMENT" });
   await expect(att).toContainText("Accepted — awaiting second approval");
   await expect(att.getByRole("link").first()).toHaveAttribute("href", `/clearline/exceptions?view=awaiting#${excId}`);
+  // The synthetic case report says the same, not "Resolved".
+  await open(page, `/clearline/payments/${payId}`);
+  await page.getByRole("button", { name: "View case report" }).click();
+  await expect(page.getByTestId("case-report").locator('[data-awaiting-approval="true"]')).toHaveText("Accepted — awaiting second approval");
+  await expect(page.getByTestId("case-report")).toContainText("accepted_awaiting_second_approval"); // the engine's row status
+  await expect(page.getByTestId("report-acceptance").first()).not.toHaveText(""); // the engine's acceptance text
   // Approved by a different person: it becomes plain Resolved and leaves the awaiting queue.
   await open(page, `/clearline/exceptions?view=awaiting`);
   const sec = page.locator(`section[id="${excId}"]`);
@@ -1495,6 +1501,11 @@ test("m-B: an over-amount accepted above 1% shows 'Accepted — awaiting second 
   await open(page, `/clearline/exceptions?view=resolved&q=${excId}`);
   await expect(page.locator("#queue tbody tr").filter({ hasText: excId }).locator('[data-api-value="resolved"]')).toBeVisible();
   await expect(page.locator("#queue tbody tr").filter({ hasText: excId })).not.toContainText("awaiting");
+  // The report no longer says awaiting once approved.
+  await open(page, `/clearline/payments/${payId}`);
+  await page.getByRole("button", { name: "View case report" }).click();
+  await expect(page.getByTestId("case-report").locator('[data-awaiting-approval="true"]')).toHaveCount(0);
+  await expect(page.getByTestId("report-acceptance").first()).not.toHaveText("");
 });
 
 test("m-C: backups show sizes and a total, can be deleted after a confirmation, are capped per kind, and never collide", async ({ page }) => {
@@ -1544,4 +1555,27 @@ test("download file names are restricted to safe characters", async ({ page }) =
   await open(page, "/clearline/settings");
   const [dl] = await Promise.all([page.waitForEvent("download"), page.getByTestId("backup-list").getByRole("button", { name: "Download clearline.console.workspace.v1.boundary-backup.2026-11-14T08:00:00.000Z" }).click()]);
   expect(dl.suggestedFilename()).toMatch(/^[A-Za-z0-9._-]+$/);
+});
+
+test("C1: across many backups of one kind, exactly the newest 3 remain and the one just written is never removed", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.clock.setFixedTime(new Date("2026-11-14T09:00:00Z")); // same-millisecond writes throughout
+  await open(page, "/clearline/settings");
+  const written: string[] = [];
+  const resetKeys = () => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("clearline.console.workspace.v1.before-reset-backup")));
+  for (let i = 0; i < 7; i++) {
+    for (let k = 0; k <= i; k++) { // a different workspace each time
+      await page.getByRole("button", { name: "Advance 1 hour" }).click();
+      await expect(page.getByRole("status").filter({ hasText: "Clock advanced" })).toBeVisible();
+    }
+    written.push((await page.evaluate(() => localStorage.getItem("clearline.console.workspace.v1")))!);
+    await page.getByRole("button", { name: "Reset to sample" }).click();
+    await expect(page.getByText("The previous workspace is kept as a backup below.").first()).toBeVisible();
+    // The backup just written is always present.
+    const kept = await page.evaluate((keys) => keys.map((k) => localStorage.getItem(k)), await resetKeys());
+    expect(kept, `after write ${i + 1}`).toContain(written[i]);
+    expect(kept.length, `after write ${i + 1}`).toBe(Math.min(i + 1, 3));
+  }
+  const final = await page.evaluate((keys) => keys.map((k) => localStorage.getItem(k)), await resetKeys());
+  expect(new Set(final)).toEqual(new Set(written.slice(-3)));
 });

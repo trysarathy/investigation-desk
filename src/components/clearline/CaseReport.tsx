@@ -120,7 +120,9 @@ function ReportBody({ r, id }: { r: SyntheticCaseReport; id: string }) {
             <caption className={ui.reportCaption}>Exceptions</caption>
             <tbody>
               {r.exceptions.map((e) => (
-                <tr key={e.id}><th scope="row" className="mono">{e.id}</th><td>{e.label} · {label("exceptionStatus", e.status)} · owner {e.ownerId ?? "unassigned"}{e.dueDate ? ` · due ${e.dueDate}` : ""} <span className={ui.apiValue}>{e.code}</span></td></tr>
+                <tr key={e.id}><th scope="row" className="mono">{e.id}</th><td>{e.label} · {e.status === "accepted_awaiting_second_approval"
+                  ? <span data-awaiting-approval="true" style={{ color: "var(--cl-warning)", fontWeight: 600 }}>{e.statusLabel ?? label("reportExceptionStatus", e.status)}</span>
+                  : (e.statusLabel ?? label("reportExceptionStatus", e.status))} · owner {e.ownerId ?? "unassigned"}{e.dueDate ? ` · due ${e.dueDate}` : ""} <span className={ui.apiValue}>{e.code} · {e.status}</span>{e.acceptance && <span className={ui.sub} data-testid="report-acceptance">{e.acceptance.text}</span>}</td></tr>
               ))}
             </tbody>
           </table>

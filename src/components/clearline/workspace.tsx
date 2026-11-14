@@ -36,13 +36,20 @@ const BACKUP_BASES = [BACKUP_KEY, BOUNDARY_BACKUP_KEY, RESTORE_BACKUP_KEY, MIGRA
 export function writeBackup(base: string, raw: string): string | null {
   try {
     const ls = window.localStorage;
-    const existing = ls.getItem(base);
+    const kind = keysOf(base);
+    // Already kept: the same content is not stored twice.
+    const same = kind.find((k) => ls.getItem(k) === raw);
+    if (same) return same;
+    // The bare slot is used only for the first backup of a kind. Every later one is timestamped, with a
+    // counter for the same millisecond (review nit n4), so key order is write order and pruning can never
+    // mistake a newer backup for an older one (final check C1).
     let key = base;
-    if (existing !== null && existing !== raw) {
-      // Timestamped next to the slot; a counter keeps two backups in the same millisecond apart (review nit n4).
+    if (kind.length > 0) {
       const stamp = `${base}.${new Date().toISOString()}`;
       key = stamp;
-      for (let n = 2; ls.getItem(key) !== null && ls.getItem(key) !== raw; n++) key = `${stamp}-${String(n).padStart(3, "0")}`;
+      // Must sort after every existing key of the kind (a key freed by pruning is never reused).
+      const last = kind[kind.length - 1];
+      for (let n = 2; ls.getItem(key) !== null || (last !== base && key <= last); n++) key = `${stamp}-${String(n).padStart(3, "0")}`;
     }
     ls.setItem(key, raw);
     pruneBackups(base, key);
@@ -52,17 +59,21 @@ export function writeBackup(base: string, raw: string): string | null {
   }
 }
 
+/** Keys of one kind of backup, oldest first (the bare slot, when present, is always the first written). */
+function keysOf(base: string): string[] {
+  const ls = window.localStorage;
+  const keys: string[] = [];
+  for (let i = 0; i < ls.length; i++) { const k = ls.key(i); if (k && (k === base || k.startsWith(base + "."))) keys.push(k); }
+  return keys.sort((a, b) => (a === base ? -1 : b === base ? 1 : a < b ? -1 : a > b ? 1 : 0));
+}
+
 /** Backups kept per kind; older ones are removed only after a newer one was written successfully. */
 export const BACKUPS_PER_KIND = 3;
 function pruneBackups(base: string, justWritten: string) {
   try {
-    const ls = window.localStorage;
-    const keys: string[] = [];
-    for (let i = 0; i < ls.length; i++) { const k = ls.key(i); if (k && (k === base || k.startsWith(base + "."))) keys.push(k); }
-    // Oldest first: the bare slot is the first backup of its kind, then timestamped keys in time order.
-    keys.sort((a, b) => (a === base ? -1 : b === base ? 1 : a.localeCompare(b)));
+    const keys = keysOf(base);
     const excess = keys.length - BACKUPS_PER_KIND;
-    for (const k of keys.slice(0, Math.max(0, excess))) if (k !== justWritten) ls.removeItem(k);
+    for (const k of keys.slice(0, Math.max(0, excess))) if (k !== justWritten) window.localStorage.removeItem(k);
   } catch { /* pruning is best effort; nothing is lost by keeping a backup */ }
 }
 
