@@ -1,8 +1,12 @@
 /**
  * Fictional sample records taken from the TESTED sandbox engine's deterministic sample
  * (src/lib/clearline/sample.ts → sampleWorkspace(), scenarios s1–s5, on
- * release/clearline-unified-20261113 @ b250bb4, ENGINE_API CHANGE 2; re-run against 0490e40 (CHANGE 5) on 13 Nov 2026:
- * every status, statement line, exception and due date is unchanged; the funding row gained supplierPaidBasis). Values were read by running the engine's own read models
+ * release/clearline-unified-20261113 @ b250bb4, ENGINE_API CHANGE 2; re-run against 0490e40 (CHANGE 5) and against
+ * rc3/clearline-app @ cf8732e and efabe6a on 13 Nov 2026: every status, statement line, exception, quote and due date agrees
+ * (efabe6a renamed the fictional statement line ids to SIMBANK-000N so that no real bank is named; 338861c changed s2:
+ * outgoing debit SIMBANK-0002, then the return, then the return credit SIMBANK-0006, net movement zero, beneficiary unpaid); exact engine
+ * strings restored for the eligible-quote reason, the hold exception action and the s5 next action).
+ * The investigation view reads lib/investigations.ts, which is generated from the engine (scripts/engine-investigations.gen.ts). Values were read by running the engine's own read models
  * (investigate, timelineFor, listExceptions, computeLiquidity, fundingProjection) and its
  * formatMinor(); times are the engine's simulated clock converted to SGT (UTC+8).
  * Engine intent ids are sequential and may shift, so the site shows internal references instead.
@@ -35,21 +39,22 @@ export const SAMPLE_PAYMENTS: SamplePayment[] = [
       { time: "08:15 SGT", label: "payout.accepted", source: API, outcome: "recorded, no state change" },
       { time: "08:18 SGT", label: "payout.in_transit", source: HOOK, outcome: "applied" },
       { time: "08:21 SGT", label: "payout.completed", source: HOOK, outcome: "applied → provider_reported_completed" },
-      { time: "08:24 SGT", label: "Debit SGD 24,651.37 · DBS-SIM-0001", source: BANK, outcome: "matched → settlement verified (bank_statement)" },
+      { time: "08:24 SGT", label: "Debit SGD 24,651.37 · SIMBANK-0001", source: BANK, outcome: "matched → settlement verified (bank_statement)" },
     ],
   },
   {
     scenario: "s2_returned", reference: "INV-2026-141", beneficiary: "Redwood Supplies Ltd", amount: "USD 12,784.90", corridor: "USD → SGD",
     provider: "Northline Payments (sandbox)", label: "Returned",
-    execution: "returned", settlement: "none", settlementScope: "none", reconciliation: "exception", returnStatus: "confirmed_by_statement",
+    execution: "returned", settlement: "contradicted", settlementScope: "bank_statement", reconciliation: "exception", returnStatus: "confirmed_by_statement",
     whoActs: "Exception owner: Maya Tan, Operations (fictional)",
     nextAction: "Verify beneficiary details with the supplier, confirm the returned funds, then create a correction intent.",
-    unknown: "No bank statement or chain evidence of settlement yet.",
+    unknown: "The bank statement evidences the payout debit, not the beneficiary's credit.",
     events: [
       { time: "08:39 SGT", label: "payout.accepted", source: API, outcome: "recorded, no state change" },
       { time: "08:42 SGT", label: "payout.in_transit", source: HOOK, outcome: "applied" },
-      { time: "08:45 SGT", label: "payout.returned", source: HOOK, outcome: "applied → returned; reconciliation exception (returnStatus provider_reported)" },
-      { time: "08:48 SGT", label: "Return credit USD 12,784.90 · DBS-SIM-0002", source: BANK, outcome: "allocated → returnStatus confirmed_by_statement; still an exception: supplier unpaid" },
+      { time: "10:30 SGT", label: "Debit USD 12,784.90 · SIMBANK-0002", source: BANK, outcome: "allocated by trusted reference: the payout left the account" },
+      { time: "10:33 SGT", label: "payout.returned", source: HOOK, outcome: "applied → returned; reconciliation exception; settlement contradicted (bank_statement)" },
+      { time: "10:36 SGT", label: "Return credit USD 12,784.90 · SIMBANK-0006", source: BANK, outcome: "allocated → returnStatus confirmed_by_statement; RT_NET_ZERO, beneficiary unpaid: still an exception" },
     ],
   },
   {
@@ -86,12 +91,12 @@ export const SAMPLE_PAYMENTS: SamplePayment[] = [
     provider: "Northline Payments (sandbox)", label: "Funded advance",
     execution: "provider_reported_completed", settlement: "verified", settlementScope: "bank_statement", reconciliation: "matched",
     whoActs: "Unassigned — operations should assign",
-    nextAction: "Ask the remitter for the payment reference; without it the SGD 20,000.00 receipt cannot be allocated.",
+    nextAction: "Ask the remitter for the payment reference; without it the receipt cannot be allocated.",
     unknown: "The bank statement evidences the payout debit, not the beneficiary's credit.",
     events: [
       { time: "10:00 SGT", label: "Advance approved · maker Maya Tan, checker Daniel Ong", source: "Clearline (sandbox)", outcome: "maker ≠ checker" },
       { time: "10:18 SGT", label: "payout.completed", source: HOOK, outcome: "applied → provider_reported_completed" },
-      { time: "10:21 SGT", label: "Debit SGD 50,000.00 · DBS-SIM-0003", source: BANK, outcome: "matched → settlement verified (bank_statement)" },
+      { time: "10:21 SGT", label: "Debit SGD 50,000.00 · SIMBANK-0003", source: BANK, outcome: "matched → settlement verified (bank_statement)" },
       { time: "10:24 SGT", label: "Credit SGD 30,000.00 · RPY-SEABRIGHT-0001", source: BANK, outcome: "allocated to the repayment obligation (partial)" },
       { time: "10:27 SGT", label: "Credit SGD 20,000.00 · no reference", source: BANK, outcome: "exception: missing_payment_reference" },
     ],
@@ -101,19 +106,20 @@ export const SAMPLE_PAYMENTS: SamplePayment[] = [
 /** request_quotes for INV-2026-126 (SGD 24,651.37 → PHP). Every quote is labelled by the engine. */
 export const QUOTE_LABEL = "Indicative sandbox quote — not executable";
 export const SAMPLE_QUOTES = [
-  { provider: "Northline Payments (sandbox)", rail: "fiat_local", rate: "42.1738", providerFee: "SGD 18.45", platformFee: "SGD 24.65", recipient: "PHP 1,037,824.25", eta: "Within 2 hours (sandbox)", eligible: true, reason: "Within this sandbox route's limits" },
-  { provider: "Harbour FX (sandbox)", rail: "fiat_correspondent", rate: "42.1651", providerFee: "SGD 12.75", platformFee: "SGD 19.72", recipient: "PHP 1,038,058.38", eta: "Next business day (sandbox)", eligible: true, reason: "Within this sandbox route's limits" },
+  { provider: "Northline Payments (sandbox)", rail: "fiat_local", rate: "42.1738", providerFee: "SGD 18.45", platformFee: "SGD 24.65", recipient: "PHP 1,037,824.25", eta: "Within 2 hours (sandbox)", eligible: true, reason: "Corridor, currency, country and amount are within this sandbox route's limits." },
+  { provider: "Harbour FX (sandbox)", rail: "fiat_correspondent", rate: "42.1651", providerFee: "SGD 12.75", platformFee: "SGD 19.72", recipient: "PHP 1,038,058.38", eta: "Next business day (sandbox)", eligible: true, reason: "Corridor, currency, country and amount are within this sandbox route's limits." },
   { provider: "Harbour FX (sandbox)", rail: "fiat_local", rate: "—", providerFee: "—", platformFee: "—", recipient: "—", eta: "Same day (sandbox)", eligible: false, reason: "Sandbox corridor requires KYC tier 3, which this fictional organisation does not hold." },
   { provider: "Tidewater Digital (testnet sandbox)", rail: "stablecoin_testnet", rate: "—", providerFee: "—", platformFee: "—", recipient: "—", eta: "After 12 testnet confirmations (sandbox)", eligible: false, reason: "PHP payouts are not offered on this route." },
 ];
 
-/** ws.statementLines after the sample build, with the engine's RC_* explanation codes and texts. */
+/** ws.statementLines after the sample build, in the engine's order (by receipt), with its RC_* explanation codes and texts. */
 export const SAMPLE_STATEMENT_LINES: { lineId: string; direction: string; kind: string; amount: string; reference: string; result: "allocated" | "exception"; code: string; text: string }[] = [
-  { lineId: "DBS-SIM-0001", direction: "debit", kind: "payment", amount: "SGD 24,651.37", reference: "NORTHLINE PAYOUT NLPO-047422AD85", result: "allocated", code: "RC_EXACT_REFERENCE_AMOUNT_CURRENCY_WINDOW", text: "Trusted reference, amount, currency and time window all agree." },
-  { lineId: "DBS-SIM-0002", direction: "credit", kind: "return", amount: "USD 12,784.90", reference: "RETURN NLPO-F93A65C106 ACCOUNT INVALID", result: "allocated", code: "RC_RETURN_CONFIRMS_PROVIDER_RETURN", text: "Return line agrees with the provider's returned-payout report." },
-  { lineId: "DBS-SIM-0003", direction: "debit", kind: "payment", amount: "SGD 50,000.00", reference: "NORTHLINE PAYOUT NLPO-BD03EA879C", result: "allocated", code: "RC_EXACT_REFERENCE_AMOUNT_CURRENCY_WINDOW", text: "Trusted reference, amount, currency and time window all agree." },
-  { lineId: "DBS-SIM-0004", direction: "credit", kind: "payment", amount: "SGD 30,000.00", reference: "RPY-SEABRIGHT-0001 PART PAYMENT", result: "allocated", code: "RC_REPAYMENT_BY_REFERENCE · RC_PARTIAL_AMOUNT", text: "Repayment allocated by its repayment reference; the remainder stays outstanding." },
-  { lineId: "DBS-SIM-0005", direction: "credit", kind: "payment", amount: "SGD 20,000.00", reference: "(none)", result: "exception", code: "RC_AMOUNT_ONLY_CANDIDATES", text: "Only the amount agrees with one or more items. Amount alone is never treated as attribution." },
+  { lineId: "SIMBANK-0001", direction: "debit", kind: "payment", amount: "SGD 24,651.37", reference: "NORTHLINE PAYOUT NLPO-047422AD85", result: "allocated", code: "RC_EXACT_REFERENCE_AMOUNT_CURRENCY_WINDOW", text: "Trusted reference, amount, currency and time window all agree." },
+  { lineId: "SIMBANK-0003", direction: "debit", kind: "payment", amount: "SGD 50,000.00", reference: "NORTHLINE PAYOUT NLPO-BD03EA879C", result: "allocated", code: "RC_EXACT_REFERENCE_AMOUNT_CURRENCY_WINDOW", text: "Trusted reference, amount, currency and time window all agree." },
+  { lineId: "SIMBANK-0004", direction: "credit", kind: "payment", amount: "SGD 30,000.00", reference: "RPY-SEABRIGHT-0001 PART PAYMENT", result: "allocated", code: "RC_REPAYMENT_BY_REFERENCE · RC_PARTIAL_AMOUNT", text: "Repayment allocated by its repayment reference; the remainder stays outstanding." },
+  { lineId: "SIMBANK-0005", direction: "credit", kind: "payment", amount: "SGD 20,000.00", reference: "(none)", result: "exception", code: "RC_AMOUNT_ONLY_CANDIDATES", text: "Only the amount agrees with one or more items. Amount alone is never treated as attribution." },
+  { lineId: "SIMBANK-0002", direction: "debit", kind: "payment", amount: "USD 12,784.90", reference: "NORTHLINE PAYOUT NLPO-F93A65C106", result: "allocated", code: "RC_EXACT_REFERENCE_AMOUNT_CURRENCY_WINDOW", text: "Trusted reference, amount, currency and time window all agree." },
+  { lineId: "SIMBANK-0006", direction: "credit", kind: "return", amount: "USD 12,784.90", reference: "RETURN NLPO-F93A65C106 ACCOUNT INVALID", result: "allocated", code: "RC_RETURN_CONFIRMS_PROVIDER_RETURN", text: "Return line agrees with the provider's returned-payout report." },
 ];
 
 /** computeLiquidity(sampleWorkspace()). usable = eligible − restricted − safeguarded − committed payouts − buffer. */
@@ -135,7 +141,7 @@ export const SAMPLE_FUNDING = {
   principal: "SGD 50,000.00",
   approval: "Prepared by Maya Tan (operator) · approved by Daniel Ong (approver) — maker ≠ checker",
   obligation: "RPY-SEABRIGHT-0001 · due 2026-11-20",
-  allocations: "SGD 30,000.00 by repayment reference (DBS-SIM-0004)",
+  allocations: "SGD 30,000.00 by repayment reference (SIMBANK-0004)",
   repaid: "SGD 30,000.00",
   outstanding: "SGD 20,000.00",
   state: "partly_repaid",
@@ -148,9 +154,9 @@ export const SAMPLE_FUNDING = {
  * EXCEPTION_DUE_DAYS[severity] (critical 1, high 1, medium 3, low 5 — an illustrative sandbox policy). */
 export const EXCEPTION_DUE_POLICY = "Due dates follow an illustrative sandbox policy: critical and high 1 day, medium 3 days, low 5 days from creation, unless a date is set explicitly.";
 export const SAMPLE_EXCEPTIONS = [
+  { category: "compliance_hold", reference: "INV-2026-145", severity: "high", status: "in_review", owner: "Priya Nair (fictional)", dueDate: "2026-11-13", action: "The partner requested documents. Your compliance reviewer decides the response; the hold is never released automatically." },
   { category: "returned_payout", reference: "INV-2026-141", severity: "high", status: "in_review", owner: "Maya Tan (fictional)", dueDate: "2026-11-13", action: "Verify beneficiary details with the supplier, confirm the returned funds, then create a correction intent." },
-  { category: "compliance_hold", reference: "INV-2026-145", severity: "high", status: "in_review", owner: "Priya Nair (fictional)", dueDate: "2026-11-13", action: "Your compliance reviewer decides the response; the hold is never released automatically." },
-  { category: "missing_payment_reference", reference: "DBS-SIM-0005", severity: "medium", status: "open", owner: "Unassigned", dueDate: "2026-11-15", action: "Ask the remitter for the payment reference; without it the receipt cannot be allocated." },
+  { category: "missing_payment_reference", reference: "SIMBANK-0005", severity: "medium", status: "open", owner: "Unassigned", dueDate: "2026-11-15", action: "Ask the remitter for the payment reference; without it the receipt cannot be allocated." },
   { category: "pending_finality", reference: "INV-2026-149", severity: "low", status: "open", owner: "Unassigned", dueDate: "2026-11-17", action: "Wait until the finality threshold is reached; observation is not finality." },
 ];
 

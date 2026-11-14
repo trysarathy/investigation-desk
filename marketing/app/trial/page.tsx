@@ -1,7 +1,7 @@
-import { ButtonLink, ContactBand, ExtLink, PageHero, Section } from "@/components/Shared";
+import { ButtonLink, ContactBand, Disclosure, ExtLink, PageHero, Section } from "@/components/Shared";
 import { FUNDING_DESK_URL, SOFTWARE_URL, TRIAL_URL, mailto } from "@/lib/site";
 import { pageMeta } from "@/lib/meta";
-import { TRIAL_CASES } from "@/lib/cases";
+import { CONSOLE_TOOLS, TRIAL_CASES, TRY_CONNECT } from "@/lib/cases";
 
 export const metadata = pageMeta(
   "Customer trial",
@@ -22,7 +22,7 @@ export default function Trial() {
   return (
     <main id="main">
       <PageHero eyebrow="Customer trial" title={<>Start with the payments <em>that are hard to explain.</em></>}
-        stages={["synthetic", "illustrative"]}
+        stages={["synthetic", "none"]}
         actions={<><ButtonLink href={TRIAL_URL} main>Start the guided trial</ButtonLink><ButtonLink href="/contact" variant="secondary">Talk to us about your workflow</ButtonLink></>}>
         <p>Five fictional cases take 15–20 minutes. No sign-up, bank login or integration. Everything you see is synthetic: providers, quotes, webhooks, balances and statements.</p>
       </PageHero>
@@ -30,17 +30,27 @@ export default function Trial() {
       <Section tone="white" eyebrow="Part one · explore" title="The five cases">
         <ol className="list-rows">
           {TRIAL_CASES.map(c => (
-            <li key={c.n}><span className="idx">{c.n}</span><div><p className="label">{c.area}</p><h3 className="h3">{c.title}</h3><p>{c.text}</p></div></li>
+            <li key={c.n}><span className="idx">{c.n}</span><div><p className="label">{c.product} · console: {c.area}</p><h3 className="h3">{c.title}</h3><p>{c.text}</p></div></li>
           ))}
         </ol>
+        <p style={{ marginTop: 24, maxWidth: "70ch" }}>{TRY_CONNECT}</p>
+        <h3 className="h3" style={{ margin: "40px 0 12px" }} id="console-tools">While you work through the cases</h3>
+        <dl className="tool-list" aria-labelledby="console-tools">
+          {CONSOLE_TOOLS.map(t => <div key={t.title}><dt>{t.title}</dt><dd>{t.text}</dd></div>)}
+        </dl>
+        <p className="caption" style={{ marginTop: 12 }}>These are console features in your browser&rsquo;s workspace. The v1 test API does not expose them.</p>
         <div className="actions">
           <ButtonLink href={TRIAL_URL}>Open the guided trial</ButtonLink>
           <ButtonLink href={SOFTWARE_URL} variant="secondary">Go straight to the console</ButtonLink>
         </div>
-        <p className="caption" style={{ marginTop: 12 }}>Case 05 opens the <ExtLink href={FUNDING_DESK_URL}>Funding Desk prototype</ExtLink>. In the sandbox, payments and advances are linked by a tested projection, not a shared production ledger.</p>
+        <p className="caption" style={{ marginTop: 12 }}>Case 05 is Control&rsquo;s specialist funding workflow. The <ExtLink href={FUNDING_DESK_URL}>Funding Desk demo</ExtLink> shows it interactively, as a separate prototype. In the sandbox, payments and advances are linked by a tested projection, not a shared production ledger.</p>
       </Section>
 
-      <Section eyebrow="Three questions for your team" title="Would this change your operating day?">
+      <Section tone="canvas" eyebrow="Before you start" title="What the sandbox can and cannot show">
+        <Disclosure headingId="trial-disclosure" />
+      </Section>
+
+      <Section tone="white" eyebrow="Three questions for your team" title="Would this change your operating day?">
         <ol className="list-rows">
           <li><span className="idx">01</span><p>Where does your team lose payment visibility today?</p></li>
           <li><span className="idx">02</span><p>Which exception takes the most work to resolve, and who owns it?</p></li>

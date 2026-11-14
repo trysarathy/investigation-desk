@@ -1,0 +1,15 @@
+{
+  "_comment": "Single source of the Clearline website and software URLs. Both apps resolve them at build time with resolveReleaseUrls(): an explicit CLEARLINE_PRODUCT_URL / CLEARLINE_MARKETING_URL wins; a Vercel preview build of a branch listed in previewBranches uses the paired preview URLs; everything else uses production. Keep this file identical on the software and website release branches.",
+  "channel": "rc3",
+  "previewBranches": ["rc3/clearline-app", "rc3/clearline-site"],
+  "production": {
+    "product": "https://clearline-customer-trial.vercel.app",
+    "marketing": "https://clearline-marketing.vercel.app",
+    "fundingDesk": "https://clearline-funding-desk.vercel.app"
+  },
+  "preview": {
+    "product": "https://clearline-customer-trial-git-rc3-clearline-app-sarathyv2.vercel.app",
+    "marketing": "https://clearline-marketing-git-rc3-clearline-site-sarathyv2.vercel.app",
+    "fundingDesk": "https://clearline-funding-desk.vercel.app"
+  }
+}

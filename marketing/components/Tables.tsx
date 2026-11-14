@@ -4,6 +4,10 @@ import {
   SAMPLE_QUOTES, SAMPLE_STATEMENT_LINES, SAMPLE_USABLE_NOW, UNDER_AMOUNT_EXAMPLE,
 } from "@/lib/sample";
 import { ExecStatus, ReconStatus, SettlementStatus } from "@/components/Status";
+import { ENGINE_LABELS } from "@/lib/investigations";
+
+/** Rail words used by the console (rc3/clearline-app src/components/clearline/labels.tsx RAIL). */
+const RAIL_LABEL: Record<string, string> = { fiat_local: "Local fiat rail", fiat_correspondent: "Correspondent fiat rail", stablecoin_testnet: "Stablecoin (testnet)" };
 
 /** Scrollable, keyboard-focusable table region. The page itself never scrolls sideways. */
 export function TableWrap({ label, caption, children }: { label: string; caption: string; children: ReactNode }) {
@@ -23,7 +27,7 @@ export function QuotesTable() {
       <thead><tr><th scope="col">Provider</th><th scope="col">Rail</th><th scope="col" className="r">Rate</th><th scope="col" className="r">Provider fee</th><th scope="col" className="r">Platform fee</th><th scope="col" className="r">Est. recipient</th><th scope="col">ETA</th><th scope="col">Eligibility</th></tr></thead>
       <tbody>{SAMPLE_QUOTES.map(q => (
         <tr key={q.provider + q.rail}>
-          <td>{q.provider}</td><td className="mono">{q.rail}</td>
+          <td>{q.provider}</td><td>{RAIL_LABEL[q.rail] ?? q.rail}<span className="caption mono">{q.rail}</span></td>
           <td className="r num">{q.rate}</td><td className="r num">{q.providerFee}</td><td className="r num">{q.platformFee}</td><td className="r num">{q.recipient}</td><td>{q.eta}</td>
           <td>{q.eligible ? <span className="st-exec tone-neutral">eligible</span> : <><span className="st-exec tone-warning">ineligible</span><span className="caption">{q.reason}</span></>}</td>
         </tr>
@@ -85,7 +89,7 @@ export function FundingTable() {
     ["Treasury approval", f.approval],
     ["Repayment obligation", f.obligation],
     ["Allocations", f.allocations],
-    ["Supplier paid basis", <><span className="mono">supplierPaidBasis: {f.supplierPaidBasis}</span><span className="caption">The supplier debit is bank-statement verified. When the basis is provider_reported, the console labels the stage &ldquo;Supplier paid (provider-reported)&rdquo;.</span></>],
+    ["Supplier paid basis", <>{ENGINE_LABELS.supplierPaidBasis[f.supplierPaidBasis]} <span className="mono caption">supplierPaidBasis: {f.supplierPaidBasis}</span><span className="caption">The supplier debit is bank-statement verified. When the basis is provider_reported, the engine labels it &ldquo;{ENGINE_LABELS.supplierPaidBasis.provider_reported}&rdquo;.</span></>],
     ["Repaid / outstanding", <><span className="num">{f.repaid}</span> repaid · <b className="num">{f.outstanding}</b> outstanding · <span className="st st-exec tone-warning"><span className="st-label">Partly repaid</span><code className="st-api">{f.state}</code></span></>],
     ["Exception", f.exception],
   ];
@@ -100,7 +104,7 @@ export function FundingTable() {
 export function ExceptionsTable() {
   const sev: Record<string, string> = { critical: "danger", high: "danger", medium: "warning", low: "neutral" };
   return (
-    <TableWrap label="Sample exceptions with owners and due dates" caption={"The engine's unresolved exceptions, severity-ordered. " + EXCEPTION_DUE_POLICY}>
+    <TableWrap label="Sample exceptions with due dates and assigned owners" caption={"The engine's unresolved exceptions, severity-ordered. " + EXCEPTION_DUE_POLICY}>
       <thead><tr><th scope="col">Category</th><th scope="col">Item</th><th scope="col">Severity</th><th scope="col">Status</th><th scope="col">Owner</th><th scope="col">Due</th><th scope="col">Required action</th></tr></thead>
       <tbody>{SAMPLE_EXCEPTIONS.map(e => (
         <tr key={e.category}>

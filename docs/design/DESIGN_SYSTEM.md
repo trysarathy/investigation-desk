@@ -3,13 +3,14 @@
 One identity for the **website** (`marketing/`) and the **product console** (`/clearline`, `/clearline/trial`, `/clearline/docs`). Same tokens; the console is lighter and denser.
 
 - **Token file:** `marketing/app/tokens.css` (CSS custom properties, `--cl-*`). The console copies this file **verbatim from that path**. Change a value here and in the token file in the same PR.
-- **Version:** v2.1 (palette v2.0 "Midnight & Electric Blue"), 13 Nov 2026, website workstream. Founder approval pending.
+- **Version:** v2.2 (palette v2.0 "Midnight & Electric Blue"), 13 Nov 2026, website workstream.
+- **Approval:** **Brand direction approved by the founder, Aashmiin Kaur, on 13 Nov 2026:** "approved Midnight & Electric Blue as the long-term visual identity." This covers the palette and identity in §2 and the shared token file. Still **pending** founder sign-off: the v2.2 additions in this document (the revised stage labels in §9, the product-view and disclosure patterns in §15–16) and the remaining items in the change log marked pending.
 - **Superseded:** the v1 warm-ivory / signal orange-red palette (`#F5F1E8`, `#D04B31`, `#A93A24`, `#B33D28`) and the earlier green brand direction are retired. Neither may appear in site or console code; a test enforces it for `marketing/`.
 - **Contrast:** every ratio below was computed from the hex values with the WCAG 2.x relative-luminance formula and **truncated** to two decimals (never rounded up). A ratio is not an "AA" claim for a page until the rendered page has also been checked (see the audit in the PR body).
 
 ## 1. Principles
 
-1. **Three truths, never one badge.** Execution (what the provider says), settlement evidence (what an independent source proves) and reconciliation (whether it ties to the books) are always shown separately (§8).
+1. **Three truths, never one badge.** Execution (what the provider reported), settlement evidence (what independent evidence establishes) and reconciliation (whether the records match) are always shown separately (§8). These are the console's words.
 2. **Human label first, exact API value second.** "Provider reports completed", then `provider_reported_completed` in mono. Finance users read the first; engineers check the second.
 3. **Colour means something financial or it is not used.** Green only for genuinely evidenced success; amber for pending, review or uncertain; red for failed, returned, contradictory or exception; blue for information, navigation and the primary action. **Never blue or green for an unverified financial event** (e.g. a provider's "completed" report).
 4. **Say the stage.** Every product surface carries a stage label (§9). Never "live", "production" or "enterprise-ready".
@@ -164,9 +165,9 @@ Names match the tested engine (`src/lib/clearline/types.ts`): `intent.status = {
 
 | Dimension | Shape | Question it answers |
 |---|---|---|
-| **Execution** (`ExecutionState`) | Rounded tag | What does the provider or state machine say? |
-| **Settlement evidence** (`SettlementEvidenceState` + scope) | Pill with a marker: ○ none, ◇ observed / pending finality (dashed border), ◆ verified, ✕ contradicted (solid) | What does an independent source prove, and which source? |
-| **Reconciliation** (`ReconciliationState`) | Square tag with a 3px left rule | Does it tie to an expected record? |
+| **Execution** (`ExecutionState`) | Rounded tag | What the provider reported |
+| **Settlement evidence** (`SettlementEvidenceState` + scope) | Pill with a marker: ○ none, ◇ observed / pending finality (dashed border), ◆ verified, ✕ contradicted (solid) | What independent evidence establishes, and its scope |
+| **Reconciliation** (`ReconciliationState`) | Square tag with a 3px left rule | Whether the records match |
 
 ### Human labels and tones
 
@@ -196,7 +197,7 @@ Labels are the engine's exact `HUMAN_LABELS` strings (`src/lib/clearline/labels.
 | reconciliation `exception` | Needs review | danger |
 | advance `supplier_paid` | Supplier paid (provider-reported) — read with `supplierPaidBasis` | neutral |
 
-The exact API value is always shown as secondary detail (mono, slate, after the label) and is named in visually hidden text ("Execution: Provider reports completed, API value provider_reported_completed"). In the homepage investigation view, hovering or focusing a truth also highlights the matching field in the API record beside it.
+The exact API value is always shown as secondary detail (mono, slate, after the label) and is named in visually hidden text ("Execution: Provider reports completed, API value provider_reported_completed"). In the website product view (§15), hovering or focusing a truth also highlights the matching field in the API record beside it. Inside a truth the settlement chip carries no scope; the scope is its own line, worded as the console words it.
 
 ### Rules (enforced by the engine, mirrored by the UI)
 
@@ -205,10 +206,10 @@ The exact API value is always shown as secondary detail (mono, slate, after the 
 - A bank line with a trusted reference but only part of the amount gives reconciliation `partially_matched` and settlement `observed`; the remainder stays outstanding (`RC_PARTIAL_AMOUNT`). The line carries a structured `amountDifference` (expected, reported, difference, currency, source, required next action).
 - A provider settlement report **below** the payout amount raises `unmatched_reconciliation` / `RC_UNDER_AMOUNT_REPORT`: reconciliation `exception` ("Needs review"), settlement not upgraded, and the same structured `amountDifference`. Show expected, reported and difference as mono amounts with the currency, and the required next action as the exception's action.
 - A provider settlement report on a payout that is `failed`, `cancelled`, `expired` or `returned` is a contradiction, not evidence: `contradictory_evidence` / `RC_REPORT_ON_TERMINAL_PAYOUT`, reconciliation `exception`, settlement and scope unchanged.
-- Funding: `supplier_paid` is labelled "Supplier paid (provider-reported)". Always show `supplierPaidBasis` (`none` · `provider_reported` · `verified_settlement`); only `verified_settlement` may use the success tone.
+- Funding: `supplier_paid` is labelled "Supplier paid (provider-reported)". Always show `supplierPaidBasis` with the engine's label (`none` "Supplier not shown as paid" · `provider_reported` "Provider reports the supplier paid (not verified)" · `verified_settlement` "Supplier payout verified by independent evidence"); only `verified_settlement` may use the success tone.
 - A provider settlement report gives at most `observed` and never reconciles on its own. An on-chain transfer is `verified` only past the finality threshold and never proves a bank credit.
 - A provider-reported return sets reconciliation `exception` immediately. Show `returnStatus` (`provider_reported` → `confirmed_by_statement`) beside it; a confirmed return is still an exception until a person resolves it.
-- Exceptions always show their owner and `dueDate` (ISO date, mono); overdue items use the danger tone.
+- Exceptions always show their `dueDate` (ISO date, mono; set by the engine at creation) and their owner, or "Unassigned": the engine creates exceptions unassigned and a person assigns the owner. Overdue items use the danger tone.
 
 Implementation: `marketing/components/Status.tsx` (`.st-exec`, `.st-settlement` + `.stl-*`, `.st-recon`, human-label maps exported for the console).
 
@@ -217,9 +218,11 @@ Implementation: `marketing/components/Status.tsx` (`.st-exec`, `.st-settlement` 
 | Label | Marker | Tone | Meaning |
 |---|---|---|---|
 | Working synthetic engine | filled circle | success | Code runs and is tested, on fictional data |
-| Illustrative UI | filled circle | info | Screens exist; data and some behaviour are illustrative |
-| In development | hollow circle | warning | Being built (e.g. onchain on testnet) |
+| Interactive prototype | filled circle | info | A separate interactive demo (the Funding Desk demo), not the tested engine |
+| Design only, not built | dashed hollow circle | warning | A design on paper; no code exists (e.g. Safe payout proposals, evidence fingerprints) |
 | No third-party integration | square | neutral | No real provider, bank or wallet connected |
+
+Retired in v2.2: "Illustrative UI" (the console works on the tested engine; calling it illustrative undersold it and blurred what is real) and "In development" (nothing was being built behind the onchain items it labelled; "Design only, not built" says what is true). Never label something "in development" unless code for it exists on a branch.
 
 ## 10. Tables
 
@@ -244,7 +247,30 @@ Label above field, 14px/500. Input 44px, 1px #7A889E border, white fill, 16px te
 
 Skip link; one `h1`; landmarks (`header`, labelled `nav`, `main#main`, `footer`); visible focus; keyboard reaches the main CTA; `aria-current="page"`; alt text; no information by colour alone; no horizontal scroll at 320–1440px; reduced motion honoured; contrast pairs from §2 only; axe-core 0 violations at 320, 390, 768 and 1440.
 
+## 15. Product view (website)
+
+The website's large product demonstration is the console's payment investigation page rendered as HTML, not a screenshot or an illustration.
+
+- **Data:** `marketing/lib/investigations.ts`, generated from the tested engine on `rc3/clearline-app` by `marketing/scripts/engine-investigations.gen.ts` (`sampleWorkspace()`, `investigate()`, `evidenceTimelineFor()`, `describeStatus()`, `HUMAN_LABELS`). Never edited by hand; regenerate when the engine's sample changes.
+- **Structure and words:** the console's own (`src/components/clearline/pages/Investigation.tsx`): breadcrumb Console › Investigations › reference; A Summary with the engine's one-line status summary; B "Three separate truths — never one badge" (Execution · What the provider reported; Settlement evidence · What independent evidence establishes; Reconciliation · Whether the records match), with the console's scope wording ("by bank statement"), and for a returned payout the engine's return-status label and `returnPosition` text (net zero only when both legs are on the statement; the beneficiary is never treated as paid); C Evidence timeline, each row marked Independent or Not independent with the engine's processing outcome; D Findings (Who owns the next step, Still unknown, Financially outstanding, Exceptions on this payment).
+- **Interaction:** five scenario tabs (`aria-pressed`), and focusing or hovering a truth highlights its field in the API record. No other motion.
+- **Timeline rule colours:** green left rule only for independent evidence; amber for exceptions and missing evidence; line colour otherwise.
+
+## 16. Working today / not built disclosure
+
+One source: `marketing/lib/disclosure.ts`, rendered by `<Disclosure />` on Home, Platform and Trial. Two ruled columns (works today in the sandbox · not built yet) with a mono area label per row, and an ice "Out of scope" note. An item may sit under "works today" only if the released engine and console can demonstrate it. Never a card grid.
+
 ## Change log
+
+- 2026-11-14: Final pass against rc3/clearline-app @ fa303fd. `supplierPaidBasis` labels are the engine's ("Supplier not shown as paid" · "Provider reports the supplier paid (not verified)" · "Supplier payout verified by independent evidence"), rendered from the generated `ENGINE_LABELS`; the advance stage `supplier_paid` stays "Supplier paid (provider-reported)". Disclosure adds console acceptance of a disagreeing bank debit (up to 1% one person; above 1% to 50% with a second person; late value date up to 60 days; never a currency mismatch).
+
+- 2026-11-14: QA L3. Copy no longer says exceptions are created with an owner: the engine sets the due date at creation and creates exceptions unassigned; a person assigns the owner (two of the four sample exceptions are unassigned). Guarded by a test.
+
+- 2026-11-14: v2.2.2. Product view regenerated from rc3/clearline-app @ 7e521f5 (engine data unchanged); statement-line sources use the console's attribution wording ("Bank statement · BANK-SGD-OPS (fictional)"). The disclosure (§16) and Customer trial add the console features shipped at 7e521f5: synthetic case report, per-case reset, filters and owner assignment, simulated roles, Funding Desk from Treasury & Funding; all marked console-only.
+
+- 2026-11-13: v2.2.1. Product view regenerated from rc3/clearline-app @ efabe6a: fictional statement lines are `SIMBANK-000N` (no real bank named; a test forbids real institution names in sample data and copy), return position shown in the engine's words. Regenerated again from 338861c: the sample return now has the outgoing debit and an equal return credit on the statement (RT_NET_ZERO, settlement contradicted while the return is open); net zero is always stated together with "beneficiary not paid", never as success.
+
+- 2026-11-13: v2.2. Founder approved Midnight & Electric Blue as the long-term visual identity (recorded above). Stage labels revised (§9): Interactive prototype and Design only, not built replace Illustrative UI and In development (pending founder sign-off). Product view generated from the engine with the console's section names (§15); single working-today disclosure (§16). Founder photo shown at its native 120 × 150 px, never upscaled. Screenshots in `screenshots/` (first screens at 1440 and 390 for Home and Developers, plus the product view) are regenerated by `capture-screenshots.cjs`; two runs give byte-identical files.
 
 - 2026-11-13: v2.1. Engine CHANGE 5: status labels are the engine's exact `HUMAN_LABELS`; rules for `RC_UNDER_AMOUNT_REPORT`, `RC_REPORT_ON_TERMINAL_PAYOUT`, the structured `amountDifference` and `supplierPaidBasis`.
 - 2026-11-13: **v2.0 Midnight & Electric Blue.** New palette (midnight, Electric Blue, white, off-white, ice, slate, deep text) with accessible variants for every failing pairing; semantic financial colours re-defined (provider claims neutral, never blue or green); human status labels with exact API values as secondary detail; Newsreader display face for website headings. **Supersedes** the v1 ivory / orange-red palette and the earlier green direction.
