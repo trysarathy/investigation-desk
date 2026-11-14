@@ -47,8 +47,16 @@ async function fakeWebsite(page: Page, baseURL: string) {
 
 /** Console navigation the way a person uses it: on a phone the menu opens first. */
 async function goNav(page: Page, label: string) {
-  if (!(await page.locator("#cl-nav").isVisible())) await page.getByRole("button", { name: "Menu" }).click();
-  await page.getByRole("navigation", { name: "Console" }).getByRole("link", { name: label, exact: true }).click();
+  // Bounded waits: if this ever stalls, the failure names the step instead of using up the whole test.
+  await hydrated(page);
+  const menu = page.getByRole("button", { name: "Menu" });
+  if (await menu.isVisible() && !(await page.locator("#cl-nav").isVisible())) {
+    await menu.click({ timeout: 20_000 });
+    await expect(page.locator("#cl-nav")).toBeVisible({ timeout: 20_000 });
+  }
+  const link = page.getByRole("navigation", { name: "Console" }).getByRole("link", { name: label, exact: true });
+  await expect(link, `nav link ${label}`).toBeVisible({ timeout: 20_000 });
+  await link.click({ timeout: 20_000 });
 }
 
 async function noHorizontalOverflow(page: Page, label = "") {
@@ -1362,4 +1370,44 @@ test("a v2 workspace with gaps (new migration kinds) loads with each change list
     expect(t.replace("Your saved workspace was updated by this version:", "").trim().length).toBeGreaterThan(10);
   }
   await expect(n.getByRole("link", { name: /^Open payment / }).first()).toBeVisible();
+});
+
+test("reopening an accepted over-amount withdraws the acceptance: it reloads cleanly and the case is blocked again", async ({ page }) => {
+  test.setTimeout(240_000);
+  const id = await completedPayout(page, "INV-REOPEN-1");
+  const { panel, excId } = await debitException(page, "INV-REOPEN-1", { factor: 1.005, code: "RC_OVERPAYMENT" });
+  const accept = panel.getByTestId("accept-difference");
+  await accept.getByLabel("Why it is accepted").fill("Bank fee of 0.5% (fictional).");
+  await accept.getByRole("button", { name: "Accept the over-amount" }).click();
+  // Accepted: the case can now be closed (not clicked).
+  await open(page, `/clearline/payments/${id}`);
+  let kase = page.locator("#case");
+  await kase.getByRole("button", { name: "Assign owner" }).click();
+  await expect(kase.getByRole("status").first()).toContainText("recorded by the engine");
+  await kase.getByLabel("Resolution note").fill("Ready to close.");
+  await expect(kase.getByTestId("resolve-gate").getByRole("button", { name: "Resolve" })).toBeEnabled();
+  // Reopen the exception: the engine withdraws the accepted difference.
+  await open(page, `/clearline/exceptions?view=all&q=${excId}`);
+  const done = page.locator(`section[id="${excId}"]`);
+  await done.getByText("Work this exception").click();
+  await expect(done.getByTestId("acceptance-status")).toBeVisible();
+  await done.getByLabel("Reason to reopen").fill("The bank fee advice was for another payment.");
+  await done.getByRole("button", { name: "Reopen" }).click();
+  await expect(done.getByRole("status").filter({ hasText: "Reopen — recorded by the engine" })).toBeVisible();
+  // The saved workspace still loads after a reload, and the acceptance is gone.
+  await page.reload();
+  await hydrated(page);
+  await expect(page.getByTestId("workspace-discarded")).toHaveCount(0);
+  const again = page.locator(`section[id="${excId}"]`);
+  await expect(again.locator('[data-api-value="reopened"]').first()).toBeVisible();
+  await again.getByText("Work this exception").click();
+  await expect(again.getByTestId("acceptance-status")).toHaveCount(0);
+  await expect(again.getByTestId("accept-difference")).toBeVisible(); // can be accepted again, deliberately
+  // The case is blocked again.
+  await open(page, `/clearline/payments/${id}`);
+  kase = page.locator("#case");
+  await kase.getByLabel("Resolution note").fill("Try to close.");
+  const resolve = kase.getByTestId("resolve-gate").getByRole("button", { name: "Resolve" });
+  await expect(resolve).toBeDisabled();
+  await expect(await reasonOf(page, resolve)).not.toHaveText("");
 });
