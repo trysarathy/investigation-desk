@@ -1579,3 +1579,23 @@ test("C1: across many backups of one kind, exactly the newest 3 remain and the o
   const final = await page.evaluate((keys) => keys.map((k) => localStorage.getItem(k)), await resetKeys());
   expect(new Set(final)).toEqual(new Set(written.slice(-3)));
 });
+
+test("C1b: a backup dated after the current clock never freezes the next backup, and the new one is kept", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.clock.setFixedTime(new Date("2026-11-14T09:00:00Z"));
+  await open(page, "/clearline/settings");
+  const base = "clearline.console.workspace.v1.before-reset-backup";
+  // A backup written while the device clock was ahead (2 weeks in the future).
+  await page.evaluate((b) => { localStorage.setItem(b, "{\"seed\":0}"); localStorage.setItem(`${b}.2026-12-01T00:00:00.000Z`, "{\"seed\":1}"); }, base);
+  await page.getByRole("button", { name: "Advance 1 hour" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Clock advanced" })).toBeVisible();
+  const written = await page.evaluate(() => localStorage.getItem("clearline.console.workspace.v1"));
+  await page.getByRole("button", { name: "Reset to sample" }).click();
+  await expect(page.getByText("The previous workspace is kept as a backup below.").first()).toBeVisible({ timeout: 10_000 });
+  const keys = await page.evaluate((b) => Object.keys(localStorage).filter((k) => k === b || k.startsWith(b + ".")).sort(), base);
+  const values = await page.evaluate((ks) => ks.map((k) => localStorage.getItem(k)), keys);
+  expect(values).toContain(written);
+  // The new key sorts after the future-dated one, so pruning order stays write order.
+  const newest = keys.filter((k) => k !== base).sort().pop()!;
+  expect(await page.evaluate((k) => localStorage.getItem(k), newest)).toBe(written);
+});

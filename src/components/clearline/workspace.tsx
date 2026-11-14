@@ -45,11 +45,17 @@ export function writeBackup(base: string, raw: string): string | null {
     // mistake a newer backup for an older one (final check C1).
     let key = base;
     if (kind.length > 0) {
-      const stamp = `${base}.${new Date().toISOString()}`;
-      key = stamp;
       // Must sort after every existing key of the kind (a key freed by pruning is never reused).
       const last = kind[kind.length - 1];
-      for (let n = 2; ls.getItem(key) !== null || (last !== base && key <= last); n++) key = `${stamp}-${String(n).padStart(3, "0")}`;
+      let stamp = `${base}.${new Date().toISOString()}`;
+      // A backup dated after this clock (device clock moved back, or a fixed clock) would make every
+      // timestamp sort before it: continue after the newest key instead ("~" sorts after digits).
+      if (last !== base && stamp <= last) stamp = `${last}~`;
+      key = stamp;
+      for (let n = 2; ls.getItem(key) !== null || (last !== base && key <= last); n++) {
+        if (n > 1000) return null; // never loop forever: report the backup as not written
+        key = `${stamp}-${String(n).padStart(3, "0")}`;
+      }
     }
     ls.setItem(key, raw);
     pruneBackups(base, key);
