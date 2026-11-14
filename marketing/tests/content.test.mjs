@@ -334,7 +334,7 @@ test("semantic financial colours: provider claims are never green or blue; green
     assert.match(st, /className="st-api"/);
 });
 
-test("homepage: approved hero, CTAs, investigation view from the sample records, and required sections", () => {
+test("homepage: focused story, approved hero, trial CTA and accessible product demo", () => {
   const home = read("app/page.tsx");
   assert.match(home, /Every payment\. <em>One clear answer\.<\/em>/);
   assert.match(home, /Clearline connects payment instructions, provider events and financial evidence&mdash;so operations teams can understand what happened and what needs attention\./);
@@ -348,6 +348,9 @@ test("homepage: approved hero, CTAs, investigation view from the sample records,
   for (const id of ["story-title", "products-title", "together", "cases-title", "stage-title", "founder-title", "contact-title"]) assert.ok(home.includes(`id="${id}"`), id);
   assert.match(home, /<Disclosure headingId="home-disclosure" \/>/);
   assert.match(home, /19, in her second year of Accountancy at Singapore Management University, with a second major in Finance/);
+  assert.match(home, /quiet-hero/);
+  assert.match(home, /quiet-product-pair/);
+  assert.doesNotMatch(home, /hero-aside|className="story-steps"|className="flow"/, "homepage should not repeat detailed product specifications");
 });
 
 test("engine CHANGE 5: under-amount reports, reports on terminal payouts and partial bank lines are described exactly", () => {
