@@ -143,3 +143,10 @@ Result: `investigate().returnPosition` = `RT_NET_ZERO` (debited = return credite
   - Limits: a late value date up to 60 days after submission; an over-amount up to 1% for one person, or up to 50% with a different staff person's approval (`approve_acceptance`).
   - A currency mismatch is never acceptable.
 - **`HUMAN_LABELS.supplierPaidBasis.provider_reported`** is "Provider reports the supplier paid (not verified)".
+
+## Rules added after the third re-review (CHANGE 11, 2026-11-14)
+
+- **Reopening an exception reverses its resolution's effects.**
+  - `resolution.acceptedDifference` is removed and recorded in the exception's history as `acceptance_withdrawn`.
+  - A hash-conflict resolution's `supersededBy` link is removed (`supersede_withdrawn`), and the payout is recomputed.
+  - So `acceptedDifference` and `supersededBy` only ever exist on a resolved exception, and every workspace an action produces loads.

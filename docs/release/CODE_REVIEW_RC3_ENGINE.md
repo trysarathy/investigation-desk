@@ -531,3 +531,255 @@ Minor:
 - four untested rules;
 - single-person fee acceptance;
 - the supplier-paid label wording.
+
+---
+
+# Third re-review: 3e66fa7 (R2-M1 general load migration, R2-M2 acceptance policy, minors)
+
+**CODE REVIEW: BLOCK 3e66fa7**
+
+APPROVAL-ONLY: needs Aashmiin's merge. This change touches evidence status, case-close rules and how stored workspaces load.
+
+**In plain English.**
+
+The new fixes work:
+- **Load migration (migrate.ts).** It corrects every v2 state I could produce, and never raises evidence to a higher level.
+- **Acceptance policy.** The late-date, ≤1%, ≤50%-with-second-approval and no-FX rules hold against every abuse I tried.
+
+I am blocking for a problem that is older than this change but now very easy to hit. A person can do two ordinary things in the console:
+1. Accept a fee on a bank line, which is the new "Accept the over-amount" button.
+2. Later, reopen that same exception with the Reopen button.
+
+After that, the engine refuses to load the workspace: "This workspace cannot be loaded … acceptedDifference: must belong to a resolved … exception". Every next action fails, and on reload the console sets the whole workspace aside.
+
+The same thing happens when someone reopens a resolved hash-conflict exception that had superseded a wrong-chain record. That has been reachable since 725c3a1 (m-3), and I should have caught it in the earlier re-reviews.
+
+Scope: `git diff 4c1af26 3e66fa7 -- src/lib/clearline tests/clearline docs/clearline`. I read only the engine paths; 7e521f5..4c1af26 has no engine changes. I wrote none of it.
+
+## Checks I ran
+- **Setup.** I deleted cr6 and cr6base first. The fresh frozen copy is `scratchpad/cr7` (`git archive 3e66fa7`, node_modules symlinked).
+- **Typecheck and tests.** `npx tsc --noEmit`: pass. `npx vitest run` (full suite): 70 files pass, 1 skipped; 1406 tests pass, 57 skipped.
+- **Mutation checks.** 23 mutants (`scratchpad/mut7.py`): 16 killed, 7 survived.
+- **Probes.** I reran probes6 (rr, rr3, rr6). New probes are in `scratchpad/probes7/`:
+  - `rr7.test.ts`: reopen, approval, tampering, late dates, dead ends;
+  - `prop-reopen.test.ts`: the property generator with `reopen` added.
+
+## BLOCKER
+
+**R3-B1. Reopening an exception that a resolution changed leaves a workspace the engine cannot load.**
+
+Where:
+- `src/lib/clearline/actions.ts:733-749` (`reopen`) together with `src/lib/clearline/serialize.ts:243`;
+- and `src/lib/clearline/actions.ts:733-749` together with `src/lib/clearline/serialize.ts:232`.
+
+What happens:
+- `reopen` sets the exception's status to `reopened`. It keeps `resolution.acceptedDifference`, and it keeps the `supersededBy` link on the rejected observation.
+- `crossCheck` requires both of those to point at a **resolved** exception.
+- Both buttons are wired in the console: `AcceptDifference.tsx`, and Reopen in `TargetActions.tsx`.
+
+Reproduction (`probes7/rr7.test.ts`):
+1. **Accepted fee.** SGD 10,000.00 payout, SGD 10,000.50 bank debit, resolve with `acceptDifference: true` (the case becomes RESOLVABLE), then reopen the exception. The next `applyAction` returns "This workspace cannot be loaded: exceptions[0].resolution.acceptedDifference: must belong to a resolved RC_OVERPAYMENT or RC_OUTSIDE_TIME_WINDOW exception …", and a reload fails the same way.
+2. **Superseded wrong-chain record.**
+   - A wrong-chain observation is followed by the correct one, which raises `CH_TX_HASH_ON_OTHER_CHAIN`.
+   - Resolving it supersedes the rejected record, and the payout is verified.
+   - Reopening that exception gives the next action: "chainObservations[0].supersededBy: must name a resolved hash-conflict exception …".
+
+These are lost records through ordinary use: the workspace is set aside with only a backup. The property test misses it because its generator has no `reopen` action.
+
+**Fix (in words):** when an exception is reopened, reverse what its resolution did, and recompute:
+- **Accepted difference:** drop it, or keep it only as history outside `resolution`.
+- **Supersede:** remove the `supersededBy` link. The conflict then blocks the hash again, so the recompute must handle the now-counted observation as rc3 would. The simplest option is to refuse reopening a hash-conflict exception whose supersede has already let an observation count.
+
+Alternatively, have `crossCheck` accept a `reopened` exception that carries those fields, and have the close check ignore them. Then add `reopen` and `cancel_intent` to the property generator, and add a scripted "accept → reopen → reload" and "supersede → reopen → reload" test.
+
+## Status of the second re-review findings
+
+| Id | Status | Evidence |
+|---|---|---|
+| **R2-M1** migration incomplete | **Fixed** | `v2_gaps` now migrates every state (details below). |
+| **R2-M2** legitimate cases unclosable | **Fixed** | The four acceptance cases behave as specified (details below). |
+| **R2-m1** stale message | **Fixed** | The `EVIDENCE_OUTSTANDING` text describes the explicit acceptance, and the FX text explains why currency cannot be accepted. |
+| **R2-m2** surviving mutants | **Partly fixed** | The four I named are now killed. Seven new ones survive (see "Test strength"). |
+| **R2-m3** one person, ≤1% | **Documented** as a product decision in `ARCHITECTURE.md` (around line 144) and the CHANGE 10 table in `ENGINE_API.md`. |
+| **R2-m4** supplier-paid label | **Fixed** | Now "Provider reports the supplier paid (not verified)". |
+
+**R2-M1 detail** (`v2_gaps` migrations: `observation_not_counted`, `contradiction_raised`, `reorg_reconciliation`):
+- The Ethereum-mainnet "verified" payout becomes `none`; the observation becomes `rejected_unsupported`; the headline is "No settlement evidence".
+- T-1 before finality becomes `contradicted` with `CH_TRANSFER_FOR_TERMINAL_PAYOUT`.
+- The reorg case's reconciliation becomes `exception`.
+- v2_t1, v2_t2 and v2_va still migrate correctly and idempotently.
+
+**R2-M2 detail:**
+- **(a) Late date, exact amount.** +10 and +59 days are accepted and the case closes. +70 days and a date before submission are refused.
+- **(b) Over-amount ≤1%.** +0.5% is accepted by one person and the case closes.
+- **(c) Over-amount >1% and ≤50%.** 15% and 30% give `SECOND_APPROVAL_REQUIRED`. Approval by the acceptor gives `maker_checker_violation`; by a viewer or `system`, `unauthorized_actor`; by a different staff person, RESOLVABLE. 51% is refused. `approve_acceptance` on a ≤1% acceptance gives `invalid_transition`.
+- **(d) Currency.** A currency mismatch is refused, with the FX explanation.
+
+## Your specific questions
+
+**Can migrate.ts upgrade evidence or change an rc3-produced workspace?**
+- **Upgrading.** No. `recomputeSettlement` only allows moving down or to `contradicted`. The "recompute may upgrade" mutant is killed.
+- **Changing an rc3 workspace.** I found no rc3 sequence that makes a migration *fire*. I tried rule B through resets, rule D after resolving a reorg, and rule C through reopen. I also ran the property test with `reopen` added (40 seeds): migrations stayed `[]`.
+- **But the claim behind it is incomplete.** "Every rc3 workspace loads" is false: see R3-B1. The generator also never produces `reopen`, `cancel_intent`, advances, `add_note` or `request_info`.
+- **Rule A and stored data.** Rule A raises `CH_UNSUPPORTED_TOKEN_OR_NETWORK` only if no matching exception exists. The mutant that never raises it survives (see "Test strength").
+
+**Can acceptance or approval be bypassed or forged?**
+- **Through actions: no.** The acceptor cannot approve their own acceptance, and neither can a viewer or `system`. A plain resolve never counts. A flag that doesn't match the line's facts is refused. The line is re-checked at close.
+- **Through stored-data tampering:**
+  - `approvedBy` set to the acceptor is refused at load.
+  - `approvedBy` set to a viewer loads, but the case stays `EVIDENCE_OUTSTANDING`.
+  - Removing `secondApproval` loads, but the case stays `EVIDENCE_OUTSTANDING`.
+  - `approvedBy` set to a *different staff member's* id would pass. That is inherent to a workspace the client holds, where any field can be forged, so I don't count it as a finding.
+
+**Is any legitimate case still impossible to close?** Beyond currency mismatch:
+- **A batched debit** naming two payouts (`RC_AMBIGUOUS_REFERENCE`) never closes either payout, if they have cases. In my probe no case had opened.
+- **A short debit** (fee deducted; `partially_matched`) keeps an existing case at `EVIDENCE_OUTSTANDING`.
+- **A statement line that never arrives**, because there is no manual allocation.
+
+`ARCHITECTURE.md` now lists all three as stated limitations, which is acceptable as a product decision.
+
+**Are the docs accurate?** Mostly. Two corrections:
+- CHANGE 10 says "each fix has a test that fails without it", but seven mutants survive (see "Test strength").
+- The R2-M1 paragraph says the migration "corrects only states no rc3 action sequence can reach". That is right, but it implies every rc3 workspace loads, which R3-B1 disproves.
+
+The acceptance table, the error codes, the stored-record shape and the R2-m3 decision match the code.
+
+## Test strength (minor, R3-m1)
+
+**Killed (16):**
+- **Migration:** A off, B off, B order, C only-verified, D off, recompute may upgrade.
+- **Acceptance:** 60-day limit, before-submission, 50% cap, second approval required, pending approval ignored, approver = resolver at close, non-staff approver at close, currency mismatch.
+- **Approve and resolve actions:** maker ≠ checker on approve, late-date flag required on resolve.
+
+**Survived (7):**
+- **Rule A never raises its exception.** The migration test does not assert the exception.
+- **Rule B ignores `supersededBy`.** The m-3 supersede path is never loaded through the migration in a test.
+- **Rule D ignores a full bank match.**
+- **The close-time `lateValueDate` re-check is dropped.**
+- **The short-debit refusal is dropped.** This one matters: without it, a *late* SGD 1.00 debit for an SGD 10,000 payout could be accepted with `acceptLateDate`, and the case would close.
+- **`approve_acceptance` stops re-checking the line.**
+- **`resolve` stops requiring `acceptDifference` when there is an over-amount.**
+
+Fix: add one test for each.
+
+## Summary
+
+R2-M1 is fixed, R2-M2 is fixed by policy, and the minors are fixed or documented. R2-m3 is documented as Aashmiin's product decision. Verdict: **BLOCK 3e66fa7**.
+
+Blocking: in the console, a person can accept a fee and then reopen that exception, or reopen a resolved hash conflict that superseded a wrong-chain record. Either leaves a workspace the engine refuses to load (R3-B1). The fix is small: reverse the resolution's effects on reopen, or let `crossCheck` accept a reopened exception that still carries them. Add `reopen` to the property generator, and add tests for the seven surviving mutants.
+
+Note for the pack: R3-B1's hash-conflict half has been reachable since 725c3a1, so it escaped my two previous reviews. Proposed checklist addition: "for every new stored field that `crossCheck` ties to an exception's status, check every action that changes that status (`reopen` included)".
+
+---
+
+# Fourth check: rc3/wip-engine at 668e4ca (R3-B1, R3-m1)
+
+**CODE REVIEW: APPROVE 668e4ca5dfbc0d058e28523dcb53dacfc932a0be**
+
+APPROVAL-ONLY: needs Aashmiin's merge. This touches case-close rules, evidence status and how stored workspaces load.
+
+The merge into rc3/clearline-app does not exist yet; it will be the next merge commit after 2c70766. This verdict is for the engine at 668e4ca. If the merge commit's `src/lib/clearline` and `tests/clearline` differ from 668e4ca, it needs its own check.
+
+**In plain English.** Reopening an exception now undoes what its resolution did, and the history is kept:
+- An accepted fee, and any second approval, is withdrawn.
+- A superseded wrong-chain record blocks its transaction again.
+- The payment's status is recomputed.
+
+I could not produce a workspace that fails to load. I tried:
+- repeated accept → approve → reopen cycles, swapping people;
+- supersede → reopen → resolve → reopen cycles;
+- resets at later clocks;
+- random action sequences starting from the migrated v2 fixtures.
+
+All 7 earlier surviving mutants are now caught, and so are the new reopen mutants.
+
+Scope: `git diff 2c70766 rc3/wip-engine -- src/lib/clearline tests/clearline docs/clearline` (4a58896, 950ab98, 668e4ca). 3e66fa7..2c70766 has no engine changes. I wrote none of it.
+
+## Checks I ran
+- **Setup.** I deleted cr7 first. The fresh frozen copy is `scratchpad/cr8` (`git archive 668e4ca`, node_modules symlinked).
+- **Typecheck.** `npx tsc --noEmit`: pass.
+- **Tests.** `npx vitest run` (full suite): 70 files pass, 1 skipped; 1417 tests pass, 57 skipped.
+- **Mutation checks.** `scratchpad/mut8.py`, 13 mutants, all killed (table below).
+- **Probes.** In `scratchpad/probes8/`:
+  - `cycles.test.ts`: scripted reopen cycles;
+  - `prop-ext.test.ts`: the engine's own property test, extended with more action kinds and starts (described below).
+
+## Findings
+
+### Reopen withdraws and recomputes, and the history is kept: verified
+- **Accepted fee.** In `cycles.test.ts`, three cycles on an SGD 100.00 payout with an SGD 115.00 debit that is also late (15% plus a late value date):
+  - after acceptance the case shows `SECOND_APPROVAL_REQUIRED`;
+  - after a different person approves it is `RESOLVABLE`;
+  - after reopen it is `OPEN_EXCEPTIONS`; `resolution` (who, when, note) is kept and `acceptedDifference` is removed.
+  - The history accumulates `resolved, acceptance_approved, reopened, acceptance_withdrawn` per cycle, and the withdrawal entry names the accepter, the amount, the late date and the approver.
+  - In cycle 1 the same person tried to approve their own acceptance: `maker_checker_violation`, and the case stayed blocked.
+- **Supersede.** Wrong chain, then the conflict, resolve, the transfer counts (`verified`), then reopen:
+  - settlement becomes `contradicted` and reconciliation `exception`, and `supersededBy` is cleared;
+  - an observation ingested while reopened joins the open conflict rather than counting;
+  - resolving again supersedes again (`verified`);
+  - a second reopen, then all five resets: every state loads with migrations `[]` and byte-identical.
+- **Mutants killed:** undo removed; acceptance not withdrawn; supersede not withdrawn; no recompute after withdrawal; either history entry missing.
+
+### Repeated cycles combined with reset or migration: no unloadable workspace found
+`prop-ext.test.ts` is the engine's property test with these changes:
+- 60 seeds × 90 steps;
+- every 3rd seed starts from a *migrated* v2 fixture (`v2_sample`, `v2_t1`, `v2_va`, `v2_gaps`, `v2_vb`);
+- resets run with `ctx.at` up to 30 days after the workspace clock;
+- extra actions: `request_quotes`, `choose_route`, `approve_instruction` (including by the maker), `reject_instruction`, `submit_instruction`, `assign_hold_reviewer`, repayments against the property test's own new advances, over-amount and late debits of every size;
+- acceptance resolutions with every flag combination, followed by double reopens.
+
+Result: 67 of 67 tests pass. After every successful action and every reset, the workspace loads with migrations `[]` and byte-identical JSON.
+
+Applied counts over the run include:
+
+| Action | Count |
+|---|---|
+| reopen | 76 |
+| resolve with `acceptDifference` + `acceptLateDate` | 19 |
+| resolve with `acceptDifference` | 6 |
+| plain resolve | 71 |
+| request_quotes | 24 |
+| choose_route | 7 |
+| approve_instruction | 2 |
+| reject_instruction | 3 |
+| cancel_intent | 25 |
+| create_advance | 98 |
+| decide_advance | 30 |
+
+The run reached both `acceptance withdrawn on reopen` and `supersede withdrawn on reopen`.
+
+### Action kinds the engine's generator still misses (minor, R4-m1)
+The committed property test now covers `reopen`, `cancel_intent`, `create_advance`/`decide_advance`, `add_note`, `request_info`, case evidence and new payments.
+
+Still not covered:
+- **Payment lifecycle:** `request_quotes`, `choose_route`, `approve_instruction`, `reject_instruction`, `submit_instruction`. The new payments it creates never go past `created`.
+- **Holds:** `assign_hold_reviewer`.
+- **Repayments:** against its own new advances; its lines only ever quote `RPY-SEABRIGHT-0001`.
+- **Starts:** it never starts from a migrated v2 fixture.
+- **Resets:** it never resets at a clock later than the workspace's.
+
+My extension covers all of these except a successful `submit_instruction` and a random-walk `approve_acceptance`; the scripted families cover the latter. It found nothing, so this is a robustness note, not a defect. CHANGE 11's sentence "after every successful action the workspace loads…" should say which action kinds the generator covers. Better, add these kinds and a fixture start to the committed test.
+
+### All 7 R3-m1 mutants are now killed: verified
+Each mutant was reapplied to 668e4ca:
+
+| Mutant | Result |
+|---|---|
+| Rule A never raises its exception | killed |
+| Rule B ignores the supersede | killed |
+| Rule D ignores the bank match | killed |
+| Close-time `lateValueDate` re-check dropped | killed |
+| Short-debit refusal dropped | killed |
+| `approve_acceptance` line re-check dropped | killed |
+| `resolve` not requiring `acceptDifference` | killed |
+
+### Docs: accurate
+- CHANGE 11 describes the undo, the history entries, the audit events and the tests correctly.
+- The CHANGE 10 corrections are fair: the 7 survivors and the false "every rc3 workspace loads" claim are both acknowledged.
+- R2-m3 (one person for a ≤1% fee) remains documented as a product decision.
+- Only the generator-coverage wording in R4-m1 needs tightening.
+
+## Summary
+**APPROVE 668e4ca.** R3-B1 is fixed: reopen withdraws the acceptance or supersede, recomputes and keeps the history. No combination of reopen cycles, resets at later clocks or migrated v2 starts produced a workspace that fails to load or migrates. All 7 R3-m1 mutants and 6 new reopen mutants are caught.
+
+One minor, non-blocking item: widen the committed property generator to the payment lifecycle actions, migrated-fixture starts and later-clock resets, or narrow the CHANGE 11 wording to match. The merge commit after 2c70766 should carry this same engine tree.
