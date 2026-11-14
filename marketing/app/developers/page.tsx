@@ -223,6 +223,7 @@ export default function Developers() {
             <li>No real outbound webhooks, endpoint registration, secret rotation, replay protection or delivery retries.</li>
             <li>No real settlement evidence: statement lines and chain observations are fictional inputs you supply.</li>
             <li>No credit, lending or compliance decisions. A held payout leaves the hold only through people: the partner reports the release and the assigned compliance reviewer records a release decision, or the reviewer rejects it. No provider event alone moves it. Do not send real data.</li>
+            <li>Console only, not in the API: the synthetic case report (JSON or CSV, marked fictional), the per-case reset, filters and search. No v1 endpoint exposes them; the API&rsquo;s <code className="inline">/investigations/{"{intentId}"}</code> returns the same investigation the report is built from.</li>
             <li>Request limits: bodies up to 512 KB (else 422 <code className="inline">invalid_json</code>), at most 1,000 items per workspace collection (audit 10,000; else 400), and workspace nesting no deeper than 32 levels.</li>
           </ul>
         </div>

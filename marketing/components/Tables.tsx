@@ -88,7 +88,7 @@ export function FundingTable() {
     ["Treasury approval", f.approval],
     ["Repayment obligation", f.obligation],
     ["Allocations", f.allocations],
-    ["Supplier paid basis", <><span className="mono">supplierPaidBasis: {f.supplierPaidBasis}</span><span className="caption">The supplier debit is bank-statement verified. When the basis is provider_reported, the console labels the stage &ldquo;Supplier paid (provider-reported)&rdquo;.</span></>],
+    ["Supplier paid basis", <>Supplier payout verified by independent evidence <span className="mono caption">supplierPaidBasis: {f.supplierPaidBasis}</span><span className="caption">The supplier debit is bank-statement verified. When the basis is provider_reported, the console says &ldquo;Supplier paid (provider-reported) — not verified&rdquo;.</span></>],
     ["Repaid / outstanding", <><span className="num">{f.repaid}</span> repaid · <b className="num">{f.outstanding}</b> outstanding · <span className="st st-exec tone-warning"><span className="st-label">Partly repaid</span><code className="st-api">{f.state}</code></span></>],
     ["Exception", f.exception],
   ];

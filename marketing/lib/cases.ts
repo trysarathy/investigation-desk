@@ -13,3 +13,10 @@ export const TRIAL_CASES: { n: string; title: string; product: "Control" | "Cont
 
 /** Connect is tried outside the five cases, in the console's "Try your own payment" step. */
 export const TRY_CONNECT = "Then try Connect: create a payment intent, compare indicative sandbox routes, approve it as a different person, submit it and simulate the provider's next event, with or without an injected failure.";
+
+/** Console features around the cases (rc3/clearline-app @ 7e521f5; journey steps 18 and 19). Console only: no v1 endpoint. */
+export const CONSOLE_TOOLS: { title: string; text: string }[] = [
+  { title: "Case report", text: "On any payment's investigation page, view the engine's synthetic case report, marked fictional, and download it as JSON or CSV." },
+  { title: "Reset one case", text: "Reset a single case to its starting state; the other cases and anything you created stay. If one of your records depends on that case, the reset is refused with the reason. You can also reset the whole workspace." },
+  { title: "Simulated roles", text: "Switch role to act as maker, checker or compliance reviewer. Every switch says \"Simulated role — not sign-in or access control\"." },
+];

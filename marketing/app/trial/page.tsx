@@ -1,7 +1,7 @@
 import { ButtonLink, ContactBand, Disclosure, ExtLink, PageHero, Section } from "@/components/Shared";
 import { FUNDING_DESK_URL, SOFTWARE_URL, TRIAL_URL, mailto } from "@/lib/site";
 import { pageMeta } from "@/lib/meta";
-import { TRIAL_CASES, TRY_CONNECT } from "@/lib/cases";
+import { CONSOLE_TOOLS, TRIAL_CASES, TRY_CONNECT } from "@/lib/cases";
 
 export const metadata = pageMeta(
   "Customer trial",
@@ -34,6 +34,11 @@ export default function Trial() {
           ))}
         </ol>
         <p style={{ marginTop: 24, maxWidth: "70ch" }}>{TRY_CONNECT}</p>
+        <h3 className="h3" style={{ margin: "40px 0 12px" }} id="console-tools">While you work through the cases</h3>
+        <dl className="tool-list" aria-labelledby="console-tools">
+          {CONSOLE_TOOLS.map(t => <div key={t.title}><dt>{t.title}</dt><dd>{t.text}</dd></div>)}
+        </dl>
+        <p className="caption" style={{ marginTop: 12 }}>These are console features in your browser&rsquo;s workspace. The v1 test API does not expose them.</p>
         <div className="actions">
           <ButtonLink href={TRIAL_URL}>Open the guided trial</ButtonLink>
           <ButtonLink href={SOFTWARE_URL} variant="secondary">Go straight to the console</ButtonLink>

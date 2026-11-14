@@ -44,7 +44,7 @@ test("generate", () => {
       if (e.kind === "statement_line") {
         const l = ws.statementLines.find((x: any) => x.id === e.refs[0]);
         outcome = L.statementLineStatus[l.status]; tone = l.status === "allocated" ? "success" : l.status === "exception" ? "danger" : "warning";
-        return { time: sgt(e.at), kind: L.timelineKind[e.kind], event: `${L.statementSource[l.source]} ${l.direction} ${cl.formatMinor(l.amountMinor, l.currency)}`, ref: `${l.lineId} · ${l.reference || "no reference"}`, source: e.source, independent: e.independent, outcome, tone, codes: e.codes };
+        return { time: sgt(e.at), kind: L.timelineKind[e.kind], event: `${L.statementSource[l.source]} ${l.direction} ${cl.formatMinor(l.amountMinor, l.currency)}`, ref: `${l.lineId} · ${l.reference || "no reference"}`, source: `${L.statementSource[l.source]} · ${l.accountRef}` /* console evidence.tsx attribution */, independent: e.independent, outcome, tone, codes: e.codes };
       }
       if (e.kind === "allocation") { outcome = "Allocated by trusted reference"; tone = "success"; }
       if (e.kind === "exception") { const x = ws.exceptions.find((y: any) => y.id === e.refs[0]); outcome = "Exception " + L.exceptionStatus[x.status].toLowerCase(); tone = x.status === "resolved" ? "neutral" : "danger";

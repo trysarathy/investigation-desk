@@ -480,7 +480,7 @@ test("rc3 product view is generated from the tested engine and uses the console'
 
 test("rc3 trial cases follow the console's guided trial", () => {
   const c = read("lib/cases.ts");
-  const titles = [...c.matchAll(/title: "([^"]+)"/g)].map(m => m[1]);
+  const titles = [...c.slice(c.indexOf("TRIAL_CASES"), c.indexOf("TRY_CONNECT")).matchAll(/title: "([^"]+)"/g)].map(m => m[1]);
   assert.deepEqual(titles, ["Successful payment", "Returned payout", "Compliance hold", "Base Sepolia finality delay", "Funding exposure"]);
   assert.match(c, /Try your own payment|Then try Connect/);
 });
@@ -585,6 +585,31 @@ test("rc3 return position: net zero and beneficiary unpaid are stated in the eng
   const sample = read("lib/sample.ts");
   assert.match(sample, /lineId: "SIMBANK-0002", direction: "debit"/); assert.match(sample, /lineId: "SIMBANK-0006", direction: "credit", kind: "return"/);
   assert.match(read("app/page.tsx"), /One payout\. Five messages\./);
-  // Engine functions not yet in the console are not described as available.
-  for (const f of copySources) assert.equal(/buildCaseReport|resetScenario|reset (a|one|each) case|per-case reset|CSV case report/i.test(read(f)), false, f);
+});
+
+test("rc3 console features shipped at 7e521f5 are disclosed exactly, as console features with no v1 endpoint", () => {
+  const d = read("lib/disclosure.ts");
+  const working = d.slice(d.indexOf("WORKING_TODAY"), d.indexOf("NOT_BUILT"));
+  for (const t of [
+    "view the engine's synthetic case report in place, marked fictional, and download it as JSON or CSV",
+    "Reset one guided case to its starting state, leaving the other cases and anything you created untouched; it refuses, with the reason, if one of your records depends on that case. The whole workspace can also be reset.",
+    "Filter and search Payments, Investigations and Exceptions, with the filters kept in the URL, and assign owners to exceptions and cases through the engine.",
+    'Every switch is labelled \\"Simulated role — not sign-in or access control\\".',
+    "open the Funding Desk workflow from Treasury & Funding",
+    "The case report and the per-case reset are console features; no v1 endpoint exposes them.",
+  ]) assert.ok(working.includes(t), "disclosure lacks: " + t);
+  // Nothing claims an API for them.
+  for (const f of copySources) {
+    const s = read(f);
+    assert.equal(/(GET|POST) [^\s<]*(report|reset)/i.test(s), false, f + " claims an API endpoint for the case report or reset");
+    assert.equal(/(api|endpoint)[^.]{0,40}(exposes|returns|provides) the (case report|per-case reset)/i.test(s), false, f);
+  }
+  // Trial and Developers say they are console-only.
+  assert.match(read("app/trial/page.tsx"), /The v1 test API does not expose them\./);
+  assert.match(read("app/trial/page.tsx"), /CONSOLE_TOOLS\.map/);
+  assert.match(read("app/developers/page.tsx"), /Console only, not in the API: the synthetic case report \(JSON or CSV, marked fictional\), the per-case reset/);
+  const cases = read("lib/cases.ts");
+  for (const t of ["Case report", "Reset one case", "Simulated roles", "Simulated role — not sign-in or access control"]) assert.ok(cases.includes(t), t);
+  // Workspace repair is not described as shipped.
+  for (const f of copySources) assert.equal(/repair(s|ed)? (your|saved|old) workspace/i.test(read(f)), false, f);
 });

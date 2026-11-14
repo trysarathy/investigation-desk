@@ -443,3 +443,10 @@ code.inline { font-size: 0.86em; background: var(--cl-neutral-bg); color: var(--
 .three-status dt { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .three-status dt .label { flex-basis: 100%; margin: 0; }
 .three-status dd { margin: 0; max-width: 60ch; }
+
+/* ---------- Trial: console tools as ruled rows ---------- */
+.tool-list { margin: 0; border-top: var(--cl-border); }
+.tool-list > div { display: grid; gap: 4px 24px; padding: var(--cl-space-3) 0; border-bottom: var(--cl-border); }
+@media (min-width: 640px) { .tool-list > div { grid-template-columns: 180px 1fr; } }
+.tool-list dt { font-weight: 600; }
+.tool-list dd { margin: 0; max-width: 70ch; }

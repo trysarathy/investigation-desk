@@ -113,7 +113,7 @@ export default function InvestigationView({ initial = "s2_returned", compact = f
                     <p className="iv-tl-kind">{e.kind} <span className="iv-tl-src">· {e.independent ? "Independent" : "Not independent"}</span></p>
                     <p className="iv-tl-event">{strip(e.event)}</p>
                     {e.ref && <p className="iv-tl-ref mono">{e.ref}</p>}
-                    <p className="iv-tl-meta"><span className={"tag tone-" + e.tone}>{e.outcome}</span> <span className="iv-tl-source">{strip(e.source)}</span></p>
+                    <p className="iv-tl-meta"><span className={"tag tone-" + e.tone}>{e.outcome}</span> <span className="iv-tl-source">{e.source}</span></p>
                   </div>
                 </li>
               ))}

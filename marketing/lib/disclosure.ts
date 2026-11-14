@@ -1,7 +1,8 @@
 /**
  * The single "working today / not built yet / out of scope" disclosure. Every page that states the product's
  * stage reads it from here, so the wording cannot drift. Checked against rc3/clearline-app @ cf8732e
- * (docs/release/RELEASE_MANIFEST_V2.md "Known limitations", docs/clearline/ENGINE_API.md, src/lib/clearline).
+ * (docs/release/RELEASE_MANIFEST_V2.md "Known limitations", docs/clearline/ENGINE_API.md, src/lib/clearline), and the console
+ * features shipped at rc3/clearline-app @ 7e521f5, each covered end to end by tests/browser/clearline-journey.spec.ts.
  * Rule: an item is "working" only if the released engine and console can demonstrate it today.
  */
 export type DisclosureItem = { area: string; text: string };
@@ -13,8 +14,12 @@ export const WORKING_TODAY: DisclosureItem[] = [
   { area: "Control", text: "Investigate a payment with three separate statuses (execution, settlement evidence, reconciliation), a sourced evidence timeline, what is still unknown and who owns the next step." },
   { area: "Control", text: "Reconcile fictional statement lines by trusted reference, amount, currency and value-date window; anything else becomes an exception with an owner and a due date." },
   { area: "Control", text: "Record compliance holds, which move on only when the partner reports a release and the assigned reviewer records a decision; show a liquidity view net of restricted, safeguarded and committed amounts, and synthetic Base Sepolia observations against a 12-confirmation finality threshold." },
-  { area: "Funding Desk", text: "Follow a supplier payout to its advance, treasury approval and repayment through a tested projection, and open the interactive Funding Desk demo." },
-  { area: "Developers", text: "A stateless v1 test API with an OpenAPI 3.1 document and a public example key." },
+  { area: "Control", text: "Filter and search Payments, Investigations and Exceptions, with the filters kept in the URL, and assign owners to exceptions and cases through the engine." },
+  { area: "Case report", text: "From a payment's investigation page, view the engine's synthetic case report in place, marked fictional, and download it as JSON or CSV." },
+  { area: "Reset", text: "Reset one guided case to its starting state, leaving the other cases and anything you created untouched; it refuses, with the reason, if one of your records depends on that case. The whole workspace can also be reset." },
+  { area: "Roles", text: "Switch between simulated roles (operator, approver, compliance reviewer, viewer) to see maker-checker and reviewer rules. Every switch is labelled \"Simulated role — not sign-in or access control\"." },
+  { area: "Funding Desk", text: "Follow a supplier payout to its advance, treasury approval and repayment through a tested projection, and open the Funding Desk workflow from Treasury & Funding." },
+  { area: "Developers", text: "A stateless v1 test API with an OpenAPI 3.1 document and a public example key. The case report and the per-case reset are console features; no v1 endpoint exposes them." },
 ];
 
 /** Not built yet. Nothing here is available, in the sandbox or anywhere else. */
