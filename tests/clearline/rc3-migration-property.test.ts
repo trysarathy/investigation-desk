@@ -68,6 +68,24 @@ function candidates(ws: Workspace, r: () => number): { actor: string; action: Wo
   const c = pick(ws.cases);
   if (c) out.push({ actor: "usr_maya", action: { type: "assign_owner", target: { kind: "case", id: c.id }, ownerId: "usr_maya" } }, { actor: "usr_maya", action: { type: "resolve", target: { kind: "case", id: c.id }, note: "Closed" } });
   out.push({ actor: "usr_maya", action: { type: "advance_clock", to: new Date(Date.parse(ws.asOf) + Math.floor(r() * 4) * 86_400_000).toISOString() } });
+  // R3-B1: reopen (exceptions and cases), cancel, advances, notes, info requests, case evidence, new payments
+  const resolved = pick(ws.exceptions.filter((e) => e.status === "resolved"));
+  if (resolved) out.push({ actor: pick(["usr_maya", "usr_daniel"])!, action: { type: "reopen", target: { kind: "exception", id: resolved.id }, reason: "Reopened for review" } }, { actor: "usr_maya", action: { type: "reopen", target: { kind: "exception", id: resolved.id }, reason: "Reopened again" } });
+  const resolvedCase = pick(ws.cases.filter((x) => x.status === "resolved"));
+  if (resolvedCase) out.push({ actor: "usr_maya", action: { type: "reopen", target: { kind: "case", id: resolvedCase.id }, reason: "New information" } });
+  out.push({ actor: pick(["usr_maya", "usr_daniel"])!, action: { type: "cancel_intent", intentId: intent.id, reason: "No longer needed" } });
+  if (c) {
+    out.push({ actor: "usr_maya", action: { type: "add_note", target: { kind: "case", id: c.id }, text: "Note (fictional)" } });
+    out.push({ actor: "usr_maya", action: { type: "request_info", caseId: c.id, from: "Supplier", request: "Confirm account details" } });
+    out.push({ actor: "usr_maya", action: { type: "attach_evidence", target: { kind: "case", id: c.id }, evidence: { kind: "document_metadata", description: "Case document (fictional)" } } });
+  }
+  if (!intent.advanceId && !["cancelled", "expired", "failed", "returned"].includes(intent.status.execution))
+    out.push({ actor: "usr_maya", action: { type: "create_advance", input: { intentId: intent.id, customerRef: `CUST-${n}`, customerName: "Customer (fictional)", supplierName: "Supplier (fictional)", invoiceRef: `INV-ADV-${n}`, dueDate: "2026-11-25", repaymentReference: `RPY-PROP-${n}` } } });
+  const adv = pick(ws.advances.filter((a) => !a.decisionId));
+  if (adv) out.push({ actor: pick(["usr_daniel", "usr_maya"])!, action: { type: "decide_advance", advanceId: adv.id, outcome: pick(["approve", "decline"] as const)!, reason: "Treasury review (fictional)" } });
+  const cancellable = pick(ws.intents.filter((i) => ["created", "quoted", "approved"].includes(i.status.execution)));
+  if (cancellable) out.push({ actor: "usr_maya", action: { type: "cancel_intent", intentId: cancellable.id, reason: "Cancelled before submission" } });
+  if (r() < 0.2) out.push({ actor: "usr_maya", action: { type: "create_intent", input: { internalReference: `INV-PROP-${n}`, amountMinor: 50_000, sourceCurrency: "SGD", destinationCurrency: "PHP", purpose: "Supplier invoice", beneficiaryRef: "BEN-PROP-01", beneficiaryName: "Prop Supplier (fictional)", destinationCountry: "PH", requestedExecutionDate: "2026-11-20", idempotencyKey: `prop-new-${n}` } } });
   return out;
 }
 
@@ -83,6 +101,13 @@ function note(ws: Workspace) {
     if (ws.exceptions.some((e) => e.explanationCode === code)) seen.add(code);
   if (ws.exceptions.some((e) => e.status === "resolved")) seen.add("resolved exception");
   if (ws.exceptions.some((e) => e.resolution?.acceptedDifference?.secondApproval?.approvedBy)) seen.add("second approval");
+  if (ws.exceptions.some((e) => e.history.some((h) => h.action === "acceptance_withdrawn"))) seen.add("acceptance withdrawn on reopen");
+  if (ws.exceptions.some((e) => e.history.some((h) => h.action === "supersede_withdrawn"))) seen.add("supersede withdrawn on reopen");
+  if (ws.exceptions.some((e) => e.status === "reopened")) seen.add("reopened exception");
+  if (ws.cases.some((c) => c.status === "reopened")) seen.add("reopened case");
+  if (ws.intents.some((i) => i.status.execution === "cancelled")) seen.add("cancelled payment");
+  if (ws.fundingDecisions.length > 1) seen.add("advance decided");
+  if (ws.cases.some((c) => c.requestedInfo.some((q) => q.actorId === "usr_maya"))) seen.add("info requested");
 }
 function start(): Workspace {
   let ws = sampleWorkspace();
@@ -183,7 +208,12 @@ describe("R2-M1: the migration never fires on a workspace rc3 produced", () => {
       ws = act(ws, "usr_maya", { type: "ingest_chain_observation", observation: { ...obs, ...wrong, confirmations: 20 } }, "B unsupported first");
       ws = act(ws, "usr_maya", { type: "ingest_chain_observation", observation: { ...obs, confirmations: 20 } }, "B conflict");
       ws = resolveAll(ws, id, "B");
-      act(ws, "usr_maya", { type: "ingest_chain_observation", observation: { ...obs, confirmations: 20 } }, "B counted after supersede");
+      ws = act(ws, "usr_maya", { type: "ingest_chain_observation", observation: { ...obs, confirmations: 20 } }, "B counted after supersede");
+      // R3-B1: reopen the resolved conflict (withdraws the supersede), then resolve it again
+      const conflict = ws.exceptions.find((e) => e.intentId === id && (e.explanationCode === "CH_TX_HASH_CONFLICT" || e.explanationCode === "CH_TX_HASH_ON_OTHER_CHAIN"))!;
+      ws = act(ws, "usr_daniel", { type: "reopen", target: { kind: "exception", id: conflict.id }, reason: "Reopened (fictional)" }, "B reopen");
+      ws = act(ws, "usr_maya", { type: "ingest_chain_observation", observation: { ...obs, confirmations: 25 } }, "B observation while reopened");
+      resolveAll(ws, id, "B again");
       // the reverse order (valid first, unsupported later) is an ordinary rc3 state too
       let v = usdc();
       v.ws = act(v.ws, "usr_maya", { type: "ingest_chain_observation", observation: { ...v.obs, confirmations: 20 } }, "B' valid first");
@@ -198,7 +228,17 @@ describe("R2-M1: the migration never fires on a workspace rc3 produced", () => {
       if (debitFirst) ws = act(ws, "usr_maya", debit, `${end} debit first`);
       ws = act(ws, "usr_maya", hook(ws, id, end, 9), `${end}`);
       if (!debitFirst) ws = act(ws, "usr_maya", debit, `${end} debit after`);
-      resolveAll(ws, id, `${end} ${debitFirst}`);
+      ws = resolveAll(ws, id, `${end} ${debitFirst}`);
+      // close the case where the rules allow it, then reopen it (R3-B1: reopen paths stay loadable)
+      const caseId = intentOf(ws, id).caseId;
+      if (caseId) {
+        ws = act(ws, "usr_maya", { type: "assign_owner", target: { kind: "case", id: caseId }, ownerId: "usr_maya" }, "case owner");
+        const closed = applyAction(ws, { type: "resolve", target: { kind: "case", id: caseId }, note: "Closed" }, { actorId: "usr_maya", at: ws.asOf });
+        if (closed.ok) {
+          noop(closed.value.workspace, `${end} case closed`);
+          act(closed.value.workspace, "usr_daniel", { type: "reopen", target: { kind: "case", id: caseId }, reason: "Reopened (fictional)" }, `${end} case reopened`);
+        }
+      }
     }
   });
 
@@ -215,13 +255,16 @@ describe("R2-M1: the migration never fires on a workspace rc3 produced", () => {
       const r = applyAction(ws, { type: "resolve", target: { kind: "exception", id: e.id }, note: "Reviewed", ...(accept && !late ? { acceptDifference: true } : {}), ...(accept && late ? { acceptLateDate: true } : {}) }, { actorId: "usr_maya", at: ws.asOf });
       if (!r.ok) throw new Error(`resolve ${JSON.stringify(line)}: ${r.error.message}`);
       noop(r.value.workspace, `resolve ${JSON.stringify(line)} accept=${accept}`);
-      if (r.value.workspace.exceptions.find((x) => x.id === e.id)!.resolution!.acceptedDifference?.secondApproval)
-        act(r.value.workspace, "usr_sam", { type: "approve_acceptance", exceptionId: e.id, note: "Bank tariff checked (fictional)" }, "second approval");
+      let after = r.value.workspace;
+      if (after.exceptions.find((x) => x.id === e.id)!.resolution!.acceptedDifference?.secondApproval)
+        after = act(after, "usr_sam", { type: "approve_acceptance", exceptionId: e.id, note: "Bank tariff checked (fictional)" }, "second approval");
+      // R3-B1: reopening must leave a workspace that loads unchanged
+      act(after, "usr_daniel", { type: "reopen", target: { kind: "exception", id: e.id }, reason: "Reopened (fictional)" }, `reopen ${JSON.stringify(line)} accept=${accept}`);
     }
   });
 
   it("the sequences really reached the states the migration rules are about (the property is not vacuous)", () => {
-    const wanted = ["second approval", "terminal payout with chain evidence", "terminal payout with a bank debit", "final chain transfer", "rejected observation", "CH_CONFIRMATIONS_DECREASED", "CH_TRANSFER_FOR_TERMINAL_PAYOUT", "RC_DEBIT_FOR_FAILED_PAYOUT", "RC_OVERPAYMENT", "RC_OUTSIDE_TIME_WINDOW", "resolved exception"];
+    const wanted = ["acceptance withdrawn on reopen", "supersede withdrawn on reopen", "reopened exception", "reopened case", "cancelled payment", "advance decided", "info requested", "second approval", "terminal payout with chain evidence", "terminal payout with a bank debit", "final chain transfer", "rejected observation", "CH_CONFIRMATIONS_DECREASED", "CH_TRANSFER_FOR_TERMINAL_PAYOUT", "RC_DEBIT_FOR_FAILED_PAYOUT", "RC_OVERPAYMENT", "RC_OUTSIDE_TIME_WINDOW", "resolved exception"];
     expect(wanted.filter((x) => !seen.has(x))).toEqual([]);
   });
 });
