@@ -128,3 +128,18 @@ Result: `investigate().returnPosition` = `RT_NET_ZERO` (debited = return credite
 - **Migration.** The `none` outcome requires that a person resolved the rc3 terminal rule's own exception for the same evidence. The code and the line or observations must match; an unrelated resolved contradiction never counts. `loadWorkspace` returns each change as a `WorkspaceMigration`.
 - **`ReconciliationException.resolution.acceptedDifference?`** `{ statementLineId, differenceMinor, currency }` is set only by `resolve { acceptDifference: true }`. It is allowed only on an `RC_OVERPAYMENT` bank debit that carries the payout's provider payment id, in its currency and matching window, at most 1% over. A case may close on it; a plain resolution never lets a case close.
 - **Evidence `source`.** For a statement line it reads "Bank statement <account>" or "Provider settlement report <account>", with "(fictional)" exactly once.
+
+## Rules added after the second re-review (CHANGE 10, 2026-11-14)
+
+- **Load-time migration (`migrate.ts`).** It applies four rules to states earlier engine versions saved:
+  - A: a non-allowlisted counted observation is no longer counted;
+  - B: a later observation of a hash already recorded as rejected or with another identity gets a conflict exception;
+  - C: a terminal payout with evidenced settlement gets the rc3 terminal rule;
+  - D: a match on a no-longer-final chain transfer goes back to reconciliation `exception`.
+
+  Settlement never moves up. Each change is a `WorkspaceMigration` (kinds `terminal_payout_verified`, `terminal_payout_evidence`, `chain_observation_not_allowlisted`, `chain_hash_conflict`, `reorg_reconciliation`).
+- **`resolution.acceptedDifference`** is now `{ statementLineId, differenceMinor ≥ 0, currency, lateValueDate?, secondApproval?: { required: true, approvedBy?, approvedAt?, note? } }`.
+  - It is allowed on `RC_OVERPAYMENT` and `RC_OUTSIDE_TIME_WINDOW` bank debits that carry the payout's reference, in its currency.
+  - Limits: a late value date up to 60 days after submission; an over-amount up to 1% for one person, or up to 50% with a different staff person's approval (`approve_acceptance`).
+  - A currency mismatch is never acceptable.
+- **`HUMAN_LABELS.supplierPaidBasis.provider_reported`** is "Provider reports the supplier paid (not verified)".
