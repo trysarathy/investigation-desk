@@ -5,8 +5,9 @@
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { computeLiquidity, convertMinor, emptyWorkspace, formatMinorPlain, parseAmount } from "@/lib/clearline";
-import { applyBpsFloor } from "@/lib/clearline/money";
+import { computeLiquidity, convertMinor, emptyWorkspace, formatMinorPlain, parseAmount, parseWorkspaceValue, sampleWorkspace, scenarioIntentId, serializeWorkspace, type Workspace } from "@/lib/clearline";
+import { attempt, baseInput, debitLine, errorCode, run } from "./helpers";
+import { MAX_AMOUNT_MINOR, applyBpsFloor } from "@/lib/clearline/money";
 
 const ENGINE = path.resolve(__dirname, "../../src/lib/clearline");
 
@@ -51,5 +52,56 @@ describe("rc3 invariant 1: no floating point on money paths (static scan of src/
     expect(formatMinorPlain(6_427_830_000, "USDC")).toBe("6427.830000");
     expect(convertMinor(1_000_000, "SGD", "USDC", "0.741234")).toEqual({ ok: true, value: 7_412_340_000 });
     expect(parseAmount("0.1", "SGD").ok && formatMinorPlain(10, "SGD")).toBe("0.10");
+  });
+});
+
+describe("review m-1: amounts and totals are bounded so every sum the engine computes is exact", () => {
+  const sample = () => JSON.parse(serializeWorkspace(sampleWorkspace())) as Workspace;
+  const refusedAt = (ws: Workspace, field: RegExp) => {
+    const r = parseWorkspaceValue(ws);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.field ?? "").toMatch(field);
+  };
+  it("a single amount above MAX_AMOUNT_MINOR (10^15) is refused at parse (before: 2^53−1 accepted)", () => {
+    expect(MAX_AMOUNT_MINOR).toBe(1_000_000_000_000_000);
+    const a = sample(); a.intents[0].amountMinor = Number.MAX_SAFE_INTEGER; refusedAt(a, /^intents\[0\]\.amountMinor$/);
+    const b = sample(); b.liquidity[0].eligibleMinor = MAX_AMOUNT_MINOR + 1; refusedAt(b, /^liquidity\[0\]\.eligibleMinor$/);
+    const c = sample(); c.statementLines[0].amountMinor = MAX_AMOUNT_MINOR + 1; refusedAt(c, /^statementLines\[0\]\.amountMinor$/);
+    const d = sample(); d.liquidityPolicy.bufferBps = 10_001; refusedAt(d, /^liquidityPolicy\.bufferBps$/);
+    const e = sample(); e.liquidityPolicy.minBufferMinor.SGD = MAX_AMOUNT_MINOR + 1; refusedAt(e, /^liquidityPolicy\.minBufferMinor\.SGD$/);
+  });
+  it("the reviewer's overflow workspace (two committed SGD payouts whose sum is inexact above 2^53) is refused", () => {
+    const ws = sample();
+    const sgd = ws.intents.filter((i) => i.sourceCurrency === "SGD").slice(0, 2);
+    sgd[0].amountMinor = 4_503_599_627_370_497;
+    sgd[1].amountMinor = 4_503_599_627_370_498;
+    refusedAt(ws, /amountMinor|^intents$/);
+  });
+  it("per-currency totals: two SGD payouts of 6 × 10^14 each (each valid, total above 10^15) are refused; USD is a separate total", () => {
+    const ws = sample();
+    const sgd = ws.intents.filter((i) => i.sourceCurrency === "SGD");
+    for (const i of sgd) i.amountMinor = 1;
+    sgd[0].amountMinor = 600_000_000_000_000;
+    sgd[1].amountMinor = 600_000_000_000_000;
+    refusedAt(ws, /^intents$/);
+    sgd[1].amountMinor = 400_000_000_000_000 - (sgd.length - 2);
+    for (const i of ws.instructions) { const x = ws.intents.find((y) => y.id === i.intentId)!; i.amountMinor = x.amountMinor; }
+    expect(parseWorkspaceValue(ws).ok).toBe(true);
+  });
+  it("actions never produce a workspace parse would refuse: create_intent and ingest_statement_line enforce the same totals", () => {
+    let ws = emptyWorkspace();
+    ws = run(ws, "usr_maya", { type: "create_intent", input: baseInput({ amountMinor: MAX_AMOUNT_MINOR }) }).workspace;
+    expect(errorCode(attempt(ws, "usr_maya", { type: "create_intent", input: baseInput({ amountMinor: 1 }) }))).toBe("invalid_amount");
+    expect(errorCode(attempt(ws, "usr_maya", { type: "create_intent", input: baseInput({ amountMinor: 1, sourceCurrency: "USD" }) }))).toBe("ok");
+    ws = run(ws, "usr_maya", { type: "ingest_statement_line", line: debitLine({ amountMinor: MAX_AMOUNT_MINOR }) }).workspace;
+    expect(errorCode(attempt(ws, "usr_maya", { type: "ingest_statement_line", line: debitLine({ amountMinor: 1 }) }))).toBe("invalid_amount");
+    expect(parseWorkspaceValue(ws).ok).toBe(true);
+  });
+  it("a chain observation amount above 10^15 is refused at input (a rejected observation is stored, so it must stay loadable)", () => {
+    const ws = sampleWorkspace();
+    const id = scenarioIntentId(ws, "s4_chain")!;
+    const o = ws.chainObservations.find((x) => x.intentId === id)!;
+    const { id: _a, observedAt: _b, updatedAt: _c, finalityThreshold: _d, status: _e, label: _f, ...input } = o;
+    expect(errorCode(attempt(ws, "usr_maya", { type: "ingest_chain_observation", observation: { ...input, tokenSymbol: "USDT", amountMinor: MAX_AMOUNT_MINOR + 1 } }))).toBe("invalid_field");
   });
 });

@@ -10,6 +10,7 @@
  *   on-chain symbol()/decimals() check — not from memory).
  */
 import { openException } from "./exceptions";
+import { MAX_AMOUNT_MINOR } from "./money";
 import { sha256Hex } from "./sha256";
 import type { AllowlistedToken, ChainObservation, ChainObservationInput, PaymentIntent } from "./types";
 import { fail, type Tx } from "./tx";
@@ -42,7 +43,7 @@ export function validateChainInput(o: ChainObservationInput): string | null {
   if (typeof o.tokenSymbol !== "string" || !/^[A-Za-z0-9]{1,12}$/.test(o.tokenSymbol)) return "tokenSymbol must be a short alphanumeric string.";
   if (typeof o.txHash !== "string" || !isHex(o.txHash, 64)) return "txHash must be 0x + 64 lowercase hex characters.";
   if (typeof o.toAddress !== "string" || !isHex(o.toAddress, 40)) return "toAddress must be 0x + 40 lowercase hex characters.";
-  if (typeof o.amountMinor !== "number" || !Number.isSafeInteger(o.amountMinor) || o.amountMinor <= 0) return "amountMinor must be a positive integer (token minor units, 6 decimals).";
+  if (typeof o.amountMinor !== "number" || !Number.isSafeInteger(o.amountMinor) || o.amountMinor <= 0 || o.amountMinor > MAX_AMOUNT_MINOR) return `amountMinor must be a positive integer up to ${MAX_AMOUNT_MINOR} (token minor units, 6 decimals).`;
   if (typeof o.blockNumber !== "number" || !Number.isSafeInteger(o.blockNumber) || o.blockNumber < 0) return "blockNumber must be a non-negative integer.";
   if (typeof o.confirmations !== "number" || !Number.isSafeInteger(o.confirmations) || o.confirmations < 0) return "confirmations must be a non-negative integer.";
   return null;

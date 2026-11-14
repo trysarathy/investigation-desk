@@ -107,13 +107,20 @@ Status values:
 | — | The evidence timeline lists every source. | **Fixed in rc3** (E-1): a recorded provider settlement report was missing from the timeline. | `investigation.ts:evidenceTimelineFor` | `rc3-integrity-truths.test.ts` › E-1 |
 
 **Limitations (stated plainly):**
-- **Number storage.** Amounts are stored as JS safe integers (`number`, at most `MAX_AMOUNT_MINOR` = 10^15
-  minor units each) so the workspace stays plain JSON. They are not BigInt in storage.
-- **What is exact.** Every product or ratio on money uses BigInt: conversion and basis points. Sums
-  (allocations per payout, per-currency totals in `fundingProjection` and `computeLiquidity`) use `number`
-  addition. Those sums are exact only while the total stays below 2^53 ≈ 9.007 × 10^15 minor units. Nothing in
-  the sandbox comes close, but a crafted workspace with many maximal amounts in one currency could exceed it,
-  and `parseWorkspace` does not bound totals.
+- **Number storage.** Amounts are stored as JS safe integers (`number`), not BigInt, so the workspace stays plain
+  JSON. Each amount is at most `MAX_AMOUNT_MINOR` = 10^15 minor units. This is enforced when an action creates
+  it (`validateAmountMinor`, chain input) and, since review m-1, again when a workspace is parsed
+  (`serialize.ts` `amt`), so a stored or posted workspace cannot carry a larger one.
+- **What is exact.**
+  - Every product or ratio on money uses BigInt: conversion and basis points.
+  - Sums use `number` addition: allocations per payout, committed payouts, repaid / outstanding, and the
+    per-currency totals in `fundingProjection` and `computeLiquidity`.
+  - Those sums are exact because (review m-1) the per-currency total of payment intents, statement lines and
+    each liquidity balance field is also at most 10^15 minor units. `parseWorkspace` checks this in BigInt
+    (`serialize.ts` `crossCheck`), and `create_intent` / `ingest_statement_line` refuse an amount that would
+    exceed it (`money.ts` `withinTotal`). Every engine sum draws on at most a handful of these totals, so it
+    stays far below 2^53 ≈ 9.007 × 10^15.
+  - The cost: a sandbox workspace holds at most 10^15 minor units per currency in each of those collections.
 - **Chain evidence after a terminal state.** Chain evidence that arrives after a payout is already terminal is
   refused (`precondition_failed`, B1). It is not recorded as a contradiction.
 - **Integrity cross-check scope.** The cross-check covers the invariants listed in row 4c, row 7 and the

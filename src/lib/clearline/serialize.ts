@@ -1,4 +1,4 @@
-import { isCurrency } from "./money";
+import { MAX_AMOUNT_MINOR, isCurrency, withinTotal } from "./money";
 import { EXCEPTION_DUE_DAYS, EXCEPTION_REQUIRED_ACTION } from "./exceptions";
 import { addDays, isIsoDate, isIsoInstant, isTimeZone, orgDate } from "./tx";
 import type { Result, Workspace } from "./types";
@@ -17,6 +17,11 @@ const need = (cond: boolean, field: string, what: string) => {
   if (!cond) throw new Invalid(field, `${field}: ${what}`);
 };
 const str = (o: Obj, k: string, path: string) => need(typeof o[k] === "string" && (o[k] as string).length > 0, `${path}.${k}`, "must be a non-empty string");
+/** Review m-1: an amount is a safe integer ≥ min and ≤ MAX_AMOUNT_MINOR (10^15 minor units), like validateAmountMinor. */
+const amt = (o: Obj, k: string, path: string, min = 0) =>
+  need(typeof o[k] === "number" && Number.isSafeInteger(o[k]) && (o[k] as number) >= min && (o[k] as number) <= MAX_AMOUNT_MINOR, `${path}.${k}`, `must be an integer number of minor units from ${min} to ${MAX_AMOUNT_MINOR}`);
+/** Review m-1: basis points are an integer from 0 to 10 000. */
+const bps = (o: Obj, k: string, path: string) => need(typeof o[k] === "number" && Number.isSafeInteger(o[k]) && (o[k] as number) >= 0 && (o[k] as number) <= 10_000, `${path}.${k}`, "must be an integer number of basis points from 0 to 10000");
 const int = (o: Obj, k: string, path: string, min = 0) => need(typeof o[k] === "number" && Number.isSafeInteger(o[k]) && (o[k] as number) >= min, `${path}.${k}`, `must be a safe integer ≥ ${min}`);
 const cur = (o: Obj, k: string, path: string) => need(isCurrency(o[k]), `${path}.${k}`, "must be a supported currency");
 const oneOf = (o: Obj, k: string, path: string, values: readonly string[]) => need(values.includes(o[k] as string), `${path}.${k}`, `must be one of ${values.join(", ")}`);
@@ -59,24 +64,24 @@ const RECON = ["not_started", "pending", "matched", "partially_matched", "except
 /** Element validators: each throws Invalid with a field path. */
 const ELEMENTS: Partial<Record<keyof Workspace, (e: Obj, p: string) => void>> = {
   actors: (e, p) => { str(e, "name", p); oneOf(e, "role", p, ["operator", "approver", "compliance", "viewer"]); },
-  routes: (e, p) => { str(e, "providerId", p); str(e, "providerName", p); arr(e, "sourceCurrencies", p); need(isObj(e.providerFees), `${p}.providerFees`, "must be an object"); int(e, "platformFeeBps", p); },
+  routes: (e, p) => { str(e, "providerId", p); str(e, "providerName", p); arr(e, "sourceCurrencies", p); need(isObj(e.providerFees), `${p}.providerFees`, "must be an object"); bps(e, "platformFeeBps", p); },
   intents: (e, p) => {
-    str(e, "internalReference", p); int(e, "amountMinor", p, 1); cur(e, "sourceCurrency", p); cur(e, "destinationCurrency", p); str(e, "beneficiaryRef", p);
+    str(e, "internalReference", p); amt(e, "amountMinor", p, 1); cur(e, "sourceCurrency", p); cur(e, "destinationCurrency", p); str(e, "beneficiaryRef", p);
     instant(e, "createdAt", p); arr(e, "quoteIds", p); need(isObj(e.metadata), `${p}.metadata`, "must be an object");
     need(isObj(e.status), `${p}.status`, "must be an object");
     const s = e.status as Obj;
     oneOf(s, "execution", `${p}.status`, EXECUTION); oneOf(s, "settlement", `${p}.status`, SETTLEMENT); oneOf(s, "settlementScope", `${p}.status`, SCOPE); oneOf(s, "reconciliation", `${p}.status`, RECON);
   },
-  quotes: (e, p) => { str(e, "intentId", p); str(e, "routeId", p); need(typeof e.eligible === "boolean", `${p}.eligible`, "must be boolean"); int(e, "estimatedRecipientMinor", p); instant(e, "expiresAt", p); },
-  instructions: (e, p) => { str(e, "intentId", p); str(e, "quoteId", p); str(e, "makerId", p); int(e, "amountMinor", p, 1); cur(e, "currency", p); oneOf(e, "status", p, ["pending_approval", "approved", "rejected", "submitted"]); },
+  quotes: (e, p) => { str(e, "intentId", p); str(e, "routeId", p); need(typeof e.eligible === "boolean", `${p}.eligible`, "must be boolean"); amt(e, "estimatedRecipientMinor", p); instant(e, "expiresAt", p); },
+  instructions: (e, p) => { str(e, "intentId", p); str(e, "quoteId", p); str(e, "makerId", p); amt(e, "amountMinor", p, 1); cur(e, "currency", p); oneOf(e, "status", p, ["pending_approval", "approved", "rejected", "submitted"]); },
   providerEvents: (e, p) => { str(e, "providerId", p); instant(e, "receivedAt", p); int(e, "sequence", p); str(e, "processingOutcome", p); need(isObj(e.detail), `${p}.detail`, "must be an object"); },
   evidence: (e, p) => { str(e, "kind", p); instant(e, "recordedAt", p); need(typeof e.independent === "boolean", `${p}.independent`, "must be boolean"); },
   statementLines: (e, p) => {
-    int(e, "amountMinor", p, 1); cur(e, "currency", p); oneOf(e, "direction", p, ["debit", "credit"]); oneOf(e, "kind", p, ["payment", "return", "reversal"]);
+    amt(e, "amountMinor", p, 1); cur(e, "currency", p); oneOf(e, "direction", p, ["debit", "credit"]); oneOf(e, "kind", p, ["payment", "return", "reversal"]);
     oneOf(e, "status", p, ["unallocated", "allocated", "partially_allocated", "exception"]); arr(e, "allocationIds", p); arr(e, "explanationCodes", p); date(e, "valueDate", p); need(typeof e.reference === "string", `${p}.reference`, "must be a string");
     amountDifference(e, p);
   },
-  allocations: (e, p) => { str(e, "statementLineId", p); need(isObj(e.target), `${p}.target`, "must be an object"); int(e, "amountMinor", p, 1); cur(e, "currency", p); arr(e, "codes", p); oneOf(e, "evidenceKind", p, ["statement_line", "chain_observation"]); },
+  allocations: (e, p) => { str(e, "statementLineId", p); need(isObj(e.target), `${p}.target`, "must be an object"); amt(e, "amountMinor", p, 1); cur(e, "currency", p); arr(e, "codes", p); oneOf(e, "evidenceKind", p, ["statement_line", "chain_observation"]); },
   exceptions: (e, p) => {
     str(e, "category", p); oneOf(e, "status", p, ["open", "in_review", "resolved", "reopened"]); oneOf(e, "severity", p, ["low", "medium", "high", "critical"]);
     for (const k of ["candidates", "supportingEventIds", "supportingEvidenceIds", "history"]) arr(e, k, p);
@@ -88,12 +93,12 @@ const ELEMENTS: Partial<Record<keyof Workspace, (e: Obj, p: string) => void>> = 
     str(e, "intentId", p); oneOf(e, "status", p, ["open", "documents_submitted", "partner_release_reported", "released", "rejected"]); need(e.autoRelease === false, `${p}.autoRelease`, "must be false");
     for (const k of ["requestedDocuments", "submittedDocuments", "decisions"]) arr(e, k, p);
   },
-  liquidity: (e, p) => { str(e, "providerId", p); cur(e, "currency", p); int(e, "eligibleMinor", p); int(e, "restrictedMinor", p); int(e, "safeguardedMinor", p); instant(e, "asOf", p); },
-  chainObservations: (e, p) => { str(e, "intentId", p); str(e, "txHash", p); int(e, "confirmations", p); int(e, "amountMinor", p, 1); oneOf(e, "status", p, ["observed", "pending_finality", "final", "rejected_unsupported"]); },
-  advances: (e, p) => { str(e, "intentId", p); int(e, "principalMinor", p, 1); cur(e, "currency", p); date(e, "dueDate", p); str(e, "preparedBy", p); str(e, "repaymentReference", p); },
+  liquidity: (e, p) => { str(e, "providerId", p); cur(e, "currency", p); amt(e, "eligibleMinor", p); amt(e, "restrictedMinor", p); amt(e, "safeguardedMinor", p); instant(e, "asOf", p); },
+  chainObservations: (e, p) => { str(e, "intentId", p); str(e, "txHash", p); int(e, "confirmations", p); amt(e, "amountMinor", p, 1); oneOf(e, "status", p, ["observed", "pending_finality", "final", "rejected_unsupported"]); },
+  advances: (e, p) => { str(e, "intentId", p); amt(e, "principalMinor", p, 1); cur(e, "currency", p); date(e, "dueDate", p); str(e, "preparedBy", p); str(e, "repaymentReference", p); },
   fundingDecisions: (e, p) => { str(e, "advanceId", p); str(e, "makerId", p); str(e, "checkerId", p); oneOf(e, "outcome", p, ["approve", "decline"]); },
-  obligations: (e, p) => { str(e, "advanceId", p); int(e, "principalMinor", p, 1); cur(e, "currency", p); date(e, "dueDate", p); str(e, "reference", p); },
-  repaymentAllocations: (e, p) => { str(e, "obligationId", p); str(e, "statementLineId", p); int(e, "amountMinor", p, 1); cur(e, "currency", p); },
+  obligations: (e, p) => { str(e, "advanceId", p); amt(e, "principalMinor", p, 1); cur(e, "currency", p); date(e, "dueDate", p); str(e, "reference", p); },
+  repaymentAllocations: (e, p) => { str(e, "obligationId", p); str(e, "statementLineId", p); amt(e, "amountMinor", p, 1); cur(e, "currency", p); },
   audit: (e, p) => { instant(e, "at", p); str(e, "action", p); },
 };
 
@@ -115,8 +120,9 @@ function validate(w: unknown): Workspace {
   need(isTimeZone(org.timezone), "organization.timezone", "must be an IANA time zone");
   need(isObj(ws.liquidityPolicy), "liquidityPolicy", "must be an object");
   const pol = ws.liquidityPolicy as Obj;
-  str(pol, "label", "liquidityPolicy"); int(pol, "bufferBps", "liquidityPolicy"); int(pol, "maxAgeMinutes", "liquidityPolicy", 1);
+  str(pol, "label", "liquidityPolicy"); bps(pol, "bufferBps", "liquidityPolicy"); int(pol, "maxAgeMinutes", "liquidityPolicy", 1);
   need(isObj(pol.minBufferMinor), "liquidityPolicy.minBufferMinor", "must be an object");
+  for (const k of Object.keys(pol.minBufferMinor as Obj)) amt(pol.minBufferMinor as Obj, k, "liquidityPolicy.minBufferMinor");
   need(isObj(ws.idempotency), "idempotency", "must be an object");
   for (const [k, v] of Object.entries(ws.idempotency as Obj)) need(isObj(v) && typeof v.intentId === "string" && typeof v.fingerprint === "string", `idempotency.${k}`, "must be {intentId, fingerprint}");
   migrate(ws);
@@ -250,6 +256,21 @@ const TERMINAL = ["failed", "cancelled", "expired", "returned"];
  * - a failed, cancelled, expired or returned payout never carries settlement "verified".
  */
 function crossCheck(ws: Obj) {
+  // Review m-1: every per-currency total of an amount-bearing collection stays within MAX_AMOUNT_MINOR, so each
+  // sum the engine computes (committed payouts, allocations per payout, repaid / outstanding, liquidity
+  // totals — each a sum of at most these collections) stays far below 2^53 and is exact in number arithmetic.
+  const totals: [string, Obj[], string, string][] = [
+    ["intents", ws.intents as Obj[], "amountMinor", "sourceCurrency"],
+    ["statementLines", ws.statementLines as Obj[], "amountMinor", "currency"],
+    ["liquidity", ws.liquidity as Obj[], "eligibleMinor", "currency"],
+    ["liquidity", ws.liquidity as Obj[], "restrictedMinor", "currency"],
+    ["liquidity", ws.liquidity as Obj[], "safeguardedMinor", "currency"],
+  ];
+  for (const [coll, items, field, curField] of totals) {
+    const sums = new Map<string, bigint>();
+    for (const x of items) sums.set(x[curField] as string, (sums.get(x[curField] as string) ?? 0n) + BigInt(x[field] as number));
+    for (const [c, total] of sums) need(total <= BigInt(MAX_AMOUNT_MINOR), coll, `the ${c} total of ${field} exceeds ${MAX_AMOUNT_MINOR} minor units (sandbox limit that keeps every sum exact)`);
+  }
   const lines = ws.statementLines as Obj[];
   const lineById = new Map(lines.map((l) => [l.id as string, l]));
   const obsById = new Map((ws.chainObservations as Obj[]).map((o) => [o.id as string, o]));

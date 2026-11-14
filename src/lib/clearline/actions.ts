@@ -9,7 +9,7 @@ import { ingestPayload, setExecution } from "./events";
 import { canResolveCase, canResolveException, ensureCase, openException } from "./exceptions";
 import { deriveAdvanceState, obligationOutstanding } from "./funding";
 import { computeLiquidity } from "./liquidity";
-import { isCurrency, validateAmountMinor } from "./money";
+import { MAX_AMOUNT_MINOR, isCurrency, validateAmountMinor, withinTotal } from "./money";
 import { reconcileLine } from "./reconciliation";
 import { recomputeDimensions } from "./derive";
 import { parseWorkspaceValue } from "./serialize";
@@ -160,6 +160,8 @@ function createIntent(tx: Tx, input: CreateIntentInput): string {
   const amount = validateAmountMinor(input.amountMinor);
   if (!amount.ok) fail(amount.error.code, amount.error.message, { field: "amountMinor" });
   if (!isCurrency(input.sourceCurrency)) fail("invalid_currency", "Unsupported source currency.", { field: "sourceCurrency" });
+  if (!withinTotal(tx.ws.intents.filter((i) => i.sourceCurrency === input.sourceCurrency).map((i) => i.amountMinor), input.amountMinor))
+    fail("invalid_amount", `The workspace's total of ${input.sourceCurrency} payments would exceed the sandbox limit of ${MAX_AMOUNT_MINOR} minor units.`, { field: "amountMinor" });
   if (!isCurrency(input.destinationCurrency)) fail("invalid_currency", "Unsupported destination currency.", { field: "destinationCurrency" });
   if (typeof input.internalReference !== "string" || !REF_RE.test(input.internalReference)) fail("invalid_field", "internalReference must be 2–48 characters [A-Za-z0-9._-/].", { field: "internalReference" });
   // m6: one active intent per internal reference, corrections included.
@@ -449,6 +451,8 @@ function ingestStatement(tx: Tx, input: StatementLineInput): string {
   const amt = validateAmountMinor(input.amountMinor);
   if (!amt.ok) fail(amt.error.code, amt.error.message, { field: "amountMinor" });
   if (!isCurrency(input.currency)) fail("invalid_currency", "Unsupported currency.", { field: "currency" });
+  if (!withinTotal(tx.ws.statementLines.filter((l) => l.currency === input.currency).map((l) => l.amountMinor), input.amountMinor))
+    fail("invalid_amount", `The workspace's total of ${input.currency} statement lines would exceed the sandbox limit of ${MAX_AMOUNT_MINOR} minor units.`, { field: "amountMinor" });
   if (typeof input.reference !== "string" || input.reference.length > 140 || /[<>]/.test(input.reference)) fail("invalid_field", "reference must be plain text ≤ 140 chars (may be empty).", { field: "reference" });
   if (typeof input.counterparty !== "string" || input.counterparty.length > 120 || /[<>]/.test(input.counterparty)) fail("invalid_field", "counterparty must be plain text.", { field: "counterparty" });
   if (!isIsoDate(input.valueDate)) fail("invalid_field", "valueDate must be YYYY-MM-DD.", { field: "valueDate" });
