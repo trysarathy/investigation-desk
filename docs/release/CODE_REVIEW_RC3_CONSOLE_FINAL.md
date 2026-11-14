@@ -128,3 +128,63 @@ None.
 ## Summary
 
 APPROVE e023174, conditional on green browser suites. M1 and m1–m5 are verified fixed. There are no Blockers and no Majors. The four Minors are: (A) the migration backup-failure path can overwrite the original on the first action; (B) a pending second approval shows as "Resolved" in the queues; (C) backups grow without a delete; (D) axe still never runs. There are eight Nits. tsc is clean and vitest passes 1498 tests. Four mutants (CSV guard, fictional marking, reset refusal, M1 tone) are each killed. Browser tests were not run by me because of the disk limits; please share your suite results, and ideally run the four browser mutations listed above.
+
+---
+
+## Final check (0fd7861)
+
+**Verdict: APPROVE 0fd7861.** A and B hold on every path that matters. The fix for C has one ordering bug: pruning can delete a newer backup and keep an older one (C1 below). It is Minor and should be fixed before anyone relies on "the newest 3 are kept". I report it below with a reproduction. APPROVAL-ONLY: needs Aashmiin's merge.
+
+**What I ran:**
+- **Frozen copy:** `scratchpad/cr5`, from `git archive 0fd7861`, with no build. The cr4 copy was removed for disk space.
+- **tsc:** exit 0.
+- **vitest:** 1498 passed, 57 skipped. This commit changes no engine files.
+- **Unit probes:** a throwaway vitest file with an in-memory localStorage that enforces a quota, plus a controlled clock. It tested `writeBackup`, `listBackups`, `awaitingSecondApproval` and `needsAttention`. It has since been deleted.
+- **Owner's results:** 198 passed, 6 skipped, 0 failed, three runs in a row, with all four browser mutations killed on desktop and mobile. I accept this as their report; I did not see it run.
+
+### A: writes held when the pre-migration backup fails. Verified.
+- **Where it is set:** `workspace.tsx`. On load, if the backup or the save fails, `holdWrites` is set and `migrations.held` is true.
+- **`dispatch` and per-case reset:** both go through `persist`, which returns early while held.
+- **Whole reset (Settings and Trial):** first retries the migration backup. If that fails, it refuses with the reason and replaces nothing. It writes the before-reset backup only when writes are not held, and the migration backup covers the held case.
+- **Settings restore:** backs up the current saved copy (still the untouched original) before writing, and refuses if that backup fails.
+- **Error boundary:** reads the saved copy (the original), backs it up, then removes it. A failed backup removes nothing.
+- **Leaving the page:** the full-load guard now also asks while a migration is held.
+- **Ways out:** "Dismiss" does nothing while held. "Continue without saving" keeps writes held and says so. "Replace the original … (no backup)" is explicit.
+- **Actor choice:** still written to its own key, which is harmless.
+
+### B: "Accepted — awaiting second approval". Verified, with one remaining place.
+- **Where it shows:** the amber chip appears in the Exceptions table and cards, in Overview (its own metric, inside "Needs attention", linking to `?view=awaiting`), on the payment page (exception list, evidence timeline chip, open count) and in the Payments open-exception count.
+- **Queues:** the Resolved view excludes these exceptions, and the new "Awaiting approval (n)" view lists them.
+- **Helpers:** `awaitingSecondApproval` and `needsAttention` gave the right answers in my probe, including false once `approvedBy` is set.
+- **Remaining place (Nit):** the synthetic case report still shows "Resolved" for such an exception.
+  - In the page view: `CaseReport.tsx:123`, `label("exceptionStatus", e.status)`.
+  - In the JSON and CSV exports from the engine: `report.ts:184,242` write `status: resolved` with no pending flag.
+  - The case itself stays open and blocked, so nothing wrong is recorded.
+  - Fix (in words): show the same amber wording in the report view, and add the second-approval state to the report's exception row (engine change, so approval-only).
+
+### C: pruning and the counter suffix.
+- **Counter suffix: verified.** Three backups of one kind in the same millisecond got three distinct keys, and all three values were kept (`workspace.tsx:45`).
+- **No pruning after a failed write: verified.** With 3 backups and a quota failure on the 4th, `writeBackup` returned null and all 3 survived. Pruning runs only after `setItem` succeeds (`:47-48`).
+- **C1 (Minor). Pruning can remove a newer backup and keep an older one.**
+  - **Where:** `workspace.tsx:57-67`. Line 63 always sorts the un-suffixed key (`base`) as the oldest. After pruning has removed `base`, the next backup of that kind is written to `base` again (`:42-44` choose `base` whenever it is empty), so the newest backup now sits in the slot the sort treats as oldest.
+  - **Reproduced:** six writes of one kind, v1 to v6, with distinct times. The newest 3 should be v4, v5, v6. **Kept: v3, v4, v6. v5 was deleted.**
+  - **Trace:** v5 lands in the empty `base` and survives its own prune only because it is the key just written. The v6 write then prunes `base` (v5) and v2 as the "oldest two".
+  - **Why it matters:** a backup's content can be the only remaining copy of that workspace, for example an earlier unreadable original. Settings promises "The newest 3 of each kind are kept".
+  - **Test gap:** the journey test (spec :1500) seeds `base` as genuinely the oldest and writes only 4, so it does not reach this case.
+  - **Fix (in words):** once any backup of a kind exists, always write new backups under a timestamped key, never back into the bare slot. Or sort by actual write time (for example, record the time inside every key, treating the bare slot's time as its own). Add a test with at least 5 writes of one kind that checks exactly the newest 3 remain.
+- **Delete:** Settings now shows sizes and a total, and deletes only after a confirmation. `deleteBackup` refuses keys outside the backup prefixes.
+
+### Nits from the final review
+- **Fixed:**
+  - n3: download names are limited to `[A-Za-z0-9._-]`, leading dots are replaced, and names are capped at 120 characters.
+  - n4: same-millisecond collisions (counter suffix, verified).
+  - n6: whole resets keep a before-reset backup, and the message says so. This is best effort: if that backup fails, the reset still proceeds and the message just omits the backup sentence. Saying "no backup could be kept" explicitly would be clearer.
+  - n8: the filter summary is now announced through a separate polite status region about 700 ms after typing stops.
+- **Not addressed, still Nits:** n1 (Back racing the search debounce), n2, n5 and n7.
+
+### Summary
+APPROVE 0fd7861.
+- **A** is verified on every write path: dispatch, per-case reset, whole reset, restore, error boundary, and full-load navigation.
+- **B** is verified everywhere in the console UI except the synthetic case report (Nit).
+- **C:** the counter suffix and "no pruning after a failed write" are verified. One Minor remains: pruning can delete the second-newest backup and keep an older one (reproduced, v5 lost).
+- **Checks:** tsc clean, vitest 1498 passed. The owner reports their browser suite as 198 passed, 0 failed, three runs in a row.
