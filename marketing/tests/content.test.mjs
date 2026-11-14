@@ -52,7 +52,8 @@ test("no invented endorsement, traction, fake metrics or logos", () => {
   for (const f of copySources) {
     const s = read(f).toLowerCase();
     for (const p of phrases) assert.equal(s.includes(p), false, f + " contains " + p);
-    assert.equal(/\d+(\.\d+)?\s?%/.test(read(f).replace(/width:\s*"100%"|height:\s*"100%"/g, "")), false, f + " contains a percentage figure");
+    // The engine's acceptance thresholds (ACCEPTED_OVERAGE_BPS 1%, MAX_APPROVED_OVERAGE_BPS 50%) are rules, not metrics.
+    assert.equal(/\d+(\.\d+)?\s?%/.test(read(f).replace(/width:\s*"100%"|height:\s*"100%"/g, "").replace("an over-amount of up to 1% by one person, above 1% and up to 50% only with", "")), false, f + " contains a percentage figure");
     const imgs = [...read(f).matchAll(/<img[^>]*src=\{?"([^"]+)"/g)].map(m => m[1]);
     for (const src of imgs) assert.equal(src, "/founder.jpg", f + " uses image " + src);
   }
@@ -364,7 +365,7 @@ test("engine CHANGE 5: under-amount reports, reports on terminal payouts and par
   assert.match(dev, /expectedMinor, reportedMinor, differenceMinor, currency, source, statementLineId, requiredNextAction/);
   assert.match(dev, /investigate\(\)\.amountDifferences/);
   assert.match(dev, /exception_raised/); assert.match(dev, /contradictory_exception_raised/);
-  assert.match(dev, /supplierPaidBasis/); assert.match(dev, /Supplier paid \(provider-reported\)/);
+  assert.match(dev, /supplierPaidBasis/); assert.match(dev, /ENGINE_LABELS\.advanceState\.supplier_paid/);
   assert.match(uc, /RC_UNDER_AMOUNT_REPORT/); assert.match(uc, /RC_REPORT_ON_TERMINAL_PAYOUT/);
   // The six engine rules now live on Platform (#rules).
   const platform = read("app/platform/page.tsx");
@@ -632,4 +633,35 @@ test("rc3 exceptions: due dates are set at creation, owners are assigned by a pe
   assert.match(read("app/control/page.tsx"), /The engine creates every exception with a due date: an explicit date, or the creation date plus 1 day \(critical, high\), 3 days \(medium\) or 5 days \(low\)\. It creates them unassigned\./);
   assert.match(read("app/developers/page.tsx"), /OWNER_REQUIRED/);
   assert.match(sample, /critical and high 1 day, medium 3 days, low 5 days from creation, unless a date is set explicitly/);
+});
+
+test("rc3 supplierPaidBasis and supplier_paid labels quoted on the site are the engine's exact HUMAN_LABELS (fa303fd)", () => {
+  const inv = read("lib/investigations.ts");
+  const labels = JSON.parse(inv.slice(inv.indexOf("ENGINE_LABELS = ") + 16, inv.indexOf(" as const;", inv.indexOf("ENGINE_LABELS = "))));
+  assert.deepEqual(labels.supplierPaidBasis, {
+    none: "Supplier not shown as paid",
+    provider_reported: "Provider reports the supplier paid (not verified)",
+    verified_settlement: "Supplier payout verified by independent evidence",
+  });
+  assert.equal(labels.advanceState.supplier_paid, "Supplier paid (provider-reported)");
+  const allowed = new Set([...Object.values(labels.supplierPaidBasis), labels.advanceState.supplier_paid]);
+  // Every literal supplier-paid label in copy or the design doc must be one of the engine's strings.
+  const files = [...copySources.filter(f => !f.endsWith("investigations.ts")), "../docs/design/DESIGN_SYSTEM.md"];
+  // Labels are quoted with typographic quotes in copy and the design doc; table row headers and code are not labels.
+  const quoted = /(?:&ldquo;|“)((?:Supplier (?:paid|payout|not shown)|Provider reports the supplier)[^”&]*?)(?:&rdquo;|”)/g;
+  for (const f of files) for (const m of read(f).matchAll(quoted)) assert.ok(allowed.has(m[1]), `${f} quotes "${m[1]}", not an engine label`);
+  // Retired wordings are gone.
+  for (const f of files) for (const old of ["Supplier paid (provider-reported) — not verified", "Supplier paid — provider-reported only", "Supplier paid — verified"]) assert.equal(read(f).includes(old), false, f + " still says " + old);
+  // The funding table and Developers render the labels from the generated engine data, not literals.
+  assert.match(read("components/Tables.tsx"), /ENGINE_LABELS\.supplierPaidBasis\[f\.supplierPaidBasis\]/);
+  for (const k of ["none", "provider_reported", "verified_settlement"]) assert.match(read("app/developers/page.tsx"), new RegExp("ENGINE_LABELS\\.supplierPaidBasis\\." + k));
+});
+
+test("rc3 acceptance is described with the engine's limits and as a console step", () => {
+  const d = read("lib/disclosure.ts");
+  assert.ok(d.includes("an over-amount of up to 1% by one person, above 1% and up to 50% only with a second, different person's approval, or a late value date up to 60 days after submission. A currency mismatch is never accepted."));
+  const dev = read("app/developers/page.tsx");
+  assert.match(dev, /Accepting a disagreeing bank debit \(over-amount or late value date\) is a console step/);
+  assert.match(dev, /generic <code className="inline">POST \/actions<\/code> applies any engine action, including <code className="inline">resolve<\/code> with <code className="inline">acceptDifference<\/code> and <code className="inline">approve_acceptance<\/code>/);
+  for (const f of copySources) assert.equal(/accept[^.]{0,60}currency mismatch(?! is never)/i.test(read(f)), false, f);
 });

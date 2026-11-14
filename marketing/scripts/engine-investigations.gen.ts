@@ -99,6 +99,8 @@ export type Investigation = {
   exceptions: { title: string; category: string; status: string; owner: string; dueDate?: string; code: string }[];
   timeline: TimelineEntry[];
 };
+/** Engine HUMAN_LABELS the website quotes outside the product view (funding rows). */
+export const ENGINE_LABELS = ${JSON.stringify({ supplierPaidBasis: L.supplierPaidBasis, advanceState: L.advanceState }, null, 2)} as const;
 export const INVESTIGATIONS: Investigation[] = ${JSON.stringify(out, null, 2)};
 `;
   writeFileSync(process.env.OUT!, src);

@@ -4,6 +4,7 @@ import {
   SAMPLE_QUOTES, SAMPLE_STATEMENT_LINES, SAMPLE_USABLE_NOW, UNDER_AMOUNT_EXAMPLE,
 } from "@/lib/sample";
 import { ExecStatus, ReconStatus, SettlementStatus } from "@/components/Status";
+import { ENGINE_LABELS } from "@/lib/investigations";
 
 /** Rail words used by the console (rc3/clearline-app src/components/clearline/labels.tsx RAIL). */
 const RAIL_LABEL: Record<string, string> = { fiat_local: "Local fiat rail", fiat_correspondent: "Correspondent fiat rail", stablecoin_testnet: "Stablecoin (testnet)" };
@@ -88,7 +89,7 @@ export function FundingTable() {
     ["Treasury approval", f.approval],
     ["Repayment obligation", f.obligation],
     ["Allocations", f.allocations],
-    ["Supplier paid basis", <>Supplier payout verified by independent evidence <span className="mono caption">supplierPaidBasis: {f.supplierPaidBasis}</span><span className="caption">The supplier debit is bank-statement verified. When the basis is provider_reported, the console says &ldquo;Supplier paid (provider-reported) — not verified&rdquo;.</span></>],
+    ["Supplier paid basis", <>{ENGINE_LABELS.supplierPaidBasis[f.supplierPaidBasis]} <span className="mono caption">supplierPaidBasis: {f.supplierPaidBasis}</span><span className="caption">The supplier debit is bank-statement verified. When the basis is provider_reported, the engine labels it &ldquo;{ENGINE_LABELS.supplierPaidBasis.provider_reported}&rdquo;.</span></>],
     ["Repaid / outstanding", <><span className="num">{f.repaid}</span> repaid · <b className="num">{f.outstanding}</b> outstanding · <span className="st st-exec tone-warning"><span className="st-label">Partly repaid</span><code className="st-api">{f.state}</code></span></>],
     ["Exception", f.exception],
   ];

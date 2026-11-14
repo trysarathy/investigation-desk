@@ -206,7 +206,7 @@ The exact API value is always shown as secondary detail (mono, slate, after the 
 - A bank line with a trusted reference but only part of the amount gives reconciliation `partially_matched` and settlement `observed`; the remainder stays outstanding (`RC_PARTIAL_AMOUNT`). The line carries a structured `amountDifference` (expected, reported, difference, currency, source, required next action).
 - A provider settlement report **below** the payout amount raises `unmatched_reconciliation` / `RC_UNDER_AMOUNT_REPORT`: reconciliation `exception` ("Needs review"), settlement not upgraded, and the same structured `amountDifference`. Show expected, reported and difference as mono amounts with the currency, and the required next action as the exception's action.
 - A provider settlement report on a payout that is `failed`, `cancelled`, `expired` or `returned` is a contradiction, not evidence: `contradictory_evidence` / `RC_REPORT_ON_TERMINAL_PAYOUT`, reconciliation `exception`, settlement and scope unchanged.
-- Funding: `supplier_paid` is labelled "Supplier paid (provider-reported)". Always show `supplierPaidBasis` (`none` · `provider_reported` · `verified_settlement`); only `verified_settlement` may use the success tone.
+- Funding: `supplier_paid` is labelled "Supplier paid (provider-reported)". Always show `supplierPaidBasis` with the engine's label (`none` "Supplier not shown as paid" · `provider_reported` "Provider reports the supplier paid (not verified)" · `verified_settlement` "Supplier payout verified by independent evidence"); only `verified_settlement` may use the success tone.
 - A provider settlement report gives at most `observed` and never reconciles on its own. An on-chain transfer is `verified` only past the finality threshold and never proves a bank credit.
 - A provider-reported return sets reconciliation `exception` immediately. Show `returnStatus` (`provider_reported` → `confirmed_by_statement`) beside it; a confirmed return is still an exception until a person resolves it.
 - Exceptions always show their `dueDate` (ISO date, mono; set by the engine at creation) and their owner, or "Unassigned": the engine creates exceptions unassigned and a person assigns the owner. Overdue items use the danger tone.
@@ -261,6 +261,8 @@ The website's large product demonstration is the console's payment investigation
 One source: `marketing/lib/disclosure.ts`, rendered by `<Disclosure />` on Home, Platform and Trial. Two ruled columns (works today in the sandbox · not built yet) with a mono area label per row, and an ice "Out of scope" note. An item may sit under "works today" only if the released engine and console can demonstrate it. Never a card grid.
 
 ## Change log
+
+- 2026-11-14: Final pass against rc3/clearline-app @ fa303fd. `supplierPaidBasis` labels are the engine's ("Supplier not shown as paid" · "Provider reports the supplier paid (not verified)" · "Supplier payout verified by independent evidence"), rendered from the generated `ENGINE_LABELS`; the advance stage `supplier_paid` stays "Supplier paid (provider-reported)". Disclosure adds console acceptance of a disagreeing bank debit (up to 1% one person; above 1% to 50% with a second person; late value date up to 60 days; never a currency mismatch).
 
 - 2026-11-14: QA L3. Copy no longer says exceptions are created with an owner: the engine sets the due date at creation and creates exceptions unassigned; a person assigns the owner (two of the four sample exceptions are unassigned). Guarded by a test.
 
