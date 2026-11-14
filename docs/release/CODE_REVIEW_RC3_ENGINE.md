@@ -382,3 +382,152 @@ The one defect it introduces is R-B1.
 Every finding from the first review is fixed and pinned by a test that fails without it. Verdict: **BLOCK 725c3a1**. Resetting s2 on a workspace saved under v2 or efabe6a creates duplicate ids, after which the workspace cannot be loaded (R-B1). It is latent until the Reset button is wired. Before merge, also fix:
 - the migration's "already resolved" branch, which hides a terminal-payout contradiction (R-M1);
 - the accepted-line close path, which treats any resolution of any wrong-amount, wrong-currency or wrong-date debit as matching evidence (R-M2).
+
+---
+
+# Second re-review: 7e521f5 (fixes for R-B1, R-M1, R-M2, R-m1, plus two label changes the console asked for)
+
+**CODE REVIEW: CHANGES REQUESTED 7e521f5**
+
+APPROVAL-ONLY: needs Aashmiin's merge. This still touches money and evidence status, case-close rules and record deletion.
+
+**In plain English.** All four re-review findings are fixed, and each fix has a test that fails without it:
+- The reset no longer creates duplicate ids.
+- The migration no longer hides the contradiction it used to hide.
+- A case can now close on an unmatched debit only after a staff person explicitly accepts a fee of at most 1% that sits on top of the payment.
+- The console is told what changed when a saved workspace is loaded.
+
+Nothing here blocks the merge.
+
+Two things still need fixing first:
+- The load-time migration only covers one of the faulty states v2 could save. A payment that v2 "verified" from an Ethereum-mainnet observation still loads as **Settlement verified**.
+- The new 1% rule leaves real cases that can never be closed: a bank debit posted late, or a fixed fee larger than 1% on a small payment.
+
+Scope: `git diff 8c4f575 7e521f5 -- src/lib/clearline tests/clearline docs/clearline`, which is 5 engine commits. 725c3a1..8c4f575 has no engine changes. I wrote none of it.
+
+## Checks I ran
+- **Copies.** I deleted cr5, cr5m and cr5base first. The fresh frozen copy is `scratchpad/cr6` (`git archive 7e521f5`, node_modules symlinked). `scratchpad/cr6base` is a minimal cf8732e archive, used to produce real v2 states.
+- **tsc.** `npx tsc --noEmit`: pass.
+- **vitest.** `npx vitest run`, full suite: 69 files pass, 1 skipped; 1367 tests pass, 57 skipped.
+- **Mutation checks.** 18 mutants in a separate copy (`scratchpad/mut6.py`; copy deleted afterwards): 14 killed, 4 survived.
+- **Probes.** I reran probes5 and added new probes; they are kept in `scratchpad/probes6/`.
+
+## Status of the re-review findings
+
+### R-B1 (reset ids): Fixed
+- **Repro.** My R-B1 reproduction (`rr3`) now reports "no dups found".
+- **Seq.** After a reset on the v2 sample, `seq` is 181 and no restored id is above it.
+- **Wider probe.** I ran 20 variants on the v2 sample: 0 to 19 person-ingested lines before the reset, 8 after, then a reload. All 20 resets succeeded, with 0 `ID_CONFLICT` refusals, 0 duplicate ids and 0 unloadable workspaces.
+- **The other direction.** `seq` only rises, so a removed id is never generated again. Restored ids that already exist are still refused by `ID_CONFLICT`. On a workspace derived from rc3 the raise does nothing, because the restored ids are at or below `seq`. I found no collision either way.
+- **Mutation.** Removing the raise is caught by `rc3-reset-fixtures.test.ts`.
+
+### R-M1 (migration hides a contradiction): Fixed
+- `v2_va` now migrates to `failed / contradicted` with `CH_TRANSFER_FOR_TERMINAL_PAYOUT` (in review, owned by `usr_maya`). That is what rc3 gives for the same events.
+- `v2_t1` raises the rule exception; `v2_t2` gives `none` (resolved_by_person). Both match rc3.
+- Loading is idempotent and leaves no duplicate ids, and the next action is accepted.
+- **Mutants killed:** "any resolved contradiction counts", the chain rule ignoring which observation it is about, the bank rule ignoring which line.
+- **Mutant survived:** ignoring `otherOpen` (a different contradiction still open while the rule exception is resolved). See R2-m2.
+
+### R-m1 (migrations not reported): Fixed
+- `loadWorkspace` / `loadWorkspaceValue` return `migrations[]`, each with a plain-English `text`.
+- The migration's audit events are now in `ActionResult.audit` (killed when removed).
+- The console still loads through `parseWorkspace`, so a person will not see this text until `workspace.tsx` switches to `loadWorkspace`. That is noted in CHANGE 9 and is console scope.
+
+### R-M2 (accepted-line close path): Fixed, but legitimate closes are now blocked (R2-M2)
+Abuse probes (`rr6`), each for an SGD 10,000.00 payout:
+
+| Bank line | Result |
+|---|---|
+| +0.50 | can be accepted; case closes |
+| exactly +1% | can be accepted; case closes |
+| +1% + 0.01 | `DIFFERENCE_NOT_ACCEPTABLE` |
+| USD 0.01 | refused |
+| dated 2025 | refused |
+| provider report | refused |
+| any plain resolve (no `acceptDifference`) | case stays `EVIDENCE_OUTSTANDING` |
+| a viewer resolving with `acceptDifference` | `unauthorized_actor` |
+
+- Settlement stays `none` throughout, so evidence is never upgraded.
+- The close-time check re-reads the line as it stands, and parse checks a stored `acceptedDifference` against its own exception's line.
+- **Mutants killed:** code check, 1% cap, `>` vs `>=` on the cap, currency, window, reference, debit-only, staff role, explicit flag required.
+- **Mutants survived:** see R2-m2.
+
+## New findings
+
+### MAJOR
+
+**R2-M1. The load-time migration covers only "terminal + verified". Other v2 states load unchanged and untrue.**
+- Where: `src/lib/clearline/serialize.ts` (`migrateTerminalVerified` / `crossCheck`).
+- How I produced them: with the real v2 engine (`cr6base/tests/probe/v2b.test.ts` → `v2_gaps.json`), then loaded into rc3. `migrations` comes back as `[]`.
+
+The three states:
+
+1. **C-1 revival (the worst).** v2 updated a rejected chain-1 observation in place to `final`. rc3 loads payout `pi_00195` as `in_transit / verified (onchain_transfer)`. The case report headline reads "Settlement verified". But the only observation is `[chainId 1, ethereum, final]`, which is not on the allowlist, and `CH_UNSUPPORTED_TOKEN_OR_NETWORK` is still open. rc3 would never count this observation.
+2. **T-1 before finality.** A chain transfer was pending, then `payout.failed` arrived. rc3 loads `failed / pending_finality` with no `CH_TRANSFER_FOR_TERMINAL_PAYOUT`, although rc3's T-1 rule raises it for observed and pending transfers too. The headline reads "Provider reports failed · Awaiting finality".
+3. **C-3 reorg.** A final, matched transfer then saw a reorg. rc3 loads `contradicted / matched`, with the headline "… Matched". rc3 gives reconciliation `exception`.
+
+None is "terminal + verified", so `crossCheck` accepts all three. The CHANGE 8/9 docs say the migration repairs v2 states "to what rc3 gives for the same facts". That is true only for that one pattern.
+
+**Fix (in words):**
+- On load, refuse to count a chain observation whose chain, network or token is not allowlisted. Return it to `rejected_unsupported` and recompute that payout.
+- Extend the terminal rule to observed and pending chain evidence: raise `CH_TRANSFER_FOR_TERMINAL_PAYOUT`, settlement `contradicted`.
+- Set reconciliation to `exception` when a chain allocation's observation is no longer final.
+- Report each of these as a `WorkspaceMigration`, and add `v2_gaps.json` as a fixture.
+
+**R2-M2. The 1% / RC_OVERPAYMENT-only rule leaves legitimate success cases that can never close.**
+- Where: `src/lib/clearline/exceptions.ts` (`acceptableDifference`).
+- Each case below is a provider-completed payout, so there is no other way to evidence it:
+  - **Late posting.** The bank posts the full SGD 10,000.00 debit with a value date 10 days after submission. This raises `RC_OUTSIDE_TIME_WINDOW` and cannot be accepted, so the case is `EVIDENCE_OUTSTANDING` forever.
+  - **Fixed fee on a small payment.** An SGD 100.00 payout debited as SGD 115.00 (an SGD 15 bank charge) is 15% over the payment. The engine refuses it as `DIFFERENCE_NOT_ACCEPTABLE`, so the case is never closable.
+  - **Currency.** A currency-mismatch debit is never acceptable at all.
+
+No action exists to get past any of these. This is the same kind of dead end as the original M-2, now for a narrower set of cases. Blocking the 2025-dated USD 0.01 line is right. But a correct-amount, correct-reference debit that is merely late is real evidence. And a fixed fee is not a percentage.
+
+**Fix:**
+- Accept an out-of-window debit when the amount and currency match exactly.
+- Express the overage cap as max(1%, a small fixed amount per currency), or make it a policy value.
+- Or allow a wider acceptance only with a second staff person's approval (the checker differs from the person accepting).
+- Whichever rule is chosen, document it and test the late-posting and small-payment cases. Aashmiin may decide the strict rule is intended; if so, say it plainly in the docs and the Resolve button copy.
+
+### MINOR
+
+**R2-m1. The `EVIDENCE_OUTSTANDING` message still describes the old rule.**
+- Where: `src/lib/clearline/exceptions.ts:254`.
+- It still says "or a person must resolve, with evidence, the exception on a bank line that carries this payment's reference". A plain resolution no longer counts: only an explicit `acceptDifference` of at most 1% on an RC_OVERPAYMENT debit does.
+- Fix: say so in the message.
+
+**R2-m2. Four mutants survive on stated rules.**
+- **Source check** (`exceptions.ts`): drop the `line.source !== "bank_statement"` part, and a provider settlement report's over-amount becomes acceptable. My probe shows provider reports do raise `RC_OVERPAYMENT`, so this matters.
+- **Close-time re-check:** dropping the `d.ok && …` re-check survives.
+- **Parse check on a forged `acceptedDifference`:** survives.
+- **Migration `otherOpen` branch:** survives.
+- Fix: add one test for each.
+
+**R2-m3. One person can both bring in the debit and accept its fee.**
+- The acceptance needs a staff role, an owner, evidence and a note, but no second person. Every other money decision in Clearline is maker ≠ checker.
+- Fix: consider requiring the accepter to differ from whoever ingested the line, or from the payment's maker.
+
+**R2-m4. The new label `HUMAN_LABELS.supplierPaidBasis.provider_reported` begins with an unverified claim.**
+- It reads "Supplier paid — provider-reported only (not verified)".
+- Fix: lead with the source, e.g. "Provider reports the supplier paid (not verified)". This keeps the three truths apart in the wording too.
+
+## Other checks
+- **Fictional-marker label.** The `evidenceSourceLabel` change is correct: "(fictional)" now appears once.
+- **Earlier probes.** The probes5 reruns show no regressions:
+  - B-1: created, failed and cancelled payouts all show 0.00 matched.
+  - M-3 conflict and m-3 recovery behave as before.
+  - m-1 bounds hold.
+  - CSV guard: unchanged.
+  - s2: RT_NET_ZERO, beneficiary unpaid, case open.
+- **API.** The v1 API does not pass `acceptDifference`. That is documented.
+
+## Summary
+Every finding from the first two reviews is now fixed and caught by a test, so nothing blocks. Verdict: **CHANGES REQUESTED 7e521f5**. Before merge:
+- **R2-M1:** make the load-time migration complete. A v2 C-1 revival still loads as "Settlement verified" on an Ethereum-mainnet observation, and the v2 T-1-before-finality and C-3 states load unchanged.
+- **R2-M2:** give late-posted and fixed-fee debits a way to close, or have Aashmiin confirm the strict rule and document it.
+
+Minor:
+- the stale `EVIDENCE_OUTSTANDING` message;
+- four untested rules;
+- single-person fee acceptance;
+- the supplier-paid label wording.
