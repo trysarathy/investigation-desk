@@ -1,46 +1,55 @@
 "use client";
 /**
- * Explicit acceptance of a statement difference that the engine allows a person to accept (re-review R-M2).
- * Today: a small over-amount (RC_OVERPAYMENT, at most 1%) on a bank debit carrying the payout's reference,
- * accepted by one staff person with `resolve … acceptDifference: true`.
- *
- * Built as a list of acceptance KINDS so further engine rules (accepting an exact debit outside the window,
- * or a larger over-amount proposed by one person and approved by a second) add an entry here, each with its
- * own action and, where needed, a second step. Every step is gated by the engine's dry run and shows the
- * engine's words when refused.
+ * Explicit acceptance of a bank debit that does not match its payout exactly (engine re-review R-M2 / R2-M2).
+ * The engine decides everything; the console only offers the step, asks the engine first (dry run) and shows
+ * its words when refused:
+ *  - an exact-amount debit dated late (RC_OUTSIDE_TIME_WINDOW): one staff person, `acceptLateDate`;
+ *  - an over-amount (RC_OVERPAYMENT) up to 1%: one staff person, `acceptDifference` (+ `acceptLateDate` if late);
+ *  - an over-amount above 1% (up to 50%): accepted the same way, then a DIFFERENT staff person approves it
+ *    (`approve_acceptance`) before the case can close;
+ *  - a currency mismatch (RC_CURRENCY_MISMATCH): never acceptable; the engine says why.
+ * Acceptances are console-only; the v1 test API does not take these flags (known limitation).
  */
 import { useState } from "react";
-import type { ActionResult, ReconciliationException, WorkspaceAction } from "@/lib/clearline";
+import type { ActionResult, ReconciliationException, Workspace, WorkspaceAction } from "@/lib/clearline";
+import { formatMinor } from "@/lib/clearline";
 import { useWorkspace } from "./workspace";
-import { ActionButton, useSettled, type Gate } from "./Action";
+import { ActionButton, useRun, useSettled, type Gate } from "./Action";
 import { describeError } from "./human";
-import { Field } from "./ui";
+import { SIMULATED_ROLE_NOTE } from "./nav";
+import { Field, Status, fmtTime, ui } from "./ui";
 
-type Kind = {
-  /** Which exceptions this acceptance applies to (by the engine's explanation code). */
-  applies: (e: ReconciliationException) => boolean;
-  label: string;
-  hint: string;
-  action: (e: ReconciliationException, note: string) => WorkspaceAction;
-};
+type Flags = { acceptDifference?: true; acceptLateDate?: true };
+type Kind = { codes: string[]; label: string; hint: string; candidates: Flags[] };
 
+/** Which acceptance a person may try for an exception, by the engine's explanation code. */
 export const ACCEPTANCE_KINDS: Kind[] = [
   {
-    applies: (e) => e.explanationCode === "RC_OVERPAYMENT",
-    label: "Accept the over-amount",
-    hint: "Only a small over-amount (up to 1%) on a bank debit carrying this payout's reference, currency and window can be accepted. The accepted difference is recorded.",
-    action: (e, note) => ({ type: "resolve", target: { kind: "exception", id: e.id }, note, acceptDifference: true }),
+    codes: ["RC_OVERPAYMENT"], label: "Accept the over-amount",
+    hint: "Up to 1% over: one person accepts it. Above 1% (up to 50%): a second, different person must approve before the case can close. The debit must carry this payout's reference and currency.",
+    candidates: [{ acceptDifference: true }, { acceptDifference: true, acceptLateDate: true }],
+  },
+  {
+    codes: ["RC_OUTSIDE_TIME_WINDOW"], label: "Accept the late-dated debit",
+    hint: "An exact-amount debit carrying this payout's reference, dated after the matching window (up to 60 days after submission), can be accepted by one person.",
+    candidates: [{ acceptLateDate: true }, { acceptDifference: true, acceptLateDate: true }],
+  },
+  {
+    // Never acceptable: offered so the person sees the engine's reason instead of a missing option.
+    codes: ["RC_CURRENCY_MISMATCH"], label: "Accept the debit in another currency",
+    hint: "A debit in another currency cannot be accepted without FX evidence.",
+    candidates: [{ acceptDifference: true }],
   },
 ];
 
-/** Gate from a dry run, keeping the engine's own refusal code (e.g. DIFFERENCE_NOT_ACCEPTABLE) visible. */
-function acceptanceGate(r: ActionResult, ws: Parameters<typeof describeError>[1], note: string): Gate {
-  if (!r.ok) {
-    const h = describeError(r.error, ws);
-    const m = /^([A-Z_]+): (.*)$/.exec(r.error.message);
-    return { ok: false, reason: m && m[1] === "DIFFERENCE_NOT_ACCEPTABLE" ? `${h.text} ${m[2]}` : h.text, code: m ? `${r.error.code} · ${m[1]}` : r.error.code };
-  }
-  return note.trim() ? { ok: true } : { ok: false, reason: "Write why you accept the difference first." };
+const resolveWith = (e: ReconciliationException, note: string, f: Flags): WorkspaceAction =>
+  ({ type: "resolve", target: { kind: "exception", id: e.id }, note, ...f });
+
+/** The engine's refusal, keeping its own code (e.g. DIFFERENCE_NOT_ACCEPTABLE) and its detail visible. */
+function refusal(r: Extract<ActionResult, { ok: false }>, ws: Workspace): Gate {
+  const h = describeError(r.error, ws);
+  const m = /^([A-Z_]+): (.*)$/.exec(r.error.message);
+  return { ok: false, reason: m ? `${h.text} ${m[2]}` : h.text, code: m ? `${r.error.code} · ${m[1]}` : r.error.code };
 }
 
 export function AcceptDifference({ exception, idPrefix, onRun }: {
@@ -50,15 +59,70 @@ export function AcceptDifference({ exception, idPrefix, onRun }: {
   const { ws, preview } = useWorkspace();
   const [note, setNote] = useState("");
   const settled = useSettled(note);
-  const kind = ACCEPTANCE_KINDS.find((k) => k.applies(exception));
+  const kind = ACCEPTANCE_KINDS.find((k) => k.codes.includes(exception.explanationCode));
   if (!kind) return null;
-  const gate = acceptanceGate(preview(kind.action(exception, settled.trim() ? settled : kind.label)), ws, note);
+  // The first set of flags the engine accepts (e.g. an over-amount that is also late needs both).
+  const probe = settled.trim() ? settled : kind.label;
+  const tries = kind.candidates.map((f) => ({ f, r: preview(resolveWith(exception, probe, f)) }));
+  const chosen = tries.find((t) => t.r.ok) ?? tries[0];
+  const gate: Gate = !chosen.r.ok ? refusal(chosen.r, ws) : note.trim() ? { ok: true } : { ok: false, reason: "Write why you accept the difference first." };
   return (
-    <form data-testid="accept-over-amount" onSubmit={(e) => { e.preventDefault(); onRun(kind.label, kind.action(exception, note), { onOk: () => setNote("") }); }}>
-      <Field label="Why the over-amount is accepted" hint={kind.hint}>
+    <form data-testid="accept-difference" onSubmit={(e) => { e.preventDefault(); onRun(kind.label, resolveWith(exception, note, chosen.f), { onOk: () => setNote("") }); }}>
+      <Field label="Why it is accepted" hint={kind.hint}>
         <textarea id={`${idPrefix}-accept`} value={note} onChange={(e) => setNote(e.target.value)} />
       </Field>
       <div style={{ marginTop: 6 }}><ActionButton type="submit" size="small" gate={gate} name={kind.label}>{kind.label}</ActionButton></div>
     </form>
+  );
+}
+
+/**
+ * What a person accepted on a resolved exception, and the second approval when the engine requires one:
+ * pending (with an approval step for a different staff person) or approved (who and when).
+ */
+export function AcceptanceStatus({ exception, idPrefix }: { exception: ReconciliationException; idPrefix: string }) {
+  const { ws, preview, actors, actorName } = useWorkspace();
+  const { msg, run } = useRun();
+  const acc = exception.resolution?.acceptedDifference;
+  const acceptor = exception.resolution?.actorId;
+  const staff = actors.filter((a) => a.role !== "viewer");
+  const [approver, setApprover] = useState(staff.find((a) => a.id !== acceptor)?.id ?? staff[0]?.id ?? "");
+  const [note, setNote] = useState("");
+  const settled = useSettled(note);
+  if (!acc) return null;
+  const second = acc.secondApproval;
+  const pending = Boolean(second?.required && !second.approvedBy);
+  const action = { type: "approve_acceptance", exceptionId: exception.id, note: settled.trim() ? settled : "Approval" } as const;
+  const dry = pending ? preview(action, { actorId: approver }) : null;
+  const gate: Gate = !dry ? { ok: true } : !dry.ok ? refusal(dry, ws) : note.trim() ? { ok: true } : { ok: false, reason: "Write an approval note first." };
+  return (
+    <div className={ui.panelBody} data-testid="acceptance-status" data-pending={pending ? "true" : "false"} style={{ borderTop: "1px solid var(--cl-line)" }}>
+      <p style={{ margin: "0 0 4px" }}>
+        <strong>Accepted by {actorName(acceptor)}</strong>{exception.resolution ? `, ${fmtTime(exception.resolution.at)}` : ""}:{" "}
+        {acc.differenceMinor > 0 && <>an over-amount of <span className="mono">{formatMinor(acc.differenceMinor, acc.currency)}</span></>}
+        {acc.differenceMinor > 0 && acc.lateValueDate && " and "}
+        {acc.lateValueDate && <>a late value date <span className="mono">{acc.lateValueDate}</span></>}
+        {acc.differenceMinor <= 0 && !acc.lateValueDate && "the bank debit"} <span className={ui.apiValue}>{acc.statementLineId}</span>
+      </p>
+      {second && (second.approvedBy
+        ? <p style={{ margin: 0 }} data-testid="second-approval">Second approval: <strong>{actorName(second.approvedBy)}</strong>{second.approvedAt ? `, ${fmtTime(second.approvedAt)}` : ""}{second.note ? ` — ${second.note}` : ""}</p>
+        : (
+          <form data-testid="second-approval" onSubmit={(e) => { e.preventDefault(); run("Approve the acceptance", { type: "approve_acceptance", exceptionId: exception.id, note }, { actorId: approver, onOk: () => setNote("") }); }}>
+            <p className={ui.reason} style={{ marginTop: 0 }}>Second approval pending: a staff person other than {actorName(acceptor)} must approve before the case can close.</p>
+            <div className={ui.formGrid}>
+              <div data-testid="role-switch">
+                <Field label="Approver" hint={SIMULATED_ROLE_NOTE}>
+                  <select id={`${idPrefix}-approver`} value={approver} onChange={(e) => setApprover(e.target.value)}>
+                    {actors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </Field>
+              </div>
+              <Field label="Approval note"><textarea id={`${idPrefix}-approval-note`} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
+            </div>
+            <div style={{ marginTop: 6 }}><ActionButton type="submit" size="small" gate={gate} name="Approve the acceptance">Approve the acceptance</ActionButton></div>
+          </form>
+        ))}
+      <Status msg={msg} />
+    </div>
   );
 }
