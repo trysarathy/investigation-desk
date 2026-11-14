@@ -1484,6 +1484,8 @@ test("m-B: an over-amount accepted above 1% shows 'Accepted — awaiting second 
   await open(page, `/clearline/payments/${payId}`);
   await page.getByRole("button", { name: "View case report" }).click();
   await expect(page.getByTestId("case-report").locator('[data-awaiting-approval="true"]')).toHaveText("Accepted — awaiting second approval");
+  await expect(page.getByTestId("case-report")).toContainText("accepted_awaiting_second_approval"); // the engine's row status
+  await expect(page.getByTestId("report-acceptance").first()).not.toHaveText(""); // the engine's acceptance text
   // Approved by a different person: it becomes plain Resolved and leaves the awaiting queue.
   await open(page, `/clearline/exceptions?view=awaiting`);
   const sec = page.locator(`section[id="${excId}"]`);
@@ -1499,6 +1501,11 @@ test("m-B: an over-amount accepted above 1% shows 'Accepted — awaiting second 
   await open(page, `/clearline/exceptions?view=resolved&q=${excId}`);
   await expect(page.locator("#queue tbody tr").filter({ hasText: excId }).locator('[data-api-value="resolved"]')).toBeVisible();
   await expect(page.locator("#queue tbody tr").filter({ hasText: excId })).not.toContainText("awaiting");
+  // The report no longer says awaiting once approved.
+  await open(page, `/clearline/payments/${payId}`);
+  await page.getByRole("button", { name: "View case report" }).click();
+  await expect(page.getByTestId("case-report").locator('[data-awaiting-approval="true"]')).toHaveCount(0);
+  await expect(page.getByTestId("report-acceptance").first()).not.toHaveText("");
 });
 
 test("m-C: backups show sizes and a total, can be deleted after a confirmation, are capped per kind, and never collide", async ({ page }) => {

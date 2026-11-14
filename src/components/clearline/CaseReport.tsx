@@ -15,7 +15,6 @@ import { useWorkspace } from "./workspace";
 import { describeError, label } from "./human";
 import { download } from "./download";
 import { fmtTime, ui } from "./ui";
-import { awaitingSecondApproval } from "./labels";
 
 /** The case file (notes and history) for one case. */
 export function useCaseReport(caseId: string | undefined) {
@@ -65,9 +64,6 @@ export function SyntheticReportView({ reportRef, id }: { reportRef: ReportRef; i
 }
 
 function ReportBody({ r, id }: { r: SyntheticCaseReport; id: string }) {
-  const { ws } = useWorkspace();
-  // The report row says "resolved"; a pending second approval is read from the workspace (final check).
-  const awaiting = (excId: string) => { const x = ws.exceptions.find((e) => e.id === excId); return Boolean(x && awaitingSecondApproval(x)); };
   const subject = r.subject.caseId ?? r.subject.paymentId;
   const t = r.threeTruths;
   return (
@@ -124,7 +120,9 @@ function ReportBody({ r, id }: { r: SyntheticCaseReport; id: string }) {
             <caption className={ui.reportCaption}>Exceptions</caption>
             <tbody>
               {r.exceptions.map((e) => (
-                <tr key={e.id}><th scope="row" className="mono">{e.id}</th><td>{e.label} · {awaiting(e.id) ? <span data-awaiting-approval="true" style={{ color: "var(--cl-warning)", fontWeight: 600 }}>Accepted — awaiting second approval</span> : label("exceptionStatus", e.status)} · owner {e.ownerId ?? "unassigned"}{e.dueDate ? ` · due ${e.dueDate}` : ""} <span className={ui.apiValue}>{e.code}</span></td></tr>
+                <tr key={e.id}><th scope="row" className="mono">{e.id}</th><td>{e.label} · {e.status === "accepted_awaiting_second_approval"
+                  ? <span data-awaiting-approval="true" style={{ color: "var(--cl-warning)", fontWeight: 600 }}>{e.statusLabel ?? label("reportExceptionStatus", e.status)}</span>
+                  : (e.statusLabel ?? label("reportExceptionStatus", e.status))} · owner {e.ownerId ?? "unassigned"}{e.dueDate ? ` · due ${e.dueDate}` : ""} <span className={ui.apiValue}>{e.code} · {e.status}</span>{e.acceptance && <span className={ui.sub} data-testid="report-acceptance">{e.acceptance.text}</span>}</td></tr>
               ))}
             </tbody>
           </table>
