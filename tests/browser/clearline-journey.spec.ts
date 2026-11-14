@@ -1234,7 +1234,7 @@ test("an over-amount bank debit within 1% is accepted by one person; above 50% i
   await completedPayout(page, "INV-OVER-60PCT");
   let panel = await overAmountException(page, "INV-OVER-60PCT", 1.6);
   let accept = panel.getByTestId("accept-difference");
-  await accept.getByLabel("Why it is accepted").fill("Trying to accept 60%.");
+  await accept.getByLabel("Why the over-amount is accepted").fill("Trying to accept 60%.");
   const btn = accept.getByRole("button", { name: "Accept the over-amount" });
   await expect(btn).toBeDisabled();
   const reason = page.locator(`[id="${await btn.getAttribute("aria-describedby")}"]`);
@@ -1249,7 +1249,7 @@ test("an over-amount bank debit within 1% is accepted by one person; above 50% i
   const ok = accept.getByRole("button", { name: "Accept the over-amount" });
   await expect(ok).toBeDisabled(); // no reason written yet
   await expect(page.locator(`[id="${await ok.getAttribute("aria-describedby")}"]`)).toHaveText("Write why you accept the difference first.");
-  await accept.getByLabel("Why it is accepted").fill("Bank charged a fee of 0.5%; accepted.");
+  await accept.getByLabel("Why the over-amount is accepted").fill("Bank charged a fee of 0.5%; accepted.");
   await expect(ok).toBeEnabled();
   const excId = await panel.getAttribute("id");
   await ok.click();
@@ -1273,7 +1273,7 @@ test("(a) an exact-amount debit dated after the window is accepted by one person
   const btn = accept.getByRole("button", { name: "Accept the late-dated debit" });
   await expect(btn).toBeDisabled();
   await expect(await reasonOf(page, btn)).toHaveText("Write why you accept the difference first.");
-  await accept.getByLabel("Why it is accepted").fill("Bank posted the debit late; amount and reference match.");
+  await accept.getByLabel("Why the late date is accepted").fill("Bank posted the debit late; amount and reference match.");
   await expect(btn).toBeEnabled();
   await btn.click();
   await open(page, `/clearline/exceptions?view=all&q=${excId}`);
@@ -1289,7 +1289,7 @@ test("(c) an over-amount above 1% needs a second person: the acceptor is refused
   const id = await completedPayout(page, "INV-OVER-10PCT");
   const { panel, excId } = await debitException(page, "INV-OVER-10PCT", { factor: 1.1, code: "RC_OVERPAYMENT" });
   const accept = panel.getByTestId("accept-difference");
-  await accept.getByLabel("Why it is accepted").fill("Supplier invoice was revised upward by 10% (fictional).");
+  await accept.getByLabel("Why the over-amount is accepted").fill("Supplier invoice was revised upward by 10% (fictional).");
   await accept.getByRole("button", { name: "Accept the over-amount" }).click();
   // Pending: the case cannot close yet, and the engine names who may approve.
   await open(page, `/clearline/payments/${id}`);
@@ -1377,7 +1377,7 @@ test("reopening an accepted over-amount withdraws the acceptance: it reloads cle
   const id = await completedPayout(page, "INV-REOPEN-1");
   const { panel, excId } = await debitException(page, "INV-REOPEN-1", { factor: 1.005, code: "RC_OVERPAYMENT" });
   const accept = panel.getByTestId("accept-difference");
-  await accept.getByLabel("Why it is accepted").fill("Bank fee of 0.5% (fictional).");
+  await accept.getByLabel("Why the over-amount is accepted").fill("Bank fee of 0.5% (fictional).");
   await accept.getByRole("button", { name: "Accept the over-amount" }).click();
   // Accepted: the case can now be closed (not clicked).
   await open(page, `/clearline/payments/${id}`);

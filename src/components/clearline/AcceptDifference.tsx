@@ -20,23 +20,23 @@ import { SIMULATED_ROLE_NOTE } from "./nav";
 import { Field, Status, fmtTime, ui } from "./ui";
 
 type Flags = { acceptDifference?: true; acceptLateDate?: true };
-type Kind = { codes: string[]; label: string; hint: string; candidates: Flags[] };
+type Kind = { codes: string[]; label: string; field: string; hint: string; candidates: Flags[] };
 
 /** Which acceptance a person may try for an exception, by the engine's explanation code. */
 export const ACCEPTANCE_KINDS: Kind[] = [
   {
-    codes: ["RC_OVERPAYMENT"], label: "Accept the over-amount",
-    hint: "Up to 1% over: one person accepts it. Above 1% (up to 50%): a second, different person must approve before the case can close. The debit must carry this payout's reference and currency.",
+    codes: ["RC_OVERPAYMENT"], label: "Accept the over-amount", field: "Why the over-amount is accepted",
+    hint: "Up to 1% over the payment: one staff person accepts it. Over 1% and up to 50%: one staff person accepts it, then a different staff person must approve before the case can close. Over 50% cannot be accepted. The debit must carry this payout's reference and currency; if it is also dated late (up to 60 days after submission), the late date is accepted with it.",
     candidates: [{ acceptDifference: true }, { acceptDifference: true, acceptLateDate: true }],
   },
   {
-    codes: ["RC_OUTSIDE_TIME_WINDOW"], label: "Accept the late-dated debit",
-    hint: "An exact-amount debit carrying this payout's reference, dated after the matching window (up to 60 days after submission), can be accepted by one person.",
+    codes: ["RC_OUTSIDE_TIME_WINDOW"], label: "Accept the late-dated debit", field: "Why the late date is accepted",
+    hint: "An exact-amount debit carrying this payout's reference and currency, dated after the matching window but no more than 60 days after submission, can be accepted by one staff person.",
     candidates: [{ acceptLateDate: true }, { acceptDifference: true, acceptLateDate: true }],
   },
   {
     // Never acceptable: offered so the person sees the engine's reason instead of a missing option.
-    codes: ["RC_CURRENCY_MISMATCH"], label: "Accept the debit in another currency",
+    codes: ["RC_CURRENCY_MISMATCH"], label: "Accept the debit in another currency", field: "Why it is accepted",
     hint: "A debit in another currency cannot be accepted without FX evidence.",
     candidates: [{ acceptDifference: true }],
   },
@@ -68,7 +68,7 @@ export function AcceptDifference({ exception, idPrefix, onRun }: {
   const gate: Gate = !chosen.r.ok ? refusal(chosen.r, ws) : note.trim() ? { ok: true } : { ok: false, reason: "Write why you accept the difference first." };
   return (
     <form data-testid="accept-difference" onSubmit={(e) => { e.preventDefault(); onRun(kind.label, resolveWith(exception, note, chosen.f), { onOk: () => setNote("") }); }}>
-      <Field label="Why it is accepted" hint={kind.hint}>
+      <Field label={kind.field} hint={kind.hint}>
         <textarea id={`${idPrefix}-accept`} value={note} onChange={(e) => setNote(e.target.value)} />
       </Field>
       <div style={{ marginTop: 6 }}><ActionButton type="submit" size="small" gate={gate} name={kind.label}>{kind.label}</ActionButton></div>
