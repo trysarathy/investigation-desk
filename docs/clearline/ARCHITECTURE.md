@@ -129,14 +129,25 @@ Status values:
 - **Per-scenario reset.** It refuses rather than merges when a record links the case to another case or to a
   person-created record. It never moves the clock (CHANGE 8 m-2): the clock's rules are applied to the restored
   records at the current clock.
-- **Closing a case on a disagreeing line (CHANGE 8 M-2, rule from CHANGE 9 R-M2).** A staff person may
-  explicitly accept (`acceptDifference: true`) only an over-amount of at most 1% on a bank debit that names the
-  payout, in its currency and window. Wrong currency, wrong date and larger differences keep the case open. So
-  do a batched or ambiguous debit (no single payout named) and a statement line that never arrives: there is no
-  manual allocation action yet.
-- **Migration of older workspaces (CHANGE 8 M-1, CHANGE 9 R-M1 / R-m1).** Only the terminal-`verified` bug
-  states of earlier engine versions are repaired on load. The result is what rc3 gives for the same evidence, and
-  `loadWorkspace` reports each change. Any other state the integrity check refuses is refused, not repaired.
+- **Closing a case on a disagreeing line (CHANGE 8 M-2; rule from CHANGE 10 R2-M2).** A staff person may explicitly
+  accept a bank debit that names the payout, in its currency:
+  - a late value date, up to 60 days after submission (`acceptLateDate`);
+  - an over-amount up to 1% (`acceptDifference`);
+  - an over-amount up to 50%, which also needs a second, different staff person (`approve_acceptance`).
+
+  These stay open:
+  - a currency mismatch: there is no FX evidence in the sandbox, and the case message says what would be needed;
+  - a short debit;
+  - a batched or ambiguous debit;
+  - a statement line that never arrives (there is no manual allocation action yet).
+
+  The person who ingested a line may accept a fee of at most 1% on it (product decision).
+- **Migration of older workspaces (CHANGE 8 M-1, CHANGE 9 R-M1 / R-m1, CHANGE 10 R2-M1).** On load, stored evidence is
+  re-validated against rc3's rules: chain allowlist and identity, earlier hash conflicts, the terminal-payout rule
+  for any evidenced settlement, and the reorg rule. States rc3 cannot produce are corrected, never upgraded, and each
+  correction is reported by `loadWorkspace`. A property test shows this is a no-op on rc3 workspaces. A v2 C-2
+  block change cannot be detected from stored data. Any other state the integrity check refuses is refused, not
+  repaired.
 - **Reset on older workspaces (CHANGE 9 R-B1).** The reset raises the id counter past the restored ids, so the
   counter can skip numbers. Ids stay unique.
 

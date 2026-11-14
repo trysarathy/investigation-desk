@@ -1,7 +1,7 @@
 import { MAX_AMOUNT_MINOR, isCurrency, withinTotal } from "./money";
-import { EXCEPTION_DUE_DAYS, EXCEPTION_REQUIRED_ACTION } from "./exceptions";
-import { addDays, isIsoDate, isIsoInstant, isTimeZone, orgDate } from "./tx";
-import type { Result, StatusDimensions, Workspace, WorkspaceLoad, WorkspaceMigration } from "./types";
+import { migrateToRc3 } from "./migrate";
+import { isIsoDate, isIsoInstant, isTimeZone } from "./tx";
+import type { Result, Workspace, WorkspaceLoad, WorkspaceMigration } from "./types";
 
 export const serializeWorkspace = (ws: Workspace): string => JSON.stringify(ws);
 
@@ -147,126 +147,10 @@ function validate(w: unknown): { ws: Workspace; migrations: WorkspaceMigration[]
     need((e.amountDifference as Obj).statementLineId === e.statementLineId, `${q}.statementLineId`, "must equal the exception's statementLineId");
     differenceMatchesLine(e.amountDifference as Obj, lines.find((l) => l.id === e.statementLineId), q);
   });
-  const migrations = migrateTerminalVerified(ws);
+  // Review M-1, re-review R-M1 / R-m1, second re-review R2-M1: correct states earlier engine versions saved (migrate.ts).
+  const migrations = migrateToRc3(ws as unknown as Workspace);
   crossCheck(ws);
   return { ws: ws as unknown as Workspace, migrations };
-}
-
-/**
- * Review M-1 + re-review R-M1 / R-m1: load-time migration of states that EARLIER engine versions produced and
- * rc3 corrects, so a workspace saved in the browser under v2 is repaired instead of refused. It runs on every
- * parse (stored JSON, posted API workspaces and every applyAction), is idempotent, is recorded in the audit
- * trail (`workspace.migrated`, actor "system") and is RETURNED as `WorkspaceMigration[]` by `loadWorkspace` /
- * `loadWorkspaceValue` (and its audit events are part of `ActionResult.audit`), so the console can tell the person.
- *
- * Handled: a failed, cancelled, expired or returned payout stored with settlement "verified" while settlement
- * evidence exists (a bank debit allocated to it or a counted chain observation) — produced by v2 (T-1:
- * chain-final then payout.failed; T-2: the recompute after a person resolved a failed payout's contradiction)
- * and before CHANGE 6 (returned / verified). It becomes exactly what rc3 gives for the same facts. rc3's
- * terminal rule raises ONE specific exception for that evidence (the "rule exception"):
- *   chain evidence → CH_TRANSFER_FOR_TERMINAL_PAYOUT (about those observations);
- *   bank debit on a failed payout → RC_DEBIT_FOR_FAILED_PAYOUT; on cancelled / expired → RC_DEBIT_FOR_TERMINAL_PAYOUT
- *   (about that debit line); returned → the returned_payout exception (or RC_DEBIT_FOR_TERMINAL_PAYOUT).
- * - No rule exception exists → it is raised now (critical, owned by the case owner or else the payment's
- *   creator, linked to the case, which reopens if resolved) → "contradicted".
- * - A rule exception, or any other contradiction (for returned: the return), is still open → "contradicted".
- * - Every rule exception was resolved by a person and nothing else contradicts → "none" / "none" (the rc3
- *   recompute). Re-review R-M1: a resolved UNRELATED contradiction never counts as having decided this one.
- * A terminal "verified" payout WITHOUT any evidence was never produced by any engine version: crossCheck refuses it.
- */
-function migrateTerminalVerified(ws: Obj): WorkspaceMigration[] {
-  const out: WorkspaceMigration[] = [];
-  const intents = ws.intents as Obj[];
-  const exceptions = ws.exceptions as Obj[];
-  const cases = ws.cases as Obj[];
-  const actors = ws.actors as Obj[];
-  const asOf = ws.asOf as string;
-  const nextId = (prefix: string) => {
-    ws.seq = (ws.seq as number) + 1;
-    return `${prefix}_${String(ws.seq).padStart(5, "0")}`;
-  };
-  for (const intent of intents) {
-    const st = intent.status as Obj;
-    const exec = st.execution as string;
-    if (!TERMINAL.includes(exec) || st.settlement !== "verified") continue;
-    const id = intent.id as string;
-    const bankAllocs = (ws.allocations as Obj[]).filter((a) => a.evidenceKind === "statement_line" && isObj(a.target) && (a.target as Obj).kind === "payment" && (a.target as Obj).intentId === id && !(a.codes as string[]).includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN"));
-    const obs = (ws.chainObservations as Obj[]).filter((o) => o.intentId === id && o.status !== "rejected_unsupported");
-    if (!bankAllocs.length && !obs.length) continue; // never engine-produced: crossCheck refuses it
-    const from = { ...st } as unknown as StatusDimensions;
-    const chain = st.settlementScope === "onchain_transfer" || (!bankAllocs.length && obs.length > 0);
-    const ruleCode = chain ? "CH_TRANSFER_FOR_TERMINAL_PAYOUT" : exec === "failed" ? "RC_DEBIT_FOR_FAILED_PAYOUT" : "RC_DEBIT_FOR_TERMINAL_PAYOUT";
-    const lineIds = new Set(bankAllocs.map((a) => a.statementLineId as string));
-    const obsIds = new Set(obs.map((o) => o.id as string));
-    const mine = exceptions.filter((e) => e.intentId === id);
-    // The rc3 rule's own exception about THIS evidence (same code and same line / observations).
-    const isRuleException = (e: Obj) =>
-      (exec === "returned" && e.category === "returned_payout") ||
-      (e.category === "contradictory_evidence" && (chain
-        ? e.explanationCode === "CH_TRANSFER_FOR_TERMINAL_PAYOUT" && (e.supportingEventIds as string[]).some((x) => obsIds.has(x))
-        : (e.explanationCode === ruleCode || (exec === "returned" && e.explanationCode === "RC_DEBIT_FOR_TERMINAL_PAYOUT")) && (typeof e.statementLineId !== "string" || lineIds.has(e.statementLineId))));
-    const rule = mine.filter(isRuleException);
-    const otherOpen = mine.some((e) => e.status !== "resolved" && (e.category === "contradictory_evidence" || (exec === "returned" && e.category === "returned_payout")));
-    let outcome: WorkspaceMigration["outcome"];
-    let excId: string | undefined;
-    let owner: string | undefined;
-    let caseId = intent.caseId as string | undefined;
-    if (!rule.length) {
-      let c = cases.find((x) => x.id === intent.caseId);
-      owner = [c?.ownerId, intent.createdBy].find((a) => typeof a === "string" && actors.some((x) => x.id === a && x.role !== "viewer")) as string | undefined;
-      if (!c) {
-        c = { id: nextId("case"), intentId: id, ...(intent.advanceId ? { advanceId: intent.advanceId } : {}), title: `Payment ${String(intent.internalReference)} · ${String(intent.beneficiaryName)}`, status: "open", notes: [], requestedInfo: [], evidenceIds: [], exceptionIds: [], history: [{ at: asOf, actorId: "system", action: "opened", detail: "Case opened by the rc3 workspace migration" }], createdAt: asOf, updatedAt: asOf };
-        cases.push(c);
-        intent.caseId = c.id;
-      }
-      caseId = c.id as string;
-      excId = nextId("exc");
-      const explanation = `${chain ? "An on-chain transfer to the beneficiary's registered wallet was observed" : "A statement debit matches this payout"}, but the provider reports the payout ${exec}. An earlier engine version stored this as verified; rc3 records the disagreement (workspace migration).`;
-      exceptions.push({
-        id: excId, category: "contradictory_evidence", severity: "critical", status: owner ? "in_review" : "open", explanationCode: ruleCode, explanation, intentId: id,
-        ...(chain ? {} : { statementLineId: bankAllocs[0].statementLineId }), caseId: c.id, candidates: [],
-        supportingEventIds: obs.map((o) => o.id as string),
-        supportingEvidenceIds: (ws.evidence as Obj[]).filter((e) => e.intentId === id && (e.kind === "bank_statement_line" || e.kind === "chain_observation")).map((e) => e.id as string),
-        ...(owner ? { ownerId: owner } : {}),
-        dueDate: addDays(orgDate(asOf, (ws.organization as Obj).timezone as string), EXCEPTION_DUE_DAYS.critical),
-        requiredAction: EXCEPTION_REQUIRED_ACTION.contradictory_evidence, createdAt: asOf, lastUpdatedAt: asOf,
-        history: [
-          { at: asOf, actorId: "system", action: "opened", detail: `${ruleCode}: ${explanation}` },
-          ...(owner ? [{ at: asOf, actorId: "system", action: "owner_assigned", detail: `Owner: ${String(actors.find((x) => x.id === owner)!.name)} (${c.ownerId === owner ? "case owner" : "created the payment"})` }] : []),
-        ],
-      });
-      (c.exceptionIds as string[]).push(excId);
-      if (c.status === "resolved") {
-        c.status = "reopened";
-        (c.history as Obj[]).push({ at: asOf, actorId: "system", action: "reopened", detail: `New exception ${excId} (contradictory_evidence) linked by the rc3 migration` });
-      }
-      c.updatedAt = asOf;
-      st.settlement = "contradicted";
-      if (bankAllocs.length || (ws.allocations as Obj[]).some((a) => a.evidenceKind === "chain_observation" && isObj(a.target) && (a.target as Obj).intentId === id)) st.reconciliation = "exception";
-      outcome = "contradiction_raised";
-    } else if (otherOpen || rule.some((e) => e.status !== "resolved")) {
-      st.settlement = "contradicted";
-      excId = (rule.find((e) => e.status !== "resolved") ?? mine.find((e) => e.status !== "resolved" && (e.category === "contradictory_evidence" || e.category === "returned_payout")))?.id as string | undefined;
-      outcome = "contradicted_open";
-    } else {
-      st.settlement = "none";
-      st.settlementScope = "none";
-      excId = rule[rule.length - 1].id as string;
-      outcome = "resolved_by_person";
-    }
-    const to = { ...st } as unknown as StatusDimensions;
-    const ref = `${String(intent.internalReference)} (${id})`;
-    const text =
-      outcome === "contradiction_raised"
-        ? `Payment ${ref} was saved by an earlier version as ${exec} with settlement verified. It now shows settlement contradicted, with a new exception ${excId} (${ruleCode})${owner ? ` for ${owner}` : ""} to review.`
-        : outcome === "contradicted_open"
-          ? `Payment ${ref} was saved by an earlier version as ${exec} with settlement verified. It now shows settlement contradicted, because exception ${excId} is still open.`
-          : `Payment ${ref} was saved by an earlier version as ${exec} with settlement verified. A person had already resolved ${excId}, so it now shows no settlement evidence (the evidence stays on record).`;
-    const auditId = nextId("aud");
-    (ws.audit as Obj[]).push({ id: auditId, at: asOf, actorId: "system", action: "workspace.migrated", entityType: "intent", entityId: id, summary: `rc3 migration: ${from.execution} / verified (${from.settlementScope}) → ${to.settlement}${outcome === "contradiction_raised" ? ` with ${ruleCode}` : ""} (${to.settlementScope}; ${outcome}${excId ? `, ${excId}` : ""}). ${text}` });
-    out.push({ kind: "terminal_payout_verified", intentId: id, internalReference: String(intent.internalReference), from, to, outcome, ...(excId ? { exceptionId: excId } : {}), ...(outcome === "contradiction_raised" ? { exceptionCode: ruleCode } : {}), ...(owner ? { ownerId: owner } : {}), ...(caseId ? { caseId } : {}), auditId, text });
-  }
-  return out;
 }
 
 const TERMINAL = ["failed", "cancelled", "expired", "returned"];
@@ -347,15 +231,26 @@ function crossCheck(ws: Obj) {
     const e = (ws.exceptions as Obj[]).find((x) => x.id === o.supersededBy);
     need(o.status === "rejected_unsupported" && !!e && e.status === "resolved" && (e.supportingEventIds as unknown[]).includes(o.id), `chainObservations[${i}].supersededBy`, "must name a resolved hash-conflict exception about this rejected observation");
   });
-  // Re-review R-M2: an accepted difference describes its own exception's line.
+  // Re-review R-M2 / R2-M2: an accepted difference describes its own exception's line and payout exactly, and a
+  // second approval comes from a different person than the one who accepted.
   (ws.exceptions as Obj[]).forEach((e, i) => {
     const res = e.resolution;
     if (!isObj(res) || res.acceptedDifference === undefined) return;
     const d = res.acceptedDifference;
     const q = `exceptions[${i}].resolution.acceptedDifference`;
     need(isObj(d), q, "must be an object");
-    need(e.status === "resolved" && e.explanationCode === "RC_OVERPAYMENT" && (d as Obj).statementLineId === e.statementLineId, q, "must belong to a resolved RC_OVERPAYMENT exception and name its statement line");
-    amt(d as Obj, "differenceMinor", q, 1); cur(d as Obj, "currency", q);
+    const a = d as Obj;
+    need(e.status === "resolved" && (e.explanationCode === "RC_OVERPAYMENT" || e.explanationCode === "RC_OUTSIDE_TIME_WINDOW") && a.statementLineId === e.statementLineId, q, "must belong to a resolved RC_OVERPAYMENT or RC_OUTSIDE_TIME_WINDOW exception and name its statement line");
+    amt(a, "differenceMinor", q, 0); cur(a, "currency", q);
+    const line = lines.find((l) => l.id === e.statementLineId);
+    const intent = (ws.intents as Obj[]).find((x) => x.id === e.intentId);
+    need(!!line && !!intent && a.differenceMinor === (line.amountMinor as number) - (intent.amountMinor as number) && a.currency === line.currency, `${q}.differenceMinor`, "must equal its line's amount minus the payout amount, in the line's currency");
+    if (a.lateValueDate !== undefined) need(a.lateValueDate === line!.valueDate, `${q}.lateValueDate`, "must equal its line's value date");
+    if (a.secondApproval !== undefined) {
+      const sa = a.secondApproval as Obj;
+      need(isObj(sa) && sa.required === true, `${q}.secondApproval`, "must be { required: true, … }");
+      if (sa.approvedBy !== undefined) need(typeof sa.approvedBy === "string" && sa.approvedBy !== res.actorId && isIsoInstant(sa.approvedAt), `${q}.secondApproval.approvedBy`, "must be a different person than the one who accepted, with an approval time");
+    }
   });
   (ws.instructions as Obj[]).forEach((x, i) => {
     if (x.checkerId !== undefined) need(x.checkerId !== x.makerId, `instructions[${i}].checkerId`, "maker and checker must be different people");

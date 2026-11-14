@@ -110,7 +110,8 @@ function dispatch(tx: Tx, a: WorkspaceAction): string {
     case "add_note": return addNote(tx, a.target, a.text);
     case "request_info": return requestInfo(tx, a.caseId, a.from, a.request);
     case "attach_evidence": return attachEvidence(tx, a.target, a.evidence);
-    case "resolve": return resolve(tx, a.target, a.note, a.acceptDifference);
+    case "resolve": return resolve(tx, a.target, a.note, a.acceptDifference, a.acceptLateDate);
+    case "approve_acceptance": return approveAcceptance(tx, a.exceptionId, a.note);
     case "reopen": return reopen(tx, a.target, a.reason);
     case "submit_hold_documents": return submitHoldDocuments(tx, a.holdId, a.documents);
     case "assign_hold_reviewer": return assignHoldReviewer(tx, a.holdId, a.reviewerId);
@@ -645,24 +646,37 @@ function attachEvidence(tx: Tx, t: TargetRef, input: { kind: EvidenceKind; descr
   return "applied";
 }
 
-function resolve(tx: Tx, t: TargetRef, note: string, acceptDifference?: boolean): string {
+function resolve(tx: Tx, t: TargetRef, note: string, acceptDifference?: boolean, acceptLateDate?: boolean): string {
   requireRole(tx, [...STAFF]);
   if (!safeNote(note, 500)) fail("invalid_field", "A resolution note is required.", { field: "note" });
   if (acceptDifference !== undefined && typeof acceptDifference !== "boolean") fail("invalid_field", "acceptDifference must be true or false.", { field: "acceptDifference" });
+  if (acceptLateDate !== undefined && typeof acceptLateDate !== "boolean") fail("invalid_field", "acceptLateDate must be true or false.", { field: "acceptLateDate" });
   const r = target(tx, t);
-  if (acceptDifference && r.kind !== "exception") fail("invalid_field", "acceptDifference applies to an exception, not a case.", { field: "acceptDifference" });
+  if ((acceptDifference || acceptLateDate) && r.kind !== "exception") fail("invalid_field", "acceptDifference / acceptLateDate apply to an exception, not a case.", { field: acceptDifference ? "acceptDifference" : "acceptLateDate" });
   if (r.kind === "exception") {
     const check = canResolveException(tx.ws, r.e.id);
     if (!check.allowed) fail("resolution_not_permitted", `${check.code}: ${check.reason}`, { entityId: r.e.id });
-    // Re-review R-M2: accepting a difference is explicit and only for a debit that otherwise matches the payout.
-    const accepted = acceptDifference ? acceptableDifference(tx.ws, r.e.id) : undefined;
-    if (accepted && !accepted.ok) fail("precondition_failed", `DIFFERENCE_NOT_ACCEPTABLE: ${accepted.reason}`, { entityId: r.e.id, field: "acceptDifference" });
+    // Re-review R-M2 / R2-M2: accepting is explicit, and each flag must match the line's facts.
+    let accepted: ReturnType<typeof acceptableDifference> | undefined;
+    if (acceptDifference || acceptLateDate) {
+      accepted = acceptableDifference(tx.ws, r.e.id);
+      const refuse = (why: string, field: string) => fail("precondition_failed", `DIFFERENCE_NOT_ACCEPTABLE: ${why}`, { entityId: r.e.id, field });
+      if (!accepted.ok) refuse(accepted.reason, acceptDifference ? "acceptDifference" : "acceptLateDate");
+      if (accepted.late && !acceptLateDate) refuse(`The value date ${accepted.valueDate} is outside the matching window; accept it explicitly with acceptLateDate.`, "acceptLateDate");
+      if (!accepted.late && acceptLateDate) refuse("The value date is inside the matching window; there is no late date to accept.", "acceptLateDate");
+      if ((accepted.differenceMinor ?? 0) > 0 && !acceptDifference) refuse("The line exceeds the payout; accept the over-amount explicitly with acceptDifference.", "acceptDifference");
+      if ((accepted.differenceMinor ?? 0) === 0 && acceptDifference) refuse("The line's amount equals the payout; there is no over-amount to accept.", "acceptDifference");
+    }
     r.e.status = "resolved";
     r.e.resolution = {
       at: tx.at, actorId: tx.actorId, note,
-      ...(accepted ? { acceptedDifference: { statementLineId: accepted.statementLineId!, differenceMinor: accepted.differenceMinor!, currency: accepted.currency! } } : {}),
+      ...(accepted ? { acceptedDifference: {
+        statementLineId: accepted.statementLineId!, differenceMinor: accepted.differenceMinor!, currency: accepted.currency!,
+        ...(accepted.late ? { lateValueDate: accepted.valueDate! } : {}),
+        ...(accepted.needsSecondApproval ? { secondApproval: { required: true as const } } : {}),
+      } } : {}),
     };
-    if (accepted) tx.log("exception.difference_accepted", "exception", r.e.id, accepted.reason);
+    if (accepted) tx.log("exception.difference_accepted", "exception", r.e.id, accepted.reason + (accepted.needsSecondApproval ? " Awaiting a second person's approval." : ""));
     r.e.history.push({ at: tx.at, actorId: tx.actorId, action: "resolved", detail: note });
     r.e.lastUpdatedAt = tx.at;
     tx.log("exception.resolved", "exception", r.e.id, note.slice(0, 80));
@@ -691,6 +705,28 @@ function resolve(tx: Tx, t: TargetRef, note: string, acceptDifference?: boolean)
   c.history.push({ at: tx.at, actorId: tx.actorId, action: "resolved", detail: note });
   c.updatedAt = tx.at;
   tx.log("case.resolved", "case", c.id, note.slice(0, 80));
+  return "applied";
+}
+
+/**
+ * Second re-review R2-M2: a second, DIFFERENT staff person approves an accepted over-amount above
+ * ACCEPTED_OVERAGE_BPS (maker ≠ checker). The line is re-checked; until approved, the payout's case cannot close.
+ */
+function approveAcceptance(tx: Tx, exceptionId: string, note: string): string {
+  requireRole(tx, [...STAFF]);
+  if (!safeNote(note, 500)) fail("invalid_field", "An approval note is required.", { field: "note" });
+  const e = tx.ws.exceptions.find((x) => x.id === exceptionId);
+  if (!e) fail("not_found", "Exception not found.", { entityId: exceptionId });
+  const acc = e.resolution?.acceptedDifference;
+  if (e.status !== "resolved" || !acc?.secondApproval) fail("invalid_transition", "There is no accepted difference awaiting a second approval on this exception.", { entityId: e.id });
+  if (acc.secondApproval.approvedBy) fail("invalid_transition", `Already approved by ${acc.secondApproval.approvedBy}.`, { entityId: e.id });
+  if (e.resolution!.actorId === tx.actorId) fail("maker_checker_violation", "The approval must come from a different person than the one who accepted the difference.", { entityId: e.id });
+  const d = acceptableDifference(tx.ws, e.id);
+  if (!d.ok || d.statementLineId !== acc.statementLineId || d.differenceMinor !== acc.differenceMinor) fail("precondition_failed", `DIFFERENCE_NOT_ACCEPTABLE: ${d.ok ? "The line no longer matches what was accepted." : d.reason}`, { entityId: e.id });
+  acc.secondApproval = { required: true, approvedBy: tx.actorId, approvedAt: tx.at, note };
+  e.history.push({ at: tx.at, actorId: tx.actorId, action: "acceptance_approved", detail: `Second approval of the accepted ${acc.differenceMinor} ${acc.currency} minor-unit over-amount (accepted by ${e.resolution!.actorId}): ${note}` });
+  e.lastUpdatedAt = tx.at;
+  tx.log("exception.acceptance_approved", "exception", e.id, `Approved by ${tx.actorId} (accepted by ${e.resolution!.actorId})`);
   return "applied";
 }
 

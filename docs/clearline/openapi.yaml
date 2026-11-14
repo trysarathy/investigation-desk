@@ -131,6 +131,23 @@ info:
       in its currency and window. That field is not exposed by these v1 endpoints.
     - **Migration report.** The engine's `loadWorkspace` returns `migrations[]` (engine function, no endpoint).
 
+    **CHANGE 10 (second re-review of 7e521f5).**
+    - **Migration on load.** A posted workspace from an earlier engine version is re-validated against rc3's
+      evidence rules, which correct states rc3 cannot produce:
+      - a non-allowlisted counted chain observation;
+      - a later observation of a hash already recorded as rejected or with another identity;
+      - a terminal payout with observed, pending or verified evidence;
+      - matched on a transfer that is no longer final.
+
+      Evidence is never upgraded.
+    - **Closing a case on a disagreeing bank debit** (engine actions, not exposed by these v1 endpoints):
+      - a late value date: `resolve { acceptLateDate: true }`;
+      - an over-amount up to 1%: `resolve { acceptDifference: true }`;
+      - an over-amount up to 50%: additionally `approve_acceptance` by a different staff person. Until then the
+        case answers `SECOND_APPROVAL_REQUIRED`.
+
+      A currency mismatch is never acceptable: there is no FX evidence in the sandbox.
+
     **Legacy endpoints** under `/api/clearline/test/{intents,quotes,transitions,webhooks,payments,health}`
     are **retired** and execute nothing. A request that is invalid under the old contract gets HTTP 422
     (`invalid_request`); every other request, any method, gets HTTP 410 (`endpoint_retired`). Both carry
