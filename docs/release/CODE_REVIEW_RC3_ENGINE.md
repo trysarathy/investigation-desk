@@ -890,3 +890,74 @@ Their effect is masked: rule D handles the first on load, and the settlement cei
 Minor follow-ups:
 - **R5-m1:** refuse evidence-record shapes rc3 never produces (provider-report or unreferenced credit allocations), and qualify the CHANGE 13 sentence.
 - **R5-m2:** two ceiling mutants survive.
+
+---
+
+# Final check (8c8ee72): R5-m1 allocation-shape rule, R5-m2 ceiling tests
+
+**CODE REVIEW: APPROVE 8c8ee72**
+
+APPROVAL-ONLY: needs Aashmiin's merge. This changes how stored workspaces load: the integrity check now refuses more shapes.
+
+**In plain English.** The integrity check now refuses a payment allocation whose shape no engine version produces. Both of the forged shapes I found are refused. None of my 640 v2 and efabe6a workspaces are refused. The two weak tests from the fifth check are now strong.
+
+Scope: `git -C /home/user/rel/trial diff 942d421 8c8ee72 -- src/lib/clearline tests/clearline docs/clearline`. That is 23 lines in `serialize.ts:crossCheck`, plus tests and docs. I wrote none of it.
+
+## Checks I ran
+- **Copy.** I deleted cr9 first. Fresh frozen copy at `scratchpad/cr10` (`git archive 8c8ee72`).
+- **Typecheck.** `npx tsc --noEmit`: pass.
+- **Tests.** `npx vitest run` (full suite, which includes the adopted property test): 72 files pass, 1 skipped; 1498 tests pass, 57 skipped.
+- **Probes.** I reran `loadv2`, `forge` and `ceil` (saved in `scratchpad/probes10/`).
+- **Mutation checks.** 9 mutants (`scratchpad/mut10.py`).
+
+## Findings
+
+**1. The shape rule refuses nothing an engine produced.**
+- I reloaded the v2walk set: 320 cf8732e and 320 efabe6a snapshots.
+- All 640 load. Each one loads idempotently and accepts a next action. Migrations are the same as in the fifth check (v2: reorg ×9, not-allowlisted ×7; efabe6a: none).
+- The set contains 2,036 payment allocations from statement lines, so the rule really ran against engine output:
+
+| Line shape | Count |
+|---|---|
+| Bank-statement debit, kind payment | 1,372 |
+| Bank-statement credit, kind return (return confirmation) | 640 |
+| Bank-statement debit, kind return (return confirmation) | 8 |
+| Provider-report debit, kind return (return confirmation) | 16 |
+
+- Each matches one of the two permitted shapes. The return branch deliberately does not require a bank source, because the engines also confirm returns from provider-report return lines.
+- The rule mirrors `reconcileLine`, which allocates only by the provider-payment-id token. Hand-built legitimate states (`ceil`) also load unchanged.
+
+**2. Both forge shapes are refused** (`forge.test.ts`):
+- **Provider-report line allocated to the payout:** "a payment allocation must come from a bank statement debit…".
+- **Credit line with reference "NOTHING" allocated to the payout:** "…must carry the payout's provider payment id as its reference".
+- **Status-only forgery:** still capped by rule E, and the case stays `EVIDENCE_OUTSTANDING`.
+
+**3. The two fixture edits in `rc3-migration.test.ts` are legitimate.**
+- **Lines ~225 and ~311.** Each test's synthetic debit now carries its own payout's provider payment id (`PAYOUT <ppid>`) instead of the template line's reference, which was another payout's.
+- **Why this is needed.** The old fixtures only existed because the old crossCheck accepted the forged shape. The new rule would have refused them before they reached the behaviour under test.
+- **What each test still checks.** The first test still verifies that the migration never upgrades a status using a full matched debit. The second (rule D) still uses a full bank match for s4.
+- **Nothing weakened.** Each test asserts the same outcome as before.
+
+**4. The surviving mutants are killed.**
+- **R5-m2:** both killed.
+  - The ceiling treating a non-final chain allocation as matched.
+  - `returnMatched` without statement confirmation.
+- **R5-m1 rule:** six killed.
+  - Rule off.
+  - Reference check off.
+  - Currency check off.
+  - Return-kind check off.
+  - Provider-report debit allowed.
+  - Credit allowed.
+- **Nit, one survivor: the `intent !== undefined` check.** The check only gives a clear message. Without it, a missing intent still fails on the next line as a generic "cannot be loaded" refusal, so nothing is accepted that should not be.
+
+**5. The docs are accurate.**
+- DATA_MODEL, ENGINE_API (CHANGE 13, qualified) and openapi all describe the rule.
+- They state plainly that a well-formed forged debit cannot be detected. This qualification is what R5-m1 asked for.
+
+## Summary
+**APPROVE 8c8ee72.**
+- R5-m1 refuses the forged allocation shapes, and none of 640 genuine older-engine workspaces or any rc3 property state.
+- The fixture edits correct test data that only worked because of the gap.
+- R5-m2's two mutants and the six new shape-rule mutants are killed.
+- One nit: the intent-existence check only improves the error message.
