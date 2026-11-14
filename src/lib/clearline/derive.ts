@@ -26,9 +26,14 @@ export function recomputeDimensions(ws: Workspace, intent: PaymentIntent): void 
   const terminal = isTerminalForSettlementReport(intent.status.execution);
   const providerReport = !terminal && providerReportLinesFor(ws, intent).some(isAgreeingProviderReport);
 
-  // Re-review N2: a returned payout never settled with the beneficiary. Settlement is "none"
-  // (scope "none") — the debit and return evidence stay on record and in the investigation — and
-  // reconciliation is "matched" only when the debit AND an equal statement-confirmed return are both
+  // Re-review N2 + review v2 M2 + rc3 scope rule: a returned payout never settled with the beneficiary.
+  // - While the return (or another contradiction) is open AND settlement evidence exists (bank debit or
+  //   chain transfer), settlement is "contradicted" and the scope names the contradicted evidence
+  //   ("bank_statement" for a debit, else "onchain_transfer") — exactly what onExecutionChanged leaves, so
+  //   a recompute never changes the scope of the same facts.
+  // - Otherwise (no evidence, or a person resolved the return) settlement is "none" with scope "none"; the
+  //   debit and return evidence stay on record and in the investigation (returnPosition).
+  // Reconciliation is "matched" only when the debit AND an equal statement-confirmed return are both
   // allocated (net zero, returnStatus "confirmed_by_statement"); otherwise it stays "exception".
   if (intent.status.execution === "returned") {
     const returned = ws.allocations
@@ -39,7 +44,7 @@ export function recomputeDimensions(ws: Workspace, intent: PaymentIntent): void 
     const evidenced = bank > 0 || Boolean(obs);
     intent.status.settlement =
       open.some((e) => e.category === "contradictory_evidence") || (evidenced && open.some((e) => e.category === "returned_payout")) ? "contradicted" : "none";
-    intent.status.settlementScope = "none";
+    intent.status.settlementScope = intent.status.settlement === "contradicted" ? (bank > 0 ? "bank_statement" : obs ? "onchain_transfer" : "none") : "none";
     const netZero = returned > 0 && returned === bank && intent.returnStatus === "confirmed_by_statement";
     intent.status.reconciliation = !open.some((e) => RECON_BLOCKING.includes(e.category)) && netZero ? "matched" : "exception";
     return;

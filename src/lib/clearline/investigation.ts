@@ -39,6 +39,21 @@ export function listExceptions(ws: Workspace, filter: { status?: ExceptionStatus
 
 const f = (code: string, text: string, refs: string[] = []): Finding => ({ code, text, refs });
 
+/**
+ * Amount of a payout matched to evidence, from the allocations themselves (never "requested − outstanding"):
+ * the full amount while a chain allocation's observation is final (rc3 C-3), otherwise the outgoing
+ * bank-statement allocations in the payout's source currency, excluding return credits. 0 when nothing
+ * is allocated (created, failed with no evidence, cancelled, …). Used by investigate() and the case report.
+ */
+export function matchedMinorFor(ws: Workspace, intent: PaymentIntent): number {
+  const finalObs = ws.chainObservations.find((o) => o.intentId === intent.id && o.status === "final");
+  const chainMatched = !!finalObs && ws.allocations.some((a) => a.evidenceKind === "chain_observation" && a.target.kind === "payment" && a.target.intentId === intent.id && a.statementLineId === finalObs.id);
+  if (chainMatched) return intent.amountMinor;
+  return ws.allocations
+    .filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id && a.evidenceKind === "statement_line" && a.currency === intent.sourceCurrency && !a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN"))
+    .reduce((t, a) => t + a.amountMinor, 0);
+}
+
 export function investigate(ws: Workspace, intentId: string): Result<InvestigationView> {
   const intent = getIntent(ws, intentId);
   if (!intent) return { ok: false, error: { code: "not_found", message: "Intent not found.", entityId: intentId } };
@@ -111,14 +126,7 @@ export function investigate(ws: Workspace, intentId: string): Result<Investigati
 
   // Financially outstanding
   const outstanding: InvestigationView["outstanding"] = [];
-  // rc3 (C-3): a chain allocation reconciles the payout only while its observation is still final.
-  const finalObs = ws.chainObservations.find((o) => o.intentId === intent.id && o.status === "final");
-  const chainMatched = !!finalObs && ws.allocations.some((a) => a.evidenceKind === "chain_observation" && a.target.kind === "payment" && a.target.intentId === intent.id && a.statementLineId === finalObs.id);
-  const matched = chainMatched
-    ? intent.amountMinor
-    : ws.allocations
-        .filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id && a.evidenceKind === "statement_line" && a.currency === intent.sourceCurrency && !a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN"))
-        .reduce((t, a) => t + a.amountMinor, 0);
+  const matched = matchedMinorFor(ws, intent);
   const money = (amountMinor: number) => ({ amountMinor, currency: intent.sourceCurrency });
   if (s.execution === "returned") {
     const returned = ws.allocations.filter((a) => a.target.kind === "payment" && a.target.intentId === intent.id && a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN")).reduce((t, a) => t + a.amountMinor, 0);

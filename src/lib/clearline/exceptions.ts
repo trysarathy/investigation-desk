@@ -2,7 +2,7 @@ import { obligationOutstanding } from "./funding";
 import { computeLiquidity } from "./liquidity";
 import { isTerminalForSettlementReport } from "./state";
 import type { AmountDifference, ExceptionCategory, InvestigationCase, Money, ReconciliationException, Severity, Workspace } from "./types";
-import { addDays, type Tx } from "./tx";
+import { addDays, referenceTokens, type Tx } from "./tx";
 
 /** Required action shown for each category (deterministic text, no generated prose). */
 export const EXCEPTION_REQUIRED_ACTION: Readonly<Record<ExceptionCategory, string>> = {
@@ -244,14 +244,45 @@ export function canResolveCase(ws: Workspace, caseId: string): ResolutionCheck {
   // rc3 (X-1): nothing closes a case without matching evidence. A payout that was sent and has not ended
   // (not failed, cancelled, expired or returned) must be evidenced: settlement verified (bank statement
   // or final chain transfer) AND reconciliation matched. A provider's completion claim is not enough.
+  // Review M-2: OR a person has accepted a disagreeing bank line — see acceptedBankLine.
   const intent = c.intentId ? ws.intents.find((i) => i.id === c.intentId) : undefined;
   const sent = intent ? Boolean(ws.instructions.find((i) => i.id === intent.instructionId)?.providerPaymentId) : false;
-  if (intent && sent && !isTerminalForSettlementReport(intent.status.execution) && (intent.status.settlement !== "verified" || intent.status.reconciliation !== "matched"))
-    return deny("EVIDENCE_OUTSTANDING", `The payment is not yet evidenced (settlement ${intent.status.settlement}, reconciliation ${intent.status.reconciliation}); a matched bank statement line or a final on-chain transfer is needed before the case can close.`);
+  const evidenced = intent ? intent.status.settlement === "verified" && intent.status.reconciliation === "matched" : false;
+  const accepted = intent && sent && !evidenced ? acceptedBankLine(ws, intent.id) : undefined;
+  if (intent && sent && !isTerminalForSettlementReport(intent.status.execution) && !evidenced && !accepted)
+    return deny("EVIDENCE_OUTSTANDING", `The payment is not yet evidenced (settlement ${intent.status.settlement}, reconciliation ${intent.status.reconciliation}); a matched bank statement line or a final on-chain transfer is needed before the case can close, or a person must resolve, with evidence, the exception on a bank line that carries this payment's reference.`);
   // rc3 (X-1): a case whose payment funded an advance stays open while the customer still owes money.
   const advanceId = c.advanceId ?? intent?.advanceId;
   const obligationId = advanceId ? ws.advances.find((a) => a.id === advanceId)?.obligationId : undefined;
   if (obligationId && obligationOutstanding(ws, obligationId).amountMinor > 0)
     return deny("OUTSTANDING_REMAINS", "The customer's repayment on the linked advance is still outstanding; it closes only by repayments allocated by reference.");
+  if (accepted)
+    return { allowed: true, code: "RESOLVABLE", reason: `Owner assigned, linked exceptions resolved, no open requests or undecided hold. The payment is evidenced by bank line ${accepted.lineId}, whose ${accepted.code} difference a person accepted (${accepted.exceptionId}). A note is required.` };
   return { allowed: true, code: "RESOLVABLE", reason: "Owner assigned, linked exceptions resolved, no open requests or undecided hold, and the payment is evidenced. A note is required." };
+}
+
+/**
+ * Review M-2: amount/currency/window disagreements a person may accept for X-1. The line is real,
+ * independent evidence that names this payout by its trusted reference; only its amount, currency or date
+ * disagreed, so it was not allocated. Ambiguous or amount-only lines (no single payout named), duplicates
+ * and provider reports (not independent) never count.
+ */
+const ACCEPTABLE_LINE_DIFFERENCES = ["RC_OVERPAYMENT", "RC_CURRENCY_MISMATCH", "RC_OUTSIDE_TIME_WINDOW"];
+
+/**
+ * Review M-2: a bank-statement debit carrying this payout's provider payment id, whose disagreement
+ * exception (ACCEPTABLE_LINE_DIFFERENCES) a PERSON resolved — which already required an owner, attached
+ * non-system evidence and a note (canResolveException). Counts as matching evidence for closing the case.
+ */
+export function acceptedBankLine(ws: Workspace, intentId: string): { exceptionId: string; code: string; lineId: string } | undefined {
+  const intent = ws.intents.find((i) => i.id === intentId);
+  const ppid = ws.instructions.find((i) => i.id === intent?.instructionId)?.providerPaymentId?.toUpperCase();
+  if (!ppid) return undefined;
+  for (const e of ws.exceptions) {
+    if (e.intentId !== intentId || e.status !== "resolved" || !e.resolution || e.resolution.actorId === "system" || !e.statementLineId || !ACCEPTABLE_LINE_DIFFERENCES.includes(e.explanationCode)) continue;
+    const line = ws.statementLines.find((l) => l.id === e.statementLineId);
+    if (line && line.source === "bank_statement" && line.direction === "debit" && line.kind === "payment" && referenceTokens(line.reference).includes(ppid))
+      return { exceptionId: e.id, code: e.explanationCode, lineId: line.lineId };
+  }
+  return undefined;
 }

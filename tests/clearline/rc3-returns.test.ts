@@ -102,3 +102,54 @@ describe("rc3 invariant 3: a returned payout never appears delivered (already en
     expect(v.outstanding.map((o) => o.code)).toContain("OS_RETURN_NOT_YET_RECEIVED");
   });
 });
+
+describe("returned payout: settlement scope is pinned in every path (derive.ts and onExecutionChanged agree)", () => {
+  const resolveWithEvidence = (ws: Workspace, excId: string, kind: "document_metadata" | "funds_returned_confirmation" = "document_metadata") => {
+    ws = run(ws, "usr_maya", { type: "assign_owner", target: { kind: "exception", id: excId }, ownerId: "usr_maya" }).workspace;
+    ws = run(ws, "usr_maya", { type: "attach_evidence", target: { kind: "exception", id: excId }, evidence: { kind, description: "Evidence (fictional)" } }).workspace;
+    return run(ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: excId }, note: "Reviewed" }).workspace;
+  };
+
+  it("return with a debit (s2): contradicted / bank_statement — also after a recompute while the return is open", () => {
+    let ws = sampleWorkspace();
+    const id = scenarioIntentId(ws, "s2_returned")!;
+    expect(intent(ws, id).status).toMatchObject({ settlement: "contradicted", settlementScope: "bank_statement" });
+    // a provider report on the returned payout opens a second contradiction; resolving it runs the recompute
+    const ppid = ws.instructions.find((x) => x.id === intent(ws, id).instructionId)!.providerPaymentId!;
+    ws = run(ws, "usr_maya", { type: "ingest_statement_line", line: debitLine({ source: "provider_settlement_report", accountRef: "prv_northline:settlement", reference: ppid, amountMinor: 1_278_490, currency: "USD", valueDate: "2026-11-12" }) }).workspace;
+    const rep = listExceptions(ws, { intentId: id, category: "contradictory_evidence", status: "unresolved" })[0];
+    ws = resolveWithEvidence(ws, rep.id);
+    // Before the fix: the recompute set scope "none" while settlement stayed "contradicted".
+    expect(intent(ws, id).status).toMatchObject({ execution: "returned", settlement: "contradicted", settlementScope: "bank_statement" });
+  });
+
+  it("return without a debit: none / none, before and after a recompute", () => {
+    let { ws, id, ppid } = submitted({ sandboxOutcome: "return" });
+    ws = sim(sim(ws, id).workspace, id).workspace;
+    expect(intent(ws, id).status).toMatchObject({ settlement: "none", settlementScope: "none" });
+    ws = run(ws, "usr_maya", { type: "ingest_statement_line", line: debitLine({ source: "provider_settlement_report", accountRef: "prv_northline:settlement", reference: ppid }) }).workspace;
+    const rep = listExceptions(ws, { intentId: id, category: "contradictory_evidence", status: "unresolved" })[0];
+    ws = resolveWithEvidence(ws, rep.id);
+    expect(intent(ws, id).status).toMatchObject({ settlement: "none", settlementScope: "none" });
+  });
+
+  it("after a person resolves the return: none / none, reconciliation matched only net of the confirmed return", () => {
+    let ws = sampleWorkspace();
+    const id = scenarioIntentId(ws, "s2_returned")!;
+    const ret = listExceptions(ws, { intentId: id, category: "returned_payout" })[0];
+    ws = resolveWithEvidence(ws, ret.id, "funds_returned_confirmation");
+    expect(intent(ws, id).status).toEqual({ execution: "returned", settlement: "none", settlementScope: "none", reconciliation: "matched" });
+  });
+
+  it("return after an on-chain transfer: contradicted / onchain_transfer, also after a recompute", () => {
+    let { ws, id, ppid } = submitted({ amountMinor: 6_427_830_000, sourceCurrency: "USDC", destinationCurrency: "USDC", destinationCountry: "SG", sandboxOutcome: "chain_delay" }, "prv_tidewater");
+    ws = sim(ws, id).workspace; // in_transit
+    ws = sim(ws, id).workspace; // chain observed (0 confirmations)
+    ws = run(ws, "usr_maya", { type: "ingest_webhook", delivery: signedDelivery(ws, "prv_tidewater", { id: `${ppid}-E9`, type: "payout.returned", provider_payment_id: ppid, sequence: 9, occurred_at: ws.asOf, reason: "beneficiary_account_invalid" }) }).workspace;
+    expect(intent(ws, id).status).toMatchObject({ settlement: "contradicted", settlementScope: "onchain_transfer" });
+    ws = run(ws, "usr_maya", { type: "ingest_statement_line", line: debitLine({ source: "provider_settlement_report", accountRef: "prv_tidewater:settlement", reference: ppid, amountMinor: 6_427_830_000, currency: "USDC" }) }).workspace;
+    const rep = listExceptions(ws, { intentId: id, category: "contradictory_evidence", status: "unresolved" }).find((e) => e.explanationCode === "RC_REPORT_ON_TERMINAL_PAYOUT")!;
+    ws = resolveWithEvidence(ws, rep.id);
+    expect(intent(ws, id).status).toMatchObject({ settlement: "contradicted", settlementScope: "onchain_transfer" });
+  });
+});

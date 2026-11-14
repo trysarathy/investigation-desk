@@ -6,7 +6,7 @@ import {
   CASE_REPORT_CSV_COLUMNS, CASE_REPORT_MARKING, SAMPLE_SCENARIOS, buildCaseReport, caseReportToCsv, caseReportToJson, sampleWorkspace,
   scenarioIntentId, serializeWorkspace, type SampleScenario, type SyntheticCaseReport, type Workspace,
 } from "@/lib/clearline";
-import { debitLine, errorCode, intent, run, sim } from "./helpers";
+import { created, debitLine, errorCode, intent, run, signedDelivery, sim, submitted } from "./helpers";
 
 const SCENARIOS = Object.keys(SAMPLE_SCENARIOS) as SampleScenario[];
 const report = (ws: Workspace, ref: Parameters<typeof buildCaseReport>[1]): SyntheticCaseReport => {
@@ -181,4 +181,74 @@ describe("caseReportToJson / caseReportToCsv", () => {
       for (const c of row) expect(c).not.toMatch(/[\r\n]/);
     }
   });
+});
+
+describe("review B-1: 'matched' comes from allocations, never from requested − outstanding (JSON and CSV)", () => {
+  const csvAmount = (csv: string, section: string, code: string) => parseCsv(csv).find((r) => r[0] === section && r[1] === code)!.slice(6, 8);
+  const check = (ws: Workspace, id: string, matched: string, unreconciled: string, currency = "SGD") => {
+    const r = report(ws, id);
+    expect(r.amounts.matched).toEqual({ value: matched, currency });
+    expect(r.threeTruths.reconciliation.matched).toEqual({ value: matched, currency });
+    expect(r.amounts.unreconciled).toEqual({ value: unreconciled, currency });
+    const csv = caseReportToCsv(r);
+    expect(csvAmount(csv, "amount", "MATCHED")).toEqual([matched, currency]);
+    expect(csvAmount(csv, "amount", "UNRECONCILED")).toEqual([unreconciled, currency]);
+    expect(parseCsv(csv).find((x) => x[0] === "truth_reconciliation")!.slice(6, 8)).toEqual([matched, currency]);
+    return r;
+  };
+  const failed = (withDebit: boolean) => {
+    let { ws, id, ppid } = submitted({ amountMinor: 1_000_000 });
+    ws = sim(ws, id).workspace;
+    if (withDebit) ws = run(ws, "usr_maya", { type: "ingest_statement_line", line: debitLine({ reference: `PAYOUT ${ppid}` }) }).workspace;
+    ws = run(ws, "usr_maya", { type: "ingest_webhook", delivery: signedDelivery(ws, "prv_northline", { id: `${ppid}-E8`, type: "payout.failed", provider_payment_id: ppid, sequence: 8, occurred_at: ws.asOf, reason: "beneficiary_account_invalid" }) }).workspace;
+    return { ws, id };
+  };
+
+  it("created only (never sent): matched 0.00, nothing unreconciled", () => {
+    const c = created({ amountMinor: 1_000_000 });
+    check(c.ws, c.id, "0.00", "0.00"); // before the fix: matched 10000.00
+  });
+  it("failed with no evidence: matched 0.00", () => {
+    const f = failed(false);
+    expect(intent(f.ws, f.id).status).toMatchObject({ execution: "failed", settlement: "none" });
+    check(f.ws, f.id, "0.00", "0.00"); // before the fix: matched 10000.00
+  });
+  it("failed after a matched debit: matched is the debit actually allocated (the money did leave), with the contradiction shown", () => {
+    const f = failed(true);
+    const r = check(f.ws, f.id, "10000.00", "0.00");
+    expect(r.threeTruths.settlement.state).toBe("contradicted");
+    expect(r.findings.some((x) => x.section === "contradiction" && x.code === "RC_DEBIT_FOR_FAILED_PAYOUT")).toBe(true);
+  });
+  it("s3 on hold (sent, no evidence): matched 0.00, the whole amount unreconciled; rejected (cancelled): matched 0.00, nothing unreconciled", () => {
+    let ws = sampleWorkspace();
+    const s3 = scenarioIntentId(ws, "s3_hold")!;
+    check(ws, s3, "0.00", "8839.50");
+    ws = run(ws, "usr_maya", { type: "submit_hold_documents", holdId: ws.holds[0].id, documents: ["Supporting commercial invoice"] }).workspace;
+    ws = run(ws, "usr_priya", { type: "record_hold_decision", holdId: ws.holds[0].id, decision: "reject", reason: "Declined (fictional)" }).workspace;
+    expect(intent(ws, s3).status.execution).toBe("cancelled");
+    check(ws, s3, "0.00", "0.00"); // before the fix: matched 8839.50
+  });
+  it("partial bank line: matched 2500.00, unreconciled 7500.00; exact s1: 24651.37 / 0.00; returned s2: the debit 12784.90 / 0.00 (USD)", () => {
+    let { ws, id, ppid } = submitted({ amountMinor: 1_000_000 });
+    ws = sim(sim(ws, id).workspace, id).workspace;
+    ws = run(ws, "usr_maya", { type: "ingest_statement_line", line: debitLine({ reference: `PAYOUT ${ppid}`, amountMinor: 250_000 }) }).workspace;
+    check(ws, id, "2500.00", "7500.00");
+    const sample = sampleWorkspace();
+    check(sample, scenarioIntentId(sample, "s1_success")!, "24651.37", "0.00");
+    check(sample, scenarioIntentId(sample, "s2_returned")!, "12784.90", "0.00", "USD");
+  });
+});
+
+describe("review m-5: the CSV formula guard covers a leading tab and a leading minus", () => {
+  for (const payload of ["\t=1+1 tab-led", "-2+3 minus-led", "+SUM(A1) plus-led", "@x at-led"])
+    it(`person text ${JSON.stringify(payload.slice(0, 5))} is prefixed with ' in every CSV cell`, () => {
+      let w = sampleWorkspace();
+      const id = scenarioIntentId(w, "s2_returned")!;
+      w = run(w, "usr_maya", { type: "attach_evidence", target: { kind: "case", id: intent(w, id).caseId! }, evidence: { kind: "document_metadata", description: payload } }).workspace;
+      const r = report(w, id);
+      expect(r.timeline.some((e) => e.title === payload)).toBe(true);
+      const cells = parseCsv(caseReportToCsv(r)).flatMap((row) => row.filter((_, i) => i !== 6));
+      expect(cells).toContain("'" + payload);
+      for (const c of cells) expect(c).not.toMatch(/^[=+\-@\t]/);
+    });
 });

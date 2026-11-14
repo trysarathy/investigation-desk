@@ -186,3 +186,60 @@ describe("ownership is well-founded on the sample", () => {
     }
   });
 });
+
+describe("review m-2: reset does not move the clock; the restored case is in the state the current clock implies", () => {
+  const LATER = "2026-11-25T02:00:00.000Z";
+  it("ctx.at later than the clock: asOf unchanged, the event is stamped at asOf, other advances untouched", () => {
+    const ws = sampleWorkspace();
+    const r = resetScenario(ws, "s1_success", { actorId: "usr_maya", at: LATER });
+    if (!r.ok) throw new Error(r.error.message);
+    // Before the fix: asOf moved to LATER while s5's advance stayed "partly_repaid" (stale: overdue at LATER).
+    expect(r.value.workspace.asOf).toBe(ws.asOf);
+    expect(r.value.audit.at(-1)).toMatchObject({ action: "scenario.reset", at: ws.asOf });
+    expect(r.value.workspace.advances).toEqual(ws.advances);
+  });
+  it("after advance_clock past the due date: resetting s5 restores it OVERDUE with its FD_OUTSTANDING_AFTER_DUE_DATE exception; other cases byte-identical", () => {
+    let ws = run(sampleWorkspace(), "usr_maya", { type: "advance_clock", to: LATER }).workspace;
+    const s5 = scenarioIntentId(ws, "s5_funding")!;
+    ws = run(ws, "usr_maya", { type: "add_note", target: { kind: "case", id: intent(ws, s5).caseId! }, text: "Chased the customer (fictional)" }).workspace;
+    const r = resetScenario(ws, "s5_funding", ctx(ws));
+    if (!r.ok) throw new Error(r.error.message);
+    const after = r.value.workspace;
+    expect(after.asOf).toBe(LATER);
+    const adv = after.advances.find((a) => a.intentId === s5)!;
+    expect(adv.state).toBe("overdue"); // the sample's stored state is partly_repaid; re-derived at the current clock
+    const overdue = listExceptions(after, { category: "overdue_advance", status: "unresolved" }).filter((e) => e.obligationId === adv.obligationId);
+    expect(overdue.map((e) => e.explanationCode)).toEqual(["FD_OUTSTANDING_AFTER_DUE_DATE"]);
+    expect(r.value.audit.map((a) => a.action)).toEqual(expect.arrayContaining(["exception.opened", "scenario.reset"]));
+    for (const other of SCENARIOS.filter((x) => x !== "s5_funding")) expect(`${other}: ${caseView(after, other) === caseView(ws, other)}`).toBe(`${other}: true`);
+  });
+});
+
+describe("review m-4: the reset audit event names what was removed", () => {
+  it("lists every removed id and each removed statement line's line id, account, direction and amount", () => {
+    const ws = mutateAll();
+    const r = resetScenario(ws, "s5_funding", ctx(ws));
+    if (!r.ok) throw new Error(r.error.message);
+    const ev = r.value.audit.find((a) => a.action === "scenario.reset")!;
+    for (const id of r.value.removedIds) expect(ev.summary).toContain(id);
+    expect(ev.summary).toMatch(/RC3-RESET-RPY @ BANK-SGD-OPS \(fictional\), credit SGD 20,000\.00/);
+  });
+});
+
+describe("review m-5: ID_CONFLICT is enforced", () => {
+  it("a person's record that reuses a case's sample id (and no longer belongs to the case) blocks the reset", () => {
+    let ws = sampleWorkspace();
+    const mine = run(ws, "usr_maya", { type: "create_intent", input: { internalReference: "INV-MINE-IDC", amountMinor: 100_000, sourceCurrency: "SGD", destinationCurrency: "PHP", purpose: "Supplier invoice", beneficiaryRef: "BEN-MINE-01", beneficiaryName: "My Supplier (fictional)", destinationCountry: "PH", requestedExecutionDate: "2026-11-20", idempotencyKey: "rc3-idc-0001" } });
+    ws = mine.workspace;
+    const s4 = scenarioIntentId(ws, "s4_chain")!;
+    // an s4 evidence record no other record references, re-pointed at the person's payment (as a crafted import would)
+    const ev = ws.evidence.find((e) => e.intentId === s4 && e.kind === "chain_observation")!;
+    const text = serializeWorkspace(ws);
+    expect(text.split(`"${ev.id}"`).length - 1).toBe(1);
+    const w = JSON.parse(text) as Workspace;
+    w.evidence.find((e) => e.id === ev.id)!.intentId = mine.createdIds[0];
+    expect(canResetScenario(w, "s4_chain")).toMatchObject({ allowed: false, code: "ID_CONFLICT", blockers: [ev.id] });
+    const r = resetScenario(w, "s4_chain", ctx(w));
+    expect(!r.ok && r.error.message).toMatch(/^ID_CONFLICT: /);
+  });
+});

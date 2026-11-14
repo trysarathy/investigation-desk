@@ -27,13 +27,18 @@
  * - SCENARIO_NOT_IN_WORKSPACE / ID_CONFLICT: the workspace was not derived from the sample (its ids do
  *   not line up), so a per-case reset cannot be proven safe.
  *
- * Clock: the workspace clock is not rewound. Restored records keep their sample timestamps; rules
- * derived from the clock (advance state, overdue) are evaluated at the current clock.
+ * Clock (review m-2): the workspace clock is neither rewound nor moved; ctx.at must be ≥ asOf and the audit
+ * event is stamped at asOf. Restored records keep their sample timestamps, and the clock rules advance_clock
+ * applies (quote expiry, execution-date expiry, provider timeout, missing statement, overdue repayment) are
+ * applied to the restored records at the current clock, so a case restored "late" is in the state the clock
+ * implies (e.g. s5 overdue with its FD_OUTSTANDING_AFTER_DUE_DATE exception). Nothing else changes.
  */
+import { applyClockRules } from "./actions";
 import { deriveAdvanceState } from "./funding";
+import { formatMinor } from "./money";
 import { SAMPLE_SCENARIOS, sampleWorkspace, type SampleScenario } from "./sample";
 import { parseWorkspaceValue } from "./serialize";
-import { isIsoInstant, referenceTokens } from "./tx";
+import { Tx, isIsoInstant, referenceTokens } from "./tx";
 import type { ActionContext, AuditEvent, Result, Workspace } from "./types";
 
 /** Collections whose records carry sequential ids and can belong to a guided case. */
@@ -191,9 +196,10 @@ function plan(ws: Workspace, input: string): Plan {
 
 /** Whether `scenario` (a SampleScenario key, or its sample payment id or case id) can be reset now, and why not. */
 export function canResetScenario(ws: Workspace, scenario: string): ResetCheck {
-  const valid = parseWorkspaceValue(ws);
+  // Parse a copy: parsing may migrate an older workspace in place (review M-1); the input is never changed.
+  const valid = parseWorkspaceValue(structuredClone(ws));
   if (!valid.ok) return { allowed: false, code: "SCENARIO_NOT_IN_WORKSPACE", reason: valid.error.message, blockers: [] };
-  return plan(ws, scenario).check;
+  return plan(valid.value, scenario).check;
 }
 
 /**
@@ -202,9 +208,11 @@ export function canResetScenario(ws: Workspace, scenario: string): ResetCheck {
  * actor), not_found (NOT_A_SAMPLE_SCENARIO), precondition_failed (every other refusal; the message
  * starts with the ResetBlockCode, e.g. "REFERENCED_BY_OTHER_RECORDS: …", and entityId is the first blocker).
  */
-export function resetScenario(ws: Workspace, scenario: string, ctx: ActionContext): Result<ResetScenarioOutput> {
-  const valid = parseWorkspaceValue(ws);
+export function resetScenario(input: Workspace, scenario: string, ctx: ActionContext): Result<ResetScenarioOutput> {
+  // Parse a copy: parsing may migrate an older workspace in place (review M-1); the input is never changed.
+  const valid = parseWorkspaceValue(structuredClone(input));
   if (!valid.ok) return valid;
+  const ws = valid.value;
   if (!ctx || !isIsoInstant(ctx.at) || Date.parse(ctx.at) < Date.parse(ws.asOf))
     return { ok: false, error: { code: "invalid_field", message: "ctx.at must be an ISO-8601 instant not earlier than the workspace clock (asOf).", field: "at" } };
   if (!ws.actors.some((a) => a.id === ctx.actorId)) return { ok: false, error: { code: "unauthorized_actor", message: "Unknown actor.", field: "actorId" } };
@@ -226,16 +234,23 @@ export function resetScenario(ws: Workspace, scenario: string, ctx: ActionContex
   out.idempotency = {};
   for (const [k, v] of entries) Object.defineProperty(out.idempotency, k, { value: v, enumerable: true, writable: true, configurable: true });
 
-  const at = new Date(Date.parse(ctx.at)).toISOString();
-  if (Date.parse(at) > Date.parse(out.asOf)) out.asOf = at;
-  for (const adv of out.advances) if (restore.some((r) => r.rec.id === adv.id)) adv.state = deriveAdvanceState(out, adv.id, out.asOf);
-  out.seq += 1;
-  const event: AuditEvent = {
-    id: `aud_${String(out.seq).padStart(5, "0")}`, at, actorId: ctx.actorId, action: "scenario.reset", entityType: "scenario", entityId: sc,
-    summary: `Guided case ${sc} reset to the sample: ${remove.size} record(s) replaced by ${restore.length}; other cases and person-created records unchanged.`,
-  };
-  out.audit.push(event);
-  const again = parseWorkspaceValue(out);
+  // Review m-2: a reset is not a clock action, so the clock is NOT moved (ctx.at is validated, ≥ asOf, but the
+  // event is stamped at the workspace clock). The restored records are brought to the state the CURRENT clock
+  // implies, with the same rules advance_clock applies (quote expiry, execution-date expiry, provider
+  // timeout, missing statement, overdue repayment), scoped to the restored records so nothing else changes.
+  const tx = new Tx(out, { actorId: ctx.actorId, at: out.asOf });
+  const restoredIds = new Set(restore.map((r) => r.rec.id));
+  applyClockRules(tx, restoredIds);
+  for (const adv of tx.ws.advances) if (restoredIds.has(adv.id)) adv.state = deriveAdvanceState(tx.ws, adv.id, tx.ws.asOf);
+  // Review m-4: the audit event names every removed record, and each removed statement line's own line id,
+  // account, direction and amount, so the trail can say exactly what a person's reset discarded.
+  const removedIds = [...remove].sort((a, b) => seqOf(a) - seqOf(b));
+  const lines = ws.statementLines.filter((l) => remove.has(l.id)).map((l) => `${l.id} = ${l.lineId} @ ${l.accountRef}, ${l.direction} ${formatMinor(l.amountMinor, l.currency)}`);
+  tx.log("scenario.reset", "scenario", sc,
+    `Guided case ${sc} reset to the sample: ${remove.size} record(s) replaced by ${restore.length}; other cases and person-created records unchanged. ` +
+    `Removed: ${removedIds.join(", ") || "none"}.` + (lines.length ? ` Removed statement lines: ${lines.join("; ")}.` : ""));
+  const after = tx.ws;
+  const again = parseWorkspaceValue(after);
   if (!again.ok) return again;
-  return { ok: true, value: { workspace: out, scenario: sc, removedIds: [...remove].sort((a, b) => seqOf(a) - seqOf(b)), restoredIds: restore.map((r) => r.rec.id), audit: [event] } };
+  return { ok: true, value: { workspace: after, scenario: sc, removedIds, restoredIds: restore.map((r) => r.rec.id), audit: tx.audit } };
 }

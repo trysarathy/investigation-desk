@@ -10,7 +10,7 @@
  * `caseReportToJson` (sorted keys, 2-space indent, trailing newline) and `caseReportToCsv` (RFC 4180,
  * CRLF, one row per item, spreadsheet-formula cells neutralised) serialise it.
  */
-import { evidenceTimelineFor, investigate, ENGINE_DISCLAIMER } from "./investigation";
+import { evidenceTimelineFor, investigate, matchedMinorFor, ENGINE_DISCLAIMER } from "./investigation";
 import { HUMAN_LABELS, describeCode, describeStatus } from "./labels";
 import { formatDecimal } from "./money";
 import type { CurrencyCode, EngineError, ExceptionCategory, ExceptionStatus, Money, ReconciliationState, Result, SettlementEvidenceState, SettlementScope, Severity, ExecutionState, Workspace } from "./types";
@@ -72,6 +72,7 @@ export interface SyntheticCaseReport {
   threeTruths: {
     execution: { state: ExecutionState; label: string; basis: "provider_claim"; lastProviderEvent?: string; lastProviderEventAt?: string };
     settlement: { state: SettlementEvidenceState; label: string; scope: SettlementScope; scopeLabel: string; independent: boolean; lastIndependentEvidenceAt?: string };
+    /** matched = outgoing debits (or a final chain transfer) allocated to the payout by trusted reference; unreconciled = what a sent, live payout still lacks (0 once failed/cancelled/expired/returned or never sent). */
     reconciliation: { state: ReconciliationState; label: string; matched: DecimalAmount; unreconciled: DecimalAmount };
   };
   timeline: CaseReportTimelineEntry[];
@@ -112,8 +113,9 @@ export function buildCaseReport(ws: Workspace, ref: CaseReportRef): Result<Synth
   const m = (amountMinor: number): DecimalAmount => dec({ amountMinor, currency: cur });
   const status = describeStatus(view.status);
   const unreconciledMinor = view.outstanding.filter((o) => o.code === "OS_NOT_RECONCILED" || o.code === "OS_PARTIALLY_RECONCILED").reduce((t, o) => t + (o.amount?.amountMinor ?? 0), 0);
-  const isReturned = view.status.execution === "returned";
-  const matchedMinor = isReturned ? 0 : intent.amountMinor - unreconciledMinor;
+  // Review B-1: matched comes from the allocations themselves (investigation.ts matchedMinorFor), never from
+  // "requested − outstanding" — a failed, cancelled or never-sent payout has nothing matched.
+  const matchedMinor = matchedMinorFor(ws, intent);
   const requested = m(intent.amountMinor);
   const lastProvider = view.providerReported.events.filter((e) => e.provenance !== "clearline_timer").at(-1);
 

@@ -9,7 +9,7 @@ import { ingestPayload, setExecution } from "./events";
 import { canResolveCase, canResolveException, ensureCase, openException } from "./exceptions";
 import { deriveAdvanceState, obligationOutstanding } from "./funding";
 import { computeLiquidity } from "./liquidity";
-import { isCurrency, validateAmountMinor } from "./money";
+import { MAX_AMOUNT_MINOR, isCurrency, validateAmountMinor, withinTotal } from "./money";
 import { reconcileLine } from "./reconciliation";
 import { recomputeDimensions } from "./derive";
 import { parseWorkspaceValue } from "./serialize";
@@ -134,7 +134,7 @@ function transition(tx: Tx, intent: PaymentIntent, to: PaymentIntent["status"]["
 }
 
 /** Keep stored advance states consistent with the projection rules. */
-function syncDerived(tx: Tx) {
+export function syncDerived(tx: Tx) {
   for (const adv of tx.ws.advances) adv.state = deriveAdvanceState(tx.ws, adv.id, tx.ws.asOf);
 }
 
@@ -160,6 +160,8 @@ function createIntent(tx: Tx, input: CreateIntentInput): string {
   const amount = validateAmountMinor(input.amountMinor);
   if (!amount.ok) fail(amount.error.code, amount.error.message, { field: "amountMinor" });
   if (!isCurrency(input.sourceCurrency)) fail("invalid_currency", "Unsupported source currency.", { field: "sourceCurrency" });
+  if (!withinTotal(tx.ws.intents.filter((i) => i.sourceCurrency === input.sourceCurrency).map((i) => i.amountMinor), input.amountMinor))
+    fail("invalid_amount", `The workspace's total of ${input.sourceCurrency} payments would exceed the sandbox limit of ${MAX_AMOUNT_MINOR} minor units.`, { field: "amountMinor" });
   if (!isCurrency(input.destinationCurrency)) fail("invalid_currency", "Unsupported destination currency.", { field: "destinationCurrency" });
   if (typeof input.internalReference !== "string" || !REF_RE.test(input.internalReference)) fail("invalid_field", "internalReference must be 2–48 characters [A-Za-z0-9._-/].", { field: "internalReference" });
   // m6: one active intent per internal reference, corrections included.
@@ -449,6 +451,8 @@ function ingestStatement(tx: Tx, input: StatementLineInput): string {
   const amt = validateAmountMinor(input.amountMinor);
   if (!amt.ok) fail(amt.error.code, amt.error.message, { field: "amountMinor" });
   if (!isCurrency(input.currency)) fail("invalid_currency", "Unsupported currency.", { field: "currency" });
+  if (!withinTotal(tx.ws.statementLines.filter((l) => l.currency === input.currency).map((l) => l.amountMinor), input.amountMinor))
+    fail("invalid_amount", `The workspace's total of ${input.currency} statement lines would exceed the sandbox limit of ${MAX_AMOUNT_MINOR} minor units.`, { field: "amountMinor" });
   if (typeof input.reference !== "string" || input.reference.length > 140 || /[<>]/.test(input.reference)) fail("invalid_field", "reference must be plain text ≤ 140 chars (may be empty).", { field: "reference" });
   if (typeof input.counterparty !== "string" || input.counterparty.length > 120 || /[<>]/.test(input.counterparty)) fail("invalid_field", "counterparty must be plain text.", { field: "counterparty" });
   if (!isIsoDate(input.valueDate)) fail("invalid_field", "valueDate must be YYYY-MM-DD.", { field: "valueDate" });
@@ -472,11 +476,25 @@ const MISSING_STATEMENT_MINUTES = 2 * 1440;
 function advanceClock(tx: Tx, to: string): string {
   requireRole(tx, ["operator", "approver", "compliance"]);
   if (!isIsoInstant(to) || Date.parse(to) < Date.parse(tx.ws.asOf)) fail("invalid_field", "to must be an ISO instant not earlier than asOf.", { field: "to" });
+  tx.ws.asOf = new Date(Date.parse(to)).toISOString();
+  applyClockRules(tx);
+  tx.log("clock.advanced", "workspace", "clock", `Simulated clock moved to ${tx.ws.asOf}`);
+  return "applied";
+}
+
+/**
+ * The time-dependent rules at the workspace clock (`ws.asOf`): quote expiry, execution-date expiry,
+ * provider timeout, missing statement after completion, overdue repayment. `advance_clock` runs them on
+ * everything; review m-2: `resetScenario` runs them on the restored case's records only (`only` = their
+ * ids), so a case restored under a later clock is in the state the clock implies, and nothing else changes.
+ */
+export function applyClockRules(tx: Tx, only?: ReadonlySet<string>): void {
   const ws = tx.ws;
-  ws.asOf = new Date(Date.parse(to)).toISOString();
   const now = ws.asOf;
-  for (const q of ws.quotes) if (q.freshness === "fresh" && Date.parse(q.expiresAt) < Date.parse(now)) q.freshness = "expired";
+  const inScope = (id: string) => !only || only.has(id);
+  for (const q of ws.quotes) if (inScope(q.id) && q.freshness === "fresh" && Date.parse(q.expiresAt) < Date.parse(now)) q.freshness = "expired";
   for (const intent of ws.intents) {
+    if (!inScope(intent.id)) continue;
     const exec = intent.status.execution;
     if (["created", "quoted", "approved"].includes(exec) && intent.requestedExecutionDate < tx.orgDate(now)) {
       setExecution(tx, intent, "expired", "Requested execution date passed before submission");
@@ -510,6 +528,7 @@ function advanceClock(tx: Tx, to: string): string {
     }
   }
   for (const ob of ws.obligations) {
+    if (!inScope(ob.id)) continue;
     const out = obligationOutstanding(ws, ob.id);
     if (out.amountMinor > 0 && tx.orgDate(now) > ob.dueDate)
       openException(tx, {
@@ -522,8 +541,6 @@ function advanceClock(tx: Tx, to: string): string {
         dueDate: ob.dueDate,
       });
   }
-  tx.log("clock.advanced", "workspace", "clock", `Simulated clock moved to ${now}`);
-  return "applied";
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -635,6 +652,14 @@ function resolve(tx: Tx, t: TargetRef, note: string): string {
     r.e.history.push({ at: tx.at, actorId: tx.actorId, action: "resolved", detail: note });
     r.e.lastUpdatedAt = tx.at;
     tx.log("exception.resolved", "exception", r.e.id, note.slice(0, 80));
+    // Review m-3: a person resolving a tx-hash conflict supersedes the REJECTED observation it names, so the
+    // correctly identified observation of that hash can be evaluated (the rejected record stays on record).
+    if (r.e.explanationCode === "CH_TX_HASH_ON_OTHER_CHAIN" || r.e.explanationCode === "CH_TX_HASH_CONFLICT")
+      for (const o of tx.ws.chainObservations)
+        if (r.e.supportingEventIds.includes(o.id) && o.status === "rejected_unsupported" && !o.supersededBy) {
+          o.supersededBy = r.e.id;
+          tx.log("chain.observation_superseded", "chain_observation", o.id, `Superseded by the person's resolution of ${r.e.id}; kept on record, no longer blocks this hash`);
+        }
     // M3/m3: after a person resolves an exception, re-derive the dimensions from recorded evidence.
     const linked = r.e.intentId ? tx.ws.intents.find((i) => i.id === r.e.intentId) : undefined;
     if (linked && linked.instructionId) {

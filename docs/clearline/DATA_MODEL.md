@@ -21,7 +21,7 @@ Source of truth: `src/lib/clearline/types.ts`. All data is fictional sandbox dat
 | `ComplianceHold` | intentId, providerId, `reportedBy: partner`, reason, requestedDocuments, submittedDocuments, reviewerId, partnerReleaseReportedAt, decisions, status, `autoRelease: false` | |
 | `LiquidityPolicy` | label, definedBy, bufferBps, minBufferMinor, maxAgeMinutes | Illustrative and provider-defined; not a regulatory classification. |
 | `LiquiditySnapshot` | providerId, accountRef, currency, eligibleMinor, restrictedMinor, safeguardedMinor, source, asOf | |
-| `ChainObservation` | (only for a submitted USDC payout on the testnet route, to the beneficiary's registered wallet, for the quoted amount; one tx hash per payout) chainId, network, tokenContract, tokenSymbol, txHash, toAddress, amountMinor, blockNumber, confirmations, finalityThreshold, status (`observed`, `pending_finality`, `final`, `rejected_unsupported`) | Synthetic Base Sepolia (84532). |
+| `ChainObservation` | (only for a submitted USDC payout on the testnet route, to the beneficiary's registered wallet, for the quoted amount; one tx hash per payout) chainId, network, tokenContract, tokenSymbol, txHash, toAddress, amountMinor, blockNumber, confirmations, finalityThreshold, status (`observed`, `pending_finality`, `final`, `rejected_unsupported`) | Synthetic Base Sepolia (84532). `supersededBy?` (CHANGE 8 m-3): on a rejected observation, the id of the resolved hash-conflict exception that superseded it; it then no longer blocks the same hash. |
 | `FundingAdvance` | intentId, customer, supplier, invoiceRef, principal, preparedBy, dueDate, repaymentReference, state, decisionId, obligationId | Projection-side only. |
 | `FundingDecision` | advanceId, makerId, checkerId, outcome, reason | maker ≠ checker. |
 | `RepaymentObligation` | advanceId, principal, dueDate, reference | Created on approval. |
@@ -111,3 +111,13 @@ Result: `investigate().returnPosition` = `RT_NET_ZERO` (debited = return credite
   - Ownership: each sample intent or advance belongs to its case. Each person-created intent or advance belongs to the person. Every other record belongs to the owners of the records it references by id, transitively; a statement line also follows the trusted reference it carries.
   - Records owned only by the reset case are replaced by the sample versions. Everything else is unchanged; the audit trail only grows.
   - The reset is refused when a record links the case to anything else.
+
+## Rules added after the rc3 code review (CHANGE 8, 2026-11-14)
+
+- **Loading.** Parsing migrates a failed, cancelled, expired or returned payout stored as `verified` with evidence (a state earlier engine versions wrote) to the rc3 state: `contradicted`, or `none` if a person already resolved the contradiction, adding the owned contradiction exception rc3 would raise. Each migration is audited `workspace.migrated`. Without evidence the state is refused.
+- **Bounds.** Every amount ≤ 10^15 minor units; basis points 0–10 000; per-currency totals of intents, statement lines and each liquidity balance field ≤ 10^15, checked at parse and when an action adds an intent or a line.
+- **Chain.** A tx hash recorded with another identity or rejected as unsupported (any chain) is never counted (`CH_TX_HASH_CONFLICT` / `CH_TX_HASH_ON_OTHER_CHAIN`) until a person resolves the conflict, which sets `supersededBy` on the rejected record.
+- **Cases.** A case may also close when a person accepted (resolved with evidence) an over-amount, wrong-currency or out-of-window bank debit that carries the payout's provider payment id.
+- **Returned payouts.** Scope follows settlement: `contradicted` keeps the contradicted evidence's scope (`bank_statement` / `onchain_transfer`), `none` has scope `none`.
+- **Reset.** The clock is not moved; the clock's rules apply to the restored records; the audit event lists what was removed.
+- **Case report.** `matched` is the amount actually allocated (0.00 for a created, failed or cancelled payout with no evidence).

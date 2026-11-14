@@ -110,6 +110,18 @@ info:
       console. No v1 endpoint exposes them yet. Their output shapes are documented here as `ResetCheck` and
       `SyntheticCaseReport` for a future endpoint.
 
+    **CHANGE 8 (review of efabe6a).**
+    - **Loading posted workspaces.** A posted workspace from an earlier engine version, with a failed,
+      cancelled, expired or returned payout stored as `verified` and evidence, is migrated (audited
+      `workspace.migrated`), not refused.
+    - **Bounds.** Each amount is at most 10^15 minor units; per-currency totals are at most 10^15; basis
+      points are 0–10000.
+    - **Case resolution.** It also accepts a bank debit whose over-amount, currency or window exception a
+      person resolved.
+    - **Chain.** New exception code `CH_TX_HASH_CONFLICT`.
+    - **Case report.** `matched` is the allocated amount.
+    - **Reset.** It does not move the clock.
+
     **Legacy endpoints** under `/api/clearline/test/{intents,quotes,transitions,webhooks,payments,health}`
     are **retired** and execute nothing. A request that is invalid under the old contract gets HTTP 422
     (`invalid_request`); every other request, any method, gets HTTP 410 (`endpoint_retired`). Both carry
@@ -516,7 +528,7 @@ components:
     ReconciliationCode:
       type: string
       enum: [RC_EXACT_REFERENCE_AMOUNT_CURRENCY_WINDOW, RC_PARTIAL_AMOUNT, RC_OVERPAYMENT, RC_CURRENCY_MISMATCH, RC_OUTSIDE_TIME_WINDOW, RC_LATE_STATEMENT, RC_NO_REFERENCE, RC_UNKNOWN_REFERENCE, RC_AMOUNT_ONLY_CANDIDATES, RC_AMBIGUOUS_REFERENCE, RC_DUPLICATE_SUSPECTED, RC_RETURN_CONFIRMS_PROVIDER_RETURN, RC_RETURN_CONTRADICTS_PROVIDER_STATUS, RC_UNMATCHED_INCOMING, RC_UNMATCHED_OUTGOING, RC_PROVIDER_REPORT_ONLY, RC_REPAYMENT_BY_REFERENCE, RC_UNDER_AMOUNT_REPORT, RC_REPORT_ON_TERMINAL_PAYOUT, RC_REPORT_ON_HELD_PAYOUT]
-      description: Statement-line explanation codes (`RECONCILIATION_CODE_TEXT` / `RECONCILIATION_CODE_GROUP`). Exceptions may also carry `RC_DEBIT_FOR_FAILED_PAYOUT`, `RC_DEBIT_FOR_TERMINAL_PAYOUT` and `RC_NO_STATEMENT_AFTER_COMPLETION`, and (rc3) the chain codes `CH_TX_HASH_ON_OTHER_CHAIN`, `CH_BLOCK_CHANGED`, `CH_TRANSFER_FOR_TERMINAL_PAYOUT`.
+      description: Statement-line explanation codes (`RECONCILIATION_CODE_TEXT` / `RECONCILIATION_CODE_GROUP`). Exceptions may also carry `RC_DEBIT_FOR_FAILED_PAYOUT`, `RC_DEBIT_FOR_TERMINAL_PAYOUT` and `RC_NO_STATEMENT_AFTER_COMPLETION`, and (rc3) the chain codes `CH_TX_HASH_ON_OTHER_CHAIN`, `CH_TX_HASH_CONFLICT`, `CH_BLOCK_CHANGED`, `CH_TRANSFER_FOR_TERMINAL_PAYOUT`.
     AmountDifference:
       type: object
       description: >-
@@ -656,7 +668,7 @@ components:
           properties:
             execution: { type: object, properties: { state: { type: string }, label: { type: string }, basis: { const: provider_claim }, lastProviderEvent: { type: string }, lastProviderEventAt: { type: string, format: date-time } } }
             settlement: { type: object, properties: { state: { type: string }, label: { type: string }, scope: { type: string }, scopeLabel: { type: string }, independent: { type: boolean }, lastIndependentEvidenceAt: { type: string, format: date-time } } }
-            reconciliation: { type: object, properties: { state: { type: string }, label: { type: string }, matched: { $ref: "#/components/schemas/DecimalAmount" }, unreconciled: { $ref: "#/components/schemas/DecimalAmount" } } }
+            reconciliation: { type: object, description: "matched = amount actually allocated (outgoing bank debits, or the full amount while a chain allocation is final; 0.00 for a created, failed or cancelled payout with no evidence); unreconciled = what a sent, live payout still lacks", properties: { state: { type: string }, label: { type: string }, matched: { $ref: "#/components/schemas/DecimalAmount" }, unreconciled: { $ref: "#/components/schemas/DecimalAmount" } } }
         timeline:
           type: array
           items: { type: object, required: [at, kind, title, source, provenance, independent, codes, refs], properties: { at: { type: string, format: date-time }, kind: { type: string }, title: { type: string }, source: { type: string }, provenance: { type: string }, independent: { type: boolean }, codes: { type: array, items: { type: string } }, refs: { type: array, items: { type: string } } } }
