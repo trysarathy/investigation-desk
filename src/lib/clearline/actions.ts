@@ -730,6 +730,39 @@ function approveAcceptance(tx: Tx, exceptionId: string, note: string): string {
   return "applied";
 }
 
+/**
+ * Third re-review R3-B1: reopening an exception reverses what its resolution did, so the workspace stays in a
+ * state the engine produces (and loads):
+ * - an accepted difference (and any second approval) is withdrawn — kept in the exception's history — so the
+ *   payout's case is blocked again until someone accepts afresh;
+ * - a hash-conflict resolution's supersede is withdrawn: the rejected observation blocks the hash again, and the
+ *   payout's dimensions are recomputed (the reopened contradiction makes settlement "contradicted").
+ * Each undo is audited.
+ */
+function undoResolutionEffects(tx: Tx, e: ReconciliationException): void {
+  const acc = e.resolution?.acceptedDifference;
+  if (acc) {
+    const what = `${acc.differenceMinor} ${acc.currency} minor-unit over-amount${acc.lateValueDate ? `, late value date ${acc.lateValueDate}` : ""}${acc.secondApproval?.approvedBy ? `, approved by ${acc.secondApproval.approvedBy}` : ""}`;
+    delete e.resolution!.acceptedDifference;
+    e.history.push({ at: tx.at, actorId: tx.actorId, action: "acceptance_withdrawn", detail: `Reopened: the acceptance by ${e.resolution!.actorId} (${what}) no longer counts; the case is blocked until it is accepted again.` });
+    tx.log("exception.acceptance_withdrawn", "exception", e.id, `Accepted ${what} withdrawn on reopen`);
+  }
+  if (e.explanationCode === "CH_TX_HASH_ON_OTHER_CHAIN" || e.explanationCode === "CH_TX_HASH_CONFLICT") {
+    const superseded = tx.ws.chainObservations.filter((o) => o.supersededBy === e.id);
+    for (const o of superseded) {
+      delete o.supersededBy;
+      e.history.push({ at: tx.at, actorId: tx.actorId, action: "supersede_withdrawn", detail: `Reopened: observation ${o.id} blocks transaction ${o.txHash.slice(0, 12)}… again.` });
+      tx.log("chain.supersede_withdrawn", "chain_observation", o.id, `No longer superseded by ${e.id} (reopened)`);
+    }
+    const intent = e.intentId ? tx.ws.intents.find((i) => i.id === e.intentId) : undefined;
+    if (superseded.length && intent?.instructionId) {
+      const before = JSON.stringify(intent.status);
+      recomputeDimensions(tx.ws, intent);
+      if (JSON.stringify(intent.status) !== before) tx.log("intent.dimensions_recomputed", "intent", intent.id, `After reopening ${e.id}: ${JSON.stringify(intent.status)}`);
+    }
+  }
+}
+
 function reopen(tx: Tx, t: TargetRef, reason: string): string {
   requireRole(tx, [...STAFF]);
   if (!safeNote(reason, 500)) fail("invalid_field", "A reason is required.", { field: "reason" });
@@ -743,6 +776,7 @@ function reopen(tx: Tx, t: TargetRef, reason: string): string {
     r.e.status = "reopened"; r.e.history.push(entry); r.e.lastUpdatedAt = tx.at;
     const c = tx.ws.cases.find((x) => x.id === r.e.caseId);
     if (c && c.status === "resolved") { c.status = "reopened"; c.history.push(entry); c.updatedAt = tx.at; }
+    undoResolutionEffects(tx, r.e);
   }
   tx.log(`${t.kind}.reopened`, t.kind, t.id, reason.slice(0, 80));
   return "applied";

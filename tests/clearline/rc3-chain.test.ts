@@ -141,3 +141,35 @@ describe("review m-3: supersededBy cannot be forged in a stored workspace", () =
     expect(!r.ok && r.error.field).toBe("chainObservations[0].supersededBy");
   });
 });
+
+describe("third re-review R3-B1: reopening a resolved hash conflict withdraws the supersede; the workspace keeps loading", () => {
+  it("wrong chain → conflict → resolve (supersede, verified) → reopen → the rejected record blocks again, settlement contradicted, reload ok, resolve again recovers", async () => {
+    const { loadWorkspace, serializeWorkspace } = await import("@/lib/clearline");
+    let { ws, id } = usdc();
+    ws = sim(ws, id).workspace;
+    ws = ingest(ws, obsFor(ws, id, { chainId: 1, network: "ethereum", confirmations: 20 })).workspace;
+    ws = ingest(ws, obsFor(ws, id, { confirmations: 20 })).workspace;
+    const exc = listExceptions(ws, { intentId: id, category: "contradictory_evidence" })[0];
+    const resolve = (w: Workspace) => {
+      w = run(w, "usr_maya", { type: "assign_owner", target: { kind: "exception", id: exc.id }, ownerId: "usr_maya" }).workspace;
+      w = run(w, "usr_maya", { type: "attach_evidence", target: { kind: "exception", id: exc.id }, evidence: { kind: "document_metadata", description: "Explorer (fictional)" } }).workspace;
+      return run(w, "usr_maya", { type: "resolve", target: { kind: "exception", id: exc.id }, note: "Wrong network on the first entry" }).workspace;
+    };
+    ws = resolve(ws);
+    ws = ingest(ws, obsFor(ws, id, { confirmations: 20 })).workspace;
+    expect(intent(ws, id).status.settlement).toBe("verified");
+    const rejected = ws.chainObservations.find((o) => o.intentId === id && o.status === "rejected_unsupported")!;
+    expect(rejected.supersededBy).toBe(exc.id);
+    const re = run(ws, "usr_maya", { type: "reopen", target: { kind: "exception", id: exc.id }, reason: "Not sure which network was right" });
+    ws = re.workspace;
+    // Before the fix: "chainObservations[0].supersededBy: must name a resolved hash-conflict exception" on the next action / reload.
+    expect(ws.chainObservations.find((o) => o.id === rejected.id)!.supersededBy).toBeUndefined();
+    expect(re.audit.map((a) => a.action)).toContain("chain.supersede_withdrawn");
+    expect(intent(ws, id).status.settlement).toBe("contradicted");
+    const reloaded = loadWorkspace(serializeWorkspace(ws));
+    if (!reloaded.ok) throw new Error(reloaded.error.message);
+    expect(reloaded.value.migrations).toEqual([]);
+    ws = resolve(reloaded.value.workspace);
+    expect(ws.chainObservations.find((o) => o.id === rejected.id)!.supersededBy).toBe(exc.id);
+  });
+});

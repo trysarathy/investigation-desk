@@ -5,7 +5,7 @@
  *   never "nobody" while a contradiction is shown (property over a battery of adversarial flows).
  */
 import { describe, expect, it } from "vitest";
-import { ALLOWLISTED_TOKENS, canResolveCase, getAdapter, investigate, parseWorkspace, listExceptions, sampleWorkspace, scenarioIntentId, serializeWorkspace, type Workspace } from "@/lib/clearline";
+import { ALLOWLISTED_TOKENS, canResolveCase, getAdapter, investigate, loadWorkspace, parseWorkspace, listExceptions, sampleWorkspace, scenarioIntentId, serializeWorkspace, type Workspace } from "@/lib/clearline";
 import { attempt, debitLine, errorCode, intent, run, sim, signedDelivery, submitted } from "./helpers";
 
 const assign = (ws: Workspace, kind: "case" | "exception", id: string) => run(ws, "usr_maya", { type: "assign_owner", target: { kind, id }, ownerId: "usr_maya" }).workspace;
@@ -437,5 +437,88 @@ describe("second re-review R2-M2: legitimate success cases can close — explici
     expect(forge((e) => { e.resolution!.acceptedDifference!.differenceMinor = 49; })).toMatch(/acceptedDifference\.differenceMinor$/);
     expect(forge((e) => { e.resolution!.acceptedDifference!.secondApproval!.approvedBy = e.resolution!.actorId; })).toMatch(/secondApproval\.approvedBy$/);
     expect(forge((e) => { e.resolution!.acceptedDifference!.lateValueDate = "2026-12-01"; })).toMatch(/lateValueDate$/);
+  });
+});
+
+describe("third re-review R3-B1: reopening an accepted exception withdraws the acceptance; the workspace keeps loading", () => {
+  for (const [what, amountMinor, line, flags, approve] of [
+    ["≤1% fee", 1_000_000, { amountMinor: 1_000_050 }, { acceptDifference: true }, false],
+    ["late date", 1_000_000, { valueDate: "2026-11-30" }, { acceptLateDate: true }, false],
+    [">1% fee with second approval", 10_000, { amountMinor: 11_500 }, { acceptDifference: true }, true],
+  ] as const)
+    it(`${what}: accept → (approve) → reopen → reload → act: loads, case blocked again, history kept, re-acceptable`, () => {
+      let { ws, id, ppid } = submitted({ amountMinor });
+      ws = sim(sim(ws, id).workspace, id).workspace;
+      ws = run(ws, "usr_maya", { type: "ingest_statement_line", line: debitLine(Object.assign({ reference: `PAYOUT ${ppid}`, amountMinor }, line)) }).workspace;
+      const exc = ws.exceptions.filter((e) => e.intentId === id && e.statementLineId).at(-1)!;
+      ws = assign(ws, "exception", exc.id);
+      ws = evidence(ws, exc.id);
+      ws = run(ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: exc.id }, note: "Accepted", ...flags }).workspace;
+      if (approve) ws = run(ws, "usr_sam", { type: "approve_acceptance", exceptionId: exc.id, note: "Checked" }).workspace;
+      const caseId = intent(ws, id).caseId!;
+      ws = assign(ws, "case", caseId);
+      expect(canResolveCase(ws, caseId).code).toBe("RESOLVABLE");
+      const re = run(ws, "usr_maya", { type: "reopen", target: { kind: "exception", id: exc.id }, reason: "The bank says the fee was charged in error" });
+      ws = re.workspace;
+      // Before the fix: the next action and every reload failed ("acceptedDifference: must belong to a resolved … exception").
+      expect(re.audit.map((a) => a.action)).toContain("exception.acceptance_withdrawn");
+      const e = ws.exceptions.find((x) => x.id === exc.id)!;
+      expect(e.status).toBe("reopened");
+      expect(e.resolution?.acceptedDifference).toBeUndefined();
+      expect(e.history.map((h) => h.action)).toContain("acceptance_withdrawn");
+      const reloaded = loadWorkspace(serializeWorkspace(ws));
+      if (!reloaded.ok) throw new Error(reloaded.error.message);
+      expect(reloaded.value.migrations).toEqual([]);
+      ws = run(reloaded.value.workspace, "usr_maya", { type: "add_note", target: { kind: "case", id: caseId }, text: "Following up" }).workspace;
+      expect(canResolveCase(ws, caseId).code).toBe("OPEN_EXCEPTIONS");
+      // the person can accept again (and, above 1%, a second person approves again)
+      ws = run(ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: exc.id }, note: "Accepted again", ...flags }).workspace;
+      if (approve) {
+        expect(canResolveCase(ws, caseId).code).toBe("SECOND_APPROVAL_REQUIRED");
+        ws = run(ws, "usr_daniel", { type: "approve_acceptance", exceptionId: exc.id, note: "Checked again" }).workspace;
+      }
+      expect(canResolveCase(ws, caseId).code).toBe("RESOLVABLE");
+    });
+});
+
+describe("third re-review R3-m1: acceptance rules pinned one by one", () => {
+  const payoutWithLine = (amountMinor: number, line: Record<string, unknown>) => {
+    let { ws, id, ppid } = submitted({ amountMinor });
+    ws = sim(sim(ws, id).workspace, id).workspace;
+    ws = run(ws, "usr_maya", { type: "ingest_statement_line", line: debitLine(Object.assign({ reference: `PAYOUT ${ppid}`, amountMinor }, line)) }).workspace;
+    const exc = ws.exceptions.filter((e) => e.intentId === id && e.statementLineId).at(-1)!;
+    ws = assign(ws, "exception", exc.id);
+    ws = evidence(ws, exc.id);
+    return { ws, id, exc, caseId: intent(ws, id).caseId! };
+  };
+  it("a SHORT late debit (SGD 1.00 for a SGD 10,000.00 payout) can never be accepted as the payout", () => {
+    const { ws, exc } = payoutWithLine(1_000_000, { amountMinor: 100, valueDate: "2026-11-30" });
+    expect(exc.explanationCode).toBe("RC_OUTSIDE_TIME_WINDOW");
+    const r = attempt(ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: exc.id }, note: "Late", acceptLateDate: true });
+    expect(!r.ok && r.error.message).toMatch(/^DIFFERENCE_NOT_ACCEPTABLE: The line is for less than the payout/);
+  });
+  it("a late AND over-amount line needs acceptDifference too (acceptLateDate alone is refused)", () => {
+    const { ws, exc } = payoutWithLine(1_000_000, { amountMinor: 1_000_050, valueDate: "2026-11-30" });
+    const r = attempt(ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: exc.id }, note: "Late", acceptLateDate: true });
+    expect(!r.ok && r.error.message).toMatch(/accept the over-amount explicitly with acceptDifference/);
+  });
+  it("close-time: an accepted late line whose recorded late date is missing does not close the case", () => {
+    const p = payoutWithLine(1_000_000, { valueDate: "2026-11-30" });
+    let ws = run(p.ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: p.exc.id }, note: "Late", acceptLateDate: true }).workspace;
+    ws = assign(ws, "case", p.caseId);
+    expect(canResolveCase(ws, p.caseId).code).toBe("RESOLVABLE");
+    const w = JSON.parse(serializeWorkspace(ws)) as Workspace;
+    delete w.exceptions.find((e) => e.id === p.exc.id)!.resolution!.acceptedDifference!.lateValueDate;
+    expect(canResolveCase(w, p.caseId).code).toBe("EVIDENCE_OUTSTANDING");
+  });
+  it("approve_acceptance re-checks the line: if it no longer qualifies (now a provider report), the approval is refused", () => {
+    const p = payoutWithLine(10_000, { amountMinor: 11_500 });
+    const ws = run(p.ws, "usr_maya", { type: "resolve", target: { kind: "exception", id: p.exc.id }, note: "Fee", acceptDifference: true }).workspace;
+    const w = JSON.parse(serializeWorkspace(ws)) as Workspace;
+    const line = w.statementLines.find((l) => l.id === p.exc.statementLineId)!;
+    line.source = "provider_settlement_report";
+    line.accountRef = "prv_northline:settlement";
+    const r = attempt(w, "usr_sam", { type: "approve_acceptance", exceptionId: p.exc.id, note: "Checked" });
+    expect(!r.ok && r.error.message).toMatch(/^DIFFERENCE_NOT_ACCEPTABLE: Only an outgoing bank-statement debit/);
   });
 });
