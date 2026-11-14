@@ -6,8 +6,8 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  SAMPLE_ACTORS, applyAction, canResetScenario, emptyWorkspace, parseWorkspace, resetScenario, sampleWorkspace, serializeWorkspace,
-  type ResetCheck,
+  SAMPLE_ACTORS, applyAction, canResetScenario, emptyWorkspace, loadWorkspace, resetScenario, sampleWorkspace, serializeWorkspace,
+  type ResetCheck, type WorkspaceMigration,
   type ActionResult, type Actor, type Workspace, type WorkspaceAction,
 } from "@/lib/clearline";
 import { describeError } from "./human";
@@ -22,7 +22,9 @@ export const BACKUP_KEY = "clearline.console.workspace.v1.unreadable-backup";
 export const BOUNDARY_BACKUP_KEY = "clearline.console.workspace.v1.boundary-backup";
 /** Where Settings keeps the current workspace before restoring a backup over it. */
 export const RESTORE_BACKUP_KEY = "clearline.console.workspace.v1.before-restore-backup";
-const BACKUP_BASES = [BACKUP_KEY, BOUNDARY_BACKUP_KEY, RESTORE_BACKUP_KEY];
+/** Where the saved workspace is kept, as it was, before this version's engine migrates it on load. */
+export const MIGRATION_BACKUP_KEY = "clearline.console.workspace.v1.before-migration-backup";
+const BACKUP_BASES = [BACKUP_KEY, BOUNDARY_BACKUP_KEY, RESTORE_BACKUP_KEY, MIGRATION_BACKUP_KEY];
 
 /**
  * Writes a backup and never overwrites a different earlier one: when the slot already holds other
@@ -40,7 +42,7 @@ export function writeBackup(base: string, raw: string): string | null {
   }
 }
 
-export type Backup = { key: string; kind: "unreadable" | "boundary" | "before-restore"; size: number; savedAt: string | null };
+export type Backup = { key: string; kind: "unreadable" | "boundary" | "before-restore" | "before-migration"; size: number; savedAt: string | null };
 /** Every backup this console has written in this browser, newest key last. Empty when storage is blocked. */
 export function listBackups(): Backup[] {
   const out: Backup[] = [];
@@ -52,7 +54,7 @@ export function listBackups(): Backup[] {
       const raw = window.localStorage.getItem(key) ?? "";
       out.push({
         key, size: raw.length, savedAt: key === base ? null : key.slice(base.length + 1),
-        kind: base === BACKUP_KEY ? "unreadable" : base === BOUNDARY_BACKUP_KEY ? "boundary" : "before-restore",
+        kind: base === BACKUP_KEY ? "unreadable" : base === BOUNDARY_BACKUP_KEY ? "boundary" : base === MIGRATION_BACKUP_KEY ? "before-migration" : "before-restore",
       });
     }
   } catch { /* storage blocked: nothing to list */ }
@@ -83,6 +85,12 @@ type Ctx = {
    * saved copy is NOT overwritten and nothing is saved until the person chooses (review m6).
    */
   discarded: Discarded | null;
+  /**
+   * What this version's engine changed when it loaded a workspace saved by an earlier version
+   * (loadWorkspace migrations). `saved` says whether the migrated workspace was saved (after a backup).
+   */
+  migrations: { items: WorkspaceMigration[]; saved: boolean } | null;
+  dismissMigrations: () => void;
   /** Engine check: may this guided case (scenario key, sample payment id or case id) be reset on its own? */
   canResetCase: (scenario: string) => ResetCheck;
   /** Restores one guided case through the engine (resetScenario); other records stay as they are. */
@@ -94,13 +102,14 @@ type Ctx = {
 
 const WorkspaceContext = createContext<Ctx | null>(null);
 
-function readStored(): { ws: Workspace | null; actor: string | null; ok: boolean; discarded?: Discarded } {
+function readStored(): { ws: Workspace | null; actor: string | null; ok: boolean; discarded?: Discarded; migrations?: WorkspaceMigration[]; raw?: string } {
   try {
     const raw = window.localStorage.getItem(KEY);
     const actor = window.localStorage.getItem(ACTOR_KEY);
     if (!raw) return { ws: null, actor, ok: true };
-    const parsed = parseWorkspace(raw);
-    if (parsed.ok) return { ws: parsed.value, actor, ok: true };
+    // loadWorkspace migrates a workspace saved by an earlier version and says what it changed.
+    const parsed = loadWorkspace(raw);
+    if (parsed.ok) return { ws: parsed.value.workspace, actor, ok: true, migrations: parsed.value.migrations, raw };
     // Never discard silently: say what was dropped and why (engine words + exact code).
     const why = describeError(parsed.error);
     return { ws: null, actor, ok: true, discarded: { raw, reason: `${why.text} (${parsed.error.code}${parsed.error.field ? ` · ${parsed.error.field}` : ""})` } };
@@ -131,6 +140,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [storage, setStorage] = useState<"available" | "unavailable">("available");
   const [discarded, setDiscarded] = useState<Discarded | null>(null);
+  const [migrations, setMigrations] = useState<{ items: WorkspaceMigration[]; saved: boolean } | null>(null);
   const wsRef = useRef(ws);
   wsRef.current = ws;
   // While an unreadable saved copy is waiting for a decision, nothing is written over it.
@@ -141,6 +151,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const stored = readStored();
     if (stored.ws) setWs(stored.ws);
+    if (stored.ws && stored.migrations?.length && stored.raw) {
+      // The original is kept as a backup first; only then is the migrated workspace saved over it.
+      const saved = writeBackup(MIGRATION_BACKUP_KEY, stored.raw) !== null && write(KEY, serializeWorkspace(stored.ws));
+      setMigrations({ items: stored.migrations, saved });
+    }
     if (stored.discarded) {
       holdWrites.current = true;
       setDiscarded(stored.discarded);
@@ -220,6 +235,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     return { ok: true as const, scenario: r.value.scenario, removed: r.value.removedIds.length, restored: r.value.restoredIds.length };
   }, [actorId, persist]);
 
+  const dismissMigrations = useCallback(() => setMigrations(null), []);
   const replaceDiscarded = useCallback((opts?: { withoutBackup?: boolean }) => reset("sample", opts), [reset]);
 
   const setActorId = useCallback((id: string) => {
@@ -232,12 +248,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     ws, hydrated, storage, actorId, actors,
     actor: actors.find((a) => a.id === actorId),
     setActorId, dispatch, preview, reset, canResetCase, resetCase, discarded, replaceDiscarded,
+    migrations, dismissMigrations,
     actorName: (id?: string) => {
       if (!id) return "Unassigned";
       const a = actors.find((x) => x.id === id);
       return a ? a.name : id;
     },
-  }), [ws, hydrated, storage, actorId, actors, setActorId, dispatch, preview, reset, canResetCase, resetCase, discarded, replaceDiscarded]);
+  }), [ws, hydrated, storage, actorId, actors, setActorId, dispatch, preview, reset, canResetCase, resetCase, discarded, replaceDiscarded, migrations, dismissMigrations]);
 
   return (
     <WorkspaceContext.Provider value={value}>

@@ -4,6 +4,7 @@ import { canResolveCase, canResolveException, type EvidenceKind, type TargetRef 
 import { useWorkspace } from "./workspace";
 import { ActionButton, gateOf, useRun, useSettled, type Gate } from "./Action";
 import { describeResolution, label } from "./human";
+import { AcceptDifference } from "./AcceptDifference";
 import { Field, Status, ui } from "./ui";
 
 const EVIDENCE_KINDS: EvidenceKind[] = [
@@ -42,6 +43,7 @@ export function TargetActions({ target, status, idPrefix }: { target: TargetRef;
   const gResolve: Gate = !check.allowed
     ? { ok: false, reason: describeResolution(check.code, check.reason, ws, target.id), code: check.code }
     : gateOf(preview({ type: "resolve", target, note: tResolution }), ws, !resolution.trim() && "Write a resolution note first.");
+  const exc = target.kind === "exception" ? ws.exceptions.find((x) => x.id === target.id) : undefined;
   const gReopen = gateOf(preview({ type: "reopen", target, reason: tReopen }), ws, !reopenReason.trim() && "Give a reason to reopen first.");
 
   return (
@@ -82,6 +84,7 @@ export function TargetActions({ target, status, idPrefix }: { target: TargetRef;
           <Field label="Reference (optional)"><input id={id("ev-ref")} value={evRef} onChange={(e) => setEvRef(e.target.value)} /></Field>
           <div style={{ marginTop: 6 }}><ActionButton type="submit" size="small" gate={gEvidence}>Attach evidence metadata</ActionButton></div>
         </form>
+        {exc && !resolved && <AcceptDifference exception={exc} idPrefix={idPrefix} onRun={run} />}
         {!resolved ? (
           <form onSubmit={(e) => { e.preventDefault(); run(target.kind === "case" ? "Close case" : "Resolve exception", { type: "resolve", target, note: resolution }, { onOk: () => setResolution("") }); }}>
             <Field label="Resolution note"><textarea id={id("resolve")} value={resolution} onChange={(e) => setResolution(e.target.value)} /></Field>

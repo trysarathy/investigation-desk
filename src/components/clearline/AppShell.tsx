@@ -49,6 +49,31 @@ function NavPending() {
   );
 }
 
+/**
+ * A workspace saved by an earlier version was updated by this version's engine on load (loadWorkspace
+ * migrations). Each change is listed in the engine's words, with links; the person dismisses it.
+ */
+function MigrationNotice() {
+  const { migrations, dismissMigrations } = useWorkspace();
+  if (!migrations) return null;
+  return (
+    <div className={`${s.notice} ${s.noticeInfo}`} role="status" data-testid="workspace-migrated">
+      <p style={{ margin: "0 0 6px" }}><strong>Your saved workspace was updated by this version.</strong>{" "}
+        {migrations.saved ? "The copy as it was is kept as a backup in Settings." : "The update could not be saved in this browser, so the saved copy is unchanged and it will be updated again next time."}</p>
+      <ul style={{ margin: "0 0 8px", paddingLeft: 18 }}>
+        {migrations.items.map((m) => (
+          <li key={m.auditId}>
+            Your saved workspace was updated by this version: {m.text}{" "}
+            <Link href={`/clearline/payments/${m.intentId}`}>Open payment {m.internalReference}</Link>
+            {m.exceptionId && <> · <Link href={`/clearline/exceptions?view=all&intent=${m.intentId}#${m.exceptionId}`}>exception {m.exceptionId}</Link></>}
+          </li>
+        ))}
+      </ul>
+      <button type="button" className={`${s.btn} ${s.small}`} onClick={dismissMigrations}>Dismiss</button>
+    </div>
+  );
+}
+
 /** A page change stalled while a full load would lose unsaved work: ask, never reload silently. */
 function NavStuck() {
   const stuck = useNavStuck();
@@ -142,6 +167,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </div>
           <NavStuck />
           <DiscardedNotice />
+          <MigrationNotice />
           <Hydrated>{children}</Hydrated>
           <footer className={s.footer}>
             Clearline test-mode console. All organisations, providers, quotes, balances and statements are fictional.
