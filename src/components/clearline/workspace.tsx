@@ -6,16 +6,61 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  SAMPLE_ACTORS, applyAction, emptyWorkspace, parseWorkspace, sampleWorkspace, serializeWorkspace,
+  SAMPLE_ACTORS, applyAction, canResetScenario, emptyWorkspace, parseWorkspace, resetScenario, sampleWorkspace, serializeWorkspace,
+  type ResetCheck,
   type ActionResult, type Actor, type Workspace, type WorkspaceAction,
 } from "@/lib/clearline";
 import { describeError } from "./human";
+import { setFullLoadGuard } from "./navguard";
 
 export const WORKSPACE_KEY = "clearline.console.workspace.v1";
 const KEY = WORKSPACE_KEY;
 const ACTOR_KEY = "clearline.console.actor.v1";
 /** Where an unreadable saved workspace is kept when the person chooses to replace it (review m6). */
 export const BACKUP_KEY = "clearline.console.workspace.v1.unreadable-backup";
+/** Where the error boundary keeps the saved workspace it removes (separate from BACKUP_KEY: review rc3 m3). */
+export const BOUNDARY_BACKUP_KEY = "clearline.console.workspace.v1.boundary-backup";
+/** Where Settings keeps the current workspace before restoring a backup over it. */
+export const RESTORE_BACKUP_KEY = "clearline.console.workspace.v1.before-restore-backup";
+const BACKUP_BASES = [BACKUP_KEY, BOUNDARY_BACKUP_KEY, RESTORE_BACKUP_KEY];
+
+/**
+ * Writes a backup and never overwrites a different earlier one: when the slot already holds other
+ * content, a timestamped key next to it is used. Returns the key written, or null when the browser
+ * refused (blocked storage or a full quota). Callers must not remove the original when this fails.
+ */
+export function writeBackup(base: string, raw: string): string | null {
+  try {
+    const existing = window.localStorage.getItem(base);
+    const key = existing === null || existing === raw ? base : `${base}.${new Date().toISOString()}`;
+    window.localStorage.setItem(key, raw);
+    return key;
+  } catch {
+    return null;
+  }
+}
+
+export type Backup = { key: string; kind: "unreadable" | "boundary" | "before-restore"; size: number; savedAt: string | null };
+/** Every backup this console has written in this browser, newest key last. Empty when storage is blocked. */
+export function listBackups(): Backup[] {
+  const out: Backup[] = [];
+  try {
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      const base = key ? BACKUP_BASES.find((b) => key === b || key.startsWith(b + ".")) : undefined;
+      if (!key || !base) continue;
+      const raw = window.localStorage.getItem(key) ?? "";
+      out.push({
+        key, size: raw.length, savedAt: key === base ? null : key.slice(base.length + 1),
+        kind: base === BACKUP_KEY ? "unreadable" : base === BOUNDARY_BACKUP_KEY ? "boundary" : "before-restore",
+      });
+    }
+  } catch { /* storage blocked: nothing to list */ }
+  return out.sort((a, b) => a.key.localeCompare(b.key));
+}
+
+/** Result of a reset: refused when an unreadable copy is waiting and no backup of it could be written. */
+export type ResetResult = { ok: true; backupKey?: string } | { ok: false; reason: string };
 
 /** A saved workspace that could not be read. It stays in storage untouched until the person decides. */
 export type Discarded = { reason: string; raw: string };
@@ -32,14 +77,18 @@ type Ctx = {
   dispatch: (action: WorkspaceAction, opts?: { actorId?: string }) => ActionResult;
   /** Dry run: asks the engine whether the action would be accepted now, without changing anything. */
   preview: (action: WorkspaceAction, opts?: { actorId?: string }) => ActionResult;
-  reset: (kind?: "sample" | "empty") => void;
+  reset: (kind?: "sample" | "empty", opts?: { withoutBackup?: boolean }) => ResetResult;
   /**
    * Set when the saved workspace could not be read. The console shows the sample instead, but the
    * saved copy is NOT overwritten and nothing is saved until the person chooses (review m6).
    */
   discarded: Discarded | null;
-  /** Keeps the unreadable copy under BACKUP_KEY, then saves the sample in its place. */
-  replaceDiscarded: () => void;
+  /** Engine check: may this guided case (scenario key, sample payment id or case id) be reset on its own? */
+  canResetCase: (scenario: string) => ResetCheck;
+  /** Restores one guided case through the engine (resetScenario); other records stay as they are. */
+  resetCase: (scenario: string) => { ok: true; scenario: string; removed: number; restored: number } | { ok: false; reason: string; code: string };
+  /** Keeps the unreadable copy as a backup, then saves the sample in its place. Refused if the backup fails. */
+  replaceDiscarded: (opts?: { withoutBackup?: boolean }) => ResetResult;
   actorName: (id?: string) => string;
 };
 
@@ -101,6 +150,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setHydrated(true);
   }, []);
 
+  const storageRef = useRef(storage);
+  storageRef.current = storage;
+  useEffect(() => {
+    setFullLoadGuard(() => storageRef.current === "unavailable"
+      ? "browser storage is unavailable, so nothing in this tab has been saved."
+      : discardedRef.current ? "nothing is being saved until you decide about the unreadable saved workspace." : null);
+    return () => setFullLoadGuard(() => null);
+  }, []);
+
   const persist = useCallback((next: Workspace) => {
     if (holdWrites.current) return;
     setStorage(write(KEY, serializeWorkspace(next)) ? "available" : "unavailable");
@@ -133,18 +191,36 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     return r;
   }, [actorId]);
 
-  const reset = useCallback((kind: "sample" | "empty" = "sample") => {
+  const reset = useCallback((kind: "sample" | "empty" = "sample", opts?: { withoutBackup?: boolean }): ResetResult => {
     // An explicit reset is the person's decision: keep any unreadable copy as a backup, then save.
-    if (holdWrites.current && discardedRef.current) write(BACKUP_KEY, discardedRef.current.raw);
+    // If the backup cannot be written (full quota, blocked storage), nothing is replaced (review rc3 m2).
+    let backupKey: string | undefined;
+    if (holdWrites.current && discardedRef.current && !opts?.withoutBackup) {
+      const k = writeBackup(BACKUP_KEY, discardedRef.current.raw);
+      if (!k) return { ok: false, reason: "A backup of the unreadable copy could not be written (browser storage is full or blocked), so nothing was replaced. Download the unreadable copy first, then replace it without a backup if you no longer need it." };
+      backupKey = k;
+    }
     holdWrites.current = false;
     setDiscarded(null);
     const next = kind === "empty" ? emptyWorkspace() : sampleWorkspace();
     wsRef.current = next;
     setWs(next);
     persist(next);
+    return { ok: true, backupKey };
   }, [persist]);
 
-  const replaceDiscarded = useCallback(() => reset("sample"), [reset]);
+  const canResetCase = useCallback((scenario: string) => canResetScenario(wsRef.current, scenario), []);
+  const resetCase = useCallback((scenario: string) => {
+    const current = wsRef.current;
+    const r = resetScenario(current, scenario, { actorId, at: nextInstant(current.asOf) });
+    if (!r.ok) return { ok: false as const, reason: describeError(r.error, current).text, code: r.error.code };
+    wsRef.current = r.value.workspace;
+    setWs(r.value.workspace);
+    persist(r.value.workspace);
+    return { ok: true as const, scenario: r.value.scenario, removed: r.value.removedIds.length, restored: r.value.restoredIds.length };
+  }, [actorId, persist]);
+
+  const replaceDiscarded = useCallback((opts?: { withoutBackup?: boolean }) => reset("sample", opts), [reset]);
 
   const setActorId = useCallback((id: string) => {
     setActor(id);
@@ -155,13 +231,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Ctx>(() => ({
     ws, hydrated, storage, actorId, actors,
     actor: actors.find((a) => a.id === actorId),
-    setActorId, dispatch, preview, reset, discarded, replaceDiscarded,
+    setActorId, dispatch, preview, reset, canResetCase, resetCase, discarded, replaceDiscarded,
     actorName: (id?: string) => {
       if (!id) return "Unassigned";
       const a = actors.find((x) => x.id === id);
       return a ? a.name : id;
     },
-  }), [ws, hydrated, storage, actorId, actors, setActorId, dispatch, preview, reset, discarded, replaceDiscarded]);
+  }), [ws, hydrated, storage, actorId, actors, setActorId, dispatch, preview, reset, canResetCase, resetCase, discarded, replaceDiscarded]);
 
   return (
     <WorkspaceContext.Provider value={value}>

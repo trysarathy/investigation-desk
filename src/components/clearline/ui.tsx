@@ -105,8 +105,8 @@ export function Btn({ kind, size, ...rest }: React.ButtonHTMLAttributes<HTMLButt
   return <button type="button" {...rest} className={cls} />;
 }
 
-export function LinkBtn({ href, kind, size, children }: { href: string; kind?: "primary" | "ghost"; size?: "small"; children: ReactNode }) {
-  return <Link href={href} className={[s.btn, kind ? s[kind] : "", size ? s[size] : ""].join(" ")}>{children}</Link>;
+export function LinkBtn({ href, kind, size, children, ariaLabel }: { href: string; kind?: "primary" | "ghost"; size?: "small"; children: ReactNode; ariaLabel?: string }) {
+  return <Link href={href} aria-label={ariaLabel} className={[s.btn, kind ? s[kind] : "", size ? s[size] : ""].join(" ")}>{children}</Link>;
 }
 
 /** Label wraps its control; hint and error are linked to the control with aria-describedby. */

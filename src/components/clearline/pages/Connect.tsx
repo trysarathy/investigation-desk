@@ -1,6 +1,6 @@
 "use client";
-import Link, { navigate } from "../Link";
-import { useRouter, useSearchParams } from "next/navigation";
+import Link, { useNavigate } from "../Link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   CURRENCIES, QUOTE_LABEL, formatMinor, formatMoney, getIntent, parseAmount,
@@ -8,9 +8,10 @@ import {
 } from "@/lib/clearline";
 import { errorText, useWorkspace } from "../workspace";
 import { ExecChip, RAIL } from "../labels";
+import { SIMULATED_ROLE_NOTE } from "../nav";
 import { label as humanLabel } from "../human";
 import { SimulateEvent } from "../SimulateEvent";
-import { ActionButton, gateOf } from "../Action";
+import { ActionButton, gateOf, useSettled } from "../Action";
 import { Btn, Chip, Code, Empty, Field, Notice, PageHead, Panel, Status, fmtTime, ui } from "../ui";
 
 type Msg = { text: string; error?: boolean } | null;
@@ -80,7 +81,7 @@ function CreateForm({ onCreated }: { onCreated: (id: string) => void }) {
 
 export default function Connect() {
   const { ws, dispatch, preview, actors, actorName } = useWorkspace();
-  const router = useRouter();
+  const navigate = useNavigate();
   const q = useSearchParams();
   const intentId = q?.get("intent") ?? "";
   const intent = intentId ? getIntent(ws, intentId) : undefined;
@@ -88,7 +89,7 @@ export default function Connect() {
   const [checker, setChecker] = useState("usr_daniel");
   const [rejectReason, setRejectReason] = useState("");
 
-  const go = (id: string) => navigate(router, `/clearline/routes/new?intent=${encodeURIComponent(id)}`, "replace");
+  const go = (id: string) => navigate(`/clearline/routes/new?intent=${encodeURIComponent(id)}`, "replace");
   const act = (label: string, r: ReturnType<typeof dispatch>) => {
     setMsg(r.ok ? { text: `${label} — recorded by the engine (${humanLabel("actionOutcome", r.value.outcome)}).` } : { text: `${label} not applied — ${errorText(r, ws)}`, error: true });
     return r.ok;
@@ -99,7 +100,8 @@ export default function Connect() {
   const step = !intent ? 0 : !quotes.length ? 1 : !instr ? 2 : instr.status === "pending_approval" ? 3 : instr.status === "approved" ? 4 : instr.status === "submitted" ? 5 : 2;
   const gQuote = intent ? gateOf(preview({ type: "request_quotes", intentId: intent.id }), ws) : null;
   const gApprove = instr ? gateOf(preview({ type: "approve_instruction", instructionId: instr.id }, { actorId: checker }), ws) : null;
-  const gReject = instr ? gateOf(preview({ type: "reject_instruction", instructionId: instr.id, reason: "Dry run" }, { actorId: checker }), ws, false) : null;
+  const tReject = useSettled(rejectReason);
+  const gReject = instr ? gateOf(preview({ type: "reject_instruction", instructionId: instr.id, reason: tReject.trim() ? tReject : "Dry run" }, { actorId: checker }), ws, false) : null;
   const gSubmit = instr ? gateOf(preview({ type: "submit_instruction", instructionId: instr.id }), ws) : null;
   const inFlight = ws.intents.filter((i) => ["created", "quoted", "approved", "submitted"].includes(i.status.execution));
 
@@ -140,7 +142,7 @@ export default function Connect() {
 
       {intent && quotes.length > 0 && (
         <Panel title="Compare routes" id="routes" actions={<Chip tone="warn">{QUOTE_LABEL}</Chip>}>
-          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Route comparison (scrollable table)">
+          <div className={ui.tableWrap} role="group" tabIndex={0} aria-label="Route comparison table">
             <table className={`${ui.table} ${ui.stack}`}>
               <thead><tr><th>Provider</th><th>Rail</th><th className={ui.r}>Indicative rate</th><th className={ui.r}>Fees</th><th className={ui.r}>Est. recipient</th><th>ETA</th><th>Eligibility</th><th>Freshness</th><th><span className={ui.srOnly}>Action</span></th></tr></thead>
               <tbody>
@@ -174,8 +176,8 @@ export default function Connect() {
         <Panel title="4. Checker approval" id="approve">
           <div className={ui.panelBody}>
             <p style={{ marginTop: 0 }}>Prepared by <strong>{actorName(instr.makerId)}</strong> (maker). The checker must be a different person.</p>
-            <div className={ui.actions} style={{ alignItems: "flex-end" }}>
-              <Field label="Checker" hint="Simulated role — sandbox only">
+            <div className={ui.actions} style={{ alignItems: "flex-end" }} data-testid="role-switch">
+              <Field label="Checker" hint={SIMULATED_ROLE_NOTE}>
                 <select id="checker" value={checker} onChange={(e) => setChecker(e.target.value)}>
                   {actors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
@@ -201,13 +203,13 @@ export default function Connect() {
 
       {intent && step === 5 && (
         <Panel title="6. Simulate the provider's next event" id="event">
-          <SimulateEvent intentId={intent.id} idPrefix="connect" onDone={() => navigate(router, `/clearline/payments/${intent.id}`)} />
+          <SimulateEvent intentId={intent.id} idPrefix="connect" onDone={() => navigate(`/clearline/payments/${intent.id}`)} />
         </Panel>
       )}
 
       <Panel title="Intents in progress" id="inflight">
         {inFlight.length === 0 ? <Empty>No intents waiting on a step.</Empty> : (
-          <div className={ui.tableWrap} role="region" tabIndex={0} aria-label="Intents in progress (scrollable table)">
+          <div className={ui.tableWrap} role="group" tabIndex={0} aria-label="Intents in progress table">
             <table className={`${ui.table} ${ui.stack}`}>
               <thead><tr><th>Intent</th><th>Execution</th><th className={ui.r}>Amount</th><th>Idempotency key</th><th><span className={ui.srOnly}>Action</span></th></tr></thead>
               <tbody>{inFlight.map((i) => (
