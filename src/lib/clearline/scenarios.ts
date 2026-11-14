@@ -238,6 +238,12 @@ export function resetScenario(input: Workspace, scenario: string, ctx: ActionCon
   // event is stamped at the workspace clock). The restored records are brought to the state the CURRENT clock
   // implies, with the same rules advance_clock applies (quote expiry, execution-date expiry, provider
   // timeout, missing statement, overdue repayment), scoped to the restored records so nothing else changes.
+  // Re-review R-B1: the restored ids come from the CURRENT sample. A workspace saved by an earlier sample
+  // version (v2, efabe6a) may have a lower id counter than the highest restored id (rc3's s2 records reach
+  // seq 180; a v2-saved sample stops at 164), so later actions would generate the same ids again. The counter
+  // is raised past every restored id; the skipped numbers are simply never used. On an rc3-derived workspace
+  // the restored ids are already at or below the counter, so nothing changes.
+  out.seq = Math.max(out.seq, ...restore.map((r) => seqOf(r.rec.id)).filter((n) => n < Number.MAX_SAFE_INTEGER));
   const tx = new Tx(out, { actorId: ctx.actorId, at: out.asOf });
   const restoredIds = new Set(restore.map((r) => r.rec.id));
   applyClockRules(tx, restoredIds);

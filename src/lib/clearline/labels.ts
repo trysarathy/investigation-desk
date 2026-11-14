@@ -18,6 +18,7 @@ import type {
   ExceptionCategory,
   ExceptionStatus,
   ExecutionState,
+  FundingProjectionRow,
   HoldStatus,
   InstructionStatus,
   NormalizedEventType,
@@ -266,6 +267,7 @@ const RESOLUTION_CODE: Record<string, string> = {
   NO_PROVIDER_RESPONSE: "The provider has not responded since the timeout.",
   EVIDENCE_REQUIRED: "Attach supporting evidence first (a note alone is not enough).",
   EVIDENCE_OUTSTANDING: "The payment is not yet evidenced by a matched statement line or a final on-chain transfer.",
+  DIFFERENCE_NOT_ACCEPTABLE: "This difference cannot be accepted: only a small over-amount on a bank debit that matches the payment can.",
   RESOLVABLE: "Can be resolved (a note is required).",
 };
 /** rc3: canResetScenario / resetScenario codes. */
@@ -420,6 +422,12 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   ...REPORT_ROW_CODE,
 };
 
+const SUPPLIER_PAID_BASIS: Record<FundingProjectionRow["supplierPaidBasis"], string> = {
+  none: "Supplier not shown as paid",
+  provider_reported: "Supplier paid — provider-reported only (not verified)",
+  verified_settlement: "Supplier payout verified by independent evidence",
+};
+
 const RETURN_STATUS: Record<NonNullable<PaymentIntent["returnStatus"]>, string> = {
   provider_reported: "Return reported by the provider (not yet on a statement)",
   confirmed_by_statement: "Return confirmed on the statement",
@@ -439,6 +447,8 @@ export const HUMAN_LABELS = {
   holdStatus: HOLD_STATUS,
   holdDecision: HOLD_DECISION,
   advanceState: ADVANCE_STATE,
+  /** FundingProjectionRow.supplierPaidBasis (console request: the engine is the only source). */
+  supplierPaidBasis: SUPPLIER_PAID_BASIS,
   instructionStatus: INSTRUCTION_STATUS,
   eventType: EVENT_TYPE,
   processingOutcome: PROCESSING_OUTCOME,

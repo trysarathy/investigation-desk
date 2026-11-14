@@ -44,3 +44,21 @@ describe("rc3 invariant 9: sample data is fictional", () => {
     expect(ALLOWLISTED_TOKENS[0].label).toMatch(/not the issuer's official contract/);
   });
 });
+
+describe("console request: the fictional marker appears once in evidence sources; supplierPaidBasis has engine labels", () => {
+  it("no evidence source says '(fictional) (fictional)'; an account ref without the marker still gets it once", async () => {
+    const { evidenceSourceLabel } = await import("@/lib/clearline/reconciliation");
+    // Before the fix: "Bank statement BANK-SGD-OPS (fictional) (fictional)".
+    expect(text).not.toContain("(fictional) (fictional)");
+    expect(ws.evidence.filter((e) => e.kind === "bank_statement_line").map((e) => e.source)).toContain("Bank statement BANK-SGD-OPS (fictional)");
+    expect(evidenceSourceLabel({ source: "bank_statement", accountRef: "BANK-SGD-TEST" })).toBe("Bank statement BANK-SGD-TEST (fictional)");
+    expect(evidenceSourceLabel({ source: "provider_settlement_report", accountRef: "prv_northline:settlement" })).toBe("Provider settlement report prv_northline:settlement (fictional)");
+    expect(evidenceSourceLabel({ source: "bank_statement", accountRef: "BANK-USD-OPS (FICTIONAL)" })).toBe("Bank statement BANK-USD-OPS (FICTIONAL)");
+  });
+  it("HUMAN_LABELS.supplierPaidBasis labels every basis value", async () => {
+    const { HUMAN_LABELS } = await import("@/lib/clearline");
+    expect(Object.keys(HUMAN_LABELS.supplierPaidBasis).sort()).toEqual(["none", "provider_reported", "verified_settlement"]);
+    expect(HUMAN_LABELS.supplierPaidBasis.provider_reported).toMatch(/provider-reported only/);
+    expect(HUMAN_LABELS.supplierPaidBasis.verified_settlement).toMatch(/verified by independent evidence/);
+  });
+});

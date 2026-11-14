@@ -7,10 +7,10 @@ import { obligationOutstanding } from "./funding";
 import { formatMinor } from "./money";
 import { TERMINAL_FOR_SETTLEMENT_REPORT, isTerminalForSettlementReport } from "./state";
 import type { AmountDifference, PaymentIntent, ReconciliationAllocation, ReconciliationCode, RepaymentObligation, Severity, StatementLine } from "./types";
-import { addDays, daysBetween, referenceTokens, type Tx } from "./tx";
+import { MATCHING_WINDOW_DAYS, daysBetween, inMatchingWindow, referenceTokens, type Tx } from "./tx";
 
 /** Value date must fall within [submission date − 1 day, submission date + N days]. */
-export const RECONCILIATION_WINDOW_DAYS = 7;
+export const RECONCILIATION_WINDOW_DAYS = MATCHING_WINDOW_DAYS;
 /** Statement received more than this many days after its value date is "late" (still matchable). */
 export const LATE_STATEMENT_DAYS = 3;
 
@@ -119,6 +119,12 @@ function allocate(tx: Tx, line: StatementLine, target: ReconciliationAllocation[
   return a;
 }
 
+/** "Bank statement <account> (fictional)": the fictional marker once, also when the account ref already carries it. */
+export function evidenceSourceLabel(line: Pick<StatementLine, "source" | "accountRef">): string {
+  const kind = line.source === "bank_statement" ? "Bank statement" : "Provider settlement report";
+  return /\(fictional\)/i.test(line.accountRef) ? `${kind} ${line.accountRef}` : `${kind} ${line.accountRef} (fictional)`;
+}
+
 function lineEvidence(tx: Tx, line: StatementLine, link: { intentId?: string; advanceId?: string }) {
   const ev = {
     id: tx.id("evd"),
@@ -126,7 +132,7 @@ function lineEvidence(tx: Tx, line: StatementLine, link: { intentId?: string; ad
     intentId: link.intentId,
     advanceId: link.advanceId,
     description: `${line.direction} ${formatMinor(line.amountMinor, line.currency)} · ${line.reference || "(no reference)"} · value ${line.valueDate}`,
-    source: line.source === "bank_statement" ? `Bank statement ${line.accountRef} (fictional)` : `Provider settlement report ${line.accountRef} (fictional)`,
+    source: evidenceSourceLabel(line),
     independent: line.source === "bank_statement",
     reference: line.lineId,
     recordedBy: "system",
@@ -159,10 +165,7 @@ function exceptionFor(tx: Tx, line: StatementLine, code: ReconciliationCode, ext
 }
 
 /** Window and lateness use organisation calendar dates (Organization.timezone). */
-const inWindow = (tx: Tx, valueDate: string, submittedAt: string) => {
-  const submitted = tx.orgDate(submittedAt);
-  return valueDate >= addDays(submitted, -1) && valueDate <= addDays(submitted, RECONCILIATION_WINDOW_DAYS);
-};
+const inWindow = (tx: Tx, valueDate: string, submittedAt: string) => inMatchingWindow(valueDate, submittedAt, tx.ws.organization.timezone);
 
 const isLate = (tx: Tx, line: StatementLine) => daysBetween(line.valueDate, tx.orgDate(line.receivedAt)) > LATE_STATEMENT_DAYS;
 

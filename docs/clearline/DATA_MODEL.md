@@ -121,3 +121,10 @@ Result: `investigate().returnPosition` = `RT_NET_ZERO` (debited = return credite
 - **Returned payouts.** Scope follows settlement: `contradicted` keeps the contradicted evidence's scope (`bank_statement` / `onchain_transfer`), `none` has scope `none`.
 - **Reset.** The clock is not moved; the clock's rules apply to the restored records; the audit event lists what was removed.
 - **Case report.** `matched` is the amount actually allocated (0.00 for a created, failed or cancelled payout with no evidence).
+
+## Rules added after the re-review (CHANGE 9, 2026-11-14)
+
+- **Reset ids.** `resetScenario` raises `seq` to at least the highest restored id, so a workspace saved by an earlier sample version never generates a restored id again.
+- **Migration.** The `none` outcome requires that a person resolved the rc3 terminal rule's own exception for the same evidence. The code and the line or observations must match; an unrelated resolved contradiction never counts. `loadWorkspace` returns each change as a `WorkspaceMigration`.
+- **`ReconciliationException.resolution.acceptedDifference?`** `{ statementLineId, differenceMinor, currency }` is set only by `resolve { acceptDifference: true }`. It is allowed only on an `RC_OVERPAYMENT` bank debit that carries the payout's provider payment id, in its currency and matching window, at most 1% over. A case may close on it; a plain resolution never lets a case close.
+- **Evidence `source`.** For a statement line it reads "Bank statement <account>" or "Provider settlement report <account>", with "(fictional)" exactly once.

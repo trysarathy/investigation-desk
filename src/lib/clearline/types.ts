@@ -528,7 +528,12 @@ export interface ReconciliationException {
   createdAt: string;
   lastUpdatedAt: string;
   history: HistoryEntry[];
-  resolution?: { at: string; actorId: string; note: string };
+  /**
+   * Who resolved it, when and why. `acceptedDifference` (re-review R-M2): set only when the person resolved an
+   * RC_OVERPAYMENT exception with `acceptDifference: true` on a bank debit that otherwise matches the payout
+   * (see acceptedBankLine): the over-amount the person accepted.
+   */
+  resolution?: { at: string; actorId: string; note: string; acceptedDifference?: { statementLineId: string; differenceMinor: number; currency: CurrencyCode } };
 }
 
 /** Alias: the brief calls every exception a ReconciliationException; categories go wider. */
@@ -829,7 +834,8 @@ export type WorkspaceAction =
   | { type: "add_note"; target: TargetRef; text: string }
   | { type: "request_info"; caseId: string; from: string; request: string }
   | { type: "attach_evidence"; target: TargetRef; evidence: AttachEvidenceInput }
-  | { type: "resolve"; target: TargetRef; note: string }
+  /** acceptDifference (re-review R-M2): only for an RC_OVERPAYMENT exception whose bank debit names the payout, in its currency and window, at most ACCEPTED_OVERAGE_BPS over; records the accepted difference so the payout's case may close. */
+  | { type: "resolve"; target: TargetRef; note: string; acceptDifference?: boolean }
   | { type: "reopen"; target: TargetRef; reason: string }
   | { type: "submit_hold_documents"; holdId: string; documents: string[] }
   | { type: "assign_hold_reviewer"; holdId: string; reviewerId: string }
@@ -947,6 +953,35 @@ export interface ReturnPosition {
   beneficiaryPaid: false;
   code: "RT_NET_ZERO" | "RT_NET_NOT_ZERO" | "RT_RETURN_NOT_ON_STATEMENT" | "RT_DEBIT_NOT_ON_STATEMENT";
   text: string;
+}
+
+/**
+ * Re-review R-m1: one change the load-time migration made to a workspace saved by an earlier engine version
+ * (see loadWorkspace). `text` is plain English the console can show ("Your saved workspace was updated: …").
+ */
+export interface WorkspaceMigration {
+  kind: "terminal_payout_verified";
+  intentId: string;
+  internalReference: string;
+  from: StatusDimensions;
+  to: StatusDimensions;
+  /** contradiction_raised: the rc3 rule's exception was created; contradicted_open: an open exception already covers it; resolved_by_person: a person had resolved the rule's exception. */
+  outcome: "contradiction_raised" | "contradicted_open" | "resolved_by_person";
+  /** The exception created (contradiction_raised), still open (contradicted_open) or already resolved (resolved_by_person). */
+  exceptionId?: string;
+  exceptionCode?: string;
+  ownerId?: string;
+  caseId?: string;
+  /** The `workspace.migrated` audit event recording this change. */
+  auditId: string;
+  text: string;
+}
+
+/** Re-review R-m1: result of loadWorkspace / loadWorkspaceValue. */
+export interface WorkspaceLoad {
+  workspace: Workspace;
+  /** Empty for a workspace written by this engine version. */
+  migrations: WorkspaceMigration[];
 }
 
 export interface CaseReport {
