@@ -191,9 +191,10 @@ function plan(ws: Workspace, input: string): Plan {
 
 /** Whether `scenario` (a SampleScenario key, or its sample payment id or case id) can be reset now, and why not. */
 export function canResetScenario(ws: Workspace, scenario: string): ResetCheck {
-  const valid = parseWorkspaceValue(ws);
+  // Parse a copy: parsing may migrate an older workspace in place (review M-1); the input is never changed.
+  const valid = parseWorkspaceValue(structuredClone(ws));
   if (!valid.ok) return { allowed: false, code: "SCENARIO_NOT_IN_WORKSPACE", reason: valid.error.message, blockers: [] };
-  return plan(ws, scenario).check;
+  return plan(valid.value, scenario).check;
 }
 
 /**
@@ -202,9 +203,11 @@ export function canResetScenario(ws: Workspace, scenario: string): ResetCheck {
  * actor), not_found (NOT_A_SAMPLE_SCENARIO), precondition_failed (every other refusal; the message
  * starts with the ResetBlockCode, e.g. "REFERENCED_BY_OTHER_RECORDS: …", and entityId is the first blocker).
  */
-export function resetScenario(ws: Workspace, scenario: string, ctx: ActionContext): Result<ResetScenarioOutput> {
-  const valid = parseWorkspaceValue(ws);
+export function resetScenario(input: Workspace, scenario: string, ctx: ActionContext): Result<ResetScenarioOutput> {
+  // Parse a copy: parsing may migrate an older workspace in place (review M-1); the input is never changed.
+  const valid = parseWorkspaceValue(structuredClone(input));
   if (!valid.ok) return valid;
+  const ws = valid.value;
   if (!ctx || !isIsoInstant(ctx.at) || Date.parse(ctx.at) < Date.parse(ws.asOf))
     return { ok: false, error: { code: "invalid_field", message: "ctx.at must be an ISO-8601 instant not earlier than the workspace clock (asOf).", field: "at" } };
   if (!ws.actors.some((a) => a.id === ctx.actorId)) return { ok: false, error: { code: "unauthorized_actor", message: "Unknown actor.", field: "actorId" } };

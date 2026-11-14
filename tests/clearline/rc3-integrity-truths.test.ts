@@ -67,10 +67,14 @@ describe("rc3 I-1: parseWorkspace refuses a workspace that breaks a financial in
     w2.holds[0].status = "rejected";
     refused(w2, /holds\[0\]\.status/);
   });
-  it("a returned payout stored as verified", () => {
+  it("a terminal payout stored as verified with NO settlement evidence (no engine version produces it)", () => {
+    // Review M-1: s2 now carries a bank debit, so "returned / verified" on s2 is a state an earlier engine could
+    // produce and is MIGRATED (rc3-migration.test.ts). The refusal is pinned on a payout with no evidence at all:
+    // s3 (held, no debit, no chain observation) stored as cancelled / verified.
     const ws = clone(sampleWorkspace());
-    const s2 = intent(ws, scenarioIntentId(ws, "s2_returned")!);
-    s2.status.settlement = "verified";
+    const s3 = intent(ws, scenarioIntentId(ws, "s3_hold")!);
+    s3.status.execution = "cancelled";
+    s3.status.settlement = "verified";
     refused(ws, /intents\[\d+\]\.status\.settlement/);
   });
 });

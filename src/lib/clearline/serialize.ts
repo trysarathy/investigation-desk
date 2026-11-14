@@ -1,5 +1,6 @@
 import { isCurrency } from "./money";
-import { isIsoDate, isIsoInstant, isTimeZone } from "./tx";
+import { EXCEPTION_DUE_DAYS, EXCEPTION_REQUIRED_ACTION } from "./exceptions";
+import { addDays, isIsoDate, isIsoInstant, isTimeZone, orgDate } from "./tx";
 import type { Result, Workspace } from "./types";
 
 export const serializeWorkspace = (ws: Workspace): string => JSON.stringify(ws);
@@ -140,8 +141,97 @@ function validate(w: unknown): Workspace {
     need((e.amountDifference as Obj).statementLineId === e.statementLineId, `${q}.statementLineId`, "must equal the exception's statementLineId");
     differenceMatchesLine(e.amountDifference as Obj, lines.find((l) => l.id === e.statementLineId), q);
   });
+  migrateTerminalVerified(ws);
   crossCheck(ws);
   return ws as unknown as Workspace;
+}
+
+/**
+ * Review M-1: load-time migration of states that EARLIER engine versions produced and rc3 corrects, so a
+ * workspace saved in the browser under v2 is repaired instead of refused. It runs on every parse (stored
+ * JSON, posted API workspaces and every applyAction), is idempotent, and is recorded in the audit trail
+ * (`workspace.migrated`, actor "system").
+ *
+ * Handled: a failed, cancelled, expired or returned payout stored with settlement "verified" while
+ * settlement evidence exists (a bank debit allocated to it or a counted chain observation) — produced by
+ * v2 (T-1: chain-final then payout.failed; T-2: the recompute after a person resolved a failed payout's
+ * contradiction) and before CHANGE 6 (returned / verified). It becomes exactly what rc3 gives for the
+ * same facts:
+ * - a contradiction is still open (or, for returned, the return is) → "contradicted";
+ * - a person already resolved a contradiction or the return → "none" (scope "none"), as the rc3 recompute;
+ * - otherwise → "contradicted" plus the contradictory_evidence exception rc3 would have raised
+ *   (CH_TRANSFER_FOR_TERMINAL_PAYOUT, RC_DEBIT_FOR_FAILED_PAYOUT or RC_DEBIT_FOR_TERMINAL_PAYOUT), owned by
+ *   the case owner or else the person who created the payment, linked to the case (reopened if resolved).
+ * A terminal "verified" payout WITHOUT any evidence was never produced by any engine version: it is left
+ * for crossCheck to refuse.
+ */
+function migrateTerminalVerified(ws: Obj) {
+  const intents = ws.intents as Obj[];
+  const exceptions = ws.exceptions as Obj[];
+  const cases = ws.cases as Obj[];
+  const actors = ws.actors as Obj[];
+  const asOf = ws.asOf as string;
+  const nextId = (prefix: string) => {
+    ws.seq = (ws.seq as number) + 1;
+    return `${prefix}_${String(ws.seq).padStart(5, "0")}`;
+  };
+  for (const intent of intents) {
+    const st = intent.status as Obj;
+    const exec = st.execution as string;
+    if (!TERMINAL.includes(exec) || st.settlement !== "verified") continue;
+    const id = intent.id as string;
+    const bankAllocs = (ws.allocations as Obj[]).filter((a) => a.evidenceKind === "statement_line" && isObj(a.target) && (a.target as Obj).kind === "payment" && (a.target as Obj).intentId === id && !(a.codes as string[]).includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN"));
+    const obs = (ws.chainObservations as Obj[]).filter((o) => o.intentId === id && o.status !== "rejected_unsupported");
+    if (!bankAllocs.length && !obs.length) continue; // never engine-produced: crossCheck refuses it
+    const mine = exceptions.filter((e) => e.intentId === id);
+    const openContra = mine.some((e) => e.status !== "resolved" && (e.category === "contradictory_evidence" || (exec === "returned" && e.category === "returned_payout")));
+    const resolvedByPerson = mine.some((e) => e.status === "resolved" && (e.category === "contradictory_evidence" || e.category === "returned_payout"));
+    const before = `${exec} / verified (${String(st.settlementScope)})`;
+    let after: string;
+    if (openContra) {
+      st.settlement = "contradicted";
+      after = "contradicted (a contradiction is open)";
+    } else if (resolvedByPerson) {
+      st.settlement = "none";
+      st.settlementScope = "none";
+      after = "none (a person already resolved the contradiction)";
+    } else {
+      const chain = st.settlementScope === "onchain_transfer" || (!bankAllocs.length && obs.length > 0);
+      const code = chain ? "CH_TRANSFER_FOR_TERMINAL_PAYOUT" : exec === "failed" ? "RC_DEBIT_FOR_FAILED_PAYOUT" : "RC_DEBIT_FOR_TERMINAL_PAYOUT";
+      let c = cases.find((x) => x.id === intent.caseId);
+      const owner = [c?.ownerId, intent.createdBy].find((a) => typeof a === "string" && actors.some((x) => x.id === a && x.role !== "viewer")) as string | undefined;
+      if (!c) {
+        c = { id: nextId("case"), intentId: id, ...(intent.advanceId ? { advanceId: intent.advanceId } : {}), title: `Payment ${String(intent.internalReference)} · ${String(intent.beneficiaryName)}`, status: "open", notes: [], requestedInfo: [], evidenceIds: [], exceptionIds: [], history: [{ at: asOf, actorId: "system", action: "opened", detail: "Case opened by the rc3 workspace migration" }], createdAt: asOf, updatedAt: asOf };
+        cases.push(c);
+        intent.caseId = c.id;
+      }
+      const excId = nextId("exc");
+      const explanation = `${chain ? "An on-chain transfer to the beneficiary's registered wallet was observed" : "A statement debit matches this payout"}, but the provider reports the payout ${exec}. An earlier engine version stored this as verified; rc3 records the disagreement (workspace migration).`;
+      exceptions.push({
+        id: excId, category: "contradictory_evidence", severity: "critical", status: owner ? "in_review" : "open", explanationCode: code, explanation, intentId: id,
+        ...(chain ? {} : { statementLineId: bankAllocs[0].statementLineId }), caseId: c.id, candidates: [],
+        supportingEventIds: obs.map((o) => o.id as string),
+        supportingEvidenceIds: (ws.evidence as Obj[]).filter((e) => e.intentId === id && (e.kind === "bank_statement_line" || e.kind === "chain_observation")).map((e) => e.id as string),
+        ...(owner ? { ownerId: owner } : {}),
+        dueDate: addDays(orgDate(asOf, (ws.organization as Obj).timezone as string), EXCEPTION_DUE_DAYS.critical),
+        requiredAction: EXCEPTION_REQUIRED_ACTION.contradictory_evidence, createdAt: asOf, lastUpdatedAt: asOf,
+        history: [
+          { at: asOf, actorId: "system", action: "opened", detail: `${code}: ${explanation}` },
+          ...(owner ? [{ at: asOf, actorId: "system", action: "owner_assigned", detail: `Owner: ${String(actors.find((x) => x.id === owner)!.name)} (${c.ownerId === owner ? "case owner" : "created the payment"})` }] : []),
+        ],
+      });
+      (c.exceptionIds as string[]).push(excId);
+      if (c.status === "resolved") {
+        c.status = "reopened";
+        (c.history as Obj[]).push({ at: asOf, actorId: "system", action: "reopened", detail: `New exception ${excId} (contradictory_evidence) linked by the rc3 migration` });
+      }
+      c.updatedAt = asOf;
+      st.settlement = "contradicted";
+      if (bankAllocs.length || (ws.allocations as Obj[]).some((a) => a.evidenceKind === "chain_observation" && isObj(a.target) && (a.target as Obj).intentId === id)) st.reconciliation = "exception";
+      after = `contradicted with ${code} (${excId}${owner ? `, owner ${owner}` : ""})`;
+    }
+    (ws.audit as Obj[]).push({ id: nextId("aud"), at: asOf, actorId: "system", action: "workspace.migrated", entityType: "intent", entityId: id, summary: `rc3 migration: ${before} → ${after}. Saved by an earlier engine version.` });
+  }
 }
 
 const TERMINAL = ["failed", "cancelled", "expired", "returned"];
@@ -243,8 +333,9 @@ export function parseWorkspaceValue(v: unknown): Result<Workspace> {
   try {
     return { ok: true, value: validate(v) };
   } catch (e) {
-    if (e instanceof Invalid) return { ok: false, error: { code: "invalid_field", message: `Damaged workspace — ${e.message}. Reset to the sample.`, field: e.field } };
-    return { ok: false, error: { code: "invalid_field", message: "Damaged workspace; reset to the sample.", field: "workspace" } };
+    // Review M-1 / n-3: the workspace may have been written by this engine; say what is wrong, not "damaged".
+    if (e instanceof Invalid) return { ok: false, error: { code: "invalid_field", message: `This workspace cannot be loaded: ${e.message}. No version of the engine produces this, so it was not repaired automatically. Reset to the sample to continue.`, field: e.field } };
+    return { ok: false, error: { code: "invalid_field", message: "This workspace cannot be loaded: its structure is not a Clearline workspace. Reset to the sample to continue.", field: "workspace" } };
   }
 }
 
