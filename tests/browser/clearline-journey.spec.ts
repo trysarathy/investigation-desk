@@ -47,8 +47,16 @@ async function fakeWebsite(page: Page, baseURL: string) {
 
 /** Console navigation the way a person uses it: on a phone the menu opens first. */
 async function goNav(page: Page, label: string) {
-  if (!(await page.locator("#cl-nav").isVisible())) await page.getByRole("button", { name: "Menu" }).click();
-  await page.getByRole("navigation", { name: "Console" }).getByRole("link", { name: label, exact: true }).click();
+  // Bounded waits: if this ever stalls, the failure names the step instead of using up the whole test.
+  await hydrated(page);
+  const menu = page.getByRole("button", { name: "Menu" });
+  if (await menu.isVisible() && !(await page.locator("#cl-nav").isVisible())) {
+    await menu.click({ timeout: 20_000 });
+    await expect(page.locator("#cl-nav")).toBeVisible({ timeout: 20_000 });
+  }
+  const link = page.getByRole("navigation", { name: "Console" }).getByRole("link", { name: label, exact: true });
+  await expect(link, `nav link ${label}`).toBeVisible({ timeout: 20_000 });
+  await link.click({ timeout: 20_000 });
 }
 
 async function noHorizontalOverflow(page: Page, label = "") {
@@ -1181,49 +1189,63 @@ async function completedPayout(page: Page, ref: string): Promise<string> {
   return id;
 }
 
-/** Ingests a bank debit carrying the payout's reference for `factor` × the amount; returns the over-amount exception's panel. */
-async function overAmountException(page: Page, ref: string, factor: number) {
+/**
+ * Ingests a bank debit carrying the payout's reference (optionally `factor` × the amount, `daysLate` after the
+ * default value date, or in the wrong currency), then opens the exception it raised with an owner and evidence.
+ */
+async function debitException(page: Page, ref: string, o: { factor?: number; daysLate?: number; wrongCurrency?: boolean; code: string }) {
   await goNav(page, "Reconciliation");
   await expect(page).toHaveURL(/\/clearline\/reconciliation$/);
   await hydrated(page);
   const form = page.getByRole("form", { name: "Ingest statement line" });
-  await form.getByRole("button", { name: `Debit for ${ref} (by provider reference)` }).click();
-  const amount = form.getByRole("textbox", { name: /^Amount/ });
-  const base = Number((await amount.inputValue()).replace(/,/g, ""));
-  await amount.fill((Math.round(base * factor * 100) / 100).toFixed(2));
+  await form.getByRole("button", { name: o.wrongCurrency ? "Same reference, wrong currency" : `Debit for ${ref} (by provider reference)` }).click();
+  if (o.factor) {
+    const amount = form.getByRole("textbox", { name: /^Amount/ });
+    const base = Number((await amount.inputValue()).replace(/,/g, ""));
+    await amount.fill((Math.round(base * o.factor * 100) / 100).toFixed(2));
+  }
+  if (o.daysLate) {
+    const date = form.getByLabel("Value date");
+    const d = new Date(`${await date.inputValue()}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + o.daysLate);
+    await date.fill(d.toISOString().slice(0, 10));
+  }
   await form.getByRole("button", { name: "Ingest statement line" }).click();
-  await expect(form.getByRole("status")).toContainText("RC_OVERPAYMENT");
-  await open(page, "/clearline/exceptions?q=RC_OVERPAYMENT");
-  const row = page.locator("#queue tbody tr").filter({ hasText: "RC_OVERPAYMENT" }).last();
+  await expect(form.getByRole("status")).toContainText(o.code);
+  await open(page, `/clearline/exceptions?q=${o.code}`);
+  const row = page.locator("#queue tbody tr").filter({ hasText: o.code }).last();
   const excId = (await row.getByRole("link").first().getAttribute("href"))!.slice(1);
   const panel = page.locator(`section[id="${excId}"]`);
   await panel.getByText("Work this exception").click();
   // The engine's other conditions for any resolution come first: an owner and supporting evidence.
   await panel.getByRole("button", { name: "Assign owner" }).click();
-  await expect(panel.getByRole("status").first()).toContainText("Assign owner — recorded by the engine");
-  await panel.getByLabel("Description").fill("Bank fee advice for the over-amount (fictional)");
+  await expect(panel.getByRole("status").filter({ hasText: "Assign owner — recorded by the engine" })).toBeVisible();
+  await panel.getByLabel("Description").fill("Bank advice for this debit (fictional)");
   await panel.getByRole("button", { name: "Attach evidence metadata" }).click();
-  await expect(panel.getByRole("status").first()).toContainText("Attach evidence — recorded by the engine");
-  return panel;
+  await expect(panel.getByRole("status").filter({ hasText: "Attach evidence — recorded by the engine" })).toBeVisible();
+  return { panel, excId };
 }
+const overAmountException = async (page: Page, ref: string, factor: number) => (await debitException(page, ref, { factor, code: "RC_OVERPAYMENT" })).panel;
+const reasonOf = async (page: Page, btn: ReturnType<Page["getByRole"]>) => page.locator(`[id="${await btn.getAttribute("aria-describedby")}"]`);
 
-test("an over-amount bank debit within 1% can be accepted explicitly; a larger one is refused in the engine's words", async ({ page }) => {
+test("an over-amount bank debit within 1% is accepted by one person; above 50% it is refused in the engine's words", async ({ page }) => {
   test.setTimeout(180_000);
-  // Larger than 1%: the option is there, refused before the click, with the engine's reason.
-  await completedPayout(page, "INV-OVER-5PCT");
-  let panel = await overAmountException(page, "INV-OVER-5PCT", 1.05);
-  let accept = panel.getByTestId("accept-over-amount");
-  await accept.getByLabel("Why the over-amount is accepted").fill("Trying to accept 5%.");
+  // Above 50%: the option is there, refused before the click, with the engine's reason.
+  await completedPayout(page, "INV-OVER-60PCT");
+  let panel = await overAmountException(page, "INV-OVER-60PCT", 1.6);
+  let accept = panel.getByTestId("accept-difference");
+  await accept.getByLabel("Why the over-amount is accepted").fill("Trying to accept 60%.");
   const btn = accept.getByRole("button", { name: "Accept the over-amount" });
   await expect(btn).toBeDisabled();
   const reason = page.locator(`[id="${await btn.getAttribute("aria-describedby")}"]`);
   await expect(reason).toContainText("DIFFERENCE_NOT_ACCEPTABLE");
-  await expect(reason).toContainText("This difference cannot be accepted");
+  await expect(reason).toContainText("cannot be accepted");
+  await expect(reason).toContainText("50%");
 
   // Within 1%: accepted once the person gives a reason, and the engine records it.
   await completedPayout(page, "INV-OVER-HALF");
   panel = await overAmountException(page, "INV-OVER-HALF", 1.005);
-  accept = panel.getByTestId("accept-over-amount");
+  accept = panel.getByTestId("accept-difference");
   const ok = accept.getByRole("button", { name: "Accept the over-amount" });
   await expect(ok).toBeDisabled(); // no reason written yet
   await expect(page.locator(`[id="${await ok.getAttribute("aria-describedby")}"]`)).toHaveText("Write why you accept the difference first.");
@@ -1237,4 +1259,155 @@ test("an over-amount bank debit within 1% can be accepted explicitly; a larger o
   const done = page.locator(`section[id="${excId}"]`);
   await expect(done.locator('[data-api-value="resolved"]').first()).toBeVisible();
   await expect(done).toContainText("Bank charged a fee of 0.5%; accepted.");
+  await done.getByText("Work this exception").click();
+  await expect(done.getByTestId("acceptance-status")).toHaveAttribute("data-pending", "false");
+  await expect(done.getByTestId("acceptance-status")).toContainText("an over-amount of");
+  await expect(done.getByTestId("second-approval")).toHaveCount(0); // within 1%: no second person needed
+});
+
+test("(a) an exact-amount debit dated after the window is accepted by one person with the late date recorded", async ({ page }) => {
+  test.setTimeout(180_000);
+  await completedPayout(page, "INV-LATE-10D");
+  const { panel, excId } = await debitException(page, "INV-LATE-10D", { daysLate: 10, code: "RC_OUTSIDE_TIME_WINDOW" });
+  const accept = panel.getByTestId("accept-difference");
+  const btn = accept.getByRole("button", { name: "Accept the late-dated debit" });
+  await expect(btn).toBeDisabled();
+  await expect(await reasonOf(page, btn)).toHaveText("Write why you accept the difference first.");
+  await accept.getByLabel("Why the late date is accepted").fill("Bank posted the debit late; amount and reference match.");
+  await expect(btn).toBeEnabled();
+  await btn.click();
+  await open(page, `/clearline/exceptions?view=all&q=${excId}`);
+  const done = page.locator(`section[id="${excId}"]`);
+  await expect(done.locator('[data-api-value="resolved"]').first()).toBeVisible();
+  await done.getByText("Work this exception").click();
+  await expect(done.getByTestId("acceptance-status")).toContainText("a late value date");
+  await expect(done.getByTestId("acceptance-status")).toContainText("Accepted by Maya Tan");
+});
+
+test("(c) an over-amount above 1% needs a second person: the acceptor is refused, another approves, then the case closes", async ({ page }) => {
+  test.setTimeout(240_000);
+  const id = await completedPayout(page, "INV-OVER-10PCT");
+  const { panel, excId } = await debitException(page, "INV-OVER-10PCT", { factor: 1.1, code: "RC_OVERPAYMENT" });
+  const accept = panel.getByTestId("accept-difference");
+  await accept.getByLabel("Why the over-amount is accepted").fill("Supplier invoice was revised upward by 10% (fictional).");
+  await accept.getByRole("button", { name: "Accept the over-amount" }).click();
+  // Pending: the case cannot close yet, and the engine names who may approve.
+  await open(page, `/clearline/payments/${id}`);
+  const kase = page.locator("#case");
+  await kase.getByRole("button", { name: "Assign owner" }).click();
+  await expect(kase.getByRole("status").filter({ hasText: "Assign owner — recorded by the engine" })).toBeVisible();
+  await kase.getByLabel("Resolution note").fill("Closing after the accepted over-amount.");
+  const resolve = kase.getByTestId("resolve-gate").getByRole("button", { name: "Resolve" });
+  await expect(resolve).toBeDisabled();
+  const pendingReason = await reasonOf(page, resolve);
+  await expect(pendingReason).toContainText("SECOND_APPROVAL_REQUIRED");
+  await expect(pendingReason).toContainText("other than usr_maya");
+  // The acceptor cannot approve their own acceptance.
+  await open(page, `/clearline/exceptions?view=all&q=${excId}`);
+  const done = page.locator(`section[id="${excId}"]`);
+  await done.getByText("Work this exception").click();
+  const status = done.getByTestId("acceptance-status");
+  await expect(status).toHaveAttribute("data-pending", "true");
+  const second = status.getByTestId("second-approval");
+  await expect(second.getByTestId("role-switch")).toContainText(ROLE_NOTE);
+  await second.getByLabel("Approval note").fill("Checked the revised invoice.");
+  const approve = second.getByRole("button", { name: "Approve the acceptance" });
+  await second.getByLabel("Approver").selectOption("usr_maya");
+  await expect(approve).toBeDisabled();
+  await expect(await reasonOf(page, approve)).toContainText("maker_checker_violation");
+  // A different staff person approves.
+  await second.getByLabel("Approver").selectOption("usr_daniel");
+  await expect(approve).toBeEnabled();
+  await approve.click();
+  await expect(status.getByRole("status")).toContainText("Approve the acceptance — recorded by the engine");
+  await expect(status.getByTestId("second-approval")).toContainText("Second approval: Daniel Ong");
+  await expect(status).toHaveAttribute("data-pending", "false");
+  // Now the case can be closed.
+  await open(page, `/clearline/payments/${id}`);
+  const k2 = page.locator("#case");
+  await k2.getByLabel("Resolution note").fill("Closing after the second approval.");
+  const r2 = k2.getByTestId("resolve-gate").getByRole("button", { name: "Resolve" });
+  await expect(r2).toBeEnabled();
+  await r2.click();
+  await expect(k2.getByRole("status").filter({ hasText: "Close case — recorded by the engine" })).toBeVisible();
+});
+
+test("(d) a debit in another currency is never acceptable, and the case says why", async ({ page }) => {
+  test.setTimeout(180_000);
+  const id = await completedPayout(page, "INV-FX-MISMATCH");
+  const { panel } = await debitException(page, "INV-FX-MISMATCH", { wrongCurrency: true, code: "RC_CURRENCY_MISMATCH" });
+  const accept = panel.getByTestId("accept-difference");
+  await accept.getByLabel("Why it is accepted").fill("Trying to accept a USD debit.");
+  const btn = accept.getByRole("button", { name: "Accept the debit in another currency" });
+  await expect(btn).toBeDisabled();
+  const why = await reasonOf(page, btn);
+  await expect(why).toContainText("DIFFERENCE_NOT_ACCEPTABLE");
+  await expect(why).toContainText("another currency cannot be accepted");
+  // Even after the person resolves the exception itself, the payment is not evidenced: the case explains.
+  await panel.getByLabel("Resolution note").fill("Wrong-currency line noted; not this payout's evidence.");
+  await panel.getByTestId("resolve-gate").getByRole("button", { name: "Resolve" }).click();
+  await open(page, `/clearline/payments/${id}`);
+  const kase = page.locator("#case");
+  await kase.getByRole("button", { name: "Assign owner" }).click();
+  await kase.getByLabel("Resolution note").fill("Try to close.");
+  const resolve = kase.getByTestId("resolve-gate").getByRole("button", { name: "Resolve" });
+  await expect(resolve).toBeDisabled();
+  const reason = await reasonOf(page, resolve);
+  await expect(reason).toContainText("EVIDENCE_OUTSTANDING");
+  expect((await reason.innerText()).length).toBeGreaterThan(40);
+});
+
+test("a v2 workspace with gaps (new migration kinds) loads with each change listed generically", async ({ page }) => {
+  const raw = readFileSync("tests/clearline/fixtures/v2_gaps.json", "utf8");
+  await page.addInitScript((t) => { try { if (!sessionStorage.getItem("seeded")) { localStorage.setItem("clearline.console.workspace.v1", t); sessionStorage.setItem("seeded", "1"); } } catch { /* blocked */ } }, raw);
+  await open(page, "/clearline");
+  await expect(page.getByTestId("workspace-discarded")).toHaveCount(0);
+  const n = page.getByTestId("workspace-migrated");
+  const items = n.locator("li");
+  expect(await items.count()).toBeGreaterThan(0);
+  for (const t of await items.allInnerTexts()) {
+    expect(t).toContain("Your saved workspace was updated by this version:");
+    expect(t.replace("Your saved workspace was updated by this version:", "").trim().length).toBeGreaterThan(10);
+  }
+  await expect(n.getByRole("link", { name: /^Open payment / }).first()).toBeVisible();
+});
+
+test("reopening an accepted over-amount withdraws the acceptance: it reloads cleanly and the case is blocked again", async ({ page }) => {
+  test.setTimeout(240_000);
+  const id = await completedPayout(page, "INV-REOPEN-1");
+  const { panel, excId } = await debitException(page, "INV-REOPEN-1", { factor: 1.005, code: "RC_OVERPAYMENT" });
+  const accept = panel.getByTestId("accept-difference");
+  await accept.getByLabel("Why the over-amount is accepted").fill("Bank fee of 0.5% (fictional).");
+  await accept.getByRole("button", { name: "Accept the over-amount" }).click();
+  // Accepted: the case can now be closed (not clicked).
+  await open(page, `/clearline/payments/${id}`);
+  let kase = page.locator("#case");
+  await kase.getByRole("button", { name: "Assign owner" }).click();
+  await expect(kase.getByRole("status").filter({ hasText: "Assign owner — recorded by the engine" })).toBeVisible();
+  await kase.getByLabel("Resolution note").fill("Ready to close.");
+  await expect(kase.getByTestId("resolve-gate").getByRole("button", { name: "Resolve" })).toBeEnabled();
+  // Reopen the exception: the engine withdraws the accepted difference.
+  await open(page, `/clearline/exceptions?view=all&q=${excId}`);
+  const done = page.locator(`section[id="${excId}"]`);
+  await done.getByText("Work this exception").click();
+  await expect(done.getByTestId("acceptance-status")).toBeVisible();
+  await done.getByLabel("Reason to reopen").fill("The bank fee advice was for another payment.");
+  await done.getByRole("button", { name: "Reopen" }).click();
+  await expect(done.getByRole("status").filter({ hasText: "Reopen — recorded by the engine" })).toBeVisible();
+  // The saved workspace still loads after a reload, and the acceptance is gone.
+  await page.reload();
+  await hydrated(page);
+  await expect(page.getByTestId("workspace-discarded")).toHaveCount(0);
+  const again = page.locator(`section[id="${excId}"]`);
+  await expect(again.locator('[data-api-value="reopened"]').first()).toBeVisible();
+  await again.getByText("Work this exception").click();
+  await expect(again.getByTestId("acceptance-status")).toHaveCount(0);
+  await expect(again.getByTestId("accept-difference")).toBeVisible(); // can be accepted again, deliberately
+  // The case is blocked again.
+  await open(page, `/clearline/payments/${id}`);
+  kase = page.locator("#case");
+  await kase.getByLabel("Resolution note").fill("Try to close.");
+  const resolve = kase.getByTestId("resolve-gate").getByRole("button", { name: "Resolve" });
+  await expect(resolve).toBeDisabled();
+  await expect(await reasonOf(page, resolve)).not.toHaveText("");
 });

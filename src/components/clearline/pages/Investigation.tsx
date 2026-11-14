@@ -15,6 +15,7 @@ import { Chip, Code, Empty, Field, Notice, PageHead, Panel, Status, fmtTime, ui,
 import { SourceLine, attributionOf } from "../evidence";
 import { SyntheticReportView, useCaseReport, useSyntheticReport } from "../CaseReport";
 import { ResetCaseButton } from "../ResetCase";
+import { AcceptanceStatus } from "../AcceptDifference";
 
 const PROBLEM_OUTCOMES: ProcessingOutcome[] = ["duplicate_ignored", "stored_late_no_regression", "contradictory_exception_raised", "rejected_signature", "rejected_unknown_payment"];
 /** Return status in the engine's words (HUMAN_LABELS.returnStatus); no local copy that could drift. */
@@ -365,6 +366,13 @@ export default function Investigation({ id }: { id: string }) {
                     <ol className={ui.timeline}>{kase.history.map((h, i) => <li key={i} className={ui.tlItem}><span className={ui.tlTime}>{fmtTime(h.at)}</span><div><p className={ui.tlTitle}>{label("auditAction", h.action)}</p><p className={ui.tlMeta}>{h.detail} · {actorName(h.actorId)}</p></div></li>)}</ol>
                   </details>
                 </div>
+                {/* A case blocked by a pending second approval offers that approval here, where it is blocked. */}
+                {view.exceptions.filter((e) => e.resolution?.acceptedDifference).map((e) => (
+                  <div key={e.id} data-testid="case-acceptance">
+                    <h4 className={ui.panelBody + " " + ui.eyebrow} style={{ margin: 0, paddingBottom: 0 }}>Accepted difference · <span className="mono">{e.id}</span></h4>
+                    <AcceptanceStatus exception={e} idPrefix={`case-${e.id}`} />
+                  </div>
+                ))}
                 <TargetActions target={{ kind: "case", id: kase.id }} status={kase.status} idPrefix="case" />
               </>
             )}
