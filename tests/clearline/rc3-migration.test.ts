@@ -6,9 +6,10 @@
  * - v2_t2.json: T-2 — debit, payout.failed, person resolved RC_DEBIT_FOR_FAILED_PAYOUT → failed / verified.
  */
 import { readFileSync } from "node:fs";
+import { run, sim, submitted } from "./helpers";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { applyAction, canResetScenario, investigate, loadWorkspace, loadWorkspaceValue, resetScenario, listExceptions, parseWorkspace, sampleWorkspace, scenarioIntentId, serializeWorkspace, type Workspace } from "@/lib/clearline";
+import { ALLOWLISTED_TOKENS, applyAction, getAdapter, canResetScenario, investigate, loadWorkspace, loadWorkspaceValue, resetScenario, listExceptions, parseWorkspace, sampleWorkspace, scenarioIntentId, serializeWorkspace, type Workspace } from "@/lib/clearline";
 
 const fixture = (name: string) => readFileSync(path.join(__dirname, "fixtures", name), "utf8");
 const raw = (name: string) => JSON.parse(fixture(name)) as Workspace;
@@ -151,5 +152,114 @@ describe("re-review R-m1: loadWorkspace / loadWorkspaceValue return what the mig
     const w = raw("v2_t1.json");
     const r = applyAction(w, { type: "advance_clock", to: w.asOf }, { actorId: "usr_maya", at: w.asOf });
     expect(r.ok && r.value.audit.map((a) => a.action)).toContain("workspace.migrated");
+  });
+});
+
+describe("second re-review R2-M1: every v2 state rc3 cannot produce is corrected on load (v2_gaps.json, reviewer, real cf8732e engine)", () => {
+  const before = raw("v2_gaps.json");
+  const r = loadWorkspace(fixture("v2_gaps.json"));
+  if (!r.ok) throw new Error(r.error.message);
+  const ws = r.value.workspace;
+  const byKind = (k: string) => r.value.migrations.filter((m) => m.kind === k);
+
+  it("C-1 revival: a chain-1 observation v2 counted as final is no longer counted; the payout is no longer 'verified'", () => {
+    const i = ws.intents.find((x) => x.internalReference === "INV-V2-B")!;
+    expect(before.intents.find((x) => x.id === i.id)!.status).toMatchObject({ settlement: "verified", settlementScope: "onchain_transfer" });
+    // Before the fix: loaded as in_transit / verified (onchain_transfer), migrations [].
+    expect(i.status).toMatchObject({ execution: "in_transit", settlement: "none", settlementScope: "none" });
+    expect(ws.chainObservations.filter((o) => o.intentId === i.id).map((o) => [o.chainId, o.status])).toEqual([[1, "rejected_unsupported"]]);
+    const m = byKind("chain_observation_not_allowlisted");
+    expect(m.map((x) => [x.intentId, x.outcome, x.from.settlement, x.to.settlement])).toEqual([[i.id, "observation_not_counted", "verified", "none"]]);
+    expect(m[0].exceptionId).toBeUndefined(); // CH_UNSUPPORTED_TOKEN_OR_NETWORK was already open
+    expect(m[0].text).toMatch(/not on the allowlist\. It is no longer counted; settlement verified → none\.$/);
+    const v = investigate(ws, i.id);
+    expect(v.ok && v.value.status.settlement).toBe("none");
+  });
+  it("T-1 before finality: failed with a pending chain transfer → contradicted with CH_TRANSFER_FOR_TERMINAL_PAYOUT (owned)", () => {
+    const i = ws.intents.find((x) => x.internalReference === "INV-V2-A")!;
+    expect(i.status).toMatchObject({ execution: "failed", settlement: "contradicted", settlementScope: "onchain_transfer" });
+    const m = byKind("terminal_payout_evidence");
+    expect(m.map((x) => [x.intentId, x.outcome, x.exceptionCode, x.from.settlement])).toEqual([[i.id, "contradiction_raised", "CH_TRANSFER_FOR_TERMINAL_PAYOUT", "pending_finality"]]);
+    expect(listExceptions(ws, { intentId: i.id, status: "unresolved" }).find((e) => e.id === m[0].exceptionId)).toMatchObject({ ownerId: "usr_maya" });
+  });
+  it("C-3 reorg: s4 contradicted + matched on a transfer that is no longer final → reconciliation exception", () => {
+    const i = ws.intents.find((x) => x.scenario === "s4_chain")!;
+    expect(before.intents.find((x) => x.id === i.id)!.status.reconciliation).toBe("matched");
+    expect(i.status).toMatchObject({ settlement: "contradicted", reconciliation: "exception" });
+    expect(byKind("reorg_reconciliation").map((x) => [x.intentId, x.outcome, x.from.reconciliation, x.to.reconciliation])).toEqual([[i.id, "reconciliation_reopened", "matched", "exception"]]);
+  });
+  it("nothing else changes; idempotent; every migration is audited; never an upgrade", () => {
+    expect(r.value.migrations).toHaveLength(3);
+    const touched = new Set(r.value.migrations.map((m) => m.intentId));
+    for (const x of before.intents.filter((y) => !touched.has(y.id))) expect(ws.intents.find((y) => y.id === x.id)).toEqual(x);
+    for (const m of r.value.migrations) expect(ws.audit.find((a) => a.id === m.auditId)).toMatchObject({ action: "workspace.migrated", entityId: m.intentId });
+    const rank: Record<string, number> = { none: 0, observed: 1, pending_finality: 2, verified: 3 };
+    for (const m of r.value.migrations) if (m.to.settlement !== "contradicted") expect(rank[m.to.settlement]).toBeLessThanOrEqual(rank[m.from.settlement] ?? 9);
+    const again = loadWorkspace(serializeWorkspace(ws));
+    expect(again.ok && again.value.migrations).toEqual([]);
+  });
+});
+
+describe("second re-review R2-m2: the migration's 'another contradiction is still open' branch", () => {
+  it("rule exception resolved, but a DIFFERENT contradiction still open → contradicted (not none)", () => {
+    const t2 = raw("v2_t2.json");
+    const i = t2.intents.find((x) => x.status.execution === "failed" && x.status.settlement === "verified")!;
+    const rule = t2.exceptions.find((e) => e.explanationCode === "RC_DEBIT_FOR_FAILED_PAYOUT")!;
+    t2.exceptions.push({ ...rule, id: "exc_99902", explanationCode: "EV_IMPOSSIBLE_TRANSITION", status: "open", resolution: undefined, statementLineId: undefined });
+    const r = loadWorkspace(JSON.stringify(t2));
+    if (!r.ok) throw new Error(r.error.message);
+    expect(r.value.migrations.map((m) => [m.outcome, m.exceptionId])).toEqual([["contradicted_open", "exc_99902"]]);
+    expect(r.value.workspace.intents.find((x) => x.id === i.id)!.status.settlement).toBe("contradicted");
+  });
+});
+
+describe("R2-M1: the migration never upgrades evidence", () => {
+  it("a revived (not allowlisted) chain observation at 'observed', with a full bank debit on record: stays 'observed' (scope bank_statement), never jumps to 'verified'", () => {
+    const g = raw("v2_gaps.json");
+    const i = g.intents.find((x) => x.internalReference === "INV-V2-B")!;
+    i.status.settlement = "observed";
+    g.chainObservations.find((o) => o.intentId === i.id)!.status = "observed";
+    // a full, matched bank debit already on record for this payout
+    const tmplLine = g.statementLines.find((l) => l.allocationIds.length && l.direction === "debit")!;
+    const tmplAlloc = g.allocations.find((a) => a.statementLineId === tmplLine.id)!;
+    g.statementLines.push({ ...tmplLine, id: "stl_99990", lineId: "UPG-1", currency: i.sourceCurrency, amountMinor: i.amountMinor, allocationIds: ["alc_99991"], amountDifference: undefined });
+    g.allocations.push({ ...tmplAlloc, id: "alc_99991", statementLineId: "stl_99990", currency: i.sourceCurrency, amountMinor: i.amountMinor, target: { kind: "payment", intentId: i.id } });
+    const r = loadWorkspace(JSON.stringify(g));
+    if (!r.ok) throw new Error(r.error.message);
+    const m = r.value.migrations.find((x) => x.intentId === i.id)!;
+    expect(m.kind).toBe("chain_observation_not_allowlisted");
+    expect(m.to.settlement).toBe("observed");
+    expect(m.to.settlementScope).toBe("bank_statement");
+  });
+});
+
+describe("R2-M1 rule B: a hash recorded earlier as rejected never counts later (v2 M-3 state)", () => {
+  const usdcInTransit = () => {
+    let { ws, id } = submitted({ amountMinor: 6_427_830_000, sourceCurrency: "USDC", destinationCurrency: "USDC", destinationCountry: "SG", sandboxOutcome: "chain_delay" }, "prv_tidewater", sampleWorkspace());
+    ws = sim(ws, id).workspace;
+    const i = ws.intents.find((x) => x.id === id)!;
+    const obs = { intentId: id, chainId: 84532, network: "base-sepolia", tokenContract: ALLOWLISTED_TOKENS[0].contract, tokenSymbol: "USDC", txHash: "0x" + "4b".repeat(32), toAddress: getAdapter("prv_tidewater")!.expectedWallet!(i), amountMinor: ws.quotes.find((q) => q.id === i.selectedQuoteId)!.estimatedRecipientMinor, blockNumber: 70, confirmations: 20 };
+    return { ws, id, obs };
+  };
+  it("v2 M-3 state (unsupported USDT record, then the same hash counted as USDC final, verified, no conflict raised) → CH_TX_HASH_CONFLICT raised and settlement contradicted", () => {
+    const { ws: w0, id, obs } = usdcInTransit();
+    const ws = run(w0, "usr_maya", { type: "ingest_chain_observation", observation: { ...obs, tokenSymbol: "USDT", tokenContract: "0x" + "96".repeat(20) } }).workspace;
+    const v2 = JSON.parse(serializeWorkspace(ws)) as Workspace;
+    const rejected = v2.chainObservations.find((o) => o.intentId === id)!;
+    v2.seq += 1;
+    v2.chainObservations.push({ ...rejected, id: `chn_${String(v2.seq).padStart(5, "0")}`, tokenSymbol: "USDC", tokenContract: ALLOWLISTED_TOKENS[0].contract, status: "final", confirmations: 20 });
+    Object.assign(v2.intents.find((x) => x.id === id)!.status, { settlement: "verified", settlementScope: "onchain_transfer" });
+    const r = loadWorkspace(JSON.stringify(v2));
+    if (!r.ok) throw new Error(r.error.message);
+    // Before the fix: loaded as verified, migrations [].
+    expect(r.value.migrations.map((m) => [m.kind, m.outcome, m.exceptionCode])).toEqual([["chain_hash_conflict", "contradiction_raised", "CH_TX_HASH_CONFLICT"]]);
+    expect(r.value.workspace.intents.find((x) => x.id === id)!.status.settlement).toBe("contradicted");
+  });
+  it("the reverse order is an ordinary rc3 state (valid USDC first, an unsupported record of the same hash later): nothing changes", () => {
+    const { ws: w0, obs } = usdcInTransit();
+    let ws = run(w0, "usr_maya", { type: "ingest_chain_observation", observation: obs }).workspace;
+    ws = run(ws, "usr_maya", { type: "ingest_chain_observation", observation: { ...obs, tokenSymbol: "USDT", tokenContract: "0x" + "96".repeat(20) } }).workspace;
+    const r = loadWorkspace(serializeWorkspace(ws));
+    expect(r.ok && r.value.migrations).toEqual([]);
   });
 });

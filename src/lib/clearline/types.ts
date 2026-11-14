@@ -960,13 +960,21 @@ export interface ReturnPosition {
  * (see loadWorkspace). `text` is plain English the console can show ("Your saved workspace was updated: …").
  */
 export interface WorkspaceMigration {
-  kind: "terminal_payout_verified";
+  /**
+   * terminal_payout_verified / terminal_payout_evidence: a failed, cancelled, expired or returned payout still showing evidence
+   * (verified, resp. observed / pending finality); chain_observation_not_allowlisted: a counted transfer not on the allowlist;
+   * chain_hash_conflict: a counted transfer whose hash was recorded earlier with another identity; reorg_reconciliation:
+   * matched on a chain transfer that is no longer final. See migrate.ts.
+   */
+  kind: "terminal_payout_verified" | "terminal_payout_evidence" | "chain_observation_not_allowlisted" | "chain_hash_conflict" | "reorg_reconciliation";
   intentId: string;
   internalReference: string;
   from: StatusDimensions;
   to: StatusDimensions;
   /** contradiction_raised: the rc3 rule's exception was created; contradicted_open: an open exception already covers it; resolved_by_person: a person had resolved the rule's exception. */
-  outcome: "contradiction_raised" | "contradicted_open" | "resolved_by_person";
+  outcome: "contradiction_raised" | "contradicted_open" | "resolved_by_person" | "observation_not_counted" | "reconciliation_reopened";
+  /** The chain observation concerned (chain kinds). */
+  observationId?: string;
   /** The exception created (contradiction_raised), still open (contradicted_open) or already resolved (resolved_by_person). */
   exceptionId?: string;
   exceptionCode?: string;
