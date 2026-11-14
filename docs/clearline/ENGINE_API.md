@@ -1,11 +1,18 @@
 # Clearline sandbox engine — public API (for the console UI)
 
+> **CHANGE 12 (2026-11-14, fourth check R4-m1 on 668e4ca, APPROVE). STATUS: LANDED. Tests and docs only; no engine or API change.**
+>
+> **R4-m1: the property test (`tests/clearline/rc3-migration-property.test.ts`) now uses the independent reviewer's extended generator** (adopted with attribution in the file header). It runs 60 seeded random sequences of 90 steps (about 25 s). Starting points: the sample, live USDC / SGD payouts, and, every third seed, a migrated workspace saved by the v2 engine (v2_sample, v2_t1, v2_va, v2_gaps, v2_vb). In addition to the CHANGE 11 actions, it issues the payment lifecycle (`create_intent` → `request_quotes` → `choose_route` → `approve_instruction` / `reject_instruction` → `submit_instruction`), `resolve` with and without `acceptDifference` / `acceptLateDate`, `approve_acceptance` (by a different person, and a refused self-approval), `assign_hold_reviewer`, advance repayment by reference, and per-case resets, also at a later clock.
+> - A coverage check asserts that the random walk itself (not only the scripted tests) applied each of these successfully: `submit_instruction`, `approve_instruction`, `choose_route`, `request_quotes`, `approve_acceptance`, `assign_hold_reviewer`, `reopen`, `cancel_intent`, `decide_advance`, `request_info`, `resolve` with `acceptDifference`, and `resolve` with `acceptLateDate`.
+> - A scripted test runs the full lifecycle (create → quote → route → approve → submit → provider events) from the sample and from a migrated v2 workspace, checking the no-op property after each step.
+> - **Scope of the claim:** after every successful action in these sequences, the workspace loads with migrations `[]` and byte-identical JSON. This is strong evidence, not a proof for every possible action sequence.
+
 > **CHANGE 11 (2026-11-14, third re-review of 3e66fa7, BLOCK). STATUS: LANDED.**
 >
 > **R3-B1: `reopen` reverses what the exception's resolution did.** Before: the workspace no longer loaded after a reopen.
 > - An accepted difference and any second approval are withdrawn. They are kept in the exception's history (`acceptance_withdrawn`) and audited (`exception.acceptance_withdrawn`). The payout's case is blocked again until a staff person accepts again (above 1%: a second person approves again).
 > - A hash-conflict supersede is withdrawn (`supersede_withdrawn`, audited `chain.supersede_withdrawn`). The rejected observation blocks the hash again, and the payout is recomputed: settlement `contradicted` while the conflict is reopened. Resolving it again supersedes again.
-> - Proven by explicit accept → reopen → reload and supersede → reopen → reload tests, and by the property test. Its generator now also issues `reopen` (exceptions and cases), `cancel_intent`, `create_advance` / `decide_advance`, `add_note`, `request_info`, case evidence and new payments. Its scripted families reopen after an acceptance, after a supersede and after a case closes, and a coverage check asserts those states are reached. **After every successful action the workspace loads with migrations `[]` and byte-identical JSON.**
+> - Proven by explicit accept → reopen → reload and supersede → reopen → reload tests, and by the property test. Its generator now also issues `reopen` (exceptions and cases), `cancel_intent`, `create_advance` / `decide_advance`, `add_note`, `request_info`, case evidence and new payments. Its scripted families reopen after an acceptance, after a supersede and after a case closes, and a coverage check asserts those states are reached. **After every successful action in those sequences the workspace loads with migrations `[]` and byte-identical JSON.** *Narrowed (CHANGE 12):* this is a property of the tested sequences, not a proof for every possible sequence; CHANGE 12 lists what they cover.
 > - With `actions.ts` reverted, 7 tests fail.
 >
 > **R3-m1: one test per surviving mutant, 7 of 7 killed:**

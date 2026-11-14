@@ -1,11 +1,26 @@
 /**
- * Second re-review R2-M1: the load-time migration is a NO-OP on every workspace rc3 itself produces. Seeded random
- * action sequences (provider events with every failure injection, bank and provider statement lines of every shape,
- * chain observations of every shape incl. reorgs and conflicts, resolutions incl. accepted differences, hold
- * decisions, new payments, clock moves, per-case resets): after EVERY successful action,
- * loadWorkspace(serialize(ws)) returns migrations [] and a byte-identical workspace.
+ * Second re-review R2-M1 / third re-review R3-B1 / fourth check R4-m1: the load-time migration is a NO-OP on every
+ * workspace rc3 itself produces, and every workspace an action produces loads. After EVERY successful action of
+ * seeded random rc3 sequences, loadWorkspace(serialize(ws)) returns migrations [] and a byte-identical workspace.
+ *
+ * Generator: provider events with every failure injection; signed webhooks of every type; bank and provider
+ * statement lines of every shape (incl. near-amount, late and over-amount debits of the payout's reference);
+ * chain observations of every shape incl. reorgs and conflicts; resolutions with and without acceptDifference /
+ * acceptLateDate; approve_acceptance; reopen (exceptions and cases); hold documents, reviewer assignment and
+ * decisions; cancel; advances (create, decide, repay by reference); notes; info requests; case evidence; clock moves;
+ * the full payment lifecycle (create → quote → route → approve / reject → submit); per-case resets, also at a
+ * later clock. Starting points: the sample plus live USDC / SGD payouts, and (every third seed) a migrated
+ * workspace saved by the v2 engine (fixtures v2_sample, v2_t1, v2_va, v2_gaps, v2_vb).
+ *
+ * Attribution: the extended generator (lifecycle actions, reopen/resolve cycles with acceptance flags, advance
+ * repayments, hold reviewer assignment, migrated v2 starting points, resets at a later clock) was written by the
+ * independent reviewer for the fourth check (scratchpad probes8/prop-ext.test.ts, docs/release/CODE_REVIEW_RC3_ENGINE.md)
+ * and adopted here; the boosted lifecycle / approval candidates, the KINDS coverage assertion and the scripted
+ * lifecycle test were added when adopting it.
  */
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { ALLOWLISTED_TOKENS, SAMPLE_SCENARIOS, applyAction, getAdapter, loadWorkspace, resetScenario, sampleWorkspace, serializeWorkspace, type Workspace, type WorkspaceAction } from "@/lib/clearline";
 import { debitLine, intent as intentOf, submitted } from "./helpers";
 
@@ -59,7 +74,9 @@ function candidates(ws: Workspace, r: () => number): { actor: string; action: Wo
     out.push({ actor: pick(["usr_maya", "usr_sam", "usr_daniel"])!, action: { type: "resolve", target: { kind: "exception", id: exc.id }, note: "Reviewed", ...(r() < 0.3 ? { acceptDifference: true } : {}), ...(r() < 0.2 ? { acceptLateDate: true } : {}) } });
   }
   const awaiting = pick(ws.exceptions.filter((e) => e.resolution?.acceptedDifference?.secondApproval && !e.resolution.acceptedDifference.secondApproval.approvedBy));
-  if (awaiting) out.push({ actor: pick(["usr_sam", "usr_daniel", "usr_maya"])!, action: { type: "approve_acceptance", exceptionId: awaiting.id, note: "Second person checked the bank charge" } });
+  // R4-m1: offered several times (by a different person) so a successful approve_acceptance is reached in the random walk
+  if (awaiting) for (let k = 0; k < 4; k++) out.push({ actor: awaiting.resolution!.actorId === "usr_sam" ? "usr_daniel" : "usr_sam", action: { type: "approve_acceptance", exceptionId: awaiting.id, note: "Second person checked the bank charge" } });
+  if (awaiting) out.push({ actor: awaiting.resolution!.actorId, action: { type: "approve_acceptance", exceptionId: awaiting.id, note: "Self-approval (refused)" } });
   const hold = pick(ws.holds.filter((h) => h.status !== "released" && h.status !== "rejected"));
   if (hold) {
     out.push({ actor: "usr_maya", action: { type: "submit_hold_documents", holdId: hold.id, documents: ["Supporting commercial invoice"] } });
@@ -86,10 +103,36 @@ function candidates(ws: Workspace, r: () => number): { actor: string; action: Wo
   const cancellable = pick(ws.intents.filter((i) => ["created", "quoted", "approved"].includes(i.status.execution)));
   if (cancellable) out.push({ actor: "usr_maya", action: { type: "cancel_intent", intentId: cancellable.id, reason: "Cancelled before submission" } });
   if (r() < 0.2) out.push({ actor: "usr_maya", action: { type: "create_intent", input: { internalReference: `INV-PROP-${n}`, amountMinor: 50_000, sourceCurrency: "SGD", destinationCurrency: "PHP", purpose: "Supplier invoice", beneficiaryRef: "BEN-PROP-01", beneficiaryName: "Prop Supplier (fictional)", destinationCountry: "PH", requestedExecutionDate: "2026-11-20", idempotencyKey: `prop-new-${n}` } } });
+
+  // REVIEW EXTENSION: lifecycle actions the generator lacks, and heavy reopen/resolve cycles with acceptance flags
+  const live = pick(ws.intents.filter((i) => ["created", "quoted"].includes(i.status.execution)));
+  if (live) {
+    out.push({ actor: "usr_maya", action: { type: "request_quotes", intentId: live.id } });
+    const q = pick(ws.quotes.filter((x) => x.intentId === live.id && x.eligible));
+    if (q) out.push({ actor: "usr_maya", action: { type: "choose_route", intentId: live.id, quoteId: q.id } });
+  }
+  const pend = pick(ws.instructions.filter((x) => x.status === "pending_approval"));
+  if (pend) out.push({ actor: "usr_daniel", action: { type: "approve_instruction", instructionId: pend.id } }, { actor: "usr_daniel", action: { type: "approve_instruction", instructionId: pend.id } }, { actor: "usr_daniel", action: { type: "reject_instruction", instructionId: pend.id, reason: "No" } }, { actor: pend.makerId, action: { type: "approve_instruction", instructionId: pend.id } });
+  const appr = pick(ws.instructions.filter((x) => x.status === "approved" && ws.intents.find((i) => i.id === x.intentId)?.status.execution === "approved"));
+  // R4-m1: offered several times so a successful submit_instruction is reached in the random walk
+  if (appr) for (let k = 0; k < 4; k++) out.push({ actor: "usr_maya", action: { type: "submit_instruction", instructionId: appr.id } });
+  const h2 = pick(ws.holds.filter((h) => h.status !== "released" && h.status !== "rejected"));
+  if (h2) out.push({ actor: "usr_priya", action: { type: "assign_hold_reviewer", holdId: h2.id, reviewerId: pick(["usr_priya", "usr_daniel"])! } });
+  const ov = pick(ws.exceptions.filter((e) => ["RC_OVERPAYMENT", "RC_OUTSIDE_TIME_WINDOW", "CH_TX_HASH_CONFLICT", "CH_TX_HASH_ON_OTHER_CHAIN"].includes(e.explanationCode)));
+  if (ov) {
+    if (ov.status === "resolved") out.push({ actor: "usr_maya", action: { type: "reopen", target: { kind: "exception", id: ov.id }, reason: "cycle" } }, { actor: "usr_maya", action: { type: "reopen", target: { kind: "exception", id: ov.id }, reason: "cycle" } });
+    else for (const flags of [{}, { acceptDifference: true }, { acceptLateDate: true }, { acceptDifference: true, acceptLateDate: true }]) out.push({ actor: pick(["usr_maya", "usr_sam"])!, action: { type: "resolve", target: { kind: "exception", id: ov.id }, note: "cycle", ...flags } as WorkspaceAction }, { actor: "usr_maya", action: { type: "assign_owner", target: { kind: "exception", id: ov.id }, ownerId: "usr_maya" } }, { actor: "usr_maya", action: { type: "attach_evidence", target: { kind: "exception", id: ov.id }, evidence: { kind: "document_metadata", description: "e (fictional)" } } });
+  }
+  if (ppid && r() < 0.5) out.push({ actor: "usr_maya", action: { type: "ingest_statement_line", line: { lineId: `X-${n}`, source: "bank_statement", accountRef: "BANK-X (fictional)", direction: "debit", kind: "payment", amountMinor: intent.amountMinor + pick([1, 50, Math.floor(intent.amountMinor / 50), Math.floor(intent.amountMinor / 4)])!, currency: intent.sourceCurrency, reference: `PAYOUT ${ppid}`, counterparty: "C (fictional)", valueDate: pick(["2026-11-13", "2026-11-25", "2026-12-20"])! } } });
+  const adv2 = pick(ws.advances.filter((a) => a.obligationId));
+  if (adv2) { const ob = ws.obligations.find((o) => o.id === adv2.obligationId); if (ob) out.push({ actor: "usr_maya", action: { type: "ingest_statement_line", line: { lineId: `R-${n}`, source: "bank_statement", accountRef: "BANK-SGD-OPS (fictional)", direction: "credit", kind: "payment", amountMinor: Math.max(1, Math.floor(ob.principalMinor / pick([1, 2, 3])!)), currency: ob.currency, reference: ob.reference, counterparty: "Cust (fictional)", valueDate: "2026-11-14" } } }); }
   return out;
 }
 
 const seen = new Set<string>();
+const KINDS = new Map<string, number>();
+/** Action kinds applied successfully by the random walk alone. */
+const RANDOM_KINDS = new Set<string>();
 function note(ws: Workspace) {
   for (const i of ws.intents) {
     if (["failed", "returned", "cancelled"].includes(i.status.execution) && ws.chainObservations.some((o) => o.intentId === i.id && o.status !== "rejected_unsupported")) seen.add("terminal payout with chain evidence");
@@ -109,7 +152,9 @@ function note(ws: Workspace) {
   if (ws.fundingDecisions.length > 1) seen.add("advance decided");
   if (ws.cases.some((c) => c.requestedInfo.some((q) => q.actorId === "usr_maya"))) seen.add("info requested");
 }
-function start(): Workspace {
+const FIX = ["v2_sample", "v2_t1", "v2_va", "v2_gaps", "v2_vb"].map((f) => readFileSync(path.join(__dirname, "fixtures", `${f}.json`), "utf8"));
+function start(seed = 0): Workspace {
+  if (seed % 3 === 0) { const l = loadWorkspace(FIX[(seed / 3) % FIX.length]); if (!l.ok) throw new Error("fixture"); return l.value.workspace; }
   let ws = sampleWorkspace();
   ws = submitted({ amountMinor: 6_427_830_000, sourceCurrency: "USDC", destinationCurrency: "USDC", destinationCountry: "SG", sandboxOutcome: "chain_delay", internalReference: "INV-PROP-USDC", idempotencyKey: "prop-usdc-0001" }, "prv_tidewater", ws).ws;
   ws = submitted({ amountMinor: 1_000_000, internalReference: "INV-PROP-SGD", idempotencyKey: "prop-sgd-0001" }, "prv_northline", ws).ws;
@@ -117,21 +162,22 @@ function start(): Workspace {
 }
 
 describe("R2-M1: the migration never fires on a workspace rc3 produced", () => {
-  for (let seed = 1; seed <= 16; seed++)
+  for (let seed = 1; seed <= 60; seed++)
     it(`seed ${seed}: every intermediate workspace of a random rc3 sequence loads with migrations [] and byte-identical`, () => {
       const r = rng(seed * 7919);
-      let ws = start();
+      let ws = start(seed);
       let applied = 0;
-      for (let step = 0; step < 60; step++) {
+      for (let step = 0; step < 90; step++) {
         if (r() < 0.05) {
           const sc = Object.keys(SAMPLE_SCENARIOS)[Math.floor(r() * 5)];
-          const rs = resetScenario(ws, sc, { actorId: "usr_maya", at: ws.asOf });
+          const rs = resetScenario(ws, sc, { actorId: "usr_maya", at: new Date(Date.parse(ws.asOf) + Math.floor(r() * 30) * 86_400_000).toISOString() });
           if (rs.ok) ws = rs.value.workspace;
         } else {
           const list = candidates(ws, r);
           const { actor, action } = list[Math.floor(r() * list.length)];
           const res = applyAction(ws, action, { actorId: actor, at: ws.asOf });
           if (!res.ok) continue;
+          { const a = action as { acceptDifference?: boolean; acceptLateDate?: boolean }; const k = action.type + (a.acceptDifference ? "+diff" : "") + (a.acceptLateDate ? "+late" : ""); KINDS.set(k, (KINDS.get(k) ?? 0) + 1); RANDOM_KINDS.add(k); if (a.acceptDifference) RANDOM_KINDS.add("resolve+diff"); if (a.acceptLateDate) RANDOM_KINDS.add("resolve+late"); }
           ws = res.value.workspace;
           applied++;
         }
@@ -263,8 +309,34 @@ describe("R2-M1: the migration never fires on a workspace rc3 produced", () => {
     }
   });
 
+  it("scripted: the full lifecycle (create → quote → route → approve → submit → provider events) from the sample and from a migrated v2 workspace", () => {
+    for (const base of [sampleWorkspace(), start(3)]) {
+      let ws = base;
+      const n = ws.seq;
+      const created = applyAction(ws, { type: "create_intent", input: { internalReference: `INV-LIFE-${n}`, amountMinor: 75_000, sourceCurrency: "SGD", destinationCurrency: "PHP", purpose: "Supplier invoice", beneficiaryRef: "BEN-LIFE-01", beneficiaryName: "Life Supplier (fictional)", destinationCountry: "PH", requestedExecutionDate: "2026-12-20", idempotencyKey: `life-${n}` } }, { actorId: "usr_maya", at: ws.asOf });
+      if (!created.ok) throw new Error(created.error.message);
+      ws = created.value.workspace;
+      noop(ws, "created");
+      const id = created.value.createdIds[0];
+      ws = act(ws, "usr_maya", { type: "request_quotes", intentId: id }, "quotes");
+      const q = ws.quotes.find((x) => x.intentId === id && x.providerId === "prv_northline" && x.eligible)!;
+      const routed = applyAction(ws, { type: "choose_route", intentId: id, quoteId: q.id }, { actorId: "usr_maya", at: ws.asOf });
+      if (!routed.ok) throw new Error(routed.error.message);
+      ws = routed.value.workspace;
+      noop(ws, "routed");
+      const ins = routed.value.createdIds[0];
+      ws = act(ws, "usr_daniel", { type: "approve_instruction", instructionId: ins }, "approved");
+      ws = act(ws, "usr_maya", { type: "submit_instruction", instructionId: ins }, "submitted");
+      KINDS.set("submit_instruction", (KINDS.get("submit_instruction") ?? 0) + 1);
+      ws = act(ws, "usr_maya", { type: "simulate_provider_event", intentId: id }, "in_transit");
+      act(ws, "usr_maya", { type: "simulate_provider_event", intentId: id }, "completed");
+    }
+  });
   it("the sequences really reached the states the migration rules are about (the property is not vacuous)", () => {
     const wanted = ["acceptance withdrawn on reopen", "supersede withdrawn on reopen", "reopened exception", "reopened case", "cancelled payment", "advance decided", "info requested", "second approval", "terminal payout with chain evidence", "terminal payout with a bank debit", "final chain transfer", "rejected observation", "CH_CONFIRMATIONS_DECREASED", "CH_TRANSFER_FOR_TERMINAL_PAYOUT", "RC_DEBIT_FOR_FAILED_PAYOUT", "RC_OVERPAYMENT", "RC_OUTSIDE_TIME_WINDOW", "resolved exception"];
     expect(wanted.filter((x) => !seen.has(x))).toEqual([]);
+    // R4-m1: the random walk itself applied these successfully (not only the scripted tests)
+    const kinds = ["submit_instruction", "approve_instruction", "choose_route", "request_quotes", "approve_acceptance", "assign_hold_reviewer", "reopen", "cancel_intent", "decide_advance", "request_info", "resolve+diff", "resolve+late"];
+    expect(kinds.filter((k) => !RANDOM_KINDS.has(k))).toEqual([]);
   });
 });

@@ -146,8 +146,10 @@ Status values:
   re-validated against rc3's rules: chain allowlist and identity, earlier hash conflicts, the terminal-payout rule
   for any evidenced settlement, and the reorg rule. States rc3 cannot produce are corrected, never upgraded, and each
   correction is reported by `loadWorkspace`. A property test shows this is a no-op on rc3 workspaces. Since CHANGE 11
-  that includes reopen, cancel, advances, notes and info requests; a reopen withdraws the resolution's acceptance or
-  supersede, so every workspace an action produces loads. A v2 C-2
+  the tested sequences include reopen, cancel, advances, notes and info requests (a reopen withdraws the resolution's
+  acceptance or supersede); since CHANGE 12 they also include the payment lifecycle through `submit_instruction`,
+  `approve_acceptance`, hold reviewer assignment, advance repayment, migrated v2 starting points and resets at a later
+  clock. Every workspace those sequences produce loads unchanged; this is tested, not proven for every sequence. A v2 C-2
   block change cannot be detected from stored data. Any other state the integrity check refuses is refused, not
   repaired.
 - **Reset on older workspaces (CHANGE 9 R-B1).** The reset raises the id counter past the restored ids, so the
