@@ -83,7 +83,7 @@ export default function Home() {
         <div className="container quiet-trial-row">
           <div>
             <p className="eyebrow">Try the software</p>
-            <h2 id="cases-title" className="h2">Five real workflows. <em>Fictional data.</em></h2>
+            <h2 id="cases-title" className="h2">Five payment workflows. <em>Fictional data.</em></h2>
             <p className="section-intro">Follow a payment from instruction to evidence in a guided 15–20 minute walkthrough. No sign-up required.</p>
             <div className="actions"><ExtLink href={TRIAL_URL}>Open the guided trial</ExtLink><Link className="text-link" href="/trial">About the customer trial</Link></div>
           </div>
@@ -109,7 +109,7 @@ export default function Home() {
           <div>
             <p className="eyebrow">Built in Singapore</p>
             <h2 id="founder-title" className="h2">Built by Aashmiin Kaur.</h2>
-            <p>19, in her second year of Accountancy at Singapore Management University, with a second major in Finance. <Link className="text-link" href="/about">Meet the founder</Link>.</p>
+            <p>19, in her second year of Accountancy at Singapore Management University, with a second major in Finance. Building Clearline in Singapore. <Link className="text-link" href="/about">Meet the founder</Link>.</p>
           </div>
         </div>
       </section>
