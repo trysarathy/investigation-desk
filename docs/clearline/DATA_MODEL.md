@@ -137,7 +137,7 @@ Result: `investigate().returnPosition` = `RT_NET_ZERO` (debited = return credite
   - C: a terminal payout with evidenced settlement gets the rc3 terminal rule;
   - D: a match on a no-longer-final chain transfer goes back to reconciliation `exception`.
 
-  Settlement never moves up. Each change is a `WorkspaceMigration` (kinds `terminal_payout_verified`, `terminal_payout_evidence`, `chain_observation_not_allowlisted`, `chain_hash_conflict`, `reorg_reconciliation`).
+  Settlement never moves up. Each change is a `WorkspaceMigration` (kinds `terminal_payout_verified`, `terminal_payout_evidence`, `chain_observation_not_allowlisted`, `chain_hash_conflict`, `reorg_reconciliation`, and since CHANGE 13 `status_exceeds_evidence`).
 - **`resolution.acceptedDifference`** is now `{ statementLineId, differenceMinor ≥ 0, currency, lateValueDate?, secondApproval?: { required: true, approvedBy?, approvedAt?, note? } }`.
   - It is allowed on `RC_OVERPAYMENT` and `RC_OUTSIDE_TIME_WINDOW` bank debits that carry the payout's reference, in its currency.
   - Limits: a late value date up to 60 days after submission; an over-amount up to 1% for one person, or up to 50% with a different staff person's approval (`approve_acceptance`).
@@ -150,3 +150,13 @@ Result: `investigate().returnPosition` = `RT_NET_ZERO` (debited = return credite
   - `resolution.acceptedDifference` is removed and recorded in the exception's history as `acceptance_withdrawn`.
   - A hash-conflict resolution's `supersededBy` link is removed (`supersede_withdrawn`), and the payout is recomputed.
   - So `acceptedDifference` and `supersededBy` only ever exist on a resolved exception, and every workspace an action produces loads.
+
+## Rules added after the QA/security pass (CHANGE 13, 2026-11-14)
+
+- **A stored status never exceeds its evidence (L1).** `PaymentIntent.status.settlement` and `.reconciliation` are capped on load to what `derive.ts:evidenceCeiling` allows, using `recomputeDimensions`' result. They are never raised. Each cap is a `WorkspaceMigration` of kind `status_exceeds_evidence` (outcome `status_capped`) with a `workspace.migrated` audit event. `canResolveCase` checks the evidence, not only the stored status.
+  - settlement `verified`: a counted `final` chain observation, or bank statement allocations in the source currency covering the amount;
+  - `pending_finality`: a counted chain observation;
+  - `observed`: any counted observation, any allocation, or a provider settlement report;
+  - reconciliation `matched`: a final observation allocated to the payout, bank allocations covering the amount, or a statement-confirmed return;
+  - `partially_matched`: any allocation to the payout.
+- **Decisions name actors with the required role (L2).** `Instruction.makerId` is an operator or approver and `.checkerId` an approver other than the maker. `FundingDecision.makerId` is an operator and `.checkerId` an approver other than the maker. `Hold.reviewerId` and each `Hold.decisions[].reviewerId` are compliance reviewers, and each decision is `release`, `reject` or `request_more`. An accepted difference's `resolution.actorId` and `secondApproval.approvedBy` are staff. All must exist in `actors`. A workspace that breaks this is refused.

@@ -57,3 +57,4 @@ export type { SyntheticCaseReport, CaseReportRef, CaseReportFinding, CaseReportT
 export { HUMAN_LABELS, CODE_LABELS, describeCode, explainCode, isKnownCode, describeStatus, describeError } from "./labels";
 export type { HumanError, StatusDescription } from "./labels";
 export { TERMINAL_FOR_SETTLEMENT_REPORT } from "./reconciliation";
+export { evidenceCeiling, evidencedVerifiedAndMatched, type EvidenceCeiling } from "./derive";

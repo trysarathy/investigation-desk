@@ -1,5 +1,28 @@
 # Clearline sandbox engine — public API (for the console UI)
 
+> **CHANGE 13 (2026-11-14, independent QA/security pass on rc3, L1 and L2). STATUS: LANDED.** The console loads workspaces that visitors craft or paste, so neither a stored status nor a stored decision is trusted.
+>
+> **L1: a stored status never exceeds its evidence.**
+> - New `evidenceCeiling(ws, intent)` (derive.ts, exported) gives the most the recorded evidence can support: verified needs a counted final transfer or bank allocations covering the amount; matched needs a final transfer allocated to the payout, bank allocations covering the amount, or a statement-confirmed return. It is an upper bound of rc3's own derive. `evidencedVerifiedAndMatched(ws, intent)` is true only when the stored status says verified / matched AND the ceiling supports both.
+> - **Migration rule E** (`status_exceeds_evidence` / `status_capped`): on every load, a settlement or reconciliation above the ceiling is capped to `recomputeDimensions`' result (never upgraded), audited (`workspace.migrated`) and reported. No exception is raised, as the evidence itself is unchanged. A terminal payout stored as verified is still refused by the integrity check.
+> - **`canResolveCase`** uses `evidencedVerifiedAndMatched`, so even a workspace object that was never loaded cannot close a case on its stored status. The `EVIDENCE_OUTSTANDING` reason then adds "the recorded evidence does not support that stored status".
+> - Rule E is a no-op on rc3 workspaces: the CHANGE 12 property test (60 seeds × 90 steps, migrated v2 starting points) passes unchanged.
+>
+> **L2: every recorded decision names an existing actor with the role its action requires** (`serialize.ts:crossCheck`, refused as `invalid_field`). The roles are the same in every engine version, v2 included, so no stored workspace from any version breaks this; it is refused, not migrated (all v2 fixtures still load).
+>
+> | Record | Must be |
+> |---|---|
+> | `instructions[].makerId` | an existing operator or approver (`choose_route`) |
+> | `instructions[].checkerId` | an existing approver, not the maker |
+> | `fundingDecisions[].makerId` / `.checkerId` | an existing operator / an existing approver, different people |
+> | `holds[].reviewerId` | an existing compliance reviewer |
+> | `holds[].decisions[]` | `release`, `reject` or `request_more` with `reviewerId` an existing compliance reviewer |
+> | `exceptions[].resolution.actorId` (with `acceptedDifference`) and `secondApproval.approvedBy` | existing staff (operator, approver, compliance), different people |
+>
+> **Tests:** QA's `tests/qa-release-rc3/engine-rc3.test.ts` is copied in unchanged; its DEFECT L1 and L2 pass. `tests/clearline/rc3-qa-status-actors.test.ts` pins the details. Each check was mutated in place (11 mutants), and each mutant fails at least one test.
+>
+> **Known limit (QA Informational):** a forged second approval naming a real, different staff member cannot be told apart from a real one without server-side state. The sandbox's client-held workspace is trusted for who did what, within these role rules.
+
 > **CHANGE 12 (2026-11-14, fourth check R4-m1 on 668e4ca, APPROVE). STATUS: LANDED. Tests and docs only; no engine or API change.**
 >
 > **R4-m1: the property test (`tests/clearline/rc3-migration-property.test.ts`) now uses the independent reviewer's extended generator** (adopted with attribution in the file header). It runs 60 seeded random sequences of 90 steps (about 25 s). Starting points: the sample, live USDC / SGD payouts, and, every third seed, a migrated workspace saved by the v2 engine (v2_sample, v2_t1, v2_va, v2_gaps, v2_vb). In addition to the CHANGE 11 actions, it issues the payment lifecycle (`create_intent` → `request_quotes` → `choose_route` → `approve_instruction` / `reject_instruction` → `submit_instruction`), `resolve` with and without `acceptDifference` / `acceptLateDate`, `approve_acceptance` (by a different person, and a refused self-approval), `assign_hold_reviewer`, advance repayment by reference, and per-case resets, also at a later clock.
@@ -36,6 +59,7 @@
 > | B | A counted observation whose hash was recorded earlier as rejected or with another identity (v2 M-3) | `CH_TX_HASH_CONFLICT` / `CH_TX_HASH_ON_OTHER_CHAIN` raised; settlement contradicted | `chain_hash_conflict` / `contradiction_raised` |
 > | C | A failed, cancelled, expired or returned payout with bank or chain evidence still `observed`, `pending_finality` or `verified` (v2 T-1 incl. before finality, T-2, pre-CHANGE 6 returned) | the rc3 terminal rule (see CHANGE 8 M-1 row) | `terminal_payout_verified` or `terminal_payout_evidence` / `contradiction_raised`, `contradicted_open`, `resolved_by_person` |
 > | D | Reconciliation `matched` on a chain allocation whose observation is no longer final (v2 C-3 reorg) | reconciliation `exception` | `reorg_reconciliation` / `reconciliation_reopened` |
+> | E (CHANGE 13) | Settlement or reconciliation above what the recorded evidence supports (a crafted workspace) | capped to rc3's derive, never up | `status_exceeds_evidence` / `status_capped` |
 >
 > `WorkspaceMigration` gains `observationId?`. **Not detectable:** a v2 C-2 block change that v2 applied silently (the earlier block number is not kept).
 >
