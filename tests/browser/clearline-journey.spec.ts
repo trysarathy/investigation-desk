@@ -1295,7 +1295,7 @@ test("(c) an over-amount above 1% needs a second person: the acceptor is refused
   await open(page, `/clearline/payments/${id}`);
   const kase = page.locator("#case");
   await kase.getByRole("button", { name: "Assign owner" }).click();
-  await expect(kase.getByRole("status").first()).toContainText("recorded by the engine");
+  await expect(kase.getByRole("status").filter({ hasText: "Assign owner — recorded by the engine" })).toBeVisible();
   await kase.getByLabel("Resolution note").fill("Closing after the accepted over-amount.");
   const resolve = kase.getByTestId("resolve-gate").getByRole("button", { name: "Resolve" });
   await expect(resolve).toBeDisabled();
@@ -1329,7 +1329,7 @@ test("(c) an over-amount above 1% needs a second person: the acceptor is refused
   const r2 = k2.getByTestId("resolve-gate").getByRole("button", { name: "Resolve" });
   await expect(r2).toBeEnabled();
   await r2.click();
-  await expect(k2.getByRole("status").first()).toContainText("Close case — recorded by the engine");
+  await expect(k2.getByRole("status").filter({ hasText: "Close case — recorded by the engine" })).toBeVisible();
 });
 
 test("(d) a debit in another currency is never acceptable, and the case says why", async ({ page }) => {
@@ -1383,7 +1383,7 @@ test("reopening an accepted over-amount withdraws the acceptance: it reloads cle
   await open(page, `/clearline/payments/${id}`);
   let kase = page.locator("#case");
   await kase.getByRole("button", { name: "Assign owner" }).click();
-  await expect(kase.getByRole("status").first()).toContainText("recorded by the engine");
+  await expect(kase.getByRole("status").filter({ hasText: "Assign owner — recorded by the engine" })).toBeVisible();
   await kase.getByLabel("Resolution note").fill("Ready to close.");
   await expect(kase.getByTestId("resolve-gate").getByRole("button", { name: "Resolve" })).toBeEnabled();
   // Reopen the exception: the engine withdraws the accepted difference.
