@@ -188,3 +188,77 @@ APPROVE 0fd7861.
 - **B** is verified everywhere in the console UI except the synthetic case report (Nit).
 - **C:** the counter suffix and "no pruning after a failed write" are verified. One Minor remains: pruning can delete the second-newest backup and keep an older one (reproduced, v5 lost).
 - **Checks:** tsc clean, vitest 1498 passed. The owner reports their browser suite as 198 passed, 0 failed, three runs in a row.
+
+---
+
+## Last check (02aae80, c3ad58d, 511842f; frozen at merge ef3e59f)
+
+**Verdict: CHANGES REQUESTED ef3e59f, for one line.** The C1 fix is correct in normal use, but it adds a loop that never ends if the device clock has gone backwards since an earlier backup of the same kind. The case-report status fix is correct and tested. APPROVAL-ONLY: needs Aashmiin's merge (engine report shape, CHANGE 14).
+
+**What I ran** (frozen copy at `scratchpad/cr6`, no build):
+- **tsc:** exit 0.
+- **vitest:** 1503 passed, 57 skipped.
+- **Unit probes:** a throwaway test of `writeBackup` against an in-memory storage with a controlled clock, since deleted.
+- **One engine mutation:** described under "Case report" below.
+
+### C1: re-run of the six-write reproduction
+- **Six writes, v1 to v6:** v4, v5 and v6 remain, exactly the newest 3. Each write's own key held its value right after writing, so the backup just written is never removed. The new rule (`workspace.tsx:41-55`) only uses the bare slot when a kind has no backups, and otherwise writes a timestamped key that sorts after every existing one.
+- **Ten writes in the same millisecond:** w8, w9 and w10 remain, so the counter suffix sorts correctly.
+
+**Major (new): the console freezes if an earlier backup's timestamp is later than the current clock.**
+- **Where:** `workspace.tsx:52`.
+- **Why the loop never ends:** the loop keeps adding a counter while the candidate key is not after the last existing key. If the last key carries a later time than now, every candidate `${stamp}-NNN` still starts with the earlier stamp, so it always sorts before the last key and the condition never becomes false.
+- **Reproduced:** with one backup keyed `…unreadable-backup.2026-12-01T…` and the clock at 2026-11-14, `writeBackup` made more than 100,000 storage reads before my guard stopped it. In a browser there is no guard, so the tab hangs.
+- **How this happens in practice:** any backup written while the clock was ahead, followed by a backup of the same kind after the clock is corrected (a manual clock change, or a fixed test clock).
+- **Why it matters:** `writeBackup` runs in the hydration effect (migration backup), in resets, in the error boundary and in restore. A hang there freezes the console on load, and the error boundary cannot catch a loop that never returns. No data is lost: the loop runs before any write.
+- **Fix (in words):** when the current timestamp does not sort after the last existing key, build the new key from the last key itself (the last key plus a counter suffix), and give the loop a hard upper bound. Add a unit or browser test that seeds a future-dated backup and writes one more.
+
+### Case report: "Accepted — awaiting second approval"
+- **Engine (511842f):** `exceptions[].status` is `accepted_awaiting_second_approval` only when the exception is resolved and its acceptance's second approval is pending. Otherwise it is the exception's own status, with `engineStatus` kept and an `acceptance` block added. The CSV label uses `statusLabel`, and an `exception_acceptance` row names the person who accepted and the approver.
+- **Reopen:** reopening clears `acceptedDifference`, so the report shows `reopened` with no acceptance (test at `rc3-case-report.test.ts:333`).
+- **Mutation:** with the status forced back to the exception's own status, the "above 1% and not yet approved … (JSON and CSV)" test fails. I restored the file and checked it with diff.
+- **On screen (c3ad58d):** `CaseReport.tsx` now shows the engine's `status` and `statusLabel` (amber when awaiting), the raw status value, and the acceptance text. The earlier lookup into the workspace is gone, so the screen, JSON and CSV all read from one source.
+
+### Summary
+CHANGES REQUESTED ef3e59f.
+- C1 now keeps exactly the newest 3 backups, and the one just written is never removed (six-write and same-millisecond reproductions both pass).
+- The report shows the awaiting status in JSON, CSV and on screen, a reopen withdraws it, and the test fails under mutation.
+- Blocking: the key loop at `workspace.tsx:52` never ends when an existing backup is dated later than the current clock (reproduced). Building the key from the last key, with a bounded loop, fixes it. Everything else is approved.
+
+---
+
+## Freeze fix check (fa303fd)
+
+**Verdict: APPROVE fa303fd.** The loop that never ended is gone. Pruning keeps exactly the newest 3 in every case I tried, including a clock that stays behind for 200 writes and then jumps forward, backward and in between. APPROVAL-ONLY: needs Aashmiin's merge (the release as a whole). This fix was written by the integration lead; I reviewed it independently and wrote none of it.
+
+**What I ran:**
+- **Frozen copy:** `scratchpad/cr7`, from `git archive fa303fd`, no build.
+- **tsc:** exit 0.
+- **vitest:** 1503 passed, 57 skipped.
+- **Throwaway harness, rerun and then deleted:** an in-memory localStorage with a guard against runaway reads, plus a controlled clock. Results:
+  - Six writes, v1 to v6: v4, v5 and v6 remain. Every write's key holds its own value straight after writing.
+  - Ten writes in the same millisecond: w8, w9 and w10 remain.
+  - A bare slot plus a backup dated 2026-12-01, with the clock at 2026-11-14 for **200 writes**: no hang (well under the read guard), every write succeeds, and exactly b198, b199 and b200 remain, in write order.
+  - The clock then moved to 2026-12-02, to 2026-12-01T00:00:00.500Z (between the future key and the next day), and back to 2026-11-01 for two writes: c2, c3 and c4 remain, which is the newest 3.
+  - Mixed key shapes: a bare key, a timestamp, a timestamp with `-002`, then two keys extended with `~` after the clock moved back, then a timestamp equal to an earlier one. The newest 3 remain in order.
+
+**Is the `~` ordering sound for every key shape?** Yes.
+- Keys are sorted with the bare slot first, then by plain string comparison (`keysOf`).
+- A new key is always strictly after the newest existing key. Either the current timestamp already sorts after it, or the new key is the newest key plus `~`, which sorts after it because a string extended by one character sorts after itself.
+- The bare slot is used only when a kind has no backups. Since 02aae80, a key freed by pruning is never reused.
+- A key ending `-NNN` sorts before the same key plus `~`, because `-` (0x2D) comes before `~` (0x7E).
+- So key order equals write order, and pruning (oldest first, never the key just written) keeps exactly the newest 3.
+
+**Does the key keep growing while the clock stays behind?** Yes: one `~` per write (200 writes made the longest key the base length plus 225 characters). Only the newest 3 keys exist at a time, and the growth stops once the clock passes the future date. **Nit:** Settings shows the key's tail as the backup's time, which then reads `…Z~~~~`. Consider showing "saved after a later-dated backup" instead.
+
+**Is returning null at the cap safe on every caller?** The cap cannot be reached in practice.
+- Whenever the current timestamp does not sort after the newest key, the `~` branch takes over and produces a key nobody has written. When the timestamp does sort after the newest key, no existing key equals it.
+- So the counter loop body never runs. I tried to force the cap with 1,000 counter keys in one millisecond: the `~` branch wrote `…-999~` instead of returning null.
+- If it ever did return null, every caller treats that as "backup not written":
+  - **Loading an updated workspace:** writes stay held and the person chooses.
+  - **Replacing an unreadable copy, or a whole reset while writes are held:** refused, with the reason given (the text says "storage full or blocked", which would be slightly wrong but safe).
+  - **Error boundary:** nothing is removed, and download, then remove, is offered.
+  - **Settings restore:** refused.
+  - **One exception (Nit, carried over from n6):** an ordinary whole reset treats the before-reset backup as best effort, so on null it still resets. The message only omits the "kept as a backup" sentence. That is the same as on a quota failure and is honest, but not a refusal.
+
+**Summary:** APPROVE fa303fd. My blocking finding is resolved, pruning is correct for every key shape and clock movement I tried, and the cap is unreachable and safe. Two Nits remain: the display of keys ending in `~`, and the best-effort backup on ordinary whole resets.
