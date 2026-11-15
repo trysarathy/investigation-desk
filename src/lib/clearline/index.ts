@@ -32,7 +32,10 @@ export { EXECUTION_TRANSITIONS, canTransitionExecution, isTerminalExecution } fr
 
 // Provider adapters
 export type { ProviderAdapter, ProviderCapabilities, EligibilityResult, SubmitAck, NormalizedProviderError } from "./adapters";
-export { SandboxAdapter, SANDBOX_PROVIDERS, sandboxRoutes, getAdapter } from "./adapters";
+export { SandboxAdapter, SANDBOX_PROVIDERS, CONNECT_PROVIDERS, sandboxRoutes, getAdapter } from "./adapters";
+
+// rc4 Clearline Connect: provider adapter framework (fictional sandbox providers only)
+export * from "./connect";
 
 // Webhooks (test-mode signing; the example secrets are public and protect nothing)
 export { signSandboxWebhook, verifySandboxWebhook, sandboxWebhookSecret, WEBHOOK_TOLERANCE_SECONDS } from "./webhooks";
