@@ -1,12 +1,13 @@
 "use client";
 import { useState } from "react";
-import { INVESTIGATIONS, type Investigation } from "@/lib/investigations";
+import { ACCOUNTING_DISCLAIMER, INVESTIGATIONS, type Investigation } from "@/lib/investigations";
 import { ExecStatus, ReconStatus, SettlementStatus } from "@/components/Status";
 
 /**
  * The console's payment investigation page (rc3/clearline-app, pages/Investigation.tsx), rendered as real HTML
  * from lib/investigations.ts, which is GENERATED from the tested engine's five fictional sample scenarios.
- * Same structure and words as the console: A Summary, B Three separate truths, C Evidence timeline, D Findings.
+ * Same structure and words as the console: A Summary, B Three separate truths, C Evidence timeline, D Findings,
+ * F Accounting outcome (the engine's proposed journal entries under its sandbox posting rules; nothing is posted).
  * Focusing or hovering a truth highlights its field in the API record. Nothing here is computed by the website.
  */
 type Dim = "execution" | "settlement" | "reconciliation";
@@ -135,6 +136,35 @@ export default function InvestigationView({ initial = "s2_returned", compact = f
               <pre tabIndex={0} aria-label="Exact API values for this payment">{apiLines(p).map((l, i) => <span key={i} className={l.dim && l.dim === hl ? "is-hl" : undefined}>{l.text}</span>)}</pre>
             </div>
           </div>
+        </div>
+
+        {/* F. Accounting outcome (console section F; E Actions is the console's own interactive panel) */}
+        <div className="iv-acct">
+          <p className="iv-section iv-section-inline"><span className="iv-letter" aria-hidden="true">F</span>Accounting outcome</p>
+          <p className="iv-acct-note">{ACCOUNTING_DISCLAIMER}</p>
+          {p.accounting.entries.length === 0
+            ? <p className="iv-acct-empty">No journal entry is proposed for this payment{p.accounting.notProposed.length ? "; the reasons are below" : ""}. Entries are proposed only from bank statement or final chain evidence.</p>
+            : <div className="iv-acct-entries" role="group" aria-label="Proposed journal entries for this payment">
+                {p.accounting.entries.map(e => (
+                  <div className="iv-entry" key={e.id}>
+                    <div className="iv-entry-head">
+                      <p className="iv-entry-rule">{e.rule}</p>
+                      <p className="iv-entry-meta"><span className="num">{e.date}</span> · {e.currency} · <span className="tag tone-warning">{e.statusLabel}</span> <span className={"tag " + (e.showsSupplierPaid ? "tone-neutral" : e.supplierPaid.startsWith("Supplier still unpaid") ? "tone-danger" : "tone-neutral")}>{e.supplierPaid}</span></p>
+                    </div>
+                    <table className="iv-entry-lines">
+                      <caption className="sr-only">Journal lines: {e.balanced ? "balanced" : "not balanced"}, {e.currency}</caption>
+                      <thead><tr><th scope="col">Account</th><th scope="col" className="r">Debit</th><th scope="col" className="r">Credit</th></tr></thead>
+                      <tbody>{e.lines.map((l, i) => (
+                        <tr key={i}><td><span className="mono">{l.code}</span> {l.name ?? l.role}</td><td className="r num">{l.side === "debit" ? l.amount : ""}</td><td className="r num">{l.side === "credit" ? l.amount : ""}</td></tr>
+                      ))}</tbody>
+                    </table>
+                  </div>
+                ))}
+              </div>}
+          {p.accounting.notProposed.length > 0 && <>
+            <p className="iv-acct-sub">Not proposed, and why</p>
+            <ul className="iv-acct-np">{p.accounting.notProposed.map(n => <li key={n.code + n.text}>{n.text} <code className="st-api">{n.code}</code></li>)}</ul>
+          </>}
         </div>
       </div>
       <p className="iv-foot">Rendered from the tested engine&rsquo;s five fictional sample payments, with the console&rsquo;s own labels. Every organisation, provider, person and amount is fictional. No real payment was made.</p>

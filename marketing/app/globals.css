@@ -502,3 +502,37 @@ code.inline { font-size: 0.86em; background: var(--cl-neutral-bg); color: var(--
   .quiet-case-list li { grid-template-columns: 28px 1fr; gap: 12px; }
   .quiet-stage summary { align-items: flex-start; }
 }
+
+/* ---------- Product view: F Accounting outcome ---------- */
+.iv-acct { padding: var(--cl-space-5) 16px var(--cl-space-6); border-top: var(--cl-border); }
+@media (min-width: 768px) { .iv-acct { padding: var(--cl-space-5) 24px var(--cl-space-6); } }
+.iv-acct-note { font-size: var(--cl-text-xs); color: var(--cl-slate); max-width: 90ch; margin-bottom: var(--cl-space-4); }
+.iv-acct-empty { font-size: var(--cl-text-sm); }
+.iv-acct-entries { display: grid; gap: var(--cl-space-4); }
+@media (min-width: 900px) { .iv-acct-entries { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.iv-entry { border: var(--cl-border); border-radius: var(--cl-radius-md); padding: 12px 14px; min-width: 0; }
+.iv-entry-rule { font-size: var(--cl-text-sm); font-weight: 600; }
+.iv-entry-meta { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; font-size: var(--cl-text-xs); color: var(--cl-slate); }
+.iv-entry-meta .tag { font-size: 11px; }
+.iv-entry-lines { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: var(--cl-text-xs); }
+.iv-entry-lines th { text-align: left; font-family: var(--cl-font-mono); font-weight: 500; text-transform: uppercase; letter-spacing: var(--cl-tracking-label); color: var(--cl-slate); padding: 4px 0; border-bottom: var(--cl-border); }
+.iv-entry-lines td { padding: 6px 0; border-bottom: var(--cl-border); overflow-wrap: anywhere; }
+.iv-entry-lines .r { text-align: right; padding-left: 12px; white-space: nowrap; }
+.iv-acct-sub { font-family: var(--cl-font-mono); font-size: var(--cl-text-xs); text-transform: uppercase; letter-spacing: var(--cl-tracking-label); color: var(--cl-slate); margin: var(--cl-space-4) 0 6px; }
+.iv-acct-np { list-style: none; margin: 0; display: grid; gap: 6px; font-size: var(--cl-text-sm); }
+.iv-acct-np .st-api { font-size: 11px; }
+
+/* ---------- Platform: lifecycle (ordered rows, two columns on wide screens) ---------- */
+.lifecycle { list-style: none; margin: 0; display: grid; border-top: 2px solid var(--cl-text); }
+@media (min-width: 900px) { .lifecycle { grid-template-columns: 1fr 1fr; column-gap: var(--cl-space-7); grid-auto-flow: column; grid-template-rows: repeat(4, auto); } }
+.lifecycle li { display: grid; grid-template-columns: 44px 1fr; gap: var(--cl-space-3); padding: var(--cl-space-4) 0; border-bottom: var(--cl-border); }
+.lifecycle b { display: block; margin-bottom: 4px; }
+.lifecycle p { font-size: var(--cl-text-sm); color: var(--cl-slate); }
+.lifecycle li:last-child b { color: var(--cl-text); }
+
+/* ---------- Trial: the 18-step journey ---------- */
+.journey { list-style: none; margin: 0; border-top: 2px solid var(--cl-text); display: grid; }
+@media (min-width: 900px) { .journey { grid-template-columns: 1fr 1fr; column-gap: var(--cl-space-7); grid-auto-flow: column; grid-template-rows: repeat(9, auto); } }
+.journey li { display: grid; grid-template-columns: 44px 104px 1fr; gap: var(--cl-space-3); padding: 10px 0; border-bottom: var(--cl-border); font-size: var(--cl-text-sm); align-items: baseline; }
+@media (max-width: 479px) { .journey li { grid-template-columns: 36px 1fr; } .journey-area { grid-column: 2; } .journey li > span:last-child { grid-column: 2; } }
+.journey-area { font-family: var(--cl-font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: var(--cl-tracking-label); color: var(--cl-slate); }
