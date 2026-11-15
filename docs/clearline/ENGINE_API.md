@@ -1,5 +1,15 @@
 # Clearline sandbox engine — public API (for the console UI)
 
+> **CHANGE 20 (2026-11-15, final check of CHANGE 19 — N1). STATUS: LANDED (not reviewed).**
+> - **N1.** The repayment-allocation load check now treats the reference as unique only among the obligations that **existed when the line was allocated**: those with a lower id sequence than the allocation. Ids are sequential per workspace, and a reset only raises the counter. So an advance created later, whose repayment reference is a token of an earlier line (e.g. `PO-778899`), no longer locks the workspace.
+>   - I chose this over dropping the check. It still refuses a forged allocation on a line that was ambiguous at the time, and unlike `createdAt` it stays exact when two actions share one clock instant.
+>   - Tested with the reviewer's exact sequence, plus an ambiguous-at-the-time forgery.
+> - **Wording.** Refusals of repayment-allocation evidence now read "Its evidence records contradict each other (crafted or damaged data), so they were not repaired", never "No version of the engine produces this".
+> - **Rule H.** The outcome is now `observation_downgraded`: the observation is still counted, at the lower status.
+> - **New exported unions.** `WorkspaceMigrationKind` and `WorkspaceMigrationOutcome`, labelled in the new `HUMAN_LABELS.migrationKind` and `HUMAN_LABELS.migrationOutcome`. A test checks every member has a label.
+> - **API changes:** migration outcome `observation_downgraded` (replaces `observation_not_counted` for rule H only); the new label maps; the named unions. There is no sample change.
+> - **Mutation checks:** 4 mutants — all obligations counted, the uniqueness check dropped, the refusal wording, the old outcome. **4 killed**.
+
 > **CHANGE 19 (2026-11-15, independent QA/security pass on rc4 2c0f0f0 — M1). STATUS: LANDED (not reviewed).**
 > - **M1a (`serialize.ts` crossCheck).** A repayment allocation must have the shape `reconcileIncoming` produces:
 >   - a `credit` line of kind `payment`;
@@ -7,7 +17,7 @@
 >   - whose reference carries that obligation's repayment reference as a token, and no other obligation's.
 >
 >   Anything else is refused on load, e.g. "a repayment allocation's statement line must carry the obligation's repayment reference".
-> - **M1b, load rule H (`migrate.ts`).** A new `WorkspaceMigration.kind`, `chain_status_exceeds_confirmations` (outcome `observation_not_counted`, with `observationId`), covers a counted chain observation stored with a status above what its confirmations give.
+> - **M1b, load rule H (`migrate.ts`).** A new `WorkspaceMigration.kind`, `chain_status_exceeds_confirmations` (outcome `observation_downgraded` since CHANGE 20, with `observationId`), covers a counted chain observation stored with a status above what its confirmations give.
 >   - Its status is moved down to `chainStatusFor(confirmations)` and the change is reported.
 >   - Settlement is recomputed and never upgraded; rule D reopens a chain match that rested on it.
 >   - Every engine version stores `statusFor(confirmations)`, so v2, rc3 and rc4 workspaces still load with `[]` (property tests pass).

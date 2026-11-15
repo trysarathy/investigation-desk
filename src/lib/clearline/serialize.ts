@@ -1,21 +1,24 @@
 import { MAX_AMOUNT_MINOR, isCurrency, withinTotal } from "./money";
-import { migrateToRc3 } from "./migrate";
+import { migrateToRc3, seqOf } from "./migrate";
 import { ACCOUNTING_REFUSAL_TEXT, AccountingInvalid, validateAccounting } from "./accounting/validate";
 import { isIsoDate, isIsoInstant, isTimeZone, referenceTokens } from "./tx";
 import type { Result, Workspace, WorkspaceLoad, WorkspaceMigration } from "./types";
 
 export const serializeWorkspace = (ws: Workspace): string => JSON.stringify(ws);
 
+/** Why a load refuses: engine = a state no engine version writes; accounting / evidence = records that contradict their evidence or each other. */
+type RefusalKind = "engine" | "accounting" | "evidence";
 class Invalid extends Error {
-  constructor(readonly field: string, message: string, readonly accounting = false) {
+  constructor(readonly field: string, message: string, readonly kind: RefusalKind = "engine") {
     super(message);
   }
 }
+const EVIDENCE_REFUSAL_TEXT = "Its evidence records contradict each other (crafted or damaged data), so they were not repaired.";
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
-const need = (cond: boolean, field: string, what: string) => {
-  if (!cond) throw new Invalid(field, `${field}: ${what}`);
+const need = (cond: boolean, field: string, what: string, kind: RefusalKind = "engine") => {
+  if (!cond) throw new Invalid(field, `${field}: ${what}`, kind);
 };
 const str = (o: Obj, k: string, path: string) => need(typeof o[k] === "string" && (o[k] as string).length > 0, `${path}.${k}`, "must be a non-empty string");
 /** Review m-1: an amount is a safe integer ≥ min and ≤ MAX_AMOUNT_MINOR (10^15 minor units), like validateAmountMinor. */
@@ -155,7 +158,7 @@ function validate(w: unknown): { ws: Workspace; migrations: WorkspaceMigration[]
   try {
     migrations.push(...validateAccounting(ws));
   } catch (e) {
-    if (e instanceof AccountingInvalid) throw new Invalid(e.field, e.message, true);
+    if (e instanceof AccountingInvalid) throw new Invalid(e.field, e.message, "accounting");
     throw e;
   }
   return { ws: ws as unknown as Workspace, migrations };
@@ -259,10 +262,15 @@ function crossCheck(ws: Obj) {
     need(a.evidenceKind === "statement_line", `${p}.evidenceKind`, "a repayment allocation comes from a statement line");
     const l = lineById.get(a.statementLineId as string)!;
     const tokens = referenceTokens(String(l.reference));
-    need(l.direction === "credit" && l.kind === "payment", `${p}.statementLineId`, "a repayment allocation must come from an incoming (credit) payment line");
-    need(l.currency === ob!.currency && a.currency === ob!.currency, `${p}.currency`, "a repayment allocation must be in the obligation's currency");
-    need(tokens.includes(String(ob!.reference).toUpperCase()), `${p}.statementLineId`, "a repayment allocation's statement line must carry the obligation's repayment reference (an amount-only receipt is never allocated)");
-    need(obligations.filter((o) => tokens.includes(String(o.reference).toUpperCase())).length === 1, `${p}.statementLineId`, "a repayment allocation's line must name exactly one obligation's reference");
+    need(l.direction === "credit" && l.kind === "payment", `${p}.statementLineId`, "a repayment allocation must come from an incoming (credit) payment line", "evidence");
+    need(l.currency === ob!.currency && a.currency === ob!.currency, `${p}.currency`, "a repayment allocation must be in the obligation's currency", "evidence");
+    need(tokens.includes(String(ob!.reference).toUpperCase()), `${p}.statementLineId`, "a repayment allocation's statement line must carry the obligation's repayment reference (an amount-only receipt is never allocated)", "evidence");
+    // Final check N1: the matcher saw only the obligations that existed when it allocated the line. Ids are sequential
+    // per workspace (a reset only raises the counter), so "existed then" is "has a lower id sequence than the
+    // allocation" — exact even when two actions share one clock instant. An obligation created later may quote a token
+    // of an earlier line (e.g. "PO-778899") without making that earlier allocation ambiguous.
+    const existedThen = obligations.filter((o) => seqOf(String(o.id)) < seqOf(String(a.id)));
+    need(existedThen.filter((o) => tokens.includes(String(o.reference).toUpperCase())).length === 1, `${p}.statementLineId`, "a repayment allocation's line must name exactly one of the obligations that existed when it was allocated", "evidence");
   });
   lines.forEach((l, i) => {
     need((total.get(l.id as string) ?? 0) <= (l.amountMinor as number), `statementLines[${i}].allocationIds`, "allocations exceed the line amount");
@@ -377,7 +385,7 @@ export function loadWorkspaceValue(v: unknown): Result<WorkspaceLoad> {
     return { ok: true, value: { workspace: ws, migrations } };
   } catch (e) {
     // Review M-1 / n-3: the workspace may have been written by this engine; say what is wrong, not "damaged".
-    if (e instanceof Invalid) return { ok: false, error: { code: "invalid_field", message: `This workspace cannot be loaded: ${e.message}. ${e.accounting ? ACCOUNTING_REFUSAL_TEXT : "No version of the engine produces this, so it was not repaired automatically."} Reset to the sample to continue.`, field: e.field } };
+    if (e instanceof Invalid) return { ok: false, error: { code: "invalid_field", message: `This workspace cannot be loaded: ${e.message}. ${e.kind === "accounting" ? ACCOUNTING_REFUSAL_TEXT : e.kind === "evidence" ? EVIDENCE_REFUSAL_TEXT : "No version of the engine produces this, so it was not repaired automatically."} Reset to the sample to continue.`, field: e.field } };
     return { ok: false, error: { code: "invalid_field", message: "This workspace cannot be loaded: its structure is not a Clearline workspace. Reset to the sample to continue.", field: "workspace" } };
   }
 }
