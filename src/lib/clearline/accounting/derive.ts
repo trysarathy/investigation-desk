@@ -15,7 +15,14 @@
  * - A FINAL chain observation allocated to its payout by the provider-reported tx hash, payout not terminal →
  *   JR_STABLECOIN_FINAL_TRANSFER: Dr supplier_payable (or customer_receivable) / Cr stablecoin_clearing. It never
  *   touches a bank account: a chain transfer never proves a bank credit.
- * - An exported or posted proposal whose evidence no longer gives the same entry → JR_REVERSAL (lines swapped).
+ * - Review F1 (sandbox rule, for Aashmiin's sign-off): the supplier payable is cleared ONCE, by the evidence that
+ *   the beneficiary was paid on the payout's own rail. On the stablecoin route a bank debit only funds the on-ramp
+ *   → JR_STABLECOIN_ONRAMP_FUNDING: Dr stablecoin_clearing (in the debit's currency) / Cr bank; the final chain
+ *   transfer clears the payable. The SGD↔USDC conversion difference is not proposed (NP_FX_NOT_EVIDENCED).
+ * - Review F2: a return credit is proposed only for a CREDIT line; a debit-direction return / reversal gives no
+ *   entry (NP_EVIDENCE_CONTRADICTED).
+ * - An exported or posted proposal whose evidence no longer gives the same entry, or an exported entry a person
+ *   withdrew (review F7), → JR_REVERSAL (lines swapped).
  *
  * Everything else is listed in `notProposed` with its reason: provider reports and provider-reported completion
  * (pending evidence, no entry and no memo line), amount-only or ambiguous lines, unallocated lines, partial
@@ -58,6 +65,12 @@ const ACTIVE_STATUSES = ["proposed", "approved"] as const;
 const STANDING_STATUSES = ["exported", "posted"] as const;
 export const isActiveProposal = (p: JournalProposal) => (ACTIVE_STATUSES as readonly string[]).includes(p.status);
 export const isStandingProposal = (p: JournalProposal) => (STANDING_STATUSES as readonly string[]).includes(p.status);
+/** Review F7: an exported entry a person withdrew (rejected after export). It may have been imported, so it is reversed. */
+export const isWithdrawnAfterExport = (p: JournalProposal) => p.status === "rejected" && !!p.export;
+/** Entries that are (or may be) in the customer's ledger: exported, posted, or withdrawn after export. */
+export const isInLedger = (p: JournalProposal) => isStandingProposal(p) || isWithdrawnAfterExport(p);
+/** Entries that count towards what the books show: in the ledger, or proposed / approved (a reversal subtracts by its sides). */
+export const isCounted = (p: JournalProposal) => isInLedger(p) || isActiveProposal(p);
 
 const emptyRefs = (): JournalEvidenceRefs => ({ statementLineIds: [], allocationIds: [], chainObservationIds: [], repaymentAllocationIds: [], providerEventIds: [], evidenceRecordIds: [] });
 const allIds = (r: JournalEvidenceRefs): string[] => [...r.statementLineIds, ...r.allocationIds, ...r.chainObservationIds, ...r.repaymentAllocationIds, ...r.providerEventIds, ...r.evidenceRecordIds];
@@ -88,6 +101,22 @@ function twoLines(rule: JournalRuleCode, debit: AccountKey, credit: AccountKey, 
 function lineEvidenceIds(ws: Workspace, line: StatementLine): string[] {
   const src = evidenceSourceLabel(line);
   return ws.evidence.filter((e) => (e.kind === "bank_statement_line" || e.kind === "provider_settlement_report") && e.reference === line.lineId && e.source === src).map((e) => e.id);
+}
+
+/** Review F1: whether the payout's route is the stablecoin rail (a bank debit then funds the on-ramp; the chain transfer pays). */
+export function onStablecoinRail(ws: Workspace, intent: PaymentIntent): boolean {
+  const instr = ws.instructions.find((x) => x.id === intent.instructionId);
+  return ws.routes.find((r) => r.id === instr?.routeId)?.rail === "stablecoin_testnet";
+}
+
+/**
+ * Review F1: the most the supplier payable (or customer receivable) may be debited for one payout, per currency:
+ * the payout amount in its source currency, and the quoted recipient amount in its destination currency.
+ */
+export function payableBound(ws: Workspace, intent: PaymentIntent, currency: CurrencyCode): number {
+  if (currency === intent.sourceCurrency) return intent.amountMinor;
+  const q = ws.quotes.find((x) => x.id === intent.selectedQuoteId);
+  return currency === intent.destinationCurrency ? (q?.estimatedRecipientMinor ?? 0) : 0;
 }
 
 const openExceptionIds = (ws: Workspace, pred: (e: Workspace["exceptions"][number]) => boolean) => ws.exceptions.filter((e) => e.status !== "resolved" && pred(e)).map((e) => e.id);
@@ -128,6 +157,11 @@ export function deriveJournalCandidates(ws: Workspace): JournalDerivation {
         const what = `${intent.internalReference} · ${intent.beneficiaryName} · provider payment ${ppid}`;
         const bank = bankKey(line.accountRef);
         const isReturn = a.codes.includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN");
+        if (isReturn && line.direction !== "credit") {
+          // Review F2: money went OUT on a "return" / "reversal" line (e.g. the bank reversing a return credit). Never cash in.
+          np("NP_EVIDENCE_CONTRADICTED", `Bank line ${line.lineId} (${line.accountRef}) is a ${line.direction} ${line.kind} line for ${what}: money left the account, so it is not a return credit.`, [line.id, a.id, intent.id], openExceptionIds(ws, (e) => e.statementLineId === line.id || e.intentId === intent.id), { amountMinor: line.amountMinor, currency: line.currency });
+          continue;
+        }
         if (isReturn) {
           const events = notDeliveredEventIds(ws, intent);
           const refs = { ...lineRefs, providerEventIds: events };
@@ -141,6 +175,7 @@ export function deriveJournalCandidates(ws: Workspace): JournalDerivation {
           }));
           continue;
         }
+        if (line.direction !== "debit") continue; // only debits and return credits are allocated to a payout
         if (NOT_DELIVERED(intent)) {
           const events = notDeliveredEventIds(ws, intent);
           const refs = { ...lineRefs, providerEventIds: events };
@@ -156,7 +191,16 @@ export function deriveJournalCandidates(ws: Workspace): JournalDerivation {
         }
         const adv = approvedAdvance(ws, intent);
         const ids = allIds(lineRefs);
-        if (adv) {
+        if (onStablecoinRail(ws, intent)) {
+          // Review F1: on the stablecoin route the bank debit funds the on-ramp; only the final chain transfer pays the supplier.
+          candidates.push(finish({
+            sourceKey: `PAYOUT_DEBIT:${a.id}`, ruleCode: "JR_STABLECOIN_ONRAMP_FUNDING", entryDate: line.valueDate, currency: a.currency,
+            lines: twoLines("JR_STABLECOIN_ONRAMP_FUNDING", "stablecoin_clearing", bank, a.amountMinor, a.currency, `[SANDBOX] On-ramp funding ${line.lineId} for stablecoin payout ${what} — supplier not yet paid (the final chain transfer pays)`, ids),
+            evidence: lineRefs, intentId: intent.id, advanceId: adv?.id, obligationId: adv?.obligationId,
+            narrative: `${formatMinor(a.amountMinor, a.currency)} left the bank on line ${line.lineId} (${line.accountRef}) to fund the stablecoin payout ${what}. Booked to stablecoin clearing: the supplier is paid only by the final on-chain transfer to their wallet.`,
+            showsSupplierPaid: false,
+          }));
+        } else if (adv) {
           candidates.push(finish({
             sourceKey: `PAYOUT_DEBIT:${a.id}`, ruleCode: "JR_ADVANCE_DISBURSED", entryDate: line.valueDate, currency: a.currency,
             lines: twoLines("JR_ADVANCE_DISBURSED", "customer_receivable", bank, a.amountMinor, a.currency, `[SANDBOX] Advance ${adv.id} disbursed for ${adv.customerName}: ${what} (bank line ${line.lineId})`, ids),
@@ -199,7 +243,8 @@ export function deriveJournalCandidates(ws: Workspace): JournalDerivation {
       }
       payoutsWithEntry.add(intent.id);
       const adv = approvedAdvance(ws, intent);
-      const reported = ws.providerEvents.filter((e) => e.intentId === intent.id && e.detail.txHash === obs.txHash).map((e) => e.id);
+      // Review F8: only the first event that reported this hash (applied or recorded); redeliveries and duplicates never change the basis.
+      const reported = ws.providerEvents.filter((e) => e.intentId === intent.id && e.detail.txHash === obs.txHash && (e.processingOutcome === "applied" || e.processingOutcome === "recorded_no_state_change")).slice(0, 1).map((e) => e.id);
       const chainEvidence = ws.evidence.filter((e) => e.kind === "chain_observation" && e.intentId === intent.id && e.reference === obs.txHash).map((e) => e.id);
       const refs = { ...emptyRefs(), allocationIds: [a.id], chainObservationIds: [obs.id], providerEventIds: reported, evidenceRecordIds: chainEvidence };
       const ids = allIds(refs);
@@ -245,13 +290,24 @@ export function deriveJournalCandidates(ws: Workspace): JournalDerivation {
     const bankCovered = payAllocs.filter((a) => a.evidenceKind === "statement_line" && a.currency === intent.sourceCurrency).reduce((s, a) => s + a.amountMinor, 0);
     if (bankCovered > 0 && bankCovered < intent.amountMinor && !NOT_DELIVERED(intent))
       np("NP_PARTIAL_REMAINDER", `Payout ${intent.internalReference}: ${formatMinor(intent.amountMinor - bankCovered, intent.sourceCurrency)} is not evidenced by a bank debit.`, [intent.id], exc, { amountMinor: intent.amountMinor - bankCovered, currency: intent.sourceCurrency });
+    // Review F13: what the final chain transfer does not cover (same currency: the indicative fee; another currency: conversion).
+    const chainCovered = payAllocs.filter((a) => a.evidenceKind === "chain_observation" && ws.chainObservations.some((o) => o.id === a.statementLineId && o.status === "final")).reduce((s, a) => s + a.amountMinor, 0);
+    if (chainCovered > 0 && !NOT_DELIVERED(intent)) {
+      const bound = payableBound(ws, intent, "USDC");
+      if (intent.sourceCurrency === "USDC" && chainCovered < intent.amountMinor)
+        np("NP_PARTIAL_REMAINDER", `Payout ${intent.internalReference}: the final chain transfer covers ${formatMinor(chainCovered, "USDC")} of ${formatMinor(intent.amountMinor, "USDC")}; ${formatMinor(intent.amountMinor - chainCovered, "USDC")} is not evidenced (likely the indicative fee; not proposed).`, [intent.id], exc, { amountMinor: intent.amountMinor - chainCovered, currency: "USDC" });
+      else if (intent.sourceCurrency !== "USDC" && bound > 0 && chainCovered < bound)
+        np("NP_PARTIAL_REMAINDER", `Payout ${intent.internalReference}: the final chain transfer covers ${formatMinor(chainCovered, "USDC")} of the quoted ${formatMinor(bound, "USDC")}.`, [intent.id], exc, { amountMinor: bound - chainCovered, currency: "USDC" });
+    }
     if (!payoutsWithEntry.has(intent.id)) continue;
     const q = ws.quotes.find((x) => x.id === intent.selectedQuoteId);
     const fees = (q?.providerFeeMinor ?? 0) + (q?.platformFeeMinor ?? 0);
     if (q && fees > 0)
       np("NP_FEE_NOT_EVIDENCED", `Payout ${intent.internalReference}: the quote shows ${formatMinor(fees, intent.sourceCurrency)} of indicative fees; no statement line or provider charge evidences them.`, [intent.id, q.id], [], { amountMinor: fees, currency: intent.sourceCurrency });
     if (intent.sourceCurrency !== intent.destinationCurrency)
-      np("NP_FX_NOT_EVIDENCED", `Payout ${intent.internalReference} converts ${intent.sourceCurrency} to ${intent.destinationCurrency} at a rate the engine has no evidence of; its entry is in ${intent.sourceCurrency}, the currency that left the bank.`, [intent.id], []);
+      np("NP_FX_NOT_EVIDENCED", onStablecoinRail(ws, intent)
+        ? `Payout ${intent.internalReference} funds the on-ramp in ${intent.sourceCurrency} and pays ${intent.destinationCurrency} on chain; the conversion difference left in stablecoin clearing is not proposed (no rate evidence).`
+        : `Payout ${intent.internalReference} converts ${intent.sourceCurrency} to ${intent.destinationCurrency} at a rate the engine has no evidence of; its entry is in ${intent.sourceCurrency}, the currency that left the bank.`, [intent.id], []);
   }
 
   // Chain observations that give no entry.
@@ -269,15 +325,16 @@ export function deriveJournalCandidates(ws: Workspace): JournalDerivation {
   const bySource = new Map(candidates.map((c) => [c.sourceKey, c]));
   const proposals = ws.accounting?.proposals ?? [];
   for (const p of proposals) {
-    if (p.ruleCode === "JR_REVERSAL" || !isStandingProposal(p)) continue;
+    if (p.ruleCode === "JR_REVERSAL" || !isInLedger(p)) continue;
     const now = bySource.get(p.sourceKey);
-    if (now && now.basisHash === p.basisHash) continue;
-    const why = now ? `its evidence now gives a different entry (${JOURNAL_RULE[now.ruleCode]})` : "its evidence no longer supports an entry";
+    const withdrawn = isWithdrawnAfterExport(p);
+    if (!withdrawn && now && now.basisHash === p.basisHash) continue;
+    const why = withdrawn ? `${p.rejection!.by} withdrew it after export ${p.export!.exportId} (${p.rejection!.reason.slice(0, 60)}); the file may already be imported` : now ? `its evidence now gives a different entry (${JOURNAL_RULE[now.ruleCode]})` : "its evidence no longer supports an entry";
     const lines: JournalLine[] = p.lines.map((l) => ({ ...l, side: l.side === "debit" ? "credit" : "debit", ruleCode: "JR_REVERSAL", memo: `[SANDBOX] Reversal of ${p.id}: ${why}` }));
     candidates.push(finish({
       sourceKey: `REV:${p.id}`, ruleCode: "JR_REVERSAL", entryDate: orgDate(ws.asOf, ws.organization.timezone), currency: p.currency,
       lines, evidence: structuredClone(p.evidence), intentId: p.intentId, advanceId: p.advanceId, obligationId: p.obligationId, reverses: p.id,
-      narrative: `Reverses ${p.status} entry ${p.id} (${JOURNAL_RULE[p.ruleCode]}) because ${why}. Corrections are new entries; ${p.id} itself is never changed.`,
+      narrative: `Reverses ${withdrawn ? "exported" : p.status} entry ${p.id} (${JOURNAL_RULE[p.ruleCode]}) because ${why}. Corrections are new entries; ${p.id} itself is never changed.`,
       showsSupplierPaid: false,
     }));
   }
@@ -298,5 +355,43 @@ export function balanceOf(lines: Pick<JournalLine, "side" | "amountMinor" | "cur
 
 export const isBalanced = (lines: Pick<JournalLine, "side" | "amountMinor" | "currency">[]): boolean =>
   lines.length >= 2 && [...balanceOf(lines).values()].every((t) => t.debit === t.credit && t.debit > 0n);
+
+/**
+ * Signed movement per (account key, currency) over the given entries, debit positive (BigInt). Reversals carry the
+ * opposite sides, so they subtract from what they reverse.
+ */
+export function netByKey(ps: Pick<JournalProposal, "lines">[]): Map<string, bigint> {
+  const m = new Map<string, bigint>();
+  for (const p of ps) for (const l of p.lines) m.set(`${l.accountKey}\u0000${l.currency}`, (m.get(`${l.accountKey}\u0000${l.currency}`) ?? 0n) + BigInt(l.amountMinor) * (l.side === "debit" ? 1n : -1n));
+  return m;
+}
+
+/**
+ * Review F1 / F5: problems with what the counted entries (in the ledger, proposed or approved) show, or undefined:
+ * - per payout and currency, the net debit to supplier_payable + customer_receivable never exceeds payableBound;
+ * - per bank statement line, the net bank movement never exceeds the line amount (a bank line is never booked twice).
+ */
+export function ledgerProblem(ws: Workspace, only?: "payable" | "bank"): string | undefined {
+  const counted = (ws.accounting?.proposals ?? []).filter(isCounted);
+  const byIntent = new Map<string, JournalProposal[]>();
+  for (const p of counted) if (p.intentId) byIntent.set(p.intentId, [...(byIntent.get(p.intentId) ?? []), p]);
+  if (only !== "bank") for (const [id, ps] of byIntent) {
+    const intent = ws.intents.find((i) => i.id === id);
+    if (!intent) continue;
+    const net = netByKey(ps);
+    const byCur = new Map<CurrencyCode, bigint>();
+    for (const [k, v] of net) {
+      const [key, cur] = k.split("\u0000") as [string, CurrencyCode];
+      if (key === "supplier_payable" || key === "customer_receivable") byCur.set(cur, (byCur.get(cur) ?? 0n) + v);
+    }
+    for (const [cur, v] of byCur) if (v > BigInt(payableBound(ws, intent, cur))) return `payout ${id}: the supplier payable / receivable is debited ${formatMinor(Number(v), cur)}, more than the payout (${formatMinor(payableBound(ws, intent, cur), cur)})`;
+  }
+  if (only !== "payable") for (const line of ws.statementLines) {
+    let v = 0n;
+    for (const p of counted) if (p.evidence.statementLineIds.includes(line.id)) for (const l of p.lines) if (l.accountKey.startsWith("bank:")) v += BigInt(l.amountMinor) * (l.side === "debit" ? 1n : -1n);
+    if (v > BigInt(line.amountMinor) || -v > BigInt(line.amountMinor)) return `bank line ${line.id}: booked ${formatMinor(Number(v < 0n ? -v : v), line.currency)}, more than the line (${formatMinor(line.amountMinor, line.currency)})`;
+  }
+  return undefined;
+}
 
 export type { ReconciliationAllocation };

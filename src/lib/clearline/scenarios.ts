@@ -207,9 +207,12 @@ function plan(ws: Workspace, input: string): Plan {
     const blockers = [...users, ...crossing.filter((id) => !users.includes(id))].slice(0, 25);
     return { check: { allowed: false, code: "REFERENCED_BY_OTHER_RECORDS", reason: `Case ${scenario} cannot be reset on its own: ${crossing.length} record(s) also belong to ${others.map((x) => (x.startsWith("user:") ? `your record ${x.slice(5)}` : `case ${x}`)).join(", ")}. Resetting would leave them pointing at changed data. Reset the whole workspace to the sample instead.`, scenario, blockers }, remove, restore, ...bridge };
   }
-  const decided = mine.filter((x) => ["approved", "exported", "posted"].includes(x.p.status)).map((x) => x.p.id);
+  // Review F4: an entry that was ever in an export file (exported, posted, or withdrawn after export) keeps its id for
+  // good, so the file always re-renders to its recorded hash and a journal id is never reused.
+  const named = new Set((ws.accounting?.exports ?? []).flatMap((x) => x.proposalIds ?? []));
+  const decided = mine.filter((x) => ["approved", "exported", "posted"].includes(x.p.status) || !!x.p.export || named.has(x.p.id)).map((x) => x.p.id);
   if (decided.length)
-    return { check: { allowed: false, code: "ACCOUNTING_ENTRIES_RECORDED", reason: `Case ${scenario} cannot be reset: its journal entr${decided.length === 1 ? "y" : "ies"} ${decided.join(", ")} ${decided.length === 1 ? "is" : "are"} approved, exported or posted, and may already be in your ledger. Reject ${decided.length === 1 ? "it" : "them"} first (an exported entry: only if it was not imported), or reset the whole workspace.`, scenario, blockers: decided }, remove, restore, ...bridge };
+    return { check: { allowed: false, code: "ACCOUNTING_ENTRIES_RECORDED", reason: `Case ${scenario} cannot be reset: its journal entr${decided.length === 1 ? "y" : "ies"} ${decided.join(", ")} ${decided.length === 1 ? "is" : "are"} approved, or ${decided.length === 1 ? "was" : "were"} in an export file and may already be in your ledger. Reject an approved entry first; an exported one keeps its journal id for good. Or reset the whole workspace.`, scenario, blockers: decided }, remove, restore, ...bridge };
   const restoredIds = new Set([...restore.map((r) => r.rec.id), ...bridgeRestore.map((x) => x.id)]);
   const idClash = [...all.map((r) => r.rec.id).filter((id) => !remove.has(id)), ...(ws.accounting?.proposals ?? []).map((x) => x.id).filter((id) => !bridgeRemove.has(id))].filter((id) => restoredIds.has(id));
   if (idClash.length)

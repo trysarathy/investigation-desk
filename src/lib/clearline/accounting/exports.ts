@@ -30,7 +30,9 @@ export type ExportEvidenceClass = "evidenced" | "provider_reported_only" | "unre
 export type ExportMovementKind =
   | "supplier_payout_debit" | "payout_debit_not_delivered" | "payout_return_credit" | "advance_disbursement" | "repayment_credit"
   | "unallocated_credit" | "unallocated_debit" | "provider_settlement_report" | "stablecoin_transfer"
-  | "provider_reported_completion" | "provider_reported_return";
+  | "provider_reported_completion" | "provider_reported_return"
+  /** Review F1: a stablecoin payout funded in one currency and paid in USDC, whose conversion is not evidenced. */
+  | "stablecoin_conversion";
 
 export interface ExportAmount { value: string; currency: CurrencyCode }
 
@@ -42,6 +44,8 @@ export interface ReconciliationExportRow {
   evidenceClassLabel: string;
   direction: "out" | "in";
   amount: ExportAmount;
+  /** stablecoin_conversion only: the USDC the chain transfer paid (amount is what the on-ramp funding debited). */
+  counterAmount?: ExportAmount;
   valueDate: string;
   source: {
     statementLineId?: string; bankLineId?: string; statementSource?: string; accountRef?: string; reference?: string; counterparty?: string;
@@ -151,7 +155,9 @@ export function buildReconciliationExport(ws: Workspace, range: { from: string; 
   }
 
   for (const o of ws.chainObservations) {
-    const d = orgDate(o.observedAt, tz);
+    // Review F9: the same date as the journal entry: the org date of the allocation (finality), else of the first sighting.
+    const alloc = ws.allocations.find((a) => a.evidenceKind === "chain_observation" && a.statementLineId === o.id);
+    const d = orgDate(alloc?.createdAt ?? o.observedAt, tz);
     if (!inRange(d)) continue;
     const intent = intentById.get(o.intentId);
     const allocs = ws.allocations.filter((a) => a.evidenceKind === "chain_observation" && a.statementLineId === o.id);
@@ -183,6 +189,17 @@ export function buildReconciliationExport(ws: Workspace, range: { from: string; 
         reconciliationStatus: intent.status.reconciliation, classificationCodes: [], ruleCode, openExceptions: openExc((e) => e.intentId === intent.id), journal: [],
       });
     };
+    // Review F1: a stablecoin-route payout funded by a bank debit and paid by a final chain transfer leaves an
+    // unevidenced conversion in stablecoin clearing; it is listed as unresolved (the SGD and USDC legs are never netted).
+    const fund = candidates.find((c) => c.ruleCode === "JR_STABLECOIN_ONRAMP_FUNDING" && c.intentId === intent.id);
+    const paid = candidates.find((c) => c.ruleCode === "JR_STABLECOIN_FINAL_TRANSFER" && c.intentId === intent.id);
+    if (fund && paid && fund.currency !== paid.currency && inRange(paid.entryDate))
+      row({
+        rowId: `XR-CONV-${intent.id}`, movement: "stablecoin_conversion", evidenceClass: "unresolved", direction: "out", amount: amt(fund.lines[0].amountMinor, fund.currency), counterAmount: amt(paid.lines[0].amountMinor, paid.currency), valueDate: paid.entryDate,
+        source: { providerEventIds: paid.evidence.providerEventIds, evidenceRecordIds: [...fund.evidence.evidenceRecordIds, ...paid.evidence.evidenceRecordIds], statementLineId: fund.evidence.statementLineIds[0], chainObservationId: paid.evidence.chainObservationIds[0] },
+        paymentId: intent.id, internalReference: intent.internalReference, advanceId: intent.advanceId, allocationIds: [...fund.evidence.allocationIds, ...paid.evidence.allocationIds],
+        reconciliationStatus: intent.status.reconciliation, classificationCodes: [], ruleCode: "XR_CONVERSION_NOT_EVIDENCED", openExceptions: openExc((e) => e.intentId === intent.id), journal: journalFor([...fund.evidence.allocationIds, ...paid.evidence.allocationIds]),
+      });
     const completed = ev("payout.completed");
     if (completed.length && intent.status.execution === "provider_reported_completed" && debits.length === 0 && reportLines.length === 0) mk("provider_reported_completion", "XR_PROVIDER_COMPLETION_NO_EVIDENCE", completed);
     const returned = ev("payout.returned");
@@ -217,12 +234,12 @@ export function csvCell(v: string | undefined, kind: "text" | "amount" = "text")
   return /[",\r\n]|^\s|\s$/.test(s) || s.includes("'") ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export const RECONCILIATION_EXPORT_CSV_COLUMNS = ["section", "row_id", "movement", "evidence_class", "direction", "amount", "currency", "value_date", "statement_line_id", "bank_line_id", "account_ref", "reference", "counterparty", "chain_observation_id", "tx_hash", "provider_event_ids", "evidence_record_ids", "payment_id", "internal_reference", "advance_id", "obligation_id", "allocation_ids", "reconciliation_status", "classification_codes", "rule_code", "rule_label", "open_exceptions", "journal_proposals"] as const;
+export const RECONCILIATION_EXPORT_CSV_COLUMNS = ["section", "row_id", "movement", "evidence_class", "direction", "amount", "currency", "value_date", "statement_line_id", "bank_line_id", "account_ref", "reference", "counterparty", "chain_observation_id", "tx_hash", "provider_event_ids", "evidence_record_ids", "payment_id", "internal_reference", "advance_id", "obligation_id", "allocation_ids", "reconciliation_status", "classification_codes", "rule_code", "rule_label", "open_exceptions", "journal_proposals", "counter_amount", "counter_currency", "marking"] as const;
 
 /** RFC 4180 CSV (CRLF). Row 1 is the header; the next rows mark the file FICTIONAL / sandbox and give its id and period. */
 export function reconciliationExportToCsv(doc: ReconciliationExport): string {
   const n = RECONCILIATION_EXPORT_CSV_COLUMNS.length;
-  const meta = (code: string, text: string) => { const r = Array<string>(n).fill(""); r[0] = csvCell("meta"); r[1] = csvCell(code); r[n - 3] = csvCell(code); r[n - 2] = csvCell(text); return r; };
+  const meta = (code: string, text: string) => { const r = Array<string>(n).fill(""); r[0] = csvCell("meta"); r[1] = csvCell(code); r[n - 6] = csvCell(code); r[n - 5] = csvCell(text); r[n - 1] = csvCell("FICTIONAL SANDBOX"); return r; };
   const out: string[][] = [
     meta("XR_FICTIONAL_SANDBOX", doc.marking),
     meta("XR_GENERATED_AT", `${doc.documentId} sha256 ${doc.sha256} generated ${doc.generatedAt} (simulated clock)`),
@@ -234,6 +251,7 @@ export function reconciliationExportToCsv(doc: ReconciliationExport): string {
       csvCell(r.source.statementLineId), csvCell(r.source.bankLineId), csvCell(r.source.accountRef), csvCell(r.source.reference), csvCell(r.source.counterparty), csvCell(r.source.chainObservationId), csvCell(r.source.txHash), csvCell(r.source.providerEventIds.join(" ")), csvCell(r.source.evidenceRecordIds.join(" ")),
       csvCell(r.paymentId), csvCell(r.internalReference), csvCell(r.advanceId), csvCell(r.obligationId), csvCell(r.allocationIds.join(" ")), csvCell(r.reconciliationStatus), csvCell(r.classificationCodes.join(" ")),
       csvCell(r.ruleCode), csvCell(r.ruleLabel), csvCell(r.openExceptions.map((e) => `${e.id}:${e.code}`).join(" ")), csvCell(r.journal.map((j) => `${j.proposalId}:${j.status}`).join(" ")),
+      csvCell(r.counterAmount?.value, "amount"), csvCell(r.counterAmount?.currency), csvCell("FICTIONAL SANDBOX"),
     ]);
   return [RECONCILIATION_EXPORT_CSV_COLUMNS.join(","), ...out.map((x) => x.join(","))].join("\r\n") + "\r\n";
 }
@@ -325,7 +343,7 @@ export function buildJournalExport(ws: Workspace, ref: { periodId: string } | { 
   };
 }
 
-/** Generic CSV journal import format (docs/clearline/ACCOUNTING_BRIDGE.md §5): one row per journal line. */
+/** Generic CSV journal import format (docs/clearline/ACCOUNTING_BRIDGE.md §5): one row per journal line. journal_id is "SANDBOX-<proposal id>" (review F12: the marking survives an importer dropping unmapped columns). */
 export const JOURNAL_EXPORT_CSV_COLUMNS = ["journal_id", "journal_date", "entry_date", "account_code", "account_name", "debit", "credit", "currency", "memo", "rule_code", "evidence_ids", "prior_period_item", "reverses", "prepared_by", "approved_by", "export_id", "marking"] as const;
 
 /** RFC 4180 CSV (CRLF): a header, then only journal lines (importers read every row), each marked FICTIONAL SANDBOX. */
@@ -333,7 +351,7 @@ export function journalExportToCsv(doc: JournalExport): string {
   const rows: string[][] = [];
   for (const e of doc.entries)
     for (const l of e.lines)
-      rows.push([csvCell(e.proposalId), csvCell(e.journalDate), csvCell(e.entryDate), csvCell(l.accountCode), csvCell(l.accountName), csvCell(l.debit, "amount"), csvCell(l.credit, "amount"), csvCell(l.currency), csvCell(l.memo), csvCell(l.ruleCode), csvCell(l.evidenceIds.join(" ")), csvCell(e.priorPeriodItem ? "true" : "false"), csvCell(e.reverses), csvCell(e.preparedBy), csvCell(e.approvedBy), csvCell(doc.documentId), csvCell("FICTIONAL SANDBOX")]);
+      rows.push([csvCell(`SANDBOX-${e.proposalId}`), csvCell(e.journalDate), csvCell(e.entryDate), csvCell(l.accountCode), csvCell(l.accountName), csvCell(l.debit, "amount"), csvCell(l.credit, "amount"), csvCell(l.currency), csvCell(l.memo), csvCell(l.ruleCode), csvCell(l.evidenceIds.join(" ")), csvCell(e.priorPeriodItem ? "true" : "false"), csvCell(e.reverses), csvCell(e.preparedBy), csvCell(e.approvedBy), csvCell(doc.documentId), csvCell("FICTIONAL SANDBOX")]);
   return [JOURNAL_EXPORT_CSV_COLUMNS.join(","), ...rows.map((x) => x.join(","))].join("\r\n") + "\r\n";
 }
 

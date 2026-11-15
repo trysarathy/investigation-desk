@@ -430,6 +430,8 @@ export type ReconciliationCode =
   | "RC_DUPLICATE_SUSPECTED"
   | "RC_RETURN_CONFIRMS_PROVIDER_RETURN"
   | "RC_RETURN_CONTRADICTS_PROVIDER_STATUS"
+  /** rc4 review F2: a return / reversal line that is a debit; never a return confirmation. */
+  | "RC_RETURN_LINE_IS_DEBIT"
   | "RC_UNMATCHED_INCOMING"
   | "RC_UNMATCHED_OUTGOING"
   | "RC_PROVIDER_REPORT_ONLY"

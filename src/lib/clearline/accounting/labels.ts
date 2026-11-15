@@ -33,6 +33,7 @@ export const JOURNAL_RULE: Record<JournalRuleCode, string> = {
   JR_ADVANCE_DISBURSED: "Advance disbursed to the supplier for the customer (bank statement evidence)",
   JR_REPAYMENT_BY_REFERENCE: "Customer repayment received by its reference",
   JR_STABLECOIN_FINAL_TRANSFER: "Stablecoin transfer final on chain (synthetic testnet) — not a bank credit",
+  JR_STABLECOIN_ONRAMP_FUNDING: "Bank debit funding a stablecoin payout's on-ramp — supplier not yet paid",
   JR_REVERSAL: "Reversal of an exported or posted entry whose evidence changed",
 };
 
@@ -55,6 +56,7 @@ export const NOT_PROPOSED: Record<NotProposedCode, string> = {
 export const SUPERSESSION: Record<SupersessionCode, string> = {
   SP_EVIDENCE_CHANGED: "Evidence changed after the proposal was made",
   SP_EVIDENCE_WITHDRAWN: "The evidence no longer supports an entry",
+  SP_MAPPING_CHANGED: "The account codes changed after approval; the entry must be approved again with the new codes",
 };
 
 export const PERIOD_STATUS: Record<AccountingPeriodStatus, string> = { open: "Open", closed: "Closed" };
@@ -79,6 +81,7 @@ export const EXPORT_MOVEMENT: Record<ExportMovementKind, string> = {
   stablecoin_transfer: "Stablecoin transfer (synthetic testnet)",
   provider_reported_completion: "Provider-reported completion",
   provider_reported_return: "Provider-reported return",
+  stablecoin_conversion: "Stablecoin conversion (on-ramp funding vs chain payment) — not evidenced",
 };
 
 /** XR_* row codes of the reconciliation export (the rule that classified the row). */
@@ -94,6 +97,7 @@ export const EXPORT_ROW_RULE: Record<string, string> = {
   XR_PROVIDER_REPORT: "Provider settlement report (provider's claim)",
   XR_PROVIDER_COMPLETION_NO_EVIDENCE: "Provider reports completed; no bank or chain evidence",
   XR_PROVIDER_RETURN_NOT_ON_STATEMENT: "Provider reports returned; the return is not on a statement",
+  XR_CONVERSION_NOT_EVIDENCED: "Bank funding and the on-chain payment are in different currencies; the conversion is not evidenced",
   XR_FICTIONAL_SANDBOX: "Fictional sandbox export",
   XR_GENERATED_AT: "Generated at (simulated clock)",
   XR_PERIOD: "Period [from, to)",
@@ -111,6 +115,10 @@ export const BRIDGE_REASON: Record<string, string> = {
   NOTHING_TO_EXPORT: "There are no approved proposals in this period.",
   MAPPING_REVISION_CONFLICT: "The account mapping changed since you loaded it; reload and try again.",
   NOT_EXPORTED: "Only an exported entry can be recorded as posted.",
+  REVERSAL_FIRST: "Approve the reversal of the entry already in your ledger first, so one bank line is never booked twice.",
+  REVERSAL_REQUIRED: "This reversal corrects an entry that is (or may be) in your ledger; it cannot be rejected.",
+  LEDGER_DOUBLE_COUNT: "These entries would show a payout paid more than once or book one bank line twice; nothing was proposed.",
+    MAPPING_CHANGED_SINCE_APPROVAL: "The account codes changed after approval; the entry must be approved again with the new codes.",
 };
 
 /** Every static bridge code with a short label, for describeCode / isKnownCode. */
