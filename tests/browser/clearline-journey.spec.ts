@@ -1181,6 +1181,7 @@ test("every visible primary action is known and has a meaningful result", async 
   const pages = ["/clearline", "/clearline/payments", "/clearline/investigations", "/clearline/exceptions", "/clearline/reconciliation",
     "/clearline/treasury", "/clearline/treasury/funding", "/clearline/routes", "/clearline/routes/activity", "/clearline/routes/new",
     "/clearline/holds", "/clearline/reports", "/clearline/settings", "/clearline/trial",
+    "/clearline/accounting", "/clearline/accounting/setup", "/clearline/accounting/exports", "/clearline/reports/audit",
     ...(await Promise.all(["s1_success", "s2_returned", "s3_hold", "s4_chain", "s5_funding"].map(async (s) => `/clearline/payments/${await scenarioId(request, s)}`)))];
   const unknown: string[] = [];
   for (const p of pages) {
@@ -1233,7 +1234,8 @@ test("the trial page keeps one whole-workspace reset, labelled as such, that res
 const ALL_PAGES = ["/clearline", "/clearline/payments", "s1_success", "s2_returned", "s3_hold", "s4_chain", "s5_funding",
   "/clearline/investigations", "/clearline/exceptions", "/clearline/reconciliation", "/clearline/treasury", "/clearline/treasury/funding",
   "/clearline/routes", "/clearline/routes/activity", "/clearline/routes/new", "/clearline/holds", "/clearline/reports",
-  "/clearline/docs", "/clearline/settings", "/clearline/trial"];
+  "/clearline/docs", "/clearline/settings", "/clearline/trial",
+  "/clearline/accounting", "/clearline/accounting/setup", "/clearline/accounting/exports", "/clearline/reports/audit"];
 const pathOf = async (request: APIRequestContext, p: string) => (p.startsWith("/") ? p : `/clearline/payments/${await scenarioId(request, p)}`);
 
 test("no horizontal page overflow on any console page at 320px, and axe finds no violations at 320 and 1024", async ({ page, request, isMobile }) => {
