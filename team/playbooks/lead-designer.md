@@ -115,8 +115,13 @@ phone at 390).
    run`, `npx next build`) and paste the counts; if a test snapshots colours, update it in the PR and
    say so.
 5. Update `brand-system.md` / `tokens.dtcg.json` / `accessibility.md` in the same PR.
-6. Open the PR (body: problem, evidence, change, before/after, checklist, "Aashmiin merges"). Add a
-   Product roadmap row (status `review`). Log it.
+6. Open the PR **as a draft** (`draft: true`; AGENTS.md: draft PRs only this sprint) (body: problem,
+   evidence, change, before/after, checklist, "Aashmiin merges"). Add a Product roadmap row (status
+   `review`). Log it in the same run with the PR link.
+7. **Never merge, into any branch** (`main`, `release/*`, `rc*/*`, `site/*` alike), and never while a
+   gate says "pending": an unfinished build or browser check means the PR stays open. A separate
+   reviewer and Aashmiin decide. (Fix after PR #108, 14 Nov 2026: opened non-draft with "build and
+   browser validation pending" and merged into `rc3/clearline-site` 3 minutes later, no review, no Log row.)
 **Stop if:** asked to push directly to `main` or merge (refuse, open the PR, `RISK:` row if pressed).
 
 ## §7 Accessibility audit (a whole surface)
