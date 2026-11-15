@@ -189,6 +189,11 @@ test("record posting: refused before export (NOT_EXPORTED); after approve and ex
   await expect(exported).toHaveCount(1);
   await expect(exported.getByTestId("proposal-status")).toContainText("Exported to file — not confirmed as posted");
   const rv2 = await review(page, exported);
+  // Rejecting an exported entry needs an approver other than the person who exported it (Maya, acting).
+  await rv2.getByLabel("Reason for rejecting").fill("Imported twice by mistake");
+  await expect(rv2.getByTestId("reject-gate").getByRole("button", { name: "Reject entry" })).toBeDisabled();
+  await expect(rv2.getByTestId("reject-gate")).toContainText(/maker_checker_violation|unauthorized_actor/);
+  await rv2.getByLabel("Reason for rejecting").fill("");
   // The engine checks the reference the person typed.
   await rv2.getByLabel("External ledger reference").fill("x");
   await expect(rv2.getByTestId("posting-gate").getByRole("button", { name: "Record posting" })).toBeDisabled();
@@ -281,9 +286,13 @@ test("periods: closing needs the approver and no open proposals; a closed period
   await expect(oct.getByTestId("propose-period-gate")).toContainText("PERIOD_CLOSED");
 });
 
-test("unmapped role: unmapping the bank accounts blocks the journal export with the engine's reason", async ({ page }) => {
+test("unmapped role: blocks approval and export in the engine's words; a code change supersedes an approval (needs re-approval)", async ({ page }) => {
   await open(page, "/clearline/accounting");
-  await approveAs(page, await review(page), "usr_daniel");
+  const first = entries(page).first();
+  const approvedId = await first.getAttribute("data-proposal");
+  const rv = await review(page, first);
+  await approveAs(page, rv, "usr_daniel");
+  await expect(rv.getByTestId("approved-accounts")).toContainText("mapping revision 1");
   await tab(page, "Periods and mapping");
   const banks = page.locator('#mapping tr[data-account-key^="bank:"]');
   await expect(banks.first()).toBeVisible();
@@ -297,13 +306,21 @@ test("unmapped role: unmapping the bank accounts blocks the journal export with 
   await expect(page.getByTestId("mapping-revision")).toContainText("Saved revision 2");
   await expect(page.getByTestId("overview-mapping")).toContainText("Export blocked");
   await expect(page.getByTestId("overview-mapping-reason")).toContainText("Map every account role the entries use");
-  await tab(page, "Exports");
-  const period = page.locator("#journal li", { hasText: "2026-11" });
-  await expect(period.getByRole("button", { name: /^Export journal/ })).toBeDisabled();
-  await expect(period.getByTestId("export-journal-gate")).toContainText("UNMAPPED_ACCOUNT_ROLE");
-  // The entries table says which accounts are not mapped.
+  // The approval named codes that changed: the engine supersedes it, and the table says it needs a new approval.
   await tab(page, "Proposed entries");
+  const was = page.locator(`#entries tr[data-proposal="${approvedId}"]`);
+  await expect(was.getByTestId("proposal-status")).toHaveAttribute("data-api-value", "superseded");
+  await expect(was.getByTestId("supersession")).toContainText("SP_MAPPING_CHANGED");
+  await expect(was.getByTestId("supersession")).toContainText("needs a new approval");
   await expect(page.getByTestId("account-unmapped").first()).toHaveText("Not mapped");
+  // Approving an entry whose accounts are not mapped is refused.
+  const pending = page.locator('#entries tr[data-proposal]:has([data-api-value="proposed"])').first();
+  const rv2 = await review(page, pending);
+  await rv2.getByTestId("approver-select").selectOption("usr_daniel");
+  await expect(rv2.getByTestId("approve-gate").getByRole("button", { name: "Approve entry" })).toBeDisabled();
+  await expect(rv2.getByTestId("approve-gate")).toContainText("UNMAPPED_ACCOUNT_ROLE");
+  await tab(page, "Exports");
+  await expect(page.locator("#journal li", { hasText: "2026-11" }).getByRole("button", { name: /^Export journal/ })).toBeDisabled();
 });
 
 test("mapping: an invalid code is refused field by field; two roles on one code are refused", async ({ page }) => {

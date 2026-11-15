@@ -38,19 +38,24 @@ export function ProposalStatus({ p }: { p: Pick<JournalProposalRow, "status" | "
   );
 }
 
+/** Payout states in which the supplier did not receive the money (the engine's execution state, not a posting rule). */
+const NOT_DELIVERED = new Set(["returned", "failed", "cancelled", "expired", "on_hold"]);
+
 /**
- * What the entry says about the supplier, from the engine's `showsSupplierPaid` flag and rule. A payout that was
- * debited but not delivered (returned, failed, cancelled, expired or held), and its return credit, never show the
- * supplier as paid: the payable stays open.
+ * What the entry says about the supplier. Driven by the engine: its `showsSupplierPaid` flag, the evidence the entry
+ * names, and the payout's execution state. A payout that was not delivered (returned, failed, cancelled, expired or
+ * on hold) reads "Supplier still unpaid — payable open"; no posting-rule code is interpreted here.
  */
-export function supplierPaid(p: Pick<JournalProposalRow, "showsSupplierPaid" | "ruleCode">): { text: string; tone: Tone } {
-  if (p.showsSupplierPaid) return { text: p.ruleCode === "JR_STABLECOIN_FINAL_TRANSFER" ? "Shows the supplier as paid — final chain transfer evidence" : "Shows the supplier as paid — bank debit evidence", tone: "info" };
-  if (p.ruleCode === "JR_PAYOUT_DEBIT_NOT_DELIVERED" || p.ruleCode === "JR_PAYOUT_RETURN_CREDIT") return { text: "Supplier still unpaid — payable open", tone: "bad" };
-  return { text: "Does not show a supplier as paid", tone: "neutral" };
+export function supplierPaid(p: Pick<JournalProposalRow, "showsSupplierPaid" | "evidence" | "intentId">, ws: Workspace): { text: string; tone: Tone } {
+  if (p.showsSupplierPaid) return { text: p.evidence.chainObservationIds.length ? "Shows the supplier as paid — final chain transfer evidence" : "Shows the supplier as paid — bank debit evidence", tone: "info" };
+  const intent = p.intentId ? ws.intents.find((i) => i.id === p.intentId) : undefined;
+  if (intent && NOT_DELIVERED.has(intent.status.execution)) return { text: "Supplier still unpaid — payable open", tone: "bad" };
+  return { text: "Does not show the supplier as paid", tone: "neutral" };
 }
 
-export function SupplierPaid({ p }: { p: Pick<JournalProposalRow, "showsSupplierPaid" | "ruleCode"> }) {
-  const s = supplierPaid(p);
+export function SupplierPaid({ p }: { p: Pick<JournalProposalRow, "showsSupplierPaid" | "evidence" | "intentId"> }) {
+  const { ws } = useWorkspace();
+  const s = supplierPaid(p, ws);
   return <span className={ui.sub} data-testid="supplier-paid" data-shows-paid={p.showsSupplierPaid ? "true" : "false"}><Chip tone={s.tone}>{s.text}</Chip></span>;
 }
 
