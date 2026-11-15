@@ -9,8 +9,12 @@
  * - Provider "completed" never sets settlement verified or reconciliation matched.
  * - A partner hold is never released by a provider event alone.
  * - The engine never fabricates intermediate events the provider did not send.
+ * - rc4 Connect: a provider's raw status is kept verbatim in `detail`; a newer event whose
+ *   adapter-declared raw rank is lower than an earlier accepted one is a regression and raises a
+ *   contradiction (EV_PROVIDER_STATUS_REGRESSED); the state is not changed.
  */
 import { getAdapter } from "./adapters";
+import { findRawRegression, rawDetail } from "./connect/normalize";
 import { tryAllocateChain } from "./chain";
 import { ensureCase, openException } from "./exceptions";
 import { onExecutionChanged } from "./reconciliation";
@@ -72,6 +76,7 @@ export function ingestPayload(tx: Tx, input: IngestInput): { outcome: ProviderEv
       ...(p?.currency ? { currency: p.currency } : {}),
       ...(p?.reason ? { reason: p.reason } : {}),
       ...(p?.tx_hash ? { txHash: p.tx_hash } : {}),
+      ...(p?.raw ? rawDetail(p.raw) : {}),
     },
   };
   if (input.signatureResult === "invalid") {
@@ -164,6 +169,21 @@ export function ingestPayload(tx: Tx, input: IngestInput): { outcome: ProviderEv
     const ev = record(tx, { ...base, processingOutcome: outcome });
     tx.log("hold.partner_release_reported", "hold", hold.id, humanRelease ? "Released (human decision + partner release)" : "Awaiting compliance reviewer decision; not auto-released");
     return { outcome, event: ev };
+  }
+
+  // rc4 Connect: generic regression rule (only for adapters that declare raw ranks).
+  const regressedFrom = p.sequence > maxApplied ? findRawRegression(ws, intent.id, p) : undefined;
+  if (regressedFrom) {
+    const ev = record(tx, { ...base, processingOutcome: "contradictory_exception_raised" });
+    openException(tx, {
+      category: "contradictory_evidence",
+      explanationCode: "EV_PROVIDER_STATUS_REGRESSED",
+      explanation: `Provider moved backwards: ${String(regressedFrom.detail.rawStatus)}${regressedFrom.detail.rawSubStatus ? "/" + String(regressedFrom.detail.rawSubStatus) : ""} (seq ${regressedFrom.sequence}) → ${p.raw!.status}${p.raw!.subStatus ? "/" + p.raw!.subStatus : ""} (seq ${p.sequence}). Both reports are kept; state not changed.`,
+      intentId: intent.id,
+      supportingEventIds: [regressedFrom.id, ev.id],
+    });
+    if (intent.status.settlement !== "none") intent.status.settlement = "contradicted";
+    return { outcome: "contradictory_exception_raised", event: ev };
   }
 
   const target = EVENT_TARGET[p.type]!;

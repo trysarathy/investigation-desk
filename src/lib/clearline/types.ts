@@ -342,6 +342,8 @@ export interface SandboxWebhookPayload {
   requested_documents?: string[];
   /** Stablecoin routes: the on-chain transaction the provider says carries this payout. */
   tx_hash?: string;
+  /** rc4 Connect only (absent for the original sandbox providers): the provider's raw status, kept verbatim. */
+  raw?: import("./connect/types").ProviderRawStatus;
 }
 
 export interface WebhookDelivery {
@@ -846,6 +848,8 @@ export type WorkspaceAction =
   | { type: "cancel_intent"; intentId: string; reason: string }
   | { type: "simulate_provider_event"; intentId: string; injection?: FailureInjection }
   | { type: "ingest_webhook"; delivery: WebhookDelivery }
+  /** rc4 Connect: Clearline polls the provider's (simulated) status API; the engine fetches the snapshot itself (optionally one listed version). */
+  | { type: "poll_provider"; intentId: string; version?: number }
   | { type: "ingest_statement_line"; line: StatementLineInput }
   | { type: "ingest_chain_observation"; observation: ChainObservationInput }
   | { type: "advance_clock"; to: string }
