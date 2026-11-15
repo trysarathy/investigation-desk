@@ -190,6 +190,32 @@ the result is the same in every arrival order.
 | two completion claims (on-chain final against internal ledger) | `provider_reported_completed`; open `EV_PROVIDER_CLAIMS_DIFFER` |
 | a lower-ranked older version arriving late | stored late, with no exception |
 
+**Outside the transition table (re-review RR-4).** The conflict path sets execution with `setExecution`. It does not
+check `canTransitionExecution`, so `provider_reported_completed → failed` and `provider_reported_completed → in_transit`
+happen for Connect payouts even though `EXECUTION_TRANSITIONS` does not list them. This is stated in `state.ts`.
+
+- **Engine.** `setExecution` still runs `onExecutionChanged`, so F1 and N1 apply. A terminal state is never left.
+- **Accounting Bridge** (`src/lib/clearline/accounting/`, read only here). It does not use the transition table. It
+  derives entries from evidence plus the current execution state (`NOT_DELIVERED` = terminal or on hold), and it
+  supersedes or flags any entry whose basis changes. A cross-module test (`rc4-connect-rereview.test.ts` › RR-4)
+  shows a reversal after a bank debit:
+  - a **proposed** `JR_SUPPLIER_PAYOUT_DEBIT` is superseded (`SP_EVIDENCE_CHANGED`) and rebooked as
+    `JR_PAYOUT_DEBIT_NOT_DELIVERED`;
+  - a **posted** one is kept, flagged, and reversed (`JR_REVERSAL`), and the rebooking goes to provider clearing;
+  - the supplier payable nets to zero, and `ledgerProblem` is clear.
+- **completed → in_transit** supersedes nothing and double-counts nothing.
+- **Routed to the bridge owner (not changed here).** A live payout that has an open contradiction and a matched bank
+  debit still gets `JR_SUPPLIER_PAYOUT_DEBIT` (supplier shown paid). This is true for the original providers'
+  `EV_IMPOSSIBLE_TRANSITION` as well as for Connect regressions. It is pre-existing behaviour and not caused by the
+  conflict path.
+
+**Post-hold version before the hold (re-review RR-1).** The hold boundary is known only once the hold arrives, so a
+resumed version that arrives before the hold raises `EV_PROVIDER_STATUS_REGRESSED`. When the hold or its release is
+later accepted and lies between the pair, `noteHoldBoundary` **annotates** the open exception: its explanation and
+history (`hold_boundary_noted`) say it most likely spans a hold, and the action is audited
+(`exception.context_added`). The exception is **not** resolved automatically, because nothing resolves itself in the
+engine (ARCHITECTURE.md §1). A person confirms and closes it.
+
 The rule runs only when the payload carries an adapter-declared rank, so the original providers are unaffected. It runs
 after the amount, hold and hold-release rules, so the H3 hold rules keep priority. Every such contradiction has an open
 exception, and `investigate().whoActs` is never `WA_NONE` (tested, as C2 requires).
@@ -450,9 +476,9 @@ when they are redelivered or re-polled (review L-1: the reconciler no longer cou
 ## 13. Invariant → test
 
 Every row was mutation-checked. The mutant was applied in place, the rc4 suites were run, and the file was restored
-from git. After the rc4 review fixes: 45 of 47 mutants were killed, including the review's survivors M15 (the newest-version gate) and M16 (the bundle prefix). The two that survive are equivalent mutants:
-- counting stored-late events as accepted is redundant, because a stored-late event can never be the only reference for a conflict;
-- taking the receipt from the pre-check gives the same result as the engine, because both now verify the same declared headers at the same instant.
+from git. After the re-review follow-ups (RR-1 to RR-4): **51 of 52 mutants were killed**. Mutants added in that round: the RR-1 annotation turned off, an auto-resolve in place of the annotation, annotating non-spanning pairs, and canonicalisation turned off in the intake and in the verifier. The one survivor (the receipt taken from the pre-check) is now equivalent by construction, as explained at the end of this note. The earlier history: after the first review fixes, 45 of 47 were killed. The first-review survivors M15 (the newest-version gate) and M16 (the bundle prefix) are both killed. The re-review showed that my claim that the remaining two were equivalent was wrong:
+- **Counting stored-late events as accepted.** A stored-late event can be the only reference for a regression, for example at_bank → awaiting_bank between two versions that both come before the newest. The new scripts `regress_mid` and `regress_and_recover` exercise exactly this (RR-2), and the mutant is now killed.
+- **Taking the receipt from the pre-check.** The pre-check trimmed whitespace inside the signature list, but the bundle decoder rejected a padded value over 1024 characters, so the two could disagree. Both now use `canonicalHeaderValue` (RR-3). By construction, a valid canonical value always fits the decoder's limits, so the pre-check and the engine can no longer disagree. The receipt is still taken from the engine as defence in depth, and the padded case is tested.
 
 | # | Invariant | Enforced in | Proved by (`tests/clearline/`) |
 |---|---|---|---|
@@ -469,7 +495,10 @@ from git. After the rc4 review fixes: 45 of 47 mutants were killed, including th
 | 3c | A raw regression is never silent, in either arrival order (`EV_PROVIDER_STATUS_REGRESSED`); execution follows the latest version | `events.ts` rule, `normalize.ts:findOrderConflict` | status › "a raw regression inside the same execution claim…", "…across claims…", "M-1: …", "…learned by polling…" |
 | 3c' | Two different completion claims are a contradiction, equal ranks included (`EV_PROVIDER_CLAIMS_DIFFER`) | `findOrderConflict` | status › "L-2: …" |
 | 3f | Hold release needs both the partner release and the reviewer; resuming after a hold is not a regression; the reconciler re-applies suppressed statuses | descriptors (`review_cleared`, `RELEASED`), `findOrderConflict` (hold boundary), `reconciler.ts:alreadyRecorded` | `rc4-connect-review-fixes.test.ts` › M-3 (4 tests), L-1 |
-| 4f | The intake receipt follows the engine; only declared headers are bundled; unverified scheme audited as such | `reconciler.ts:receiveConnectWebhook`, `events.ts` (`signatureReason`) | review-fixes › M-4 (2 tests), L-3, L-4 |
+| 4f | The intake receipt follows the engine; only declared headers are bundled, in canonical form; unverified scheme audited as such | `reconciler.ts:receiveConnectWebhook`, `verify.ts:canonicalHeaderValue`, `events.ts` (`signatureReason`) | review-fixes › M-4 (2 tests), L-3, L-4; `rc4-connect-rereview.test.ts` › RR-3 (3 tests) |
+| 3g | A regression whose higher side was stored late is found in every arrival order | `findOrderConflict` (`ACCEPTED` includes stored-late) | rereview › RR-2 (2 × 24 orders); delivery › 5b permutations |
+| 3h | A post-hold version before the hold: the regression is annotated, never auto-resolved | `normalize.ts:noteHoldBoundary`, `events.ts:record` | rereview › RR-1 (2 tests) |
+| 3i | A conflict-driven execution change keeps the Accounting Bridge consistent: proposed → superseded, posted → reversed, no double count, supplier not shown paid after a reversal | bridge (unchanged), `events.ts` conflict path | rereview › RR-4 (3 tests) |
 | 3d | A late older version is not a regression; side states are not progress | `findOrderConflict` (provider order, `SIDE_STATES`) | status › "an OLDER version arriving late…", "side states are not progress…" |
 | 3e | Regression with evidence contradicts settlement; F1, N1 and the terminal rule unchanged; execution never sets settlement | `events.ts`, `reconciliation.ts` (existing) | status › "…bank evidence…", "F1 stays…", "N1 stays…", "execution never sets settlement…", "a terminal payout stays terminal…" |
 | 4a | Hex HMAC with timestamp on the raw body; case-insensitive headers; replay window | `verify.ts` | `rc4-connect-verify.test.ts` › 4a (3 tests) |
@@ -495,7 +524,8 @@ from git. After the rc4 review fixes: 45 of 47 mutants were killed, including th
 |---|---|
 | `types.ts` | `SandboxWebhookPayload.raw?: import("./connect/types").ProviderRawStatus` (1 field). `WorkspaceAction` member `{ type: "poll_provider"; intentId: string; version?: number }`, inserted after `ingest_webhook` |
 | `actions.ts` | `dispatch` case `poll_provider`, and the new function `pollProvider` (13 lines plus a 5-line comment), placed after `ingestWebhook`; `ingestWebhookRaw` passes `signatureReason` (one line, review L-3) |
-| `events.ts` | Import of `findOrderConflict`, `rawDetail` (and `isTerminalExecution` added to the existing `state` import); one detail spread `...(p?.raw ? rawDetail(p.raw) : {})`; the conflict block (17 lines) before the `target === current` check; optional `IngestInput.signatureReason` and the audit-text choice for `unverified_scheme` (review L-3); 3 header-comment lines |
+| `state.ts` | Comment only: the Connect conflict path is an exception to the transition table (RR-4) |
+| `events.ts` | One line in `record()` calls `noteHoldBoundary` for Connect events (RR-1). Import of `findOrderConflict`, `noteHoldBoundary`, `rawDetail` (and `isTerminalExecution` added to the existing `state` import); one detail spread `...(p?.raw ? rawDetail(p.raw) : {})`; the conflict block (17 lines) before the `target === current` check; optional `IngestInput.signatureReason` and the audit-text choice for `unverified_scheme` (review L-3); 3 header-comment lines |
 | `labels.ts` | Own block `CONNECT_CODE` (`EV_PROVIDER_STATUS_REGRESSED`, `EV_PROVIDER_SUCCESS_REVERSED`, `EV_PROVIDER_CLAIMS_DIFFER`) plus one spread line in `CODE_LABELS` |
 | `index.ts` | `CONNECT_PROVIDERS` export; `export * from "./connect"` |
 | `serialize.ts`, `derive.ts` | **Unchanged** |
@@ -517,7 +547,13 @@ Changes to owned files:
 - **Unverified webhooks through the raw action.** An unverified delivery sent through the raw `ingest_webhook` action
   is recorded with `signatureResult: "invalid"` (`rejected_signature`). The audit text says "unverified scheme". The
   engine has no separate "unverified" outcome. Use `receiveConnectWebhook` for the precise receipt.
-- **Order dependence that remains** (§4): a provider leaving a terminal state, and late pre-hold events during a hold.
+- **Order dependence that remains** (§4):
+  - a provider leaving a terminal state;
+  - late pre-hold events during a hold;
+  - a post-hold version arriving before the hold. This one raises a regression that is then annotated, not
+    retracted (RR-1).
+- **Hold scripts are outside the permutation guarantee** (§4, §6).
+- **The conflict path moves execution outside `EXECUTION_TRANSITIONS`** (§4, RR-4).
 - **`state_rank` providers** cannot express non-terminal regressions (§6).
 - **A single late poll** can miss a transient status (§7).
 - **Engine simulation.** `simulate_provider_event` does not drive Connect providers. Use their webhooks or

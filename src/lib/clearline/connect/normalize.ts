@@ -13,6 +13,7 @@
 import { isCurrency } from "../money";
 import { sha256Hex } from "../sha256";
 import { isIsoInstant } from "../tx";
+import type { Tx } from "../tx";
 import type { CurrencyCode, ProviderEvent, Result, SandboxWebhookPayload, Workspace } from "../types";
 import type { AdapterDescriptor, NormalizedClaim, ProviderRawStatus, StatusMapping } from "./types";
 
@@ -198,4 +199,26 @@ export function findOrderConflict(ws: Workspace, intentId: string, p: SandboxWeb
     best = { code, other: e, text };
   }
   return best;
+}
+
+/**
+ * Re-review RR-1: a version AFTER a hold can arrive before the hold itself. Its regression against a pre-hold
+ * version is raised (no boundary was known yet). When the hold (or the partner's release) is later accepted and
+ * now separates the pair, the open exception is ANNOTATED: its explanation and history say the pair spans a hold
+ * and is most likely the payout resuming. It is not resolved: nothing resolves itself in the engine (a person
+ * closes it; ARCHITECTURE.md §1 "nothing resolves itself").
+ */
+export function noteHoldBoundary(tx: Tx, ev: ProviderEvent): void {
+  if (!SIDE_STATES.includes(ev.normalizedType) || !ACCEPTED.includes(ev.processingOutcome) || !ev.intentId) return;
+  for (const x of tx.ws.exceptions) {
+    if (x.intentId !== ev.intentId || x.status === "resolved" || x.explanationCode !== "EV_PROVIDER_STATUS_REGRESSED") continue;
+    if (x.history.some((h) => h.action === "hold_boundary_noted")) continue;
+    const seqs = x.supportingEventIds.map((id) => tx.ws.providerEvents.find((e) => e.id === id)?.sequence).filter((n): n is number => typeof n === "number");
+    if (seqs.length < 2 || !(Math.min(...seqs) < ev.sequence && ev.sequence < Math.max(...seqs))) continue;
+    const note = `A ${ev.normalizedType === "payout.on_hold" ? "hold" : "partner hold release"} (seq ${ev.sequence}) arrived later and lies between these versions: this is most likely the payout resuming after the hold, not a regression. A person confirms and resolves it.`;
+    x.explanation = `${x.explanation} [Context: ${note}]`;
+    x.history.push({ at: tx.at, actorId: tx.actorId, action: "hold_boundary_noted", detail: note });
+    x.lastUpdatedAt = tx.at;
+    tx.log("exception.context_added", "exception", x.id, `EV_PROVIDER_STATUS_REGRESSED spans hold ${ev.id} (seq ${ev.sequence}); annotated, still open for a person`);
+  }
 }
