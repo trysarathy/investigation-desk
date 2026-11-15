@@ -61,7 +61,7 @@ export function accountingBridgeView(ws: Workspace): AccountingBridgeView {
       }),
     };
   });
-  const isNew = (c: (typeof candidates)[number]) => !proposals.some((p) => p.sourceKey === c.sourceKey && p.basisHash === c.basisHash && (isActiveProposal(p) || p.status === "rejected" || (isStandingProposal(p) && !proposals.some((q) => q.reverses === p.id && q.status !== "rejected" && q.status !== "superseded"))));
+  const isNew = (c: (typeof candidates)[number]) => !proposals.some((p) => p.sourceKey === c.sourceKey && p.basisHash === c.basisHash && (isActiveProposal(p) || (p.status === "rejected" && p.ruleCode !== "JR_REVERSAL" && !p.rejection?.notImported) || (isStandingProposal(p) && !proposals.some((q) => q.reverses === p.id && q.status !== "rejected" && q.status !== "superseded"))));
   const pending: AccountingBridgeView["pending"] = [];
   const extra: NotProposedItem[] = [];
   for (const c of candidates.filter(isNew)) {

@@ -56,6 +56,7 @@ export const NOT_PROPOSED: Record<NotProposedCode, string> = {
 export const SUPERSESSION: Record<SupersessionCode, string> = {
   SP_EVIDENCE_CHANGED: "Evidence changed after the proposal was made",
   SP_EVIDENCE_WITHDRAWN: "The evidence no longer supports an entry",
+  SP_RULES_CHANGED: "Saved under earlier posting rules; superseded on load (never exported)",
   SP_MAPPING_CHANGED: "The account codes changed after approval; the entry must be approved again with the new codes",
 };
 
@@ -117,6 +118,7 @@ export const BRIDGE_REASON: Record<string, string> = {
   NOT_EXPORTED: "Only an exported entry can be recorded as posted.",
   REVERSAL_FIRST: "Approve the reversal of the entry already in your ledger first, so one bank line is never booked twice.",
   REVERSAL_REQUIRED: "This reversal corrects an entry that is (or may be) in your ledger; it cannot be rejected.",
+  REVERSAL_ALREADY_EXPORTED: "Its reversal is already exported or posted; post the reversal as the correction instead.",
   LEDGER_DOUBLE_COUNT: "These entries would show a payout paid more than once or book one bank line twice; nothing was proposed.",
     MAPPING_CHANGED_SINCE_APPROVAL: "The account codes changed after approval; the entry must be approved again with the new codes.",
 };

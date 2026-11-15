@@ -348,34 +348,50 @@ describe("defence in depth: each load / export check refuses on its own (mutatio
     rec.proposalIds!.push(dup.id);
     return o;
   }
-  it("F2 direction alone: a (rejected) return-credit entry on a line stored as a debit is refused", () => {
+  it("F2 + R1: a proposed return credit on a line stored as a debit (an a91dd11 / rc3 state) is superseded on load, not refused, and gives no entry", () => {
     const o = sample();
     const p = o.accounting!.proposals.find((x) => x.ruleCode === "JR_PAYOUT_RETURN_CREDIT")!;
-    reject(p, o.asOf);
     o.statementLines.find((l) => l.id === p.evidence.statementLineIds[0])!.direction = "debit";
     const r = loadWorkspace(JSON.stringify(o));
-    expect(!r.ok && r.error.field).toBe(`accounting.proposals[${o.accounting!.proposals.indexOf(p)}].evidence.statementLineIds`);
+    if (!r.ok) throw new Error(r.error.message);
+    const q = r.value.workspace.accounting!.proposals.find((x) => x.id === p.id)!;
+    expect(q).toMatchObject({ status: "superseded", supersession: { code: "SP_RULES_CHANGED", causedBy: "system" } });
+    expect(r.value.migrations.map((m) => [m.kind, m.outcome, m.proposalId])).toEqual([["journal_proposal_superseded", "proposal_superseded", p.id]]);
+    expect(propose(r.value.workspace).workspace.accounting!.proposals.filter((x) => x.ruleCode === "JR_PAYOUT_RETURN_CREDIT" && x.status === "proposed")).toEqual([]);
   });
-  it("F3 basis alone: a (rejected) entry whose stored basisHash does not match its fields is refused", () => {
+  it("F3 basis alone: a (rejected) entry whose stored basisHash does not match its fields is refused, with truthful wording", () => {
     const o = sample();
     const p = o.accounting!.proposals[0];
     reject(p, o.asOf);
     p.basisHash = "0".repeat(64);
     const r = loadWorkspace(JSON.stringify(o));
     expect(!r.ok && r.error.field).toBe("accounting.proposals[0].basisHash");
+    expect(!r.ok && r.error.message).toMatch(/contradict the evidence they name/);
+    expect(!r.ok && r.error.message).not.toMatch(/No version of the engine/);
   });
-  it("F3 current evidence alone: a self-consistent proposed entry with another date than its evidence gives is refused", () => {
+  it("R1: a self-consistent proposed entry the current rules do not give is superseded on load and reported as a migration", () => {
     const o = sample();
     const p = o.accounting!.proposals[0];
     p.entryDate = p.postingDate = "2026-11-20";
     p.basisHash = basisOf(p);
     const r = loadWorkspace(JSON.stringify(o));
-    expect(!r.ok && r.error.field).toBe("accounting.proposals[0]");
+    if (!r.ok) throw new Error(r.error.message);
+    const m = r.value.migrations[0];
+    expect(m).toMatchObject({ kind: "journal_proposal_superseded", proposalId: p.id, intentId: p.intentId });
+    expect(m.text).toMatch(/earlier posting rules/);
+    expect(r.value.workspace.audit.find((x) => x.id === m.auditId)).toMatchObject({ action: "workspace.migrated", actorId: "system", entityId: p.id });
+    // loading the migrated workspace again changes nothing more
+    const again = loadWorkspace(serializeWorkspace(r.value.workspace));
+    expect(again.ok && again.value.migrations).toEqual([]);
   });
-  it("F5 bank double count alone: a crafted second posting of the same bank debit is refused at load", () => {
-    const r = loadWorkspace(JSON.stringify(duplicatePosted("JR_SUPPLIER_PAYOUT_DEBIT")));
-    expect(!r.ok && r.error.field).toBe("accounting.proposals");
-    expect(!r.ok && r.error.message).toMatch(/booked .* more than the line/);
+  it("F5 + R1: a crafted second posting of the same bank debit loads, and the next propose reverses it (bank line booked once again)", () => {
+    const l = loadWorkspace(JSON.stringify(duplicatePosted("JR_SUPPLIER_PAYOUT_DEBIT")));
+    if (!l.ok) throw new Error(l.error.message);
+    expect(ledgerProblem(l.value.workspace)).toMatch(/more than the (line|payout)/);
+    expect(ledgerProblem(l.value.workspace, "bank")).toMatch(/more than the line/);
+    const r = propose(l.value.workspace);
+    expect(byRule(r.workspace, "JR_REVERSAL").map((x) => x.reverses)).toContain("jp_99999");
+    expect(ledgerProblem(r.workspace)).toBeUndefined();
   });
   it("F1: a crafted second posting of a chain payment (no evidence source of its own) is reversed by the next propose, so the payable is cleared once again", () => {
     const o = duplicatePosted("JR_STABLECOIN_FINAL_TRANSFER");

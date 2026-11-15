@@ -66,7 +66,9 @@ const STANDING_STATUSES = ["exported", "posted"] as const;
 export const isActiveProposal = (p: JournalProposal) => (ACTIVE_STATUSES as readonly string[]).includes(p.status);
 export const isStandingProposal = (p: JournalProposal) => (STANDING_STATUSES as readonly string[]).includes(p.status);
 /** Review F7: an exported entry a person withdrew (rejected after export). It may have been imported, so it is reversed. */
-export const isWithdrawnAfterExport = (p: JournalProposal) => p.status === "rejected" && !!p.export;
+export const isWithdrawnAfterExport = (p: JournalProposal) => p.status === "rejected" && !!p.export && !p.rejection?.notImported;
+/** Re-review R4: an exported entry an approver (not the exporter) confirmed was never imported: not in the ledger, no reversal. */
+export const isConfirmedNotImported = (p: JournalProposal) => p.status === "rejected" && !!p.rejection?.notImported;
 /** Entries that are (or may be) in the customer's ledger: exported, posted, or withdrawn after export. */
 export const isInLedger = (p: JournalProposal) => isStandingProposal(p) || isWithdrawnAfterExport(p);
 /** Entries that count towards what the books show: in the ledger, or proposed / approved (a reversal subtracts by its sides). */
@@ -384,6 +386,9 @@ export function ledgerProblem(ws: Workspace, only?: "payable" | "bank"): string 
       const [key, cur] = k.split("\u0000") as [string, CurrencyCode];
       if (key === "supplier_payable" || key === "customer_receivable") byCur.set(cur, (byCur.get(cur) ?? 0n) + v);
     }
+    // Re-review R6: one payout's payable is cleared at most once in total — in one currency, never in two.
+    const cleared = [...byCur].filter(([, v]) => v > 0n).map(([c]) => c);
+    if (cleared.length > 1) return `payout ${id}: the supplier payable / receivable is cleared in ${cleared.join(" and ")}; a payout is cleared once, in one currency`;
     for (const [cur, v] of byCur) if (v > BigInt(payableBound(ws, intent, cur))) return `payout ${id}: the supplier payable / receivable is debited ${formatMinor(Number(v), cur)}, more than the payout (${formatMinor(payableBound(ws, intent, cur), cur)})`;
   }
   if (only !== "payable") for (const line of ws.statementLines) {

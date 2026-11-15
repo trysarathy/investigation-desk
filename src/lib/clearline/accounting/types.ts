@@ -137,7 +137,8 @@ export interface JournalProposal {
   createdAt: string;
   /** mappingRevision / accounts (review F6): the mapping revision and the exact account codes the approver saw. */
   approval?: { by: string; at: string; note?: string; mappingRevision?: number; accounts?: AccountMappingEntry[] };
-  rejection?: { by: string; at: string; reason: string };
+  /** notImported (re-review R4): an approver other than the exporter confirmed the exported entry was never imported. */
+  rejection?: { by: string; at: string; reason: string; notImported?: { by: string; at: string; note: string } };
   export?: { exportId: string; by: string; at: string };
   /** Recorded by a PERSON after posting in the external ledger. Clearline never posts. */
   posting?: { externalReference: string; recordedBy: string; recordedAt: string; note?: string; simulated: true };
@@ -147,7 +148,7 @@ export interface JournalProposal {
   history: HistoryEntry[];
 }
 
-export type SupersessionCode = "SP_EVIDENCE_CHANGED" | "SP_EVIDENCE_WITHDRAWN" | "SP_MAPPING_CHANGED";
+export type SupersessionCode = "SP_EVIDENCE_CHANGED" | "SP_EVIDENCE_WITHDRAWN" | "SP_MAPPING_CHANGED" | "SP_RULES_CHANGED";
 
 /** Something the bridge deliberately did NOT propose, with why. */
 export type NotProposedCode =
@@ -221,6 +222,8 @@ export type AccountingAction =
   | { type: "propose_journal_entries"; periodId?: string }
   | { type: "approve_journal_proposal"; proposalId: string; note?: string }
   | { type: "reject_journal_proposal"; proposalId: string; reason: string }
+  /** Re-review R4: an approver other than the exporter confirms an exported (or withdrawn-after-export) entry was never imported. */
+  | { type: "confirm_not_imported"; proposalId: string; note: string }
   | { type: "export_journal"; periodId: string }
   | { type: "record_posting"; proposalId: string; externalReference: string; note?: string }
   | { type: "record_reconciliation_export"; from: string; to: string };
