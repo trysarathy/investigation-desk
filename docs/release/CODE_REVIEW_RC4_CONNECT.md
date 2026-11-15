@@ -214,3 +214,102 @@ None found.
   4. The intake receipt can say "ingested" for a rejected delivery (M-4).
 - **Should be fixed:** five Low items (L-1 to L-5).
 - **Checks:** tsc is clean and every vitest suite is green.
+
+---
+
+## Re-review: fixes 7c22176 and 6dc2dda (rc4/wip-connect head 6dc2dda; merged into rc4/clearline-app at d1a8c5b)
+
+### Verdict: APPROVE, with non-blocking follow-ups
+
+**APPROVAL-ONLY: needs Aashmiin's merge.**
+
+All four Medium findings are fixed, and each has a test that fails on the pre-fix code. L-1, L-2, L-3 and L-5 are fixed. L-4 is fixed for M15 and M16.
+
+Three follow-ups remain. None of them blocks the merge:
+- The two mutants that survive the owner's run are **not** equivalent. Each one hides a real behaviour that no test pins.
+- An undocumented order dependence around holds produces a false-positive contradiction. It fails safe: a person sees an extra owned exception.
+- The conflict path now moves execution outside `EXECUTION_TRANSITIONS`, and the spec does not say so.
+
+### Checks run (fresh frozen copy of rc4/wip-connect via `git archive`; deleted afterwards)
+
+| Check | Result |
+|---|---|
+| `npx tsc --noEmit` | exit 0 |
+| `npx vitest run` (whole repo) | 82 files passed, 1 skipped; 1717 tests passed, 57 skipped |
+| Fix-reverted run: `git diff 7c22176^ 7c22176 -- src` reverse-applied in the copy, new tests kept, rc4-connect suites run | **16 tests failed** (listed below), 92 passed; the fix was then re-applied |
+| Probes (scratch test, deleted) | 4 probes, results below |
+| Survivor check: the stored-late mutant applied in the copy and the rc4-connect suites run | 108/108 pass, so the mutant survives; it is not equivalent (below) |
+
+### Each finding against its test (all fail with the fix reverted)
+
+| Finding | Status | Test that fails without the fix |
+|---|---|---|
+| M-1: regression lost when the newer version arrives first | **Fixed.** `findOrderConflict` compares in provider order, whichever event arrived first | status › "M-1: the regression is raised when the newer, lower-ranked version arrives FIRST"; delivery › every-permutation `regress_substatus` and `regress_to_routing` |
+| M-2: Cobalt Wren paid → failed depends on order | **Fixed.** Every order ends `failed` + `EV_PROVIDER_SUCCESS_REVERSED` + `PV_FAILED_BENEFICIARY_REJECTED` | status › "M-2: …failure arriving first…", "paid → failed…"; delivery › CW `return` permutation, "…the one outcome in every order…" |
+| M-3: hold never releasable | **Fixed.** `review_cleared` and `RELEASED` map to `payout.hold_released`; release still needs both the partner and the reviewer | review-fixes › the three M-3 tests |
+| M-4: receipt can say "ingested" for a rejected delivery | **Fixed.** Only declared headers are bundled, and the receipt is taken from the engine's outcome | review-fixes › "a correctly signed delivery with many ordinary request headers…". The "invalid → rejected_recorded" test passes on old code too, so it is not a regression test |
+| L-1: reconciler skip ignored the hold redelivery rule | **Fixed** | review-fixes › L-1 `list_since` test |
+| L-2: Saltglass equal-rank completion claims | **Fixed** (`EV_PROVIDER_CLAIMS_DIFFER`, both orders) | status › "L-2: …" |
+| L-3: audit text for unverified schemes | **Fixed** | review-fixes › L-3 |
+| L-4: survivors M15 and M16 | **Fixed**; the owner reports both now killed | review-fixes › L-4 (the `headers-v2:` case kills the prefix mutant) |
+| L-5: BR5 wording | **Fixed** (spec §8). The research file is now on the branch | n/a |
+
+### False positives of the new conflict rule on legitimate forward flows
+
+I found none when events arrive in provider order:
+- I ran every arrival order of two non-shipped Cobalt Wren scripts: a late sub-status regression, and a mid-flow delivered → routing → delivered. Each gave **one** outcome across all 24 orders.
+- The shipped success and presumed-only flows raise nothing. Their completion claims are the same (`provider_claims_paid`), and their ranks rise.
+- completed → returned is correctly not treated as a conflict.
+- `hold_release` delivered in order raises nothing (the owner's test). The resume at a lower routing rank is shielded by the hold boundary.
+- With bank evidence (probe C), a paid → failed reversal ends `failed` / settlement `contradicted` / reconciliation `exception`, with `RC_DEBIT_FOR_FAILED_PAYOUT` raised as well. F1 and N1 still fire after the bypass of the state machine.
+
+**RR-1 (Low): a false positive after a hold when events arrive out of order. It is not covered by the documented residual list.**
+- **Where:** `connect/normalize.ts` `findOrderConflict`. The boundaries are only the side-state events accepted so far.
+- **Scenario:** Cobalt Wren `hold_release`, delivered in the order v2 (`routing/at_bank`, rank 25), then v5 (`routing/awaiting_bank`, rank 20, the resume after release), then v3 (`paused_for_review`).
+  - When v5 arrives, no hold boundary is known yet, so `EV_PROVIDER_STATUS_REGRESSED` is raised.
+  - v3 then puts the payout on hold, and the false regression stays open next to the hold (probe B).
+- **Why it matters:** this fails safe (an extra owned exception for a person to dismiss). But spec §4 lists only "leaving a terminal state" and "late pre-hold events during a hold" as residual cases. This case is the opposite one: a post-hold event arriving before the hold.
+- **Fix (in words):** add it to spec §4/§15 as a third known case. Or, when a hold or release version is accepted, have the exception text of any open `EV_PROVIDER_STATUS_REGRESSED` whose pair it now separates say that the pair spans a hold. The exception still closes only through a person.
+
+### Are the two surviving mutants equivalent? No, neither is.
+
+**RR-2 (Low, test gap): the stored-late mutant.** This mutant removes `stored_late_no_regression` from `ACCEPTED` in `normalize.ts`.
+- The owner argues that a stored-late event can never be the only reference for a conflict. That is false.
+- **Counter-example:** a Cobalt Wren script `queued`, `routing/awaiting_bank`, `routing/at_bank`, `routing/awaiting_bank`, `delivered/bank_confirmed`. The only regression is v3 at_bank (rank 25) → v4 awaiting_bank (rank 20).
+  - In orders where v5 arrives before v3, v3 is `stored_late_no_regression`, and it is the only reference for the pair.
+  - With the mutant, **8 of 24** arrival orders lose the regression. With `delivered/handed_to_bank` → `routing/at_bank` → `delivered/bank_confirmed`, **4 of 24** lose it.
+  - Without the mutant, all 24 orders agree in both scripts.
+- All 108 rc4-connect tests still pass with the mutant applied. The shipped scripts simply never exercise this pattern.
+- **Fix (in words):** add a script, or a property over generated scripts, with a regression between two versions that both come before the newest version. Include it in the every-permutation test, and correct the spec §13 claim.
+
+**RR-3 (Low, test gap): the receipt-from-pre-check mutant.**
+- The owner argues that the pre-check and the engine verify the same headers at the same instant. They do not always agree.
+- **Why:** the multi-signature parser trims spaces around each `v1=` part, but the bundle decoder rejects any header value over 1024 characters.
+- **Scenario:** a correctly signed Quillfern delivery whose signatures header has a long run of spaces after the comma.
+  - Probe D: pre-check `verified`, engine `rejected_signature`, receipt (fixed code) `rejected_recorded`.
+  - With the mutant, the receipt would say `ingested`. That is exactly the M-4 defect.
+- **Fix (in words):** add this case to the M-4 tests. Separately, consider rejecting or normalising surrounding whitespace in the same way in both the pre-check and the bundle, so that a genuine delivery is not rejected for padding (Info).
+
+### Is the documented residual order dependence acceptable?
+
+**Yes, for a sandbox.**
+- **Leaving a terminal state.** The conflict code raised is the same in both orders, and a person owns it. Only the shown execution differs, and no shipped script does this.
+- **Late pre-hold events during a hold.** This is the existing H3 rule (suppressed for a person, with an owned exception) and is unchanged.
+- **The undocumented case.** RR-1 should be added to that list.
+
+Before any live provider, the spec should say plainly that hold scripts are outside the permutation guarantee. It currently says this only in §4/§6 and in a comment in the delivery test.
+
+**RR-4 (Low, docs): the conflict path moves execution outside `EXECUTION_TRANSITIONS`.**
+- **Where:** `events.ts` (`applyLatest` calls `setExecution` without `canTransitionExecution`).
+- **Effect:** `provider_reported_completed → failed` and `provider_reported_completed → in_transit` now happen for Connect payouts. `state.ts:18` still says completed allows only `returned`.
+- I checked F1, N1 and reconciliation react correctly (probe C). Anything else that relies on that table should be checked once, including the new accounting bridge's handling of a payout that leaves `provider_reported_completed`.
+- **Fix (in words):** state the exception in `state.ts` and in spec §4.
+
+### Re-review summary
+- **Verdict:** APPROVE. Approval-only: needs Aashmiin's merge.
+- **Fixed:** M-1 to M-4 and L-1 to L-5. tsc is clean, all vitest suites are green, and 16 new or changed tests fail with the fix reverted.
+- **No false positives** on in-order or out-of-order forward flows outside holds.
+- **Non-blocking follow-ups:**
+  - RR-1: a false-positive regression when a post-hold version arrives before the hold. Fails safe; undocumented.
+  - RR-2 and RR-3: both "equivalent" survivors are real test gaps, with concrete counter-examples above.
+  - RR-4: the state-machine bypass should be documented.
