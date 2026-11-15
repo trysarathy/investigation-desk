@@ -1,15 +1,46 @@
 import Link from "next/link";
 import { ButtonLink, ContactBand, ExtLink, PageHero, Section, Stage } from "@/components/Shared";
-import { AmountDifferenceTable, ExceptionsTable, FundingTable, LiquidityTable, ReconTable } from "@/components/Tables";
+import { AmountDifferenceTable, ExceptionsTable, FundingTable, LiquidityTable, ReconTable, TableWrap } from "@/components/Tables";
 import InvestigationView from "@/components/InvestigationView";
 import { FUNDING_DESK_URL, SOFTWARE_URL } from "@/lib/site";
 import { pageMeta } from "@/lib/meta";
 
 export const metadata = pageMeta(
   "Control",
-  "Clearline Control: investigation, reconciliation, exceptions, liquidity, holds and the Funding Desk workflow on one payment record. Test-mode console on fictional data.",
+  "Clearline Control: investigation, reconciliation, exceptions, the Accounting Bridge, audit history, liquidity, holds and the Funding Desk workflow on one payment record. Test-mode console on fictional data.",
   "/control",
 );
+
+/** ACCOUNTING_BRIDGE.md §2 on rc4/clearline-app @ dc4d39a (final rc4): sandbox posting rules, pending founder sign-off, fictional data. Account roles, not codes. */
+const BRIDGE_RULES: [string, string, string, string, string][] = [
+  ["JR_SUPPLIER_PAYOUT_DEBIT", "A bank debit for a delivered fiat payout, matched by its provider payment id", "Supplier payable", "Bank", "Yes, by bank debit evidence"],
+  ["JR_ADVANCE_DISBURSED", "The same debit, for a payout funded by a treasury-approved advance", "Customer receivable", "Bank", "Yes, by bank debit evidence"],
+  ["JR_PAYOUT_DEBIT_NOT_DELIVERED", "The same debit when the payout was returned, failed, cancelled, expired or held", "Provider clearing", "Bank", "No"],
+  ["JR_PAYOUT_RETURN_CREDIT", "A return credit confirmed on the statement", "Bank", "Provider clearing", "No"],
+  ["JR_REPAYMENT_BY_REFERENCE", "A customer repayment allocated by its repayment reference", "Bank", "Customer receivable", "No"],
+  ["JR_STABLECOIN_ONRAMP_FUNDING", "A bank debit funding a stablecoin-route payout (the on-ramp)", "Stablecoin clearing", "Bank", "No: only the final chain transfer clears the payable"],
+  ["JR_STABLECOIN_FINAL_TRANSFER", "A final chain transfer to the beneficiary's wallet, matched by the provider-reported transaction hash", "Supplier payable", "Stablecoin clearing", "Yes, by chain evidence"],
+  ["JR_REVERSAL", "An exported or posted entry whose evidence changed, or an exported entry a second approver withdrew", "The original's credits", "The original's debits", "No"],
+];
+/** The console's caveat on every Accounting tab and export (src/components/clearline/accounting.tsx RULES_NOTE). */
+const RULES_CAVEAT = "Sandbox posting rules, pending founder sign-off — review with your accountant before using this file.";
+const NEVER: [string, string][] = [
+  ["NP_PROVIDER_COMPLETION_ONLY", "a provider's completion report with no bank or final chain evidence"],
+  ["NP_AMOUNT_ONLY_MATCH", "a receipt that matches only by amount"],
+  ["NP_CHAIN_NOT_FINAL", "a chain transfer below the finality threshold"],
+  ["NP_FEE_NOT_EVIDENCED", "indicative quote fees"],
+  ["NP_FX_NOT_EVIDENCED", "an FX difference the engine has no rate evidence for, including the conversion between the funding currency and USDC on the stablecoin route"],
+  ["NP_EVIDENCE_CONTRADICTED", "a bank debit or final chain transfer matched while a provider-status contradiction is open: it stays contradicted"],
+];
+
+function TableWrapBridge() {
+  return (
+    <TableWrap label="Sandbox posting rules" caption={"Account roles, not account codes: your mapping supplies the codes. Amounts are exact, in the currency of the evidence. The console marks every Accounting tab and export: \u201c" + RULES_CAVEAT + "\u201d"}>
+      <thead><tr><th scope="col">Rule</th><th scope="col">Evidence</th><th scope="col">Debit</th><th scope="col">Credit</th><th scope="col">Shows the supplier as paid?</th></tr></thead>
+      <tbody>{BRIDGE_RULES.map(([r, e, d, c, paid]) => <tr key={r}><td className="mono">{r}</td><td>{e}</td><td>{d}</td><td>{c}</td><td>{paid}</td></tr>)}</tbody>
+    </TableWrap>
+  );
+}
 
 export default function Control() {
   return (
@@ -40,19 +71,42 @@ export default function Control() {
         <ExceptionsTable />
       </Section>
 
-      <Section tone="white" eyebrow="Liquidity" title="Usable balance, net of what is not yours to spend"
+      <Section id="accounting-bridge" tone="white" eyebrow="Accounting Bridge · Control › Accounting" title={<>From evidence <em>to a proposed journal entry.</em></>}
+        intro={<p>The last step of a payment&rsquo;s lifecycle is its accounting outcome. The Accounting Bridge proposes balanced double-entry journal entries from the evidence Control has recorded, under sandbox posting rules, and exports them as a file for your accountant. It is not a ledger and it posts nothing: &ldquo;posted&rdquo; is recorded only when a person types the reference from their own ledger.</p>}>
+        <div className="grid-2">
+          <ul className="bullets">
+            <li>Entries come only from independent evidence: a bank statement line matched by trusted reference, or a final chain transfer. Each line names its rule and its evidence.</li>
+            <li>Every entry is balanced, in one currency. No FX, fee or tax line is invented.</li>
+            <li>A second person approves; the person who proposed an entry cannot (maker &ne; checker). Withdrawing an exported entry, or confirming it was never imported, needs an approver other than the person who exported it.</li>
+            <li>Accounts map to your chart of accounts by posting role. An unmapped role blocks the export, and a mapping change that alters an approved entry&rsquo;s codes sends it back for approval.</li>
+          </ul>
+          <ul className="bullets">
+            <li>Accounting periods are open or closed. A late item is moved to the next open period and flagged, never silently re-dated.</li>
+            <li>Each approved entry is exported once. The journal export and an accounting-ready reconciliation export (CSV or JSON, marked fictional) carry an id derived from their content.</li>
+            <li>A returned payout never shows the supplier as paid. On the stablecoin route, the bank debit only funds the on-ramp; the payable clears on the final chain transfer. If evidence changes after an export, a reversal is proposed, unless a second approver confirms the file was never imported.</li>
+            <li>Every action is in the audit history, for the workspace and for each payment.</li>
+          </ul>
+        </div>
+        <div style={{ marginTop: 32 }}><TableWrapBridge /></div>
+        <p className="label" style={{ marginTop: 32 }}>Never proposed</p>
+        <ul className="bullets">{NEVER.map(([c, t]) => <li key={c}>{t} <code className="inline">{c}</code></li>)}</ul>
+        <p className="caption" style={{ marginTop: 16 }}>Sandbox posting rules, applied to fictional data and pending founder sign-off. No accounting system is connected; a ledger adapter is planned, not built.</p>
+        <div className="stage-row"><Stage kind="synthetic" /><Stage kind="none" /></div>
+      </Section>
+
+      <Section tone="canvas" eyebrow="Liquidity" title="Usable balance, net of what is not yours to spend"
         intro={<p>Restricted and safeguarded amounts, committed payouts and a policy buffer are subtracted before anything is shown as usable. Stale snapshots are flagged and left out. The classifications follow an illustrative, provider-defined policy, not a regulatory one.</p>}>
         <LiquidityTable />
       </Section>
 
-      <Section tone="canvas" eyebrow="Compliance holds" title="Owners, not automated decisions">
+      <Section tone="white" eyebrow="Compliance holds" title="Owners, not automated decisions">
         <div className="prose">
           <p>When a provider holds a payout and asks for documents, Control records the request, assigns a compliance reviewer and records their decision. No provider event moves a held payout on its own: it is released only after the partner reports the release and the assigned reviewer records a release decision, or it ends when the reviewer rejects. Clearline makes no compliance decision.</p>
           <div className="stage-row"><Stage kind="synthetic" /></div>
         </div>
       </Section>
 
-      <Section id="funding-desk" tone="white" eyebrow="Funding Desk · a specialist workflow in Control" title={<>When a provider pays before <em>its customer repays.</em></>}
+      <Section id="funding-desk" tone="canvas" eyebrow="Funding Desk · a specialist workflow in Control" title={<>When a provider pays before <em>its customer repays.</em></>}
         intro={<p>Some providers pay a supplier before their customer repays them. The Funding Desk is Control&rsquo;s workflow for that exposure, not a separate product: the advance, a treasury decision by a second person (maker &ne; checker), the repayment obligation and its allocations, tied to the supplier payout that Connect sent.</p>}>
         <div className="grid-2">
           <div className="prose">

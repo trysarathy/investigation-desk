@@ -116,6 +116,20 @@ const execRows: [ExecState, string][] = [
   ["failed", "terminal"], ["returned", "terminal"], ["cancelled", "terminal"], ["expired", "terminal"],
 ];
 
+/** rc4 engine actions (rc4/clearline-app @ dc4d39a: openapi.yaml AccountingAction, ENGINE_API.md CHANGE 15–20, accounting/actions.ts roles, CONNECT_ADAPTERS.md §2). */
+const BRIDGE_ACTIONS: [string, string, string][] = [
+  ["set_account_mapping", "operator, approver", "Map account roles (bank:<accountRef>, supplier_payable, customer_receivable, stablecoin_clearing, provider_clearing, suspense) to your codes; codes must be unique, and expectedRevision is required once a mapping exists"],
+  ["open_accounting_period · close_accounting_period", "operator, approver · approver", "Non-overlapping [from, to) periods in the organisation's calendar; closing is refused while entries are proposed or approved"],
+  ["propose_journal_entries", "operator, approver", "Propose the balanced entries the current evidence supports; anything else is listed under notProposed with its NP_* code"],
+  ["approve_journal_proposal", "approver (≠ proposer)", "Re-derives the entry from its evidence and refuses EVIDENCE_CHANGED; records the account codes the approver saw. A later mapping change that alters them supersedes the approval (SP_MAPPING_CHANGED)"],
+  ["reject_journal_proposal", "operator, approver; an exported entry needs an approver other than its exporter", "Rejects with a reason; withdrawing an exported entry proposes a reversal, and a required reversal cannot be rejected (REVERSAL_REQUIRED)"],
+  ["confirm_not_imported", "approver other than the exporter", "Confirms, with a note, that an exported or withdrawn entry was never imported: it becomes rejected and needs no reversal. Refused with REVERSAL_ALREADY_EXPORTED once its reversal is exported"],
+  ["export_journal", "operator, approver", "Exports a period's approved entries once; refused with UNMAPPED_ACCOUNT_ROLE while a role is unmapped"],
+  ["record_posting", "operator, approver", "Records the external ledger reference a person typed (simulated: true). Refused with NOT_EXPORTED before export. Clearline posts nothing"],
+  ["record_reconciliation_export", "operator, approver, compliance", "Records that a reconciliation export was produced"],
+  ["poll_provider", "operator", "Connect adapters: fetch a fictional provider's latest status snapshot (provenance provider_poll). Needs Connect routes, which the sample workspace does not include"],
+];
+
 export default function Developers() {
   return (
     <main id="main">
@@ -134,7 +148,7 @@ export default function Developers() {
         <p className="code-title" style={{ marginTop: 32 }}>Then: quote, choose, approve, submit, simulate, reconcile</p>
         <pre className="code" tabIndex={0} aria-label="Full flow sketch">{flow}</pre>
         <p className="note" style={{ marginTop: 24 }}><b>Maker-checker here is a workflow rule, not an authentication boundary.</b> The public test API is stateless and uses a public example key, so any caller can choose any simulated actor with <code className="inline">X-Clearline-Actor</code>, and nothing is stored server-side. The engine enforces separation of duties for honest callers (a maker approving their own instruction gets 403 <code className="inline">maker_checker_violation</code>), but it cannot stop someone from claiming to be a different actor. A real deployment would need authenticated users and server-side state.</p>
-        <p className="caption" style={{ marginTop: 12 }}>Actors are fictional: <code className="inline">usr_maya</code> (operator, default maker), <code className="inline">usr_daniel</code> (approver, default checker), <code className="inline">usr_priya</code> (compliance), <code className="inline">usr_sam</code>, <code className="inline">usr_alex</code> (viewer). Select one with <code className="inline">X-Clearline-Actor</code>.</p>
+        <p className="caption" style={{ marginTop: 12 }}>Actors are fictional: <code className="inline">usr_maya</code> (operator, default maker), <code className="inline">usr_daniel</code> (approver, default checker), <code className="inline">usr_lin</code> (a second approver, for actions that need an approver other than the one who exported), <code className="inline">usr_priya</code> (compliance), <code className="inline">usr_sam</code>, <code className="inline">usr_alex</code> (viewer). Select one with <code className="inline">X-Clearline-Actor</code>.</p>
       </Section>
 
       <Section id="endpoints" eyebrow="Endpoints" title="Everything under /api/clearline/test/v1"
@@ -211,6 +225,19 @@ export default function Developers() {
             <li>Sandbox secrets are public (<code className="inline">test_whsec_&lt;providerId&gt;_public_example</code>) and protect nothing.</li>
           </ul>
         </div>
+      </Section>
+
+      <Section id="accounting-bridge" tone="canvas" eyebrow="Accounting Bridge · rc4" title="Journal proposals through POST /actions"
+        intro={<><p>The Accounting Bridge has no endpoints of its own. Its actions go through the generic <code className="inline">POST /actions</code> with <code className="inline">{"{ workspace, action }"}</code>; set <code className="inline">X-Clearline-Actor: usr_daniel</code> to approve, because the approver must differ from the proposer. <code className="inline">GET /workspace</code> returns the sample with its bridge data in <code className="inline">workspace.accounting</code>: the fictional mapping, one open period (November 2026) and the proposed entries.</p>
+          <p>The exports are engine functions with no endpoint (<code className="inline">buildReconciliationExport</code>, <code className="inline">buildJournalExport</code>); the console downloads them. Both are deterministic: the same workspace gives byte-identical JSON and CSV, and <code className="inline">documentId</code> is <code className="inline">rx_</code> or <code className="inline">jx_</code> plus the first 16 hex digits of a SHA-256 of the content. Every row is marked <code className="inline">FICTIONAL SANDBOX</code>. These are sandbox posting rules, pending founder sign-off; Clearline posts nothing to any ledger.</p>
+          <p>On load, a proposed or approved entry that the current rules derive differently is superseded (<code className="inline">SP_RULES_CHANGED</code>); exported and posted entries are never altered and get a reversal instead. A bank debit matched while a provider-status contradiction is open stays contradicted and produces no entry (<code className="inline">NP_EVIDENCE_CONTRADICTED</code>). On the stablecoin route the bank debit is <code className="inline">JR_STABLECOIN_ONRAMP_FUNDING</code> into stablecoin clearing, only the final chain transfer clears the payable, and the conversion difference is not proposed (<code className="inline">NP_FX_NOT_EVIDENCED</code>).</p></>}>
+        <TableWrap label="Accounting Bridge and Connect engine actions" caption="Applied with POST /actions. Every successful action returns its audit events; GET /workspace includes the full audit log.">
+          <thead><tr><th scope="col">action.type</th><th scope="col">Role</th><th scope="col">What it does</th></tr></thead>
+          <tbody>{BRIDGE_ACTIONS.map(([a, r, d]) => <tr key={a}><td className="mono">{a}</td><td>{r}</td><td>{d}</td></tr>)}</tbody>
+        </TableWrap>
+        <p className="code-title" style={{ marginTop: 32 }}>Generic CSV journal import (header)</p>
+        <pre className="code" tabIndex={0} aria-label="Journal CSV header">{"journal_id,journal_date,entry_date,account_code,account_name,debit,credit,currency,memo,rule_code,evidence_ids,prior_period_item,reverses,prepared_by,approved_by,export_id,marking"}</pre>
+        <p className="caption" style={{ marginTop: 12 }}><code className="inline">journal_id</code> is <code className="inline">SANDBOX-&lt;proposal id&gt;</code>; <code className="inline">debit</code> and <code className="inline">credit</code> are exact decimal strings, one of them empty. Full reference: <code className="inline">docs/clearline/ACCOUNTING_BRIDGE.md</code> and the OpenAPI document.</p>
       </Section>
 
       <Section id="limitations" tone="canvas" eyebrow="Limitations" title="What the test API does not do">

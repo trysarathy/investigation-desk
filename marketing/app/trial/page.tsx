@@ -1,7 +1,7 @@
 import { ButtonLink, ContactBand, Disclosure, ExtLink, PageHero, Section } from "@/components/Shared";
 import { FUNDING_DESK_URL, SOFTWARE_URL, TRIAL_URL, mailto } from "@/lib/site";
 import { pageMeta } from "@/lib/meta";
-import { CONSOLE_TOOLS, TRIAL_CASES, TRY_CONNECT } from "@/lib/cases";
+import { CONSOLE_TOOLS, JOURNEY, TRIAL_CASES, TRY_CONNECT } from "@/lib/cases";
 
 export const metadata = pageMeta(
   "Customer trial",
@@ -46,11 +46,19 @@ export default function Trial() {
         <p className="caption" style={{ marginTop: 12 }}>Case 05 is Control&rsquo;s specialist funding workflow. The <ExtLink href={FUNDING_DESK_URL}>Funding Desk demo</ExtLink> shows it interactively, as a separate prototype. In the sandbox, payments and advances are linked by a tested projection, not a shared production ledger.</p>
       </Section>
 
-      <Section tone="canvas" eyebrow="Before you start" title="What the sandbox can and cannot show">
+      <Section id="journey" tone="canvas" eyebrow="The full journey" title={<>Eighteen steps, <em>from a payment to its accounting outcome.</em></>}
+        intro={<p>After the five cases, the same console takes one payment of your own through the whole lifecycle. Every step below is covered by an end-to-end browser test of the console. Fictional data; nothing is posted to any ledger.</p>}>
+        <ol className="journey">
+          {JOURNEY.map((j, i) => <li key={j.step}><span className="idx">{String(i + 1).padStart(2, "0")}</span><span className="journey-area">{j.area}</span><span>{j.step}</span></li>)}
+        </ol>
+        <div className="actions"><ButtonLink href={SOFTWARE_URL}>Open the console</ButtonLink></div>
+      </Section>
+
+      <Section tone="white" eyebrow="Before you start" title="What the sandbox can and cannot show">
         <Disclosure headingId="trial-disclosure" />
       </Section>
 
-      <Section tone="white" eyebrow="Three questions for your team" title="Would this change your operating day?">
+      <Section tone="canvas" eyebrow="Three questions for your team" title="Would this change your operating day?">
         <ol className="list-rows">
           <li><span className="idx">01</span><p>Where does your team lose payment visibility today?</p></li>
           <li><span className="idx">02</span><p>Which exception takes the most work to resolve, and who owns it?</p></li>
@@ -59,7 +67,7 @@ export default function Trial() {
         <p style={{ marginTop: 20 }}><a className="text-link" href={mailto("Clearline trial: our answers")}>Send your answers by email</a></p>
       </Section>
 
-      <Section id="historical" tone="canvas" eyebrow="Part two · historical cases" title="How to evaluate your own history safely"
+      <Section id="historical" tone="white" eyebrow="Part two · historical cases" title="How to evaluate your own history safely"
         intro={<p>If the fictional cases look relevant, we can discuss replaying up to five of your closed, redacted cases. That only happens after we agree the scope and how the data will be handled securely, in writing, and never through the public sandbox.</p>}>
         <ol className="list-rows">
           {safe.map(([t, d], i) => <li key={t}><span className="idx">{String(i + 1).padStart(2, "0")}</span><div><h3 className="h3">{t}</h3><p>{d}</p></div></li>)}
