@@ -9,7 +9,7 @@ rc4 is built on top of it as separate branches.
 | Part | Branch | Based on | Tested commit |
 |---|---|---|---|
 | Software (Connect + Control + Accounting Bridge + Funding exposure, engine, v1 test API, research) | `rc4/clearline-app` | rc3 `a7e37c5` (PR #106 head) | **`dc4d39a`** (later commits are docs only) |
-| Website (`marketing/`) | `rc4/clearline-site` | rc3 `f58416b` (PR #107 head incl. founder PR #108) | see PR |
+| Website (`marketing/`) | `rc4/clearline-site` | rc3 `f58416b` (PR #107 head incl. founder PR #108) | **`a509eb9`** |
 
 | What | rc4 preview (paired by `clearline-release.json`) | Production (unchanged; older release until promoted) |
 |---|---|---|
@@ -61,7 +61,8 @@ the 300-line merge rule — split into engine (Accounting Bridge), engine (Conne
 | Platform/security browser suite | dc4d39a | 28 passed |
 | Funding Desk regression | dc4d39a | 4 passed |
 | Mentor demo regression | dc4d39a | 6 passed |
-| Website `npm test` / tsc / static build / audit | see PR #(website) | recorded at release |
+| Website `npm test` / tsc / static build | a509eb9 | **54/54**, clean, exit 0 |
+| Website audit: 11 pages × 1440/768/390/320, axe at every width | a509eb9 | 0 overflow, 0 violations, 15/15 internal links 200 |
 
 Environment note: Chromium profile, caches and Playwright output were placed on `/dev/shm` because the session's disk
 allowance was nearly exhausted; earlier attempts on the root disk crashed the renderer (resource errors, not assertion
