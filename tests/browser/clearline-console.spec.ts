@@ -727,8 +727,18 @@ test("defence in depth: settlement `verified` is never green when execution is r
     await page.evaluate((t) => localStorage.setItem("clearline.console.workspace.v1", t), JSON.stringify(ws));
     await open(page, `/clearline/payments/${(await scenario(request, "s1_success")).split("/").pop()}`);
     if (["returned", "failed", "cancelled", "expired"].includes(exec)) {
-      // rc3: the engine REPAIRS a stored terminal + verified payout that has evidence (loadWorkspace migration):
-      // it loads as a contradiction with an owned exception, says so, and is never verified or green.
+      // rc4 (CHANGE 16, F3): with the Accounting Bridge present, a pending journal entry no longer matches the edited
+      // evidence, so the engine REFUSES the hand-edited workspace instead of repairing it. The console explains the
+      // refusal in the engine's words and saves nothing over the stored copy.
+      await expect(page.getByTestId("workspace-discarded"), exec).toBeVisible();
+      await expect(page.getByTestId("workspace-discarded"), exec).toContainText("accounting.proposals");
+      expect(await page.evaluate(() => localStorage.getItem("clearline.console.workspace.v1")), exec).toBe(JSON.stringify(ws));
+      // rc3: the engine REPAIRS a stored terminal + verified payout that has evidence (loadWorkspace migration) in a
+      // workspace saved before the bridge (no accounting data): it loads as a contradiction with an owned exception,
+      // says so, and is never verified or green.
+      delete ws.accounting;
+      await page.evaluate((t) => localStorage.setItem("clearline.console.workspace.v1", t), JSON.stringify(ws));
+      await open(page, `/clearline/payments/${(await scenario(request, "s1_success")).split("/").pop()}`);
       await expect(page.getByTestId("workspace-discarded"), exec).toHaveCount(0);
       const settle = page.getByTestId("dim-settlement");
       await expect(settle.locator('[data-api-value="verified"]'), exec).toHaveCount(0);
@@ -741,6 +751,16 @@ test("defence in depth: settlement `verified` is never green when execution is r
       continue;
     }
     guarded++;
+    // on_hold / awaiting_information: with the bridge present a pending entry no longer matches the edited evidence,
+    // so the engine may refuse the workspace (CHANGE 16, F3); the colour guard is exercised on the same edit saved
+    // before the bridge (no accounting data), which loads. Nothing is ever shown green either way.
+    if (await page.getByTestId("workspace-discarded").count()) {
+      await expect(page.getByTestId("workspace-discarded"), exec).toContainText("accounting.proposals");
+      delete ws.accounting;
+      await page.evaluate((t) => localStorage.setItem("clearline.console.workspace.v1", t), JSON.stringify(ws));
+      await open(page, `/clearline/payments/${(await scenario(request, "s1_success")).split("/").pop()}`);
+    }
+    await expect(page.getByTestId("workspace-discarded"), exec).toHaveCount(0);
     const chip = page.getByTestId("dim-settlement").locator('[data-api-value="verified"] [title^="API value:"]');
     await expect(chip, exec).toBeVisible();
     expect(await chip.evaluate((e) => getComputedStyle(e).color), exec).not.toBe(green);

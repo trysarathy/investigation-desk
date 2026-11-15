@@ -118,7 +118,7 @@ function ExportRecords() {
               <tr key={x.id} id={x.id} data-export={x.kind}>
                 <td data-label="Recorded" className={ui.num}>{fmtTime(x.at)}<span className={ui.sub}>{actorName(x.by)}</span></td>
                 <td data-label="Kind">{label("accountingExportKind", x.kind)}<span className={ui.sub + " mono"}>{x.id}</span></td>
-                <td data-label="Document"><span className="mono">{x.documentId}</span><span className={ui.sub + " mono"} title={x.sha256}>sha256 {x.sha256.slice(0, 16)}…</span>{x.kind === "journal" && <span className={ui.sub}>Mapping revision {x.mappingRevision} · {x.proposalIds?.length ?? 0} entries</span>}</td>
+                <td data-label="Document"><span className="mono">{x.documentId}</span><span className={ui.sub + " mono"} title={x.sha256}>sha256 {x.sha256.slice(0, 16)}…</span>{x.fileSha256 && <span className={ui.sub + " mono"} data-testid="file-sha256" title={`CSV ${x.fileSha256.csv}\nJSON ${x.fileSha256.json}`}>file CSV {x.fileSha256.csv.slice(0, 12)}… · JSON {x.fileSha256.json.slice(0, 12)}…</span>}{x.kind === "journal" && <span className={ui.sub}>Mapping revision {x.mappingRevision} · {x.proposalIds?.length ?? 0} entries</span>}</td>
                 <td data-label="Range" className={ui.num}><span className="mono">{x.from}</span> to <span className="mono">{x.to}</span></td>
                 <td data-label="Rows" className={`${ui.r} ${ui.num}`}>{x.rowCount}</td>
                 <td data-label="Download">{x.kind === "journal" ? (

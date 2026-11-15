@@ -74,8 +74,11 @@ function ProposalReview({ p, id }: { p: JournalProposalRow; id: string }) {
         ["Proposed by", <>{actorName(p.createdBy)}<span className={ui.sub}>{fmtTime(p.createdAt)}</span></>],
         ["Evidence ids", <span className="mono" key="e">{[...new Set(p.lines.flatMap((l) => l.evidenceIds))].join(", ")}</span>],
       ]} />
+      {p.approval?.accounts && (
+        <p className={ui.hint} data-testid="approved-accounts">Approved by {actorName(p.approval.by)}, {fmtTime(p.approval.at)}, with mapping revision {p.approval.mappingRevision}: {p.approval.accounts.map((a) => `${a.accountCode} ${a.accountName}`).join("; ")}.{p.approval.note ? ` Note: ${p.approval.note}` : ""}</p>
+      )}
       {p.priorPeriodItem && <Notice info>Prior-period item: {p.priorPeriodItem.reason}</Notice>}
-      {p.supersession && <Notice>{label("supersession", p.supersession.code)}: {p.supersession.reason}{p.supersession.replacedBy ? ` Replaced by ${p.supersession.replacedBy}.` : ""}</Notice>}
+      {p.supersession && <Notice>{label("supersession", p.supersession.code)}: {p.supersession.reason}{p.supersession.replacedBy ? ` Replaced by ${p.supersession.replacedBy}.` : p.supersession.code === "SP_MAPPING_CHANGED" ? " Propose entries again, and a different person approves the new codes." : ""}</Notice>}
       {p.evidenceChange && <Notice>{label("supersession", p.evidenceChange.code)} after export: {p.evidenceChange.reason} The entry is unchanged; a reversal is proposed next time entries are proposed.</Notice>}
       {!p.current && !p.supersession && (p.status === "proposed" || p.status === "approved") && <Notice>The evidence no longer gives exactly this entry; the engine supersedes it on the next action.</Notice>}
       <Status msg={msg} />
@@ -195,7 +198,8 @@ export default function Accounting() {
                       <td data-label="Currency" className="mono" data-testid="entry-currency">{p.currency}</td>
                       <td data-label="Balanced"><Balanced p={p} /></td>
                       <td data-label="Status" className={ui.jStatus}><ProposalStatus p={p} />
-                        {p.approval && <span className={ui.sub}>Approved by {actorName(p.approval.by)}</span>}
+                        {p.approval && <span className={ui.sub}>Approved by {actorName(p.approval.by)}{p.approval.mappingRevision !== undefined ? ` · mapping revision ${p.approval.mappingRevision}` : ""}</span>}
+                        {p.supersession && <span className={ui.sub} data-testid="supersession">{label("supersession", p.supersession.code)}{p.supersession.code === "SP_MAPPING_CHANGED" ? " — needs a new approval" : ""} <code className={ui.apiValue}>{p.supersession.code}</code></span>}
                         {p.rejection && <span className={ui.sub}>Rejected by {actorName(p.rejection.by)}: {p.rejection.reason}</span>}
                         {p.export && <span className={ui.sub}>In export <span className="mono">{p.export.exportId}</span></span>}
                         {p.posting && <span className={ui.sub}>Reference <span className="mono">{p.posting.externalReference}</span> — recorded by a person (simulated)</span>}
