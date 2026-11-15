@@ -319,6 +319,11 @@ const ELIGIBILITY_CODE: Record<string, string> = {
   RATE_UNAVAILABLE: "No usable rate on this route",
 };
 
+/** rc4 Connect: codes raised by the adapter-level rules (own block, kept separate for clean merges). */
+const CONNECT_CODE: Readonly<Record<string, string>> = {
+  EV_PROVIDER_STATUS_REGRESSED: "Provider moved the status backwards — both reports kept, a person decides",
+};
+
 /** Every static explanation code the engine emits, with a short human label. */
 export const CODE_LABELS: Readonly<Record<string, string>> = {
   // Reconciliation (line, allocation and exception codes)
@@ -431,6 +436,7 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   ...REPORT_ROW_CODE,
   // rc4 Accounting Bridge: journal rules (JR_), not-proposed reasons (NP_), supersession (SP_), export rows (XR_)
   ...BRIDGE_CODE_LABELS,
+  ...CONNECT_CODE,
 };
 
 const SUPPLIER_PAID_BASIS: Record<FundingProjectionRow["supplierPaidBasis"], string> = {
