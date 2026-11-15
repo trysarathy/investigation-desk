@@ -8,7 +8,7 @@ const release = JSON.parse(readFileSync(new URL("../../clearline-release.json", 
 describe("clearline-release.json resolution", () => {
   it("defaults to production when not a Vercel preview", () => {
     expect(resolveReleaseUrls({}, release)).toMatchObject({ ...release.production, source: "production" });
-    expect(resolveReleaseUrls({ VERCEL_ENV: "production", VERCEL_GIT_COMMIT_REF: "rc3/clearline-app" }, release).source).toBe("production");
+    expect(resolveReleaseUrls({ VERCEL_ENV: "production", VERCEL_GIT_COMMIT_REF: "rc4/clearline-app" }, release).source).toBe("production");
   });
   it("pairs previews only for the listed release branches", () => {
     for (const ref of release.previewBranches) {
