@@ -61,7 +61,8 @@ function MigrationNotice() {
       {migrations.items.map((m) => (
         <li key={m.auditId}>
           Your saved workspace was updated by this version: {m.text}{" "}
-          <Link href={`/clearline/payments/${m.intentId}`}>Open payment {m.internalReference}</Link>
+          {m.intentId && <Link href={`/clearline/payments/${m.intentId}`}>Open payment {m.internalReference}</Link>}
+          {m.proposalId && <>{m.intentId ? " · " : ""}<Link href={`/clearline/accounting#${m.proposalId}`}>journal entry {m.proposalId}</Link></>}
           {m.exceptionId && <> · <Link href={`/clearline/exceptions?view=all&intent=${m.intentId}#${m.exceptionId}`}>exception {m.exceptionId}</Link></>}
         </li>
       ))}
