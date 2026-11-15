@@ -33,6 +33,19 @@ export const PRIMARY: NavSection[] = [
     also: ["/clearline/exceptions"],
   },
   { href: "/clearline/reconciliation", label: "Reconciliation" },
+  /*
+   * rc4 Accounting Bridge. Placed in daily operations, straight after Reconciliation: every proposed entry is
+   * derived from a reconciliation allocation (bank or final chain evidence) and is worked like an exception —
+   * reviewed, approved by a second person, exported, then a person records the posting. Reports stays read-only.
+   */
+  {
+    href: "/clearline/accounting", label: "Accounting",
+    tabs: [
+      { href: "/clearline/accounting", label: "Proposed entries" },
+      { href: "/clearline/accounting/setup", label: "Periods and mapping" },
+      { href: "/clearline/accounting/exports", label: "Exports" },
+    ],
+  },
   {
     href: "/clearline/treasury", label: "Treasury & Funding",
     tabs: [
@@ -53,12 +66,21 @@ export const SECONDARY: NavSection[] = [
     ],
   },
   { href: "/clearline/holds", label: "Compliance Holds" },
-  { href: "/clearline/reports", label: "Reports" },
+  {
+    href: "/clearline/reports", label: "Reports",
+    tabs: [
+      { href: "/clearline/reports", label: "Reports and evidence" },
+      { href: "/clearline/reports/audit", label: "Audit history" },
+    ],
+  },
   { href: "/clearline/docs", label: "Developers" },
   { href: "/clearline/settings", label: "Settings" },
 ];
 
 export const SECTIONS: NavSection[] = [...PRIMARY, ...SECONDARY];
+
+/** Workspace-wide audit history (founder journey step 17); `?payment=<id>` narrows it to one payment. */
+export const AUDIT_HREF = "/clearline/reports/audit";
 
 /** URL of the payment-intent create flow (Routes & Providers › New payment intent). */
 export const NEW_INTENT_HREF = "/clearline/routes/new";
