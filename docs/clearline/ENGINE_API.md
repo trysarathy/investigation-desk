@@ -1,5 +1,38 @@
 # Clearline sandbox engine — public API (for the console UI)
 
+> **CHANGE 17 (2026-11-15, accounting re-review of 466d42a — APPROVE, non-blocking R1–R7 — plus G1 from the Connect cross-check). STATUS: LANDED (not reviewed).**
+> - **R1, load compatibility.**
+>   - A proposed or approved entry that is self-consistent (its evidence tie and basis hash hold) but that the current rules derive differently is no longer refused. It is superseded on load: `supersession.code` `SP_RULES_CHANGED`, `causedBy` `system`, with a `workspace.migrated` audit event.
+>   - Each one is reported as a `WorkspaceMigration`: new `kind` `journal_proposal_superseded`, new `outcome` `proposal_superseded`, new optional field `proposalId`; `intentId` may be `""` and `from` = `to`.
+>   - Exported and posted entries are never altered; they get the flag-and-reversal path.
+>   - A statement direction that does not fit the rule, and a bank line booked twice, are no longer load refusals (a91dd11 produced both). The first is superseded or reversed. The second is corrected by `propose`, because a rejected reversal no longer blocks it from being proposed again.
+>   - Refusals of accounting records now say "Its accounting records contradict the evidence they name, or each other…", not "No version of the engine produces this". The refusal for a reused export id names the a91dd11 defect.
+> - **R2 / R3.** New tests kill mutant N1 (the derive guard for a stored debit-direction return) and N6 (first reporting event only).
+> - **R4.** New action `confirm_not_imported { proposalId, note }`:
+>   - who: an approver other than the exporter;
+>   - applies to an exported entry, or one withdrawn after export;
+>   - records `rejection.notImported { by, at, note }` and the audit event `journal.confirmed_not_imported`;
+>   - no reversal is then needed (a pending one is superseded), and the same evidence may be proposed again;
+>   - refused with `REVERSAL_ALREADY_EXPORTED` once the reversal is exported or posted.
+> - **R5.** Docs only: ACCOUNTING_BRIDGE.md §2.1 (the payable is cleared in USDC; stablecoin clearing holds SGD debit + USDC credit until the accountant books the conversion) and the `NP_FX_NOT_EVIDENCED` row.
+> - **R6.** `ledgerProblem` refuses one payout's payable cleared in two currencies, in addition to the per-currency cap. The random walk recomputes net payable debits per payout independently, without `ledgerProblem`.
+> - **R7.** `REVERSAL_REQUIRED` for an entry withdrawn after export says so and points to `confirm_not_imported`.
+> - **G1 (predates rc4).**
+>   - `reconcileLine`: a bank debit matched to a live payout with an open `contradictory_evidence` exception leaves settlement `contradicted` (scope `bank_statement`) and reconciliation `exception`. `resolve` recomputes.
+>   - The bridge lists that debit, or a final chain transfer, as `NP_EVIDENCE_CONTRADICTED` and proposes nothing that shows the supplier paid; a pending entry is superseded.
+>   - New load rule G (`WorkspaceMigration.kind` `open_contradiction_settlement`, outcome `contradicted_open`): a live payout stored as bank-settled while an `EV_IMPOSSIBLE_TRANSITION` / `EV_PROVIDER_STATUS_REGRESSED` / `EV_PROVIDER_SUCCESS_REVERSED` / `EV_PROVIDER_CLAIMS_DIFFER` exception is open becomes contradicted. It is reported, never refused.
+>   - `rc4-connect-rereview` › "completed → in_transit" now expects the pending entry to be superseded while the regression contradiction is open.
+> - **API changes for the console:**
+>   - action `confirm_not_imported`;
+>   - `JournalProposal.rejection.notImported?`;
+>   - `SupersessionCode` `SP_RULES_CHANGED`;
+>   - `WorkspaceMigration.kind` `journal_proposal_superseded` | `open_contradiction_settlement`, outcome `proposal_superseded`, field `proposalId?`;
+>   - reason code `REVERSAL_ALREADY_EXPORTED`;
+>   - export `isConfirmedNotImported`;
+>   - `ACCOUNTING_ACTION_TYPES` includes `confirm_not_imported`.
+> - **Mutation checks.** 14 mutants of this change, applied in place over the eight rc4 test files: **14 killed**. They are N1, N6, R1 refuse-instead-of-supersede and refusal text, four R4 mutants, R6, R7, a rejected reversal blocking re-proposal, and the three G1 mutants (engine, bridge, migration).
+> - **Tests.** New: `rc4-rereview.test.ts` and `rc4-g1-contradiction.test.ts`. The R1 workspaces are **a91dd11-shaped**, built in-test from the current engine with exactly what a91dd11 stored (its rule, lines, evidence ids and `basisOf` hash). Running the a91dd11 engine itself to produce fixtures was not permitted in this session.
+
 > **CHANGE 16 (2026-11-15, independent accounting review of a91dd11 — BLOCK; fixes F1–F13). STATUS: LANDED (not re-reviewed).** Posting-rule changes are approval-only: the F1 rule is a sandbox rule decided by the coordinator and **flagged for Aashmiin's sign-off** in `ACCOUNTING_BRIDGE.md`.
 > - **F1 stablecoin payouts.** New rule `JR_STABLECOIN_ONRAMP_FUNDING` (Dr `stablecoin_clearing` in the debit's currency / Cr `bank:<accountRef>`) for a bank or custody debit on a live stablecoin-route payout. Only the final chain transfer clears the payable. The conversion is not proposed (`NP_FX_NOT_EVIDENCED`) and appears as an unresolved `stablecoin_conversion` row (`XR_CONVERSION_NOT_EVIDENCED`, new `counterAmount`) in the reconciliation export. `propose_journal_entries` refuses `LEDGER_DOUBLE_COUNT` if the net payable/receivable debit per payout would exceed the payout, or a bank line would be booked twice.
 > - **F2.** `reconcileLine` no longer allocates a debit-direction return / reversal (new `RC_RETURN_LINE_IS_DEBIT`, `contradictory_evidence` exception, outcome `exception_raised`). The bridge never proposes a return credit from a debit, and load checks each bank rule's line direction. Allocations rc3 already stored this way still load (no rc3 workspace is refused) and give no entry.
