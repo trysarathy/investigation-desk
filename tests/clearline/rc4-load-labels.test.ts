@@ -61,6 +61,14 @@ describe("load-time validation refuses crafted bridge records (never repaired)",
     expect(refusedAt(mutate((w) => { const p = w.accounting!.proposals[0]; p.status = "approved"; p.approval = { by: p.createdBy, at: w.asOf }; }))).toBe("accounting.proposals[0].approval.by");
     expect(refusedAt(mutate((w) => { const p = w.accounting!.proposals[0]; p.status = "approved"; p.approval = { by: "usr_sam", at: w.asOf }; }))).toBe("accounting.proposals[0].approval.by");
     expect(refusedAt(mutate((w) => { const p = w.accounting!.proposals[0]; p.status = "approved"; p.approval = { by: "usr_daniel", at: w.asOf }; }))).toBe("loaded");
+    // an approver who proposed the entry and "approved" it themselves: the role is right, so only maker ≠ checker refuses it
+    const own = run(s4Final(), "usr_daniel", { type: "propose_journal_entries" }).workspace;
+    const i = own.accounting!.proposals.findIndex((p) => p.createdBy === "usr_daniel");
+    own.accounting!.proposals[i].status = "approved";
+    own.accounting!.proposals[i].approval = { by: "usr_daniel", at: own.asOf };
+    expect(refusedAt(own)).toBe(`accounting.proposals[${i}].approval.by`);
+    const r = load(own);
+    expect(!r.ok && r.error.message).toMatch(/maker ≠ checker/);
   });
   it("a returned payout's entry that debits the supplier payable, or claims the supplier paid (returns never imply paid)", () => {
     const i = ws0.accounting!.proposals.findIndex((p) => p.ruleCode === "JR_PAYOUT_DEBIT_NOT_DELIVERED");
