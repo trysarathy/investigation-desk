@@ -56,7 +56,12 @@ function ProposalReview({ p, id }: { p: JournalProposalRow; id: string }) {
   const [note, setNote] = useState("");
   const [reason, setReason] = useState("");
   const [ref, setRef] = useState("");
-  const tNote = useSettled(note), tReason = useSettled(reason), tRef = useSettled(ref);
+  const [confirmer, setConfirmer] = useState(() => (actors.find((a) => a.role === "approver" && a.id !== p.export?.by) ?? actors[0]).id);
+  const [cniNote, setCniNote] = useState("");
+  const tNote = useSettled(note), tReason = useSettled(reason), tRef = useSettled(ref), tCni = useSettled(cniNote);
+  const gCniEngine = gateOf(preview({ type: "confirm_not_imported", proposalId: p.id, note: tCni.trim() ? tCni : "Dry run" }, { actorId: confirmer }), ws);
+  const gCni: Gate = gCniEngine.ok && !cniNote.trim() ? { ok: false, reason: "Say how you confirmed it was never imported first." } : gCniEngine;
+  const exported = !!p.export;
 
   const approveAction = { type: "approve_journal_proposal", proposalId: p.id, ...(tNote.trim() ? { note: tNote } : {}) } as const;
   const gApprove = gateOf(preview(approveAction, { actorId: approver }), ws);
@@ -78,7 +83,7 @@ function ProposalReview({ p, id }: { p: JournalProposalRow; id: string }) {
         <p className={ui.hint} data-testid="approved-accounts">Approved by {actorName(p.approval.by)}, {fmtTime(p.approval.at)}, with mapping revision {p.approval.mappingRevision}: {p.approval.accounts.map((a) => `${a.accountCode} ${a.accountName}`).join("; ")}.{p.approval.note ? ` Note: ${p.approval.note}` : ""}</p>
       )}
       {p.priorPeriodItem && <Notice info>Prior-period item: {p.priorPeriodItem.reason}</Notice>}
-      {p.supersession && <Notice>{label("supersession", p.supersession.code)}: {p.supersession.reason}{p.supersession.replacedBy ? ` Replaced by ${p.supersession.replacedBy}.` : p.supersession.code === "SP_MAPPING_CHANGED" ? " Propose entries again, and a different person approves the new codes." : ""}</Notice>}
+      {p.supersession && <Notice>{label("supersession", p.supersession.code)}: {p.supersession.reason}{p.supersession.replacedBy ? ` Replaced by ${p.supersession.replacedBy}.` : p.approval ? " It needs a new approval: propose entries again, and a different person approves." : ""}</Notice>}
       {p.evidenceChange && <Notice>{label("supersession", p.evidenceChange.code)} after export: {p.evidenceChange.reason} The entry is unchanged; a reversal is proposed next time entries are proposed.</Notice>}
       {!p.current && !p.supersession && (p.status === "proposed" || p.status === "approved") && <Notice>The evidence no longer gives exactly this entry; the engine supersedes it on the next action.</Notice>}
       <Status msg={msg} />
@@ -114,6 +119,26 @@ function ProposalReview({ p, id }: { p: JournalProposalRow; id: string }) {
         </form>
         {p.posting && <p className={ui.hint} data-testid="posting-recorded">Recorded by {actorName(p.posting.recordedBy)} at {fmtTime(p.posting.recordedAt)}: external reference <span className="mono">{p.posting.externalReference}</span> (simulated). Clearline posted nothing.</p>}
       </div>
+
+      {exported && (
+        <div className={ui.actionGroup} data-testid="not-imported-group">
+          <h3 className={ui.eyebrow}>Confirm never imported</h3>
+          <p className={ui.hint} style={{ marginTop: 0 }}>For an exported entry that was never imported into your ledger. An approver other than the person who exported it ({actorName(p.export!.by)}) confirms it; no reversal is then needed. Clearline cannot see your ledger: this records what that person checked.</p>
+          {p.rejection?.notImported ? (
+            <p className={ui.hint} data-testid="not-imported-recorded">Confirmed never imported by {actorName(p.rejection.notImported.by)}, {fmtTime(p.rejection.notImported.at)}: {p.rejection.notImported.note}</p>
+          ) : (
+            <form className={ui.formRow} onSubmit={(e) => { e.preventDefault(); run("Confirm never imported", { type: "confirm_not_imported", proposalId: p.id, note: cniNote }, { actorId: confirmer, onOk: () => setCniNote("") }); }}>
+              <Field label="Confirming person" hint={SIMULATED_ROLE_NOTE}>
+                <select id={`${id}-confirmer`} value={confirmer} onChange={(e) => setConfirmer(e.target.value)} data-testid="confirmer-select">
+                  {actors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </Field>
+              <Field label="How you confirmed it"><input id={`${id}-cni-note`} value={cniNote} onChange={(e) => setCniNote(e.target.value)} /></Field>
+              <div data-testid="not-imported-gate"><ActionButton type="submit" size="small" gate={gCni} name="Confirm never imported">Confirm never imported</ActionButton></div>
+            </form>
+          )}
+        </div>
+      )}
 
       <details style={{ marginTop: 12 }}>
         <summary>Entry history ({p.history.length})</summary>
@@ -199,7 +224,7 @@ export default function Accounting() {
                       <td data-label="Balanced"><Balanced p={p} /></td>
                       <td data-label="Status" className={ui.jStatus}><ProposalStatus p={p} />
                         {p.approval && <span className={ui.sub}>Approved by {actorName(p.approval.by)}{p.approval.mappingRevision !== undefined ? ` · mapping revision ${p.approval.mappingRevision}` : ""}</span>}
-                        {p.supersession && <span className={ui.sub} data-testid="supersession">{label("supersession", p.supersession.code)}{p.supersession.code === "SP_MAPPING_CHANGED" ? " — needs a new approval" : ""} <code className={ui.apiValue}>{p.supersession.code}</code></span>}
+                        {p.supersession && <span className={ui.sub} data-testid="supersession">{label("supersession", p.supersession.code)}{p.approval ? " — needs a new approval" : ""} <code className={ui.apiValue}>{p.supersession.code}</code></span>}
                         {p.rejection && <span className={ui.sub}>Rejected by {actorName(p.rejection.by)}: {p.rejection.reason}</span>}
                         {p.export && <span className={ui.sub}>In export <span className="mono">{p.export.exportId}</span></span>}
                         {p.posting && <span className={ui.sub}>Reference <span className="mono">{p.posting.externalReference}</span> — recorded by a person (simulated)</span>}

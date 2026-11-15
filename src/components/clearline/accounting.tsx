@@ -46,17 +46,19 @@ const NOT_DELIVERED = new Set(["returned", "failed", "cancelled", "expired", "on
  * names, and the payout's execution state. A payout that was not delivered (returned, failed, cancelled, expired or
  * on hold) reads "Supplier still unpaid — payable open"; no posting-rule code is interpreted here.
  */
-export function supplierPaid(p: Pick<JournalProposalRow, "showsSupplierPaid" | "evidence" | "intentId">, ws: Workspace): { text: string; tone: Tone } {
+export function supplierPaid(p: Pick<JournalProposalRow, "showsSupplierPaid" | "evidence" | "intentId" | "status">, ws: Workspace): { text: string; tone: Tone } {
+  // A superseded or rejected entry is withdrawn: it says nothing about the supplier, whatever it said when proposed.
+  if (p.status === "superseded" || p.status === "rejected") return { text: "Withdrawn — says nothing about the supplier", tone: "neutral" };
   if (p.showsSupplierPaid) return { text: p.evidence.chainObservationIds.length ? "Shows the supplier as paid — final chain transfer evidence" : "Shows the supplier as paid — bank debit evidence", tone: "info" };
   const intent = p.intentId ? ws.intents.find((i) => i.id === p.intentId) : undefined;
   if (intent && NOT_DELIVERED.has(intent.status.execution)) return { text: "Supplier still unpaid — payable open", tone: "bad" };
   return { text: "Does not show the supplier as paid", tone: "neutral" };
 }
 
-export function SupplierPaid({ p }: { p: Pick<JournalProposalRow, "showsSupplierPaid" | "evidence" | "intentId"> }) {
+export function SupplierPaid({ p }: { p: Pick<JournalProposalRow, "showsSupplierPaid" | "evidence" | "intentId" | "status"> }) {
   const { ws } = useWorkspace();
   const s = supplierPaid(p, ws);
-  return <span className={ui.sub} data-testid="supplier-paid" data-shows-paid={p.showsSupplierPaid ? "true" : "false"}><Chip tone={s.tone}>{s.text}</Chip></span>;
+  return <span className={ui.sub} data-testid="supplier-paid" data-shows-paid={p.showsSupplierPaid && p.status !== "superseded" && p.status !== "rejected" ? "true" : "false"}><Chip tone={s.tone}>{s.text}</Chip></span>;
 }
 
 /** One line per journal line: side, account code and name (or "not mapped"), role. */

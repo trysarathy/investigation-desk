@@ -205,6 +205,90 @@ test("record posting: refused before export (NOT_EXPORTED); after approve and ex
   await expect(page.getByTestId("count-posted")).toHaveText("1");
 });
 
+test("confirm never imported: needs an approver other than the exporter and a note; then no reversal is needed", async ({ page }) => {
+  await open(page, "/clearline/accounting");
+  const first = entries(page).first();
+  const id = await first.getAttribute("data-proposal");
+  // The review offers the control only once an entry has been exported.
+  const rv0 = await review(page, first);
+  await expect(rv0.getByTestId("not-imported-group")).toHaveCount(0);
+  await approveAs(page, rv0, "usr_daniel");
+  await tab(page, "Exports");
+  await page.locator("#cl-actor-global").selectOption("usr_daniel"); // Daniel exports
+  await page.locator("#journal li", { hasText: "2026-11" }).getByRole("button", { name: /^Export journal/ }).click();
+  await expect(page.locator("#journal").getByRole("status")).toContainText("recorded by the engine");
+  await page.goto(`/clearline/accounting#${id}`);
+  await hydrated(page);
+  const rv = page.locator(`[data-testid="proposal-review"][data-proposal="${id}"]`);
+  const group = rv.getByTestId("not-imported-group");
+  await expect(group.getByText(ROLE_NOTE)).toBeVisible();
+  const btn = group.getByTestId("not-imported-gate").getByRole("button", { name: "Confirm never imported" });
+  // Daniel exported it, so he cannot confirm it; an operator cannot either; Lin, a second approver, can.
+  await group.getByTestId("confirmer-select").selectOption("usr_daniel");
+  await expect(btn).toBeDisabled();
+  await expect(group.getByTestId("not-imported-gate")).toContainText("maker_checker_violation");
+  await group.getByTestId("confirmer-select").selectOption("usr_sam");
+  await expect(group.getByTestId("not-imported-gate")).toContainText("unauthorized_actor");
+  await group.getByTestId("confirmer-select").selectOption("usr_lin");
+  await expect(btn).toBeDisabled();
+  await expect(group.getByTestId("not-imported-gate")).toContainText("Say how you confirmed it was never imported first.");
+  await group.getByLabel("How you confirmed it").fill("Checked the ledger's import log for this file: no journal with this id");
+  await expect(btn).toBeEnabled();
+  await btn.click();
+  await expect(rv.getByRole("status")).toContainText("Confirm never imported — recorded by the engine");
+  const row = page.locator(`#entries tr[data-proposal="${id}"]`);
+  await expect(row.getByTestId("proposal-status")).toHaveAttribute("data-api-value", "rejected");
+  await expect(row.getByTestId("supplier-paid")).toHaveText("Withdrawn — says nothing about the supplier");
+  await expect(group.getByTestId("not-imported-recorded")).toContainText("Confirmed never imported by Lin Wei");
+  // Never imported, so no reversal: proposing again offers the same evidence afresh, not a JR_REVERSAL.
+  await page.getByTestId("propose-gate").getByRole("button", { name: "Propose entries" }).click();
+  await expect(page.locator("#propose").getByRole("status")).toContainText("recorded by the engine");
+  await expect(page.locator('#entries tr[data-rule="JR_REVERSAL"]')).toHaveCount(0);
+  await expect(page.locator(`#entries tr[data-rule="${await row.getAttribute("data-rule")}"]:has([data-api-value="proposed"])`).first()).toBeVisible();
+  await open(page, "/clearline/reports/audit");
+  await expect(page.getByTestId("audit-table").locator('tr[data-action="journal.confirmed_not_imported"]')).toHaveCount(1);
+});
+
+test("a saved entry the current rules derive differently is superseded on load; the notice links to it", async ({ page, request }) => {
+  const ws = (await (await request.get("/api/clearline/test/v1/workspace", { headers: { Authorization: "Bearer cl_test_demo" } })).json()).data;
+  const s1 = ws.intents.find((i: { scenario?: string }) => i.scenario === "s1_success");
+  s1.status = { ...s1.status, execution: "returned", settlement: "verified", settlementScope: "bank_statement" };
+  // Stored before the first page load, so the page under test is the one that migrates it.
+  await page.addInitScript((text) => { if (!sessionStorage.getItem("seeded")) { localStorage.setItem("clearline.console.workspace.v1", text); sessionStorage.setItem("seeded", "1"); } }, JSON.stringify(ws));
+  await open(page, `/clearline/payments/${s1.id}`);
+  const notice = page.getByTestId("workspace-migrated");
+  await expect(notice).toContainText("posting rules");
+  const link = notice.getByRole("link", { name: /^journal entry jp_\d+$/ });
+  const id = ((await link.innerText()).match(/jp_\d+/) ?? [""])[0];
+  await link.click();
+  await expect(page).toHaveURL(new RegExp(`/clearline/accounting#${id}$`));
+  await hydrated(page);
+  const row = page.locator(`#entries tr[data-proposal="${id}"]`);
+  await expect(row.getByTestId("proposal-status")).toHaveAttribute("data-api-value", "superseded");
+  await expect(row.getByTestId("supersession")).toContainText("SP_RULES_CHANGED");
+  await expect(row.getByTestId("supplier-paid")).toHaveText("Withdrawn — says nothing about the supplier");
+});
+
+test("G1: a contradictory provider event withdraws the entry; it is listed as not proposed (contradicted) and never shows the supplier paid", async ({ page, request }) => {
+  const r = await request.get("/api/clearline/test/v1/intents", { headers: { Authorization: "Bearer cl_test_demo" } });
+  const s1 = ((await r.json()).data as { id: string; scenario?: string }[]).find((i) => i.scenario === "s1_success")!.id;
+  await open(page, `/clearline/payments/${s1}`);
+  const outcome = page.getByTestId("accounting-outcome");
+  await expect(outcome.locator('[data-testid="supplier-paid"][data-shows-paid="true"]').first()).toBeVisible();
+  await page.locator("#inv-inj").selectOption("contradictory");
+  await page.locator("#simulate").getByRole("button", { name: "Simulate next provider event" }).click();
+  await expect(page.locator("#simulate").getByRole("status")).toContainText("recorded by the engine");
+  await expect(page.getByTestId("dim-settlement").locator('[data-api-value="contradicted"]')).toBeVisible();
+  await expect(outcome.locator('[data-testid="supplier-paid"][data-shows-paid="true"]')).toHaveCount(0);
+  await expect(outcome.getByTestId("proposal-status").first()).toHaveAttribute("data-api-value", "superseded");
+  await expect(outcome.getByTestId("accounting-not-proposed")).toContainText("NP_EVIDENCE_CONTRADICTED");
+  await open(page, "/clearline/accounting");
+  const item = page.locator('#not-proposed li[data-code="NP_EVIDENCE_CONTRADICTED"]');
+  await expect(item).toContainText("The evidence is contradicted — no entry");
+  await expect(item.getByRole("link", { name: /^Open exception exc_/ })).toBeVisible();
+  await expect(page.getByTestId("propose-gate").getByRole("button", { name: "Propose entries" })).toBeDisabled();
+});
+
 test("journal export: refused with nothing approved; downloads CSV and JSON marked fictional and not posted", async ({ page }) => {
   await open(page, "/clearline/accounting/exports");
   await expect(page.getByTestId("export-marking")).toContainText("Clearline has posted nothing");
