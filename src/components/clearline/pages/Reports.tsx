@@ -70,7 +70,7 @@ export default function Reports() {
           </div>
         )}
       </Panel>
-      <Panel title={`Audit log (${ws.audit.length})`} id="audit">
+      <Panel title={`Audit log (${ws.audit.length})`} id="audit" actions={<Link href="/clearline/reports/audit">Open the full audit history (filter by payment, actor, action)</Link>}>
         {ws.audit.length === 0 ? <Empty>No audit events.</Empty> : (
           <div className={ui.tableWrap} role="group" tabIndex={0} aria-label="Audit log table">
             <table className={`${ui.table} ${ui.stack}`}>
