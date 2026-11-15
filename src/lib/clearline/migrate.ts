@@ -32,7 +32,7 @@
  *    exception already owns it. When a person resolves it, the recompute applies.
  * Not detectable from stored data: a v2 C-2 block change that was applied silently (the earlier block is not kept).
  */
-import { tokenAllowed } from "./chain";
+import { FINALITY_THRESHOLD, chainStatusFor, tokenAllowed } from "./chain";
 import { evidenceCeiling, recomputeDimensions } from "./derive";
 import { EXCEPTION_DUE_DAYS, EXCEPTION_REQUIRED_ACTION, contradictsBankSettlement } from "./exceptions";
 import { addDays, orgDate } from "./tx";
@@ -105,6 +105,26 @@ export function migrateToRc3(ws: Workspace): WorkspaceMigration[] {
     const auditId = nextId("aud");
     ws.audit.push({ id: auditId, at: asOf, actorId: "system", action: "workspace.migrated", entityType: "intent", entityId: intent.id, summary: `rc3 migration (${m.kind}): ${from.execution} / ${from.settlement} (${from.settlementScope}) / ${from.reconciliation} → ${to.settlement}${m.exceptionCode && m.outcome === "contradiction_raised" ? ` with ${m.exceptionCode}` : ""} (${to.settlementScope}) / ${to.reconciliation}; ${m.outcome}${m.exceptionId ? `, ${m.exceptionId}` : ""}. ${m.text}` });
     out.push({ ...m, intentId: intent.id, internalReference: intent.internalReference, from, to, auditId });
+  }
+
+  // H. (rc4 QA M1b) A counted observation stored with a status above what its confirmations give (every engine version
+  // stores statusFor(confirmations)): moved DOWN to the derived status, never up; settlement recomputed (never upgraded),
+  // and rule D below reopens a match that rested on it.
+  const OBS_RANK: Record<string, number> = { observed: 0, pending_finality: 1, final: 2 };
+  for (const o of ws.chainObservations) {
+    if (!counted(o)) continue;
+    const derived = chainStatusFor(o.confirmations);
+    if ((OBS_RANK[o.status] ?? 0) <= OBS_RANK[derived]) continue;
+    const intent = ws.intents.find((i) => i.id === o.intentId);
+    const stored = o.status;
+    o.status = derived;
+    if (!intent) continue;
+    const from = { ...intent.status };
+    recomputeSettlement(intent);
+    record(intent, from, {
+      kind: "chain_status_exceeds_confirmations", outcome: "observation_not_counted", observationId: o.id,
+      text: `Payment ${intent.internalReference} (${intent.id}): on-chain transfer ${o.txHash.slice(0, 12)}… was stored as ${stored} with ${o.confirmations} of ${FINALITY_THRESHOLD} confirmations. It now shows ${derived.replace("_", " ")}, which is what its confirmations give.`,
+    });
   }
 
   // A. Counted observations that rc3 would never count (not allowlisted).

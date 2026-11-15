@@ -30,6 +30,7 @@
  * transfers, contradicted evidence.
  */
 import { isTerminalForSettlementReport } from "../state";
+import { chainStatusFor } from "../chain";
 import { orgDate, stableStringify } from "../tx";
 import { evidenceSourceLabel } from "../reconciliation";
 import { sha256Hex } from "../sha256";
@@ -245,7 +246,8 @@ export function deriveJournalCandidates(ws: Workspace): JournalDerivation {
       const obs = ws.chainObservations.find((o) => o.id === a.statementLineId);
       const intent = a.target.kind === "payment" ? intentById.get(a.target.intentId) : undefined;
       if (!obs || !intent) continue;
-      if (obs.status !== "final") continue; // listed below as not final
+      // rc4 QA M1b (defence in depth): final means final by its confirmations, never the stored flag alone.
+      if (obs.status !== "final" || chainStatusFor(obs.confirmations) !== "final") continue; // listed below as not final
       if (NOT_DELIVERED(intent)) {
         np("NP_EVIDENCE_CONTRADICTED", `Transfer ${obs.txHash.slice(0, 12)}… is final, but the provider reports payout ${intent.internalReference} ${intent.status.execution.replace(/_/g, " ")}.`, [obs.id, a.id, intent.id], openExceptionIds(ws, (e) => e.intentId === intent.id));
         continue;
