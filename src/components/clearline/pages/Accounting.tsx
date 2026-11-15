@@ -81,7 +81,7 @@ function ProposalReview({ p, id }: { p: JournalProposalRow; id: string }) {
       <Status msg={msg} />
 
       <div className={ui.actionGroup}>
-        <h4 className={ui.eyebrow}>Approve</h4>
+        <h3 className={ui.eyebrow}>Approve</h3>
         <p className={ui.hint} style={{ marginTop: 0 }}>Proposed by <strong>{actorName(p.createdBy)}</strong> (maker). The approver must be a different person with the approver role. Approving does not post anything.</p>
         <form className={ui.formRow} onSubmit={(e) => { e.preventDefault(); run("Approve entry", { type: "approve_journal_proposal", proposalId: p.id, ...(note.trim() ? { note } : {}) }, { actorId: approver, onOk: () => setNote("") }); }}>
           <Field label="Approver" hint={SIMULATED_ROLE_NOTE}>
@@ -95,7 +95,7 @@ function ProposalReview({ p, id }: { p: JournalProposalRow; id: string }) {
       </div>
 
       <div className={ui.actionGroup}>
-        <h4 className={ui.eyebrow}>Reject</h4>
+        <h3 className={ui.eyebrow}>Reject</h3>
         <form className={ui.formRow} onSubmit={(e) => { e.preventDefault(); run("Reject entry", { type: "reject_journal_proposal", proposalId: p.id, reason }, { onOk: () => setReason("") }); }}>
           <Field label="Reason for rejecting" hint={`Acting as ${actorName(actorId)} (change it at the top of the page).`}><input id={`${id}-reject-reason`} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
           <div data-testid="reject-gate"><ActionButton type="submit" size="small" gate={gReject} name="Reject entry">Reject entry</ActionButton></div>
@@ -103,7 +103,7 @@ function ProposalReview({ p, id }: { p: JournalProposalRow; id: string }) {
       </div>
 
       <div className={ui.actionGroup}>
-        <h4 className={ui.eyebrow}>Record posting</h4>
+        <h3 className={ui.eyebrow}>Record posting</h3>
         <p className={ui.hint} style={{ marginTop: 0 }} data-testid="posting-note"><strong>{POSTING_NOTE}</strong> After you import the exported file into your own ledger, type the journal reference your ledger gave this entry. The record is marked simulated.</p>
         <form className={ui.formRow} onSubmit={(e) => { e.preventDefault(); run("Record posting", { type: "record_posting", proposalId: p.id, externalReference: ref.trim() }, { onOk: () => setRef("") }); }}>
           <Field label="External ledger reference" hint="2–64 letters, digits or . _ - / # : (e.g. JE-2026-11-0042)"><input id={`${id}-ext-ref`} value={ref} onChange={(e) => setRef(e.target.value)} autoComplete="off" /></Field>

@@ -257,7 +257,7 @@
 .formRow > * { min-width: 0; }
 .formRow .field { flex: 1 1 200px; }
 .actionGroup { border-top: 1px solid var(--cl-line); padding: 12px 0 0; margin-top: 12px; }
-.actionGroup h4 { margin: 0 0 6px; }
+.actionGroup h3 { margin: 0 0 6px; }
 .jTable td { padding: 8px 8px; }
 .jTable .jNum { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .jTable .jEntry { min-width: 200px; }
