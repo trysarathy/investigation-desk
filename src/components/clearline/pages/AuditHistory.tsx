@@ -1,10 +1,10 @@
 "use client";
 import Link from "../Link";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useWorkspace } from "../workspace";
 import { FilterBar, SearchFilter, SelectFilter, matchesText, useQuery, useSearchText } from "../filters";
 import { label } from "../human";
-import { Empty, PageHead, Panel, fmtTime, ui } from "../ui";
+import { Btn, Empty, PageHead, Panel, fmtTime, ui } from "../ui";
 import { hrefOfRecord, paymentOfRecords, paymentsOf, referencesOf } from "../audit";
 
 /** Plain-English group of an engine audit action ("journal.approved" → "Journal"). */
@@ -31,6 +31,12 @@ export default function AuditHistory() {
     (!payment || payments.includes(payment)) && (!actor || a.actorId === actor) && (!action || a.action === action) &&
     (!entity || a.entityType === entity) && (!group || groupOf(a.action) === group) &&
     matchesText(text, a.id, a.action, a.summary, a.entityId, a.entityType, actorName(a.actorId)));
+  // Review n3: rendered a page at a time; the count and filters always cover every event.
+  const PAGE = 100;
+  const [shown, setShown] = useState(PAGE);
+  const filterKey = [payment, actor, action, entity, group, text].join("\u0000");
+  useEffect(() => setShown(PAGE), [filterKey]);
+  const visible = rows.slice(0, shown);
   const distinct = (xs: string[]) => [...new Set(xs)].sort();
   const intent = payment ? ws.intents.find((i) => i.id === payment) : undefined;
   const filters = [
@@ -58,7 +64,7 @@ export default function AuditHistory() {
           <div className={ui.tableWrap} role="group" tabIndex={0} aria-label="Audit history table">
             <table className={`${ui.table} ${ui.stack}`} data-testid="audit-table">
               <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Record</th><th>Summary</th><th>Evidence references</th></tr></thead>
-              <tbody>{rows.map(({ a, refs }) => (
+              <tbody>{visible.map(({ a, refs }) => (
                 <tr key={a.id} id={a.id} data-action={a.action}>
                   <td data-label="Time" className={ui.num}>{fmtTime(a.at)}<span className={ui.sub + " mono"}>{a.id}</span></td>
                   <td data-label="Actor" data-testid="audit-actor">{actorName(a.actorId)}{actorRole(a.actorId) && <span className={ui.sub}>Simulated {actorRole(a.actorId)}</span>}</td>
@@ -71,6 +77,12 @@ export default function AuditHistory() {
                 </tr>
               ))}</tbody>
             </table>
+          </div>
+        )}
+        {rows.length > 0 && (
+          <div className={ui.panelBody} data-testid="audit-paging">
+            <p className={ui.hint} style={{ margin: "0 0 6px" }}>Showing the newest {visible.length} of {rows.length} matching events.</p>
+            {rows.length > visible.length && <Btn size="small" onClick={() => setShown((n) => n + PAGE)}>Show {Math.min(PAGE, rows.length - visible.length)} more</Btn>}
           </div>
         )}
       </Panel>

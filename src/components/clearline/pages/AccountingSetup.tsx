@@ -10,22 +10,30 @@ import { Btn, Chip, Empty, Field, Notice, PageHead, Panel, Status, fmtTime, ui }
 import { POSTING_NOTE, useBridge } from "../accounting";
 import { AccountingOverview } from "./Accounting";
 
-/** Unsaved mapping edits are kept for this tab only (a per-viewer convenience), so a reload keeps them. */
-const DRAFT_KEY = "clearline.console.mapping-draft.v1";
+/**
+ * Unsaved mapping edits are kept for this tab only (a per-viewer convenience), so a reload keeps them. A draft is
+ * stored per organisation and remembers exactly which mapping it started from (revision, save time and its rows), so
+ * it can never be saved over a different mapping that merely has the same revision number (review m1).
+ */
+const DRAFT_KEY = "clearline.console.mapping-draft.v2";
 type Row = { accountKey: string; accountCode: string; accountName: string };
-type Draft = { base: number; rows: Row[] };
+type Base = { revision: number; updatedAt: string; rows: Row[] };
+type Draft = { orgId: string; base: Base; rows: Row[] };
 
-function readDraft(): Draft | null {
+const draftKey = (orgId: string) => `${DRAFT_KEY}:${orgId}`;
+function readDraft(orgId: string): Draft | null {
   try {
-    const raw = window.sessionStorage.getItem(DRAFT_KEY);
+    const raw = window.sessionStorage.getItem(draftKey(orgId));
     if (!raw) return null;
     const d = JSON.parse(raw) as Draft;
-    return typeof d?.base === "number" && Array.isArray(d.rows) ? d : null;
+    return d?.orgId === orgId && typeof d.base?.revision === "number" && Array.isArray(d.base.rows) && Array.isArray(d.rows) ? d : null;
   } catch { return null; }
 }
-function writeDraft(d: Draft | null) {
-  try { if (d) window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d)); else window.sessionStorage.removeItem(DRAFT_KEY); } catch { /* storage blocked: the draft lives in memory only */ }
+function writeDraft(orgId: string, d: Draft | null) {
+  try { if (d) window.sessionStorage.setItem(draftKey(orgId), JSON.stringify(d)); else window.sessionStorage.removeItem(draftKey(orgId)); } catch { /* storage blocked: the draft lives in memory only */ }
 }
+const sameRow = (a?: Row, b?: Row) => (a?.accountCode ?? "") === (b?.accountCode ?? "") && (a?.accountName ?? "") === (b?.accountName ?? "");
+const sameBase = (a: Base, b: Base) => a.revision === b.revision && a.updatedAt === b.updatedAt && a.rows.length === b.rows.length && a.rows.every((r) => sameRow(r, b.rows.find((x) => x.accountKey === r.accountKey)));
 
 /** First day of the month after `date` (YYYY-MM-DD). */
 function nextMonth(date: string): string {
@@ -97,6 +105,7 @@ function MappingEditor() {
   const { ws, preview, actorName } = useWorkspace();
   const v = useBridge();
   const { msg, setMsg, run } = useRun();
+  const orgId = ws.organization.id;
   const current = v.mapping;
   const revision = current?.revision ?? 0;
   // Every account key the console knows: each statement account, every non-bank role and anything already mapped or used.
@@ -106,37 +115,77 @@ function MappingEditor() {
     const all = [...new Set([...(current?.entries ?? []).map((e) => e.accountKey), ...banks, ...used, ...NON_BANK_ROLES])];
     return all.sort((a, b) => (a.startsWith("bank:") === b.startsWith("bank:") ? a.localeCompare(b) : a.startsWith("bank:") ? -1 : 1));
   }, [ws, v, current]);
-  const fromMapping = (): Row[] => keys.map((k) => { const e = current?.entries.find((x) => x.accountKey === k); return { accountKey: k, accountCode: e?.accountCode ?? "", accountName: e?.accountName ?? "" }; });
+  const rowsOf = (entries: readonly AccountMappingEntry[]): Row[] => keys.map((k) => { const e = entries.find((x) => x.accountKey === k); return { accountKey: k, accountCode: e?.accountCode ?? "", accountName: e?.accountName ?? "" }; });
+  const currentBase: Base = { revision, updatedAt: current?.updatedAt ?? "", rows: rowsOf(current?.entries ?? []) };
   const [draft, setDraft] = useState<Draft | null>(null);
   const [restored, setRestored] = useState(false);
-  useEffect(() => { const d = readDraft(); if (d) { setDraft(d); setRestored(true); } }, []);
-  // Keys that appeared since the draft started (e.g. a new statement account) are added to it, blank.
-  const rows: Row[] = draft ? [...draft.rows, ...keys.filter((k) => !draft.rows.some((r) => r.accountKey === k)).map((k) => ({ accountKey: k, accountCode: "", accountName: "" }))] : fromMapping();
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  useEffect(() => { const d = readDraft(orgId); setDraft(d); setRestored(!!d); }, [orgId]);
+  const pad = (rs: Row[]) => [...rs, ...keys.filter((k) => !rs.some((r) => r.accountKey === k)).map((k) => ({ accountKey: k, accountCode: "", accountName: "" }))];
+  const rows: Row[] = draft ? pad(draft.rows) : currentBase.rows;
+  const keep = (d: Draft | null) => { setDraft(d); writeDraft(orgId, d); };
   const edit = (i: number, field: "accountCode" | "accountName", value: string) => {
-    const next = { base: draft?.base ?? revision, rows: rows.map((r, j) => (j === i ? { ...r, [field]: value } : r)) };
-    setDraft(next);
-    writeDraft(next);
+    keep({ orgId, base: draft?.base ?? currentBase, rows: rows.map((r, j) => (j === i ? { ...r, [field]: value } : r)) });
+    setConfirmDiscard(false);
   };
-  const discard = () => { setDraft(null); writeDraft(null); setRestored(false); setMsg(null); };
+  const discard = () => { keep(null); setRestored(false); setConfirmDiscard(false); setMsg(null); };
+  // The draft is stale when the saved mapping is not exactly the one it started from (not only a different number).
+  const stale = !!draft && !sameBase(draft.base, currentBase);
+  // Rows where the saved mapping changed since the draft's base, or where you changed something.
+  const diff = draft ? keys.map((k) => {
+    const base = draft.base.rows.find((r) => r.accountKey === k), theirs = currentBase.rows.find((r) => r.accountKey === k), yours = rows.find((r) => r.accountKey === k);
+    return { k, base, theirs, yours, theirsChanged: !sameRow(base, theirs), yoursChanged: !sameRow(base, yours) };
+  }).filter((d) => d.theirsChanged || d.yoursChanged) : [];
+  /** Re-apply your changes on top of the saved mapping: your edited rows win, every other row takes the saved value. Still needs Save. */
+  const reapply = () => {
+    const merged = keys.map((k) => { const d = diff.find((x) => x.k === k); return d?.yoursChanged ? d.yours! : currentBase.rows.find((r) => r.accountKey === k)!; });
+    keep({ orgId, base: currentBase, rows: merged });
+    setMsg({ text: `Your changes were re-applied on top of revision ${revision}. Review them, then save.` });
+  };
   const entries: AccountMappingEntry[] = rows.filter((r) => r.accountCode.trim() || r.accountName.trim()).map((r) => ({ accountKey: r.accountKey, accountCode: r.accountCode.trim(), accountName: r.accountName.trim() }));
   const settled = useSettled(JSON.stringify(entries));
-  const base = draft?.base ?? revision;
-  const action = { type: "set_account_mapping", entries: JSON.parse(settled) as AccountMappingEntry[], expectedRevision: base } as const;
-  const dry = preview(action);
-  const conflict = !dry.ok && dry.error.message.startsWith("MAPPING_REVISION_CONFLICT");
-  const gSave: Gate = !draft ? { ok: false, reason: "No changes to save." } : gateOf(dry, ws);
+  const base = draft?.base.revision ?? revision;
+  const dry = preview({ type: "set_account_mapping", entries: JSON.parse(settled) as AccountMappingEntry[], expectedRevision: base });
+  const gSave: Gate = !draft ? { ok: false, reason: "No changes to save." }
+    : stale && dry.ok ? { ok: false, reason: `The saved mapping changed since you started editing (now revision ${revision}). Re-apply your changes on it, or discard them.` }
+    : gateOf(dry, ws);
   const used = new Set(v.proposals.filter((p) => p.status === "proposed" || p.status === "approved").flatMap((p) => p.lines.map((l) => l.accountKey)));
-  const save = () => run(`Save account mapping (revision ${base} → ${base + 1})`, { type: "set_account_mapping", entries, expectedRevision: base }, { onOk: () => { setDraft(null); writeDraft(null); setRestored(false); } });
+  const save = () => run(`Save account mapping (revision ${base} → ${base + 1})`, { type: "set_account_mapping", entries, expectedRevision: base }, { onOk: () => { keep(null); setRestored(false); } });
+  const roleOf = (k: string) => (k.startsWith("bank:") ? `${label("accountRole", "bank")} ${k.slice(5)}` : label("accountRole", k));
+  const cell = (r?: Row) => (r && (r.accountCode || r.accountName) ? <><span className="mono">{r.accountCode || "—"}</span> {r.accountName}</> : <em>not mapped</em>);
+  const discardControl = (labelText: string) => confirmDiscard ? (
+    <span className={ui.actions} role="group" aria-label="Confirm discarding your changes" data-testid="discard-confirm">
+      <span>Discard your unsaved mapping changes?</span>
+      <Btn size="small" onClick={discard}>Yes, discard them</Btn>
+      <Btn size="small" kind="ghost" onClick={() => setConfirmDiscard(false)}>Keep editing</Btn>
+    </span>
+  ) : <Btn size="small" onClick={() => setConfirmDiscard(true)}>{labelText}</Btn>;
   return (
     <Panel title="Chart-of-accounts mapping" id="mapping">
       <div className={ui.panelBody}>
-        <p style={{ marginTop: 0 }}>Map each Clearline account role to an account code in your own chart of accounts (fictional codes in the sandbox). Each role needs its own code. A role an entry uses but that is not mapped blocks the journal export. Leave both fields empty to leave a role unmapped.</p>
-        <p className={ui.hint} data-testid="mapping-revision">{current ? <>Saved revision <strong>{current.revision}</strong> by {actorName(current.updatedBy)}, {fmtTime(current.updatedAt)}.</> : "No mapping saved yet."}{draft && <> Editing from revision <strong>{draft.base}</strong>; not saved yet.</>}</p>
-        {restored && draft && <Notice info>Your unsaved changes from this tab were kept (based on revision {draft.base}).</Notice>}
-        {conflict && draft && (
+        <p style={{ marginTop: 0 }}>Map each Clearline account role to an account code in your own chart of accounts (fictional codes in the sandbox). Each role needs its own code. A role an entry uses but that is not mapped blocks approval and the journal export. Leave both fields empty to leave a role unmapped.</p>
+        <p className={ui.hint} data-testid="mapping-revision">{current ? <>Saved revision <strong>{current.revision}</strong> by {actorName(current.updatedBy)}, {fmtTime(current.updatedAt)}.</> : "No mapping saved yet."}{draft && <> Editing from revision <strong>{draft.base.revision}</strong>; not saved yet.</>}</p>
+        {restored && draft && !stale && <Notice info>Your unsaved changes from this tab were kept (based on revision {draft.base.revision}).</Notice>}
+        {stale && draft && (
           <div className={ui.notice} role="alert" data-testid="mapping-conflict">
-            <p style={{ margin: "0 0 6px" }}><strong>The mapping changed since you started editing.</strong> {label("bridgeReason", "MAPPING_REVISION_CONFLICT")} <span className="mono">{dry.ok ? "" : dry.error.message}</span></p>
-            <Btn size="small" onClick={discard}>Discard my changes and load revision {revision}</Btn>
+            <p style={{ margin: "0 0 6px" }}><strong>The mapping changed since you started editing.</strong> {label("bridgeReason", "MAPPING_REVISION_CONFLICT")} You started from revision {draft.base.revision}; the saved mapping is revision {revision}.{!dry.ok && <> <span className="mono">{dry.error.message}</span></>}</p>
+            <div className={ui.tableWrap} role="group" tabIndex={0} aria-label="Mapping differences: saved and yours">
+              <table className={`${ui.table} ${ui.stack}`} data-testid="mapping-diff">
+                <thead><tr><th>Account role</th><th>When you started (revision {draft.base.revision})</th><th>Saved now (revision {revision})</th><th>Yours</th></tr></thead>
+                <tbody>{diff.map((d) => (
+                  <tr key={d.k} data-account-key={d.k}>
+                    <td data-label="Account role">{roleOf(d.k)}{d.theirsChanged && d.yoursChanged && <span className={ui.sub}><Chip tone="warn">Changed in both</Chip> yours is kept if you re-apply</span>}</td>
+                    <td data-label="When you started">{cell(d.base)}</td>
+                    <td data-label="Saved now">{cell(d.theirs)}{d.theirsChanged && <span className={ui.sub}>changed since</span>}</td>
+                    <td data-label="Yours">{cell(d.yours)}{d.yoursChanged && <span className={ui.sub}>your change</span>}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+            <div className={ui.actions} style={{ marginTop: 8 }}>
+              <Btn size="small" onClick={reapply}>Re-apply my changes on revision {revision}</Btn>
+              {discardControl(`Discard my changes and load revision ${revision}`)}
+            </div>
           </div>
         )}
       </div>
@@ -145,7 +194,7 @@ function MappingEditor() {
           <table className={`${ui.table} ${ui.stack}`}>
             <thead><tr><th>Account role</th><th>Account code</th><th>Account name</th><th>State</th></tr></thead>
             <tbody>{rows.map((r, i) => {
-              const role = r.accountKey.startsWith("bank:") ? `${label("accountRole", "bank")} ${r.accountKey.slice(5)}` : label("accountRole", r.accountKey);
+              const role = roleOf(r.accountKey);
               const mapped = !!(r.accountCode.trim() || r.accountName.trim());
               return (
                 <tr key={r.accountKey} data-account-key={r.accountKey}>
@@ -162,7 +211,7 @@ function MappingEditor() {
           <Status msg={msg} />
           <div className={ui.actions} style={{ alignItems: "flex-start" }}>
             <div data-testid="mapping-save-gate"><ActionButton type="submit" size="small" gate={gSave} name="Save mapping">Save mapping</ActionButton></div>
-            {draft && !conflict && <Btn size="small" onClick={discard}>Discard changes</Btn>}
+            {draft && !stale && discardControl("Discard changes")}
           </div>
         </div>
       </form>

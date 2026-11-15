@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { existsSync, readFileSync } from "node:fs";
+import { createHmac } from "node:crypto";
 
 /*
  * rc4 Accounting Bridge in the console: every bridge action, each engine-gated with a dry run, including the
@@ -289,6 +290,95 @@ test("G1: a contradictory provider event withdraws the entry; it is listed as no
   await expect(page.getByTestId("propose-gate").getByRole("button", { name: "Propose entries" })).toBeDisabled();
 });
 
+async function postFirstEntryOf(page: Page, intentId: string, ref: string) {
+  await open(page, `/clearline/accounting?payment=${intentId}`);
+  const row = entries(page).first();
+  const id = (await row.getAttribute("data-proposal"))!;
+  await approveAs(page, await review(page, row), "usr_daniel");
+  await tab(page, "Exports");
+  await page.locator("#journal li", { hasText: "2026-11" }).getByRole("button", { name: /^Export journal/ }).click();
+  await expect(page.locator("#journal").getByRole("status")).toContainText("recorded by the engine");
+  if (ref) {
+    await page.goto(`/clearline/accounting#${id}`);
+    await hydrated(page);
+    const rv = page.locator(`[data-testid="proposal-review"][data-proposal="${id}"]`);
+    await rv.getByLabel("External ledger reference").fill(ref);
+    await rv.getByTestId("posting-gate").getByRole("button", { name: "Record posting" }).click();
+    await expect(rv.getByRole("status")).toContainText("Record posting — recorded by the engine");
+  }
+  return id;
+}
+
+test("M1: a posted entry whose payout is then returned never reads “supplier paid” — table and payment page say what changed", async ({ page, request }) => {
+  const r = await request.get("/api/clearline/test/v1/intents", { headers: { Authorization: "Bearer cl_test_demo" } });
+  const s1 = ((await r.json()).data as { id: string; scenario?: string }[]).find((i) => i.scenario === "s1_success")!.id;
+  const id = await postFirstEntryOf(page, s1, "JE-2026-11-0101");
+  await open(page, `/clearline/accounting?payment=${s1}`);
+  await expect(page.locator(`#entries tr[data-proposal="${id}"]`).getByTestId("supplier-paid")).toHaveAttribute("data-shows-paid", "true");
+  // The provider then reports the payout returned: a signed sandbox webhook (the sandbox secret is public).
+  const ws = JSON.parse((await page.evaluate(() => localStorage.getItem("clearline.console.workspace.v1")))!);
+  const ins = ws.instructions.find((x: { intentId: string }) => x.intentId === s1);
+  const seq = Math.max(0, ...ws.providerEvents.filter((e: { intentId?: string }) => e.intentId === s1).map((e: { sequence: number }) => e.sequence)) + 1;
+  const rawBody = JSON.stringify({ id: `${ins.providerPaymentId}-RET`, type: "payout.returned", provider_payment_id: ins.providerPaymentId, sequence: seq, occurred_at: ws.asOf, reason: "beneficiary_account_invalid" });
+  const t = Math.floor(Date.parse(ws.asOf) / 1000);
+  const sig = `t=${t},v1=${createHmac("sha256", `test_whsec_${ins.providerId}_public_example`).update(`${t}.${rawBody}`).digest("hex")}`;
+  const res = await request.post("/api/clearline/test/v1/events/webhook", { headers: { Authorization: "Bearer cl_test_demo" }, data: { workspace: ws, providerId: ins.providerId, rawBody, signatureHeader: sig } });
+  const j = await res.json();
+  expect(res.ok(), JSON.stringify(j.error)).toBe(true);
+  expect(j.workspace.intents.find((i: { id: string }) => i.id === s1).status.execution).toBe("returned");
+  await page.evaluate((text) => localStorage.setItem("clearline.console.workspace.v1", text), JSON.stringify(j.workspace));
+  await open(page, `/clearline/accounting?payment=${s1}`);
+  const row = page.locator(`#entries tr[data-proposal="${id}"]`);
+  await expect(row.getByTestId("proposal-status")).toHaveAttribute("data-api-value", "posted");
+  const paid = row.getByTestId("supplier-paid");
+  await expect(paid).toHaveAttribute("data-shows-paid", "false");
+  await expect(paid).toContainText("Showed the supplier as paid when exported — payout since: provider reports returned");
+  await expect(paid).not.toContainText(/^Shows the supplier as paid/);
+  await expect(row.getByTestId("evidence-changed")).toContainText("Evidence changed after export");
+  // The payment's accounting outcome says the same.
+  await open(page, `/clearline/payments/${s1}`);
+  const out = page.getByTestId("accounting-outcome").locator(`tr[data-proposal="${id}"]`);
+  await expect(out.getByTestId("supplier-paid")).toContainText("Showed the supplier as paid when exported — payout since: provider reports returned");
+  await expect(out.getByTestId("evidence-changed")).toBeVisible();
+  await expect(page.getByTestId("accounting-outcome").locator('[data-testid="supplier-paid"][data-shows-paid="true"]')).toHaveCount(0);
+  // Proposing again adds the reversal, and the row names it.
+  await open(page, "/clearline/accounting");
+  await page.getByTestId("propose-gate").getByRole("button", { name: "Propose entries" }).click();
+  await expect(page.locator(`#entries tr[data-proposal="${id}"]`).getByTestId("supplier-paid")).toContainText("a reversal is proposed (jp_");
+  await expect(page.locator('#entries tr[data-rule="JR_REVERSAL"]')).toHaveCount(1);
+});
+
+test("M1: an exported entry whose payout evidence is then contradicted (G1) reads what it showed and what changed", async ({ page, request }) => {
+  const r = await request.get("/api/clearline/test/v1/intents", { headers: { Authorization: "Bearer cl_test_demo" } });
+  const s1 = ((await r.json()).data as { id: string; scenario?: string }[]).find((i) => i.scenario === "s1_success")!.id;
+  const id = await postFirstEntryOf(page, s1, "");
+  await open(page, `/clearline/payments/${s1}`);
+  await page.locator("#inv-inj").selectOption("contradictory");
+  await page.locator("#simulate").getByRole("button", { name: "Simulate next provider event" }).click();
+  await expect(page.locator("#simulate").getByRole("status")).toContainText("recorded by the engine");
+  const out = page.getByTestId("accounting-outcome").locator(`tr[data-proposal="${id}"]`);
+  await expect(out.getByTestId("proposal-status")).toHaveAttribute("data-api-value", "exported");
+  await expect(out.getByTestId("supplier-paid")).toContainText("Showed the supplier as paid when exported — settlement evidence since contradicted");
+  await expect(out.getByTestId("supplier-paid")).toHaveAttribute("data-shows-paid", "false");
+  await open(page, "/clearline/accounting");
+  await expect(page.locator(`#entries tr[data-proposal="${id}"]`).getByTestId("evidence-changed")).toBeVisible();
+});
+
+test("m2: every Accounting tab, both export panels and the payment's outcome say the posting rules are not signed off", async ({ page, request }) => {
+  const NOTE = "Sandbox posting rules, pending founder sign-off — review with your accountant before using this file.";
+  for (const p of ["/clearline/accounting", "/clearline/accounting/setup"]) {
+    await open(page, p);
+    await expect(page.getByTestId("rules-note").first()).toContainText(NOTE);
+  }
+  await open(page, "/clearline/accounting/exports");
+  await expect(page.locator("#journal").getByTestId("rules-note")).toContainText(NOTE);
+  await expect(page.locator("#reconciliation-export").getByTestId("rules-note")).toContainText(NOTE);
+  const r = await request.get("/api/clearline/test/v1/intents", { headers: { Authorization: "Bearer cl_test_demo" } });
+  const s2 = ((await r.json()).data as { id: string; scenario?: string }[]).find((i) => i.scenario === "s2_returned")!.id;
+  await open(page, `/clearline/payments/${s2}`);
+  await expect(page.getByTestId("accounting-outcome").getByTestId("rules-note")).toContainText(NOTE);
+});
+
 test("journal export: refused with nothing approved; downloads CSV and JSON marked fictional and not posted", async ({ page }) => {
   await open(page, "/clearline/accounting/exports");
   await expect(page.getByTestId("export-marking")).toContainText("Clearline has posted nothing");
@@ -417,6 +507,11 @@ test("mapping: an invalid code is refused field by field; two roles on one code 
   await expect(page.getByTestId("mapping-save-gate")).toContainText("used for two roles");
   await expect(page.getByTestId("mapping-save-gate").getByRole("button", { name: "Save mapping" })).toBeDisabled();
   await page.getByRole("button", { name: "Discard changes" }).click();
+  // Discarding asks first; "Keep editing" keeps the draft.
+  await page.getByTestId("discard-confirm").getByRole("button", { name: "Keep editing" }).click();
+  await expect(page.getByTestId("mapping-save-gate")).not.toContainText("No changes to save.");
+  await page.getByRole("button", { name: "Discard changes" }).click();
+  await page.getByTestId("discard-confirm").getByRole("button", { name: "Yes, discard them" }).click();
   await expect(page.getByTestId("mapping-save-gate")).toContainText("No changes to save.");
 });
 
@@ -440,9 +535,63 @@ test("mapping: a revision conflict from another tab is refused with the engine's
   await expect(conflict).toContainText("The account mapping changed since you loaded it");
   await expect(conflict).toContainText("MAPPING_REVISION_CONFLICT");
   await expect(page.getByTestId("mapping-save-gate").getByRole("button", { name: "Save mapping" })).toBeDisabled();
+  // Theirs and yours side by side.
+  const diffRow = conflict.getByTestId("mapping-diff").locator('tr[data-account-key="suspense"]');
+  await expect(diffRow).toContainText("changed in another tab");
+  await expect(diffRow).toContainText("1998");
   await conflict.getByRole("button", { name: "Discard my changes and load revision 2" }).click();
+  await conflict.getByTestId("discard-confirm").getByRole("button", { name: "Yes, discard them" }).click();
   await expect(code(page)).toHaveValue("1999");
   await expect(page.getByTestId("mapping-revision")).toContainText("Saved revision 2");
+});
+
+test("mapping: a conflict can be resolved keeping your edits — re-applied on the new revision, still saved by you", async ({ page, context }) => {
+  await open(page, "/clearline/accounting/setup");
+  const row = (p: Page, k: string) => p.locator(`#mapping > form tr[data-account-key="${k}"]`);
+  await row(page, "suspense").getByLabel(/Account code for/).fill("1998");
+  const other = await context.newPage();
+  await open(other, "/clearline/accounting/setup");
+  await row(other, "supplier_payable").getByLabel(/Account name for/).fill("Trade payables (changed in another tab, fictional)");
+  await other.getByTestId("mapping-save-gate").getByRole("button", { name: "Save mapping" }).click();
+  await expect(other.locator("#mapping").getByRole("status")).toContainText("recorded by the engine");
+  await other.close();
+  await page.reload();
+  await hydrated(page);
+  const conflict = page.getByTestId("mapping-conflict");
+  await expect(conflict.getByTestId("mapping-diff").locator("tbody tr")).toHaveCount(2);
+  await conflict.getByRole("button", { name: "Re-apply my changes on revision 2" }).click();
+  await expect(conflict).toHaveCount(0);
+  await expect(row(page, "suspense").getByLabel(/Account code for/)).toHaveValue("1998");
+  await expect(row(page, "supplier_payable").getByLabel(/Account name for/)).toHaveValue("Trade payables (changed in another tab, fictional)");
+  await expect(page.getByTestId("mapping-revision")).toContainText("Editing from revision 2");
+  await page.getByTestId("mapping-save-gate").getByRole("button", { name: "Save mapping" }).click();
+  await expect(page.locator("#mapping").getByRole("status")).toContainText("(revision 2 → 3) — recorded by the engine");
+  await expect(page.getByTestId("mapping-revision")).toContainText("Saved revision 3");
+});
+
+test("mapping: a draft is never saved over a different mapping with the same revision number", async ({ page, context }) => {
+  // This tab saves revision 2, then keeps editing (draft based on that revision 2).
+  await open(page, "/clearline/accounting/setup");
+  const code = (p: Page) => p.locator('#mapping > form tr[data-account-key="suspense"]').getByLabel(/Account code for/);
+  await code(page).fill("1998");
+  await page.getByTestId("mapping-save-gate").getByRole("button", { name: "Save mapping" }).click();
+  await expect(page.getByTestId("mapping-revision")).toContainText("Saved revision 2");
+  await code(page).fill("1997");
+  // Another tab resets the workspace and saves a different revision 2.
+  const other = await context.newPage();
+  await open(other, "/clearline/settings");
+  await other.getByRole("button", { name: "Reset to sample" }).click();
+  await open(other, "/clearline/accounting/setup");
+  await other.locator('#mapping > form tr[data-account-key="suspense"]').getByLabel(/Account name for/).fill("Suspense (another workspace, fictional)");
+  await other.getByTestId("mapping-save-gate").getByRole("button", { name: "Save mapping" }).click();
+  await expect(other.getByTestId("mapping-revision")).toContainText("Saved revision 2");
+  await other.close();
+  await page.reload();
+  await hydrated(page);
+  // Same revision number, different mapping: the draft is treated as stale and cannot be saved over it.
+  await expect(page.getByTestId("mapping-conflict")).toBeVisible();
+  await expect(page.getByTestId("mapping-save-gate").getByRole("button", { name: "Save mapping" })).toBeDisabled();
+  await expect(page.getByTestId("mapping-save-gate")).toContainText("The saved mapping changed since you started editing");
 });
 
 test("propose entries: refused with nothing new; a provider settlement report gives no entry", async ({ page }) => {
