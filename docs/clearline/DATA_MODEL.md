@@ -168,6 +168,11 @@ Result: `investigate().returnPosition` = `RT_NET_ZERO` (debited = return credite
 - **Decisions name actors with the required role (L2).** `Instruction.makerId` is an operator or approver and `.checkerId` an approver other than the maker. `FundingDecision.makerId` is an operator and `.checkerId` an approver other than the maker. `Hold.reviewerId` and each `Hold.decisions[].reviewerId` are compliance reviewers, and each decision is `release`, `reject` or `request_more`. An accepted difference's `resolution.actorId` and `secondApproval.approvedBy` are staff. All must exist in `actors`. A workspace that breaks this is refused.
 - **Payment allocations have an engine-produced shape (fifth check R5-m1).** An allocation with `evidenceKind: "statement_line"` and `target.kind: "payment"` comes from a line in the payout's source currency that carries the payout's provider payment id as a reference token. The line is either a `bank_statement` debit of kind `payment`, or (with code `RC_RETURN_CONFIRMS_PROVIDER_RETURN`) a `return` or `reversal` line. A workspace that breaks this is refused. Forged evidence records of a valid shape are not detected.
 
+## Rules added after the rc4 QA/security pass (CHANGE 19, 2026-11-15)
+
+- **Repayment allocations** have the shape reconcileIncoming produces: a credit payment line in the obligation's currency whose reference carries that obligation's (and only that obligation's) repayment reference. Anything else is refused on load.
+- **Chain observation status** is re-derived from confirmations on load (rule H, `chain_status_exceeds_confirmations`): a higher stored status is moved down and reported; the bridge requires final-by-confirmations.
+
 ## Rules added after the accounting re-review (CHANGE 17, 2026-11-15)
 
 - **Load compatibility (R1).** A self-consistent proposed / approved entry that the current posting rules derive differently is superseded on load (`SP_RULES_CHANGED`, WorkspaceMigration `journal_proposal_superseded` with `proposalId`); exported and posted entries are never altered. Only records that contradict their own evidence or each other are refused.
