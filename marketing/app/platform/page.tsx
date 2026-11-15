@@ -8,9 +8,21 @@ import { pageMeta } from "@/lib/meta";
 
 export const metadata = pageMeta(
   "Platform",
-  "How Clearline is structured: Connect sends instructions, Control follows the outcome, and both write to one shared payment record with separate execution, settlement and reconciliation statuses.",
+  "How Clearline is structured: one payment lifecycle from intent to accounting outcome. Connect sends instructions, Control follows the outcome and its Accounting Bridge proposes the journal entries the evidence supports. Sandbox, fictional data.",
   "/platform",
 );
+
+/** The rc4 lifecycle (docs/strategy/CLEARLINE_PRODUCT_STRATEGY_RC4.md §2), as the sandbox implements it today. */
+const LIFECYCLE: [string, string, string][] = [
+  ["Connect", "Intent", "Amount in minor units, beneficiary, idempotency key."],
+  ["Connect", "Route", "Indicative quotes from every route, eligible or not, and a maker–checker choice."],
+  ["Connect", "Execution report", "What the provider says. Recorded as a claim, never as settlement."],
+  ["Control", "Evidence", "Bank statement lines and Clearline's own chain observations: independent evidence."],
+  ["Control", "Reconciliation", "Allocation by trusted reference, amount, currency and value-date window."],
+  ["Control", "Exception", "Whatever disagrees, with a due date; a person assigns the owner."],
+  ["Control", "Resolution", "Engine-gated: a note, the evidence the exception needs, and an owner."],
+  ["Control · Accounting", "Accounting outcome", "Proposed journal entries from the evidence, under sandbox posting rules, approved by a second person and exported as a file. Clearline posts nothing."],
+];
 
 const rules: [string, ReactNode][] = [
   ["A provider report is a claim.", <>&ldquo;Completed&rdquo; is recorded as <code>provider_reported_completed</code>. On its own it never sets settlement <code>verified</code> or reconciliation <code>matched</code>, and a provider report on a failed or returned payout is a contradiction (<code>RC_REPORT_ON_TERMINAL_PAYOUT</code>).</>],
@@ -27,10 +39,20 @@ export default function Platform() {
       <PageHero eyebrow="Platform" title={<>Two products. <em>One payment record.</em></>}
         stages={["synthetic", "none"]}
         actions={<><ButtonLink href={SOFTWARE_URL} main>Open the test-mode console</ButtonLink><ButtonLink href="/developers" variant="secondary">Read the status model</ButtonLink></>}>
-        <p>Connect handles the instruction side. Control handles everything after submission. Both read and write the same record, so an operator, a finance lead and an engineer look at one account of what happened.</p>
+        <p>Connect handles the instruction side. Control handles everything after submission, through to the accounting outcome. Both read and write the same record, so an operator, a finance lead and an engineer look at one account of what happened.</p>
       </PageHero>
 
-      <Section tone="white" eyebrow="Architecture" title="Sources in, one record, work out"
+      <Section id="lifecycle" tone="white" eyebrow="One lifecycle" title={<>From intent <em>to accounting outcome.</em></>}
+        intro={<p>A provider&rsquo;s &ldquo;completed&rdquo; is a claim. Clearline carries each payment past that claim: to the evidence, to the record that matches it, to the exception a person resolves, and to the journal entry an accountant can review.</p>}>
+        <ol className="lifecycle">
+          {LIFECYCLE.map(([owner, step, text], i) => (
+            <li key={step}><span className="idx">{String(i + 1).padStart(2, "0")}</span><div><span className="flow-owner">{owner}</span><b>{step}</b><p>{text}</p></div></li>
+          ))}
+        </ol>
+        <p className="caption" style={{ marginTop: 16 }}>Every step runs in the sandbox on fictional data. The differentiation this lifecycle is meant to provide has not been proven with customers; Clearline has none yet.</p>
+      </Section>
+
+      <Section tone="canvas" eyebrow="Architecture" title="Sources in, one record, work out"
         intro={<p>Every entry on the record keeps its source and what kind of evidence it is. Nothing is upgraded from &ldquo;reported&rdquo; to &ldquo;verified&rdquo; without evidence.</p>}>
         <div className="arch" role="group" aria-label="Clearline architecture">
           <div className="arch-col">
@@ -60,12 +82,13 @@ export default function Platform() {
             <div className="arch-box"><b>Liquidity</b><span className="caption">Free balance net of restricted amounts</span></div>
             <div className="arch-box"><b>Holds and exceptions</b><span className="caption">Owner and requested action</span></div>
             <div className="arch-box"><b>Funding Desk</b><span className="caption">Specialist funding workflow: payment ↔ advance ↔ repayment, through a tested projection</span></div>
+            <div className="arch-box"><b>Accounting Bridge</b><span className="caption">Proposed journal entries from evidence, maker ≠ checker, exported as a file; posts nothing</span><Stage kind="synthetic" /></div>
           </div>
         </div>
         <p className="caption" style={{ marginTop: 16 }}>Stage labels describe today. In the sandbox engine a funded payout is linked to its advance, treasury approval and repayment obligation through a tested projection. That is a projection over the sandbox workspace, not a shared production ledger.</p>
       </Section>
 
-      <Section eyebrow="Why three statuses" title="Reported, evidenced and matched are different facts"
+      <Section tone="white" eyebrow="Why three statuses" title="Reported, evidenced and matched are different facts"
         intro={<p>A single &ldquo;status&rdquo; column hides the question a CFO actually asks: do we know, or were we told? Clearline keeps three fields and gives each its own visual style.</p>}>
         <dl className="three-status">
           <div><dt><span className="label">execution</span><ExecStatus state="provider_reported_completed" /></dt><dd>What the payment&rsquo;s state machine says, driven by Connect and provider events. &ldquo;Completed&rdquo; is recorded as a provider claim.</dd></div>
@@ -74,7 +97,7 @@ export default function Platform() {
         </dl>
       </Section>
 
-      <Section tone="white" eyebrow="The seeded sandbox" title="Five scenarios, as the sandbox engine holds them"
+      <Section tone="canvas" eyebrow="The seeded sandbox" title="Five scenarios, as the sandbox engine holds them"
         intro={<p>A provider &ldquo;completed&rdquo; report alone never sets settlement <code className="inline">verified</code>. In s1 and s5 a fictional bank-statement debit was matched, so settlement is <code className="inline">verified</code> with scope <code className="inline">bank_statement</code>. In s4 the testnet transfer has 6 of 12 confirmations, so it stays <code className="inline">pending_finality</code>.</p>}>
         <PaymentsTable />
         <p style={{ marginTop: 24 }}><Link className="text-link" href="/developers#status-model">Full status model and transitions</Link></p>

@@ -38,7 +38,7 @@ export default function Home() {
             <p>One payment. Three independent questions: what the provider reported, what the evidence proves, and whether the records match.</p>
           </div>
           <InvestigationView />
-          <p className="iv-caption">Real Clearline sandbox interface with fictional records. <ExtLink href={TRIAL_URL}>Open the interactive walkthrough</ExtLink>.</p>
+          <p className="iv-caption">The console&rsquo;s investigation page, rendered from the Clearline sandbox engine&rsquo;s fictional records, through to its accounting outcome. <ExtLink href={TRIAL_URL}>Open the interactive walkthrough</ExtLink>.</p>
         </div>
       </section>
 

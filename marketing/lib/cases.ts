@@ -20,3 +20,29 @@ export const CONSOLE_TOOLS: { title: string; text: string }[] = [
   { title: "Reset one case", text: "Reset a single case to its starting state; the other cases and anything you created stay. If one of your records depends on that case, the reset is refused with the reason. You can also reset the whole workspace." },
   { title: "Simulated roles", text: "Switch role to act as maker, checker or compliance reviewer. Every switch says \"Simulated role — not sign-in or access control\"." },
 ];
+
+/**
+ * The rc4 journey through the console: 18 steps from a payment to its accounting outcome and audit history
+ * (rc4/clearline-app @ a132340, tests/browser/clearline-journey.spec.ts "founder rc4 journey: all 18 steps").
+ * Steps 10–12 use the sample's returned-payout exception. Everything is fictional and stays in the browser.
+ */
+export const JOURNEY: { area: "Connect" | "Control" | "Accounting" | "Console"; step: string }[] = [
+  { area: "Connect", step: "Create a synthetic payment." },
+  { area: "Connect", step: "Compare indicative quotes." },
+  { area: "Connect", step: "Select an eligible route." },
+  { area: "Connect", step: "Record a simulated approval by a different person." },
+  { area: "Connect", step: "Submit the instruction." },
+  { area: "Connect", step: "Receive provider events." },
+  { area: "Control", step: "Open the investigation: the provider's report alone gives no journal entry." },
+  { area: "Control", step: "Record settlement evidence: the bank debit, by the provider's payment reference." },
+  { area: "Control", step: "Reconcile: the line matches the payment by reference." },
+  { area: "Control", step: "Find an exception and its owner." },
+  { area: "Control", step: "Assign it to another person." },
+  { area: "Control", step: "Resolve it with evidence and a note, once the engine allows it." },
+  { area: "Control", step: "View funding exposure." },
+  { area: "Control", step: "Inspect the payment's case report." },
+  { area: "Accounting", step: "Propose entries, map the new bank account and download the reconciliation export." },
+  { area: "Accounting", step: "Approve the entry as a different person, export the journal and record the reference from your ledger." },
+  { area: "Console", step: "Inspect the audit history for the payment." },
+  { area: "Console", step: "Reset the workspace." },
+];
