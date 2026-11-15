@@ -40,7 +40,12 @@ export function bridgeCandidates(ws: Workspace, r: () => number): { actor: strin
   const prop = pick(proposals(ws).filter((p) => p.status === "proposed"));
   if (prop) out.push({ actor: pick(["usr_daniel", "usr_daniel", "usr_daniel", prop.createdBy, "usr_sam"])!, action: { type: "approve_journal_proposal", proposalId: prop.id } });
   const rej = pick(proposals(ws).filter((p) => ["proposed", "approved", "exported"].includes(p.status)));
-  if (rej && r() < 0.3) out.push({ actor: "usr_daniel", action: { type: "reject_journal_proposal", proposalId: rej.id, reason: "Not ours (fictional)" } });
+  if (rej && r() < 0.3) out.push({ actor: pick(["usr_daniel", "usr_maya"])!, action: { type: "reject_journal_proposal", proposalId: rej.id, reason: "Not ours (fictional)" } });
+  // rc4 review: rejecting reversals (refused while the reversal is required) and approving rebookings first (refused)
+  const rev = pick(proposals(ws).filter((p) => p.ruleCode === "JR_REVERSAL" && ["proposed", "approved"].includes(p.status)));
+  if (rev) out.push({ actor: "usr_daniel", action: { type: "reject_journal_proposal", proposalId: rev.id, reason: "Duplicate (fictional)" } });
+  const rebook = pick(proposals(ws).filter((p) => p.status === "proposed" && p.ruleCode !== "JR_REVERSAL" && proposals(ws).some((o) => o.sourceKey === p.sourceKey && o.id !== p.id && (o.status === "posted" || o.status === "exported"))));
+  if (rebook) for (let k = 0; k < 2; k++) out.push({ actor: "usr_daniel", action: { type: "approve_journal_proposal", proposalId: rebook.id } });
   const open = b?.periods.filter((p) => p.status === "open") ?? [];
   const withApproved = pick(open.filter((p) => proposals(ws).some((x) => x.periodId === p.id && x.status === "approved")));
   if (withApproved) for (let k = 0; k < 2; k++) out.push({ actor: "usr_maya", action: { type: "export_journal", periodId: withApproved.id } });
@@ -57,7 +62,7 @@ export function bridgeCandidates(ws: Workspace, r: () => number): { actor: strin
   }
   if (b?.mapping && r() < 0.1) {
     const drop = r() < 0.5 ? "provider_clearing" : "";
-    out.push({ actor: "usr_maya", action: { type: "set_account_mapping", entries: b.mapping.entries.filter((e) => e.accountKey !== drop).concat(drop ? [] : [{ accountKey: "provider_clearing", accountCode: "1300", accountName: "Provider clearing (fictional)" }].filter((e) => !b.mapping!.entries.some((x) => x.accountKey === e.accountKey))) } });
+    out.push({ actor: "usr_maya", action: { type: "set_account_mapping", expectedRevision: b.mapping.revision, entries: b.mapping.entries.filter((e) => e.accountKey !== drop).concat(drop ? [] : [{ accountKey: "provider_clearing", accountCode: "1300", accountName: "Provider clearing (fictional)" }].filter((e) => !b.mapping!.entries.some((x) => x.accountKey === e.accountKey))) } });
   }
   if (r() < 0.1) out.push({ actor: "usr_daniel", action: { type: "record_reconciliation_export", from: "2026-11-01", to: "2026-12-01" } });
   return out;

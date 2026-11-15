@@ -191,7 +191,7 @@ describe("journal export (generic CSV journal import)", () => {
     ws = r.workspace;
     const rec = ws.accounting!.exports.at(-1)!;
     expect(rec).toMatchObject({ kind: "journal", documentId: preview.documentId, sha256: preview.sha256, rowCount: 10, mappingRevision: 1 });
-    ws = run(ws, "usr_daniel", { type: "set_account_mapping", entries: ws.accounting!.mapping!.entries.map((e) => ({ ...e, accountCode: e.accountCode + "0" })) }).workspace;
+    ws = run(ws, "usr_daniel", { type: "set_account_mapping", expectedRevision: 1, entries: ws.accounting!.mapping!.entries.map((e) => ({ ...e, accountCode: e.accountCode + "0" })) }).workspace;
     const again = ok(buildJournalExport(ws, { exportId: rec.id }));
     expect(accountingExportToJson(again)).toBe(accountingExportToJson(preview));
     expect(journalExportToCsv(again)).toBe(journalExportToCsv(preview));
