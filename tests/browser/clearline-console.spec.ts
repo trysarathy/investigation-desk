@@ -59,7 +59,7 @@ async function connectToSubmitted(page: Page, ref: string, outcome = "success") 
 
 const SCENARIOS = ["s1_success", "s2_returned", "s3_hold", "s4_chain", "s5_funding"] as const;
 const NAV_EXPECTED: Record<string, [string, string][]> = {
-  Operations: [["Overview", "/clearline"], ["Payments", "/clearline/payments"], ["Investigations", "/clearline/investigations"], ["Reconciliation", "/clearline/reconciliation"], ["Treasury & Funding", "/clearline/treasury"]],
+  Operations: [["Overview", "/clearline"], ["Payments", "/clearline/payments"], ["Investigations", "/clearline/investigations"], ["Reconciliation", "/clearline/reconciliation"], ["Accounting", "/clearline/accounting"], ["Treasury & Funding", "/clearline/treasury"]],
   "Set-up and reference": [["Routes & Providers", "/clearline/routes"], ["Compliance Holds", "/clearline/holds"], ["Reports", "/clearline/reports"], ["Developers", "/clearline/docs"], ["Settings", "/clearline/settings"]],
 };
 const REDIRECTS: Record<string, string> = {
@@ -115,6 +115,9 @@ test.describe("Clearline console", () => {
       ["/clearline/routes/activity", "ConsoleRoutes & ProvidersProvider activity"],
       ["/clearline/routes/new", "ConsoleRoutes & ProvidersNew payment intent"],
       ["/clearline/trial", "ConsoleGuided trial"],
+      ["/clearline/accounting/setup", "ConsoleAccountingPeriods and mapping"],
+      ["/clearline/accounting/exports", "ConsoleAccountingExports"],
+      ["/clearline/reports/audit", "ConsoleReportsAudit history"],
     ] as const) {
       await open(page, href);
       await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toHaveText(crumbs);
@@ -368,7 +371,8 @@ test.describe("Clearline console", () => {
       await scenario(request, "s3_hold"), await scenario(request, "s4_chain"), await scenario(request, "s5_funding"),
       "/clearline/investigations", "/clearline/exceptions", "/clearline/routes/new", "/clearline/routes", "/clearline/routes/activity",
       "/clearline/docs", "/clearline/reconciliation", "/clearline/treasury", "/clearline/treasury/funding",
-      "/clearline/holds", "/clearline/reports", "/clearline/settings", "/clearline/trial"]) {
+      "/clearline/holds", "/clearline/reports", "/clearline/settings", "/clearline/trial",
+      "/clearline/accounting", "/clearline/accounting/setup", "/clearline/accounting/exports", "/clearline/reports/audit"]) {
       await open(page, path);
       await noHorizontalOverflow(page, path);
     }

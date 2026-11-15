@@ -22,6 +22,11 @@
 - Open liquidity and confirm restricted balances are subtracted from free cash, not presented as spendable.
 - Open Funding exposure: SGD 50,000.00 advanced, SGD 30,000.00 repaid by reference, SGD 20,000.00 outstanding; an
   unreferenced SGD 20,000.00 receipt stays an exception and does not close the balance.
+- Open **Accounting** (Operations, after Reconciliation): proposed journal entries from bank or final chain evidence only,
+  each balanced, with its evidence links. A returned payout reads "Supplier still unpaid — payable open"; the
+  unreferenced SGD 20,000.00 receipt gets no entry (amount-only match) and keeps its exception. Approve as a different
+  simulated person, export the journal file (CSV/JSON), then record the posting with the reference a person types.
+  Clearline posts nothing: "posted" is only that person's record, marked simulated. Then open Reports › Audit history.
 - Conclude on `/clearline/trial` with these questions: which exception is frequent; who owns it; what system is currently used; who would budget for a fix?
 
 ## Acceptable claims
@@ -30,7 +35,9 @@
 fields (execution, settlement evidence, reconciliation); fictional providers behind a typed adapter; signed sandbox
 webhooks with duplicate/out-of-order/contradiction handling; reference-based reconciliation with explained exceptions;
 liquidity with source and freshness; compliance holds that are never auto-released; Base Sepolia observation vs finality;
-a tested funding-exposure projection; a stateless test API (`/api/clearline/test/v1`) and OpenAPI document.
+a tested funding-exposure projection; an rc4 sandbox Accounting Bridge that proposes journal entries from evidence,
+needs a second person to approve, exports a generic CSV/JSON journal and records (never performs) a posting — its
+posting rules are not yet signed off by the founder and are under independent review; a stateless test API (`/api/clearline/test/v1`) and OpenAPI document.
 
 **Not built for live use:** licensed provider routing, real bank payout instructions, production keys, persistent multi-tenant server state, webhook delivery/retries, actual settlement attestations, compliance decisions, real chain data (the Base Sepolia evidence is synthetic), a shared production funding/Connect ledger, enterprise SSO, real financial data import to this new console.
 
