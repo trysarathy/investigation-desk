@@ -228,3 +228,129 @@ Minimum to re-review:
 - add tests killing M6, M11 and M17.
 
 Then F6–F8, then the Low items. The posting-rule decision for F1 needs Aashmiin.
+
+---
+
+# Re-review: CODE REVIEW: APPROVE 466d42a3b2247db1a4223af1e1f02e436da1c1c0 (CHANGE 16, rc4/wip-engine)
+
+APPROVAL-ONLY: needs Aashmiin's merge. The change alters posting rules, and the new F1 stablecoin rule is a sandbox decision that is still unsigned. Approval covers the engine diff `395db0f..rc4/wip-engine` in `src/lib/clearline`, `tests/clearline` and `docs/clearline`. I did not review the Connect adapter framework or the console Accounting UI in a132340.
+
+**In plain English:** The five blocking defects are fixed, and I could not get any of them to book wrong money again. Each fix has a test that fails on the old code.
+
+Seven non-blocking points remain:
+- one compatibility trap: saved workspaces with pending entries can become unloadable after a rule change;
+- one important but untested guard;
+- documentation gaps about what the stablecoin rule means in a single-currency ledger.
+
+None of them books wrong money. The stablecoin rule is double-entry sound per currency. It deliberately leaves the SGD/USDC conversion unresolved, and that is clearly marked. Aashmiin still has to sign it off.
+
+## What I ran
+
+All commands ran on a fresh frozen copy of 466d42a (`git archive`). I deleted the copy afterwards, along with a temporary a91dd11 copy.
+
+| Check | Result |
+|---|---|
+| `npx tsc --noEmit -p .` | exit 0 |
+| `npx vitest run tests/clearline` | 39 files, **732 passed** |
+| New `rc4-review-fixes.test.ts` run against the **a91dd11** engine (temporary copy) | **26 failed, 4 passed**. The 4 that pass are the M6, M9, M11 and M17 mutant-killers. They test behaviour that was already correct at a91dd11, so passing there is expected. Every F1–F13 test and every defence-in-depth test fails at a91dd11. |
+| My original probes (e1, e2, e5, e7, e8) at 466d42a | See the table below. |
+| New re-review probes (`review-probes/p-rereview.test.ts`) | P0–P3, described below. |
+| Mutants of CHANGE 16 (10 of mine, plus their 2 declared survivors) | 8 of 10 killed. N1 and N6 survive (gaps R2 and R3). F1b and F3a survive, as declared. |
+
+### My original probes now
+| Probe | a91dd11 | 466d42a |
+|---|---|---|
+| e7 (SGD→USDC stablecoin payout: bank debit + final chain) | supplier payable debited SGD 10,000 **and** USDC 7,438.38 | `JR_STABLECOIN_ONRAMP_FUNDING` Dr stablecoin_clearing SGD / Cr bank, then `JR_STABLECOIN_FINAL_TRANSFER` Dr supplier_payable USDC / Cr stablecoin_clearing. Payable cleared once. |
+| e1 (s4 USDC→USDC with a USDC custody debit) | payable +12,850.95 | payable +6,423.116085. Clearing keeps +4.713915 USDC, which is the fee, listed as `NP_PARTIAL_REMAINDER`. |
+| e1/E6 (debit-direction reversal on a returned payout) | booked as Dr bank | `exception_raised` (`RC_RETURN_LINE_IS_DEBIT`), no allocation, no entry. |
+| e2 (crafted approval with invented amounts) | loaded and exported | refused at load: "every line's amount and currency must equal its allocation's". |
+| e2/E3 (operator remaps after approval) | stale codes exported | refused correctly: `MAPPING_REVISION_CONFLICT` without `expectedRevision`. With it, the approval is superseded (`SP_MAPPING_CHANGED`; covered by their F6 test). |
+| e2/E4 and e5(2) (exporter withdraws the entry, then resets) | reset reused jp_00189 | refused correctly: `maker_checker_violation` for the exporter. With a different approver, the reset is refused (`ACCOUNTING_ENTRIES_RECORDED`; their F4 test). |
+| e5 (reject the reversal, post the rebooking) | bank −20,000, supplier "paid" | refused correctly: `REVERSAL_REQUIRED`. |
+| e8 (duplicate webhook after the chain entry is posted) | evidenceChange plus reversal | no flag, `no_new_proposals`. |
+
+## The points asked about
+
+**1. Each fix has a test that fails at a91dd11.** Yes (table above).
+- I ran the five defence-in-depth tests at a91dd11 as well, and they fail there too. ENGINE_API says they "were not run against a91dd11"; I ran them.
+- The widened `rc4-invariants` walk shares the same oracle as the implementation (`ledgerProblem`). It is not an independent check (see R6).
+
+**2. The F1 rule is sound double-entry; it is acceptable for the sandbox, flagged, but not fully documented.**
+- Both entries balance in their own currency (BigInt). Per currency:
+  - SGD: bank −X, stablecoin_clearing +X;
+  - USDC: supplier_payable +Y, stablecoin_clearing −Y.
+- Nothing nets across currencies, and no FX entry is invented. That is the honest result, given there is no rate evidence.
+- The open item is visible: `NP_FX_NOT_EVIDENCED` (with stablecoin-route wording), an unresolved `stablecoin_conversion` row with `counterAmount` in the reconciliation export, and the sign-off flag in both docs.
+- What the docs do **not** say (R5): for an SGD invoice, the bridge clears the supplier payable **in USDC**. In a single-functional-currency ledger, the accountant must translate that line and post the SGD-to-USDC difference by hand. Until then, stablecoin clearing shows an SGD debit balance next to a USDC credit balance.
+- `ACCOUNTING_BRIDGE.md:84` still says "The entry is in the currency that left the bank". That is no longer true on the stablecoin route.
+- This needs Aashmiin's sign-off. It is not a code defect.
+
+**3. F2 and rc3 data: works, but the guard is untested (R2).**
+- An rc3-shaped debit-direction return allocation (probe P0, crafted by flipping the stored line) loads with `migrations: []`. That holds both with and without `accounting`.
+- `propose` then gives no entry, only `NP_EVIDENCE_CONTRADICTED`.
+- But mutant N1 removes that derive guard (`derive.ts`, the `isReturn && line.direction !== "credit"` branch), and **all 227 rc4 tests still pass**. Under N1 the same probe proposes Dr bank 10,000 on the debit line again. The CHANGE 16 claim "still load … and give no entry" is true today but unprotected.
+
+**4. F3 cannot be forged at load or export, apart from the identity limit the docs now admit.**
+- Load now ties every non-reversal entry to exactly one allocation: same amount and currency, the line's own bank account, the side that matches its direction, and a payout or obligation link. It recomputes `basisHash` and requires pending entries to equal the current candidate.
+- An attacker who recomputes the SHA-256 still cannot change amounts, accounts or evidence.
+- Export re-derives as well. Its check never fires on its own; that is mutant F3a, below.
+- What remains forgeable is who approved or posted. The docs (`validate.ts` header, ENGINE_API CHANGE 16) now say so plainly.
+- A forged **posted** entry on old evidence is corrected rather than refused: probe P1 shows sync flags it, and the next `propose` adds its reversal.
+
+**5. The F5 and F7 reversal rules hold.**
+- The required reversal cannot be rejected (N4 killed).
+- A rebooking cannot be approved or exported before its reversal (N3 killed). The two can export together.
+- A withdrawn-after-export entry counts as in the ledger and is reversed (N9 killed). Only an approver who is not the exporter can withdraw it (N8 killed).
+- Design note (R4): probe P2 shows that an entry withdrawn because it was **never imported** still gets a reversal, and that reversal cannot be rejected. The entry is also never proposed again. Clearline's net (entry + reversal = 0) is right only if the accountant imports the reversal exactly when they imported the original. This is conservative and documented ("the file may already be imported"), but there is no "confirmed not imported" path.
+- A minor wording issue: `REVERSAL_REQUIRED` says "its evidence no longer gives it" for a withdrawn entry whose evidence is unchanged.
+
+**6. The F6 choice (a mapping change supersedes the approval) is sound.**
+- The approver re-approves exactly the codes that will be exported, and one file never mixes revisions.
+- Exported entries keep the codes in their export record.
+- Approval refuses unmapped keys, and `expectedRevision` is now required.
+- N5 (no supersession) and N10 (export does not compare codes) are both killed.
+
+**7. The declared survivors are confirmed.**
+- **F1b**, the `LEDGER_DOUBLE_COUNT` guard in propose: removing it passes 227 of 227. I agree it cannot fire.
+  - On the stablecoin rail, derive gives at most one payable-debiting entry per payout.
+  - The chain amount must equal the quote's `estimatedRecipientMinor` exactly (`chain.ts:209`), so the destination-currency bound cannot give a false positive.
+  - A legacy or crafted double posting is reversed in the same propose (P1).
+  - Keep it as defence in depth. Its one weakness: if it ever fires, the whole propose is refused, including the corrective reversal. When it next changes, prefer listing the problem over failing the action.
+- **F3a**, export re-derive: removing it passes 227 of 227. Equivalent: load refuses non-current pending entries, sync runs after every action and after `resetScenario`, and migrations run before validation. Keep it as defence in depth.
+
+**8. The widened random walk is real.** It now generates:
+- return and reversal lines in both directions;
+- SGD→USDC and USDC payouts with bank debits, plus chain observations;
+- resets after exports, rejected reversals and early approvals of rebookings.
+
+After every action it checks net-per-payout and bank-line limits, the debit side, and re-render-to-file-hash. The limit is R6: the net check calls the production `ledgerProblem`, which bounds each currency separately.
+
+**9. The docs are mostly accurate now.**
+- These are correct: the CHANGE 15 corrections ("checks were structural only"; "4 survived"), the identity caveat, the F4 and F10 wording, the column lists and the reversal rules.
+- These are not: R5 (the NP_FX row, and the payable cleared in USDC is undocumented), R1 (the load error says "No version of the engine produces this" for entries a91dd11 did produce), and the R2 claim, which is true but untested.
+
+## Remaining findings (all non-blocking)
+- **R1 (Medium): saved workspaces with pending entries become unloadable after a posting-rule change.**
+  - `validate.ts` refuses any proposed or approved entry that is not the current candidate.
+  - Probe P1: a workspace saved by a91dd11 with a *proposed* `JR_SUPPLIER_PAYOUT_DEBIT` on a stablecoin payout (re-hashed exactly as a91dd11 would have) is now refused with "No version of the engine produces this, so it was not repaired". Proposed chain entries saved at a91dd11 that list a duplicate event (F8) will be refused the same way.
+  - Every future rule change will repeat this.
+  - **Fix:** for entries that pass the evidence tie and the basis self-check but are no longer current, supersede them with a recorded reason (for example a versioned migration with `SP_EVIDENCE_CHANGED`) instead of refusing the load. Keep refusing entries that fail the tie or the hash. Correct the error message.
+- **R2 (Low): the derive guard for stored debit-direction return allocations is untested.** Mutant N1 survives. **Fix:** add a test with an rc3-shaped debit return allocation, like P0, and assert no entry plus `NP_EVIDENCE_CONTRADICTED`.
+- **R3 (Low): the "first reporting event only" rule for F8 is untested.** Mutant N6 (`derive.ts`, `.slice(0, 1)` removed) survives. No test has two `applied` or `recorded_no_state_change` events with the same tx hash. **Fix:** add one, for example a second `payout.completed` with another event id and the same hash.
+- **R4 (Low): no "withdrawn, confirmed not imported" path** (P2, above). **Fix:** let an approver attest "not imported", recorded in the audit. Then no reversal is required, and the entry may be proposed again.
+- **R5 (Low, docs; for Aashmiin): the F1 consequences are not spelled out.**
+  - **Fix:** in ACCOUNTING_BRIDGE §2, state that on the stablecoin route the payable is cleared in USDC, and that stablecoin clearing keeps an SGD debit next to a USDC credit until the accountant books the conversion.
+  - Correct the `NP_FX_NOT_EVIDENCED` row at line 84.
+  - Keep "flagged for Aashmiin's sign-off" next to the rule table row.
+- **R6 (Low): the payable bound is per currency, and the invariant is checked with the production function.**
+  - `ledgerProblem` would accept one payout cleared in full in SGD **and** in full in USDC. Derive cannot produce that today, so it matters only as defence in depth.
+  - **Fix:** allow at most one currency of payable clearing per payout. In `rc4-invariants`, add an independent check that does not reuse `ledgerProblem`, for example by counting payable-debiting standing or active entries per payout, net of their reversals.
+- **R7 (Low): `REVERSAL_REQUIRED` gives the wrong reason for withdrawn entries.** **Fix:** say "withdrawn after export" when that is the reason.
+
+## Summary
+APPROVE 466d42a (engine), approval-only.
+- F1–F13 are fixed. My probes now pass or are refused correctly, and each fix has a test that fails at a91dd11.
+- The two declared surviving mutants are equivalent in practice and worth keeping as defence in depth.
+- The F1 stablecoin rule is balanced per currency and honestly leaves the conversion unresolved. It needs Aashmiin's sign-off before it counts as a posting rule.
+- Next, in order: R1 (load compatibility), the R2 and R3 tests, then the R5 docs.
+- The Connect framework and the console UI in a132340 were not reviewed here.
