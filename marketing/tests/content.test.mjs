@@ -686,10 +686,10 @@ test("rc4 accounting: Clearline posts nothing, no ledger is connected, and the p
   for (const f of rc4Copy()) { const s = copyOnly(f).replace(/export const OUT_OF_SCOPE = "[^"]*";/, ""); for (const re of forbidden) assert.equal(re.test(s), false, f + " matches " + re); }
   const control = read("app/control/page.tsx"), dev = read("app/developers/page.tsx"), d = read("lib/disclosure.ts");
   assert.match(control, /id="accounting-bridge"/); assert.match(control, /under sandbox posting rules/); assert.match(control, /It is not a ledger and it posts nothing/);
-  assert.match(control, /Sandbox posting rules, applied to fictional data\. No accounting system is connected; a ledger adapter is planned, not built\./);
-  assert.match(dev, /These are sandbox posting rules; Clearline posts nothing to any ledger\./);
+  assert.match(control, /Sandbox posting rules, applied to fictional data and pending founder sign-off\. No accounting system is connected; a ledger adapter is planned, not built\./);
+  assert.match(dev, /These are sandbox posting rules, pending founder sign-off; Clearline posts nothing to any ledger\./);
   assert.match(dev, /no endpoints of its own\. Its actions go through the generic <code className="inline">POST \/actions<\/code>/);
-  for (const a of ["set_account_mapping", "open_accounting_period", "close_accounting_period", "propose_journal_entries", "approve_journal_proposal", "reject_journal_proposal", "export_journal", "record_posting", "record_reconciliation_export", "poll_provider"]) assert.ok(dev.includes(`"${a}`) || dev.includes(`· ${a}`), a);
+  for (const a of ["set_account_mapping", "open_accounting_period", "close_accounting_period", "propose_journal_entries", "approve_journal_proposal", "reject_journal_proposal", "export_journal", "record_posting", "record_reconciliation_export", "poll_provider", "confirm_not_imported"]) assert.ok(dev.includes(`"${a}`) || dev.includes(`· ${a}`), a);
   assert.match(d, /under sandbox posting rules: propose balanced double-entry journal entries, one currency each, only from independent evidence/);
   assert.match(d, /"Posted\\" is recorded only when a person types their own ledger's reference\. Clearline posts nothing\./);
   assert.match(d, /A returned payout never shows the supplier as paid\. A provider's completion report on its own gives no entry, and a receipt that matches only by amount never produces one\./);
@@ -764,4 +764,21 @@ test("rc4 homepage keeps the founder's quiet design: one product-view caption ch
   assert.match(home, /The console&rsquo;s investigation page, rendered from the Clearline sandbox engine&rsquo;s fictional records, through to its accounting outcome\./);
   assert.doesNotMatch(home, /Real Clearline sandbox interface/, "the product view is a rendering of the console, not the interface itself");
   assert.doesNotMatch(home, /Accounting Bridge|journal entr/i, "accounting detail lives on Control and Platform, not the homepage");
+});
+
+test("rc4 final (dc4d39a): posting-rule table, role rules and caveat match the final engine", () => {
+  const control = read("app/control/page.tsx"), dev = read("app/developers/page.tsx");
+  const rules = [...control.slice(control.indexOf("const BRIDGE_RULES"), control.indexOf("];", control.indexOf("const BRIDGE_RULES"))).matchAll(/\["(JR_[A-Z_]+)"/g)].map(m => m[1]);
+  assert.deepEqual(rules, ["JR_SUPPLIER_PAYOUT_DEBIT", "JR_ADVANCE_DISBURSED", "JR_PAYOUT_DEBIT_NOT_DELIVERED", "JR_PAYOUT_RETURN_CREDIT", "JR_REPAYMENT_BY_REFERENCE", "JR_STABLECOIN_ONRAMP_FUNDING", "JR_STABLECOIN_FINAL_TRANSFER", "JR_REVERSAL"]);
+  assert.match(control, /\["JR_STABLECOIN_ONRAMP_FUNDING", "[^"]+", "Stablecoin clearing", "Bank", "No: only the final chain transfer clears the payable"\]/);
+  // The console's own caveat, verbatim.
+  assert.ok(control.includes('const RULES_CAVEAT = "Sandbox posting rules, pending founder sign-off — review with your accountant before using this file.";'));
+  for (const c of ["NP_EVIDENCE_CONTRADICTED", "NP_FX_NOT_EVIDENCED"]) assert.ok(control.includes(c), c);
+  assert.match(control, /Withdrawing an exported entry, or confirming it was never imported, needs an approver other than the person who exported it\./);
+  assert.match(dev, /\["confirm_not_imported", "approver other than the exporter",/);
+  assert.match(dev, /an exported entry needs an approver other than its exporter/);
+  for (const c of ["SP_RULES_CHANGED", "SP_MAPPING_CHANGED", "NP_EVIDENCE_CONTRADICTED", "JR_STABLECOIN_ONRAMP_FUNDING", "REVERSAL_ALREADY_EXPORTED", "usr_lin"]) assert.ok(dev.includes(c), c);
+  // Never claim the rules are signed off.
+  for (const f of rc4Copy()) assert.equal(/sign(ed)?[- ]off (by|from) (the )?founder|founder[- ]approved (posting )?rules/i.test(copyOnly(f)), false, f);
+  assert.match(read("lib/investigations.ts"), /rc4\/clearline-app @ dc4d39a/);
 });

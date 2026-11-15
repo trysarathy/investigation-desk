@@ -263,6 +263,8 @@ One source: `marketing/lib/disclosure.ts`, rendered by `<Disclosure />` on Home,
 
 ## Change log
 
+- 2026-11-15: rc4 final (rc4/clearline-app @ dc4d39a). Product view regenerated (data unchanged). Control posting-rule table gains a Rule column with all eight sandbox rules, including the stablecoin on-ramp, and quotes the console's caveat "Sandbox posting rules, pending founder sign-off — review with your accountant before using this file."
+
 - 2026-11-15: rc4. Product view gains section F (accounting outcome) from rc4/clearline-app @ a132340. Platform lifecycle list (eight steps, two ruled columns), Control Accounting Bridge section (posting-rule table by account role), Connect adapter principles, Trial 18-step journey list. The founder's quiet homepage (PR #108) is unchanged apart from the product-view caption, corrected to say it is a rendering of the console.
 
 - 2026-11-14: Final pass against rc3/clearline-app @ fa303fd. `supplierPaidBasis` labels are the engine's ("Supplier not shown as paid" · "Provider reports the supplier paid (not verified)" · "Supplier payout verified by independent evidence"), rendered from the generated `ENGINE_LABELS`; the advance stage `supplier_paid` stays "Supplier paid (provider-reported)". Disclosure adds console acceptance of a disagreeing bank debit (up to 1% one person; above 1% to 50% with a second person; late value date up to 60 days; never a currency mismatch).
