@@ -22,8 +22,8 @@ export type {
 } from "./types";
 export { COBALT_WREN, QUILLFERN, SALTGLASS, CONNECT_DESCRIPTORS, CONNECT_SCRIPTS, getDescriptor, connectKeyring, connectRoutes } from "./descriptors";
 export type { ScriptEntry } from "./descriptors";
-export { verifyDelivery, signDelivery, encodeHeaderBundle, decodeHeaderBundle, assertSandboxKeyring, IMPLEMENTED_SCHEMES } from "./verify";
-export { parseProviderBody, toEnginePayload, rawDetail, findMapping, findOrderConflict } from "./normalize";
+export { verifyDelivery, canonicalHeaderValue, signDelivery, encodeHeaderBundle, decodeHeaderBundle, assertSandboxKeyring, IMPLEMENTED_SCHEMES } from "./verify";
+export { parseProviderBody, toEnginePayload, rawDetail, findMapping, findOrderConflict, noteHoldBoundary } from "./normalize";
 export type { OrderConflict, OrderConflictCode } from "./normalize";
 export { providerTruth, providerScript, providerWebhook, fetchStatusSnapshot, listSince, snapshotObject, webhookBody, eventIdFor, syntheticFinalTxHash, syntheticPreliminaryTxHash } from "./simulator";
 export type { TruthVersion, StatusSnapshot, FeedChange } from "./simulator";

@@ -20,7 +20,7 @@ import { CONNECT_DESCRIPTORS, getDescriptor } from "./descriptors";
 import { parseProviderBody } from "./normalize";
 import { listSince } from "./simulator";
 import type { AdapterDescriptor, ConnectVerification } from "./types";
-import { encodeHeaderBundle } from "./verify";
+import { canonicalHeaderValue, encodeHeaderBundle } from "./verify";
 
 /** Payout executions a reconciler keeps polling (a completed payout can still regress). */
 export const UNRESOLVED_EXECUTION: readonly string[] = ["submitted", "in_transit", "awaiting_information", "on_hold", "provider_reported_completed"];
@@ -53,7 +53,7 @@ export function receiveConnectWebhook(ws: Workspace, delivery: { providerId: str
   // carries many more), and the receipt is taken from what the ENGINE recorded, not from this pre-check.
   const declared = declaredHeaders(d);
   const headers: Record<string, string> = {};
-  for (const [k, v] of Object.entries(delivery.headers ?? {})) if (typeof v === "string" && declared.includes(k.toLowerCase())) headers[k.toLowerCase()] = v;
+  for (const [k, v] of Object.entries(delivery.headers ?? {})) if (typeof v === "string" && declared.includes(k.toLowerCase())) headers[k.toLowerCase()] = canonicalHeaderValue(d.verification, k, v);
   const verification = adapter.verifyConnect(delivery.rawBody, headers, unix(ctx.at));
   if (verification.status !== "unverified") {
     const r = applyAction(ws, { type: "ingest_webhook", delivery: { providerId: d.providerId, rawBody: delivery.rawBody, signatureHeader: encodeHeaderBundle(headers) } }, ctx);
