@@ -1,5 +1,128 @@
 # Clearline sandbox engine — public API (for the console UI)
 
+> **CHANGE 20 (2026-11-15, final check of CHANGE 19 — N1). STATUS: LANDED (not reviewed).**
+> - **N1.** The repayment-allocation load check now treats the reference as unique only among the obligations that **existed when the line was allocated**: those with a lower id sequence than the allocation. Ids are sequential per workspace, and a reset only raises the counter. So an advance created later, whose repayment reference is a token of an earlier line (e.g. `PO-778899`), no longer locks the workspace.
+>   - I chose this over dropping the check. It still refuses a forged allocation on a line that was ambiguous at the time, and unlike `createdAt` it stays exact when two actions share one clock instant.
+>   - Tested with the reviewer's exact sequence, plus an ambiguous-at-the-time forgery.
+> - **Wording.** Refusals of repayment-allocation evidence now read "Its evidence records contradict each other (crafted or damaged data), so they were not repaired", never "No version of the engine produces this".
+> - **Rule H.** The outcome is now `observation_downgraded`: the observation is still counted, at the lower status.
+> - **New exported unions.** `WorkspaceMigrationKind` and `WorkspaceMigrationOutcome`, labelled in the new `HUMAN_LABELS.migrationKind` and `HUMAN_LABELS.migrationOutcome`. A test checks every member has a label.
+> - **API changes:** migration outcome `observation_downgraded` (replaces `observation_not_counted` for rule H only); the new label maps; the named unions. There is no sample change.
+> - **Mutation checks:** 4 mutants — all obligations counted, the uniqueness check dropped, the refusal wording, the old outcome. **4 killed**.
+
+> **CHANGE 19 (2026-11-15, independent QA/security pass on rc4 2c0f0f0 — M1). STATUS: LANDED (not reviewed).**
+> - **M1a (`serialize.ts` crossCheck).** A repayment allocation must have the shape `reconcileIncoming` produces:
+>   - a `credit` line of kind `payment`;
+>   - in the obligation's currency;
+>   - whose reference carries that obligation's repayment reference as a token, and no other obligation's.
+>
+>   Anything else is refused on load, e.g. "a repayment allocation's statement line must carry the obligation's repayment reference".
+> - **M1b, load rule H (`migrate.ts`).** A new `WorkspaceMigration.kind`, `chain_status_exceeds_confirmations` (outcome `observation_downgraded` since CHANGE 20, with `observationId`), covers a counted chain observation stored with a status above what its confirmations give.
+>   - Its status is moved down to `chainStatusFor(confirmations)` and the change is reported.
+>   - Settlement is recomputed and never upgraded; rule D reopens a chain match that rested on it.
+>   - Every engine version stores `statusFor(confirmations)`, so v2, rc3 and rc4 workspaces still load with `[]` (property tests pass).
+> - **M1b, the bridge.** `JR_STABLECOIN_FINAL_TRANSFER` also requires final by confirmations, not the stored flag alone (defence in depth).
+> - **API changes:** new export `chainStatusFor`; new migration kind `chain_status_exceeds_confirmations`. There is no sample change.
+> - **Tests.**
+>   - New: `tests/clearline/rc4-qa-m1.test.ts`.
+>   - Added unchanged: QA's `tests/qa-release-rc4/accounting-rc4.test.ts` and `connect-rc4.test.ts`. Both pass, including DEFECT M1 and M1b.
+>   - Note: `tsc --noEmit` reports 7 type errors in QA's `accounting-rc4.test.ts`, where it uses `accounting!.mapping.` and `exports[0].proposalIds.` without `!` on optional fields. Vitest strips types, so the tests run. I left the file unchanged as instructed.
+> - **Mutation checks:** 5 mutants, **5 killed** — the reference, direction/kind and currency checks; rule H; the bridge guard.
+
+> **CHANGE 18 (2026-11-15, accounting final check of 5278061 — APPROVE; K1–K4). STATUS: LANDED (not reviewed).**
+> - **K1.** Load refuses two un-reversed in-ledger entries with the same source key and basis hash. The message explains: "is a second copy of … in the ledger … propose never creates this, and it could never be corrected", followed by the accounting refusal text.
+> - **K1, propose.** `propose_journal_entries` refuses `LEDGER_DOUBLE_COUNT` only when its new entries introduce or worsen a ledger issue. An existing issue never blocks unrelated proposals. New exports: `ledgerIssues(ws)` → `LedgerIssue { key, excess, text }[]` and `worsenedIssues(before, after)`; `ledgerProblem` is unchanged.
+> - **K2.** The changed `rc4-connect-rereview` test is renamed to say what it asserts.
+> - **K3.** `SP_RULES_CHANGED` reason, label and migration text are neutral: "no longer matches the current posting rules", with provenance unknown.
+> - **K4.** Engine, bridge and load rule G now agree for every open `contradictory_evidence` exception. `openException` sets a live, bank-settled payout to `contradicted` / `exception` when any contradiction opens, also after the debit (e.g. `EV_AMOUNT_DIFFERS_FROM_INSTRUCTION`). Rule G (`open_contradiction_settlement`) repairs any such code, not only the four provider-status ones.
+> - **Sample change (console and website regenerate from it).** A sixth actor is appended last: `usr_lin`, "Lin Wei · Finance approver (fictional)", role `approver`. It exists so an approver who did not export can withdraw an export or confirm it was never imported. No existing id, timestamp, `seq` or scenario fingerprint changes (`rc3-sample-stability` passes unchanged). The console's actor pickers read `ws.actors`, so they list it. Playwright was not run.
+> - **Tests.** The reviewer's genuine a91dd11 fixtures are now in `tests/clearline/fixtures/rc4a_*.json` and are used by `rc4-final.test.ts` (R1 on real output). The same file covers the K1 Q1 shape, the worsen-only guard, K4 and the second approver. Mutation check: 6 mutants (K1 ×3, K3, K4 ×2), **6 killed**.
+
+> **CHANGE 17 (2026-11-15, accounting re-review of 466d42a — APPROVE, non-blocking R1–R7 — plus G1 from the Connect cross-check). STATUS: LANDED (not reviewed).**
+> - **R1, load compatibility.**
+>   - A proposed or approved entry that is self-consistent (its evidence tie and basis hash hold) but that the current rules derive differently is no longer refused. It is superseded on load: `supersession.code` `SP_RULES_CHANGED`, `causedBy` `system`, with a `workspace.migrated` audit event.
+>   - Each one is reported as a `WorkspaceMigration`: new `kind` `journal_proposal_superseded`, new `outcome` `proposal_superseded`, new optional field `proposalId`; `intentId` may be `""` and `from` = `to`.
+>   - Exported and posted entries are never altered; they get the flag-and-reversal path.
+>   - A statement direction that does not fit the rule, and a bank line booked twice, are no longer load refusals (a91dd11 produced both). The first is superseded or reversed. The second is corrected by `propose`, because a rejected reversal no longer blocks it from being proposed again.
+>   - Refusals of accounting records now say "Its accounting records contradict the evidence they name, or each other…", not "No version of the engine produces this". The refusal for a reused export id names the a91dd11 defect.
+> - **R2 / R3.** New tests kill mutant N1 (the derive guard for a stored debit-direction return) and N6 (first reporting event only).
+> - **R4.** New action `confirm_not_imported { proposalId, note }`:
+>   - who: an approver other than the exporter;
+>   - applies to an exported entry, or one withdrawn after export;
+>   - records `rejection.notImported { by, at, note }` and the audit event `journal.confirmed_not_imported`;
+>   - no reversal is then needed (a pending one is superseded), and the same evidence may be proposed again;
+>   - refused with `REVERSAL_ALREADY_EXPORTED` once the reversal is exported or posted.
+> - **R5.** Docs only: ACCOUNTING_BRIDGE.md §2.1 (the payable is cleared in USDC; stablecoin clearing holds SGD debit + USDC credit until the accountant books the conversion) and the `NP_FX_NOT_EVIDENCED` row.
+> - **R6.** `ledgerProblem` refuses one payout's payable cleared in two currencies, in addition to the per-currency cap. The random walk recomputes net payable debits per payout independently, without `ledgerProblem`.
+> - **R7.** `REVERSAL_REQUIRED` for an entry withdrawn after export says so and points to `confirm_not_imported`.
+> - **G1 (predates rc4).**
+>   - `reconcileLine`: a bank debit matched to a live payout with an open `contradictory_evidence` exception leaves settlement `contradicted` (scope `bank_statement`) and reconciliation `exception`. `resolve` recomputes.
+>   - The bridge lists that debit, or a final chain transfer, as `NP_EVIDENCE_CONTRADICTED` and proposes nothing that shows the supplier paid; a pending entry is superseded.
+>   - New load rule G (`WorkspaceMigration.kind` `open_contradiction_settlement`, outcome `contradicted_open`): a live payout stored as bank-settled while an `EV_IMPOSSIBLE_TRANSITION` / `EV_PROVIDER_STATUS_REGRESSED` / `EV_PROVIDER_SUCCESS_REVERSED` / `EV_PROVIDER_CLAIMS_DIFFER` exception is open becomes contradicted. It is reported, never refused.
+>   - `rc4-connect-rereview` › "completed → in_transit" now expects the pending entry to be superseded while the regression contradiction is open.
+> - **API changes for the console:**
+>   - action `confirm_not_imported`;
+>   - `JournalProposal.rejection.notImported?`;
+>   - `SupersessionCode` `SP_RULES_CHANGED`;
+>   - `WorkspaceMigration.kind` `journal_proposal_superseded` | `open_contradiction_settlement`, outcome `proposal_superseded`, field `proposalId?`;
+>   - reason code `REVERSAL_ALREADY_EXPORTED`;
+>   - export `isConfirmedNotImported`;
+>   - `ACCOUNTING_ACTION_TYPES` includes `confirm_not_imported`.
+> - **Mutation checks.** 14 mutants of this change, applied in place over the eight rc4 test files: **14 killed**. They are N1, N6, R1 refuse-instead-of-supersede and refusal text, four R4 mutants, R6, R7, a rejected reversal blocking re-proposal, and the three G1 mutants (engine, bridge, migration).
+> - **Tests.** New: `rc4-rereview.test.ts` and `rc4-g1-contradiction.test.ts`. The R1 workspaces are **a91dd11-shaped**, built in-test from the current engine with exactly what a91dd11 stored (its rule, lines, evidence ids and `basisOf` hash). Running the a91dd11 engine itself to produce fixtures was not permitted in this session.
+
+> **CHANGE 16 (2026-11-15, independent accounting review of a91dd11 — BLOCK; fixes F1–F13). STATUS: LANDED (not re-reviewed).** Posting-rule changes are approval-only: the F1 rule is a sandbox rule decided by the coordinator and **flagged for Aashmiin's sign-off** in `ACCOUNTING_BRIDGE.md`.
+> - **F1 stablecoin payouts.** New rule `JR_STABLECOIN_ONRAMP_FUNDING` (Dr `stablecoin_clearing` in the debit's currency / Cr `bank:<accountRef>`) for a bank or custody debit on a live stablecoin-route payout. Only the final chain transfer clears the payable. The conversion is not proposed (`NP_FX_NOT_EVIDENCED`) and appears as an unresolved `stablecoin_conversion` row (`XR_CONVERSION_NOT_EVIDENCED`, new `counterAmount`) in the reconciliation export. `propose_journal_entries` refuses `LEDGER_DOUBLE_COUNT` if the net payable/receivable debit per payout would exceed the payout, or a bank line would be booked twice.
+> - **F2.** `reconcileLine` no longer allocates a debit-direction return / reversal (new `RC_RETURN_LINE_IS_DEBIT`, `contradictory_evidence` exception, outcome `exception_raised`). The bridge never proposes a return credit from a debit, and load checks each bank rule's line direction. Allocations rc3 already stored this way still load (no rc3 workspace is refused) and give no entry.
+> - **F3.** `export_journal` re-derives every approved entry (`EVIDENCE_CHANGED`). Load recomputes `basisHash`, ties every entry to its evidence records, requires proposed/approved entries to equal the current candidate, and refuses a bank line booked twice. A client-held approval's identity cannot be authenticated.
+> - **F4.** `resetScenario` / `canResetScenario` refuse `ACCOUNTING_ENTRIES_RECORDED` when any of the case's entries was ever in an export; load requires export records and entries to name each other.
+> - **F5.** `reject_journal_proposal` on a reversal the evidence still requires → `REVERSAL_REQUIRED`; `approve_journal_proposal` / `export_journal` on a rebooking before its original's reversal → `REVERSAL_FIRST`.
+> - **F6.** Approval needs every key mapped (`UNMAPPED_ACCOUNT_ROLE`) and stores `approval.mappingRevision` and `approval.accounts`; a mapping change altering them supersedes the approval (`SP_MAPPING_CHANGED`); export refuses `MAPPING_CHANGED_SINCE_APPROVAL`. `set_account_mapping` requires `expectedRevision` once a mapping exists (`MAPPING_REVISION_CONFLICT`). Chosen over "export uses the approved snapshot" because the approver then always re-approves the codes that will actually be exported, and the export file never mixes two mapping revisions.
+> - **F7.** Rejecting an exported entry needs an approver other than its exporter (`maker_checker_violation` / `unauthorized_actor`); it keeps `export`, never loses its id, and the next propose adds its `JR_REVERSAL`.
+> - **F8–F13.** First reporting event only in chain evidence; chain movements use the allocation's org date in both exports; `AccountingExportRecord.fileSha256 { json, csv }` (exact bytes; `sha256` stays the content hash); `evidenceChange` cleared when the evidence matches again (history `evidence_matches_again`) and never set on reversals; memos must start `[SANDBOX] `; journal CSV `journal_id` = `SANDBOX-<id>`; reconciliation CSV gains `counter_amount`, `counter_currency`, `marking` (every row `FICTIONAL SANDBOX`); chain remainders listed as `NP_PARTIAL_REMAINDER`.
+> - **API changes for the console (everything else unchanged):** new `JournalRuleCode` `JR_STABLECOIN_ONRAMP_FUNDING`; new `SupersessionCode` `SP_MAPPING_CHANGED`; new `ExportMovementKind` `stablecoin_conversion` and row field `counterAmount?`; `approval.mappingRevision?` / `approval.accounts?`; `AccountingExportRecord.fileSha256?`; new reason codes `REVERSAL_FIRST`, `REVERSAL_REQUIRED`, `MAPPING_CHANGED_SINCE_APPROVAL`, `LEDGER_DOUBLE_COUNT` (in `HUMAN_LABELS.bridgeReason`); new `ReconciliationCode` `RC_RETURN_LINE_IS_DEBIT`; new exports `ledgerProblem`, `payableBound`, `onStablecoinRail`, `netByKey`, `isInLedger`; `JOURNAL_RULE_CODES` / `RULE_SHAPE` gain the new rule; CSV column changes above; `expectedRevision` required on a second `set_account_mapping`; approving needs the codes mapped; rejecting an exported entry needs a different approver.
+> - **Tests.** New `rc4-review-fixes.test.ts` (30). Of the first 25, 21 failed when run against the a91dd11 engine (`src/lib/clearline` checked out at a91dd11). The 4 that pass there kill the reviewer's surviving mutants M6, M9, M11 and M17. The 5 defence-in-depth tests were added afterwards and were not run against a91dd11. Run against a91dd11, the widened `rc4-invariants.test.ts` also fails, but partly because it imports helpers that do not exist there. `rc4-invariants.test.ts` widened (return/reversal lines both ways, SGD→USDC and USDC payouts with bank debits, resets after exports, rejected reversals, early rebooking approvals) with net-per-payout, bank-line, debit-side and re-render-to-file-hash checks after every action. Two existing tests changed by design (expectedRevision; approval needs the codes).
+> - **Mutation checks** (each applied in place, the five rc4 test files run, then reverted): 25 mutants — the reviewer's four survivors (M6, M9, M11, M17) and one per fix. First run: 18 killed, 7 survived. Five of the survivors were load or export checks hidden by another layer that catches the same crafted state first. Each now has a test that isolates it (a rejected entry, so the pending-entry check does not apply; a self-consistent wrong date; a crafted second posting), and all five are killed. **2 remain, judged equivalent:** F1b (the `LEDGER_DOUBLE_COUNT` guard in propose) never fires, because derive cannot produce a double payable and a crafted double posting is corrected by an automatic reversal (tested); F3a (export's re-derive) never fires, because load refuses any pending entry that does not match the current evidence and sync supersedes after every action. Both are kept as defence in depth.
+
+> **CHANGE 15 (2026-11-15, rc4 Accounting Bridge, engine side, branch `rc4/wip-engine`). STATUS: LANDED (not reviewed).** **New module `src/lib/clearline/accounting/`: proposed journal entries from evidence, chart-of-accounts mapping, accounting periods, deterministic reconciliation and journal exports.** Full description, posting rules and the adapter specification: `docs/clearline/ACCOUNTING_BRIDGE.md`. **It is not an ERP and posts nothing:** a proposed entry is never a posted entry; "posted" only records a person's `record_posting` with the external reference they supply (`simulated: true`). There is no network adapter.
+> - **Workspace.** New optional `Workspace.accounting?: AccountingBridge` = `{ version: 1, mapping?, periods[], proposals[], exports[] }`. **Absent means empty:** every v2 / rc3 workspace loads unchanged (no key added, `migrations: []`), and the field appears only after the first bridge action. When present it is validated on every parse / load / action (`accounting/validate.ts`) and a record that breaks a checked rule is refused with a field path, never repaired. *Correction (CHANGE 16, review F3):* at CHANGE 15 the checks were structural only — a crafted approved entry with invented amounts loaded and exported. Since CHANGE 16 the lines must re-derive from the evidence they name, the basis hash is recomputed, and pending entries must equal the current evidence; the approver's identity in a client-held workspace still cannot be authenticated.
+> - **New `WorkspaceAction`s** (through `applyAction`, so the console's dry-run gating works unchanged; refusals are typed errors whose message starts with a reason code, labelled by `describeError` → `reasonCode` and `HUMAN_LABELS.bridgeReason`):
+>
+>   | `action.type` | Payload | Who | Outcome / refusals |
+>   |---|---|---|---|
+>   | `set_account_mapping` | `entries: { accountKey, accountCode, accountName }[], expectedRevision?` | operator, approver | `applied`; `invalid_field`, `MAPPING_REVISION_CONFLICT` |
+>   | `open_accounting_period` | `name, from, to` (org calendar dates, `[from, to)`) | operator, approver | `applied` (`createdIds[0]` = period id); `PERIOD_OVERLAP` |
+>   | `close_accounting_period` | `periodId` | approver | `applied`; `PERIOD_HAS_PENDING_PROPOSALS`, `PERIOD_CLOSED` (already) |
+>   | `propose_journal_entries` | `periodId?` | operator, approver | `proposals_created` / `no_new_proposals`; `NO_OPEN_PERIOD`, `PERIOD_CLOSED` |
+>   | `approve_journal_proposal` | `proposalId, note?` | approver ≠ the proposer (`maker_checker_violation` first) | `applied`; `EVIDENCE_CHANGED`, `PERIOD_CLOSED`, `NOT_BALANCED` |
+>   | `reject_journal_proposal` | `proposalId, reason` | operator, approver | `applied` (from proposed, approved or exported) |
+>   | `export_journal` | `periodId` | operator, approver | `applied` (`createdIds[0]` = export record id); `NOTHING_TO_EXPORT`, `UNMAPPED_ACCOUNT_ROLE` |
+>   | `record_posting` | `proposalId, externalReference, note?` | operator, approver | `applied`; `NOT_EXPORTED` (`invalid_transition`) |
+>   | `record_reconciliation_export` | `from, to` | operator, approver, compliance | `applied` (stores id + hash, audited) |
+>
+> - **Automatic supersession.** After every action (and after `resetScenario`) a proposed or approved entry whose evidence no longer gives exactly the same entry is `superseded` with `supersession { at, causedBy, code: SP_EVIDENCE_CHANGED | SP_EVIDENCE_WITHDRAWN, reason, replacedBy? }`. An exported or posted one is never changed: it gets `evidenceChange { … }`, and the next `propose_journal_entries` proposes a `JR_REVERSAL` (and the new entry).
+> - **Read models / functions** (all pure, from `@/lib/clearline`): `accountingBridgeView(ws)` → `AccountingBridgeView` (periods, mapping, `unmappedKeys`, `proposals` with `statusLabel` / `ruleLabel` / `current` / `balanced` / `openExceptionIds` / `accounts`, `pending`, `notProposed`, `exports`, `netByAccount`); `buildReconciliationExport(ws, { from, to })` → `Result<ReconciliationExport>`; `buildJournalExport(ws, { periodId } | { exportId })` → `Result<JournalExport>`; `reconciliationExportToCsv`, `journalExportToCsv`, `accountingExportToJson`; `deriveJournalCandidates(ws)`; `isBalanced`, `balanceOf`, `resolvePeriod`, `mappingProblem`, `unmappedKeys`, `roleOfKey`; constants `ACCOUNTING_EXPORT_MARKING`, `ACCOUNTING_BRIDGE_DISCLAIMER`, `DEFAULT_SAMPLE_MAPPING`, `ACCOUNT_ROLES`, `ACCOUNTING_ACTION_TYPES`, `JOURNAL_RULE_CODES`, `RULE_SHAPE`, `SHOWS_SUPPLIER_PAID`, `RECONCILIATION_EXPORT_CSV_COLUMNS`, `JOURNAL_EXPORT_CSV_COLUMNS`.
+> - **Labels.** `HUMAN_LABELS.journalProposalStatus`, `.journalRule`, `.accountRole`, `.notProposed`, `.supersession`, `.accountingPeriodStatus`, `.accountingExportKind`, `.exportEvidenceClass`, `.exportMovement`, `.bridgeReason`; `actionOutcome.proposals_created` / `.no_new_proposals`; every `JR_` / `NP_` / `SP_` / `XR_` code in `CODE_LABELS` (so `describeCode` / `isKnownCode`); reset code `ACCOUNTING_ENTRIES_RECORDED`.
+> - **Per-case reset.** A case's proposed, rejected or superseded entries are replaced with the sample's; `resetScenario` / `canResetScenario` refuse `ACCOUNTING_ENTRIES_RECORDED` when one of its entries is approved, exported or posted.
+> - **Sample.** After all earlier steps, at `SAMPLE_AS_OF`: the fictional default mapping (revision 1), period `2026-11` `[2026-11-01, 2026-12-01)` open, and five proposals (all `proposed`): s1 `JR_SUPPLIER_PAYOUT_DEBIT` SGD 24,651.37; s2 `JR_PAYOUT_DEBIT_NOT_DELIVERED` and `JR_PAYOUT_RETURN_CREDIT` USD 12,784.90 (provider clearing; supplier payable never touched); s5 `JR_ADVANCE_DISBURSED` SGD 50,000.00 and `JR_REPAYMENT_BY_REFERENCE` SGD 30,000.00 (receivable 20,000.00 = outstanding). The unreferenced s5 SGD 20,000.00 receipt gives **no entry** (`NP_AMOUNT_ONLY_MATCH`, its `RC_AMOUNT_ONLY_CANDIDATES` exception stays open). `seq` is now 198. The five cases' fingerprints (`rc3-sample-stability.test.ts`) are unchanged: proposals are not in the reset collections and their audit events' entity ids are proposal ids.
+> - **HTTP.** No new v1 endpoint (the route is not engine-owned). The generic `POST /actions` already passes every bridge action through; `GET /workspace` returns the sample with its bridge data. `openapi.yaml` documents the schemas.
+> - **Invariants → tests** (`tests/clearline/`):
+>
+>   | Invariant | Proved by |
+>   |---|---|
+>   | Balanced per currency (BigInt, exact) | `rc4-journal` › "invariant: balanced per currency"; `rc4-load-labels` › "unbalanced entry", "lines in two currencies"; `rc4-invariants` (`balanced`, every step) |
+>   | No entry without evidence | `rc4-journal` › "invariant: no entry without evidence …" (5 tests), "a transfer that is not final gives no entry"; `rc4-load-labels` › "a line without evidence …"; `rc4-invariants` (`evidenced`, `current`) |
+>   | Proposed ≠ posted | `rc4-journal` › "posted only via record_posting …", "no action other than record_posting …"; `rc4-load-labels` › "posted without a recorded posting …"; `rc4-invariants` (`postedOnlyByPerson`) |
+>   | Idempotent exports | `rc4-exports` › "invariant: idempotent exports …" (4 tests), "the recorded export re-renders byte for byte"; `rc4-invariants` (`idempotentExports`) |
+>   | Closed periods respected | `rc4-journal` › "invariant: closed periods respected" (2 tests); `rc4-exports` › "a prior-period item is flagged"; `rc4-load-labels` › "a proposed entry in a closed period …", "a posting date outside its period …"; `rc4-invariants` (`closedPeriods`) |
+>   | Maker ≠ checker | `rc4-journal` › "invariant: maker ≠ checker …" (2 tests); `rc4-load-labels` › "approval by the proposer, or by a non-approver"; `rc4-invariants` (`makerChecker`) |
+>   | Returns never imply the supplier was paid | `rc4-journal` › "s2 debit and return …", "a debit proposed for a live payout is superseded …", "a posted entry is never changed …", "a bank debit for a failed payout …"; `rc4-load-labels` › "a returned payout's entry that debits the supplier payable …"; `rc4-invariants` (`returnsNotPaid`) |
+>   | An amount-only match never produces an entry | `rc4-journal` › "the unrelated s5 SGD 20,000.00 receipt gives NO entry …", "a provider settlement report gives none; an unreferenced debit …"; `rc4-exports` (row `XR_LINE_NOT_ALLOCATED`, no journal link); `rc4-invariants` (`noAmountOnly`) |
+>   | rc3 workspaces load with `migrations: []` | `rc4-load-labels` › "older workspaces …" (fixtures + rc3 workspace); `rc3-migration-property.test.ts` (generator extended with every bridge action) |
+>
+> - **Mutation checks** (each applied in place, the named test files run, then reverted): 20 mutants of the author's own choosing, **20 killed**. *Correction (CHANGE 16):* the independent review ran 20 mutants of its own and **4 survived** (period end date, amount in the basis, advance-funded chain transfer, closing with an approved entry); CHANGE 16 adds tests that kill them. The author's set was — balance check removed at load; credit line +1 minor unit; evidence-existence check removed at load; non-final chain transfer proposed; approve sets `posted`; export id hashed with the clock; closed period used as is; close allowed with pending proposals; maker approves own proposal; maker = checker accepted at load (survived at first; killed after adding the "approver who proposed" load test); returned payout's debit to supplier payable; return credit to supplier payable; amount-only receipt booked as a repayment; no supersession after evidence changes; reset ignoring approved entries; CSV formula guard removed; unmapped role not blocking export; provider completion alone proposed; stablecoin entry against a bank; rejected proposals re-proposed.
+> - **Tests.** New: `rc4-journal.test.ts` (29), `rc4-exports.test.ts` (18), `rc4-load-labels.test.ts` (34), `rc4-invariants.test.ts` (25: 24 seeded walks × 70 steps + coverage). Extended: `rc3-migration-property.test.ts` (bridge actions in the generator; the random walk must apply propose / approve / export / record_posting / open / close). No existing assertion changed.
+
 > **CHANGE 14 (2026-11-14, console final check). STATUS: LANDED.** **The case report no longer says "Resolved" for an acceptance that still awaits a second approval.**
 > - **Status.** `SyntheticCaseReport.exceptions[].status` is now the new type `ReportExceptionStatus`. It is the exception's own status, except that a resolved exception whose accepted over-amount still awaits a second, different person's approval is reported as **`accepted_awaiting_second_approval`**, labelled **"Accepted — awaiting second approval"**. The label comes from `HUMAN_LABELS.reportExceptionStatus`, and each row carries it as `statusLabel`. `engineStatus` keeps the exception's own `ExceptionStatus`. The case itself stays blocked (`SECOND_APPROVAL_REQUIRED`), as before.
 > - **Acceptance.** When the resolution accepted a bank debit, `acceptance` reports `acceptedBy`, `acceptedAt`, `statementLineId`, `difference`, `lateValueDate?`, `secondApproval` (`not_required` | `pending` | `approved`), `approvedBy?`, `approvedAt?` and a plain `text`. Once approved, the status is `resolved` ("Resolved") and the text names both people: "Accepted by usr_maya (the 500.00 SGD over-amount); approved by usr_sam."
@@ -314,7 +437,7 @@ The whole sandbox state is one serialisable object, `Workspace` (see `types.ts`)
 | `serializeWorkspace` | `(ws) => string` | JSON string. |
 | `parseWorkspace` | `(text) => Result<Workspace>` | Validates `schemaVersion`/`mode`; on error the UI should reset to sample. |
 | `SAMPLE_AS_OF` | `string` | ISO instant of the sample clock. |
-| `SAMPLE_ACTORS` | `Actor[]` | Fictional users: `usr_maya` (operator), `usr_daniel` (approver), `usr_priya` (compliance), `usr_alex` (viewer), `usr_sam` (second operator). |
+| `SAMPLE_ACTORS` | `Actor[]` | Fictional users: `usr_maya` (operator), `usr_daniel` (approver), `usr_priya` (compliance), `usr_alex` (viewer), `usr_sam` (second operator), `usr_lin` (second approver, rc4). |
 
 ## Actions — the only way to change a workspace
 
@@ -346,6 +469,7 @@ Pure: never mutates `ws`, never reads the wall clock, and **never throws** — b
 | `record_hold_decision` | `holdId, decision: release\|reject\|request_more, reason` | assigned compliance reviewer |
 | `create_advance` | `input: CreateAdvanceInput` | operator |
 | `decide_advance` | `advanceId, outcome, reason` — checker ≠ maker | approver |
+| `set_account_mapping` / `open_accounting_period` / `close_accounting_period` / `propose_journal_entries` / `approve_journal_proposal` / `reject_journal_proposal` / `export_journal` / `record_posting` / `record_reconciliation_export` | rc4 Accounting Bridge — see CHANGE 15 | see CHANGE 15 (approval: approver ≠ proposer) |
 
 `outcome` strings include `applied`, `idempotent_replay`, `rejected_signature`, `duplicate_ignored`, `stored_late_no_regression`, `contradictory_exception_raised`, `timeout_exception_raised`, `no_event_pending`, `allocated`, `exception_raised`.
 
@@ -377,6 +501,8 @@ Error codes (`EngineErrorCode`): `invalid_amount, invalid_currency, currency_mis
 | `fundingProjection` | `(ws, at?) => FundingProjection` — payment ↔ advance ↔ approval ↔ obligation ↔ allocations ↔ outstanding (a projection, not a shared ledger) |
 | `obligationOutstanding` | `(ws, obligationId) => Money` |
 | `canResolveException` | `(ws, exceptionId) => { allowed: boolean; code: string; reason: string }` — use to enable/disable a Resolve button |
+| `accountingBridgeView` | `(ws) => AccountingBridgeView` — rc4: periods, mapping, proposals with labels and live open exceptions, pending and not-proposed items, exports, net per account (CHANGE 15) |
+| `buildReconciliationExport` / `buildJournalExport` | `(ws, {from, to})` / `(ws, {periodId} \| {exportId})` → `Result<…>` — rc4: deterministic exports; serialise with `reconciliationExportToCsv`, `journalExportToCsv`, `accountingExportToJson` |
 
 ## Helpers and constants
 

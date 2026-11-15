@@ -27,17 +27,21 @@
  * E. (QA rc3 L1) A settlement or reconciliation above what the recorded evidence can support (derive.ts
  *    evidenceCeiling), e.g. a crafted "verified / matched" with only a pending-finality transfer. → capped to rc3's
  *    own derive (recomputeDimensions), never upgraded; no exception is raised (the evidence itself is unchanged).
+ * G. (rc4 G1 / K4) A live payout stored as settlement observed or verified (bank statement) while ANY
+ *    contradictory_evidence exception on it is open — what the engine and the bridge block on. → contradicted (and reconciliation exception), as rc4 and recomputeDimensions give; the open
+ *    exception already owns it. When a person resolves it, the recompute applies.
  * Not detectable from stored data: a v2 C-2 block change that was applied silently (the earlier block is not kept).
  */
-import { tokenAllowed } from "./chain";
+import { FINALITY_THRESHOLD, chainStatusFor, tokenAllowed } from "./chain";
 import { evidenceCeiling, recomputeDimensions } from "./derive";
-import { EXCEPTION_DUE_DAYS, EXCEPTION_REQUIRED_ACTION } from "./exceptions";
+import { EXCEPTION_DUE_DAYS, EXCEPTION_REQUIRED_ACTION, contradictsBankSettlement } from "./exceptions";
 import { addDays, orgDate } from "./tx";
 import type { ChainObservation, ExceptionCategory, PaymentIntent, ReconciliationException, Severity, StatusDimensions, Workspace, WorkspaceMigration } from "./types";
 
 const TERMINAL = ["failed", "cancelled", "expired", "returned"];
 const EVIDENCED = ["observed", "pending_finality", "verified"];
 const RANK: Record<string, number> = { none: 0, observed: 1, pending_finality: 2, verified: 3 };
+/** The sequence number of an engine id ("alc_00153" → 153); ids are sequential per workspace. Exported for serialize.ts. */
 const seqOf = (id: string) => Number(/_(\d+)$/.exec(id)?.[1] ?? Number.MAX_SAFE_INTEGER);
 
 export function migrateToRc3(ws: Workspace): WorkspaceMigration[] {
@@ -102,6 +106,26 @@ export function migrateToRc3(ws: Workspace): WorkspaceMigration[] {
     const auditId = nextId("aud");
     ws.audit.push({ id: auditId, at: asOf, actorId: "system", action: "workspace.migrated", entityType: "intent", entityId: intent.id, summary: `rc3 migration (${m.kind}): ${from.execution} / ${from.settlement} (${from.settlementScope}) / ${from.reconciliation} → ${to.settlement}${m.exceptionCode && m.outcome === "contradiction_raised" ? ` with ${m.exceptionCode}` : ""} (${to.settlementScope}) / ${to.reconciliation}; ${m.outcome}${m.exceptionId ? `, ${m.exceptionId}` : ""}. ${m.text}` });
     out.push({ ...m, intentId: intent.id, internalReference: intent.internalReference, from, to, auditId });
+  }
+
+  // H. (rc4 QA M1b) A counted observation stored with a status above what its confirmations give (every engine version
+  // stores statusFor(confirmations)): moved DOWN to the derived status, never up; settlement recomputed (never upgraded),
+  // and rule D below reopens a match that rested on it.
+  const OBS_RANK: Record<string, number> = { observed: 0, pending_finality: 1, final: 2 };
+  for (const o of ws.chainObservations) {
+    if (!counted(o)) continue;
+    const derived = chainStatusFor(o.confirmations);
+    if ((OBS_RANK[o.status] ?? 0) <= OBS_RANK[derived]) continue;
+    const intent = ws.intents.find((i) => i.id === o.intentId);
+    const stored = o.status;
+    o.status = derived;
+    if (!intent) continue;
+    const from = { ...intent.status };
+    recomputeSettlement(intent);
+    record(intent, from, {
+      kind: "chain_status_exceeds_confirmations", outcome: "observation_downgraded", observationId: o.id,
+      text: `Payment ${intent.internalReference} (${intent.id}): on-chain transfer ${o.txHash.slice(0, 12)}… was stored as ${stored} with ${o.confirmations} of ${FINALITY_THRESHOLD} confirmations. It now shows ${derived.replace("_", " ")}, which is what its confirmations give.`,
+    });
   }
 
   // A. Counted observations that rc3 would never count (not allowlisted).
@@ -251,5 +275,24 @@ export function migrateToRc3(ws: Workspace): WorkspaceMigration[] {
       text: `Payment ${intent.internalReference} (${intent.id}) was stored with settlement ${lvl(from.settlement)} and reconciliation ${lvl(from.reconciliation)}, more than its recorded evidence supports. It now shows settlement ${lvl(st.settlement)} and reconciliation ${lvl(st.reconciliation)}, as rc3 derives them from the evidence (never upgraded).`,
     });
   }
+  // G. (rc4 G1 / K4) Settlement shown as bank-evidenced while a contradiction on the payout is open.
+  for (const intent of ws.intents) {
+    const st = intent.status;
+    if (!contradictsBankSettlement(st)) continue;
+    const exc = ws.exceptions.find((e) => e.intentId === intent.id && e.status !== "resolved" && e.category === "contradictory_evidence");
+    if (!exc) continue;
+    const from = { ...st };
+    st.settlement = "contradicted";
+    st.reconciliation = "exception";
+    record(intent, from, {
+      kind: "open_contradiction_settlement", outcome: "contradicted_open", exceptionId: exc.id, exceptionCode: exc.explanationCode, ownerId: exc.ownerId,
+      text: `Payment ${intent.internalReference} (${intent.id}) was stored as settled by its bank debit while a contradiction on it (${exc.explanationCode}, ${exc.id}) is still open. It now shows settlement contradicted until a person resolves that exception.`,
+    });
+  }
   return out;
 }
+
+/** rc4 G1: the provider-status contradictions (original providers and Connect). Since K4 rule G covers every open contradictory_evidence exception; kept for reference. */
+export const PROVIDER_STATUS_CONTRADICTIONS: readonly string[] = ["EV_IMPOSSIBLE_TRANSITION", "EV_PROVIDER_STATUS_REGRESSED", "EV_PROVIDER_SUCCESS_REVERSED", "EV_PROVIDER_CLAIMS_DIFFER"];
+
+export { seqOf };

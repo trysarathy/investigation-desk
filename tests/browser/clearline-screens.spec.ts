@@ -9,6 +9,8 @@ const SHOTS: [string, string][] = [
   ["investigation-scenario2", "s2_returned"],
   ["reconciliation", "/clearline/reconciliation"],
   ["treasury-funding", "/clearline/treasury/funding"],
+  ["accounting", "/clearline/accounting"],
+  ["audit-history", "/clearline/reports/audit"],
   ["trial", "/clearline/trial"],
 ];
 

@@ -13,6 +13,8 @@
  * - A provider-reported "completed" is a provider claim, never verified settlement.
  */
 
+import type { AccountingAction, AccountingBridge } from "./accounting/types";
+
 // ---------------------------------------------------------------------------------------------
 // Money
 // ---------------------------------------------------------------------------------------------
@@ -342,6 +344,8 @@ export interface SandboxWebhookPayload {
   requested_documents?: string[];
   /** Stablecoin routes: the on-chain transaction the provider says carries this payout. */
   tx_hash?: string;
+  /** rc4 Connect only (absent for the original sandbox providers): the provider's raw status, kept verbatim. */
+  raw?: import("./connect/types").ProviderRawStatus;
 }
 
 export interface WebhookDelivery {
@@ -426,6 +430,8 @@ export type ReconciliationCode =
   | "RC_DUPLICATE_SUSPECTED"
   | "RC_RETURN_CONFIRMS_PROVIDER_RETURN"
   | "RC_RETURN_CONTRADICTS_PROVIDER_STATUS"
+  /** rc4 review F2: a return / reversal line that is a debit; never a return confirmation. */
+  | "RC_RETURN_LINE_IS_DEBIT"
   | "RC_UNMATCHED_INCOMING"
   | "RC_UNMATCHED_OUTGOING"
   | "RC_PROVIDER_REPORT_ONLY"
@@ -828,6 +834,11 @@ export interface Workspace {
   repaymentAllocations: RepaymentAllocation[];
   idempotency: Record<string, { intentId: string; fingerprint: string }>;
   audit: AuditEvent[];
+  /**
+   * rc4 Accounting Bridge (CHANGE 15): chart-of-accounts mapping, accounting periods, journal proposals and export
+   * records. Absent on every v2 / rc3 workspace and until the first bridge action: absent means empty.
+   */
+  accounting?: AccountingBridge;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -846,6 +857,8 @@ export type WorkspaceAction =
   | { type: "cancel_intent"; intentId: string; reason: string }
   | { type: "simulate_provider_event"; intentId: string; injection?: FailureInjection }
   | { type: "ingest_webhook"; delivery: WebhookDelivery }
+  /** rc4 Connect: Clearline polls the provider's (simulated) status API; the engine fetches the snapshot itself (optionally one listed version). */
+  | { type: "poll_provider"; intentId: string; version?: number }
   | { type: "ingest_statement_line"; line: StatementLineInput }
   | { type: "ingest_chain_observation"; observation: ChainObservationInput }
   | { type: "advance_clock"; to: string }
@@ -862,7 +875,9 @@ export type WorkspaceAction =
   | { type: "assign_hold_reviewer"; holdId: string; reviewerId: string }
   | { type: "record_hold_decision"; holdId: string; decision: "release" | "reject" | "request_more"; reason: string }
   | { type: "create_advance"; input: CreateAdvanceInput }
-  | { type: "decide_advance"; advanceId: string; outcome: "approve" | "decline"; reason: string };
+  | { type: "decide_advance"; advanceId: string; outcome: "approve" | "decline"; reason: string }
+  /** rc4 Accounting Bridge (CHANGE 15); see accounting/types.ts. */
+  | AccountingAction;
 
 export type TargetRef = { kind: "case"; id: string } | { kind: "exception"; id: string };
 
@@ -980,6 +995,14 @@ export interface ReturnPosition {
  * Re-review R-m1: one change the load-time migration made to a workspace saved by an earlier engine version
  * (see loadWorkspace). `text` is plain English the console can show ("Your saved workspace was updated: …").
  */
+/** rc4: the WorkspaceMigration kinds and outcomes as named unions (labelled in HUMAN_LABELS.migrationKind / migrationOutcome). */
+export type WorkspaceMigrationKind = "terminal_payout_verified" | "terminal_payout_evidence" | "chain_observation_not_allowlisted" | "chain_hash_conflict" | "reorg_reconciliation" | "status_exceeds_evidence"
+    | "journal_proposal_superseded"
+    | "open_contradiction_settlement"
+    | "chain_status_exceeds_confirmations";
+export type WorkspaceMigrationOutcome = "contradiction_raised" | "contradicted_open" | "resolved_by_person" | "observation_not_counted" | "reconciliation_reopened" | "status_capped" | "proposal_superseded"
+    | "observation_downgraded";
+
 export interface WorkspaceMigration {
   /**
    * terminal_payout_verified / terminal_payout_evidence: a failed, cancelled, expired or returned payout still showing evidence
@@ -988,13 +1011,15 @@ export interface WorkspaceMigration {
    * matched on a chain transfer that is no longer final; status_exceeds_evidence: a stored settlement or reconciliation
    * above what the recorded evidence supports, capped (QA rc3 L1). See migrate.ts.
    */
-  kind: "terminal_payout_verified" | "terminal_payout_evidence" | "chain_observation_not_allowlisted" | "chain_hash_conflict" | "reorg_reconciliation" | "status_exceeds_evidence";
+  kind: WorkspaceMigrationKind;
   intentId: string;
   internalReference: string;
   from: StatusDimensions;
   to: StatusDimensions;
   /** contradiction_raised: the rc3 rule's exception was created; contradicted_open: an open exception already covers it; resolved_by_person: a person had resolved the rule's exception. */
-  outcome: "contradiction_raised" | "contradicted_open" | "resolved_by_person" | "observation_not_counted" | "reconciliation_reopened" | "status_capped";
+  outcome: WorkspaceMigrationOutcome;
+  /** rc4 (journal_proposal_superseded): the journal proposal concerned. */
+  proposalId?: string;
   /** The chain observation concerned (chain kinds). */
   observationId?: string;
   /** The exception created (contradiction_raised), still open (contradicted_open) or already resolved (resolved_by_person). */

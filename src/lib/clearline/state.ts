@@ -6,6 +6,13 @@ import type { ExecutionState, NormalizedEventType } from "./types";
  *
  * Note `submitted → provider_reported_completed` is allowed: a provider may report completion
  * without a separate in-transit event, and the engine never invents the missing event.
+ *
+ * rc4 Connect exception (documented, review RR-4): for a Connect provider event that raises an order conflict
+ * (events.ts, connect/normalize.ts:findOrderConflict), execution follows the provider's LATEST version even when
+ * this table does not list the move, e.g. provider_reported_completed → failed (success reversed) or
+ * provider_reported_completed → in_transit (regression). It never leaves a terminal state, always comes with an
+ * open contradictory_evidence exception, and goes through setExecution, so F1/N1 (onExecutionChanged) apply.
+ * Code that needs "every reachable move" must not rely on this table alone for Connect payouts.
  */
 export const EXECUTION_TRANSITIONS: Readonly<Record<ExecutionState, readonly ExecutionState[]>> = {
   created: ["quoted", "cancelled", "expired"],

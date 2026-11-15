@@ -26,6 +26,8 @@ Prepared by a general-purpose AI subagent working under the repository role brie
    │ labels.ts         HUMAN_LABELS, describeCode/Status/Error (CHANGE 5; text only)   │
    │ scenarios.ts      resetScenario / canResetScenario — one guided case (rc3)        │
    │ report.ts         buildCaseReport + JSON/CSV — synthetic case report (rc3)        │
+   │ accounting/       Accounting Bridge (rc4): proposed journal entries, periods,     │
+   │                   CoA mapping, reconciliation + journal exports — posts nothing    │
    │ bodylimit.ts      streamed 512 KB body reader for the v1 route (internal, R4)     │
    │ money.ts, sha256.ts, webhooks.ts, tx.ts, sample.ts, serialize.ts, types.ts       │
    └──────────────────────────────────────────────────────────────────────────────────┘
@@ -53,6 +55,39 @@ Every stored instant is a UTC `…Z` string; actions normalise any offset they r
 
 `funding.ts` is a **projection**. It aligns a Connect payment with a Funding Desk advance using the Funding Desk's rules (treasury maker ≠ checker, allocation only by explicit reference, outstanding = principal − allocated repayments, overdue by due date). It maps states onto `src/lib/mentor-demo` stage names. It does **not** read or write `src/lib/funding` storage or the mentor demo state, and it is not a shared production ledger.
 
+## 1b. Accounting Bridge (rc4, CHANGE 15)
+
+The bridge connects payment operations to the customer's existing ledger. **It is not an ERP and posts nothing.**
+Details, posting rules and the (unbuilt) adapter specification: `ACCOUNTING_BRIDGE.md`.
+
+```
+ evidence already in the workspace (allocations by trusted reference, final chain observations)
+        │  accounting/derive.ts  deriveJournalCandidates(ws)   — pure; rules JR_*; NP_* for what gives no entry
+        ▼
+ propose_journal_entries ──▶ JournalProposal (proposed) ──approve (approver ≠ proposer)──▶ approved
+        │                         ▲                                                       │ export_journal
+        │      syncAccounting:    │ superseded (evidence changed, with why)               ▼
+        │      after EVERY action ┘                                   exported ──record_posting (person, external ref)──▶ posted
+        ▼
+ accounting/exports.ts  buildReconciliationExport / buildJournalExport — deterministic JSON + CSV, content-hash ids
+ accounting/periods.ts  periods [from, to) in the org zone; CoA mapping (bank:<accountRef>, supplier_payable, …)
+ accounting/validate.ts load-time validation (absent bridge data = empty; crafted records refused)
+ accounting/view.ts     accountingBridgeView — the console's read model, every value labelled
+```
+
+- **Placement.** One sub-module behind the same `applyAction`, so the bridge inherits purity, typed refusals (the
+  console's dry run), workspace re-validation on entry, maker ≠ checker and the audit trail. Its state is one
+  optional `Workspace.accounting` object, so v2 / rc3 workspaces are untouched (no migration, `migrations: []`).
+- **Evidence, not claims.** Entries come only from allocations the matching engine made by trusted reference and
+  from final chain observations matched by the provider-reported tx hash. A provider's completion or settlement
+  report never gives an entry, so the matching rules (exact identifiers only; amount-only never allocates) carry
+  over into the books unchanged.
+- **Proposal state is its own dimension.** proposed / approved / exported / posted / rejected / superseded never
+  changes a payment's execution, settlement or reconciliation, and no payment status changes a proposal except
+  through the automatic, recorded supersession.
+- **Corrections are new entries.** An exported or posted entry is never edited; a change in its evidence records
+  `evidenceChange` and proposes a `JR_REVERSAL`.
+
 ## 2. Key decisions
 
 | Decision | Why |
@@ -63,6 +98,9 @@ Every stored instant is a UTC `…Z` string; actions normalise any offset they r
 | Integer minor units; BigInt for FX conversion and basis points | No floating point anywhere money is multiplied or divided (rc3: `applyBpsFloor`). USDC uses 6 decimals. Amounts are stored as safe integers; see §4 for the bound on sums. |
 | Amount-only matches never allocate | Matching-engine rule: only exact identifiers create automatic links, and anything ambiguous goes to a person. |
 | Synthetic token contract identity | Crypto-protocol rule: official contracts are never hard-coded from memory. The sandbox uses a clearly synthetic allowlisted identity. |
+| Accounting Bridge proposes, never posts (rc4) | A wrong entry in a customer's books is the defect that ends an accounting product; so the engine produces balanced proposals from evidence and files, and "posted" is only a person's recorded statement with their reference. |
+| A returned payout's cash legs go to provider clearing (rc4) | No line of a returned payout ever reduces the supplier payable, so the books cannot show the supplier as paid, and the payable stays open. |
+| No entry (not even a memo line) for a provider-only completion (rc4) | A generic CSV import has no reliable "memo only" flag; keeping it out makes "no entry without evidence" structural. It is still listed in the reconciliation export and `notProposed`. |
 
 ## 3. TARGET — real-data pilot (not built)
 
@@ -158,6 +196,30 @@ Status values:
 - **Reset on older workspaces (CHANGE 9 R-B1).** The reset raises the id counter past the restored ids, so the
   counter can skip numbers. Ids stay unique.
 
+### 4b. Accounting Bridge invariants (rc4, CHANGE 15)
+
+Enforced in `src/lib/clearline/accounting/`; proved by tests in `tests/clearline/`. Each row was also checked by
+a mutation that removes or inverts the enforcement (20 mutants, all killed; list in `ENGINE_API.md` CHANGE 15).
+
+| # | Invariant | Enforced in | Proved by |
+|---|---|---|---|
+| 10a | **Balanced per currency**, exactly, in BigInt; one currency per entry | `derive.ts:twoLines`, `derive.ts:isBalanced` (checked again in `actions.ts:propose` / `approve`), `validate.ts:validateAccounting` | `rc4-journal.test.ts` › "invariant: balanced per currency"; `rc4-load-labels.test.ts` › "unbalanced entry", "lines in two currencies"; `rc4-invariants.test.ts` |
+| 10b | **No entry without evidence**: every line names existing evidence; only trusted-reference allocations and final chain transfers give entries; a proposed or approved entry always matches its current evidence | `derive.ts:deriveJournalCandidates`, `actions.ts:syncAccounting` (supersede), `actions.ts:approve` (`EVIDENCE_CHANGED`), `validate.ts` | `rc4-journal.test.ts` › "invariant: no entry without evidence …"; `rc4-load-labels.test.ts` › "a line without evidence …"; `rc4-invariants.test.ts` |
+| 10c | **Proposed ≠ posted**: `posted` only through `record_posting` (a person's external reference), after approval and export | `actions.ts:recordPosting`, `validate.ts` (posting ⇔ posted; posted ⇒ approval + export record) | `rc4-journal.test.ts` › "posted only via record_posting …", "no action other than record_posting …"; `rc4-load-labels.test.ts`; `rc4-invariants.test.ts` |
+| 10d | **Idempotent exports**: same inputs → byte-identical JSON and CSV, same id and SHA-256; a recorded journal export re-renders byte for byte | `exports.ts:sealed`, `exports.ts:buildJournalExport` (`exportId`), `exports.ts:accountingExportToJson` | `rc4-exports.test.ts` › "invariant: idempotent exports …"; `rc4-invariants.test.ts` |
+| 10e | **Closed periods respected**: nothing new is dated in a closed period; late items move to the next open period flagged prior-period; no pending entry in a closed period | `periods.ts:resolvePeriod`, `actions.ts:propose` / `closePeriod` / `approve`, `validate.ts` | `rc4-journal.test.ts` › "invariant: closed periods respected"; `rc4-exports.test.ts` › "a prior-period item …"; `rc4-load-labels.test.ts`; `rc4-invariants.test.ts` |
+| 10f | **Maker ≠ checker**: an approver other than the proposer approves | `actions.ts:approve` (checked first), `validate.ts` (role and identity) | `rc4-journal.test.ts` › "invariant: maker ≠ checker …"; `rc4-load-labels.test.ts` › "approval by the proposer …"; `rc4-invariants.test.ts` |
+| 10g | **Returns never imply the supplier was paid** | `derive.ts` (`JR_PAYOUT_DEBIT_NOT_DELIVERED`, `JR_PAYOUT_RETURN_CREDIT` to provider clearing), `validate.ts:RULE_SHAPE` / `SHOWS_SUPPLIER_PAID` | `rc4-journal.test.ts` › "s2 debit and return …", "… superseded when the provider reports it returned …", "a posted entry is never changed …"; `rc4-load-labels.test.ts`; `rc4-invariants.test.ts` |
+| 10h | **An amount-only match never produces an entry** | `derive.ts` (allocations only; `NP_AMOUNT_ONLY_MATCH`), resting on `reconciliation.ts:reconcileIncoming` / `reconcileLine` (row 4a) | `rc4-journal.test.ts` › "the unrelated s5 SGD 20,000.00 receipt gives NO entry …"; `rc4-invariants.test.ts` |
+| 10j | **The supplier payable is cleared once per payout, on its own rail** (CHANGE 16, review F1): net payable / receivable debit per payout ≤ the payout | `derive.ts` (`JR_STABLECOIN_ONRAMP_FUNDING`, `onStablecoinRail`, `ledgerProblem`), `actions.ts:propose` (`LEDGER_DOUBLE_COUNT`) | `rc4-review-fixes.test.ts` › "F1 …"; `rc4-invariants.test.ts` (`netPerPayout`, stablecoin payouts with bank debits) |
+| 10k | **No bank line is booked twice; a debit is never cash in** (CHANGE 16, F2 / F5) | `reconciliation.ts:reconcileLine` (`RC_RETURN_LINE_IS_DEBIT`), `derive.ts`, `actions.ts` (`REVERSAL_REQUIRED`, `REVERSAL_FIRST`), `validate.ts` (direction, `ledgerProblem` bank part) | `rc4-review-fixes.test.ts` › "F2 …", "F5 …"; `rc4-invariants.test.ts` (`debitNotCashIn`, `netPerPayout`) |
+| 10l | **Nothing stored is trusted; journal ids are never reused** (CHANGE 16, F3 / F4 / F6) | `validate.ts:evidenceTie`, basis recompute, current-candidate check, export ↔ entry links; `actions.ts:exportJournal` re-derive and approved codes; `scenarios.ts` reset refusal | `rc4-review-fixes.test.ts` › "F3 …", "F4 …", "F6 …"; `rc4-invariants.test.ts` (resets after exports; every export re-renders to its hashes) |
+| 10i | **Older workspaces load unchanged** (absent bridge data = empty, `migrations: []`) | `validate.ts` (skips an absent `accounting`), no migration rule | `rc4-load-labels.test.ts` › "older workspaces …"; `rc3-migration-property.test.ts` (bridge actions in the generator) |
+
+**Limitations.** No FX, fee, tax or rounding entries (no evidence of them in the engine). A bank debit evidences
+that money left the bank, not the supplier's receipt. Periods cannot be reopened. The posting rules are sandbox
+rules, not signed off for a real ledger. No v1 read endpoint for the exports yet (engine functions only).
+
 ## 5. What remains out of scope
 
-Licensed routing, real payouts or bank instructions, production keys, custody, credit or lending decisions, compliance decisions, a shared funding/payments ledger, persistent multi-tenant state, and real customer data.
+Posting to any real ledger (the Accounting Bridge only exports files), licensed routing, real payouts or bank instructions, production keys, custody, credit or lending decisions, compliance decisions, a shared funding/payments ledger, persistent multi-tenant state, and real customer data.

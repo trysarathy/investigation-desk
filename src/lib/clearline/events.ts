@@ -9,13 +9,17 @@
  * - Provider "completed" never sets settlement verified or reconciliation matched.
  * - A partner hold is never released by a provider event alone.
  * - The engine never fabricates intermediate events the provider did not send.
+ * - rc4 Connect: a provider's raw status is kept verbatim in `detail`. A regression, a success reversed
+ *   to failure, or two different completion claims (compared in provider order, whatever the arrival
+ *   order) raise a contradiction; execution follows the provider's latest version unless terminal.
  */
 import { getAdapter } from "./adapters";
+import { findOrderConflict, noteHoldBoundary, rawDetail } from "./connect/normalize";
 import { tryAllocateChain } from "./chain";
 import { ensureCase, openException } from "./exceptions";
 import { onExecutionChanged } from "./reconciliation";
 import { sha256Hex } from "./sha256";
-import { EVENT_TARGET, PROGRESS_RANK, canTransitionExecution } from "./state";
+import { EVENT_TARGET, PROGRESS_RANK, canTransitionExecution, isTerminalExecution } from "./state";
 import type { ComplianceHold, EventProvenance, PaymentIntent, ProviderEvent, SandboxWebhookPayload, SignatureResult } from "./types";
 import { fail, toUtc, type Tx } from "./tx";
 
@@ -24,11 +28,14 @@ export interface IngestInput {
   rawBody: string;
   signatureResult: SignatureResult;
   provenance: EventProvenance;
+  /** rc4: why verification failed (e.g. "unverified_scheme"), for the audit text. */
+  signatureReason?: string;
 }
 
 function record(tx: Tx, e: Omit<ProviderEvent, "id" | "receivedAt">): ProviderEvent {
   const ev: ProviderEvent = { ...e, id: tx.id("pev"), receivedAt: tx.at };
   tx.ws.providerEvents.push(ev);
+  if (typeof ev.detail.rawRank === "number") noteHoldBoundary(tx, ev); // rc4 RR-1 (Connect events only)
   return ev;
 }
 
@@ -72,11 +79,12 @@ export function ingestPayload(tx: Tx, input: IngestInput): { outcome: ProviderEv
       ...(p?.currency ? { currency: p.currency } : {}),
       ...(p?.reason ? { reason: p.reason } : {}),
       ...(p?.tx_hash ? { txHash: p.tx_hash } : {}),
+      ...(p?.raw ? rawDetail(p.raw) : {}),
     },
   };
   if (input.signatureResult === "invalid") {
     const ev = record(tx, { ...base, processingOutcome: "rejected_signature" });
-    tx.log("event.rejected_signature", "provider_event", ev.id, "Webhook signature invalid; not applied");
+    tx.log("event.rejected_signature", "provider_event", ev.id, input.signatureReason === "unverified_scheme" ? "Webhook signature scheme cannot be verified here (unverified scheme); not applied — poll the provider to confirm" : "Webhook signature invalid; not applied");
     return { outcome: "rejected_signature", event: ev };
   }
   // M6: a correctly signed but malformed payload is refused with a typed error (nothing recorded).
@@ -164,6 +172,23 @@ export function ingestPayload(tx: Tx, input: IngestInput): { outcome: ProviderEv
     const ev = record(tx, { ...base, processingOutcome: outcome });
     tx.log("hold.partner_release_reported", "hold", hold.id, humanRelease ? "Released (human decision + partner release)" : "Awaiting compliance reviewer decision; not auto-released");
     return { outcome, event: ev };
+  }
+
+  // rc4 Connect: order-independent conflict rule (adapters that declare raw ranks only). The provider's
+  // LATEST version sets execution unless the payout is already terminal; the conflict is always raised.
+  const conflict = p.raw ? findOrderConflict(ws, intent.id, p) : undefined;
+  if (conflict) {
+    const latest = EVENT_TARGET[p.type];
+    const applyLatest = p.sequence > maxApplied && latest !== undefined && latest !== current && !isTerminalExecution(current);
+    const ev = record(tx, { ...base, processingOutcome: applyLatest ? "applied" : "contradictory_exception_raised" });
+    openException(tx, { category: "contradictory_evidence", explanationCode: conflict.code, explanation: `${conflict.text} Both reports are kept; ${applyLatest ? `execution follows the provider's latest version (${latest})` : "state not changed"}.`, intentId: intent.id, supportingEventIds: [conflict.other.id, ev.id] });
+    if (applyLatest) {
+      applySideEffects(tx, intent, p, ev);
+      setExecution(tx, intent, latest!, `Provider's latest version ${p.raw!.status} (contradicts an earlier report)`);
+      if (p.tx_hash) tryAllocateChain(tx, intent);
+    }
+    if (intent.status.settlement !== "none") intent.status.settlement = "contradicted";
+    return { outcome: ev.processingOutcome, event: ev };
   }
 
   const target = EVENT_TARGET[p.type]!;

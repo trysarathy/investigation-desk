@@ -1,11 +1,15 @@
 /**
- * Provider adapter contract + deterministic SandboxAdapter for three FICTIONAL providers.
+ * Provider adapter contract + deterministic SandboxAdapter for three FICTIONAL providers, and (rc4)
+ * the Clearline Connect adapters built from AdapterDescriptors (src/lib/clearline/connect/).
  * No network calls, no keys, no real payouts. Every response is generated from the inputs.
  */
 import { BASE_SEPOLIA_CHAIN_ID, ALLOWLISTED_TOKENS, expectedBeneficiaryWallet } from "./chain";
 import { applyBpsFloor, convertMinor, isCurrency } from "./money";
 import { sha256Hex } from "./sha256";
 import { addMinutes, isIsoInstant } from "./tx";
+import { ConnectAdapter } from "./connect/adapter";
+import { CONNECT_DESCRIPTORS } from "./connect/descriptors";
+import type { StatusSnapshot } from "./connect/simulator";
 import { signSandboxWebhook, sandboxWebhookSecret, verifySandboxWebhook, type WebhookVerification } from "./webhooks";
 import {
   QUOTE_LABEL,
@@ -49,7 +53,8 @@ export interface EligibilityResult {
 export interface SubmitAck {
   providerPaymentId: string;
   acceptedAt: string;
-  payload: SandboxWebhookPayload;
+  /** The provider's synchronous response body (rc4: a Connect provider's own object shape). */
+  payload: SandboxWebhookPayload | Record<string, unknown>;
 }
 
 export interface NormalizedProviderError {
@@ -71,12 +76,14 @@ export interface ProviderAdapter {
   eligibility(intent: PaymentIntent, route: ProviderRoute): EligibilityResult;
   quote(intent: PaymentIntent, route: ProviderRoute, at: string, quoteId: string): Quote;
   submit(instruction: PaymentInstruction, intent: PaymentIntent, at: string): Result<SubmitAck>;
-  /** Normalised acknowledgement event for an accepted submission. */
-  acknowledge(ack: SubmitAck): SandboxWebhookPayload;
+  /** Acknowledgement body for an accepted submission (serialised and parsed by parseWebhook). */
+  acknowledge(ack: SubmitAck): SubmitAck["payload"];
   /** Stablecoin routes: the beneficiary's registered (synthetic) wallet address. */
   expectedWallet?(intent: PaymentIntent): string;
   /** Deterministic next status the provider would report (polling / simulation). */
   pollStatus(ws: Workspace, intent: PaymentIntent, instruction: PaymentInstruction, at: string): ScriptStep;
+  /** rc4 Connect: the provider's (simulated) status API: the latest snapshot at `at`, or one listed version. */
+  fetchStatus?(ws: Workspace, intent: PaymentIntent, instruction: PaymentInstruction, at: string, version?: number): StatusSnapshot;
   /** Sign a webhook body the way this provider would (sandbox secret is public). */
   signWebhook(rawBody: string, unixSeconds: number): string;
   verifyWebhook(rawBody: string, signatureHeader: string, nowUnixSeconds: number): WebhookVerification;
@@ -276,7 +283,7 @@ export class SandboxAdapter implements ProviderAdapter {
     return { ok: true, value: ack };
   }
 
-  acknowledge(ack: SubmitAck): SandboxWebhookPayload {
+  acknowledge(ack: SubmitAck): SubmitAck["payload"] {
     return ack.payload;
   }
 
@@ -413,6 +420,12 @@ export class SandboxAdapter implements ProviderAdapter {
   }
 }
 
-const ADAPTERS = new Map<string, SandboxAdapter>(Object.values(P).map((p) => [p.id, new SandboxAdapter(p.id, p.name, p.prefix)]));
+const ADAPTERS = new Map<string, ProviderAdapter>(Object.values(P).map((p) => [p.id, new SandboxAdapter(p.id, p.name, p.prefix)]));
+
+// rc4 Connect: the fictional Connect providers. Their routes are NOT in the sample workspace.
+for (const d of CONNECT_DESCRIPTORS) ADAPTERS.set(d.providerId, new ConnectAdapter(d, new SandboxAdapter(d.providerId, d.providerName, d.refPrefix)));
+
+/** rc4: the fictional Connect providers (separate from SANDBOX_PROVIDERS, which is unchanged). */
+export const CONNECT_PROVIDERS: readonly { id: string; name: string }[] = CONNECT_DESCRIPTORS.map((d) => ({ id: d.providerId, name: d.providerName }));
 
 export const getAdapter = (providerId: string): ProviderAdapter | undefined => ADAPTERS.get(providerId);

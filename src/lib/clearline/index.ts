@@ -32,7 +32,10 @@ export { EXECUTION_TRANSITIONS, canTransitionExecution, isTerminalExecution } fr
 
 // Provider adapters
 export type { ProviderAdapter, ProviderCapabilities, EligibilityResult, SubmitAck, NormalizedProviderError } from "./adapters";
-export { SandboxAdapter, SANDBOX_PROVIDERS, sandboxRoutes, getAdapter } from "./adapters";
+export { SandboxAdapter, SANDBOX_PROVIDERS, CONNECT_PROVIDERS, sandboxRoutes, getAdapter } from "./adapters";
+
+// rc4 Clearline Connect: provider adapter framework (fictional sandbox providers only)
+export * from "./connect";
 
 // Webhooks (test-mode signing; the example secrets are public and protect nothing)
 export { signSandboxWebhook, verifySandboxWebhook, sandboxWebhookSecret, WEBHOOK_TOLERANCE_SECONDS } from "./webhooks";
@@ -58,3 +61,6 @@ export { HUMAN_LABELS, CODE_LABELS, describeCode, explainCode, isKnownCode, desc
 export type { HumanError, StatusDescription } from "./labels";
 export { TERMINAL_FOR_SETTLEMENT_REPORT } from "./reconciliation";
 export { evidenceCeiling, evidencedVerifiedAndMatched, type EvidenceCeiling } from "./derive";
+
+// rc4 (CHANGE 15): Accounting Bridge — proposed journal entries, reconciliation and journal exports, periods, CoA mapping
+export * from "./accounting";

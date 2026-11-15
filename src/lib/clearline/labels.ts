@@ -8,6 +8,7 @@
  * independent evidence says so.
  */
 import { RECONCILIATION_CODE_TEXT, type ReconciliationCodeGroup } from "./reconciliation";
+import { ACCOUNT_ROLE, BRIDGE_CODE_LABELS, BRIDGE_REASON, EXPORT_EVIDENCE_CLASS, EXPORT_KIND, EXPORT_MOVEMENT, JOURNAL_RULE, NOT_PROPOSED, PERIOD_STATUS, PROPOSAL_STATUS, SUPERSESSION } from "./accounting/labels";
 import { EXECUTION_TRANSITIONS, isTerminalExecution } from "./state";
 import type {
   AdvanceState,
@@ -33,6 +34,8 @@ import type {
   StatementSource,
   StatusDimensions,
   Workspace,
+  WorkspaceMigrationKind,
+  WorkspaceMigrationOutcome,
 } from "./types";
 
 const EXECUTION: Record<ExecutionState, string> = {
@@ -227,6 +230,9 @@ const ACTION_OUTCOME: Record<string, string> = {
   recorded_provider_report: "Provider report recorded (not independent evidence)",
   duplicate_report_linked: "Same short provider report again — linked to the open exception",
   no_eligible_route: "No eligible route",
+  // rc4 Accounting Bridge
+  proposals_created: "Journal entries proposed — not approved, not posted",
+  no_new_proposals: "No new journal entries to propose",
 };
 const ERROR_CODE: Record<EngineErrorCode, string> = {
   invalid_amount: "The amount is not valid.",
@@ -282,6 +288,7 @@ const RESET_CODE: Record<string, string> = {
   REFERENCED_BY_OTHER_RECORDS: "Other cases or your own records link to this case",
   ID_CONFLICT: "The case's sample ids are used by other records",
   REFERENCE_IN_USE: "One of your active payments uses this case's internal reference",
+  ACCOUNTING_ENTRIES_RECORDED: "The case's journal entries are approved, exported or posted",
 };
 /** rc3: row codes of the synthetic case report CSV (caseReportToCsv). */
 const REPORT_ROW_CODE: Record<string, string> = {
@@ -314,6 +321,13 @@ const ELIGIBILITY_CODE: Record<string, string> = {
   RATE_UNAVAILABLE: "No usable rate on this route",
 };
 
+/** rc4 Connect: codes raised by the adapter-level rules (own block, kept separate for clean merges). */
+const CONNECT_CODE: Readonly<Record<string, string>> = {
+  EV_PROVIDER_STATUS_REGRESSED: "Provider moved the status backwards — both reports kept, a person decides",
+  EV_PROVIDER_SUCCESS_REVERSED: "Provider reported success, then failure — both reports kept, a person decides",
+  EV_PROVIDER_CLAIMS_DIFFER: "Provider made two different completion claims — both kept, a person decides",
+};
+
 /** Every static explanation code the engine emits, with a short human label. */
 export const CODE_LABELS: Readonly<Record<string, string>> = {
   // Reconciliation (line, allocation and exception codes)
@@ -330,6 +344,7 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   RC_DUPLICATE_SUSPECTED: "Possible duplicate line",
   RC_RETURN_CONFIRMS_PROVIDER_RETURN: "Return confirmed on the statement",
   RC_RETURN_CONTRADICTS_PROVIDER_STATUS: "Return line contradicts the provider's status",
+  RC_RETURN_LINE_IS_DEBIT: "Return or reversal line is a debit — not a return credit",
   RC_UNMATCHED_INCOMING: "Incoming funds not matched",
   RC_UNMATCHED_OUTGOING: "Outgoing funds not matched",
   RC_PROVIDER_REPORT_ONLY: "Provider report only — not independent evidence",
@@ -424,12 +439,38 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   ...Object.fromEntries(Object.entries(ELIGIBILITY_CODE)),
   ...RESET_CODE,
   ...REPORT_ROW_CODE,
+  // rc4 Accounting Bridge: journal rules (JR_), not-proposed reasons (NP_), supersession (SP_), export rows (XR_)
+  ...BRIDGE_CODE_LABELS,
+  ...CONNECT_CODE,
 };
 
 const SUPPLIER_PAID_BASIS: Record<FundingProjectionRow["supplierPaidBasis"], string> = {
   none: "Supplier not shown as paid",
   provider_reported: "Provider reports the supplier paid (not verified)",
   verified_settlement: "Supplier payout verified by independent evidence",
+};
+
+/** rc4: WorkspaceMigration.kind and .outcome (what a load-time migration changed), in plain words. */
+const MIGRATION_KIND: Record<WorkspaceMigrationKind, string> = {
+  terminal_payout_verified: "Failed, cancelled, expired or returned payout stored as verified",
+  terminal_payout_evidence: "Failed, cancelled, expired or returned payout still showing evidence",
+  chain_observation_not_allowlisted: "On-chain transfer on a token or network that is not allowlisted",
+  chain_hash_conflict: "Transaction hash recorded earlier with another identity",
+  reorg_reconciliation: "Matched on an on-chain transfer that is no longer final",
+  status_exceeds_evidence: "Status above what the recorded evidence supports",
+  journal_proposal_superseded: "Journal entry that no longer matches the current posting rules",
+  open_contradiction_settlement: "Payout shown as settled while a contradiction is open",
+  chain_status_exceeds_confirmations: "On-chain transfer stored with a status above its confirmations",
+};
+const MIGRATION_OUTCOME: Record<WorkspaceMigrationOutcome, string> = {
+  contradiction_raised: "Contradiction raised for a person",
+  contradicted_open: "Shown as contradicted (an open exception owns it)",
+  resolved_by_person: "Already resolved by a person",
+  observation_not_counted: "Transfer no longer counted",
+  reconciliation_reopened: "Reconciliation reopened",
+  status_capped: "Status lowered to what the evidence supports",
+  proposal_superseded: "Journal entry superseded (never exported)",
+  observation_downgraded: "Transfer status lowered to what its confirmations give (still counted)",
 };
 
 const RETURN_STATUS: Record<NonNullable<PaymentIntent["returnStatus"]>, string> = {
@@ -475,6 +516,21 @@ export const HUMAN_LABELS = {
   reportRowCode: REPORT_ROW_CODE,
   /** rc3 (R-1): PaymentIntent.returnStatus. */
   returnStatus: RETURN_STATUS,
+  /** rc4: load-time migrations (WorkspaceMigration.kind / .outcome). */
+  migrationKind: MIGRATION_KIND,
+  migrationOutcome: MIGRATION_OUTCOME,
+  /** rc4 Accounting Bridge (CHANGE 15). */
+  journalProposalStatus: PROPOSAL_STATUS,
+  journalRule: JOURNAL_RULE,
+  accountRole: ACCOUNT_ROLE,
+  notProposed: NOT_PROPOSED,
+  supersession: SUPERSESSION,
+  accountingPeriodStatus: PERIOD_STATUS,
+  accountingExportKind: EXPORT_KIND,
+  exportEvidenceClass: EXPORT_EVIDENCE_CLASS,
+  exportMovement: EXPORT_MOVEMENT,
+  /** "CODE: …" prefixes of Accounting Bridge refusals (describeError → reasonCode). */
+  bridgeReason: BRIDGE_REASON,
 } as const;
 
 const own = <T>(o: Readonly<Record<string, T>>, k: string): T | undefined => (Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined);
@@ -568,10 +624,13 @@ export function describeError(err: Pick<EngineError, "message"> & { code: string
   const message = typeof err?.message === "string" ? err.message : "";
   const prefix = /^([A-Z][A-Z_]+): (.*)$/s.exec(message);
   const reasonCode = prefix && own(RESOLUTION_CODE, prefix[1]) !== undefined ? prefix[1] : undefined;
+  // rc4: an Accounting Bridge refusal ("PERIOD_CLOSED: …", "UNMAPPED_ACCOUNT_ROLE: …") names its reason in plain words.
+  const bridgeCode = prefix && !reasonCode && own(BRIDGE_REASON, prefix[1]) !== undefined ? prefix[1] : undefined;
   const reasonText = prefix && reasonCode ? prefix[2] : message;
   const base = own(ERROR_CODE as Record<string, string>, code) ?? own(API_ERROR_CODE as Record<string, string>, code) ?? "Something went wrong.";
 
-  const done = (headline: string, detail: string): HumanError => ({ code, reasonCode, headline, detail, text: detail ? `${headline} ${detail}` : headline });
+  const done = (headline: string, detail: string): HumanError => ({ code, reasonCode: reasonCode ?? bridgeCode, headline, detail, text: detail ? `${headline} ${detail}` : headline });
+  if (bridgeCode) return done(base, `${BRIDGE_REASON[bridgeCode]} ${sentence(prefix![2])}`);
 
   if (reasonCode) {
     const id = err.entityId;

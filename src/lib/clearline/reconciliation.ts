@@ -28,6 +28,7 @@ export const RECONCILIATION_CODE_TEXT: Readonly<Record<ReconciliationCode, strin
   RC_DUPLICATE_SUSPECTED: "Same reference, amount and value date as a line already allocated; not allocated twice.",
   RC_RETURN_CONFIRMS_PROVIDER_RETURN: "Return line agrees with the provider's returned-payout report.",
   RC_RETURN_CONTRADICTS_PROVIDER_STATUS: "Return line contradicts the provider's status for this payment.",
+  RC_RETURN_LINE_IS_DEBIT: "A return or reversal line that is a DEBIT (money leaving the account, e.g. the bank reversing a return credit) is never a return confirmation; not allocated.",
   RC_UNMATCHED_INCOMING: "Incoming funds with no matching expected item.",
   RC_UNMATCHED_OUTGOING: "Outgoing funds with no matching submitted payment.",
   RC_PROVIDER_REPORT_ONLY: "Matched against a provider settlement report, which is provider-reported rather than independent bank evidence.",
@@ -54,6 +55,7 @@ export const RECONCILIATION_CODE_GROUP: Readonly<Record<ReconciliationCode, Reco
   RC_DUPLICATE_SUSPECTED: "duplicate",
   RC_RETURN_CONFIRMS_PROVIDER_RETURN: "return",
   RC_RETURN_CONTRADICTS_PROVIDER_STATUS: "contradiction",
+  RC_RETURN_LINE_IS_DEBIT: "contradiction",
   RC_UNMATCHED_INCOMING: "unmatched",
   RC_UNMATCHED_OUTGOING: "unmatched",
   RC_PROVIDER_REPORT_ONLY: "informational",
@@ -197,6 +199,12 @@ export function reconcileLine(tx: Tx, line: StatementLine): string {
   const instr = ws.instructions.find((x) => x.id === intent.instructionId)!;
 
   if (line.kind === "return" || line.kind === "reversal") {
+    // rc4 review F2: a return confirmation is money coming BACK. A debit-direction return / reversal (money going out
+    // again) is never allocated as one, so it can never be booked as cash in.
+    if (line.direction !== "credit") {
+      exceptionFor(tx, line, "RC_RETURN_LINE_IS_DEBIT", { intentId: intent.id, category: "contradictory_evidence" });
+      return "exception_raised";
+    }
     if (line.currency !== intent.sourceCurrency) {
       exceptionFor(tx, line, "RC_CURRENCY_MISMATCH", { intentId: intent.id });
       return "exception_raised";
@@ -342,6 +350,15 @@ export function reconcileLine(tx: Tx, line: StatementLine): string {
   const full = line.amountMinor === remaining;
   // CHANGE 5 (F2): a bank line below the remainder stays partial, with the structured difference.
   if (!full) line.amountDifference = difference(line, "RC_PARTIAL_AMOUNT", remaining);
+  // rc4 G1: while the provider's own status reports contradict each other (an OPEN contradictory_evidence exception on
+  // this payout), a matched debit is evidence of a contradicted payout, never of settlement — as recomputeDimensions
+  // derives it. When a person resolves the contradiction, resolve() recomputes from the evidence.
+  const contradictionOpen = ws.exceptions.some((e) => e.intentId === intent.id && e.status !== "resolved" && e.category === "contradictory_evidence");
+  if (contradictionOpen && line.source === "bank_statement") {
+    intent.status.settlement = "contradicted";
+    intent.status.settlementScope = "bank_statement";
+    intent.status.reconciliation = "exception";
+  }
   if (intent.status.reconciliation !== "exception") intent.status.reconciliation = full ? "matched" : "partially_matched";
   if (intent.status.settlement !== "contradicted") {
     if (line.source === "bank_statement") {

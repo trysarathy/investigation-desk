@@ -5,6 +5,7 @@
  */
 import { applyAction } from "./actions";
 import { sandboxRoutes } from "./adapters";
+import { DEFAULT_SAMPLE_MAPPING } from "./accounting/periods";
 import type { Actor, LiquidityPolicy, LiquiditySnapshot, PaymentIntent, Workspace, WorkspaceAction } from "./types";
 
 export const SAMPLE_AS_OF = "2026-11-13T02:00:00.000Z";
@@ -18,6 +19,9 @@ export const SAMPLE_ACTORS: Actor[] = [
   { id: "usr_daniel", name: "Daniel Ong · Treasury approver (fictional)", role: "approver" },
   { id: "usr_priya", name: "Priya Nair · Compliance reviewer (fictional)", role: "compliance" },
   { id: "usr_alex", name: "Alex Chen · Viewer (fictional)", role: "viewer" },
+  // rc4 (final check): a second approver, so an approver who did not export can withdraw an exported journal entry or
+  // confirm it was never imported (maker ≠ checker). Appended last: no existing id, time or fingerprint moves.
+  { id: "usr_lin", name: "Lin Wei · Finance approver (fictional)", role: "approver" },
 ];
 
 /** Scenario keys stored on `intent.scenario`. */
@@ -117,6 +121,13 @@ class Builder {
   sim(intentId: string, times = 1) {
     for (let i = 0; i < times; i++) this.run("usr_maya", { type: "simulate_provider_event", intentId });
   }
+  /** Run at the workspace clock (rc4: the Accounting Bridge steps run after the clock reaches SAMPLE_AS_OF, so no earlier id or time moves). */
+  atClock(actorId: string, action: WorkspaceAction): string[] {
+    const r = applyAction(this.ws, action, { actorId, at: this.ws.asOf });
+    if (!r.ok) throw new Error(`Sample build failed at ${action.type}: ${r.error.code} ${r.error.message}`);
+    this.ws = r.value.workspace;
+    return r.value.createdIds;
+  }
   ppid(intentId: string): string {
     const i = this.intent(intentId);
     return this.ws.instructions.find((x) => x.id === i.instructionId)!.providerPaymentId!;
@@ -179,6 +190,16 @@ export function sampleWorkspace(): Workspace {
   b.run("usr_maya", { type: "add_note", target: { kind: "case", id: s2case }, text: "Supplier asked to reconfirm account details through the known contact on file. Do not reissue until confirmed." });
 
   b.run("usr_maya", { type: "advance_clock", to: SAMPLE_AS_OF });
+
+  // rc4 Accounting Bridge (CHANGE 15): the fictional default chart-of-accounts mapping, one open period (November
+  // 2026, Asia/Singapore calendar dates) and the proposals the evidence supports — s1 payout debit, s2 debit and
+  // return credit (to provider clearing: the supplier is not paid), s5 advance disbursement and the SGD 30,000.00
+  // repayment by reference. The unreferenced s5 SGD 20,000.00 receipt gives no entry (its exception stays), and
+  // s3 (held, no bank line) and s4 (chain transfer not yet final) give none. Every step runs at SAMPLE_AS_OF, after
+  // all earlier steps, so the five cases' ids, times and fingerprints are unchanged; nothing is approved or posted.
+  b.atClock("usr_maya", { type: "set_account_mapping", entries: DEFAULT_SAMPLE_MAPPING.map((e) => ({ ...e })) });
+  b.atClock("usr_maya", { type: "open_accounting_period", name: "2026-11", from: "2026-11-01", to: "2026-12-01" });
+  b.atClock("usr_maya", { type: "propose_journal_entries" });
   return b.ws;
 }
 

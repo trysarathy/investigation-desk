@@ -4,6 +4,7 @@
  * no changes. The engine never reads the wall clock: `ctx.at` is the simulated instant.
  */
 import { getAdapter, type ScriptStep } from "./adapters";
+import { applyAccountingAction, isAccountingAction, syncAccounting } from "./accounting/actions";
 import { ingestChainObservation, validateChainInput } from "./chain";
 import { ingestPayload, setExecution } from "./events";
 import { acceptableDifference, canResolveCase, canResolveException, ensureCase, openException } from "./exceptions";
@@ -73,6 +74,8 @@ export function applyAction(ws: Workspace, action: WorkspaceAction, ctx: ActionC
     if (Date.parse(ctx.at) > Date.parse(tx.ws.asOf)) tx.ws.asOf = new Date(Date.parse(ctx.at)).toISOString();
     const outcome = dispatch(tx, action);
     syncDerived(tx);
+    // rc4: a proposed or approved journal entry whose evidence this action changed is superseded (with why).
+    syncAccounting(tx);
     return { ok: true, value: { workspace: tx.ws, audit: tx.audit, outcome, createdIds: tx.created } };
   } catch (e) {
     if (e instanceof Abort) return { ok: false, error: e.engineError };
@@ -96,6 +99,7 @@ function dispatch(tx: Tx, a: WorkspaceAction): string {
     case "cancel_intent": return cancelIntent(tx, a.intentId, a.reason);
     case "simulate_provider_event": return simulate(tx, a.intentId, a.injection ?? "none");
     case "ingest_webhook": return ingestWebhook(tx, a.delivery);
+    case "poll_provider": return pollProvider(tx, a.intentId, a.version);
     case "ingest_statement_line": return ingestStatement(tx, a.line);
     case "ingest_chain_observation": {
       requireRole(tx, ["operator"]);
@@ -119,6 +123,7 @@ function dispatch(tx: Tx, a: WorkspaceAction): string {
     case "create_advance": return createAdvance(tx, a.input);
     case "decide_advance": return decideAdvance(tx, a.advanceId, a.outcome, a.reason);
     default:
+      if (isAccountingAction(a)) return applyAccountingAction(tx, a);
       return fail("invalid_field", "Unknown action type.", { field: "type" });
   }
 }
@@ -370,13 +375,31 @@ function ingestWebhookRaw(tx: Tx, d: WebhookDelivery): string {
   if (!adapter) fail("not_found", "Unknown provider.", { field: "providerId" });
   if (typeof d.rawBody !== "string" || d.rawBody.length > 16_000) fail("invalid_field", "rawBody must be a string ≤ 16 KB.", { field: "rawBody" });
   const v = adapter.verifyWebhook(d.rawBody, d.signatureHeader, unix(tx.at));
-  return ingestPayload(tx, { providerId: d.providerId, rawBody: d.rawBody, signatureResult: v.valid ? "valid" : "invalid", provenance: "provider_webhook" }).outcome;
+  return ingestPayload(tx, { providerId: d.providerId, rawBody: d.rawBody, signatureResult: v.valid ? "valid" : "invalid", provenance: "provider_webhook", ...(v.valid ? {} : { signatureReason: v.reason }) }).outcome;
 }
 
 function ingestWebhook(tx: Tx, d: WebhookDelivery): string {
   requireRole(tx, ["operator"]);
   if (!d || typeof d !== "object") fail("invalid_field", "delivery required.");
   return ingestWebhookRaw(tx, d);
+}
+
+/**
+ * rc4 Connect: Clearline polls the provider's (simulated) status API. The engine fetches the snapshot
+ * itself (the caller cannot supply its content) and feeds it through the same event path as a webhook,
+ * with provenance provider_poll. A poll response is a provider claim, never independent evidence.
+ */
+function pollProvider(tx: Tx, intentId: string, version: unknown): string {
+  requireRole(tx, ["operator"]);
+  const intent = intentById(tx, intentId);
+  const instr = tx.ws.instructions.find((i) => i.id === intent.instructionId);
+  if (!instr?.providerPaymentId) fail("precondition_failed", "Submit the instruction before polling the provider.", { entityId: intent.id });
+  if (version !== undefined && (typeof version !== "number" || !Number.isSafeInteger(version) || version < 1)) fail("invalid_field", "version must be a positive integer.", { field: "version" });
+  const adapter = getAdapter(instr.providerId)!;
+  if (!adapter.fetchStatus) fail("precondition_failed", "This provider has no status API in the sandbox; use simulate_provider_event.", { entityId: intent.id });
+  const snap = adapter.fetchStatus(tx.ws, intent, instr, tx.at, version as number | undefined);
+  if (snap.kind === "none") return "no_event_pending";
+  return ingestPayload(tx, { providerId: instr.providerId, rawBody: snap.rawBody, signatureResult: "not_applicable", provenance: "provider_poll" }).outcome;
 }
 
 function simulate(tx: Tx, intentId: string, injection: FailureInjection): string {

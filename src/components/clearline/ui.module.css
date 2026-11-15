@@ -245,3 +245,25 @@
 .jump { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 14px; padding: 0; list-style: none; font-size: 13px; }
 /* Selected filter toggle: ice fill + blue rule, never the primary-action fill (one primary per view). */
 .toggleOn { background: var(--cl-selected); border-color: var(--cl-action); box-shadow: inset 0 -2px 0 var(--cl-action); }
+
+/* ---------- Accounting Bridge (rc4): journal lines, one per row inside a cell ---------- */
+.jLines { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.jLines li { min-width: 0; overflow-wrap: anywhere; }
+.jSide { display: inline-block; min-width: 2.2em; font: 600 11px/1.4 var(--cl-font-mono); color: var(--cl-text-secondary); }
+.jLinks { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.jLinks li { min-width: 0; overflow-wrap: anywhere; }
+.reviewRow td { background: var(--cl-canvas); }
+.formRow { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; }
+.formRow > * { min-width: 0; }
+.formRow .field { flex: 1 1 200px; }
+.actionGroup { border-top: 1px solid var(--cl-line); padding: 12px 0 0; margin-top: 12px; }
+.actionGroup h3 { margin: 0 0 6px; }
+.jTable td { padding: 8px 8px; }
+.jTable .jNum { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.jTable .jEntry { min-width: 200px; }
+.jTable .jAccounts { min-width: 190px; }
+.jTable .jEvidence { min-width: 140px; }
+.jTable .jStatus { min-width: 150px; max-width: 190px; }
+.jTable .jStatus .chip { white-space: normal; line-height: 1.35; padding-top: 2px; padding-bottom: 2px; }
+.jTable .jEntry .chip { white-space: normal; line-height: 1.35; }
+@media (max-width: 640px) { .jTable .jEntry, .jTable .jAccounts, .jTable .jEvidence, .jTable .jStatus { min-width: 0; max-width: none; } }
