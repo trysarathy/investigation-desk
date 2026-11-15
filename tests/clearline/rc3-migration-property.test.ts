@@ -23,6 +23,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { ALLOWLISTED_TOKENS, SAMPLE_SCENARIOS, applyAction, getAdapter, loadWorkspace, resetScenario, sampleWorkspace, serializeWorkspace, type Workspace, type WorkspaceAction } from "@/lib/clearline";
 import { debitLine, intent as intentOf, submitted } from "./helpers";
+import { bridgeCandidates } from "./rc4-helpers";
 
 function rng(seed: number) {
   let s = seed >>> 0;
@@ -126,6 +127,9 @@ function candidates(ws: Workspace, r: () => number): { actor: string; action: Wo
   if (ppid && r() < 0.5) out.push({ actor: "usr_maya", action: { type: "ingest_statement_line", line: { lineId: `X-${n}`, source: "bank_statement", accountRef: "BANK-X (fictional)", direction: "debit", kind: "payment", amountMinor: intent.amountMinor + pick([1, 50, Math.floor(intent.amountMinor / 50), Math.floor(intent.amountMinor / 4)])!, currency: intent.sourceCurrency, reference: `PAYOUT ${ppid}`, counterparty: "C (fictional)", valueDate: pick(["2026-11-13", "2026-11-25", "2026-12-20"])! } } });
   const adv2 = pick(ws.advances.filter((a) => a.obligationId));
   if (adv2) { const ob = ws.obligations.find((o) => o.id === adv2.obligationId); if (ob) out.push({ actor: "usr_maya", action: { type: "ingest_statement_line", line: { lineId: `R-${n}`, source: "bank_statement", accountRef: "BANK-SGD-OPS (fictional)", direction: "credit", kind: "payment", amountMinor: Math.max(1, Math.floor(ob.principalMinor / pick([1, 2, 3])!)), currency: ob.currency, reference: ob.reference, counterparty: "Cust (fictional)", valueDate: "2026-11-14" } } }); }
+  // rc4 (CHANGE 15): the Accounting Bridge actions (propose, approve incl. refused self-approval, reject, export,
+  // record_posting, periods, mapping, reconciliation export), so their workspaces are checked to load unchanged too.
+  out.push(...bridgeCandidates(ws, r));
   return out;
 }
 
@@ -336,7 +340,9 @@ describe("R2-M1: the migration never fires on a workspace rc3 produced", () => {
     const wanted = ["acceptance withdrawn on reopen", "supersede withdrawn on reopen", "reopened exception", "reopened case", "cancelled payment", "advance decided", "info requested", "second approval", "terminal payout with chain evidence", "terminal payout with a bank debit", "final chain transfer", "rejected observation", "CH_CONFIRMATIONS_DECREASED", "CH_TRANSFER_FOR_TERMINAL_PAYOUT", "RC_DEBIT_FOR_FAILED_PAYOUT", "RC_OVERPAYMENT", "RC_OUTSIDE_TIME_WINDOW", "resolved exception"];
     expect(wanted.filter((x) => !seen.has(x))).toEqual([]);
     // R4-m1: the random walk itself applied these successfully (not only the scripted tests)
-    const kinds = ["submit_instruction", "approve_instruction", "choose_route", "request_quotes", "approve_acceptance", "assign_hold_reviewer", "reopen", "cancel_intent", "decide_advance", "request_info", "resolve+diff", "resolve+late"];
+    const kinds = ["submit_instruction", "approve_instruction", "choose_route", "request_quotes", "approve_acceptance", "assign_hold_reviewer", "reopen", "cancel_intent", "decide_advance", "request_info", "resolve+diff", "resolve+late",
+      // rc4 (CHANGE 15)
+      "propose_journal_entries", "approve_journal_proposal", "export_journal", "record_posting", "open_accounting_period", "close_accounting_period"];
     expect(kinds.filter((k) => !RANDOM_KINDS.has(k))).toEqual([]);
   });
 });
