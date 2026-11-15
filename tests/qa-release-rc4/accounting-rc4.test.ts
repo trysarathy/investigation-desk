@@ -107,8 +107,8 @@ describe("QA rc4: accounting invariants that hold on 2c0f0f0", () => {
 
   it("CSV injection: a formula-like account name in the mapping is neutralised in the journal CSV", () => {
     let ws = sampleWorkspace();
-    const entries = ws.accounting!.mapping.entries.map((e) => e.accountKey === "supplier_payable" ? { ...e, accountName: "+SUM(A1) payables" } : e);
-    ws = ok(ws, "usr_maya", { type: "set_account_mapping", entries, expectedRevision: ws.accounting!.mapping.revision });
+    const entries = ws.accounting!.mapping!.entries.map((e) => e.accountKey === "supplier_payable" ? { ...e, accountName: "+SUM(A1) payables" } : e);
+    ws = ok(ws, "usr_maya", { type: "set_account_mapping", entries, expectedRevision: ws.accounting!.mapping!.revision });
     const id = props(ws).find((p) => p.ruleCode === "JR_SUPPLIER_PAYOUT_DEBIT")!.id;
     ws = ok(ws, "usr_daniel", { type: "approve_journal_proposal", proposalId: id });
     ws = ok(ws, "usr_maya", { type: "export_journal", periodId: per(ws) });
@@ -258,7 +258,7 @@ describe("QA rc4: forged workspaces against the bridge", () => {
       const ws = clone(sampleWorkspace());
       const p = props(ws).find((x) => x.ruleCode === "JR_SUPPLIER_PAYOUT_DEBIT")!;
       p.status = "approved";
-      p.approval = { by, at: ws.asOf, mappingRevision: ws.accounting!.mapping.revision, accounts: ws.accounting!.mapping.entries.filter((e) => p.lines.some((l) => l.accountKey === e.accountKey)) };
+      p.approval = { by, at: ws.asOf, mappingRevision: ws.accounting!.mapping!.revision, accounts: ws.accounting!.mapping!.entries.filter((e) => p.lines.some((l) => l.accountKey === e.accountKey)) };
       p.history.push({ at: ws.asOf, actorId: by, action: "approved", detail: "forged" } as never);
       expect(loads(ws).ok, by).toBe(false);
     }
@@ -286,7 +286,7 @@ describe("QA rc4: forged workspaces against the bridge", () => {
 
   it("forged bridge records are refused on load: duplicate account codes, overlapping periods, a pending entry in a closed period, an export naming an unknown entry", () => {
     const dup = clone(sampleWorkspace());
-    dup.accounting!.mapping.entries[1].accountCode = dup.accounting!.mapping.entries[0].accountCode;
+    dup.accounting!.mapping!.entries[1].accountCode = dup.accounting!.mapping!.entries[0].accountCode;
     expect(loads(dup).ok).toBe(false);
     const overlap = clone(sampleWorkspace());
     overlap.accounting!.periods.push({ ...overlap.accounting!.periods[0], id: "per_99990", name: "dup", from: "2026-11-15", to: "2026-12-15" });
@@ -296,7 +296,7 @@ describe("QA rc4: forged workspaces against the bridge", () => {
     expect(loads(closed).ok).toBe(false);
     const { ws } = exportedS1();
     const ex = clone(ws);
-    ex.accounting!.exports[0].proposalIds.push("jp_99999");
+    ex.accounting!.exports[0].proposalIds!.push("jp_99999");
     expect(loads(ex).ok).toBe(false);
   });
 
