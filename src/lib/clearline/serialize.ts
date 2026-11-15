@@ -1,5 +1,6 @@
 import { MAX_AMOUNT_MINOR, isCurrency, withinTotal } from "./money";
 import { migrateToRc3 } from "./migrate";
+import { AccountingInvalid, validateAccounting } from "./accounting/validate";
 import { isIsoDate, isIsoInstant, isTimeZone, referenceTokens } from "./tx";
 import type { Result, Workspace, WorkspaceLoad, WorkspaceMigration } from "./types";
 
@@ -150,6 +151,13 @@ function validate(w: unknown): { ws: Workspace; migrations: WorkspaceMigration[]
   // Review M-1, re-review R-M1 / R-m1, second re-review R2-M1: correct states earlier engine versions saved (migrate.ts).
   const migrations = migrateToRc3(ws as unknown as Workspace);
   crossCheck(ws);
+  // rc4 (CHANGE 15): the Accounting Bridge's records. Absent (every v2 / rc3 workspace) means empty and is not checked.
+  try {
+    validateAccounting(ws);
+  } catch (e) {
+    if (e instanceof AccountingInvalid) throw new Invalid(e.field, e.message);
+    throw e;
+  }
   return { ws: ws as unknown as Workspace, migrations };
 }
 

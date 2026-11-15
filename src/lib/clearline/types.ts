@@ -13,6 +13,8 @@
  * - A provider-reported "completed" is a provider claim, never verified settlement.
  */
 
+import type { AccountingAction, AccountingBridge } from "./accounting/types";
+
 // ---------------------------------------------------------------------------------------------
 // Money
 // ---------------------------------------------------------------------------------------------
@@ -828,6 +830,11 @@ export interface Workspace {
   repaymentAllocations: RepaymentAllocation[];
   idempotency: Record<string, { intentId: string; fingerprint: string }>;
   audit: AuditEvent[];
+  /**
+   * rc4 Accounting Bridge (CHANGE 15): chart-of-accounts mapping, accounting periods, journal proposals and export
+   * records. Absent on every v2 / rc3 workspace and until the first bridge action: absent means empty.
+   */
+  accounting?: AccountingBridge;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -862,7 +869,9 @@ export type WorkspaceAction =
   | { type: "assign_hold_reviewer"; holdId: string; reviewerId: string }
   | { type: "record_hold_decision"; holdId: string; decision: "release" | "reject" | "request_more"; reason: string }
   | { type: "create_advance"; input: CreateAdvanceInput }
-  | { type: "decide_advance"; advanceId: string; outcome: "approve" | "decline"; reason: string };
+  | { type: "decide_advance"; advanceId: string; outcome: "approve" | "decline"; reason: string }
+  /** rc4 Accounting Bridge (CHANGE 15); see accounting/types.ts. */
+  | AccountingAction;
 
 export type TargetRef = { kind: "case"; id: string } | { kind: "exception"; id: string };
 

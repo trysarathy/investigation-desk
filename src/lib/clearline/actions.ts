@@ -4,6 +4,7 @@
  * no changes. The engine never reads the wall clock: `ctx.at` is the simulated instant.
  */
 import { getAdapter, type ScriptStep } from "./adapters";
+import { applyAccountingAction, isAccountingAction, syncAccounting } from "./accounting/actions";
 import { ingestChainObservation, validateChainInput } from "./chain";
 import { ingestPayload, setExecution } from "./events";
 import { acceptableDifference, canResolveCase, canResolveException, ensureCase, openException } from "./exceptions";
@@ -73,6 +74,8 @@ export function applyAction(ws: Workspace, action: WorkspaceAction, ctx: ActionC
     if (Date.parse(ctx.at) > Date.parse(tx.ws.asOf)) tx.ws.asOf = new Date(Date.parse(ctx.at)).toISOString();
     const outcome = dispatch(tx, action);
     syncDerived(tx);
+    // rc4: a proposed or approved journal entry whose evidence this action changed is superseded (with why).
+    syncAccounting(tx);
     return { ok: true, value: { workspace: tx.ws, audit: tx.audit, outcome, createdIds: tx.created } };
   } catch (e) {
     if (e instanceof Abort) return { ok: false, error: e.engineError };
@@ -119,6 +122,7 @@ function dispatch(tx: Tx, a: WorkspaceAction): string {
     case "create_advance": return createAdvance(tx, a.input);
     case "decide_advance": return decideAdvance(tx, a.advanceId, a.outcome, a.reason);
     default:
+      if (isAccountingAction(a)) return applyAccountingAction(tx, a);
       return fail("invalid_field", "Unknown action type.", { field: "type" });
   }
 }
