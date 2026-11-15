@@ -1,5 +1,14 @@
 # Clearline sandbox engine — public API (for the console UI)
 
+> **CHANGE 18 (2026-11-15, accounting final check of 5278061 — APPROVE; K1–K4). STATUS: LANDED (not reviewed).**
+> - **K1.** Load refuses two un-reversed in-ledger entries with the same source key and basis hash. The message explains: "is a second copy of … in the ledger … propose never creates this, and it could never be corrected", followed by the accounting refusal text.
+> - **K1, propose.** `propose_journal_entries` refuses `LEDGER_DOUBLE_COUNT` only when its new entries introduce or worsen a ledger issue. An existing issue never blocks unrelated proposals. New exports: `ledgerIssues(ws)` → `LedgerIssue { key, excess, text }[]` and `worsenedIssues(before, after)`; `ledgerProblem` is unchanged.
+> - **K2.** The changed `rc4-connect-rereview` test is renamed to say what it asserts.
+> - **K3.** `SP_RULES_CHANGED` reason, label and migration text are neutral: "no longer matches the current posting rules", with provenance unknown.
+> - **K4.** Engine, bridge and load rule G now agree for every open `contradictory_evidence` exception. `openException` sets a live, bank-settled payout to `contradicted` / `exception` when any contradiction opens, also after the debit (e.g. `EV_AMOUNT_DIFFERS_FROM_INSTRUCTION`). Rule G (`open_contradiction_settlement`) repairs any such code, not only the four provider-status ones.
+> - **Sample change (console and website regenerate from it).** A sixth actor is appended last: `usr_lin`, "Lin Wei · Finance approver (fictional)", role `approver`. It exists so an approver who did not export can withdraw an export or confirm it was never imported. No existing id, timestamp, `seq` or scenario fingerprint changes (`rc3-sample-stability` passes unchanged). The console's actor pickers read `ws.actors`, so they list it. Playwright was not run.
+> - **Tests.** The reviewer's genuine a91dd11 fixtures are now in `tests/clearline/fixtures/rc4a_*.json` and are used by `rc4-final.test.ts` (R1 on real output). The same file covers the K1 Q1 shape, the worsen-only guard, K4 and the second approver. Mutation check: 6 mutants (K1 ×3, K3, K4 ×2), **6 killed**.
+
 > **CHANGE 17 (2026-11-15, accounting re-review of 466d42a — APPROVE, non-blocking R1–R7 — plus G1 from the Connect cross-check). STATUS: LANDED (not reviewed).**
 > - **R1, load compatibility.**
 >   - A proposed or approved entry that is self-consistent (its evidence tie and basis hash hold) but that the current rules derive differently is no longer refused. It is superseded on load: `supersession.code` `SP_RULES_CHANGED`, `causedBy` `system`, with a `workspace.migrated` audit event.
@@ -399,7 +408,7 @@ The whole sandbox state is one serialisable object, `Workspace` (see `types.ts`)
 | `serializeWorkspace` | `(ws) => string` | JSON string. |
 | `parseWorkspace` | `(text) => Result<Workspace>` | Validates `schemaVersion`/`mode`; on error the UI should reset to sample. |
 | `SAMPLE_AS_OF` | `string` | ISO instant of the sample clock. |
-| `SAMPLE_ACTORS` | `Actor[]` | Fictional users: `usr_maya` (operator), `usr_daniel` (approver), `usr_priya` (compliance), `usr_alex` (viewer), `usr_sam` (second operator). |
+| `SAMPLE_ACTORS` | `Actor[]` | Fictional users: `usr_maya` (operator), `usr_daniel` (approver), `usr_priya` (compliance), `usr_alex` (viewer), `usr_sam` (second operator), `usr_lin` (second approver, rc4). |
 
 ## Actions — the only way to change a workspace
 
