@@ -555,3 +555,39 @@ CHANGES REQUESTED.
 - M1b and rule H are correct.
 - M1a is correct except for the "exactly one obligation" condition. Measured against obligations that exist now, it locks a workspace the engine produced through normal actions (N1), with a false "no version of the engine produces this" message, and offers only a reset that loses the user's records.
 - Restrict the condition to obligations that existed when the allocation was made (or drop it), add a test for that sequence, and this is an APPROVE.
+
+---
+
+# Final check (CHANGE 20): CODE REVIEW: APPROVE 37d83fa84e3066c9e90dcb80df7fad4e0fd24488 (rc4/wip-engine; commits 63d6cba, 37d83fa)
+
+APPROVAL-ONLY: needs Aashmiin's merge.
+
+Scope: `48b62b5..rc4/wip-engine` in `src/lib/clearline`, `tests` and `docs/clearline`.
+
+I ran everything in a fresh frozen copy (`git archive 37d83fa`: src, tests and configs, plus the three root files one test reads: `next.config.mjs`, `release-urls.mjs` and `clearline-release.json`). I deleted it afterwards.
+
+| Check | Result |
+|---|---|
+| `npx tsc --noEmit -p .` | exit 0 |
+| `npx vitest run tests/clearline tests/qa-release-rc4` | 47 files, **822 passed**. The one first-run failure was the CSP headers test reading root files my partial archive had left out; after adding the three files it passes 38 of 38. |
+| My reproduction `review-probes/m-change19.test.ts` (N1) | **passes:** `decide_advance` applies, the next action works, and the workspace reloads. All fixtures (v2 ×6, a91dd11 ×3), the sample and an s5 reset load with the same migration kinds as before. |
+| New probe `review-probes/n-change20.test.ts` | below |
+
+## The points asked about
+- **The id-sequence check is sound across resets.**
+  - A reset restores sample records under their **own pristine ids**, which are the ids those records already had. A reset is refused when the scenario is missing (`SCENARIO_NOT_IN_WORKSPACE`) or its ids are taken (`ID_CONFLICT`). Obligations cannot be deleted. So a restored obligation is always one that already existed, under the same id, before the reset.
+  - It therefore can never get a *lower* sequence than an allocation made while it did not exist. Probe: after an s5 reset, `obl_00124` and the user's `obl_00204` keep their ids; the counter only goes up, from 205 to 206.
+  - A restored sample allocation, which has a low sequence, only "sees" obligations with a lower sequence than its own. User obligations always come later, so a user obligation can never make a restored allocation look ambiguous.
+  - The new allocation made after the reset (a line quoting `RPY-OTHER-0001`) matches its obligation, and the workspace reloads.
+  - Choosing id sequence over `createdAt` is right, because two actions can share one clock instant, and ids come from a single counter for the whole workspace.
+- **The forged-ambiguity test is realistic** (a line naming two obligations that both existed, forged with id `alc_99991`), and it is refused with the right wording. The probe also refused `alc_00001` (no obligation existed yet) and `alc_99999999`.
+  - **P1 (Low):** a forger who picks an allocation id whose sequence falls *between* the two obligations (`alc_00150`) gets past the check. Load does not require id sequences to be unique across record types or no higher than `ws.seq`, so the ambiguous line loads as a repayment of the first obligation.
+  - The impact is small: the line really does quote that obligation's reference, so no amount-only or unreferenced money is accepted. And a forged `createdAt` would allow the same thing.
+  - **Fix if wanted:** at load, require each engine id's sequence to be unique across all records and no higher than `ws.seq`. Every sequence up to `ws.seq` is already used, so an "in-between" id would then be impossible.
+- **Wording.** Evidence refusals now say "Its evidence records contradict each other (crafted or damaged data)", not "No version of the engine produces this" (tested).
+  - Rule H's outcome is now `observation_downgraded`.
+  - `HUMAN_LABELS.migrationKind` and `migrationOutcome` cover every member, and a test enforces it against `types.ts`.
+  - `seqOf` is reused from `migrate.ts`, not re-implemented.
+
+## Summary
+APPROVE 37d83fa, approval-only. N1 is fixed: my reproduction passes, and every fixture, the sample and a reset load as before. The id-sequence comparison holds across resets, because restored records keep their original ids and obligations cannot be deleted. P1 is an optional hardening, not a regression.
