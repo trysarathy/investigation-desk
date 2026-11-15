@@ -6,6 +6,10 @@ a file. It is **not an ERP** and it **posts nothing**: there is no network adapt
 external write anywhere in the code. "Posted" in Clearline only records what a person says they posted in their
 own ledger, with the reference they type in (`record_posting`, marked `simulated: true`).
 
+**Review status.** The independent review of a91dd11 was **BLOCK** (F1–F13). CHANGE 16 (`ENGINE_API.md`)
+addresses every finding; it has not been re-reviewed. The F1 stablecoin rule below is a **sandbox rule decided by
+the coordinator and flagged for Aashmiin's sign-off**.
+
 Prepared by a general-purpose AI subagent working under the repository role briefs for
 accounting-integrations-engineer, matching-engine-engineer and tech-lead-architect. It has not been reviewed.
 These posting rules have **not** been signed off by Aashmiin (the role brief requires her approval of every
@@ -29,7 +33,17 @@ API reference: `ENGINE_API.md` CHANGE 15. Records: `DATA_MODEL.md`. Invariants: 
 
 Amounts are exact integer minor units of the evidence's currency (USDC 6 dp); no rounding happens because no
 rule converts or splits an amount. Dates: the bank statement's value date, or the organisation-calendar date
-of the chain allocation; never UTC by accident (the organisation's IANA zone, Asia/Singapore in the sample).
+of the chain allocation (finality) — the same date in the journal and in the reconciliation export (review F9);
+never UTC by accident (the organisation's IANA zone, Asia/Singapore in the sample).
+
+**The supplier payable is cleared once, by the evidence that the beneficiary was paid on the payout's own rail
+(review F1; sandbox rule flagged for Aashmiin's sign-off).** A fiat payout: the bank debit. A stablecoin-route
+payout: the final chain transfer to the beneficiary's wallet; its bank (or custody) debit only funds the on-ramp
+and goes to stablecoin clearing. The conversion difference between the funding currency and USDC is **not
+proposed** (`NP_FX_NOT_EVIDENCED`) and is listed as an unresolved `stablecoin_conversion` row in the reconciliation
+export. `propose_journal_entries` refuses (`LEDGER_DOUBLE_COUNT`) any result in which the net supplier payable /
+customer receivable debit for one payout would exceed the payout (source currency) or its quoted recipient amount
+(destination currency), or one bank line would be booked twice.
 
 | Rule | Evidence that triggers it | Debit | Credit | Shows supplier paid? |
 |---|---|---|---|---|
@@ -38,16 +52,23 @@ of the chain allocation; never UTC by accident (the organisation's IANA zone, As
 | `JR_PAYOUT_DEBIT_NOT_DELIVERED` | The same debit, when the payout is returned, failed, cancelled, expired or on hold | `provider_clearing` | `bank:<accountRef>` | **no** |
 | `JR_PAYOUT_RETURN_CREDIT` | Return credit allocated with `RC_RETURN_CONFIRMS_PROVIDER_RETURN` | `bank:<accountRef>` | `provider_clearing` | **no** |
 | `JR_REPAYMENT_BY_REFERENCE` | Credit allocated by the repayment reference | `bank:<accountRef>` | `customer_receivable` | no |
+| `JR_STABLECOIN_ONRAMP_FUNDING` | Bank (or custody) **debit** allocated to a live payout on the stablecoin route | `stablecoin_clearing` (debit's currency) | `bank:<accountRef>` | **no** (the chain transfer pays) |
 | `JR_STABLECOIN_FINAL_TRANSFER` | FINAL chain observation to the beneficiary wallet, allocated by the provider-reported tx hash, payout not terminal | `supplier_payable` (or `customer_receivable` for an advance) | `stablecoin_clearing` | yes (chain evidence) |
-| `JR_REVERSAL` | An exported or posted entry whose evidence no longer gives the same entry | the original's credits | the original's debits | no |
+| `JR_REVERSAL` | An exported or posted entry whose evidence no longer gives the same entry, or an exported entry an approver withdrew | the original's credits | the original's debits | no |
 
-**Why returns use provider clearing.** A returned payout's debit is booked to `provider_clearing`, never to the
-supplier payable, and the return credit clears it. So no line of a returned payout ever reduces the supplier
-payable: the books cannot show the supplier as paid, and the payable stays open. If a live payout's debit was
-already exported or posted against the supplier payable when the provider reports the return, that entry is
-kept unchanged and a `JR_REVERSAL` plus a `JR_PAYOUT_DEBIT_NOT_DELIVERED` rebooking are proposed (corrections
-are new, approved entries). A provider claim can therefore only make the books say *less* (not delivered); it
-never creates a cash or payable movement on its own.
+A return credit is proposed only for a **credit** line; a debit-direction return or reversal line is never
+allocated by the engine (`RC_RETURN_LINE_IS_DEBIT`) and never gives an entry (review F2).
+
+**Why returns use provider clearing.** An entry proposed for a returned payout books its debit to
+`provider_clearing`, never to the supplier payable, and the return credit clears it. If a live payout's debit
+was already exported or posted against the supplier payable when the provider reports the return, that entry is
+kept unchanged (it may be in the ledger) and stays there **until its reversal is posted**: a `JR_REVERSAL` and a
+`JR_PAYOUT_DEBIT_NOT_DELIVERED` rebooking are proposed. Since CHANGE 16 (review F5) the two are tied: the required
+reversal cannot be rejected (`REVERSAL_REQUIRED`), and the rebooking cannot be approved or exported before the
+reversal (`REVERSAL_FIRST`), so one bank debit is never booked twice and the supplier is never shown paid once
+both are posted. (Before CHANGE 16 a rejected reversal left the payout shown paid and the bank debit booked twice.)
+A provider claim of non-delivery changes the classification of *bank evidence*; it never creates a cash or
+payable movement on its own.
 
 **What is never proposed** (`notProposed`, each with its reason and exception ids):
 
@@ -81,8 +102,16 @@ proposed ──approve (approver ≠ proposer)──▶ approved ──export_jo
 exported / posted + evidence changed ──▶ unchanged, evidenceChange recorded; next propose adds JR_REVERSAL (+ the new entry)
 ```
 
-- A rejected proposal is not proposed again for the same evidence; a different basis is proposed afresh.
-- `approve_journal_proposal` re-derives the entry and refuses `EVIDENCE_CHANGED` if it is not current.
+- A rejected (never exported) proposal is not proposed again for the same evidence; a different basis is proposed afresh.
+- `approve_journal_proposal` and `export_journal` re-derive every entry and refuse `EVIDENCE_CHANGED` if it is not
+  current (review F3). Approval needs every account key mapped and records the codes the approver saw; a mapping
+  change that alters them supersedes the approval (`SP_MAPPING_CHANGED`), and the export uses exactly those codes
+  (review F6).
+- Withdrawing an **exported** entry (`reject_journal_proposal`) needs an approver other than the exporter, keeps its
+  id for good, and proposes a `JR_REVERSAL`: the file may already be imported (review F7).
+- On load, every entry's lines must re-derive from the evidence records it names, its `basisHash` is recomputed,
+  and a proposed or approved entry must be the entry the current evidence gives. The approver's identity in a
+  client-held workspace cannot be authenticated: these checks prove consistency with the evidence, not who clicked.
 - The basis (`basisHash`) covers the rule, accounts, amounts, currency, entry date and every evidence id.
 
 ## 4. Periods and the mapping
@@ -113,7 +142,7 @@ Header, then three `meta` rows (`XR_FICTIONAL_SANDBOX` marking, `XR_GENERATED_AT
 one row per movement, sorted by value date then row id. `section` is the evidence class: `evidenced`,
 `provider_reported_only` or `unresolved`.
 
-`section,row_id,movement,evidence_class,direction,amount,currency,value_date,statement_line_id,bank_line_id,account_ref,reference,counterparty,chain_observation_id,tx_hash,provider_event_ids,evidence_record_ids,payment_id,internal_reference,advance_id,obligation_id,allocation_ids,reconciliation_status,classification_codes,rule_code,rule_label,open_exceptions,journal_proposals`
+`section,row_id,movement,evidence_class,direction,amount,currency,value_date,statement_line_id,bank_line_id,account_ref,reference,counterparty,chain_observation_id,tx_hash,provider_event_ids,evidence_record_ids,payment_id,internal_reference,advance_id,obligation_id,allocation_ids,reconciliation_status,classification_codes,rule_code,rule_label,open_exceptions,journal_proposals,counter_amount,counter_currency,marking` (every row ends with `FICTIONAL SANDBOX`, review F12; `counter_amount` / `counter_currency` only on `stablecoin_conversion` rows)
 
 ### 5.2 Generic CSV journal import (`journalExportToCsv`)
 
@@ -122,9 +151,14 @@ column; `debit` / `credit` are exact decimal strings, one of them empty; one `jo
 
 `journal_id,journal_date,entry_date,account_code,account_name,debit,credit,currency,memo,rule_code,evidence_ids,prior_period_item,reverses,prepared_by,approved_by,export_id,marking`
 
+`journal_id` is `SANDBOX-<proposal id>` so the marking survives an importer that drops unmapped columns (review F12).
 `journal_date` is the posting date (the first day of the open period for a prior-period item, flagged `true`).
 A recorded export re-renders byte for byte from its record (`buildJournalExport(ws, { exportId })`), with the
-account codes it used, even after the mapping changes.
+account codes it used, even after the mapping changes: since CHANGE 16 (review F4) a journal id that was ever in an
+export is never removed or reused (a per-case reset is refused), and load checks that the record and its entries
+name each other. (Before CHANGE 16 a reject-then-reset could reuse an exported id.) The record keeps `sha256` (the
+content hash the id abbreviates, over canonical JSON without id, hash and clock) and `fileSha256 { json, csv }`, the
+SHA-256 of the exact bytes produced (review F10).
 
 ## 6. Adapter specification (design only — NOT built)
 
