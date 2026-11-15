@@ -8,6 +8,7 @@
  * independent evidence says so.
  */
 import { RECONCILIATION_CODE_TEXT, type ReconciliationCodeGroup } from "./reconciliation";
+import { ACCOUNT_ROLE, BRIDGE_CODE_LABELS, BRIDGE_REASON, EXPORT_EVIDENCE_CLASS, EXPORT_KIND, EXPORT_MOVEMENT, JOURNAL_RULE, NOT_PROPOSED, PERIOD_STATUS, PROPOSAL_STATUS, SUPERSESSION } from "./accounting/labels";
 import { EXECUTION_TRANSITIONS, isTerminalExecution } from "./state";
 import type {
   AdvanceState,
@@ -227,6 +228,9 @@ const ACTION_OUTCOME: Record<string, string> = {
   recorded_provider_report: "Provider report recorded (not independent evidence)",
   duplicate_report_linked: "Same short provider report again — linked to the open exception",
   no_eligible_route: "No eligible route",
+  // rc4 Accounting Bridge
+  proposals_created: "Journal entries proposed — not approved, not posted",
+  no_new_proposals: "No new journal entries to propose",
 };
 const ERROR_CODE: Record<EngineErrorCode, string> = {
   invalid_amount: "The amount is not valid.",
@@ -282,6 +286,7 @@ const RESET_CODE: Record<string, string> = {
   REFERENCED_BY_OTHER_RECORDS: "Other cases or your own records link to this case",
   ID_CONFLICT: "The case's sample ids are used by other records",
   REFERENCE_IN_USE: "One of your active payments uses this case's internal reference",
+  ACCOUNTING_ENTRIES_RECORDED: "The case's journal entries are approved, exported or posted",
 };
 /** rc3: row codes of the synthetic case report CSV (caseReportToCsv). */
 const REPORT_ROW_CODE: Record<string, string> = {
@@ -424,6 +429,8 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   ...Object.fromEntries(Object.entries(ELIGIBILITY_CODE)),
   ...RESET_CODE,
   ...REPORT_ROW_CODE,
+  // rc4 Accounting Bridge: journal rules (JR_), not-proposed reasons (NP_), supersession (SP_), export rows (XR_)
+  ...BRIDGE_CODE_LABELS,
 };
 
 const SUPPLIER_PAID_BASIS: Record<FundingProjectionRow["supplierPaidBasis"], string> = {
@@ -475,6 +482,18 @@ export const HUMAN_LABELS = {
   reportRowCode: REPORT_ROW_CODE,
   /** rc3 (R-1): PaymentIntent.returnStatus. */
   returnStatus: RETURN_STATUS,
+  /** rc4 Accounting Bridge (CHANGE 15). */
+  journalProposalStatus: PROPOSAL_STATUS,
+  journalRule: JOURNAL_RULE,
+  accountRole: ACCOUNT_ROLE,
+  notProposed: NOT_PROPOSED,
+  supersession: SUPERSESSION,
+  accountingPeriodStatus: PERIOD_STATUS,
+  accountingExportKind: EXPORT_KIND,
+  exportEvidenceClass: EXPORT_EVIDENCE_CLASS,
+  exportMovement: EXPORT_MOVEMENT,
+  /** "CODE: …" prefixes of Accounting Bridge refusals (describeError → reasonCode). */
+  bridgeReason: BRIDGE_REASON,
 } as const;
 
 const own = <T>(o: Readonly<Record<string, T>>, k: string): T | undefined => (Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined);
@@ -568,10 +587,13 @@ export function describeError(err: Pick<EngineError, "message"> & { code: string
   const message = typeof err?.message === "string" ? err.message : "";
   const prefix = /^([A-Z][A-Z_]+): (.*)$/s.exec(message);
   const reasonCode = prefix && own(RESOLUTION_CODE, prefix[1]) !== undefined ? prefix[1] : undefined;
+  // rc4: an Accounting Bridge refusal ("PERIOD_CLOSED: …", "UNMAPPED_ACCOUNT_ROLE: …") names its reason in plain words.
+  const bridgeCode = prefix && !reasonCode && own(BRIDGE_REASON, prefix[1]) !== undefined ? prefix[1] : undefined;
   const reasonText = prefix && reasonCode ? prefix[2] : message;
   const base = own(ERROR_CODE as Record<string, string>, code) ?? own(API_ERROR_CODE as Record<string, string>, code) ?? "Something went wrong.";
 
-  const done = (headline: string, detail: string): HumanError => ({ code, reasonCode, headline, detail, text: detail ? `${headline} ${detail}` : headline });
+  const done = (headline: string, detail: string): HumanError => ({ code, reasonCode: reasonCode ?? bridgeCode, headline, detail, text: detail ? `${headline} ${detail}` : headline });
+  if (bridgeCode) return done(base, `${BRIDGE_REASON[bridgeCode]} ${sentence(prefix![2])}`);
 
   if (reasonCode) {
     const id = err.entityId;

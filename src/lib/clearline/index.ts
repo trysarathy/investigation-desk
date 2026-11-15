@@ -58,3 +58,6 @@ export { HUMAN_LABELS, CODE_LABELS, describeCode, explainCode, isKnownCode, desc
 export type { HumanError, StatusDescription } from "./labels";
 export { TERMINAL_FOR_SETTLEMENT_REPORT } from "./reconciliation";
 export { evidenceCeiling, evidencedVerifiedAndMatched, type EvidenceCeiling } from "./derive";
+
+// rc4 (CHANGE 15): Accounting Bridge — proposed journal entries, reconciliation and journal exports, periods, CoA mapping
+export * from "./accounting";
