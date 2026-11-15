@@ -10,7 +10,7 @@ import { ActionButton, gateOf, useSettled, type Gate, type Msg } from "../Action
 import { describeError, label } from "../human";
 import { download } from "../download";
 import { Btn, Chip, Empty, Field, PageHead, Panel, Status, fmtTime, ui } from "../ui";
-import { POSTING_NOTE, useBridge } from "../accounting";
+import { POSTING_NOTE, RulesNote, useBridge } from "../accounting";
 import { AccountingOverview } from "./Accounting";
 
 const CLASSES: ExportEvidenceClass[] = ["evidenced", "provider_reported_only", "unresolved"];
@@ -36,6 +36,7 @@ function JournalExport() {
   return (
     <Panel title="Journal export (generic CSV journal import)" id="journal">
       <div className={ui.panelBody}>
+        <RulesNote />
         <p style={{ marginTop: 0 }}>Exports a period&apos;s <strong>approved</strong> entries as a file your accountant imports into your own ledger. The entries become “exported”; they are posted only when a person records the posting with the ledger&apos;s reference. Acting as <strong>{actorName(actorId)}</strong>.</p>
         <Status msg={msg} />
         {v.periods.length === 0 ? <Empty>No accounting periods yet. <Link href="/clearline/accounting/setup#periods">Open a period</Link>.</Empty> : (
@@ -67,19 +68,27 @@ function ReconciliationExport() {
   const [msg, setMsg] = useState<Msg>(null);
   const doc = buildReconciliationExport(ws, { from: tFrom, to: tTo });
   const g = gateOf(preview({ type: "record_reconciliation_export", from: tFrom, to: tTo }), ws);
+  const settling = from !== tFrom || to !== tTo;
   const save = (fmt: "csv" | "json") => {
-    // The file is built from the workspace the engine records it against; the record keeps its id and hash.
-    const before = ws;
-    const built = buildReconciliationExport(before, { from, to });
-    const r = dispatch({ type: "record_reconciliation_export", from, to });
-    if (!r.ok || !built.ok) { setMsg(r.ok ? { text: `Reconciliation export — not built. ${built.ok ? "" : describeError(built.error, ws).text}`, error: true } : refused("Reconciliation export", r, ws)); return; }
+    // Built from the settled range the gate checked, and from the workspace the engine records it against.
+    const built = buildReconciliationExport(ws, { from: tFrom, to: tTo });
+    if (!built.ok) { setMsg({ text: `Reconciliation export — not prepared. ${describeError(built.error, ws).text} (${built.error.code})`, error: true }); return; }
+    const r = dispatch({ type: "record_reconciliation_export", from: tFrom, to: tTo });
+    if (!r.ok) { setMsg(refused("Reconciliation export", r, ws)); return; }
     const rec = r.value.workspace.accounting?.exports.find((x) => x.id === r.value.createdIds[0]);
+    // Never hand over a file whose content is not the one the engine recorded.
+    if (!rec || rec.sha256 !== built.value.sha256) {
+      setMsg({ text: `Reconciliation export recorded by the engine as ${rec?.id ?? r.value.createdIds[0]}, but its hash differs from the file prepared here, so the file was not given to you. Try again.`, error: true });
+      return;
+    }
     download(`${built.value.documentId}.${fmt}`, fmt === "csv" ? reconciliationExportToCsv(built.value) : accountingExportToJson(built.value), fmt === "csv" ? "text/csv" : "application/json");
-    setMsg({ text: `Reconciliation export ${built.value.documentId} (.${fmt}) — recorded by the engine as ${rec?.id ?? r.value.createdIds[0]}${rec && rec.sha256 !== built.value.sha256 ? " (warning: the recorded hash differs from the file)" : ""}; ${built.value.rows.length} rows, downloaded in your browser.` });
+    setMsg({ text: `Reconciliation export ${built.value.documentId} (.${fmt}) — recorded by the engine as ${rec.id}; ${built.value.rows.length} rows prepared for download in your browser.` });
   };
+  const gSave: Gate = settling ? { ok: false, reason: "Checking the dates…" } : g;
   return (
     <Panel title="Reconciliation export" id="reconciliation-export">
       <div className={ui.panelBody}>
+        <RulesNote />
         <p style={{ marginTop: 0 }}>One row per settled, returned or unresolved money movement in the date range, with its evidence class, references and the journal entries that rest on it. Each download is recorded in the audit history. Acting as <strong>{actorName(actorId)}</strong>.</p>
         <form className={ui.formRow} onSubmit={(e) => e.preventDefault()} aria-label="Reconciliation export date range">
           <Field label="From (first day)"><input id="rx-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
@@ -95,8 +104,8 @@ function ReconciliationExport() {
         ) : <p className={`${ui.status} ${ui.statusErr}`} data-testid="rx-invalid">{describeError(doc.error, ws).text} ({doc.error.code})</p>}
         <Status msg={msg} />
         <div className={ui.actions} style={{ alignItems: "flex-start", marginTop: 8 }}>
-          <div><ActionButton size="small" gate={g} name="Download reconciliation export (.csv)" onClick={() => save("csv")}>Download reconciliation export (.csv)</ActionButton></div>
-          <div><ActionButton size="small" gate={g} name="Download reconciliation export (.json)" onClick={() => save("json")}>Download reconciliation export (.json)</ActionButton></div>
+          <div><ActionButton size="small" gate={gSave} name="Download reconciliation export (.csv)" onClick={() => save("csv")}>Download reconciliation export (.csv)</ActionButton></div>
+          <div><ActionButton size="small" gate={gSave} name="Download reconciliation export (.json)" onClick={() => save("json")}>Download reconciliation export (.json)</ActionButton></div>
         </div>
       </div>
     </Panel>

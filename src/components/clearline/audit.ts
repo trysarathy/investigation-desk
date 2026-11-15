@@ -6,7 +6,7 @@
 import type { AuditEvent, Workspace } from "@/lib/clearline";
 
 /** Record ids the engine writes into audit events (entity ids and ids quoted in summaries). */
-const PREFIXES = "pi|qt|ins|pev|evd|stl|alc|exc|case|hold|chn|adv|fdc|obl|rpa|jp|acx|per";
+const PREFIXES = "pi|qt|ins|pev|evd|stl|alc|exc|case|req|hold|chn|adv|fdec|obl|rpa|jp|acx|per";
 export const RECORD_ID_RE = new RegExp(`\\b(?:${PREFIXES})_\\d{3,}\\b`, "g");
 const IS_RECORD_ID = new RegExp(`^(?:${PREFIXES})_\\d{3,}$`);
 
@@ -31,7 +31,11 @@ export function paymentOfRecords(ws: Workspace): Map<string, string> {
     put(a.statementLineId, intent);
   }
   for (const r of ws.repaymentAllocations) { put(r.id, oblIntent.get(r.obligationId)); put(r.statementLineId, oblIntent.get(r.obligationId)); }
-  for (const c of ws.cases) put(c.id, c.intentId ?? (c.advanceId ? advIntent.get(c.advanceId) : undefined));
+  for (const c of ws.cases) {
+    const intent = c.intentId ?? (c.advanceId ? advIntent.get(c.advanceId) : undefined);
+    put(c.id, intent);
+    for (const r of c.requestedInfo) put(r.id, intent);
+  }
   for (const e of ws.exceptions) put(e.id, e.intentId ?? (e.advanceId ? advIntent.get(e.advanceId) : e.obligationId ? oblIntent.get(e.obligationId) : undefined));
   for (const e of ws.evidence) put(e.id, e.intentId ?? (e.advanceId ? advIntent.get(e.advanceId) : undefined));
   for (const p of ws.accounting?.proposals ?? []) put(p.id, p.intentId ?? (p.advanceId ? advIntent.get(p.advanceId) : undefined));
@@ -60,7 +64,7 @@ export function hrefOfRecord(id: string, owners: Map<string, string>): string | 
     case "case": return intent ? `/clearline/payments/${intent}#case` : "/clearline/investigations";
     case "hold": return `/clearline/holds#${id}`;
     case "chn": return intent ? `/clearline/payments/${intent}#chain` : undefined;
-    case "adv": case "obl": case "rpa": case "fdc": return "/clearline/treasury/funding";
+    case "adv": case "obl": case "rpa": case "fdec": return "/clearline/treasury/funding";
     case "jp": return `/clearline/accounting#${id}`;
     case "acx": return `/clearline/accounting/exports#${id}`;
     case "per": return `/clearline/accounting/setup#${id}`;

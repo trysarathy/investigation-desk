@@ -7,12 +7,19 @@
 import Link from "./Link";
 import { useMemo } from "react";
 import {
-  accountingBridgeView, formatMinor,
-  type AccountingBridgeView, type CurrencyCode, type JournalProposalRow, type JournalProposalStatus, type Workspace,
+  TERMINAL_FOR_SETTLEMENT_REPORT, accountingBridgeView, formatMinor,
+  type AccountingBridgeView, type CurrencyCode, type ExecutionState, type JournalProposalRow, type JournalProposalStatus, type Workspace,
 } from "@/lib/clearline";
 import { useWorkspace } from "./workspace";
 import { label } from "./human";
 import { Chip, Code, ui, type Tone } from "./ui";
+
+/** Review m2: the posting rules are sandbox rules not yet signed off by the founder (ACCOUNTING_BRIDGE.md). */
+export const RULES_NOTE = "Sandbox posting rules, pending founder sign-off — review with your accountant before using this file." as const;
+
+export function RulesNote() {
+  return <p className={ui.hint} data-testid="rules-note" style={{ margin: "0 0 8px" }}><Chip tone="warn">Not signed off</Chip> {RULES_NOTE}</p>;
+}
 
 /** Shown under every "record posting" control and on every accounting page. */
 export const POSTING_NOTE = "Recorded by a person. Clearline does not post to any ledger.";
@@ -38,27 +45,57 @@ export function ProposalStatus({ p }: { p: Pick<JournalProposalRow, "status" | "
   );
 }
 
-/** Payout states in which the supplier did not receive the money (the engine's execution state, not a posting rule). */
-const NOT_DELIVERED = new Set(["returned", "failed", "cancelled", "expired", "on_hold"]);
+/**
+ * Payout states in which the supplier did not receive the money: the engine's own terminal list
+ * (TERMINAL_FOR_SETTLEMENT_REPORT) plus on hold, as the bridge's derive uses them. Never a local copy.
+ */
+const notDelivered = (e: ExecutionState) => TERMINAL_FOR_SETTLEMENT_REPORT.includes(e) || e === "on_hold";
+
+type PaidInput = Pick<JournalProposalRow, "id" | "showsSupplierPaid" | "evidence" | "intentId" | "status" | "current" | "evidenceChange">;
+
+/** An exported or posted entry whose evidence changed afterwards: it stays in the file / ledger as it was. */
+export const changedAfterExport = (p: Pick<JournalProposalRow, "status" | "current" | "evidenceChange">) =>
+  (p.status === "exported" || p.status === "posted") && (!!p.evidenceChange || !p.current);
 
 /**
  * What the entry says about the supplier. Driven by the engine: its `showsSupplierPaid` flag, the evidence the entry
- * names, and the payout's execution state. A payout that was not delivered (returned, failed, cancelled, expired or
- * on hold) reads "Supplier still unpaid — payable open"; no posting-rule code is interpreted here.
+ * names, whether that evidence still gives this entry (`current`, `evidenceChange`) and the payout's execution state.
+ * - Withdrawn (superseded / rejected): says nothing.
+ * - Exported or posted, evidence changed since: what it showed when exported, what happened since and the reversal
+ *   (warning tone; never an unqualified "paid").
+ * - Not delivered (returned, failed, cancelled, expired, on hold): "Supplier still unpaid — payable open".
  */
-export function supplierPaid(p: Pick<JournalProposalRow, "showsSupplierPaid" | "evidence" | "intentId" | "status">, ws: Workspace): { text: string; tone: Tone } {
-  // A superseded or rejected entry is withdrawn: it says nothing about the supplier, whatever it said when proposed.
-  if (p.status === "superseded" || p.status === "rejected") return { text: "Withdrawn — says nothing about the supplier", tone: "neutral" };
-  if (p.showsSupplierPaid) return { text: p.evidence.chainObservationIds.length ? "Shows the supplier as paid — final chain transfer evidence" : "Shows the supplier as paid — bank debit evidence", tone: "info" };
+export function supplierPaid(p: PaidInput, ws: Workspace): { text: string; tone: Tone; showsPaid: boolean } {
+  if (p.status === "superseded" || p.status === "rejected") return { text: "Withdrawn — says nothing about the supplier", tone: "neutral", showsPaid: false };
   const intent = p.intentId ? ws.intents.find((i) => i.id === p.intentId) : undefined;
-  if (intent && NOT_DELIVERED.has(intent.status.execution)) return { text: "Supplier still unpaid — payable open", tone: "bad" };
-  return { text: "Does not show the supplier as paid", tone: "neutral" };
+  if (changedAfterExport(p)) {
+    const was = p.showsSupplierPaid ? "Showed the supplier as paid when exported" : "Did not show the supplier as paid when exported";
+    const since = intent && notDelivered(intent.status.execution) ? `payout since: ${label("execution", intent.status.execution).toLowerCase()}`
+      : intent?.status.settlement === "contradicted" ? "settlement evidence since contradicted"
+      : "its evidence changed since";
+    const reversal = ws.accounting?.proposals.find((q) => q.reverses === p.id && q.status !== "rejected" && q.status !== "superseded");
+    const next = reversal ? `a reversal is proposed (${reversal.id}, ${label("journalProposalStatus", reversal.status).toLowerCase()})` : "propose entries to add its reversal";
+    return { text: `${was} — ${since}; ${next}`, tone: "warn", showsPaid: false };
+  }
+  if (p.showsSupplierPaid) return { text: p.evidence.chainObservationIds.length ? "Shows the supplier as paid — final chain transfer evidence" : "Shows the supplier as paid — bank debit evidence", tone: "info", showsPaid: true };
+  if (intent && notDelivered(intent.status.execution)) return { text: "Supplier still unpaid — payable open", tone: "bad", showsPaid: false };
+  return { text: "Does not show the supplier as paid", tone: "neutral", showsPaid: false };
 }
 
-export function SupplierPaid({ p }: { p: Pick<JournalProposalRow, "showsSupplierPaid" | "evidence" | "intentId" | "status"> }) {
+export function SupplierPaid({ p }: { p: PaidInput }) {
   const { ws } = useWorkspace();
   const s = supplierPaid(p, ws);
-  return <span className={ui.sub} data-testid="supplier-paid" data-shows-paid={p.showsSupplierPaid && p.status !== "superseded" && p.status !== "rejected" ? "true" : "false"}><Chip tone={s.tone}>{s.text}</Chip></span>;
+  return <span className={ui.sub} data-testid="supplier-paid" data-shows-paid={s.showsPaid ? "true" : "false"}><Chip tone={s.tone}>{s.text}</Chip></span>;
+}
+
+/** Marker for the table and the payment page: an exported or posted entry whose evidence changed after export. */
+export function EvidenceChanged({ p }: { p: Pick<JournalProposalRow, "status" | "current" | "evidenceChange"> }) {
+  if (!changedAfterExport(p)) return null;
+  return (
+    <span className={ui.sub} data-testid="evidence-changed">
+      <Chip tone="warn">Evidence changed after export</Chip>{p.evidenceChange && <> {label("supersession", p.evidenceChange.code)} <code className={ui.apiValue}>{p.evidenceChange.code}</code></>}
+    </span>
+  );
 }
 
 /** One line per journal line: side, account code and name (or "not mapped"), role. */
@@ -146,6 +183,7 @@ export function AccountingOutcome({ intentId }: { intentId: string }) {
   return (
     <div className={ui.panelBody} data-testid="accounting-outcome">
       <p className={ui.hint} style={{ marginTop: 0 }}>{v.disclaimer}</p>
+      <RulesNote />
       {mine.length === 0 ? (
         <p data-testid="accounting-outcome-empty" style={{ margin: "0 0 8px" }}>No journal entry is proposed for this payment{none.length ? "; the reasons are below" : ""}. Entries are proposed only from bank statement or final chain evidence.</p>
       ) : (
@@ -159,7 +197,7 @@ export function AccountingOutcome({ intentId }: { intentId: string }) {
                 <td data-label="Accounts"><LinesAccounts p={p} /></td>
                 <td data-label="Debit" className={ui.r}><LinesAmounts p={p} side="debit" /></td>
                 <td data-label="Credit" className={ui.r}><LinesAmounts p={p} side="credit" /></td>
-                <td data-label="Status"><ProposalStatus p={p} />
+                <td data-label="Status"><ProposalStatus p={p} /><EvidenceChanged p={p} />
                   {p.approval && <span className={ui.sub}>Approved by {actorName(p.approval.by)}</span>}
                   {p.posting && <span className={ui.sub}>{POSTING_NOTE} Reference <span className="mono">{p.posting.externalReference}</span> (simulated)</span>}
                 </td>
@@ -176,7 +214,7 @@ export function AccountingOutcome({ intentId }: { intentId: string }) {
           </ul>
         </>
       )}
-      <p style={{ margin: "10px 0 0" }}><Link href={`/clearline/accounting?payment=${intentId}`}>Open these entries in Accounting</Link> · <span className={ui.hint}>{label("journalProposalStatus", "proposed")} until a second person approves.</span></p>
+      <p style={{ margin: "10px 0 0" }}><Link href={`/clearline/accounting?payment=${intentId}`}>Open these entries in Accounting</Link> · <span className={ui.hint}>An entry stays proposed until a second person approves it; nothing is posted by Clearline.</span></p>
     </div>
   );
 }

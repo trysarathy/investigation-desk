@@ -8,7 +8,7 @@ import { label } from "../human";
 import { SIMULATED_ROLE_NOTE } from "../nav";
 import { FilterBar, SearchFilter, SelectFilter, matchesText, useQuery, useSearchText } from "../filters";
 import { Btn, Chip, Code, Dl, Empty, Field, Metric, Notice, PageHead, Panel, Status, fmtTime, ui } from "../ui";
-import { Balanced, EvidenceLinks, LinesAccounts, LinesAmounts, POSTING_NOTE, ProposalStatus, SupplierPaid, exact, notProposedFor, useBridge } from "../accounting";
+import { Balanced, EvidenceChanged, EvidenceLinks, LinesAccounts, LinesAmounts, POSTING_NOTE, ProposalStatus, RulesNote, SupplierPaid, exact, notProposedFor, useBridge } from "../accounting";
 
 const STATUSES = Object.keys(HUMAN_LABELS.journalProposalStatus) as JournalProposalStatus[];
 /** A reference the engine accepts, used only for the dry run while the field is still empty. */
@@ -23,6 +23,7 @@ export function AccountingOverview() {
   return (
     <Panel title="Overview" id="overview">
       <div className={ui.panelBody}>
+        <RulesNote />
         <Dl items={[
           ["Open period", open.length === 0
             ? <span data-testid="overview-period">No open period. <Link href="/clearline/accounting/setup#periods">Open one</Link> before entries can be proposed.</span>
@@ -229,7 +230,8 @@ export default function Accounting() {
                         {p.export && <span className={ui.sub}>In export <span className="mono">{p.export.exportId}</span></span>}
                         {p.posting && <span className={ui.sub}>Reference <span className="mono">{p.posting.externalReference}</span> — recorded by a person (simulated)</span>}
                         {!p.current && (p.status === "proposed" || p.status === "approved") && <span className={ui.sub}>Evidence changed</span>}
-                        <span style={{ display: "block", marginTop: 6 }}><Btn size="small" aria-expanded={isOpen} aria-controls={`review-${p.id}`} onClick={() => toggle(p.id)}>{isOpen ? "Hide review" : "Review"}<span className={ui.srOnly}> entry {p.id}</span></Btn></span>
+                        <EvidenceChanged p={p} />
+                        <span style={{ display: "block", marginTop: 6 }}><Btn size="small" aria-expanded={isOpen} aria-controls={isOpen ? `review-${p.id}` : undefined} onClick={() => toggle(p.id)}>{isOpen ? "Hide review" : "Review"}<span className={ui.srOnly}> entry {p.id}</span></Btn></span>
                       </td>
                       <td data-label="Evidence" className={ui.jEvidence}><EvidenceLinks p={p} ws={ws} /></td>
                     </tr>
@@ -249,7 +251,7 @@ export default function Accounting() {
               <li key={i} className={ui.actionRow} data-code={n.code}>
                 <div>
                   <p><Chip tone="neutral">No entry</Chip> <strong>{label("notProposed", n.code)}</strong></p>
-                  <p className={ui.hint}>{n.text.startsWith(label("notProposed", n.code)) ? n.text.slice(label("notProposed", n.code).length).replace(/^\.\s*/, "") : n.text}</p>
+                  <p className={ui.hint} data-testid="not-proposed-text">{n.text}</p>
                   <p className={ui.sub}><Code>{n.code}</Code> · <span className="mono">{n.refs.join(", ")}</span></p>
                 </div>
                 <div className={ui.r}>
