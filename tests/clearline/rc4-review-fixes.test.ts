@@ -378,7 +378,8 @@ describe("defence in depth: each load / export check refuses on its own (mutatio
     if (!r.ok) throw new Error(r.error.message);
     const m = r.value.migrations[0];
     expect(m).toMatchObject({ kind: "journal_proposal_superseded", proposalId: p.id, intentId: p.intentId });
-    expect(m.text).toMatch(/earlier posting rules/);
+    expect(m.text).toMatch(/no longer matches the current posting rules/);
+    expect(m.text).not.toMatch(/earlier engine version/);
     expect(r.value.workspace.audit.find((x) => x.id === m.auditId)).toMatchObject({ action: "workspace.migrated", actorId: "system", entityId: p.id });
     // loading the migrated workspace again changes nothing more
     const again = loadWorkspace(serializeWorkspace(r.value.workspace));

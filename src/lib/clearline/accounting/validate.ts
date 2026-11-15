@@ -233,7 +233,7 @@ export function validateAccounting(ws: Obj): WorkspaceMigration[] {
       if (!isActive(p) || candidates.some((c) => c.sourceKey === p.sourceKey && c.basisHash === p.basisHash)) continue;
       const now = candidates.find((c) => c.sourceKey === p.sourceKey);
       const was = p.status as string;
-      const reason = `Saved by an earlier engine version: the current posting rules give ${now ? `"${now.ruleCode}" with other lines or evidence` : "no entry"} for this evidence, so this ${was} entry no longer stands. It was never exported; propose entries again.`;
+      const reason = `This ${was} entry no longer matches the current posting rules: they give ${now ? `"${now.ruleCode}" with other lines or evidence` : "no entry"} for its evidence (it may have been saved by an earlier engine version, or edited). It was never exported; propose entries again.`;
       p.status = "superseded";
       p.supersession = { at: asOf, causedBy: "system", code: "SP_RULES_CHANGED", reason };
       (p.history as unknown[]).push({ at: asOf, actorId: "system", action: "superseded", detail: `${was} → superseded on load: ${reason}` });
@@ -245,7 +245,7 @@ export function validateAccounting(ws: Obj): WorkspaceMigration[] {
       migrations.push({
         kind: "journal_proposal_superseded", intentId: (p.intentId as string) ?? "", internalReference: (intent?.internalReference as string) ?? "", from: { ...dims }, to: { ...dims },
         outcome: "proposal_superseded", proposalId: p.id as string, auditId,
-        text: `Your saved journal entry ${p.id} (${String(p.ruleCode)}, ${was}) was made under earlier posting rules. It has been superseded, nothing was exported or posted, and you can propose entries again.`,
+        text: `Your saved journal entry ${p.id} (${String(p.ruleCode)}, ${was}) no longer matches the current posting rules for its evidence. It has been superseded; it was never exported or posted, and you can propose entries again.`,
       });
     }
   }
@@ -258,8 +258,21 @@ export function validateAccounting(ws: Obj): WorkspaceMigration[] {
     need(!activeSource.has(p.sourceKey as string), `${f}.sourceKey`, "at most one proposed or approved entry per evidence source");
     activeSource.add(p.sourceKey as string);
   });
-  // A bank line booked twice (or a payable cleared twice) by entries a91dd11 let through (a rejected required reversal)
-  // is not refused: propose_journal_entries proposes the reversal again, which corrects it.
+  // Final check K1: two un-reversed in-ledger copies of the SAME entry (same source key and basis hash) are refused. No
+  // engine version produces them (propose never re-proposes an entry already in the ledger), and nothing would ever
+  // correct them: both match the current evidence, so no reversal is derived.
+  const reversed = new Set(proposals.filter((q) => q.ruleCode === "JR_REVERSAL" && q.status !== "rejected" && q.status !== "superseded").map((q) => q.reverses as string));
+  const inLedger = (p: Obj) => p.status === "exported" || p.status === "posted" || (p.status === "rejected" && isObj(p.export) && !(isObj(p.rejection) && (p.rejection as Obj).notImported !== undefined));
+  const seen = new Map<string, string>();
+  proposals.forEach((p, i) => {
+    if (p.ruleCode === "JR_REVERSAL" || !inLedger(p) || reversed.has(p.id as string)) return;
+    const k = `${String(p.sourceKey)}\u0000${String(p.basisHash)}`;
+    need(!seen.has(k), `accounting.proposals[${i}]`, `is a second copy of ${seen.get(k)} in the ledger (same evidence source and basis), with neither reversed; propose never creates this, and it could never be corrected`);
+    seen.set(k, p.id as string);
+  });
+  // Other over-bookings are not refused: a bank line booked twice by a91dd11's rejected required reversal is corrected
+  // by propose (a rejected reversal is proposed again), and a crafted copy under ANOTHER source key gets its own
+  // reversal (its source has no current candidate). propose refuses only issues its new entries introduce or worsen.
   return migrations;
 }
 

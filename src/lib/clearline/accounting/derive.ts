@@ -385,30 +385,51 @@ export function netByKey(ps: Pick<JournalProposal, "lines">[]): Map<string, bigi
  * - per payout and currency, the net debit to supplier_payable + customer_receivable never exceeds payableBound;
  * - per bank statement line, the net bank movement never exceeds the line amount (a bank line is never booked twice).
  */
-export function ledgerProblem(ws: Workspace, only?: "payable" | "bank"): string | undefined {
+export interface LedgerIssue { key: string; excess: bigint; text: string }
+
+/**
+ * Review F1 / F5 / R6 + final check K1: every way the counted entries over-book, each with a key and how much it is
+ * over by (so a caller can tell whether new proposals introduce or worsen an issue).
+ */
+export function ledgerIssues(ws: Workspace, only?: "payable" | "bank"): LedgerIssue[] {
+  const out: LedgerIssue[] = [];
   const counted = (ws.accounting?.proposals ?? []).filter(isCounted);
   const byIntent = new Map<string, JournalProposal[]>();
   for (const p of counted) if (p.intentId) byIntent.set(p.intentId, [...(byIntent.get(p.intentId) ?? []), p]);
   if (only !== "bank") for (const [id, ps] of byIntent) {
     const intent = ws.intents.find((i) => i.id === id);
     if (!intent) continue;
-    const net = netByKey(ps);
     const byCur = new Map<CurrencyCode, bigint>();
-    for (const [k, v] of net) {
+    for (const [k, v] of netByKey(ps)) {
       const [key, cur] = k.split("\u0000") as [string, CurrencyCode];
       if (key === "supplier_payable" || key === "customer_receivable") byCur.set(cur, (byCur.get(cur) ?? 0n) + v);
     }
     // Re-review R6: one payout's payable is cleared at most once in total — in one currency, never in two.
     const cleared = [...byCur].filter(([, v]) => v > 0n).map(([c]) => c);
-    if (cleared.length > 1) return `payout ${id}: the supplier payable / receivable is cleared in ${cleared.join(" and ")}; a payout is cleared once, in one currency`;
-    for (const [cur, v] of byCur) if (v > BigInt(payableBound(ws, intent, cur))) return `payout ${id}: the supplier payable / receivable is debited ${formatMinor(Number(v), cur)}, more than the payout (${formatMinor(payableBound(ws, intent, cur), cur)})`;
+    if (cleared.length > 1) out.push({ key: `payout:${id}:currencies`, excess: BigInt(cleared.length - 1), text: `payout ${id}: the supplier payable / receivable is cleared in ${cleared.join(" and ")}; a payout is cleared once, in one currency` });
+    for (const [cur, v] of byCur) {
+      const bound = BigInt(payableBound(ws, intent, cur));
+      if (v > bound) out.push({ key: `payout:${id}:${cur}`, excess: v - bound, text: `payout ${id}: the supplier payable / receivable is debited ${formatMinor(Number(v), cur)}, more than the payout (${formatMinor(Number(bound), cur)})` });
+    }
   }
   if (only !== "payable") for (const line of ws.statementLines) {
     let v = 0n;
     for (const p of counted) if (p.evidence.statementLineIds.includes(line.id)) for (const l of p.lines) if (l.accountKey.startsWith("bank:")) v += BigInt(l.amountMinor) * (l.side === "debit" ? 1n : -1n);
-    if (v > BigInt(line.amountMinor) || -v > BigInt(line.amountMinor)) return `bank line ${line.id}: booked ${formatMinor(Number(v < 0n ? -v : v), line.currency)}, more than the line (${formatMinor(line.amountMinor, line.currency)})`;
+    const abs = v < 0n ? -v : v;
+    if (abs > BigInt(line.amountMinor)) out.push({ key: `line:${line.id}`, excess: abs - BigInt(line.amountMinor), text: `bank line ${line.id}: booked ${formatMinor(Number(abs), line.currency)}, more than the line (${formatMinor(line.amountMinor, line.currency)})` });
   }
-  return undefined;
+  return out;
+}
+
+/** The first ledger issue in words, or undefined (see ledgerIssues). */
+export function ledgerProblem(ws: Workspace, only?: "payable" | "bank"): string | undefined {
+  return ledgerIssues(ws, only)[0]?.text;
+}
+
+/** Final check K1: the issues in `after` that are new, or larger than in `before`. */
+export function worsenedIssues(before: LedgerIssue[], after: LedgerIssue[]): LedgerIssue[] {
+  const was = new Map(before.map((i) => [i.key, i.excess]));
+  return after.filter((i) => i.excess > (was.get(i.key) ?? 0n));
 }
 
 export type { ReconciliationAllocation };

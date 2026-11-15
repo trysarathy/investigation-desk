@@ -56,7 +56,7 @@ export const NOT_PROPOSED: Record<NotProposedCode, string> = {
 export const SUPERSESSION: Record<SupersessionCode, string> = {
   SP_EVIDENCE_CHANGED: "Evidence changed after the proposal was made",
   SP_EVIDENCE_WITHDRAWN: "The evidence no longer supports an entry",
-  SP_RULES_CHANGED: "Saved under earlier posting rules; superseded on load (never exported)",
+  SP_RULES_CHANGED: "No longer matches the current posting rules; superseded on load (never exported)",
   SP_MAPPING_CHANGED: "The account codes changed after approval; the entry must be approved again with the new codes",
 };
 

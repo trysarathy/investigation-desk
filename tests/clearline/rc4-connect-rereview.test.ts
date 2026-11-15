@@ -145,7 +145,7 @@ describe("RR-4: a conflict-driven execution change keeps the Accounting Bridge c
     expect(supplierPayable(ws, id)).toBe(0n); // posted debit + reversal net to zero; the rebooking is to provider clearing
     expect(ledgerProblem(ws)).toBeUndefined();
   });
-  it("completed → in_transit (cross-claim regression): no entry is superseded and none double-counts (the bridge keys on evidence, not on the transition)", () => {
+  it("completed → in_transit (cross-claim regression): while its contradiction is open the pending supplier-paid entry is superseded, nothing is proposed, and nothing double-counts (G1)", () => {
     let { ws, id, entry, next } = withEntry("regress_and_recover");
     ws = deliver(ws, id, next).workspace; // routing/at_bank: conflict path completed → in_transit
     expect(intentOf(ws, id).status.execution).toBe("in_transit");

@@ -100,6 +100,11 @@ export function ensureCase(tx: Tx, link: { intentId?: string; advanceId?: string
  * duplicated: it records a recurrence in its history instead. Linking to a resolved case
  * reopens the case (contradicting/new evidence).
  */
+/** rc4 G1 / K4: a live payout (not terminal, not on hold) whose settlement is observed or verified by a bank debit. */
+export function contradictsBankSettlement(s: { execution: string; settlement: string; settlementScope: string }): boolean {
+  return !["failed", "cancelled", "expired", "returned", "on_hold"].includes(s.execution) && s.settlementScope === "bank_statement" && (s.settlement === "verified" || s.settlement === "observed");
+}
+
 export function openException(tx: Tx, spec: OpenExceptionSpec): ReconciliationException {
   const ws = tx.ws;
   const same = ws.exceptions.find(
@@ -159,6 +164,13 @@ export function openException(tx: Tx, spec: OpenExceptionSpec): ReconciliationEx
     const intent = ws.intents.find((i) => i.id === spec.intentId);
     if (intent && ["unmatched_reconciliation", "contradictory_evidence", "missing_payment_reference", "duplicate_event"].includes(spec.category) && spec.statementLineId)
       intent.status.reconciliation = "exception";
+    // rc4 G1 / K4: ANY open contradiction on a live payout whose settlement rests on a bank debit leaves it contradicted
+    // (as recomputeDimensions derives and as reconcileLine does for a debit matched while one is open), whatever the
+    // order. The same rule repairs saved workspaces on load (migrate.ts rule G).
+    if (intent && spec.category === "contradictory_evidence" && contradictsBankSettlement(intent.status)) {
+      intent.status.settlement = "contradicted";
+      intent.status.reconciliation = "exception";
+    }
   }
   tx.log("exception.opened", "exception", exc.id, `${exc.category} · ${exc.explanationCode}`);
   return exc;
