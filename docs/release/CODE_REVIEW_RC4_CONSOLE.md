@@ -106,3 +106,51 @@ CHANGES REQUESTED 2c0f0f0.
 - **Two Minors:** the mapping-draft conflict and cross-workspace save, and no copy saying the posting rules are unsigned.
 - **Seven Nits.**
 - **Checks:** tsc clean, vitest 1783 passed. Six engine mutations behind the console's rules were all caught. The console's own UI rules each have a browser assertion (read, not run).
+
+---
+
+## Re-review (c95a9db + f13bc57, merged at dc4d39a)
+
+**Verdict: APPROVE dc4d39a.** M1, m1, m2 and all seven Nits are fixed. Two new Nits are below; neither blocks. APPROVAL-ONLY: needs Aashmiin's merge (accounting surface; posting rules still unsigned).
+
+**What I ran:**
+- **Frozen copy:** `git archive dc4d39a` (src, tests, docs, fixtures, config; 14 MB), no build. Deleted afterwards.
+- **tsc:** exit 0.
+- **vitest:** 1820 passed, 57 skipped.
+- **Probe:** a throwaway test against engine-produced state, since deleted.
+- **Browser suite:** I did not run Playwright. The coordinator reports 261 passed, 0 failed, with retries 0 and axe on, including the new M1 tests and QA's rc4 spec.
+
+**M1: fixed (reproduction re-run).**
+- `supplierPaid()` (`accounting.tsx`) now checks `changedAfterExport` (exported or posted, and `evidenceChange` set or not current) before `showsSupplierPaid`. It returns warning tone with `showsPaid` false.
+- **My earlier reproduction, re-run (payout posted, then returned):** the chip reads "Showed the supplier as paid when exported — payout since: provider reports returned; propose entries to add its reversal". `data-shows-paid` is false.
+- **After proposing, approving, exporting and posting the reversal and the not-delivered rebooking:** the original reads "… a reversal is proposed (jp_00239, posted in your ledger (recorded by a person))".
+- **No false flags:**
+  - The posted reversal and the rebooking are `current` with no evidence change, so they are not marked as changed. Both read "Supplier still unpaid — payable open".
+  - On a freshly posted sample there are no rows marked as changed.
+- **Where it shows:** the new "Evidence changed after export" marker is in the entries table and on the payment page's Accounting outcome.
+
+**m1: fixed.**
+- **Draft identity:** the draft key now includes the organisation id. The draft records its starting mapping (revision, `updatedAt` and every row).
+- **Stale detection:** `stale` compares that whole base with the saved mapping, so a different mapping with the same revision number is detected.
+- **While stale:** Save is blocked with the reason, a started / saved now / yours difference table is shown, and "Re-apply my changes on revision N" keeps your edited rows and takes the saved value for every other row. It still needs Save, with the new expected revision.
+- **Discard:** both discard buttons now ask for confirmation first.
+
+**m2: fixed.**
+- `RulesNote` ("Sandbox posting rules, pending founder sign-off — review with your accountant before using this file.") appears in `AccountingOverview`, so on all three Accounting tabs.
+- It also appears on both export panels and in the payment page's Accounting outcome.
+
+**Nits: all fixed.**
+- **n1:** "not delivered" is now derived from the engine's `TERMINAL_FOR_SETTLEMENT_REPORT` plus on hold.
+- **n2:** audit prefixes now include `fdec` and `req`; information-request ids are attributed to their case's payment.
+- **n3:** the audit history renders 100 events at a time, with counts over every matching event.
+- **n4:** the reconciliation export builds from the settled range; Save is gated while the dates are settling; a hash mismatch withholds the file; the message says "prepared for download".
+- **n5:** the engine's not-proposed text is shown whole, with no trimming.
+- **n6:** the hint is reworded.
+- **n7:** `aria-controls` is set only while the review is expanded.
+
+**New Nits (non-blocking):**
+- **n8.** Once the reversal itself is posted, the original entry's chip still says "a reversal is **proposed** (…, posted in your ledger …)". Use neutral wording ("a reversal exists") or switch on the reversal's status.
+- **n9.** `AccountingSetup.tsx`, `sameBase`: the base rows come from the current account-key list, which grows when a new bank account appears in a statement line. A draft then reads as stale (row count differs) even though the saved mapping did not change. This is the safe direction: you are asked to re-apply, and no data is lost. Compare only the keys present in both, or the saved mapping entries themselves.
+- **n10.** On the rare hash-mismatch path the engine has already recorded the reconciliation export (with an audit event) when the file is withheld, so "Try again" adds a second record. The message is honest about it.
+
+**Summary:** APPROVE dc4d39a. Every finding from my review is fixed: M1 is verified by re-running the reproduction, and m1, m2 and the Nits by reading the code. tsc is clean and vitest passes 1820. Three new Nits remain.

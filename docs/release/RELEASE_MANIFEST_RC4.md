@@ -8,7 +8,7 @@ rc4 is built on top of it as separate branches.
 ## Source and links
 | Part | Branch | Based on | Tested commit |
 |---|---|---|---|
-| Software (Connect + Control + Accounting Bridge + Funding exposure, engine, v1 test API, research) | `rc4/clearline-app` | rc3 `a7e37c5` (PR #106 head) | see "Test results" (final code commit recorded in the PR) |
+| Software (Connect + Control + Accounting Bridge + Funding exposure, engine, v1 test API, research) | `rc4/clearline-app` | rc3 `a7e37c5` (PR #106 head) | **`dc4d39a`** (later commits are docs only) |
 | Website (`marketing/`) | `rc4/clearline-site` | rc3 `f58416b` (PR #107 head incl. founder PR #108) | see PR |
 
 | What | rc4 preview (paired by `clearline-release.json`) | Production (unchanged; older release until promoted) |
@@ -75,7 +75,7 @@ failures).
 - **Connect** (`CODE_REVIEW_RC4_CONNECT.md`): CHANGES REQUESTED (order-dependent regressions, hold release, receipt) →
   **APPROVE** with follow-ups RR-1–RR-4 (done; RR-4 found the G1 engine gap, fixed in CHANGE 17).
 - **Console** (`CODE_REVIEW_RC4_CONSOLE.md`): CHANGES REQUESTED (posted-then-changed entry still "supplier paid") →
-  fixes in c95a9db; re-review result recorded in the PR.
+  fixes in c95a9db → **APPROVE dc4d39a** (three non-blocking nits: reversal-posted wording, an over-cautious draft-outdated prompt, a second export record on the rare hash-mismatch path).
 - **QA/security** (`QA_SECURITY_REVIEW_RC4.md`): OK for a public fictional-data trial once M1 (forged repayment / early
   chain finality) is fixed → fixed in CHANGE 19/20; QA's tests are in the suite and pass.
 
