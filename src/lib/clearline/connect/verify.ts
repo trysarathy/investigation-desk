@@ -103,6 +103,18 @@ function verifyOne(scheme: VerificationScheme, rawBody: string, h: Record<string
 }
 
 /**
+ * Re-review RR-3: the canonical form of a declared header value, used by BOTH the pre-check and the bundle the
+ * engine verifies, so they can never disagree: surrounding whitespace trimmed; a multi-signature list with the
+ * whitespace around each comma removed. Canonical values of a valid delivery always fit the bundle decoder's
+ * limits (≤ 8 × 67 characters for a signature list).
+ */
+export function canonicalHeaderValue(schemes: readonly VerificationScheme[], name: string, value: string): string {
+  const n = name.toLowerCase();
+  const multi = schemes.some((s) => s.id === "multi_sig_hmac_sha256_ts" && s.signatureHeader === n);
+  return multi ? value.split(",").map((p) => p.trim()).join(",") : value.trim();
+}
+
+/**
  * Verify a webhook against a provider's declared scheme(s).
  * - No implemented scheme declared → `unverified` (poll to confirm).
  * - An implemented scheme is declared → that scheme decides; missing or bad headers are `invalid`.
@@ -115,7 +127,7 @@ export function verifyDelivery(
   nowUnixSeconds: number,
 ): ConnectVerification {
   const h: Record<string, string> = {};
-  for (const [k, v] of Object.entries(headers ?? {})) if (typeof v === "string") h[k.toLowerCase()] = v;
+  for (const [k, v] of Object.entries(headers ?? {})) if (typeof v === "string") h[k.toLowerCase()] = canonicalHeaderValue(schemes, k, v);
   const implemented = schemes.filter((s) => IMPLEMENTED_SCHEMES.includes(s.id));
   if (!implemented.length) {
     if (!schemes.length || schemes.every((s) => s.id === "none")) return { status: "unverified", scheme: "none", reason: "no_signature_scheme" };

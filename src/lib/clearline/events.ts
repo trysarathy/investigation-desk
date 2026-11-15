@@ -14,7 +14,7 @@
  *   order) raise a contradiction; execution follows the provider's latest version unless terminal.
  */
 import { getAdapter } from "./adapters";
-import { findOrderConflict, rawDetail } from "./connect/normalize";
+import { findOrderConflict, noteHoldBoundary, rawDetail } from "./connect/normalize";
 import { tryAllocateChain } from "./chain";
 import { ensureCase, openException } from "./exceptions";
 import { onExecutionChanged } from "./reconciliation";
@@ -35,6 +35,7 @@ export interface IngestInput {
 function record(tx: Tx, e: Omit<ProviderEvent, "id" | "receivedAt">): ProviderEvent {
   const ev: ProviderEvent = { ...e, id: tx.id("pev"), receivedAt: tx.at };
   tx.ws.providerEvents.push(ev);
+  if (typeof ev.detail.rawRank === "number") noteHoldBoundary(tx, ev); // rc4 RR-1 (Connect events only)
   return ev;
 }
 

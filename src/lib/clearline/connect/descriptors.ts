@@ -224,6 +224,22 @@ export const CONNECT_SCRIPTS: Record<string, Record<string, readonly ScriptEntry
       { afterMinutes: 60, status: "delivered", subStatus: "handed_to_bank" },
       { afterMinutes: 90, status: "routing", subStatus: "at_bank" },
     ],
+    // Re-review RR-2: a regression BETWEEN two versions that both precede the newest one (at_bank → awaiting_bank,
+    // then delivered). In arrival orders where the newest comes first, the higher-ranked side is stored late.
+    regress_mid: [
+      { afterMinutes: 0, status: "queued" },
+      { afterMinutes: 10, status: "routing", subStatus: "awaiting_bank" },
+      { afterMinutes: 20, status: "routing", subStatus: "at_bank" },
+      { afterMinutes: 30, status: "routing", subStatus: "awaiting_bank" },
+      { afterMinutes: 60, status: "delivered", subStatus: "bank_confirmed" },
+    ],
+    regress_and_recover: [
+      { afterMinutes: 0, status: "queued" },
+      { afterMinutes: 10, status: "routing", subStatus: "awaiting_bank" },
+      { afterMinutes: 60, status: "delivered", subStatus: "handed_to_bank" },
+      { afterMinutes: 70, status: "routing", subStatus: "at_bank" },
+      { afterMinutes: 120, status: "delivered", subStatus: "bank_confirmed" },
+    ],
     hold: [
       { afterMinutes: 0, status: "queued" },
       { afterMinutes: 10, status: "routing", subStatus: "at_bank" },
