@@ -150,6 +150,11 @@ Merge first: PR #<n> because <reason> | nothing ready
 Couldn't check: <item — reason>
 Metrics: main green n/7 this week · escaped defects this month n · open security issues C/H/M/L
 ```
+**Headline rule:** the first line names **every** gate that failed in **any** run, with counts
+("RED: lint 20 errors; e2e case e failed 2 of 7 runs"). Never write "lint only" or "tests pass"
+while an e2e run failed. A flake that fails more often than the night before, or in more than 1 run
+of 10, gets a Product roadmap `bug` row the same night (search first; no duplicates). (Fix after
+15 Nov 2026: the headline said lint only while e2e case e failed 2 of 7 runs, up from 1 of 10 on 13 Nov.)
 **Rules**: GREEN only if every step ran and passed on `main` this session. PARTIAL if anything was
 not run. Counts copied from logs. No secrets, no customer data, no full stack traces (link the log
 location instead). Same email whether the news is good or bad.

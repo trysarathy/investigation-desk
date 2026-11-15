@@ -121,6 +121,12 @@ a real SGT timestamp and a link; simulated or replayed runs keep events in time 
    no stop status; step not already sent; not out-of-office until after today.
 2. Body = `gtm.lean.followup(step, greeting, linkedin)` verbatim (D4 has the accounting question word for
    word; both have the opt-out). Same thread, `replyThreadId`.
+   **Greeting** = the company's name from Leads `company` ("Hi hide.me team"), never a domain or URL.
+   **Before saving any Gmail draft, read it back** and reject it if the body contains `google.com/url`
+   or any link other than LINKEDIN_URL as plain text, or a URL in the greeting; fix and re-save.
+   (Fix after the 15 Nov spot check: all 17 D4 drafts of 2 Nov wrap the LinkedIn URL in a
+   google.com/url redirect and the hide.me draft opens "Hi https://www.google.com/url?q=http://hide.me... team";
+   the same redirect was flagged in the partner drafts on 1 Nov.)
 3. Guard decides (P2). The 01:27 run only checks tomorrow's list is guard-clean; it never edits first
    emails she already saw.
 **Stop:** any reply/bounce/unsubscribe in the thread; domain live (`gmail_cold_allowed` false).

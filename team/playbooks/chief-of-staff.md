@@ -24,7 +24,7 @@ exact: keep the section order and headings so she always knows where to look. Kn
 ## Length and number rules (every output)
 | Output | Max words above DETAILS |
 |---|---|
-| 07:27 briefing | 700 |
+| 07:27 daily email | 300 (company/OPERATING_MODEL.md §5; was 700 here, which conflicted) |
 | 18:27 end-of-day (before the queue, which is shown in full) | 300 |
 | Monday week plan | 450 |
 | Friday ship review | 450 |
@@ -33,6 +33,12 @@ exact: keep the section order and headings so she always knows where to look. Kn
 | Monthly update | 400 |
 Everything else goes under a `DETAILS` line. Before sending, count the words above DETAILS and
 put the count in your Log row; over the limit → cut, don't send.
+- **Count with a tool, never by eye:** save the text above DETAILS to a file and run `wc -w`; log the
+  exact number. "~340" or "about 300" in a Log row means you didn't count: cut and count again first.
+  (Fix after 13 Nov 2026: the daily went out at ~340 words, over the 300 limit.)
+- **A missed Sunday run is backfilled, not skipped:** if the previous week has no Scorecards rows,
+  add them in this run (note `backfilled <date>`) from the same sources, so "last week" and the
+  two-weeks-running rule still work. (Fix after the 8 Nov 2026 weekly report was missed.)
 - **Counts, not rates, when n < 10** ("2 replies from 61 sent", never "3.3%").
 - Use the planning assumptions in `team/knowledge/chief-of-staff/okrs-metrics.md` (incl. the 2:1
   pilots offered → paid ratio) and say which one you used.
