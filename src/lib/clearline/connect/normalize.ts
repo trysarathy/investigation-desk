@@ -146,21 +146,56 @@ export function rawDetail(r: ProviderRawStatus): Record<string, string | number>
   };
 }
 
-/** Side states (hold / information request) are not progress, so they never take part in rank comparisons. */
+/** Side states (hold / information request / release) are not progress: never compared, and a hold is an epoch boundary. */
 const SIDE_STATES: readonly string[] = ["payout.on_hold", "payout.information_requested", "payout.hold_released"];
+/** Provider events that stand as the provider's claim (not rejected, duplicated or raised as a contradiction). */
+const ACCEPTED: readonly string[] = ["applied", "recorded_no_state_change", "stored_late_no_regression"];
+
+export type OrderConflictCode = "EV_PROVIDER_STATUS_REGRESSED" | "EV_PROVIDER_SUCCESS_REVERSED" | "EV_PROVIDER_CLAIMS_DIFFER";
+
+export interface OrderConflict {
+  code: OrderConflictCode;
+  /** The accepted event the incoming one conflicts with. */
+  other: ProviderEvent;
+  text: string;
+}
+
+const PRIORITY: Record<OrderConflictCode, number> = { EV_PROVIDER_SUCCESS_REVERSED: 3, EV_PROVIDER_STATUS_REGRESSED: 2, EV_PROVIDER_CLAIMS_DIFFER: 1 };
 
 /**
- * Generic adapter-level regression rule: an event with a NEWER ordering value than an earlier
- * accepted event of the same payout, whose raw rank is LOWER, is a regression. Returns the earlier
- * event it regresses from, or undefined. Late (older) events are not regressions.
+ * Generic adapter-level conflict rule, independent of ARRIVAL order (rc4 review M-1/M-2/L-2). The incoming
+ * Connect event is compared with every accepted event of the same payout, in PROVIDER order (sequence),
+ * whichever arrived first:
+ * - EV_PROVIDER_SUCCESS_REVERSED: the earlier version claims completed and the later one failed (paid → failed);
+ * - EV_PROVIDER_STATUS_REGRESSED: the earlier version has a higher declared rank than the later one;
+ * - EV_PROVIDER_CLAIMS_DIFFER: two completion claims with different settlement claims (e.g. on-chain final
+ *   vs internal ledger), at any sequences, including equal ranks.
+ * Side states are never compared, and versions on either side of a hold are not compared (a hold is a boundary).
+ * completed → returned is NOT a conflict: it is a return, owned by the returned_payout exception.
  */
-export function findRawRegression(ws: Workspace, intentId: string, p: SandboxWebhookPayload): ProviderEvent | undefined {
+export function findOrderConflict(ws: Workspace, intentId: string, p: SandboxWebhookPayload): OrderConflict | undefined {
   if (!p.raw || SIDE_STATES.includes(p.type)) return undefined;
-  let top: ProviderEvent | undefined;
-  for (const e of ws.providerEvents) {
-    if (e.intentId !== intentId || e.sequence >= p.sequence || typeof e.detail.rawRank !== "number" || SIDE_STATES.includes(e.normalizedType)) continue;
-    if (e.processingOutcome !== "applied" && e.processingOutcome !== "recorded_no_state_change") continue;
-    if (!top || (e.detail.rawRank as number) > (top.detail.rawRank as number)) top = e;
+  const mine = ws.providerEvents.filter((e) => e.intentId === intentId && ACCEPTED.includes(e.processingOutcome) && typeof e.detail.rawRank === "number");
+  const boundaries = mine.filter((e) => SIDE_STATES.includes(e.normalizedType)).map((e) => e.sequence);
+  const label = (status: unknown, sub: unknown, seq: number) => `${String(status)}${sub ? "/" + String(sub) : ""} (seq ${seq})`;
+  const incoming = { type: p.type as string, rank: p.raw.rank, claim: p.raw.settlementClaim as string, seq: p.sequence, label: label(p.raw.status, p.raw.subStatus, p.sequence) };
+  let best: OrderConflict | undefined;
+  for (const e of mine) {
+    if (SIDE_STATES.includes(e.normalizedType)) continue;
+    const other = { type: e.normalizedType as string, rank: e.detail.rawRank as number, claim: String(e.detail.settlementClaim), seq: e.sequence, label: label(e.detail.rawStatus, e.detail.rawSubStatus, e.sequence) };
+    const [earlier, later] = other.seq <= incoming.seq ? [other, incoming] : [incoming, other];
+    let code: OrderConflictCode | undefined;
+    if (other.seq !== incoming.seq && !boundaries.some((b) => b > earlier.seq && b < later.seq)) {
+      if (earlier.type === "payout.completed" && later.type === "payout.failed") code = "EV_PROVIDER_SUCCESS_REVERSED";
+      else if (earlier.rank > later.rank) code = "EV_PROVIDER_STATUS_REGRESSED";
+    }
+    if (!code && earlier.type === "payout.completed" && later.type === "payout.completed" && earlier.claim !== later.claim) code = "EV_PROVIDER_CLAIMS_DIFFER";
+    if (!code || (best && PRIORITY[best.code] >= PRIORITY[code])) continue;
+    const text =
+      code === "EV_PROVIDER_SUCCESS_REVERSED" ? `Provider reported success ${earlier.label} and later failure ${later.label}.`
+        : code === "EV_PROVIDER_STATUS_REGRESSED" ? `Provider moved backwards: ${earlier.label} → ${later.label}.`
+          : `Provider made two different completion claims: ${earlier.label} (${earlier.claim}) and ${later.label} (${later.claim}).`;
+    best = { code, other: e, text };
   }
-  return top && p.raw.rank < (top.detail.rawRank as number) ? top : undefined;
+  return best;
 }

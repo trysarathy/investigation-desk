@@ -375,7 +375,7 @@ function ingestWebhookRaw(tx: Tx, d: WebhookDelivery): string {
   if (!adapter) fail("not_found", "Unknown provider.", { field: "providerId" });
   if (typeof d.rawBody !== "string" || d.rawBody.length > 16_000) fail("invalid_field", "rawBody must be a string ≤ 16 KB.", { field: "rawBody" });
   const v = adapter.verifyWebhook(d.rawBody, d.signatureHeader, unix(tx.at));
-  return ingestPayload(tx, { providerId: d.providerId, rawBody: d.rawBody, signatureResult: v.valid ? "valid" : "invalid", provenance: "provider_webhook" }).outcome;
+  return ingestPayload(tx, { providerId: d.providerId, rawBody: d.rawBody, signatureResult: v.valid ? "valid" : "invalid", provenance: "provider_webhook", ...(v.valid ? {} : { signatureReason: v.reason }) }).outcome;
 }
 
 function ingestWebhook(tx: Tx, d: WebhookDelivery): string {

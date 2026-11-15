@@ -87,7 +87,7 @@ The contract is data, not code (`connect/types.ts`). Reviewing a new provider me
 **Normalisation:**
 - `parseProviderBody(d, rawBody) → Result<NormalizedClaim>`
 - `toEnginePayload(claim)`, `rawDetail(raw)`, `findMapping(d, status, sub)`
-- `findRawRegression(ws, intentId, payload)`
+- `findOrderConflict(ws, intentId, payload) → OrderConflict | undefined` (types `OrderConflict`, `OrderConflictCode`)
 
 **Simulator (fictional provider side):**
 - `providerTruth(d, intent, instr)`, `providerScript`
@@ -111,7 +111,7 @@ The contract is data, not code (`connect/types.ts`). Reviewing a new provider me
 **Intake and reconciler:**
 - `receiveConnectWebhook(ws, { providerId, rawBody, headers }, ctx) → Result<ConnectReceipt>`
 - `reconcileConnect(ws, ctx, { mode?: "fetch_status" | "list_since", cursors? }) → { workspace, results, cursors }`
-- `unresolvedConnectIntents(ws)`, `UNRESOLVED_EXECUTION`
+- `unresolvedConnectIntents(ws)`, `declaredHeaders(descriptor)`, `UNRESOLVED_EXECUTION`
 
 **Engine adapter:**
 - `ConnectAdapter` (implements `ProviderAdapter`)
@@ -153,25 +153,54 @@ stays `"provider_claim"`.
 **An unmapped raw status is refused.** The result is `invalid_field` ("unmapped raw status …"), and nothing is recorded
 or applied. It is never guessed. The fix is a reviewed change to the mapping table.
 
-## 4. Regression is a contradiction (generic, adapter-level)
+## 4. Regression is a contradiction (generic, adapter-level, independent of arrival order)
 
-A provider moving backwards is recorded as a contradiction with an owner. It is never an error and never silent.
-The cases:
+> **rc4 review fix (M-1, M-2, L-2).** The first version compared an event only with OLDER accepted events, so the
+> outcome depended on which webhook arrived first. The rule below compares in provider order, whichever arrived first.
 
-| Case | Engine result | Rule |
-|---|---|---|
-| Success, then failure (`delivered` → `bounced`, paid → failed [ST4][AW3]) | `contradictory_evidence` / `EV_IMPOSSIBLE_TRANSITION`. Execution stays `provider_reported_completed`; settlement → `contradicted` if any evidence exists | Existing state machine: `provider_reported_completed` only allows `returned` |
-| Completed, then returned (`clawed_back`, `BOUNCED_BACK` [MT1][MT2]) | Applied → `returned`, with an open `returned_payout` exception. F1 (`RC_REPORT_ON_TERMINAL_PAYOUT`) and N1 (`contradicted` / `bank_statement` for a later debit) apply unchanged | Existing rules |
-| **Raw regression with the same or another claim** (`bank_confirmed` → `handed_to_bank`, `delivered` → `routing`) | **New: `contradictory_evidence` / `EV_PROVIDER_STATUS_REGRESSED`**. State unchanged; settlement → `contradicted` if not `none`; both events in `supportingEventIds` | `events.ts`: a newer event (`sequence > maxApplied`) whose declared `rank` is lower than the highest rank of an earlier accepted event (`connect/normalize.ts:findRawRegression`) |
-| Older version arriving late | `stored_late_no_regression` or `recorded_no_state_change`. No exception | Not a regression: ordering is by version |
-| Terminal, then success (`rejected` → `delivered`) | `EV_IMPOSSIBLE_TRANSITION`, state stays terminal | Existing terminal rule |
+A provider moving backwards is recorded as a contradiction with an owner. It is never an error and never silent, and
+the result is the same in every arrival order.
 
-Without the new rule, the same-claim case was recorded as `recorded_no_state_change`, which was silent. The new rule
-runs only when the payload carries an adapter-declared rank, so the original providers are unaffected. It runs after
-the amount and hold rules, so the H3 hold rules keep priority.
+**Rule** (`connect/normalize.ts:findOrderConflict`, applied in `events.ts`):
+- The incoming Connect event is compared with every **accepted** event of the same payout. Accepted means `applied`,
+  `recorded_no_state_change` or `stored_late_no_regression`. Each pair is put in **provider order** (by `sequence`).
+- Side states (hold, information request, partner release) are never compared.
+- A hold is an **epoch boundary**: two versions with an accepted hold between them are not compared, so a payout
+  that resumes at a lower routing rank after a hold is not a regression.
+- The rule raises one of these codes, in priority order:
+  1. `EV_PROVIDER_SUCCESS_REVERSED`: the earlier version claims completed and the later one claims failed
+     (paid → failed [ST4][AW3]).
+  2. `EV_PROVIDER_STATUS_REGRESSED`: the earlier version has a higher declared rank than the later one.
+  3. `EV_PROVIDER_CLAIMS_DIFFER`: two completion claims with different settlement claims, at any sequences including
+     equal ranks (Saltglass `onchain_final` against `book_transfer_done`, L-2).
+- **Execution follows the provider's latest version**, unless the payout is already terminal (the terminal rule
+  wins).
+  - When the incoming event is the newest, its execution is applied, together with its usual side effects (for
+    example the `failed_submission` exception for a failure).
+  - When it is older, it is recorded as `contradictory_exception_raised` and state is not changed.
+- In both cases one owned `contradictory_evidence` exception names both events. Settlement becomes `contradicted` if it
+  was not `none`.
 
-Every such contradiction has an open exception, and `investigate().whoActs` is never `WA_NONE` (tested, as C2
-requires).
+| Case | Every arrival order ends in |
+|---|---|
+| paid → failed (`delivered` → `bounced`) | execution `failed`; open `EV_PROVIDER_SUCCESS_REVERSED` + `PV_FAILED_BENEFICIARY_REJECTED`. The earlier "paid" claim stays visible |
+| completed → returned (`clawed_back`, `BOUNCED_BACK` [MT1][MT2]) | `returned` with the `returned_payout` exception. This is a return, not a conflict. F1 and N1 are unchanged |
+| same-claim regression (`bank_confirmed` → `handed_to_bank`) | `provider_reported_completed`; open `EV_PROVIDER_STATUS_REGRESSED` |
+| cross-claim regression (`delivered` → `routing`) | `in_transit` (the latest version); open `EV_PROVIDER_STATUS_REGRESSED` |
+| two completion claims (on-chain final against internal ledger) | `provider_reported_completed`; open `EV_PROVIDER_CLAIMS_DIFFER` |
+| a lower-ranked older version arriving late | stored late, with no exception |
+
+The rule runs only when the payload carries an adapter-declared rank, so the original providers are unaffected. It runs
+after the amount, hold and hold-release rules, so the H3 hold rules keep priority. Every such contradiction has an open
+exception, and `investigate().whoActs` is never `WA_NONE` (tested, as C2 requires).
+
+**Known order dependence (not fixed, by design):**
+- A provider that **leaves a terminal state**: `failed`, then a newer `delivered`. When the terminal version arrives
+  first, the payout stays terminal (the terminal rule), with the conflict raised. When it arrives last, execution
+  shows the latest version, again with the conflict raised. Both orders raise the same code. No shipped script does
+  this.
+- **Late pre-hold events during a hold.** They are suppressed for a person (H3, `EV_PROVIDER_EVENT_WHILE_ON_HOLD`), so
+  hold scripts are excluded from the permutation guarantee.
 
 ## 5. Webhook verification (pluggable, raw body)
 
@@ -202,9 +231,13 @@ All schemes verify the exact raw body string (`connect/verify.ts`):
 - **No scheme, or one not implemented.** The result is **`unverified`**:
   - `receiveConnectWebhook` does not apply the body. It polls the provider's status API (`poll_provider`) and applies
     the provider's own answer, which is `polled_to_confirm`. A forged "final" body is never recorded.
+  - For verified or invalid deliveries, the intake bundles **only the headers the declared schemes read**
+    (`declaredHeaders`). The receipt's `action` comes from the engine's recorded outcome: `ingested` unless the engine
+    recorded `rejected_signature` (review M-4).
   - If the body names no known payout, nothing changes.
   - Through the raw engine action `ingest_webhook`, an unverified delivery is recorded as `rejected_signature` (not
-    applied). `WebhookVerification.reason` is `unverified_scheme`.
+    applied). `WebhookVerification.reason` is `unverified_scheme`, and the audit says "unverified scheme", not
+    "signature invalid" (review L-3).
 
 **Header bundle.** The v1 `WebhookDelivery` has one `signatureHeader` string. For Connect providers, that string
 carries the provider's signature headers as `headers-v1:` followed by sorted lower-case JSON
@@ -228,11 +261,14 @@ How the declared key and ordering value reach the engine:
 - The ordering value becomes the engine `sequence`. Arrival time is never used. Stripe and Airwallex disclaim
   delivery order [ST12][AW6].
 
-**Proved by tests:** every arrival order of the success and return webhooks ends in the same state. For a regressing
-script, in every order either the latest version's claim is applied, or an owned contradiction is open.
+**Proved by tests:** for **every** non-hold script of the version-ordered providers (Cobalt Wren and Quillfern),
+every arrival order of the webhooks ends in exactly the same statuses, return status and open exception codes. That
+covers success, return, clawback, presumed-only, `regress_substatus` and `regress_to_routing` (all permutations). §4
+lists the two cases that are not covered.
 
-**Limit of `state_rank`.** A provider with no object version cannot express a non-terminal regression. A lower rank
-always looks like a late event. Such adapters rely on polling (§7).
+**Limit of `state_rank`.** A provider with no object version cannot express a non-terminal regression, because a
+lower rank is always an older sequence. Two different completion claims are still caught (`EV_PROVIDER_CLAIMS_DIFFER`).
+Such adapters rely on polling (§7).
 
 ## 7. Polling reconciler (simulated)
 
@@ -281,7 +317,7 @@ and the stored `rawBody` keeps it verbatim.
 - **replay** the first response, as Stripe and MT do [ST11][MT3];
 - or **reject** the repeat, as BVNK does [BV5].
 
-In both cases, a different body sent with the same key is rejected [BR5]. After the TTL the key is forgotten
+A different body sent with the same key is rejected in this sandbox model. The research records only that Bridge requires "the body must match" on a retry [BR5]. After the TTL the key is forgotten
 [MT3][NI4][GR8].
 
 `retryDecision` returns:
@@ -323,15 +359,24 @@ none equals a real vendor's documented status word. The real-world patterns that
 
 | Fictional provider | Semantics | Motivated by |
 |---|---|---|
-| **Cobalt Wren Payouts** (`prv_cx_cobaltwren`, fiat local) | Payouts that regress: `delivered` → `bounced`, `delivered` → `clawed_back`; sub-statuses `handed_to_bank` < `bank_confirmed`; hex HMAC with timestamp; at-least-once delivery with event ids; object version; change feed | `paid` → `failed` [ST4][ST7]; `completed` → `returned`/`reversed` [MT1][MT2]; `PAID` → `FAILED` [AW3]; hex HMAC [MT14]; no ordering guarantee [ST12][AW6] |
-| **Quillfern Remit** (`prv_cx_quillfern`, correspondent) | **At-most-once** webhooks (poll required); `DONE/PRESUMED_AFTER_WINDOW` = time-inferred; `IN_FLIGHT/CLEARING_HANDOFF` with a limited-visibility addendum; multi-signature with key rotation; dedupe by object version; change feed; reject-duplicate idempotency | At-most-once by default [NI5]; `DEEMED_PAID` and `PROCESSED_BY_CLEARING` [NI2]; poll after callbacks stop [TH1]; multiple signatures [GR9]; rotation [PR6]; 400 on repeat [BV5] |
-| **Saltglass Digital** (`prv_cx_saltglass`, Base Sepolia testnet USDC) | `broadcast_unconfirmed` with a **preliminary hash**; `onchain_final` with the final hash; `book_transfer_done` = internal ledger, no chain activity; RSA-style signature not implemented here, so webhooks are always unverified and confirmed by polling; no object version (raw-rank ordering) | Preliminary hash [BR1]; internal `CONFIRMED` [ZH1]; off-chain Go Account events [BG2]; RSA with timestamp [BR4]; "independent check before crediting" [FB3] |
+| **Cobalt Wren Payouts** (`prv_cx_cobaltwren`, fiat local) | Payouts that regress: `delivered` → `bounced`, `delivered` → `clawed_back`; hold `paused_for_review` and partner release `review_cleared`; sub-statuses `handed_to_bank` < `bank_confirmed`; hex HMAC with timestamp; at-least-once delivery with event ids; object version; change feed | `paid` → `failed` [ST4][ST7]; `completed` → `returned`/`reversed` [MT1][MT2]; `PAID` → `FAILED` [AW3]; hex HMAC [MT14]; no ordering guarantee [ST12][AW6] |
+| **Quillfern Remit** (`prv_cx_quillfern`, correspondent) | **At-most-once** webhooks (poll required); `DONE/PRESUMED_AFTER_WINDOW` = time-inferred; `IN_FLIGHT/CLEARING_HANDOFF` with a limited-visibility addendum; hold `HALTED` and partner release `RELEASED`; multi-signature with key rotation; dedupe by object version; change feed; reject-duplicate idempotency | At-most-once by default [NI5]; `DEEMED_PAID` and `PROCESSED_BY_CLEARING` [NI2]; poll after callbacks stop [TH1]; multiple signatures [GR9]; rotation [PR6]; 400 on repeat [BV5] |
+| **Saltglass Digital** (`prv_cx_saltglass`, Base Sepolia testnet USDC) | `broadcast_unconfirmed` with a **preliminary hash**; `onchain_final` with the final hash; `book_transfer_done` = internal ledger, no chain activity; RSA-style signature not implemented here, so webhooks are always unverified and confirmed by polling; no object version (raw-rank ordering); `claims_conflict` script (both completion claims) | Preliminary hash [BR1]; internal `CONFIRMED` [ZH1]; off-chain Go Account events [BG2]; RSA with timestamp [BR4]; "independent check before crediting" [FB3] |
 
 The provider's truth is a script of versions, each effective a set number of minutes after submission
 (`CONNECT_SCRIPTS`). The script is chosen by `intent.metadata.connect_script`, else by `sandboxOutcome`, else
 `success`.
 
 Connect routes are **not** in the sample workspace. Add them with `withConnectRoutes(ws)`.
+
+**Holds (review M-3).** A partner-release status maps to `payout.hold_released`. As for every provider:
+- the hold ends only when **both** the partner's release and the assigned compliance reviewer's `release` decision
+  are recorded, in either order;
+- neither alone releases it.
+
+After the release, the provider's later versions apply as usual. Events suppressed during the hold are re-applied
+when they are redelivered or re-polled (review L-1: the reconciler no longer counts a suppressed copy as
+"unchanged").
 
 ## 11. Before any real integration (TARGET; approval-only)
 
@@ -405,7 +450,9 @@ Connect routes are **not** in the sample workspace. Add them with `withConnectRo
 ## 13. Invariant → test
 
 Every row was mutation-checked. The mutant was applied in place, the rc4 suites were run, and the file was restored
-from git. All 34 mutants were killed.
+from git. After the rc4 review fixes: 45 of 47 mutants were killed, including the review's survivors M15 (the newest-version gate) and M16 (the bundle prefix). The two that survive are equivalent mutants:
+- counting stored-late events as accepted is redundant, because a stored-late event can never be the only reference for a conflict;
+- taking the receipt from the pre-check gives the same result as the engine, because both now verify the same declared headers at the same instant.
 
 | # | Invariant | Enforced in | Proved by (`tests/clearline/`) |
 |---|---|---|---|
@@ -417,10 +464,13 @@ from git. All 34 mutants were killed.
 | 2b | A time-based inference has a distinct confidence and is never verified | descriptors (`provider_time_inferred`) | status › "a time-inferred status…" |
 | 2c | An unmapped status is refused, never guessed | `normalize.ts` | status › "an unmapped raw status is refused…" |
 | 2d | The original providers' events are unchanged | `events.ts` (only when `p.raw`) | status › "events of the original sandbox providers are unchanged" |
-| 3a | paid → failed: owned contradiction; execution kept | `state.ts` + `events.ts` (existing) | status › "paid → failed…" |
+| 3a | paid → failed: execution is the latest version (`failed`); owned `EV_PROVIDER_SUCCESS_REVERSED` in every order | `normalize.ts:findOrderConflict`, `events.ts` | status › "paid → failed…", "M-2: …"; delivery › "Cobalt Wren paid → failed: the one outcome…" |
 | 3b | completed → returned: owned `returned_payout` | existing | status › "completed → returned…" |
-| 3c | Same-claim raw regression is not silent (`EV_PROVIDER_STATUS_REGRESSED`) | `events.ts` rule, `normalize.ts:findRawRegression` | status › "a raw regression inside the same execution claim…", "…across claims…", "…learned by polling…" |
-| 3d | A late older version is not a regression; side states are not progress | `findRawRegression` (`sequence` gate, `SIDE_STATES`) | status › "an OLDER version arriving late…", "side states are not progress…" |
+| 3c | A raw regression is never silent, in either arrival order (`EV_PROVIDER_STATUS_REGRESSED`); execution follows the latest version | `events.ts` rule, `normalize.ts:findOrderConflict` | status › "a raw regression inside the same execution claim…", "…across claims…", "M-1: …", "…learned by polling…" |
+| 3c' | Two different completion claims are a contradiction, equal ranks included (`EV_PROVIDER_CLAIMS_DIFFER`) | `findOrderConflict` | status › "L-2: …" |
+| 3f | Hold release needs both the partner release and the reviewer; resuming after a hold is not a regression; the reconciler re-applies suppressed statuses | descriptors (`review_cleared`, `RELEASED`), `findOrderConflict` (hold boundary), `reconciler.ts:alreadyRecorded` | `rc4-connect-review-fixes.test.ts` › M-3 (4 tests), L-1 |
+| 4f | The intake receipt follows the engine; only declared headers are bundled; unverified scheme audited as such | `reconciler.ts:receiveConnectWebhook`, `events.ts` (`signatureReason`) | review-fixes › M-4 (2 tests), L-3, L-4 |
+| 3d | A late older version is not a regression; side states are not progress | `findOrderConflict` (provider order, `SIDE_STATES`) | status › "an OLDER version arriving late…", "side states are not progress…" |
 | 3e | Regression with evidence contradicts settlement; F1, N1 and the terminal rule unchanged; execution never sets settlement | `events.ts`, `reconciliation.ts` (existing) | status › "…bank evidence…", "F1 stays…", "N1 stays…", "execution never sets settlement…", "a terminal payout stays terminal…" |
 | 4a | Hex HMAC with timestamp on the raw body; case-insensitive headers; replay window | `verify.ts` | `rc4-connect-verify.test.ts` › 4a (3 tests) |
 | 4b | Multi-signature with rotation; retired and not-yet-active keys refused | `verify.ts` | verify › 4b (3 tests) |
@@ -428,7 +478,7 @@ from git. All 34 mutants were killed.
 | 4d | No, unknown or unimplemented scheme → unverified → poll; never applied | `verify.ts`, `adapter.ts:toWebhookVerification`, `reconciler.ts:receiveConnectWebhook` | verify › 4d (4 tests) |
 | 4e | Replay is a duplicate inside the window and rejected outside it; tampering rejected; `test_` keys only; constant-time | `verify.ts`, engine dedupe | verify › 4e (6 tests) |
 | 5a | Dedupe by the declared key, with the documented fallbacks; cross-path dedupe | `normalize.ts` (dedupe), engine dedupe | `rc4-connect-delivery.test.ts` › 5a (5 tests) |
-| 5b | Ordering by version or rank, never by arrival (all permutations) | `normalize.ts` (sequence) | delivery › 5b (7 tests) |
+| 5b | Ordering by version or rank, never by arrival: every permutation of every non-hold script ends identically | `normalize.ts` (sequence), `findOrderConflict` | delivery › 5b (12 tests) |
 | 6a | Lost webhook + poll = same final state (property: 13 scripts × 25 seeds) | `actions.ts:pollProvider`, `simulator.ts`, `reconciler.ts` | delivery › "property: …" |
 | 6b | Lost everything + one `list_since` pass = same final state; cursor advances | `simulator.ts:listSince`, `reconcileConnect` | delivery › "every webhook lost…", "Saltglass has no change feed…" |
 | 6c | Single-poll limit documented; completed payouts stay polled | `UNRESOLVED_EXECUTION` | delivery › "documented limit…", "the reconciler polls only unresolved…" |
@@ -444,9 +494,9 @@ from git. All 34 mutants were killed.
 | File | Change |
 |---|---|
 | `types.ts` | `SandboxWebhookPayload.raw?: import("./connect/types").ProviderRawStatus` (1 field). `WorkspaceAction` member `{ type: "poll_provider"; intentId: string; version?: number }`, inserted after `ingest_webhook` |
-| `actions.ts` | `dispatch` case `poll_provider`, and the new function `pollProvider` (13 lines plus a 5-line comment), placed after `ingestWebhook` |
-| `events.ts` | Import of `findRawRegression`, `rawDetail`; one detail spread `...(p?.raw ? rawDetail(p.raw) : {})`; the regression rule block (15 lines) before the `target === current` check; 3 header-comment lines |
-| `labels.ts` | Own block `CONNECT_CODE` (`EV_PROVIDER_STATUS_REGRESSED`) plus one spread line in `CODE_LABELS` |
+| `actions.ts` | `dispatch` case `poll_provider`, and the new function `pollProvider` (13 lines plus a 5-line comment), placed after `ingestWebhook`; `ingestWebhookRaw` passes `signatureReason` (one line, review L-3) |
+| `events.ts` | Import of `findOrderConflict`, `rawDetail` (and `isTerminalExecution` added to the existing `state` import); one detail spread `...(p?.raw ? rawDetail(p.raw) : {})`; the conflict block (17 lines) before the `target === current` check; optional `IngestInput.signatureReason` and the audit-text choice for `unverified_scheme` (review L-3); 3 header-comment lines |
+| `labels.ts` | Own block `CONNECT_CODE` (`EV_PROVIDER_STATUS_REGRESSED`, `EV_PROVIDER_SUCCESS_REVERSED`, `EV_PROVIDER_CLAIMS_DIFFER`) plus one spread line in `CODE_LABELS` |
 | `index.ts` | `CONNECT_PROVIDERS` export; `export * from "./connect"` |
 | `serialize.ts`, `derive.ts` | **Unchanged** |
 
@@ -465,8 +515,9 @@ Changes to owned files:
 - **Asymmetric signatures.** RSA and JWS verification are not implemented. Those providers are always unverified and
   confirmed by polling.
 - **Unverified webhooks through the raw action.** An unverified delivery sent through the raw `ingest_webhook` action
-  is recorded with `signatureResult: "invalid"` (`rejected_signature`). The engine has no separate "unverified"
-  outcome. Use `receiveConnectWebhook` for the precise receipt.
+  is recorded with `signatureResult: "invalid"` (`rejected_signature`). The audit text says "unverified scheme". The
+  engine has no separate "unverified" outcome. Use `receiveConnectWebhook` for the precise receipt.
+- **Order dependence that remains** (§4): a provider leaving a terminal state, and late pre-hold events during a hold.
 - **`state_rank` providers** cannot express non-terminal regressions (§6).
 - **A single late poll** can miss a transient status (§7).
 - **Engine simulation.** `simulate_provider_event` does not drive Connect providers. Use their webhooks or

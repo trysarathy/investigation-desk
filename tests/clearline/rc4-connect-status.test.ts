@@ -77,14 +77,17 @@ describe("rc4 Connect item 2: the raw status is kept verbatim next to the normal
 });
 
 describe("rc4 Connect item 3: regression is a contradiction with an owner, never an error, never silent", () => {
-  it("paid → failed (delivered, then bounced): contradiction, execution kept, open exception someone acts on", () => {
+  it("paid → failed (delivered, then bounced): execution follows the latest version (failed); the earlier 'paid' stays visible as an owned contradiction", () => {
     const { ws, id } = playAll(CW, "return");
     const ev = lastEvent(ws, id);
     expect(ev.detail.rawStatus).toBe("bounced");
-    expect(ev.processingOutcome).toBe("contradictory_exception_raised");
-    expect(intentOf(ws, id).status.execution).toBe("provider_reported_completed");
+    expect(ev.processingOutcome).toBe("applied");
+    expect(intentOf(ws, id).status.execution).toBe("failed");
     expect(intentOf(ws, id).status.settlement).not.toBe("verified");
-    expect(listExceptions(ws, { intentId: id, category: "contradictory_evidence" }).map((e) => e.explanationCode)).toEqual(["EV_IMPOSSIBLE_TRANSITION"]);
+    const exc = listExceptions(ws, { intentId: id, category: "contradictory_evidence" });
+    expect(exc.map((e) => e.explanationCode)).toEqual(["EV_PROVIDER_SUCCESS_REVERSED"]);
+    expect(exc[0].explanation).toMatch(/success delivered\/handed_to_bank \(seq 3\) and later failure bounced \(seq 4\)/);
+    expect(listExceptions(ws, { intentId: id }).map((e) => e.explanationCode)).toContain("PV_FAILED_BENEFICIARY_REJECTED");
     const o = ownedContradiction(ws, id);
     expect(o.open).toBeGreaterThan(0);
     expect(o.whoActs).not.toBe("WA_NONE");
@@ -108,10 +111,42 @@ describe("rc4 Connect item 3: regression is a contradiction with an owner, never
     expect(ownedContradiction(ws, id).whoActs).not.toBe("WA_NONE");
     expect(intentOf(ws, id).status.execution).toBe("provider_reported_completed");
   });
-  it("a regression across claims (delivered → routing) raises the same regression code; state not changed", () => {
+  it("a regression across claims (delivered → routing) raises the regression code; execution follows the latest version", () => {
     const { ws, id } = playAll(CW, "regress_to_routing");
     expect(listExceptions(ws, { intentId: id, category: "contradictory_evidence" }).map((e) => e.explanationCode)).toEqual(["EV_PROVIDER_STATUS_REGRESSED"]);
-    expect(intentOf(ws, id).status.execution).toBe("provider_reported_completed");
+    expect(intentOf(ws, id).status.execution).toBe("in_transit");
+  });
+  it("M-1: the regression is raised when the newer, lower-ranked version arrives FIRST (late higher-ranked version)", () => {
+    let { ws, id } = submittedConnect(CW, "regress_substatus");
+    const vs = versions(ws, id);
+    ws = deliver(ws, id, 2).workspace;
+    ws = deliver(ws, id, 4, vs[3].at).workspace; // handed_to_bank (v4) first
+    const late = deliver(ws, id, 3, plusMin(vs[3].at, 1)); // bank_confirmed (v3) late
+    expect(late.outcome).toBe("contradictory_exception_raised");
+    const exc = listExceptions(late.workspace, { intentId: id, category: "contradictory_evidence" });
+    expect(exc.map((e) => e.explanationCode)).toEqual(["EV_PROVIDER_STATUS_REGRESSED"]);
+    expect(exc[0].explanation).toMatch(/delivered\/bank_confirmed \(seq 3\) → delivered\/handed_to_bank \(seq 4\)/);
+    expect(exc[0].supportingEventIds).toHaveLength(2);
+    expect(intentOf(late.workspace, id).status.execution).toBe("provider_reported_completed");
+  });
+  it("M-2: paid → failed with the failure arriving first: same final state as provider order (failed + owned reversal)", () => {
+    let { ws, id } = submittedConnect(CW, "return");
+    const vs = versions(ws, id);
+    ws = deliver(ws, id, 4, vs[3].at).workspace;
+    expect(intentOf(ws, id).status.execution).toBe("failed");
+    ws = deliver(ws, id, 3, plusMin(vs[3].at, 1)).workspace;
+    ws = deliver(ws, id, 2, plusMin(vs[3].at, 2)).workspace;
+    expect(outcomeOf(ws, id)).toEqual(outcomeOf(playAll(CW, "return").ws, playAll(CW, "return").id));
+    expect(ownedContradiction(ws, id).whoActs).not.toBe("WA_NONE");
+  });
+  it("L-2: two different completion claims (on-chain final vs internal ledger) at the same rank are a contradiction, in either order", () => {
+    for (const order of [[2, 3], [3, 2]]) {
+      let { ws, id } = submittedConnect(SG, "claims_conflict");
+      const end = versions(ws, id).at(-1)!.at;
+      for (const v of order) ws = poll(ws, id, end, v).workspace;
+      expect(listExceptions(ws, { intentId: id, category: "contradictory_evidence" }).map((e) => e.explanationCode), order.join(",")).toEqual(["EV_PROVIDER_CLAIMS_DIFFER"]);
+      expect(intentOf(ws, id).status).toMatchObject({ execution: "provider_reported_completed", settlement: "none" });
+    }
   });
   it("the same regression learned by polling gives the same outcome (one rule for every path)", () => {
     let { ws, id } = submittedConnect(CW, "regress_substatus");

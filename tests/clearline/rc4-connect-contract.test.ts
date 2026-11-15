@@ -45,8 +45,9 @@ describe("rc4 Connect item 1: every descriptor declares the whole contract", () 
       it("maps every raw status to an engine claim whose execution equals the engine's own EVENT_TARGET", () => {
         expect(d.statuses.length).toBeGreaterThanOrEqual(5);
         for (const m of d.statuses) {
-          expect(EVENT_TARGET[m.event], `${m.raw}/${m.subStatus}`).toBe(m.execution);
-          expect(Object.keys(EXECUTION_TRANSITIONS)).toContain(m.execution);
+          expect(EVENT_TARGET[m.event] ?? "unchanged", `${m.raw}/${m.subStatus}`).toBe(m.execution);
+          if (m.execution !== "unchanged") expect(Object.keys(EXECUTION_TRANSITIONS)).toContain(m.execution);
+          else expect(m.event).toBe("payout.hold_released");
           expect(Number.isInteger(m.rank) && m.rank > 0).toBe(true);
         }
       });
