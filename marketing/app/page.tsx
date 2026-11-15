@@ -116,7 +116,7 @@ export default function Home() {
 
       <section className="section section-midnight contact-band quiet-contact" aria-labelledby="contact-title">
         <div className="container quiet-contact-row">
-          <div><p className="eyebrow">A useful conversation starts with one case</p><h2 id="contact-title" className="h2">Tell me about a payment that was hard to explain.</h2><p>Start with the workflow, not confidential records. Email <a className="text-link" href={mailto("A payment problem")}>{EMAIL}</a>.</p></div>
+          <div><p className="eyebrow">A useful conversation starts with one case</p><h2 id="contact-title" className="h2">Tell me about a payment that was hard to explain.</h2><p>Start with the workflow, not confidential records. Email <a className="text-link" href={mailto("A payment problem")}>{EMAIL}</a>. Do not send payment records, account details or customer data.</p></div>
           <div className="actions"><ButtonLink href={TRIAL_URL}>Explore Clearline</ButtonLink><ButtonLink href="/contact" variant="secondary" onMidnight>Get in touch</ButtonLink></div>
         </div>
       </section>
