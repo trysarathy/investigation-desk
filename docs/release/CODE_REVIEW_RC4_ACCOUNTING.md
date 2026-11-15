@@ -449,3 +449,58 @@ APPROVE 5278061 (engine), approval-only.
 - Fix K1 next. It turns one crafted state into a bridge that can never propose again, and it reopens a guarantee 466d42a had.
 - K2–K4 are small.
 - Everything I made was deleted, except the fixtures in `scratchpad/a91-fixtures/` and the probe files in `scratchpad/review-probes/`.
+
+---
+
+# Final check (CHANGE 18): CODE REVIEW: APPROVE 33481723ff389dbc5b05a771b0d16837cd13b3a5 (rc4/wip-engine)
+
+APPROVAL-ONLY: needs Aashmiin's merge. These are posting-rule and status changes, and the F1 stablecoin rule is still unsigned.
+
+Scope: `1287544..rc4/wip-engine` in `src/lib/clearline`, `tests/clearline` and `docs/clearline`, excluding `connect/`.
+
+I ran everything in a fresh frozen copy made with `git archive 3348172`, and deleted it afterwards.
+
+| Check | Result |
+|---|---|
+| `npx tsc --noEmit -p .` | exit 0 |
+| `npx vitest run tests/clearline` | 44 files, **785 passed**, including `rc3-sample-stability`; its fingerprint test file is unchanged |
+| Fixtures in `tests/clearline/fixtures/rc4a_*.json` | **byte-identical** to the ones I generated with a91dd11 (`scratchpad/a91-fixtures/`) |
+| My probe Q1 (`review-probes/q-final.test.ts`) | **refused at load**: "is a second copy of jp_00189 in the ledger (same evidence source and basis), with neither reversed …" |
+| Q2 | the exporter-approver is still refused (`maker_checker_violation`); `usr_lin` is now a second approver |
+| K4 ordering probes (`review-probes/k-change18.test.ts`) | as below |
+
+## The points asked about
+- **K1.** The load rule refuses only two in-ledger copies that have the same source key **and** basis hash, where neither is reversed by a live reversal.
+  - Still loads:
+    - posted → reversed → rebooked (the owner's test, plus my reasoning: a reversed copy is excluded);
+    - a91dd11's rejected-reversal double count (fixture);
+    - confirm-not-imported → proposed again → exported (the confirmed copy is not counted as in the ledger);
+    - a crafted copy under a *different* source key (it gets its own reversal).
+  - No engine version could create the refused shape, because `isNew` blocks it.
+  - An existing issue no longer blocks unrelated proposals (owner test).
+- **Can `worsenedIssues` be gamed?** Not by anything derive can produce. Each issue has a key (per payout and currency, per payout currency count, per bank line), and an increase on any key refuses the propose. Two theoretical gaps remain, neither reachable today (L1):
+  - A single propose that both adds and reverses the same key nets to zero, so it passes. Derive never makes a second entry booking the same line or payout, so this cannot happen.
+  - On a payout that *already* clears in two currencies, an extra in-bound debit in one of them does not raise either key.
+- **K4: no wrong contradictions found.**
+  - `contradictsBankSettlement` applies only to live payouts (not terminal, not on hold) whose settlement is observed or verified **by a bank debit**.
+  - Amount-difference exceptions (`RC_OVERPAYMENT`, `RC_PARTIAL_AMOUNT`, `RC_UNDER_AMOUNT_REPORT`) are not `contradictory_evidence`, so they never trigger it.
+  - **Probe A:** an over-amount debit accepted with `acceptDifference` is never allocated, so settlement stays `none` / scope `none`. A contradiction opened afterwards leaves it unchanged; nothing is wrongly contradicted.
+  - **Probe B:** verified by bank, entry posted, then a contradiction (an impossible transition) opens:
+    - settlement becomes `contradicted`, the posted entry is flagged, and `propose` adds its reversal;
+    - after the person resolves it, settlement recomputes to `verified`, the pending reversal is superseded, and the flag is cleared on the next action.
+  - This is the same state `recomputeDimensions` already derived for any open contradiction, so K4 makes the result the same whatever order things arrive in, without adding new states.
+  - The cost is churn: a posted entry gets a proposed reversal while a contradiction is open. If someone approves and exports that reversal before the contradiction is resolved, the entry is then re-proposed. That is correct, but noisy.
+  - Rule G now matches the engine (any `contradictory_evidence` on that same predicate).
+- **The sample change.** `usr_lin` is appended last in `SAMPLE_ACTORS`. There are no new ids, times or seq values, and the per-scenario fingerprints pass unchanged.
+- **K2 and K3.** The Connect test title now matches its body, and the supersession wording no longer claims where the entry came from.
+
+## Remaining (non-blocking)
+- **L1 (Low):** `worsenedIssues` compares per key only (the two gaps above). If an existing issue is ever possible on a payout, also refuse any new payable debit on that payout.
+- **L2 (Low, design):** a contradiction that opens on a payout whose entry is already posted proposes a reversal straight away. Consider holding standing entries (flagging them, with no reversal proposed) until the contradiction is resolved or the evidence actually changes. That would avoid reversing and rebooking the same entry.
+
+## Summary
+APPROVE 3348172 (engine), approval-only. K1–K4 are done:
+- Q1 is now refused at load, and the legitimate states still load.
+- An existing issue no longer freezes `propose`.
+- K4 contradicts only bank-settled live payouts, which matches the existing recompute; accepted differences are unaffected.
+- The sample fingerprints hold, and the a91dd11 fixtures are the genuine ones.
