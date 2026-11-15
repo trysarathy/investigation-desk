@@ -504,3 +504,54 @@ APPROVE 3348172 (engine), approval-only. K1–K4 are done:
 - An existing issue no longer freezes `propose`.
 - K4 contradicts only bank-settled live payouts, which matches the existing recompute; accepted differences are unaffected.
 - The sample fingerprints hold, and the a91dd11 fixtures are the genuine ones.
+
+---
+
+# Final check (CHANGE 19): CODE REVIEW: CHANGES REQUESTED 0d02208 (rc4/clearline-app; engine commits 76b9c88, e917f83, 55cbfe8)
+
+APPROVAL-ONLY: needs Aashmiin's merge.
+
+Scope: `442e1f5..0d02208` in `src/lib/clearline`, `tests` and `docs/clearline`. I worked in a fresh frozen copy (`git archive 0d02208`) and deleted it afterwards.
+
+**In plain English:** M1b (the chain status check) is right. M1a (the repayment check) is right except for one condition. That condition locks a workspace that the engine itself produced: after a normal sequence of actions, every following action is refused, and the user is told to reset to the sample, losing their records. The fix is one condition.
+
+| Check | Result |
+|---|---|
+| `npx tsc --noEmit -p .` | exit 0 |
+| `npx vitest run tests/clearline tests/qa-release-rc4` | 47 files, **818 passed** |
+| Every fixture in `tests/clearline/fixtures` (v2 ×6, genuine a91dd11 ×3), plus the sample and a reset of s5 | all load, and the migration kinds are exactly as before CHANGE 19. No `chain_status_exceeds_confirmations` appears; the sample gives `[]`. |
+| Random walks (the rc3 migration property walk; the rc4 invariants walk, which reloads every 5 steps) | pass |
+| Probe N1 (`review-probes/m-change19.test.ts`) | **an engine-produced workspace is refused** (below) |
+
+## N1 (High; blocking for this change): M1a refuses a state the engine produces
+- **Where:** `serialize.ts`, the M1a block. The condition "the line names exactly one obligation's reference" is checked against **all obligations that exist now**. The engine's matcher (`reconcileIncoming`, the same in every version since 24a07e4) checks against the obligations that existed **when the line was matched**.
+- **Scenario (reproduced with normal actions only):**
+  1. In the sample, a repayment credit quotes `RPY-SEABRIGHT-0001 PO-778899`. It is allocated to the s5 obligation, which is the only reference among its tokens.
+  2. A person then creates and approves a new advance with `repaymentReference: "PO-778899"`. This is valid: 6–40 uppercase characters, and unique among advances.
+  3. `decide_advance` is applied. **The next action is then refused** with "allocations[5].statementLineId: a repayment allocation's line must name exactly one obligation's reference. **No version of the engine produces this** … Reset to the sample to continue."
+  4. Reloading the workspace is refused in the same way.
+- Repayment references are chosen by people, and bank references are free text. A customer quoting an invoice or PO number that later becomes another advance's reference is realistic. The only way out offered is "reset to the sample", which discards every record.
+- **Fix:** count only obligations whose `createdAt` is not later than the allocation's `createdAt`. That is exactly what the matcher saw. Alternatively, drop the "exactly one" condition at load, because the "carries this obligation's reference" condition already stops the forgery QA found. Add a test for the sequence above.
+
+## The points asked about
+1. **No v2, rc3 or rc4 state refused or altered.** This holds for every fixture, the sample, a reset, and the random walks. **N1 is the exception.**
+2. **M1a against the engine's matcher.**
+   - These conditions match the engine exactly: credit + `payment` line (the route `reconcileLine` takes), the obligation's currency on both line and allocation, and the reference as an uppercase token after NFKC (same `referenceTokens`, same `o.reference.toUpperCase()`).
+   - **Stricter:** only the "exactly one" condition, as described in N1.
+   - **Looser:** source is not checked. The engine also routes a provider-report credit to the repayment matcher, so not checking it mirrors the engine, and the bridge only books bank-statement lines anyway. That is acceptable.
+3. **Rule H.**
+   - It only moves a counted observation **down**, to `statusFor(confirmations)`. An `observed` record with confirmations is never raised.
+   - The finality threshold (12) and `statusFor` are the same in every version of `chain.ts`, and the engine always stores `statusFor`, including when it updates an observation after a reorg. So no genuine state is touched, and rc4 states give `migrations: []`.
+   - It is idempotent: QA's own test reloads and gets `[]`.
+   - Minor: the migration's `outcome` is `observation_not_counted`, but the observation is still counted, just at a lower status. The label is a misnomer.
+   - The bridge's matching check (final **and** final by confirmations) is a sound second line of defence.
+4. **QA's DEFECT tests pass for the right reasons** (`review-probes/qa-change19.test.ts`).
+   - M1's forgery is refused on the reference rule (`allocations[5].statementLineId: … must carry the obligation's repayment reference`).
+   - M1b's forgery loads with the observation moved to `pending_finality`, and nothing is proposed.
+   - Note: QA's tests `return` early on *any* refusal, so on their own they would pass for an unrelated refusal too. `rc4-qa-m1.test.ts` pins the field and the rule, which covers this.
+
+## Summary
+CHANGES REQUESTED.
+- M1b and rule H are correct.
+- M1a is correct except for the "exactly one obligation" condition. Measured against obligations that exist now, it locks a workspace the engine produced through normal actions (N1), with a false "no version of the engine produces this" message, and offers only a reset that loses the user's records.
+- Restrict the condition to obligations that existed when the allocation was made (or drop it), add a test for that sequence, and this is an APPROVE.
