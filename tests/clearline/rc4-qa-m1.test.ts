@@ -115,3 +115,17 @@ describe("final check N1: a later obligation never makes an earlier repayment al
     }
   });
 });
+
+describe("final check N1: the uniqueness check still refuses a line that was ambiguous when allocated", () => {
+  it("a forged repayment allocation on a line naming two obligations that both existed at the time is refused", () => {
+    let ws = sampleWorkspace();
+    const c = created({ amountMinor: 1_000_000, destinationCurrency: "SGD", destinationCountry: "SG" }, ws);
+    const a = run(c.ws, "usr_maya", { type: "create_advance", input: { intentId: c.id, customerRef: "C8", customerName: "C8 (fictional)", supplierName: "S8 (fictional)", invoiceRef: "INV-8", dueDate: "2026-11-30", repaymentReference: "RPY-OTHER-0001" } });
+    ws = run(a.workspace, "usr_daniel", { type: "decide_advance", advanceId: a.createdIds[0], outcome: "approve", reason: "ok (fictional)" }).workspace;
+    expect(ws.obligations.length).toBe(2);
+    const o = JSON.parse(serializeWorkspace(ws)) as Workspace;
+    forgedRepayment(o, (l) => { l.reference = "RPY-SEABRIGHT-0001 RPY-OTHER-0001"; });
+    const r = loadWorkspace(JSON.stringify(o));
+    expect(!r.ok && r.error.message).toMatch(/exactly one of the obligations that existed when it was allocated/);
+  });
+});

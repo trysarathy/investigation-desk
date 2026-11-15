@@ -41,6 +41,7 @@ import type { ChainObservation, ExceptionCategory, PaymentIntent, Reconciliation
 const TERMINAL = ["failed", "cancelled", "expired", "returned"];
 const EVIDENCED = ["observed", "pending_finality", "verified"];
 const RANK: Record<string, number> = { none: 0, observed: 1, pending_finality: 2, verified: 3 };
+/** The sequence number of an engine id ("alc_00153" → 153); ids are sequential per workspace. Exported for serialize.ts. */
 const seqOf = (id: string) => Number(/_(\d+)$/.exec(id)?.[1] ?? Number.MAX_SAFE_INTEGER);
 
 export function migrateToRc3(ws: Workspace): WorkspaceMigration[] {
@@ -293,3 +294,5 @@ export function migrateToRc3(ws: Workspace): WorkspaceMigration[] {
 
 /** rc4 G1: the provider-status contradictions (original providers and Connect). Since K4 rule G covers every open contradictory_evidence exception; kept for reference. */
 export const PROVIDER_STATUS_CONTRADICTIONS: readonly string[] = ["EV_IMPOSSIBLE_TRANSITION", "EV_PROVIDER_STATUS_REGRESSED", "EV_PROVIDER_SUCCESS_REVERSED", "EV_PROVIDER_CLAIMS_DIFFER"];
+
+export { seqOf };

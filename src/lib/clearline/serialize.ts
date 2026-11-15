@@ -1,5 +1,5 @@
 import { MAX_AMOUNT_MINOR, isCurrency, withinTotal } from "./money";
-import { migrateToRc3 } from "./migrate";
+import { migrateToRc3, seqOf } from "./migrate";
 import { ACCOUNTING_REFUSAL_TEXT, AccountingInvalid, validateAccounting } from "./accounting/validate";
 import { isIsoDate, isIsoInstant, isTimeZone, referenceTokens } from "./tx";
 import type { Result, Workspace, WorkspaceLoad, WorkspaceMigration } from "./types";
@@ -269,8 +269,7 @@ function crossCheck(ws: Obj) {
     // per workspace (a reset only raises the counter), so "existed then" is "has a lower id sequence than the
     // allocation" — exact even when two actions share one clock instant. An obligation created later may quote a token
     // of an earlier line (e.g. "PO-778899") without making that earlier allocation ambiguous.
-    const seqOf = (id: unknown) => Number(/_(\d+)$/.exec(String(id))?.[1] ?? Number.MAX_SAFE_INTEGER);
-    const existedThen = obligations.filter((o) => seqOf(o.id) < seqOf(a.id));
+    const existedThen = obligations.filter((o) => seqOf(String(o.id)) < seqOf(String(a.id)));
     need(existedThen.filter((o) => tokens.includes(String(o.reference).toUpperCase())).length === 1, `${p}.statementLineId`, "a repayment allocation's line must name exactly one of the obligations that existed when it was allocated", "evidence");
   });
   lines.forEach((l, i) => {
