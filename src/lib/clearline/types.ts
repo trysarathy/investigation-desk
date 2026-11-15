@@ -1007,7 +1007,9 @@ export interface WorkspaceMigration {
     /** rc4 re-review R1: a saved proposed / approved journal entry the current posting rules derive differently, superseded (SP_RULES_CHANGED). intentId may be "" (no payout); from = to. */
     | "journal_proposal_superseded"
     /** rc4 G1: a live payout stored as bank-settled while a provider-status contradiction was open; now contradicted. */
-    | "open_contradiction_settlement";
+    | "open_contradiction_settlement"
+    /** rc4 QA M1b: a counted chain observation stored with a status above what its confirmations give; moved down. */
+    | "chain_status_exceeds_confirmations";
   intentId: string;
   internalReference: string;
   from: StatusDimensions;

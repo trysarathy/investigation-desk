@@ -1,5 +1,24 @@
 # Clearline sandbox engine — public API (for the console UI)
 
+> **CHANGE 19 (2026-11-15, independent QA/security pass on rc4 2c0f0f0 — M1). STATUS: LANDED (not reviewed).**
+> - **M1a (`serialize.ts` crossCheck).** A repayment allocation must have the shape `reconcileIncoming` produces:
+>   - a `credit` line of kind `payment`;
+>   - in the obligation's currency;
+>   - whose reference carries that obligation's repayment reference as a token, and no other obligation's.
+>
+>   Anything else is refused on load, e.g. "a repayment allocation's statement line must carry the obligation's repayment reference".
+> - **M1b, load rule H (`migrate.ts`).** A new `WorkspaceMigration.kind`, `chain_status_exceeds_confirmations` (outcome `observation_not_counted`, with `observationId`), covers a counted chain observation stored with a status above what its confirmations give.
+>   - Its status is moved down to `chainStatusFor(confirmations)` and the change is reported.
+>   - Settlement is recomputed and never upgraded; rule D reopens a chain match that rested on it.
+>   - Every engine version stores `statusFor(confirmations)`, so v2, rc3 and rc4 workspaces still load with `[]` (property tests pass).
+> - **M1b, the bridge.** `JR_STABLECOIN_FINAL_TRANSFER` also requires final by confirmations, not the stored flag alone (defence in depth).
+> - **API changes:** new export `chainStatusFor`; new migration kind `chain_status_exceeds_confirmations`. There is no sample change.
+> - **Tests.**
+>   - New: `tests/clearline/rc4-qa-m1.test.ts`.
+>   - Added unchanged: QA's `tests/qa-release-rc4/accounting-rc4.test.ts` and `connect-rc4.test.ts`. Both pass, including DEFECT M1 and M1b.
+>   - Note: `tsc --noEmit` reports 7 type errors in QA's `accounting-rc4.test.ts`, where it uses `accounting!.mapping.` and `exports[0].proposalIds.` without `!` on optional fields. Vitest strips types, so the tests run. I left the file unchanged as instructed.
+> - **Mutation checks:** 5 mutants, **5 killed** — the reference, direction/kind and currency checks; rule H; the bridge guard.
+
 > **CHANGE 18 (2026-11-15, accounting final check of 5278061 — APPROVE; K1–K4). STATUS: LANDED (not reviewed).**
 > - **K1.** Load refuses two un-reversed in-ledger entries with the same source key and basis hash. The message explains: "is a second copy of … in the ledger … propose never creates this, and it could never be corrected", followed by the accounting refusal text.
 > - **K1, propose.** `propose_journal_entries` refuses `LEDGER_DOUBLE_COUNT` only when its new entries introduce or worsen a ledger issue. An existing issue never blocks unrelated proposals. New exports: `ledgerIssues(ws)` → `LedgerIssue { key, excess, text }[]` and `worsenedIssues(before, after)`; `ledgerProblem` is unchanged.

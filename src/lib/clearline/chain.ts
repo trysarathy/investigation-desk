@@ -56,6 +56,8 @@ export const tokenAllowed = (o: Pick<ChainObservationInput, "chainId" | "network
 
 const statusFor = (confirmations: number): ChainObservation["status"] =>
   confirmations === 0 ? "observed" : confirmations < FINALITY_THRESHOLD ? "pending_finality" : "final";
+/** rc4 QA M1b: the status a counted observation's confirmations give (load re-derives it; the bridge requires it). */
+export const chainStatusFor = (confirmations: number): Exclude<ChainObservation["status"], "rejected_unsupported"> => statusFor(confirmations) as Exclude<ChainObservation["status"], "rejected_unsupported">;
 
 /** Expected on-chain amount for an intent: the selected quote's estimated recipient amount. */
 export function expectedChainAmount(tx: Tx, intentId: string): number | undefined {

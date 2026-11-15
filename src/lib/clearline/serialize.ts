@@ -246,6 +246,24 @@ function crossCheck(ws: Obj) {
     if (isReturn) need(l.kind === "return" || l.kind === "reversal", `${p}.codes`, "a return confirmation must come from a return or reversal line");
     else need(l.source === "bank_statement" && l.direction === "debit" && l.kind === "payment", `${p}.statementLineId`, "a payment allocation must come from a bank statement debit (a provider report or a credit is never allocated to a payout)");
   });
+  // rc4 QA M1a: a repayment allocation has the shape reconcileIncoming produces: a CREDIT line of kind payment, in the
+  // obligation's currency, whose reference carries the obligation's repayment reference (and no other obligation's) as a
+  // token. Anything else is a forged evidence record (e.g. an unreferenced receipt attached to an advance).
+  const obligations = ws.obligations as Obj[];
+  (ws.allocations as Obj[]).forEach((a, i) => {
+    const t = a.target as Obj;
+    if (t.kind !== "repayment") return;
+    const p = `allocations[${i}]`;
+    const ob = obligations.find((o) => o.id === t.obligationId);
+    need(ob !== undefined, `${p}.target.obligationId`, "must identify a repayment obligation in this workspace");
+    need(a.evidenceKind === "statement_line", `${p}.evidenceKind`, "a repayment allocation comes from a statement line");
+    const l = lineById.get(a.statementLineId as string)!;
+    const tokens = referenceTokens(String(l.reference));
+    need(l.direction === "credit" && l.kind === "payment", `${p}.statementLineId`, "a repayment allocation must come from an incoming (credit) payment line");
+    need(l.currency === ob!.currency && a.currency === ob!.currency, `${p}.currency`, "a repayment allocation must be in the obligation's currency");
+    need(tokens.includes(String(ob!.reference).toUpperCase()), `${p}.statementLineId`, "a repayment allocation's statement line must carry the obligation's repayment reference (an amount-only receipt is never allocated)");
+    need(obligations.filter((o) => tokens.includes(String(o.reference).toUpperCase())).length === 1, `${p}.statementLineId`, "a repayment allocation's line must name exactly one obligation's reference");
+  });
   lines.forEach((l, i) => {
     need((total.get(l.id as string) ?? 0) <= (l.amountMinor as number), `statementLines[${i}].allocationIds`, "allocations exceed the line amount");
     for (const id of l.allocationIds as unknown[]) need(typeof id === "string" && allocById.get(id)?.statementLineId === l.id, `statementLines[${i}].allocationIds`, "must list only allocations of this line");

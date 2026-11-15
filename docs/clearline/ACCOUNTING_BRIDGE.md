@@ -142,6 +142,9 @@ exported / posted + evidence changed ──▶ unchanged, evidenceChange recorde
 - On load, every entry's lines must re-derive from the evidence records it names, its `basisHash` is recomputed,
   and a proposed or approved entry must be the entry the current evidence gives. The approver's identity in a
   client-held workspace cannot be authenticated: these checks prove consistency with the evidence, not who clicked.
+- The evidence records themselves are re-checked on load too (QA rc4 M1): a repayment allocation must come from a credit
+  line carrying the obligation's repayment reference, and a chain observation's status is re-derived from its
+  confirmations (a higher stored status is moved down and reported). The bridge requires final-by-confirmations.
 - The basis (`basisHash`) covers the rule, accounts, amounts, currency, entry date and every evidence id.
 
 ## 4. Periods and the mapping
