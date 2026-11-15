@@ -18,7 +18,8 @@ export function signSandboxWebhook(rawBody: string, secret: string, unixSeconds:
 
 export type WebhookVerification =
   | { valid: true; timestamp: number }
-  | { valid: false; reason: "malformed_header" | "timestamp_outside_tolerance" | "signature_mismatch" };
+  /** rc4 Connect: `unverified_scheme` = the provider has no signing scheme this sandbox can check; never applied (poll to confirm). */
+  | { valid: false; reason: "malformed_header" | "timestamp_outside_tolerance" | "signature_mismatch" | "unverified_scheme" };
 
 export function verifySandboxWebhook(
   rawBody: string,
