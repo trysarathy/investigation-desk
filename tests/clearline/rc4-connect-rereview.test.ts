@@ -149,9 +149,12 @@ describe("RR-4: a conflict-driven execution change keeps the Accounting Bridge c
     let { ws, id, entry, next } = withEntry("regress_and_recover");
     ws = deliver(ws, id, next).workspace; // routing/at_bank: conflict path completed → in_transit
     expect(intentOf(ws, id).status.execution).toBe("in_transit");
-    expect(proposals(ws).find((p) => p.id === entry.id)!.status).toBe("proposed");
+    // Updated for the accounting round's G1 (coordinator request): while the regression's contradictory_evidence exception
+    // is open the supplier is never shown paid, so the pending entry is superseded and nothing is proposed until a person
+    // resolves it. It still never double-counts.
+    expect(proposals(ws).find((p) => p.id === entry.id)!.status).toBe("superseded");
     ws = propose(ws).workspace;
-    expect(proposals(ws).filter((p) => p.intentId === id && p.status === "proposed")).toHaveLength(1);
+    expect(proposals(ws).filter((p) => p.intentId === id && p.status === "proposed")).toHaveLength(0);
     expect(ledgerProblem(ws)).toBeUndefined();
   });
 });

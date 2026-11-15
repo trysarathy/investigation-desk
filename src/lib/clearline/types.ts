@@ -1005,7 +1005,9 @@ export interface WorkspaceMigration {
    */
   kind: "terminal_payout_verified" | "terminal_payout_evidence" | "chain_observation_not_allowlisted" | "chain_hash_conflict" | "reorg_reconciliation" | "status_exceeds_evidence"
     /** rc4 re-review R1: a saved proposed / approved journal entry the current posting rules derive differently, superseded (SP_RULES_CHANGED). intentId may be "" (no payout); from = to. */
-    | "journal_proposal_superseded";
+    | "journal_proposal_superseded"
+    /** rc4 G1: a live payout stored as bank-settled while a provider-status contradiction was open; now contradicted. */
+    | "open_contradiction_settlement";
   intentId: string;
   internalReference: string;
   from: StatusDimensions;

@@ -350,6 +350,15 @@ export function reconcileLine(tx: Tx, line: StatementLine): string {
   const full = line.amountMinor === remaining;
   // CHANGE 5 (F2): a bank line below the remainder stays partial, with the structured difference.
   if (!full) line.amountDifference = difference(line, "RC_PARTIAL_AMOUNT", remaining);
+  // rc4 G1: while the provider's own status reports contradict each other (an OPEN contradictory_evidence exception on
+  // this payout), a matched debit is evidence of a contradicted payout, never of settlement — as recomputeDimensions
+  // derives it. When a person resolves the contradiction, resolve() recomputes from the evidence.
+  const contradictionOpen = ws.exceptions.some((e) => e.intentId === intent.id && e.status !== "resolved" && e.category === "contradictory_evidence");
+  if (contradictionOpen && line.source === "bank_statement") {
+    intent.status.settlement = "contradicted";
+    intent.status.settlementScope = "bank_statement";
+    intent.status.reconciliation = "exception";
+  }
   if (intent.status.reconciliation !== "exception") intent.status.reconciliation = full ? "matched" : "partially_matched";
   if (intent.status.settlement !== "contradicted") {
     if (line.source === "bank_statement") {

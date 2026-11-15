@@ -191,6 +191,13 @@ export function deriveJournalCandidates(ws: Workspace): JournalDerivation {
           }));
           continue;
         }
+        // rc4 G1: while the payout's evidence is contradicted (an open contradictory_evidence exception, e.g. the provider
+        // reported completed and then failed), nothing that shows the supplier paid is proposed.
+        const contradiction = openExceptionIds(ws, (e) => e.intentId === intent.id && e.category === "contradictory_evidence");
+        if (contradiction.length) {
+          np("NP_EVIDENCE_CONTRADICTED", `Bank line ${line.lineId} (${line.accountRef}) is matched to ${what}, but the payout's evidence is contradicted (${contradiction.join(", ")}); no entry until a person resolves it.`, [line.id, a.id, intent.id], contradiction, { amountMinor: a.amountMinor, currency: a.currency });
+          continue;
+        }
         const adv = approvedAdvance(ws, intent);
         const ids = allIds(lineRefs);
         if (onStablecoinRail(ws, intent)) {
@@ -241,6 +248,11 @@ export function deriveJournalCandidates(ws: Workspace): JournalDerivation {
       if (obs.status !== "final") continue; // listed below as not final
       if (NOT_DELIVERED(intent)) {
         np("NP_EVIDENCE_CONTRADICTED", `Transfer ${obs.txHash.slice(0, 12)}… is final, but the provider reports payout ${intent.internalReference} ${intent.status.execution.replace(/_/g, " ")}.`, [obs.id, a.id, intent.id], openExceptionIds(ws, (e) => e.intentId === intent.id));
+        continue;
+      }
+      const contradiction = openExceptionIds(ws, (e) => e.intentId === intent.id && e.category === "contradictory_evidence");
+      if (contradiction.length) {
+        np("NP_EVIDENCE_CONTRADICTED", `Transfer ${obs.txHash.slice(0, 12)}… is final, but the payout's evidence is contradicted (${contradiction.join(", ")}); no entry until a person resolves it.`, [obs.id, a.id, intent.id], contradiction);
         continue;
       }
       payoutsWithEntry.add(intent.id);

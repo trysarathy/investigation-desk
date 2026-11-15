@@ -27,6 +27,10 @@
  * E. (QA rc3 L1) A settlement or reconciliation above what the recorded evidence can support (derive.ts
  *    evidenceCeiling), e.g. a crafted "verified / matched" with only a pending-finality transfer. → capped to rc3's
  *    own derive (recomputeDimensions), never upgraded; no exception is raised (the evidence itself is unchanged).
+ * G. (rc4 G1) A live payout whose bank debit was matched while a provider-status contradiction (EV_IMPOSSIBLE_TRANSITION,
+ *    EV_PROVIDER_STATUS_REGRESSED / _SUCCESS_REVERSED / _CLAIMS_DIFFER) was open, stored as settlement observed or verified
+ *    (bank statement). → contradicted (and reconciliation exception), as rc4 and recomputeDimensions give; the open
+ *    exception already owns it. When a person resolves it, the recompute applies.
  * Not detectable from stored data: a v2 C-2 block change that was applied silently (the earlier block is not kept).
  */
 import { tokenAllowed } from "./chain";
@@ -251,5 +255,22 @@ export function migrateToRc3(ws: Workspace): WorkspaceMigration[] {
       text: `Payment ${intent.internalReference} (${intent.id}) was stored with settlement ${lvl(from.settlement)} and reconciliation ${lvl(from.reconciliation)}, more than its recorded evidence supports. It now shows settlement ${lvl(st.settlement)} and reconciliation ${lvl(st.reconciliation)}, as rc3 derives them from the evidence (never upgraded).`,
     });
   }
+  // G. (rc4 G1) Settlement shown as bank-evidenced while the provider's own status reports contradict each other.
+  for (const intent of ws.intents) {
+    const st = intent.status;
+    if (TERMINAL.includes(st.execution) || st.execution === "on_hold" || st.settlementScope !== "bank_statement" || !(st.settlement === "verified" || st.settlement === "observed")) continue;
+    const exc = ws.exceptions.find((e) => e.intentId === intent.id && e.status !== "resolved" && e.category === "contradictory_evidence" && PROVIDER_STATUS_CONTRADICTIONS.includes(e.explanationCode));
+    if (!exc) continue;
+    const from = { ...st };
+    st.settlement = "contradicted";
+    st.reconciliation = "exception";
+    record(intent, from, {
+      kind: "open_contradiction_settlement", outcome: "contradicted_open", exceptionId: exc.id, exceptionCode: exc.explanationCode, ownerId: exc.ownerId,
+      text: `Payment ${intent.internalReference} (${intent.id}) was stored as settled by its bank debit while the provider's status reports contradict each other (${exc.explanationCode}, ${exc.id}, still open). It now shows settlement contradicted until a person resolves that exception.`,
+    });
+  }
   return out;
 }
+
+/** rc4 G1: the provider-status contradictions (original providers and Connect) that rule G covers. */
+export const PROVIDER_STATUS_CONTRADICTIONS: readonly string[] = ["EV_IMPOSSIBLE_TRANSITION", "EV_PROVIDER_STATUS_REGRESSED", "EV_PROVIDER_SUCCESS_REVERSED", "EV_PROVIDER_CLAIMS_DIFFER"];
