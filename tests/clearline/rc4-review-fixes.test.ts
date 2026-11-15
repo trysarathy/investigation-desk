@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import {
   accountingExportToJson, reconciliationExportToCsv, buildJournalExport, buildReconciliationExport, describeError, getAdapter, journalExportToCsv, ledgerProblem, loadWorkspace, resetScenario,
-  sampleWorkspace, serializeWorkspace, type Workspace,
+  sampleWorkspace, serializeWorkspace, type JournalProposal, type Workspace,
 } from "@/lib/clearline";
 import { basisOf } from "@/lib/clearline/accounting/derive";
 import { sha256Hex } from "@/lib/clearline/sha256";
@@ -329,5 +329,61 @@ describe("Low: F9 dates, F10 file hashes, F11 flag cleared, F12 marking, F13 cha
     expect(active(ws).every((p) => p.status === "approved")).toBe(true);
     const r = tryAct(ws, "usr_daniel", { type: "close_accounting_period", periodId: period(ws).id });
     expect(!r.ok && describeError(r.error).reasonCode).toBe("PERIOD_HAS_PENDING_PROPOSALS");
+  });
+});
+
+describe("defence in depth: each load / export check refuses on its own (mutation-tested)", () => {
+  const sample = () => JSON.parse(serializeWorkspace(sampleWorkspace())) as Workspace;
+  const reject = (p: JournalProposal, at: string) => { p.status = "rejected"; p.rejection = { by: "usr_daniel", at, reason: "x" }; };
+  /** Post s1's and s4's entries through the real actions, then duplicate a posted entry under a new id (a crafted second posting). */
+  function duplicatePosted(rule: "JR_SUPPLIER_PAYOUT_DEBIT" | "JR_STABLECOIN_FINAL_TRANSFER"): Workspace {
+    let ws = propose(s4Final()).workspace;
+    ws = postAll(ws, active(ws).map((x) => x.id));
+    const o = structuredClone(ws);
+    const orig = o.accounting!.proposals.find((x) => x.ruleCode === rule)!;
+    const dup = { ...structuredClone(orig), id: "jp_99999", sourceKey: `DUP:${orig.sourceKey}` };
+    dup.basisHash = basisOf(dup);
+    o.accounting!.proposals.push(dup);
+    const rec = o.accounting!.exports.find((x) => x.id === orig.export!.exportId)!;
+    rec.proposalIds!.push(dup.id);
+    return o;
+  }
+  it("F2 direction alone: a (rejected) return-credit entry on a line stored as a debit is refused", () => {
+    const o = sample();
+    const p = o.accounting!.proposals.find((x) => x.ruleCode === "JR_PAYOUT_RETURN_CREDIT")!;
+    reject(p, o.asOf);
+    o.statementLines.find((l) => l.id === p.evidence.statementLineIds[0])!.direction = "debit";
+    const r = loadWorkspace(JSON.stringify(o));
+    expect(!r.ok && r.error.field).toBe(`accounting.proposals[${o.accounting!.proposals.indexOf(p)}].evidence.statementLineIds`);
+  });
+  it("F3 basis alone: a (rejected) entry whose stored basisHash does not match its fields is refused", () => {
+    const o = sample();
+    const p = o.accounting!.proposals[0];
+    reject(p, o.asOf);
+    p.basisHash = "0".repeat(64);
+    const r = loadWorkspace(JSON.stringify(o));
+    expect(!r.ok && r.error.field).toBe("accounting.proposals[0].basisHash");
+  });
+  it("F3 current evidence alone: a self-consistent proposed entry with another date than its evidence gives is refused", () => {
+    const o = sample();
+    const p = o.accounting!.proposals[0];
+    p.entryDate = p.postingDate = "2026-11-20";
+    p.basisHash = basisOf(p);
+    const r = loadWorkspace(JSON.stringify(o));
+    expect(!r.ok && r.error.field).toBe("accounting.proposals[0]");
+  });
+  it("F5 bank double count alone: a crafted second posting of the same bank debit is refused at load", () => {
+    const r = loadWorkspace(JSON.stringify(duplicatePosted("JR_SUPPLIER_PAYOUT_DEBIT")));
+    expect(!r.ok && r.error.field).toBe("accounting.proposals");
+    expect(!r.ok && r.error.message).toMatch(/booked .* more than the line/);
+  });
+  it("F1: a crafted second posting of a chain payment (no evidence source of its own) is reversed by the next propose, so the payable is cleared once again", () => {
+    const o = duplicatePosted("JR_STABLECOIN_FINAL_TRANSFER");
+    const l = loadWorkspace(JSON.stringify(o));
+    if (!l.ok) throw new Error(l.error.message);
+    expect(ledgerProblem(l.value.workspace)).toMatch(/supplier payable/);
+    const r = propose(l.value.workspace);
+    expect(byRule(r.workspace, "JR_REVERSAL").map((x) => x.reverses)).toContain("jp_99999");
+    expect(ledgerProblem(r.workspace)).toBeUndefined();
   });
 });
