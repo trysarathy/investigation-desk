@@ -354,3 +354,98 @@ APPROVE 466d42a (engine), approval-only.
 - The F1 stablecoin rule is balanced per currency and honestly leaves the conversion unresolved. It needs Aashmiin's sign-off before it counts as a posting rule.
 - Next, in order: R1 (load compatibility), the R2 and R3 tests, then the R5 docs.
 - The Connect framework and the console UI in a132340 were not reviewed here.
+
+---
+
+# Final check (CHANGE 17): CODE REVIEW: APPROVE 5278061713247211a2db34374e3e7e31894bd2d8 (rc4/wip-engine)
+
+APPROVAL-ONLY: needs Aashmiin's merge. These are posting-rule changes, and the F1 stablecoin rule is still unsigned.
+
+Scope: the engine diff `8dc4361..rc4/wip-engine` in `src/lib/clearline`, `tests/clearline` and `docs/clearline`, excluding `connect/`. The only Connect file I looked at is the one test the owner changed.
+
+**In plain English:** R1–R7 and G1 work. On genuine a91dd11 output, the old saved workspaces now load, their stale pending entries are set aside with a reason, and nothing already exported or posted is touched. But dropping the load refusal for a bank line booked twice reopened one crafted-data hole (K1). A workspace with two posted copies of the same entry now loads. Its double booking is never corrected, and from then on every `propose` that would create anything is refused. That is a fix to make next. It does not book wrong money through any normal action, and it does not export anything.
+
+## What I ran
+
+Fresh frozen copies were made with `git archive`: 5278061 for the review, and a separate a91dd11 copy for the fixtures. No worktree was touched, and both copies were deleted afterwards.
+
+| Check | Result |
+|---|---|
+| `npx tsc --noEmit -p .` | exit 0 |
+| `npx vitest run tests/clearline` | 43 files, **776 passed** |
+| The owner's generator `scratchpad/gen/zz-gen.test.ts`, run in my **a91dd11** copy | passed; wrote 3 genuine a91dd11 fixtures, kept in `scratchpad/a91-fixtures/` |
+| Those fixtures loaded at 5278061 (`review-probes/real-a91-fixtures.test.ts`) | all 3 load, and the R1 behaviour holds (below) |
+| My earlier probes (e1, e2, e5, e7, e8, p-rereview) at 5278061 | all still fixed or refused correctly. P1 (a proposed entry from the old rules) now **loads** and is superseded. |
+| New probes (`review-probes/q-final.test.ts`) | Q1 finds K1; Q2 confirms the exporter cannot confirm "not imported" |
+
+## R1 on genuine a91dd11 output (not simulated)
+| Fixture (made by the a91dd11 engine) | Load at 5278061 | After `propose` |
+|---|---|---|
+| `rc4a_onramp_proposed` (a91dd11 proposed both Dr payable SGD and Dr payable USDC) | OK. One migration, `journal_proposal_superseded` for the SGD payable entry (`SP_RULES_CHANGED`). The USDC chain entry is still current and is kept. | `JR_STABLECOIN_ONRAMP_FUNDING` proposed; no ledger problem; reloads with no further migrations |
+| `rc4a_chain_duplicate_event_proposed` (basis lists the duplicate event) | OK. One migration; the chain entry is superseded | the same entry is proposed again without the duplicate; reloads clean |
+| `rc4a_rejected_reversal_double_count` (posted original + posted rebooking + rejected reversal) | OK. No migrations. **No exported or posted entry changed** (byte-compared). Ledger problem at load: bank line booked SGD 20,000 against a 10,000 line. | the reversal is proposed again; the ledger problem clears; reloads clean |
+
+The simulated fixtures in `rc4-rereview.test.ts` match what the real engine produced.
+
+## The points asked about
+
+**Can R1's supersession hide or upgrade anything?** No.
+- It only moves *proposed* or *approved* entries to `superseded`. These were never exported, so nothing leaves the books.
+- Exported and posted entries are never altered.
+- It runs only after the evidence tie and the basis self-check pass. Entries that fail those are still refused.
+- It is idempotent: a second load reports no migrations.
+- In `applyAction` it runs on the copied workspace, and its audit event joins that action's result.
+- One wording issue (K3): the reason always says "Saved by an earlier engine version", even when the entry was crafted.
+
+**Do the two dropped load refusals reopen an F3 forgery?**
+- **Direction check:** no. A crafted pending entry is superseded. A crafted *posted* return credit on a debit line gets no candidate, so sync flags it and the next `propose` adds its reversal.
+- **Bank line booked twice:** yes, for one shape. This is **K1**, below.
+
+**Can `confirm_not_imported` be abused?**
+- The exporter cannot confirm (Q2 gives `maker_checker_violation`, including when the exporter is an approver).
+- An operator cannot confirm.
+- It is refused once the reversal is exported or posted, and refused on a posted entry.
+- It keeps the entry's export link, so its journal id stays reserved (reset is still refused).
+- Load checks that the confirmer is an approver other than the exporter.
+- What remains: an approver who wrongly confirms "not imported" for an entry that *was* imported skips the reversal. The same evidence can then be proposed and exported again. That needs a false attestation by a second person, it is audited, and it cannot be detected from the data. I accept it as the same trust limit as `record_posting`.
+- In the sample, usr_daniel is the only approver. If he exports, nobody can confirm. That is correct, but worth knowing.
+
+**Is G1 consistent?**
+- The engine (`reconcileLine`), `recomputeDimensions` and the bridge (derive, for both bank and chain entries) all treat **any** open `contradictory_evidence` exception on the payout as blocking.
+- Migration rule G repairs only the four provider-status codes (`PROVIDER_STATUS_CONTRADICTIONS`). So a saved "verified" state alongside another open contradiction code is not repaired by rule G (K4). The bridge still proposes no entry for it, because derive uses the broad test, so this affects only the displayed settlement status.
+- Design note: while a contradiction is open, a real bank debit gets no entry at all, not even to provider clearing, so the bank account in the books runs behind the statement until a person resolves it. This is listed (`NP_EVIDENCE_CONTRADICTED` with the exception ids) and it is conservative. It is acceptable.
+
+**The Connect test the owner changed** (`rc4-connect-rereview` "completed → in_transit"):
+- The new assertions are right for G1. While the regression's contradiction is open, the pending supplier-paid entry is superseded, nothing is proposed, and nothing double-counts.
+- But the test title still says "no entry is superseded", which is now false. Rename it.
+
+**R6 and the random walk:** the cross-currency cap is in `ledgerProblem`. The walk now has an independent recomputation (per payout, per currency, counting withdrawn-after-export entries but not confirmed-not-imported ones), so it no longer relies on `ledgerProblem` as its own oracle.
+
+**R5 docs:** §2.1 and the stablecoin-route wording in the `NP_FX_NOT_EVIDENCED` row now say what the accountant must book. These are still flagged for Aashmiin.
+
+## Findings
+- **K1 (Medium; fix next): a crafted duplicate posting loads, is never corrected, and then blocks every future `propose`.**
+  - **Probe Q1:** copy a posted s1 entry under a new id with the same source key and basis hash, and list it in its export record.
+  - At 466d42a this was refused at load. At 5278061 it loads. The view shows the SGD bank booked twice (−49,302.74 against a 24,651.37 line).
+  - `propose` returns `no_new_proposals`: both copies match the current candidate, so no reversal is derived.
+  - After any new evidence (a fresh payout debit), `propose` fails `LEDGER_DOUBLE_COUNT` for the whole workspace, so the bridge can never propose again.
+  - The owner's test (`rc4-review-fixes` "F5 + R1") uses a *different* source key (`DUP:`). That shape gets reversed, so the test misses this one.
+  - The code comment in `validate.ts` says "propose proposes the reversal again, which corrects it". That is true only for a91dd11's rejected-reversal shape.
+  - a91dd11 could not produce two standing entries with the same source key and basis hash: its `isNew` blocked them.
+  - **Fix:**
+    - At load, refuse two un-reversed in-ledger entries with the same source key and basis hash (keep accepting the rejected-reversal shape).
+    - Or flag the extra copy (`evidenceChange`) so that a reversal is derived for it.
+    - Also, in `propose`, refuse `LEDGER_DOUBLE_COUNT` only when the new proposals *introduce or worsen* a problem, not when it already existed.
+- **K2 (Low):** rename the changed Connect test, as above.
+- **K3 (Low):** the `SP_RULES_CHANGED` reason and migration text claim the entry was "saved by an earlier engine version". Say instead that the current rules no longer give this entry (provenance unknown).
+- **K4 (Low):** migration rule G covers 4 codes, while the engine and bridge block on any open `contradictory_evidence` exception. Either widen rule G to the category, or document why it is narrower.
+
+## Summary
+APPROVE 5278061 (engine), approval-only.
+- R1 holds on genuine a91dd11 fixtures, not only simulated ones.
+- `confirm_not_imported` keeps maker ≠ checker.
+- G1 holds in the engine and the bridge; the migration rule is narrower (K4).
+- All my earlier probes stay fixed.
+- Fix K1 next. It turns one crafted state into a bridge that can never propose again, and it reopens a guarantee 466d42a had.
+- K2–K4 are small.
+- Everything I made was deleted, except the fixtures in `scratchpad/a91-fixtures/` and the probe files in `scratchpad/review-probes/`.
