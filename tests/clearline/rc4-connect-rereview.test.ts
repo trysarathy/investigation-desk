@@ -4,7 +4,7 @@
  * RR-4 conflict-driven execution changes against the Accounting Bridge (read-only use of the bridge's actions).
  */
 import { describe, expect, it } from "vitest";
-import { DEFAULT_SAMPLE_MAPPING, canonicalHeaderValue, ledgerProblem, listExceptions, providerWebhook, receiveConnectWebhook, QUILLFERN, type Workspace } from "@/lib/clearline";
+import { COBALT_WREN, DEFAULT_SAMPLE_MAPPING, canonicalHeaderValue, connectKeyring, getAdapter, signDelivery, verifyDelivery, ledgerProblem, listExceptions, providerWebhook, receiveConnectWebhook, QUILLFERN, type Workspace } from "@/lib/clearline";
 import { debitLine, run } from "./helpers";
 import { CW, QF, deliver, intentOf, outcomeOf, permutations, plusMin, submittedConnect, versions } from "./rc4-connect-helpers";
 import { net, postAll, proposals, propose } from "./rc4-helpers";
@@ -27,6 +27,19 @@ describe("RR-1: a post-hold version that arrives before the hold", () => {
     // A second side-state event (the partner release) does not annotate twice.
     ws = deliver(ws, id, 4, plusMin(vs[4].at, 2)).workspace;
     expect(exc().history.filter((h) => h.action === "hold_boundary_noted")).toHaveLength(1);
+  });
+  it("a hold that arrives AFTER both versions of a regression (not between them) does not annotate it", () => {
+    let { ws, id, ref } = submittedConnect(CW);
+    const send = (v: number, status: string, sub?: string) => {
+      const b = JSON.stringify({ id: `evt_rr1_${v}`, type: "object.updated", payout: { ref, version: v, status, ...(sub ? { sub_status: sub } : {}), amount_minor: 1_000_000, currency: "SGD", updated_at: ws.asOf } });
+      ws = run(ws, "usr_maya", { type: "ingest_webhook", delivery: { providerId: CW, rawBody: b, signatureHeader: getAdapter(CW)!.signWebhook(b, Math.floor(Date.parse(ws.asOf) / 1000)) } }).workspace;
+    };
+    send(2, "routing", "at_bank");
+    send(3, "routing", "awaiting_bank"); // regression, seq 2 → 3
+    send(4, "paused_for_review"); // hold at seq 4: outside (2, 3)
+    expect(intentOf(ws, id).status.execution).toBe("on_hold");
+    const exc = listExceptions(ws, { intentId: id, category: "contradictory_evidence" }).find((e) => e.explanationCode === "EV_PROVIDER_STATUS_REGRESSED")!;
+    expect(exc.history.some((h) => h.action === "hold_boundary_noted")).toBe(false);
   });
   it("a regression that does NOT span the hold is not annotated", () => {
     let { ws, id } = submittedConnect(CW, "regress_substatus");
@@ -74,6 +87,13 @@ describe("RR-3: pre-check and engine verify the same canonical headers", () => {
     const junk = { ...d.headers, "x-quillfern-signatures": d.headers["x-quillfern-signatures"] + ",v1=" + "a".repeat(1100) };
     const r = receiveConnectWebhook(ws, { providerId: QF, rawBody: d.rawBody, headers: junk }, { actorId: "usr_maya", at: versions(ws, id)[1].at });
     expect(r.ok && [r.value.verification.status, r.value.action, r.value.outcome]).toEqual(["invalid", "rejected_recorded", "rejected_signature"]);
+  });
+  it("the verifier canonicalises too: padded timestamp and hex signature values verify when called directly", () => {
+    const body = '{"x":1}';
+    const now = 1_794_535_200;
+    const h = signDelivery(COBALT_WREN.verification[0], body, connectKeyring(CW), now);
+    const padded = Object.fromEntries(Object.entries(h).map(([k, v]) => [k, `  ${v} `]));
+    expect(verifyDelivery(COBALT_WREN.verification, body, padded, connectKeyring(CW), now).status).toBe("verified");
   });
   it("canonical form: trimmed, and no whitespace around signature-list commas", () => {
     expect(canonicalHeaderValue(QUILLFERN.verification, "X-Quillfern-Signatures", " v1=a ,  v1=b ")).toBe("v1=a,v1=b");
