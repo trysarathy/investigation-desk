@@ -801,7 +801,7 @@ components:
         memo: { type: string }
         ruleCode: { $ref: "#/components/schemas/JournalRuleCode" }
         evidenceIds: { type: array, minItems: 1, items: { type: string }, description: "Statement line, allocation, chain observation, repayment allocation, provider event and evidence ids — all exist in the workspace" }
-    JournalRuleCode: { enum: [JR_SUPPLIER_PAYOUT_DEBIT, JR_PAYOUT_DEBIT_NOT_DELIVERED, JR_PAYOUT_RETURN_CREDIT, JR_ADVANCE_DISBURSED, JR_REPAYMENT_BY_REFERENCE, JR_STABLECOIN_FINAL_TRANSFER, JR_REVERSAL] }
+    JournalRuleCode: { enum: [JR_SUPPLIER_PAYOUT_DEBIT, JR_PAYOUT_DEBIT_NOT_DELIVERED, JR_PAYOUT_RETURN_CREDIT, JR_ADVANCE_DISBURSED, JR_REPAYMENT_BY_REFERENCE, JR_STABLECOIN_FINAL_TRANSFER, JR_STABLECOIN_ONRAMP_FUNDING, JR_REVERSAL] }
     JournalProposal:
       type: object
       description: >-
@@ -829,11 +829,11 @@ components:
         basisHash: { type: string, pattern: "^[0-9a-f]{64}$" }
         createdBy: { type: string }
         createdAt: { type: string, format: date-time }
-        approval: { type: object, properties: { by: { type: string, description: "An approver, never the proposer" }, at: { type: string, format: date-time }, note: { type: string } } }
+        approval: { type: object, properties: { by: { type: string, description: "An approver, never the proposer" }, at: { type: string, format: date-time }, note: { type: string }, mappingRevision: { type: integer }, accounts: { type: array, items: { $ref: "#/components/schemas/AccountMappingEntry" }, description: "CHANGE 16: the exact codes the approver saw; the export uses exactly these" } } }
         rejection: { type: object, properties: { by: { type: string }, at: { type: string, format: date-time }, reason: { type: string } } }
         export: { type: object, properties: { exportId: { type: string }, by: { type: string }, at: { type: string, format: date-time } } }
         posting: { type: object, properties: { externalReference: { type: string }, recordedBy: { type: string }, recordedAt: { type: string, format: date-time }, note: { type: string }, simulated: { const: true } } }
-        supersession: { type: object, properties: { at: { type: string }, causedBy: { type: string }, code: { enum: [SP_EVIDENCE_CHANGED, SP_EVIDENCE_WITHDRAWN] }, reason: { type: string }, replacedBy: { type: string } } }
+        supersession: { type: object, properties: { at: { type: string }, causedBy: { type: string }, code: { enum: [SP_EVIDENCE_CHANGED, SP_EVIDENCE_WITHDRAWN, SP_MAPPING_CHANGED] }, reason: { type: string }, replacedBy: { type: string } } }
         evidenceChange: { type: object, properties: { at: { type: string }, causedBy: { type: string }, code: { enum: [SP_EVIDENCE_CHANGED, SP_EVIDENCE_WITHDRAWN] }, reason: { type: string } } }
         history: { type: array, items: { type: object } }
     AccountingExportRecord:
@@ -853,6 +853,7 @@ components:
         rowCount: { type: integer }
         by: { type: string }
         at: { type: string, format: date-time }
+        fileSha256: { type: object, description: "CHANGE 16: SHA-256 of the exact JSON and CSV bytes produced (sha256 is the content hash)", properties: { json: { type: string }, csv: { type: string } } }
     AccountingBridge:
       type: object
       description: "rc4 `Workspace.accounting` (optional; absent means empty)."
@@ -864,7 +865,7 @@ components:
         proposals: { type: array, items: { $ref: "#/components/schemas/JournalProposal" } }
         exports: { type: array, items: { $ref: "#/components/schemas/AccountingExportRecord" } }
     AccountingAction:
-      description: "rc4 bridge actions for POST /actions. Refusal messages start with a reason code (NO_OPEN_PERIOD, PERIOD_CLOSED, PERIOD_OVERLAP, PERIOD_HAS_PENDING_PROPOSALS, EVIDENCE_CHANGED, NOT_BALANCED, UNMAPPED_ACCOUNT_ROLE, NOTHING_TO_EXPORT, MAPPING_REVISION_CONFLICT, NOT_EXPORTED)."
+      description: "rc4 bridge actions for POST /actions. Refusal messages start with a reason code (NO_OPEN_PERIOD, PERIOD_CLOSED, PERIOD_OVERLAP, PERIOD_HAS_PENDING_PROPOSALS, EVIDENCE_CHANGED, NOT_BALANCED, UNMAPPED_ACCOUNT_ROLE, NOTHING_TO_EXPORT, MAPPING_REVISION_CONFLICT, NOT_EXPORTED; CHANGE 16: REVERSAL_FIRST, REVERSAL_REQUIRED, MAPPING_CHANGED_SINCE_APPROVAL, LEDGER_DOUBLE_COUNT). CHANGE 16: set_account_mapping needs expectedRevision once a mapping exists."
       oneOf:
         - { type: object, required: [type, entries], properties: { type: { const: set_account_mapping }, entries: { type: array, items: { $ref: "#/components/schemas/AccountMappingEntry" } }, expectedRevision: { type: integer } } }
         - { type: object, required: [type, name, from, to], properties: { type: { const: open_accounting_period }, name: { type: string }, from: { type: string, format: date }, to: { type: string, format: date } } }

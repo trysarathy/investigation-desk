@@ -302,15 +302,16 @@ describe("invariant: closed periods respected", () => {
 });
 
 describe("chart-of-accounts mapping", () => {
-  it("an unmapped role blocks the export with a clear reason; mapping it unblocks", () => {
+  it("an unmapped role blocks approval (and so the export) with a clear reason; mapping it unblocks (CHANGE 16: approval needs the codes)", () => {
     let ws = run(ws0, "usr_maya", { type: "set_account_mapping", entries: ws0.accounting!.mapping!.entries.filter((e) => e.accountKey !== "provider_clearing"), expectedRevision: 1 }).workspace;
-    for (const p of active(ws)) ws = run(ws, "usr_daniel", { type: "approve_journal_proposal", proposalId: p.id }).workspace;
-    const r = tryAct(ws, "usr_maya", { type: "export_journal", periodId: period(ws).id });
+    const [debit] = byRule(ws, "JR_PAYOUT_DEBIT_NOT_DELIVERED");
+    const r = tryAct(ws, "usr_daniel", { type: "approve_journal_proposal", proposalId: debit.id });
     expect(errorCode(r)).toBe("precondition_failed");
     expect(!r.ok && r.error.message).toMatch(/UNMAPPED_ACCOUNT_ROLE: map provider_clearing/);
     expect(!r.ok && describeError(r.error, ws).text).toMatch(/Map every account role/);
     expect(view(ws).unmappedKeys).toEqual(["provider_clearing"]);
-    ws = run(ws, "usr_daniel", { type: "set_account_mapping", entries: [...ws.accounting!.mapping!.entries, { accountKey: "provider_clearing", accountCode: "1300", accountName: "Provider clearing (fictional)" }] }).workspace;
+    ws = run(ws, "usr_daniel", { type: "set_account_mapping", expectedRevision: 2, entries: [...ws.accounting!.mapping!.entries, { accountKey: "provider_clearing", accountCode: "1300", accountName: "Provider clearing (fictional)" }] }).workspace;
+    for (const p of active(ws)) ws = run(ws, "usr_daniel", { type: "approve_journal_proposal", proposalId: p.id }).workspace;
     expect(tryAct(ws, "usr_maya", { type: "export_journal", periodId: period(ws).id }).ok).toBe(true);
   });
   it("mapping validation: bad keys, codes, duplicates and stale revisions are refused", () => {

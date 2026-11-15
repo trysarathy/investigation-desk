@@ -14,10 +14,11 @@
 import { formatMinor } from "../money";
 import { Tx, fail, requireRole, safeNote } from "../tx";
 import { JOURNAL_RULE } from "./labels";
-import { deriveJournalCandidates, isActiveProposal, isBalanced, isStandingProposal, type JournalCandidate } from "./derive";
-import { buildJournalExport, buildReconciliationExport, journalExportAccounts, validRange } from "./exports";
+import { deriveJournalCandidates, isActiveProposal, isBalanced, isInLedger, ledgerProblem, isStandingProposal, isWithdrawnAfterExport, type JournalCandidate } from "./derive";
+import { accountingExportToJson, buildJournalExport, buildReconciliationExport, journalExportAccounts, journalExportToCsv, reconciliationExportToCsv, validRange } from "./exports";
+import { sha256Hex } from "../sha256";
 import { mappingProblem, periodProblem, resolvePeriod } from "./periods";
-import type { AccountMappingEntry, AccountingAction, AccountingBridge, JournalProposal, NotProposedItem } from "./types";
+import type { AccountMappingEntry, AccountingAction, AccountingBridge, JournalProposal, NotProposedItem, SupersessionCode } from "./types";
 
 export const ACCOUNTING_ACTION_TYPES: readonly AccountingAction["type"][] = [
   "set_account_mapping", "open_accounting_period", "close_accounting_period", "propose_journal_entries", "approve_journal_proposal",
@@ -64,6 +65,9 @@ function setMapping(tx: Tx, entries: AccountMappingEntry[], expectedRevision?: n
   if (problem) fail("invalid_field", problem.message, { field: problem.field });
   const b = bridge(tx);
   const current = b.mapping?.revision ?? 0;
+  // Review F6: once a mapping exists, a change must name the revision it replaces (no last-writer-wins).
+  if (b.mapping && expectedRevision === undefined)
+    fail("precondition_failed", `MAPPING_REVISION_CONFLICT: the mapping is at revision ${current}; send expectedRevision ${current} to change it.`, { field: "expectedRevision" });
   if (expectedRevision !== undefined && expectedRevision !== current)
     fail("precondition_failed", `MAPPING_REVISION_CONFLICT: the mapping is at revision ${current}, not ${String(expectedRevision)}.`, { field: "expectedRevision" });
   b.mapping = { revision: current + 1, entries: entries.map((e) => ({ accountKey: e.accountKey, accountCode: e.accountCode, accountName: e.accountName })), updatedBy: tx.actorId, updatedAt: tx.at };
@@ -147,11 +151,32 @@ function propose(tx: Tx, periodId?: string): string {
     tx.log("journal.proposed", "journal_proposal", id,
       `${c.ruleCode} ${linesText(c)} on ${where.postingDate} in ${period.name}${where.priorPeriodItem ? " (prior-period item)" : ""}${c.reverses ? `, reverses ${c.reverses}` : ""}; evidence ${evidenceIdsOf(c).join(", ")}`);
   }
+  // Review F1 / F5: the proposals never show one payout paid more than once, nor book one bank line twice.
+  const lp = ledgerProblem(tx.ws);
+  if (made.length && lp) fail("precondition_failed", `LEDGER_DOUBLE_COUNT: ${lp}.`);
   return made.length ? "proposals_created" : "no_new_proposals";
 }
 
 function currentCandidate(tx: Tx, p: JournalProposal): JournalCandidate | undefined {
   return deriveJournalCandidates(tx.ws).candidates.find((c) => c.sourceKey === p.sourceKey);
+}
+
+/** The account codes the given entry uses under the current mapping (sorted by key), or the unmapped keys. */
+function accountsFor(tx: Tx, p: JournalProposal): { accounts: AccountMappingEntry[]; unmapped: string[] } {
+  return journalExportAccounts(tx.ws, [p]);
+}
+const sameAccounts = (a: AccountMappingEntry[] | undefined, b: AccountMappingEntry[]) => !!a && JSON.stringify(a) === JSON.stringify(b);
+
+/**
+ * Review F5: entries of the same evidence source that are (or may be) in the ledger with a different entry, or
+ * withdrawn after export, must be reversed before their replacement is approved or exported. Returns the
+ * originals whose reversal is not yet approved (or, with `batch`, not in that batch and not exported / posted).
+ */
+function unreversedOriginals(tx: Tx, p: JournalProposal, batch?: Set<string>): JournalProposal[] {
+  if (p.ruleCode === "JR_REVERSAL") return [];
+  const all = tx.ws.accounting!.proposals;
+  return all.filter((o) => o.id !== p.id && o.sourceKey === p.sourceKey && o.ruleCode !== "JR_REVERSAL" && isInLedger(o) && (o.basisHash !== p.basisHash || isWithdrawnAfterExport(o)))
+    .filter((o) => !all.some((q) => q.reverses === o.id && (isStandingProposal(q) || (q.status === "approved" && (!batch || batch.has(q.id))))));
 }
 
 function approve(tx: Tx, proposalId: string, note?: string): string {
@@ -166,22 +191,33 @@ function approve(tx: Tx, proposalId: string, note?: string): string {
   const period = tx.ws.accounting!.periods.find((x) => x.id === p.periodId);
   if (!period || period.status !== "open") fail("precondition_failed", `PERIOD_CLOSED: period ${period?.name ?? p.periodId} is closed.`, { entityId: p.id });
   if (!isBalanced(p.lines)) fail("precondition_failed", `NOT_BALANCED: ${p.id} does not balance per currency.`, { entityId: p.id });
+  const pending = unreversedOriginals(tx, p);
+  if (pending.length) fail("precondition_failed", `REVERSAL_FIRST: approve the reversal of ${pending.map((o) => o.id).join(", ")} before its replacement ${p.id}, so one bank line is never booked twice.`, { entityId: p.id });
+  // Review F6: the approver approves the account codes they see; they are recorded and the export must use exactly them.
+  const { accounts, unmapped } = accountsFor(tx, p);
+  if (unmapped.length) fail("precondition_failed", `UNMAPPED_ACCOUNT_ROLE: map ${unmapped.join(", ")} to your account codes before approving ${p.id}.`, { entityId: p.id, field: "mapping" });
   p.status = "approved";
-  p.approval = { by: tx.actorId, at: tx.at, ...(note !== undefined ? { note } : {}) };
+  p.approval = { by: tx.actorId, at: tx.at, ...(note !== undefined ? { note } : {}), mappingRevision: tx.ws.accounting!.mapping!.revision, accounts };
   p.history.push({ at: tx.at, actorId: tx.actorId, action: "approved", detail: `Approved by ${tx.actorId} (proposed by ${p.createdBy})${note ? `: ${note}` : ""}` });
   tx.log("journal.approved", "journal_proposal", p.id, `Approved by ${tx.actorId}, proposed by ${p.createdBy}; not posted; evidence ${evidenceIdsOf(p).join(", ")}`);
   return "applied";
 }
 
 function reject(tx: Tx, proposalId: string, reason: string): string {
-  requireRole(tx, ["operator", "approver"]);
   const p = proposalById(tx, proposalId);
+  // Review F7: an exported entry may already be in the ledger. Withdrawing it needs an approver other than the person
+  // who exported it, and it always proposes a reversal (corrections are new entries).
+  if (p.status === "exported" && p.export?.by === tx.actorId) fail("maker_checker_violation", `Withdrawing exported entry ${p.id} needs a different person from the one who exported it.`, { entityId: p.id });
+  requireRole(tx, p.status === "exported" ? ["approver"] : ["operator", "approver"]);
   if (!["proposed", "approved", "exported"].includes(p.status)) fail("invalid_transition", `Journal proposal ${p.id} is ${p.status}; only a proposed, approved or exported (not posted) entry can be rejected.`, { entityId: p.id });
   if (!safeNote(reason, 300)) fail("invalid_field", "A rejection reason is required.", { field: "reason" });
+  // Review F5: a reversal the evidence still requires cannot be rejected; otherwise one bank line could be booked twice.
+  if (p.ruleCode === "JR_REVERSAL" && currentCandidate(tx, p)?.basisHash === p.basisHash)
+    fail("precondition_failed", `REVERSAL_REQUIRED: ${p.reverses} is (or may be) in the ledger and its evidence no longer gives it; its reversal ${p.id} cannot be rejected.`, { entityId: p.id });
   const was = p.status;
   p.status = "rejected";
   p.rejection = { by: tx.actorId, at: tx.at, reason };
-  p.history.push({ at: tx.at, actorId: tx.actorId, action: "rejected", detail: `${was} → rejected: ${reason}` });
+  p.history.push({ at: tx.at, actorId: tx.actorId, action: "rejected", detail: `${was} → rejected: ${reason}${was === "exported" ? " (withdrawn after export: a reversal will be proposed)" : ""}` });
   tx.log("journal.rejected", "journal_proposal", p.id, `Rejected (was ${was}) by ${tx.actorId}: ${reason.slice(0, 80)}; evidence ${evidenceIdsOf(p).join(", ")}`);
   return "applied";
 }
@@ -191,9 +227,20 @@ function exportJournal(tx: Tx, periodId: string): string {
   const b = tx.ws.accounting;
   const period = b?.periods.find((x) => x.id === periodId);
   if (!b || !period) fail("not_found", `Accounting period ${String(periodId)} not found.`, { entityId: periodId });
+  const proposals = b.proposals.filter((p) => p.periodId === period.id && p.status === "approved");
+  // Review F3 / F6 / F5: never trust a stored approval. Every entry is re-derived from the current evidence, must be
+  // exported with exactly the account codes its approver saw, and only after (or with) its originals' reversals.
+  const { candidates } = deriveJournalCandidates(tx.ws);
+  const batch = new Set(proposals.map((p) => p.id));
+  for (const p of proposals) {
+    const c = candidates.find((x) => x.sourceKey === p.sourceKey);
+    if (!c || c.basisHash !== p.basisHash || !isBalanced(p.lines)) fail("precondition_failed", `EVIDENCE_CHANGED: ${p.id} no longer matches its evidence; it cannot be exported.`, { entityId: p.id });
+    if (!sameAccounts(p.approval?.accounts, accountsFor(tx, p).accounts)) fail("precondition_failed", `MAPPING_CHANGED_SINCE_APPROVAL: the account codes for ${p.id} differ from the ones its approver saw; it must be approved again.`, { entityId: p.id });
+    const pending = unreversedOriginals(tx, p, batch);
+    if (pending.length) fail("precondition_failed", `REVERSAL_FIRST: ${p.id} replaces ${pending.map((o) => o.id).join(", ")}, whose reversal is not approved.`, { entityId: p.id });
+  }
   const doc = buildJournalExport(tx.ws, { periodId });
   if (!doc.ok) fail(doc.error.code, doc.error.message, { field: doc.error.field, entityId: period.id });
-  const proposals = b.proposals.filter((p) => p.periodId === period.id && p.status === "approved");
   const { accounts } = journalExportAccounts(tx.ws, proposals);
   const id = tx.id("acx");
   for (const p of proposals) {
@@ -204,6 +251,7 @@ function exportJournal(tx: Tx, periodId: string): string {
   b.exports.push({
     id, kind: "journal", documentId: doc.value.documentId, sha256: doc.value.sha256, from: period.from, to: period.to, periodId: period.id,
     proposalIds: proposals.map((p) => p.id), mappingRevision: b.mapping!.revision, accounts, rowCount: doc.value.entries.reduce((s, e) => s + e.lines.length, 0), by: tx.actorId, at: tx.at,
+    fileSha256: { json: sha256Hex(accountingExportToJson(doc.value)), csv: sha256Hex(journalExportToCsv(doc.value)) },
   });
   tx.created.push(id);
   tx.log("accounting.journal_exported", "accounting_export", id, `${doc.value.documentId} (sha256 ${doc.value.sha256}) for ${period.name}: ${proposals.length} entr${proposals.length === 1 ? "y" : "ies"} (${proposals.map((p) => p.id).join(", ")}), mapping revision ${b.mapping!.revision}. A file only; nothing was posted.`);
@@ -231,7 +279,8 @@ function recordReconciliationExport(tx: Tx, from: string, to: string): string {
   if (!doc.ok) fail(doc.error.code, doc.error.message, { field: doc.error.field });
   const b = bridge(tx);
   const id = tx.id("acx");
-  b.exports.push({ id, kind: "reconciliation", documentId: doc.value.documentId, sha256: doc.value.sha256, from, to, rowCount: doc.value.rows.length, by: tx.actorId, at: tx.at });
+  b.exports.push({ id, kind: "reconciliation", documentId: doc.value.documentId, sha256: doc.value.sha256, from, to, rowCount: doc.value.rows.length, by: tx.actorId, at: tx.at,
+    fileSha256: { json: sha256Hex(accountingExportToJson(doc.value)), csv: sha256Hex(reconciliationExportToCsv(doc.value)) } });
   tx.created.push(id);
   const s = doc.value.summary;
   tx.log("accounting.reconciliation_exported", "accounting_export", id, `${doc.value.documentId} (sha256 ${doc.value.sha256}) for [${from}, ${to}): ${doc.value.rows.length} rows — ${s.evidenced.rows} evidenced, ${s.provider_reported_only.rows} provider-reported only, ${s.unresolved.rows} unresolved`);
@@ -255,7 +304,7 @@ function changeReason(p: JournalProposal, c: JournalCandidate): string {
 }
 
 function withdrawnReason(p: JournalProposal, notProposed: NotProposedItem[]): string {
-  if (p.ruleCode === "JR_REVERSAL") return `The entry it reverses (${p.reverses}) matches its evidence again, so no reversal is needed.`;
+  if (p.ruleCode === "JR_REVERSAL") return `The entry it reverses (${p.reverses}) matches its evidence again, so this reversal is not needed.`;
   const ids = new Set([...evidenceIdsOf(p), p.intentId, p.advanceId, p.obligationId].filter((x): x is string => !!x));
   const why = notProposed.filter((n) => n.refs.some((r) => ids.has(r))).map((n) => n.text);
   return why.length ? `The evidence no longer supports an entry: ${[...new Set(why)].join(" ")}` : "The evidence no longer supports an entry (the allocation or observation it rested on no longer qualifies).";
@@ -271,23 +320,43 @@ export function syncAccounting(tx: Tx): void {
   if (!b || !b.proposals.length) return;
   const { candidates, notProposed } = deriveJournalCandidates(tx.ws);
   const bySource = new Map(candidates.map((c) => [c.sourceKey, c]));
+  const supersede = (p: JournalProposal, code: SupersessionCode, reason: string) => {
+    const was = p.status;
+    p.status = "superseded";
+    p.supersession = { at: tx.at, causedBy: tx.actorId, code, reason };
+    p.history.push({ at: tx.at, actorId: tx.actorId, action: "superseded", detail: `${was} → superseded: ${reason}` });
+    tx.log("journal.superseded", "journal_proposal", p.id, `${was} → superseded (${code}): ${reason}`.slice(0, 400));
+  };
   for (const p of b.proposals) {
-    if (!isActiveProposal(p) && !(isStandingProposal(p) && !p.evidenceChange)) continue;
     const c = bySource.get(p.sourceKey);
-    if (c && c.basisHash === p.basisHash) continue;
+    const matches = !!c && c.basisHash === p.basisHash;
+    if (isActiveProposal(p)) {
+      if (!matches) { supersede(p, c ? "SP_EVIDENCE_CHANGED" : "SP_EVIDENCE_WITHDRAWN", c ? changeReason(p, c) : withdrawnReason(p, notProposed)); continue; }
+      // Review F6: an approval covers the account codes its approver saw; a mapping change that alters them supersedes it.
+      if (p.status === "approved") {
+        const { accounts, unmapped } = accountsFor(tx, p);
+        if (unmapped.length || !sameAccounts(p.approval?.accounts, accounts))
+          supersede(p, "SP_MAPPING_CHANGED", `The account codes changed after ${p.approval?.by ?? "the approver"} approved it (${unmapped.length ? `unmapped ${unmapped.join(", ")}` : `now ${accounts.map((x) => `${x.accountKey} → ${x.accountCode}`).join(", ")}`}); it is proposed again for a new approval.`);
+      }
+      continue;
+    }
+    // A posted or exported reversal stays a valid correction; only entries it may need to correct are flagged.
+    if (!isStandingProposal(p) || p.ruleCode === "JR_REVERSAL") continue;
+    if (matches) {
+      // Review F11: the evidence gives this entry again (e.g. final again after a reorg): clear the flag, keep history.
+      if (p.evidenceChange && !b.proposals.some((q) => q.reverses === p.id && q.status !== "rejected" && q.status !== "superseded")) {
+        delete p.evidenceChange;
+        p.history.push({ at: tx.at, actorId: tx.actorId, action: "evidence_matches_again", detail: "The evidence gives this entry again; no reversal is needed." });
+        tx.log("journal.evidence_matches_again", "journal_proposal", p.id, `${p.status} entry matches its evidence again; evidence-changed flag cleared`);
+      }
+      continue;
+    }
+    if (p.evidenceChange) continue;
     const code = c ? ("SP_EVIDENCE_CHANGED" as const) : ("SP_EVIDENCE_WITHDRAWN" as const);
     const reason = c ? changeReason(p, c) : withdrawnReason(p, notProposed);
-    if (isActiveProposal(p)) {
-      const was = p.status;
-      p.status = "superseded";
-      p.supersession = { at: tx.at, causedBy: tx.actorId, code, reason };
-      p.history.push({ at: tx.at, actorId: tx.actorId, action: "superseded", detail: `${was} → superseded: ${reason}` });
-      tx.log("journal.superseded", "journal_proposal", p.id, `${was} → superseded (${code}): ${reason}`.slice(0, 400));
-    } else {
-      p.evidenceChange = { at: tx.at, causedBy: tx.actorId, code, reason };
-      p.history.push({ at: tx.at, actorId: tx.actorId, action: "evidence_changed", detail: `Evidence changed after ${p.status === "posted" ? "posting" : "export"} (${code}): ${reason} The entry is unchanged; a reversal will be proposed.` });
-      tx.log("journal.evidence_changed_after_export", "journal_proposal", p.id, `${p.status} entry kept; evidence changed (${code}): ${reason}`.slice(0, 400));
-    }
+    p.evidenceChange = { at: tx.at, causedBy: tx.actorId, code, reason };
+    p.history.push({ at: tx.at, actorId: tx.actorId, action: "evidence_changed", detail: `Evidence changed after ${p.status === "posted" ? "posting" : "export"} (${code}): ${reason} The entry is unchanged; a reversal is proposed by the next propose_journal_entries.` });
+    tx.log("journal.evidence_changed_after_export", "journal_proposal", p.id, `${p.status} entry kept; evidence changed (${code}): ${reason}`.slice(0, 400));
   }
 }
 

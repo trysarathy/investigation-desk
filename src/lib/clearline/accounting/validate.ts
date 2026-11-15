@@ -11,18 +11,34 @@
  * - approval by an existing approver who is not the proposer (maker ≠ checker); "posted" only with a person's
  *   recorded posting and an export record (proposed ≠ posted);
  * - a proposed or approved entry never sits in a closed period, and a prior-period item names the closed period;
- * - periods do not overlap; the mapping is valid; export records name existing periods and proposals.
+ * - periods do not overlap; the mapping is valid; export records name existing periods and proposals, and every
+ *   proposal an export record lists names that record back (review F4);
+ * - review F3 — stored lines are never trusted: every entry's lines re-derive from the evidence records it names
+ *   (the statement line / chain observation, its allocation, the amount, currency, bank account and direction), its
+ *   basisHash is recomputed from the stored fields, and a proposed or approved entry must equal the entry the current
+ *   evidence gives;
+ * - review F1 / F5 — over all counted entries, the net debit to the supplier payable (or customer receivable) per
+ *   payout never exceeds the payout, and no bank line is booked more than once;
+ * - review F12 — every line memo carries the [SANDBOX] marking.
+ *
+ * The approver's identity in a client-held workspace cannot be authenticated: these checks prove the records are
+ * consistent with the evidence and with each other, not who clicked.
  */
 import { MAX_AMOUNT_MINOR, isCurrency } from "../money";
 import { isIsoDate, isIsoInstant } from "../tx";
-import { isBalanced } from "./derive";
+import { basisOf, bankKey, deriveJournalCandidates, isBalanced, ledgerProblem } from "./derive";
 import { mappingProblem, roleOfKey } from "./periods";
 import type { AccountRole, JournalRuleCode } from "./types";
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
 
-export const JOURNAL_RULE_CODES: readonly JournalRuleCode[] = ["JR_SUPPLIER_PAYOUT_DEBIT", "JR_PAYOUT_DEBIT_NOT_DELIVERED", "JR_PAYOUT_RETURN_CREDIT", "JR_ADVANCE_DISBURSED", "JR_REPAYMENT_BY_REFERENCE", "JR_STABLECOIN_FINAL_TRANSFER", "JR_REVERSAL"];
+export const JOURNAL_RULE_CODES: readonly JournalRuleCode[] = ["JR_SUPPLIER_PAYOUT_DEBIT", "JR_PAYOUT_DEBIT_NOT_DELIVERED", "JR_PAYOUT_RETURN_CREDIT", "JR_ADVANCE_DISBURSED", "JR_REPAYMENT_BY_REFERENCE", "JR_STABLECOIN_FINAL_TRANSFER", "JR_STABLECOIN_ONRAMP_FUNDING", "JR_REVERSAL"];
+/** Bank rules: the statement line direction each needs (the bank line's side is the opposite of the money's direction). */
+const BANK_DIRECTION: Partial<Record<JournalRuleCode, "debit" | "credit">> = {
+  JR_SUPPLIER_PAYOUT_DEBIT: "debit", JR_PAYOUT_DEBIT_NOT_DELIVERED: "debit", JR_ADVANCE_DISBURSED: "debit", JR_STABLECOIN_ONRAMP_FUNDING: "debit",
+  JR_PAYOUT_RETURN_CREDIT: "credit", JR_REPAYMENT_BY_REFERENCE: "credit",
+};
 const STATUSES = ["proposed", "approved", "exported", "posted", "rejected", "superseded"];
 
 /** The [debit roles, credit roles] each evidence rule produces (two lines). */
@@ -33,6 +49,7 @@ export const RULE_SHAPE: Readonly<Record<Exclude<JournalRuleCode, "JR_REVERSAL">
   JR_ADVANCE_DISBURSED: [["customer_receivable"], ["bank"]],
   JR_REPAYMENT_BY_REFERENCE: [["bank"], ["customer_receivable"]],
   JR_STABLECOIN_FINAL_TRANSFER: [["supplier_payable", "customer_receivable"], ["stablecoin_clearing"]],
+  JR_STABLECOIN_ONRAMP_FUNDING: [["stablecoin_clearing"], ["bank"]],
 };
 /** Rules whose entry shows the supplier as paid (bank debit or final chain evidence of a live payout). */
 export const SHOWS_SUPPLIER_PAID: readonly JournalRuleCode[] = ["JR_SUPPLIER_PAYOUT_DEBIT", "JR_ADVANCE_DISBURSED", "JR_STABLECOIN_FINAL_TRANSFER"];
@@ -130,6 +147,7 @@ export function validateAccounting(ws: Obj): void {
       need(typeof l.amountMinor === "number" && Number.isSafeInteger(l.amountMinor) && (l.amountMinor as number) >= 1 && (l.amountMinor as number) <= MAX_AMOUNT_MINOR, `${g}.amountMinor`, `must be an integer number of minor units from 1 to ${MAX_AMOUNT_MINOR}`);
       need(l.currency === p.currency, `${g}.currency`, "must equal the proposal's currency (one currency per entry)");
       need(JOURNAL_RULE_CODES.includes(l.ruleCode as JournalRuleCode) && typeof l.memo === "string", `${g}.ruleCode`, "must name the rule that produced it, with a memo");
+      need((l.memo as string).startsWith("[SANDBOX] "), `${g}.memo`, "must start with the [SANDBOX] marking (fictional data)");
       need(Array.isArray(l.evidenceIds) && (l.evidenceIds as unknown[]).length > 0 && (l.evidenceIds as unknown[]).every((id) => typeof id === "string" && evidenceIds.has(id)), `${g}.evidenceIds`, "must name at least one evidence record that exists in this workspace (no entry without evidence)");
     });
     need(isBalanced(lines as never), `${f}.lines`, "debits must equal credits, per currency, exactly");
@@ -147,6 +165,8 @@ export function validateAccounting(ws: Obj): void {
         `${f}.lines`, `${String(p.ruleCode)} produces Dr ${dr.join("|")} / Cr ${cr.join("|")}`);
     }
     need(p.showsSupplierPaid === SHOWS_SUPPLIER_PAID.includes(p.ruleCode as JournalRuleCode), `${f}.showsSupplierPaid`, "only a live payout's bank-debit or final-chain entry shows the supplier as paid (never a return or a not-delivered payout)");
+    if (p.ruleCode !== "JR_REVERSAL") evidenceTie(ws, p, f);
+    need(p.basisHash === basisOf(p as never), `${f}.basisHash`, "must be the hash of its own rule, lines and evidence (a changed amount, account or evidence id is refused)");
     // Period.
     const period = periodById.get(p.periodId as string);
     need(!!period, `${f}.periodId`, "must name an accounting period");
@@ -187,5 +207,56 @@ export function validateAccounting(ws: Obj): void {
     }
     need((st === "rejected") === isObj(p.rejection), `${f}.rejection`, "a rejected entry (and only one) carries its rejection");
     need((st === "superseded") === isObj(p.supersession), `${f}.supersession`, "a superseded entry (and only one) carries why");
+    if (isObj(p.approval) && (p.approval as Obj).accounts !== undefined) need(!mappingProblem((p.approval as Obj).accounts), `${f}.approval.accounts`, "must be the account codes the approver saw");
   });
+  // Review F4: an export record and the proposals it lists name each other.
+  exports.forEach((x, i) => {
+    if (x.kind !== "journal") return;
+    for (const id of x.proposalIds as string[]) need((proposalById.get(id)!.export as Obj | undefined)?.exportId === x.id, `accounting.exports[${i}].proposalIds`, `${id} does not name this export (a journal id is never reused)`);
+  });
+  // Review F3: a proposed or approved entry is exactly the entry the current evidence gives.
+  if (proposals.some((p) => p.status === "proposed" || p.status === "approved")) {
+    const { candidates } = deriveJournalCandidates(ws as never);
+    proposals.forEach((p, i) => {
+      if (p.status !== "proposed" && p.status !== "approved") return;
+      need(candidates.some((c) => c.sourceKey === p.sourceKey && c.basisHash === p.basisHash), `accounting.proposals[${i}]`, "a proposed or approved entry must be the entry its current evidence gives");
+    });
+  }
+  // Review F5: no bank line is booked twice by the counted entries. (The per-payout payable bound is enforced when entries
+  // are proposed and proved by the property test; it is not a load rule because it reads mutable payout amounts.)
+  const lp = ledgerProblem(ws as never, "bank");
+  need(!lp, "accounting.proposals", lp ?? "");
+}
+
+/** Review F3: the stored lines of an evidence rule re-derive from the evidence records they name. */
+function evidenceTie(ws: Obj, p: Obj, f: string): void {
+  const ev = p.evidence as Record<string, unknown>;
+  const ids = (k: string) => (Array.isArray(ev[k]) ? (ev[k] as string[]) : []);
+  const lines = p.lines as Obj[];
+  const allocs = ws.allocations as Obj[];
+  need(ids("allocationIds").length === 1, `${f}.evidence.allocationIds`, "an entry rests on exactly one allocation");
+  const a = allocs.find((x) => x.id === ids("allocationIds")[0]);
+  need(!!a, `${f}.evidence.allocationIds`, "must name an existing allocation");
+  const t = a!.target as Obj;
+  need(lines.every((l) => l.amountMinor === a!.amountMinor && l.currency === a!.currency), `${f}.lines`, "every line's amount and currency must equal its allocation's (stored amounts are never trusted)");
+  for (const l of lines) need((l.evidenceIds as string[]).includes(a!.id as string), `${f}.lines`, "every line names its allocation");
+  if (p.ruleCode === "JR_STABLECOIN_FINAL_TRANSFER") {
+    const o = (ws.chainObservations as Obj[]).find((x) => x.id === ids("chainObservationIds")[0]);
+    need(ids("chainObservationIds").length === 1 && !!o && a!.evidenceKind === "chain_observation" && a!.statementLineId === o.id && t.kind === "payment" && t.intentId === p.intentId && p.currency === "USDC",
+      `${f}.evidence`, "a stablecoin entry rests on its payout's chain observation and that observation's allocation");
+    return;
+  }
+  const line = (ws.statementLines as Obj[]).find((x) => x.id === ids("statementLineIds")[0]);
+  need(ids("statementLineIds").length === 1 && !!line && line.source === "bank_statement" && a!.evidenceKind === "statement_line" && a!.statementLineId === line.id, `${f}.evidence`, "a bank entry rests on one bank statement line and its allocation");
+  need(line!.direction === BANK_DIRECTION[p.ruleCode as JournalRuleCode], `${f}.evidence.statementLineIds`, `${String(p.ruleCode)} needs a ${BANK_DIRECTION[p.ruleCode as JournalRuleCode]} line (a debit is never booked as cash in)`);
+  const bankSide = BANK_DIRECTION[p.ruleCode as JournalRuleCode] === "debit" ? "credit" : "debit";
+  need(lines.some((l) => l.side === bankSide && l.accountKey === bankKey(line!.accountRef as string)), `${f}.lines`, "the bank line must be the statement line's own account, on the side its direction gives");
+  const isReturn = Array.isArray(a!.codes) && (a!.codes as string[]).includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN");
+  if (p.ruleCode === "JR_REPAYMENT_BY_REFERENCE") {
+    const r = (ws.repaymentAllocations as Obj[]).find((x) => x.id === ids("repaymentAllocationIds")[0]);
+    need(t.kind === "repayment" && t.obligationId === p.obligationId && !!r && r.statementLineId === line!.id && r.amountMinor === a!.amountMinor, `${f}.evidence`, "a repayment entry rests on the repayment allocation of its line and obligation");
+  } else {
+    need(t.kind === "payment" && t.intentId === p.intentId, `${f}.evidence`, "a payout entry rests on an allocation to its own payout");
+    need(isReturn === (p.ruleCode === "JR_PAYOUT_RETURN_CREDIT"), `${f}.evidence`, "only a return confirmation gives a return-credit entry");
+  }
 }

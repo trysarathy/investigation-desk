@@ -342,6 +342,7 @@ export const CODE_LABELS: Readonly<Record<string, string>> = {
   RC_DUPLICATE_SUSPECTED: "Possible duplicate line",
   RC_RETURN_CONFIRMS_PROVIDER_RETURN: "Return confirmed on the statement",
   RC_RETURN_CONTRADICTS_PROVIDER_STATUS: "Return line contradicts the provider's status",
+  RC_RETURN_LINE_IS_DEBIT: "Return or reversal line is a debit — not a return credit",
   RC_UNMATCHED_INCOMING: "Incoming funds not matched",
   RC_UNMATCHED_OUTGOING: "Outgoing funds not matched",
   RC_PROVIDER_REPORT_ONLY: "Provider report only — not independent evidence",

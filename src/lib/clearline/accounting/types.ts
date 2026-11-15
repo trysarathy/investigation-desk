@@ -74,7 +74,9 @@ export type JournalRuleCode =
   | "JR_REPAYMENT_BY_REFERENCE"
   /** Final on-chain transfer to the beneficiary's wallet, allocated by the provider-reported tx hash: Dr supplier payable (or customer receivable) / Cr stablecoin clearing. Never a bank line. */
   | "JR_STABLECOIN_FINAL_TRANSFER"
-  /** Reversal of an exported or posted proposal whose evidence changed (corrections are new entries). */
+  /** Review F1: bank debit funding a stablecoin-route payout's on-ramp: Dr stablecoin clearing / Cr bank (the supplier is NOT yet paid). */
+  | "JR_STABLECOIN_ONRAMP_FUNDING"
+  /** Reversal of an exported or posted proposal whose evidence changed, or of an exported entry a person withdrew (corrections are new entries). */
   | "JR_REVERSAL";
 
 export type JournalProposalStatus = "proposed" | "approved" | "exported" | "posted" | "rejected" | "superseded";
@@ -133,7 +135,8 @@ export interface JournalProposal {
   basisHash: string;
   createdBy: string;
   createdAt: string;
-  approval?: { by: string; at: string; note?: string };
+  /** mappingRevision / accounts (review F6): the mapping revision and the exact account codes the approver saw. */
+  approval?: { by: string; at: string; note?: string; mappingRevision?: number; accounts?: AccountMappingEntry[] };
   rejection?: { by: string; at: string; reason: string };
   export?: { exportId: string; by: string; at: string };
   /** Recorded by a PERSON after posting in the external ledger. Clearline never posts. */
@@ -144,7 +147,7 @@ export interface JournalProposal {
   history: HistoryEntry[];
 }
 
-export type SupersessionCode = "SP_EVIDENCE_CHANGED" | "SP_EVIDENCE_WITHDRAWN";
+export type SupersessionCode = "SP_EVIDENCE_CHANGED" | "SP_EVIDENCE_WITHDRAWN" | "SP_MAPPING_CHANGED";
 
 /** Something the bridge deliberately did NOT propose, with why. */
 export type NotProposedCode =
@@ -181,7 +184,7 @@ export interface AccountingExportRecord {
   kind: AccountingExportKind;
   /** The document's deterministic export id ("rx_…" / "jx_…", from its hash). */
   documentId: string;
-  /** SHA-256 of the exported document body. */
+  /** Content hash: SHA-256 of the document's canonical JSON (stableStringify) without documentId, sha256 and generatedAt. Not the file bytes — see fileSha256. */
   sha256: string;
   /** Reconciliation export: [from, to). Journal export: the period's dates. */
   from: string;
@@ -195,6 +198,8 @@ export interface AccountingExportRecord {
   rowCount: number;
   by: string;
   at: string;
+  /** Review F10: SHA-256 of the exact JSON (accountingExportToJson) and CSV bytes produced at export time. `sha256` is the content hash. */
+  fileSha256?: { json: string; csv: string };
 }
 
 export interface AccountingBridge {
