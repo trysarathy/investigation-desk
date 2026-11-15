@@ -84,6 +84,126 @@ async function axeViolations(page: Page, axe: string): Promise<string[]> {
   });
 }
 
+/* Shared journey steps (rc3 20-step walk and rc4 18-step walk use the same clicks and checks). */
+/** Founder journey step shared by the rc3 and rc4 walks: create a synthetic payment intent. */
+async function createPaymentIntent(page: Page, REF: string): Promise<string> {
+  await page.getByRole("link", { name: "New payment intent" }).first().click();
+  await expect(page).toHaveURL(/\/clearline\/routes\/new$/);
+  await hydrated(page);
+  await page.getByLabel("Customer reference").fill(REF);
+  await expect(page.getByLabel("Idempotency key")).not.toHaveValue("");
+  await page.getByRole("button", { name: "Create test intent" }).click();
+  await expect(page.getByTestId("intent-id")).toBeVisible();
+  const intentId = (await page.getByTestId("intent-id").innerText()).trim();
+  expect(intentId).toMatch(/^pi_\d+$/);
+  return intentId;
+}
+
+/** Founder journey step shared by the rc3 and rc4 walks: compare fictional quotes. */
+async function compareQuotes(page: Page) {
+  await page.getByRole("button", { name: "Request quotes" }).click();
+  const routes = page.locator("#routes");
+  await expect(routes.getByText("Indicative sandbox quote — not executable")).toBeVisible();
+  expect(await routes.locator("tbody tr").count()).toBeGreaterThan(1);
+  await expect(routes.getByText("Eligible", { exact: true }).first()).toBeVisible();
+  await expect(routes.getByText("Not eligible", { exact: true }).first()).toBeVisible();
+}
+
+/** Founder journey step shared by the rc3 and rc4 walks: select an eligible route. */
+async function selectEligibleRoute(page: Page) {
+  const choose = page.locator("#routes").getByRole("button", { name: /^Choose / });
+  // An ineligible route cannot be chosen, and says why.
+  const disabled = choose.and(page.locator(":disabled")).first();
+  await expect(disabled).toBeDisabled();
+  await expect(page.locator(`[id="${await disabled.getAttribute("aria-describedby")}"]`)).toContainText("Not eligible:");
+  await choose.and(page.locator(":enabled")).first().click();
+  await expect(page.getByRole("status").filter({ hasText: /chosen — recorded by the engine/ })).toBeVisible();
+  await expect(page.locator("#routes").getByText("Selected", { exact: true })).toBeVisible();
+}
+
+/** Founder journey step shared by the rc3 and rc4 walks: record a simulated approval. */
+async function recordSimulatedApproval(page: Page) {
+  const approve = page.locator("#approve");
+  await expect(approve.getByTestId("role-switch")).toContainText(ROLE_NOTE);
+  await approve.locator("#checker").selectOption("usr_daniel");
+  await approve.getByRole("button", { name: "Approve as checker" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Checker approval — recorded by the engine" })).toBeVisible();
+}
+
+/** Founder journey step shared by the rc3 and rc4 walks: submit the instruction. */
+async function submitInstruction(page: Page) {
+  await page.getByRole("button", { name: "Submit instruction" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Submission — recorded by the engine" })).toBeVisible();
+}
+
+/** Founder journey step shared by the rc3 and rc4 walks: receive fictional partner events. */
+async function receiveProviderEvents(page: Page, intentId: string) {
+  await page.getByRole("button", { name: "Simulate next provider event" }).click();
+  await expect(page).toHaveURL(new RegExp(`/clearline/payments/${intentId}$`));
+  await hydrated(page);
+  for (let i = 0; i < 6; i++) {
+    if (await page.getByTestId("dim-execution").locator('[data-api-value="provider_reported_completed"]').count()) break;
+    await page.getByRole("button", { name: "Simulate next provider event" }).click();
+    await expect(page.locator("#simulate").getByRole("status")).toContainText(/recorded by the engine|not applied/);
+  }
+  await expect(page.getByTestId("dim-execution").locator('[data-api-value="provider_reported_completed"]')).toBeVisible();
+}
+
+/** Founder journey step shared by the rc3 and rc4 walks: find an exception and its owner. */
+async function findAndReassignReturnedException(page: Page) {
+  await goNav(page, "Investigations");
+  await expect(page).toHaveURL(/\/clearline\/investigations$/);
+  await page.getByRole("navigation", { name: "Investigations pages" }).getByRole("link", { name: "Exceptions queue" }).click();
+  await expect(page).toHaveURL(/\/clearline\/exceptions$/);
+  await hydrated(page);
+  await page.getByRole("search", { name: "Filter exceptions" }).getByLabel("Search").fill("returned");
+  await expect(page).toHaveURL(/[?&]q=returned/);
+  const row = page.locator("#queue tbody tr").first();
+  await expect(page.locator("#queue tbody tr")).toHaveCount(1);
+  await expect(row.getByTestId("owner-name")).toContainText("Maya Tan");
+  await row.getByText("Change owner").click();
+  await row.getByLabel("New owner").selectOption("usr_sam");
+  await row.getByRole("button", { name: "Save owner" }).click();
+  await expect(row.getByRole("status")).toContainText("recorded by the engine");
+  await expect(row.getByTestId("owner-name")).toContainText("Sam Lee");
+}
+
+/** Founder journey step shared by the rc3 and rc4 walks: view liquidity and funding exposure. */
+async function viewFundingExposure(page: Page) {
+  await goNav(page, "Treasury & Funding");
+  await expect(page).toHaveURL(/\/clearline\/treasury$/);
+  await hydrated(page);
+  await expect(page.getByRole("heading", { name: "Liquidity", level: 1 })).toBeVisible();
+  await expect(page.locator("#usable dd").first()).toContainText(/\d/);
+  await page.getByRole("navigation", { name: "Treasury & Funding pages" }).getByRole("link", { name: "Funding exposure" }).click();
+  await expect(page).toHaveURL(/\/clearline\/treasury\/funding$/);
+  await hydrated(page);
+  await expect(page.locator("#totals")).toContainText("SGD 20,000.00");
+}
+
+/** Founder journey step shared by the rc3 and rc4 walks: export or inspect a synthetic case report. */
+async function inspectCaseReport(page: Page) {
+  // From the case list to the payment's investigation, where the engine's synthetic report lives.
+  await goNav(page, "Investigations");
+  await expect(page).toHaveURL(/\/clearline\/investigations$/);
+  await hydrated(page);
+  await page.locator("#cases tbody tr", { hasText: "Redwood" }).getByRole("link", { name: /Redwood/ }).click();
+  await expect(page).toHaveURL(/\/clearline\/payments\/pi_\d+#case$/);
+  await hydrated(page);
+  await page.getByRole("button", { name: "View case report" }).click();
+  const report = page.getByTestId("case-report");
+  await expect(report.getByTestId("report-marking")).toContainText("FICTIONAL · SANDBOX");
+  await expect(report).toContainText("Three separate truths");
+  await expect(report).toContainText("Source:");
+  const [json] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Download case report (.json)" }).click()]);
+  const parsed = JSON.parse(readFileSync(await json.path(), "utf8"));
+  expect(parsed).toMatchObject({ fictional: true, sandbox: true, reportVersion: 1 });
+  expect(parsed.threeTruths.execution.state).toBe("returned");
+  const [csv] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Download case report (.csv)" }).click()]);
+  expect(csv.suggestedFilename()).toMatch(/\.csv$/);
+  expect(readFileSync(await csv.path(), "utf8")).toContain("FICTIONAL");
+}
+
 /* ================================================================================================
  * The whole journey, in order.
  * ============================================================================================== */
@@ -124,60 +244,27 @@ test("founder acceptance journey: all 20 steps in order, by clicking", async ({ 
 
   let intentId = "";
   await test.step("5. create a synthetic payment intent", async () => {
-    await page.getByRole("link", { name: "New payment intent" }).first().click();
-    await expect(page).toHaveURL(/\/clearline\/routes\/new$/);
-    await hydrated(page);
-    await page.getByLabel("Customer reference").fill(REF);
-    await expect(page.getByLabel("Idempotency key")).not.toHaveValue("");
-    await page.getByRole("button", { name: "Create test intent" }).click();
-    await expect(page.getByTestId("intent-id")).toBeVisible();
-    intentId = (await page.getByTestId("intent-id").innerText()).trim();
-    expect(intentId).toMatch(/^pi_\d+$/);
+    intentId = await createPaymentIntent(page, REF);
   });
 
   await test.step("6. compare fictional quotes", async () => {
-    await page.getByRole("button", { name: "Request quotes" }).click();
-    const routes = page.locator("#routes");
-    await expect(routes.getByText("Indicative sandbox quote — not executable")).toBeVisible();
-    expect(await routes.locator("tbody tr").count()).toBeGreaterThan(1);
-    await expect(routes.getByText("Eligible", { exact: true }).first()).toBeVisible();
-    await expect(routes.getByText("Not eligible", { exact: true }).first()).toBeVisible();
+    await compareQuotes(page);
   });
 
   await test.step("7. select an eligible route", async () => {
-    const choose = page.locator("#routes").getByRole("button", { name: /^Choose / });
-    // An ineligible route cannot be chosen, and says why.
-    const disabled = choose.and(page.locator(":disabled")).first();
-    await expect(disabled).toBeDisabled();
-    await expect(page.locator(`[id="${await disabled.getAttribute("aria-describedby")}"]`)).toContainText("Not eligible:");
-    await choose.and(page.locator(":enabled")).first().click();
-    await expect(page.getByRole("status").filter({ hasText: /chosen — recorded by the engine/ })).toBeVisible();
-    await expect(page.locator("#routes").getByText("Selected", { exact: true })).toBeVisible();
+    await selectEligibleRoute(page);
   });
 
   await test.step("8. record a simulated approval", async () => {
-    const approve = page.locator("#approve");
-    await expect(approve.getByTestId("role-switch")).toContainText(ROLE_NOTE);
-    await approve.locator("#checker").selectOption("usr_daniel");
-    await approve.getByRole("button", { name: "Approve as checker" }).click();
-    await expect(page.getByRole("status").filter({ hasText: "Checker approval — recorded by the engine" })).toBeVisible();
+    await recordSimulatedApproval(page);
   });
 
   await test.step("9. submit the instruction", async () => {
-    await page.getByRole("button", { name: "Submit instruction" }).click();
-    await expect(page.getByRole("status").filter({ hasText: "Submission — recorded by the engine" })).toBeVisible();
+    await submitInstruction(page);
   });
 
   await test.step("10. receive fictional partner events", async () => {
-    await page.getByRole("button", { name: "Simulate next provider event" }).click();
-    await expect(page).toHaveURL(new RegExp(`/clearline/payments/${intentId}$`));
-    await hydrated(page);
-    for (let i = 0; i < 6; i++) {
-      if (await page.getByTestId("dim-execution").locator('[data-api-value="provider_reported_completed"]').count()) break;
-      await page.getByRole("button", { name: "Simulate next provider event" }).click();
-      await expect(page.locator("#simulate").getByRole("status")).toContainText(/recorded by the engine|not applied/);
-    }
-    await expect(page.getByTestId("dim-execution").locator('[data-api-value="provider_reported_completed"]')).toBeVisible();
+    await receiveProviderEvents(page, intentId);
   });
 
   await test.step("11. open the payment investigation", async () => {
@@ -203,21 +290,7 @@ test("founder acceptance journey: all 20 steps in order, by clicking", async ({ 
   });
 
   await test.step("14. find an exception and its owner", async () => {
-    await goNav(page, "Investigations");
-    await expect(page).toHaveURL(/\/clearline\/investigations$/);
-    await page.getByRole("navigation", { name: "Investigations pages" }).getByRole("link", { name: "Exceptions queue" }).click();
-    await expect(page).toHaveURL(/\/clearline\/exceptions$/);
-    await hydrated(page);
-    await page.getByRole("search", { name: "Filter exceptions" }).getByLabel("Search").fill("returned");
-    await expect(page).toHaveURL(/[?&]q=returned/);
-    const row = page.locator("#queue tbody tr").first();
-    await expect(page.locator("#queue tbody tr")).toHaveCount(1);
-    await expect(row.getByTestId("owner-name")).toContainText("Maya Tan");
-    await row.getByText("Change owner").click();
-    await row.getByLabel("New owner").selectOption("usr_sam");
-    await row.getByRole("button", { name: "Save owner" }).click();
-    await expect(row.getByRole("status")).toContainText("recorded by the engine");
-    await expect(row.getByTestId("owner-name")).toContainText("Sam Lee");
+    await findAndReassignReturnedException(page);
   });
 
   await test.step("15. examine a reconciliation difference", async () => {
@@ -236,15 +309,7 @@ test("founder acceptance journey: all 20 steps in order, by clicking", async ({ 
   });
 
   await test.step("16. view liquidity and funding exposure", async () => {
-    await goNav(page, "Treasury & Funding");
-    await expect(page).toHaveURL(/\/clearline\/treasury$/);
-    await hydrated(page);
-    await expect(page.getByRole("heading", { name: "Liquidity", level: 1 })).toBeVisible();
-    await expect(page.locator("#usable dd").first()).toContainText(/\d/);
-    await page.getByRole("navigation", { name: "Treasury & Funding pages" }).getByRole("link", { name: "Funding exposure" }).click();
-    await expect(page).toHaveURL(/\/clearline\/treasury\/funding$/);
-    await hydrated(page);
-    await expect(page.locator("#totals")).toContainText("SGD 20,000.00");
+    await viewFundingExposure(page);
   });
 
   await test.step("17. explore the advance-and-repayment scenario", async () => {
@@ -262,25 +327,7 @@ test("founder acceptance journey: all 20 steps in order, by clicking", async ({ 
   });
 
   await test.step("18. export or inspect a synthetic case report", async () => {
-    // From the case list to the payment's investigation, where the engine's synthetic report lives.
-    await goNav(page, "Investigations");
-    await expect(page).toHaveURL(/\/clearline\/investigations$/);
-    await hydrated(page);
-    await page.locator("#cases tbody tr", { hasText: "Redwood" }).getByRole("link", { name: /Redwood/ }).click();
-    await expect(page).toHaveURL(/\/clearline\/payments\/pi_\d+#case$/);
-    await hydrated(page);
-    await page.getByRole("button", { name: "View case report" }).click();
-    const report = page.getByTestId("case-report");
-    await expect(report.getByTestId("report-marking")).toContainText("FICTIONAL · SANDBOX");
-    await expect(report).toContainText("Three separate truths");
-    await expect(report).toContainText("Source:");
-    const [json] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Download case report (.json)" }).click()]);
-    const parsed = JSON.parse(readFileSync(await json.path(), "utf8"));
-    expect(parsed).toMatchObject({ fictional: true, sandbox: true, reportVersion: 1 });
-    expect(parsed.threeTruths.execution.state).toBe("returned");
-    const [csv] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Download case report (.csv)" }).click()]);
-    expect(csv.suggestedFilename()).toMatch(/\.csv$/);
-    expect(readFileSync(await csv.path(), "utf8")).toContain("FICTIONAL");
+    await inspectCaseReport(page);
   });
 
   await test.step("19. reset the workspace", async () => {
@@ -308,6 +355,206 @@ test("founder acceptance journey: all 20 steps in order, by clicking", async ({ 
     await page.getByRole("region", { name: "Test mode notice" }).getByRole("link", { name: "Clearline website" }).click();
     await expect(page).toHaveURL(new RegExp(`^${WEBSITE}/?$`));
     await expect(page.getByRole("heading", { name: "Clearline website" })).toBeVisible();
+  });
+});
+
+/* ================================================================================================
+ * The founder's rc4 journey: 18 steps from a synthetic payment to its accounting outcome and audit
+ * history, then reset. Reuses the rc3 walk's step helpers where they overlap (steps 1–6, 10–11, 13–14).
+ * Sample ids and amounts are not pinned: rows are found by payment, rule and the engine's labels.
+ * ============================================================================================== */
+test("founder rc4 journey: all 18 steps from payment to accounting outcome, by clicking", async ({ page }) => {
+  test.setTimeout(420_000);
+  const REF = "INV-RC4-JOURNEY-001";
+  const LEDGER_REF = "JE-2026-11-0042";
+  let intentId = "";
+  await open(page, "/clearline");
+
+  await test.step("1. create a synthetic payment", async () => { intentId = await createPaymentIntent(page, REF); });
+  await test.step("2. compare quotes", async () => { await compareQuotes(page); });
+  await test.step("3. select an eligible route", async () => { await selectEligibleRoute(page); });
+  await test.step("4. record a simulated approval", async () => { await recordSimulatedApproval(page); });
+  await test.step("5. submit the instruction", async () => { await submitInstruction(page); });
+  await test.step("6. receive provider events", async () => { await receiveProviderEvents(page, intentId); });
+
+  await test.step("7. open the investigation: provider claim only, so no journal entry yet", async () => {
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(REF);
+    await expect(page.getByTestId("dim-settlement").locator('[data-api-value="none"]')).toBeVisible();
+    await page.getByRole("navigation", { name: "On this page" }).getByRole("link", { name: "F. Accounting outcome" }).click();
+    const outcome = page.getByTestId("accounting-outcome");
+    await expect(outcome.getByTestId("accounting-outcome-empty")).toBeVisible();
+    await expect(outcome.getByTestId("accounting-not-proposed")).toContainText("NP_PROVIDER_COMPLETION_ONLY");
+  });
+
+  await test.step("8. record settlement evidence: the bank debit by provider reference", async () => {
+    await goNav(page, "Reconciliation");
+    await hydrated(page);
+    await page.getByRole("button", { name: `Debit for ${REF} (by provider reference)` }).click();
+    await page.getByRole("button", { name: "Ingest statement line" }).click();
+    await expect(page.locator("#ingest").getByRole("status")).toContainText("Line ingested");
+  });
+
+  await test.step("9. reconcile: the line is matched to the payment by reference", async () => {
+    await page.locator("#lines").getByRole("link", { name: intentId }).last().click();
+    await expect(page).toHaveURL(new RegExp(`/clearline/payments/${intentId}$`));
+    await hydrated(page);
+    await expect(page.getByTestId("dim-reconciliation").locator('[data-api-value="matched"]')).toBeVisible();
+  });
+
+  let excId = "";
+  await test.step("10. find an exception (the returned payout) and its owner", async () => {
+    await goNav(page, "Investigations");
+    await hydrated(page);
+    await page.getByRole("navigation", { name: "Investigations pages" }).getByRole("link", { name: "Exceptions queue" }).click();
+    await hydrated(page);
+    await page.getByRole("search", { name: "Filter exceptions" }).getByLabel("Search").fill("returned");
+    await expect(page.locator("#queue tbody tr")).toHaveCount(1);
+    await expect(page.locator("#queue tbody tr").first().getByTestId("owner-name")).toContainText("Maya Tan");
+    excId = ((await page.locator("#queue tbody tr").first().locator('a[href^="#exc_"]').getAttribute("href")) ?? "").slice(1);
+    expect(excId).toMatch(/^exc_\d+$/);
+  });
+
+  await test.step("11. assign it to another person", async () => {
+    const row = page.locator("#queue tbody tr").first();
+    await row.getByText("Change owner").click();
+    await row.getByLabel("New owner").selectOption("usr_sam");
+    await row.getByRole("button", { name: "Save owner" }).click();
+    await expect(row.getByRole("status")).toContainText("recorded by the engine");
+    await expect(row.getByTestId("owner-name")).toContainText("Sam Lee");
+  });
+
+  await test.step("12. resolve it with evidence and a note (engine-gated)", async () => {
+    const panel = page.locator(`[id="${excId}"]`);
+    await panel.getByText("Work this exception").click();
+    const resolve = panel.getByTestId("resolve-gate").getByRole("button", { name: "Resolve" });
+    await expect(resolve).toBeDisabled(); // the engine wants the return addressed first
+    await panel.locator(`[id="${excId}-ev-kind"]`).selectOption("funds_returned_confirmation");
+    await panel.locator(`[id="${excId}-ev-desc"]`).fill("Return credit on the bank statement confirmed");
+    await panel.getByRole("button", { name: "Attach evidence metadata" }).click();
+    await expect(panel.getByRole("status").first()).toContainText("recorded by the engine");
+    await panel.locator(`[id="${excId}-resolve"]`).fill("Funds returned and confirmed on the statement; supplier still to be paid by correction.");
+    await expect(resolve).toBeEnabled();
+    await resolve.click();
+    await page.getByRole("navigation", { name: "Exception filters" }).getByRole("link", { name: "Resolved" }).click();
+    await hydrated(page);
+    await expect(page.locator(`[id="${excId}"]`)).toContainText("Resolved");
+  });
+
+  await test.step("13. view funding exposure", async () => { await viewFundingExposure(page); });
+  await test.step("14. inspect an evidence-backed case report", async () => { await inspectCaseReport(page); });
+
+  await test.step("15. accounting-ready export: propose, map the new bank account, download the reconciliation export", async () => {
+    await goNav(page, "Accounting");
+    await expect(page).toHaveURL(/\/clearline\/accounting$/);
+    await hydrated(page);
+    await expect(page.getByTestId("bridge-disclaimer")).toContainText("posts nothing");
+    await page.getByTestId("propose-gate").getByRole("button", { name: "Propose entries" }).click();
+    await expect(page.locator("#propose").getByRole("status")).toContainText("recorded by the engine");
+    // The payment's bank account is new to the mapping, so the engine blocks the export until it is mapped.
+    await expect(page.getByTestId("overview-mapping")).toContainText("Export blocked");
+    await expect(page.getByTestId("overview-mapping-reason")).toContainText("UNMAPPED_ACCOUNT_ROLE");
+    await page.getByRole("navigation", { name: "Accounting pages" }).getByRole("link", { name: "Periods and mapping" }).click();
+    await hydrated(page);
+    const row = page.locator('#mapping tr[data-account-key="bank:acct_sandbox_sgd_ops"]');
+    await expect(row).toContainText("Not mapped — blocks export");
+    await row.getByLabel(/Account code for/).fill("1015");
+    await row.getByLabel(/Account name for/).fill("Sandbox operations bank (fictional)");
+    await page.getByTestId("mapping-save-gate").getByRole("button", { name: "Save mapping" }).click();
+    await expect(page.locator("#mapping").getByRole("status")).toContainText("recorded by the engine");
+    await expect(page.getByTestId("overview-mapping")).toContainText("every account the entries use is mapped");
+    await page.getByRole("navigation", { name: "Accounting pages" }).getByRole("link", { name: "Exports" }).click();
+    await hydrated(page);
+    const [csv] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Download reconciliation export (.csv)" }).click()]);
+    const text = readFileSync(await csv.path(), "utf8");
+    expect(text).toContain("XR_FICTIONAL_SANDBOX");
+    expect(text).toContain(intentId);
+    const [json] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Download reconciliation export (.json)" }).click()]);
+    expect(JSON.parse(readFileSync(await json.path(), "utf8"))).toMatchObject({ kind: "reconciliation", fictional: true, sandbox: true });
+    await expect(page.locator("#reconciliation-export").getByRole("status")).toContainText("recorded by the engine");
+  });
+
+  await test.step("16. review the payment's proposed entry: maker ≠ checker, approve, export, record the posting", async () => {
+    await page.getByRole("navigation", { name: "Accounting pages" }).getByRole("link", { name: "Proposed entries" }).click();
+    await hydrated(page);
+    await page.getByRole("search", { name: "Filter journal entries" }).getByLabel("Payment").selectOption(intentId);
+    await expect(page).toHaveURL(new RegExp(`payment=${intentId}`));
+    const row = page.locator("#entries tbody tr[data-proposal]");
+    await expect(row).toHaveCount(1);
+    await expect(row.getByTestId("entry-balanced")).toContainText("Balanced");
+    await expect(row.getByTestId("entry-accounts")).toContainText("1015");
+    await row.getByRole("button", { name: /^Review/ }).click();
+    const review = page.getByTestId("proposal-review");
+    // The person who proposed it (Maya, acting) cannot approve it.
+    await review.getByTestId("approver-select").selectOption("usr_maya");
+    await expect(review.getByTestId("approve-gate").getByRole("button", { name: "Approve entry" })).toBeDisabled();
+    await expect(review.getByTestId("approve-gate")).toContainText("maker_checker_violation");
+    await expect(review.getByText(ROLE_NOTE)).toBeVisible();
+    await review.getByTestId("approver-select").selectOption("usr_daniel");
+    await review.getByTestId("approve-gate").getByRole("button", { name: "Approve entry" }).click();
+    await expect(review.getByRole("status")).toContainText("Approve entry — recorded by the engine");
+    await expect(row.getByTestId("proposal-status")).toHaveAttribute("data-api-value", "approved");
+    // Posting before export is refused in the engine's words.
+    await expect(review.getByTestId("posting-gate")).toContainText("NOT_EXPORTED");
+    await expect(review.getByTestId("posting-note")).toContainText("Recorded by a person. Clearline does not post to any ledger.");
+    await page.getByRole("navigation", { name: "Accounting pages" }).getByRole("link", { name: "Exports" }).click();
+    await hydrated(page);
+    await page.locator("#journal li", { hasText: "2026-11" }).getByRole("button", { name: /^Export journal/ }).click();
+    await expect(page.locator("#journal").getByRole("status")).toContainText("recorded by the engine");
+    await expect(page.locator("#journal").getByRole("status")).toContainText("Nothing was posted");
+    const [jcsv] = await Promise.all([page.waitForEvent("download"), page.locator("#records tr[data-export=journal]").first().getByRole("button", { name: /Download journal \(\.csv\)/ }).click()]);
+    const jtext = readFileSync(await jcsv.path(), "utf8");
+    expect(jtext.split("\r\n")[0]).toContain("journal_id,journal_date");
+    expect(jtext).toContain("1015");
+    expect(jtext).toContain("FICTIONAL SANDBOX");
+    const [jjson] = await Promise.all([page.waitForEvent("download"), page.locator("#records tr[data-export=journal]").first().getByRole("button", { name: /Download journal \(\.json\)/ }).click()]);
+    expect(JSON.parse(readFileSync(await jjson.path(), "utf8"))).toMatchObject({ kind: "journal", notPostedByClearline: true });
+    await page.getByRole("navigation", { name: "Accounting pages" }).getByRole("link", { name: "Proposed entries" }).click();
+    await hydrated(page);
+    await page.getByRole("search", { name: "Filter journal entries" }).getByLabel("Payment").selectOption(intentId);
+    await expect(page).toHaveURL(new RegExp(`payment=${intentId}`));
+    await expect(page.locator("#entries tbody tr[data-proposal]")).toHaveCount(1);
+    await page.locator("#entries tbody tr[data-proposal]").getByRole("button", { name: /^Review/ }).click();
+    await page.getByLabel("External ledger reference").fill(LEDGER_REF);
+    await page.getByTestId("posting-gate").getByRole("button", { name: "Record posting" }).click();
+    await expect(page.getByTestId("proposal-review").getByRole("status")).toContainText("Record posting — recorded by the engine");
+    await expect(page.locator("#entries tbody tr[data-proposal]").getByTestId("proposal-status")).toContainText("Posted in your ledger (recorded by a person)");
+    await expect(page.getByTestId("posting-recorded")).toContainText(`${LEDGER_REF} (simulated). Clearline posted nothing.`);
+  });
+
+  await test.step("17. inspect the audit history: per payment, filterable, with actor, action, time and references", async () => {
+    await goNav(page, "Reports");
+    await hydrated(page);
+    await page.getByRole("navigation", { name: "Reports pages" }).getByRole("link", { name: "Audit history" }).click();
+    await expect(page).toHaveURL(/\/clearline\/reports\/audit$/);
+    await hydrated(page);
+    const search = page.getByRole("search", { name: "Filter audit history" });
+    await search.locator("select[name=payment]").selectOption(intentId);
+    await expect(page.getByTestId("audit-payment-scope")).toContainText(REF);
+    const table = page.getByTestId("audit-table");
+    for (const action of ["intent.created", "journal.proposed", "journal.approved", "journal.posting_recorded"])
+      await expect(table.locator(`tr[data-action="${action}"]`).first()).toBeVisible();
+    const approved = table.locator('tr[data-action="journal.approved"]').first();
+    await expect(approved.getByTestId("audit-actor")).toContainText("Daniel Ong");
+    await expect(approved.locator('td[data-label="Time"]')).toContainText("SGT");
+    await expect(approved.getByTestId("audit-refs").getByRole("link").first()).toBeVisible();
+    await search.locator("select[name=actor]").selectOption("usr_daniel");
+    await expect(page).toHaveURL(/actor=usr_daniel/);
+    for (const a of await table.getByTestId("audit-actor").allInnerTexts()) expect(a).toContain("Daniel Ong");
+  });
+
+  await test.step("18. reset the workspace", async () => {
+    await goNav(page, "Settings");
+    await hydrated(page);
+    await page.getByRole("button", { name: "Reset to sample" }).click();
+    await expect(page.getByText("Workspace reset to the sample")).toBeVisible();
+    await goNav(page, "Accounting");
+    await hydrated(page);
+    await expect(page.getByTestId("count-posted")).toHaveText("0");
+    await expect(page.getByTestId("count-exported")).toHaveText("0");
+    await expect(page.locator("#entries")).not.toContainText(REF);
+    await goNav(page, "Payments");
+    await hydrated(page);
+    await expect(page.getByText(REF)).toHaveCount(0);
   });
 });
 
