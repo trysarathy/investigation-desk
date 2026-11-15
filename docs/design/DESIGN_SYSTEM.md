@@ -253,6 +253,7 @@ The website's large product demonstration is the console's payment investigation
 
 - **Data:** `marketing/lib/investigations.ts`, generated from the tested engine on `rc3/clearline-app` by `marketing/scripts/engine-investigations.gen.ts` (`sampleWorkspace()`, `investigate()`, `evidenceTimelineFor()`, `describeStatus()`, `HUMAN_LABELS`). Never edited by hand; regenerate when the engine's sample changes.
 - **Structure and words:** the console's own (`src/components/clearline/pages/Investigation.tsx`): breadcrumb Console › Investigations › reference; A Summary with the engine's one-line status summary; B "Three separate truths — never one badge" (Execution · What the provider reported; Settlement evidence · What independent evidence establishes; Reconciliation · Whether the records match), with the console's scope wording ("by bank statement"), and for a returned payout the engine's return-status label and `returnPosition` text (net zero only when both legs are on the statement; the beneficiary is never treated as paid); C Evidence timeline, each row marked Independent or Not independent with the engine's processing outcome; D Findings (Who owns the next step, Still unknown, Financially outstanding, Exceptions on this payment).
+- **F Accounting outcome (rc4):** the engine's bridge disclaimer, then each proposed entry as a small ruled table (account code and name, debit, credit), its status label (amber: proposed, not approved, not posted) and the console's supplier-paid wording (red only for "Supplier still unpaid — payable open"), then "Not proposed, and why" with the NP_* code. Never shown as posted.
 - **Interaction:** five scenario tabs (`aria-pressed`), and focusing or hovering a truth highlights its field in the API record. No other motion.
 - **Timeline rule colours:** green left rule only for independent evidence; amber for exceptions and missing evidence; line colour otherwise.
 
@@ -261,6 +262,8 @@ The website's large product demonstration is the console's payment investigation
 One source: `marketing/lib/disclosure.ts`, rendered by `<Disclosure />` on Home, Platform and Trial. Two ruled columns (works today in the sandbox · not built yet) with a mono area label per row, and an ice "Out of scope" note. An item may sit under "works today" only if the released engine and console can demonstrate it. Never a card grid.
 
 ## Change log
+
+- 2026-11-15: rc4. Product view gains section F (accounting outcome) from rc4/clearline-app @ a132340. Platform lifecycle list (eight steps, two ruled columns), Control Accounting Bridge section (posting-rule table by account role), Connect adapter principles, Trial 18-step journey list. The founder's quiet homepage (PR #108) is unchanged apart from the product-view caption, corrected to say it is a rendering of the console.
 
 - 2026-11-14: Final pass against rc3/clearline-app @ fa303fd. `supplierPaidBasis` labels are the engine's ("Supplier not shown as paid" · "Provider reports the supplier paid (not verified)" · "Supplier payout verified by independent evidence"), rendered from the generated `ENGINE_LABELS`; the advance stage `supplier_paid` stays "Supplier paid (provider-reported)". Disclosure adds console acceptance of a disagreeing bank debit (up to 1% one person; above 1% to 50% with a second person; late value date up to 60 days; never a currency mismatch).
 
