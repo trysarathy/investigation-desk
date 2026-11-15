@@ -521,7 +521,7 @@ components:
   securitySchemes:
     exampleKey: { type: http, scheme: bearer, description: "Public example key `cl_test_demo`; not a credential." }
   parameters:
-    Actor: { name: X-Clearline-Actor, in: header, required: false, schema: { type: string, enum: [usr_maya, usr_sam, usr_daniel, usr_priya, usr_alex] } }
+    Actor: { name: X-Clearline-Actor, in: header, required: false, schema: { type: string, enum: [usr_maya, usr_sam, usr_daniel, usr_lin, usr_priya, usr_alex] } }
     IntentId: { name: intentId, in: path, required: true, schema: { type: string } }
     InstructionId: { name: instructionId, in: path, required: true, schema: { type: string } }
   responses:

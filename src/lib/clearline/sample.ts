@@ -19,6 +19,9 @@ export const SAMPLE_ACTORS: Actor[] = [
   { id: "usr_daniel", name: "Daniel Ong · Treasury approver (fictional)", role: "approver" },
   { id: "usr_priya", name: "Priya Nair · Compliance reviewer (fictional)", role: "compliance" },
   { id: "usr_alex", name: "Alex Chen · Viewer (fictional)", role: "viewer" },
+  // rc4 (final check): a second approver, so an approver who did not export can withdraw an exported journal entry or
+  // confirm it was never imported (maker ≠ checker). Appended last: no existing id, time or fingerprint moves.
+  { id: "usr_lin", name: "Lin Wei · Finance approver (fictional)", role: "approver" },
 ];
 
 /** Scenario keys stored on `intent.scenario`. */

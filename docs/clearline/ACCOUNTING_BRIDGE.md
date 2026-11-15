@@ -135,8 +135,10 @@ exported / posted + evidence changed ──▶ unchanged, evidenceChange recorde
 - A workspace saved under earlier posting rules loads: a proposed or approved entry those rules derived differently
   is superseded on load (`SP_RULES_CHANGED`, reported as a `journal_proposal_superseded` migration); exported and
   posted entries are never altered and get the reversal path (re-review R1).
-- While a payout's provider status reports contradict each other (an open `contradictory_evidence` exception), its
-  bank debit leaves settlement contradicted and gives no entry that shows the supplier paid (G1).
+- While any `contradictory_evidence` exception on a live payout is open, its bank debit leaves settlement contradicted
+  and gives no entry that shows the supplier paid; a saved bank-settled state like that is repaired on load (G1, K4).
+- Two in-ledger copies of the same entry (same source key and basis, neither reversed) are refused at load; other
+  over-bookings are corrected by reversals, and propose refuses only over-bookings its new entries cause (K1).
 - On load, every entry's lines must re-derive from the evidence records it names, its `basisHash` is recomputed,
   and a proposed or approved entry must be the entry the current evidence gives. The approver's identity in a
   client-held workspace cannot be authenticated: these checks prove consistency with the evidence, not who clicked.

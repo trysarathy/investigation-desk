@@ -14,7 +14,7 @@
 import { formatMinor } from "../money";
 import { Tx, fail, requireRole, safeNote } from "../tx";
 import { JOURNAL_RULE } from "./labels";
-import { deriveJournalCandidates, isActiveProposal, isBalanced, isInLedger, ledgerProblem, isStandingProposal, isWithdrawnAfterExport, type JournalCandidate } from "./derive";
+import { deriveJournalCandidates, isActiveProposal, isBalanced, isInLedger, ledgerIssues, worsenedIssues, isStandingProposal, isWithdrawnAfterExport, type JournalCandidate } from "./derive";
 import { accountingExportToJson, buildJournalExport, buildReconciliationExport, journalExportAccounts, journalExportToCsv, reconciliationExportToCsv, validRange } from "./exports";
 import { sha256Hex } from "../sha256";
 import { mappingProblem, periodProblem, resolvePeriod } from "./periods";
@@ -126,6 +126,7 @@ function propose(tx: Tx, periodId?: string): string {
   }
   if (!b || !b.periods.some((p) => p.status === "open")) fail("precondition_failed", "NO_OPEN_PERIOD: open an accounting period before proposing entries.");
   syncAccounting(tx);
+  const before = ledgerIssues(tx.ws);
   const { candidates } = deriveJournalCandidates(tx.ws);
   const made: string[] = [];
   for (const c of candidates) {
@@ -155,9 +156,10 @@ function propose(tx: Tx, periodId?: string): string {
     tx.log("journal.proposed", "journal_proposal", id,
       `${c.ruleCode} ${linesText(c)} on ${where.postingDate} in ${period.name}${where.priorPeriodItem ? " (prior-period item)" : ""}${c.reverses ? `, reverses ${c.reverses}` : ""}; evidence ${evidenceIdsOf(c).join(", ")}`);
   }
-  // Review F1 / F5: the proposals never show one payout paid more than once, nor book one bank line twice.
-  const lp = ledgerProblem(tx.ws);
-  if (made.length && lp) fail("precondition_failed", `LEDGER_DOUBLE_COUNT: ${lp}.`);
+  // Review F1 / F5 + final check K1: new proposals never show one payout paid more than once, nor book one bank line
+  // twice. Only an issue they introduce or worsen refuses; an existing one never blocks unrelated work.
+  const worse = worsenedIssues(before, ledgerIssues(tx.ws));
+  if (made.length && worse.length) fail("precondition_failed", `LEDGER_DOUBLE_COUNT: ${worse[0].text}.`);
   return made.length ? "proposals_created" : "no_new_proposals";
 }
 

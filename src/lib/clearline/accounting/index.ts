@@ -3,8 +3,8 @@
  * SANDBOX ONLY: proposes balanced journal entries from evidence; never posts anything anywhere.
  */
 export * from "./types";
-export { deriveJournalCandidates, balanceOf, isBalanced, bankKey, ledgerProblem, payableBound, onStablecoinRail, netByKey, isInLedger, isConfirmedNotImported } from "./derive";
-export type { JournalCandidate, JournalDerivation } from "./derive";
+export { deriveJournalCandidates, balanceOf, isBalanced, bankKey, ledgerProblem, ledgerIssues, worsenedIssues, payableBound, onStablecoinRail, netByKey, isInLedger, isConfirmedNotImported } from "./derive";
+export type { JournalCandidate, JournalDerivation, LedgerIssue } from "./derive";
 export { ACCOUNT_ROLES, NON_BANK_ROLES, DEFAULT_SAMPLE_MAPPING, roleOfKey, mappingProblem, unmappedKeys, resolvePeriod, periodContaining } from "./periods";
 export type { PeriodResolution } from "./periods";
 export {

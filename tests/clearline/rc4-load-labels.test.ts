@@ -18,7 +18,7 @@ const refusedAt = (ws: Workspace) => { const r = load(ws); return r.ok ? "loaded
 const mutate = (f: (w: Workspace) => void) => { const w = structuredClone(ws0); f(w); return w; };
 
 describe("older workspaces: absent bridge data means empty; nothing is refused or migrated", () => {
-  for (const f of readdirSync(FIX).filter((x) => x.endsWith(".json")))
+  for (const f of readdirSync(FIX).filter((x) => x.endsWith(".json") && !x.startsWith("rc4a_")) /* rc4a_*: rc4 workspaces written by a91dd11, see rc4-rereview */)
     it(`fixture ${f} loads exactly as before (no accounting key added)`, () => {
       const text = readFileSync(join(FIX, f), "utf8");
       const r = loadWorkspace(text);
