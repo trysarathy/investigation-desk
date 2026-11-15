@@ -122,7 +122,7 @@ export function migrateToRc3(ws: Workspace): WorkspaceMigration[] {
     const from = { ...intent.status };
     recomputeSettlement(intent);
     record(intent, from, {
-      kind: "chain_status_exceeds_confirmations", outcome: "observation_not_counted", observationId: o.id,
+      kind: "chain_status_exceeds_confirmations", outcome: "observation_downgraded", observationId: o.id,
       text: `Payment ${intent.internalReference} (${intent.id}): on-chain transfer ${o.txHash.slice(0, 12)}… was stored as ${stored} with ${o.confirmations} of ${FINALITY_THRESHOLD} confirmations. It now shows ${derived.replace("_", " ")}, which is what its confirmations give.`,
     });
   }

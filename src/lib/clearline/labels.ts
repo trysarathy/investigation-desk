@@ -34,6 +34,8 @@ import type {
   StatementSource,
   StatusDimensions,
   Workspace,
+  WorkspaceMigrationKind,
+  WorkspaceMigrationOutcome,
 } from "./types";
 
 const EXECUTION: Record<ExecutionState, string> = {
@@ -448,6 +450,29 @@ const SUPPLIER_PAID_BASIS: Record<FundingProjectionRow["supplierPaidBasis"], str
   verified_settlement: "Supplier payout verified by independent evidence",
 };
 
+/** rc4: WorkspaceMigration.kind and .outcome (what a load-time migration changed), in plain words. */
+const MIGRATION_KIND: Record<WorkspaceMigrationKind, string> = {
+  terminal_payout_verified: "Failed, cancelled, expired or returned payout stored as verified",
+  terminal_payout_evidence: "Failed, cancelled, expired or returned payout still showing evidence",
+  chain_observation_not_allowlisted: "On-chain transfer on a token or network that is not allowlisted",
+  chain_hash_conflict: "Transaction hash recorded earlier with another identity",
+  reorg_reconciliation: "Matched on an on-chain transfer that is no longer final",
+  status_exceeds_evidence: "Status above what the recorded evidence supports",
+  journal_proposal_superseded: "Journal entry that no longer matches the current posting rules",
+  open_contradiction_settlement: "Payout shown as settled while a contradiction is open",
+  chain_status_exceeds_confirmations: "On-chain transfer stored with a status above its confirmations",
+};
+const MIGRATION_OUTCOME: Record<WorkspaceMigrationOutcome, string> = {
+  contradiction_raised: "Contradiction raised for a person",
+  contradicted_open: "Shown as contradicted (an open exception owns it)",
+  resolved_by_person: "Already resolved by a person",
+  observation_not_counted: "Transfer no longer counted",
+  reconciliation_reopened: "Reconciliation reopened",
+  status_capped: "Status lowered to what the evidence supports",
+  proposal_superseded: "Journal entry superseded (never exported)",
+  observation_downgraded: "Transfer status lowered to what its confirmations give (still counted)",
+};
+
 const RETURN_STATUS: Record<NonNullable<PaymentIntent["returnStatus"]>, string> = {
   provider_reported: "Return reported by the provider (not yet on a statement)",
   confirmed_by_statement: "Return confirmed on the statement",
@@ -491,6 +516,9 @@ export const HUMAN_LABELS = {
   reportRowCode: REPORT_ROW_CODE,
   /** rc3 (R-1): PaymentIntent.returnStatus. */
   returnStatus: RETURN_STATUS,
+  /** rc4: load-time migrations (WorkspaceMigration.kind / .outcome). */
+  migrationKind: MIGRATION_KIND,
+  migrationOutcome: MIGRATION_OUTCOME,
   /** rc4 Accounting Bridge (CHANGE 15). */
   journalProposalStatus: PROPOSAL_STATUS,
   journalRule: JOURNAL_RULE,

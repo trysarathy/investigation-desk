@@ -995,6 +995,14 @@ export interface ReturnPosition {
  * Re-review R-m1: one change the load-time migration made to a workspace saved by an earlier engine version
  * (see loadWorkspace). `text` is plain English the console can show ("Your saved workspace was updated: …").
  */
+/** rc4: the WorkspaceMigration kinds and outcomes as named unions (labelled in HUMAN_LABELS.migrationKind / migrationOutcome). */
+export type WorkspaceMigrationKind = "terminal_payout_verified" | "terminal_payout_evidence" | "chain_observation_not_allowlisted" | "chain_hash_conflict" | "reorg_reconciliation" | "status_exceeds_evidence"
+    | "journal_proposal_superseded"
+    | "open_contradiction_settlement"
+    | "chain_status_exceeds_confirmations";
+export type WorkspaceMigrationOutcome = "contradiction_raised" | "contradicted_open" | "resolved_by_person" | "observation_not_counted" | "reconciliation_reopened" | "status_capped" | "proposal_superseded"
+    | "observation_downgraded";
+
 export interface WorkspaceMigration {
   /**
    * terminal_payout_verified / terminal_payout_evidence: a failed, cancelled, expired or returned payout still showing evidence
@@ -1003,19 +1011,13 @@ export interface WorkspaceMigration {
    * matched on a chain transfer that is no longer final; status_exceeds_evidence: a stored settlement or reconciliation
    * above what the recorded evidence supports, capped (QA rc3 L1). See migrate.ts.
    */
-  kind: "terminal_payout_verified" | "terminal_payout_evidence" | "chain_observation_not_allowlisted" | "chain_hash_conflict" | "reorg_reconciliation" | "status_exceeds_evidence"
-    /** rc4 re-review R1: a saved proposed / approved journal entry the current posting rules derive differently, superseded (SP_RULES_CHANGED). intentId may be "" (no payout); from = to. */
-    | "journal_proposal_superseded"
-    /** rc4 G1: a live payout stored as bank-settled while a provider-status contradiction was open; now contradicted. */
-    | "open_contradiction_settlement"
-    /** rc4 QA M1b: a counted chain observation stored with a status above what its confirmations give; moved down. */
-    | "chain_status_exceeds_confirmations";
+  kind: WorkspaceMigrationKind;
   intentId: string;
   internalReference: string;
   from: StatusDimensions;
   to: StatusDimensions;
   /** contradiction_raised: the rc3 rule's exception was created; contradicted_open: an open exception already covers it; resolved_by_person: a person had resolved the rule's exception. */
-  outcome: "contradiction_raised" | "contradicted_open" | "resolved_by_person" | "observation_not_counted" | "reconciliation_reopened" | "status_capped" | "proposal_superseded";
+  outcome: WorkspaceMigrationOutcome;
   /** rc4 (journal_proposal_superseded): the journal proposal concerned. */
   proposalId?: string;
   /** The chain observation concerned (chain kinds). */

@@ -5,7 +5,10 @@
  *     (migration rule H, moved down, reported), and the bridge requires final-by-confirmations.
  */
 import { describe, expect, it } from "vitest";
-import { deriveJournalCandidates, loadWorkspace, sampleWorkspace, serializeWorkspace, scenarioIntentId, type Workspace } from "@/lib/clearline";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { HUMAN_LABELS, deriveJournalCandidates, loadWorkspace, sampleWorkspace, serializeWorkspace, scenarioIntentId, type Workspace } from "@/lib/clearline";
+import { attempt, created, debitLine, run } from "./helpers";
 import { propose, proposals } from "./rc4-helpers";
 
 const sample = () => JSON.parse(serializeWorkspace(sampleWorkspace())) as Workspace;
@@ -73,5 +76,42 @@ describe("M1b: a chain observation's status is re-derived from its confirmations
     const { o } = forgedFinal(); // not loaded: the derivation reads the forged record directly
     const id = scenarioIntentId(o, "s4_chain")!;
     expect(deriveJournalCandidates(o).candidates.filter((c) => c.intentId === id && c.ruleCode === "JR_STABLECOIN_FINAL_TRANSFER")).toEqual([]);
+  });
+});
+
+describe("final check N1: a later obligation never makes an earlier repayment allocation 'ambiguous'", () => {
+  it("the reviewer's sequence: a repayment quoting 'RPY-SEABRIGHT-0001 PO-778899', then an approved advance with reference PO-778899 — every later action and a reload still work", () => {
+    let ws = sampleWorkspace();
+    const ob = ws.obligations[0];
+    ws = run(ws, "usr_maya", { type: "ingest_statement_line", line: debitLine({ direction: "credit", accountRef: "BANK-SGD-OPS (fictional)", amountMinor: 100_000, reference: `${ob.reference} PO-778899`, counterparty: "SEABRIGHT", valueDate: "2026-11-13" }) }).workspace;
+    expect(ws.repaymentAllocations.length).toBe(2);
+    const c = created({ amountMinor: 1_000_000, destinationCurrency: "SGD", destinationCountry: "SG" }, ws);
+    const a = run(c.ws, "usr_maya", { type: "create_advance", input: { intentId: c.id, customerRef: "C9", customerName: "C9 (fictional)", supplierName: "S9 (fictional)", invoiceRef: "INV-9", dueDate: "2026-11-30", repaymentReference: "PO-778899" } });
+    const d = attempt(a.workspace, "usr_daniel", { type: "decide_advance", advanceId: a.createdIds[0], outcome: "approve", reason: "ok (fictional)" });
+    if (!d.ok) throw new Error(d.error.message);
+    const next = attempt(d.value.workspace, "usr_maya", { type: "add_note", target: { kind: "case", id: d.value.workspace.cases[0].id }, text: "hello" });
+    expect(next.ok ? "ok" : next.error.message).toBe("ok");
+    const l = loadWorkspace(serializeWorkspace(d.value.workspace));
+    expect(l.ok && l.value.migrations).toEqual([]);
+  });
+  it("a forged repayment allocation is refused with evidence wording, never 'No version of the engine produces this'", () => {
+    const o = sample();
+    forgedRepayment(o);
+    const r = loadWorkspace(JSON.stringify(o));
+    expect(!r.ok && r.error.message).toMatch(/evidence records contradict each other/);
+    expect(!r.ok && r.error.message).not.toMatch(/No version of the engine/);
+  });
+  it("rule H reports outcome observation_downgraded; every migration kind and outcome has a HUMAN_LABELS entry", () => {
+    const o = sample();
+    const obs = o.chainObservations[0];
+    obs.status = "final";
+    const r = loadWorkspace(JSON.stringify(o));
+    if (!r.ok) throw new Error(r.error.message);
+    expect(r.value.migrations.find((m) => m.kind === "chain_status_exceeds_confirmations")!.outcome).toBe("observation_downgraded");
+    const src = readFileSync(join(__dirname, "../../src/lib/clearline/types.ts"), "utf8");
+    for (const [t, dim] of [["WorkspaceMigrationKind", "migrationKind"], ["WorkspaceMigrationOutcome", "migrationOutcome"]] as const) {
+      const members = [...new RegExp(`export type ${t} =([^;]+);`).exec(src)![1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+      expect(Object.keys(HUMAN_LABELS[dim]).sort()).toEqual([...members].sort());
+    }
   });
 });
