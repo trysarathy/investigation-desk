@@ -74,37 +74,46 @@ describe("rc4 Connect item 5a: dedupe by the provider's declared key, with a doc
 
 describe("rc4 Connect item 5b: ordering by provider version or state rank, never by arrival", () => {
   const finalOf = (ws: Workspace, id: string) => ({ ...outcomeOf(ws, id) });
-  for (const [p, script] of [[CW, "success"], [QF, "success"], [CW, "clawback"], [QF, "return"]] as const)
+  // Review M-1/M-2: EVERY non-hold script of the version-ordered providers, regressions and reversals included,
+  // ends in exactly the same state (statuses, return status and open exception codes) in every arrival order.
+  // Hold scripts are excluded: a late pre-hold event arriving during a hold is suppressed for a person (H3), see spec §6.
+  const PERM_CASES = CONNECT_DESCRIPTORS.filter((d) => d.ordering.kind === "object_version").flatMap((d) =>
+    Object.keys(CONNECT_SCRIPTS[d.providerId]).filter((s) => !s.startsWith("hold")).map((s) => [d.providerId, s] as const),
+  );
+  it("covers the regression and reversal scripts", () => {
+    expect(PERM_CASES.map(([p, s]) => `${p}:${s}`)).toEqual(expect.arrayContaining([`${CW}:return`, `${CW}:regress_substatus`, `${CW}:regress_to_routing`, `${CW}:clawback`, `${QF}:return`]));
+  });
+  for (const [p, script] of PERM_CASES)
     it(`${p} ${script}: every arrival order of the webhooks ends in the same state as provider order`, () => {
       const base = submittedConnect(p, script);
       const vs = versions(base.ws, base.id).slice(1).map((v) => v.version);
       const end = versions(base.ws, base.id).at(-1)!.at;
-      let ref: ReturnType<typeof finalOf> | undefined;
+      let ws0 = base.ws;
+      vs.forEach((v, i) => (ws0 = deliver(ws0, base.id, v, plusMin(end, i)).workspace));
+      const ref = finalOf(ws0, base.id);
       let n = 0;
       for (const order of permutations(vs)) {
         let ws = base.ws;
         order.forEach((v, i) => (ws = deliver(ws, base.id, v, plusMin(end, i)).workspace));
-        const f = finalOf(ws, base.id);
-        ref ??= f;
-        expect(f, order.join(",")).toEqual(ref);
+        expect(finalOf(ws, base.id), order.join(",")).toEqual(ref);
         n++;
       }
-      expect(n).toBeGreaterThanOrEqual(6);
-      expect(ref!.openExceptions.filter((e) => e.startsWith("contradictory"))).toEqual([]);
+      expect(n).toBe(permutations(vs).length);
+      expect(n).toBeGreaterThanOrEqual(2);
+      const contradictions = ref.openExceptions.filter((e) => e.startsWith("contradictory"));
+      if (/regress|^return$/.test(script) && p === CW) {
+        expect(contradictions.length, script).toBe(1);
+        expect(ownedContradiction(ws0, base.id).whoActs).not.toBe("WA_NONE");
+      } else expect(contradictions).toEqual([]);
     });
-  it("Cobalt Wren paid → failed: in EVERY arrival order the latest version is applied or an owned contradiction is open (never silent)", () => {
+  it("Cobalt Wren paid → failed: the one outcome in every order is failed + EV_PROVIDER_SUCCESS_REVERSED + the failure exception", () => {
     const base = submittedConnect(CW, "return");
     const vs = versions(base.ws, base.id);
-    const latestTarget = D(CW).statuses.find((m) => m.raw === vs.at(-1)!.entry.status)!.execution;
     for (const order of permutations(vs.slice(1).map((v) => v.version))) {
       let ws = base.ws;
       order.forEach((v, i) => (ws = deliver(ws, base.id, v, plusMin(vs.at(-1)!.at, i)).workspace));
-      const i = intentOf(ws, base.id);
-      if (i.status.execution !== latestTarget) {
-        const o = ownedContradiction(ws, base.id);
-        expect(o.open, order.join(",")).toBeGreaterThan(0);
-        expect(o.whoActs).not.toBe("WA_NONE");
-      }
+      expect(outcomeOf(ws, base.id).status.execution, order.join(",")).toBe("failed");
+      expect(outcomeOf(ws, base.id).openExceptions).toEqual(["contradictory_evidence:EV_PROVIDER_SUCCESS_REVERSED", "failed_submission:PV_FAILED_BENEFICIARY_REJECTED"]);
     }
   });
   it("Saltglass (no version) orders by raw rank: a preliminary status after the final one is late, not a regression", () => {
@@ -174,7 +183,8 @@ describe("rc4 Connect item 6: at-most-once webhook loss + poll gives the same fi
   });
 
   it("Saltglass has no change feed: list_since falls back to fetchStatus, which ends identically for its scripts", () => {
-    for (const script of Object.keys(CONNECT_SCRIPTS[SG])) {
+    // claims_conflict needs both completion claims seen; one late poll sees only the last (the §7 single-poll limit).
+    for (const script of Object.keys(CONNECT_SCRIPTS[SG]).filter((x) => x !== "claims_conflict")) {
       const w = runWebhooks(SG, script);
       const { ws, id } = submittedConnect(SG, script);
       const end = versions(ws, id).at(-1)!.at;

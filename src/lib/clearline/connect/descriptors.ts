@@ -28,6 +28,8 @@ export const COBALT_WREN: AdapterDescriptor = {
     { raw: "routing", subStatus: "awaiting_bank", event: "payout.in_transit", execution: "in_transit", settlementClaim: "none", confidence: "provider_claim", rank: 20 },
     { raw: "routing", subStatus: "at_bank", event: "payout.in_transit", execution: "in_transit", settlementClaim: "none", confidence: "provider_claim", rank: 25 },
     { raw: "paused_for_review", event: "payout.on_hold", execution: "on_hold", settlementClaim: "none", confidence: "provider_claim", rank: 20, reason: "compliance_review" },
+    // Partner release: recorded only; the hold ends only with the compliance reviewer's decision as well.
+    { raw: "review_cleared", event: "payout.hold_released", execution: "unchanged", settlementClaim: "none", confidence: "provider_claim", rank: 20 },
     { raw: "delivered", subStatus: "handed_to_bank", event: "payout.completed", execution: "provider_reported_completed", settlementClaim: "provider_claims_paid", confidence: "provider_claim", rank: 50 },
     { raw: "delivered", subStatus: "bank_confirmed", event: "payout.completed", execution: "provider_reported_completed", settlementClaim: "provider_claims_paid", confidence: "provider_claim", rank: 52 },
     { raw: "rejected", event: "payout.failed", execution: "failed", settlementClaim: "none", confidence: "provider_claim", rank: 60, reason: "validation_failed" },
@@ -53,6 +55,7 @@ export const QUILLFERN: AdapterDescriptor = {
     { raw: "RECEIVED", event: "payout.accepted", execution: "submitted", settlementClaim: "none", confidence: "provider_claim", rank: 10 },
     { raw: "IN_FLIGHT", subStatus: "CLEARING_HANDOFF", event: "payout.in_transit", execution: "in_transit", settlementClaim: "none", confidence: "provider_claim", rank: 20 },
     { raw: "HALTED", event: "payout.on_hold", execution: "on_hold", settlementClaim: "none", confidence: "provider_claim", rank: 20, reason: "compliance_review" },
+    { raw: "RELEASED", event: "payout.hold_released", execution: "unchanged", settlementClaim: "none", confidence: "provider_claim", rank: 20 },
     { raw: "DONE", subStatus: "BANK_ACK", event: "payout.completed", execution: "provider_reported_completed", settlementClaim: "provider_claims_paid", confidence: "provider_claim", rank: 50 },
     // Time-based inference: no return arrived within the window. A distinct, weaker confidence; never verified.
     { raw: "DONE", subStatus: "PRESUMED_AFTER_WINDOW", event: "payout.completed", execution: "provider_reported_completed", settlementClaim: "provider_claims_paid", confidence: "provider_time_inferred", rank: 55 },
@@ -226,6 +229,15 @@ export const CONNECT_SCRIPTS: Record<string, Record<string, readonly ScriptEntry
       { afterMinutes: 10, status: "routing", subStatus: "at_bank" },
       { afterMinutes: 30, status: "paused_for_review" },
     ],
+    // Hold, partner release, then the payout resumes (at a LOWER routing rank than before the hold) and completes.
+    hold_release: [
+      { afterMinutes: 0, status: "queued" },
+      { afterMinutes: 10, status: "routing", subStatus: "at_bank" },
+      { afterMinutes: 30, status: "paused_for_review" },
+      { afterMinutes: 120, status: "review_cleared" },
+      { afterMinutes: 130, status: "routing", subStatus: "awaiting_bank" },
+      { afterMinutes: 200, status: "delivered", subStatus: "bank_confirmed" },
+    ],
   },
   prv_cx_quillfern: {
     success: [
@@ -251,6 +263,13 @@ export const CONNECT_SCRIPTS: Record<string, Record<string, readonly ScriptEntry
       { afterMinutes: 15, status: "IN_FLIGHT", subStatus: "CLEARING_HANDOFF" },
       { afterMinutes: 30, status: "HALTED" },
     ],
+    hold_release: [
+      { afterMinutes: 0, status: "RECEIVED" },
+      { afterMinutes: 15, status: "IN_FLIGHT", subStatus: "CLEARING_HANDOFF" },
+      { afterMinutes: 30, status: "HALTED" },
+      { afterMinutes: 120, status: "RELEASED" },
+      { afterMinutes: 200, status: "DONE", subStatus: "BANK_ACK" },
+    ],
   },
   prv_cx_saltglass: {
     success: [
@@ -266,6 +285,12 @@ export const CONNECT_SCRIPTS: Record<string, Record<string, readonly ScriptEntry
       { afterMinutes: 0, status: "intake" },
       { afterMinutes: 5, status: "broadcast_unconfirmed", txHash: "preliminary" },
       { afterMinutes: 60, status: "dropped" },
+    ],
+    // Two different completion claims for one payout (review L-2): an on-chain final transfer and an internal book entry.
+    claims_conflict: [
+      { afterMinutes: 0, status: "intake" },
+      { afterMinutes: 10, status: "onchain_final", txHash: "final" },
+      { afterMinutes: 20, status: "book_transfer_done" },
     ],
   },
 };

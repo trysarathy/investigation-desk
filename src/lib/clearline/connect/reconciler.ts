@@ -19,7 +19,7 @@ import type { ConnectAdapter } from "./adapter";
 import { CONNECT_DESCRIPTORS, getDescriptor } from "./descriptors";
 import { parseProviderBody } from "./normalize";
 import { listSince } from "./simulator";
-import type { ConnectVerification } from "./types";
+import type { AdapterDescriptor, ConnectVerification } from "./types";
 import { encodeHeaderBundle } from "./verify";
 
 /** Payout executions a reconciler keeps polling (a completed payout can still regress). */
@@ -49,12 +49,17 @@ export function receiveConnectWebhook(ws: Workspace, delivery: { providerId: str
   const d = getDescriptor(delivery?.providerId);
   if (!d) return { ok: false, error: { code: "not_found", message: "Unknown Connect provider.", field: "providerId" } };
   const adapter = getAdapter(d.providerId) as ConnectAdapter;
-  const verification = adapter.verifyConnect(delivery.rawBody, delivery.headers ?? {}, unix(ctx.at));
+  // Review M-4: only the headers the provider's declared schemes read go into the bundle (a real request
+  // carries many more), and the receipt is taken from what the ENGINE recorded, not from this pre-check.
+  const declared = declaredHeaders(d);
+  const headers: Record<string, string> = {};
+  for (const [k, v] of Object.entries(delivery.headers ?? {})) if (typeof v === "string" && declared.includes(k.toLowerCase())) headers[k.toLowerCase()] = v;
+  const verification = adapter.verifyConnect(delivery.rawBody, headers, unix(ctx.at));
   if (verification.status !== "unverified") {
-    const r = applyAction(ws, { type: "ingest_webhook", delivery: { providerId: d.providerId, rawBody: delivery.rawBody, signatureHeader: encodeHeaderBundle(delivery.headers ?? {}) } }, ctx);
+    const r = applyAction(ws, { type: "ingest_webhook", delivery: { providerId: d.providerId, rawBody: delivery.rawBody, signatureHeader: encodeHeaderBundle(headers) } }, ctx);
     if (!r.ok) return r;
     const ev = r.value.workspace.providerEvents.at(-1);
-    return { ok: true, value: { workspace: r.value.workspace, verification, action: verification.status === "verified" ? "ingested" : "rejected_recorded", outcome: r.value.outcome, intentId: ev?.intentId } };
+    return { ok: true, value: { workspace: r.value.workspace, verification, action: r.value.outcome === "rejected_signature" ? "rejected_recorded" : "ingested", outcome: r.value.outcome, intentId: ev?.intentId } };
   }
   // Unverified: never a fact. Find the payout it names (if any) and ask the provider directly.
   const claim = parseProviderBody(d, delivery.rawBody);
@@ -73,11 +78,19 @@ export interface PollResult {
   error?: EngineError;
 }
 
-/** True when this exact snapshot (same bytes) is already recorded for the payout. */
+/**
+ * True when this exact snapshot (same bytes) is already recorded for the payout. Review L-1: a copy that was
+ * suppressed during a hold does not count once the hold has ended (the engine re-applies its redelivery).
+ */
 function alreadyRecorded(ws: Workspace, intentId: string, rawBody: string): boolean {
   const h = sha256Hex(rawBody);
-  return ws.providerEvents.some((e) => e.intentId === intentId && e.payloadHash === h && e.processingOutcome !== "rejected_signature");
+  const onHold = ws.intents.find((i) => i.id === intentId)?.status.execution === "on_hold";
+  return ws.providerEvents.some((e) => e.intentId === intentId && e.payloadHash === h && e.processingOutcome !== "rejected_signature" && (onHold || !e.detail.suppressedOnHold));
 }
+
+/** Lower-case header names the provider's declared verification schemes read. */
+export const declaredHeaders = (d: AdapterDescriptor): string[] =>
+  d.verification.flatMap((s) => [s.signatureHeader, s.timestampHeader]).filter((x): x is string => typeof x === "string").map((x) => x.toLowerCase());
 
 function pollOne(ws: Workspace, ctx: ActionContext, intentId: string, version: number | undefined, out: PollResult[]): Workspace {
   const intent = ws.intents.find((i) => i.id === intentId)!;

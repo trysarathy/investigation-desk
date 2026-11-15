@@ -322,6 +322,8 @@ const ELIGIBILITY_CODE: Record<string, string> = {
 /** rc4 Connect: codes raised by the adapter-level rules (own block, kept separate for clean merges). */
 const CONNECT_CODE: Readonly<Record<string, string>> = {
   EV_PROVIDER_STATUS_REGRESSED: "Provider moved the status backwards — both reports kept, a person decides",
+  EV_PROVIDER_SUCCESS_REVERSED: "Provider reported success, then failure — both reports kept, a person decides",
+  EV_PROVIDER_CLAIMS_DIFFER: "Provider made two different completion claims — both kept, a person decides",
 };
 
 /** Every static explanation code the engine emits, with a short human label. */

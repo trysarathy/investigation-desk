@@ -9,17 +9,17 @@
  * - Provider "completed" never sets settlement verified or reconciliation matched.
  * - A partner hold is never released by a provider event alone.
  * - The engine never fabricates intermediate events the provider did not send.
- * - rc4 Connect: a provider's raw status is kept verbatim in `detail`; a newer event whose
- *   adapter-declared raw rank is lower than an earlier accepted one is a regression and raises a
- *   contradiction (EV_PROVIDER_STATUS_REGRESSED); the state is not changed.
+ * - rc4 Connect: a provider's raw status is kept verbatim in `detail`. A regression, a success reversed
+ *   to failure, or two different completion claims (compared in provider order, whatever the arrival
+ *   order) raise a contradiction; execution follows the provider's latest version unless terminal.
  */
 import { getAdapter } from "./adapters";
-import { findRawRegression, rawDetail } from "./connect/normalize";
+import { findOrderConflict, rawDetail } from "./connect/normalize";
 import { tryAllocateChain } from "./chain";
 import { ensureCase, openException } from "./exceptions";
 import { onExecutionChanged } from "./reconciliation";
 import { sha256Hex } from "./sha256";
-import { EVENT_TARGET, PROGRESS_RANK, canTransitionExecution } from "./state";
+import { EVENT_TARGET, PROGRESS_RANK, canTransitionExecution, isTerminalExecution } from "./state";
 import type { ComplianceHold, EventProvenance, PaymentIntent, ProviderEvent, SandboxWebhookPayload, SignatureResult } from "./types";
 import { fail, toUtc, type Tx } from "./tx";
 
@@ -28,6 +28,8 @@ export interface IngestInput {
   rawBody: string;
   signatureResult: SignatureResult;
   provenance: EventProvenance;
+  /** rc4: why verification failed (e.g. "unverified_scheme"), for the audit text. */
+  signatureReason?: string;
 }
 
 function record(tx: Tx, e: Omit<ProviderEvent, "id" | "receivedAt">): ProviderEvent {
@@ -81,7 +83,7 @@ export function ingestPayload(tx: Tx, input: IngestInput): { outcome: ProviderEv
   };
   if (input.signatureResult === "invalid") {
     const ev = record(tx, { ...base, processingOutcome: "rejected_signature" });
-    tx.log("event.rejected_signature", "provider_event", ev.id, "Webhook signature invalid; not applied");
+    tx.log("event.rejected_signature", "provider_event", ev.id, input.signatureReason === "unverified_scheme" ? "Webhook signature scheme cannot be verified here (unverified scheme); not applied — poll the provider to confirm" : "Webhook signature invalid; not applied");
     return { outcome: "rejected_signature", event: ev };
   }
   // M6: a correctly signed but malformed payload is refused with a typed error (nothing recorded).
@@ -171,19 +173,21 @@ export function ingestPayload(tx: Tx, input: IngestInput): { outcome: ProviderEv
     return { outcome, event: ev };
   }
 
-  // rc4 Connect: generic regression rule (only for adapters that declare raw ranks).
-  const regressedFrom = p.sequence > maxApplied ? findRawRegression(ws, intent.id, p) : undefined;
-  if (regressedFrom) {
-    const ev = record(tx, { ...base, processingOutcome: "contradictory_exception_raised" });
-    openException(tx, {
-      category: "contradictory_evidence",
-      explanationCode: "EV_PROVIDER_STATUS_REGRESSED",
-      explanation: `Provider moved backwards: ${String(regressedFrom.detail.rawStatus)}${regressedFrom.detail.rawSubStatus ? "/" + String(regressedFrom.detail.rawSubStatus) : ""} (seq ${regressedFrom.sequence}) → ${p.raw!.status}${p.raw!.subStatus ? "/" + p.raw!.subStatus : ""} (seq ${p.sequence}). Both reports are kept; state not changed.`,
-      intentId: intent.id,
-      supportingEventIds: [regressedFrom.id, ev.id],
-    });
+  // rc4 Connect: order-independent conflict rule (adapters that declare raw ranks only). The provider's
+  // LATEST version sets execution unless the payout is already terminal; the conflict is always raised.
+  const conflict = p.raw ? findOrderConflict(ws, intent.id, p) : undefined;
+  if (conflict) {
+    const latest = EVENT_TARGET[p.type];
+    const applyLatest = p.sequence > maxApplied && latest !== undefined && latest !== current && !isTerminalExecution(current);
+    const ev = record(tx, { ...base, processingOutcome: applyLatest ? "applied" : "contradictory_exception_raised" });
+    openException(tx, { category: "contradictory_evidence", explanationCode: conflict.code, explanation: `${conflict.text} Both reports are kept; ${applyLatest ? `execution follows the provider's latest version (${latest})` : "state not changed"}.`, intentId: intent.id, supportingEventIds: [conflict.other.id, ev.id] });
+    if (applyLatest) {
+      applySideEffects(tx, intent, p, ev);
+      setExecution(tx, intent, latest!, `Provider's latest version ${p.raw!.status} (contradicts an earlier report)`);
+      if (p.tx_hash) tryAllocateChain(tx, intent);
+    }
     if (intent.status.settlement !== "none") intent.status.settlement = "contradicted";
-    return { outcome: "contradictory_exception_raised", event: ev };
+    return { outcome: ev.processingOutcome, event: ev };
   }
 
   const target = EVENT_TARGET[p.type]!;

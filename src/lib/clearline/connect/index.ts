@@ -23,7 +23,8 @@ export type {
 export { COBALT_WREN, QUILLFERN, SALTGLASS, CONNECT_DESCRIPTORS, CONNECT_SCRIPTS, getDescriptor, connectKeyring, connectRoutes } from "./descriptors";
 export type { ScriptEntry } from "./descriptors";
 export { verifyDelivery, signDelivery, encodeHeaderBundle, decodeHeaderBundle, assertSandboxKeyring, IMPLEMENTED_SCHEMES } from "./verify";
-export { parseProviderBody, toEnginePayload, rawDetail, findMapping, findRawRegression } from "./normalize";
+export { parseProviderBody, toEnginePayload, rawDetail, findMapping, findOrderConflict } from "./normalize";
+export type { OrderConflict, OrderConflictCode } from "./normalize";
 export { providerTruth, providerScript, providerWebhook, fetchStatusSnapshot, listSince, snapshotObject, webhookBody, eventIdFor, syntheticFinalTxHash, syntheticPreliminaryTxHash } from "./simulator";
 export type { TruthVersion, StatusSnapshot, FeedChange } from "./simulator";
 export { providerIdempotencyKey, isValidProviderKey, simulateProviderIdempotency, retryDecision } from "./idempotency";
@@ -31,6 +32,6 @@ export type { IdempotencyRecord, IdempotencyOutcome } from "./idempotency";
 export { EVIDENCE_SOURCE_CLASS, classifyEvidenceRecord, classifyStatementSource, providerEventSourceKind } from "./evidence";
 export type { EvidenceSourceClass, EvidenceSourceKind } from "./evidence";
 export { ConnectAdapter, toWebhookVerification } from "./adapter";
-export { receiveConnectWebhook, reconcileConnect, unresolvedConnectIntents, UNRESOLVED_EXECUTION } from "./reconciler";
+export { receiveConnectWebhook, reconcileConnect, unresolvedConnectIntents, declaredHeaders, UNRESOLVED_EXECUTION } from "./reconciler";
 export type { ConnectReceipt, PollResult } from "./reconciler";
 export { withConnectRoutes } from "./workspace";
