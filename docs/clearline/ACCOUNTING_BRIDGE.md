@@ -52,7 +52,7 @@ customer receivable debit for one payout would exceed the payout (source currenc
 | `JR_PAYOUT_DEBIT_NOT_DELIVERED` | The same debit, when the payout is returned, failed, cancelled, expired or on hold | `provider_clearing` | `bank:<accountRef>` | **no** |
 | `JR_PAYOUT_RETURN_CREDIT` | Return credit allocated with `RC_RETURN_CONFIRMS_PROVIDER_RETURN` | `bank:<accountRef>` | `provider_clearing` | **no** |
 | `JR_REPAYMENT_BY_REFERENCE` | Credit allocated by the repayment reference | `bank:<accountRef>` | `customer_receivable` | no |
-| `JR_STABLECOIN_ONRAMP_FUNDING` | Bank (or custody) **debit** allocated to a live payout on the stablecoin route | `stablecoin_clearing` (debit's currency) | `bank:<accountRef>` | **no** (the chain transfer pays) |
+| `JR_STABLECOIN_ONRAMP_FUNDING` (**sandbox rule, flagged for Aashmiin's sign-off**) | Bank (or custody) **debit** allocated to a live payout on the stablecoin route | `stablecoin_clearing` (debit's currency) | `bank:<accountRef>` | **no** (the chain transfer pays) |
 | `JR_STABLECOIN_FINAL_TRANSFER` | FINAL chain observation to the beneficiary wallet, allocated by the provider-reported tx hash, payout not terminal | `supplier_payable` (or `customer_receivable` for an advance) | `stablecoin_clearing` | yes (chain evidence) |
 | `JR_REVERSAL` | An exported or posted entry whose evidence no longer gives the same entry, or an exported entry an approver withdrew | the original's credits | the original's debits | no |
 
@@ -70,6 +70,26 @@ both are posted. (Before CHANGE 16 a rejected reversal left the payout shown pai
 A provider claim of non-delivery changes the classification of *bank evidence*; it never creates a cash or
 payable movement on its own.
 
+### 2.1 What the stablecoin rule leaves for the accountant (re-review R5; for Aashmiin's sign-off)
+
+For an SGD→USDC payout against an SGD invoice the two proposed entries are, each balanced in its own currency:
+
+| Entry | SGD | USDC |
+|---|---|---|
+| `JR_STABLECOIN_ONRAMP_FUNDING` | Dr stablecoin_clearing X / Cr bank X | — |
+| `JR_STABLECOIN_FINAL_TRANSFER` | — | Dr supplier_payable Y / Cr stablecoin_clearing Y |
+
+Consequences:
+- The supplier payable is cleared **in USDC** (Y), although the invoice and the payable may be in SGD. In a ledger
+  with one functional currency (SGD), the accountant must translate that USDC line at a rate of their choosing and
+  post any difference against the SGD payable by hand.
+- Until then `stablecoin_clearing` carries an **SGD debit balance (X) next to a USDC credit balance (Y)**. They are
+  never netted by the bridge: there is no rate evidence. The reconciliation export lists the pair as an unresolved
+  `stablecoin_conversion` row (`amount` X SGD, `counterAmount` Y USDC).
+- The payable is cleared once, by Y, in one currency; the engine refuses (`LEDGER_DOUBLE_COUNT`) anything that
+  would clear one payout in two currencies (re-review R6).
+- No FX, fee or rounding entry is proposed for this route.
+
 **What is never proposed** (`notProposed`, each with its reason and exception ids):
 
 | Code | Case |
@@ -81,7 +101,7 @@ payable movement on its own.
 | `NP_PARTIAL_REMAINDER` | The part of a line or payout no evidence covers (the evidenced part is proposed). |
 | `NP_ACCEPTED_DIFFERENCE` | A person accepted an over-amount or late bank debit; it was not allocated, so there is no evidence of what the difference is. Book by hand after review. |
 | `NP_FEE_NOT_EVIDENCED` | Quote fees are indicative; no statement line or provider charge evidences them. |
-| `NP_FX_NOT_EVIDENCED` | Cross-currency payouts: no rate evidence. The entry is in the currency that left the bank; any FX difference against a foreign-currency invoice is for the accountant. |
+| `NP_FX_NOT_EVIDENCED` | Cross-currency payouts: no rate evidence. **Fiat route:** the entry is in the currency that left the bank; any FX difference against a foreign-currency invoice is for the accountant. **Stablecoin route (re-review R5):** the funding entry is in the debit's currency (e.g. SGD) and the payable is cleared in **USDC** by the chain transfer; the conversion between them is not proposed (see §2.1). |
 | `NP_CHAIN_NOT_FINAL`, `NP_CHAIN_NOT_COUNTED` | Chain transfer below the finality threshold, not matched by tx hash, unsupported or conflicting. |
 | `NP_EVIDENCE_CONTRADICTED` | A final chain transfer for a payout the provider reports failed or returned. |
 | `NP_NO_OPEN_PERIOD` | No open period covers (or follows) the entry date. |
@@ -108,7 +128,15 @@ exported / posted + evidence changed ──▶ unchanged, evidenceChange recorde
   change that alters them supersedes the approval (`SP_MAPPING_CHANGED`), and the export uses exactly those codes
   (review F6).
 - Withdrawing an **exported** entry (`reject_journal_proposal`) needs an approver other than the exporter, keeps its
-  id for good, and proposes a `JR_REVERSAL`: the file may already be imported (review F7).
+  id for good, and proposes a `JR_REVERSAL`: the file may already be imported (review F7). If an approver other than
+  the exporter **confirms it was never imported** (`confirm_not_imported`, recorded and audited), no reversal is
+  needed (a pending one is superseded) and the same evidence may be proposed again; once the reversal is exported or
+  posted, the confirmation is refused (re-review R4).
+- A workspace saved under earlier posting rules loads: a proposed or approved entry those rules derived differently
+  is superseded on load (`SP_RULES_CHANGED`, reported as a `journal_proposal_superseded` migration); exported and
+  posted entries are never altered and get the reversal path (re-review R1).
+- While a payout's provider status reports contradict each other (an open `contradictory_evidence` exception), its
+  bank debit leaves settlement contradicted and gives no entry that shows the supplier paid (G1).
 - On load, every entry's lines must re-derive from the evidence records it names, its `basisHash` is recomputed,
   and a proposed or approved entry must be the entry the current evidence gives. The approver's identity in a
   client-held workspace cannot be authenticated: these checks prove consistency with the evidence, not who clicked.

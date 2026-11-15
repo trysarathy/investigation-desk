@@ -26,9 +26,10 @@
  */
 import { MAX_AMOUNT_MINOR, isCurrency } from "../money";
 import { isIsoDate, isIsoInstant } from "../tx";
-import { basisOf, bankKey, deriveJournalCandidates, isBalanced, ledgerProblem } from "./derive";
+import { basisOf, bankKey, deriveJournalCandidates, isBalanced } from "./derive";
 import { mappingProblem, roleOfKey } from "./periods";
 import type { AccountRole, JournalRuleCode } from "./types";
+import type { StatusDimensions, WorkspaceMigration } from "../types";
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -59,12 +60,22 @@ export class AccountingInvalid extends Error {
     super(`${field}: ${message}`);
   }
 }
+
+/** Re-review R1: why a load refuses accounting records (never "no engine version produces this"). */
+export const ACCOUNTING_REFUSAL_TEXT =
+  "Its accounting records contradict the evidence they name, or each other (crafted or damaged data), so they were not repaired.";
 const need = (cond: unknown, field: string, what: string) => {
   if (!cond) throw new AccountingInvalid(field, what);
 };
 
-export function validateAccounting(ws: Obj): void {
-  if (ws.accounting === undefined) return;
+/**
+ * Validates the bridge records and returns the load-time migrations it applied (re-review R1): a proposed or approved
+ * entry that is self-consistent (evidence tie and basis hash hold) but that the current rules derive differently — a
+ * workspace saved by an earlier engine version, before a rule change — is superseded (SP_RULES_CHANGED) and reported,
+ * never refused. Exported and posted entries are never altered: sync flags them and propose adds their reversal.
+ */
+export function validateAccounting(ws: Obj): WorkspaceMigration[] {
+  if (ws.accounting === undefined) return [];
   const b = ws.accounting;
   need(isObj(b), "accounting", "must be an object");
   const a = b as Obj;
@@ -126,7 +137,6 @@ export function validateAccounting(ws: Obj): void {
     exportById.set(x.id as string, x);
   });
 
-  const activeSource = new Set<string>();
   proposals.forEach((p, i) => {
     const f = `accounting.proposals[${i}]`;
     need(typeof p.sourceKey === "string" && (p.sourceKey as string).length > 0, `${f}.sourceKey`, "must be a non-empty string");
@@ -177,12 +187,6 @@ export function validateAccounting(ws: Obj): void {
       need(isObj(pp) && !!orig && orig.status === "closed" && pp.originalDate === p.entryDate && (orig.from as string) <= (p.entryDate as string) && (p.entryDate as string) < (orig.to as string) && p.postingDate === period!.from && typeof pp.reason === "string",
         `${f}.priorPeriodItem`, "must name the closed period its entry date falls in, and be proposed on the first day of a later period");
     } else need(p.postingDate === p.entryDate, `${f}.postingDate`, "equals the entry date unless the entry is a prior-period item");
-    const active = p.status === "proposed" || p.status === "approved";
-    if (active) {
-      need(period!.status === "open", `${f}.periodId`, "a proposed or approved entry cannot sit in a closed period");
-      need(!activeSource.has(p.sourceKey as string), `${f}.sourceKey`, "at most one proposed or approved entry per evidence source");
-      activeSource.add(p.sourceKey as string);
-    }
     // Lifecycle records (proposed ≠ posted; maker ≠ checker).
     const st = p.status as string;
     const needsApproval = ["approved", "exported", "posted"].includes(st);
@@ -207,25 +211,56 @@ export function validateAccounting(ws: Obj): void {
     }
     need((st === "rejected") === isObj(p.rejection), `${f}.rejection`, "a rejected entry (and only one) carries its rejection");
     need((st === "superseded") === isObj(p.supersession), `${f}.supersession`, "a superseded entry (and only one) carries why");
+    if (isObj(p.rejection) && (p.rejection as Obj).notImported !== undefined) {
+      const ni = (p.rejection as Obj).notImported as Obj;
+      need(isObj(ni) && isObj(p.export) && hasRole(ni.by, ["approver"]) && ni.by !== (p.export as Obj).by && isIsoInstant(ni.at), `${f}.rejection.notImported`, "must be confirmed by an approver other than the exporter, on an exported entry");
+    }
     if (isObj(p.approval) && (p.approval as Obj).accounts !== undefined) need(!mappingProblem((p.approval as Obj).accounts), `${f}.approval.accounts`, "must be the account codes the approver saw");
   });
   // Review F4: an export record and the proposals it lists name each other.
   exports.forEach((x, i) => {
     if (x.kind !== "journal") return;
-    for (const id of x.proposalIds as string[]) need((proposalById.get(id)!.export as Obj | undefined)?.exportId === x.id, `accounting.exports[${i}].proposalIds`, `${id} does not name this export (a journal id is never reused)`);
+    for (const id of x.proposalIds as string[]) need((proposalById.get(id)!.export as Obj | undefined)?.exportId === x.id, `accounting.exports[${i}].proposalIds`, `${id} does not name this export back. Engine a91dd11 could reuse an exported journal id after a per-case reset; that file can no longer be re-rendered, so this workspace is refused rather than repaired`);
   });
-  // Review F3: a proposed or approved entry is exactly the entry the current evidence gives.
-  if (proposals.some((p) => p.status === "proposed" || p.status === "approved")) {
+  // Review F3 + re-review R1: a proposed or approved entry is exactly the entry the current evidence gives. A
+  // self-consistent one that the current rules derive differently is superseded and reported — not refused.
+  const migrations: WorkspaceMigration[] = [];
+  const isActive = (p: Obj) => p.status === "proposed" || p.status === "approved";
+  if (proposals.some(isActive)) {
     const { candidates } = deriveJournalCandidates(ws as never);
-    proposals.forEach((p, i) => {
-      if (p.status !== "proposed" && p.status !== "approved") return;
-      need(candidates.some((c) => c.sourceKey === p.sourceKey && c.basisHash === p.basisHash), `accounting.proposals[${i}]`, "a proposed or approved entry must be the entry its current evidence gives");
-    });
+    const asOf = ws.asOf as string;
+    for (const p of proposals) {
+      if (!isActive(p) || candidates.some((c) => c.sourceKey === p.sourceKey && c.basisHash === p.basisHash)) continue;
+      const now = candidates.find((c) => c.sourceKey === p.sourceKey);
+      const was = p.status as string;
+      const reason = `Saved by an earlier engine version: the current posting rules give ${now ? `"${now.ruleCode}" with other lines or evidence` : "no entry"} for this evidence, so this ${was} entry no longer stands. It was never exported; propose entries again.`;
+      p.status = "superseded";
+      p.supersession = { at: asOf, causedBy: "system", code: "SP_RULES_CHANGED", reason };
+      (p.history as unknown[]).push({ at: asOf, actorId: "system", action: "superseded", detail: `${was} → superseded on load: ${reason}` });
+      ws.seq = (ws.seq as number) + 1;
+      const auditId = `aud_${String(ws.seq).padStart(5, "0")}`;
+      (ws.audit as unknown[]).push({ id: auditId, at: asOf, actorId: "system", action: "workspace.migrated", entityType: "journal_proposal", entityId: p.id, summary: `rc4 migration (journal_proposal_superseded): ${p.id} ${was} → superseded (SP_RULES_CHANGED). ${reason}` });
+      const intent = (ws.intents as Obj[]).find((x) => x.id === p.intentId);
+      const dims = (intent?.status ?? { execution: "created", settlement: "none", settlementScope: "none", reconciliation: "not_started" }) as StatusDimensions;
+      migrations.push({
+        kind: "journal_proposal_superseded", intentId: (p.intentId as string) ?? "", internalReference: (intent?.internalReference as string) ?? "", from: { ...dims }, to: { ...dims },
+        outcome: "proposal_superseded", proposalId: p.id as string, auditId,
+        text: `Your saved journal entry ${p.id} (${String(p.ruleCode)}, ${was}) was made under earlier posting rules. It has been superseded, nothing was exported or posted, and you can propose entries again.`,
+      });
+    }
   }
-  // Review F5: no bank line is booked twice by the counted entries. (The per-payout payable bound is enforced when entries
-  // are proposed and proved by the property test; it is not a load rule because it reads mutable payout amounts.)
-  const lp = ledgerProblem(ws as never, "bank");
-  need(!lp, "accounting.proposals", lp ?? "");
+  // Pending-entry rules, on what is still pending after the migration.
+  const activeSource = new Set<string>();
+  proposals.forEach((p, i) => {
+    if (!isActive(p)) return;
+    const f = `accounting.proposals[${i}]`;
+    need(periodById.get(p.periodId as string)!.status === "open", `${f}.periodId`, "a proposed or approved entry cannot sit in a closed period");
+    need(!activeSource.has(p.sourceKey as string), `${f}.sourceKey`, "at most one proposed or approved entry per evidence source");
+    activeSource.add(p.sourceKey as string);
+  });
+  // A bank line booked twice (or a payable cleared twice) by entries a91dd11 let through (a rejected required reversal)
+  // is not refused: propose_journal_entries proposes the reversal again, which corrects it.
+  return migrations;
 }
 
 /** Review F3: the stored lines of an evidence rule re-derive from the evidence records they name. */
@@ -248,9 +283,11 @@ function evidenceTie(ws: Obj, p: Obj, f: string): void {
   }
   const line = (ws.statementLines as Obj[]).find((x) => x.id === ids("statementLineIds")[0]);
   need(ids("statementLineIds").length === 1 && !!line && line.source === "bank_statement" && a!.evidenceKind === "statement_line" && a!.statementLineId === line.id, `${f}.evidence`, "a bank entry rests on one bank statement line and its allocation");
-  need(line!.direction === BANK_DIRECTION[p.ruleCode as JournalRuleCode], `${f}.evidence.statementLineIds`, `${String(p.ruleCode)} needs a ${BANK_DIRECTION[p.ruleCode as JournalRuleCode]} line (a debit is never booked as cash in)`);
+  // The bank line is the statement line's own account, on the side the RULE gives. Whether the statement direction fits
+  // the rule is not a load refusal (a91dd11 booked a debit "return" as a credit; rc3 stored such allocations): a pending
+  // entry like that is superseded by the current-evidence check, an exported or posted one is reversed (re-review R1).
   const bankSide = BANK_DIRECTION[p.ruleCode as JournalRuleCode] === "debit" ? "credit" : "debit";
-  need(lines.some((l) => l.side === bankSide && l.accountKey === bankKey(line!.accountRef as string)), `${f}.lines`, "the bank line must be the statement line's own account, on the side its direction gives");
+  need(lines.some((l) => l.side === bankSide && l.accountKey === bankKey(line!.accountRef as string)), `${f}.lines`, "the bank line must be the statement line's own account, on the side its rule gives");
   const isReturn = Array.isArray(a!.codes) && (a!.codes as string[]).includes("RC_RETURN_CONFIRMS_PROVIDER_RETURN");
   if (p.ruleCode === "JR_REPAYMENT_BY_REFERENCE") {
     const r = (ws.repaymentAllocations as Obj[]).find((x) => x.id === ids("repaymentAllocationIds")[0]);

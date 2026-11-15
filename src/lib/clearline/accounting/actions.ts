@@ -22,7 +22,7 @@ import type { AccountMappingEntry, AccountingAction, AccountingBridge, JournalPr
 
 export const ACCOUNTING_ACTION_TYPES: readonly AccountingAction["type"][] = [
   "set_account_mapping", "open_accounting_period", "close_accounting_period", "propose_journal_entries", "approve_journal_proposal",
-  "reject_journal_proposal", "export_journal", "record_posting", "record_reconciliation_export",
+  "reject_journal_proposal", "confirm_not_imported", "export_journal", "record_posting", "record_reconciliation_export",
 ];
 export const isAccountingAction = (a: { type?: unknown } | null | undefined): a is AccountingAction => (ACCOUNTING_ACTION_TYPES as readonly unknown[]).includes(a?.type);
 
@@ -49,6 +49,7 @@ export function applyAccountingAction(tx: Tx, a: AccountingAction): string {
     case "propose_journal_entries": return propose(tx, a.periodId);
     case "approve_journal_proposal": return approve(tx, a.proposalId, a.note);
     case "reject_journal_proposal": return reject(tx, a.proposalId, a.reason);
+    case "confirm_not_imported": return confirmNotImported(tx, a.proposalId, a.note);
     case "export_journal": return exportJournal(tx, a.periodId);
     case "record_posting": return recordPosting(tx, a.proposalId, a.externalReference, a.note);
     case "record_reconciliation_export": return recordReconciliationExport(tx, a.from, a.to);
@@ -109,7 +110,10 @@ const reversedActive = (b: AccountingBridge, p: JournalProposal) => b.proposals.
 
 /** Whether a candidate is new: no proposal for the same evidence is pending, in the books (and not being reversed), or was rejected. */
 function isNew(b: AccountingBridge, c: JournalCandidate): boolean {
-  return !b.proposals.some((p) => p.sourceKey === c.sourceKey && p.basisHash === c.basisHash && (isActiveProposal(p) || p.status === "rejected" || (isStandingProposal(p) && !reversedActive(b, p))));
+  // A rejected reversal never blocks (a91dd11 let a required reversal be rejected; it is proposed again), and an entry
+  // confirmed never imported may be proposed again (re-review R4).
+  return !b.proposals.some((p) => p.sourceKey === c.sourceKey && p.basisHash === c.basisHash &&
+    (isActiveProposal(p) || (p.status === "rejected" && p.ruleCode !== "JR_REVERSAL" && !p.rejection?.notImported) || (isStandingProposal(p) && !reversedActive(b, p))));
 }
 
 function propose(tx: Tx, periodId?: string): string {
@@ -212,13 +216,39 @@ function reject(tx: Tx, proposalId: string, reason: string): string {
   if (!["proposed", "approved", "exported"].includes(p.status)) fail("invalid_transition", `Journal proposal ${p.id} is ${p.status}; only a proposed, approved or exported (not posted) entry can be rejected.`, { entityId: p.id });
   if (!safeNote(reason, 300)) fail("invalid_field", "A rejection reason is required.", { field: "reason" });
   // Review F5: a reversal the evidence still requires cannot be rejected; otherwise one bank line could be booked twice.
-  if (p.ruleCode === "JR_REVERSAL" && currentCandidate(tx, p)?.basisHash === p.basisHash)
-    fail("precondition_failed", `REVERSAL_REQUIRED: ${p.reverses} is (or may be) in the ledger and its evidence no longer gives it; its reversal ${p.id} cannot be rejected.`, { entityId: p.id });
+  if (p.ruleCode === "JR_REVERSAL" && currentCandidate(tx, p)?.basisHash === p.basisHash) {
+    const orig = tx.ws.accounting!.proposals.find((x) => x.id === p.reverses);
+    // Re-review R7: say the real reason.
+    fail("precondition_failed", orig && isWithdrawnAfterExport(orig)
+      ? `REVERSAL_REQUIRED: ${orig.id} was withdrawn after export ${orig.export!.exportId} and may have been imported; its reversal ${p.id} cannot be rejected. If it was never imported, an approver other than the exporter confirms that (confirm_not_imported) and the reversal is withdrawn.`
+      : `REVERSAL_REQUIRED: ${p.reverses} is (or may be) in the ledger and its evidence no longer gives it; its reversal ${p.id} cannot be rejected.`, { entityId: p.id });
+  }
   const was = p.status;
   p.status = "rejected";
   p.rejection = { by: tx.actorId, at: tx.at, reason };
   p.history.push({ at: tx.at, actorId: tx.actorId, action: "rejected", detail: `${was} → rejected: ${reason}${was === "exported" ? " (withdrawn after export: a reversal will be proposed)" : ""}` });
   tx.log("journal.rejected", "journal_proposal", p.id, `Rejected (was ${was}) by ${tx.actorId}: ${reason.slice(0, 80)}; evidence ${evidenceIdsOf(p).join(", ")}`);
+  return "applied";
+}
+
+/**
+ * Re-review R4: an approver other than the exporter confirms that an exported (or withdrawn-after-export) entry was
+ * never imported into the ledger. It is then not in the ledger: no reversal is needed (a pending one is superseded),
+ * and the same evidence may be proposed again. Refused once its reversal is exported or posted (then it is a correction).
+ */
+function confirmNotImported(tx: Tx, proposalId: string, note: string): string {
+  const p = proposalById(tx, proposalId);
+  if (!(p.status === "exported" || isWithdrawnAfterExport(p))) fail("invalid_transition", `NOT_EXPORTED: ${p.id} is ${p.status}${p.rejection?.notImported ? " (already confirmed not imported)" : ""}; only an exported or withdrawn-after-export entry can be confirmed not imported.`, { entityId: p.id });
+  if (p.export!.by === tx.actorId) fail("maker_checker_violation", `Confirming ${p.id} was never imported needs a different person from the one who exported it.`, { entityId: p.id });
+  requireRole(tx, ["approver"]);
+  if (!safeNote(note, 300)) fail("invalid_field", "A note saying how you confirmed it was not imported is required.", { field: "note" });
+  const rev = tx.ws.accounting!.proposals.find((q) => q.reverses === p.id && isStandingProposal(q));
+  if (rev) fail("precondition_failed", `REVERSAL_ALREADY_EXPORTED: the reversal ${rev.id} of ${p.id} is already ${rev.status}; post it as the correction instead.`, { entityId: rev.id });
+  const was = p.status;
+  if (p.status === "exported") { p.status = "rejected"; p.rejection = { by: tx.actorId, at: tx.at, reason: note }; }
+  p.rejection!.notImported = { by: tx.actorId, at: tx.at, note };
+  p.history.push({ at: tx.at, actorId: tx.actorId, action: "confirmed_not_imported", detail: `${tx.actorId} confirmed ${p.id} (export ${p.export!.exportId}, exported by ${p.export!.by}) was never imported: ${note}` });
+  tx.log("journal.confirmed_not_imported", "journal_proposal", p.id, `${was} → rejected, confirmed never imported by ${tx.actorId} (exported by ${p.export!.by} in ${p.export!.exportId}); no reversal needed; evidence ${evidenceIdsOf(p).join(", ")}`);
   return "applied";
 }
 
@@ -303,7 +333,9 @@ function changeReason(p: JournalProposal, c: JournalCandidate): string {
   return `Its evidence records changed${added.length ? `; added ${added.join(", ")}` : ""}${removed.length ? `; removed ${removed.join(", ")}` : ""}${!added.length && !removed.length ? " (dates or links)" : ""}.`;
 }
 
-function withdrawnReason(p: JournalProposal, notProposed: NotProposedItem[]): string {
+function withdrawnReason(p: JournalProposal, notProposed: NotProposedItem[], all: JournalProposal[] = []): string {
+  const orig = all.find((x) => x.id === p.reverses);
+  if (p.ruleCode === "JR_REVERSAL" && orig?.rejection?.notImported) return `${orig.rejection.notImported.by} confirmed ${orig.id} was never imported, so this reversal is not needed.`;
   if (p.ruleCode === "JR_REVERSAL") return `The entry it reverses (${p.reverses}) matches its evidence again, so this reversal is not needed.`;
   const ids = new Set([...evidenceIdsOf(p), p.intentId, p.advanceId, p.obligationId].filter((x): x is string => !!x));
   const why = notProposed.filter((n) => n.refs.some((r) => ids.has(r))).map((n) => n.text);
@@ -331,7 +363,7 @@ export function syncAccounting(tx: Tx): void {
     const c = bySource.get(p.sourceKey);
     const matches = !!c && c.basisHash === p.basisHash;
     if (isActiveProposal(p)) {
-      if (!matches) { supersede(p, c ? "SP_EVIDENCE_CHANGED" : "SP_EVIDENCE_WITHDRAWN", c ? changeReason(p, c) : withdrawnReason(p, notProposed)); continue; }
+      if (!matches) { supersede(p, c ? "SP_EVIDENCE_CHANGED" : "SP_EVIDENCE_WITHDRAWN", c ? changeReason(p, c) : withdrawnReason(p, notProposed, b.proposals)); continue; }
       // Review F6: an approval covers the account codes its approver saw; a mapping change that alters them supersedes it.
       if (p.status === "approved") {
         const { accounts, unmapped } = accountsFor(tx, p);

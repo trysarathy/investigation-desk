@@ -1,13 +1,13 @@
 import { MAX_AMOUNT_MINOR, isCurrency, withinTotal } from "./money";
 import { migrateToRc3 } from "./migrate";
-import { AccountingInvalid, validateAccounting } from "./accounting/validate";
+import { ACCOUNTING_REFUSAL_TEXT, AccountingInvalid, validateAccounting } from "./accounting/validate";
 import { isIsoDate, isIsoInstant, isTimeZone, referenceTokens } from "./tx";
 import type { Result, Workspace, WorkspaceLoad, WorkspaceMigration } from "./types";
 
 export const serializeWorkspace = (ws: Workspace): string => JSON.stringify(ws);
 
 class Invalid extends Error {
-  constructor(readonly field: string, message: string) {
+  constructor(readonly field: string, message: string, readonly accounting = false) {
     super(message);
   }
 }
@@ -153,9 +153,9 @@ function validate(w: unknown): { ws: Workspace; migrations: WorkspaceMigration[]
   crossCheck(ws);
   // rc4 (CHANGE 15): the Accounting Bridge's records. Absent (every v2 / rc3 workspace) means empty and is not checked.
   try {
-    validateAccounting(ws);
+    migrations.push(...validateAccounting(ws));
   } catch (e) {
-    if (e instanceof AccountingInvalid) throw new Invalid(e.field, e.message);
+    if (e instanceof AccountingInvalid) throw new Invalid(e.field, e.message, true);
     throw e;
   }
   return { ws: ws as unknown as Workspace, migrations };
@@ -359,7 +359,7 @@ export function loadWorkspaceValue(v: unknown): Result<WorkspaceLoad> {
     return { ok: true, value: { workspace: ws, migrations } };
   } catch (e) {
     // Review M-1 / n-3: the workspace may have been written by this engine; say what is wrong, not "damaged".
-    if (e instanceof Invalid) return { ok: false, error: { code: "invalid_field", message: `This workspace cannot be loaded: ${e.message}. No version of the engine produces this, so it was not repaired automatically. Reset to the sample to continue.`, field: e.field } };
+    if (e instanceof Invalid) return { ok: false, error: { code: "invalid_field", message: `This workspace cannot be loaded: ${e.message}. ${e.accounting ? ACCOUNTING_REFUSAL_TEXT : "No version of the engine produces this, so it was not repaired automatically."} Reset to the sample to continue.`, field: e.field } };
     return { ok: false, error: { code: "invalid_field", message: "This workspace cannot be loaded: its structure is not a Clearline workspace. Reset to the sample to continue.", field: "workspace" } };
   }
 }

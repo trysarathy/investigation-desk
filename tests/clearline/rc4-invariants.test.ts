@@ -75,6 +75,29 @@ function check(ws: Workspace, label: string) {
   // netPerPayout: the payable / receivable per payout and every bank line are booked at most once (review F1 / F5)
   const lp = ledgerProblem(ws);
   if (lp) bad(lp);
+  // Re-review: an INDEPENDENT recomputation (not ledgerProblem) straight from the posted and live lines. Counted: proposed,
+  // approved, exported, posted, and exported-then-withdrawn unless confirmed not imported; reversals carry opposite sides.
+  const counts = (p: (typeof ws.accounting & object)["proposals"][number]) => ["proposed", "approved", "exported", "posted"].includes(p.status) || (p.status === "rejected" && !!p.export && !p.rejection?.notImported);
+  const perPayout = new Map<string, Map<string, bigint>>();
+  for (const p of proposals(ws).filter(counts)) {
+    if (!p.intentId) continue;
+    for (const l of p.lines) {
+      if (l.accountKey !== "supplier_payable" && l.accountKey !== "customer_receivable") continue;
+      const m = perPayout.get(p.intentId) ?? new Map<string, bigint>();
+      m.set(l.currency, (m.get(l.currency) ?? 0n) + (l.side === "debit" ? 1n : -1n) * BigInt(l.amountMinor));
+      perPayout.set(p.intentId, m);
+    }
+  }
+  for (const [id, m] of perPayout) {
+    const i = ws.intents.find((x) => x.id === id)!;
+    const q = ws.quotes.find((x) => x.id === i.selectedQuoteId);
+    const positive = [...m].filter(([, v]) => v > 0n);
+    if (positive.length > 1) bad(`independent: payout ${id} payable cleared in ${positive.map(([c]) => c).join(" and ")}`);
+    for (const [c, v] of positive) {
+      const cap = c === i.sourceCurrency ? i.amountMinor : c === i.destinationCurrency ? (q?.estimatedRecipientMinor ?? 0) : 0;
+      if (v > BigInt(cap)) bad(`independent: payout ${id} payable debited ${v} ${c} > ${cap}`);
+    }
+  }
   // debitNotCashIn: a bank line's own side in an entry is always opposite to the money's direction (review F2)
   for (const p of proposals(ws)) for (const lid of p.evidence.statementLineIds) {
     const line = ws.statementLines.find((x) => x.id === lid)!;
