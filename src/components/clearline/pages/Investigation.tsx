@@ -16,6 +16,9 @@ import { SourceLine, attributionOf } from "../evidence";
 import { SyntheticReportView, useCaseReport, useSyntheticReport } from "../CaseReport";
 import { ResetCaseButton } from "../ResetCase";
 import { AcceptanceStatus } from "../AcceptDifference";
+import { AccountingOutcome } from "../accounting";
+import { AUDIT_HREF } from "../nav";
+import { paymentOfRecords, paymentsOf } from "../audit";
 
 const PROBLEM_OUTCOMES: ProcessingOutcome[] = ["duplicate_ignored", "stored_late_no_regression", "contradictory_exception_raised", "rejected_signature", "rejected_unknown_payment"];
 /** Return status in the engine's words (HUMAN_LABELS.returnStatus); no local copy that could drift. */
@@ -171,6 +174,8 @@ export default function Investigation({ id }: { id: string }) {
           <li><a href="#timeline">C. Evidence timeline</a></li>
           <li><a href="#findings">D. Findings</a></li>
           <li><a href="#actions">E. Actions</a></li>
+          <li><a href="#accounting">F. Accounting outcome</a></li>
+          <li><a href="#audit">G. Audit history</a></li>
         </ul>
       </nav>
 
@@ -380,7 +385,35 @@ export default function Investigation({ id }: { id: string }) {
           </div>
         </div>
       </Panel>
+      {/* F. Accounting outcome: the last step of the lifecycle (intent → … → accounting outcome). */}
+      <Panel title={<><span className={ui.sectionLetter} aria-hidden="true">F</span>Accounting outcome</>} id="accounting">
+        <AccountingOutcome intentId={id} />
+      </Panel>
+
+      {/* G. Audit history of this payment and every record linked to it. */}
+      <PaymentAudit intentId={id} />
       {!tl.some((e) => e.kind === "provider_event") && <Notice info>No provider events yet. Use “Simulate next provider event” after the instruction is submitted.</Notice>}
     </>
+  );
+}
+
+/** The latest audit events for one payment, with a link to its full, filterable history. */
+function PaymentAudit({ intentId }: { intentId: string }) {
+  const { ws, actorName } = useWorkspace();
+  const events = useMemo(() => { const owners = paymentOfRecords(ws); return ws.audit.filter((a) => paymentsOf(a, owners).includes(intentId)); }, [ws, intentId]);
+  return (
+    <Panel title={<><span className={ui.sectionLetter} aria-hidden="true">G</span>Audit history ({events.length})</>} id="audit"
+      actions={<Link href={`${AUDIT_HREF}?payment=${intentId}`}>Open the full audit history for this payment</Link>}>
+      {events.length === 0 ? <Empty>No audit events for this payment.</Empty> : (
+        <ol className={ui.timeline} data-testid="payment-audit">
+          {[...events].reverse().slice(0, 8).map((a) => (
+            <li key={a.id} className={ui.tlItem}>
+              <span className={ui.tlTime}>{fmtTime(a.at)}</span>
+              <div><p className={ui.tlTitle}><code className={ui.code}>{a.action}</code> · {actorName(a.actorId)}</p><p className={ui.tlMeta}>{a.summary} · {a.entityType} <span className="mono">{a.entityId}</span></p></div>
+            </li>
+          ))}
+        </ol>
+      )}
+    </Panel>
   );
 }
