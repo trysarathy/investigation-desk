@@ -418,7 +418,7 @@ test("release URLs: clearline-release.json resolves production by default and th
   const { resolveReleaseUrls, loadRelease } = await import("../release-urls.mjs");
   const release = loadRelease(new URL("../clearline-release.json", import.meta.url));
   assert.equal(resolveReleaseUrls({}, release).product, release.production.product);
-  assert.equal(resolveReleaseUrls({ VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "rc3/clearline-site" }, release).product, release.preview.product);
+  assert.equal(resolveReleaseUrls({ VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "rc4/clearline-site" }, release).product, release.preview.product);
   assert.equal(resolveReleaseUrls({ VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "other" }, release).product, release.production.product);
   assert.throws(() => resolveReleaseUrls({ CLEARLINE_PRODUCT_URL: "http://insecure.test" }, release));
 });
