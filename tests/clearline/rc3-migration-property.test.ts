@@ -265,7 +265,7 @@ describe("R2-M1: the migration never fires on a workspace rc3 produced", () => {
       ws = act(ws, "usr_maya", { type: "ingest_chain_observation", observation: { ...obs, confirmations: 25 } }, "B observation while reopened");
       resolveAll(ws, id, "B again");
       // the reverse order (valid first, unsupported later) is an ordinary rc3 state too
-      let v = usdc();
+      const v = usdc();
       v.ws = act(v.ws, "usr_maya", { type: "ingest_chain_observation", observation: { ...v.obs, confirmations: 20 } }, "B' valid first");
       act(v.ws, "usr_maya", { type: "ingest_chain_observation", observation: { ...v.obs, ...wrong, confirmations: 20 } }, "B' unsupported later");
     }
