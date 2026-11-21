@@ -24,9 +24,10 @@ npm run lint          # CI "lint" job; not a required check yet (see docs/releas
 ## Accessibility (axe)
 
 - axe-core is a **pinned devDependency** (`package.json`, exact version). Every Clearline browser spec loads it
-  through `tests/browser/axe-source.ts`, which fails the test if axe cannot be loaded — axe tests never skip.
-- `CLEARLINE_AXE_PATH` or `QA_AXE_PATH` override the file (e.g. to try a newer axe). An override that does not
-  exist is an error, not a fallback.
+  through `tests/browser/axe-source.ts`, which fails the test if axe cannot be loaded (missing, empty, not an axe build, or older than 4.14). No axe test
+  skips for lack of axe; some run on desktop only by design (`test.skip(isMobile, …)`).
+- `CLEARLINE_AXE_PATH`, else `QA_AXE_PATH`, overrides the file (e.g. to try a newer axe). Only the first one set is
+  used, and an override that does not exist is an error, not a fallback.
 - Upgrading axe can add rules (4.14 made `label-content-name-mismatch` default): fix the UI, do not disable rules.
 
 ## Do not

@@ -32,7 +32,7 @@ not a rewrite.
 | Accounting Bridge: balanced proposals only from independent evidence, maker≠checker, CoA mapping, periods, content-hashed idempotent exports, "posted" only via `record_posting` | `src/lib/clearline/accounting/*` | §4b rows 10a–10l, 20 mutants killed; `CODE_REVIEW_RC4_ACCOUNTING.md` APPROVE CHANGE 20 |
 | Funding projection (50,000 / 30,000 / 20,000) | `funding.ts` | §4 row 6 |
 | Load-time validation and migration of stored workspaces | `serialize.ts:parseWorkspace` / `crossCheck`, `migrate.ts`, `accounting/validate.ts` | `rc3-migration-property.test.ts`, `rc4-load-labels.test.ts` |
-| Console (Control, Connect, Accounting, Audit, Trial pages) | `src/app/clearline/**`, `src/components/clearline/**` | browser suite 261 passed / 7 skipped at dc4d39a (manifest; see §CI below for today's result) |
+| Console (Control, Connect, Accounting, Audit, Trial pages) | `src/app/clearline/**`, `src/components/clearline/**` | browser suite 261 passed / 7 skipped at dc4d39a (manifest; today's result in `docs/release/CI_BASELINE_RC5.md`) |
 | Stateless test-mode HTTP API | `src/app/api/clearline/test/v1/[...path]/route.ts` | `tests/clearline/api.test.ts` |
 | Nonce CSP + security headers, deployment allow-list, config fail-fast | `src/middleware.ts:deploymentGate`, `next.config.mjs:deploymentConfigProblems` | QA rc4 §3 "Security" |
 | Integer money | `money.ts` (`MAX_AMOUNT_MINOR = 1e15`, BigInt in `applyBpsFloor`, `convertMinor`, `withinTotal`); decimals SGD/USD/PHP/EUR 2, USDC 6 | `ARCHITECTURE.md` §4 row 1 |
@@ -94,9 +94,9 @@ pdf-lib, qrcode, react, react-dom, server-only). No `DATABASE_URL` is read anywh
 | Authentication for Clearline | **No** | — | console says "Sandbox only: there is no login" (`ActorSelect.tsx`) |
 | Authentication elsewhere | Funding Desk only | `funding/server.ts:hashPassword/verifyPassword/login` (scrypt, timing-safe) | sessions in memory, 8 h |
 | Authorisation | Role check against the workspace's own actor list | `tx.ts:requireRole` | caller supplies the list ⇒ not access control |
-| Tenancy | **No** | `orgId` on `PaymentIntent`/`FundingAdvance` (`types.ts:135,699`), one `organization` per workspace; only comparison `scenarios.ts:185` | |
+| Tenancy | **No** | `orgId` on `PaymentIntent`/`FundingAdvance` (`types.ts:135,699`), one `organization` per workspace; engine comparison only in `scenarios.ts:185` (org unchanged on reset); the console uses it only to key a mapping draft (`AccountingSetup.tsx:29`) | |
 | CSP / headers | Yes | `src/middleware.ts` (nonce + `strict-dynamic`), `next.config.mjs` (XFO DENY, nosniff, Referrer-Policy, Permissions-Policy, no X-Powered-By) | styles keep `'unsafe-inline'` |
-| Body limits | Yes | `clearline/bodylimit.ts` (512 KB streamed), `lib/limits.ts`, `next.config.mjs:middlewareBodyLimit` | |
+| Body limits | Yes | `clearline/bodylimit.ts:readBodyLimited` (streamed reader; the 512 KB cap is `MAX_BODY_BYTES` in the v1 `route.ts:33`), `lib/limits.ts`, `next.config.mjs:middlewareBodyLimit` | |
 | Deployment-config fail-fast | Yes | `next.config.mjs:assertDeploymentConfig` | 9 bad configs refused (QA rc4) |
 | Route allow-list for the trial | Yes | `middleware.ts:deploymentGate` with `CLEARLINE_CUSTOMER_PREVIEW=1` | |
 | Webhook signature on raw bytes, replay window, key rotation | Yes (sandbox) | `connect/verify.ts`, `webhooks.ts` | HMAC in `sha256.ts`; test keys only |
@@ -120,7 +120,7 @@ pdf-lib, qrcode, react, react-dom, server-only). No `DATABASE_URL` is read anywh
 6. **Statement file ingestion** (one format) with limits, validation, duplicate-file detection, import audit.
    MT940/camt.053/BAI2: not found.
 7. **CSRF, rate limits, idempotency keys** on every mutating endpoint.
-8. **Dependency scanning and a green CI baseline** (today: lint job red, browser job red — §CI).
+8. **Dependency scanning and a green CI baseline** (at 280fcd2: lint job red, browser job red — `docs/release/CI_BASELINE_RC5.md`).
 9. **Environment separation**: no private staging with real auth and a database exists; previews are public.
 10. **Operational docs**: backup/restore, incident, key rotation runbooks — none for Clearline.
 
