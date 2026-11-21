@@ -659,13 +659,12 @@ test("a reset of a guided case with an approved entry is refused in the engine's
 test("accounting and audit pages: axe 0 violations and no horizontal overflow at 1440, 1024, 768, 390 and 320", async ({ page, isMobile }) => {
   test.skip(isMobile, "viewport widths set explicitly; runs once");
   test.setTimeout(240_000);
-  const axe = axeSource();
-  expect(axe, "set CLEARLINE_AXE_PATH or QA_AXE_PATH").not.toBeNull();
+  const axe = axeSource(); // throws if axe-core cannot be loaded (tests/browser/axe-source.ts)
   const report: string[] = [];
   const check = async (label: string) => {
     const o = await overflow(page);
     if (o) report.push(`${label}: ${o}`);
-    const v = await axeViolations(page, axe!);
+    const v = await axeViolations(page, axe);
     if (v.length) report.push(`${label}: ${v.join(", ")}`);
   };
   for (const width of [1440, 1024, 768, 390, 320]) {

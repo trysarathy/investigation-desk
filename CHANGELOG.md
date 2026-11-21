@@ -6,6 +6,8 @@ anything they need to do.
 
 ## Unreleased
 
+- **Accessibility checks now really run in CI, and the one problem they found is fixed** (rc5 PR 1, [#112](https://github.com/trysarathy/investigation-desk/pull/112), not merged). The accessibility checker (axe) was never installed in CI, so those checks were skipped or failed. It is now a fixed part of the test setup, and a missing checker fails the test instead of being skipped. With it running, it found that the sidebar "clearline." logo link announced a different name from the word on screen, which breaks voice control ("click clearline"). The link now announces "clearline console overview". The release also adds an engineering audit and a plan for a signed-in, saved, multi-organisation version (fictional data only). Nothing to do on your side.
+
 - [VERIFIED — `docs/OWED_LEDGER.md`] A synthetic CSV replay exports open customer advances and repayment exceptions. It keeps importer cash receipts separate from provider repayments and leaves mismatches unapplied. Run `npm run owed-ledger` with the documented fixture; no live bank or ERP connection is included.
 
 ## 2026-11-01
