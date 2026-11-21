@@ -150,9 +150,12 @@ export default function AppShell({ children }: { children: ReactNode }) {
         <aside className={s.sidebar}>
           <div className={s.sidebarInner}>
           <div className={s.sidebarTop}>
-            <Link href="/clearline" className={s.brand} aria-label="Clearline console overview">
+            {/* The accessible name starts with the visible word (WCAG 2.5.3 Label in Name): an aria-label that
+                replaced it made voice users unable to say what they see. */}
+            <Link href="/clearline" className={s.brand}>
               <span className={s.brandMark} aria-hidden="true">C</span>
-              <span className={s.brandWord}>clearline<span>.</span></span>
+              <span className={s.brandWord}>clearline<span aria-hidden="true">.</span></span>
+              <span className={s.srOnly}> console overview</span>
             </Link>
             <button type="button" className={`${s.btn} ${s.small} ${s.menuBtn}`} aria-expanded={open}
               aria-controls="cl-nav" onClick={() => setOpen((o) => !o)}>

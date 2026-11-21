@@ -8,7 +8,10 @@ on:
       - 'src/lib/clearline/**'
       - 'src/middleware.ts'
       - 'playwright.clearline.config.ts'
-      - 'tests/browser/clearline-console.spec.ts'
+      - 'tests/browser/clearline-*.spec.ts'
+      - 'tests/browser/axe-source.ts'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/clearline-browser.yml'
 permissions:
   contents: read

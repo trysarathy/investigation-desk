@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { createHmac } from "node:crypto";
+import { axeSource } from "./axe-source";
 
 /*
  * rc4 Accounting Bridge in the console: every bridge action, each engine-gated with a dry run, including the
@@ -36,10 +37,6 @@ async function tab(page: Page, name: string) {
   await hydrated(page);
 }
 
-function axeSource(): string | null {
-  const p = [process.env.CLEARLINE_AXE_PATH, process.env.QA_AXE_PATH].find((x) => x && existsSync(x));
-  return p ? readFileSync(p, "utf8") : null;
-}
 async function axeViolations(page: Page, axe: string): Promise<string[]> {
   await page.evaluate(axe);
   return page.evaluate(async () => {

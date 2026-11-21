@@ -1,7 +1,7 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { createRequire } from "node:module";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { axeSource } from "./axe-source";
 
 /** Sample scenario intent ids come from the engine (via the v1 test API), never hard-coded. */
 const ids = new Map<string, string>();
@@ -681,15 +681,8 @@ async function duplicateLandmarks(page: Page): Promise<string[]> {
   });
 }
 
-function axeSource(): string | null {
-  const req = createRequire(join(process.cwd(), "package.json"));
-  const candidates = [process.env.CLEARLINE_AXE_PATH];
-  try { candidates.push(req.resolve("axe-core/axe.min.js")); } catch { /* not installed in this repo */ }
-  const found = candidates.find((p) => p && existsSync(p));
-  return found ? readFileSync(found, "utf8") : null;
-}
 
-test("every console page has unique landmarks; axe finds no violations when axe-core is available", async ({ page, request }) => {
+test("every console page has unique landmarks; axe finds no violations (axe-core is a pinned devDependency)", async ({ page, request }) => {
   const axe = axeSource();
   const report: string[] = [];
   for (const p of CONSOLE_PAGES) {
@@ -697,7 +690,7 @@ test("every console page has unique landmarks; axe finds no violations when axe-
     await open(page, path);
     const dup = await duplicateLandmarks(page);
     expect(dup, `${path} duplicate landmarks`).toEqual([]);
-    if (axe) {
+    {
       await page.evaluate(axe); // evaluated over CDP: the nonce CSP (rc3) blocks injected inline <script> tags
       const v = await page.evaluate(async () => {
         const r = await (window as unknown as { axe: { run: (o: unknown) => Promise<{ violations: { id: string; impact: string; nodes: unknown[] }[] }> } }).axe.run({ resultTypes: ["violations"] });
@@ -707,7 +700,6 @@ test("every console page has unique landmarks; axe finds no violations when axe-
     }
   }
   expect(report, report.join("\n")).toEqual([]);
-  if (!axe) test.info().annotations.push({ type: "axe", description: "axe-core not installed; set CLEARLINE_AXE_PATH to run the full axe check. Landmark uniqueness was still checked." });
 });
 
 test("defence in depth: settlement `verified` is never green when execution is returned, failed, cancelled, expired, on hold or awaiting information", async ({ page, request }) => {
