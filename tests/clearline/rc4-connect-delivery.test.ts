@@ -206,8 +206,8 @@ describe("rc4 Connect item 6: at-most-once webhook loss + poll gives the same fi
   });
 
   it("the reconciler polls only unresolved Connect payouts, skips unchanged snapshots, and reports per payout", () => {
-    let a = submittedConnect(CW);
-    let b = submittedConnect(QF, "return", {}, a.ws);
+    const a = submittedConnect(CW);
+    const b = submittedConnect(QF, "return", {}, a.ws);
     let ws = b.ws;
     expect(unresolvedConnectIntents(ws).sort()).toEqual([a.id, b.id].sort());
     const end = versions(ws, b.id).at(-1)!.at;

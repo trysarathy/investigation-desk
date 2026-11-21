@@ -204,7 +204,7 @@ export function Investigation({ view }: { view: CaseView }) {
                 {v.confidence === "Medium" && (
                   <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                     <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} style={{ marginTop: 3 }} />
-                    <span>I've checked the evidence and confirm this verdict. The reply stays locked until then.</span>
+                    <span>I&apos;ve checked the evidence and confirm this verdict. The reply stays locked until then.</span>
                   </label>
                 )}
                 {editing ? (
