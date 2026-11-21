@@ -57,7 +57,7 @@ describe("Funding Desk projection: SGD 50,000 / 30,000 / 20,000", () => {
     expect(row(done).state).toBe("repaid");
   });
   it("a different unknown reference with a matching amount is unmatched, not allocated", () => {
-    let { ws } = funded();
+    const { ws } = funded();
     const r = ing(ws, { amountMinor: 5_000_000, reference: "RPY-SOMEONE-ELSE" });
     expect(r.workspace.exceptions.at(-1)!.category).toBe("unmatched_reconciliation");
     expect(row(r.workspace).repaid.amountMinor).toBe(0);
@@ -73,7 +73,7 @@ describe("Funding Desk projection: SGD 50,000 / 30,000 / 20,000", () => {
     expect(over.workspace.exceptions.at(-1)!.explanationCode).toBe("RC_OVERPAYMENT");
   });
   it("currency mismatch on a repayment is not allocated", () => {
-    let { ws } = funded();
+    const { ws } = funded();
     const r = ing(ws, { amountMinor: 3_000_000, reference: REF, currency: "USD" });
     expect(r.workspace.exceptions.at(-1)!.explanationCode).toBe("RC_CURRENCY_MISMATCH");
     expect(row(r.workspace).repaid.amountMinor).toBe(0);
@@ -89,7 +89,7 @@ describe("Funding Desk projection: SGD 50,000 / 30,000 / 20,000", () => {
     expect(canResolveException(ws, e.id).code).toBe("OUTSTANDING_REMAINS");
   });
   it("treasury approval must come from a different person; approvers only", () => {
-    let { ws, id } = created({ amountMinor: 100_000, destinationCurrency: "SGD", destinationCountry: "SG" });
+    const { ws, id } = created({ amountMinor: 100_000, destinationCurrency: "SGD", destinationCountry: "SG" });
     const a = run(ws, "usr_maya", { type: "create_advance", input: { intentId: id, customerRef: "C2", customerName: "Customer Two", supplierName: "Supplier Two", invoiceRef: "INV-2", dueDate: "2026-11-30", repaymentReference: "RPY-C2-0001" } });
     expect(errorCode(attempt(a.workspace, "usr_sam", { type: "decide_advance", advanceId: a.createdIds[0], outcome: "approve", reason: "x" }))).toBe("unauthorized_actor");
     const ws2 = { ...a.workspace, advances: a.workspace.advances.map((x) => ({ ...x, preparedBy: "usr_daniel" })) };
@@ -97,7 +97,7 @@ describe("Funding Desk projection: SGD 50,000 / 30,000 / 20,000", () => {
     expect(errorCode(attempt(a.workspace, "usr_maya", { type: "create_advance", input: { intentId: id, customerRef: "C2", customerName: "Customer Two", supplierName: "Supplier Two", invoiceRef: "INV-2", dueDate: "2026-11-30", repaymentReference: "RPY-C2-0002" } }))).toBe("precondition_failed");
   });
   it("funding shortfall (fresh usable liquidity below principal) opens an exception and blocks approval", () => {
-    let { ws, id } = created({ amountMinor: 24_000_000, destinationCurrency: "SGD", destinationCountry: "SG" });
+    const { ws, id } = created({ amountMinor: 24_000_000, destinationCurrency: "SGD", destinationCountry: "SG" });
     const a = run(ws, "usr_maya", { type: "create_advance", input: { intentId: id, customerRef: "C3", customerName: "Customer Three", supplierName: "Supplier Three", invoiceRef: "INV-3", dueDate: "2026-11-30", repaymentReference: "RPY-C3-0001" } });
     expect(a.workspace.exceptions.some((e) => e.category === "funding_shortfall")).toBe(true);
     expect(errorCode(attempt(a.workspace, "usr_daniel", { type: "decide_advance", advanceId: a.createdIds[0], outcome: "approve", reason: "x" }))).toBe("precondition_failed");

@@ -227,7 +227,7 @@ describe("QA rc4: forged evidence (allocations) in a stored or posted workspace"
     const r = loads(f.ws);
     expect(r.ok).toBe(false);
     if (!r.ok) return;
-    let ws = r.value;
+    const ws = r.value;
     const p = tryAct(ws, "usr_maya", { type: "propose_journal_entries" });
     const made = p.ok ? props(p.value.workspace).filter((x) => x.evidence.statementLineIds.includes(f.lineId)) : [];
     expect(made.filter((x) => x.lines.some((l) => l.accountKey === "supplier_payable" && l.side === "debit"))).toEqual([]);

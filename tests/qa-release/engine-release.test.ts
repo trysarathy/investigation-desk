@@ -140,7 +140,7 @@ describe("roles, maker/checker and invalid state transitions", () => {
 // ------------------------------------------------------------------------------------------------
 describe("provider webhooks", () => {
   const setup = () => {
-    let s = submitted();
+    const s = submitted();
     const ws = s.ws;
     return { ...s, ws };
   };
@@ -247,7 +247,7 @@ describe("compliance hold is never auto-released", () => {
 // ------------------------------------------------------------------------------------------------
 describe("reconciliation", () => {
   const completed = () => {
-    let s = submitted();
+    const s = submitted();
     let ws = sim(s.ws, s.id).workspace;
     ws = sim(ws, s.id).workspace;
     return { ...s, ws };
