@@ -1,7 +1,7 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { createRequire } from "node:module";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { axeSource } from "./axe-source";
 
 /*
  * The founder's acceptance journey (rc3): one end-to-end walk through all 20 steps in order, reached
@@ -69,13 +69,6 @@ async function noHorizontalOverflow(page: Page, label = "") {
   expect(o.sw, `${label}: scrollWidth ${o.sw} > clientWidth ${o.cw}; ${o.wide.join(" | ")}`).toBeLessThanOrEqual(o.cw);
 }
 
-function axeSource(): string | null {
-  const req = createRequire(join(process.cwd(), "package.json"));
-  const candidates = [process.env.CLEARLINE_AXE_PATH];
-  try { candidates.push(req.resolve("axe-core/axe.min.js")); } catch { /* not installed in this repo */ }
-  const found = candidates.find((p) => p && existsSync(p));
-  return found ? readFileSync(found, "utf8") : null;
-}
 async function axeViolations(page: Page, axe: string): Promise<string[]> {
   await page.evaluate(axe); // evaluated over CDP: the nonce CSP (rc3) blocks injected inline <script> tags
   return page.evaluate(async () => {
@@ -1249,11 +1242,10 @@ test("no horizontal page overflow on any console page at 320px, and axe finds no
       const path = await pathOf(request, p);
       await open(page, path);
       await noHorizontalOverflow(page, `${path} @${width}`);
-      if (axe) { const v = await axeViolations(page, axe); if (v.length) report.push(`${path} @${width}: ${v.join(", ")}`); }
+      { const v = await axeViolations(page, axe); if (v.length) report.push(`${path} @${width}: ${v.join(", ")}`); }
     }
   }
   expect(report, report.join("\n")).toEqual([]);
-  if (!axe) test.info().annotations.push({ type: "axe", description: "axe-core not installed; set CLEARLINE_AXE_PATH." });
 });
 
 test("new interactive states pass axe and do not overflow: filters set, owner editor open, case report open", async ({ page, request }) => {
@@ -1261,7 +1253,7 @@ test("new interactive states pass axe and do not overflow: filters set, owner ed
   const report: string[] = [];
   const check = async (label: string) => {
     await noHorizontalOverflow(page, label);
-    if (axe) { const v = await axeViolations(page, axe); if (v.length) report.push(`${label}: ${v.join(", ")}`); }
+    { const v = await axeViolations(page, axe); if (v.length) report.push(`${label}: ${v.join(", ")}`); }
   };
   await open(page, "/clearline/payments?execution=provider_reported_completed&currency=SGD&q=a");
   await check("payments filtered");
