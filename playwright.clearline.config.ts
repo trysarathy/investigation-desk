@@ -1,8 +1,14 @@
 import { defineConfig, devices } from "@playwright/test";
 import { existsSync } from "node:fs";
 
-// Use a preinstalled Chromium when Playwright's own pinned build is absent (no download in CI sandboxes).
-const preinstalled = [process.env.CLEARLINE_PW_CHROMIUM, "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find((p) => p && existsSync(p));
+// Use a preinstalled Chromium when Playwright's own pinned build is absent (no download in some sandboxes).
+// CI runs `npx playwright install chromium` and uses Playwright's build. Set CLEARLINE_PW_CHROMIUM to a chrome binary
+// to override; the paths below are the cloud-sandbox images seen so far (1194 earlier, 1243 since Nov 2026).
+const preinstalled = [
+  process.env.CLEARLINE_PW_CHROMIUM,
+  "/opt/pw-browsers/chromium-1243/chrome-linux64/chrome",
+  "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+].find((p) => p && existsSync(p));
 const launchOptions = preinstalled ? { executablePath: preinstalled } : {};
 export default defineConfig({
   testDir: "./tests/browser",

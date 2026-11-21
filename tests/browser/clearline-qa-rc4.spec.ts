@@ -1,15 +1,15 @@
 import { test, expect, type Page } from "@playwright/test";
-import { existsSync, readFileSync } from "node:fs";
+import { axeSource } from "./axe-source";
 
 /*
  * Independent QA, release candidate 4 (2c0f0f0): console tests for the rc4 additions, against a real
  * `next start` with CLEARLINE_CUSTOMER_PREVIEW=1. Run with a config whose testDir is tests/qa-release-rc4.
- * The axe test needs QA_AXE_PATH (skipped when absent). axe is injected with page.evaluate because the
+ * The axe test uses the pinned axe-core devDependency (QA_AXE_PATH overrides it; see ./axe-source.ts — rc5 CI fix,
+ * replacing a skip-when-absent check that silently skipped it in CI). axe is injected with page.evaluate because the
  * nonce CSP blocks an inline <script>.
  */
 
 const KEY = "clearline.console.workspace.v1";
-const AXE = process.env.QA_AXE_PATH ?? "";
 const NEW_PAGES = ["/clearline/accounting", "/clearline/accounting/exports", "/clearline/accounting/setup", "/clearline/reports/audit", "/clearline/connect", "/clearline/trial", "/clearline"];
 
 async function hydrated(page: Page) {
@@ -76,7 +76,6 @@ test("a stored workspace with an HTML/formula mapping name renders as text", asy
 });
 
 test("rc4 pages: no horizontal overflow at 1440, 768, 390 and 320, and no axe violations", async ({ page }) => {
-  test.skip(!AXE || !existsSync(AXE), "QA_AXE_PATH not set");
   test.setTimeout(300_000);
   const out: string[] = [];
   for (const w of [1440, 768, 390, 320]) {
@@ -87,7 +86,7 @@ test("rc4 pages: no horizontal overflow at 1440, 768, 390 and 320, and no axe vi
       const o = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
       if (o.sw > o.cw + 1) out.push(`${w} ${p}: overflow ${o.sw} > ${o.cw}`);
       if (w === 1440 || w === 320) {
-        if (!(await page.evaluate(() => "axe" in window))) await page.evaluate(readFileSync(AXE, "utf8"));
+        if (!(await page.evaluate(() => "axe" in window))) await page.evaluate(axeSource());
         const v = await page.evaluate(async () => (await (window as unknown as { axe: { run: (o: unknown) => Promise<{ violations: { id: string; impact: string; nodes: unknown[] }[] }> } }).axe.run({ resultTypes: ["violations"] })).violations.map((x) => `${x.id}(${x.impact})×${x.nodes.length}`));
         if (v.length) out.push(`${w} ${p}: ${v.join(", ")}`);
       }
