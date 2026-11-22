@@ -592,11 +592,10 @@ How it drives an adapter:
 | 11 | Partial failures | A tampered, a malformed and an unlisted event in the middle of a sequence leave the outcome equal to the clean sequence; a reconciler batch with one bad payout still applies the others |
 | 12 | Provider confidence | Provider events alone never set settlement off `none`; every event is `provider_claim`; no record is independent. A preliminary hash (or a hash on any non-final status) never reaches `tx_hash`, a chain observation or an allocation |
 
-**Open defect (marked `it.fails`, engine not changed).** `reconcileConnect` calls `adapter.fetchStatus` outside any
-per-payout error boundary (`reconciler.ts` `pollOne`). A provider timeout that surfaces as a thrown error escapes the
-reconciler and aborts the whole pass, contrary to §7 ("reports an error on one payout without stopping the others").
-The case "a poll that THROWS (provider timeout) for one payout…" asserts the correct behaviour for each adapter and
-is expected to fail until this is fixed.
+**Defect found and fixed (rc5).**
+- **Defect.** `reconcileConnect` called `adapter.fetchStatus` outside any per-payout error boundary (`reconciler.ts` `pollOne`). A provider timeout raised as a thrown error therefore aborted the whole pass, contrary to §7.
+- **Fix.** `pollOne` now catches the throw and reports outcome `error` (`precondition_failed`, "provider unavailable") for that payout. The payout's state is unchanged, and the other payouts are still polled.
+- **Regression test.** The case "a poll that THROWS (provider timeout) for one payout…" failed before the fix (recorded as `it.fails` in `2c35478`) and passes after it, for each adapter.
 
 Run it:
 

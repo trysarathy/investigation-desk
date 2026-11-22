@@ -525,11 +525,9 @@ for (const d of ADAPTERS) {
         expect(future.outcome).toBe("no_event_pending");
         expect(stateOf(future.workspace, id)).toBe(stateOf(ws, id));
       });
-      // DEFECT: reconcileConnect calls adapter.fetchStatus outside any per-payout error boundary (reconciler.ts
-      // pollOne). A provider timeout that surfaces as a thrown error therefore escapes reconcileConnect and aborts
-      // the whole pass, instead of being reported as an error for that one payout while the other payouts are
-      // still polled (CONNECT_ADAPTERS.md §7: "reports an error on one payout without stopping the others").
-      it.fails("a poll that THROWS (provider timeout) for one payout is reported for that payout and does not stop the others", () => {
+      // Was DEFECT (rc5 conformance): fetchStatus threw out of reconcileConnect and aborted the pass. Fixed in
+      // connect/reconciler.ts pollOne; this test failed before the fix (recorded as it.fails in 2c35478).
+      it("a poll that THROWS (provider timeout) for one payout is reported for that payout and does not stop the others", () => {
         const a = payout(d, "cf_happy");
         const b = payout(d, "cf_happy", a.ws);
         const last = versions(b.ws, b.id).at(-1)!;
