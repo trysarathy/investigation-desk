@@ -44,8 +44,17 @@ export const RULES = {
 
 export type RuleId = keyof typeof RULES;
 
+/** Journal proposal rules (phase 5). Patterns derived from the case figures [ASSUMPTION: Document A not available; reconcile]. */
+export const JOURNAL_RULES = {
+  "J.confirmation.chain_evidenced": { text: "A provider confirmation is proposed only for a record backed by a final, referenced inbound transfer that agrees with the chain." },
+  "J.confirmation.overpayment_liability": { text: "Credit beyond the invoice goes to Customer overpayments (liability), never to AR." },
+  "J.writeoff.on_approval": { text: "A proposed write-off has a matching entry, to post only after the rc5 two-person approval." },
+  "J.settlement.verified_batch": { text: "Settlement is proposed only for a tied batch whose settlement is verified." },
+} as const satisfies Record<string, { text: string }>;
+export type JournalRuleId = keyof typeof JOURNAL_RULES;
+
 /**
  * Whether a rule is in force. Always true in the product. It exists only so docs/plan/RC6_RULE_PROOFS.md can
  * show, by editing this one line in a scratch copy, that each rule's test fails without the rule.
  */
-export const active = (id: RuleId): boolean => id.length > 0;
+export const active = (id: RuleId | JournalRuleId): boolean => id.length > 0;

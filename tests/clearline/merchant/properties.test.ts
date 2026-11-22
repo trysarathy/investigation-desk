@@ -2,6 +2,7 @@
  * rc6 property tests with a seeded deterministic shuffle (no Math.random anywhere in the engine).
  */
 import { describe, expect, it } from "vitest";
+import { merchant } from "@/lib/clearline";
 import type { ReconcileInput } from "@/lib/clearline/merchant";
 import { case1 } from "@/lib/clearline/merchant/fixtures/case1";
 import { case2Sgd, case2Usd, case2UsdNoBatchIds } from "@/lib/clearline/merchant/fixtures/case2";
@@ -16,6 +17,11 @@ describe.each(CASES)("%s properties", (_name, make) => {
   const baseline = reconcile(make());
   it("shuffling arrival order never changes results (25 seeds)", () => {
     for (const seed of SEEDS) expect(reconcile(shuffleInput(make(), seed))).toEqual(baseline);
+  });
+  it("journal proposals are shuffle-invariant too (5 seeds)", () => {
+    const j = (i: ReconcileInput) => merchant.proposeJournals(i, reconcile(i));
+    const base = j(make());
+    for (const seed of SEEDS.slice(0, 5)) expect(j(shuffleInput(make(), seed))).toEqual(base);
   });
   it("an identical rerun gives deep-equal output", () => {
     expect(reconcile(make())).toEqual(baseline);

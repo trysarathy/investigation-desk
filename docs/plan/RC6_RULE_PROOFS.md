@@ -283,3 +283,33 @@ the test still fails, so no match is ever produced in that state.
 - Failing: USDT sent to the USDC balance-link address on another network never attaches to the order [M4.partial.balance_link_open] 
 - Assertion: `AssertionError: expected [ [ 'underpayment', …(2) ], …(1) ] to deeply equal [ [ 'partial_payment_open', …(2) ] ]`
 
+## Phase 5: journal proposals (`tests/clearline/merchant/journal.test.ts`)
+
+### `J.confirmation.chain_evidenced`
+
+- Command: `npx vitest run tests/clearline/merchant/journal.test.ts` with `active = (id) => id !== "J.confirmation.chain_evidenced"`
+- Result: Tests  1 failed | 23 passed (24)
+- Failing: [J.confirmation.chain_evidenced] 
+- Assertion: `AssertionError: expected true to be false // Object.is equality`
+
+### `J.confirmation.overpayment_liability`
+
+- Command: `npx vitest run tests/clearline/merchant/journal.test.ts` with `active = (id) => id !== "J.confirmation.overpayment_liability"`
+- Result: Tests  2 failed | 22 passed (24)
+- Failing: AR: BK-24823 still has 324.00 open; BK-24817 closes only with the approved write-off; BK-24836 keeps 9.00 open for review [J.confirmation.overpayment_liability] 
+- Assertion: `AssertionError: expected [ [ 'debit', …(2) ], …(1) ] to deeply equal [ [ 'debit', …(2) ], …(2) ]`
+
+### `J.writeoff.on_approval`
+
+- Command: `npx vitest run tests/clearline/merchant/journal.test.ts` with `active = (id) => id !== "J.writeoff.on_approval"`
+- Result: Tests  3 failed | 21 passed (24)
+- Failing: AR: BK-24823 still has 324.00 open; BK-24817 closes only with the approved write-off; BK-24836 keeps 9.00 open for review [J.writeoff.on_approval] two confirmations (11,017.50 and 7,333.34), then the 14.16 write-off split 12.86 shortfall / 1.30 rate difference 
+- Assertion: `TypeError: Cannot read properties of undefined (reading 'lines')`
+
+### `J.settlement.verified_batch`
+
+- Command: `npx vitest run tests/clearline/merchant/journal.test.ts` with `active = (id) => id !== "J.settlement.verified_batch"`
+- Result: Tests  1 failed | 23 passed (24)
+- Failing: [J.settlement.verified_batch] 
+- Assertion: `AssertionError: expected true to be false // Object.is equality`
+
