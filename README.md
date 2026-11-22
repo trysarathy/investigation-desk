@@ -474,3 +474,24 @@ shows duplicate handling. "Reset demo" removes demo records only. State lives in
   - `docs/release/TEST_RESULTS_RC5.md`
   - `docs/release/RELEASE_READINESS_RC5.md`
 
+
+## Clearline Merchant Reconciliation (rc6): for stablecoin payment providers
+
+Test mode · illustrative data.
+
+- **What it is:** a read-only reconciliation layer that a payment provider offers white-labelled to its merchants. It matches four records: the chain transfer, the provider's record, the bank line and the order.
+- **What it does with differences:** it gives every difference a type and a reason. It routes leftovers to a named owner with a next step, and it **proposes** journal entries, which are pending sign-off.
+- **What it never does:** hold, send, convert or settle money or tokens. It makes no compliance or screening decisions.
+- **Where to see it:**
+  - **Pilot (behind sign-in):** `/control/merchant/**`, with `CLEARLINE_CONTROL_PILOT=1`.
+  - **Public, no login:** the case demo at `/clearline/cases`.
+  - **Local laptop only:** the Case Reconstruction CLI, `npm run reconstruct`.
+- **Run it locally:** follow `docs/runbooks/DEPLOYMENT_RUNBOOK_RC6.md`.
+- **Read more:**
+  - `docs/product/MERCHANT_RECONCILIATION.md`
+  - `docs/MATCHING_RULES.md`
+  - `docs/POSTING_RULES.md` (rc6 section: draft, pending sign-off)
+  - `docs/architecture/ARCHITECTURE_RC6.md`
+  - `docs/security/SECURITY_THREAT_MODEL_RC6.md`
+  - `docs/release/TEST_RESULTS_RC6.md`
+  - `docs/LEGAL_QUESTIONS.md` (unanswered)
