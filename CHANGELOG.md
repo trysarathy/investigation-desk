@@ -6,6 +6,20 @@ anything they need to do.
 
 ## Unreleased
 
+- **Merchant Reconciliation for stablecoin payment providers (rc6, draft PRs #126–#137 plus the docs PR, not merged).** Test mode · illustrative data.
+  - **What it does:** a provider can offer its merchants a read-only check of every USDT or USDC payment. It compares what arrived on chain, what the provider reported, what reached the bank and what the invoice said.
+  - **"Completed" is not proof:** a payment is closed only when the records agree. An amount alone never closes a match.
+  - **Every difference is named and explained:** for example a sender-side fee, an underpayment, an overpayment, a re-quote after expiry, a rate difference, or a payment held by the provider.
+  - **Anything unclear goes to a person:** an owner, a reason and a next step.
+  - **Two people for write-offs:** one person prepares a write-off and a different person approves it.
+  - **Part-paid balances:** a payment split across two networks shows as "part paid", never "overdue".
+  - **Settlement bridge:** each settlement batch is bridged from gross to fees to refunds to net, and must equal the bank line to the cent.
+  - **Journal entries are proposals only:** they are pending your sign-off, and nothing is posted to a ledger.
+  - **Providers see totals only:** they see aggregates by default. They can read a merchant's details only after that merchant grants access, and the merchant can revoke it.
+  - **A public demo of three cases:** at /clearline/cases.
+  - **A laptop-only tool:** it rebuilds one day of a provider's anonymised payments.
+  - **Your decisions:** Case 3's tolerance policy, whether imported statements may verify settlement, the posting rules, and the six legal questions (still missing). Until you decide, nothing changes for you.
+
 - **Clearline Control: a signed-in, saved version for private staging (rc5, draft PRs #117–#124, not merged).**
   - **Saved, separate data:** payment investigations are now saved in a database, and each organisation sees only its own data.
   - **Real sign-in:** people sign in with their own accounts.

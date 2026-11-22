@@ -44,7 +44,7 @@
    A symbol never identifies a token.
 4. **Step order is fixed, and every result records its deciding step and rule ID:** identity → reference → checks → explained tolerance → grouping.
 5. **Tolerance:** `band = min(pct × invoice, abs)`. The default is 0.5% and 5.00 in the entity currency, per the prompt [ASSUMPTION; editable].
-   - **Conflict:** under this default, Case 3's band is AED 5.00, which is below its 14.16 gap. That gives `suggested_for_review`, not the expected `matched_with_difference`.
+   - **Conflict:** under this default, Case 3's band is AED 5.00, which is below its 14.16 gap. That gives an `exception` (`M4.tolerance.underpayment_beyond_band`: the 12.86 shortfall is an underpayment beyond the band), not the expected `matched_with_difference`. _(Corrected in the docs phase: this plan first said `suggested_for_review`; the engine and `case3.test.ts` give `exception` once the 3.50 USD gap is typed as an underpayment.)_
    - **Resolution:** the Case 3 entity's fixture policy is explicitly configured with an absolute cap of AED 100.00, so its band is 91.83. This is labelled [ASSUMPTION], and a test documents the outcome under the default.
    - **Founder decision:** "smaller" vs "larger", or a per-entity policy.
 6. **Imported bank lines** (`source = csv_import`, even once confirmed) are labelled "imported, not bank-authenticated" and **cannot alone make settlement verified**. A merchant-policy flag, `allow_imported_bank_lines_as_verified`, defaults to off. This rc5 decision stays with the founder.
