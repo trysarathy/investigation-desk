@@ -15,6 +15,14 @@ const MERCHANT_NAV: NavItem[] = [
   { href: "/control/merchant/month-end", label: "Month-end" },
   { href: "/control/merchant/evidence", label: "Evidence packs" },
   { href: "/control/merchant/accounting", label: "Accounting export" },
+  { href: "/control/merchant/pilot", label: "Pilot metrics" },
+  { href: "/control/merchant/settings", label: "Settings" },
+];
+
+const PROVIDER_NAV: NavItem[] = [
+  { href: "/control/merchant/provider", label: "Merchants" },
+  { href: "/control/merchant/provider/onboarding", label: "Onboarding" },
+  { href: "/control/merchant/provider/pilot", label: "Pilot metrics" },
 ];
 
 /**
@@ -26,7 +34,7 @@ export default async function MerchantLayout({ children }: { children: ReactNode
   const { ctx, shell } = await merchantPage();
   const t = shell.theme;
   const vars = { "--brand": t.primary, "--on-brand": t.onPrimary, "--accent": t.accent } as CSSProperties;
-  const nav = shell.kind === "merchant" ? MERCHANT_NAV : [];
+  const nav = shell.kind === "merchant" ? MERCHANT_NAV : PROVIDER_NAV;
   return (
     <div className={m.mroot} style={vars}>
       <a className={m.skip} href="#main">Skip to content</a>
@@ -43,7 +51,7 @@ export default async function MerchantLayout({ children }: { children: ReactNode
         </div>
       </header>
       <aside className={m.demo} aria-label="Data notice"><DemoChip /></aside>
-      {nav.length ? <MerchantNav items={nav} label="Merchant reconciliation" /> : null}
+      <MerchantNav items={nav} label={shell.kind === "provider" ? "Provider console" : "Merchant reconciliation"} />
       <main className={m.mmain} id="main">{children}</main>
       <footer className={m.mfooter}>
         <p>Read-only reconciliation: nothing here moves money or tokens. Provider statuses are claims, not proof; chain data in this pilot is a recorded fixture. {shell.label}.</p>
