@@ -129,7 +129,7 @@ describe("invariant: maker ≠ checker; proposed ≠ posted", () => {
 describe("rejection and re-proposal", () => {
   it("a rejected proposal is not proposed again for the same evidence; it is when the evidence changes", () => {
     const id = byRule(ws0, "JR_SUPPLIER_PAYOUT_DEBIT")[0].id;
-    let ws = run(ws0, "usr_daniel", { type: "reject_journal_proposal", proposalId: id, reason: "Booked by hand (fictional)" }).workspace;
+    const ws = run(ws0, "usr_daniel", { type: "reject_journal_proposal", proposalId: id, reason: "Booked by hand (fictional)" }).workspace;
     expect(propose(ws).outcome).toBe("no_new_proposals");
     expect(errorCode(tryAct(ws, "usr_maya", { type: "reject_journal_proposal", proposalId: id, reason: "x" }))).toBe("invalid_transition");
     expect(proposals(ws).find((p) => p.id === id)!.rejection).toMatchObject({ by: "usr_daniel", reason: "Booked by hand (fictional)" });

@@ -6,7 +6,7 @@ const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
 const root = process.argv[2]; const pages = process.argv.slice(3);
 const types = { '.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.png':'image/png','.webp':'image/webp','.woff2':'font/woff2','.mp4':'video/mp4','.webm':'video/webm','.json':'application/json' };
-const srv = http.createServer((q, s) => { let p = decodeURIComponent(q.url.split('?')[0]); let f = path.join(root, p); if (fs.existsSync(f) && fs.statSync(f).isDirectory()) f = path.join(f, 'index.html'); if (!fs.existsSync(f)) { s.writeHead(404); return s.end(); } s.writeHead(200, { 'content-type': types[path.extname(f)] || 'application/octet-stream' }); fs.createReadStream(f).pipe(s); });
+const srv = http.createServer((q, s) => { const p = decodeURIComponent(q.url.split('?')[0]); let f = path.join(root, p); if (fs.existsSync(f) && fs.statSync(f).isDirectory()) f = path.join(f, 'index.html'); if (!fs.existsSync(f)) { s.writeHead(404); return s.end(); } s.writeHead(200, { 'content-type': types[path.extname(f)] || 'application/octet-stream' }); fs.createReadStream(f).pipe(s); });
 srv.listen(0, async () => {
   const port = srv.address().port; const base = root.startsWith('http') ? root.replace(/\/$/, '') : `http://127.0.0.1:${port}`; const b = await chromium.launch();
   for (const w of [390, 1280]) for (const p of pages) {

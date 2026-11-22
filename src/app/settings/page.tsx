@@ -103,7 +103,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               </tbody>
             </table>
             <p className="faint" style={{ margin: 0, padding: "12px 16px", borderTop: "1px solid var(--border)" }}>
-              Issuer contracts are set only where confirmed on Tether's or Circle's own pages. On BNB Chain neither issuer lists one, so the company's declared contract stands in. D06 does not run for a pair with neither. Editing and rule versioning arrive in build week 5.
+              Issuer contracts are set only where confirmed on Tether&apos;s or Circle&apos;s own pages. On BNB Chain neither issuer lists one, so the company&apos;s declared contract stands in. D06 does not run for a pair with neither. Editing and rule versioning arrive in build week 5.
             </p>
           </section>
         </>
