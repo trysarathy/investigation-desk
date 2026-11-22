@@ -1,0 +1,77 @@
+import type { Metadata } from "next";
+import { MERCHANT_ACCOUNTS } from "@/lib/clearline/merchant";
+import { can } from "@/server/authz";
+import { monthEnd } from "@/server/merchant";
+import { SANDBOX_EXPORT_LABEL } from "@/server/merchant-ui";
+import { merchantMember } from "@/server/merchant-page";
+import s from "@/components/control/control.module.css";
+import m from "@/components/merchant/merchant.module.css";
+import { EntityMonthForm, pickEntityMonth } from "@/components/merchant/EntityMonth";
+import { Chip, DEMO_LABEL, Empty, PendingSignOff, fiat, one } from "@/components/merchant/ui";
+
+export const metadata: Metadata = { title: "Accounting export" };
+
+const PATTERN: Record<string, string> = { provider_confirmation: "Provider confirmation", approved_writeoff: "Write-off (after approval)", settlement: "Settlement" };
+type Line = { side: "debit" | "credit"; account: keyof typeof MERCHANT_ACCOUNTS; amountMinor: string; orderId?: string; batchId?: string };
+type Ev = { entryDate: string | null; memo: string; ruleId: string; requiresApprovalOf: string | null };
+
+export default async function AccountingPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const { ctx, shell } = await merchantMember();
+  const sp = await searchParams;
+  const pick = pickEntityMonth(shell.entities, one(sp.entity), one(sp.month));
+  if (!pick) return (<><h1 className={s.title}>Accounting export</h1><Empty>No entities are set up yet.</Empty></>);
+  const { entity, month } = pick;
+  const me = await monthEnd(ctx, entity.id, month);
+  const js = me.journals.filter((j) => j.status === "proposed");
+  const cur = me.currency;
+  const mayExport = can(ctx.role, "accounting_prepare");
+  const ledger = entity.ledger === "quickbooks" ? "QuickBooks" : entity.ledger === "xero" ? "Xero" : "ledger";
+  const totals = js.map((j) => (j.lines as Line[]).reduce((t, l) => ({ dr: t.dr + (l.side === "debit" ? BigInt(l.amountMinor) : 0n), cr: t.cr + (l.side === "credit" ? BigInt(l.amountMinor) : 0n) }), { dr: 0n, cr: 0n }));
+  return (
+    <>
+      <h1 className={s.title}>Accounting export</h1>
+      <p className={s.lede}>Journal proposals from the reconciliation, previewed line by line and exported through the Accounting Bridge as a file only. There is no live {ledger} connection.</p>
+      <div className={s.warnBox} role="note" data-testid="sandbox-note"><strong>Sandbox/demo company only; posting rules pending sign-off.</strong> These entries are proposals derived from the case figures. Import the file only into a sandbox or demo company.</div>
+      <EntityMonthForm action="/control/merchant/accounting" entities={shell.entities} entity={entity} month={month} label="Choose entity and month" />
+
+      <section className={s.section} aria-labelledby="export">
+        <h2 className={s.h2} id="export">Export file</h2>
+        {mayExport ? (
+          <>
+            <p className={s.small}>{js.length} proposals for {entity.id}, {month}, in a {ledger} journal import layout. The export is recorded in the audit history with its SHA-256; it changes no proposal and posts nothing. Marked &ldquo;{SANDBOX_EXPORT_LABEL}&rdquo;.</p>
+            <ul className={m.downloads}>
+              <li><a href={`/api/control/merchant/journals/export?entity=${encodeURIComponent(entity.id)}&month=${month}&format=csv`} download>Download journal CSV (sandbox)</a></li>
+              <li><a href={`/api/control/merchant/journals/export?entity=${encodeURIComponent(entity.id)}&month=${month}&format=json`} download>Download journal JSON (sandbox)</a></li>
+            </ul>
+          </>
+        ) : <p className={s.small}>Finance exports journal files. Your role previews them.</p>}
+      </section>
+
+      <section className={s.section} aria-labelledby="preview">
+        <h2 className={s.h2} id="preview">Journal preview ({js.length})</h2>
+        <p className={s.row}><Chip tone="amber">{DEMO_LABEL}</Chip><span className={s.small}>Fictional entries from the illustrative cases.</span></p>
+        {js.length === 0 ? <Empty>No journal proposals for {entity.id} in {month}. Run reconciliation from the daily report first.</Empty> : js.map((j, i) => {
+          const ev = j.evidence as Ev;
+          return (
+            <article className={s.panel} key={j.id} aria-labelledby={`j-${i}`} data-testid="journal-entry">
+              <h3 className={s.h3} id={`j-${i}`}>{PATTERN[j.pattern] ?? j.pattern} · <span className={s.mono}>{j.id}</span></h3>
+              <p className={s.row}><PendingSignOff /> <Chip>Proposed</Chip> {ev.requiresApprovalOf ? <Chip tone="amber">Post only after write-off approval</Chip> : null} <span className={s.small}>Entry date {ev.entryDate ?? "when approved"} · rule <span className={s.mono}>{ev.ruleId}</span></span></p>
+              <p className={s.small}>{ev.memo}</p>
+              <div className={s.tableWrap} role="region" aria-label={`Lines of ${j.id}`} tabIndex={0}>
+                <table className={s.table}>
+                  <thead><tr><th scope="col">Account</th><th scope="col" className={s.num}>Debit</th><th scope="col" className={s.num}>Credit</th><th scope="col">Reference</th></tr></thead>
+                  <tbody>
+                    {(j.lines as Line[]).map((l, k) => (
+                      <tr key={k}><td>{MERCHANT_ACCOUNTS[l.account] ?? l.account}</td><td className={s.num}>{l.side === "debit" ? fiat(l.amountMinor, cur) : ""}</td><td className={s.num}>{l.side === "credit" ? fiat(l.amountMinor, cur) : ""}</td><td className={s.mono}>{l.orderId ?? l.batchId ?? ""}</td></tr>
+                    ))}
+                    <tr><th scope="row">Total</th><td className={s.num}><strong>{fiat(totals[i].dr, cur)}</strong></td><td className={s.num}><strong>{fiat(totals[i].cr, cur)}</strong></td><td>{totals[i].dr === totals[i].cr ? <Chip tone="ok">Balanced</Chip> : <Chip tone="warn">Not balanced</Chip>}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </article>
+          );
+        })}
+      </section>
+    </>
+  );
+}

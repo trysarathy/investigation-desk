@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { spawn, type ChildProcess } from "node:child_process";
-import { serverEnv } from "./env";
+import { E2E, serverEnv } from "./env";
 import { paymentIdFor, REDWOOD, signIn } from "./helpers";
 
 /*
@@ -9,7 +9,7 @@ import { paymentIdFor, REDWOOD, signIn } from "./helpers";
  * stops the process it started.
  */
 
-const PORT = 3198; // a second port next to the suite's 3197 server; the projects run one after the other (workers: 1)
+const PORT = E2E.port + 1; // a second port next to the suite's server (3198 by default); the projects run one after the other (workers: 1)
 
 async function waitFor(url: string, up: boolean, ms = 90_000) {
   const end = Date.now() + ms;

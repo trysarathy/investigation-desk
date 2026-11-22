@@ -2,9 +2,11 @@
  * Test-only configuration for the Clearline Control browser suite. Every value here is a fictional, test-only string
  * for a local or CI database; none is a deployment secret. Override with the CLEARLINE_E2E_* variables.
  */
+const PORT = Number(process.env.CLEARLINE_E2E_PORT ?? 3197); // overridable so parallel worktrees never share a port
+
 export const E2E = {
-  port: 3197,
-  origin: "http://127.0.0.1:3197",
+  port: PORT,
+  origin: `http://127.0.0.1:${PORT}`,
   ownerUrl: process.env.CLEARLINE_E2E_OWNER_URL ?? "postgres://clearline_owner:devowner_pw@127.0.0.1:54329/clearline_e2e",
   runtimeUrl: process.env.CLEARLINE_E2E_RUNTIME_URL ?? "postgres://clearline_runtime:devruntime_pw@127.0.0.1:54329/clearline_e2e",
   /** Test-only Better Auth secret (40 characters). Never use it outside this suite. */

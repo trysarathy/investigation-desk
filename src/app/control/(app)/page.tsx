@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { overview, workQueue } from "@/server/control";
 import { pageContext } from "@/server/control-page";
+import { orgKind } from "@/server/merchant-ui";
+import { redirect } from "next/navigation";
 import s from "@/components/control/control.module.css";
 import { categoryLabel, exceptionStatusLabel, caseStatusLabel, PageTitle, priorityLabel, severityLabel, TableRegion, Tag } from "@/components/control/ui";
 
@@ -8,6 +10,9 @@ export const metadata: Metadata = { title: "Overview" };
 
 export default async function OverviewPage() {
   const ctx = await pageContext();
+  // rc6: a merchant served by a provider works in the white-label merchant reconciliation screens.
+  const k = await orgKind(ctx);
+  if (k.kind === "merchant" && k.hasProvider) redirect("/control/merchant");
   const [o, q] = await Promise.all([overview(ctx), workQueue(ctx)]);
   const openExceptions = q.exceptions.filter((e) => e.status !== "resolved");
   const openCases = q.cases.filter((c) => c.status !== "resolved");
