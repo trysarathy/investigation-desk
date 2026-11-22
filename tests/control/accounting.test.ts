@@ -228,8 +228,8 @@ describe("maker-checker on journal approval", () => {
     const other = financeProposed[1];
     await revokeMembership(ownerDb(), { orgSlug: "lumen-demo", email: "approver3@lumen.example" });
     await refused(ctx("approver3@lumen.example"), /ACCESS_40[34]/);
-    // RLS: a revoked member's transaction sees none of the organisation's rows, so the load itself fails (no engine state).
-    await refused(runAction(stale, { type: "approve_journal_proposal", proposalId: other }, key()), /organisation has no engine state/);
+    // RLS: a revoked member's transaction sees none of the organisation's rows, so the load is refused as not found (404).
+    await refused(runAction(stale, { type: "approve_journal_proposal", proposalId: other }, key()), /ACCESS_404/);
     // Defence in depth: even on the owner-side engine path, a revoked member is no longer an engine actor.
     await refused(serverSideEngineAction(lumen.viewer.orgId, stale.userId, { type: "approve_journal_proposal", proposalId: other }), /Unknown actor/);
     const row = (await proposalRows(lumen.viewer)).find((r) => r.record.id === other)!;
