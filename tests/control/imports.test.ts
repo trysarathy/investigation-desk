@@ -12,7 +12,7 @@ import { listPayments, paymentDetail } from "../../src/server/control";
 import { REDWOOD_REFERENCE } from "../../src/server/seed";
 import { RequestRefused } from "../../src/server/errors";
 import {
-  evidenceProvenance, importErrorReport, importErrorReportCsv, importStatementCsv, listImports, MAX_FILE_BYTES, MAX_ROWS,
+  decideStatementImport, evidenceProvenance, importErrorReport, importErrorReportCsv, importStatementCsv, listImports, MAX_FILE_BYTES, MAX_ROWS,
   parseStatementCsv, STATEMENT_COLUMNS, type ImportAccepted, type ImportRejected,
 } from "../../src/server/imports";
 
@@ -45,6 +45,17 @@ async function refused(p: Promise<unknown>, code: string | RegExp) {
     throw e;
   }
   throw new Error(`expected refusal ${code}`);
+}
+
+/** Upload (staged, nothing ingested) and then confirm as a DIFFERENT person: an approver of the same organisation. */
+async function importConfirmed(fin: TenantContext, input: { fileName: string; bytes: Uint8Array }, k1: string) {
+  const r = await importStatementCsv(fin, input, k1);
+  if (r.status !== 201) return r;
+  const b = r.body as ImportAccepted;
+  expect(b.status).toBe("pending_confirmation");
+  const appr = await ctx(fin.orgSlug === "harbour-demo" ? "approver@harbour.example" : "approver@lumen.example", fin.orgSlug);
+  const d = await decideStatementImport(appr, b.importId, { decision: "confirm", reason: "Checked the file against the statement (fictional)", fileSha256: b.fileSha256 }, key());
+  return { ...r, body: { ...b, status: "imported", acceptedCount: (d.body as { acceptedCount: number }).acceptedCount } as unknown as ImportAccepted };
 }
 
 async function ownerRows(q: ReturnType<typeof sql>) { return (await ownerDb().execute(q)).rows as Record<string, unknown>[]; }
@@ -177,7 +188,7 @@ describe("parseStatementCsv: bounded and hostile input", () => {
     expect(codes(parseStatementCsv(csv(...rows), { maxRows: 1_000_000 }))).toEqual(["-:too_many_rows"]);
   });
 
-  it("accepts exactly 5,000 rows and refuses 5,001", () => {
+  it("accepts exactly MAX_ROWS (200) rows and refuses one more", () => {
     const rows = Array.from({ length: MAX_ROWS }, (_, i) => row({ line_id: `SIMBANK-R-${i}` }));
     const ok = parseStatementCsv(csv(...rows));
     expect(ok.ok && ok.rows.length).toBe(MAX_ROWS);
@@ -282,7 +293,7 @@ describe("importStatementCsv against PostgreSQL", () => {
     const before = await countLines(lumen);
     const harbourBefore = await countLines(harbour);
     const bytes = fixture("valid-small.csv");
-    const r = await importStatementCsv(finance, { fileName: "valid-small.csv", bytes }, key());
+    const r = await importConfirmed(finance, { fileName: "valid-small.csv", bytes }, key());
     expect(r.status).toBe(201);
     const body = r.body as ImportAccepted;
     expect(body).toMatchObject({ status: "imported", rowCount: 3, acceptedCount: 3, fileSha256: sha(bytes), sizeBytes: bytes.byteLength });
@@ -295,9 +306,14 @@ describe("importStatementCsv against PostgreSQL", () => {
     expect(stl.map((x) => (x.record as { lineId: string }).lineId).sort()).toEqual(["SIMBANK-CSV-1001", "SIMBANK-CSV-1002", "SIMBANK-CSV-1003"]);
     const [imp] = await ownerRows(sql`select * from statement_imports where id = ${body.importId}`);
     expect(imp).toMatchObject({ org_id: lumen, status: "imported", file_sha256: sha(bytes), row_count: 3, accepted_count: 3, rejected_count: 0, imported_by: finance.userId });
+    // staged by the importer, accepted by a different person (the approver), both recorded
+    const [s] = await auditFor(lumen, "statement_import_staged");
+    expect(s.actor_user_id).toBe(finance.userId);
+    expect(s.details).toMatchObject({ fileSha256: sha(bytes), rowCount: 3, stagedCount: 3, actor: finance.userId });
     const [a] = await auditFor(lumen, "statement_import_accepted");
-    expect(a.actor_user_id).toBe(finance.userId);
-    expect(a.details).toMatchObject({ fileSha256: sha(bytes), rowCount: 3, acceptedCount: 3, actor: finance.userId });
+    expect(a.actor_user_id).toBe(ids["approver@lumen.example"]);
+    expect(a.details).toMatchObject({ fileSha256: sha(bytes), acceptedCount: 3, importedBy: finance.userId, confirmedBy: ids["approver@lumen.example"] });
+    expect(imp.confirmed_by).toBe(ids["approver@lumen.example"]);
   });
 
   it("tenant isolation: another organisation cannot list or read the imports, even with this org forced into the context", async () => {
@@ -332,7 +348,7 @@ describe("importStatementCsv against PostgreSQL", () => {
     ids["finance@harbour.example"] = await createUser(ownerDb(), { email: "finance@harbour.example", name: "finance (fictional)", password: "fictional-test-pass-01" });
     await grantMembership(ownerDb(), { orgSlug: "harbour-demo", email: "finance@harbour.example", role: "finance" });
     const fin = await ctx("finance@harbour.example", "harbour-demo");
-    const r = await importStatementCsv(fin, { fileName: "valid-small.csv", bytes: fixture("valid-small.csv") }, key());
+    const r = await importConfirmed(fin, { fileName: "valid-small.csv", bytes: fixture("valid-small.csv") }, key());
     expect(r.status).toBe(201);
     const rows = await ownerRows(sql`select distinct org_id from settlement_evidence where import_id = ${(r.body as ImportAccepted).importId}`);
     expect(rows.map((x) => x.org_id)).toEqual([harbour]);
@@ -410,7 +426,7 @@ describe("importStatementCsv against PostgreSQL", () => {
   });
 
   it("formula injection: =HYPERLINK in reference and counterparty is stored as raw text, and the error report neutralises it", async () => {
-    const r = await importStatementCsv(finance, { fileName: "formula-injection.csv", bytes: fixture("formula-injection.csv") }, key());
+    const r = await importConfirmed(finance, { fileName: "formula-injection.csv", bytes: fixture("formula-injection.csv") }, key());
     expect(r.status).toBe(201);
     const [line] = await ownerRows(sql`select record from settlement_evidence where kind = 'statement_line' and record->>'lineId' = 'SIMBANK-CSV-3001'`);
     expect((line.record as { reference: string }).reference).toBe('=HYPERLINK("https://example.invalid/fictional","Click for refund")');
@@ -431,7 +447,7 @@ describe("importStatementCsv against PostgreSQL", () => {
     const ops = await ctx("ops@lumen.example");
     const paysBefore = await listPayments(ops);
     const allocBefore = Number((await ownerRows(sql`select count(*)::int as n from reconciliation_records where org_id = ${lumen}`))[0].n);
-    const r = await importStatementCsv(finance, { fileName: "amount-only-match.csv", bytes: fixture("amount-only-match.csv") }, key());
+    const r = await importConfirmed(finance, { fileName: "amount-only-match.csv", bytes: fixture("amount-only-match.csv") }, key());
     expect(r.status).toBe(201);
     const body = r.body as ImportAccepted;
     expect(body.lines[0].outcome).toBe("exception_raised");
@@ -449,7 +465,7 @@ describe("importStatementCsv against PostgreSQL", () => {
     expect(new TextDecoder().decode(fixture("references-redwood.csv"))).toContain(ppid); // the fixture names the seeded Redwood payout
     const excBefore = (await paymentDetail(ops, redwood.id)).exceptions.length;
 
-    const r = await importStatementCsv(finance, { fileName: "references-redwood.csv", bytes: fixture("references-redwood.csv") }, key());
+    const r = await importConfirmed(finance, { fileName: "references-redwood.csv", bytes: fixture("references-redwood.csv") }, key());
     expect(r.status).toBe(201);
     const body = r.body as ImportAccepted;
     const stlId = body.lines[0].statementLineId;
@@ -480,7 +496,7 @@ describe("importStatementCsv against PostgreSQL", () => {
     const p = (await listPayments(ops)).find((x) => x.reference === "INV-2026-145")!; // Eastport Trading (fictional), no statement line yet
     const ppid = (await ownerRows(sql`select record->>'providerPaymentId' as p from engine_records where org_id = ${lumen} and collection = 'instructions' and record->>'intentId' = ${p.id}`))[0].p as string;
     const bytes = csv(row({ line_id: "SIMBANK-CSV-8001", direction: "debit", amount: "8839.50", currency: "SGD", reference: `HOLDFAST PAYOUT ${ppid}`, counterparty: "Holdfast Payments (sandbox)" }));
-    const r = await importStatementCsv(finance, { fileName: "eastport.csv", bytes }, key());
+    const r = await importConfirmed(finance, { fileName: "eastport.csv", bytes }, key());
     expect(r.status).toBe(201);
     const line = (r.body as ImportAccepted).lines[0];
     expect(line.outcome).toBe("allocated");
@@ -510,3 +526,58 @@ describe("importStatementCsv against PostgreSQL", () => {
     }
   });
 });
+
+describe("second-person confirmation: an uploaded file is not evidence until an Approver confirms it", () => {
+  it("an upload is staged only: nothing is ingested, no payment changes, and it is audited as staged", async () => {
+    const fin = await ctx("finance@lumen.example");
+    const before = await countLines(fin.orgId);
+    const bytes = csv(row({ line_id: "SIMBANK-STAGE-1" }), row({ line_id: "SIMBANK-STAGE-2" }));
+    const r = await importStatementCsv(fin, { fileName: "staged.csv", bytes }, key());
+    expect(r.status).toBe(201);
+    expect((r.body as ImportAccepted).status).toBe("pending_confirmation");
+    expect(await countLines(fin.orgId)).toBe(before);
+    expect((await auditFor(fin.orgId, "statement_import_staged")).length).toBeGreaterThan(0);
+  });
+
+  it("the importer's role cannot confirm, other roles cannot confirm, a wrong hash is refused, and an approver can decline", async () => {
+    const fin = await ctx("finance@lumen.example");
+    const bytes = csv(row({ line_id: "SIMBANK-STAGE-3" }));
+    const r = await importStatementCsv(fin, { fileName: "staged-3.csv", bytes }, key());
+    const b = r.body as ImportAccepted;
+    for (const who of ["finance@lumen.example", "ops@lumen.example", "viewer@lumen.example", "admin@lumen.example"]) {
+      await refused(decideStatementImport(await ctx(who), b.importId, { decision: "confirm", reason: "not allowed", fileSha256: b.fileSha256 }, key()), "ACCESS_403");
+    }
+    const appr = await ctx("approver@lumen.example");
+    await refused(decideStatementImport(appr, b.importId, { decision: "confirm", reason: "wrong file", fileSha256: "a".repeat(64) }, key()), "VERSION_MISMATCH");
+    const before = await countLines(fin.orgId);
+    const d = await decideStatementImport(appr, b.importId, { decision: "decline", reason: "Does not match the bank portal (fictional)", fileSha256: b.fileSha256 }, key());
+    expect(d.body).toMatchObject({ status: "declined", acceptedCount: 0 });
+    expect(await countLines(fin.orgId)).toBe(before);
+    await refused(decideStatementImport(appr, b.importId, { decision: "confirm", reason: "second decision", fileSha256: b.fileSha256 }, key()), "IMPORT_CLOSED");
+  });
+
+  it("another organisation's approver cannot confirm this organisation's import (404)", async () => {
+    const fin = await ctx("finance@lumen.example");
+    const r = await importStatementCsv(fin, { fileName: "staged-4.csv", bytes: csv(row({ line_id: "SIMBANK-STAGE-4" })) }, key());
+    const b = r.body as ImportAccepted;
+    await refused(decideStatementImport(await ctx("approver@harbour.example", "harbour-demo"), b.importId, { decision: "confirm", reason: "cross-tenant", fileSha256: b.fileSha256 }, key()), "ACCESS_404");
+  });
+
+  it("the database refuses a self-confirmation and a confirmation by a non-approver, even bypassing the service", async () => {
+    const fin = await ctx("finance@lumen.example");
+    const r = await importStatementCsv(fin, { fileName: "staged-5.csv", bytes: csv(row({ line_id: "SIMBANK-STAGE-5" })) }, key());
+    const id = (r.body as ImportAccepted).importId;
+    await expect(ownerDb().execute(sql`update statement_imports set status = 'imported', confirmed_by = imported_by where id = ${id}`)).rejects.toThrow();
+    await expect(ownerDb().execute(sql`update statement_imports set status = 'imported', confirmed_by = ${ids["ops@lumen.example"]} where id = ${id}`)).rejects.toThrow();
+    const [row1] = await ownerRows(sql`select status from statement_imports where id = ${id}`);
+    expect(row1.status).toBe("pending_confirmation");
+  });
+
+  it("evidence provenance and import id are immutable once written (even to another allowed value)", async () => {
+    const [x] = await ownerRows(sql`select id, org_id from settlement_evidence where provenance = 'csv_import' limit 1`);
+    expect(x).toBeDefined();
+    await expect(ownerDb().execute(sql`update settlement_evidence set provenance = 'engine_action' where id = ${x.id as string} and org_id = ${x.org_id as string}`)).rejects.toThrow();
+    await expect(ownerDb().execute(sql`update settlement_evidence set import_id = null where id = ${x.id as string} and org_id = ${x.org_id as string}`)).rejects.toThrow();
+  });
+});
+

@@ -32,6 +32,7 @@ export type Permission =
   | "request_approval"
   | "decide_approval"
   | "import_statement"
+  | "confirm_import"       // second person: an imported file becomes evidence only once an Approver confirms it
   | "accounting_prepare"   // propose / export / record posting / periods / mapping
   | "accounting_approve"
   | "manage_members";
@@ -41,7 +42,8 @@ const MATRIX: Record<Permission, readonly AppRole[]> = {
   investigate: ["payment_ops"],
   request_approval: ["payment_ops"],
   decide_approval: ["approver"],
-  import_statement: ["finance"],  // Finance imports; Payment Ops investigates; an Approver decides
+  import_statement: ["finance"],
+  confirm_import: ["approver"],  // Finance imports; Payment Ops investigates; an Approver decides
   accounting_prepare: ["finance"],
   accounting_approve: ["approver"],
   manage_members: ["admin"],

@@ -17,7 +17,7 @@ row-level-security transaction, and another organisation sees none of them.
 | Encoding | UTF-8. A leading BOM is accepted. Invalid UTF-8 or any NUL byte refuses the file. |
 | Syntax | RFC 4180: comma separator, `"` quoting with `""` escapes, CRLF or LF line endings. |
 | Size | 1 to 1,048,576 bytes (1 MiB). Checked before the file is hashed, decoded or parsed. |
-| Rows | 1 to 5,000 data rows. Blank lines are skipped and listed as notes. |
+| Rows | 1 to 200 data rows per file (split larger statements). Blank lines are skipped and listed as notes. |
 | File name | 5 to 200 characters ending in `.csv`. No `/`, `\`, `<`, `>` or control characters. It is shown to people only and never used as a path. |
 
 ## Columns
@@ -104,9 +104,30 @@ example `imported_statement`) that never yields `verified` without a second pers
 
 ## Known limitation: large files are slow
 
-The parser handles 5,000 rows in well under a second, but the engine's cost per ingested line grows with the number
-of lines in the workspace. Measured locally, the pure engine alone (`applyAction`, no database) took 0.4 s for 100
-lines, 2.4 s for 300, 7.5 s for 500 and 43 s for 1,000. The import applies every line to one locked workspace and
-persists the diff once. Calling `runEngineAction` once per line instead took about 21 s for 300 lines. Until the
-engine gains a batch ingest, files much larger than a few hundred lines will exceed normal HTTP request times, even
-though the format allows 5,000 rows.
+**Row limit (rc5).** The parser alone is fast. The engine, however, re-derives the organisation's state for each line it ingests, so the cost per line grows with the workspace. Measured on the seed:
+
+| Lines | Time |
+|---|---|
+| 100 | 0.4 s |
+| 300 | 2.4 s |
+| 500 | 7.5 s |
+| 1,000 | 43 s |
+
+Files are therefore capped at 200 lines until a batch-ingest engine action exists.
+
+## Second-person confirmation (rc5)
+
+An uploaded file is a person's assertion, not an authenticated bank feed, and the engine treats bank statement lines as independent evidence. So an upload is only **validated and staged**:
+1. The upload is checked against the engine as a dry run, but nothing is ingested yet.
+2. The import is stored as `pending_confirmation`, with its parsed lines.
+3. A **different person** with the Approver role then confirms it, stating the file's SHA-256, through `decideStatementImport`.
+4. Only on confirmation does the engine ingest the lines, all-or-nothing, with provenance `csv_import`.
+5. Alternatively, the approver declines the import, and nothing is ingested.
+
+The database refuses these updates even if the service is bypassed (trigger `check_import_transition`):
+- a self-confirmation;
+- a confirmation by a non-approver;
+- reopening a closed import;
+- changed content.
+
+Separately, evidence provenance and import ids cannot be changed after insert (trigger `keep_evidence_provenance`).

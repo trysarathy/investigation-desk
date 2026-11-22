@@ -48,7 +48,12 @@ import { csvCell } from "@/lib/csv/cell";
  */
 
 export const MAX_FILE_BYTES = 1_048_576;
-export const MAX_ROWS = 5_000;
+/**
+ * Rows per file. The engine re-derives the organisation's state per line (cost grows with the workspace): measured
+ * 0.4 s for 100 lines and 2.4 s for 300 on the seed, so files are capped at 200 lines until a batch-ingest engine
+ * action exists. Larger statements are split into several files.
+ */
+export const MAX_ROWS = 200;
 /** Errors kept per rejected import (the total is always reported). */
 export const MAX_STORED_ERRORS = 500;
 const MAX_VALUE_ECHO = 80;
@@ -260,7 +265,7 @@ export const ImportFileName = z.string().min(5).max(200)
 // ---------------------------------------------------------------------------------------------
 
 export interface ImportAccepted {
-  importId: string; status: "imported"; fileName: string; fileSha256: string; sizeBytes: number;
+  importId: string; status: "pending_confirmation"; fileName: string; fileSha256: string; sizeBytes: number;
   rowCount: number; acceptedCount: number; outcomes: Record<string, number>;
   lines: { row: number; lineId: string; statementLineId: string; outcome: string }[];
   notes: string[];
@@ -333,7 +338,8 @@ export async function importStatementCsv(ctx: TenantContext, input: { fileName: 
         ws = out.value.workspace;
         lines.push({ row: r.row, lineId: r.line.lineId, statementLineId: out.value.createdIds.find((id) => id.startsWith("stl")) ?? out.value.createdIds[0] ?? "", outcome: out.value.outcome });
       }
-      if (errorCount === 0) await saveWorkspaceDiff(tx, ctx.orgId, loaded.workspace, ws, { provenance: "csv_import", importId, actorUserId: ctx.userId });
+      // Dry run only. Nothing is ingested until a second person (an Approver) confirms the import: an uploaded file is
+      // a person's assertion, not an authenticated bank feed, and the engine treats bank lines as independent evidence.
     }
     const rowCount = parsed.rowCount;
     const notes = parsed.notes;
@@ -348,10 +354,11 @@ export async function importStatementCsv(ctx: TenantContext, input: { fileName: 
 
     const outcomes: Record<string, number> = {};
     for (const l of lines) outcomes[l.outcome] = (outcomes[l.outcome] ?? 0) + 1;
-    await tx.insert(t.statementImports).values({ orgId: ctx.orgId, id: importId, fileSha256, fileName, sizeBytes, rowCount, acceptedCount: lines.length, rejectedCount: 0, status: "imported", errors: { errors: [], errorCount: 0, truncated: false }, importedBy: ctx.userId });
-    await serverAudit(tx, ctx, "statement_import_accepted", "statement_import", importId, `Statement file imported: ${lines.length} line(s) (sha256 ${fileSha256.slice(0, 12)}…); matching decided by the engine`,
-      { fileSha256, fileName, sizeBytes, rowCount, acceptedCount: lines.length, rejectedCount: 0, outcomes, actor: ctx.userId });
-    return { status: 201, body: { importId, status: "imported", fileName, fileSha256, sizeBytes, rowCount, acceptedCount: lines.length, outcomes, lines, notes } };
+    const staged = parsed.ok ? parsed.rows.map((r) => ({ row: r.row, line: r.line })) : [];
+    await tx.insert(t.statementImports).values({ orgId: ctx.orgId, id: importId, fileSha256, fileName, sizeBytes, rowCount, acceptedCount: 0, rejectedCount: 0, status: "pending_confirmation", errors: { errors: [], errorCount: 0, truncated: false }, importedBy: ctx.userId, lines: staged });
+    await serverAudit(tx, ctx, "statement_import_staged", "statement_import", importId, `Statement file validated, awaiting a second person's confirmation: ${lines.length} line(s) (sha256 ${fileSha256.slice(0, 12)}…); nothing ingested yet`,
+      { fileSha256, fileName, sizeBytes, rowCount, acceptedCount: 0, stagedCount: lines.length, rejectedCount: 0, dryRunOutcomes: outcomes, actor: ctx.userId });
+    return { status: 201, body: { importId, status: "pending_confirmation", fileName, fileSha256, sizeBytes, rowCount, acceptedCount: 0, outcomes, lines, notes } };
   }));
 
   if (result.status === 409) {
@@ -359,6 +366,50 @@ export async function importStatementCsv(ctx: TenantContext, input: { fileName: 
     throw new RequestRefused(409, "DUPLICATE_FILE", `This file (sha256 ${b.fileSha256.slice(0, 12)}…) was already uploaded in this organisation (import ${b.existingImportId}, ${b.existingStatus}).`);
   }
   return result as { status: 201 | 422; body: ImportAccepted | ImportRejected; replayed: boolean };
+}
+
+export const ImportDecision = z.object({ decision: z.enum(["confirm", "decline"]), reason: z.string().trim().min(3).max(1000), fileSha256: z.string().regex(/^[0-9a-f]{64}$/) }).strict();
+
+/**
+ * Second-person confirmation. An active Approver who did not upload the file confirms (the engine then ingests every
+ * staged line, all-or-nothing, with provenance csv_import) or declines it. The approver states the file hash they
+ * reviewed. The database trigger refuses the importer, a non-approver, a closed import or changed content.
+ */
+export async function decideStatementImport(ctx: TenantContext, importId: string, input: z.infer<typeof ImportDecision>, idempotencyKey: string) {
+  require(ctx, "confirm_import");
+  const d = ImportDecision.parse(input);
+  const key = IdempotencyKey.parse(idempotencyKey);
+  if (!z.uuid().safeParse(importId).success) throw new AccessDenied(404, "Not found.");
+  return tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "statement_import_decision", importId, ...d }, async () => {
+    const [imp] = await tx.select().from(t.statementImports).where(and(eq(t.statementImports.orgId, ctx.orgId), eq(t.statementImports.id, importId))).for("update");
+    if (!imp) throw new AccessDenied(404, "Not found.");
+    if (imp.importedBy === ctx.userId) throw new RequestRefused(409, "MAKER_CANNOT_CONFIRM", "You uploaded this file; another approver must confirm it.");
+    if (imp.status !== "pending_confirmation") throw new RequestRefused(409, "IMPORT_CLOSED", `This import is ${imp.status}.`);
+    if (imp.fileSha256 !== d.fileSha256) throw new RequestRefused(409, "VERSION_MISMATCH", "The file hash does not match the import you are deciding.");
+    let accepted = 0;
+    const outcomes: Record<string, number> = {};
+    if (d.decision === "confirm") {
+      const staged = imp.lines as { row: number; line: StatementLineInput }[];
+      const loaded = await loadWorkspaceForUpdate(tx, ctx.orgId);
+      let ws = loaded.workspace;
+      let at = Date.parse(ws.asOf);
+      for (const s of staged) {
+        at = Math.max(Date.now(), at + 1);
+        const out = applyAction(ws, { type: "ingest_statement_line", line: s.line }, { actorId: imp.importedBy, at: new Date(at).toISOString() });
+        if (!out.ok) throw new RequestRefused(422, "ENGINE_REFUSED", `Row ${s.row}: ${out.error.code}: ${out.error.message}. Nothing was ingested; decline this import and upload a corrected file.`);
+        ws = out.value.workspace;
+        outcomes[out.value.outcome] = (outcomes[out.value.outcome] ?? 0) + 1;
+        accepted++;
+      }
+      await saveWorkspaceDiff(tx, ctx.orgId, loaded.workspace, ws, { provenance: "csv_import", importId, actorUserId: ctx.userId });
+    }
+    await tx.update(t.statementImports).set({ status: d.decision === "confirm" ? "imported" : "declined", acceptedCount: accepted, confirmedBy: ctx.userId, confirmedAt: new Date(), decisionReason: d.reason })
+      .where(and(eq(t.statementImports.orgId, ctx.orgId), eq(t.statementImports.id, importId)));
+    await serverAudit(tx, ctx, d.decision === "confirm" ? "statement_import_accepted" : "statement_import_declined", "statement_import", importId,
+      d.decision === "confirm" ? `Statement import confirmed by a second person: ${accepted} line(s) ingested (sha256 ${imp.fileSha256.slice(0, 12)}…); matching decided by the engine` : `Statement import declined: ${d.reason}`,
+      { fileSha256: imp.fileSha256, importedBy: imp.importedBy, confirmedBy: ctx.userId, acceptedCount: accepted, outcomes, reason: d.reason });
+    return { status: 200, body: { importId, status: d.decision === "confirm" ? "imported" : "declined", acceptedCount: accepted, outcomes } };
+  }));
 }
 
 const ENGINE_FIELD_COLUMN: Record<string, Column> = {
