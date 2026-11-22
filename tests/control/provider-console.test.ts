@@ -118,16 +118,21 @@ describe("screen 11: onboarding", () => {
   });
   it("invitations are records only; an operator accepts one with the admin CLI function", async () => {
     const admin = await ctx("admin@northwind-pay.example", "provider");
-    const r = await createInvitation(admin, seed.orgs.ae, { email: "New.Finance@Dunehaven-Demo.example", role: "finance" }, key());
-    expect(r.body).toMatchObject({ email: "new.finance@dunehaven-demo.example", role: "finance", command: expect.stringContaining(`accept-invitation ${r.body.id}`) });
+    // a provider can never place someone with authority (Admin, Ops, Finance, Approver) in a merchant
+    for (const role of ["admin", "approver", "finance", "payment_ops"]) {
+      await refused(createInvitation(admin, seed.orgs.ae, { email: `${role}@dunehaven-demo.example`, role: role as never }, key()), "INVALID_REQUEST");
+    }
+    await expect(ownerDb().execute(sql`insert into merchant_invitations (org_id, merchant_org_id, email, role, invited_by) values (${(await ctx("admin@northwind-pay.example", "provider")).orgId}, ${seed.orgs.ae}, 'z@y.example', 'approver', ${admin.userId})`)).rejects.toThrow();
+    const r = await createInvitation(admin, seed.orgs.ae, { email: "New.Finance@Dunehaven-Demo.example", role: "viewer" }, key());
+    expect(r.body).toMatchObject({ email: "new.finance@dunehaven-demo.example", role: "viewer", command: expect.stringContaining(`accept-invitation ${r.body.id}`) });
     await refused(createInvitation(admin, seed.orgs.ae, { email: "new.finance@dunehaven-demo.example", role: "viewer" }, key()), "INVITATION_PENDING");
     await refused(createInvitation(admin, seed.orgs.ae, { email: "x@y.example", role: "provider_admin" as never }, key()), "INVALID_REQUEST");
     await refused(createInvitation(await ctx("ops@northwind-pay.example", "provider"), seed.orgs.ae, { email: "a@b.example", role: "viewer" }, key()), "ACCESS_403");
     const a = await acceptInvitation(ownerDb(), r.body.id, { password: PASSWORD, name: "New Finance (fictional)" });
-    expect(a).toEqual({ email: "new.finance@dunehaven-demo.example", role: "finance", orgSlug: SLUG.ae });
+    expect(a).toEqual({ email: "new.finance@dunehaven-demo.example", role: "viewer", orgSlug: SLUG.ae });
     await expect(acceptInvitation(ownerDb(), r.body.id, { password: PASSWORD })).rejects.toThrow(/accepted/);
     const m = await rows(sql`select m.role from organization_memberships m join users u on u.id = m.user_id where u.email = 'new.finance@dunehaven-demo.example' and m.org_id = ${seed.orgs.ae}`);
-    expect(m).toEqual([{ role: "finance" }]);
+    expect(m).toEqual([{ role: "viewer" }]);
   });
 });
 

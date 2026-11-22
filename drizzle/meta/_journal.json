@@ -99,6 +99,13 @@
       "when": 1795343112782,
       "tag": "0013_provider_console_security",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1795345313372,
+      "tag": "0014_provider_invite_viewer_only",
+      "breakpoints": true
     }
   ]
 }

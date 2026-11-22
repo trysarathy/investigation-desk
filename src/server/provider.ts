@@ -104,7 +104,13 @@ export const PolicyDefaults = z.object({
 export const MappingInput = z.object({ mapping: z.unknown(), expectedRevision: z.number().int().min(0) }).strict();
 export const DefaultsInput = z.object({ defaults: PolicyDefaults, expectedRevision: z.number().int().min(0) }).strict();
 export const MERCHANT_ROLES = ["admin", "payment_ops", "finance", "approver", "viewer"] as const;
-export const InvitationInput = z.object({ email: z.string().trim().toLowerCase().email().max(254), role: z.enum(MERCHANT_ROLES) }).strict();
+/**
+ * A provider may invite only the read-only Viewer role. Any role with authority at the merchant (Admin, Payment Ops,
+ * Finance, Approver) is granted by the merchant's own Admin, so a provider can never place a person in a merchant's
+ * approval chain (rc6 integration review). Enforced again by the database (migration 0014).
+ */
+export const PROVIDER_INVITABLE_ROLES = ["viewer"] as const;
+export const InvitationInput = z.object({ email: z.string().trim().toLowerCase().email().max(254), role: z.enum(PROVIDER_INVITABLE_ROLES) }).strict();
 
 export async function onboardingView(ctx: TenantContext) {
   const merchants = (await providerMerchants(ctx)).merchants;

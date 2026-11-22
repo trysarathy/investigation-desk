@@ -264,9 +264,10 @@ export function InviteForm({ merchantOrgId }: { merchantOrgId: string }) {
       <div className={s.field}><label className={s.label} htmlFor={`${id}-e`}>Email</label><input className={s.input} id={`${id}-e`} name="email" type="email" required maxLength={254} /></div>
       <div className={s.field}>
         <label className={s.label} htmlFor={`${id}-r`}>Role at the merchant</label>
-        <select className={s.select} id={`${id}-r`} name="role" defaultValue="finance">
-          <option value="admin">Admin</option><option value="finance">Finance</option><option value="payment_ops">Payment Operations</option><option value="approver">Approver</option><option value="viewer">Viewer</option>
+        <select className={s.select} id={`${id}-r`} name="role" defaultValue="viewer" aria-describedby={`${id}-rh`}>
+          <option value="viewer">Viewer</option>
         </select>
+        <p className={s.hint} id={`${id}-rh`}>A provider can invite read-only Viewers. Roles with authority (Admin, Payment Operations, Finance, Approver) are granted by the merchant&apos;s own Admin.</p>
       </div>
       <div><Submit busy={x.busy}>Record invitation</Submit></div>
       <Result outcome={x.outcome} />

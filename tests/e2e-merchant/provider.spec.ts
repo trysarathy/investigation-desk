@@ -70,7 +70,7 @@ test("onboarding: column mapping, proposed defaults adopted by the merchant's Ad
   await page.getByLabel("Tolerance cap (entity currency)").fill("4.00");
   await submitAndConfirm(page, () => page.getByRole("button", { name: "Propose these defaults" }).click(), /Proposed \(revision 2\)/);
   await page.getByLabel("Email").fill("new.analyst@straits-demo.example");
-  await page.getByLabel("Role at the merchant").selectOption("finance");
+  await page.getByLabel("Role at the merchant").selectOption("viewer");
   await submitAndConfirm(page, () => page.getByRole("button", { name: "Record invitation" }).click(), /Invitation recorded for new.analyst@straits-demo.example/);
   await expect(page.getByTestId("invitation-command")).toContainText("scripts/control/admin.ts accept-invitation ");
   await expectNoAxeViolations(page, `onboarding (${info.project.name})`);
