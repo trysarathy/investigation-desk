@@ -1,4 +1,5 @@
 /** Console navigation (IA v2). Only functional destinations are listed. */
+import { CASES_HREF, CASE_SHORT, isCaseSlug } from "@/lib/clearline/merchant-cases/slugs";
 export type NavItem = { href: string; label: string };
 export type NavSection = NavItem & {
   /** Sub-pages shown as tabs on the section's pages; the first tab is the section's own href. */
@@ -121,6 +122,11 @@ export function crumbsFor(pathname: string, detail?: string): NavItem[] {
   const out: NavItem[] = [{ href: "/clearline", label: "Console" }];
   if (pathname === "/clearline") return [...out, { href: "/clearline", label: "Overview" }];
   if (pathname === "/clearline/trial") return [...out, { href: pathname, label: "Guided trial" }];
+  // rc6 public cases demo: reachable by link, not in the console navigation.
+  if (pathname === CASES_HREF || pathname.startsWith(`${CASES_HREF}/`)) {
+    const slug = pathname.split("/")[3] ?? "";
+    return [...out, { href: CASES_HREF, label: "Merchant cases" }, ...(isCaseSlug(slug) ? [{ href: pathname, label: CASE_SHORT[slug] }] : [])];
+  }
   const s = sectionFor(pathname);
   if (!s) return out;
   out.push({ href: s.href, label: s.label });

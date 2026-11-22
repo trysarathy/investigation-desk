@@ -203,7 +203,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <NavStuck />
           <DiscardedNotice />
           <MigrationNotice />
-          <Hydrated>{children}</Hydrated>
+          {/* rc6: the merchant cases are rendered on the server from the engine and do not read the workspace. */}
+          {pathname === "/clearline/cases" || pathname.startsWith("/clearline/cases/") ? children : <Hydrated>{children}</Hydrated>}
           <footer className={s.footer}>
             Clearline test-mode console. All organisations, providers, quotes, balances and statements are fictional.
             No custody, payout execution, lending or compliance decisions. <a href={MARKETING_URL}>Website</a> ·{" "}
