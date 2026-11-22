@@ -293,3 +293,25 @@ export const matchReviews = pgTable("match_reviews", {
   primaryKey({ columns: [t.orgId, t.orderId, t.reviewerUserId] }),
   check("match_reviews_verdict_chk", sql`${t.verdict} in ('correct','wrong')`),
 ]);
+
+/**
+ * rc6 phase 7: notes and attached evidence on a merchant exception (append-only). An attachment is a description and
+ * a reference given by a person: it is recorded as "attached by a person", never as independent evidence, and no
+ * file is stored.
+ */
+export const reconExceptionNotes = pgTable("recon_exception_notes", {
+  orgId: org(), id: uuid("id").notNull().defaultRandom(),
+  exceptionId: text("exception_id").notNull(),
+  kind: text("kind").notNull(),
+  body: text("body").notNull(),
+  reference: text("reference"),
+  authorUserId: text("author_user_id").notNull().references(() => users.id),
+  createdAt: ts("created_at").notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.orgId, t.id] }),
+  foreignKey({ columns: [t.orgId, t.exceptionId], foreignColumns: [reconExceptions.orgId, reconExceptions.id], name: "recon_exception_notes_exception_fk" }),
+  check("recon_exception_notes_kind_chk", sql`${t.kind} in ('note','evidence')`),
+  check("recon_exception_notes_body_chk", sql`length(${t.body}) between 1 and 2000`),
+  check("recon_exception_notes_ref_chk", sql`${t.reference} is null or length(${t.reference}) between 1 and 120`),
+  index("recon_exception_notes_exception_idx").on(t.orgId, t.exceptionId),
+]);
