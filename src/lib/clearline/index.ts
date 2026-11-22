@@ -64,3 +64,4 @@ export { evidenceCeiling, evidencedVerifiedAndMatched, type EvidenceCeiling } fr
 
 // rc4 (CHANGE 15): Accounting Bridge — proposed journal entries, reconciliation and journal exports, periods, CoA mapping
 export * from "./accounting";
+export * as merchant from "./merchant"; // rc6: pure merchant reconciliation engine
