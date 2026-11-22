@@ -1,0 +1,2 @@
+line_id,account_ref,value_date,direction,kind,amount,currency,reference
+SIMBANK-CSV-4001,SIMBANK-SGD-OPS (fictional),2026-11-13,credit,payment,10.00,SGD,INV-FICT-4001

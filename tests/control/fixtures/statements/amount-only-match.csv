@@ -1,0 +1,2 @@
+line_id,account_ref,value_date,direction,kind,amount,currency,reference,counterparty
+SIMBANK-CSV-5001,SIMBANK-SGD-OPS (fictional),2026-11-13,debit,payment,24651.37,SGD,,Unknown payee (fictional)

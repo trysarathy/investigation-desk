@@ -41,7 +41,7 @@ const MATRIX: Record<Permission, readonly AppRole[]> = {
   investigate: ["payment_ops"],
   request_approval: ["payment_ops"],
   decide_approval: ["approver"],
-  import_statement: ["payment_ops", "finance"],
+  import_statement: ["finance"],  // Finance imports; Payment Ops investigates; an Approver decides
   accounting_prepare: ["finance"],
   accounting_approve: ["approver"],
   manage_members: ["admin"],
