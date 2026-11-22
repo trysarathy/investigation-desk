@@ -1,0 +1,10 @@
+{
+  "rates": [
+    {
+      "pair": "USDT/SGD",
+      "rate": "1.3500",
+      "source": "Fictional Rate Desk",
+      "observedAt": "2026-11-24T02:00:00.000Z"
+    }
+  ]
+}

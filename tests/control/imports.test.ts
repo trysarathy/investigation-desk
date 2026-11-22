@@ -519,7 +519,7 @@ describe("importStatementCsv against PostgreSQL", () => {
   });
 
   it("nothing is written to disk: the import path imports no filesystem, process or temp-file module", () => {
-    for (const f of ["src/server/imports.ts", "src/lib/csv/parse.ts", "src/lib/csv/cell.ts"]) {
+    for (const f of ["src/server/imports.ts", "src/lib/csv/statement.ts", "src/lib/csv/parse.ts", "src/lib/csv/cell.ts"]) {
       const src = readFileSync(path.join(__dirname, "..", "..", f), "utf8");
       const imports = [...src.matchAll(/from\s+"([^"]+)"|import\(\s*"([^"]+)"\s*\)|require\(\s*"([^"]+)"\s*\)/g)].map((m) => m[1] ?? m[2] ?? m[3]);
       for (const m of imports) expect(m, `${f} imports ${m}`).not.toMatch(/^(node:)?(fs|fs\/promises|os|child_process|worker_threads|tmp|multer|formidable|busboy)$/);

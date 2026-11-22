@@ -1,0 +1,49 @@
+{
+  "label": "Test mode · illustrative data",
+  "batches": [
+    {
+      "batchId": "B-1124-001",
+      "providerDay": "2026-11-24",
+      "providerTimeZone": {
+        "name": "UTC",
+        "utcOffsetMinutes": 0
+      },
+      "currency": "SGD",
+      "targetBankAccount": "SGD-OPS-FICT-001",
+      "gross": "6021.45",
+      "fees": "60.21",
+      "refunds": "0.00",
+      "net": "5961.24"
+    }
+  ],
+  "lines": [
+    {
+      "batchId": "B-1124-001",
+      "kind": "payment",
+      "providerPaymentId": "PP-24817",
+      "orderId": "BK-24817",
+      "amount": "1348.65"
+    },
+    {
+      "batchId": "B-1124-001",
+      "kind": "payment",
+      "providerPaymentId": "PP-24823",
+      "orderId": "BK-24823",
+      "amount": "2376.00"
+    },
+    {
+      "batchId": "B-1124-001",
+      "kind": "payment",
+      "providerPaymentId": "PP-24830",
+      "orderId": "BK-24830",
+      "amount": "955.80"
+    },
+    {
+      "batchId": "B-1124-001",
+      "kind": "payment",
+      "providerPaymentId": "PP-24836",
+      "orderId": "BK-24836",
+      "amount": "1341.00"
+    }
+  ]
+}

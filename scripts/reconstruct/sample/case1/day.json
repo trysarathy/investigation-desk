@@ -1,0 +1,23 @@
+{
+  "label": "Test mode · illustrative data",
+  "note": "Fictional sample shaped like a provider's one-day export. Every name, address and hash is fictional except the two public token contracts.",
+  "provider": "Northwind Pay (fictional)",
+  "day": "2026-11-24",
+  "entity": {
+    "id": "ENT-SG-01",
+    "name": "Harbourline Demo Pte. Ltd. (fictional)",
+    "functionalCurrency": "SGD",
+    "ledger": "LEDGER-SG-01",
+    "timeZone": {
+      "name": "Asia/Singapore",
+      "utcOffsetMinutes": 480
+    }
+  },
+  "addressFacts": [
+    {
+      "network": "tron",
+      "address": "T_FICTIONAL_EXCHANGE_HOT_1",
+      "fact": "exchange_hot_wallet"
+    }
+  ]
+}
