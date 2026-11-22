@@ -42,6 +42,13 @@ re-opened today. The guard does not check these yet.
   vs the code), use docs/SPEC.md and the code, and flag the conflict to her; never pick quietly.
 - **When data is dirty, ask whether the safety checks are weakened too** (e.g. blank country fields
   defeat the strict-consent check): block those rows until fixed.
+- **Read back what Gmail stored, and know whose defect it is.** After creating any draft, read it
+  back (`get_draft`, RAW). If the stored body has a `google.com/url?q=` wrapper (or a linked domain in
+  the greeting) that the text you passed did not have, the Gmail connector added it. Don't re-save in
+  a loop and don't send. Hold the draft and Log `RISK: Gmail connector wrapped links in draft <id>`
+  with the text you passed and what was stored. Put it at the top of the evening summary. (Fix after
+  22 Nov 2026: the 2 Nov D4 drafts as stored carry wrappers whose `ust` is exactly the draft's creation
+  time + 24 h, while the Approval Queue D0 bodies have a plain LinkedIn URL.)
 
 **Legal questions:** never assert anyone's legal rights in a note, draft or reply ("he has a right
 to…"). "How did you get my email?" → answer only from `compliance.md`'s approved wording (public

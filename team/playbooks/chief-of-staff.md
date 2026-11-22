@@ -261,6 +261,13 @@ question; Goals & metrics.
    Write Spot checks rows. Couldn't open = "couldn't check", never pass. Any factual error → RISK line,
    Log note to revops-crm-agent and research-intern. Week 1 end: recommend `WEEK1_SPOTCHECK_PASSED` =
    TRUE only if 0 errors, bounce < 2%, 0 complaints, as a `[SETTING]` approval - she decides.
+   **Find the cause before naming whose fault a defect is.** Compare the stored source (Approval
+   Queue `body`, the `gtm.lean` template, the text the agent passed to the tool) with the copy Gmail
+   holds (`get_draft` RAW). If the source is clean and the stored copy is not, report it as a
+   tool/transport defect and don't put the fix in the drafter's playbook. (Fix after 22 Nov 2026: the
+   15 Nov report blamed revops-crm-agent for `google.com/url` wrappers in the D4 drafts. But the
+   Approval Queue D0 bodies have a plain LinkedIn URL. Each D4 draft's wrapper `ust` is exactly its own
+   creation time + 24 h. And the 15 Nov weekly report reads back the same way.)
 3. **Pipeline:** Opportunities by status; calls booked next week; stale (> 7 days no next step).
 4. **What's working**: only where n ≥ 10; else "too early (n = <n>)". Group accounting-question answers
    by accounting system (Xero / QuickBooks / NetSuite / other / none), with counts.
