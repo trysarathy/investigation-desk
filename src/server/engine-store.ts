@@ -8,6 +8,7 @@ import {
 import type { Tx } from "./db/client";
 import * as t from "./db/schema";
 import { ENGINE_ROLE, isAppRole } from "./authz";
+import { AccessDenied } from "./tenant";
 
 /**
  * Maps the engine's workspace collections to authoritative PostgreSQL rows and back.
@@ -77,9 +78,11 @@ function whereFor(table: PgTable, orgId: string, extra?: Record<string, string>)
 export interface LoadedWorkspace { workspace: Workspace; version: number }
 
 /** Locks the organisation's engine state row (serialising every financial action of that organisation). */
-export async function loadWorkspaceForUpdate(tx: Tx, orgId: string): Promise<LoadedWorkspace> {
-  const rows = await tx.select().from(t.orgEngineState).where(eq(t.orgEngineState.orgId, orgId)).for("update");
-  if (rows.length !== 1) throw new Error("organisation has no engine state");
+export async function loadWorkspaceForUpdate(tx: Tx, orgId: string, lock = true): Promise<LoadedWorkspace> {
+  const q = tx.select().from(t.orgEngineState).where(eq(t.orgEngineState.orgId, orgId));
+  const rows = lock ? await q.for("update") : await q;
+  // RLS hides the row from a non-member (e.g. a membership revoked after the request's context was resolved)
+  if (rows.length !== 1) throw new AccessDenied(404, "Not found.");
   const state = rows[0].state as Record<string, unknown> & { seedActors?: Actor[]; accounting?: Record<string, unknown> };
   const ws: Record<string, unknown> = {};
   for (const k of STATE_KEYS) ws[k] = state[k];
@@ -193,5 +196,5 @@ export async function runEngineAction(tx: Tx, orgId: string, userId: string, act
 
 /** Read-only load (no lock) for page views. */
 export async function readWorkspace(tx: Tx, orgId: string): Promise<Workspace> {
-  return (await loadWorkspaceForUpdate(tx, orgId)).workspace;
+  return (await loadWorkspaceForUpdate(tx, orgId, false)).workspace;
 }

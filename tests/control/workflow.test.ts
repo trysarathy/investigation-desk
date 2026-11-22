@@ -229,6 +229,12 @@ describe("idempotency, revocation and durability", () => {
     await refused(withTenant({ userId: ids["approver2@lumen.example"], orgId: ops.orgId }, (tx) => tx.execute(sql`insert into approval_decisions (org_id, request_id, decided_by, decision, reason, payload_sha256) values (${ops.orgId}, ${req.body.id}, ${ids["approver2@lumen.example"]}, 'approve', 'revoked', ${req.body.payloadSha256})`)), /row-level security|maker-checker|not an active approver/);
   });
 
+  it("a context resolved before revocation is refused with 404, not a server error", async () => {
+    const stale = await ctx("approver@lumen.example");
+    await revokeMembership(ownerDb(), { orgSlug: "lumen-demo", email: "approver@lumen.example" });
+    await refused(listPayments(stale), "ACCESS_404");
+  });
+
   it("everything survives closing every database connection (server restart equivalent)", async () => {
     const before = await overview(await ctx("viewer@lumen.example"));
     await closeDatabase();
