@@ -76,13 +76,17 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput): {
   const recFor = (s: TState): ProviderPaymentRecord | undefined =>
     input.providerRecords.find((r) => r.transferRef && tkey(r.transferRef) === tkey(s.t)) ??
     input.providerRecords.find((r) => !r.transferRef && ((s.ref?.linkId && r.ref.linkId === s.ref.linkId) || (!r.ref.linkId && r.ref.quoteId === s.ref?.quoteId)));
-  const pairs = final.map((s) => ({ s, rec: recFor(s) }));
+  const pairs = final.map((s) => ({ s, rec: recFor(s) })).sort((a, b) => instantMs(a.s.t.timestamp) - instantMs(b.s.t.timestamp));
+  const links = input.paymentLinks.filter((l) => l.orderId === inv.orderId).sort(byKey((l) => l.linkId));
+  /** The validity window of the reference used: the payment link's when it has one, else the quote's. */
+  const windowOf = (s: TState, q: Quote) => links.find((l) => l.linkId === s.ref?.linkId) ?? q;
+  const balanceLinkOpen = links.some((l) => l.kind === "balance" && !final.some((s) => s.ref?.linkId === l.linkId));
   const credited = sum(pairs.filter((p) => p.rec && p.s.inbound && p.rec.receivedBaseUnits === p.s.t.amountBaseUnits).map((p) => p.rec!.creditedMinor));
-
+  const partOpen = balanceLinkOpen && credited > 0n && credited < inv.amountMinor && active("M4.partial.balance_link_open");
   const finish = (v: Verdict, writeOff?: WriteOffProposal) => {
     note(v.step, v.ruleId, v.decision === "matched" ? "pass" : "fail", `Decision: ${v.decision}.`);
     const open = inv.amountMinor - credited;
-    const balanceState = credited === 0n ? "nothing_received" : open > 0n ? "short_paid" : open < 0n ? "over_credited" : "fully_credited";
+    const balanceState = credited === 0n ? "nothing_received" : partOpen ? "part_paid" : open > 0n ? "short_paid" : open < 0n ? "over_credited" : "fully_credited";
     const records = pairs.map((p) => p.rec).filter((r): r is ProviderPaymentRecord => !!r);
     const held = records.some((r) => r.statusClaim === "held_for_review" && !r.batchId);
     const batchIds = [...new Set(records.map((r) => r.batchId).filter((b): b is string => !!b))].sort();
@@ -131,9 +135,11 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput): {
     if (!s.inbound && active("M3.direction.outbound")) return stop(3, "M3.direction.outbound", `${s.t.txHash} leaves the deposit address; it is not a payment in.`);
     if (normAddress(s.t.network, s.t.tokenContract) !== normAddress(s.ref!.token.network, s.ref!.token.contract) && active("M3.currency.token_mismatch"))
       return stop(3, "M3.currency.token_mismatch", `${s.token!.symbol} arrived at an address issued for a different token.`);
+    if (s.t.decimals !== qTok.decimals && active("M3.currency.token_mismatch")) return stop(3, "M3.currency.token_mismatch", `${s.token!.symbol} has ${s.t.decimals} decimals; the quote's token has ${qTok.decimals}.`);
     const ts = instantMs(s.t.timestamp);
-    if (ts < instantMs(quote.createdAt) && active("M3.window.before_quote")) return stop(3, "M3.window.before_quote", `${s.t.txHash} predates quote ${quote.quoteId}.`);
-    if (ts > instantMs(quote.expiresAt) && rec?.statusClaim !== "re_quoted" && active("M3.window.after_expiry_no_requote"))
+    const w = windowOf(s, quote);
+    if (ts < instantMs(w.createdAt) && active("M3.window.before_quote")) return stop(3, "M3.window.before_quote", `${s.t.txHash} predates quote ${quote.quoteId}.`);
+    if (ts > instantMs(w.expiresAt) && rec?.statusClaim !== "re_quoted" && active("M3.window.after_expiry_no_requote"))
       return stop(3, "M3.window.after_expiry_no_requote", `${s.t.txHash} arrived after quote ${quote.quoteId} expired, and the provider did not re-quote.`);
     if (!rec && active("M3.provider.no_record")) return stop(3, "M3.provider.no_record", `Final transfer ${s.t.txHash} has no provider record.`);
     if (!rec) continue;
@@ -162,18 +168,21 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput): {
   const d = received - quote.quotedBaseUnits;
   const recs = pairs.map((p) => p.rec!);
   const q = (u: bigint) => fmtToken(u, qTok.decimals, qTok.symbol);
-  if (d < 0n && abs(d) <= policy.senderFeeBoundBaseUnits && recs.every((r) => r.statusClaim === "paid") && active("M4.tolerance.sender_side_fee")) {
+  if (partOpen) {
+    const open = links.filter((l) => l.kind === "balance" && !final.some((s) => s.ref?.linkId === l.linkId)).map((l) => l.linkId).join(", ");
+    addDiff("partial_payment_open", credited - inv.amountMinor, "M4.partial.balance_link_open", `Part paid: ${fmtFiat(inv.amountMinor - credited, cur)} is still open on balance link ${open}. This is not overdue; rate and fee differences are settled when the balance arrives.`);
+  } else if (d < 0n && abs(d) <= policy.senderFeeBoundBaseUnits && recs[recs.length - 1].statusClaim === "paid" && active("M4.tolerance.sender_side_fee")) {
     addDiff("sender_side_fee", tokenPart, "M4.tolerance.sender_side_fee", `Received ${q(received)} of ${q(quote.quotedBaseUnits)}. The ${q(-d)} gap is within the network-fee bound and the provider claims paid, so it is treated as a fee deducted on the sender's side.`);
   } else if (d < 0n && active("M4.tolerance.underpayment")) {
     addDiff("underpayment", tokenPart, "M4.tolerance.underpayment", `Customer paid ${q(received)} of ${q(quote.quotedBaseUnits)} (${fmtPct(d, quote.quotedBaseUnits)} short). ${fmtFiat(-tokenPart, cur)} at the quoted rate is still owed.`);
   } else if (d > 0n && active("M4.tolerance.overpayment")) {
     addDiff("overpayment", tokenPart, "M4.tolerance.overpayment", `Customer paid ${q(received)} against ${q(quote.quotedBaseUnits)} (${fmtPct(d, quote.quotedBaseUnits)} over). The excess is a customer-overpayment liability.`);
   } else addDiff("unexplained", tokenPart, "M4.tolerance.unexplained", `Received ${q(received)} against ${q(quote.quotedBaseUnits)} with no typed explanation.`);
-  if (ratePart !== 0n) {
-    const late = pairs.find((p) => instantMs(p.s.t.timestamp) > instantMs(quote.expiresAt));
+  if (!partOpen && ratePart !== 0n) {
+    const late = pairs.find((p) => instantMs(p.s.t.timestamp) > instantMs(windowOf(p.s, quote).expiresAt));
     const requoted = recs.find((r) => r.statusClaim === "re_quoted");
     if (late && requoted && active("M4.tolerance.requote_after_expiry")) {
-      const mins = (BigInt(instantMs(late.s.t.timestamp)) - BigInt(instantMs(quote.expiresAt))) / 60_000n;
+      const mins = (BigInt(instantMs(late.s.t.timestamp)) - BigInt(instantMs(windowOf(late.s, quote).expiresAt))) / 60_000n;
       addDiff("requote_after_expiry", ratePart, "M4.tolerance.requote_after_expiry", `Paid ${mins} min after quote ${quote.quoteId} expired; the provider re-quoted at ${requoted.executedRate} instead of ${quote.rate}.`);
     } else if (recs.some((r) => !sameRate(r.executedRate, quote.rate)) && active("M4.tolerance.rate_difference")) {
       addDiff("rate_difference", ratePart, "M4.tolerance.rate_difference", `Executed at ${[...new Set(recs.map((r) => r.executedRate))].join(" and ")} against the quoted ${quote.rate}.`);
@@ -186,7 +195,7 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput): {
   note(4, "M4.tolerance.within_band", "note", `Difference ${fmtFiat(total, cur)}; band min(${policy.tolerancePct} bps, ${fmtFiat(policy.toleranceAbsMinor, cur)}) = ${fmtFiat(band, cur)}.`);
   if (types.has("unexplained") && active("M4.tolerance.unexplained"))
     return stop(4, "M4.tolerance.unexplained", differences.find((x) => x.type === "unexplained")!.reason);
-  if (abs(total) <= band && active("M4.tolerance.within_band")) {
+  if (abs(total) <= band && !partOpen && active("M4.tolerance.within_band")) {
     if (abs(total) > policy.writeoffThresholdMinor && active("M4.tolerance.writeoff_threshold"))
       return finish({ decision: "suggested_for_review", step: 4, ruleId: "M4.tolerance.writeoff_threshold", attention: att("Finance Controller", `Within the band but above the write-off threshold ${fmtFiat(policy.writeoffThresholdMinor, cur)}.`, "Decide the write-off by hand.") });
     const writeOff: WriteOffProposal = {
@@ -200,13 +209,14 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput): {
   if (types.has("overpayment") && active("M4.tolerance.overpayment_beyond_band"))
     return finish({ decision: "exception", step: 4, ruleId: "M4.tolerance.overpayment_beyond_band", attention: att("Payment Operations", differences.find((x) => x.type === "overpayment")!.reason, `Agree with the customer whether to refund ${fmtFiat(total, cur)} or keep it as credit. Until then it is held as a customer-overpayment liability.`) });
   if (active("M4.tolerance.explained_outside_band"))
-    return finish({ decision: "suggested_for_review", step: 4, ruleId: "M4.tolerance.explained_outside_band", attention: att("Payment Operations", `${differences.map((x) => x.reason).join(" ")} Outside the ${fmtFiat(band, cur)} band.`, "Review the explained difference and accept or reject it.") });
+    return finish({ decision: "suggested_for_review", step: 4, ruleId: "M4.tolerance.explained_outside_band", attention: att("Payment Operations", `${differences.map((x) => x.reason).join(" ")} Outside the ${fmtFiat(band, cur)} band.`, partOpen ? "Wait for the balance link to be paid; nothing is overdue." : "Review the explained difference and accept or reject it.") });
   return stop(4, "M4.tolerance.unexplained", "Difference outside the band.");
 }
 
 function view(s: TState, input: ReconcileInput): ChainTransferView {
-  const facts = input.addressFacts.filter((f) => f.network === s.t.network && normAddress(f.network, f.address) === normAddress(s.t.network, s.t.from)).map((f) => f.fact);
-  return { ...s.t, symbol: s.token?.symbol ?? "unknown", senderFacts: facts, ...(s.ref?.linkId ? { linkId: s.ref.linkId } : {}), ...(s.ref ? { quoteId: s.ref.quoteId } : {}) };
+  const factsOf = (a: string) => input.addressFacts.filter((f) => f.network === s.t.network && normAddress(f.network, f.address) === normAddress(s.t.network, a)).map((f) => f.fact);
+  const pathFacts = (s.t.priorHops ?? []).flatMap((h) => [h.from, h.to]).filter((a, i, xs) => xs.indexOf(a) === i).map((address) => ({ address, facts: factsOf(address) }));
+  return { ...s.t, symbol: s.token?.symbol ?? "unknown", senderFacts: factsOf(s.t.from), pathFacts, ...(s.ref?.linkId ? { linkId: s.ref.linkId } : {}), ...(s.ref ? { quoteId: s.ref.quoteId } : {}) };
 }
 
 /** Steps 1–4 over every order and transfer. Output order is canonical (order id, then transfer key). */

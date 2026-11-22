@@ -274,3 +274,12 @@ the test still fails, so no match is ever produced in that state.
 - Failing: [M5.batch.tied_verified] 
 - Assertion: `AssertionError: expected [ 'matched', 4, …(1) ] to deeply equal [ 'matched', 5, …(1) ]`
 
+## Phase 4: partials and multi-chain (`tests/clearline/merchant/rules-partials.test.ts`)
+
+### `M4.partial.balance_link_open`
+
+- Command: `npx vitest run tests/clearline/merchant/rules-partials.test.ts` with `active = (id) => id !== "M4.partial.balance_link_open"`
+- Result: Tests  2 failed | 3 passed (5)
+- Failing: USDT sent to the USDC balance-link address on another network never attaches to the order [M4.partial.balance_link_open] 
+- Assertion: `AssertionError: expected [ [ 'underpayment', …(2) ], …(1) ] to deeply equal [ [ 'partial_payment_open', …(2) ] ]`
+

@@ -33,7 +33,9 @@ export const DEFAULT_POLICY: MerchantPolicy = {
   writeoffThresholdMinor: 500n,
   approverRoles: ["finance_approver"],
   allowImportedBankLinesAsVerified: false,
-  senderFeeBoundBaseUnits: 5_000_000n,
+  // [ASSUMPTION] a sender-side (exchange/network) fee is at most 2.000000 token units; anything larger is an
+  // underpayment (the founder's Case 3 calls its 3.50 USD gap a "shortfall"). Editable per entity.
+  senderFeeBoundBaseUnits: 2_000_000n,
 };
 
 /** Ethereum addresses compare case-insensitively; TRON (base58) addresses are case-sensitive. */
