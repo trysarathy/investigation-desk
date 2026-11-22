@@ -559,3 +559,48 @@ Changes to owned files:
 - **Engine simulation.** `simulate_provider_event` does not drive Connect providers. Use their webhooks or
   `poll_provider`.
 - **v1 verify endpoint.** `/api/clearline/test/v1` `webhooks/verify` still checks only the original scheme.
+
+## 16. Conformance suite (rc5)
+
+`tests/clearline/connect-conformance.test.ts` is one parameterised suite run against **every** descriptor in
+`CONNECT_DESCRIPTORS` (the registry; it also checks that `CONNECT_PROVIDERS` and `getAdapter` agree). A new adapter is
+acceptable only when it passes every case. Nothing in the engine is changed by the suite.
+
+How it drives an adapter:
+
+- **Channel.** An adapter whose declared scheme is in `IMPLEMENTED_SCHEMES` is fed signed webhooks (`ingest_webhook`).
+  An adapter whose scheme is unverified (Saltglass) never has a webhook applied; it is fed by `poll_provider`, the
+  documented alternative (§5, §7).
+- **Scenarios.** Scripts are derived from the adapter's own mapping table (accepted → in transit → completed, then
+  failed, returned, a regression back to in transit, or an unlisted status). They are registered in `CONNECT_SCRIPTS`
+  for that test file only and removed afterwards. Intent inputs are derived from the adapter's route.
+- **Not applicable.** Where a case cannot apply, the documented alternative is asserted explicitly. There is no
+  `test.skip`.
+
+| # | Case | Asserted (alternative where it cannot apply) |
+|---|---|---|
+| 1 | Duplicate deliveries | Second copy is `duplicate_ignored`, recorded once, state unchanged; same through `receiveConnectWebhook`; the reconciler reports `unchanged` |
+| 2 | Out-of-order delivery | Every arrival order of the derived scripts ends as in-order delivery (`outcomeOf`). Regression scripts only for `object_version` adapters; `state_rank` adapters assert the latest version is never overtaken |
+| 3 | Replay | Valid signature outside the tolerance (stale or future) → `rejected_signature`, not applied; at the edge it applies. Unverified: never applied, the intake polls |
+| 4 | Invalid signature | One changed byte, whitespace or key-order re-serialisation of the same JSON → rejected (raw bytes); another scheme, another provider's keys, or a non-bundle header → rejected. Unverified: a forged "completed" body is never applied or recorded; the poll's own answer is applied |
+| 5 | Contradictions | completed → failed raises an owned `EV_PROVIDER_SUCCESS_REVERSED`; with independent evidence first, settlement goes `verified` → `contradicted`. completed → returned raises `returned_payout`. No return status: asserted absent |
+| 6 | Timeouts | `simulate_provider_event` timeout and a no-answer `fetchStatus` change no payout state; the payout stays in `unresolvedConnectIntents` and a later poll applies; bad poll versions are typed errors |
+| 7 | Idempotency collisions | One deterministic provider key per instruction, echoed by every version; same key + different request → `rejected_body_mismatch` (and the engine's `idempotency_conflict`); same request → replay, or for reject-duplicate providers `rejected_duplicate` + `poll_status_first`; a second `submit_instruction` is refused |
+| 8 | Malformed payloads | Invalid JSON, wrong types, missing ids, unknown currency, bad hash, bodies over 16 KB, non-string bodies and non-string headers: typed error or recorded non-application, never an escaping throw |
+| 9 | Status regressions | completed → in_transit raises an owned `EV_PROVIDER_STATUS_REGRESSED` naming the regressing event, in every order. `state_rank`: execution never moves back (§6 limit) |
+| 10 | Unknown statuses | An unlisted status (and, where the payload has one, an unlisted sub-status) is refused with the raw value verbatim in the typed error, never mapped, nothing applied; the reconciler reports `error`. Mapped statuses are kept verbatim in `detail.rawStatus` |
+| 11 | Partial failures | A tampered, a malformed and an unlisted event in the middle of a sequence leave the outcome equal to the clean sequence; a reconciler batch with one bad payout still applies the others |
+| 12 | Provider confidence | Provider events alone never set settlement off `none`; every event is `provider_claim`; no record is independent. A preliminary hash (or a hash on any non-final status) never reaches `tx_hash`, a chain observation or an allocation |
+
+**Open defect (marked `it.fails`, engine not changed).** `reconcileConnect` calls `adapter.fetchStatus` outside any
+per-payout error boundary (`reconciler.ts` `pollOne`). A provider timeout that surfaces as a thrown error escapes the
+reconciler and aborts the whole pass, contrary to §7 ("reports an error on one payout without stopping the others").
+The case "a poll that THROWS (provider timeout) for one payout…" asserts the correct behaviour for each adapter and
+is expected to fail until this is fixed.
+
+Run it:
+
+```
+npx vitest run tests/clearline/connect-conformance.test.ts
+npx eslint -c .github/lint/eslint.config.mjs tests/clearline/connect-conformance.test.ts
+```
