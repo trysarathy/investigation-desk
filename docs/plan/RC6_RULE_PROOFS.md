@@ -5,7 +5,7 @@ Test mode · illustrative data.
 **Method.** Every rule check in `src/lib/clearline/merchant` is guarded by `active(ruleId)` from `rules.ts`, which is
 `id.length > 0` (always true) in the product. For each rule, the proof edits that one line to
 `export const active = (id: RuleId): boolean => id !== "<rule>";`, runs the named test file, records the result,
-then restores the file (the script checks `git diff --quiet rules.ts` afterwards). The rule's own unit test, named
+then restores the file (the script checks that the original `active` line is back). The rule's own unit test, named
 `[<rule>] …`, must be among the failures. Assertions are vitest's first failing message, cut at 220 characters.
 
 A `TypeError` result means that, without the rule, the engine cannot carry on (it reaches data the rule protects);
@@ -95,7 +95,7 @@ the test still fails, so no match is ever produced in that state.
 - Command: `npx vitest run tests/clearline/merchant/rules-steps1-4.test.ts` with `active = (id) => id !== "M3.window.after_expiry_no_requote"`
 - Result: Tests  1 failed | 30 passed (31)
 - Failing: [M3.window.after_expiry_no_requote] 
-- Assertion: `AssertionError: expected [ 'matched', 4, …(1) ] to deeply equal [ 'exception', 3, …(1) ]`
+- Assertion: `AssertionError: expected [ 'matched', 5, …(1) ] to deeply equal [ 'exception', 3, …(1) ]`
 
 ### `M3.quote.invoice_mismatch`
 
@@ -179,7 +179,7 @@ the test still fails, so no match is ever produced in that state.
 - Command: `npx vitest run tests/clearline/merchant/rules-steps1-4.test.ts` with `active = (id) => id !== "M4.match.no_difference"`
 - Result: Tests  1 failed | 30 passed (31)
 - Failing: [M4.match.no_difference] 
-- Assertion: `AssertionError: expected [ 'matched_with_difference', 4, …(1) ] to deeply equal [ 'matched', 4, …(1) ]`
+- Assertion: `AssertionError: expected [ 'matched_with_difference', 4, …(1) ] to deeply equal [ 'matched', 5, …(1) ]`
 
 ### `M4.tolerance.within_band`
 
@@ -222,4 +222,55 @@ the test still fails, so no match is ever produced in that state.
 - Result: Tests  2 failed | 29 passed (31)
 - Failing: [M4.provider.credit_mismatch] [M4.tolerance.unexplained] 
 - Assertion: `AssertionError: expected 'matched_with_difference' to be 'exception' // Object.is equality`
+
+## Phase 3: step 5, grouping and bridge (`tests/clearline/merchant/rules-step5.test.ts`)
+
+### `M5.bridge.timing_prior_batch`
+
+- Command: `npx vitest run tests/clearline/merchant/rules-step5.test.ts` with `active = (id) => id !== "M5.bridge.timing_prior_batch"`
+- Result: Tests  4 failed | 4 passed (8)
+- Failing: [M5.batch.tied_verified] [M5.bridge.held_by_provider] [M5.bridge.timing_next_batch] [M5.bridge.timing_prior_batch] 
+- Assertion: `TypeError: Cannot read properties of undefined (reading 'amountMinor')`
+
+### `M5.bridge.timing_next_batch`
+
+- Command: `npx vitest run tests/clearline/merchant/rules-step5.test.ts` with `active = (id) => id !== "M5.bridge.timing_next_batch"`
+- Result: Tests  4 failed | 4 passed (8)
+- Failing: [M5.batch.tied_verified] [M5.bridge.held_by_provider] [M5.bridge.timing_next_batch] [M5.bridge.timing_prior_batch] 
+- Assertion: `AssertionError: expected false to be true // Object.is equality`
+
+### `M5.bridge.held_by_provider`
+
+- Command: `npx vitest run tests/clearline/merchant/rules-step5.test.ts` with `active = (id) => id !== "M5.bridge.held_by_provider"`
+- Result: Tests  4 failed | 4 passed (8)
+- Failing: [M5.batch.tied_verified] [M5.bridge.held_by_provider] [M5.bridge.timing_next_batch] [M5.bridge.timing_prior_batch] 
+- Assertion: `AssertionError: expected false to be true // Object.is equality`
+
+### `M5.batch.not_tied`
+
+- Command: `npx vitest run tests/clearline/merchant/rules-step5.test.ts` with `active = (id) => id !== "M5.batch.not_tied"`
+- Result: Tests  1 failed | 7 passed (8)
+- Failing: [M5.batch.not_tied] 
+- Assertion: `AssertionError: expected [ 'suggested_for_review', 5, …(2) ] to deeply equal [ 'exception', 5, …(2) ]`
+
+### `M5.bank.imported_not_verified`
+
+- Command: `npx vitest run tests/clearline/merchant/rules-step5.test.ts` with `active = (id) => id !== "M5.bank.imported_not_verified"`
+- Result: Tests  1 failed | 7 passed (8)
+- Failing: [M5.bank.imported_not_verified] 
+- Assertion: `AssertionError: expected { …(15) } to match object { tied: true, …(2) }`
+
+### `M5.grouping.proposed_needs_confirmation`
+
+- Command: `npx vitest run tests/clearline/merchant/rules-step5.test.ts` with `active = (id) => id !== "M5.grouping.proposed_needs_confirmation"`
+- Result: Tests  1 failed | 7 passed (8)
+- Failing: [M5.grouping.proposed_needs_confirmation] 
+- Assertion: `AssertionError: expected [] to deeply equal [ 'proposed_needs_confirmation' ]`
+
+### `M5.batch.tied_verified`
+
+- Command: `npx vitest run tests/clearline/merchant/rules-step5.test.ts` with `active = (id) => id !== "M5.batch.tied_verified"`
+- Result: Tests  1 failed | 7 passed (8)
+- Failing: [M5.batch.tied_verified] 
+- Assertion: `AssertionError: expected [ 'matched', 4, …(1) ] to deeply equal [ 'matched', 5, …(1) ]`
 

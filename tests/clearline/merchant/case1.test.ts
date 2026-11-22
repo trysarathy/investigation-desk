@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { merchant } from "@/lib/clearline";
 import { CASE1_BATCH, CASE1_TWIN_ADDRESSES, EXCHANGE_SENDER, case1 } from "@/lib/clearline/merchant/fixtures/case1";
 import { minor, units } from "@/lib/clearline/merchant/fixtures/common";
+import { retie } from "./helpers";
 
 const { reconcile, TEST_MODE_LABEL, DEFAULT_POLICY, bpsOf } = merchant;
 const res = reconcile(case1());
@@ -87,6 +88,20 @@ describe("Case 1: batch figures", () => {
   });
 });
 
+describe("Case 1: bridge for B-1124-001", () => {
+  it("merchant day 24 Nov SGT 6,021.45 = gross; fee −60.21; net 5,961.24 = bank line BL-SG-1125-01; tied and verified", () => {
+    const [b] = res.bridges;
+    expect(b.lines.map((l) => [l.kind, l.amountMinor, l.paymentIds])).toEqual([
+      ["merchant_day", minor("6021.45"), ["PP-24817", "PP-24823", "PP-24830", "PP-24836"]],
+      ["gross", minor("6021.45"), ["PP-24817", "PP-24823", "PP-24830", "PP-24836"]],
+      ["provider_fee", minor("-60.21"), ["PP-24817", "PP-24823", "PP-24830", "PP-24836"]],
+      ["net", minor("5961.24"), ["PP-24817", "PP-24823", "PP-24830", "PP-24836"]],
+    ]);
+    expect(b).toMatchObject({ batchId: CASE1_BATCH, tied: true, settlementVerified: true, bankLineId: "BL-SG-1125-01", label: TEST_MODE_LABEL });
+    expect(res.records.every((r) => r.bank.batchTied && r.bank.bankLineIds[0] === "BL-SG-1125-01")).toBe(true);
+  });
+});
+
 describe("Case 1 must-pass: the two SGD 1,350.00 orders are never cross-matched", () => {
   const twins = ["BK-24817", "BK-24836"] as const;
   const assertOwn = (r: ReturnType<typeof reconcile>) => {
@@ -108,7 +123,7 @@ describe("Case 1 must-pass: the two SGD 1,350.00 orders are never cross-matched"
     const t17 = { ...input.transfers[0], amountBaseUnits: units("1000.00") };
     const p17 = { ...input.providerRecords[0], receivedBaseUnits: units("1000.00"), creditedMinor: minor("1350.00") };
     for (const order of [[t17, input.transfers[3]], [input.transfers[3], t17]]) {
-      const r = reconcile({ ...input, transfers: [...order, input.transfers[1], input.transfers[2]], providerRecords: [p17, ...input.providerRecords.slice(1)] });
+      const r = reconcile(retie({ ...input, transfers: [...order, input.transfers[1], input.transfers[2]], providerRecords: [p17, ...input.providerRecords.slice(1)] }, 100));
       assertOwn(r);
       expect(r.records.find((x) => x.orderId === "BK-24817")!.explanation).toMatchObject({ decision: "matched", differences: [] });
       expect(r.records.find((x) => x.orderId === "BK-24836")!.explanation.differences.map((d) => d.type)).toEqual(["requote_after_expiry"]);
