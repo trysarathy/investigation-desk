@@ -96,7 +96,15 @@ function pollOne(ws: Workspace, ctx: ActionContext, intentId: string, version: n
   const intent = ws.intents.find((i) => i.id === intentId)!;
   const instr = ws.instructions.find((i) => i.id === intent.instructionId)!;
   const adapter = getAdapter(instr.providerId)!;
-  const snap = adapter.fetchStatus!(ws, intent, instr, ctx.at, version);
+  // rc5 conformance fix: a provider call that throws (timeout, transport error) is reported for this payout only;
+  // the state is unchanged and the other payouts are still polled (CONNECT_ADAPTERS.md §7).
+  let snap: ReturnType<NonNullable<typeof adapter.fetchStatus>>;
+  try {
+    snap = adapter.fetchStatus!(ws, intent, instr, ctx.at, version);
+  } catch (e) {
+    out.push({ intentId, providerId: instr.providerId, version, outcome: "error", error: { code: "precondition_failed", message: `Provider status call failed (provider unavailable): ${e instanceof Error ? e.message : "unknown error"}` } as EngineError });
+    return ws;
+  }
   if (snap.kind === "none") {
     out.push({ intentId, providerId: instr.providerId, version, outcome: "no_event_pending" });
     return ws;
