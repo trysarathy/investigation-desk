@@ -56,7 +56,7 @@ Separate branch (`rc5/adapter-conformance` at `e2f3577`; engine only):
 | PR head | ci | lint | control-db | clearline-browser | funding-browser |
 |---|---|---|---|---|---|
 | #114 `9b7532c` | ✅ | ❌ (expected: fixed by #116) | — | ✅ | ❌ flaky* |
-| #116 `9381834` | ✅ | ✅ | — | — | ❌ flaky* (rerun requested) |
+| #116 `9381834` | ✅ | ✅ | — | — | ❌ then ✅ on re-run (flaky*) |
 | #117 `fa3be5c` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | #118 `e02204b` | ✅ | ✅ | ✅ | ✅ | ❌ flaky* |
 | #119 `005c621` | ✅ | ✅ | ✅ | — | ✅ |
@@ -64,13 +64,13 @@ Separate branch (`rc5/adapter-conformance` at `e2f3577`; engine only):
 | #121 `388f08b` | ✅ | ✅ | ✅ | — | ✅ |
 | #122 `81f271e` | ✅ | ✅ | ✅ | — | ✅ |
 | #123 `491a659` | ✅ | ✅ | ✅ | — | ✅ |
-| #124 `d199e0a` | not yet observed | | | | |
+| #124 `d199e0a` | ✅ | ✅ | ✅ | ✅ | ✅ — and **`control-e2e` ✅ (24 passed in GitHub Actions)** |
 
 \* **`funding-browser` (the separate Funding Desk app; not touched by rc5)** fails intermittently on one test. The failure is an HTTP 500 in `tests/browser/funding.spec.ts:45`.
 - **Why I call it flaky:** heads that contain the same code pass. The rc4 baseline `280fcd2` and the #113 head `e318145` pass too.
 - **Status:** not investigated further, and not counted as passing.
 
-The `control-e2e` workflow (`.github/workflows/control-e2e.yml`) has been added but has not yet been observed in CI.
+The `control-e2e` workflow (`.github/workflows/control-e2e.yml`, with a `postgres:16` service container) ran on #124: **24 passed**. It is not a required check (branch protection is the founder's setting).
 
 ## Not run / blocked
 
