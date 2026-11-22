@@ -87,7 +87,10 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput): {
     note(v.step, v.ruleId, v.decision === "matched" ? "pass" : "fail", `Decision: ${v.decision}.`);
     const open = inv.amountMinor - credited;
     const balanceState = credited === 0n ? "nothing_received" : partOpen ? "part_paid" : open > 0n ? "short_paid" : open < 0n ? "over_credited" : "fully_credited";
-    const records = pairs.map((p) => p.rec).filter((r): r is ProviderPaymentRecord => !!r);
+    // Every provider claim about this order is shown, paired with a transfer or not (a claim without a transfer is not proof).
+    const refIds = new Set([...quotes.map((q) => q.quoteId), ...links.map((l) => l.linkId)]);
+    const claims = input.providerRecords.filter((r) => refIds.has(r.ref.linkId ?? r.ref.quoteId ?? ""));
+    const records = [...new Set([...pairs.map((p) => p.rec).filter((r): r is ProviderPaymentRecord => !!r), ...claims])].sort(byKey((r) => r.providerPaymentId));
     const held = records.some((r) => r.statusClaim === "held_for_review" && !r.batchId);
     const batchIds = [...new Set(records.map((r) => r.batchId).filter((b): b is string => !!b))].sort();
     const record: MatchRecord = {
