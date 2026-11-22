@@ -150,6 +150,13 @@ Merge first: PR #<n> because <reason> | nothing ready
 Couldn't check: <item — reason>
 Metrics: main green n/7 this week · escaped defects this month n · open security issues C/H/M/L
 ```
+**Same sha, different colour:** if `main` is on the same sha as last night and the headline colour
+changes (RED → GREEN or back), the first line says why in plain words ("GREEN: lint made a
+non-required check by <who, link>"). A gate you stopped running or reporting (lint included) makes
+the headline PARTIAL, never GREEN. Call a finding "new" only if it is absent from the last 7 days of
+your Log rows and the Product roadmap. (Fix after 22 Nov 2026: the 22 Nov email said "GREEN — main
+b83f38e" with no lint result, while every run from 15 to 21 Nov on the same sha reported lint RED,
+20 errors. The 21 Nov Log also called the npm audit high "New", though it was logged on 15 Nov.)
 **Rules**: GREEN only if every step ran and passed on `main` this session. PARTIAL if anything was
 not run. Counts copied from logs. No secrets, no customer data, no full stack traces (link the log
 location instead). Same email whether the news is good or bad.
