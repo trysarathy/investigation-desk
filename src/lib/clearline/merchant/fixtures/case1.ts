@@ -49,7 +49,6 @@ export function case1(): ReconcileInput {
     }],
     fxRates: [{ pair: "USDT/SGD", rate: "1.3500", source: "Fictional Rate Desk", timestamp: "2026-11-24T02:00:00.000Z" }],
     addressFacts: [{ network: "tron", address: EXCHANGE_SENDER, fact: "exchange_hot_wallet" }],
-    merchantDay: "2026-11-24",
   };
 }
 

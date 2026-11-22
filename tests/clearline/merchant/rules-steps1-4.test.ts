@@ -7,11 +7,12 @@ import { merchant } from "@/lib/clearline";
 import type { ChainTransfer, ReconcileInput } from "@/lib/clearline/merchant";
 import { case1 } from "@/lib/clearline/merchant/fixtures/case1";
 import { minor, units, walletAddress } from "@/lib/clearline/merchant/fixtures/common";
-import { only, reconcile, recOf, verdict } from "./helpers";
+import { only, reconcile, recOf, retie, verdict } from "./helpers";
 
 const base = (id = "BK-24817") => only(case1(), [id]);
 const withTransfer = (input: ReconcileInput, patch: Partial<ChainTransfer>): ReconcileInput => ({ ...input, transfers: input.transfers.map((t) => ({ ...t, ...patch })) });
-const withRecord = (input: ReconcileInput, patch: object): ReconcileInput => ({ ...input, providerRecords: input.providerRecords.map((r) => ({ ...r, ...patch })) });
+/** Patch the provider record; the batch is re-tied so only the rule under test can change the outcome. */
+const withRecord = (input: ReconcileInput, patch: object): ReconcileInput => retie({ ...input, providerRecords: input.providerRecords.map((r) => ({ ...r, ...patch })) });
 
 describe("step 1: identity and finality", () => {
   it("[M1.identity.network_disabled] a transfer on a disabled network (TRON switched off) → exception at step 1", () => {
@@ -126,7 +127,8 @@ describe("step 4: explained tolerance", () => {
   });
   it("[M4.match.no_difference] exact payment → matched, no write-off", () => {
     const input = withRecord(withTransfer(base(), { amountBaseUnits: units("1000.00") }), { receivedBaseUnits: units("1000.00"), creditedMinor: minor("1350.00") });
-    expect(verdict(input, "BK-24817")).toEqual(["matched", 4, "M4.match.no_difference"]);
+    expect(verdict(input, "BK-24817")).toEqual(["matched", 5, "M5.batch.tied_verified"]);
+    expect(recOf(input, "BK-24817").explanation.history.map((h) => h.ruleId)).toContain("M4.match.no_difference");
     expect(reconcile(input).writeOffs).toEqual([]);
   });
   it("[M4.tolerance.within_band] |−1.35| ≤ 5.00 → matched_with_difference with a proposed write-off", () => {

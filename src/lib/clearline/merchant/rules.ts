@@ -32,6 +32,13 @@ export const RULES = {
   "M4.tolerance.underpayment_beyond_band": { step: 4, text: "Underpayment beyond the band: exception." },
   "M4.tolerance.overpayment_beyond_band": { step: 4, text: "Overpayment beyond the band: exception." },
   "M4.tolerance.unexplained": { step: 4, text: "A difference with no typed explanation: exception (abstain)." },
+  "M5.bridge.timing_prior_batch": { step: 5, text: "Merchant-day payments settled in an earlier batch are bridged out (and earlier-day payments in)." },
+  "M5.bridge.timing_next_batch": { step: 5, text: "Next-day payments inside this provider day are bridged in (and later-batch payments out)." },
+  "M5.bridge.held_by_provider": { step: 5, text: "Payments held by the provider are bridged out of the merchant day." },
+  "M5.batch.not_tied": { step: 5, text: "A batch ties only when gross − fees − refunds = net = the bank line, to the cent; otherwise exception." },
+  "M5.bank.imported_not_verified": { step: 5, text: "A csv_import bank line alone never makes settlement verified (unless the policy allows it)." },
+  "M5.grouping.proposed_needs_confirmation": { step: 5, text: "No batch ID: a grouping is only proposed and never auto-closed." },
+  "M5.batch.tied_verified": { step: 5, text: "An exact payment in a tied, verified batch is matched at step 5." },
 } as const satisfies Record<string, { step: Step; text: string }>;
 
 export type RuleId = keyof typeof RULES;

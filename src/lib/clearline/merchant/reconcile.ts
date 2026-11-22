@@ -1,10 +1,56 @@
 /** rc6 merchant reconciliation entry point. Pure: same input, same output; no I/O, no clock, no randomness. */
+import { buildBridges, type BatchBridge, type ProposedGrouping } from "./bridge";
 import { matchPayments, type MatchOutput } from "./match";
-import { TEST_MODE_LABEL, type ReconcileInput, type TestModeLabel } from "./types";
+import { active, type RuleId } from "./rules";
+import { TEST_MODE_LABEL, type Attention, type Decision, type MatchRecord, type ReconcileInput, type TestModeLabel } from "./types";
 
-export interface ReconcileResult extends MatchOutput { label: TestModeLabel; entityId: string }
+export interface ReconcileResult extends MatchOutput { label: TestModeLabel; entityId: string; bridges: BatchBridge[]; proposedGroupings: ProposedGrouping[] }
+
+const RANK: Record<Decision, number> = { matched: 0, matched_with_difference: 1, suggested_for_review: 2, exception: 3 };
+
+/** Step 5 can only confirm an exact match or make a decision stricter; it never relaxes steps 1–4. */
+function applyStep5(rec: MatchRecord, bridges: BatchBridge[], groupings: ProposedGrouping[]): { decision: Decision; ruleId: RuleId; attention?: Attention } | null {
+  const ids = new Set(rec.provider.records.map((r) => r.providerPaymentId));
+  const mine = bridges.filter((b) => b.paymentIds.some((id) => ids.has(id)));
+  const grouped = groupings.filter((g) => g.paymentIds.some((id) => ids.has(id)));
+  rec.bank = {
+    ...rec.bank,
+    status: rec.bank.status === "held_by_provider" ? "held_by_provider" : grouped.length ? "proposed_grouping" : mine.length ? "in_batch" : "not_in_batch",
+    batchIds: mine.map((b) => b.batchId), bankLineIds: mine.map((b) => b.bankLineId).filter((x): x is string => !!x),
+    batchTied: mine.length > 0 && mine.every((b) => b.tied), settlementVerified: mine.length > 0 && mine.every((b) => b.settlementVerified),
+    bankLineLabels: [...new Set(mine.map((b) => b.bankLineLabel).filter((x): x is NonNullable<typeof x> => !!x))],
+  };
+  const e = rec.explanation;
+  if (e.decision === "exception" || e.decidingStep < 4) return null;
+  if (grouped.length && active("M5.grouping.proposed_needs_confirmation"))
+    return { decision: "suggested_for_review", ruleId: "M5.grouping.proposed_needs_confirmation", attention: { owner: "Payment Operations", reason: `No settlement batch ID. Grouping ${grouped.map((g) => g.id).join(", ")} is only proposed.`, nextStep: "Confirm the grouping against the provider's settlement report and the bank line; the engine never closes it." } };
+  const untied = mine.find((b) => !b.tied);
+  if (untied && active("M5.batch.not_tied"))
+    return { decision: "exception", ruleId: "M5.batch.not_tied", attention: { owner: "Payment Operations", reason: `Settlement batch ${untied.batchId} does not tie to the cent (${Object.entries(untied.checks).filter(([, v]) => !v).map(([k]) => k).join(", ")}).`, nextStep: "Get the settlement report and the bank statement for this batch and find the gap." } };
+  const unverified = mine.find((b) => !b.settlementVerified);
+  if (unverified && active("M5.bank.imported_not_verified"))
+    return { decision: "suggested_for_review", ruleId: "M5.bank.imported_not_verified", attention: { owner: "Treasury", reason: `Batch ${unverified.batchId} ties, but its bank line is imported, not bank-authenticated.`, nextStep: "Confirm the credit in the bank feed before treating settlement as verified." } };
+  if (mine.length && e.decision === "matched" && active("M5.batch.tied_verified")) return { decision: "matched", ruleId: "M5.batch.tied_verified" };
+  return null;
+}
 
 export function reconcile(input: ReconcileInput): ReconcileResult {
   const matched = matchPayments(input);
-  return { label: TEST_MODE_LABEL, entityId: input.entity.id, ...matched };
+  const orderOf = (pid: string): string => {
+    const r = input.providerRecords.find((x) => x.providerPaymentId === pid);
+    const id = r?.ref.linkId ?? r?.ref.quoteId;
+    return input.paymentLinks.find((l) => l.linkId === id)?.orderId ?? input.quotes.find((q) => q.quoteId === id)?.orderId ?? "unknown";
+  };
+  const { bridges, groupings } = buildBridges(input, orderOf);
+  const exceptions = [...matched.exceptions];
+  for (const rec of matched.records) {
+    const v = applyStep5(rec, bridges, groupings);
+    if (!v || (RANK[v.decision] < RANK[rec.explanation.decision]) || (RANK[v.decision] === RANK[rec.explanation.decision] && v.ruleId !== "M5.batch.tied_verified")) continue;
+    rec.explanation = { ...rec.explanation, decision: v.decision, decidingStep: 5, ruleId: v.ruleId, history: [...rec.explanation.history, { step: 5, ruleId: v.ruleId, outcome: v.decision === "matched" ? "pass" : "fail", detail: `Decision: ${v.decision}.` }] };
+    if (v.attention) rec.attention = v.attention;
+    if (v.decision === "exception") exceptions.push({ id: `EX-${rec.orderId}`, step: 5, ruleId: v.ruleId, orderId: rec.orderId, ...v.attention! });
+  }
+  const writeOffs = matched.writeOffs.filter((w) => matched.records.find((r) => r.orderId === w.orderId)?.explanation.decision === "matched_with_difference");
+  exceptions.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return { label: TEST_MODE_LABEL, entityId: input.entity.id, ...matched, exceptions, writeOffs, bridges, proposedGroupings: groupings };
 }

@@ -4,4 +4,5 @@ export { DEFAULT_POLICY, FIAT_DECIMALS, NETWORKS, TOKENS, USDT_TRON, USDC_ETHERE
 export { parseRate, divRoundHalfUp, toFiatMinor, bpsOf, fmtFiat, fmtToken, fmtPct, localDate } from "./amounts";
 export { RULES, type RuleId } from "./rules";
 export { matchPayments, type MatchOutput } from "./match";
+export { buildBridges, type BatchBridge, type BridgeLine, type BridgeLineKind, type ProposedGrouping } from "./bridge";
 export { reconcile, type ReconcileResult } from "./reconcile";

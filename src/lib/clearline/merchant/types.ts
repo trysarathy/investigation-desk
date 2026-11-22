@@ -154,8 +154,6 @@ export interface ReconcileInput {
   bankLines: readonly BankLine[];
   fxRates: readonly FxRate[];
   addressFacts: readonly AddressFact[];
-  /** The merchant's business day (entity time zone) the bridge starts from, e.g. "2026-11-25". */
-  merchantDay?: string;
 }
 
 // ---------- outputs ----------
