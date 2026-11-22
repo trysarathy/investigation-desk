@@ -355,10 +355,16 @@ export const statementImports = pgTable("statement_imports", {
   status: text("status").notNull(),
   errors: jsonb("errors").notNull(),
   importedBy: text("imported_by").notNull().references(() => users.id),
+  /** Validated lines held until a second person confirms the import; only then does the engine ingest them. */
+  lines: jsonb("lines").notNull().default([]),
+  confirmedBy: text("confirmed_by").references(() => users.id),
+  confirmedAt: ts("confirmed_at"),
+  decisionReason: text("decision_reason"),
   createdAt: ts("created_at").notNull().defaultNow(),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.id] }),
   uniqueIndex("statement_imports_file_uq").on(t.orgId, t.fileSha256),
-  check("statement_imports_status_chk", sql`${t.status} in ('imported','rejected')`),
+  check("statement_imports_status_chk", sql`${t.status} in ('pending_confirmation','imported','rejected','declined')`),
+  check("statement_imports_confirmer_chk", sql`${t.confirmedBy} is null or ${t.confirmedBy} <> ${t.importedBy}`),
   check("statement_imports_size_chk", sql`${t.sizeBytes} between 1 and 1048576`),
 ]);
