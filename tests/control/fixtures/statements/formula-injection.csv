@@ -1,0 +1,4 @@
+line_id,account_ref,value_date,direction,kind,amount,currency,reference,counterparty
+SIMBANK-CSV-3001,SIMBANK-SGD-OPS (fictional),2026-11-13,credit,payment,75.00,SGD,"=HYPERLINK(""https://example.invalid/fictional"",""Click for refund"")","=HYPERLINK(""https://example.invalid/fictional"",""Kestrel Foods"")"
+SIMBANK-CSV-3002,SIMBANK-SGD-OPS (fictional),2026-11-13,credit,payment,76.00,SGD,+SUM(1+1),@SUM(A1:A2)
+SIMBANK-CSV-3003,SIMBANK-SGD-OPS (fictional),2026-11-13,credit,payment,77.00,SGD,-2+3+cmd|calc,"	tab-led counterparty (fictional)"

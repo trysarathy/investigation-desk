@@ -15,6 +15,20 @@
       "when": 1795323099060,
       "tag": "0001_security",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795325951084,
+      "tag": "0002_import_confirmation",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795325951667,
+      "tag": "0003_evidence_provenance_immutable",
+      "breakpoints": true
     }
   ]
 }

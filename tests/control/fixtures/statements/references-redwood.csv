@@ -1,0 +1,2 @@
+reference,line_id,account_ref,value_date,direction,kind,amount,currency,counterparty
+NORTHLINE PAYOUT NLPO-7AF439CFB9 REDWOOD (fictional),SIMBANK-CSV-6001,SIMBANK-USD-OPS (fictional),2026-11-13,debit,payment,12784.90,USD,Northline Payments (sandbox)

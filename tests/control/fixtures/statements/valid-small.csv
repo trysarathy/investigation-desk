@@ -1,0 +1,4 @@
+line_id,account_ref,value_date,direction,kind,amount,currency,reference,counterparty
+SIMBANK-CSV-1001,SIMBANK-SGD-OPS (fictional),2026-11-13,credit,payment,1250.00,SGD,INV-FICT-1001 CUSTOMER RECEIPT,Kestrel Foods (fictional)
+SIMBANK-CSV-1002,SIMBANK-USD-OPS (fictional),2026-11-13,debit,payment,310.25,USD,SIMBANK SERVICE FEE NOV (fictional),SIMBANK (fictional)
+SIMBANK-CSV-1003,SIMBANK-EUR-OPS (fictional),2026-11-12,credit,payment,99.9,EUR,,"Brightwater Studio, Ltd (fictional)"
