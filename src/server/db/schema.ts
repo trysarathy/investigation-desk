@@ -86,8 +86,19 @@ export const organizations = pgTable("organizations", {
   name: text("name").notNull(),
   timezone: text("timezone").notNull(),
   fictional: boolean("fictional").notNull().default(true),
+  /** rc6: a merchant (the default, rc5 organisations) or a payment provider that offers Clearline to its merchants. */
+  kind: text("kind").notNull().default("merchant"),
+  /** rc6: the provider a merchant belongs to (null for a provider, or a merchant without one). */
+  providerOrgId: uuid("provider_org_id"),
+  /** rc6: white-label theme of a provider (name, logoUrl, colours); never secrets. */
+  theme: jsonb("theme"),
   createdAt: ts("created_at").notNull().defaultNow(),
-}, (t) => [check("organizations_slug_chk", sql`${t.slug} ~ '^[a-z0-9][a-z0-9-]{1,62}$'`)]);
+}, (t) => [
+  check("organizations_slug_chk", sql`${t.slug} ~ '^[a-z0-9][a-z0-9-]{1,62}$'`),
+  check("organizations_kind_chk", sql`${t.kind} in ('merchant','provider')`),
+  check("organizations_provider_chk", sql`${t.kind} = 'merchant' or ${t.providerOrgId} is null`),
+  foreignKey({ columns: [t.providerOrgId], foreignColumns: [t.id], name: "organizations_provider_fk" }),
+]);
 
 export const roles = pgTable("roles", {
   code: text("code").primaryKey(),
@@ -290,7 +301,7 @@ export const approvalRequests = pgTable("approval_requests", {
   closedAt: ts("closed_at"),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.id] }),
-  check("approval_requests_kind_chk", sql`${t.subjectKind} in ('investigation_resolution')`),
+  check("approval_requests_kind_chk", sql`${t.subjectKind} in ('investigation_resolution','merchant_writeoff','merchant_resolution')`),
   check("approval_requests_status_chk", sql`${t.status} in ('pending','approved','rejected','superseded')`),
   check("approval_requests_sha_chk", sql`${t.payloadSha256} ~ '^[0-9a-f]{64}$'`),
   uniqueIndex("approval_requests_version_uq").on(t.orgId, t.subjectKind, t.subjectId, t.version),
@@ -377,3 +388,5 @@ export const statementImports = pgTable("statement_imports", {
   check("statement_imports_confirmer_chk", sql`${t.confirmedBy} is null or ${t.confirmedBy} <> ${t.importedBy}`),
   check("statement_imports_size_chk", sql`${t.sizeBytes} between 1 and 1048576`),
 ]);
+
+export * from "./merchant-schema";
