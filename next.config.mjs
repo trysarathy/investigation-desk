@@ -47,6 +47,19 @@ export function deploymentConfigProblems(env) {
   if (preview && preview !== '1') problems.push(`CLEARLINE_CUSTOMER_PREVIEW is ${JSON.stringify(preview)}; only "1" turns the customer-preview allow-list on. Use "1", or unset it for the full app.`);
   if (fundingOnly && fundingOnly !== '1') problems.push(`CLEARLINE_FUNDING_ONLY is ${JSON.stringify(fundingOnly)}; only "1" turns funding-only mode on. Use "1", or unset it.`);
   if (preview === '1' && fundingOnly === '1') problems.push('CLEARLINE_CUSTOMER_PREVIEW and CLEARLINE_FUNDING_ONLY are both "1"; they are separate deployments. Set only one.');
+  // rc5 Clearline Control pilot (private staging): real sign-in + PostgreSQL. Never combined with the public sandbox.
+  const pilot = ON(env.CLEARLINE_CONTROL_PILOT);
+  if (pilot && pilot !== '1') problems.push(`CLEARLINE_CONTROL_PILOT is ${JSON.stringify(pilot)}; only "1" turns the pilot on.`);
+  if (pilot === '1') {
+    if (preview === '1' || fundingOnly === '1') problems.push('CLEARLINE_CONTROL_PILOT cannot be combined with CLEARLINE_CUSTOMER_PREVIEW or CLEARLINE_FUNDING_ONLY: the authenticated pilot and the public demo are separate deployments.');
+    if (env.PREVIEW_USER || env.PREVIEW_PASSWORD) problems.push('PREVIEW_USER/PREVIEW_PASSWORD are not used by the pilot (it has real sign-in); unset them.');
+    const secret = env.BETTER_AUTH_SECRET ?? '';
+    if (secret.length < 32) problems.push('BETTER_AUTH_SECRET must be set to at least 32 random characters in the pilot.');
+    const origin = env.CLEARLINE_ORIGIN ?? '';
+    if (!/^https:\/\/[^/]+$/.test(origin) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)) problems.push('CLEARLINE_ORIGIN must be the pilot\'s https origin (http only for 127.0.0.1/localhost).');
+    if (!env.DATABASE_URL) problems.push('DATABASE_URL (the clearline_runtime login) is required in the pilot.');
+    if (env.DATABASE_URL && /clearline_owner/.test(env.DATABASE_URL)) problems.push('DATABASE_URL must use the clearline_runtime login, never the schema owner (row-level security would not apply).');
+  }
   const user = ON(env.PREVIEW_USER);
   const password = ON(env.PREVIEW_PASSWORD);
   if (!!user !== !!password) problems.push(`Only ${user ? 'PREVIEW_USER' : 'PREVIEW_PASSWORD'} is set; the preview password gate needs both, and with one alone nothing is protected.`);

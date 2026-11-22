@@ -27,14 +27,26 @@ export type GateEnv = Readonly<Record<string, string | undefined>>;
 export type GateDecision =
   /** Serve it. `consoleShell`: render with the bare console layout (customer preview, console, mentor demo). */
   | { action: "next"; consoleShell: boolean }
-  | { action: "redirect"; location: "/clearline" }
+  | { action: "redirect"; location: "/clearline" | "/control" }
   /** `noStore`: the customer-preview 404 carries Cache-Control: no-store; the funding-only 404 does not. */
   | { action: "not_found"; noStore: boolean }
   | { action: "unauthorized" };
 
 const isConsolePath = (p: string) => p === "/mentor-demo" || p === "/clearline" || p.startsWith("/clearline/");
 
+const isPilotPath = (p: string) =>
+  p === "/control" || p.startsWith("/control/") || p.startsWith("/api/control/") || p === "/api/control" || p.startsWith("/api/auth/");
+
 export function deploymentGate(pathname: string, authorization: string | null, env: GateEnv): GateDecision {
+  // rc5 private staging: Clearline Control with real sign-in and PostgreSQL. A pilot deployment serves ONLY the pilot
+  // (no public sandbox, no legacy app), and every other deployment refuses the pilot paths, so the authenticated
+  // product and the fictional public demo never share a surface, a cookie or a session.
+  if (env.CLEARLINE_CONTROL_PILOT === "1") {
+    if (pathname === "/") return { action: "redirect", location: "/control" };
+    const allowed = isPilotPath(pathname) || pathname === "/favicon.ico" || pathname === "/icon.svg" || pathname.startsWith("/_next/");
+    return allowed ? { action: "next", consoleShell: true } : { action: "not_found", noStore: true };
+  }
+  if (isPilotPath(pathname)) return { action: "not_found", noStore: true };
   if (env.CLEARLINE_CUSTOMER_PREVIEW === "1") {
     if (pathname === "/") return { action: "redirect", location: "/clearline" };
     const allowed = pathname === "/clearline" || pathname.startsWith("/clearline/") ||
