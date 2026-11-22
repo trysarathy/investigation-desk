@@ -9,10 +9,15 @@
  *   revoke-sessions <email>
  *   seed-demo                               (two fictional organisations and fictional users; passwords from
  *                                            CLEARLINE_SEED_PASSWORD; prints nothing secret)
+ *   seed-merchant-cases                     (rc6: fictional provider "Northwind Pay (fictional)" with a white-label
+ *                                            theme, two fictional merchants (SG: Cases 1–2, UAE: Case 3) loaded through
+ *                                            the ingestion adapters, and fictional users; passwords from
+ *                                            CLEARLINE_SEED_PASSWORD; Test mode · illustrative data)
  */
 import { closeDatabase, database } from "../../src/server/db/client";
 import { createOrganization, createUser, grantMembership, revokeMembership, revokeSessions } from "../../src/server/admin";
 import type { AppRole } from "../../src/server/authz";
+import { seedMerchantCases } from "../../src/server/merchant-seed";
 
 const DEMO_USERS: { email: string; name: string; org: string; role: AppRole }[] = [
   { email: "ops@lumen.example", name: "Priya Raman (fictional)", org: "lumen-demo", role: "payment_ops" },
@@ -47,6 +52,12 @@ async function main() {
         await grantMembership(db, { orgSlug: u.org, email: u.email, role: u.role });
       }
       console.log(`seeded 2 fictional organisations and ${DEMO_USERS.length} fictional users`); break;
+    }
+    case "seed-merchant-cases": {
+      const pw = process.env.CLEARLINE_SEED_PASSWORD;
+      if (!pw || pw.length < 12) throw new Error("set CLEARLINE_SEED_PASSWORD (≥ 12 chars) for the fictional merchant users");
+      const r = await seedMerchantCases(db, { password: pw });
+      console.log(`${r.label}: seeded a fictional provider, 2 fictional merchants (${Object.keys(r.written).join(", ")}) and ${Object.keys(r.users).length} fictional users`); break;
     }
     default: throw new Error(`unknown command ${cmd}`);
   }
