@@ -1,0 +1,57 @@
+{
+  "label": "Test mode · illustrative data",
+  "transfers": [
+    {
+      "network": "tron",
+      "txHash": "fict_tron_tx_24817",
+      "logIndex": 0,
+      "tokenContract": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+      "from": "T_FICTIONAL_EXCHANGE_HOT_1",
+      "to": "T_FICTIONAL_DEP_BK-24817",
+      "amountBaseUnits": "999000000",
+      "decimals": 6,
+      "block": 70100017,
+      "timestamp": "2026-11-24T02:05:00.000Z",
+      "confirmations": 40
+    },
+    {
+      "network": "tron",
+      "txHash": "fict_tron_tx_24823",
+      "logIndex": 0,
+      "tokenContract": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+      "from": "T_FICTIONAL_CUSTOMER_23",
+      "to": "T_FICTIONAL_DEP_BK-24823",
+      "amountBaseUnits": "1760000000",
+      "decimals": 6,
+      "block": 70100023,
+      "timestamp": "2026-11-24T02:15:00.000Z",
+      "confirmations": 40
+    },
+    {
+      "network": "ethereum",
+      "txHash": "0xfict_eth_tx_24830",
+      "logIndex": 0,
+      "tokenContract": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "from": "0xfictcustomer_30",
+      "to": "0xfictdep_bk-24830",
+      "amountBaseUnits": "708000000",
+      "decimals": 6,
+      "block": 21400030,
+      "timestamp": "2026-11-24T02:25:00.000Z",
+      "confirmations": 40
+    },
+    {
+      "network": "tron",
+      "txHash": "fict_tron_tx_24836",
+      "logIndex": 0,
+      "tokenContract": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+      "from": "T_FICTIONAL_CUSTOMER_36",
+      "to": "T_FICTIONAL_DEP_BK-24836",
+      "amountBaseUnits": "1000000000",
+      "decimals": 6,
+      "block": 70100036,
+      "timestamp": "2026-11-24T03:56:00.000Z",
+      "confirmations": 40
+    }
+  ]
+}

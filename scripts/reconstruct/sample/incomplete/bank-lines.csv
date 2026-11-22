@@ -1,0 +1,2 @@
+line_id,account_ref,value_date,direction,kind,amount,currency,reference,counterparty,balance
+BL-SG-1125-01,SGD-OPS-FICT-001,2026-11-25,credit,payment,5961.24,SGD,Fictional Pay Provider settlement,Fictional Pay Provider,105961.24

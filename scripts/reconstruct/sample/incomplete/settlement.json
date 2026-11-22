@@ -1,0 +1,16 @@
+{
+  "label": "Test mode · illustrative data",
+  "payoutChannel": "fictional-wire",
+  "totals": [
+    {
+      "providerDay": "2026-11-24",
+      "currency": "SGD",
+      "targetBankAccount": "SGD-OPS-FICT-001",
+      "gross": "6021.45",
+      "fees": "60.21",
+      "refunds": "0.00",
+      "net": "5961.24",
+      "settlementRef": "S-0001"
+    }
+  ]
+}

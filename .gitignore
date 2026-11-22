@@ -14,3 +14,6 @@ out/
 funding-browser-artifacts/
 test-results/
 playwright-report/
+
+# rc6 Case Reconstruction: provider data and reports live here only (never commit, never upload)
+reconstruction-data/
