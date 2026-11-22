@@ -460,3 +460,17 @@ shows duplicate handling. "Reset demo" removes demo records only. State lives in
 - unique address generation per request (the business supplies the address);
 - notifications;
 - sign-in.
+
+## Clearline Control (rc5): authenticated, persistent pilot surface
+
+- **What it is:** a private-staging candidate built around the existing financial engine. It has real sign-in (Better Auth), PostgreSQL 16 with row-level security per organisation, and server-enforced maker-checker. It runs on fictional data only and is **not hosted**.
+- **Enabling it:** set `CLEARLINE_CONTROL_PILOT=1`. A pilot deployment serves only `/control`, `/api/control` and `/api/auth`. The public demo (`/clearline`) never serves them.
+- **Run it locally:** follow `docs/runbooks/DEPLOYMENT_RUNBOOK_RC5.md`.
+- **Tests:**
+  - `npm run test:control` runs against real PostgreSQL.
+  - `npm run e2e:control` runs the browser tests.
+- **Architecture and status:**
+  - `docs/architecture/ARCHITECTURE_RC5.md`
+  - `docs/release/TEST_RESULTS_RC5.md`
+  - `docs/release/RELEASE_READINESS_RC5.md`
+
