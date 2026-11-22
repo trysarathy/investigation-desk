@@ -13,9 +13,12 @@
  *                                            theme, two fictional merchants (SG: Cases 1–2, UAE: Case 3) loaded through
  *                                            the ingestion adapters, and fictional users; passwords from
  *                                            CLEARLINE_SEED_PASSWORD; Test mode · illustrative data)
+ *   accept-invitation <invitation-id>       (rc6: accept a provider's invitation record: creates the user if needed,
+ *                                            password from CLEARLINE_NEW_PASSWORD, name from CLEARLINE_NEW_NAME, and
+ *                                            grants the invited merchant role; no email is ever sent)
  */
 import { closeDatabase, database } from "../../src/server/db/client";
-import { createOrganization, createUser, grantMembership, revokeMembership, revokeSessions } from "../../src/server/admin";
+import { acceptInvitation, createOrganization, createUser, grantMembership, revokeMembership, revokeSessions } from "../../src/server/admin";
 import type { AppRole } from "../../src/server/authz";
 import { seedMerchantCases } from "../../src/server/merchant-seed";
 
@@ -58,6 +61,10 @@ async function main() {
       if (!pw || pw.length < 12) throw new Error("set CLEARLINE_SEED_PASSWORD (≥ 12 chars) for the fictional merchant users");
       const r = await seedMerchantCases(db, { password: pw });
       console.log(`${r.label}: seeded a fictional provider, 2 fictional merchants (${Object.keys(r.written).join(", ")}) and ${Object.keys(r.users).length} fictional users`); break;
+    }
+    case "accept-invitation": {
+      const r = await acceptInvitation(db, a[0], { password: process.env.CLEARLINE_NEW_PASSWORD, name: process.env.CLEARLINE_NEW_NAME });
+      console.log(`accepted: ${r.email} is now ${r.role} at ${r.orgSlug}`); break;
     }
     default: throw new Error(`unknown command ${cmd}`);
   }

@@ -1,19 +1,19 @@
 import { expect, test } from "@playwright/test";
-import { settled, signIn } from "./helpers";
-import { MERCHANT_PAGES, reconciledDemo } from "./setup";
+import { settled, signIn, signOut } from "./helpers";
+import { MERCHANT_PAGES, PROVIDER_PAGES, reconciledDemo } from "./setup";
 
 /*
  * Load time on the local production build (`next start`) with the seeded, reconciled demo: for every page, five full
  * navigations; the median (from navigation start until the page is on screen with no loading state) must be under
  * one second. Results are attached to the test and printed.
  */
-test("every merchant page loads in under 1 s (median of 5)", async ({ page }, info) => {
+test("every merchant and provider page loads in under 1 s (median of 5)", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "measured once, at desktop size");
   test.setTimeout(600_000);
   await reconciledDemo(page, info);
   await signIn(page, "finance@straits-demo.example", info);
   const rows: { path: string; samples: number[]; median: number }[] = [];
-  for (const path of MERCHANT_PAGES) {
+  const measure = async (paths: readonly string[]) => { for (const path of paths) {
     await page.goto(path); // warm-up (first compile of the route's server bundle)
     const samples: number[] = [];
     for (let i = 0; i < 5; i++) {
@@ -24,7 +24,11 @@ test("every merchant page loads in under 1 s (median of 5)", async ({ page }, in
     }
     const sorted = [...samples].sort((a, b) => a - b);
     rows.push({ path, samples, median: sorted[2] });
-  }
+  } };
+  await measure(MERCHANT_PAGES);
+  await signOut(page);
+  await signIn(page, "admin@northwind-pay.example", info, /\/control\/merchant\/provider$/);
+  await measure(PROVIDER_PAGES);
   const table = rows.map((r) => `${String(r.median).padStart(5)} ms  ${r.path}  [${r.samples.join(", ")}]`).join("\n");
   console.log(`merchant page load (median of 5):\n${table}`);
   await info.attach("load-times.json", { body: JSON.stringify(rows, null, 2), contentType: "application/json" });

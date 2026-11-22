@@ -71,3 +71,24 @@ export async function health(db: Db) {
   const r = await db.execute(sql`select current_user as role, (select rolbypassrls from pg_roles where rolname = current_user) as bypass`);
   return r.rows[0];
 }
+
+/**
+ * rc6 phase 8: accept a provider's invitation record (owner connection, an operator's step; no email is ever sent).
+ * Creates the user if needed (password from the caller, never an argument), grants the invited merchant role and
+ * marks the invitation accepted. A non-pending invitation is refused.
+ */
+export async function acceptInvitation(db: Db, id: string, input: { password?: string; name?: string }) {
+  const [inv] = await db.select().from(t.merchantInvitations).where(eq(t.merchantInvitations.id, id));
+  if (!inv) throw new Error("invitation not found");
+  if (inv.status !== "pending") throw new Error(`invitation is ${inv.status}`);
+  const [org] = await db.select({ slug: t.organizations.slug, kind: t.organizations.kind, providerOrgId: t.organizations.providerOrgId }).from(t.organizations).where(eq(t.organizations.id, inv.merchantOrgId));
+  if (!org || org.kind !== "merchant" || org.providerOrgId !== inv.orgId) throw new Error("the invitation's merchant is not served by the inviting provider");
+  const [user] = await db.select({ id: t.users.id }).from(t.users).where(eq(t.users.email, inv.email));
+  if (!user) {
+    if (!input.password) throw new Error("set CLEARLINE_NEW_PASSWORD for the new user");
+    await createUser(db, { email: inv.email, name: input.name ?? inv.email.split("@")[0], password: input.password });
+  }
+  await grantMembership(db, { orgSlug: org.slug, email: inv.email, role: inv.role as AppRole });
+  await db.update(t.merchantInvitations).set({ status: "accepted", acceptedAt: new Date() }).where(eq(t.merchantInvitations.id, id));
+  return { email: inv.email, role: inv.role, orgSlug: org.slug };
+}

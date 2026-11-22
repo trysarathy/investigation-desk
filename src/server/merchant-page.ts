@@ -20,3 +20,10 @@ export async function merchantMember() {
   if (r.shell.kind !== "merchant" || !can(r.ctx.role, "read")) notFound();
   return r;
 }
+
+/** A provider console page: a Provider Admin or Provider Ops member of a provider organisation; anyone else gets not-found. */
+export async function providerMember() {
+  const r = await merchantPage();
+  if (r.shell.kind !== "provider" || !can(r.ctx.role, "provider_console")) notFound();
+  return r;
+}

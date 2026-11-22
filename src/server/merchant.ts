@@ -424,24 +424,37 @@ export async function pilotMetrics(ctx: TenantContext) {
   });
 }
 
-export async function recordMatchReview(ctx: TenantContext, orderId: string, input: { verdict: "correct" | "wrong"; note?: string }) {
+export async function recordMatchReview(ctx: TenantContext, orderId: string, input: { verdict: "correct" | "wrong"; note?: string }, idempotencyKey?: string) {
   require(ctx, "review_match");
   const v = z.object({ verdict: z.enum(["correct", "wrong"]), note: z.string().trim().max(1000).optional() }).strict().parse(input);
-  return tenantTx(ctx, async (tx) => {
-    const [m] = await tx.select({ id: t.matchRecords.orderId }).from(t.matchRecords).where(and(eq(t.matchRecords.orgId, ctx.orgId), eq(t.matchRecords.orderId, orderId)));
-    if (!m) throw new AccessDenied(404, "Not found.");
-    await tx.insert(t.matchReviews).values({ orgId: ctx.orgId, orderId, reviewerUserId: ctx.userId, verdict: v.verdict, note: v.note ?? null })
-      .onConflictDoUpdate({ target: [t.matchReviews.orgId, t.matchReviews.orderId, t.matchReviews.reviewerUserId], set: { verdict: v.verdict, note: v.note ?? null, reviewedAt: new Date() } });
-    await serverAudit(tx, ctx, "merchant_match_reviewed", "payment", orderId, `Match marked ${v.verdict}`, v);
-    return { label: LABEL, orderId, verdict: v.verdict };
-  });
+  // rc6 phase 8: with an Idempotency-Key (the API always sends one) a retried request replays the first answer
+  if (idempotencyKey !== undefined) {
+    const key = IdempotencyKey.parse(idempotencyKey);
+    return (await tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "merchant_match_review", orderId, ...v }, async () => ({ status: 200, body: await reviewMatch(tx, ctx, orderId, v) })))).body;
+  }
+  return tenantTx(ctx, (tx) => reviewMatch(tx, ctx, orderId, v));
 }
 
-export async function logMinutes(ctx: TenantContext, input: { day: string; minutes: number; note?: string }) {
+async function reviewMatch(tx: Tx, ctx: TenantContext, orderId: string, v: { verdict: "correct" | "wrong"; note?: string }) {
+  const [m] = await tx.select({ id: t.matchRecords.orderId }).from(t.matchRecords).where(and(eq(t.matchRecords.orgId, ctx.orgId), eq(t.matchRecords.orderId, orderId)));
+  if (!m) throw new AccessDenied(404, "Not found.");
+  await tx.insert(t.matchReviews).values({ orgId: ctx.orgId, orderId, reviewerUserId: ctx.userId, verdict: v.verdict, note: v.note ?? null })
+    .onConflictDoUpdate({ target: [t.matchReviews.orgId, t.matchReviews.orderId, t.matchReviews.reviewerUserId], set: { verdict: v.verdict, note: v.note ?? null, reviewedAt: new Date() } });
+  await serverAudit(tx, ctx, "merchant_match_reviewed", "payment", orderId, `Match marked ${v.verdict}`, v);
+  return { label: LABEL, orderId, verdict: v.verdict };
+}
+
+export async function logMinutes(ctx: TenantContext, input: { day: string; minutes: number; note?: string }, idempotencyKey?: string) {
   require(ctx, "read");
   const v = z.object({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), minutes: z.number().int().min(0).max(1440), note: z.string().trim().max(500).optional() }).strict().parse(input);
-  return tenantTx(ctx, async (tx) => {
+  const insert = async (tx: Tx) => {
     const [row] = await tx.insert(t.pilotTimeLog).values({ orgId: ctx.orgId, userId: ctx.userId, day: v.day, minutes: v.minutes, note: v.note ?? null }).returning({ id: t.pilotTimeLog.id });
     return { label: LABEL, id: row.id };
-  });
+  };
+  // rc6 phase 8: with an Idempotency-Key (the API always sends one) a retried request does not log the minutes twice
+  if (idempotencyKey !== undefined) {
+    const key = IdempotencyKey.parse(idempotencyKey);
+    return (await tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "pilot_minutes", ...v }, async () => ({ status: 201, body: await insert(tx) })))).body;
+  }
+  return tenantTx(ctx, insert);
 }
