@@ -75,7 +75,7 @@ export function FlashMessage({ flashKey }: { flashKey: string }) {
   return <p role="status" className={`${s.result} ${s.resultOk}`}>{message ?? ""}</p>;
 }
 
-function useMutation(flashKey: string) {
+export function useMutation(flashKey: string) {
   const [outcome, setOutcome] = useState<Outcome>({ kind: "idle" });
   useFlash(flashKey, (message) => setOutcome({ kind: "ok", message }));
   async function run(method: string, url: string, body: unknown, success: (data: Record<string, unknown> | null) => string) {
@@ -96,7 +96,7 @@ function useMutation(flashKey: string) {
   return { outcome, run, busy };
 }
 
-function Result({ outcome }: { outcome: Outcome }) {
+export function Result({ outcome }: { outcome: Outcome }) {
   if (outcome.kind === "error") return <p role="alert" className={`${s.result} ${s.resultError}`}>Refused: {outcome.message}</p>;
   return (
     <p role="status" className={`${s.result} ${s.resultOk}`}>
@@ -105,7 +105,7 @@ function Result({ outcome }: { outcome: Outcome }) {
   );
 }
 
-function Submit({ busy, children, variant }: { busy: boolean; children: ReactNode; variant?: "secondary" | "danger" }) {
+export function Submit({ busy, children, variant }: { busy: boolean; children: ReactNode; variant?: "secondary" | "danger" }) {
   return (
     <button type="submit" className={`${s.button} ${variant === "secondary" ? s.buttonSecondary : variant === "danger" ? s.buttonDanger : ""}`} disabled={busy} aria-disabled={busy}>
       {children}
