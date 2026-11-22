@@ -8,6 +8,7 @@
     "start": "next start",
     "test": "vitest run",
     "test:control": "vitest run --config vitest.control.config.ts",
+    "e2e:control": "playwright test -c playwright.control.config.ts",
     "db:migrate": "drizzle-kit migrate",
     "control:admin": "tsx --conditions=react-server scripts/control/admin.ts",
     "typecheck": "tsc --noEmit",

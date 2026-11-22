@@ -119,10 +119,22 @@ export function newNonce(): string {
   return btoa(String.fromCharCode(...bytes));
 }
 
+/** A Control page that needs a signed-in member (everything under /control except the sign-in page). */
+export const isControlPage = (p: string) => (p === "/control" || p.startsWith("/control/")) && p !== "/control/sign-in" && !p.startsWith("/control/sign-in/");
+
+/** Better Auth's session cookie for the pilot (cookiePrefix "clearline"; "__Secure-" prefixed on https). */
+const hasSessionCookie = (req: NextRequest) => req.cookies.has("clearline.session_token") || req.cookies.has("__Secure-clearline.session_token");
+
 export function middleware(req: NextRequest) {
   const decision = deploymentGate(req.nextUrl.pathname, req.headers.get("authorization"), process.env);
   const refused = gateResponse(decision, req.url);
   if (refused) return refused;
+  // rc5 Clearline Control: a Control page requested without any session cookie is a real 307 to sign-in, before the
+  // root loading boundary starts streaming (a redirect from inside a streamed page would be a 200 plus a client-side
+  // redirect). This is only a fast path: every page and API route still validates the session against the database.
+  if (process.env.CLEARLINE_CONTROL_PILOT === "1" && isControlPage(req.nextUrl.pathname) && !hasSessionCookie(req)) {
+    return NextResponse.redirect(new URL("/control/sign-in", req.url), 307);
+  }
   if (decision.action !== "next") return NextResponse.next(); // unreachable: gateResponse handled it
   const nonce = newNonce();
   const csp = nonceContentSecurityPolicy(nonce);
