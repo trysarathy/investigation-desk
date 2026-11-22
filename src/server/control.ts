@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
-  buildCaseReport, canResolveCase, canResolveException, caseReportToCsv, investigate,
+  buildCaseReport, canResolveCase, canResolveException, caseReportToCsv, evidenceTimelineFor, investigate,
   type ActionOutput, type TargetRef, type Workspace, type WorkspaceAction,
 } from "@/lib/clearline";
 import type { Tx } from "./db/client";
@@ -112,8 +112,45 @@ export async function paymentDetail(ctx: TenantContext, intentId: string) {
       cases: caseRows.map((c) => ({ ...(c.record as object), priority: c.priority, nextAction: c.nextAction, dueDate: c.dueDate })),
       approvals: approvals.filter((a) => exceptionIds.has(a.subjectId.split(":")[1]) || caseIds.has(a.subjectId.split(":")[1])).map(approvalView),
       members: ws.actors.filter((a) => !a.id.startsWith("usr_")).map((a) => ({ id: a.id, name: a.name, role: a.role })),
+      // rc5 UI (read-only): the engine's evidence timeline for this payment, its evidence records (what a resolution
+      // request may cite) and display names for every actor id in the history (members and fictional seed actors).
+      timeline: evidenceTimelineFor(ws, intentId),
+      evidence: ws.evidence.filter((e) => e.intentId === intentId),
+      actorNames: Object.fromEntries(ws.actors.map((a) => [a.id, a.name])) as Record<string, string>,
     };
   });
+}
+
+/** rc5 UI (read-only): every exception and investigation of this organisation, for the work queue and case list. */
+export async function workQueue(ctx: TenantContext) {
+  require(ctx, "read");
+  return tenantTx(ctx, async (tx) => {
+    const ws = await readWorkspace(tx, ctx.orgId);
+    const caseRows = await tx.select({ id: t.investigations.id, priority: t.investigations.priority, nextAction: t.investigations.nextAction, dueDate: t.investigations.dueDate })
+      .from(t.investigations).where(eq(t.investigations.orgId, ctx.orgId));
+    const control = new Map(caseRows.map((c) => [c.id, c]));
+    const names = new Map(ws.actors.map((a) => [a.id, a.name]));
+    const ref = (intentId?: string) => ws.intents.find((i) => i.id === intentId)?.internalReference ?? null;
+    return {
+      exceptions: ws.exceptions.map((e) => ({
+        id: e.id, intentId: e.intentId ?? null, reference: ref(e.intentId), category: e.category, severity: e.severity, status: e.status,
+        ownerName: e.ownerId ? names.get(e.ownerId) ?? null : null, dueDate: e.dueDate ?? null, requiredAction: e.requiredAction, caseId: e.caseId ?? null,
+      })),
+      cases: ws.cases.map((c) => ({
+        id: c.id, intentId: c.intentId ?? null, reference: ref(c.intentId), title: c.title, status: c.status,
+        ownerName: c.ownerId ? names.get(c.ownerId) ?? null : null, priority: control.get(c.id)?.priority ?? "normal",
+        nextAction: control.get(c.id)?.nextAction ?? null, dueDate: control.get(c.id)?.dueDate ?? null, updatedAt: c.updatedAt,
+      })),
+    };
+  });
+}
+
+/** rc5 UI (read-only): this organisation's members and their roles (revoked members are listed as revoked). */
+export async function listMembers(ctx: TenantContext) {
+  require(ctx, "read");
+  return tenantTx(ctx, (tx) => tx.select({ userId: t.organizationMemberships.userId, name: t.users.name, email: t.users.email, role: t.organizationMemberships.role, revokedAt: t.organizationMemberships.revokedAt })
+    .from(t.organizationMemberships).innerJoin(t.users, eq(t.users.id, t.organizationMemberships.userId))
+    .where(eq(t.organizationMemberships.orgId, ctx.orgId)).orderBy(t.users.name));
 }
 
 export async function auditHistory(ctx: TenantContext, limit = 200) {
