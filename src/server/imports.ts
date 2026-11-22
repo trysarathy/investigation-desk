@@ -100,6 +100,7 @@ function hasForbiddenText(s: string): boolean {
     if (c === 0x3c || c === 0x3e) return true;                                 // < >
     if ((c < 0x20 && c !== 0x09) || c === 0x7f || (c >= 0x80 && c <= 0x9f)) return true; // controls except TAB
     if (c === 0x2028 || c === 0x2029) return true;                              // line / paragraph separators
+    if ((c >= 0x202a && c <= 0x202e) || (c >= 0x2066 && c <= 0x2069) || c === 0x200e || c === 0x200f || c === 0x061c) return true; // bidi controls (spoofed references)
   }
   return false;
 }
@@ -265,7 +266,7 @@ export const ImportFileName = z.string().min(5).max(200)
 // ---------------------------------------------------------------------------------------------
 
 export interface ImportAccepted {
-  importId: string; status: "pending_confirmation"; fileName: string; fileSha256: string; sizeBytes: number;
+  importId: string; status: "pending_confirmation"; fileName: string; fileSha256: string; linesSha256: string; sizeBytes: number;
   rowCount: number; acceptedCount: number; outcomes: Record<string, number>;
   lines: { row: number; lineId: string; statementLineId: string; outcome: string }[];
   notes: string[];
@@ -355,10 +356,11 @@ export async function importStatementCsv(ctx: TenantContext, input: { fileName: 
     const outcomes: Record<string, number> = {};
     for (const l of lines) outcomes[l.outcome] = (outcomes[l.outcome] ?? 0) + 1;
     const staged = parsed.ok ? parsed.rows.map((r) => ({ row: r.row, line: r.line })) : [];
-    await tx.insert(t.statementImports).values({ orgId: ctx.orgId, id: importId, fileSha256, fileName, sizeBytes, rowCount, acceptedCount: 0, rejectedCount: 0, status: "pending_confirmation", errors: { errors: [], errorCount: 0, truncated: false }, importedBy: ctx.userId, lines: staged });
+    const linesSha256 = linesDigest(staged);
+    await tx.insert(t.statementImports).values({ orgId: ctx.orgId, id: importId, fileSha256, fileName, sizeBytes, rowCount, acceptedCount: 0, rejectedCount: 0, status: "pending_confirmation", errors: { errors: [], errorCount: 0, truncated: false }, importedBy: ctx.userId, lines: staged, linesSha256 });
     await serverAudit(tx, ctx, "statement_import_staged", "statement_import", importId, `Statement file validated, awaiting a second person's confirmation: ${lines.length} line(s) (sha256 ${fileSha256.slice(0, 12)}…); nothing ingested yet`,
       { fileSha256, fileName, sizeBytes, rowCount, acceptedCount: 0, stagedCount: lines.length, rejectedCount: 0, dryRunOutcomes: outcomes, actor: ctx.userId });
-    return { status: 201, body: { importId, status: "pending_confirmation", fileName, fileSha256, sizeBytes, rowCount, acceptedCount: 0, outcomes, lines, notes } };
+    return { status: 201, body: { importId, status: "pending_confirmation", fileName, fileSha256, linesSha256, sizeBytes, rowCount, acceptedCount: 0, outcomes, lines, notes } };
   }));
 
   if (result.status === 409) {
@@ -368,7 +370,23 @@ export async function importStatementCsv(ctx: TenantContext, input: { fileName: 
   return result as { status: 201 | 422; body: ImportAccepted | ImportRejected; replayed: boolean };
 }
 
-export const ImportDecision = z.object({ decision: z.enum(["confirm", "decline"]), reason: z.string().trim().min(3).max(1000), fileSha256: z.string().regex(/^[0-9a-f]{64}$/) }).strict();
+export const ImportDecision = z.object({ decision: z.enum(["confirm", "decline"]), reason: z.string().trim().min(3).max(1000), fileSha256: z.string().regex(/^[0-9a-f]{64}$/), linesSha256: z.string().regex(/^[0-9a-f]{64}$/) }).strict();
+
+/** SHA-256 of the canonical staged lines: the approver reviews and confirms exactly these (review H2). */
+export function linesDigest(staged: unknown): string {
+  return createHash("sha256").update(canonical(staged)).digest("hex");
+}
+
+/** What a confirming approver reviews: every staged line as it will be ingested, and the hash their decision binds. */
+export async function stagedImport(ctx: TenantContext, importId: string) {
+  require(ctx, "read");
+  if (!z.uuid().safeParse(importId).success) throw new AccessDenied(404, "Not found.");
+  return tenantTx(ctx, async (tx) => {
+    const [imp] = await tx.select().from(t.statementImports).where(and(eq(t.statementImports.orgId, ctx.orgId), eq(t.statementImports.id, importId)));
+    if (!imp) throw new AccessDenied(404, "Not found.");
+    return { importId: imp.id, status: imp.status, fileName: imp.fileName, fileSha256: imp.fileSha256, linesSha256: imp.linesSha256, importedBy: imp.importedBy, lines: imp.lines as { row: number; line: StatementLineInput }[] };
+  });
+}
 
 /**
  * Second-person confirmation. An active Approver who did not upload the file confirms (the engine then ingests every
@@ -385,7 +403,7 @@ export async function decideStatementImport(ctx: TenantContext, importId: string
     if (!imp) throw new AccessDenied(404, "Not found.");
     if (imp.importedBy === ctx.userId) throw new RequestRefused(409, "MAKER_CANNOT_CONFIRM", "You uploaded this file; another approver must confirm it.");
     if (imp.status !== "pending_confirmation") throw new RequestRefused(409, "IMPORT_CLOSED", `This import is ${imp.status}.`);
-    if (imp.fileSha256 !== d.fileSha256) throw new RequestRefused(409, "VERSION_MISMATCH", "The file hash does not match the import you are deciding.");
+    if (imp.fileSha256 !== d.fileSha256 || imp.linesSha256 !== d.linesSha256 || linesDigest(imp.lines) !== d.linesSha256) throw new RequestRefused(409, "VERSION_MISMATCH", "The lines you reviewed do not match this import.");
     let accepted = 0;
     const outcomes: Record<string, number> = {};
     if (d.decision === "confirm") {

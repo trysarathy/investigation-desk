@@ -25,13 +25,29 @@ export class AccessDenied extends Error {
 /**
  * Runs `fn` in one transaction whose row-level-security context is this user (and, once known, this organisation).
  * set_config(..., true) is transaction-local, so a pooled connection never carries a tenant context into the next
- * transaction (tests/control/tenancy.test.ts proves it).
+ * transaction (tests/control/workflow.test.ts, "the tenant context never leaks", proves it on one connection).
  */
-export async function withTenant<T>(ctx: { userId: string; orgId?: string }, fn: (tx: Tx) => Promise<T>): Promise<T> {
+export async function withTenant<T>(ctx: { userId: string; orgId?: string }, fn: (tx: Tx) => Promise<T>, opts: { read?: boolean } = {}): Promise<T> {
+  await assertRuntimeRole();
+  // Reads run in one REPEATABLE READ, read-only snapshot, so a page never sees half of a concurrent action.
   return database().transaction(async (tx) => {
     await tx.execute(sql`select set_config('app.user_id', ${ctx.userId}, true), set_config('app.org_id', ${ctx.orgId ?? ""}, true)`);
     return fn(tx);
-  });
+  }, opts.read ? { isolationLevel: "repeatable read", accessMode: "read only" } : undefined);
+}
+
+let roleCheck: Promise<void> | undefined;
+/**
+ * Refuse to serve when the runtime connection could bypass row-level security (superuser or BYPASSRLS), whatever
+ * the role is called. Checked once per process, before the first tenant transaction.
+ */
+export function assertRuntimeRole(): Promise<void> {
+  return (roleCheck ??= checkRuntimeRole(database()).catch((e) => { roleCheck = undefined; throw e; }));
+}
+export async function checkRuntimeRole(db: { execute: (q: ReturnType<typeof sql>) => Promise<{ rows: Record<string, unknown>[] }> }): Promise<void> {
+  const r = await db.execute(sql`select rolsuper, rolbypassrls from pg_roles where rolname = current_user`);
+  const row = r.rows[0] ?? {};
+  if (row.rolsuper || row.rolbypassrls) throw new Error("refusing to serve: DATABASE_URL's role can bypass row-level security (use the clearline_runtime login)");
 }
 
 /** The organisations this user may act in (active memberships only). */

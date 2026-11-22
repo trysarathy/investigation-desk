@@ -230,8 +230,8 @@ describe("maker-checker on journal approval", () => {
     await refused(ctx("approver3@lumen.example"), /ACCESS_40[34]/);
     // RLS: a revoked member's transaction sees none of the organisation's rows, so the load is refused as not found (404).
     await refused(runAction(stale, { type: "approve_journal_proposal", proposalId: other }, key()), /ACCESS_404/);
-    // Defence in depth: even on the owner-side engine path, a revoked member is no longer an engine actor.
-    await refused(serverSideEngineAction(lumen.viewer.orgId, stale.userId, { type: "approve_journal_proposal", proposalId: other }), /Unknown actor/);
+    // (A revoked member stays an engine actor so the records they made keep validating — review L2; their authority
+    // ends at the membership: no context resolves, RLS hides the org from their transactions, triggers refuse them.)
     const row = (await proposalRows(lumen.viewer)).find((r) => r.record.id === other)!;
     expect(row.status).toBe("proposed");
     expect(row.record.approval).toBeUndefined();

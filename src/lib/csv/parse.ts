@@ -30,6 +30,7 @@ export function decodeUtf8(bytes: Uint8Array): { text?: string; error?: string; 
 
 export function parseCsv(text: string): CsvParseResult {
   const out: CsvParseResult = { header: [], records: [], fileErrors: [], recordErrors: [], notes: [] };
+  let blankBeyond = 0; // review M5: notes stay bounded (a 1 MiB file of blank lines produced a 52 MB response)
   if (text.trim() === "") {
     out.fileErrors.push("File is empty.");
     return out;
@@ -109,11 +110,13 @@ export function parseCsv(text: string): CsvParseResult {
   for (const r of rest) {
     // A completely empty line is not a record; report it rather than skip silently.
     if (r.cells.length === 1 && r.cells[0] === "") {
-      out.notes.push(`Line ${r.line} is blank and was not read as a row.`);
+      if (out.notes.length < 20) out.notes.push(`Line ${r.line} is blank and was not read as a row.`);
+      else blankBeyond++;
       continue;
     }
     if (r.error) out.recordErrors.push({ line: r.line, message: r.error });
     else out.records.push({ line: r.line, cells: r.cells });
   }
+  if (blankBeyond) out.notes.push(`${blankBeyond} more blank line(s) were not read as rows.`);
   return out;
 }
