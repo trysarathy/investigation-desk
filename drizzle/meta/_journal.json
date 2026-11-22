@@ -85,6 +85,20 @@
       "when": 1795340234247,
       "tag": "0011_merchant_ui_security",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795343111975,
+      "tag": "0012_provider_console",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795343112782,
+      "tag": "0013_provider_console_security",
+      "breakpoints": true
     }
   ]
 }

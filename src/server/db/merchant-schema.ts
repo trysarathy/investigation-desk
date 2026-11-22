@@ -315,3 +315,34 @@ export const reconExceptionNotes = pgTable("recon_exception_notes", {
   check("recon_exception_notes_ref_chk", sql`${t.reference} is null or length(${t.reference}) between 1 and 120`),
   index("recon_exception_notes_exception_idx").on(t.orgId, t.exceptionId),
 ]);
+
+/**
+ * rc6 phase 8: a provider's onboarding of one of its merchants, kept in the PROVIDER's tenancy (org_id = the
+ * provider). "Connect exports" is a column-mapping config (JSON, validated against the provider-export adapter's
+ * mapping schema); nothing connects to anything live. Policy defaults are only a proposal: the merchant's own Admin
+ * sets the matching policy.
+ */
+export const merchantOnboarding = pgTable("merchant_onboarding", {
+  orgId: org(), merchantOrgId: uuid("merchant_org_id").notNull().references(() => organizations.id),
+  columnMapping: jsonb("column_mapping"),
+  policyDefaults: jsonb("policy_defaults"),
+  revision: integer("revision").notNull().default(1),
+  updatedBy: text("updated_by").notNull().references(() => users.id),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.merchantOrgId] })]);
+
+/** An invitation record (no email is sent): an operator accepts it with `admin.ts accept-invitation <id>`. */
+export const merchantInvitations = pgTable("merchant_invitations", {
+  orgId: org(), id: uuid("id").notNull().defaultRandom(),
+  merchantOrgId: uuid("merchant_org_id").notNull().references(() => organizations.id),
+  email: text("email").notNull(), role: text("role").notNull(),
+  invitedBy: text("invited_by").notNull().references(() => users.id),
+  status: text("status").notNull().default("pending"),
+  createdAt: ts("created_at").notNull().defaultNow(), acceptedAt: ts("accepted_at"),
+}, (t) => [
+  primaryKey({ columns: [t.orgId, t.id] }),
+  check("merchant_invitations_role_chk", sql`${t.role} in ('admin','payment_ops','finance','approver','viewer')`),
+  check("merchant_invitations_status_chk", sql`${t.status} in ('pending','accepted','revoked')`),
+  check("merchant_invitations_email_chk", sql`${t.email} ~ '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$' and length(${t.email}) <= 254`),
+  uniqueIndex("merchant_invitations_pending_uq").on(t.orgId, t.merchantOrgId, t.email).where(sql`${t.status} = 'pending'`),
+]);
