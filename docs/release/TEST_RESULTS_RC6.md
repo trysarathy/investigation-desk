@@ -83,10 +83,10 @@ The server was then stopped by its PID, after its working directory and environm
 | #130 match-partials | 0d1210d | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | #131 journals | 44e951f | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ (flaky) |
 | #132 ingest | 77e8bb1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ (flaky) |
-| #134 merchant UI | 5b1ca48 | ✓ | ✓ | ✓ | in progress | in progress | ✓ |
+| #134 merchant UI | 5b1ca48 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | #135 provider console | 5bfc8be | ✓ | ✓ | ✓ | ✓ | not run | ✗ (flaky) |
 | #136 cases demo | a9fbd4e | ✓ | ✓ | ✓ | ✓ | in progress | ✓ |
-| #137 reconstruct | fdc48d7 | ✓ | ✓ | ✓ | ✓ | in progress | ✓ |
+| #137 reconstruct | fdc48d7 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 - **`funding-browser` is a pre-existing flaky test, not an rc6 regression:**
   - It belongs to the separate Funding Desk (`tests/browser/funding.spec.ts`), and rc6 changes no Funding file.
