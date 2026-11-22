@@ -25,6 +25,7 @@ export const RULES = {
   "M4.tolerance.rate_difference": { step: 4, text: "Executed rate differs from the quoted rate." },
   "M4.tolerance.underpayment": { step: 4, text: "Received < quoted beyond the sender-fee bound: the rest stays owed." },
   "M4.tolerance.overpayment": { step: 4, text: "Received > quoted: the excess is a customer-overpayment liability." },
+  "M4.partial.balance_link_open": { step: 4, text: "A balance link is still unpaid: the open balance is part paid, not overdue." },
   "M4.match.no_difference": { step: 4, text: "Credited equals the invoice exactly." },
   "M4.tolerance.within_band": { step: 4, text: "|difference| ≤ min(pct × invoice, abs): matched with difference, write-off proposed." },
   "M4.tolerance.writeoff_threshold": { step: 4, text: "Within the band but above the write-off threshold: review." },

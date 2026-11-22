@@ -65,6 +65,9 @@ export interface PaymentLink {
   token: TokenRef;
   depositAddress: string;
   requestedBaseUnits: bigint;
+  /** The link's own validity window (a balance link is issued later than the quote). */
+  createdAt: string;
+  expiresAt: string;
 }
 
 export interface TransferRef { network: NetworkId; txHash: string; logIndex: number }
@@ -189,7 +192,14 @@ export interface WriteOffProposal {
   approverRoles: readonly string[];
 }
 
-export interface ChainTransferView extends ChainTransfer { symbol: string; senderFacts: AddressFact["fact"][]; linkId?: string; quoteId?: string }
+/** A transfer as shown on a match record. Sender and path facts are recorded, never judged, and never decide a match. */
+export interface ChainTransferView extends ChainTransfer {
+  symbol: string;
+  senderFacts: AddressFact["fact"][];
+  pathFacts: { address: string; facts: AddressFact["fact"][] }[];
+  linkId?: string;
+  quoteId?: string;
+}
 
 export interface BankPart {
   status: "not_in_batch" | "in_batch" | "held_by_provider" | "proposed_grouping";

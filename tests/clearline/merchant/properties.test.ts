@@ -5,11 +5,12 @@ import { describe, expect, it } from "vitest";
 import type { ReconcileInput } from "@/lib/clearline/merchant";
 import { case1 } from "@/lib/clearline/merchant/fixtures/case1";
 import { case2Sgd, case2Usd, case2UsdNoBatchIds } from "@/lib/clearline/merchant/fixtures/case2";
+import { case3, case3AfterPart1 } from "@/lib/clearline/merchant/fixtures/case3";
 import { walletAddress } from "@/lib/clearline/merchant/fixtures/common";
 import { reconcile, shuffleInput } from "./helpers";
 
 const SEEDS = Array.from({ length: 25 }, (_, i) => 1000 + i * 7919);
-const CASES: [string, () => ReconcileInput][] = [["case1", case1], ["case2 SGD", case2Sgd], ["case2 USD", case2Usd], ["case2 no batch IDs", case2UsdNoBatchIds]];
+const CASES: [string, () => ReconcileInput][] = [["case1", case1], ["case2 SGD", case2Sgd], ["case2 USD", case2Usd], ["case2 no batch IDs", case2UsdNoBatchIds], ["case3", case3], ["case3 after part 1", case3AfterPart1]];
 
 describe.each(CASES)("%s properties", (_name, make) => {
   const baseline = reconcile(make());
