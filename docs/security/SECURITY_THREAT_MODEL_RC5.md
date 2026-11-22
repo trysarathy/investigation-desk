@@ -1,0 +1,26 @@
+# Clearline Control — security threat model (rc5)
+
+**Scope.** This covers the authenticated pilot surface (`/control`, `/api/control`, `/api/auth`) and its PostgreSQL database. The public fictional demo is unchanged; see `THREAT_MODEL.md` (v0).
+
+**What this is not.** It is not a certification, audit or legal opinion. No independent assessment has been done. Tests are in `tests/control/` and the reviews in `docs/release/TEST_RESULTS_RC5.md`.
+
+| Threat | Control (implemented) | Negative test | Residual risk |
+|---|---|---|---|
+| Cross-tenant access | org from session membership only; RLS forced on 18 tables (org + active member); composite FKs; services filter by org | slug of another org → 404; forced foreign `app.org_id` → 0 rows; B's writes invisible to A; A cannot decide B's request; export has no B data | an RLS policy mistake in a future table — schema test asserts every tenant table has forced RLS + policy |
+| Broken object-level authorisation | every read/write by `(org_id, id)`; foreign ids → 404 | decide B's request from A → 404 | — |
+| Identity forgery / header impersonation | actor = session user; no actor parameter; `x-clearline-actor` ignored on pilot routes | rc5/control-ui API test (forged header and body `actorId` ignored) | — |
+| Approval bypass (self, stale, closed, revoked, race, substituted evidence) | service checks + **DB triggers bound to the signed-in user** (`app_user_id()`), requests created pending only, approved only with a matching decision + unique decision per request + row locks; the payload binds each cited record's content hash and the target's state, re-checked on approval; cited evidence must concern the target | self-approval (service and direct SQL), wrong hash, superseded version, revoked approver (direct SQL), two concurrent approvers → 1 decision, forced `status=approved` without decision, forged decider, another payment's evidence (`EVIDENCE_NOT_FOR_TARGET`), changed target (`EVIDENCE_CHANGED`) | an owner (DBA) can disable triggers — inherent; owner credentials are not given to the app |
+| Forged evidence | no client workspace accepted; evidence only via server actions / CSV import / seed; **a CSV import is staged and becomes evidence only when a different Approver confirms the exact staged lines (their SHA-256)**; provenance immutable (trigger) | API refuses non-listed actions; import confirmation tests; provenance immutability | a confirmed import is treated as bank evidence and can verify settlement — **founder decision** (FINANCIAL_INVARIANTS_RC5.md) |
+| Replay / duplicate financial actions | idempotency keys `(org, key)` with fingerprint; advisory lock per key; engine dedupe | replay returns stored response; same key + other request → 409; exactly one note stored | idempotency records are not yet pruned |
+| Session theft / fixation | HttpOnly, SameSite=Strict, Secure (https); DB sessions, 8 h; immediate revocation | expired, revoked, signed-out, forged cookie tests | no device binding; no MFA |
+| CSRF | exact Origin check on every POST + Better Auth origin check forced on + SameSite=Strict | foreign-origin sign-in and sign-out (with cookie) → 403 | — |
+| Brute force | 5 failed sign-ins / 15 min **per account**, in PostgreSQL; per-IP only with a trusted header | rotated `X-Forwarded-For` still limited | one account can be locked for 15 min by an attacker |
+| XSS | React escaping; nonce CSP with `strict-dynamic`; no `dangerouslySetInnerHTML` in pilot code | rc5/control-ui renders HTML-like text as text | `style-src 'unsafe-inline'` (inherited) |
+| SQL injection | Drizzle parameterised queries; no string-built SQL in `src/server` (raw SQL only in tests/reset) | — | — |
+| Malicious CSV | 1 MiB cap before parsing, row/field caps, strict schema, all-or-nothing, duplicate-file SHA-256, formula escaping on output | rc5/csv-import tests | no malware scanning (text-only parse; documented) |
+| Audit tampering | append-only triggers for every role; runtime role has INSERT/SELECT only | UPDATE/DELETE/TRUNCATE refused (owner and runtime) | owner can alter triggers (DBA trust) |
+| Concurrent updates | per-org `FOR UPDATE` lock on engine state; partial unique "one pending request" | concurrent approvers test | throughput limited per org (acceptable for pilot) |
+| Secret exposure | no secrets in source; deployment check requires a ≥32-char `BETTER_AUTH_SECRET`; refuses owner URL at runtime | config check | CI service-container passwords in the workflow are throwaway, CI-only |
+| Sensitive logging | unexpected errors log only the error class name; refusals return codes, not internals | — | no structured logging/redaction pipeline yet |
+| Database privilege escalation | runtime login NOBYPASSRLS, owns nothing; TEMP revoked; SECURITY DEFINER functions resolve `pg_temp` last; least-privilege grants (no INSERT on payments/provider events, no UPDATE on idempotency); payment identity and amount immutable; refuse to serve on a BYPASSRLS/superuser role | schema test; hardening tests M3, M4, M8 | RLS trusts session settings the runtime role sets itself: it protects against application mistakes, not a compromised application server |
+| Vulnerable dependencies | exact pins; next 15.5.29 (3 advisories cleared) | `npm audit --omit=dev`: 4 moderate, all esbuild via the dev-only drizzle-kit | add audit gate to CI (proposed) |
