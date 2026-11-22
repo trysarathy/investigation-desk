@@ -1,11 +1,12 @@
 import { test, expect, type Page } from "@playwright/test";
-import { existsSync, readFileSync } from "node:fs";
+import { axeSource } from "./axe-source";
 
 /*
  * Independent QA, release candidate 3 (3e66fa7): console tests against a real `next start`
  * (CLEARLINE_CUSTOMER_PREVIEW=1). Run with a config whose testDir is tests/qa-release-rc3 (see
  * QA_SECURITY_REVIEW_RC3.md). "DEFECT (...)" tests assert the correct behaviour and FAIL on 3e66fa7.
- * The axe test needs axe-core: set QA_AXE_PATH to axe.min.js (skipped when absent).
+ * The axe test uses the pinned axe-core devDependency (QA_AXE_PATH overrides it); see ./axe-source.ts. rc5 (CI fix):
+ * that loader replaced the skip-when-absent check, which had silently skipped this test in CI.
  *
  * Copied unchanged from QA's scratch spec (qa3/tests/qa-release-rc3/console-rc3.spec.ts) into the console suite,
  * except one selector: the acceptance form's test id is "accept-difference" since 25a1a33, which generalised the
@@ -13,7 +14,6 @@ import { existsSync, readFileSync } from "node:fs";
  */
 
 const KEY = "clearline.console.workspace.v1";
-const AXE = process.env.QA_AXE_PATH ?? "";
 const PAGES = ["/clearline", "/clearline/trial", "/clearline/payments", "/clearline/payments/pi_00027", "/clearline/payments/pi_00090", "/clearline/exceptions",
   "/clearline/investigations", "/clearline/reconciliation", "/clearline/holds", "/clearline/treasury", "/clearline/treasury/funding", "/clearline/routes",
   "/clearline/routes/new", "/clearline/routes/activity", "/clearline/reports", "/clearline/settings", "/clearline/docs", "/mentor-demo"];
@@ -186,7 +186,6 @@ test("crafted stored workspace with an HTML actor name renders as text", async (
 });
 
 test("no horizontal overflow and no axe violations on every console page", async ({ page }) => {
-  test.skip(!AXE || !existsSync(AXE), "QA_AXE_PATH not set");
   test.setTimeout(240_000);
   const out: string[] = [];
   for (const p of PAGES) {
@@ -195,7 +194,7 @@ test("no horizontal overflow and no axe violations on every console page", async
     const o = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
     if (o.sw > o.cw + 1) out.push(`${p}: overflow ${o.sw} > ${o.cw}`);
     // page.evaluate runs through DevTools, which the nonce CSP does not block (an inline <script> would be).
-    if (!(await page.evaluate(() => "axe" in window))) await page.evaluate(readFileSync(AXE, "utf8"));
+    if (!(await page.evaluate(() => "axe" in window))) await page.evaluate(axeSource());
     const v = await page.evaluate(async () => (await (window as unknown as { axe: { run: (o: unknown) => Promise<{ violations: { id: string; impact: string; nodes: unknown[] }[] }> } }).axe.run({ resultTypes: ["violations"] })).violations.map((x) => `${x.id}(${x.impact})×${x.nodes.length}`));
     if (v.length) out.push(`${p}: ${v.join(", ")}`);
   }
