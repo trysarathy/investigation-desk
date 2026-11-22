@@ -57,6 +57,20 @@
       "when": 1795335179159,
       "tag": "0007_merchant_security",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795339173334,
+      "tag": "0008_merchant_ingest",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795339174185,
+      "tag": "0009_merchant_ingest_security",
+      "breakpoints": true
     }
   ]
 }

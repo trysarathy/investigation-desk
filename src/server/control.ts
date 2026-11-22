@@ -29,7 +29,7 @@ const tenantTx = <T>(ctx: TenantContext, fn: (tx: Tx) => Promise<T>) => withTena
 /** Read-only views: one REPEATABLE READ snapshot (a page never sees half of a concurrent action). */
 const tenantRead = <T>(ctx: TenantContext, fn: (tx: Tx) => Promise<T>) => withTenant({ userId: ctx.userId, orgId: ctx.orgId }, fn, { read: true });
 
-async function serverAudit(tx: Tx, ctx: TenantContext, action: string, entityType: string | null, entityId: string | null, summary: string, details?: unknown) {
+export async function serverAudit(tx: Tx, ctx: TenantContext, action: string, entityType: string | null, entityId: string | null, summary: string, details?: unknown) {
   await tx.insert(t.auditEvents).values({ orgId: ctx.orgId, source: "server", actorUserId: ctx.userId, action, entityType, entityId, summary, at: new Date(), details: details ?? null });
 }
 
@@ -47,7 +47,7 @@ export function canonical(v: unknown): string {
 
 export const IdempotencyKey = z.string().regex(/^[A-Za-z0-9._:-]{8,128}$/);
 
-async function idempotent<T>(tx: Tx, ctx: TenantContext, key: string, request: unknown, run: () => Promise<{ status: number; body: T }>): Promise<{ status: number; body: T; replayed: boolean }> {
+export async function idempotent<T>(tx: Tx, ctx: TenantContext, key: string, request: unknown, run: () => Promise<{ status: number; body: T }>): Promise<{ status: number; body: T; replayed: boolean }> {
   const fingerprint = sha256(canonical({ userId: ctx.userId, request }));
   // serialise concurrent requests with the same key inside this organisation
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${ctx.orgId + "|" + key}))`);

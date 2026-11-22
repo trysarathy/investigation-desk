@@ -55,6 +55,8 @@ export const merchantEntities = pgTable("merchant_entities", {
   functionalCurrency: text("functional_currency").notNull(),
   ledger: text("ledger").notNull(),
   timezone: text("timezone").notNull(),
+  /** rc6 phase 6: the entity's fixed UTC offset (the engine's merchant day) [ASSUMPTION: no daylight saving]. */
+  utcOffsetMinutes: integer("utc_offset_minutes").notNull().default(0),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.id] }),
   check("merchant_entities_cur_chk", CUR(t.functionalCurrency)),
@@ -70,6 +72,7 @@ export const merchantPolicy = pgTable("merchant_policy", {
   approverRoles: jsonb("approver_roles").notNull().default(["approver"]),
   /** rc5 open decision: an imported (csv_import) bank line never makes settlement verified unless this is on. */
   allowImportedBankLinesAsVerified: boolean("allow_imported_bank_lines_as_verified").notNull().default(false),
+  senderFeeBoundBaseUnits: baseUnits("sender_fee_bound_base_units").notNull().default(sql`2000000`),
   revision: integer("revision").notNull().default(1),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 }, (t) => [
@@ -114,6 +117,9 @@ export const paymentLinks = pgTable("payment_links", {
   orderId: text("order_id").notNull(), kind: text("kind").notNull(),
   network: text("network").notNull(), depositAddress: text("deposit_address").notNull(),
   requestedMinor: money("requested_minor").notNull(),
+  // rc6 phase 6: what the engine needs of a link (its quote, token, amount and own validity window)
+  quoteId: text("quote_id"), tokenContract: text("token_contract"), requestedBaseUnits: baseUnits("requested_base_units"),
+  createdAt: ts("created_at"), expiresAt: ts("expires_at"),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.linkId] }),
   foreignKey({ columns: [t.orgId, t.orderId], foreignColumns: [invoices.orgId, invoices.orderId], name: "payment_links_invoice_fk" }),
@@ -131,6 +137,7 @@ export const chainTransfers = pgTable("chain_transfers", {
   confirmations: integer("confirmations").notNull(), finalised: boolean("finalised").notNull(),
   source: text("source").notNull(),
   observedAt: ts("observed_at").notNull().defaultNow(),
+  entityId: text("entity_id"), claimedSymbol: text("claimed_symbol"), priorHops: jsonb("prior_hops"),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.network, t.txHash, t.logIndex] }),
   check("chain_transfers_amount_chk", sql`${t.amountBaseUnits} > 0`),
@@ -150,7 +157,7 @@ export const providerPaymentRecords = pgTable("provider_payment_records", {
   record: jsonb("record").notNull(),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.providerPaymentId] }),
-  check("provider_payment_records_claim_chk", sql`${t.statusClaim} in ('paid','underpaid','overpaid','held_for_review','re_quoted','refunded','pending','failed')`),
+  check("provider_payment_records_claim_chk", sql`${t.statusClaim} in ('paid','underpaid','overpaid','held_for_review','re_quoted','partially_paid','refunded','pending','failed')`),
   check("provider_payment_records_ref_chk", sql`${t.quoteId} is not null or ${t.linkId} is not null`),
 ]);
 
@@ -160,6 +167,7 @@ export const settlementBatches = pgTable("settlement_batches", {
   currency: text("currency").notNull(), targetBankAccount: text("target_bank_account").notNull(),
   grossMinor: money("gross_minor").notNull(), feesMinor: money("fees_minor").notNull(),
   refundsMinor: money("refunds_minor").notNull(), netMinor: money("net_minor").notNull(),
+  entityId: text("entity_id"), dayUtcOffsetMinutes: integer("day_utc_offset_minutes").notNull().default(0),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.batchId] }),
   check("settlement_batches_arith_chk", sql`${t.grossMinor} - ${t.feesMinor} - ${t.refundsMinor} = ${t.netMinor}`),
@@ -169,6 +177,7 @@ export const settlementBatches = pgTable("settlement_batches", {
 export const settlementBatchLines = pgTable("settlement_batch_lines", {
   orgId: org(), batchId: text("batch_id").notNull(), lineNo: integer("line_no").notNull(),
   kind: text("kind").notNull(), ref: text("ref").notNull(), amountMinor: money("amount_minor").notNull(),
+  orderId: text("order_id"),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.batchId, t.lineNo] }),
   foreignKey({ columns: [t.orgId, t.batchId], foreignColumns: [settlementBatches.orgId, settlementBatches.batchId], name: "settlement_batch_lines_batch_fk" }),
@@ -181,6 +190,7 @@ export const bankLines = pgTable("bank_lines", {
   account: text("account").notNull(), currency: text("currency").notNull(), valueDate: text("value_date").notNull(),
   amountMinor: money("amount_minor").notNull(), description: text("description").notNull(),
   source: text("source").notNull(), importId: uuid("import_id"),
+  entityId: text("entity_id"), provenance: text("provenance"),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.lineId] }),
   check("bank_lines_source_chk", sql`${t.source} in ('bank_feed','csv_import','seed_fictional')`),
@@ -190,7 +200,16 @@ export const bankLines = pgTable("bank_lines", {
 
 export const fxRates = pgTable("fx_rates", {
   orgId: org(), pair: text("pair").notNull(), rate: rate("rate").notNull(), source: text("source").notNull(), observedAt: ts("observed_at").notNull(),
+  entityId: text("entity_id"),
 }, (t) => [primaryKey({ columns: [t.orgId, t.pair, t.source, t.observedAt] }), check("fx_rates_pair_chk", sql`${t.pair} ~ '^[A-Z]{3,4}/[A-Z]{3}$'`)]);
+
+/** rc6 phase 6: facts about an address (registered, intermediate, exchange hot wallet). Recorded, never judged. */
+export const addressFacts = pgTable("address_facts", {
+  orgId: org(), network: text("network").notNull(), address: text("address").notNull(), fact: text("fact").notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.orgId, t.network, t.address, t.fact] }),
+  check("address_facts_fact_chk", sql`${t.fact} in ('registered_wallet','intermediate_wallet','exchange_hot_wallet','unknown')`),
+]);
 
 /** One per payment (invoice): five linked parts, never merged into one status. */
 export const matchRecords = pgTable("match_records", {
@@ -245,7 +264,7 @@ export const writeoffProposals = pgTable("writeoff_proposals", {
   primaryKey({ columns: [t.orgId, t.id] }),
   foreignKey({ columns: [t.orgId, t.orderId], foreignColumns: [invoices.orgId, invoices.orderId], name: "writeoff_proposals_invoice_fk" }),
   check("writeoff_proposals_amount_chk", sql`${t.amountMinor} > 0`),
-  check("writeoff_proposals_status_chk", sql`${t.status} in ('proposed','awaiting_approval','approved','rejected')`),
+  check("writeoff_proposals_status_chk", sql`${t.status} in ('proposed','awaiting_approval','approved','rejected','superseded')`),
 ]);
 
 /** Merchant journal proposals (Accounting Bridge extension). Posting rules are PENDING the founder's sign-off. */

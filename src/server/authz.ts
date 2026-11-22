@@ -41,7 +41,11 @@ export type Permission =
   | "accounting_approve"
   | "manage_members"
   | "provider_console"     // rc6: merchants' aggregates (rows only under a merchant's full grant, enforced by RLS)
-  | "provider_manage";     // rc6: onboarding, policy defaults, theme
+  | "provider_manage"      // rc6: onboarding, policy defaults, theme
+  | "manage_policy"        // rc6: merchant matching policy (tolerance, write-off threshold, imported lines) — Admin only
+  | "merchant_reconcile"   // rc6: run reconciliation over the merchant's ingested rows
+  | "propose_writeoff"     // rc6: submit an engine-proposed write-off for a second person's approval
+  | "review_match";        // rc6: mark a sampled match correct or wrong (pilot metric)
 
 const MATRIX: Record<Permission, readonly AppRole[]> = {
   read: ["admin", "payment_ops", "finance", "approver", "viewer"],
@@ -55,6 +59,10 @@ const MATRIX: Record<Permission, readonly AppRole[]> = {
   manage_members: ["admin"],
   provider_console: ["provider_admin", "provider_ops"],
   provider_manage: ["provider_admin"],
+  manage_policy: ["admin"],
+  merchant_reconcile: ["payment_ops", "finance"],
+  propose_writeoff: ["finance"],
+  review_match: ["payment_ops", "finance", "approver"],
 };
 
 export const can = (role: AppRole, p: Permission): boolean => MATRIX[p].includes(role);
