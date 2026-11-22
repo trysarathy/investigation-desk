@@ -29,6 +29,20 @@
       "when": 1795325951667,
       "tag": "0003_evidence_provenance_immutable",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795327508902,
+      "tag": "0004_hardening_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795327509492,
+      "tag": "0005_hardening_security",
+      "breakpoints": true
     }
   ]
 }

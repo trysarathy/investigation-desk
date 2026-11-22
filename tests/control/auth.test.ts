@@ -92,10 +92,24 @@ describe("real sign-in (Better Auth, database sessions)", () => {
     expect(await session("")).toBeNull();
   });
 
-  it("rate-limits repeated failed sign-ins from one address", async () => {
+  it("limits failed sign-ins PER ACCOUNT, even when every attempt claims a different X-Forwarded-For (review H1)", async () => {
     const statuses: number[] = [];
-    for (let i = 0; i < 7; i++) statuses.push((await signIn("ops@lumen.example", "wrong-password-123", ORIGIN, "203.0.113.7")).status);
-    expect(statuses.slice(0, 5).every((s) => s === 401)).toBe(true);
-    expect(statuses.slice(5)).toContain(429);
+    // signIn() rotates the X-Forwarded-For address on every call: the limit must not depend on it
+    for (let i = 0; i < 7; i++) statuses.push((await signIn("admin@lumen.example", "wrong-password-123")).status);
+    expect(statuses.slice(0, 5)).toEqual([401, 401, 401, 401, 401]);
+    expect(statuses.slice(5)).toEqual([429, 429]);
+    // while locked, even the right password is refused; another account is unaffected
+    expect((await signIn("admin@lumen.example", PASSWORD)).status).toBe(429);
+    expect((await signIn("approver2@lumen.example", PASSWORD)).status).toBe(200);
+  });
+
+  it("a session older than 8 hours is refused even if Better Auth refreshed its expiry (absolute lifetime, review M6)", async () => {
+    await revokeSessions(ownerDb(), "approver2@lumen.example"); // start from exactly one session
+    const c = cookieFrom(await signIn("approver2@lumen.example", PASSWORD));
+    expect(await session(c)).not.toBeNull();
+    await ownerDb().execute(sql`update sessions set created_at = now() - interval '9 hours', expires_at = now() + interval '7 hours' where user_id = ${ids["approver2@lumen.example"]}`);
+    expect(await session(c)).toBeNull();
+    const n = (await ownerDb().execute(sql`select count(*)::int as n from sessions where user_id = ${ids["approver2@lumen.example"]} and created_at < now() - interval '8 hours'`)).rows[0].n;
+    expect(n).toBe(0);
   });
 });

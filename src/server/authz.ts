@@ -75,7 +75,7 @@ export const ACTION_PERMISSION: Partial<Record<WorkspaceAction["type"], Permissi
 };
 
 /**
- * Not accepted directly: "resolve" (only through an approved approval request — src/server/approvals.ts), and every
+ * Not accepted directly: "resolve" (only through an approved approval request — src/server/control.ts decideApproval), and every
  * action that creates payments, executes them, simulates providers, injects evidence or moves the clock.
  */
 export const SERVER_ONLY_ACTIONS = ["resolve"] as const;

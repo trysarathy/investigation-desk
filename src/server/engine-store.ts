@@ -104,11 +104,15 @@ export async function loadWorkspaceForUpdate(tx: Tx, orgId: string, lock = true)
   return { workspace: parsed.value, version: rows[0].version };
 }
 
-/** Active members become engine actors with their engine role; revoked members are not actors (no authority). */
+/**
+ * Members (including revoked ones) are engine actors, so records they made keep validating after a revocation.
+ * A revoked member has no authority: no tenant context resolves for them, RLS (app_is_member) hides the org's rows
+ * from their transactions, and the database triggers refuse their decisions.
+ */
 async function memberActors(tx: Tx, orgId: string): Promise<Actor[]> {
   const ms = await tx.select({ userId: t.organizationMemberships.userId, role: t.organizationMemberships.role, name: t.users.name })
     .from(t.organizationMemberships).innerJoin(t.users, eq(t.users.id, t.organizationMemberships.userId))
-    .where(and(eq(t.organizationMemberships.orgId, orgId), isNull(t.organizationMemberships.revokedAt)));
+    .where(eq(t.organizationMemberships.orgId, orgId));
   return ms.filter((m) => isAppRole(m.role)).map((m) => ({ id: m.userId, name: m.name, role: ENGINE_ROLE[m.role as keyof typeof ENGINE_ROLE] }));
 }
 

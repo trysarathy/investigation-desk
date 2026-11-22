@@ -54,7 +54,7 @@ async function importConfirmed(fin: TenantContext, input: { fileName: string; by
   const b = r.body as ImportAccepted;
   expect(b.status).toBe("pending_confirmation");
   const appr = await ctx(fin.orgSlug === "harbour-demo" ? "approver@harbour.example" : "approver@lumen.example", fin.orgSlug);
-  const d = await decideStatementImport(appr, b.importId, { decision: "confirm", reason: "Checked the file against the statement (fictional)", fileSha256: b.fileSha256 }, key());
+  const d = await decideStatementImport(appr, b.importId, { decision: "confirm", reason: "Checked the file against the statement (fictional)", fileSha256: b.fileSha256, linesSha256: b.linesSha256 }, key());
   return { ...r, body: { ...b, status: "imported", acceptedCount: (d.body as { acceptedCount: number }).acceptedCount } as unknown as ImportAccepted };
 }
 
@@ -545,22 +545,22 @@ describe("second-person confirmation: an uploaded file is not evidence until an 
     const r = await importStatementCsv(fin, { fileName: "staged-3.csv", bytes }, key());
     const b = r.body as ImportAccepted;
     for (const who of ["finance@lumen.example", "ops@lumen.example", "viewer@lumen.example", "admin@lumen.example"]) {
-      await refused(decideStatementImport(await ctx(who), b.importId, { decision: "confirm", reason: "not allowed", fileSha256: b.fileSha256 }, key()), "ACCESS_403");
+      await refused(decideStatementImport(await ctx(who), b.importId, { decision: "confirm", reason: "not allowed", fileSha256: b.fileSha256, linesSha256: b.linesSha256 }, key()), "ACCESS_403");
     }
     const appr = await ctx("approver@lumen.example");
-    await refused(decideStatementImport(appr, b.importId, { decision: "confirm", reason: "wrong file", fileSha256: "a".repeat(64) }, key()), "VERSION_MISMATCH");
+    await refused(decideStatementImport(appr, b.importId, { decision: "confirm", reason: "wrong file", fileSha256: "a".repeat(64), linesSha256: b.linesSha256 }, key()), "VERSION_MISMATCH");
     const before = await countLines(fin.orgId);
-    const d = await decideStatementImport(appr, b.importId, { decision: "decline", reason: "Does not match the bank portal (fictional)", fileSha256: b.fileSha256 }, key());
+    const d = await decideStatementImport(appr, b.importId, { decision: "decline", reason: "Does not match the bank portal (fictional)", fileSha256: b.fileSha256, linesSha256: b.linesSha256 }, key());
     expect(d.body).toMatchObject({ status: "declined", acceptedCount: 0 });
     expect(await countLines(fin.orgId)).toBe(before);
-    await refused(decideStatementImport(appr, b.importId, { decision: "confirm", reason: "second decision", fileSha256: b.fileSha256 }, key()), "IMPORT_CLOSED");
+    await refused(decideStatementImport(appr, b.importId, { decision: "confirm", reason: "second decision", fileSha256: b.fileSha256, linesSha256: b.linesSha256 }, key()), "IMPORT_CLOSED");
   });
 
   it("another organisation's approver cannot confirm this organisation's import (404)", async () => {
     const fin = await ctx("finance@lumen.example");
     const r = await importStatementCsv(fin, { fileName: "staged-4.csv", bytes: csv(row({ line_id: "SIMBANK-STAGE-4" })) }, key());
     const b = r.body as ImportAccepted;
-    await refused(decideStatementImport(await ctx("approver@harbour.example", "harbour-demo"), b.importId, { decision: "confirm", reason: "cross-tenant", fileSha256: b.fileSha256 }, key()), "ACCESS_404");
+    await refused(decideStatementImport(await ctx("approver@harbour.example", "harbour-demo"), b.importId, { decision: "confirm", reason: "cross-tenant", fileSha256: b.fileSha256, linesSha256: b.linesSha256 }, key()), "ACCESS_404");
   });
 
   it("the database refuses a self-confirmation and a confirmation by a non-approver, even bypassing the service", async () => {

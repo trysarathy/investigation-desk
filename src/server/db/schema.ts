@@ -60,6 +60,13 @@ export const accounts = pgTable("accounts", {
   updatedAt: ts("updated_at").notNull().defaultNow(),
 }, (t) => [index("accounts_user_idx").on(t.userId)]);
 
+/** Failed sign-ins per account (keyed by a hash of the e-mail), shared by every instance: the per-account limit. */
+export const loginFailures = pgTable("login_failures", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  emailSha256: text("email_sha256").notNull(),
+  at: ts("at").notNull().defaultNow(),
+}, (t) => [index("login_failures_email_at_idx").on(t.emailSha256, t.at)]);
+
 export const verifications = pgTable("verifications", {
   id: text("id").primaryKey(),
   identifier: text("identifier").notNull(),
@@ -357,6 +364,8 @@ export const statementImports = pgTable("statement_imports", {
   importedBy: text("imported_by").notNull().references(() => users.id),
   /** Validated lines held until a second person confirms the import; only then does the engine ingest them. */
   lines: jsonb("lines").notNull().default([]),
+  /** SHA-256 of the canonical staged lines: what the confirming approver reviewed and what is ingested. */
+  linesSha256: text("lines_sha256"),
   confirmedBy: text("confirmed_by").references(() => users.id),
   confirmedAt: ts("confirmed_at"),
   decisionReason: text("decision_reason"),

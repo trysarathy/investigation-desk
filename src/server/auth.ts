@@ -3,12 +3,16 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { headers as nextHeaders } from "next/headers";
+import { eq } from "drizzle-orm";
 import { database } from "./db/client";
 import * as schema from "./db/schema";
 import type { Principal } from "./tenant";
 import { AccessDenied } from "./tenant";
 
-/** Session lifetime: absolute 8 h, refreshed at most hourly while in use. Revocation = deleting the session row. */
+/**
+ * Session lifetime: ABSOLUTE 8 h from sign-in (enforced in currentPrincipal: Better Auth's refresh would otherwise
+ * extend it), refreshed at most hourly while in use. Revocation = deleting the session row.
+ */
 export const SESSION_SECONDS = 8 * 60 * 60;
 
 function build() {
@@ -30,17 +34,20 @@ function build() {
       // No cookie cache: every request checks the session row, so a revoked session stops working immediately.
       cookieCache: { enabled: false },
     },
+    // Per-ACCOUNT sign-in limiting is done in the auth route (database-backed, shared by all instances). The per-IP
+    // limit is used only when the deployment names a header its proxy overwrites (CLEARLINE_CLIENT_IP_HEADER):
+    // an attacker-controlled X-Forwarded-For must never choose the bucket (review H1).
     rateLimit: {
       enabled: true,
       window: 60,
       max: 60,
-      customRules: { "/sign-in/email": { window: 15 * 60, max: 5 } },
+      customRules: { "/sign-in/email": process.env.CLEARLINE_CLIENT_IP_HEADER ? { window: 15 * 60, max: 20 } : false },
     },
     advanced: {
       cookiePrefix: "clearline",
       useSecureCookies: origin.startsWith("https://"),
       defaultCookieAttributes: { httpOnly: true, sameSite: "strict", path: "/" },
-      ipAddress: { ipAddressHeaders: ["x-forwarded-for"] },
+      ipAddress: { ipAddressHeaders: process.env.CLEARLINE_CLIENT_IP_HEADER ? [process.env.CLEARLINE_CLIENT_IP_HEADER] : [] },
       // Better Auth skips its origin check under NODE_ENV=test by default; keep it on everywhere (tests = deployment).
       disableOriginCheck: false,
       disableCSRFCheck: false,
@@ -61,6 +68,10 @@ export function auth(): Auth {
 export async function currentPrincipal(h?: Headers): Promise<Principal | null> {
   const s = await auth().api.getSession({ headers: h ?? (await nextHeaders()) });
   if (!s) return null;
+  if (Date.now() - new Date(s.session.createdAt).getTime() > SESSION_SECONDS * 1000) {
+    await database().delete(schema.sessions).where(eq(schema.sessions.id, s.session.id));
+    return null;
+  }
   return { userId: s.user.id, name: s.user.name, email: s.user.email };
 }
 

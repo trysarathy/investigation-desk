@@ -26,6 +26,8 @@ function require(ctx: TenantContext, p: Permission) {
 }
 
 const tenantTx = <T>(ctx: TenantContext, fn: (tx: Tx) => Promise<T>) => withTenant({ userId: ctx.userId, orgId: ctx.orgId }, fn);
+/** Read-only views: one REPEATABLE READ snapshot (a page never sees half of a concurrent action). */
+const tenantRead = <T>(ctx: TenantContext, fn: (tx: Tx) => Promise<T>) => withTenant({ userId: ctx.userId, orgId: ctx.orgId }, fn, { read: true });
 
 async function serverAudit(tx: Tx, ctx: TenantContext, action: string, entityType: string | null, entityId: string | null, summary: string, details?: unknown) {
   await tx.insert(t.auditEvents).values({ orgId: ctx.orgId, source: "server", actorUserId: ctx.userId, action, entityType, entityId, summary, at: new Date(), details: details ?? null });
@@ -65,7 +67,7 @@ async function idempotent<T>(tx: Tx, ctx: TenantContext, key: string, request: u
 
 export async function overview(ctx: TenantContext) {
   require(ctx, "read");
-  return tenantTx(ctx, async (tx) => {
+  return tenantRead(ctx, async (tx) => {
     const ws = await readWorkspace(tx, ctx.orgId);
     const openExceptions = ws.exceptions.filter((e) => e.status !== "resolved");
     const openCases = ws.cases.filter((c) => c.status !== "resolved");
@@ -84,7 +86,7 @@ export async function overview(ctx: TenantContext) {
 
 export async function listPayments(ctx: TenantContext) {
   require(ctx, "read");
-  return tenantTx(ctx, async (tx) => {
+  return tenantRead(ctx, async (tx) => {
     const ws = await readWorkspace(tx, ctx.orgId);
     return ws.intents.map((i) => ({
       id: i.id, reference: i.internalReference, beneficiary: i.beneficiaryName, amountMinor: i.amountMinor, currency: i.sourceCurrency,
@@ -96,7 +98,7 @@ export async function listPayments(ctx: TenantContext) {
 
 export async function paymentDetail(ctx: TenantContext, intentId: string) {
   require(ctx, "read");
-  return tenantTx(ctx, async (tx) => {
+  return tenantRead(ctx, async (tx) => {
     const ws = await readWorkspace(tx, ctx.orgId);
     const v = investigate(ws, intentId);
     if (!v.ok) throw new AccessDenied(404, "Not found.");
@@ -116,7 +118,7 @@ export async function paymentDetail(ctx: TenantContext, intentId: string) {
 
 export async function auditHistory(ctx: TenantContext, limit = 200) {
   require(ctx, "read");
-  return tenantTx(ctx, (tx) => tx.select().from(t.auditEvents).where(eq(t.auditEvents.orgId, ctx.orgId)).orderBy(desc(t.auditEvents.seq)).limit(Math.min(limit, 1000)));
+  return tenantRead(ctx, (tx) => tx.select().from(t.auditEvents).where(eq(t.auditEvents.orgId, ctx.orgId)).orderBy(desc(t.auditEvents.seq)).limit(Math.min(limit, 1000)));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -182,32 +184,54 @@ function approvalView(a: typeof t.approvalRequests.$inferSelect) {
   return { id: a.id, subject: a.subjectId, version: a.version, status: a.status, requestedBy: a.requestedBy, payloadSha256: a.payloadSha256, payload: a.payload, createdAt: a.createdAt, closedAt: a.closedAt };
 }
 
-/** Every evidence reference must name a record of this organisation's workspace that concerns the target. */
-function checkEvidenceRefs(ws: Workspace, p: ResolutionProposal) {
-  const ids = new Set<string>([
-    ...ws.statementLines.map((x) => x.id), ...ws.chainObservations.map((x) => x.id), ...ws.evidence.map((x) => x.id),
-    ...ws.providerEvents.map((x) => x.id), ...ws.allocations.map((x) => x.id),
-  ]);
-  const unknown = p.evidenceRefs.filter((r) => !ids.has(r));
+/**
+ * Every evidence reference must name a record of this organisation that concerns the TARGET's payment (or is attached
+ * to the target), and the target must be resolvable now. Returns what the approval binds: the content hash of every
+ * cited record and the target's current state, so an approval is for exactly the evidence that was reviewed.
+ */
+function bindEvidence(ws: Workspace, p: ResolutionProposal) {
+  const target = p.target.kind === "case" ? ws.cases.find((c) => c.id === p.target.id) : ws.exceptions.find((e) => e.id === p.target.id);
+  if (!target) throw new AccessDenied(404, "Not found.");
+  const intentId = target.intentId;
+  const attached = new Set<string>((target as { supportingEvidenceIds?: string[] }).supportingEvidenceIds ?? []);
+  if (p.target.kind === "case") for (const e of ws.exceptions.filter((x) => x.intentId === intentId)) for (const id of e.supportingEvidenceIds ?? []) attached.add(id);
+  const lineIntent = (lineId: string) => ws.allocations.filter((a) => a.statementLineId === lineId && a.target.kind === "payment").map((a) => (a.target as { intentId: string }).intentId);
+  const find = (id: string): { record: unknown; intents: (string | undefined)[] } | undefined => {
+    const l = ws.statementLines.find((x) => x.id === id); if (l) return { record: l, intents: lineIntent(id) };
+    const c = ws.chainObservations.find((x) => x.id === id); if (c) return { record: c, intents: [c.intentId] };
+    const e = ws.evidence.find((x) => x.id === id); if (e) return { record: e, intents: [e.intentId] };
+    const pe = ws.providerEvents.find((x) => x.id === id); if (pe) return { record: pe, intents: [pe.intentId] };
+    const a = ws.allocations.find((x) => x.id === id); if (a) return { record: a, intents: [a.target.kind === "payment" ? a.target.intentId : undefined] };
+    return undefined;
+  };
+  const unknown: string[] = []; const foreign: string[] = []; const evidence: { id: string; sha256: string }[] = [];
+  for (const id of [...p.evidenceRefs].sort()) {
+    const f = find(id);
+    if (!f) { unknown.push(id); continue; }
+    if (!attached.has(id) && !(intentId && f.intents.includes(intentId))) { foreign.push(id); continue; }
+    evidence.push({ id, sha256: sha256(canonical(f.record)) });
+  }
   if (unknown.length) throw new RequestRefused(422, "EVIDENCE_NOT_FOUND", `Unknown evidence: ${unknown.join(", ")}`);
+  if (foreign.length) throw new RequestRefused(422, "EVIDENCE_NOT_FOR_TARGET", `Evidence does not concern this ${p.target.kind}: ${foreign.join(", ")}`);
   const check = p.target.kind === "case" ? canResolveCase(ws, p.target.id) : canResolveException(ws, p.target.id);
   if (!check.allowed) throw new RequestRefused(422, check.code, check.reason);
+  return { evidence, targetState: sha256(canonical(target)) };
 }
 
 export async function requestResolution(ctx: TenantContext, input: ResolutionProposal, idempotencyKey: string) {
   require(ctx, "request_approval");
   const p = ResolutionProposal.parse(input);
   return tenantTx(ctx, (tx) => idempotent(tx, ctx, idempotencyKey, p, async () => {
-    const ws = await readWorkspace(tx, ctx.orgId);
-    checkEvidenceRefs(ws, p);
     const subj = subjectId(p.target);
-    // a new proposal supersedes the previous pending version (so an edit invalidates any approval in flight)
+    // lock this subject's requests FIRST, then check (review L3); a new proposal supersedes the pending version
     const prior = await tx.select().from(t.approvalRequests).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.subjectKind, "investigation_resolution"), eq(t.approvalRequests.subjectId, subj))).for("update");
+    const ws = await readWorkspace(tx, ctx.orgId);
+    const bound = bindEvidence(ws, p);
     for (const r of prior.filter((x) => x.status === "pending")) {
       await tx.update(t.approvalRequests).set({ status: "superseded", closedAt: new Date() }).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.id, r.id)));
     }
     const version = prior.reduce((m, r) => Math.max(m, r.version), 0) + 1;
-    const payload = { target: p.target, note: p.note, evidenceRefs: [...p.evidenceRefs].sort(), version };
+    const payload = { target: p.target, note: p.note, evidenceRefs: [...p.evidenceRefs].sort(), evidence: bound.evidence, targetState: bound.targetState, version };
     const payloadSha256 = sha256(canonical(payload));
     const [row] = await tx.insert(t.approvalRequests).values({ orgId: ctx.orgId, subjectKind: "investigation_resolution", subjectId: subj, version, payload, payloadSha256, requestedBy: ctx.userId }).returning();
     await serverAudit(tx, ctx, "resolution_requested", p.target.kind, p.target.id, `Resolution v${version} proposed for approval (sha256 ${payloadSha256.slice(0, 12)}…)`, { requestId: row.id, evidenceRefs: payload.evidenceRefs });
@@ -236,6 +260,14 @@ export async function decideApproval(ctx: TenantContext, requestId: string, inpu
     if (req.requestedBy === ctx.userId) throw new RequestRefused(409, "MAKER_CANNOT_APPROVE", "You proposed this resolution; another approver must decide it.");
     if (req.status !== "pending") throw new RequestRefused(409, "REQUEST_CLOSED", `This request is ${req.status}.`);
     if (req.payloadSha256 !== d.payloadSha256) throw new RequestRefused(409, "VERSION_MISMATCH", "The proposal changed since you reviewed it. Review the current version.");
+    if (d.decision === "approve") {
+      // the cited evidence and the target must still be exactly what was requested (and reviewed)
+      const pl = req.payload as { target: TargetRef; note: string; evidenceRefs: string[]; evidence: { id: string; sha256: string }[]; targetState: string };
+      const now = bindEvidence(await readWorkspace(tx, ctx.orgId), { target: pl.target, note: pl.note, evidenceRefs: pl.evidenceRefs });
+      if (canonical(now.evidence) !== canonical(pl.evidence) || now.targetState !== pl.targetState) {
+        throw new RequestRefused(409, "EVIDENCE_CHANGED", "The cited evidence or the case changed after this request was made. Ask for a new version.");
+      }
+    }
     await tx.insert(t.approvalDecisions).values({ orgId: ctx.orgId, requestId, decidedBy: ctx.userId, decision: d.decision, reason: d.reason, payloadSha256: d.payloadSha256 });
     let outcome: unknown = null;
     if (d.decision === "approve") {
@@ -251,7 +283,7 @@ export async function decideApproval(ctx: TenantContext, requestId: string, inpu
 
 export async function listApprovals(ctx: TenantContext) {
   require(ctx, "read");
-  return tenantTx(ctx, async (tx) => (await tx.select().from(t.approvalRequests).where(eq(t.approvalRequests.orgId, ctx.orgId)).orderBy(desc(t.approvalRequests.createdAt))).map(approvalView));
+  return tenantRead(ctx, async (tx) => (await tx.select().from(t.approvalRequests).where(eq(t.approvalRequests.orgId, ctx.orgId)).orderBy(desc(t.approvalRequests.createdAt))).map(approvalView));
 }
 
 // ---------------------------------------------------------------------------------------------
