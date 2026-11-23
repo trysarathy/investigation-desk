@@ -116,6 +116,8 @@ describe("rule versions", () => {
     const v2 = (await runReconciliation(ops, "ENT-SG-01", key(), { ruleSetVersion: "test-rules#2" })).body;
     expect(v2).toMatchObject({ status: "changed", ruleSetVersion: "test-rules#2" });
     expect((await runReconciliation(ops, "ENT-SG-01", key(), { ruleSetVersion: "test-rules#2" })).body.status).toBe("no_change");
+    expect((await runReconciliation(ops, "ENT-SG-01", key())).body).toMatchObject({ status: "changed", ruleSetVersion: RULE_SET_VERSION });
+    expect((await runReconciliation(ops, "ENT-SG-01", key())).body.status).toBe("no_change");
     // the same values saved again: a new revision with an identical input hash still re-runs
     const admin = await ctx("admin@straits-demo.example", "sg");
     await updateMerchantPolicy(admin, "ENT-SG-01", { toleranceBps: 50 }, await policyRevision(seed.orgs.sg, "ENT-SG-01"), key());
