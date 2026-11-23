@@ -5,6 +5,7 @@
  */
 import { abs, bpsOf, fmtFiat, fmtPct, fmtToken, instantMs, maxBig, minBig, parseRate, sum, toFiatMinor } from "./amounts";
 import { normAddress } from "./config";
+import { indexesOf } from "./indexes";
 import { active, type RuleId } from "./rules";
 import type {
   Attention, ChainTransfer, ChainTransferView, Decision, Difference, DifferenceType, ExceptionItem, HistoryEntry, Invoice, MatchRecord,
@@ -24,6 +25,9 @@ const byKey = <T>(key: (x: T) => string) => (a: T, b: T): number => (key(a) < ke
 const sameRate = (a: string, b: string): boolean => { const x = parseRate(a), y = parseRate(b); return x.num * y.den === y.num * x.den; };
 const BALANCE_LABEL = { nothing_received: "nothing received yet", part_paid: "part paid", short_paid: "short paid", fully_credited: "fully credited", over_credited: "over credited" } as const;
 const att = (owner: Owner, reason: string, nextStep: string): Attention => ({ owner, reason, nextStep });
+/** The candidate that comes first in input.providerRecords (reproduces Array.find over an "a || b" predicate). */
+const firstOf = <T>(pos: Map<T, number>, a: T | undefined, b: T | undefined): T | undefined =>
+  a === undefined ? b : b === undefined ? a : pos.get(a)! <= pos.get(b)! ? a : b;
 
 export function buildDepositIndex(input: ReconcileInput): Map<string, DepositRef> {
   const index = new Map<string, DepositRef>();
@@ -72,12 +76,13 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput): {
     if (amountMinor !== 0n) differences.push({ id: `${inv.orderId}.D${differences.length + 1}`, type, amountMinor, currency: cur, reason, ruleId });
   };
   const final = states.filter((s) => !s.fail && !s.pending);
-  const quotes = input.quotes.filter((q) => q.orderId === inv.orderId).sort(byKey((q) => q.quoteId));
+  const ix = indexesOf(input);
+  const quotes = [...(ix.quotesByOrder.get(inv.orderId) ?? [])].sort(byKey((q) => q.quoteId));
   const recFor = (s: TState): ProviderPaymentRecord | undefined =>
-    input.providerRecords.find((r) => r.transferRef && tkey(r.transferRef) === tkey(s.t)) ??
-    input.providerRecords.find((r) => !r.transferRef && ((s.ref?.linkId && r.ref.linkId === s.ref.linkId) || (!r.ref.linkId && r.ref.quoteId === s.ref?.quoteId)));
+    ix.recordByTransfer.get(tkey(s.t)) ?? firstOf(ix.recordPos,
+      s.ref?.linkId ? ix.untransferredByLink.get(s.ref.linkId) : undefined, s.ref?.quoteId !== undefined ? ix.untransferredByQuoteNoLink.get(s.ref.quoteId) : ix.untransferredNoRef);
   const pairs = final.map((s) => ({ s, rec: recFor(s) })).sort((a, b) => instantMs(a.s.t.timestamp) - instantMs(b.s.t.timestamp));
-  const links = input.paymentLinks.filter((l) => l.orderId === inv.orderId).sort(byKey((l) => l.linkId));
+  const links = [...(ix.linksByOrder.get(inv.orderId) ?? [])].sort(byKey((l) => l.linkId));
   /** The validity window of the reference used: the payment link's when it has one, else the quote's. */
   const windowOf = (s: TState, q: Quote) => links.find((l) => l.linkId === s.ref?.linkId) ?? q;
   const balanceLinkOpen = links.some((l) => l.kind === "balance" && !final.some((s) => s.ref?.linkId === l.linkId));
@@ -89,7 +94,7 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput): {
     const balanceState = credited === 0n ? "nothing_received" : partOpen ? "part_paid" : open > 0n ? "short_paid" : open < 0n ? "over_credited" : "fully_credited";
     // Every provider claim about this order is shown, paired with a transfer or not (a claim without a transfer is not proof).
     const refIds = new Set([...quotes.map((q) => q.quoteId), ...links.map((l) => l.linkId)]);
-    const claims = input.providerRecords.filter((r) => refIds.has(r.ref.linkId ?? r.ref.quoteId ?? ""));
+    const claims = [...refIds].flatMap((id) => ix.recordsByRef.get(id) ?? []);
     const records = [...new Set([...pairs.map((p) => p.rec).filter((r): r is ProviderPaymentRecord => !!r), ...claims])].sort(byKey((r) => r.providerPaymentId));
     const held = records.some((r) => r.statusClaim === "held_for_review" && !r.batchId);
     const batchIds = [...new Set(records.map((r) => r.batchId).filter((b): b is string => !!b))].sort();
@@ -258,9 +263,12 @@ export function matchPayments(input: ReconcileInput): MatchOutput {
   }
   const records: MatchRecord[] = [];
   const writeOffs: WriteOffProposal[] = [];
-  const orderIds = new Set(input.providerRecords.flatMap((r) => [r.ref.quoteId, r.ref.linkId]).map((id) => input.quotes.find((q) => q.quoteId === id)?.orderId ?? input.paymentLinks.find((l) => l.linkId === id)?.orderId));
+  const ix = indexesOf(input);
+  const orderIds = new Set(input.providerRecords.flatMap((r) => [r.ref.quoteId, r.ref.linkId]).map((id) => (id === undefined ? undefined : ix.quoteById.get(id)?.orderId ?? ix.linkById.get(id)?.orderId)));
+  const statesByOrder = new Map<string, TState[]>();
+  for (const s of states) if (s.ref?.orderId !== undefined) { const a = statesByOrder.get(s.ref.orderId); if (a) a.push(s); else statesByOrder.set(s.ref.orderId, [s]); }
   for (const inv of [...input.invoices].sort(byKey((i) => i.orderId))) {
-    const mine = states.filter((s) => s.ref?.orderId === inv.orderId);
+    const mine = statesByOrder.get(inv.orderId) ?? [];
     if (mine.length === 0 && !orderIds.has(inv.orderId)) continue;
     const { record, writeOff } = evaluateOrder(inv, mine, input);
     records.push(record);
