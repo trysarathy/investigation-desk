@@ -1,7 +1,10 @@
+/* eslint-disable @next/next/no-html-link-for-pages -- plain links on purpose: every page is a full load rendered on the server from the database (as in rc5 Control) */
 import type { Metadata } from "next";
 import { can, ROLE_LABELS } from "@/server/authz";
 import { merchantSettings } from "@/server/provider";
 import { merchantMember } from "@/server/merchant-page";
+import { uploadsOverview } from "@/server/upload-ui";
+import { RetentionForm } from "@/components/merchant/upload-review-forms";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
 import { GrantForm, PolicyForm } from "@/components/merchant/forms";
@@ -13,6 +16,7 @@ export const metadata: Metadata = { title: "Settings" };
 export default async function MerchantSettingsPage() {
   const { ctx } = await merchantMember();
   const v = await merchantSettings(ctx);
+  const up = await uploadsOverview(ctx);
   const isAdmin = can(ctx.role, "manage_policy");
   const prop = v.proposal?.policyDefaults ?? null;
   return (
@@ -37,6 +41,14 @@ export default async function MerchantSettingsPage() {
             </article>
           ))}</div>
         )}
+      </section>
+
+      <section className={s.section} aria-labelledby="retention">
+        <h2 className={s.h2} id="retention">Uploads and retention</h2>
+        <div className={s.panel}>
+          <p data-testid="retention-days">Uploaded files, and the data derived only from them, are deleted after <strong>{up.retentionDays} days</strong>. Each upload shows its delete-after date on the <a href="/control/merchant/uploads">Uploads</a> page.</p>
+          {can(ctx.role, "manage_retention") ? <RetentionForm days={up.retentionDays} /> : <p className={s.small}>Your Admin decides this.</p>}
+        </div>
       </section>
 
       <section className={s.section} aria-labelledby="access">

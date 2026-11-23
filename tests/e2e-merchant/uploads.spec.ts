@@ -6,13 +6,18 @@ import { uploadFiles } from "./live-files";
 /*
  * rc7 upload journeys on the real stack, for a fictional LIVE merchant ("Your data"): upload generator files through
  * the browser (file input, the keyboard path), check the preview and what was detected, map the columns (accept the
- * suggestions, fix the wrong ones by hand, answer the date-order question, save a template), and the refusals
- * (duplicate file, Viewer, another merchant). Every file comes from the synthetic generator: fictional values only.
+ * suggestions, fix the wrong ones by hand, answer the date-order question, save a template), validate, confirm (a
+ * second person for bank statements, bound to the file and report hashes), bring into reconciliation, reconcile, and
+ * read the decisions labelled "Your data"; retention, delete, and the refusals (duplicate file, Viewer, another
+ * merchant). Every file comes from the synthetic generator: fictional values only.
  */
 
 const FIN = "finance@kestrelbay-live.example";
 const VIEWER = "viewer@kestrelbay-live.example";
 const OTHER = "finance@otherbay-live.example";
+const APPROVER = "approver@kestrelbay-live.example";
+const OPS = "ops@kestrelbay-live.example";
+const ADMIN = "admin@kestrelbay-live.example";
 const LIVE_LABEL = "Your data";
 
 type File = { name: string; bytes: Uint8Array };
@@ -46,6 +51,31 @@ async function confirmMapping(page: Page) {
   await expect(page.getByTestId("upload-status")).toHaveText("Mapped, needs validation");
 }
 
+async function validate(page: Page, message: string | RegExp) {
+  await page.getByRole("button", { name: /^Validate (every row|again)$/ }).click();
+  await expect(page.getByRole("status").filter({ hasText: message }).first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("upload-status")).toHaveText("Validated, awaiting confirmation");
+}
+async function decide(page: Page, reason: string, message: RegExp) {
+  await page.getByLabel("Reason for your decision").fill(reason);
+  await page.getByRole("button", { name: "Confirm upload" }).click();
+  await expect(page.getByRole("status").filter({ hasText: message }).first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("upload-status")).toHaveText("Confirmed");
+}
+async function bringIn(page: Page) {
+  await page.getByRole("button", { name: "Bring into reconciliation" }).click();
+  await expect(page.getByRole("status").filter({ hasText: /^Brought into reconciliation: \d+ row\(s\) added/ }).first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("upload-status")).toHaveText("In reconciliation");
+}
+
+/*
+ * The decisions this pipeline produces for the generator's small preset (seed 40), pinned. They differ from the
+ * generator's ground truth for most orders, for reasons outside the screens (see the rc7 UI report): a provider file's
+ * transaction hashes become unconfirmed provider claims, and a totals-only settlement report carries no per-payment
+ * lines, so no batch ties to a payment.
+ */
+const EXPECTED: [string, string][] = [["SG-2611-00002", "Suggested for review"], ["SG-2611-00004", "Exception"], ["SG-2611-00015", "Suggested for review"], ["SG-2611-00022", "Exception"]];
+
 async function axeBoth(page: Page, info: TestInfo, where: string) {
   const back = page.viewportSize();
   for (const width of info.project.name === "mobile" ? [390] : [1280, 390]) {
@@ -62,7 +92,7 @@ async function expectLiveLabel(page: Page) {
   await expect(page.getByText(LABEL)).toHaveCount(0);
 }
 
-test("live merchant: upload, preview, map with suggestions and fixes, save templates; same-shaped file reuses the template", async ({ page }, info) => {
+test("live merchant: upload, map, validate, confirm (bank by a second person), reconcile; templates, delete, retention, refusals", async ({ page }, info) => {
   test.setTimeout(600_000);
   await resetMerchantDatabase();
   const f = await uploadFiles();
@@ -107,6 +137,12 @@ test("live merchant: upload, preview, map with suggestions and fixes, save templ
   const status = page.getByRole("group", { name: "What each word in Status means" });
   await expect(status.getByLabel("“Paid”")).toHaveValue("paid");
   await status.getByLabel("“Completed”").selectOption("paid");
+  // a word that only appears further down the file is added by hand (the screen shows the first 20 rows only)
+  const shown = await status.getByRole("combobox").count();
+  for (const w of f.providerSg.statuses) if ((await status.getByLabel(`“${w}”`, { exact: true }).count()) === 0) { await status.getByLabel("Another word in Status").fill(w); await status.getByRole("button", { name: "Add word" }).click(); }
+  expect(await status.getByRole("combobox").count()).toBe(f.providerSg.statuses.length);
+  expect(shown).toBeLessThanOrEqual(f.providerSg.statuses.length);
+  for (const w of f.providerSg.statuses) expect(await status.getByLabel(`“${w}”`, { exact: true }).inputValue(), w).not.toBe("");
   await shot(page, info, "rc7-mapping", { scrollTo: "#map" });
   await page.getByLabel("Template name").fill("Kestrel provider export");
   await page.getByRole("button", { name: "Save as template" }).click();
@@ -116,7 +152,7 @@ test("live merchant: upload, preview, map with suggestions and fixes, save templ
   await axeBoth(page, info, "provider export mapped");
 
   // 2. Settlement report (totals per batch, JSON)
-  await upload(page, "ENT-SG-SYN", "Settlement report", f.settlementTotals);
+  const settlementId = await upload(page, "ENT-SG-SYN", "Settlement report", f.settlementTotals);
   await expect(page.getByRole("radio", { name: "One row per batch, with totals only" })).toBeChecked();
   await choose(page, "line_amount", "");
   await choose(page, "payment_id", "");
@@ -138,7 +174,7 @@ test("live merchant: upload, preview, map with suggestions and fixes, save templ
   await axeBoth(page, info, "bank statement mapped");
 
   // 4. MT940 (no column mapping)
-  await upload(page, "ENT-US-SYN", "Bank statement", { name: f.mt940Us.name, bytes: f.mt940Us.bytes });
+  const mt940Id = await upload(page, "ENT-US-SYN", "Bank statement", { name: f.mt940Us.name, bytes: f.mt940Us.bytes });
   await expect(page.getByText("MT940 and camt.053 statements need no column mapping")).toBeVisible();
   await expect(page.getByTestId("file-facts")).toContainText("MT940 statement");
   await axeBoth(page, info, "MT940 upload");
@@ -149,6 +185,14 @@ test("live merchant: upload, preview, map with suggestions and fixes, save templ
   await expect(field(page, "value_date").getByRole("combobox")).toHaveValue("Value Date");
   await expect(page.getByTestId("upload-status")).toHaveText("Stored, needs mapping");
   await axeBoth(page, info, "template applied");
+  // ...and is deleted again, with a confirmation step (its mapping was never confirmed)
+  await page.getByRole("button", { name: "Delete upload" }).click();
+  await expect(page.getByRole("group", { name: /^Delete “/ })).toContainText("cannot be undone");
+  await page.getByRole("button", { name: "Keep it" }).click();
+  await page.getByRole("button", { name: "Delete upload" }).click();
+  await page.getByRole("button", { name: "Yes, delete it" }).click();
+  await expect(page).toHaveURL(/\/control\/merchant\/uploads$/);
+  await expect(page.getByRole("status").filter({ hasText: /^Deleted “/ })).toBeVisible();
 
   // 6. The same file again is refused before anything is stored
   await page.goto("/control/merchant/uploads");
@@ -156,11 +200,41 @@ test("live merchant: upload, preview, map with suggestions and fixes, save templ
   await page.getByLabel("File", { exact: true }).setInputFiles({ name: "again.csv", mimeType: "text/csv", buffer: Buffer.from(f.providerSg.bytes) });
   await page.getByRole("button", { name: "Upload file" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "This file was already uploaded for ENT-SG-SYN" })).toBeVisible();
-  await expect(page.getByTestId("upload-row")).toHaveCount(5);
+  await expect(page.getByTestId("upload-row")).toHaveCount(4);
   await axeBoth(page, info, "uploads list");
+
+  // 7. Validate, confirm and bring the provider export and the settlement report into reconciliation
+  await page.goto(`/control/merchant/uploads/${providerId}`);
+  await validate(page, `Validated ${f.providerSg.rows} rows: 0 accepted, ${f.providerSg.rows - 2} with warnings, 2 rejected, 0 duplicates.`);
+  await page.getByRole("navigation", { name: "Filter rows by status" }).getByRole("link", { name: "Rejected" }).click();
+  await expect(page.getByTestId("report-row")).toHaveCount(2);
+  await expect(page.getByTestId("report-row").first()).toContainText("Token contract is not a token Clearline knows for that network and contract.");
+  await expect(page.getByTestId("report-range")).toContainText("Rows 1–2 of 2 (rejected)");
+  await shot(page, info, "rc7-validation-report", { scrollTo: "#report" });
+  await axeBoth(page, info, "validation report");
+  await page.goto(`/control/merchant/uploads/${providerId}`);
+  await decide(page, "Checked the totals against the provider portal (fictional).", /Confirmed: \d+ row\(s\) can now be brought into reconciliation/);
+  await bringIn(page);
+  await page.goto(`/control/merchant/uploads/${settlementId}`);
+  await validate(page, "Validated 14 rows: 14 accepted, 0 with warnings, 0 rejected, 0 duplicates.");
+  await decide(page, "Batch totals match the provider's payout list (fictional).", /Confirmed: 14 row\(s\)/);
+  await bringIn(page);
+
+  // 8. Bank statements wait for a second person: the uploader sees no confirm button, and the server refuses one
+  await page.goto(`/control/merchant/uploads/${bankId}`);
+  await validate(page, /^Validated 11 rows: 11 accepted/);
+  await expect(page.getByTestId("second-person")).toContainText("Waiting for a second person (an Approver who did not upload it).");
+  await expect(page.getByRole("button", { name: "Confirm upload" })).toHaveCount(0);
+  await shot(page, info, "rc7-awaiting-second-person", { scrollTo: "#confirm" });
+  await axeBoth(page, info, "awaiting second person");
+  const bankSummary = (await (await api(page, "GET", `/api/control/merchant/uploads/${bankId}`)).json()).upload;
+  expect((await api(page, "POST", `/api/control/merchant/uploads/${bankId}/decision`, { decision: "confirm", reason: "self confirmation attempt", contentSha256: bankSummary.contentSha256, rowsSha256: bankSummary.rowsSha256 })).status()).toBe(403);
+  await page.goto(`/control/merchant/uploads/${mt940Id}`);
+  await validate(page, /^Validated \d+ rows/);
+  await expect(page.getByTestId("second-person")).toContainText("Waiting for a second person");
   await signOut(page);
 
-  // 7. A Viewer reads the list and the mapping, and cannot upload (screen and server)
+  // 9. A Viewer reads the list and the mapping, and cannot upload (screen and server)
   await signIn(page, VIEWER, info);
   await page.goto("/control/merchant/uploads");
   await expectLiveLabel(page);
@@ -171,9 +245,60 @@ test("live merchant: upload, preview, map with suggestions and fixes, save templ
   await expect(page.getByRole("button", { name: "Confirm mapping" })).toHaveCount(0);
   await axeBoth(page, info, "upload as Viewer");
   expect((await api(page, "POST", `/api/control/merchant/uploads/${bankId}/validate`, {})).status()).toBe(403);
+  await page.goto(`/control/merchant/uploads/${bankId}`);
+  await expect(page.getByTestId("second-person")).toContainText("Waiting for a second person");
   await signOut(page);
 
-  // 8. Another merchant's user does not see the upload at all
+  // 10. An Approver who did not upload it confirms the exact file and report, then brings both statements in
+  await signIn(page, APPROVER, info);
+  for (const id of [bankId, mt940Id]) {
+    await page.goto(`/control/merchant/uploads/${id}`);
+    await expect(page.getByTestId("second-person")).toContainText("You are the second person");
+    const sum = (await (await api(page, "GET", `/api/control/merchant/uploads/${id}`)).json()).upload;
+    await expect(page.getByTestId("content-hash")).toHaveText(sum.contentSha256);
+    await expect(page.getByTestId("report-hash")).toHaveText(sum.rowsSha256);
+    const sent = page.waitForRequest((r) => r.method() === "POST" && r.url().endsWith(`/uploads/${id}/decision`));
+    await decide(page, "Compared with the bank's online statement (fictional).", /Confirmed by a second person/);
+    expect((await sent).postDataJSON()).toMatchObject({ decision: "confirm", contentSha256: sum.contentSha256, rowsSha256: sum.rowsSha256 });
+    await bringIn(page);
+  }
+  await signOut(page);
+
+  // 11. Payment Operations reconcile; the daily report and the payments show the decisions, labelled "Your data"
+  await signIn(page, OPS, info);
+  await page.goto(`/control/merchant/uploads/${providerId}`);
+  await expect(page.getByTestId("in-reconciliation")).toBeVisible();
+  await page.getByRole("button", { name: "Run reconciliation for ENT-SG-SYN" }).click();
+  await expect(page.getByRole("status").filter({ hasText: /Reconciled 27 payments for/ }).first()).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("in-reconciliation").getByRole("link", { name: "daily report" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Daily report");
+  await expectLiveLabel(page);
+  await expect(page.getByTestId("daily-summary")).toContainText(/\d+ payments? · /);
+  await axeBoth(page, info, "daily report (live)");
+  await page.goto("/control/merchant/payments?entity=ENT-SG-SYN");
+  await expectLiveLabel(page);
+  await expect(page.getByTestId("payments-count")).toContainText("27 of 27 payments");
+  const chip = (order: string) => page.getByRole("row").filter({ hasText: order }).getByTestId("decision-chip");
+  for (const [order, label] of EXPECTED) await expect(chip(order), order).toHaveText(label);
+  await expect(page.getByTestId("decision-chip").filter({ hasText: /^Suggested for review$/ })).toHaveCount(12);
+  await expect(page.getByTestId("decision-chip").filter({ hasText: /^Exception$/ })).toHaveCount(15);
+  await axeBoth(page, info, "payments (live)");
+  await signOut(page);
+
+  // 12. The Admin sets retention on the settings page; each upload shows its delete-after date
+  await signIn(page, ADMIN, info);
+  await page.goto("/control/merchant/settings");
+  await expect(page.getByTestId("retention-days")).toContainText("90 days");
+  await page.getByLabel("Keep uploads for (days)").fill("30");
+  await page.getByRole("button", { name: "Save retention" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Saved: new uploads are deleted after 30 days." })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("retention-days")).toContainText("30 days");
+  await axeBoth(page, info, "settings with retention");
+  await page.goto("/control/merchant/uploads");
+  await expect(page.getByTestId("upload-row").first()).toContainText(/\d{4}-\d{2}-\d{2}$/);
+  await signOut(page);
+
+  // 13. Another merchant's user does not see the upload at all
   await signIn(page, OTHER, info);
   await page.goto(`/control/merchant/uploads/${providerId}`);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(/not found/i);
@@ -191,4 +316,29 @@ test("a sample organisation keeps the demo label and offers no upload", async ({
   await expect(page.getByText(/This organisation holds sample data/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Upload file" })).toHaveCount(0);
   await axeBoth(page, info, "sample uploads");
+});
+
+test("keyboard: the upload form works without drag and drop (file input, entity, file type, submit)", async ({ page }, info) => {
+  await signIn(page, OPS, info);
+  await page.goto("/control/merchant/uploads");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Uploads");
+  await page.getByRole("heading", { level: 1 }).click();
+  const seen = new Set<string>();
+  for (let i = 0; i < 40; i++) {
+    await page.keyboard.press("Tab");
+    seen.add(await page.evaluate(() => { const e = document.activeElement as HTMLInputElement | null; return e ? `${e.tagName}:${e.type ?? ""}:${e.name ?? ""}:${(e.textContent ?? "").trim().slice(0, 30)}` : ""; }));
+  }
+  const all = [...seen].join("\n");
+    expect(all).toMatch(/SELECT:select-one:entityId/);
+  expect(all).toMatch(/INPUT:radio:fileType/);
+  expect(all).toMatch(/INPUT:file:file/);
+  expect(all).toMatch(/BUTTON:submit::Upload file/);
+  // a file that is too large is refused in the browser before anything is sent
+  await page.getByLabel("File", { exact: true }).setInputFiles({ name: "too-big.csv", mimeType: "text/csv", buffer: Buffer.alloc(20 * 1024 * 1024 + 1, 0x41) });
+  await expect(page.getByRole("alert").filter({ hasText: "the largest file accepted is 20.0 MB" })).toBeVisible();
+  // an unreadable file is refused by the server with its plain-English reason
+  await page.getByLabel("Entity").selectOption("ENT-SG-SYN");
+  await page.getByLabel("File", { exact: true }).setInputFiles({ name: "empty.csv", mimeType: "text/csv", buffer: Buffer.from("\n\n") });
+  await page.getByRole("button", { name: "Upload file" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: /^Refused: / })).toBeVisible();
 });
