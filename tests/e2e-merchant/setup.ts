@@ -29,7 +29,7 @@ export const MERCHANT_PAGES = [
   "/control/merchant", "/control/merchant?entity=ENT-SG-02&date=2026-11-25", "/control/merchant/payments", "/control/merchant/payments?result=exception&network=tron",
   "/control/merchant/payments/BK-24817", "/control/merchant/payments/BK-24871", "/control/merchant/exceptions", "/control/merchant/exceptions/EX-BK-24830",
   "/control/merchant/batches", "/control/merchant/batches/B-1125-SGD", "/control/merchant/approvals", "/control/merchant/month-end?entity=ENT-SG-02&month=2026-11",
-  "/control/merchant/evidence", "/control/merchant/accounting?entity=ENT-SG-01&month=2026-11", "/control/merchant/pilot", "/control/merchant/settings",
+  "/control/merchant/evidence", "/control/merchant/accounting?entity=ENT-SG-01&month=2026-11", "/control/merchant/pilot", "/control/merchant/settings", "/control/merchant/runs",
 ] as const;
 
 export const PROVIDER_PAGES = ["/control/merchant/provider", "/control/merchant/provider/onboarding", "/control/merchant/provider/pilot"] as const;
