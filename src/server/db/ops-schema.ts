@@ -1,8 +1,8 @@
 /**
- * rc7 phase 3a: software operations. Reconciliation runs (append-only history) and rule-change notices.
- * Security and constraints: drizzle/0024_reconciliation_runs.sql.
+ * rc7 phase 3a: software operations. Reconciliation runs (append-only history), the PostgreSQL job queue, the daily
+ * schedule per entity and rule-change notices. Security and constraints: drizzle/0024_reconciliation_runs.sql and 0025_jobs_schedules.sql.
  */
-import { integer, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, integer, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { organizations, users } from "./schema";
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
@@ -26,6 +26,24 @@ export const reconciliationRuns = pgTable("reconciliation_runs", {
   notices: integer("notices").notNull().default(0),
   errorCode: text("error_code"),
 }, (t) => [primaryKey({ columns: [t.orgId, t.id] })]);
+
+export const reconciliationSchedules = pgTable("reconciliation_schedules", {
+  orgId: org(), entityId: text("entity_id").notNull(),
+  localTime: text("local_time").notNull().default("02:00"), enabled: boolean("enabled").notNull().default(true),
+  runAs: text("run_as").notNull().references(() => users.id), updatedAt: ts("updated_at").notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.entityId] })]);
+
+export type JobStatus = "queued" | "running" | "done" | "dead" | "cancelled";
+export const jobs = pgTable("jobs", {
+  id: uuid("id").primaryKey().defaultRandom(), orgId: org(), entityId: text("entity_id").notNull(),
+  kind: text("kind").notNull().default("reconcile"), trigger: text("trigger").$type<"schedule" | "rule_change">().notNull(),
+  dedupeKey: text("dedupe_key").notNull(), runAs: text("run_as").notNull().references(() => users.id),
+  status: text("status").$type<JobStatus>().notNull().default("queued"),
+  attempts: integer("attempts").notNull().default(0), maxAttempts: integer("max_attempts").notNull().default(5),
+  runAfter: ts("run_after").notNull(), lockedAt: ts("locked_at"), lockedBy: text("locked_by"),
+  lastErrorCode: text("last_error_code"), runId: uuid("run_id"),
+  createdAt: ts("created_at").notNull().defaultNow(), finishedAt: ts("finished_at"),
+});
 
 export const ruleChangeNotices = pgTable("rule_change_notices", {
   orgId: org(), id: uuid("id").notNull().defaultRandom(), entityId: text("entity_id").notNull(), orderId: text("order_id").notNull(),

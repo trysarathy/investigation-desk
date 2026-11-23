@@ -7,7 +7,7 @@ import { active, type JournalRuleId, type RuleId } from "@/lib/clearline/merchan
 import type { Tx } from "./db/client";
 import * as t from "./db/schema";
 import { can, type Permission } from "./authz";
-import { canonical } from "./control";
+import { IdempotencyKey, canonical, idempotent, serverAudit } from "./control";
 import { RequestRefused } from "./errors";
 import { AccessDenied, type TenantContext, withTenant } from "./tenant";
 
@@ -80,13 +80,15 @@ export async function runState(tx: Tx, orgId: string, entityId: string) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Read model (merchant members; RLS limits every row to the organisation)
+// Read model and schedule (merchant members; RLS limits every row to the organisation)
 // ---------------------------------------------------------------------------------------------
 
 function require(ctx: TenantContext, p: Permission) {
   if (!can(ctx.role, p)) throw new AccessDenied(403, `Your role (${ctx.role}) does not allow this.`);
 }
 const tenantRead = <T>(ctx: TenantContext, fn: (tx: Tx) => Promise<T>) => withTenant({ userId: ctx.userId, orgId: ctx.orgId }, fn, { read: true });
+
+export const DEFAULT_LOCAL_TIME = "02:00";
 
 export async function listRuns(ctx: TenantContext, opts: { entityId?: string; limit?: number } = {}) {
   require(ctx, "read");
@@ -95,6 +97,8 @@ export async function listRuns(ctx: TenantContext, opts: { entityId?: string; li
     const runs = await tx.select().from(t.reconciliationRuns)
       .where(and(eq(t.reconciliationRuns.orgId, ctx.orgId), ...(opts.entityId ? [eq(t.reconciliationRuns.entityId, opts.entityId)] : [])))
       .orderBy(desc(t.reconciliationRuns.startedAt), desc(t.reconciliationRuns.finishedAt)).limit(limit);
+    const schedules = await tx.select({ s: t.reconciliationSchedules, name: t.users.name }).from(t.reconciliationSchedules)
+      .leftJoin(t.users, eq(t.users.id, t.reconciliationSchedules.runAs)).where(eq(t.reconciliationSchedules.orgId, ctx.orgId)).orderBy(asc(t.reconciliationSchedules.entityId));
     const notices = await tx.select().from(t.ruleChangeNotices).where(eq(t.ruleChangeNotices.orgId, ctx.orgId)).orderBy(desc(t.ruleChangeNotices.createdAt), asc(t.ruleChangeNotices.orderId)).limit(100);
     return {
       ruleSetVersion: RULE_SET_VERSION,
@@ -103,7 +107,29 @@ export async function listRuns(ctx: TenantContext, opts: { entityId?: string; li
         startedAt: r.startedAt.toISOString(), finishedAt: r.finishedAt.toISOString(), inputSha256: r.inputSha256, errorCode: r.errorCode,
         counts: { matched: r.matched, withDifference: r.withDifference, review: r.review, exceptions: r.exceptions, unpaid: r.unpaid, kept: r.kept, notices: r.notices },
       })),
+      schedules: schedules.map(({ s, name }) => ({ entityId: s.entityId, localTime: s.localTime, enabled: s.enabled, runAsName: name ?? null })),
       notices: notices.map((n) => ({ id: n.id, entityId: n.entityId, orderId: n.orderId, runId: n.runId, storedDecision: n.storedDecision, storedRuleId: n.storedRuleId, newDecision: n.newDecision, newRuleId: n.newRuleId, ruleSetVersion: n.ruleSetVersion, policyRevision: n.policyRevision, at: n.createdAt.toISOString() })),
     };
   });
+}
+
+export const ScheduleInput = z.object({ localTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).default(DEFAULT_LOCAL_TIME), enabled: z.boolean().default(true) }).strict();
+
+/**
+ * Set an entity's daily run (Payment Operations or Finance). The scheduled run acts for the member who set it; the
+ * worker re-checks that member's access at every run, and a revoked member's runs stop.
+ */
+export async function setRunSchedule(ctx: TenantContext, entityId: string, input: z.input<typeof ScheduleInput>, idempotencyKey: string) {
+  require(ctx, "merchant_reconcile");
+  const v = ScheduleInput.parse(input);
+  const key = IdempotencyKey.parse(idempotencyKey);
+  return withTenant({ userId: ctx.userId, orgId: ctx.orgId }, (tx) => idempotent(tx, ctx, key, { op: "merchant_run_schedule", entityId, ...v }, async () => {
+    const [ent] = await tx.select({ id: t.merchantEntities.id }).from(t.merchantEntities).where(and(eq(t.merchantEntities.orgId, ctx.orgId), eq(t.merchantEntities.id, entityId)));
+    if (!ent) throw new AccessDenied(404, "Not found.");
+    const row = { localTime: v.localTime, enabled: v.enabled, runAs: ctx.userId, updatedAt: new Date() };
+    await tx.insert(t.reconciliationSchedules).values({ orgId: ctx.orgId, entityId, ...row })
+      .onConflictDoUpdate({ target: [t.reconciliationSchedules.orgId, t.reconciliationSchedules.entityId], set: row });
+    await serverAudit(tx, ctx, "merchant_run_schedule_set", "merchant_entity", entityId, `Daily reconciliation ${v.enabled ? `at ${v.localTime} merchant time` : "turned off"}`, v);
+    return { status: 200, body: { entityId, ...v } };
+  }));
 }
