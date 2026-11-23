@@ -1,6 +1,6 @@
 import "server-only";
 import { readFileSync } from "node:fs";
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { NETWORKS, normAddress } from "@/lib/clearline/merchant/config";
 import type { NetworkId } from "@/lib/clearline/merchant/types";
 import {
@@ -144,6 +144,7 @@ export async function verifyChainForEntity(ctx: TenantContext, entityId: string,
   await withTenant(tenant, async (tx) => {
     const netRows = await tx.select().from(t.networkConfig);
     const requiredOf = (n: string) => netRows.find((x) => dbNetwork(x.network) === n)?.confirmationsRequired ?? required(n);
+    const rows: (typeof t.chainTransfers.$inferInsert)[] = [];
     for (const f of [...facts.values()].sort((a, b) => (factKey(a) < factKey(b) ? -1 : 1))) {
       const ev = f.f.evidence[0] ?? { source: "recording", host: "unknown", method: "unknown", fetchedAt: now.toISOString() };
       const evidence = { evidenceSource: ev.source, evidenceHost: ev.host, evidenceEndpoint: ev.method, fetchedAt: new Date(ev.fetchedAt) };
@@ -170,16 +171,22 @@ export async function verifyChainForEntity(ctx: TenantContext, entityId: string,
         };
       }
       counts.facts++;
-      await tx.insert(t.chainTransfers).values(row).onConflictDoUpdate({
+      rows.push(row);
+    }
+    // rc7 phase 3b: written in chunks (same rows, same order); facts stay as first read (trigger 0007); only
+    // confirmations, finality, block and evidence of the latest read change
+    for (let i = 0; i < rows.length; i += 500) {
+      await tx.insert(t.chainTransfers).values(rows.slice(i, i + 500)).onConflictDoUpdate({
         target: [t.chainTransfers.orgId, t.chainTransfers.network, t.chainTransfers.txHash, t.chainTransfers.logIndex, t.chainTransfers.source],
-        // facts stay as first read (trigger 0007); only confirmations, finality, block and evidence of the latest read change
-        set: { confirmations: row.confirmations, finalised: row.finalised, block: row.block, blockHash: row.blockHash, ...evidence },
+        set: { confirmations: sql`excluded.confirmations`, finalised: sql`excluded.finalised`, block: sql`excluded.block`, blockHash: sql`excluded.block_hash`,
+          evidenceSource: sql`excluded.evidence_source`, evidenceHost: sql`excluded.evidence_host`, evidenceEndpoint: sql`excluded.evidence_endpoint`, fetchedAt: sql`excluded.fetched_at` },
       });
     }
-    if (reads.length) await tx.insert(t.chainReads).values(reads.map((r) => ({
+    const readRows = reads.map((r) => ({
       orgId: ctx.orgId, entityId, network: r.network, address: r.address ?? null, txHash: r.txHash ?? null, status: r.status, reason: r.reason?.slice(0, 500) ?? null,
       source: r.evidence[0]?.source ?? client.mode, host: r.evidence[0]?.host ?? null, endpoint: r.evidence[0]?.method ?? null, transfers: r.transfers, at: now,
-    })));
+    }));
+    for (let i = 0; i < readRows.length; i += 1000) await tx.insert(t.chainReads).values(readRows.slice(i, i + 1000));
     const unavailable = reads.filter((r) => r.status === "unavailable").length;
     await serverAudit(tx, ctx, "merchant_chain_verified", "merchant_entity", entityId,
       `Chain verified (${client.mode}): ${addresses.length} address(es), ${readTx.size} transaction(s) read, ${cached} cached final; ${counts.facts} fact(s), ${counts.final} final, ${counts.pending} not final; ${unavailable} read(s) unavailable`,

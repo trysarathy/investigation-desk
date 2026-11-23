@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import { ROLE_LABELS } from "@/server/authz";
+import { ROLE_LABELS, can } from "@/server/authz";
 import { merchantPage } from "@/server/merchant-page";
 import { unreadCount } from "@/server/notifications";
 import { SignOutButton } from "@/components/control/forms";
@@ -39,7 +39,7 @@ export default async function MerchantLayout({ children }: { children: ReactNode
   const { ctx, shell } = await merchantPage();
   const t = shell.theme;
   const vars = { "--brand": t.primary, "--on-brand": t.onPrimary, "--accent": t.accent } as CSSProperties;
-  const nav = shell.kind === "merchant" ? MERCHANT_NAV : PROVIDER_NAV;
+  const nav = shell.kind === "merchant" ? [...MERCHANT_NAV, ...(can(ctx.role, "manage_members") ? [{ href: "/control/merchant/admin", label: "Admin" }] : [])] : PROVIDER_NAV;
   const unread = shell.kind === "merchant" ? await unreadCount(ctx) : 0;
   return (
     <div className={m.mroot} style={vars}>
@@ -53,7 +53,7 @@ export default async function MerchantLayout({ children }: { children: ReactNode
               <p className={m.brandSub} data-testid="org-name">{shell.kind === "provider" ? "Provider console" : `Merchant reconciliation · ${ctx.orgName}`}</p>
             </div>
           </div>
-          <p className={m.brandWho} data-testid="signed-in-as">Signed in as <strong>{ctx.name}</strong> ({ctx.email}) · {ROLE_LABELS[ctx.role]} · {shell.kind === "merchant" ? <><a className={m.bell} href="/control/merchant/notifications" data-testid="bell" aria-label={`Notifications: ${unread} unread`}>Notifications<span className={m.bellCount} aria-hidden="true">{unread}</span></a> · </> : null}<SignOutButton /></p>
+          <p className={m.brandWho} data-testid="signed-in-as">Signed in as <strong>{ctx.name}</strong> ({ctx.email}) · {ROLE_LABELS[ctx.role]} · {shell.kind === "merchant" ? <><a className={m.bell} href="/control/merchant/notifications" data-testid="bell">Notifications <span className={m.bellCount}>{unread}</span><span className={m.srOnly}> unread</span></a> · </> : null}<SignOutButton /></p>
         </div>
       </header>
       <aside className={m.demo} aria-label="Data notice"><DataChip label={shell.label} /></aside>

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { toFiatMinor } from "@/lib/clearline/merchant/amounts";
 import { FIAT_DECIMALS, normAddress } from "@/lib/clearline/merchant/config";
@@ -34,17 +34,39 @@ const dbNet = (n: string) => (n === "arbitrum_one" ? "arbitrum-one" : n);
 const same = (a: unknown, b: unknown) => JSON.stringify(plain(a)) === JSON.stringify(plain(b));
 const ms = (d: Date | string) => new Date(d).getTime();
 
+/**
+ * rc7 phase 3b (speed, same decisions): the row functions below run in one of three modes.
+ *  - "collect": no database access; records every (table, key) a row would read or write.
+ *  - "plan": against the rows loaded in bulk for those keys (plus the rows earlier rows of this file would create),
+ *    decides each row exactly as "db" would (created / existing / conflict, a conflicting row leaving nothing), and
+ *    queues the inserts, which are then written in bulk.
+ *  - "db": the original row-by-row path (a savepoint per row), used if the bulk write does not insert exactly what
+ *    the plan expected (e.g. another unique index refused a row), so the outcome is always the row-by-row one.
+ */
+type Mode = "collect" | "plan" | "db";
+interface Pending { name: string; key: string; table: PgTable; values: Record<string, unknown> }
 interface Ctx {
   tx: Tx; orgId: string; entityId: string; currency: FiatCurrency; u: UploadRow;
   tokens: { network: string; contract: string; decimals: number }[];
   prov: (row: number) => { uploadId: string; sourceRow: number; mappingTemplateId: string | null; mappingTemplateVersion: number | null; uploadedBy: string };
+  mode: Mode; keys: Map<string, Set<string>>; state: Map<string, Map<string, Record<string, unknown>>>; pending: Pending[];
 }
+const note = (c: Ctx, name: string, key: string) => { const s = c.keys.get(name) ?? new Set<string>(); s.add(key); c.keys.set(name, s); };
+const lookup = (c: Ctx, name: string, key: string) => c.pending.find((p) => p.name === name && p.key === key)?.values ?? c.state.get(name)?.get(key);
 
 /**
  * Insert one row unless its key exists; then compare the facts that matter. `facts` reads the same projection from
  * the values written and from the row found. Throws Conflict for a different row under the same key.
  */
 async function put<R extends Record<string, unknown>>(c: Ctx, table: PgTable, name: string, key: string, values: R, find: () => Promise<Record<string, unknown> | undefined>, facts: (r: Record<string, unknown>) => unknown, out: Target[]): Promise<Outcome> {
+  if (c.mode === "collect") { note(c, name, key); out.push({ table: name, key }); return "created"; }
+  if (c.mode === "plan") {
+    const found = lookup(c, name, key);
+    if (found && !same(facts(found), facts(values))) throw new Conflict(name);
+    if (!found) c.pending.push({ name, key, table, values });
+    out.push({ table: name, key });
+    return found ? "existing" : "created";
+  }
   const created = await c.tx.insert(table).values(values).onConflictDoNothing().returning();
   const outcome: Outcome = created.length ? "created" : await find().then((x) => (x && same(facts(x), facts(values)) ? "existing" : Promise.reject(new Conflict(name))));
   out.push({ table: name, key });
@@ -74,7 +96,8 @@ async function providerRow(c: Ctx, v: Record<string, MappedValue>, row: number):
       (r) => [r.entityId, r.amountMinor, r.currency], targets));
   } else {
     // without an invoice amount the order must already be in reconciliation (from an orders file), for this entity
-    const [inv] = await tx.select({ entityId: t.invoices.entityId }).from(t.invoices).where(and(eq(t.invoices.orgId, orgId), eq(t.invoices.orderId, orderId)));
+    const inv = c.mode === "collect" ? (note(c, "invoices", orderId), { entityId: c.entityId }) : c.mode === "plan" ? lookup(c, "invoices", orderId)
+      : (await tx.select({ entityId: t.invoices.entityId }).from(t.invoices).where(and(eq(t.invoices.orgId, orgId), eq(t.invoices.orderId, orderId))))[0];
     if (!inv || inv.entityId !== c.entityId) throw new Conflict("invoices");
   }
   // A payment-link row gives the LINK's address and amount, not its quote's: the quote is recorded with neither.
@@ -116,12 +139,17 @@ async function providerRow(c: Ctx, v: Record<string, MappedValue>, row: number):
     // A provider's claim about a transfer: recorded as such, unconfirmed and not final. An observed chain fact under
     // the same key is kept as it is (the claim is then only on the provider record, compared by the engine).
     const key = `${net}|${txHash}|${logIndex}`;
-    const ins = await tx.insert(t.chainTransfers).values({
+    const values = {
       orgId, network: net, txHash, logIndex, tokenContract: token.contract, fromAddress: str(v.sender) ?? "", toAddress: v.deposit_address as string,
       amountBaseUnits: big(v.received_token_amount)!.toString(), decimals: token.decimals, block: 0, blockTime: paidAt ?? created ?? c.u.createdAt, confirmations: 0,
       finalised: false, source: "provider_export", entityId: c.entityId, claimedSymbol: str(v.token_symbol) ?? null, ...p,
-    }).onConflictDoNothing().returning({ k: t.chainTransfers.txHash });
-    outcomes.push(ins.length ? "created" : "existing");
+    };
+    if (c.mode === "collect") { note(c, "chain_transfers", key); outcomes.push("created"); }
+    else if (c.mode === "plan") {
+      const found = lookup(c, "chain_transfers", key);
+      if (!found) c.pending.push({ name: "chain_transfers", key, table: t.chainTransfers, values });
+      outcomes.push(found ? "existing" : "created");
+    } else outcomes.push((await tx.insert(t.chainTransfers).values(values).onConflictDoNothing().returning({ k: t.chainTransfers.txHash })).length ? "created" : "existing");
     targets.push({ table: "chain_transfers", key });
   }
   return { outcome: outcomes.includes("created") ? "created" : "existing", targets };
@@ -205,13 +233,56 @@ async function batchRows(c: Ctx, batchId: string, rows: AnalysedRow[], lines: bo
   return { outcome, targets };
 }
 
+// ---------------------------------------------------------------------------------------------
+// Bulk reads and writes for the "plan" mode (same keys and facts as the row-by-row path)
+// ---------------------------------------------------------------------------------------------
+
+class BulkMiss extends Error {}
+type Row = Record<string, unknown>;
+const LOADERS: Record<string, { table: PgTable; keyOf: (r: Row) => string; load: (tx: Tx, orgId: string, keys: string[]) => Promise<Row[]> }> = {
+  invoices: { table: t.invoices, keyOf: (r) => String(r.orderId), load: (tx, o, k) => tx.select().from(t.invoices).where(and(eq(t.invoices.orgId, o), inArray(t.invoices.orderId, k))) },
+  merchant_quotes: { table: t.merchantQuotes, keyOf: (r) => String(r.quoteId), load: (tx, o, k) => tx.select().from(t.merchantQuotes).where(and(eq(t.merchantQuotes.orgId, o), inArray(t.merchantQuotes.quoteId, k))) },
+  payment_links: { table: t.paymentLinks, keyOf: (r) => String(r.linkId), load: (tx, o, k) => tx.select().from(t.paymentLinks).where(and(eq(t.paymentLinks.orgId, o), inArray(t.paymentLinks.linkId, k))) },
+  provider_payment_records: { table: t.providerPaymentRecords, keyOf: (r) => String(r.providerPaymentId),
+    load: (tx, o, k) => tx.select().from(t.providerPaymentRecords).where(and(eq(t.providerPaymentRecords.orgId, o), inArray(t.providerPaymentRecords.providerPaymentId, k))) },
+  chain_transfers: { table: t.chainTransfers, keyOf: (r) => `${r.network}|${r.txHash}|${r.logIndex}`,
+    load: (tx, o, k) => tx.select().from(t.chainTransfers).where(and(eq(t.chainTransfers.orgId, o), inArray(t.chainTransfers.txHash, [...new Set(k.map((x) => x.split("|")[1]))]))) },
+  settlement_batches: { table: t.settlementBatches, keyOf: (r) => String(r.batchId), load: (tx, o, k) => tx.select().from(t.settlementBatches).where(and(eq(t.settlementBatches.orgId, o), inArray(t.settlementBatches.batchId, k))) },
+  settlement_batch_lines: { table: t.settlementBatchLines, keyOf: (r) => `${r.batchId}|${r.lineNo}`,
+    load: (tx, o, k) => tx.select().from(t.settlementBatchLines).where(and(eq(t.settlementBatchLines.orgId, o), inArray(t.settlementBatchLines.batchId, [...new Set(k.map((x) => x.slice(0, x.lastIndexOf("|"))))]))) },
+  bank_lines: { table: t.bankLines, keyOf: (r) => String(r.lineId), load: (tx, o, k) => tx.select().from(t.bankLines).where(and(eq(t.bankLines.orgId, o), inArray(t.bankLines.lineId, k))) },
+  ledger_invoices: { table: t.ledgerInvoices, keyOf: (r) => `${r.entityId}|${r.invoiceNumber}`,
+    load: (tx, o, k) => tx.select().from(t.ledgerInvoices).where(and(eq(t.ledgerInvoices.orgId, o), inArray(t.ledgerInvoices.invoiceNumber, [...new Set(k.map((x) => x.slice(x.indexOf("|") + 1)))]))) },
+};
+const WRITE_ORDER = ["invoices", "merchant_quotes", "payment_links", "provider_payment_records", "chain_transfers", "settlement_batches", "settlement_batch_lines", "bank_lines", "ledger_invoices"];
+
+async function loadExisting(tx: Tx, orgId: string, name: string, keys: string[]): Promise<Map<string, Row>> {
+  const l = LOADERS[name];
+  const out = new Map<string, Row>();
+  const want = new Set(keys);
+  for (let i = 0; i < keys.length; i += 1000) for (const r of await l.load(tx, orgId, keys.slice(i, i + 1000)) as Row[]) { const k = l.keyOf(r); if (want.has(k)) out.set(k, r); }
+  return out;
+}
+
+/** Write the planned rows in bulk, parents first; anything not inserted exactly as planned undoes the bulk write. */
+async function writeBulk(tx: Tx, creates: Pending[]) {
+  for (const name of WRITE_ORDER) {
+    const rows = creates.filter((p) => p.name === name);
+    for (let i = 0; i < rows.length; i += 500) {
+      const chunk = rows.slice(i, i + 500);
+      const done = await tx.insert(LOADERS[name].table).values(chunk.map((p) => p.values)).onConflictDoNothing().returning();
+      if (done.length !== chunk.length) throw new BulkMiss(name);
+    }
+  }
+}
+
 export interface NormaliseResult { uploadId: string; status: "normalised"; changed: boolean; counts: Record<Outcome, number> }
 
 /**
  * Normalise a confirmed upload into the merchant tables. The file is re-read and re-validated: if its validation no
  * longer matches what the confirmer reviewed (e.g. the token configuration changed), nothing is written.
  */
-export async function normaliseUpload(ctx: TenantContext, uploadId: string, idempotencyKey: string, storage: UploadStorage = uploadStorage()) {
+export async function normaliseUpload(ctx: TenantContext, uploadId: string, idempotencyKey: string, storage: UploadStorage = uploadStorage(), opts: { rowByRow?: boolean } = {}) {
   if (!can(ctx.role, "merchant_upload") && !can(ctx.role, "confirm_import")) throw new AccessDenied(403, `Your role (${ctx.role}) does not allow this.`);
   const key = IdempotencyKey.parse(idempotencyKey);
   return withTenant({ userId: ctx.userId, orgId: ctx.orgId }, (tx) => idempotent(tx, ctx, key, { op: "upload_normalise", uploadId }, async () => {
@@ -228,7 +299,10 @@ export async function normaliseUpload(ctx: TenantContext, uploadId: string, idem
     const c: Ctx = {
       tx, orgId: ctx.orgId, entityId: u.entityId, currency: ent.functionalCurrency as FiatCurrency, u, tokens: await tx.select().from(t.tokenConfig),
       prov: (row) => ({ uploadId: u.id, sourceRow: row, mappingTemplateId: u.templateId, mappingTemplateVersion: u.templateVersion, uploadedBy: u.uploadedBy }),
+      mode: "collect", keys: new Map(), state: new Map(), pending: [],
     };
+    // one normalisation at a time per organisation: the bulk plan reads what is there, then writes
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${ctx.orgId}|normalise`}))`);
     const results = new Map<number, RowResult>();
     // rc7: a file covering several entities (e.g. one orders list for every book): rows naming another entity, or —
     // when the file names none — in another currency than this entity's, are left out of this entity ("skipped").
@@ -239,18 +313,44 @@ export async function normaliseUpload(ctx: TenantContext, uploadId: string, idem
     const live = usable.filter((r) => !results.has(r.rowNumber));
     const attempt = async (rowNumbers: number[], run: () => Promise<RowResult>) => {
       let res: RowResult;
-      try { res = await tx.transaction(async () => run()); } catch (e) { if (!(e instanceof Conflict)) throw e; res = { outcome: "conflict", targets: [] }; }
+      if (c.mode === "db") {
+        try { res = await tx.transaction(async () => run()); } catch (e) { if (!(e instanceof Conflict)) throw e; res = { outcome: "conflict", targets: [] }; }
+      } else {
+        c.pending = [];
+        try { res = await run(); } catch (e) { if (!(e instanceof Conflict)) throw e; res = { outcome: "conflict", targets: [] }; c.pending = []; }
+        if (c.mode === "plan") for (const p of c.pending) { const m = c.state.get(p.name) ?? new Map(); m.set(p.key, p.values); c.state.set(p.name, m); creates.push(p); }
+        c.pending = [];
+      }
       for (const n of rowNumbers) results.set(n, res);
     };
-    if (u.fileType === "settlement_report") {
-      const lines = (u.mapping as { shape?: string }).shape === "per_payment_lines";
-      const groups = new Map<string, AnalysedRow[]>();
-      for (const r of live) groups.set(r.values.batch_id as string, [...(groups.get(r.values.batch_id as string) ?? []), r]);
-      for (const [batchId, rows] of [...groups.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) await attempt(rows.map((r) => r.rowNumber), () => batchRows(c, batchId, rows, lines));
-    } else {
-      for (const r of live) await attempt([r.rowNumber], () =>
-        u.fileType === "provider_export" ? providerRow(c, r.values, r.rowNumber) : u.fileType === "orders_invoices" ? invoiceRow(c, r.values, r.rowNumber)
-          : u.fileType === "ledger_invoices" ? ledgerRow(c, r.values, r.rowNumber) : bankRow(c, r.values, r.rowNumber, r.rowHash!));
+    const runRows = async () => {
+      if (u.fileType === "settlement_report") {
+        const lines = (u.mapping as { shape?: string }).shape === "per_payment_lines";
+        const groups = new Map<string, AnalysedRow[]>();
+        for (const r of live) groups.set(r.values.batch_id as string, [...(groups.get(r.values.batch_id as string) ?? []), r]);
+        for (const [batchId, rows] of [...groups.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) await attempt(rows.map((r) => r.rowNumber), () => batchRows(c, batchId, rows, lines));
+      } else {
+        for (const r of live) await attempt([r.rowNumber], () =>
+          u.fileType === "provider_export" ? providerRow(c, r.values, r.rowNumber) : u.fileType === "orders_invoices" ? invoiceRow(c, r.values, r.rowNumber)
+            : u.fileType === "ledger_invoices" ? ledgerRow(c, r.values, r.rowNumber) : bankRow(c, r.values, r.rowNumber, r.rowHash!));
+      }
+    };
+    const creates: Pending[] = [];
+    if (opts.rowByRow) c.mode = "db"; // the row-by-row path only (the equivalence test compares both)
+    await runRows(); // collect (or, row by row, everything)
+    if (c.mode === "collect") {
+      for (const [name, keys] of c.keys) c.state.set(name, await loadExisting(tx, ctx.orgId, name, [...keys]));
+      c.mode = "plan";
+      for (const r of live) results.delete(r.rowNumber);
+      await runRows();
+      try {
+        await tx.transaction(async () => writeBulk(tx, creates));
+      } catch (e) {
+        if (!(e instanceof BulkMiss)) throw e;
+        c.mode = "db";
+        for (const r of live) results.delete(r.rowNumber);
+        await runRows();
+      }
     }
     // A duplicate row confirms the rows its earlier copy became (so they stay while either upload is kept).
     const dups = stored.filter((s) => s.status === "duplicate" && s.rowHash);
@@ -267,14 +367,21 @@ export async function normaliseUpload(ctx: TenantContext, uploadId: string, idem
     }
     const counts: Record<Outcome, number> = { created: 0, existing: 0, conflict: 0, skipped: 0 };
     const tables: Record<string, number> = {};
+    const targetRows: { orgId: string; uploadId: string; rowNumber: number; targetTable: string; targetKey: string }[] = [];
+    const outcomes: [number, Outcome, string | null][] = [];
     for (const [rowNumber, res] of [...results.entries()].sort(([a], [b]) => a - b)) {
       counts[res.outcome]++;
       const targets = [...new Map(res.targets.map((x) => [`${x.table}|${x.key}`, x])).values()];
-      if (targets.length) await tx.insert(t.uploadRowTargets).values(targets.map((x) => ({ orgId: ctx.orgId, uploadId, rowNumber, targetTable: x.table, targetKey: x.key })));
+      for (const x of targets) targetRows.push({ orgId: ctx.orgId, uploadId, rowNumber, targetTable: x.table, targetKey: x.key });
       for (const x of targets) if (res.outcome === "created") tables[x.table] = (tables[x.table] ?? 0) + 1;
       const primary = targets.find((x) => ["provider_payment_records", "bank_lines", "settlement_batches", "invoices", "ledger_invoices"].includes(x.table)) ?? targets[0];
-      await tx.update(t.uploadRows).set({ normaliseOutcome: res.outcome, targetRef: primary ? `${primary.table}:${primary.key}` : null })
-        .where(and(eq(t.uploadRows.orgId, ctx.orgId), eq(t.uploadRows.uploadId, uploadId), eq(t.uploadRows.rowNumber, rowNumber)));
+      outcomes.push([rowNumber, res.outcome, primary ? `${primary.table}:${primary.key}` : null]);
+    }
+    for (let i = 0; i < targetRows.length; i += 5000) await tx.insert(t.uploadRowTargets).values(targetRows.slice(i, i + 5000));
+    for (let i = 0; i < outcomes.length; i += 5000) {
+      const chunk = outcomes.slice(i, i + 5000);
+      await tx.execute(sql`update upload_rows u set normalise_outcome = v.o, target_ref = v.r from (values ${sql.join(chunk.map(([n, o, r]) => sql`(${n}::int, ${o}::text, ${r}::text)`), sql`, `)}) as v(n, o, r)
+        where u.org_id = ${ctx.orgId} and u.upload_id = ${uploadId} and u.row_number = v.n`);
     }
     await tx.update(t.uploads).set({ status: "normalised", normalisedCounts: { rows: counts, targets: tables }, normalisedAt: new Date() })
       .where(and(eq(t.uploads.orgId, ctx.orgId), eq(t.uploads.id, uploadId)));

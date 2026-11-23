@@ -36,10 +36,15 @@ const txKey = (network: string, hash: string) => `${network}|${hash.toLowerCase(
 export class RecordingChainClient implements VerifyChainClient {
   readonly mode = "recorded" as const;
   private readonly transfers: Rec[];
+  /** rc7 phase 3b: the recording indexed by receiving address and by transaction (same lists, same order as a scan). */
+  private readonly byTo = new Map<string, Rec[]>();
+  private readonly byTx = new Map<string, Rec[]>();
   constructor(recording: unknown, private readonly o: RecordingOptions) {
     const rec = recording as { label?: unknown; transfers?: unknown };
     if (!rec || rec.label !== "Test mode · illustrative data" || !Array.isArray(rec.transfers)) throw new Error("not a chain recording (Test mode · illustrative data)");
     this.transfers = rec.transfers.map((x) => RecordedTransfer.parse(x));
+    const add = (m: Map<string, Rec[]>, k: string, t: Rec) => { const l = m.get(k); if (l) l.push(t); else m.set(k, [t]); };
+    for (const t of this.transfers) { add(this.byTo, `${t.network}|${normAddress(t.network, t.to)}`, t); add(this.byTx, `${t.network}|${txKey(t.network, t.txHash)}`, t); }
     if (!Number.isFinite(Date.parse(o.now))) throw new Error("RecordingChainClient: `now` is not an instant");
   }
 
@@ -85,14 +90,14 @@ export class RecordingChainClient implements VerifyChainClient {
     const d = this.down(network, { address });
     if (d) return { status: "unavailable", reason: d.reason, evidence: [this.evidence("recording/incoming")] };
     const want = normAddress(network, address);
-    const list = this.transfers.filter((t) => t.network === network && normAddress(network, t.to) === want && Date.parse(t.timestamp) >= fromMs && Date.parse(t.timestamp) <= toMs);
+    const list = (this.byTo.get(`${network}|${want}`) ?? []).filter((t) => Date.parse(t.timestamp) >= fromMs && Date.parse(t.timestamp) <= toMs);
     return { status: "ok", ...this.split(list, "recording/incoming"), unresolved: [], evidence: [this.evidence("recording/incoming")] };
   }
 
   async transfer(network: NetworkId, txHash: string): Promise<TransferOutcome> {
     const d = this.down(network, { txHash });
     if (d) return { status: "unavailable", reason: d.reason, evidence: [this.evidence("recording/transaction")] };
-    const list = this.transfers.filter((t) => t.network === network && txKey(network, t.txHash) === txKey(network, txHash));
+    const list = this.byTx.get(`${network}|${txKey(network, txHash)}`) ?? [];
     if (!list.length) return { status: "not_found", reason: "the recording has no such transaction", evidence: [this.evidence("recording/transaction")] };
     return { status: "ok", ...this.split(list, "recording/transaction"), evidence: [this.evidence("recording/transaction", list[0])] };
   }

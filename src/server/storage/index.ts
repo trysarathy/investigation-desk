@@ -15,6 +15,8 @@ export interface UploadStorage {
   get(orgId: string, storageKey: string): Promise<Uint8Array>;
   /** Remove a file; true when it existed. */
   delete(orgId: string, storageKey: string): Promise<boolean>;
+  /** rc7 phase 3b: remove every file of an organisation (merchant deletion); the number of files removed. */
+  deleteOrganisation?(orgId: string): Promise<number>;
 }
 
 export const DEFAULT_UPLOAD_DIR = ".data/uploads";

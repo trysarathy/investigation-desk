@@ -307,7 +307,7 @@ export async function validateUpload(ctx: TenantContext, id: string, idempotency
     }));
     if (u.status === "validated") await tx.update(t.uploads).set({ status: "mapped" }).where(and(eq(t.uploads.orgId, ctx.orgId), eq(t.uploads.id, id)));
     await tx.delete(t.uploadRows).where(and(eq(t.uploadRows.orgId, ctx.orgId), eq(t.uploadRows.uploadId, id)));
-    for (let i = 0; i < rows.length; i += 1000) await tx.insert(t.uploadRows).values(rows.slice(i, i + 1000).map((r) => ({ orgId: ctx.orgId, uploadId: id, ...r })));
+    for (let i = 0; i < rows.length; i += 5000) await tx.insert(t.uploadRows).values(rows.slice(i, i + 5000).map((r) => ({ orgId: ctx.orgId, uploadId: id, ...r })));
     const n = (s: string) => rows.filter((r) => r.status === s).length;
     const [row] = await tx.update(t.uploads).set({
       status: "validated", rowsSha256: rowsDigest(rows), rowCount: rows.length, acceptedCount: n("accepted"), rejectedCount: n("rejected"), warningCount: n("warning"), duplicateCount: n("duplicate"), notes: analysis.notes,
