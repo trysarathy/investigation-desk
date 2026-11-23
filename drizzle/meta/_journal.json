@@ -127,6 +127,20 @@
       "when": 1795413356218,
       "tag": "0017_mapping_templates_security",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1795413763643,
+      "tag": "0018_uploads",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795413816098,
+      "tag": "0019_uploads_security",
+      "breakpoints": true
     }
   ]
 }

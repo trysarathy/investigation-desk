@@ -13,6 +13,8 @@
  *                                            theme, two fictional merchants (SG: Cases 1–2, UAE: Case 3) loaded through
  *                                            the ingestion adapters, and fictional users; passwords from
  *                                            CLEARLINE_SEED_PASSWORD; Test mode · illustrative data)
+ *   purge-uploads                           (rc7 retention: delete every upload past its delete_after, its file, its
+ *                                            validation rows and the data derived only from it; prints counts only)
  *   accept-invitation <invitation-id>       (rc6: accept a provider's invitation record: creates the user if needed,
  *                                            password from CLEARLINE_NEW_PASSWORD, name from CLEARLINE_NEW_NAME, and
  *                                            grants the invited merchant role; no email is ever sent)
@@ -21,6 +23,7 @@ import { closeDatabase, database } from "../../src/server/db/client";
 import { acceptInvitation, createOrganization, createUser, grantMembership, revokeMembership, revokeSessions } from "../../src/server/admin";
 import type { AppRole } from "../../src/server/authz";
 import { seedMerchantCases } from "../../src/server/merchant-seed";
+import { purgeExpiredUploads } from "../../src/server/uploads";
 
 const DEMO_USERS: { email: string; name: string; org: string; role: AppRole }[] = [
   { email: "ops@lumen.example", name: "Priya Raman (fictional)", org: "lumen-demo", role: "payment_ops" },
@@ -44,6 +47,7 @@ async function main() {
     }
     case "grant": await grantMembership(db, { orgSlug: a[0], email: a[1], role: a[2] as AppRole }); break;
     case "revoke": await revokeMembership(db, { orgSlug: a[0], email: a[1] }); break;
+    case "purge-uploads": console.log(JSON.stringify(await purgeExpiredUploads(db, new Date()))); break;
     case "revoke-sessions": console.log(await revokeSessions(db, a[0]), "sessions revoked"); break;
     case "seed-demo": {
       const pw = process.env.CLEARLINE_SEED_PASSWORD;
