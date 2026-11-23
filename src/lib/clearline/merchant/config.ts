@@ -15,12 +15,14 @@ export const NETWORKS: readonly NetworkConfig[] = [
   { network: "base", name: "Base", chainId: 8453, confirmationsRequired: 12, enabled: false },
 ];
 
-/** The only real values in rc6: the public USDT (TRON) and USDC (Ethereum) contracts. */
+/** The only real values: public token contracts. rc7 adds USDT on Ethereum (the prompt asks for USDT/USDC ERC-20). */
 export const USDT_TRON = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
 export const USDC_ETHEREUM = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
+export const USDT_ETHEREUM = "0xdAC17F958D2ee523a2206206994597C13D831ec7";
 export const TOKENS: readonly TokenConfig[] = [
   { network: "tron", contract: USDT_TRON, symbol: "USDT", decimals: 6 },
   { network: "ethereum", contract: USDC_ETHEREUM, symbol: "USDC", decimals: 6 },
+  { network: "ethereum", contract: USDT_ETHEREUM, symbol: "USDT", decimals: 6 },
 ];
 
 /**

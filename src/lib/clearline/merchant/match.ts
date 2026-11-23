@@ -110,6 +110,21 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput): {
   };
   const stop = (step: Step, ruleId: RuleId, detail: string, decision: Decision = "exception") => finish({ decision, step, ruleId, attention: attentionFor(ruleId, detail) });
 
+  // Step 1a (rc7): chain data unavailable for this order's deposit addresses or transactions → never matched.
+  const down = (input.chainUnavailable ?? []).filter((u) => {
+    const addr = (a: string) => normAddress(u.network, a);
+    const mine = [...quotes.map((q) => ({ network: q.network, address: q.depositAddress })), ...links.map((l) => ({ network: l.token.network, address: l.depositAddress }))];
+    const txs = input.providerRecords.filter((r) => r.transferRef && (quotes.some((q) => q.quoteId === r.ref.quoteId) || links.some((l) => l.linkId === r.ref.linkId))).map((r) => r.transferRef!);
+    return (u.address !== undefined && mine.some((m) => m.network === u.network && normAddress(m.network, m.address) === addr(u.address!)))
+      || (u.txHash !== undefined && txs.some((t) => t.network === u.network && t.txHash === u.txHash));
+  });
+  if (down.length > 0 && active("M1.chain.unavailable")) {
+    const d = down[0];
+    note(1, "M1.chain.unavailable", "fail", `Chain data unavailable (${d.source}, ${d.at}): ${d.reason}`);
+    return finish({ decision: "exception", step: 1, ruleId: "M1.chain.unavailable",
+      attention: att("Payment Operations", `Chain data unavailable for ${down.length === 1 ? "one" : down.length} ${d.network} read${down.length === 1 ? "" : "s"} (${d.source}, ${d.at}): ${d.reason}. Nothing is treated as received or missing.`, "Clearline retries on the next run. Nothing is matched, written off or closed until the chain can be read.") });
+  }
+
   // Step 1: identity and finality.
   for (const s of states) {
     if (s.fail) { note(1, s.fail.ruleId, "fail", s.fail.detail); return stop(1, s.fail.ruleId, s.fail.detail); }

@@ -2,6 +2,7 @@ import type { Step } from "./types";
 
 /** Every rule the engine can decide or record with. IDs are stable: M<step>.<area>.<rule>. */
 export const RULES = {
+  "M1.chain.unavailable": { step: 1, text: "Chain data for this order's deposit address or transaction could not be read: shown as unavailable, never matched; retried on the next run." },
   "M1.identity.network_disabled": { step: 1, text: "The transfer is on a network that is not enabled (or not configured)." },
   "M1.identity.unknown_token": { step: 1, text: "The (network, contract) pair is not a configured token." },
   "M1.identity.lookalike_token": { step: 1, text: "Same symbol as a configured token but a different contract." },
