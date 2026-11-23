@@ -17,3 +17,6 @@ playwright-report/
 
 # rc6 Case Reconstruction: provider data and reports live here only (never commit, never upload)
 reconstruction-data/
+
+# rc7 synthetic data generator output (regenerate with npm run synthetic)
+synthetic-data/
