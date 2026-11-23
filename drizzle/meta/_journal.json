@@ -113,6 +113,20 @@
       "when": 1795411213723,
       "tag": "0015_tolerance_larger_of",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1795413334319,
+      "tag": "0016_mapping_templates",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795413356218,
+      "tag": "0017_mapping_templates_security",
+      "breakpoints": true
     }
   ]
 }
