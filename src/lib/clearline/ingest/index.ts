@@ -21,3 +21,7 @@ export {
   detectDateFormat, parseDate, parseDateColumn, DATE_FORMATS,
   type DateColumnResult, type DateDetection, type DateFormat, type DateOptions, type DateResult, type ParsedDate,
 } from "./dates";
+export {
+  readDelimited, readJson, readTabular, readXlsx,
+  type DelimitedOptions, type ExcludedRow, type JsonOptions, type ParsedTable, type ReadOptions, type TabularKind, type TabularRow, type XlsxOptions,
+} from "./tabular";
