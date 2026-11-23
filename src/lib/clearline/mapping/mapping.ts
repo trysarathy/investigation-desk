@@ -29,6 +29,14 @@ export const ColumnMapping = z.object({
   directionValueMap: ValueMap(z.enum(["credit", "debit"])).optional(),
   /** Set on both fields to read one header for two fields (e.g. one date column for created and paid). */
   allowSharedHeader: z.boolean().optional(),
+  /**
+   * rc7, token contract only: a mapping default the person confirms — the contract is the one configured token on the
+   * row's network with the row's token symbol (or the only one on that network when the file has no symbol column).
+   * Two candidates are refused per row, never guessed.
+   */
+  derive: z.literal("network_and_symbol").optional(),
+  /** rc7, settlement line amount only: refunds and fees written as negative amounts ("negative") or positive (default). */
+  deductionSign: z.enum(["positive", "negative"]).optional(),
 }).strict();
 export type ColumnMapping = z.infer<typeof ColumnMapping>;
 
@@ -43,7 +51,7 @@ export type Mapping = z.infer<typeof Mapping>;
 export interface MappingIssue { field?: string; header?: string; code: string; message: string }
 export type MappingCheck = { ok: true; mapping: Mapping } | { ok: false; issues: MappingIssue[] };
 
-const sources = (c: ColumnMapping) => [c.header, c.headers, c.constant].filter((x) => x !== undefined).length;
+const sources = (c: ColumnMapping) => [c.header, c.headers, c.constant, c.derive].filter((x) => x !== undefined).length;
 export const headersOf = (c: ColumnMapping): string[] => (c.header !== undefined ? [c.header] : c.headers ?? []);
 
 /** The fields a mapping of this type (and settlement shape) must map. */
@@ -82,6 +90,8 @@ export function validateMapping(input: unknown, fileHeaders?: readonly string[])
     if (c.amountUnit && !["fiat_amount", "token_amount"].includes(def.kind)) add("option_not_allowed", `${def.label} has no amount unit.`, { field: key });
     if ((c.dateFormat || c.defaultUtcOffsetMinutes !== undefined) && !["date", "datetime"].includes(def.kind)) add("option_not_allowed", `${def.label} is not a date.`, { field: key });
     if (c.networkValueMap && def.kind !== "network") add("option_not_allowed", `${def.label} is not a network.`, { field: key });
+    if (c.derive && (m.fileType !== "provider_export" || key !== "token_contract")) add("option_not_allowed", `${def.label} cannot be worked out from other columns.`, { field: key });
+    if (c.deductionSign && (m.fileType !== "settlement_report" || key !== "line_amount")) add("option_not_allowed", `${def.label} has no sign option.`, { field: key });
     if (c.directionValueMap && def.kind !== "direction") add("option_not_allowed", `${def.label} is not a direction.`, { field: key });
     if (c.statusValueMap) {
       const targets = STATUS_TARGETS[m.fileType]?.[key];

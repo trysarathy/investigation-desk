@@ -51,39 +51,56 @@ async function put<R extends Record<string, unknown>>(c: Ctx, table: PgTable, na
   return outcome;
 }
 
+/** rc7: the quote a payment-link row belongs to when the export names none (one per order). */
+export const impliedQuoteId = (orderId: string) => `${orderId}#quote`;
+
 async function providerRow(c: Ctx, v: Record<string, MappedValue>, row: number): Promise<RowResult> {
   const { tx, orgId } = c;
   const net = v.network as NetworkId;
   const token = c.tokens.find((k) => k.network === dbNet(net) && normAddress(net, k.contract) === normAddress(net, v.token_contract as string))!;
-  const orderId = v.order_id as string, quoteId = v.quote_id as string;
-  const created = new Date(v.created_at as string), expires = new Date(v.expires_at as string);
+  const linkId = str(v.payment_link_id);
+  const orderId = v.order_id as string, quoteId = str(v.quote_id) ?? impliedQuoteId(orderId);
+  // rc7: quote terms the file does not carry stay NULL (never derived); the engine abstains on those orders.
+  const created = str(v.created_at) ? new Date(v.created_at as string) : null, expires = str(v.expires_at) ? new Date(v.expires_at as string) : null;
+  const rate = str(v.quote_rate) ?? null, quoted = big(v.quoted_token_amount);
+  const paidAt = str(v.paid_at) ? new Date(v.paid_at as string) : null;
   const p = c.prov(row);
   const targets: Target[] = [];
   const outcomes: Outcome[] = [];
-  outcomes.push(await put(c, t.invoices, "invoices", orderId,
-    { orgId, orderId, entityId: c.entityId, amountMinor: big(v.invoice_amount)!, currency: v.currency as string, status: "open", issuedAt: created, ...p },
-    async () => (await tx.select().from(t.invoices).where(and(eq(t.invoices.orgId, orgId), eq(t.invoices.orderId, orderId))))[0],
-    (r) => [r.entityId, r.amountMinor, r.currency], targets));
+  if (big(v.invoice_amount) !== undefined) {
+    outcomes.push(await put(c, t.invoices, "invoices", orderId,
+      { orgId, orderId, entityId: c.entityId, amountMinor: big(v.invoice_amount)!, currency: v.currency as string, status: "open", issuedAt: created ?? paidAt ?? c.u.createdAt, ...p },
+      async () => (await tx.select().from(t.invoices).where(and(eq(t.invoices.orgId, orgId), eq(t.invoices.orderId, orderId))))[0],
+      (r) => [r.entityId, r.amountMinor, r.currency], targets));
+  } else {
+    // without an invoice amount the order must already be in reconciliation (from an orders file), for this entity
+    const [inv] = await tx.select({ entityId: t.invoices.entityId }).from(t.invoices).where(and(eq(t.invoices.orgId, orgId), eq(t.invoices.orderId, orderId)));
+    if (!inv || inv.entityId !== c.entityId) throw new Conflict("invoices");
+  }
+  // A payment-link row gives the LINK's address and amount, not its quote's: the quote is recorded with neither.
   outcomes.push(await put(c, t.merchantQuotes, "merchant_quotes", quoteId, {
-    orgId, quoteId, orderId, network: dbNet(net), tokenContract: token.contract, quotedBaseUnits: big(v.quoted_token_amount)!.toString(), rate: v.quote_rate as string,
-    rateSource: v.rate_source as string, rateAt: created, createdAt: created, expiresAt: expires, depositAddress: v.deposit_address as string, ...p,
+    orgId, quoteId, orderId, network: dbNet(net), tokenContract: token.contract, quotedBaseUnits: linkId ? null : quoted?.toString() ?? null, rate,
+    rateSource: str(v.rate_source) ?? null, rateAt: rate !== null ? created : null, createdAt: created, expiresAt: expires, depositAddress: v.deposit_address as string, ...p,
   }, async () => (await tx.select().from(t.merchantQuotes).where(and(eq(t.merchantQuotes.orgId, orgId), eq(t.merchantQuotes.quoteId, quoteId))))[0],
-  (r) => [r.orderId, r.network, r.tokenContract, String(r.quotedBaseUnits), normRate(String(r.rate)), r.depositAddress, ms(r.createdAt as Date), ms(r.expiresAt as Date)], targets));
-  const linkId = str(v.payment_link_id);
+  linkId ? (r) => [r.orderId, r.rate === null || r.rate === undefined ? null : normRate(String(r.rate))]
+    : (r) => [r.orderId, r.network, r.tokenContract, r.quotedBaseUnits === null || r.quotedBaseUnits === undefined ? null : String(r.quotedBaseUnits), r.rate === null || r.rate === undefined ? null : normRate(String(r.rate)), r.depositAddress, r.createdAt ? ms(r.createdAt as Date) : null, r.expiresAt ? ms(r.expiresAt as Date) : null], targets));
   if (linkId) {
     outcomes.push(await put(c, t.paymentLinks, "payment_links", linkId, {
       orgId, linkId, orderId, kind: "full", network: dbNet(net), depositAddress: v.deposit_address as string, quoteId, tokenContract: token.contract,
-      requestedBaseUnits: big(v.quoted_token_amount)!.toString(), requestedMinor: toFiatMinor(big(v.quoted_token_amount)!, token.decimals, normRate(v.quote_rate as string), c.currency),
-      createdAt: created, expiresAt: expires, ...p, // [ASSUMPTION] a link in a provider export shares its quote's window and amount
+      // [ASSUMPTION] a link row's quoted amount is the link's requested amount; its own window is not in the file (NULL)
+      requestedBaseUnits: quoted?.toString() ?? null, requestedMinor: quoted !== undefined && rate !== null ? toFiatMinor(quoted, token.decimals, normRate(rate), c.currency) : null,
+      createdAt: null, expiresAt: null, ...p,
     }, async () => (await tx.select().from(t.paymentLinks).where(and(eq(t.paymentLinks.orgId, orgId), eq(t.paymentLinks.linkId, linkId))))[0],
-    (r) => [r.orderId, r.quoteId, r.depositAddress, String(r.requestedBaseUnits)], targets));
+    (r) => [r.orderId, r.quoteId, r.depositAddress, r.requestedBaseUnits === null || r.requestedBaseUnits === undefined ? null : String(r.requestedBaseUnits)], targets));
   }
   const txHash = str(v.tx_hash);
-  const logIndex = typeof v.log_index === "number" ? v.log_index : 0; // [ASSUMPTION] warned at validation when absent
+  const logIndexUnknown = typeof v.log_index !== "number";
+  // the claim row needs a key; 0 when the file has no log index — the engine never uses it (logIndexUnknown)
+  const logIndex = typeof v.log_index === "number" ? v.log_index : 0;
   const paymentId = str(v.payment_id);
   if (paymentId) {
     const record = {
-      providerPaymentId: paymentId, ref: linkId ? { linkId } : { quoteId }, ...(txHash ? { transferRef: { network: net, txHash, logIndex } } : {}),
+      providerPaymentId: paymentId, ref: linkId ? { linkId } : { quoteId }, ...(txHash ? { transferRef: { network: net, txHash, logIndex }, ...(logIndexUnknown ? { logIndexUnknown: true } : {}) } : {}),
       statusClaim: v.status, ...(str(v.status_text) ? { displayedStatus: str(v.status_text) } : {}), receivedBaseUnits: big(v.received_token_amount)!,
       creditedMinor: big(v.credited_fiat)!, executedRate: v.executed_rate, ...(big(v.fee) !== undefined ? { feeMinor: big(v.fee) } : {}), ...(str(v.batch_id) ? { batchId: str(v.batch_id) } : {}),
       note: "provider statuses are claims, not proof",
@@ -101,7 +118,7 @@ async function providerRow(c: Ctx, v: Record<string, MappedValue>, row: number):
     const key = `${net}|${txHash}|${logIndex}`;
     const ins = await tx.insert(t.chainTransfers).values({
       orgId, network: net, txHash, logIndex, tokenContract: token.contract, fromAddress: str(v.sender) ?? "", toAddress: v.deposit_address as string,
-      amountBaseUnits: big(v.received_token_amount)!.toString(), decimals: token.decimals, block: 0, blockTime: new Date(str(v.paid_at) ?? created), confirmations: 0,
+      amountBaseUnits: big(v.received_token_amount)!.toString(), decimals: token.decimals, block: 0, blockTime: paidAt ?? created ?? c.u.createdAt, confirmations: 0,
       finalised: false, source: "provider_export", entityId: c.entityId, claimedSymbol: str(v.token_symbol) ?? null, ...p,
     }).onConflictDoNothing().returning({ k: t.chainTransfers.txHash });
     outcomes.push(ins.length ? "created" : "existing");
@@ -143,8 +160,10 @@ async function batchRows(c: Ctx, batchId: string, rows: AnalysedRow[], lines: bo
   if (v0.currency !== c.currency) return { outcome: "skipped", targets: [] };
   const sumOf = (k: string, pick: (r: AnalysedRow) => boolean = () => true) => rows.filter(pick).reduce((s, r) => s + (big(r.values[k]) ?? 0n), 0n);
   const refund = (r: AnalysedRow) => r.values.line_type === "refund";
+  const feeLine = (r: AnalysedRow) => r.values.line_type === "fee";
+  // rc7: per-line reports carry fees per line (a fee column), as batch-level fee lines, or both; refunds as refund lines
   const totals = lines
-    ? { grossMinor: sumOf("line_amount", (r) => !refund(r)), feesMinor: sumOf("fee"), refundsMinor: sumOf("line_amount", refund) }
+    ? { grossMinor: sumOf("line_amount", (r) => !refund(r) && !feeLine(r)), feesMinor: sumOf("fee") + sumOf("line_amount", feeLine), refundsMinor: sumOf("line_amount", refund) }
     : { grossMinor: big(v0.gross)!, feesMinor: big(v0.fee) ?? 0n, refundsMinor: big(v0.refund) ?? 0n };
   const netMinor = totals.grossMinor - totals.feesMinor - totals.refundsMinor;
   if (lines && rows.some((r) => big(r.values.net) !== undefined)) {
@@ -162,7 +181,7 @@ async function batchRows(c: Ctx, batchId: string, rows: AnalysedRow[], lines: bo
   }, async () => (await c.tx.select().from(t.settlementBatches).where(and(eq(t.settlementBatches.orgId, c.orgId), eq(t.settlementBatches.batchId, batchId))))[0],
   (r) => [r.currency, r.targetBankAccount, r.grossMinor, r.feesMinor, r.refundsMinor, r.netMinor, ms(r.dayStart as Date)], targets);
   if (!lines) return { outcome, targets };
-  const sorted = [...rows].sort((a, b) => { const ka = `${refund(a) ? "refund" : "payment"}${str(a.values.payment_id) ?? str(a.values.refund_id)}`, kb = `${refund(b) ? "refund" : "payment"}${str(b.values.payment_id) ?? str(b.values.refund_id)}`; return ka < kb ? -1 : 1; });
+  const sorted = [...rows].filter((r) => !feeLine(r)).sort((a, b) => { const ka = `${refund(a) ? "refund" : "payment"}${str(a.values.payment_id) ?? str(a.values.refund_id)}`, kb = `${refund(b) ? "refund" : "payment"}${str(b.values.payment_id) ?? str(b.values.refund_id)}`; return ka < kb ? -1 : 1; });
   for (const [i, r] of sorted.entries()) {
     const kind = refund(r) ? "refund" : "payment";
     const values = { orgId: c.orgId, batchId, lineNo: i + 1, kind, ref: (kind === "payment" ? str(r.values.payment_id) : str(r.values.refund_id)) ?? "", amountMinor: big(r.values.line_amount)!, orderId: str(r.values.order_id) ?? null, ...c.prov(r.rowNumber) };
@@ -198,7 +217,13 @@ export async function normaliseUpload(ctx: TenantContext, uploadId: string, idem
       prov: (row) => ({ uploadId: u.id, sourceRow: row, mappingTemplateId: u.templateId, mappingTemplateVersion: u.templateVersion, uploadedBy: u.uploadedBy }),
     };
     const results = new Map<number, RowResult>();
-    const live = analysis.rows.filter((r) => { const s = byRow.get(r.rowNumber)!.status; return s === "accepted" || s === "warning"; });
+    // rc7: a file covering several entities (e.g. one orders list for every book): rows naming another entity, or —
+    // when the file names none — in another currency than this entity's, are left out of this entity ("skipped").
+    const otherEntity = (v: Record<string, MappedValue>) => (u.fileType === "orders_invoices" || u.fileType === "provider_export")
+      && (str(v.entity) !== undefined ? v.entity !== u.entityId : v.currency !== ent.functionalCurrency);
+    const usable = analysis.rows.filter((r) => { const s = byRow.get(r.rowNumber)!.status; return s === "accepted" || s === "warning"; });
+    for (const r of usable) if (otherEntity(r.values)) results.set(r.rowNumber, { outcome: "skipped", targets: [] });
+    const live = usable.filter((r) => !results.has(r.rowNumber));
     const attempt = async (rowNumbers: number[], run: () => Promise<RowResult>) => {
       let res: RowResult;
       try { res = await tx.transaction(async () => run()); } catch (e) { if (!(e instanceof Conflict)) throw e; res = { outcome: "conflict", targets: [] }; }

@@ -111,6 +111,8 @@ const DATE_WORDS: Record<string, string> = { iso: "Year-month-day (2026-11-30)",
 const OFFSETS = [-720, -600, -480, -420, -360, -300, -240, -180, -120, -60, 0, 60, 120, 180, 240, 300, 330, 345, 360, 420, 480, 540, 570, 600, 660, 720, 780, 840];
 const utc = (min: number) => `UTC${min < 0 ? "−" : "+"}${String(Math.floor(Math.abs(min) / 60)).padStart(2, "0")}:${String(Math.abs(min) % 60).padStart(2, "0")}`;
 const CONSTANT = "__constant__";
+/** rc7: the token contract as a mapping default the person confirms (configured tokens, by network and symbol). */
+const DERIVE = "__derive__";
 const isAmount = (d: FieldDef) => d.kind === "fiat_amount" || d.kind === "token_amount" || d.kind === "rate";
 const isDate = (d: FieldDef) => d.kind === "date" || d.kind === "datetime";
 /** A date-time column whose times may lack an offset: the person says which time zone they are in (never assumed). */
@@ -121,15 +123,15 @@ const distinct = (values: string[]) => [...new Set(values.map((x) => x.trim()).f
 const word = (targets: readonly string[] | undefined, v: { words: Record<string, string> }, w: string) =>
   v.words[w] !== undefined ? v.words[w] : targets?.find((t) => t === w.toLowerCase().replace(/[\s-]+/g, "_")) ?? "";
 
-interface FieldState { source: string; constant: string; dateFormat: string; offset: string; decimal: string; words: Record<string, string> }
+interface FieldState { source: string; constant: string; dateFormat: string; offset: string; decimal: string; words: Record<string, string>; deduction: string }
 export interface TemplateRef { id: string; name: string; version: number; mapping: Mapping }
 
 function initial(def: FieldDef, base: ColumnMapping | undefined, proposal: string | undefined, currency: string): FieldState {
   const c = base;
   return {
-    source: c?.constant !== undefined ? CONSTANT : c?.header ?? (c ? "" : proposal ?? (def.kind === "currency" && def.allowConstant ? CONSTANT : "")),
+    source: c?.derive ? DERIVE : c?.constant !== undefined ? CONSTANT : c?.header ?? (c ? "" : proposal ?? (def.kind === "currency" && def.allowConstant ? CONSTANT : "")),
     constant: c?.constant ?? (def.kind === "currency" ? currency : ""), dateFormat: c?.dateFormat ?? "", offset: c?.defaultUtcOffsetMinutes !== undefined ? String(c.defaultUtcOffsetMinutes) : "",
-    decimal: c?.decimalSeparator ?? "", words: { ...(c?.statusValueMap ?? c?.networkValueMap ?? {}) },
+    decimal: c?.decimalSeparator ?? "", words: { ...(c?.statusValueMap ?? c?.networkValueMap ?? {}) }, deduction: c?.deductionSign ?? "",
   };
 }
 
@@ -167,7 +169,7 @@ export function MappingForm({ uploadId, fileType, headers, rows, suggestion, cur
 
   const plans = useMemo(() => Object.fromEntries(defs.map((d) => {
     const v = state[d.key];
-    const values = v.source && v.source !== CONSTANT ? column(v.source) : [];
+    const values = v.source && v.source !== CONSTANT && v.source !== DERIVE ? column(v.source) : [];
     return [d.key, { values, date: isDate(d) && values.length ? detectDateFormat(values) : null, dec: isAmount(d) && values.length ? detectDecimalSeparator(values) : null }];
   // eslint-disable-next-line react-hooks/exhaustive-deps
   })), [state, rows]);
@@ -178,7 +180,9 @@ export function MappingForm({ uploadId, fileType, headers, rows, suggestion, cur
     for (const d of defs) {
       const v = state[d.key], p = plans[d.key];
       if (!v.source) continue;
+      if (v.source === DERIVE) { columns[d.key] = { derive: "network_and_symbol" }; continue; }
       const c: ColumnMapping = v.source === CONSTANT ? { constant: v.constant.trim() } : { header: v.source };
+      if (fileType === "settlement_report" && d.key === "line_amount" && v.deduction === "negative") c.deductionSign = "negative";
       if (v.source === CONSTANT && !v.constant.trim()) problems.push(`${d.label}: type the fixed value, or choose a column.`);
       if (isAmount(d) && v.source !== CONSTANT) {
         const decided = p.dec?.status === "decided" ? p.dec.decimalSeparator : undefined;
@@ -249,7 +253,7 @@ export function MappingForm({ uploadId, fileType, headers, rows, suggestion, cur
         {defs.map((d) => {
           const v = state[d.key], p = plans[d.key], fid = `${id}-${d.key}`;
           const targets = STATUS_TARGETS[fileType]?.[d.key];
-          const words = (targets || d.kind === "network") && v.source && v.source !== CONSTANT ? [...new Set([...distinct(p.values), ...Object.keys(v.words)])] : [];
+          const words = (targets || d.kind === "network") && v.source && v.source !== CONSTANT && v.source !== DERIVE ? [...new Set([...distinct(p.values), ...Object.keys(v.words)])] : [];
           return (
             <li className={m.fieldRow} key={d.key} data-testid={`field-${d.key}`}>
               <div className={s.field}>
@@ -258,9 +262,19 @@ export function MappingForm({ uploadId, fileType, headers, rows, suggestion, cur
                   <option value="">Not in this file</option>
                   {headers.map((h) => <option key={h} value={h}>{h}</option>)}
                   {d.allowConstant ? <option value={CONSTANT}>One fixed value for every row</option> : null}
+                  {fileType === "provider_export" && d.key === "token_contract" ? <option value={DERIVE}>Work out from the network and token symbol (configured tokens)</option> : null}
                 </select>
                 <span className={s.hint} id={`${fid}-why`}>{why(d)}</span>
               </div>
+              {v.source === DERIVE ? <p className={s.hint} role="note" data-testid="token-default">Each row&apos;s contract will be the one configured token on its network with its symbol. A row whose network and symbol match no token, or two, is rejected — nothing is guessed.</p> : null}
+              {fileType === "settlement_report" && d.key === "line_amount" && v.source ? (
+                <fieldset className={s.fieldset}>
+                  <legend>Refunds and fees in {v.source} are written as</legend>
+                  {[["", "Positive amounts"], ["negative", "Negative amounts (−20.00)"]].map(([val, l]) => (
+                    <div className={s.check} key={val || "positive"}><input type="radio" id={`${fid}-ded-${val || "positive"}`} name={`${fid}-ded`} checked={v.deduction === val} onChange={() => set(d.key, { deduction: val })} /><label htmlFor={`${fid}-ded-${val || "positive"}`}>{l}</label></div>
+                  ))}
+                </fieldset>
+              ) : null}
               {v.source === CONSTANT ? (
                 <div className={s.field}>
                   <label className={s.label} htmlFor={`${fid}-const`}>Fixed {d.label.toLowerCase()}</label>

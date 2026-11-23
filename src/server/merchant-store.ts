@@ -37,6 +37,7 @@ const dbNetwork = (n: string): NetworkId => (n === "arbitrum-one" ? "arbitrum_on
 const iso = (d: Date) => d.toISOString();
 const INVOICE_STATUS: Record<string, Invoice["status"]> = { void: "void", paid: "closed", closed_with_difference: "closed" };
 const BIG = (v: string | bigint | null | undefined): bigint => BigInt(v ?? 0);
+const EPOCH = new Date(0);
 
 export class MissingEntity extends Error {}
 
@@ -59,24 +60,32 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
   const orderIds = inv.map((i) => i.orderId);
   const invoices: Invoice[] = inv.map((i) => ({ orderId: i.orderId, entityId, amountMinor: i.amountMinor, currency: i.currency as FiatCurrency, status: INVOICE_STATUS[i.status] ?? "open" }));
   const qs = orderIds.length ? await tx.select().from(t.merchantQuotes).where(and(eq(t.merchantQuotes.orgId, orgId), inArray(t.merchantQuotes.orderId, orderIds))).orderBy(asc(t.merchantQuotes.quoteId)) : [];
-  const quotes: Quote[] = qs.map((q) => ({
-    quoteId: q.quoteId, orderId: q.orderId, token: { network: dbNetwork(q.network), contract: q.tokenContract }, network: dbNetwork(q.network), quotedBaseUnits: BigInt(q.quotedBaseUnits),
-    rate: normRate(q.rate), rateSource: q.rateSource, rateAt: iso(q.rateAt), createdAt: iso(q.createdAt), expiresAt: iso(q.expiresAt), depositAddress: q.depositAddress,
-  }));
+  // rc7: terms an uploaded export did not carry are NULL. The engine gets placeholders it never uses, and the list of
+  // unknown terms, so the order abstains (M3.quote.terms_unknown). Nothing is derived to fill them.
+  const quotes: Quote[] = qs.map((q) => {
+    const unknown = [...(q.rate === null ? ["rate" as const] : []), ...(q.quotedBaseUnits === null ? ["quoted_amount" as const] : []), ...(q.createdAt === null || q.expiresAt === null ? ["window" as const] : [])];
+    return {
+      quoteId: q.quoteId, orderId: q.orderId, token: { network: dbNetwork(q.network), contract: q.tokenContract }, network: dbNetwork(q.network), quotedBaseUnits: BigInt(q.quotedBaseUnits ?? 0),
+      rate: q.rate === null ? "0" : normRate(q.rate), rateSource: q.rateSource ?? "not in the file", rateAt: iso(q.rateAt ?? q.createdAt ?? EPOCH), createdAt: iso(q.createdAt ?? EPOCH),
+      expiresAt: iso(q.expiresAt ?? EPOCH), depositAddress: q.depositAddress, ...(unknown.length ? { unknown } : {}),
+    };
+  });
   const ls = orderIds.length ? await tx.select().from(t.paymentLinks).where(and(eq(t.paymentLinks.orgId, orgId), inArray(t.paymentLinks.orderId, orderIds))).orderBy(asc(t.paymentLinks.linkId)) : [];
   const paymentLinks: PaymentLink[] = ls.map((l) => {
-    if (!l.quoteId || !l.tokenContract || !l.requestedBaseUnits || !l.createdAt || !l.expiresAt) throw new Error(`payment link ${l.linkId} lacks the fields reconciliation needs`);
-    return { linkId: l.linkId, orderId: l.orderId, quoteId: l.quoteId, kind: l.kind as PaymentLink["kind"], token: { network: dbNetwork(l.network), contract: l.tokenContract }, depositAddress: l.depositAddress, requestedBaseUnits: BigInt(l.requestedBaseUnits), createdAt: iso(l.createdAt), expiresAt: iso(l.expiresAt) };
+    if (!l.quoteId || !l.tokenContract || !l.requestedBaseUnits) throw new Error(`payment link ${l.linkId} lacks the fields reconciliation needs`);
+    // rc7: an uploaded export gives a payment, not its link's own window: unknown (placeholders, never used to decide)
+    const window = l.createdAt && l.expiresAt ? { createdAt: iso(l.createdAt), expiresAt: iso(l.expiresAt) } : { createdAt: iso(EPOCH), expiresAt: iso(EPOCH), windowUnknown: true as const };
+    return { linkId: l.linkId, orderId: l.orderId, quoteId: l.quoteId, kind: l.kind as PaymentLink["kind"], token: { network: dbNetwork(l.network), contract: l.tokenContract }, depositAddress: l.depositAddress, requestedBaseUnits: BigInt(l.requestedBaseUnits), ...window };
   });
   const qIds = quotes.map((q) => q.quoteId), lIds = paymentLinks.map((l) => l.linkId);
   const refs = [...(qIds.length ? [inArray(t.providerPaymentRecords.quoteId, qIds)] : []), ...(lIds.length ? [inArray(t.providerPaymentRecords.linkId, lIds)] : [])];
   const prs = refs.length ? await tx.select().from(t.providerPaymentRecords).where(and(eq(t.providerPaymentRecords.orgId, orgId), or(...refs))).orderBy(asc(t.providerPaymentRecords.providerPaymentId)) : [];
   const providerRecords: ProviderPaymentRecord[] = prs.map((p) => {
-    const r = p.record as { ref: ProviderPaymentRecord["ref"]; transferRef?: ProviderPaymentRecord["transferRef"]; displayedStatus?: string; executedRate: string };
+    const r = p.record as { ref: ProviderPaymentRecord["ref"]; transferRef?: ProviderPaymentRecord["transferRef"]; displayedStatus?: string; executedRate: string; logIndexUnknown?: boolean };
     return {
       providerPaymentId: p.providerPaymentId, ref: r.ref, ...(r.transferRef ? { transferRef: r.transferRef } : {}), statusClaim: p.statusClaim as ProviderPaymentRecord["statusClaim"],
       ...(r.displayedStatus ? { displayedStatus: r.displayedStatus } : {}), receivedBaseUnits: BIG(p.receivedBaseUnits), creditedMinor: BIG(p.creditedMinor), executedRate: r.executedRate,
-      ...(p.feeMinor !== null ? { feeMinor: p.feeMinor } : {}), ...(p.batchId ? { batchId: p.batchId } : {}),
+      ...(p.feeMinor !== null ? { feeMinor: p.feeMinor } : {}), ...(p.batchId ? { batchId: p.batchId } : {}), ...(r.transferRef && r.logIndexUnknown ? { logIndexUnknown: true as const } : {}),
     };
   });
   const required = (n: string) => networks.find((x) => x.network === n)?.confirmationsRequired ?? 1;
@@ -184,7 +193,7 @@ export async function writeIngested(tx: Tx, orgId: string, entityId: string, p: 
     if (!q) throw new Error(`link ${l.linkId}: unknown quote ${l.quoteId}`);
     return {
       orgId, linkId: l.linkId, orderId: l.orderId, kind: l.kind, network: l.token.network, depositAddress: l.depositAddress, tokenContract: l.token.contract, quoteId: l.quoteId,
-      requestedBaseUnits: l.requestedBaseUnits.toString(), requestedMinor: toFiatMinor(l.requestedBaseUnits, decimalsOf(l.token.network, l.token.contract), normRate(q.rate), ent.functionalCurrency as FiatCurrency),
+      requestedBaseUnits: l.requestedBaseUnits.toString(), requestedMinor: q.rate === null ? null : toFiatMinor(l.requestedBaseUnits, decimalsOf(l.token.network, l.token.contract), normRate(q.rate), ent.functionalCurrency as FiatCurrency),
       createdAt: new Date(l.createdAt), expiresAt: new Date(l.expiresAt),
     };
   })).onConflictDoNothing().returning({ id: t.paymentLinks.linkId }));

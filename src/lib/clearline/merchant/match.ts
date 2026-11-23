@@ -6,10 +6,11 @@
 import { abs, bpsOf, fmtFiat, fmtPct, fmtToken, instantMs, maxBig, minBig, parseRate, sum, toFiatMinor } from "./amounts";
 import { normAddress } from "./config";
 import { indexesOf } from "./indexes";
+import { resolveClaimedTransfers } from "./claims";
 import { active, type RuleId } from "./rules";
 import type {
   Attention, ChainTransfer, ChainTransferView, Decision, Difference, DifferenceType, ExceptionItem, HistoryEntry, Invoice, MatchRecord,
-  Owner, PaymentLink, ProviderPaymentRecord, Quote, ReconcileInput, Step, TokenConfig, TokenRef, TransferFinding, TransferRef, WriteOffProposal,
+  Owner, PaymentLink, ProviderPaymentRecord, Quote, QuoteTerm, ReconcileInput, Step, TokenConfig, TokenRef, TransferFinding, TransferRef, WriteOffProposal,
 } from "./types";
 import { TEST_MODE_LABEL } from "./types";
 
@@ -66,7 +67,7 @@ function attentionFor(ruleId: RuleId, detail: string): Attention {
 }
 
 /** Evaluate one order through steps 1–4. Exported pieces are reused by later steps (grouping, partials). */
-function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput): { record: MatchRecord; writeOff?: WriteOffProposal } {
+function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput, ambiguous: ReadonlyMap<string, string>): { record: MatchRecord; writeOff?: WriteOffProposal } {
   const { entity, policy } = input;
   const cur = entity.functionalCurrency;
   const history: HistoryEntry[] = [];
@@ -135,6 +136,12 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput): {
     if (s.fail) { note(1, s.fail.ruleId, "fail", s.fail.detail); return stop(1, s.fail.ruleId, s.fail.detail); }
     if (s.pending) note(1, "M1.finality.pending", "note", `${s.t.txHash} has ${s.t.confirmations} confirmations; ignored until final.`);
   }
+  // rc7: a provider record whose transaction (named without a log index) has several transfers to this order's address.
+  const unclear = [...quotes.map((q) => q.quoteId), ...links.map((l) => l.linkId)].flatMap((id) => ix.recordsByRef.get(id) ?? []).map((r) => ambiguous.get(r.providerPaymentId)).filter((x): x is string => !!x);
+  if (unclear.length && active("M3.provider.transfer_ambiguous")) {
+    note(3, "M3.provider.transfer_ambiguous", "fail", unclear[0]);
+    return finish({ decision: "exception", step: 3, ruleId: "M3.provider.transfer_ambiguous", attention: att("Payment Operations", `${unclear[0]} Clearline does not choose between them.`, "Ask the provider which transfer (log index) the payment is, then upload a corrected export.") });
+  }
   if (final.length === 0 && states.some((s) => s.pending))
     return finish({ decision: "suggested_for_review", step: 1, ruleId: "M1.finality.pending",
       attention: att("Payment Operations", "No final transfer yet. A provider 'paid' or 'completed' status is a claim, not proof.", "Wait for the network's finality rule, then rerun.") });
@@ -151,8 +158,11 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput): {
   // Step 3: currency, direction, time window, settlement batch.
   const quote = quotes.find((q) => q.quoteId === pairs[0].s.ref!.quoteId) ?? quotes[0];
   const qTok = input.tokens.find((k) => k.network === quote.token.network && k.contract === quote.token.contract)!;
+  // rc7: terms a source file did not carry. Checks that need them are not run; the order then abstains below.
+  const unknownTerms = [...new Set([...quotes.flatMap((q) => q.unknown ?? []), ...(links.some((l) => l.windowUnknown) ? ["window" as const] : [])])].sort();
+  const knows = (term: QuoteTerm) => !unknownTerms.includes(term);
   if (inv.currency !== cur && active("M3.currency.invoice_currency")) return stop(3, "M3.currency.invoice_currency", `Invoice is in ${inv.currency}; the entity's functional currency is ${cur}.`);
-  if (toFiatMinor(quote.quotedBaseUnits, qTok.decimals, quote.rate, cur) !== inv.amountMinor && active("M3.quote.invoice_mismatch"))
+  if (knows("rate") && knows("quoted_amount") && toFiatMinor(quote.quotedBaseUnits, qTok.decimals, quote.rate, cur) !== inv.amountMinor && active("M3.quote.invoice_mismatch"))
     return stop(3, "M3.quote.invoice_mismatch", `Quote ${quote.quoteId} at ${quote.rate} does not equal the invoice ${fmtFiat(inv.amountMinor, cur)}.`);
   for (const { s, rec } of pairs) {
     if (!s.inbound && active("M3.direction.outbound")) return stop(3, "M3.direction.outbound", `${s.t.txHash} leaves the deposit address; it is not a payment in.`);
@@ -161,8 +171,9 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput): {
     if (s.t.decimals !== qTok.decimals && active("M3.currency.token_mismatch")) return stop(3, "M3.currency.token_mismatch", `${s.token!.symbol} has ${s.t.decimals} decimals; the quote's token has ${qTok.decimals}.`);
     const ts = instantMs(s.t.timestamp);
     const w = windowOf(s, quote);
-    if (ts < instantMs(w.createdAt) && active("M3.window.before_quote")) return stop(3, "M3.window.before_quote", `${s.t.txHash} predates quote ${quote.quoteId}.`);
-    if (ts > instantMs(w.expiresAt) && rec?.statusClaim !== "re_quoted" && active("M3.window.after_expiry_no_requote"))
+    const windowKnown = knows("window");
+    if (windowKnown && ts < instantMs(w.createdAt) && active("M3.window.before_quote")) return stop(3, "M3.window.before_quote", `${s.t.txHash} predates quote ${quote.quoteId}.`);
+    if (windowKnown && ts > instantMs(w.expiresAt) && rec?.statusClaim !== "re_quoted" && active("M3.window.after_expiry_no_requote"))
       return stop(3, "M3.window.after_expiry_no_requote", `${s.t.txHash} arrived after quote ${quote.quoteId} expired, and the provider did not re-quote.`);
     if (!rec && active("M3.provider.no_record")) return stop(3, "M3.provider.no_record", `Final transfer ${s.t.txHash} has no provider record.`);
     if (!rec) continue;
@@ -173,7 +184,25 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput): {
     if (rec.statusClaim === "held_for_review" && !rec.batchId && active("M3.batch.held_by_provider"))
       return stop(3, "M3.batch.held_by_provider", `${rec.displayedStatus === "completed" ? "Shown as completed, in no settlement, held for review" : "Held for review by the provider, in no settlement"}.`);
   }
-  note(3, "M3.currency.invoice_currency", "pass", "Currency, direction, time window and settlement batch checked.");
+  note(3, "M3.currency.invoice_currency", "pass", unknownTerms.length ? `Currency, direction and settlement batch checked; not checkable without the quote's ${unknownTerms.join(", ")}.` : "Currency, direction, time window and settlement batch checked.");
+
+  // rc7: quote terms missing from the files. The provider's credit is still checked (it needs no quote term); the
+  // rest of step 4 would need the quote's rate, amount or window, so the engine abstains instead of assuming them.
+  if (unknownTerms.length && active("M3.quote.terms_unknown")) {
+    for (const { s, rec } of pairs) {
+      const recomputed = toFiatMinor(s.t.amountBaseUnits, s.t.decimals, rec!.executedRate, cur);
+      if (recomputed !== rec!.creditedMinor && active("M4.provider.credit_mismatch")) {
+        addDiff("unexplained", rec!.creditedMinor - recomputed, "M4.provider.credit_mismatch", `Provider credited ${fmtFiat(rec!.creditedMinor, cur)}, but ${fmtToken(s.t.amountBaseUnits, s.t.decimals, s.token!.symbol)} at ${rec!.executedRate} is ${fmtFiat(recomputed, cur)}.`);
+      }
+    }
+    const unexplained = differences.find((x) => x.type === "unexplained");
+    if (unexplained && active("M4.tolerance.unexplained")) return stop(4, "M4.tolerance.unexplained", unexplained.reason);
+    const missing = unknownTerms.map((x) => (x === "quoted_amount" ? "quoted amount" : x)).join(", ");
+    note(3, "M3.quote.terms_unknown", "fail", `The files do not give the quote's ${missing}.`);
+    return finish({ decision: "suggested_for_review", step: 3, ruleId: "M3.quote.terms_unknown", attention: att("Payment Operations",
+      `The transfer is verified on chain and the provider's credit checks out, but the files do not give quote ${quote.quoteId}'s ${missing}, so differences and timing cannot be explained. Nothing is assumed or derived.`,
+      "Upload a provider export that lists the quote's rate, quoted amount and validity window (or get them from the provider), then reconcile again.") });
+  }
 
   // Step 4: explained tolerance. Typed items first, then the band.
   let explainedCredit = 0n; // credited as recomputed from the chain amount and the executed rate
@@ -244,7 +273,8 @@ function view(s: TState, input: ReconcileInput): ChainTransferView {
 }
 
 /** Steps 1–4 over every order and transfer. Output order is canonical (order id, then transfer key). */
-export function matchPayments(input: ReconcileInput): MatchOutput {
+export function matchPayments(raw: ReconcileInput): MatchOutput {
+  const { input, ambiguous } = resolveClaimedTransfers(raw);
   const deposits = buildDepositIndex(input);
   const states = [...input.transfers].sort(byKey(tkey)).map((t) => identifyAndReference(t, input, deposits));
   const transferFindings: TransferFinding[] = [];
@@ -270,7 +300,7 @@ export function matchPayments(input: ReconcileInput): MatchOutput {
   for (const inv of [...input.invoices].sort(byKey((i) => i.orderId))) {
     const mine = statesByOrder.get(inv.orderId) ?? [];
     if (mine.length === 0 && !orderIds.has(inv.orderId)) continue;
-    const { record, writeOff } = evaluateOrder(inv, mine, input);
+    const { record, writeOff } = evaluateOrder(inv, mine, input, ambiguous);
     records.push(record);
     if (writeOff) writeOffs.push(writeOff);
     if (record.explanation.decision === "exception")
