@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { ROLE_LABELS } from "@/server/authz";
 import { merchantPage } from "@/server/merchant-page";
+import { unreadCount } from "@/server/notifications";
 import { SignOutButton } from "@/components/control/forms";
 import { MerchantNav, type NavItem } from "@/components/merchant/Nav";
 import { DataChip } from "@/components/merchant/ui";
@@ -14,6 +15,7 @@ const MERCHANT_NAV: NavItem[] = [
   { href: "/control/merchant/uploads", label: "Uploads" },
   { href: "/control/merchant/runs", label: "Runs" },
   { href: "/control/merchant/approvals", label: "Approvals" },
+  { href: "/control/merchant/notifications", label: "Notifications" },
   { href: "/control/merchant/month-end", label: "Month-end" },
   { href: "/control/merchant/evidence", label: "Evidence packs" },
   { href: "/control/merchant/accounting", label: "Accounting export" },
@@ -38,6 +40,7 @@ export default async function MerchantLayout({ children }: { children: ReactNode
   const t = shell.theme;
   const vars = { "--brand": t.primary, "--on-brand": t.onPrimary, "--accent": t.accent } as CSSProperties;
   const nav = shell.kind === "merchant" ? MERCHANT_NAV : PROVIDER_NAV;
+  const unread = shell.kind === "merchant" ? await unreadCount(ctx) : 0;
   return (
     <div className={m.mroot} style={vars}>
       <a className={m.skip} href="#main">Skip to content</a>
@@ -50,7 +53,7 @@ export default async function MerchantLayout({ children }: { children: ReactNode
               <p className={m.brandSub} data-testid="org-name">{shell.kind === "provider" ? "Provider console" : `Merchant reconciliation · ${ctx.orgName}`}</p>
             </div>
           </div>
-          <p className={m.brandWho} data-testid="signed-in-as">Signed in as <strong>{ctx.name}</strong> ({ctx.email}) · {ROLE_LABELS[ctx.role]} · <SignOutButton /></p>
+          <p className={m.brandWho} data-testid="signed-in-as">Signed in as <strong>{ctx.name}</strong> ({ctx.email}) · {ROLE_LABELS[ctx.role]} · {shell.kind === "merchant" ? <><a className={m.bell} href="/control/merchant/notifications" data-testid="bell" aria-label={`Notifications: ${unread} unread`}>Notifications<span className={m.bellCount} aria-hidden="true">{unread}</span></a> · </> : null}<SignOutButton /></p>
         </div>
       </header>
       <aside className={m.demo} aria-label="Data notice"><DataChip label={shell.label} /></aside>

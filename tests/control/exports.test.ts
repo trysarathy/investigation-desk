@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { closeOwner, ownerDb, resetAndSeed } from "./harness";
 import { liveCtx, seedLiveMerchants, useTestStorage, type LiveSeed } from "./upload-harness";
-import { liveKey, seedSgLive, type LiveSg } from "./live-data";
+import { liveKey, seedSgLive, sgChain, type LiveSg } from "./live-data";
 import { closeDatabase } from "../../src/server/db/client";
 import * as t from "../../src/server/db/schema";
 import { AccessDenied } from "../../src/server/tenant";
@@ -44,7 +44,7 @@ beforeAll(async () => {
   // the merchant's Admin turns the imported-statement flag on for this entity so the batch verifies and a settlement
   // journal is proposed (an Admin's decision; it stays off by default)
   await updateMerchantPolicy(live.admin, live.entityId, { allowImportedBankLinesAsVerified: true }, 1, liveKey());
-  await runReconciliation(live.ops, live.entityId, liveKey());
+  await runReconciliation(live.ops, live.entityId, liveKey(), { chain: sgChain() });
   month = (await merchantShell(live.ops)).entities.find((e) => e.id === live.entityId)!.months[0];
 });
 afterAll(async () => { await closeDatabase(); await closeOwner(); });

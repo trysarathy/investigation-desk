@@ -176,7 +176,7 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
     // Document A "(on approval)" lines name the approval they wait for; write-off ids map to their stored ids.
     const lines = j.lines.map((l) => (l.onApproval ? { ...l, onApproval: woIdOf.get(l.onApproval) ?? l.onApproval } : l));
     const row = { entityId, pattern: j.kind, lines: plain(lines) as object, currency: j.currency,
-      evidenceRefs: plain({ ...j.evidence, ruleId: j.ruleId, entryDate: j.entryDate, memo: j.memo, requiresApprovalOf: j.requiresApprovalOf ? woIdOf.get(j.requiresApprovalOf) ?? j.requiresApprovalOf : null, label: j.label }) as object };
+      evidenceRefs: plain({ ...j.evidence, ruleId: j.ruleId, entryDate: j.entryDate, memo: j.memo, requiresApprovalOf: j.requiresApprovalOf ? woIdOf.get(j.requiresApprovalOf) ?? j.requiresApprovalOf : null, label: meta.label }) as object };
     await tx.insert(t.merchantJournalProposals).values({ orgId: ctx.orgId, id: j.id, ...row, status: "proposed", postingRuleStatus: "pending_sign_off" })
       .onConflictDoUpdate({ target: [t.merchantJournalProposals.orgId, t.merchantJournalProposals.id], set: row, setWhere: sql`${t.merchantJournalProposals.status} = 'proposed'` });
   }
@@ -449,9 +449,10 @@ export async function monthEnd(ctx: TenantContext, entityId: string, month: stri
     const orders = new Set(recs.map((r) => r.row.orderId));
     const ex = (await tx.select().from(t.reconExceptions).where(and(eq(t.reconExceptions.orgId, ctx.orgId), sql`${t.reconExceptions.status} <> 'resolved'`))).filter((e) => e.orderId && orders.has(e.orderId));
     const wos = (await tx.select().from(t.writeoffProposals).where(eq(t.writeoffProposals.orgId, ctx.orgId))).filter((w) => orders.has(w.orderId));
+    const label = await orgLabel(tx, ctx.orgId);
     return {
-      label: await orgLabel(tx, ctx.orgId), entityId, month, currency: input.entity.functionalCurrency, postingRuleStatus: "pending_sign_off" as const,
-      journals: inMonth.map((j) => ({ id: j.id, pattern: j.pattern, status: j.status, postingRuleStatus: j.postingRuleStatus, lines: j.lines, evidence: j.evidenceRefs })),
+      label, entityId, month, currency: input.entity.functionalCurrency, postingRuleStatus: "pending_sign_off" as const,
+      journals: inMonth.map((j) => ({ id: j.id, pattern: j.pattern, status: j.status, postingRuleStatus: j.postingRuleStatus, lines: j.lines, evidence: { ...(j.evidenceRefs as Record<string, unknown>), label } as unknown })),
       balances: Object.fromEntries(Object.entries(balances).map(([k, v]) => [k, v.toString()])), openReceivablesMinor: openAr.toString(), openExceptions: ex.length,
       writeoffs: { pending: wos.filter((w) => w.status !== "approved" && w.status !== "rejected").length, approved: wos.filter((w) => w.status === "approved").length },
     };

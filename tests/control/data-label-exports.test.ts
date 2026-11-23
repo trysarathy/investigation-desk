@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { inflateSync } from "node:zlib";
 import { closeOwner, ownerDb, resetAndSeed } from "./harness";
 import { seedLiveMerchants, useTestStorage, type LiveSeed } from "./upload-harness";
-import { liveKey, seedSgLive, type LiveSg } from "./live-data";
+import { liveKey, seedSgLive, sgChain, type LiveSg } from "./live-data";
 import { closeDatabase } from "../../src/server/db/client";
 import { resolveTenant, type TenantContext } from "../../src/server/tenant";
 import {
@@ -73,7 +73,7 @@ async function responsesOf(c: { fin: TenantContext; ops: TenantContext }, entity
       daily: await dailyReport(c.ops, entityId, day), monthEnd: await monthEnd(c.ops, entityId, month), monthEndView: await monthEndView(c.ops, entityId, month, null),
       exDetail: ex.exceptions[0] ? await exceptionDetail(c.ops, ex.exceptions[0].id) : null, metrics: await pilotMetrics(c.ops),
       review: await recordMatchReview(c.ops, orderId, { verdict: "correct" }, liveKey()), minutes: await logMinutes(c.ops, { day: "2026-11-20", minutes: 5 }, liveKey()),
-      run: (await runReconciliation(c.ops, entityId, liveKey())).body,
+      run: (await runReconciliation(c.ops, entityId, liveKey(), { chain: sgChain() })).body,
     },
   };
 }
