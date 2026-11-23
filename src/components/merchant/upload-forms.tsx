@@ -113,6 +113,9 @@ const utc = (min: number) => `UTC${min < 0 ? "−" : "+"}${String(Math.floor(Mat
 const CONSTANT = "__constant__";
 const isAmount = (d: FieldDef) => d.kind === "fiat_amount" || d.kind === "token_amount" || d.kind === "rate";
 const isDate = (d: FieldDef) => d.kind === "date" || d.kind === "datetime";
+/** A date-time column whose times may lack an offset: the person says which time zone they are in (never assumed). */
+const needsZone = (d: FieldDef, det: ReturnType<typeof detectDateFormat> | null) =>
+  d.kind === "datetime" && !!det && det.status !== "empty" && (det.status !== "decided" || (det.hasTime && det.offsets !== "all"));
 const distinct = (values: string[]) => [...new Set(values.map((x) => x.trim()).filter((x) => x))].slice(0, 30);
 /** A word's target: the person's choice, else the Clearline value it spells exactly ("Partially paid" → partially_paid). */
 const word = (targets: readonly string[] | undefined, v: { words: Record<string, string> }, w: string) =>
@@ -128,6 +131,21 @@ function initial(def: FieldDef, base: ColumnMapping | undefined, proposal: strin
     constant: c?.constant ?? (def.kind === "currency" ? currency : ""), dateFormat: c?.dateFormat ?? "", offset: c?.defaultUtcOffsetMinutes !== undefined ? String(c.defaultUtcOffsetMinutes) : "",
     decimal: c?.decimalSeparator ?? "", words: { ...(c?.statusValueMap ?? c?.networkValueMap ?? {}) },
   };
+}
+
+/** A status word that appears only further down the file (the preview shows the first 20 rows). */
+function AddWord({ id, column, onAdd }: { id: string; column: string; onAdd: (word: string) => void }) {
+  const [w, setW] = useState("");
+  const add = () => { const x = w.trim(); if (x) { onAdd(x); setW(""); } };
+  return (
+    <div className={m.wordRow}>
+      <label className={s.label} htmlFor={id}>Another word in {column}</label>
+      <div className={s.row}>
+        <input className={s.input} id={id} value={w} maxLength={80} onChange={(ev) => setW(ev.currentTarget.value)} onKeyDown={(ev) => { if (ev.key === "Enter") { ev.preventDefault(); add(); } }} />
+        <button type="button" className={`${s.button} ${s.buttonSecondary}`} onClick={add}>Add word</button>
+      </div>
+    </div>
+  );
 }
 
 export function MappingForm({ uploadId, fileType, headers, rows, suggestion, current, exact, currency, entityName }: {
@@ -173,7 +191,7 @@ export function MappingForm({ uploadId, fileType, headers, rows, suggestion, cur
         const f = v.dateFormat || decided;
         if (f) c.dateFormat = f;
         else if (p.date && p.date.status !== "empty") problems.push(`${d.label}: choose the date order.`);
-        const needsOffset = d.kind === "datetime" && p.date?.status === "decided" && p.date.hasTime && p.date.offsets !== "all";
+        const needsOffset = needsZone(d, p.date);
         if (v.offset !== "") c.defaultUtcOffsetMinutes = Number(v.offset);
         else if (needsOffset) problems.push(`${d.label}: choose the time zone of times written without one.`);
       }
@@ -231,7 +249,7 @@ export function MappingForm({ uploadId, fileType, headers, rows, suggestion, cur
         {defs.map((d) => {
           const v = state[d.key], p = plans[d.key], fid = `${id}-${d.key}`;
           const targets = STATUS_TARGETS[fileType]?.[d.key];
-          const words = (targets || d.kind === "network") && v.source && v.source !== CONSTANT ? distinct(p.values) : [];
+          const words = (targets || d.kind === "network") && v.source && v.source !== CONSTANT ? [...new Set([...distinct(p.values), ...Object.keys(v.words)])] : [];
           return (
             <li className={m.fieldRow} key={d.key} data-testid={`field-${d.key}`}>
               <div className={s.field}>
@@ -269,7 +287,7 @@ export function MappingForm({ uploadId, fileType, headers, rows, suggestion, cur
                   ))}
                 </fieldset>
               ) : null}
-              {d.kind === "datetime" && p.date?.status === "decided" && p.date.hasTime && p.date.offsets !== "all" ? (
+              {needsZone(d, p.date) ? (
                 <div className={s.field}>
                   <label className={s.label} htmlFor={`${fid}-tz`}>Time zone of times in {v.source} written without one</label>
                   <select className={s.select} id={`${fid}-tz`} value={v.offset} onChange={(ev) => set(d.key, { offset: ev.currentTarget.value })}>
@@ -291,6 +309,7 @@ export function MappingForm({ uploadId, fileType, headers, rows, suggestion, cur
                       </select>
                     </div>
                   ))}
+                  {targets ? <AddWord id={`${fid}-add`} column={v.source} onAdd={(w) => set(d.key, { words: { ...v.words, [w]: v.words[w] ?? word(targets, { words: {} }, w) } })} /> : null}
                 </fieldset>
               ) : null}
             </li>
