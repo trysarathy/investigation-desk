@@ -97,7 +97,10 @@ describe("Case 2 through the database (one settlement, many payments; USD book)"
     expect(usd.tied).toBe(true);
     expect(usd.lines.find((l) => l.kind === "net")!.amountMinor).toBe("935550");
     const js = await rows(sql`select lines from merchant_journal_proposals where org_id = ${seed.orgs.sg} and id = 'JP-SETL-B-1125-SGD'`);
-    expect((js[0].lines as { account: string; amountMinor: string }[]).map((l) => [l.account, l.amountMinor])).toEqual([["bank", "4022868"], ["payment_processing_fees", "41862"], ["sales_refunds", "121500"], ["provider_clearing", "4186230"]]);
+    // Document A, Case 2: the refund is its own entry; the settlement credits clearing 40,647.30 = 41,862.30 − 1,215.00.
+    expect((js[0].lines as { account: string; amountMinor: string }[]).map((l) => [l.account, l.amountMinor])).toEqual([["bank", "4022868"], ["payment_processing_fees", "41862"], ["provider_clearing", "4064730"]]);
+    const rf = await rows(sql`select lines from merchant_journal_proposals where org_id = ${seed.orgs.sg} and id = 'JP-RFND-B-1125-SGD'`);
+    expect((rf[0].lines as { account: string; amountMinor: string }[]).map((l) => [l.account, l.amountMinor])).toEqual([["sales_refunds", "121500"], ["provider_clearing", "121500"]]);
   });
   it("the held order is an exception for Treasury; every other order matched", async () => {
     const all = await listMerchantPayments(await ctx("ops@straits-demo.example", "sg"), { entityId: "ENT-SG-02" });

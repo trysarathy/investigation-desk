@@ -3,7 +3,7 @@
  * inputs are re-sorted canonically, so arrival order never changes a result. The sender never decides a match and
  * an amount alone never closes one: a transfer is tied to an order only through a deposit address issued for it.
  */
-import { abs, bpsOf, fmtFiat, fmtPct, fmtToken, instantMs, minBig, parseRate, sum, toFiatMinor } from "./amounts";
+import { abs, bpsOf, fmtFiat, fmtPct, fmtToken, instantMs, maxBig, minBig, parseRate, sum, toFiatMinor } from "./amounts";
 import { normAddress } from "./config";
 import { active, type RuleId } from "./rules";
 import type {
@@ -193,9 +193,10 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput): {
   }
   const total = sum(differences.map((x) => x.amountMinor));
   if (total === 0n && active("M4.match.no_difference")) return finish({ decision: "matched", step: 4, ruleId: "M4.match.no_difference" });
-  const band = minBig(bpsOf(inv.amountMinor, policy.tolerancePct), policy.toleranceAbsMinor);
+  const pctBand = bpsOf(inv.amountMinor, policy.tolerancePct);
+  const band = policy.toleranceCombine === "larger" ? maxBig(pctBand, policy.toleranceAbsMinor) : minBig(pctBand, policy.toleranceAbsMinor);
   const types = new Set(differences.map((x) => x.type));
-  note(4, "M4.tolerance.within_band", "note", `Difference ${fmtFiat(total, cur)}; band min(${policy.tolerancePct} bps, ${fmtFiat(policy.toleranceAbsMinor, cur)}) = ${fmtFiat(band, cur)}.`);
+  note(4, "M4.tolerance.within_band", "note", `Difference ${fmtFiat(total, cur)}; band ${policy.toleranceCombine === "larger" ? "max" : "min"}(${policy.tolerancePct} bps = ${fmtFiat(pctBand, cur)}, ${fmtFiat(policy.toleranceAbsMinor, cur)}) = ${fmtFiat(band, cur)}.`);
   if (types.has("unexplained") && active("M4.tolerance.unexplained"))
     return stop(4, "M4.tolerance.unexplained", differences.find((x) => x.type === "unexplained")!.reason);
   if (abs(total) <= band && !partOpen && active("M4.tolerance.within_band")) {

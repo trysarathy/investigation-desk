@@ -38,6 +38,7 @@ export const bpsOf = (amountMinor: bigint, bps: number): bigint => divRoundHalfU
 export const abs = (x: bigint): bigint => (x < 0n ? -x : x);
 export const sum = (xs: readonly bigint[]): bigint => xs.reduce((t, x) => t + x, 0n);
 export const minBig = (a: bigint, b: bigint): bigint => (a < b ? a : b);
+export const maxBig = (a: bigint, b: bigint): bigint => (a > b ? a : b);
 
 function grouped(units: bigint, decimals: number, minFrac: number): string {
   const neg = units < 0n;

@@ -32,7 +32,7 @@ export default async function MerchantSettingsPage() {
           <div className={m.cols2}>{v.policies.map((p) => (
             <article className={s.panel} key={p.entityId} aria-labelledby={`pol-${p.entityId}`}>
               <h3 className={s.h3} id={`pol-${p.entityId}`}>{p.name} <span className={s.mono}>{p.entityId}</span></h3>
-              <p className={s.small}>Revision {p.revision}, {when(p.updatedAt)}. Band = the smaller of {p.toleranceBps} bps and {fiat(p.toleranceAbsMinor, p.currency)}; write-offs up to {fiat(p.writeoffThresholdMinor, p.currency)}; imported bank lines {p.allowImportedBankLinesAsVerified ? <Chip tone="warn">may verify settlement</Chip> : "never verify settlement alone"}.</p>
+              <p className={s.small}>Revision {p.revision}, {when(p.updatedAt)}. Band = the {p.toleranceCombine === "smaller" ? "smaller" : "larger"} of {p.toleranceBps} bps and {fiat(p.toleranceAbsMinor, p.currency)}; write-offs up to {fiat(p.writeoffThresholdMinor, p.currency)}; imported bank lines {p.allowImportedBankLinesAsVerified ? <Chip tone="warn">may verify settlement</Chip> : "never verify settlement alone"}.</p>
               {isAdmin ? <PolicyForm entityId={p.entityId} revision={p.revision} current={p} /> : null}
             </article>
           ))}</div>

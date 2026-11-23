@@ -76,7 +76,7 @@ export const finalisedFrom = (m: Map<string, boolean>) => (x: { network: string;
 async function addEntity(tx: Tx, orgId: string, e: MerchantEntity, policy: MerchantPolicy, ledger: "xero" | "quickbooks") {
   await tx.insert(t.merchantEntities).values({ orgId, id: e.id, name: e.name, functionalCurrency: e.functionalCurrency, ledger, timezone: e.timeZone.name, utcOffsetMinutes: e.timeZone.utcOffsetMinutes });
   await tx.insert(t.merchantPolicy).values({
-    orgId, entityId: e.id, toleranceBps: policy.tolerancePct, toleranceAbsMinor: policy.toleranceAbsMinor, writeoffThresholdMinor: policy.writeoffThresholdMinor,
+    orgId, entityId: e.id, toleranceBps: policy.tolerancePct, toleranceAbsMinor: policy.toleranceAbsMinor, toleranceCombine: policy.toleranceCombine, writeoffThresholdMinor: policy.writeoffThresholdMinor,
     approverRoles: [...policy.approverRoles], allowImportedBankLinesAsVerified: policy.allowImportedBankLinesAsVerified, senderFeeBoundBaseUnits: policy.senderFeeBoundBaseUnits.toString(),
   });
 }

@@ -64,7 +64,7 @@ describe("bundled sample: Case 1", async () => {
 
   it("journal proposals are all marked posting rule pending sign-off", () => {
     expect(report.journals.map((j) => j.id)).toEqual(["JP-CONF-PP-24817", "JP-CONF-PP-24823", "JP-CONF-PP-24830", "JP-CONF-PP-24836"]);
-    expect(report.journalsOnceBankConfirmed.map((j) => j.id)).toEqual([...report.journals.map((j) => j.id), "JP-SETL-B-1124-001", "JP-WO-BK-24817"]);
+    expect(report.journalsOnceBankConfirmed.map((j) => j.id)).toEqual([...report.journals.map((j) => j.id), "JP-SETL-B-1124-001"]); // Document A: the write-off sits inside JP-CONF-PP-24817
     for (const j of [...report.journals, ...report.journalsOnceBankConfirmed]) expect([j.status, j.postingRule]).toEqual(["proposed", "Posting rule pending sign-off"]);
     expect(reportHtml(report)).toContain("posting rule pending sign-off");
   });
