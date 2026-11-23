@@ -6,9 +6,10 @@ import { describe, expect, it } from "vitest";
 import { merchant } from "@/lib/clearline";
 import { case1 } from "@/lib/clearline/merchant/fixtures/case1";
 import { case3 } from "@/lib/clearline/merchant/fixtures/case3";
+import type { NetworkId } from "@/lib/clearline/merchant";
 
 const { reconcile, proposeJournals } = merchant;
-const down = (network: "tron" | "ethereum", extra: { address?: string; txHash?: string }) => ({ network, ...extra, source: "trongrid (recorded)", reason: "HTTP 503 after 5 attempts", at: "2026-11-25T02:00:00.000Z" });
+const down = (network: NetworkId, extra: { address?: string; txHash?: string }) => ({ network, ...extra, source: "trongrid (recorded)", reason: "HTTP 503 after 5 attempts", at: "2026-11-25T02:00:00.000Z" });
 
 describe("[M1.chain.unavailable] chain data unavailable never matches", () => {
   const input = case1();
