@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
-  IMPORTED_BANK_LINE_LABEL, TEST_MODE_LABEL, fmtFiat, localDate, proposeJournals, reconcile,
+  IMPORTED_BANK_LINE_LABEL, fmtFiat, localDate, proposeJournals, reconcile,
   type BatchBridge, type Decision as MatchDecision, type FiatCurrency, type ReconcileInput,
 } from "@/lib/clearline/merchant";
 import { stableJson } from "@/lib/clearline/merchant/adapters";
@@ -15,6 +15,8 @@ import { Decision, IdempotencyKey, canonical, idempotent, serverAudit } from "./
 import { MissingEntity, type IngestParts, loadReconcileInput, plain, writeIngested } from "./merchant-store";
 import { AccessDenied, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
+import { dataModeOf } from "./mapping-templates";
+import type { DataLabel } from "@/lib/clearline/data-mode";
 import { isLiveOrg, verifyChainForEntity, verifyClientFromEnv } from "./chain-verify";
 import type { VerifyChainClient } from "@/lib/clearline/merchant/chain";
 import type { RunTrigger } from "./db/ops-schema";
@@ -24,12 +26,13 @@ import { MERCHANT_ENGINE_VERSION, RULE_SET_VERSION, closedOrders, errorCodeOf, n
  * rc6 Merchant Reconciliation services. Every function takes a TenantContext built on the server from the session
  * and runs in one RLS-scoped tenant transaction. Read-only domain: nothing holds, sends, converts or settles money.
  * The engine decides matches; this layer persists them, adds permissions, idempotency, two-person write-off approval
- * and audit, and serves read models. Every output carries "Test mode · illustrative data".
+ * and audit, and serves read models. Every output carries the organisation's data label (dataLabel).
  */
 
 export { MERCHANT_ENGINE_VERSION };
 export const PROVIDER_DAY_NOTE = "provider day = UTC";
-const LABEL = TEST_MODE_LABEL;
+/** rc7 phase 3b: every response carries the organisation's data label ("Your data" for a live merchant; the demo label for sample data only). */
+const orgLabel = async (tx: Tx, orgId: string): Promise<DataLabel> => (await dataModeOf(tx, orgId)).label;
 /** The JSON shape of an engine object (BigInt → decimal string), as persisted and served. */
 export type Jsonified<T> = T extends bigint ? string : T extends readonly (infer U)[] ? Jsonified<U>[] : T extends object ? { [K in keyof T]: Jsonified<T[K]> } : T;
 
@@ -66,7 +69,7 @@ export async function ingestAdapterOutput(ctx: TenantContext, entityId: string, 
     const written = await writeIngested(tx, ctx.orgId, entityId, parts, { chainSource: "recorded_fixture", ...(opts.finalised ? { finalised: opts.finalised } : {}) })
       .catch((e) => { if (e instanceof MissingEntity) throw new AccessDenied(404, "Not found."); throw e; });
     await serverAudit(tx, ctx, "merchant_data_ingested", "merchant_entity", entityId, `Ingested ${Object.entries(written).map(([k, v]) => `${v} ${k}`).join(", ") || "nothing new"}`, written);
-    return { status: 200, body: { label: LABEL, entityId, written } };
+    return { status: 200, body: { label: await orgLabel(tx, ctx.orgId), entityId, written } };
   }));
 }
 
@@ -103,7 +106,7 @@ export async function runReconciliation(ctx: TenantContext, entityId: string, id
 }
 
 export type RunBody = {
-  label: typeof LABEL; entityId: string; inputSha256: string; engineVersion: string; ruleSetVersion: string; policyRevision: number; runId: string; status: "changed" | "no_change"; changed: boolean;
+  label: DataLabel; entityId: string; inputSha256: string; engineVersion: string; ruleSetVersion: string; policyRevision: number; runId: string; status: "changed" | "no_change"; changed: boolean;
   records?: number; newDifferences?: number; exceptions?: number; resolvedExceptions?: number; newWriteoffs?: number; supersededWriteoffs?: number; journals?: number; kept?: number; notices?: number; runCounts?: RunCounts;
 };
 
@@ -114,7 +117,7 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
   const orderIds = input.invoices.map((i) => i.orderId);
   const { prev, policyRevision } = await runState(tx, ctx.orgId, entityId);
   const runRow = { orgId: ctx.orgId, entityId, trigger: run.trigger, jobId: run.jobId, startedBy: ctx.userId, ruleSetVersion: run.version, policyRevision, inputSha256: hash, startedAt: run.startedAt };
-  const meta = { label: LABEL, entityId, inputSha256: hash, engineVersion: MERCHANT_ENGINE_VERSION, ruleSetVersion: run.version, policyRevision };
+  const meta = { label: await orgLabel(tx, ctx.orgId), entityId, inputSha256: hash, engineVersion: MERCHANT_ENGINE_VERSION, ruleSetVersion: run.version, policyRevision };
   if (prev && prev.inputSha256 === hash && prev.ruleSetVersion === run.version && prev.policyRevision === policyRevision) {
     const [r] = await tx.insert(t.reconciliationRuns).values({ ...runRow, status: "no_change", finishedAt: new Date(), matched: prev.matched, withDifference: prev.withDifference,
       review: prev.review, exceptions: prev.exceptions, unpaid: prev.unpaid, kept: prev.kept, notices: 0 }).returning({ id: t.reconciliationRuns.id });
@@ -138,7 +141,7 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
     const row = {
       decision: r.explanation.decision, decidingStep: r.explanation.decidingStep, ruleId: r.explanation.ruleId,
       chain: plain(r.chain) as object, provider: plain(r.provider) as object, bank: plain(r.bank) as object, ledger: plain(r.ledger) as object,
-      explanation: plain({ ...explanation, attention: r.attention ?? null, label: r.label }) as object, engineVersion: MERCHANT_ENGINE_VERSION, inputSha256: hash, computedAt: now,
+      explanation: plain({ ...explanation, attention: r.attention ?? null, label: meta.label }) as object, engineVersion: MERCHANT_ENGINE_VERSION, inputSha256: hash, computedAt: now,
     };
     await tx.insert(t.matchRecords).values({ orgId: ctx.orgId, orderId: r.orderId, ...row }).onConflictDoUpdate({ target: [t.matchRecords.orgId, t.matchRecords.orderId], set: row });
   }
@@ -219,7 +222,7 @@ export async function updateMerchantPolicy(ctx: TenantContext, entityId: string,
       .where(and(eq(t.merchantPolicy.orgId, ctx.orgId), eq(t.merchantPolicy.entityId, entityId), eq(t.merchantPolicy.revision, expectedRevision))).returning({ revision: t.merchantPolicy.revision });
     if (!r.length) throw new RequestRefused(409, "STALE_POLICY", "The policy changed since you read it (or does not exist). Reload it and try again.");
     await serverAudit(tx, ctx, "merchant_policy_updated", "merchant_entity", entityId, `Matching policy revision ${r[0].revision}: ${Object.keys(p).join(", ")}`, plain(p));
-    return { status: 200, body: { label: LABEL, entityId, revision: r[0].revision } };
+    return { status: 200, body: { label: await orgLabel(tx, ctx.orgId), entityId, revision: r[0].revision } };
   }));
 }
 
@@ -236,7 +239,7 @@ async function writeoffBinding(tx: Tx, ctx: TenantContext, writeoffId: string) {
   return {
     wo,
     binding: {
-      label: LABEL, writeoffId: wo.id, orderId: wo.orderId, amountMinor: wo.amountMinor.toString(), currency: wo.currency, differenceIds: ids,
+      label: await orgLabel(tx, ctx.orgId), writeoffId: wo.id, orderId: wo.orderId, amountMinor: wo.amountMinor.toString(), currency: wo.currency, differenceIds: ids,
       differences: ds.map((d) => ({ id: d.id, type: d.type, amountMinor: d.amountMinor.toString(), reason: d.reason })),
       matchDecision: mr?.decision ?? null, matchInputSha256: mr?.inputSha256 ?? null, engineVersion: mr?.engineVersion ?? null,
     },
@@ -258,7 +261,7 @@ export async function proposeWriteoff(ctx: TenantContext, writeoffId: string, id
     const [req] = await tx.insert(t.approvalRequests).values({ orgId: ctx.orgId, subjectKind: "merchant_writeoff", subjectId: writeoffId, version, payload, payloadSha256, requestedBy: ctx.userId }).returning();
     await tx.update(t.writeoffProposals).set({ status: "awaiting_approval", approvalRequestId: req.id, preparedBy: ctx.userId }).where(and(eq(t.writeoffProposals.orgId, ctx.orgId), eq(t.writeoffProposals.id, writeoffId)));
     await serverAudit(tx, ctx, "merchant_writeoff_requested", "writeoff", writeoffId, `Write-off ${writeoffId} v${version} (${fmtFiat(wo.amountMinor, wo.currency as FiatCurrency)}) submitted for a second person's approval (sha256 ${payloadSha256.slice(0, 12)}…)`, { requestId: req.id });
-    return { status: 201, body: { label: LABEL, requestId: req.id, writeoffId, version, payloadSha256, payload } };
+    return { status: 201, body: { label: await orgLabel(tx, ctx.orgId), requestId: req.id, writeoffId, version, payloadSha256, payload } };
   }));
 }
 
@@ -285,7 +288,7 @@ export async function decideWriteoff(ctx: TenantContext, requestId: string, inpu
     await tx.update(t.approvalRequests).set({ status, closedAt: new Date() }).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.id, requestId)));
     await tx.update(t.writeoffProposals).set({ status }).where(and(eq(t.writeoffProposals.orgId, ctx.orgId), eq(t.writeoffProposals.id, wo.id)));
     await serverAudit(tx, ctx, d.decision === "approve" ? "merchant_writeoff_approved" : "merchant_writeoff_rejected", "writeoff", wo.id, `${status === "approved" ? "Approved" : "Rejected"} write-off ${wo.id} v${req.version} by a second person: ${d.reason}`, { requestId, payloadSha256: d.payloadSha256 });
-    return { status: 200, body: { label: LABEL, requestId, writeoffId: wo.id, status } };
+    return { status: 200, body: { label: await orgLabel(tx, ctx.orgId), requestId, writeoffId: wo.id, status } };
   }));
 }
 
@@ -315,7 +318,7 @@ export async function bankLinesFromImport(ctx: TenantContext, importId: string, 
     }));
     const written = rows.length ? await tx.insert(t.bankLines).values(rows).onConflictDoNothing().returning({ id: t.bankLines.lineId }) : [];
     await serverAudit(tx, ctx, "merchant_bank_lines_imported", "statement_import", importId, `${written.length} imported bank line(s) for ${entityId} (${IMPORTED_BANK_LINE_LABEL})`, { entityId, lineIds: written.map((w) => w.id) });
-    return { status: 200, body: { label: LABEL, importId, entityId, bankLineIds: written.map((w) => w.id), skipped: (imp.lines as unknown[]).length - staged.length, bankLineLabel: IMPORTED_BANK_LINE_LABEL } };
+    return { status: 200, body: { label: await orgLabel(tx, ctx.orgId), importId, entityId, bankLineIds: written.map((w) => w.id), skipped: (imp.lines as unknown[]).length - staged.length, bankLineLabel: IMPORTED_BANK_LINE_LABEL } };
   }));
 }
 
@@ -348,7 +351,7 @@ export async function dailyReport(ctx: TenantContext, entityId: string, date: st
     const wos = (await tx.select().from(t.writeoffProposals).where(and(eq(t.writeoffProposals.orgId, ctx.orgId), inArray(t.writeoffProposals.status, ["proposed", "awaiting_approval"])))).filter((w) => orders.has(w.orderId));
     const tied = bridges.filter((b) => b.tied).length;
     return {
-      label: LABEL, entityId, date, timeZone: input.entity.timeZone.name, cutOffNote: PROVIDER_DAY_NOTE,
+      label: await orgLabel(tx, ctx.orgId), entityId, date, timeZone: input.entity.timeZone.name, cutOffNote: PROVIDER_DAY_NOTE,
       payments: recs.length, settlementsTied: tied, settlements: bridges.length, exceptions: ex.length, writeoffsAwaitingApproval: wos.length,
       summary: `${plural(recs.length, "payment")} · ${plural(tied, "settlement")} tied · ${plural(ex.length, "exception")} · ${plural(wos.length, "write-off")} awaiting approval`,
     };
@@ -368,11 +371,12 @@ export async function listMerchantPayments(ctx: TenantContext, filters: z.input<
   return tenantRead(ctx, async (tx) => {
     const quotes = await tx.select().from(t.merchantQuotes).where(eq(t.merchantQuotes.orgId, ctx.orgId));
     const links = await tx.select().from(t.paymentLinks).where(eq(t.paymentLinks.orgId, ctx.orgId));
+    const label = await orgLabel(tx, ctx.orgId);
     const rows = (await storedRecords(tx, ctx.orgId, f.entityId)).map(({ rec, inv }) => {
       const tr = rec.chain.transfers;
       const deposit = [...quotes.filter((q) => q.orderId === rec.orderId).map((q) => q.depositAddress), ...links.filter((l) => l.orderId === rec.orderId).map((l) => l.depositAddress)];
       return {
-        label: LABEL, orderId: rec.orderId, entityId: inv.entityId, decision: rec.decision, ruleId: rec.ruleId, invoiceMinor: inv.amountMinor.toString(), currency: inv.currency,
+        label, orderId: rec.orderId, entityId: inv.entityId, decision: rec.decision, ruleId: rec.ruleId, invoiceMinor: inv.amountMinor.toString(), currency: inv.currency,
         creditedMinor: rec.ledger.creditedMinor, openBalanceMinor: rec.ledger.openBalanceMinor, balanceLabel: rec.ledger.balanceLabel,
         differenceTypes: [...new Set(rec.explanation.differences.map((d) => d.type))], networks: [...new Set(tr.map((x) => x.network))],
         tokens: [...new Set(tr.flatMap((x) => [x.symbol, x.tokenContract]))], batchIds: [...new Set(rec.provider.records.map((r) => r.batchId).filter((x): x is string => !!x))],
@@ -399,9 +403,11 @@ export async function merchantPaymentDetail(ctx: TenantContext, orderId: string)
     const reqIds = writeoffs.map((w) => w.id);
     const approvals = reqIds.length ? await tx.select().from(t.approvalRequests).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.subjectKind, "merchant_writeoff"), inArray(t.approvalRequests.subjectId, reqIds))).orderBy(desc(t.approvalRequests.version)) : [];
     const reviews = await tx.select().from(t.matchReviews).where(and(eq(t.matchReviews.orgId, ctx.orgId), eq(t.matchReviews.orderId, orderId)));
+    // rc7 phase 3b: the organisation's label, also over a label stored inside an older record's explanation
+    const label = await orgLabel(tx, ctx.orgId);
     return {
-      label: LABEL, orderId, invoice: plain(inv), decision: m.decision, decidingStep: m.decidingStep, ruleId: m.ruleId,
-      parts: { chain: m.chain, provider: m.provider, bank: m.bank, ledger: m.ledger }, explanation: m.explanation, engineVersion: m.engineVersion, inputSha256: m.inputSha256,
+      label, orderId, invoice: plain(inv), decision: m.decision, decidingStep: m.decidingStep, ruleId: m.ruleId,
+      parts: { chain: m.chain, provider: m.provider, bank: m.bank, ledger: m.ledger }, explanation: { ...(m.explanation as Record<string, unknown>), label } as typeof m.explanation, engineVersion: m.engineVersion, inputSha256: m.inputSha256,
       differences: plain(diffs), exceptions, writeoffs: plain(writeoffs),
       approvals: approvals.map((a) => ({ id: a.id, version: a.version, status: a.status, requestedBy: a.requestedBy, payloadSha256: a.payloadSha256 })), reviews,
     };
@@ -414,7 +420,7 @@ export async function exceptionsQueue(ctx: TenantContext) {
     const open = await tx.select().from(t.reconExceptions).where(and(eq(t.reconExceptions.orgId, ctx.orgId), sql`${t.reconExceptions.status} <> 'resolved'`)).orderBy(asc(t.reconExceptions.openedAt), asc(t.reconExceptions.id));
     const review = (await storedRecords(tx, ctx.orgId)).filter((r) => r.rec.decision === "suggested_for_review")
       .map((r) => ({ orderId: r.row.orderId, ruleId: r.row.ruleId, attention: (r.row.explanation as { attention?: unknown }).attention ?? null }));
-    return { label: LABEL, exceptions: open.map((e) => ({ id: e.id, orderId: e.orderId, owner: e.ownerRole, reason: e.reason, nextStep: e.nextStep, status: e.status, openedAt: e.openedAt })), needsReview: review };
+    return { label: await orgLabel(tx, ctx.orgId), exceptions: open.map((e) => ({ id: e.id, orderId: e.orderId, owner: e.ownerRole, reason: e.reason, nextStep: e.nextStep, status: e.status, openedAt: e.openedAt })), needsReview: review };
   });
 }
 
@@ -425,7 +431,7 @@ export async function batchBridge(ctx: TenantContext, batchId: string) {
     if (!b?.entityId) throw new AccessDenied(404, "Not found.");
     const bridge = reconcile(await load(tx, ctx, b.entityId)).bridges.find((x) => x.batchId === batchId);
     if (!bridge) throw new AccessDenied(404, "Not found.");
-    return { ...(plain(bridge) as Jsonified<BatchBridge>), label: LABEL, entityId: b.entityId, cutOffNote: PROVIDER_DAY_NOTE };
+    return { ...(plain(bridge) as Jsonified<BatchBridge>), label: await orgLabel(tx, ctx.orgId), entityId: b.entityId, cutOffNote: PROVIDER_DAY_NOTE };
   });
 }
 
@@ -444,7 +450,7 @@ export async function monthEnd(ctx: TenantContext, entityId: string, month: stri
     const ex = (await tx.select().from(t.reconExceptions).where(and(eq(t.reconExceptions.orgId, ctx.orgId), sql`${t.reconExceptions.status} <> 'resolved'`))).filter((e) => e.orderId && orders.has(e.orderId));
     const wos = (await tx.select().from(t.writeoffProposals).where(eq(t.writeoffProposals.orgId, ctx.orgId))).filter((w) => orders.has(w.orderId));
     return {
-      label: LABEL, entityId, month, currency: input.entity.functionalCurrency, postingRuleStatus: "pending_sign_off" as const,
+      label: await orgLabel(tx, ctx.orgId), entityId, month, currency: input.entity.functionalCurrency, postingRuleStatus: "pending_sign_off" as const,
       journals: inMonth.map((j) => ({ id: j.id, pattern: j.pattern, status: j.status, postingRuleStatus: j.postingRuleStatus, lines: j.lines, evidence: j.evidenceRefs })),
       balances: Object.fromEntries(Object.entries(balances).map(([k, v]) => [k, v.toString()])), openReceivablesMinor: openAr.toString(), openExceptions: ex.length,
       writeoffs: { pending: wos.filter((w) => w.status !== "approved" && w.status !== "rejected").length, approved: wos.filter((w) => w.status === "approved").length },
@@ -458,7 +464,7 @@ export async function providerConsole(ctx: TenantContext) {
   return tenantRead(ctx, async (tx) => {
     const r = await tx.execute(sql`select merchant_org_id, merchant_name, payments::int, auto_matched::int, exceptions_open::int, oldest_open_exception_at, last_ingestion_at, grant_scope from provider_merchant_health(${ctx.orgId}) order by merchant_name`);
     const [org] = await tx.select({ theme: t.organizations.theme, name: t.organizations.name }).from(t.organizations).where(eq(t.organizations.id, ctx.orgId));
-    return { label: LABEL, provider: org?.name ?? ctx.orgName, theme: org?.theme ?? null, merchants: r.rows };
+    return { label: await orgLabel(tx, ctx.orgId), provider: org?.name ?? ctx.orgName, theme: org?.theme ?? null, merchants: r.rows };
   });
 }
 
@@ -478,7 +484,7 @@ export async function pilotMetrics(ctx: TenantContext) {
     const minutes = await tx.select({ n: sql<number>`coalesce(sum(${t.pilotTimeLog.minutes}), 0)::int` }).from(t.pilotTimeLog).where(eq(t.pilotTimeLog.orgId, ctx.orgId));
     const pct = (a: number, b: number) => (b ? Math.round((a * 1000) / b) / 10 : null);
     return {
-      label: LABEL, payments: recs.length, autoMatchedPct: pct(auto, recs.length),
+      label: await orgLabel(tx, ctx.orgId), payments: recs.length, autoMatchedPct: pct(auto, recs.length),
       reviewedSample: reviews.length, wrongInSample: reviews.filter((r) => r.verdict === "wrong").length,
       exceptionsPer100: recs.length ? Math.round((ex.length * 1000) / recs.length) / 10 : null, medianMinutesToResolve: median(resolved),
       batches, batchesTiedToTheCent: tied, minutesLogged: minutes[0]?.n ?? 0,
@@ -503,7 +509,7 @@ async function reviewMatch(tx: Tx, ctx: TenantContext, orderId: string, v: { ver
   await tx.insert(t.matchReviews).values({ orgId: ctx.orgId, orderId, reviewerUserId: ctx.userId, verdict: v.verdict, note: v.note ?? null })
     .onConflictDoUpdate({ target: [t.matchReviews.orgId, t.matchReviews.orderId, t.matchReviews.reviewerUserId], set: { verdict: v.verdict, note: v.note ?? null, reviewedAt: new Date() } });
   await serverAudit(tx, ctx, "merchant_match_reviewed", "payment", orderId, `Match marked ${v.verdict}`, v);
-  return { label: LABEL, orderId, verdict: v.verdict };
+  return { label: await orgLabel(tx, ctx.orgId), orderId, verdict: v.verdict };
 }
 
 export async function logMinutes(ctx: TenantContext, input: { day: string; minutes: number; note?: string }, idempotencyKey?: string) {
@@ -511,7 +517,7 @@ export async function logMinutes(ctx: TenantContext, input: { day: string; minut
   const v = z.object({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), minutes: z.number().int().min(0).max(1440), note: z.string().trim().max(500).optional() }).strict().parse(input);
   const insert = async (tx: Tx) => {
     const [row] = await tx.insert(t.pilotTimeLog).values({ orgId: ctx.orgId, userId: ctx.userId, day: v.day, minutes: v.minutes, note: v.note ?? null }).returning({ id: t.pilotTimeLog.id });
-    return { label: LABEL, id: row.id };
+    return { label: await orgLabel(tx, ctx.orgId), id: row.id };
   };
   // rc6 phase 8: with an Idempotency-Key (the API always sends one) a retried request does not log the minutes twice
   if (idempotencyKey !== undefined) {
