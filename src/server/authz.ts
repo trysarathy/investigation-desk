@@ -48,7 +48,8 @@ export type Permission =
   | "review_match"         // rc6: mark a sampled match correct or wrong (pilot metric)
   | "merchant_investigate" // rc6 phase 7: assign, note, attach evidence and propose a resolution on a merchant exception
   | "merchant_upload"      // rc7: upload a file, map its columns, save a mapping template, validate
-  | "manage_retention";    // rc7: how long uploads and the data derived from them are kept — Admin only
+  | "manage_retention"     // rc7: how long uploads and the data derived from them are kept — Admin only
+  | "merchant_export";     // rc7 phase 3b: draft journal files for a sandbox ledger and the month-end pack — Finance or an Approver
 
 const MATRIX: Record<Permission, readonly AppRole[]> = {
   read: ["admin", "payment_ops", "finance", "approver", "viewer"],
@@ -69,6 +70,7 @@ const MATRIX: Record<Permission, readonly AppRole[]> = {
   merchant_investigate: ["payment_ops", "finance"],
   merchant_upload: ["finance", "payment_ops"],
   manage_retention: ["admin"],
+  merchant_export: ["finance", "approver"],
 };
 
 export const can = (role: AppRole, p: Permission): boolean => MATRIX[p].includes(role);

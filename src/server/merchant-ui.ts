@@ -175,7 +175,7 @@ export async function paymentContext(ctx: TenantContext, orderId: string) {
   });
 }
 
-async function memberNames(tx: Tx, orgId: string) {
+export async function memberNames(tx: Tx, orgId: string) {
   const ms = await tx.select({ id: t.users.id, name: t.users.name }).from(t.organizationMemberships).innerJoin(t.users, eq(t.users.id, t.organizationMemberships.userId)).where(eq(t.organizationMemberships.orgId, orgId));
   return new Map(ms.map((m) => [m.id, m.name]));
 }
@@ -447,7 +447,7 @@ const csv = (rows: unknown[][]) => rows.map((r) => r.map(csvCell).join(",")).joi
 export type PackScope = { kind: "payment"; orderId: string } | { kind: "month"; entityId: string; month: string };
 export const PackFormat = z.enum(["json", "csv", "pdf"]);
 
-async function packData(tx: Tx, ctx: TenantContext, scope: PackScope) {
+export async function packData(tx: Tx, ctx: TenantContext, scope: PackScope) {
   let orderIds: string[];
   let entityId: string;
   if (scope.kind === "payment") {
