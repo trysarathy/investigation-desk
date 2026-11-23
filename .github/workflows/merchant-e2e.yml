@@ -1,0 +1,59 @@
+name: merchant-e2e
+
+# rc7 Phase 0: the rc6 merchant reconciliation and provider console browser suite (desktop + phone) against a real
+# PostgreSQL 16, the same pattern as control-e2e. Not a required check yet (founder decision). Every credential below
+# is a CI-only, test-only string for a throwaway service container; none is a deployment secret.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: merchant-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  merchant-e2e:
+    name: merchant-e2e
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci-only-superuser-password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: ci-only-superuser-password
+      CLEARLINE_MERCHANT_E2E_OWNER_URL: postgres://clearline_owner:ci-owner-pw@127.0.0.1:5432/clearline_e2e_merchant
+      CLEARLINE_MERCHANT_E2E_RUNTIME_URL: postgres://clearline_runtime:ci-runtime-pw@127.0.0.1:5432/clearline_e2e_merchant
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.22.0"
+          cache: npm
+      - run: npm ci
+      - run: scripts/db/setup-local.sh clearline_e2e_merchant ci-owner-pw ci-runtime-pw
+      - run: npx playwright install --with-deps chromium
+      # The build must use the same pilot environment as `next start` (the deployment gate reads it).
+      - name: Build the pilot
+        run: npx next build
+        env:
+          CLEARLINE_CONTROL_PILOT: "1"
+          DATABASE_URL: postgres://clearline_runtime:ci-runtime-pw@127.0.0.1:5432/clearline_e2e_merchant
+          BETTER_AUTH_SECRET: test-only-e2e-secret-not-for-deploy-0001
+          CLEARLINE_ORIGIN: http://127.0.0.1:3207
+      - run: npx playwright test -c playwright.merchant.config.ts --retries=0 --trace off
