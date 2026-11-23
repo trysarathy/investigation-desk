@@ -12,6 +12,7 @@
     "db:migrate": "drizzle-kit migrate",
     "control:admin": "tsx --conditions=react-server scripts/control/admin.ts",
     "jobs:worker": "tsx --conditions=react-server scripts/jobs/worker.ts",
+    "bench:e2e": "tsx --conditions=react-server scripts/bench/e2e.ts",
     "typecheck": "tsc --noEmit",
     "reconstruct": "tsx scripts/reconstruct/reconstruct.ts",
     "synthetic": "tsx scripts/synthetic/generate.ts",

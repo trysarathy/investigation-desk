@@ -136,31 +136,41 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
   const diffIdOf = new Map(open.flatMap((r) => r.explanation.differences.map((d) => [`${r.orderId}|${d.id}`, contentId(d.id, { orderId: r.orderId, type: d.type, amountMinor: d.amountMinor, currency: d.currency, ruleId: d.ruleId })] as const)));
   const writeOffs = result.writeOffs.filter((w) => !isKept(w.orderId));
   const woIdOf = new Map(writeOffs.map((w) => [w.id, contentId(w.id, { orderId: w.orderId, amountMinor: w.amountMinor, direction: w.direction, currency: w.currency, differenceIds: w.differenceIds.map((id) => diffIdOf.get(`${w.orderId}|${id}`)) })]));
-  for (const r of open) {
+  // rc7 phase 3b: written in chunks (the same rows and values as one statement per row)
+  const records = open.map((r) => {
     const explanation = { ...r.explanation, differences: r.explanation.differences.map((d) => ({ ...d, persistedId: diffIdOf.get(`${r.orderId}|${d.id}`) })) };
-    const row = {
-      decision: r.explanation.decision, decidingStep: r.explanation.decidingStep, ruleId: r.explanation.ruleId,
+    return {
+      orgId: ctx.orgId, orderId: r.orderId, decision: r.explanation.decision, decidingStep: r.explanation.decidingStep, ruleId: r.explanation.ruleId,
       chain: plain(r.chain) as object, provider: plain(r.provider) as object, bank: plain(r.bank) as object, ledger: plain(r.ledger) as object,
       explanation: plain({ ...explanation, attention: r.attention ?? null, label: meta.label }) as object, engineVersion: MERCHANT_ENGINE_VERSION, inputSha256: hash, computedAt: now,
     };
-    await tx.insert(t.matchRecords).values({ orgId: ctx.orgId, orderId: r.orderId, ...row }).onConflictDoUpdate({ target: [t.matchRecords.orgId, t.matchRecords.orderId], set: row });
+  });
+  const ex = (c: string) => sql.raw(`excluded.${c}`);
+  for (let i = 0; i < records.length; i += 500) {
+    await tx.insert(t.matchRecords).values(records.slice(i, i + 500)).onConflictDoUpdate({ target: [t.matchRecords.orgId, t.matchRecords.orderId], set: {
+      decision: ex("decision"), decidingStep: ex("deciding_step"), ruleId: ex("rule_id"), chain: ex("chain"), provider: ex("provider"), bank: ex("bank"), ledger: ex("ledger"),
+      explanation: ex("explanation"), engineVersion: ex("engine_version"), inputSha256: ex("input_sha256"), computedAt: ex("computed_at"),
+    } });
   }
   const diffs = open.flatMap((r) => r.explanation.differences.map((d) => ({ orgId: ctx.orgId, id: diffIdOf.get(`${r.orderId}|${d.id}`)!, orderId: r.orderId, type: d.type, amountMinor: d.amountMinor, currency: d.currency, reason: d.reason, ruleId: d.ruleId })));
-  const newDiffs = diffs.length ? await tx.insert(t.differences).values(diffs).onConflictDoNothing().returning({ id: t.differences.id }) : [];
+  const newDiffs: { id: string }[] = [];
+  for (let i = 0; i < diffs.length; i += 1000) newDiffs.push(...await tx.insert(t.differences).values(diffs.slice(i, i + 1000)).onConflictDoNothing().returning({ id: t.differences.id }));
   const exceptions = result.exceptions.filter((e) => !isKept(e.orderId));
   const exIds = new Set(exceptions.map((e) => e.id));
-  for (const e of exceptions) {
-    await tx.insert(t.reconExceptions).values({ orgId: ctx.orgId, id: e.id, orderId: e.orderId ?? null, ownerRole: e.owner, reason: e.reason, nextStep: e.nextStep, status: "open", openedAt: now })
-      .onConflictDoUpdate({ target: [t.reconExceptions.orgId, t.reconExceptions.id], set: { ownerRole: e.owner, reason: e.reason, nextStep: e.nextStep, status: sql`case when ${t.reconExceptions.status} = 'resolved' then 'open' else ${t.reconExceptions.status} end`, closedAt: null } });
+  for (let i = 0; i < exceptions.length; i += 500) {
+    await tx.insert(t.reconExceptions).values(exceptions.slice(i, i + 500).map((e) => ({ orgId: ctx.orgId, id: e.id, orderId: e.orderId ?? null, ownerRole: e.owner, reason: e.reason, nextStep: e.nextStep, status: "open", openedAt: now })))
+      .onConflictDoUpdate({ target: [t.reconExceptions.orgId, t.reconExceptions.id], set: { ownerRole: ex("owner_role"), reason: ex("reason"), nextStep: ex("next_step"), status: sql`case when ${t.reconExceptions.status} = 'resolved' then 'open' else ${t.reconExceptions.status} end`, closedAt: null } });
   }
   const openIds = orderIds.filter((o) => !isKept(o));
   const stale = openIds.length ? (await tx.select({ id: t.reconExceptions.id }).from(t.reconExceptions)
     .where(and(eq(t.reconExceptions.orgId, ctx.orgId), inArray(t.reconExceptions.orderId, openIds), sql`${t.reconExceptions.status} <> 'resolved'`))).filter((x) => !exIds.has(x.id)) : [];
-  for (const x of stale) await tx.update(t.reconExceptions).set({ status: "resolved", closedAt: now }).where(and(eq(t.reconExceptions.orgId, ctx.orgId), eq(t.reconExceptions.id, x.id)));
-  const newWo = writeOffs.length ? await tx.insert(t.writeoffProposals).values(writeOffs.map((w) => ({
+  for (let i = 0; i < stale.length; i += 1000) await tx.update(t.reconExceptions).set({ status: "resolved", closedAt: now }).where(and(eq(t.reconExceptions.orgId, ctx.orgId), inArray(t.reconExceptions.id, stale.slice(i, i + 1000).map((x) => x.id))));
+  const woRows = writeOffs.map((w) => ({
     orgId: ctx.orgId, id: woIdOf.get(w.id)!, orderId: w.orderId, amountMinor: w.amountMinor, currency: w.currency,
     differenceIds: w.differenceIds.map((id) => diffIdOf.get(`${w.orderId}|${id}`)!), status: "proposed",
-  }))).onConflictDoNothing().returning({ id: t.writeoffProposals.id }) : [];
+  }));
+  const newWo: { id: string }[] = [];
+  for (let i = 0; i < woRows.length; i += 1000) newWo.push(...await tx.insert(t.writeoffProposals).values(woRows.slice(i, i + 1000)).onConflictDoNothing().returning({ id: t.writeoffProposals.id }));
   // a write-off the engine no longer proposes (the payment changed) is superseded, with any pending request for it
   const currentWo = new Set(woIdOf.values());
   const oldWo = openIds.length ? (await tx.select().from(t.writeoffProposals).where(and(eq(t.writeoffProposals.orgId, ctx.orgId), inArray(t.writeoffProposals.orderId, openIds),
@@ -172,13 +182,15 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
   // a journal about closed payments only is left as it was (it may wait for an approved write-off)
   const keptJournal = (orderIdsOf: string[]) => orderIdsOf.length > 0 && orderIdsOf.every((o) => isKept(o));
   const writtenJournals = journals.filter((j) => !keptJournal(j.evidence.orderIds));
-  for (const j of writtenJournals) {
+  const journalRows = writtenJournals.map((j) => {
     // Document A "(on approval)" lines name the approval they wait for; write-off ids map to their stored ids.
     const lines = j.lines.map((l) => (l.onApproval ? { ...l, onApproval: woIdOf.get(l.onApproval) ?? l.onApproval } : l));
-    const row = { entityId, pattern: j.kind, lines: plain(lines) as object, currency: j.currency,
+    return { orgId: ctx.orgId, id: j.id, entityId, pattern: j.kind, lines: plain(lines) as object, currency: j.currency, status: "proposed", postingRuleStatus: "pending_sign_off",
       evidenceRefs: plain({ ...j.evidence, ruleId: j.ruleId, entryDate: j.entryDate, memo: j.memo, requiresApprovalOf: j.requiresApprovalOf ? woIdOf.get(j.requiresApprovalOf) ?? j.requiresApprovalOf : null, label: meta.label }) as object };
-    await tx.insert(t.merchantJournalProposals).values({ orgId: ctx.orgId, id: j.id, ...row, status: "proposed", postingRuleStatus: "pending_sign_off" })
-      .onConflictDoUpdate({ target: [t.merchantJournalProposals.orgId, t.merchantJournalProposals.id], set: row, setWhere: sql`${t.merchantJournalProposals.status} = 'proposed'` });
+  });
+  for (let i = 0; i < journalRows.length; i += 500) {
+    await tx.insert(t.merchantJournalProposals).values(journalRows.slice(i, i + 500)).onConflictDoUpdate({ target: [t.merchantJournalProposals.orgId, t.merchantJournalProposals.id],
+      set: { entityId: ex("entity_id"), pattern: ex("pattern"), lines: ex("lines"), currency: ex("currency"), evidenceRefs: ex("evidence_refs") }, setWhere: sql`${t.merchantJournalProposals.status} = 'proposed'` });
   }
   const keep = journals.map((j) => j.id);
   const keptOrders = [...stored.keys()];
