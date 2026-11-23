@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { MERCHANT_ACCOUNTS } from "@/lib/clearline/merchant";
 import { dataAsOf, monthEndView } from "@/server/merchant-ui";
+import { can } from "@/server/authz";
 import { merchantMember } from "@/server/merchant-page";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
@@ -73,6 +74,20 @@ export default async function MonthEndPage({ searchParams }: { searchParams: Pro
             </table>
           </div>
         ) : <p>No journal proposals for this month.</p>}
+      </section>
+
+      <section className={s.section} aria-labelledby="exports">
+        <h2 className={s.h2} id="exports">Exports</h2>
+        {can(ctx.role, "merchant_export") ? (
+          <>
+            <p className={s.small}>Files only: nothing is posted to any ledger. Journal drafts are for a Xero demo company or a QuickBooks sandbox, for an accountant to review; posting rules are pending sign-off.</p>
+            <ul className={s.small}>
+              <li><a data-testid="month-end-pack" href={`/api/control/merchant/exports/month-end?entity=${encodeURIComponent(entity.id)}&month=${month}`}>Download the month-end pack (ZIP)</a>: bridges, open exceptions with owner, reason and next step, journal proposals, provenance of every file used, rule-set version.</li>
+              <li><a href={`/api/control/merchant/exports/journal-draft?entity=${encodeURIComponent(entity.id)}&month=${month}&tool=xero`}>Xero manual journal draft (CSV)</a></li>
+              <li><a href={`/api/control/merchant/exports/journal-draft?entity=${encodeURIComponent(entity.id)}&month=${month}&tool=quickbooks`}>QuickBooks journal draft (CSV)</a></li>
+            </ul>
+          </>
+        ) : <p className={s.small}>Exports are made by Finance or an Approver.</p>}
       </section>
     </>
   );

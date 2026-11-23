@@ -2,7 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
-import { MERCHANT_ACCOUNTS, TEST_MODE_LABEL, fmtFiat, localDate, reconcile, type FiatCurrency } from "@/lib/clearline/merchant";
+import { MERCHANT_ACCOUNTS, fmtFiat, localDate, reconcile, type FiatCurrency } from "@/lib/clearline/merchant";
 import { safeTheme, type SafeTheme } from "@/lib/clearline/merchant/theme";
 import type { Tx } from "./db/client";
 import * as t from "./db/schema";
@@ -11,7 +11,7 @@ import { Decision, IdempotencyKey, canonical, idempotent, serverAudit } from "./
 import { decideWriteoff, monthEnd } from "./merchant";
 import { MissingEntity, loadReconcileInput } from "./merchant-store";
 import { dataModeOf } from "./mapping-templates";
-import type { DataLabel, DataMode } from "@/lib/clearline/data-mode";
+import { LIVE_DATA_LABEL, type DataLabel, type DataMode } from "@/lib/clearline/data-mode";
 import { AccessDenied, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
 
@@ -22,7 +22,8 @@ import { RequestRefused } from "./errors";
  * Read-only domain: nothing here holds, sends, converts or settles money or tokens. Test mode · illustrative data.
  */
 
-export const LABEL = TEST_MODE_LABEL;
+/** rc7 phase 3b: every response and export carries the organisation's data label (dataLabel), never a fixed one. */
+export const orgLabel = async (tx: Tx, orgId: string): Promise<DataLabel> => (await dataModeOf(tx, orgId)).label;
 const sha256 = (s: string | Uint8Array) => createHash("sha256").update(s).digest("hex");
 function require(ctx: TenantContext, p: Permission) {
   if (!can(ctx.role, p)) throw new AccessDenied(403, `Your role (${ctx.role}) does not allow this.`);
@@ -109,8 +110,9 @@ export async function listBatches(ctx: TenantContext) {
     const ids = [...new Set(bs.map((b) => b.entityId).filter((x): x is string => !!x))];
     const bridges = new Map<string, { tied: boolean; settlementVerified: boolean; bankLineId: string | null }>();
     for (const id of ids) for (const b of reconcile(await load(tx, ctx, id)).bridges) bridges.set(b.batchId, { tied: b.tied, settlementVerified: b.settlementVerified, bankLineId: b.bankLineId });
+    const label = await orgLabel(tx, ctx.orgId);
     return bs.map((b) => ({
-      label: LABEL, batchId: b.batchId, entityId: b.entityId, providerDay: b.dayStart.toISOString().slice(0, 10), currency: b.currency,
+      label, batchId: b.batchId, entityId: b.entityId, providerDay: b.dayStart.toISOString().slice(0, 10), currency: b.currency,
       grossMinor: b.grossMinor.toString(), feesMinor: b.feesMinor.toString(), refundsMinor: b.refundsMinor.toString(), netMinor: b.netMinor.toString(),
       tied: bridges.get(b.batchId)?.tied ?? false, settlementVerified: bridges.get(b.batchId)?.settlementVerified ?? false, bankLineId: bridges.get(b.batchId)?.bankLineId ?? null,
     }));
@@ -145,9 +147,10 @@ export async function paymentContext(ctx: TenantContext, orderId: string) {
     const names = await memberNames(tx, ctx.orgId);
     const who = (id: string | null) => (id ? names.get(id) ?? "A former member" : "Clearline");
     const tl: TimelineEntry[] = [];
+    const label = await orgLabel(tx, ctx.orgId);
     for (const x of p.chain.transfers) {
       const row = chainRows.find((c) => c.txHash === x.txHash && c.logIndex === x.logIndex);
-      tl.push({ at: x.timestamp, kind: "chain", title: `On-chain transfer on ${x.network}`, detail: `${x.txHash} · ${x.confirmations} confirmations${row ? (row.finalised ? " · final" : " · not final") : ""} · recorded fixture`, independent: true });
+      tl.push({ at: x.timestamp, kind: "chain", title: `On-chain transfer on ${x.network}`, detail: `${x.txHash} · ${x.confirmations} confirmations${row ? (row.finalised ? " · final" : " · not final") : ""}${label === LIVE_DATA_LABEL ? ` · ${row?.source ?? "chain data"}` : " · recorded fixture"}`, independent: true });
     }
     for (const r of p.provider.records) tl.push({ at: m.computedAt.toISOString(), kind: "provider", title: `Provider record ${r.providerPaymentId}`, detail: `Provider claims "${r.statusClaim}"${r.displayedStatus ? ` (shown as "${r.displayedStatus}")` : ""}; credited ${money(r.creditedMinor, inv.currency)}. A claim, not proof.`, independent: false });
     for (const b of batches) tl.push({ at: b.dayEnd.toISOString(), kind: "settlement", title: `Settlement batch ${b.batchId}`, detail: `Provider day ${b.dayStart.toISOString().slice(0, 10)} (provider day = UTC); net ${money(b.netMinor, b.currency)}. Provider report, not proof.`, independent: false });
@@ -162,7 +165,7 @@ export async function paymentContext(ctx: TenantContext, orderId: string) {
     for (const d of decisions) tl.push({ at: d.createdAt.toISOString(), kind: "decision", title: `${d.decision === "approve" ? "Approved" : "Rejected"} by a second person`, detail: `${who(d.decidedBy)}: ${d.reason}`, independent: false });
     tl.sort((a, b) => a.at.localeCompare(b.at));
     return {
-      label: LABEL, issuedAt: inv.issuedAt.toISOString(), entityId: inv.entityId, timeline: tl,
+      label, issuedAt: inv.issuedAt.toISOString(), entityId: inv.entityId, timeline: tl,
       chainRows: chainRows.map((c) => ({ txHash: c.txHash, logIndex: c.logIndex, network: c.network, block: c.block, confirmations: c.confirmations, finalised: c.finalised, source: c.source })),
       batches: batches.map((b) => ({ batchId: b.batchId, providerDay: b.dayStart.toISOString().slice(0, 10), netMinor: b.netMinor.toString(), currency: b.currency })),
       bankLines: banks.map((l) => ({ lineId: l.lineId, valueDate: l.valueDate, amountMinor: l.amountMinor.toString(), currency: l.currency, source: l.source, provenance: l.provenance })),
@@ -172,7 +175,7 @@ export async function paymentContext(ctx: TenantContext, orderId: string) {
   });
 }
 
-async function memberNames(tx: Tx, orgId: string) {
+export async function memberNames(tx: Tx, orgId: string) {
   const ms = await tx.select({ id: t.users.id, name: t.users.name }).from(t.organizationMemberships).innerJoin(t.users, eq(t.users.id, t.organizationMemberships.userId)).where(eq(t.organizationMemberships.orgId, orgId));
   return new Map(ms.map((m) => [m.id, m.name]));
 }
@@ -192,7 +195,7 @@ export async function exceptionsView(ctx: TenantContext) {
     const names = await memberNames(tx, ctx.orgId);
     const recs = await tx.select({ orderId: t.matchRecords.orderId, decision: t.matchRecords.decision, ruleId: t.matchRecords.ruleId, explanation: t.matchRecords.explanation }).from(t.matchRecords).where(and(eq(t.matchRecords.orgId, ctx.orgId), eq(t.matchRecords.decision, "suggested_for_review"))).orderBy(asc(t.matchRecords.orderId));
     return {
-      label: LABEL,
+      label: await orgLabel(tx, ctx.orgId),
       exceptions: ex.map((e) => ({
         id: e.id, orderId: e.orderId, entityId: inv.find((i) => i.orderId === e.orderId)?.entityId ?? null, ownerRole: e.ownerRole,
         ownerName: e.ownerUserId ? names.get(e.ownerUserId) ?? "A former member" : null, reason: e.reason, nextStep: e.nextStep, status: e.status, openedAt: e.openedAt.toISOString(),
@@ -218,7 +221,7 @@ export async function exceptionDetail(ctx: TenantContext, exceptionId: string) {
     const names = new Map(members.map((x) => [x.userId, x.name]));
     const who = (id: string | null) => (id ? names.get(id) ?? "A former member" : null);
     return {
-      label: LABEL, exception: { id: e.id, orderId: e.orderId, ownerRole: e.ownerRole, ownerUserId: e.ownerUserId, ownerName: who(e.ownerUserId), reason: e.reason, nextStep: e.nextStep, status: e.status, openedAt: e.openedAt.toISOString(), closedAt: e.closedAt?.toISOString() ?? null },
+      label: await orgLabel(tx, ctx.orgId), exception: { id: e.id, orderId: e.orderId, ownerRole: e.ownerRole, ownerUserId: e.ownerUserId, ownerName: who(e.ownerUserId), reason: e.reason, nextStep: e.nextStep, status: e.status, openedAt: e.openedAt.toISOString(), closedAt: e.closedAt?.toISOString() ?? null },
       match: m ? { decision: m.decision, decidingStep: m.decidingStep, ruleId: m.ruleId, differences: (m.explanation as StoredExplanation).differences, ledger: m.ledger as StoredLedger } : null,
       notes: notes.map((n) => ({ id: n.id, kind: n.kind, body: n.body, reference: n.reference, author: who(n.authorUserId), createdAt: n.createdAt.toISOString() })),
       requests: reqs.map((r) => ({
@@ -255,7 +258,7 @@ export async function assignException(ctx: TenantContext, exceptionId: string, i
     }
     await tx.update(t.reconExceptions).set({ ownerUserId: a.ownerUserId }).where(and(eq(t.reconExceptions.orgId, ctx.orgId), eq(t.reconExceptions.id, exceptionId)));
     await serverAudit(tx, ctx, "merchant_exception_assigned", "exception", exceptionId, a.ownerUserId ? `Assigned to ${name}` : "Unassigned", a);
-    return { status: 200, body: { label: LABEL, exceptionId, ownerUserId: a.ownerUserId, ownerName: name } };
+    return { status: 200, body: { label: await orgLabel(tx, ctx.orgId), exceptionId, ownerUserId: a.ownerUserId, ownerName: name } };
   }));
 }
 
@@ -275,7 +278,7 @@ export async function addExceptionNote(ctx: TenantContext, exceptionId: string, 
     const [row] = await tx.insert(t.reconExceptionNotes).values({ orgId: ctx.orgId, exceptionId, kind: n.kind, body: n.body, reference: n.reference ?? null, authorUserId: ctx.userId }).returning({ id: t.reconExceptionNotes.id });
     await serverAudit(tx, ctx, n.kind === "evidence" ? "merchant_exception_evidence_attached" : "merchant_exception_noted", "exception", exceptionId,
       n.kind === "evidence" ? `Evidence attached by a person (not independent): ${n.body.slice(0, 120)}` : `Note: ${n.body.slice(0, 120)}`, { id: row.id, reference: n.reference ?? null });
-    return { status: 201, body: { label: LABEL, exceptionId, id: row.id, kind: n.kind } };
+    return { status: 201, body: { label: await orgLabel(tx, ctx.orgId), exceptionId, id: row.id, kind: n.kind } };
   }));
 }
 
@@ -298,7 +301,7 @@ async function resolutionBinding(tx: Tx, ctx: TenantContext, e: typeof t.reconEx
   if (missing.length) throw new RequestRefused(422, "EVIDENCE_NOT_FOR_TARGET", `Evidence is not attached to ${e.id}: ${missing.join(", ")}`);
   const [m] = e.orderId ? await tx.select().from(t.matchRecords).where(and(eq(t.matchRecords.orgId, ctx.orgId), eq(t.matchRecords.orderId, e.orderId))) : [];
   return {
-    label: LABEL, exceptionId: e.id,
+    label: await orgLabel(tx, ctx.orgId), exceptionId: e.id,
     exception: { id: e.id, orderId: e.orderId, ownerRole: e.ownerRole, reason: e.reason, nextStep: e.nextStep },
     match: m ? { decision: m.decision, ruleId: m.ruleId, inputSha256: m.inputSha256, engineVersion: m.engineVersion } : null,
     note,
@@ -322,7 +325,7 @@ export async function requestMerchantResolution(ctx: TenantContext, input: z.inp
     const [req] = await tx.insert(t.approvalRequests).values({ orgId: ctx.orgId, subjectKind: "merchant_resolution", subjectId: e.id, version, payload, payloadSha256, requestedBy: ctx.userId }).returning();
     await tx.update(t.reconExceptions).set({ status: "in_review" }).where(and(eq(t.reconExceptions.orgId, ctx.orgId), eq(t.reconExceptions.id, e.id)));
     await serverAudit(tx, ctx, "merchant_resolution_requested", "exception", e.id, `Resolution v${version} for ${e.id} submitted for a second person's approval (sha256 ${payloadSha256.slice(0, 12)}…)`, { requestId: req.id, evidenceIds: binding.evidence.map((x) => x.id) });
-    return { status: 201, body: { label: LABEL, requestId: req.id, exceptionId: e.id, version, payloadSha256, payload } };
+    return { status: 201, body: { label: await orgLabel(tx, ctx.orgId), requestId: req.id, exceptionId: e.id, version, payloadSha256, payload } };
   }));
 }
 
@@ -352,7 +355,7 @@ export async function decideMerchantResolution(ctx: TenantContext, requestId: st
     }
     await serverAudit(tx, ctx, d.decision === "approve" ? "merchant_resolution_approved" : "merchant_resolution_rejected", "exception", e.id,
       `${d.decision === "approve" ? "Approved" : "Rejected"} resolution v${req.version} of ${e.id} by a second person: ${d.reason}`, { requestId, payloadSha256: d.payloadSha256 });
-    return { status: 200, body: { label: LABEL, requestId, exceptionId: e.id, status } };
+    return { status: 200, body: { label: await orgLabel(tx, ctx.orgId), requestId, exceptionId: e.id, status } };
   }));
 }
 
@@ -375,7 +378,7 @@ export async function listMerchantApprovals(ctx: TenantContext) {
     const names = await memberNames(tx, ctx.orgId);
     const who = (id: string | null) => (id ? names.get(id) ?? "A former member" : "—");
     return {
-      label: LABEL,
+      label: await orgLabel(tx, ctx.orgId),
       requests: reqs.map((r) => {
         const pl = r.payload as { orderId?: string; exception?: { orderId: string | null }; amountMinor?: string; currency?: string };
         return {
@@ -444,7 +447,7 @@ const csv = (rows: unknown[][]) => rows.map((r) => r.map(csvCell).join(",")).joi
 export type PackScope = { kind: "payment"; orderId: string } | { kind: "month"; entityId: string; month: string };
 export const PackFormat = z.enum(["json", "csv", "pdf"]);
 
-async function packData(tx: Tx, ctx: TenantContext, scope: PackScope) {
+export async function packData(tx: Tx, ctx: TenantContext, scope: PackScope) {
   let orderIds: string[];
   let entityId: string;
   if (scope.kind === "payment") {
@@ -482,9 +485,12 @@ async function packData(tx: Tx, ctx: TenantContext, scope: PackScope) {
   const audit = await tx.select().from(t.auditEvents).where(and(eq(t.auditEvents.orgId, ctx.orgId), inArray(t.auditEvents.entityId, [...orderIds, ...subjects, ...reqs.map((r) => r.id), entityId, ...bIds]))).orderBy(asc(t.auditEvents.seq)).limit(2000);
   const names = await memberNames(tx, ctx.orgId);
   const who = (id: string | null) => (id ? names.get(id) ?? "A former member" : "Clearline");
+  const label = await orgLabel(tx, ctx.orgId);
   return {
-    label: LABEL, organisation: ctx.orgName, entity: { id: ent.id, name: ent.name, currency: ent.functionalCurrency, timezone: ent.timezone, ledger: ent.ledger },
-    scope, cutOffNote: "provider day = UTC", note: "Read-only evidence. Provider statuses are claims, not proof; chain data is a recorded fixture; nothing moves money.",
+    label, organisation: ctx.orgName, entity: { id: ent.id, name: ent.name, currency: ent.functionalCurrency, timezone: ent.timezone, ledger: ent.ledger },
+    scope, cutOffNote: "provider day = UTC",
+    note: label === LIVE_DATA_LABEL ? "Read-only evidence. Provider statuses are claims, not proof; each chain fact names its source; imported bank statements are not bank-authenticated; nothing moves money."
+      : "Read-only evidence. Provider statuses are claims, not proof; chain data is a recorded fixture; nothing moves money.",
     payments: parts.map(({ m, p }) => ({ orderId: m.orderId, decision: m.decision, decidingStep: m.decidingStep, ruleId: m.ruleId, engineVersion: m.engineVersion, inputSha256: m.inputSha256, ledger: p.ledger, bank: p.bank, explanation: { history: p.explanation.history, differences: p.explanation.differences } })),
     chainProof: chain.map((c) => ({ network: c.network, txHash: c.txHash, logIndex: c.logIndex, block: c.block, blockTime: c.blockTime.toISOString(), tokenContract: c.tokenContract, from: c.fromAddress, to: c.toAddress, amountBaseUnits: c.amountBaseUnits, decimals: c.decimals, confirmations: c.confirmations, finalised: c.finalised, source: c.source })),
     providerRecords: provider.map((r) => ({ providerPaymentId: r.providerPaymentId, statusClaim: r.statusClaim, creditedMinor: r.creditedMinor?.toString() ?? null, currency: r.creditedCurrency, executedRate: r.executedRate, feeMinor: r.feeMinor?.toString() ?? null, batchId: r.batchId, note: "a claim, not proof", record: r.record })),
@@ -504,7 +510,7 @@ type Pack = Awaited<ReturnType<typeof packData>>;
 
 function packCsv(p: Pack): string {
   const rows: unknown[][] = [["section", "id", "order_id", "field_1", "field_2", "field_3", "field_4", "detail", "marking"]];
-  const M = LABEL;
+  const M = p.label;
   rows.push(["meta", p.scope.kind === "payment" ? p.scope.orderId : `${p.entity.id} ${p.scope.month}`, "", p.organisation, p.entity.name, p.entity.currency, p.cutOffNote, p.note, M]);
   for (const x of p.payments) rows.push(["payment", x.orderId, x.orderId, x.decision, `step ${x.decidingStep}`, x.ruleId, x.ledger.balanceLabel, `input sha256 ${x.inputSha256}; engine ${x.engineVersion}`, M]);
   for (const c of p.chainProof) rows.push(["chain_proof", c.txHash, "", c.network, `block ${c.block}`, `${c.amountBaseUnits} base units (${c.decimals} dp)`, `${c.confirmations} confirmations${c.finalised ? " final" : " not final"}`, `to ${c.to}; contract ${c.tokenContract}; ${c.source}`, M]);
@@ -534,9 +540,10 @@ function winAnsi(s: string): string {
 async function packPdf(p: Pack): Promise<Uint8Array> {
   const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
   const doc = await PDFDocument.create();
+  const LABEL = p.label;
   doc.setTitle(`Clearline evidence pack — ${LABEL}`);
   doc.setSubject(LABEL);
-  doc.setProducer("Clearline (test mode)");
+  doc.setProducer(LABEL === LIVE_DATA_LABEL ? "Clearline" : "Clearline (test mode)");
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const W = 595, H = 842, M = 48;
@@ -566,7 +573,7 @@ async function packPdf(p: Pack): Promise<Uint8Array> {
   const head = (s: string) => { y -= 4; line(s, { b: true, size: 11, gap: 2 }); };
   head(`Payments (${p.payments.length})`);
   for (const x of p.payments) line(`${x.orderId}: ${x.decision} at step ${x.decidingStep} (rule ${x.ruleId}); invoice ${money(x.ledger.invoice.amountMinor, x.ledger.invoice.currency)}, credited ${money(x.ledger.creditedMinor, x.ledger.invoice.currency)}, ${x.ledger.balanceLabel}; bank ${x.bank.status}${x.bank.batchTied ? ", batch tied" : ""}.`);
-  head(`Chain proof (${p.chainProof.length}) — recorded fixture`);
+  head(`Chain proof (${p.chainProof.length})${LABEL === LIVE_DATA_LABEL ? "" : " — recorded fixture"}`);
   for (const c of p.chainProof.slice(0, 60)) line(`${c.network} ${c.txHash} log ${c.logIndex}, block ${c.block}, ${c.blockTime}, ${c.confirmations} confirmations${c.finalised ? " (final)" : " (not final)"}, to ${c.to}`);
   if (p.chainProof.length > 60) line(`… ${p.chainProof.length - 60} more in the CSV and JSON files.`);
   head(`Provider records (${p.providerRecords.length}) — claims, not proof`);
@@ -615,7 +622,7 @@ export async function journalExport(ctx: TenantContext, entityId: string, month:
     type L = { side: string; account: keyof typeof MERCHANT_ACCOUNTS; amountMinor: string; orderId?: string; batchId?: string };
     type Ev = { entryDate: string | null; memo: string; ruleId: string; requiresApprovalOf: string | null; orderIds?: string[]; txHashes?: string[]; batchId?: string; bankLineId?: string };
     const doc = {
-      label: LABEL, marking: SANDBOX_EXPORT_LABEL, target: ent.ledger === "quickbooks" ? "QuickBooks journal import layout (sandbox file; no connection)" : ent.ledger === "xero" ? "Xero manual journal import layout (sandbox file; no connection)" : "Generic journal layout (sandbox file)",
+      label: await orgLabel(tx, ctx.orgId), marking: SANDBOX_EXPORT_LABEL, target: ent.ledger === "quickbooks" ? "QuickBooks journal import layout (sandbox file; no connection)" : ent.ledger === "xero" ? "Xero manual journal import layout (sandbox file; no connection)" : "Generic journal layout (sandbox file)",
       organisation: ctx.orgName, entity: { id: ent.id, name: ent.name, currency: ent.functionalCurrency }, month, postingRuleStatus: "pending_sign_off",
       entries: journals.map((j) => {
         const ev = j.evidence as Ev;
@@ -628,7 +635,7 @@ export async function journalExport(ctx: TenantContext, entityId: string, month:
       ["journal_id", "entry_date", "account_code", "account_name", "debit", "credit", "currency", "memo", "pattern", "rule_id", "requires_approval_of", "evidence", "posting_rule_status", "marking"],
       ...doc.entries.flatMap((e) => e.lines.map((l) => {
         const amt = money(l.amountMinor, ent.functionalCurrency).split(" ")[1];
-        return [`SANDBOX-${e.id}`, e.entryDate, l.accountCode, l.accountName, l.side === "debit" ? amt : "", l.side === "credit" ? amt : "", ent.functionalCurrency, e.memo, e.pattern, e.ruleId, e.requiresApprovalOf, [...e.evidence.orderIds, ...e.evidence.txHashes, e.evidence.batchId, e.evidence.bankLineId].filter(Boolean).join(" "), "pending_sign_off", `${LABEL}; ${SANDBOX_EXPORT_LABEL}`];
+        return [`SANDBOX-${e.id}`, e.entryDate, l.accountCode, l.accountName, l.side === "debit" ? amt : "", l.side === "credit" ? amt : "", ent.functionalCurrency, e.memo, e.pattern, e.ruleId, e.requiresApprovalOf, [...e.evidence.orderIds, ...e.evidence.txHashes, e.evidence.batchId, e.evidence.bankLineId].filter(Boolean).join(" "), "pending_sign_off", `${doc.label}; ${SANDBOX_EXPORT_LABEL}`];
       })),
     ]);
     const digest = sha256(body);

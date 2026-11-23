@@ -349,3 +349,34 @@ export function MinutesForm({ today }: { today: string }) {
     </form>
   );
 }
+
+/** rc7 phase 3b: mark the listed notifications read for the signed-in member. */
+export function MarkNotificationsRead({ ids }: { ids: string[] }) {
+  const x = useMutation("notifications:read");
+  return (
+    <form autoComplete="off" onSubmit={(ev) => { ev.preventDefault(); void x.run("POST", `${API}/notifications/read`, { ids }, (d) => `Marked ${String(d?.marked ?? 0)} notification(s) read.`); }}>
+      <Submit busy={x.busy} variant="secondary">Mark all as read</Submit>
+      <Result outcome={x.outcome} />
+    </form>
+  );
+}
+
+/** rc7 phase 3b: an Approver acknowledges a rule-change notice (the payment stays as a person closed it). */
+export function AcknowledgeNotice({ noticeId, orderId }: { noticeId: string; orderId: string }) {
+  const x = useMutation(`ack:${noticeId}`);
+  const id = useId();
+  return (
+    <form className={s.form} autoComplete="off" onSubmit={(ev) => {
+      ev.preventDefault();
+      const note = String(new FormData(ev.currentTarget).get("note") ?? "").trim();
+      void x.run("POST", `${API}/notifications/notices/${encodeURIComponent(noticeId)}/acknowledge`, note ? { note } : {}, () => `Acknowledged: ${orderId} stays as a person closed it.`);
+    }}>
+      <div className={s.field}>
+        <label className={s.label} htmlFor={id}>Note for the rule change on {orderId} (optional)</label>
+        <input className={s.input} id={id} name="note" maxLength={1000} />
+      </div>
+      <div><Submit busy={x.busy} variant="secondary">Acknowledge the rule change on {orderId}</Submit></div>
+      <Result outcome={x.outcome} />
+    </form>
+  );
+}

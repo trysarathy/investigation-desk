@@ -1,11 +1,12 @@
 import { z } from "zod";
+import { FILE_TYPES } from "@/lib/clearline/mapping";
 import { createUpload, listUploads } from "@/server/uploads";
 import { mutateUpload, read } from "@/server/control-http";
 import { json } from "@/server/http";
 
 export const dynamic = "force-dynamic";
 
-const Fields = z.object({ entityId: z.string().min(1).max(64), fileType: z.enum(["provider_export", "settlement_report", "orders_invoices", "bank_statement"]) });
+const Fields = z.object({ entityId: z.string().min(1).max(64), fileType: z.enum(FILE_TYPES) });
 
 /** The merchant's uploads (status and counts; no file contents). */
 export const GET = (req: Request) => read(req, async (ctx) => json(200, await listUploads(ctx)));

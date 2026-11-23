@@ -9,7 +9,7 @@ import { organizations, users } from "./schema";
 import { merchantEntities } from "./merchant-schema";
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
-const FILE_TYPES_SQL = sql.raw(`('provider_export','settlement_report','orders_invoices','bank_statement')`);
+const FILE_TYPES_SQL = sql.raw(`('provider_export','settlement_report','orders_invoices','bank_statement','ledger_invoices')`);
 
 export const mappingTemplates = pgTable("mapping_templates", {
   orgId: uuid("org_id").notNull().references(() => organizations.id),
@@ -143,5 +143,5 @@ export const uploadRowTargets = pgTable("upload_row_targets", {
   primaryKey({ columns: [t.orgId, t.uploadId, t.rowNumber, t.targetTable, t.targetKey] }),
   foreignKey({ columns: [t.orgId, t.uploadId, t.rowNumber], foreignColumns: [uploadRows.orgId, uploadRows.uploadId, uploadRows.rowNumber], name: "upload_row_targets_row_fk" }),
   index("upload_row_targets_target_idx").on(t.orgId, t.targetTable, t.targetKey),
-  check("upload_row_targets_table_chk", sql`${t.targetTable} in ('invoices','merchant_quotes','payment_links','provider_payment_records','chain_transfers','settlement_batches','settlement_batch_lines','bank_lines')`),
+  check("upload_row_targets_table_chk", sql`${t.targetTable} in ('invoices','merchant_quotes','payment_links','provider_payment_records','chain_transfers','settlement_batches','settlement_batch_lines','bank_lines','ledger_invoices')`),
 ]);
