@@ -101,7 +101,9 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
   }));
   const bk = await tx.select().from(t.bankLines).where(and(eq(t.bankLines.orgId, orgId), eq(t.bankLines.entityId, entityId))).orderBy(asc(t.bankLines.lineId));
   // [ASSUMPTION] a seeded fictional feed line ('seed_fictional') counts as a bank feed in test mode; csv_import never does.
-  const bankLines: BankLine[] = bk.map((b) => ({ bankLineId: b.lineId, account: b.account, currency: b.currency as FiatCurrency, valueDate: b.valueDate, amountMinor: b.amountMinor, description: b.description, source: b.source === "csv_import" ? "csv_import" : "bank_feed", provenance: b.provenance ?? b.source }));
+  // rc7: an uploaded statement line ('file_import') is imported, not bank-authenticated, exactly like csv_import.
+  const imported = (s: string) => s === "csv_import" || s === "file_import";
+  const bankLines: BankLine[] = bk.map((b) => ({ bankLineId: b.lineId, account: b.account, currency: b.currency as FiatCurrency, valueDate: b.valueDate, amountMinor: b.amountMinor, description: b.description, source: imported(b.source) ? "csv_import" : "bank_feed", provenance: b.provenance ?? b.source }));
   const fx = await tx.select().from(t.fxRates).where(and(eq(t.fxRates.orgId, orgId), eq(t.fxRates.entityId, entityId))).orderBy(asc(t.fxRates.pair), asc(t.fxRates.source), asc(t.fxRates.observedAt));
   const af = await tx.select().from(t.addressFacts).where(eq(t.addressFacts.orgId, orgId)).orderBy(asc(t.addressFacts.network), asc(t.addressFacts.address), asc(t.addressFacts.fact));
   return {

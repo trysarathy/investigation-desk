@@ -74,6 +74,9 @@ export const uploads = pgTable("uploads", {
   confirmedBy: text("confirmed_by").references(() => users.id),
   confirmedAt: ts("confirmed_at"),
   decisionReason: text("decision_reason"),
+  /** Rows created, existing, conflicting and skipped per target table, set once when the upload is normalised. */
+  normalisedCounts: jsonb("normalised_counts"),
+  normalisedAt: ts("normalised_at"),
   deleteAfter: ts("delete_after").notNull(),
   deletedAt: ts("deleted_at"),
   createdAt: ts("created_at").notNull().defaultNow(),
@@ -107,11 +110,14 @@ export const uploadRows = pgTable("upload_rows", {
   reasonCodes: jsonb("reason_codes").notNull().default([]),
   rowHash: text("row_hash"),
   targetRef: text("target_ref"),
+  /** rc7 normalise: created (a new row), existing (an identical row was already there), conflict, or skipped. */
+  normaliseOutcome: text("normalise_outcome"),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.uploadId, t.rowNumber] }),
   foreignKey({ columns: [t.orgId, t.uploadId], foreignColumns: [uploads.orgId, uploads.id], name: "upload_rows_upload_fk" }),
   index("upload_rows_hash_idx").on(t.orgId, t.rowHash),
   check("upload_rows_status_chk", sql`${t.status} in ${inList(UPLOAD_ROW_STATUSES)}`),
+  check("upload_rows_outcome_chk", sql`${t.normaliseOutcome} is null or ${t.normaliseOutcome} in ('created','existing','conflict','skipped')`),
   check("upload_rows_hash_chk", sql`${t.rowHash} is null or ${t.rowHash} ~ '^[0-9a-f]{64}$'`),
 ]);
 
@@ -122,3 +128,20 @@ export const merchantDataSettings = pgTable("merchant_data_settings", {
   updatedBy: text("updated_by").notNull().references(() => users.id),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 }, (t) => [check("merchant_data_settings_retention_chk", sql`${t.retentionDays} between 1 and 3650`)]);
+
+/**
+ * Which normalised rows each upload row became or confirmed (one row can feed an invoice, a quote, a provider record
+ * and a claimed transfer). Retention deletes a normalised row only when no remaining upload refers to it.
+ */
+export const uploadRowTargets = pgTable("upload_row_targets", {
+  orgId: uuid("org_id").notNull().references(() => organizations.id),
+  uploadId: uuid("upload_id").notNull(),
+  rowNumber: integer("row_number").notNull(),
+  targetTable: text("target_table").notNull(),
+  targetKey: text("target_key").notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.orgId, t.uploadId, t.rowNumber, t.targetTable, t.targetKey] }),
+  foreignKey({ columns: [t.orgId, t.uploadId, t.rowNumber], foreignColumns: [uploadRows.orgId, uploadRows.uploadId, uploadRows.rowNumber], name: "upload_row_targets_row_fk" }),
+  index("upload_row_targets_target_idx").on(t.orgId, t.targetTable, t.targetKey),
+  check("upload_row_targets_table_chk", sql`${t.targetTable} in ('invoices','merchant_quotes','payment_links','provider_payment_records','chain_transfers','settlement_batches','settlement_batch_lines','bank_lines')`),
+]);

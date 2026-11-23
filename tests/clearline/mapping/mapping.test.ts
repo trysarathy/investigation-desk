@@ -83,13 +83,13 @@ const PE: Mapping = {
     quoted_token_amount: { header: "Quoted" }, received_token_amount: { header: "Received" }, quote_rate: { header: "Rate" }, rate_source: { constant: "provider quote" },
     token_contract: { header: "Contract" }, network: { header: "Chain", networkValueMap: { "Tron (TRC20)": "tron" } }, token_symbol: { header: "Token" },
     deposit_address: { header: "Address" }, tx_hash: { header: "Hash" }, status: { header: "Status", statusValueMap: { Completed: "paid", "Short paid": "underpaid" } },
-    payment_id: { header: "Payment" },
+    payment_id: { header: "Payment" }, credited_fiat: { header: "Credited" }, executed_rate: { header: "Exec" },
     created_at: { header: "Created", dateFormat: "dmy", defaultUtcOffsetMinutes: 480 }, expires_at: { header: "Expires", dateFormat: "dmy", defaultUtcOffsetMinutes: 480 },
   },
 };
-const PE_HEADERS = ["Order", "Quote", "Payment", "Amount", "Quoted", "Received", "Rate", "Contract", "Chain", "Token", "Address", "Hash", "Status", "Created", "Expires"];
+const PE_HEADERS = ["Order", "Quote", "Payment", "Credited", "Exec", "Amount", "Quoted", "Received", "Rate", "Contract", "Chain", "Token", "Address", "Hash", "Status", "Created", "Expires"];
 const peRow = (o: Partial<Record<string, string>>) => PE_HEADERS.map((h) => o[h] ?? ({
-  Order: "ORD-1", Quote: "Q-1", Payment: "P-1", Amount: "1,350.00", Quoted: "1,000.000000", Received: "999.5", Rate: "1.3500", Contract: USDT_TRON, Chain: "Tron (TRC20)",
+  Order: "ORD-1", Quote: "Q-1", Payment: "P-1", Credited: "1,349.33", Exec: "1.35", Amount: "1,350.00", Quoted: "1,000.000000", Received: "999.5", Rate: "1.3500", Contract: USDT_TRON, Chain: "Tron (TRC20)",
   Token: "usdt", Address: tron(1), Hash: "0x" + hash(1).toUpperCase(), Status: "Completed", Created: "03/11/2026 09:15", Expires: "03/11/2026 09:45",
 } as Record<string, string>)[h]);
 

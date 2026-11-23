@@ -20,6 +20,14 @@ const baseUnits = (name: string) => numeric(name, { precision: 78, scale: 0 });
 const rate = (name: string) => numeric(name, { precision: 24, scale: 10 });
 const org = () => uuid("org_id").notNull().references(() => organizations.id);
 const CUR = (c: unknown) => sql`${c} ~ '^[A-Z]{3}$'`;
+/**
+ * rc7 provenance of a row normalised from an upload: which upload and row it came from, the mapping template used
+ * and who uploaded it. Null for rows from other sources (seed, recorded chain data). Never changes (trigger, 0021).
+ */
+const fromUpload = () => ({
+  uploadId: uuid("upload_id"), sourceRow: integer("source_row"), mappingTemplateId: uuid("mapping_template_id"),
+  mappingTemplateVersion: integer("mapping_template_version"), uploadedBy: text("uploaded_by").references(() => users.id),
+});
 
 /** Global, read-only reference data (not tenant data). */
 export const networkConfig = pgTable("network_config", {
@@ -94,6 +102,7 @@ export const invoices = pgTable("invoices", {
   currency: text("currency").notNull(),
   status: text("status").notNull(),
   issuedAt: ts("issued_at").notNull(),
+  ...fromUpload(),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.orderId] }),
   foreignKey({ columns: [t.orgId, t.entityId], foreignColumns: [merchantEntities.orgId, merchantEntities.id], name: "invoices_entity_fk" }),
@@ -109,6 +118,7 @@ export const merchantQuotes = pgTable("merchant_quotes", {
   rate: rate("rate").notNull(), rateSource: text("rate_source").notNull(), rateAt: ts("rate_at").notNull(),
   createdAt: ts("created_at").notNull(), expiresAt: ts("expires_at").notNull(),
   depositAddress: text("deposit_address").notNull(),
+  ...fromUpload(),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.quoteId] }),
   foreignKey({ columns: [t.orgId, t.orderId], foreignColumns: [invoices.orgId, invoices.orderId], name: "merchant_quotes_invoice_fk" }),
@@ -125,6 +135,7 @@ export const paymentLinks = pgTable("payment_links", {
   // rc6 phase 6: what the engine needs of a link (its quote, token, amount and own validity window)
   quoteId: text("quote_id"), tokenContract: text("token_contract"), requestedBaseUnits: baseUnits("requested_base_units"),
   createdAt: ts("created_at"), expiresAt: ts("expires_at"),
+  ...fromUpload(),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.linkId] }),
   foreignKey({ columns: [t.orgId, t.orderId], foreignColumns: [invoices.orgId, invoices.orderId], name: "payment_links_invoice_fk" }),
@@ -143,10 +154,12 @@ export const chainTransfers = pgTable("chain_transfers", {
   source: text("source").notNull(),
   observedAt: ts("observed_at").notNull().defaultNow(),
   entityId: text("entity_id"), claimedSymbol: text("claimed_symbol"), priorHops: jsonb("prior_hops"),
+  ...fromUpload(),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.network, t.txHash, t.logIndex] }),
   check("chain_transfers_amount_chk", sql`${t.amountBaseUnits} > 0`),
-  check("chain_transfers_source_chk", sql`${t.source} in ('recorded_fixture','chain_client','seed_fictional')`),
+  // rc7: 'provider_export' = a transfer a provider's file CLAIMS (by tx hash); never finalised by the file (trigger, 0021)
+  check("chain_transfers_source_chk", sql`${t.source} in ('recorded_fixture','chain_client','seed_fictional','provider_export')`),
   index("chain_transfers_to_idx").on(t.orgId, t.network, t.toAddress),
 ]);
 
@@ -160,6 +173,7 @@ export const providerPaymentRecords = pgTable("provider_payment_records", {
   batchId: text("batch_id"),
   importId: uuid("import_id"),
   record: jsonb("record").notNull(),
+  ...fromUpload(),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.providerPaymentId] }),
   check("provider_payment_records_claim_chk", sql`${t.statusClaim} in ('paid','underpaid','overpaid','held_for_review','re_quoted','partially_paid','refunded','pending','failed')`),
@@ -173,6 +187,7 @@ export const settlementBatches = pgTable("settlement_batches", {
   grossMinor: money("gross_minor").notNull(), feesMinor: money("fees_minor").notNull(),
   refundsMinor: money("refunds_minor").notNull(), netMinor: money("net_minor").notNull(),
   entityId: text("entity_id"), dayUtcOffsetMinutes: integer("day_utc_offset_minutes").notNull().default(0),
+  ...fromUpload(),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.batchId] }),
   check("settlement_batches_arith_chk", sql`${t.grossMinor} - ${t.feesMinor} - ${t.refundsMinor} = ${t.netMinor}`),
@@ -183,6 +198,7 @@ export const settlementBatchLines = pgTable("settlement_batch_lines", {
   orgId: org(), batchId: text("batch_id").notNull(), lineNo: integer("line_no").notNull(),
   kind: text("kind").notNull(), ref: text("ref").notNull(), amountMinor: money("amount_minor").notNull(),
   orderId: text("order_id"),
+  ...fromUpload(),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.batchId, t.lineNo] }),
   foreignKey({ columns: [t.orgId, t.batchId], foreignColumns: [settlementBatches.orgId, settlementBatches.batchId], name: "settlement_batch_lines_batch_fk" }),
@@ -196,10 +212,13 @@ export const bankLines = pgTable("bank_lines", {
   amountMinor: money("amount_minor").notNull(), description: text("description").notNull(),
   source: text("source").notNull(), importId: uuid("import_id"),
   entityId: text("entity_id"), provenance: text("provenance"),
+  ...fromUpload(),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.lineId] }),
-  check("bank_lines_source_chk", sql`${t.source} in ('bank_feed','csv_import','seed_fictional')`),
+  // rc7: 'file_import' = a line from an uploaded statement (CSV, XLSX, MT940, camt.053): imported, not bank-authenticated
+  check("bank_lines_source_chk", sql`${t.source} in ('bank_feed','csv_import','seed_fictional','file_import')`),
   check("bank_lines_import_chk", sql`${t.source} <> 'csv_import' or ${t.importId} is not null`),
+  check("bank_lines_upload_chk", sql`${t.source} <> 'file_import' or ${t.uploadId} is not null`),
   check("bank_lines_date_chk", sql`${t.valueDate} ~ '^\\d{4}-\\d{2}-\\d{2}$'`),
 ]);
 

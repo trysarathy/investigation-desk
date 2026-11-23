@@ -242,12 +242,16 @@ function crossChecks(m: Mapping, v: Record<string, MappedValue>, errors: RowIssu
     if (has("token_symbol") && token && v.token_symbol !== token.symbol.toUpperCase()) warnings.push({ field: "token_symbol", code: "symbol_differs_from_contract" });
     if (has("payment_id") && !has("received_token_amount")) errors.push({ field: "received_token_amount", code: "missing_value" });
     if (has("payment_id") && !has("status")) errors.push({ field: "status", code: "missing_value" });
+    if (has("payment_id") && !has("credited_fiat")) errors.push({ field: "credited_fiat", code: "missing_value" });
+    if (has("payment_id") && !has("executed_rate")) errors.push({ field: "executed_rate", code: "missing_value" });
   }
   if (m.fileType === "settlement_report" && m.shape === "per_payment_lines") {
     const refund = v.line_type === "refund";
     if (!refund && !has("payment_id")) errors.push({ field: "payment_id", code: "missing_value" });
     if (refund && !has("refund_id")) errors.push({ field: "refund_id", code: "missing_value" });
   }
+  // A batch is never invented: totals without a batch ID cannot be stored (the engine proposes groupings itself).
+  if (m.fileType === "settlement_report" && m.shape === "batch_totals" && !has("batch_id")) errors.push({ field: "batch_id", code: "batch_id_needed_for_totals" });
   if (m.fileType === "settlement_report" && m.shape === "batch_totals" && typeof v.gross === "bigint" && typeof v.net === "bigint") {
     const fee = typeof v.fee === "bigint" ? v.fee : 0n, refund = typeof v.refund === "bigint" ? v.refund : 0n;
     if (v.gross - fee - refund !== v.net) errors.push({ field: "net", code: "totals_do_not_add_up" });
