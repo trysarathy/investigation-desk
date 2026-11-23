@@ -426,3 +426,20 @@ Remaining rows: ____________________ Date: __________ SGT
 - **Held or unsettled payments** (BK-24871, SGD 1,200.00) leave clearing open, as a receivable from the provider at month-end.
 - **Imported bank lines:** a batch evidenced only by an imported bank line gets **no** settlement entry.
 - **Rule proofs:** each journal rule's own test fails when that rule is disabled, including `J.settlement.refund_netted` and `J.writeoff.on_approval`; see `docs/release/TEST_RESULTS_RC7.md`.
+
+### Draft Xero and QuickBooks export (rc7, PR #154) — **DRAFT FILES ONLY, NOTHING POSTED**
+
+**Status [VERIFIED in `src/lib/clearline/exports/journal-drafts.ts` and `src/server/exports.ts`].** The Document A section above is unchanged by this export. The posting rules are still pending sign-off.
+
+- **What it is:** a CSV in Xero's "Manual Journals" import layout or QuickBooks Online's "Journal entries" import layout. It is for an accountant to review and import by hand into a **Xero demo company or a QuickBooks sandbox**.
+- **What goes in:** only journal proposals with `status: proposed` and `postingRuleStatus: pending_sign_off`. Every journal must balance (debits = credits, checked in BigInt), or the export fails.
+- **Every row is marked:** "DRAFT - sandbox/demo company only; posting rules pending sign-off; nothing posted".
+- **Nothing is posted:** Clearline makes no write call to any ledger. The read-only ledger pull (`CLEARLINE_LEDGER_PULL=1`) refuses any write before it is sent.
+- **Who can export:** Finance or an Approver (`merchant_export`). Each export is audited with ids, counts and the file's SHA-256, never its contents.
+- **Accounts:** the account column carries Clearline's account keys and names. An accountant maps them to the real chart of accounts.
+- **Cells:** formula characters are neutralised (a leading `'`), and line breaks are removed.
+- **Month-end pack:** the same draft files also go into the month-end ZIP, with the bridges, open exceptions, journal proposals, file provenance, the ledger-invoice comparison, the evidence pack and a manifest (rule-set version, policy revision, latest run, SHA-256 of each file).
+
+**Not proven [ASSUMPTION].** The two layouts follow each tool's published import template. They have **not** been tried in a real import.
+
+**Open for the founder (from #154).** The rc6 journal file stays Finance-only and the evidence pack stays open to any member. The "Finance or an Approver" rule applies only to the new exports. Aligning them would change an rc6 control.

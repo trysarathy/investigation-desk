@@ -1,4 +1,4 @@
-# Matching rules — merchant reconciliation (rc6)
+# Matching rules — merchant reconciliation (rc6, updated in rc7)
 
 Test mode · illustrative data.
 
@@ -16,9 +16,9 @@ Test mode · illustrative data.
 
 | Step | Rules | What it decides | Example |
 |---|---|---|---|
-| 1 Identity | `M1.identity.unknown_token`, `M1.identity.lookalike_token`, `M1.identity.network_disabled`, `M1.finality.pending` | A token is identified by **(network, contract)**, never by symbol. A transfer is ignored until it is final on its network (TRON 19, Ethereum 12 [ASSUMPTION]). A disabled network, an unknown contract or a look-alike becomes an exception. | Any "USDT" on another contract becomes an exception |
+| 1 Identity | `M1.chain.unavailable` (rc7), `M1.identity.unknown_token`, `M1.identity.lookalike_token`, `M1.identity.network_disabled`, `M1.finality.pending` | A token is identified by **(network, contract)**, never by symbol. A transfer is ignored until it is final on its network (TRON 19, Ethereum 12 [ASSUMPTION]). A disabled network, an unknown contract or a look-alike becomes an exception. If chain data cannot be read, the order is an exception and nothing is assumed (rc7). | Any "USDT" on another contract becomes an exception |
 | 2 Reference first | `M2.reference.unattributed`, `M2.reference.no_chain_transfer`, `M2.reference.provider_ref_mismatch` | A transfer links to its order **only** through the order's quote ID, payment link or deposit address. **The sender never decides, and neither does the amount.** | Case 1: the two SGD 1,350.00 orders never cross-match, in any arrival order |
-| 3 Checks | `M3.currency.*`, `M3.direction.outbound`, `M3.window.before_quote`, `M3.window.after_expiry_no_requote`, `M3.quote.invoice_mismatch`, `M3.provider.no_record`, `M3.provider.received_mismatch`, `M3.batch.unknown_batch`, `M3.batch.held_by_provider` | Currency, direction, time window, the provider record and the settlement batch | Case 2: BK-24871 is shown as completed but is in no settlement, so it becomes an exception owned by Treasury |
+| 3 Checks | `M3.currency.*`, `M3.direction.outbound`, `M3.window.before_quote`, `M3.window.after_expiry_no_requote`, `M3.quote.invoice_mismatch`, `M3.provider.no_record`, `M3.provider.received_mismatch`, `M3.batch.unknown_batch`, `M3.batch.held_by_provider`, `M3.quote.terms_unknown` (rc7), `M3.provider.transfer_ambiguous` (rc7) | Currency, direction, time window, the provider record and the settlement batch. Missing quote terms or an ambiguous claimed transfer stop the order (rc7). | Case 2: BK-24871 is shown as completed but is in no settlement, so it becomes an exception owned by Treasury |
 | 4 Explained tolerance | `M4.tolerance.sender_side_fee`, `underpayment`, `overpayment`, `requote_after_expiry`, `rate_difference`, `unexplained`, `within_band`, `explained_outside_band`, `underpayment_beyond_band`, `overpayment_beyond_band`, `writeoff_threshold`; `M4.partial.balance_link_open`; `M4.provider.credit_mismatch`; `M4.match.no_difference` | Typed items first, then comparison with the band (below) | See the cases below |
 | 5 Grouping and bridge | `M5.batch.tied_verified`, `M5.batch.not_tied`, `M5.bank.imported_not_verified`, `M5.grouping.proposed_needs_confirmation`, `M5.bridge.timing_prior_batch`, `M5.bridge.timing_next_batch`, `M5.bridge.held_by_provider` | Payments are grouped by batch ID. A batch ties only if gross − fees − refunds = net = the bank line, to the cent. Without a batch ID, a grouping is **proposed** and never closed automatically. Step 5 only confirms or tightens a decision. | Case 2: gross 41,862.30 → net 40,228.68 |
 
@@ -44,7 +44,22 @@ Test mode · illustrative data.
 - **Band (founder decision, rc7):** `band = max(tolerance_bps × invoice, fixed amount)` per entity. The defaults are 50 bps and a fixed amount per currency: SGD 5.00, USD 5.00 and AED 20.00. An Admin can edit them, and can set `tolerance_combine = 'smaller'` to use `min(…)` instead.
 - **Inside the band**, with only typed differences: `matched_with_difference`, plus a write-off proposal, if the amount is at or below the write-off threshold. The threshold defaults to the same fixed amount per currency [ASSUMPTION]. Above the threshold, the order goes to `suggested_for_review`.
 - **Outside the band but explained:** `suggested_for_review`. An under- or overpayment beyond the band is an `exception`.
-- **Imported bank lines** (`csv_import`) never make settlement verified on their own unless `allow_imported_bank_lines_as_verified` is on. It defaults to off, and the decision is the founder's.
+- **Imported bank lines** (`csv_import`, and in rc7 `file_import` from CSV, XLSX, MT940 or camt.053 uploads) never make settlement verified on their own unless `allow_imported_bank_lines_as_verified` is on. It defaults to off, and the decision is the founder's (decision 2: it stays off).
+
+## rc7 rules (added in PRs #140, #149 and #152)
+
+Each rule's own test fails when only that rule is disabled; the runs are listed in `docs/release/TEST_RESULTS_RC7.md`.
+
+| Rule | Step | Outcome and owner | What it means |
+|---|---|---|---|
+| `M1.chain.unavailable` | 1 | `exception`, Payment Operations | Chain data for the order's deposit address or transaction could not be read. The source, time and reason are recorded. Nothing is treated as received or missing; the order is never matched, written off or closed. Clearline retries on the next run. A provider claim that no read has covered also counts as unavailable, never as "nothing arrived". Other orders reconcile unchanged. |
+| `M3.quote.terms_unknown` | 3 | `suggested_for_review`, Payment Operations | The files do not give a quote term the order needs: rate, quoted amount or window. The engine **abstains**. Nothing is derived and no rate is invented. The provider's credit is still checked first; an unexplained credit difference stops the order at step 4 instead. Next step: upload an export with the quote terms. |
+| `M3.provider.transfer_ambiguous` | 3 | `exception`, Payment Operations | The provider names a tx hash without a log index, and several transfers in that transaction reach the order's address. Clearline does not choose. With exactly one match, that transfer is used. A missing log index is never assumed to be 0. |
+| `J.settlement.refund_netted` | journal | proposal, `pending_sign_off` | A refund netted inside a verified settlement gets its own entry: Dr Sales refunds / Cr Provider clearing (Document A, Case 2: 1,215.00). See `docs/POSTING_RULES.md`. |
+
+**What this means for real files [VERIFIED in #152 and the blind test].** Exports that carry no quote rate or quote window are abstained on, not auto-matched. In the blind test this gave 0 wrong matches and a 0.00% auto-match rate (1,895 of 1,952 payments abstained). Whether Clearline should close exact payments without quote terms is an open founder decision; today it does not.
+
+**Unchanged in rc7.** The tolerance band above (larger of 0.5% or SGD 5 / USD 5 / AED 20) was set in #140. No rc7 change loosens matching: an amount alone still never closes a match, and the sender never decides.
 
 ## The three cases (every figure is asserted in `tests/clearline/merchant/`)
 

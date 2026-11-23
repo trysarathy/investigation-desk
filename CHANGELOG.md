@@ -6,6 +6,19 @@ anything they need to do.
 
 ## Unreleased
 
+- **Clearline rc7: reconcile your own files from any payment provider (draft PRs #139–#156 plus the docs PR, not merged).** Reviews were not independent.
+  - **Upload your own files:** provider exports as CSV, Excel (.xlsx) or JSON; settlement reports; order lists; and bank statements as CSV, Excel, MT940 or camt.053. Amounts are read exactly; anything unclear (date order, decimal separator) is asked, never guessed.
+  - **Map once, reuse:** you match a file's columns to Clearline's fields once and save the mapping. Suggestions are never confirmed for you.
+  - **Two people for bank statements:** an Approver who did not upload a statement must confirm it. Imported statements still never prove a settlement on their own (your decision 2).
+  - **Checked against the blockchain:** payments are checked against TRON and Ethereum data (read-only, off until you add keys). If the data cannot be read, the payment goes to Payment Operations; nothing is assumed. USDT on Ethereum is added.
+  - **Tolerance (your decision 1):** the larger of 0.5% or SGD 5 / USD 5 / AED 20, per entity.
+  - **New rules:** chain data unavailable; quote terms missing from the file (Clearline holds back rather than guess); a provider claim that could be one of several transfers; refunds netted in a settlement get their own journal line.
+  - **Runs, schedule and notifications:** every reconciliation is recorded; a daily run can be scheduled; approved or closed items are never changed by a re-run.
+  - **Exports:** draft Xero and QuickBooks journal files and a month-end pack. Every row says DRAFT. Nothing is posted.
+  - **Your data is kept 90 days by default** (your decision 6), then deleted with everything derived only from it. Approvals and audit records are kept. A whole merchant can be deleted on request.
+  - **What to expect:** on a month in a format Clearline had never seen, there were 0 wrong matches but also 0% automatic matches, because the file had no quote rate or window. 10,000 payments ran end to end in 57.1 s.
+  - **Your decisions:** hosting (not given, so nothing is hosted); whether to close exact payments when a file has no quote terms; export permissions; and the six legal questions.
+
 - **Merchant Reconciliation for stablecoin payment providers (rc6, draft PRs #126–#137 plus the docs PR, not merged).** Test mode · illustrative data.
   - **What it does:** a provider can offer its merchants a read-only check of every USDT or USDC payment. It compares what arrived on chain, what the provider reported, what reached the bank and what the invoice said.
   - **"Completed" is not proof:** a payment is closed only when the records agree. An amount alone never closes a match.
