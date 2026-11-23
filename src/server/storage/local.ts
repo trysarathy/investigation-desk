@@ -1,6 +1,6 @@
 import "server-only";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
-import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { UploadStorage } from "./index";
 
@@ -68,5 +68,15 @@ export class LocalDiskStorage implements UploadStorage {
     try { await stat(file); } catch { return false; }
     await rm(file, { force: true });
     return true;
+  }
+
+  /** Every file under the organisation's folder, then the folder itself. */
+  async deleteOrganisation(orgId: string): Promise<number> {
+    if (!UUID.test(orgId)) throw new StorageRefused("Invalid storage address.");
+    const folder = path.join(this.dir, orgId);
+    let names: string[];
+    try { names = await readdir(folder); } catch { return 0; }
+    await rm(folder, { recursive: true, force: true });
+    return names.length;
   }
 }

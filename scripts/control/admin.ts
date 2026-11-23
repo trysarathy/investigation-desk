@@ -15,6 +15,11 @@
  *                                            CLEARLINE_SEED_PASSWORD; Test mode · illustrative data)
  *   purge-uploads                           (rc7 retention: delete every upload past its delete_after, its file, its
  *                                            validation rows and the data derived only from it; prints counts only)
+ *   delete-merchant <org-slug> [--confirm <org-slug>]
+ *                                           (rc7 phase 3b: delete ONE merchant organisation, every row it holds in every
+ *                                            table, its members who belong nowhere else, and its uploaded files. Without
+ *                                            --confirm repeating the slug it only prints what would be deleted.
+ *                                            Prints counts only)
  *   accept-invitation <invitation-id>       (rc6: accept a provider's invitation record: creates the user if needed,
  *                                            password from CLEARLINE_NEW_PASSWORD, name from CLEARLINE_NEW_NAME, and
  *                                            grants the invited merchant role; no email is ever sent)
@@ -24,6 +29,7 @@ import { acceptInvitation, createOrganization, createUser, grantMembership, revo
 import type { AppRole } from "../../src/server/authz";
 import { seedMerchantCases } from "../../src/server/merchant-seed";
 import { purgeExpiredUploads } from "../../src/server/uploads";
+import { deleteMerchant, planMerchantDeletion } from "../../src/server/merchant-deletion";
 
 const DEMO_USERS: { email: string; name: string; org: string; role: AppRole }[] = [
   { email: "ops@lumen.example", name: "Priya Raman (fictional)", org: "lumen-demo", role: "payment_ops" },
@@ -65,6 +71,19 @@ async function main() {
       if (!pw || pw.length < 12) throw new Error("set CLEARLINE_SEED_PASSWORD (≥ 12 chars) for the fictional merchant users");
       const r = await seedMerchantCases(db, { password: pw });
       console.log(`${r.label}: seeded a fictional provider, 2 fictional merchants (${Object.keys(r.written).join(", ")}) and ${Object.keys(r.users).length} fictional users`); break;
+    }
+    case "delete-merchant": {
+      const i = a.indexOf("--confirm");
+      const confirm = i >= 0 ? a[i + 1] : undefined;
+      if (!confirm) {
+        const plan = await planMerchantDeletion(db, a[0]);
+        console.log(JSON.stringify({ wouldDelete: { tables: plan.tables, users: plan.users, files: plan.files } }));
+        console.log(`Nothing deleted. To delete this merchant and everything it holds, run again with: --confirm ${a[0]}`);
+        process.exitCode = 2;
+        break;
+      }
+      console.log(JSON.stringify({ deleted: await deleteMerchant(db, a[0], confirm) }));
+      break;
     }
     case "accept-invitation": {
       const r = await acceptInvitation(db, a[0], { password: process.env.CLEARLINE_NEW_PASSWORD, name: process.env.CLEARLINE_NEW_NAME });

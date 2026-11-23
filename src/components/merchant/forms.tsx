@@ -380,3 +380,14 @@ export function AcknowledgeNotice({ noticeId, orderId }: { noticeId: string; ord
     </form>
   );
 }
+
+/** rc7 phase 3b: an Admin signs a member out everywhere. */
+export function RevokeSessions({ userId, name }: { userId: string; name: string }) {
+  const x = useMutation(`revoke:${userId}`);
+  return (
+    <form autoComplete="off" onSubmit={(ev) => { ev.preventDefault(); void x.run("POST", `${API}/admin/members/${encodeURIComponent(userId)}/revoke-sessions`, {}, (d) => `Signed ${name} out: ${String(d?.sessionsRevoked ?? 0)} session(s) ended.`); }}>
+      <Submit busy={x.busy} variant="secondary">Sign {name} out everywhere</Submit>
+      <Result outcome={x.outcome} />
+    </form>
+  );
+}
