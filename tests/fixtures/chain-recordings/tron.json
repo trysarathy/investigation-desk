@@ -1,0 +1,884 @@
+{
+  "_note": "synthetic recording in the public API response shape; fictional addresses and hashes; not captured live",
+  "scenarios": {
+    "normal_transfer": {
+      "description": "125.000000 USDT to the deposit at block 60,000,000; head 60,000,050 (51 confirmations); receipt re-read unchanged → finalised.",
+      "exchanges": [
+        {
+          "match": {
+            "method": "POST",
+            "path": "/wallet/gettransactioninfobyid",
+            "bodyIncludes": "bb1f98300ac799931b25ecb41ada998a4e521b8c68c97d419e8240f4033c0c4f"
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "id": "bb1f98300ac799931b25ecb41ada998a4e521b8c68c97d419e8240f4033c0c4f",
+              "fee": 13844850,
+              "blockNumber": 60000000,
+              "blockTimeStamp": 1768467600000,
+              "contractResult": [
+                "0000000000000000000000000000000000000000000000000000000000000001"
+              ],
+              "contract_address": "41a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+              "receipt": {
+                "energy_fee": 13499850,
+                "energy_usage_total": 64285,
+                "net_usage": 345,
+                "result": "SUCCESS"
+              },
+              "log": [
+                {
+                  "address": "a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+                  "topics": [
+                    "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                    "000000000000000000000000274a83b82bc51eb2a232b06561eab0c4c010a67d",
+                    "000000000000000000000000962f3487a0daa5fe349d7cd3b58405bdd709f7e9"
+                  ],
+                  "data": "0000000000000000000000000000000000000000000000000000000007735940"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "match": {
+            "method": "POST",
+            "path": "/wallet/getnowblock"
+          },
+          "repeat": true,
+          "response": {
+            "status": 200,
+            "body": {
+              "blockID": "00000000039387329cc8884a7924df867a988f99035dfbfcb01d8ea061c762e4",
+              "block_header": {
+                "raw_data": {
+                  "number": 60000050,
+                  "txTrieRoot": "653ac2610250d60526fa1670650b282aa39ff1831c21920f6209820048885851",
+                  "witness_address": "414af35ad2e9d2ee8f6d2663bd45eed6b533ed3523",
+                  "parentHash": "b3878d94c6e9a8799be4a40510e130b430219b508979b6736617df7e37b0e0d8",
+                  "version": 31,
+                  "timestamp": 1768467750000
+                },
+                "witness_signature": "17cbe9f753a1078fdaf021d5fcda62039e2340f27f371148985b0e6d59a5f517ed38849b4cd20b5ad87a2e5730d237f5aadacdf53fd0f6c934c41f512f65beb2"
+              }
+            }
+          }
+        },
+        {
+          "match": {
+            "method": "POST",
+            "path": "/wallet/gettransactioninfobyid",
+            "bodyIncludes": "bb1f98300ac799931b25ecb41ada998a4e521b8c68c97d419e8240f4033c0c4f"
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "id": "bb1f98300ac799931b25ecb41ada998a4e521b8c68c97d419e8240f4033c0c4f",
+              "fee": 13844850,
+              "blockNumber": 60000000,
+              "blockTimeStamp": 1768467600000,
+              "contractResult": [
+                "0000000000000000000000000000000000000000000000000000000000000001"
+              ],
+              "contract_address": "41a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+              "receipt": {
+                "energy_fee": 13499850,
+                "energy_usage_total": 64285,
+                "net_usage": 345,
+                "result": "SUCCESS"
+              },
+              "log": [
+                {
+                  "address": "a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+                  "topics": [
+                    "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                    "000000000000000000000000274a83b82bc51eb2a232b06561eab0c4c010a67d",
+                    "000000000000000000000000962f3487a0daa5fe349d7cd3b58405bdd709f7e9"
+                  ],
+                  "data": "0000000000000000000000000000000000000000000000000000000007735940"
+                }
+              ]
+            }
+          },
+          "note": "reorg re-check"
+        }
+      ]
+    },
+    "lookalike_contract": {
+      "description": "A Transfer log from a look-alike contract (not USDT) to the deposit, plus a genuine USDT log in the same transaction.",
+      "exchanges": [
+        {
+          "match": {
+            "method": "POST",
+            "path": "/wallet/gettransactioninfobyid",
+            "bodyIncludes": "c845154f8f72482c0582ea7f1703bebe19142484f54758b554108c25f174903a"
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "id": "c845154f8f72482c0582ea7f1703bebe19142484f54758b554108c25f174903a",
+              "fee": 13844850,
+              "blockNumber": 60000010,
+              "blockTimeStamp": 1768467630000,
+              "contractResult": [
+                "0000000000000000000000000000000000000000000000000000000000000001"
+              ],
+              "contract_address": "41a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+              "receipt": {
+                "energy_fee": 13499850,
+                "energy_usage_total": 64285,
+                "net_usage": 345,
+                "result": "SUCCESS"
+              },
+              "log": [
+                {
+                  "address": "ac1e52ce132b623261d56b2f18294fe45439f993",
+                  "topics": [
+                    "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                    "000000000000000000000000c4a68be2ed6c1000612c4a494337b7031149f3e4",
+                    "000000000000000000000000962f3487a0daa5fe349d7cd3b58405bdd709f7e9"
+                  ],
+                  "data": "000000000000000000000000000000000000000000000000000000001dcd6500"
+                },
+                {
+                  "address": "a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+                  "topics": [
+                    "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                    "000000000000000000000000274a83b82bc51eb2a232b06561eab0c4c010a67d",
+                    "000000000000000000000000962f3487a0daa5fe349d7cd3b58405bdd709f7e9"
+                  ],
+                  "data": "00000000000000000000000000000000000000000000000000000000000f4240"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "match": {
+            "method": "POST",
+            "path": "/wallet/getnowblock"
+          },
+          "repeat": true,
+          "response": {
+            "status": 200,
+            "body": {
+              "blockID": "00000000039387329cc8884a7924df867a988f99035dfbfcb01d8ea061c762e4",
+              "block_header": {
+                "raw_data": {
+                  "number": 60000050,
+                  "txTrieRoot": "653ac2610250d60526fa1670650b282aa39ff1831c21920f6209820048885851",
+                  "witness_address": "414af35ad2e9d2ee8f6d2663bd45eed6b533ed3523",
+                  "parentHash": "b3878d94c6e9a8799be4a40510e130b430219b508979b6736617df7e37b0e0d8",
+                  "version": 31,
+                  "timestamp": 1768467750000
+                },
+                "witness_signature": "17cbe9f753a1078fdaf021d5fcda62039e2340f27f371148985b0e6d59a5f517ed38849b4cd20b5ad87a2e5730d237f5aadacdf53fd0f6c934c41f512f65beb2"
+              }
+            }
+          }
+        },
+        {
+          "match": {
+            "method": "POST",
+            "path": "/wallet/gettransactioninfobyid",
+            "bodyIncludes": "c845154f8f72482c0582ea7f1703bebe19142484f54758b554108c25f174903a"
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "id": "c845154f8f72482c0582ea7f1703bebe19142484f54758b554108c25f174903a",
+              "fee": 13844850,
+              "blockNumber": 60000010,
+              "blockTimeStamp": 1768467630000,
+              "contractResult": [
+                "0000000000000000000000000000000000000000000000000000000000000001"
+              ],
+              "contract_address": "41a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+              "receipt": {
+                "energy_fee": 13499850,
+                "energy_usage_total": 64285,
+                "net_usage": 345,
+                "result": "SUCCESS"
+              },
+              "log": [
+                {
+                  "address": "ac1e52ce132b623261d56b2f18294fe45439f993",
+                  "topics": [
+                    "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                    "000000000000000000000000c4a68be2ed6c1000612c4a494337b7031149f3e4",
+                    "000000000000000000000000962f3487a0daa5fe349d7cd3b58405bdd709f7e9"
+                  ],
+                  "data": "000000000000000000000000000000000000000000000000000000001dcd6500"
+                },
+                {
+                  "address": "a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+                  "topics": [
+                    "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                    "000000000000000000000000274a83b82bc51eb2a232b06561eab0c4c010a67d",
+                    "000000000000000000000000962f3487a0daa5fe349d7cd3b58405bdd709f7e9"
+                  ],
+                  "data": "00000000000000000000000000000000000000000000000000000000000f4240"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "failed_transaction": {
+      "description": "Receipt result REVERT / result FAILED: never a transfer, even though a log-shaped entry is present.",
+      "exchanges": [
+        {
+          "match": {
+            "method": "POST",
+            "path": "/wallet/gettransactioninfobyid",
+            "bodyIncludes": "854867a403c40e4e54d5206c7217365d644f206f1ccbc151f69ecf519fea09f5"
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "id": "854867a403c40e4e54d5206c7217365d644f206f1ccbc151f69ecf519fea09f5",
+              "fee": 13844850,
+              "blockNumber": 60000020,
+              "blockTimeStamp": 1768467660000,
+              "contractResult": [
+                ""
+              ],
+              "contract_address": "41a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+              "receipt": {
+                "energy_fee": 13499850,
+                "energy_usage_total": 64285,
+                "net_usage": 345,
+                "result": "REVERT"
+              },
+              "result": "FAILED",
+              "resMessage": "5472616e73666572206661696c6564",
+              "log": [
+                {
+                  "address": "a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+                  "topics": [
+                    "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                    "000000000000000000000000274a83b82bc51eb2a232b06561eab0c4c010a67d",
+                    "000000000000000000000000962f3487a0daa5fe349d7cd3b58405bdd709f7e9"
+                  ],
+                  "data": "0000000000000000000000000000000000000000000000000000000000895440"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "match": {
+            "method": "POST",
+            "path": "/wallet/getnowblock"
+          },
+          "repeat": true,
+          "response": {
+            "status": 200,
+            "body": {
+              "blockID": "00000000039387329cc8884a7924df867a988f99035dfbfcb01d8ea061c762e4",
+              "block_header": {
+                "raw_data": {
+                  "number": 60000050,
+                  "txTrieRoot": "653ac2610250d60526fa1670650b282aa39ff1831c21920f6209820048885851",
+                  "witness_address": "414af35ad2e9d2ee8f6d2663bd45eed6b533ed3523",
+                  "parentHash": "b3878d94c6e9a8799be4a40510e130b430219b508979b6736617df7e37b0e0d8",
+                  "version": 31,
+                  "timestamp": 1768467750000
+                },
+                "witness_signature": "17cbe9f753a1078fdaf021d5fcda62039e2340f27f371148985b0e6d59a5f517ed38849b4cd20b5ad87a2e5730d237f5aadacdf53fd0f6c934c41f512f65beb2"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "not_yet_final": {
+      "description": "Block 60,000,040 with head 60,000,050: 11 of 19 confirmations; not final, no re-check, not cached.",
+      "exchanges": [
+        {
+          "match": {
+            "method": "POST",
+            "path": "/wallet/gettransactioninfobyid",
+            "bodyIncludes": "60a824ac9edd19718a839c7fb4155db5d7836edc057a181d9fa083732e3b17dd"
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "id": "60a824ac9edd19718a839c7fb4155db5d7836edc057a181d9fa083732e3b17dd",
+              "fee": 13844850,
+              "blockNumber": 60000040,
+              "blockTimeStamp": 1768467720000,
+              "contractResult": [
+                "0000000000000000000000000000000000000000000000000000000000000001"
+              ],
+              "contract_address": "41a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+              "receipt": {
+                "energy_fee": 13499850,
+                "energy_usage_total": 64285,
+                "net_usage": 345,
+                "result": "SUCCESS"
+              },
+              "log": [
+                {
+                  "address": "a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+                  "topics": [
+                    "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                    "000000000000000000000000274a83b82bc51eb2a232b06561eab0c4c010a67d",
+                    "000000000000000000000000962f3487a0daa5fe349d7cd3b58405bdd709f7e9"
+                  ],
+                  "data": "000000000000000000000000000000000000000000000000000000000280de80"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "match": {
+            "method": "POST",
+            "path": "/wallet/getnowblock"
+          },
+          "repeat": true,
+          "response": {
+            "status": 200,
+            "body": {
+              "blockID": "00000000039387329cc8884a7924df867a988f99035dfbfcb01d8ea061c762e4",
+              "block_header": {
+                "raw_data": {
+                  "number": 60000050,
+                  "txTrieRoot": "653ac2610250d60526fa1670650b282aa39ff1831c21920f6209820048885851",
+                  "witness_address": "414af35ad2e9d2ee8f6d2663bd45eed6b533ed3523",
+                  "parentHash": "b3878d94c6e9a8799be4a40510e130b430219b508979b6736617df7e37b0e0d8",
+                  "version": 31,
+                  "timestamp": 1768467750000
+                },
+                "witness_signature": "17cbe9f753a1078fdaf021d5fcda62039e2340f27f371148985b0e6d59a5f517ed38849b4cd20b5ad87a2e5730d237f5aadacdf53fd0f6c934c41f512f65beb2"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "reorg_between_reads": {
+      "description": "First read at block 60,000,000; the re-check finds it at block 60,000,003 → reorged, not final.",
+      "exchanges": [
+        {
+          "match": {
+            "method": "POST",
+            "path": "/wallet/gettransactioninfobyid",
+            "bodyIncludes": "0aaa6e3355af4b1bbe8ae1831026d9387e3da1849a75d87232cc8c23f7cbdfc3"
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "id": "0aaa6e3355af4b1bbe8ae1831026d9387e3da1849a75d87232cc8c23f7cbdfc3",
+              "fee": 13844850,
+              "blockNumber": 60000000,
+              "blockTimeStamp": 1768467600000,
+              "contractResult": [
+                "0000000000000000000000000000000000000000000000000000000000000001"
+              ],
+              "contract_address": "41a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+              "receipt": {
+                "energy_fee": 13499850,
+                "energy_usage_total": 64285,
+                "net_usage": 345,
+                "result": "SUCCESS"
+              },
+              "log": [
+                {
+                  "address": "a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+                  "topics": [
+                    "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                    "000000000000000000000000274a83b82bc51eb2a232b06561eab0c4c010a67d",
+                    "000000000000000000000000962f3487a0daa5fe349d7cd3b58405bdd709f7e9"
+                  ],
+                  "data": "000000000000000000000000000000000000000000000000000000000496ed40"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "match": {
+            "method": "POST",
+            "path": "/wallet/getnowblock"
+          },
+          "repeat": true,
+          "response": {
+            "status": 200,
+            "body": {
+              "blockID": "00000000039387329cc8884a7924df867a988f99035dfbfcb01d8ea061c762e4",
+              "block_header": {
+                "raw_data": {
+                  "number": 60000050,
+                  "txTrieRoot": "653ac2610250d60526fa1670650b282aa39ff1831c21920f6209820048885851",
+                  "witness_address": "414af35ad2e9d2ee8f6d2663bd45eed6b533ed3523",
+                  "parentHash": "b3878d94c6e9a8799be4a40510e130b430219b508979b6736617df7e37b0e0d8",
+                  "version": 31,
+                  "timestamp": 1768467750000
+                },
+                "witness_signature": "17cbe9f753a1078fdaf021d5fcda62039e2340f27f371148985b0e6d59a5f517ed38849b4cd20b5ad87a2e5730d237f5aadacdf53fd0f6c934c41f512f65beb2"
+              }
+            }
+          }
+        },
+        {
+          "match": {
+            "method": "POST",
+            "path": "/wallet/gettransactioninfobyid",
+            "bodyIncludes": "0aaa6e3355af4b1bbe8ae1831026d9387e3da1849a75d87232cc8c23f7cbdfc3"
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "id": "0aaa6e3355af4b1bbe8ae1831026d9387e3da1849a75d87232cc8c23f7cbdfc3",
+              "fee": 13844850,
+              "blockNumber": 60000003,
+              "blockTimeStamp": 1768467609000,
+              "contractResult": [
+                "0000000000000000000000000000000000000000000000000000000000000001"
+              ],
+              "contract_address": "41a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+              "receipt": {
+                "energy_fee": 13499850,
+                "energy_usage_total": 64285,
+                "net_usage": 345,
+                "result": "SUCCESS"
+              },
+              "log": [
+                {
+                  "address": "a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+                  "topics": [
+                    "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                    "000000000000000000000000274a83b82bc51eb2a232b06561eab0c4c010a67d",
+                    "000000000000000000000000962f3487a0daa5fe349d7cd3b58405bdd709f7e9"
+                  ],
+                  "data": "000000000000000000000000000000000000000000000000000000000496ed40"
+                }
+              ]
+            }
+          },
+          "note": "moved block"
+        }
+      ]
+    },
+    "reorg_vanished": {
+      "description": "First read at block 60,000,000; the re-check returns {} (no such transaction) → reorged.",
+      "exchanges": [
+        {
+          "match": {
+            "method": "POST",
+            "path": "/wallet/gettransactioninfobyid",
+            "bodyIncludes": "fdf14b5c41c91bdb75fe1d58b409d2e80876294832b221f04a9c7ae7d6e07da7"
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "id": "fdf14b5c41c91bdb75fe1d58b409d2e80876294832b221f04a9c7ae7d6e07da7",
+              "fee": 13844850,
+              "blockNumber": 60000000,
+              "blockTimeStamp": 1768467600000,
+              "contractResult": [
+                "0000000000000000000000000000000000000000000000000000000000000001"
+              ],
+              "contract_address": "41a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+              "receipt": {
+                "energy_fee": 13499850,
+                "energy_usage_total": 64285,
+                "net_usage": 345,
+                "result": "SUCCESS"
+              },
+              "log": [
+                {
+                  "address": "a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+                  "topics": [
+                    "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                    "000000000000000000000000274a83b82bc51eb2a232b06561eab0c4c010a67d",
+                    "000000000000000000000000962f3487a0daa5fe349d7cd3b58405bdd709f7e9"
+                  ],
+                  "data": "00000000000000000000000000000000000000000000000000000000004c4b40"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "match": {
+            "method": "POST",
+            "path": "/wallet/getnowblock"
+          },
+          "repeat": true,
+          "response": {
+            "status": 200,
+            "body": {
+              "blockID": "00000000039387329cc8884a7924df867a988f99035dfbfcb01d8ea061c762e4",
+              "block_header": {
+                "raw_data": {
+                  "number": 60000050,
+                  "txTrieRoot": "653ac2610250d60526fa1670650b282aa39ff1831c21920f6209820048885851",
+                  "witness_address": "414af35ad2e9d2ee8f6d2663bd45eed6b533ed3523",
+                  "parentHash": "b3878d94c6e9a8799be4a40510e130b430219b508979b6736617df7e37b0e0d8",
+                  "version": 31,
+                  "timestamp": 1768467750000
+                },
+                "witness_signature": "17cbe9f753a1078fdaf021d5fcda62039e2340f27f371148985b0e6d59a5f517ed38849b4cd20b5ad87a2e5730d237f5aadacdf53fd0f6c934c41f512f65beb2"
+              }
+            }
+          }
+        },
+        {
+          "match": {
+            "method": "POST",
+            "path": "/wallet/gettransactioninfobyid",
+            "bodyIncludes": "fdf14b5c41c91bdb75fe1d58b409d2e80876294832b221f04a9c7ae7d6e07da7"
+          },
+          "response": {
+            "status": 200,
+            "body": {}
+          },
+          "note": "vanished"
+        }
+      ]
+    },
+    "unknown_transaction": {
+      "description": "TronGrid answers {} for an unknown id.",
+      "exchanges": [
+        {
+          "match": {
+            "method": "POST",
+            "path": "/wallet/gettransactioninfobyid",
+            "bodyIncludes": "bb2279e6e54f20c5642cf614b1c900f8d24b5a31910ad0a118ace1e638ba8828"
+          },
+          "response": {
+            "status": 200,
+            "body": {}
+          }
+        }
+      ]
+    },
+    "pagination": {
+      "description": "Two pages of the v1 TRC-20 listing via fingerprint (page 1 also lists a look-alike token); each candidate verified by receipt.",
+      "exchanges": [
+        {
+          "match": {
+            "method": "GET",
+            "path": "/v1/accounts/TPfJui1ter5yzs6pUFdURpP4bT1HxU1brs/transactions/trc20",
+            "query": {
+              "only_to": "true",
+              "contract_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+              "limit": "200",
+              "order_by": "block_timestamp,asc",
+              "fingerprint": ""
+            }
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "data": [
+                {
+                  "transaction_id": "f3cb7cfe3347d7d6882f7f3cb5dc59f18be1e510d2590fc3179169af75e9c9cd",
+                  "token_info": {
+                    "symbol": "USDT",
+                    "address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+                    "decimals": 6,
+                    "name": "Tether USD"
+                  },
+                  "block_timestamp": 1768467603000,
+                  "from": "TDYxcuBxFvwnW5EbZLJ1gmHxsjuT56T6tu",
+                  "to": "TPfJui1ter5yzs6pUFdURpP4bT1HxU1brs",
+                  "type": "Transfer",
+                  "value": "10000000"
+                },
+                {
+                  "transaction_id": "91baef696717f4ab81ca9f12831ffb0b882520f1b25ff3d342df021adb1f210b",
+                  "token_info": {
+                    "symbol": "USDT",
+                    "address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+                    "decimals": 6,
+                    "name": "Tether USD"
+                  },
+                  "block_timestamp": 1768467606000,
+                  "from": "TTtzxWLjWzihi3QwHvJ35QaLhFsz5itbZw",
+                  "to": "TPfJui1ter5yzs6pUFdURpP4bT1HxU1brs",
+                  "type": "Transfer",
+                  "value": "20000000"
+                },
+                {
+                  "transaction_id": "c845154f8f72482c0582ea7f1703bebe19142484f54758b554108c25f174903a",
+                  "token_info": {
+                    "symbol": "USDT",
+                    "address": "TRfHYxu2NAV7YLVsDemCx8dZAJQkVVkWL7",
+                    "decimals": 6,
+                    "name": "Tether USD"
+                  },
+                  "block_timestamp": 1768467606000,
+                  "from": "TTtzxWLjWzihi3QwHvJ35QaLhFsz5itbZw",
+                  "to": "TPfJui1ter5yzs6pUFdURpP4bT1HxU1brs",
+                  "type": "Transfer",
+                  "value": "500000000"
+                }
+              ],
+              "success": true,
+              "meta": {
+                "at": 1768471200000,
+                "fingerprint": "fp-fictional-page-2",
+                "links": {
+                  "next": "https://api.trongrid.io/v1/accounts/TPfJui1ter5yzs6pUFdURpP4bT1HxU1brs/transactions/trc20?fingerprint=fp-fictional-page-2"
+                },
+                "page_size": 3
+              }
+            }
+          }
+        },
+        {
+          "match": {
+            "method": "GET",
+            "path": "/v1/accounts/TPfJui1ter5yzs6pUFdURpP4bT1HxU1brs/transactions/trc20",
+            "query": {
+              "fingerprint": "fp-fictional-page-2"
+            }
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "data": [
+                {
+                  "transaction_id": "d562d8e7197e2194e5d5e68aebfa55645b9159c5ac9bd193fda51db2bcdb0b6e",
+                  "token_info": {
+                    "symbol": "USDT",
+                    "address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+                    "decimals": 6,
+                    "name": "Tether USD"
+                  },
+                  "block_timestamp": 1768467690000,
+                  "from": "TDYxcuBxFvwnW5EbZLJ1gmHxsjuT56T6tu",
+                  "to": "TPfJui1ter5yzs6pUFdURpP4bT1HxU1brs",
+                  "type": "Transfer",
+                  "value": "30000000"
+                }
+              ],
+              "success": true,
+              "meta": {
+                "at": 1768471200000,
+                "page_size": 1
+              }
+            }
+          }
+        },
+        {
+          "match": {
+            "method": "POST",
+            "path": "/wallet/getnowblock"
+          },
+          "repeat": true,
+          "response": {
+            "status": 200,
+            "body": {
+              "blockID": "000000000393872d852e3f8560ea68de564f0a00f447984cbac6599a92ee7a2b",
+              "block_header": {
+                "raw_data": {
+                  "number": 60000045,
+                  "txTrieRoot": "85c89586820a30fbb2fdda4e5c0fa23a40b29fde430bfcbc99e82d1870ef1b09",
+                  "witness_address": "414af35ad2e9d2ee8f6d2663bd45eed6b533ed3523",
+                  "parentHash": "fa51ddfb5f4824e3415ac32d86316afbd4599d0acd24a358a84f5be70f7a85a7",
+                  "version": 31,
+                  "timestamp": 1768467735000
+                },
+                "witness_signature": "22f1ba4a6a8273177ae554bb0e8950bc9c0f0b957cf7aded49a9bb203d61824fabf40c6528adcd5a900de758bb86f0c3678e271921be3ec5d7ce6b81eb8a6131"
+              }
+            }
+          }
+        },
+        {
+          "match": {
+            "method": "POST",
+            "path": "/wallet/gettransactioninfobyid",
+            "bodyIncludes": "f3cb7cfe3347d7d6882f7f3cb5dc59f18be1e510d2590fc3179169af75e9c9cd"
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "id": "f3cb7cfe3347d7d6882f7f3cb5dc59f18be1e510d2590fc3179169af75e9c9cd",
+              "fee": 13844850,
+              "blockNumber": 60000001,
+              "blockTimeStamp": 1768467603000,
+              "contractResult": [
+                "0000000000000000000000000000000000000000000000000000000000000001"
+              ],
+              "contract_address": "41a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+              "receipt": {
+                "energy_fee": 13499850,
+                "energy_usage_total": 64285,
+                "net_usage": 345,
+                "result": "SUCCESS"
+              },
+              "log": [
+                {
+                  "address": "a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+                  "topics": [
+                    "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                    "000000000000000000000000274a83b82bc51eb2a232b06561eab0c4c010a67d",
+                    "000000000000000000000000962f3487a0daa5fe349d7cd3b58405bdd709f7e9"
+                  ],
+                  "data": "0000000000000000000000000000000000000000000000000000000000989680"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "match": {
+            "method": "POST",
+            "path": "/wallet/gettransactioninfobyid",
+            "bodyIncludes": "f3cb7cfe3347d7d6882f7f3cb5dc59f18be1e510d2590fc3179169af75e9c9cd"
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "id": "f3cb7cfe3347d7d6882f7f3cb5dc59f18be1e510d2590fc3179169af75e9c9cd",
+              "fee": 13844850,
+              "blockNumber": 60000001,
+              "blockTimeStamp": 1768467603000,
+              "contractResult": [
+                "0000000000000000000000000000000000000000000000000000000000000001"
+              ],
+              "contract_address": "41a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+              "receipt": {
+                "energy_fee": 13499850,
+                "energy_usage_total": 64285,
+                "net_usage": 345,
+                "result": "SUCCESS"
+              },
+              "log": [
+                {
+                  "address": "a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+                  "topics": [
+                    "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                    "000000000000000000000000274a83b82bc51eb2a232b06561eab0c4c010a67d",
+                    "000000000000000000000000962f3487a0daa5fe349d7cd3b58405bdd709f7e9"
+                  ],
+                  "data": "0000000000000000000000000000000000000000000000000000000000989680"
+                }
+              ]
+            }
+          },
+          "note": "reorg re-check"
+        },
+        {
+          "match": {
+            "method": "POST",
+            "path": "/wallet/gettransactioninfobyid",
+            "bodyIncludes": "91baef696717f4ab81ca9f12831ffb0b882520f1b25ff3d342df021adb1f210b"
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "id": "91baef696717f4ab81ca9f12831ffb0b882520f1b25ff3d342df021adb1f210b",
+              "fee": 13844850,
+              "blockNumber": 60000002,
+              "blockTimeStamp": 1768467606000,
+              "contractResult": [
+                "0000000000000000000000000000000000000000000000000000000000000001"
+              ],
+              "contract_address": "41a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+              "receipt": {
+                "energy_fee": 13499850,
+                "energy_usage_total": 64285,
+                "net_usage": 345,
+                "result": "SUCCESS"
+              },
+              "log": [
+                {
+                  "address": "a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+                  "topics": [
+                    "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                    "000000000000000000000000c4a68be2ed6c1000612c4a494337b7031149f3e4",
+                    "000000000000000000000000962f3487a0daa5fe349d7cd3b58405bdd709f7e9"
+                  ],
+                  "data": "0000000000000000000000000000000000000000000000000000000001312d00"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "match": {
+            "method": "POST",
+            "path": "/wallet/gettransactioninfobyid",
+            "bodyIncludes": "91baef696717f4ab81ca9f12831ffb0b882520f1b25ff3d342df021adb1f210b"
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "id": "91baef696717f4ab81ca9f12831ffb0b882520f1b25ff3d342df021adb1f210b",
+              "fee": 13844850,
+              "blockNumber": 60000002,
+              "blockTimeStamp": 1768467606000,
+              "contractResult": [
+                "0000000000000000000000000000000000000000000000000000000000000001"
+              ],
+              "contract_address": "41a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+              "receipt": {
+                "energy_fee": 13499850,
+                "energy_usage_total": 64285,
+                "net_usage": 345,
+                "result": "SUCCESS"
+              },
+              "log": [
+                {
+                  "address": "a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+                  "topics": [
+                    "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                    "000000000000000000000000c4a68be2ed6c1000612c4a494337b7031149f3e4",
+                    "000000000000000000000000962f3487a0daa5fe349d7cd3b58405bdd709f7e9"
+                  ],
+                  "data": "0000000000000000000000000000000000000000000000000000000001312d00"
+                }
+              ]
+            }
+          },
+          "note": "reorg re-check"
+        },
+        {
+          "match": {
+            "method": "POST",
+            "path": "/wallet/gettransactioninfobyid",
+            "bodyIncludes": "d562d8e7197e2194e5d5e68aebfa55645b9159c5ac9bd193fda51db2bcdb0b6e"
+          },
+          "response": {
+            "status": 200,
+            "body": {
+              "id": "d562d8e7197e2194e5d5e68aebfa55645b9159c5ac9bd193fda51db2bcdb0b6e",
+              "fee": 13844850,
+              "blockNumber": 60000030,
+              "blockTimeStamp": 1768467690000,
+              "contractResult": [
+                "0000000000000000000000000000000000000000000000000000000000000001"
+              ],
+              "contract_address": "41a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+              "receipt": {
+                "energy_fee": 13499850,
+                "energy_usage_total": 64285,
+                "net_usage": 345,
+                "result": "SUCCESS"
+              },
+              "log": [
+                {
+                  "address": "a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+                  "topics": [
+                    "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                    "000000000000000000000000274a83b82bc51eb2a232b06561eab0c4c010a67d",
+                    "000000000000000000000000962f3487a0daa5fe349d7cd3b58405bdd709f7e9"
+                  ],
+                  "data": "0000000000000000000000000000000000000000000000000000000001c9c380"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}
