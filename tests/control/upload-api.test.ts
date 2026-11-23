@@ -16,6 +16,7 @@ import { POST as validatePOST } from "../../src/app/api/control/merchant/uploads
 import { GET as reportGET } from "../../src/app/api/control/merchant/uploads/[id]/report/route";
 import { POST as decisionPOST } from "../../src/app/api/control/merchant/uploads/[id]/decision/route";
 import { GET as templatesGET, POST as templatesPOST } from "../../src/app/api/control/merchant/uploads/templates/route";
+import { POST as normalisePOST } from "../../src/app/api/control/merchant/uploads/[id]/normalise/route";
 
 const ORIGIN = process.env.CLEARLINE_ORIGIN!;
 const BASE = `${ORIGIN}/api/control/merchant/uploads`;
@@ -87,7 +88,10 @@ describe("upload routes", () => {
     expect(report).toMatchObject({ total: 2, page: 1, pageSize: 1, rows: [{ rowNumber: 2, status: "accepted", reasonCodes: [] }] });
     const d = await decisionPOST(post(`/${id}/decision`, "finance@live-a.example", { decision: "confirm", reason: "Orders checked (fictional)", contentSha256: v.upload.contentSha256, rowsSha256: v.upload.rowsSha256 }), params(id));
     expect((await d.json()).upload.status).toBe("confirmed");
-    expect((await (await oneGET(get(`/${id}`, "viewer@live-a.example"), params(id))).json()).upload.status).toBe("confirmed");
+    expect((await normalisePOST(post(`/${id}/normalise`, "viewer@live-a.example", {}), params(id))).status).toBe(403);
+    const nz = await normalisePOST(post(`/${id}/normalise`, "finance@live-a.example", {}), params(id));
+    expect([nz.status, await nz.json()]).toEqual([200, expect.objectContaining({ status: "normalised", changed: true, counts: { created: 2, existing: 0, conflict: 0, skipped: 0 } })]);
+    expect((await (await oneGET(get(`/${id}`, "viewer@live-a.example"), params(id))).json()).upload.status).toBe("normalised");
     expect((await (await listGET(get("", "viewer@live-a.example"))).json()).uploads).toHaveLength(1);
   });
 });

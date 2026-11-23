@@ -18,6 +18,7 @@ import { dataModeOf, suggestTemplate, type TemplateSuggestion } from "./mapping-
 import { AccessDenied, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
 import { StorageRefused, uploadStorage, type UploadStorage } from "./storage";
+import { purgeDerivedRows } from "./upload-retention";
 
 /**
  * rc7 uploads: a merchant's own files → storage → mapping → validation report → confirmation. The file's bytes live
@@ -37,7 +38,7 @@ const tenantTx = <T>(ctx: TenantContext, fn: (tx: Tx) => Promise<T>) => withTena
 const tenantRead = <T>(ctx: TenantContext, fn: (tx: Tx) => Promise<T>) => withTenant({ userId: ctx.userId, orgId: ctx.orgId }, fn, { read: true });
 const sha256 = (b: Uint8Array | string) => createHash("sha256").update(b).digest("hex");
 const UploadId = z.uuid();
-type UploadRow = typeof t.uploads.$inferSelect;
+export type UploadRow = typeof t.uploads.$inferSelect;
 type Format = UploadRow["fileFormat"];
 
 /** A display name only (never a path): last path segment, no control or reserved characters, at most 120 characters. */
@@ -126,7 +127,7 @@ async function retentionDays(tx: Tx, orgId: string): Promise<number> {
   return s?.d ?? DEFAULT_RETENTION_DAYS;
 }
 
-async function loadUpload(tx: Tx, ctx: TenantContext, id: string, lock = false): Promise<UploadRow> {
+export async function loadUpload(tx: Tx, ctx: TenantContext, id: string, lock = false): Promise<UploadRow> {
   if (!UploadId.safeParse(id).success) throw new AccessDenied(404, "Not found.");
   const q = tx.select().from(t.uploads).where(and(eq(t.uploads.orgId, ctx.orgId), eq(t.uploads.id, id)));
   const [u] = lock ? await q.for("update") : await q;
@@ -385,9 +386,8 @@ export async function setRetentionDays(ctx: TenantContext, days: number, idempot
   }));
 }
 
-/** Data derived from an upload, removed by retention; extended when normalisation writes rows (rc7 normalise). */
+/** Data derived from an upload, removed by retention (src/server/upload-retention.ts). */
 export type DerivedPurge = (tx: Db | Tx, u: UploadRow) => Promise<Record<string, number>>;
-const noDerived: DerivedPurge = async () => ({});
 
 /**
  * Retention (founder decision 6): for every upload past its delete_after, remove the stored file, its validation rows
@@ -396,7 +396,7 @@ const noDerived: DerivedPurge = async () => ({});
  */
 export async function purgeExpiredUploads(db: Db, now: Date, opts: { storage?: UploadStorage; derived?: DerivedPurge } = {}) {
   const storage = opts.storage ?? uploadStorage();
-  const derived = opts.derived ?? noDerived;
+  const derived = opts.derived ?? purgeDerivedRows;
   const due = await db.select().from(t.uploads).where(and(ne(t.uploads.status, "deleted"), lte(t.uploads.deleteAfter, now))).orderBy(asc(t.uploads.deleteAfter));
   const total = { uploads: 0, files: 0, rows: 0 } as Record<string, number>;
   for (const u of due) {
