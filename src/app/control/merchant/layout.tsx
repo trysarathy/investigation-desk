@@ -12,6 +12,7 @@ const MERCHANT_NAV: NavItem[] = [
   { href: "/control/merchant/exceptions", label: "Exceptions" },
   { href: "/control/merchant/batches", label: "Batches" },
   { href: "/control/merchant/uploads", label: "Uploads" },
+  { href: "/control/merchant/runs", label: "Runs" },
   { href: "/control/merchant/approvals", label: "Approvals" },
   { href: "/control/merchant/month-end", label: "Month-end" },
   { href: "/control/merchant/evidence", label: "Evidence packs" },

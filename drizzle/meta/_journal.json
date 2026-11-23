@@ -169,6 +169,20 @@
       "when": 1795500100000,
       "tag": "0023_quote_terms_optional",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1795600000000,
+      "tag": "0024_reconciliation_runs",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1795600100000,
+      "tag": "0025_jobs_schedules",
+      "breakpoints": true
     }
   ]
 }

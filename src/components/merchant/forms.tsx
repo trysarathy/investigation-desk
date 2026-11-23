@@ -29,6 +29,28 @@ export function RunReconciliation({ entityId, entityName }: { entityId: string; 
   );
 }
 
+export function ScheduleForm({ entityId, localTime, enabled }: { entityId: string; localTime: string; enabled: boolean }) {
+  const x = useMutation(`schedule:${entityId}`);
+  const id = useId();
+  return (
+    <form className={s.form} autoComplete="off" onSubmit={(ev) => {
+      ev.preventDefault();
+      const f = new FormData(ev.currentTarget);
+      const on = f.get("enabled") === "on";
+      void x.run("POST", `${API}/schedule/${encodeURIComponent(entityId)}`, { localTime: String(f.get("localTime") ?? ""), enabled: on },
+        (d) => (d?.enabled ? `Saved: ${entityId} runs every day at ${String(d.localTime ?? "")} merchant time.` : `Saved: ${entityId} has no daily run.`));
+    }}>
+      <div className={s.field}>
+        <label className={s.label} htmlFor={`${id}-t`}>Daily run time for {entityId} (merchant time)</label>
+        <input className={s.input} id={`${id}-t`} name="localTime" type="time" required defaultValue={localTime} step={60} />
+      </div>
+      <div className={s.check}><input id={`${id}-e`} name="enabled" type="checkbox" defaultChecked={enabled} /><label htmlFor={`${id}-e`}>Run {entityId} every day</label></div>
+      <div><Submit busy={x.busy} variant="secondary">Save daily run for {entityId}</Submit></div>
+      <Result outcome={x.outcome} />
+    </form>
+  );
+}
+
 export function AssignForm({ exceptionId, members, current }: { exceptionId: string; members: { userId: string; name: string; role: string }[]; current: string | null }) {
   const x = useMutation(`assign:${exceptionId}`);
   const id = useId();

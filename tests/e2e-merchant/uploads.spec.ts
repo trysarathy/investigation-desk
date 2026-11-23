@@ -287,6 +287,11 @@ test("live merchant: upload, map, validate, confirm (bank by a second person), r
     if (expected.every(([, e]) => e.kind !== "abstain" || e.decision)) await expect(page.getByTestId("decision-chip").filter({ hasText: new RegExp(`^${label}$`) }), label).toHaveCount(n);
   }
   await axeBoth(page, info, "payments (live)");
+  // the run is recorded on the Runs page, labelled "Your data"
+  await page.goto("/control/merchant/runs");
+  await expectLiveLabel(page);
+  await expect(page.getByTestId("run-row").filter({ hasText: "ENT-SG-SYN" }).first()).toContainText("Changed");
+  await axeBoth(page, info, "runs (live)");
   await signOut(page);
 
   // 12. The Admin sets retention on the settings page; each upload shows its delete-after date

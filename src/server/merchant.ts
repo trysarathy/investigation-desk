@@ -1,5 +1,5 @@
 import "server-only";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
@@ -17,6 +17,8 @@ import { AccessDenied, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
 import { isLiveOrg, verifyChainForEntity, verifyClientFromEnv } from "./chain-verify";
 import type { VerifyChainClient } from "@/lib/clearline/merchant/chain";
+import type { RunTrigger } from "./db/ops-schema";
+import { MERCHANT_ENGINE_VERSION, RULE_SET_VERSION, closedOrders, errorCodeOf, newOutcome, outcomeKey, runCounts, runState, storedOutcome, type RunCounts } from "./runs";
 
 /**
  * rc6 Merchant Reconciliation services. Every function takes a TenantContext built on the server from the session
@@ -25,7 +27,7 @@ import type { VerifyChainClient } from "@/lib/clearline/merchant/chain";
  * and audit, and serves read models. Every output carries "Test mode · illustrative data".
  */
 
-export const MERCHANT_ENGINE_VERSION = "rc6-merchant-engine/1";
+export { MERCHANT_ENGINE_VERSION };
 export const PROVIDER_DAY_NOTE = "provider day = UTC";
 const LABEL = TEST_MODE_LABEL;
 /** The JSON shape of an engine object (BigInt → decimal string), as persisted and served. */
@@ -68,79 +70,131 @@ export async function ingestAdapterOutput(ctx: TenantContext, entityId: string, 
   }));
 }
 
+/** Options of a run. `ruleSetVersion` replaces the code's version only in tests (to show a rule change re-runs). */
+export interface RunOptions { chain?: VerifyChainClient; trigger?: RunTrigger; jobId?: string; ruleSetVersion?: string }
+
 /**
  * (Live data: verify against the chain first, see chain-verify.ts.) Load the entity's rows → reconcile → persist the five parts, differences (append-only), exceptions, write-off
- * proposals and journal proposals (always pending sign-off) → audit. An identical rerun changes nothing.
+ * proposals and journal proposals (always pending sign-off) → audit, and record the run (rc7 phase 3a, runs.ts).
+ * The same input under the same rule-set version and policy revision as the last run writes nothing ("no change").
+ * Payments a person closed are left as they were; a run that would decide one differently records a notice instead.
  */
-export async function runReconciliation(ctx: TenantContext, entityId: string, idempotencyKey: string, opts: { chain?: VerifyChainClient } = {}) {
+export async function runReconciliation(ctx: TenantContext, entityId: string, idempotencyKey: string, opts: RunOptions = {}) {
   require(ctx, "merchant_reconcile");
   const key = IdempotencyKey.parse(idempotencyKey);
-  // rc7 phase 2: a live organisation's payments are verified against chain data first (sample data is seeded with
-  // its recorded chain facts). Reads happen outside the reconcile transaction; failed reads are stored, not thrown.
-  if (await isLiveOrg(ctx)) await verifyChainForEntity(ctx, entityId, opts.chain ?? verifyClientFromEnv());
-  return tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "merchant_reconcile", entityId }, async () => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${ctx.orgId}|merchant_reconcile|${entityId}`}))`);
-    const input = await load(tx, ctx, entityId);
-    const hash = inputSha256(input);
-    const orderIds = input.invoices.map((i) => i.orderId);
-    const prior = orderIds.length ? await tx.select({ orderId: t.matchRecords.orderId, sha: t.matchRecords.inputSha256, ver: t.matchRecords.engineVersion }).from(t.matchRecords)
-      .where(and(eq(t.matchRecords.orgId, ctx.orgId), inArray(t.matchRecords.orderId, orderIds))) : [];
-    if (orderIds.length && prior.length === orderIds.length && prior.every((p) => p.sha === hash && p.ver === MERCHANT_ENGINE_VERSION)) {
-      return { status: 200, body: { label: LABEL, entityId, inputSha256: hash, engineVersion: MERCHANT_ENGINE_VERSION, changed: false } };
+  const trigger = opts.trigger ?? "manual";
+  const version = opts.ruleSetVersion ?? RULE_SET_VERSION;
+  const startedAt = new Date();
+  try {
+    // rc7 phase 2: a live organisation's payments are verified against chain data first (sample data is seeded with
+    // its recorded chain facts). Reads happen outside the reconcile transaction; failed reads are stored, not thrown.
+    if (await isLiveOrg(ctx)) await verifyChainForEntity(ctx, entityId, opts.chain ?? verifyClientFromEnv());
+    return await tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "merchant_reconcile", entityId }, () => reconcileInTx(tx, ctx, entityId, { trigger, version, startedAt, jobId: opts.jobId ?? null })));
+  } catch (e) {
+    // A failed run is recorded with a code (never the message). An unknown entity or a refused member is not a run.
+    if (!(e instanceof AccessDenied)) {
+      await tenantTx(ctx, async (tx) => {
+        const { policyRevision } = await runState(tx, ctx.orgId, entityId);
+        await tx.insert(t.reconciliationRuns).values({ orgId: ctx.orgId, entityId, trigger, jobId: opts.jobId ?? null, startedBy: ctx.userId, ruleSetVersion: version, policyRevision, status: "failed", startedAt, finishedAt: new Date(), errorCode: errorCodeOf(e) });
+      }).catch(() => undefined);
     }
-    const result = reconcile(input);
-    const journals = proposeJournals(input, result);
-    const now = new Date();
-    const diffIdOf = new Map(result.records.flatMap((r) => r.explanation.differences.map((d) => [`${r.orderId}|${d.id}`, contentId(d.id, { orderId: r.orderId, type: d.type, amountMinor: d.amountMinor, currency: d.currency, ruleId: d.ruleId })] as const)));
-    const woIdOf = new Map(result.writeOffs.map((w) => [w.id, contentId(w.id, { orderId: w.orderId, amountMinor: w.amountMinor, direction: w.direction, currency: w.currency, differenceIds: w.differenceIds.map((id) => diffIdOf.get(`${w.orderId}|${id}`)) })]));
-    for (const r of result.records) {
-      const explanation = { ...r.explanation, differences: r.explanation.differences.map((d) => ({ ...d, persistedId: diffIdOf.get(`${r.orderId}|${d.id}`) })) };
-      const row = {
-        decision: r.explanation.decision, decidingStep: r.explanation.decidingStep, ruleId: r.explanation.ruleId,
-        chain: plain(r.chain) as object, provider: plain(r.provider) as object, bank: plain(r.bank) as object, ledger: plain(r.ledger) as object,
-        explanation: plain({ ...explanation, attention: r.attention ?? null, label: r.label }) as object, engineVersion: MERCHANT_ENGINE_VERSION, inputSha256: hash, computedAt: now,
-      };
-      await tx.insert(t.matchRecords).values({ orgId: ctx.orgId, orderId: r.orderId, ...row }).onConflictDoUpdate({ target: [t.matchRecords.orgId, t.matchRecords.orderId], set: row });
-    }
-    const diffs = result.records.flatMap((r) => r.explanation.differences.map((d) => ({ orgId: ctx.orgId, id: diffIdOf.get(`${r.orderId}|${d.id}`)!, orderId: r.orderId, type: d.type, amountMinor: d.amountMinor, currency: d.currency, reason: d.reason, ruleId: d.ruleId })));
-    const newDiffs = diffs.length ? await tx.insert(t.differences).values(diffs).onConflictDoNothing().returning({ id: t.differences.id }) : [];
-    const exIds = new Set(result.exceptions.map((e) => e.id));
-    for (const e of result.exceptions) {
-      await tx.insert(t.reconExceptions).values({ orgId: ctx.orgId, id: e.id, orderId: e.orderId ?? null, ownerRole: e.owner, reason: e.reason, nextStep: e.nextStep, status: "open", openedAt: now })
-        .onConflictDoUpdate({ target: [t.reconExceptions.orgId, t.reconExceptions.id], set: { ownerRole: e.owner, reason: e.reason, nextStep: e.nextStep, status: sql`case when ${t.reconExceptions.status} = 'resolved' then 'open' else ${t.reconExceptions.status} end`, closedAt: null } });
-    }
-    const stale = orderIds.length ? (await tx.select({ id: t.reconExceptions.id }).from(t.reconExceptions)
-      .where(and(eq(t.reconExceptions.orgId, ctx.orgId), inArray(t.reconExceptions.orderId, orderIds), sql`${t.reconExceptions.status} <> 'resolved'`))).filter((x) => !exIds.has(x.id)) : [];
-    for (const x of stale) await tx.update(t.reconExceptions).set({ status: "resolved", closedAt: now }).where(and(eq(t.reconExceptions.orgId, ctx.orgId), eq(t.reconExceptions.id, x.id)));
-    const newWo = result.writeOffs.length ? await tx.insert(t.writeoffProposals).values(result.writeOffs.map((w) => ({
-      orgId: ctx.orgId, id: woIdOf.get(w.id)!, orderId: w.orderId, amountMinor: w.amountMinor, currency: w.currency,
-      differenceIds: w.differenceIds.map((id) => diffIdOf.get(`${w.orderId}|${id}`)!), status: "proposed",
-    }))).onConflictDoNothing().returning({ id: t.writeoffProposals.id }) : [];
-    // a write-off the engine no longer proposes (the payment changed) is superseded, with any pending request for it
-    const currentWo = new Set(woIdOf.values());
-    const oldWo = orderIds.length ? (await tx.select().from(t.writeoffProposals).where(and(eq(t.writeoffProposals.orgId, ctx.orgId), inArray(t.writeoffProposals.orderId, orderIds),
-      inArray(t.writeoffProposals.status, ["proposed", "awaiting_approval"])))).filter((w) => !currentWo.has(w.id)) : [];
-    for (const w of oldWo) {
-      await tx.update(t.approvalRequests).set({ status: "superseded", closedAt: now }).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.subjectKind, "merchant_writeoff"), eq(t.approvalRequests.subjectId, w.id), eq(t.approvalRequests.status, "pending")));
-      await tx.update(t.writeoffProposals).set({ status: "superseded" }).where(and(eq(t.writeoffProposals.orgId, ctx.orgId), eq(t.writeoffProposals.id, w.id)));
-    }
-    for (const j of journals) {
-      // Document A "(on approval)" lines name the approval they wait for; write-off ids map to their stored ids.
-      const lines = j.lines.map((l) => (l.onApproval ? { ...l, onApproval: woIdOf.get(l.onApproval) ?? l.onApproval } : l));
-      const row = { entityId, pattern: j.kind, lines: plain(lines) as object, currency: j.currency,
-        evidenceRefs: plain({ ...j.evidence, ruleId: j.ruleId, entryDate: j.entryDate, memo: j.memo, requiresApprovalOf: j.requiresApprovalOf ? woIdOf.get(j.requiresApprovalOf) ?? j.requiresApprovalOf : null, label: j.label }) as object };
-      await tx.insert(t.merchantJournalProposals).values({ orgId: ctx.orgId, id: j.id, ...row, status: "proposed", postingRuleStatus: "pending_sign_off" })
-        .onConflictDoUpdate({ target: [t.merchantJournalProposals.orgId, t.merchantJournalProposals.id], set: row, setWhere: sql`${t.merchantJournalProposals.status} = 'proposed'` });
-    }
-    const keep = journals.map((j) => j.id);
-    await tx.update(t.merchantJournalProposals).set({ status: "superseded" }).where(and(eq(t.merchantJournalProposals.orgId, ctx.orgId), eq(t.merchantJournalProposals.entityId, entityId),
-      eq(t.merchantJournalProposals.status, "proposed"), keep.length ? sql`${t.merchantJournalProposals.id} not in (${sql.join(keep.map((k) => sql`${k}`), sql`, `)})` : sql`true`));
-    const counts = { records: result.records.length, newDifferences: newDiffs.length, exceptions: result.exceptions.length, resolvedExceptions: stale.length, newWriteoffs: newWo.length, supersededWriteoffs: oldWo.length, journals: journals.length };
-    await serverAudit(tx, ctx, "merchant_reconciliation_run", "merchant_entity", entityId,
-      `Reconciled ${counts.records} payments (engine ${MERCHANT_ENGINE_VERSION}, input sha256 ${hash.slice(0, 12)}…): ${counts.exceptions} exceptions, ${counts.newWriteoffs} new write-off proposals, ${counts.journals} journal proposals pending sign-off`,
-      { inputSha256: hash, engineVersion: MERCHANT_ENGINE_VERSION, ...counts });
-    return { status: 200, body: { label: LABEL, entityId, inputSha256: hash, engineVersion: MERCHANT_ENGINE_VERSION, changed: true, ...counts } };
-  }));
+    throw e;
+  }
+}
+
+export type RunBody = {
+  label: typeof LABEL; entityId: string; inputSha256: string; engineVersion: string; ruleSetVersion: string; policyRevision: number; runId: string; status: "changed" | "no_change"; changed: boolean;
+  records?: number; newDifferences?: number; exceptions?: number; resolvedExceptions?: number; newWriteoffs?: number; supersededWriteoffs?: number; journals?: number; kept?: number; notices?: number; runCounts?: RunCounts;
+};
+
+async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: { trigger: RunTrigger; version: string; startedAt: Date; jobId: string | null }): Promise<{ status: number; body: RunBody }> {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${ctx.orgId}|merchant_reconcile|${entityId}`}))`);
+  const input = await load(tx, ctx, entityId);
+  const hash = inputSha256(input);
+  const orderIds = input.invoices.map((i) => i.orderId);
+  const { prev, policyRevision } = await runState(tx, ctx.orgId, entityId);
+  const runRow = { orgId: ctx.orgId, entityId, trigger: run.trigger, jobId: run.jobId, startedBy: ctx.userId, ruleSetVersion: run.version, policyRevision, inputSha256: hash, startedAt: run.startedAt };
+  const meta = { label: LABEL, entityId, inputSha256: hash, engineVersion: MERCHANT_ENGINE_VERSION, ruleSetVersion: run.version, policyRevision };
+  if (prev && prev.inputSha256 === hash && prev.ruleSetVersion === run.version && prev.policyRevision === policyRevision) {
+    const [r] = await tx.insert(t.reconciliationRuns).values({ ...runRow, status: "no_change", finishedAt: new Date(), matched: prev.matched, withDifference: prev.withDifference,
+      review: prev.review, exceptions: prev.exceptions, unpaid: prev.unpaid, kept: prev.kept, notices: 0 }).returning({ id: t.reconciliationRuns.id });
+    return { status: 200, body: { ...meta, runId: r.id, status: "no_change" as const, changed: false, records: orderIds.length, newDifferences: 0, exceptions: prev.exceptions, resolvedExceptions: 0, newWriteoffs: 0, supersededWriteoffs: 0, journals: 0, kept: prev.kept, notices: 0 } };
+  }
+  const result = reconcile(input);
+  const journals = proposeJournals(input, result);
+  const now = new Date();
+  // rc7 phase 3a: a payment a person closed keeps its stored decision; a different new decision becomes a notice
+  const closed = await closedOrders(tx, ctx.orgId, orderIds);
+  const stored = new Map(closed.size ? (await tx.select().from(t.matchRecords).where(and(eq(t.matchRecords.orgId, ctx.orgId), inArray(t.matchRecords.orderId, [...closed])))).map((m) => [m.orderId, m]) : []);
+  const isKept = (orderId: string | null | undefined) => !!orderId && stored.has(orderId);
+  const open = result.records.filter((r) => !isKept(r.orderId));
+  const differ = result.records.filter((r) => isKept(r.orderId) && outcomeKey(newOutcome(r)) !== outcomeKey(storedOutcome(stored.get(r.orderId)!)));
+  const runId = randomUUID();
+  const diffIdOf = new Map(open.flatMap((r) => r.explanation.differences.map((d) => [`${r.orderId}|${d.id}`, contentId(d.id, { orderId: r.orderId, type: d.type, amountMinor: d.amountMinor, currency: d.currency, ruleId: d.ruleId })] as const)));
+  const writeOffs = result.writeOffs.filter((w) => !isKept(w.orderId));
+  const woIdOf = new Map(writeOffs.map((w) => [w.id, contentId(w.id, { orderId: w.orderId, amountMinor: w.amountMinor, direction: w.direction, currency: w.currency, differenceIds: w.differenceIds.map((id) => diffIdOf.get(`${w.orderId}|${id}`)) })]));
+  for (const r of open) {
+    const explanation = { ...r.explanation, differences: r.explanation.differences.map((d) => ({ ...d, persistedId: diffIdOf.get(`${r.orderId}|${d.id}`) })) };
+    const row = {
+      decision: r.explanation.decision, decidingStep: r.explanation.decidingStep, ruleId: r.explanation.ruleId,
+      chain: plain(r.chain) as object, provider: plain(r.provider) as object, bank: plain(r.bank) as object, ledger: plain(r.ledger) as object,
+      explanation: plain({ ...explanation, attention: r.attention ?? null, label: r.label }) as object, engineVersion: MERCHANT_ENGINE_VERSION, inputSha256: hash, computedAt: now,
+    };
+    await tx.insert(t.matchRecords).values({ orgId: ctx.orgId, orderId: r.orderId, ...row }).onConflictDoUpdate({ target: [t.matchRecords.orgId, t.matchRecords.orderId], set: row });
+  }
+  const diffs = open.flatMap((r) => r.explanation.differences.map((d) => ({ orgId: ctx.orgId, id: diffIdOf.get(`${r.orderId}|${d.id}`)!, orderId: r.orderId, type: d.type, amountMinor: d.amountMinor, currency: d.currency, reason: d.reason, ruleId: d.ruleId })));
+  const newDiffs = diffs.length ? await tx.insert(t.differences).values(diffs).onConflictDoNothing().returning({ id: t.differences.id }) : [];
+  const exceptions = result.exceptions.filter((e) => !isKept(e.orderId));
+  const exIds = new Set(exceptions.map((e) => e.id));
+  for (const e of exceptions) {
+    await tx.insert(t.reconExceptions).values({ orgId: ctx.orgId, id: e.id, orderId: e.orderId ?? null, ownerRole: e.owner, reason: e.reason, nextStep: e.nextStep, status: "open", openedAt: now })
+      .onConflictDoUpdate({ target: [t.reconExceptions.orgId, t.reconExceptions.id], set: { ownerRole: e.owner, reason: e.reason, nextStep: e.nextStep, status: sql`case when ${t.reconExceptions.status} = 'resolved' then 'open' else ${t.reconExceptions.status} end`, closedAt: null } });
+  }
+  const openIds = orderIds.filter((o) => !isKept(o));
+  const stale = openIds.length ? (await tx.select({ id: t.reconExceptions.id }).from(t.reconExceptions)
+    .where(and(eq(t.reconExceptions.orgId, ctx.orgId), inArray(t.reconExceptions.orderId, openIds), sql`${t.reconExceptions.status} <> 'resolved'`))).filter((x) => !exIds.has(x.id)) : [];
+  for (const x of stale) await tx.update(t.reconExceptions).set({ status: "resolved", closedAt: now }).where(and(eq(t.reconExceptions.orgId, ctx.orgId), eq(t.reconExceptions.id, x.id)));
+  const newWo = writeOffs.length ? await tx.insert(t.writeoffProposals).values(writeOffs.map((w) => ({
+    orgId: ctx.orgId, id: woIdOf.get(w.id)!, orderId: w.orderId, amountMinor: w.amountMinor, currency: w.currency,
+    differenceIds: w.differenceIds.map((id) => diffIdOf.get(`${w.orderId}|${id}`)!), status: "proposed",
+  }))).onConflictDoNothing().returning({ id: t.writeoffProposals.id }) : [];
+  // a write-off the engine no longer proposes (the payment changed) is superseded, with any pending request for it
+  const currentWo = new Set(woIdOf.values());
+  const oldWo = openIds.length ? (await tx.select().from(t.writeoffProposals).where(and(eq(t.writeoffProposals.orgId, ctx.orgId), inArray(t.writeoffProposals.orderId, openIds),
+    inArray(t.writeoffProposals.status, ["proposed", "awaiting_approval"])))).filter((w) => !currentWo.has(w.id)) : [];
+  for (const w of oldWo) {
+    await tx.update(t.approvalRequests).set({ status: "superseded", closedAt: now }).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.subjectKind, "merchant_writeoff"), eq(t.approvalRequests.subjectId, w.id), eq(t.approvalRequests.status, "pending")));
+    await tx.update(t.writeoffProposals).set({ status: "superseded" }).where(and(eq(t.writeoffProposals.orgId, ctx.orgId), eq(t.writeoffProposals.id, w.id)));
+  }
+  // a journal about closed payments only is left as it was (it may wait for an approved write-off)
+  const keptJournal = (orderIdsOf: string[]) => orderIdsOf.length > 0 && orderIdsOf.every((o) => isKept(o));
+  const writtenJournals = journals.filter((j) => !keptJournal(j.evidence.orderIds));
+  for (const j of writtenJournals) {
+    // Document A "(on approval)" lines name the approval they wait for; write-off ids map to their stored ids.
+    const lines = j.lines.map((l) => (l.onApproval ? { ...l, onApproval: woIdOf.get(l.onApproval) ?? l.onApproval } : l));
+    const row = { entityId, pattern: j.kind, lines: plain(lines) as object, currency: j.currency,
+      evidenceRefs: plain({ ...j.evidence, ruleId: j.ruleId, entryDate: j.entryDate, memo: j.memo, requiresApprovalOf: j.requiresApprovalOf ? woIdOf.get(j.requiresApprovalOf) ?? j.requiresApprovalOf : null, label: j.label }) as object };
+    await tx.insert(t.merchantJournalProposals).values({ orgId: ctx.orgId, id: j.id, ...row, status: "proposed", postingRuleStatus: "pending_sign_off" })
+      .onConflictDoUpdate({ target: [t.merchantJournalProposals.orgId, t.merchantJournalProposals.id], set: row, setWhere: sql`${t.merchantJournalProposals.status} = 'proposed'` });
+  }
+  const keep = journals.map((j) => j.id);
+  const keptOrders = [...stored.keys()];
+  await tx.update(t.merchantJournalProposals).set({ status: "superseded" }).where(and(eq(t.merchantJournalProposals.orgId, ctx.orgId), eq(t.merchantJournalProposals.entityId, entityId),
+    eq(t.merchantJournalProposals.status, "proposed"), keep.length ? sql`${t.merchantJournalProposals.id} not in (${sql.join(keep.map((k) => sql`${k}`), sql`, `)})` : sql`true`,
+    keptOrders.length ? sql`not (coalesce(${t.merchantJournalProposals.evidenceRefs} -> 'orderIds', '[]'::jsonb) <@ ${JSON.stringify(keptOrders)}::jsonb and jsonb_array_length(coalesce(${t.merchantJournalProposals.evidenceRefs} -> 'orderIds', '[]'::jsonb)) > 0)` : sql`true`));
+  const notices = differ.length ? await tx.insert(t.ruleChangeNotices).values(differ.map((r) => {
+    const m = stored.get(r.orderId)!;
+    const fingerprint = sha256(`${outcomeKey(storedOutcome(m))}|${outcomeKey(newOutcome(r))}`);
+    return { orgId: ctx.orgId, entityId, orderId: r.orderId, runId, ruleSetVersion: run.version, policyRevision, storedDecision: m.decision, storedRuleId: m.ruleId, newDecision: r.explanation.decision, newRuleId: r.explanation.ruleId, fingerprint };
+  })).onConflictDoNothing().returning({ id: t.ruleChangeNotices.id }) : [];
+  const effective = result.records.map((r) => (isKept(r.orderId) ? { decision: stored.get(r.orderId)!.decision, creditedMinor: String((stored.get(r.orderId)!.ledger as { creditedMinor: string }).creditedMinor) } : { decision: r.explanation.decision, creditedMinor: r.ledger.creditedMinor.toString() }));
+  const rc = runCounts(effective, exceptions.length, stored.size, notices.length);
+  await tx.insert(t.reconciliationRuns).values({ ...runRow, id: runId, status: "changed", finishedAt: new Date(), ...rc });
+  const counts = { records: result.records.length, newDifferences: newDiffs.length, exceptions: exceptions.length, resolvedExceptions: stale.length, newWriteoffs: newWo.length, supersededWriteoffs: oldWo.length, journals: writtenJournals.length, kept: stored.size, notices: notices.length };
+  await serverAudit(tx, ctx, "merchant_reconciliation_run", "merchant_entity", entityId,
+    `Reconciled ${counts.records} payments (engine ${MERCHANT_ENGINE_VERSION}, rules ${run.version}, policy r${policyRevision}, input sha256 ${hash.slice(0, 12)}…): ${counts.exceptions} exceptions, ${counts.newWriteoffs} new write-off proposals, ${counts.journals} journal proposals pending sign-off, ${counts.kept} closed payments kept, ${counts.notices} rule-change notices`,
+    { inputSha256: hash, engineVersion: MERCHANT_ENGINE_VERSION, ruleSetVersion: run.version, policyRevision, runId, ...counts });
+  return { status: 200, body: { ...meta, runId, status: "changed" as const, changed: true, ...counts, runCounts: rc } };
 }
 
 // ---------------------------------------------------------------------------------------------
