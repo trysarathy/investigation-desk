@@ -52,8 +52,10 @@ export function UploadForm({ entities }: { entities: { id: string; name: string;
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  /** A JSON file with several lists: the server names them and the person chooses one (never guessed). */
+  const [lists, setLists] = useState<string[]>([]);
   const pick = (f: File | null) => {
-    setError("");
+    setError(""); setLists([]);
     if (f && f.size > MAX_BYTES) { setFile(null); setError(`The file is ${mb(f.size)}; the largest file accepted is 20.0 MB. Split it into smaller files.`); return; }
     if (f && f.size === 0) { setFile(null); setError("The file is empty."); return; }
     setFile(f);
@@ -71,7 +73,11 @@ export function UploadForm({ entities }: { entities: { id: string; name: string;
       if (!file) { setError("Choose a file to upload."); return; }
       setBusy(true); setError("");
       const r = await post(API, f);
-      if (!r.ok) { setBusy(false); setError(r.message); return; }
+      if (!r.ok) {
+        const choices = (r.data?.error as { code?: string; choices?: unknown } | undefined);
+        if (choices?.code === "FILE_JSON_LIST_CHOICE" && Array.isArray(choices.choices)) setLists(choices.choices.filter((x): x is string => typeof x === "string"));
+        setBusy(false); setError(r.message); return;
+      }
       const up = r.data?.upload as { id: string; originalName: string };
       reloadWith(`upload:${up.id}`, `Stored “${up.originalName}”. Check the preview, then map its columns.`, `/control/merchant/uploads/${encodeURIComponent(up.id)}`);
     }}>
@@ -99,6 +105,16 @@ export function UploadForm({ entities }: { entities: { id: string; name: string;
         <input ref={input} className={m.fileInput} type="file" id={`${id}-file`} name="file" accept={ACCEPT} required aria-describedby={`${id}-drop`} onChange={(ev) => pick(ev.currentTarget.files?.[0] ?? null)} />
         <p className={s.hint} id={`${id}-drop`}>Choose a file, or drag it onto this area. {file ? <strong>Selected: {file.name} ({mb(file.size)})</strong> : null}</p>
       </div>
+      {lists.length ? (
+        <div className={s.field}>
+          <label className={s.label} htmlFor={`${id}-list`}>Which list holds the records?</label>
+          <select className={s.select} id={`${id}-list`} name="jsonList" required defaultValue="" aria-describedby={`${id}-list-h`}>
+            <option value="" disabled>Choose a list</option>
+            {lists.map((x) => <option key={x} value={x}>{x}</option>)}
+          </select>
+          <span className={s.hint} id={`${id}-list-h`}>This JSON file holds several lists. Choose the one with one record per row for this file type, then upload again. To use another list as another file type, upload the file again with that type.</span>
+        </div>
+      ) : null}
       <div><button type="submit" className={s.button} disabled={busy} aria-disabled={busy}>Upload file</button></div>
       <p role={error ? "alert" : "status"} className={`${s.result} ${error ? s.resultError : s.resultOk}`}>{error ? `Refused: ${error}` : busy ? "Uploading and reading the file…" : ""}</p>
     </form>

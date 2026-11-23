@@ -16,12 +16,15 @@ export class IngestError extends Error {
   /** 1-based row (physical line, sheet row or JSON item) when the problem is confined to one place. */
   readonly row?: number;
   readonly column?: string;
-  constructor(code: IngestErrorCode, message: string, where: { row?: number; column?: string } = {}) {
+  /** rc7 blind test: the choices the person must pick from to read the file (e.g. a JSON file's lists), never cell values. */
+  readonly choices?: string[];
+  constructor(code: IngestErrorCode, message: string, where: { row?: number; column?: string; choices?: string[] } = {}) {
     super(message);
     this.name = "IngestError";
     this.code = code;
     if (where.row !== undefined) this.row = where.row;
     if (where.column !== undefined) this.column = where.column;
+    if (where.choices !== undefined) this.choices = where.choices;
   }
 }
 

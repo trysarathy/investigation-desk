@@ -147,6 +147,31 @@ describe("readJson", () => {
     expect(codeOf(() => readJson(utf8("[1,2]")))).toBe("json_shape");
     expect(codeOf(() => readJson(utf8("[" + "[".repeat(100) + "]".repeat(100) + "]")))).toBe("invalid_json");
   });
+  it("several lists: names them as choices, never guesses; reads the list the person chose, nested objects flattened", () => {
+    // a generic shape (an invoicing export with invoices and refunds), not any provider's format
+    const file = utf8(JSON.stringify({
+      meta: { exported: "2026-11-30" },
+      invoices: [{ no: "INV-1", total: { amount: "10.00", currency: "EUR" }, lines: [{ sku: "S1" }] }, { no: "INV-2", total: { amount: "5.50", currency: "EUR" }, lines: [] }],
+      refunds: [{ no: "RF-1", of: "INV-1", amount: "1.00" }],
+      tags: ["x"],
+    }));
+    let err: unknown;
+    try { readJson(file); } catch (e) { err = e; }
+    expect(err).toBeInstanceOf(IngestError);
+    expect(err).toMatchObject({ code: "json_shape", choices: ["invoices", "refunds", "tags"] });
+    expect((err as Error).message).toBe('The JSON file has several lists ("invoices", "refunds", "tags"); choose which one holds the records.');
+    const inv = readJson(file, { arrayProperty: "invoices" });
+    expect(inv.headers).toEqual(["no", "total.amount", "total.currency", "lines.0.sku", "lines"]);
+    expect(inv.rows.map((r) => r.cells)).toEqual([["INV-1", "10.00", "EUR", "S1", ""], ["INV-2", "5.50", "EUR", "", ""]]);
+    expect(inv).toMatchObject({ list: "invoices", lists: ["invoices", "refunds", "tags"] });
+    expect(readJson(file, { arrayProperty: "refunds" }).headers).toEqual(["no", "of", "amount"]);
+    expect(codeOf(() => readJson(file, { arrayProperty: "nope" }))).toBe("json_shape");
+    expect(() => readJson(file, { arrayProperty: "nope" })).toThrow('The JSON file has no list named "nope"; its lists are "invoices", "refunds", "tags".');
+    // a top-level array has no lists to choose from; one list is read without asking
+    expect(codeOf(() => readJson(utf8('[{"a":1}]'), { arrayProperty: "a" }))).toBe("json_shape");
+    expect(readJson(utf8('{"data":[{"a":1}]}'))).toMatchObject({ list: "data", lists: ["data"] });
+    expect(readJson(utf8('[{"a":1}]')).list).toBe("");
+  });
   it("skips empty records", () => {
     const t = readJson(utf8('[{"a":"1"},{},{"a":""},{"a":"2"}]'));
     expect(t.rows.map((r) => r.rowNumber)).toEqual([1, 4]);
