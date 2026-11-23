@@ -495,3 +495,21 @@ Test mode · illustrative data.
   - `docs/security/SECURITY_THREAT_MODEL_RC6.md`
   - `docs/release/TEST_RESULTS_RC6.md`
   - `docs/LEGAL_QUESTIONS.md` (unanswered)
+
+
+## Clearline rc7: real files from any provider (draft PRs #139–#156, not merged)
+
+- **What it adds:** a merchant can upload its **own** files: provider exports (CSV, XLSX or JSON), settlement reports, order lists, and bank statements (CSV, XLSX, MT940 or camt.053). A person maps each new layout once and saves it as a template. Bank statements need a second person.
+- **Chain checks:** uploaded payments are checked against TRON and Ethereum data with read-only readers, off unless `CLEARLINE_CHAIN_LIVE=1`. If chain data cannot be read, the order becomes an exception; nothing is assumed.
+- **Operations:** recorded reconciliation runs, a PostgreSQL job queue (`npm run jobs:worker`), daily schedules, notifications, retention (90 days by default) and per-merchant deletion.
+- **Exports:** draft Xero and QuickBooks journal files and a month-end pack. Nothing is posted.
+- **Honest limit:** exports without a quote rate or window are abstained on. The blind test gave 0 wrong matches and a 0.00% auto-match rate.
+- **Not hosted:** decision 4 was not given, so everything runs locally.
+- **Read more:**
+  - `docs/product/SUPPORTED_FORMATS.md` (what works, what needs mapping, what is not supported)
+  - `docs/runbooks/DEPLOYMENT_RUNBOOK_RC7.md`
+  - `docs/architecture/ARCHITECTURE_RC7.md`
+  - `docs/security/SECURITY_THREAT_MODEL_RC7.md`
+  - `docs/release/TEST_RESULTS_RC7.md` and `docs/release/BLIND_TEST_RC7.md`
+  - `docs/MATCHING_RULES.md` and `docs/POSTING_RULES.md` (rc7 additions)
+  - `docs/plan/RC7_PLAN.md`
