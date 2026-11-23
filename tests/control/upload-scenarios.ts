@@ -76,11 +76,8 @@ export function observedTransfers(sc: Scenario): ChainTransfer[] {
 
 /** The same scenario handed to the engine directly (bank line imported, as an upload's is). */
 export function engineInput(sc: Scenario): ReconcileInput {
-  const tok = TOKENS.find((k) => k.network === sc.network)!;
-  const claimed = sc.orders.filter((o) => o.payment && !o.payment.recorded).map((o): ChainTransfer => ({
-    network: sc.network, txHash: txHashOf(sc, o), logIndex: 0, tokenContract: sc.contract, claimedSymbol: tok.symbol, from: "", to: o.address, amountBaseUnits: base(o.payment!.received),
-    decimals: 6, block: 0, timestamp: o.payment!.paidAt, confirmations: 0,
-  }));
+  // rc7 phase 2: a provider's claimed transfer is not chain data; one no chain read has covered is "chain data unavailable"
+  const unread = sc.orders.filter((o) => o.payment && !o.payment.recorded).map((o) => ({ network: sc.network, txHash: txHashOf(sc, o), source: "not read", reason: "not read from the chain yet", at: o.payment!.paidAt }));
   const inBatch = sc.orders.filter((o) => o.payment?.batch === sc.batch.id);
   return {
     label: TEST_MODE_LABEL, entity: { id: sc.entityId, name: `${sc.entityId} (fictional)`, functionalCurrency: sc.currency, ledger: "xero", timeZone: { name: "fixed", utcOffsetMinutes: sc.offset } },
@@ -88,7 +85,8 @@ export function engineInput(sc: Scenario): ReconcileInput {
     invoices: sc.orders.map((o) => ({ orderId: o.orderId, entityId: sc.entityId, amountMinor: minor(o.invoice), currency: sc.currency, status: "open" })),
     quotes: sc.orders.map((o) => ({ quoteId: o.quoteId, orderId: o.orderId, token: { network: sc.network, contract: sc.contract }, network: sc.network, quotedBaseUnits: base(o.quoted), rate: o.rate, rateSource: "provider quote", rateAt: o.created, createdAt: o.created, expiresAt: o.expires, depositAddress: o.address })),
     paymentLinks: [],
-    transfers: [...observedTransfers(sc), ...claimed],
+    transfers: observedTransfers(sc),
+    ...(unread.length ? { chainUnavailable: unread } : {}),
     providerRecords: sc.orders.filter((o) => o.payment).map((o) => ({
       providerPaymentId: o.payment!.id, ref: { quoteId: o.quoteId }, transferRef: { network: sc.network, txHash: txHashOf(sc, o), logIndex: 0 }, statusClaim: o.payment!.claim, displayedStatus: o.payment!.status,
       receivedBaseUnits: base(o.payment!.received), creditedMinor: minor(o.payment!.credited), executedRate: o.payment!.exec, feeMinor: minor(o.payment!.fee), ...(o.payment!.batch ? { batchId: o.payment!.batch } : {}),

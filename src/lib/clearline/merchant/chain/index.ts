@@ -8,4 +8,5 @@ export * from "./ethereum";
 export * from "./guard";
 export * from "./recorded";
 export * from "./client";
+export * from "./recording";
 export { TRANSFER_TOPIC, type ReaderOptions } from "./reader-common";
