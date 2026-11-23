@@ -9,12 +9,14 @@ export const FILE_TYPE_LABELS: Readonly<Record<FileType, string>> = {
   settlement_report: "Settlement report",
   orders_invoices: "Orders or invoices",
   bank_statement: "Bank statement",
+  ledger_invoices: "Ledger invoices",
 };
 export const FILE_TYPE_HINTS: Readonly<Record<FileType, string>> = {
   provider_export: "Your payment provider's list of quotes and payments (CSV, TSV, XLSX or JSON).",
   settlement_report: "What the provider paid out, per payment line or per batch (CSV, TSV, XLSX or JSON).",
   orders_invoices: "Your own orders or invoices (CSV, TSV, XLSX or JSON).",
   bank_statement: "A statement of your bank account (CSV, TSV, XLSX, MT940 or camt.053). A second person, an Approver who did not upload it, confirms it.",
+  ledger_invoices: "Sales invoices from your accounting system (CSV, TSV, XLSX or JSON). Used for month-end comparison; never changes a match.",
 };
 export const ACCEPT = ".csv,.tsv,.txt,.xlsx,.json,.sta,.mt940,.940,.xml";
 export const LIMITS_TEXT = "CSV, TSV, XLSX or JSON tables, or MT940 and camt.053 bank statements. At most 20 MB, 100,000 rows and 200 columns per file.";

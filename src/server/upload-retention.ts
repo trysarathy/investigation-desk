@@ -71,6 +71,10 @@ export async function purgeDerivedRows(tx: Db | Tx, u: { orgId: string; id: stri
   if (get("payment_links").length) await del("payment_links", sql`link_id in (${list(get("payment_links"))})`);
   if (get("merchant_quotes").length) await del("merchant_quotes", sql`quote_id in (${list(get("merchant_quotes"))}) and not exists (select 1 from payment_links l where l.org_id = merchant_quotes.org_id and l.quote_id = merchant_quotes.quote_id)`);
   if (orders.length) await del("invoices", sql`order_id in (${list(orders)}) and not exists (select 1 from merchant_quotes q where q.org_id = invoices.org_id and q.order_id = invoices.order_id)`);
+  for (const k of get("ledger_invoices")) {
+    const i = k.indexOf("|");
+    await del("ledger_invoices", sql`entity_id = ${k.slice(0, i)} and invoice_number = ${k.slice(i + 1)}`);
+  }
   if (bankIds.length) {
     await tx.execute(sql`alter table bank_lines disable trigger bank_lines_immutable`);
     await del("bank_lines", sql`line_id in (${list(bankIds)}) and source = 'file_import'`);

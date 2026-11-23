@@ -6,7 +6,7 @@
  * need no column mapping (the bank parsers read them); only CSV/XLSX statements are mapped.
  */
 
-export const FILE_TYPES = ["provider_export", "settlement_report", "orders_invoices", "bank_statement"] as const;
+export const FILE_TYPES = ["provider_export", "settlement_report", "orders_invoices", "bank_statement", "ledger_invoices"] as const;
 export type FileType = (typeof FILE_TYPES)[number];
 
 export const FIELD_KINDS = [
@@ -94,6 +94,23 @@ export const CATALOGUE: Readonly<Record<FileType, readonly FieldDef[]>> = {
     f("status", "Invoice status", "status", false, ["status", "invoice status", "state"]),
     f("issued_at", "Issued at", "datetime", false, ["issued at", "invoice date", "created at", "date", "order date"], { allowMultiple: true }),
   ],
+  // rc7 phase 3b: sales invoices as the merchant's accounting ledger holds them (a ledger export, or a read-only pull
+  // from a Xero demo company / QuickBooks sandbox rendered as the same CSV). Reference data for month-end: it is never
+  // an input of the matching engine and never changes a decision.
+  ledger_invoices: [
+    f("invoice_number", "Invoice number", "id", true, ["invoice number", "invoice no", "invoice #", "number", "doc number", "docnumber", "invoice"]),
+    f("order_id", "Order reference", "id", false, ["reference", "order id", "order reference", "order", "po number", "your reference"]),
+    ENTITY,
+    f("contact", "Customer", "text", false, ["contact", "customer", "contact name", "customer name", "client", "bill to"]),
+    f("total", "Invoice total", "fiat_amount", true, ["total", "invoice total", "amount", "gross", "total amount"], { currencyField: "currency" }),
+    CURRENCY,
+    f("amount_due", "Amount due", "fiat_amount", false, ["amount due", "balance", "balance due", "outstanding", "open balance"], { currencyField: "currency" }),
+    f("amount_paid", "Amount paid", "fiat_amount", false, ["amount paid", "paid", "payments", "total paid"], { currencyField: "currency" }),
+    f("status", "Invoice status", "status", false, ["status", "invoice status", "state"]),
+    f("issued_on", "Invoice date", "date", false, ["invoice date", "date", "issue date", "txn date", "issued"]),
+    f("due_on", "Due date", "date", false, ["due date", "due", "payment due"]),
+    f("ledger_id", "Ledger record ID", "id", false, ["invoice id", "ledger id", "external id", "record id", "id"]),
+  ],
   bank_statement: [
     f("bank_account", "Bank account", "text", true, ["account", "bank account", "account number", "iban", "account no"], { allowConstant: true }),
     f("value_date", "Value date", "date", true, ["value date", "date", "transaction date", "posting date", "booking date"]),
@@ -123,6 +140,7 @@ export function fieldOf(fileType: FileType, key: string): FieldDef | undefined {
 export const STATUS_TARGETS: Readonly<Partial<Record<FileType, Readonly<Record<string, readonly string[]>>>>> = {
   provider_export: { status: ["paid", "underpaid", "overpaid", "held_for_review", "re_quoted", "partially_paid", "pending"] },
   orders_invoices: { status: ["open", "void"] },
+  ledger_invoices: { status: ["draft", "open", "paid", "void"] },
   settlement_report: { line_type: ["payment", "refund", "fee"] },
 };
 

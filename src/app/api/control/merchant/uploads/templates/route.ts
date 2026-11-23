@@ -1,11 +1,12 @@
 import { z } from "zod";
+import { FILE_TYPES } from "@/lib/clearline/mapping";
 import { TemplateInput, listMappingTemplates, saveMappingTemplate } from "@/server/mapping-templates";
 import { mutate, read } from "@/server/control-http";
 import { json } from "@/server/http";
 
 export const dynamic = "force-dynamic";
 
-const Type = z.enum(["provider_export", "settlement_report", "orders_invoices", "bank_statement"]).optional();
+const Type = z.enum(FILE_TYPES).optional();
 
 /** Every mapping template version (?fileType). */
 export const GET = (req: Request) => read(req, async (ctx) => json(200, { templates: await listMappingTemplates(ctx, Type.parse(new URL(req.url).searchParams.get("fileType") ?? undefined)) }));

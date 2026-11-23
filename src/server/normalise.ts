@@ -138,6 +138,19 @@ async function invoiceRow(c: Ctx, v: Record<string, MappedValue>, row: number): 
   return { outcome, targets };
 }
 
+/** rc7 phase 3b: a sales invoice as the ledger holds it (reference data; the engine never reads it). */
+async function ledgerRow(c: Ctx, v: Record<string, MappedValue>, row: number): Promise<RowResult> {
+  const invoiceNumber = v.invoice_number as string;
+  const targets: Target[] = [];
+  const outcome = await put(c, t.ledgerInvoices, "ledger_invoices", `${c.entityId}|${invoiceNumber}`, {
+    orgId: c.orgId, entityId: c.entityId, invoiceNumber, orderRef: str(v.order_id) ?? null, contact: str(v.contact) ?? null, currency: v.currency as string,
+    totalMinor: big(v.total)!, amountDueMinor: big(v.amount_due) ?? null, amountPaidMinor: big(v.amount_paid) ?? null, status: str(v.status) ?? "open",
+    issuedOn: str(v.issued_on) ?? null, dueOn: str(v.due_on) ?? null, ledgerId: str(v.ledger_id) ?? null, ...c.prov(row),
+  }, async () => (await c.tx.select().from(t.ledgerInvoices).where(and(eq(t.ledgerInvoices.orgId, c.orgId), eq(t.ledgerInvoices.entityId, c.entityId), eq(t.ledgerInvoices.invoiceNumber, invoiceNumber))))[0],
+  (r) => [r.currency, r.totalMinor, r.amountDueMinor ?? null, r.status, r.orderRef ?? null], targets);
+  return { outcome, targets };
+}
+
 async function bankRow(c: Ctx, v: Record<string, MappedValue>, row: number, rowHash: string): Promise<RowResult> {
   // [ASSUMPTION] the engine reconciles settlement credits in the entity's currency; debits and other currencies are skipped
   if (v.direction !== "credit" || v.currency !== c.currency || big(v.amount) === 0n) return { outcome: "skipped", targets: [] };
@@ -219,7 +232,7 @@ export async function normaliseUpload(ctx: TenantContext, uploadId: string, idem
     const results = new Map<number, RowResult>();
     // rc7: a file covering several entities (e.g. one orders list for every book): rows naming another entity, or —
     // when the file names none — in another currency than this entity's, are left out of this entity ("skipped").
-    const otherEntity = (v: Record<string, MappedValue>) => (u.fileType === "orders_invoices" || u.fileType === "provider_export")
+    const otherEntity = (v: Record<string, MappedValue>) => (u.fileType === "orders_invoices" || u.fileType === "provider_export" || u.fileType === "ledger_invoices")
       && (str(v.entity) !== undefined ? v.entity !== u.entityId : v.currency !== ent.functionalCurrency);
     const usable = analysis.rows.filter((r) => { const s = byRow.get(r.rowNumber)!.status; return s === "accepted" || s === "warning"; });
     for (const r of usable) if (otherEntity(r.values)) results.set(r.rowNumber, { outcome: "skipped", targets: [] });
@@ -236,7 +249,8 @@ export async function normaliseUpload(ctx: TenantContext, uploadId: string, idem
       for (const [batchId, rows] of [...groups.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) await attempt(rows.map((r) => r.rowNumber), () => batchRows(c, batchId, rows, lines));
     } else {
       for (const r of live) await attempt([r.rowNumber], () =>
-        u.fileType === "provider_export" ? providerRow(c, r.values, r.rowNumber) : u.fileType === "orders_invoices" ? invoiceRow(c, r.values, r.rowNumber) : bankRow(c, r.values, r.rowNumber, r.rowHash!));
+        u.fileType === "provider_export" ? providerRow(c, r.values, r.rowNumber) : u.fileType === "orders_invoices" ? invoiceRow(c, r.values, r.rowNumber)
+          : u.fileType === "ledger_invoices" ? ledgerRow(c, r.values, r.rowNumber) : bankRow(c, r.values, r.rowNumber, r.rowHash!));
     }
     // A duplicate row confirms the rows its earlier copy became (so they stay while either upload is kept).
     const dups = stored.filter((s) => s.status === "duplicate" && s.rowHash);
@@ -258,7 +272,7 @@ export async function normaliseUpload(ctx: TenantContext, uploadId: string, idem
       const targets = [...new Map(res.targets.map((x) => [`${x.table}|${x.key}`, x])).values()];
       if (targets.length) await tx.insert(t.uploadRowTargets).values(targets.map((x) => ({ orgId: ctx.orgId, uploadId, rowNumber, targetTable: x.table, targetKey: x.key })));
       for (const x of targets) if (res.outcome === "created") tables[x.table] = (tables[x.table] ?? 0) + 1;
-      const primary = targets.find((x) => ["provider_payment_records", "bank_lines", "settlement_batches", "invoices"].includes(x.table)) ?? targets[0];
+      const primary = targets.find((x) => ["provider_payment_records", "bank_lines", "settlement_batches", "invoices", "ledger_invoices"].includes(x.table)) ?? targets[0];
       await tx.update(t.uploadRows).set({ normaliseOutcome: res.outcome, targetRef: primary ? `${primary.table}:${primary.key}` : null })
         .where(and(eq(t.uploadRows.orgId, ctx.orgId), eq(t.uploadRows.uploadId, uploadId), eq(t.uploadRows.rowNumber, rowNumber)));
     }
