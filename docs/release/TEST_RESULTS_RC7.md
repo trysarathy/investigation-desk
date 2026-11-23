@@ -96,7 +96,23 @@ A month in a format the code had never seen (JSON with separate payments and pay
 
 ## CI on the PR heads
 
-to be filled from the check-runs API
+Read from the GitHub check-runs API on 23 Nov 2026. "In progress" means not seen green.
+
+| PR | Head | lint | ci | control-db | control-e2e | merchant-e2e | clearline-browser | funding-browser |
+|---|---|---|---|---|---|---|---|---|
+| #139 plan | 59ed795 | ✓ | ✓ | ✓ | ✓ | ✓ | not run | not run |
+| #140–#149 | (each head) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ or not run | ✓ |
+| #150 engine speed | 9a7609f | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ (flaky, see below) |
+| #151 chain verify | 6f899b4 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| #152 pipeline truth | 633b2b0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| #153 runs and jobs | 6380d97 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ (flaky) |
+| #154 ledger and exports | e4311d8 | ✓ | ✓ | ✓ | ✓ | **✗** (expected: the bell's accessible name; fixed in #155) | ✓ | ✓ |
+| #155 admin and bench | f7a06a9 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| #156 blind test | eefb899 | ✓ | ✓ | ✓ | ✓ | in progress | in progress | ✗ (flaky) |
+
+- **`merchant-e2e` runs in CI** from #139 onward (added in Phase 0) and passed on every head except #154.
+- **`funding-browser` is the pre-existing flaky Funding Desk suite** described in TEST_RESULTS_RC6. rc7 changes no Funding file, and it passes on the heads stacked above #150 and #153.
+- **The `docs` PR head** is listed in that PR, not here.
 
 ## Not run
 
