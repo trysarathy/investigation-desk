@@ -55,7 +55,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         <div className={s.row}><button type="submit" className={s.button}>Apply filters</button>{active ? <a href="/control/merchant/payments">Clear</a> : null}</div>
       </form>
       {!f.success ? <p role="alert" className={`${s.result} ${s.resultError}`}>Some filters were not valid and were ignored.</p> : null}
-      <p className={s.small} role="status" data-testid="payments-count">{shown.length} of {rows.length} payments{orders.length ? ` (the ${orders.length} payments behind one bridge line)` : ""}. Age is measured from the latest data ({asOf ? asOf.slice(0, 10) : "none"}), so illustrative data ages the same way every day.</p>
+      <p className={s.small} role="status" data-testid="payments-count">{shown.length} of {rows.length} payments{orders.length ? ` (the ${orders.length} payments behind one bridge line)` : ""}. Age is measured from the latest data ({asOf ? asOf.slice(0, 10) : "none"}){shell.dataMode === "live" ? "." : ", so illustrative data ages the same way every day."}</p>
       {shown.length === 0 ? <Empty>{rows.length === 0 && !active ? "No payments are reconciled yet. Run reconciliation from the daily report." : "No payment matches these filters."}</Empty> : (
         <div className={s.tableWrap} role="region" aria-label="Payments table" tabIndex={0}>
           <table className={s.table}>
