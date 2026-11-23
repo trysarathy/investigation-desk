@@ -68,14 +68,7 @@ async function bringIn(page: Page) {
   await expect(page.getByTestId("upload-status")).toHaveText("In reconciliation");
 }
 
-/*
- * The decisions this pipeline produces for the generator's small preset (seed 40), pinned. They differ from the
- * generator's ground truth for most orders, for reasons outside the screens (see the rc7 UI report). Since rc7 phase 2
- * the server verifies the claimed transactions against the recorded chain data, but an Ethereum claim without a log
- * index still misses its chain fact (M3.provider.no_record), and a totals-only settlement report carries no
- * per-payment lines, so no batch ties to a payment.
- */
-const EXPECTED: [string, string][] = [["SG-2611-00002", "Suggested for review"], ["SG-2611-00004", "Exception"], ["SG-2611-00015", "Suggested for review"], ["SG-2611-00022", "Exception"]];
+const CHIP: Record<string, string> = { matched: "Matched", matched_with_difference: "Matched with difference", suggested_for_review: "Suggested for review", exception: "Exception" };
 
 async function axeBoth(page: Page, info: TestInfo, where: string) {
   const back = page.viewportSize();
@@ -206,13 +199,13 @@ test("live merchant: upload, map, validate, confirm (bank by a second person), r
 
   // 7. Validate, confirm and bring the provider export and the settlement report into reconciliation
   await page.goto(`/control/merchant/uploads/${providerId}`);
-  // USDT on Ethereum is a configured token (founder decision, rc7), so only the balance payment on another chain is
-  // rejected: the appended quote columns name the quote's TRON contract for an Ethereum payment
-  await validate(page, `Validated ${f.providerSg.rows} rows: 0 accepted, ${f.providerSg.rows - 1} with warnings, 1 rejected, 0 duplicates.`);
-  await page.getByRole("navigation", { name: "Filter rows by status" }).getByRole("link", { name: "Rejected" }).click();
-  await expect(page.getByTestId("report-row")).toHaveCount(1);
-  await expect(page.getByTestId("report-row").first()).toContainText("Token contract is not a valid address for the row's network.");
-  await expect(page.getByTestId("report-range")).toContainText("Rows 1–1 of 1 (rejected)");
+  // USDT on Ethereum is a configured token (founder decision, rc7), so no row is rejected; every row warns that the
+  // file has no log index (the transfer is found from chain data, never assumed)
+  await validate(page, `Validated ${f.providerSg.rows} rows: 0 accepted, ${f.providerSg.rows} with warnings, 0 rejected, 0 duplicates.`);
+  await page.getByRole("navigation", { name: "Filter rows by status" }).getByRole("link", { name: "Accepted with a warning" }).click();
+  await expect(page.getByTestId("report-row")).toHaveCount(f.providerSg.rows);
+  await expect(page.getByTestId("report-row").first()).toContainText("Log index is not in the file; the transfer is found from chain data (never assumed)");
+  await expect(page.getByTestId("report-range")).toContainText(`Rows 1–${f.providerSg.rows} of ${f.providerSg.rows} (accepted with a warning)`);
   await shot(page, info, "rc7-validation-report", { scrollTo: "#report" });
   await axeBoth(page, info, "validation report");
   await page.goto(`/control/merchant/uploads/${providerId}`);
@@ -272,7 +265,9 @@ test("live merchant: upload, map, validate, confirm (bank by a second person), r
   await page.goto(`/control/merchant/uploads/${providerId}`);
   await expect(page.getByTestId("in-reconciliation")).toBeVisible();
   await page.getByRole("button", { name: "Run reconciliation for ENT-SG-SYN" }).click();
-  await expect(page.getByRole("status").filter({ hasText: /Reconciled 28 payments for/ }).first()).toBeVisible({ timeout: 30_000 });
+  // the decisions come from the generator's ground truth for these files (truth-expect.ts), never pinned
+  const expected = [...f.expectedSg.entries()].filter(([, e]) => !(e.kind === "abstain" && e.noRecord));
+  await expect(page.getByRole("status").filter({ hasText: new RegExp(`Reconciled ${expected.length} payments for`) }).first()).toBeVisible({ timeout: 30_000 });
   await page.getByTestId("in-reconciliation").getByRole("link", { name: "daily report" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Daily report");
   await expectLiveLabel(page);
@@ -280,11 +275,17 @@ test("live merchant: upload, map, validate, confirm (bank by a second person), r
   await axeBoth(page, info, "daily report (live)");
   await page.goto("/control/merchant/payments?entity=ENT-SG-SYN");
   await expectLiveLabel(page);
-  await expect(page.getByTestId("payments-count")).toContainText("28 of 28 payments");
+  await expect(page.getByTestId("payments-count")).toContainText(`${expected.length} of ${expected.length} payments`);
   const chip = (order: string) => page.getByRole("row").filter({ hasText: order }).getByTestId("decision-chip");
-  for (const [order, label] of EXPECTED) await expect(chip(order), order).toHaveText(label);
-  await expect(page.getByTestId("decision-chip").filter({ hasText: /^Suggested for review$/ })).toHaveCount(11);
-  await expect(page.getByTestId("decision-chip").filter({ hasText: /^Exception$/ })).toHaveCount(17);
+  for (const [order, e] of expected) {
+    if (e.kind !== "abstain" || e.decision) await expect(chip(order), `${order} (${e.kind === "truth" ? "truth" : e.why})`).toHaveText(CHIP[e.decision!]);
+    else await expect(chip(order), `${order} must not be closed: ${e.why}`).toHaveText(/^(Suggested for review|Exception)$/);
+  }
+  // the counts per decision follow from the same expectations
+  for (const [d, label] of Object.entries(CHIP)) {
+    const n = expected.filter(([, e]) => e.kind !== "abstain" ? e.decision === d : e.decision === d).length;
+    if (expected.every(([, e]) => e.kind !== "abstain" || e.decision)) await expect(page.getByTestId("decision-chip").filter({ hasText: new RegExp(`^${label}$`) }), label).toHaveCount(n);
+  }
   await axeBoth(page, info, "payments (live)");
   await signOut(page);
 
