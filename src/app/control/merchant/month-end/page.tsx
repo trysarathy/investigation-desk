@@ -81,10 +81,10 @@ export default async function MonthEndPage({ searchParams }: { searchParams: Pro
         {can(ctx.role, "merchant_export") ? (
           <>
             <p className={s.small}>Files only: nothing is posted to any ledger. Journal drafts are for a Xero demo company or a QuickBooks sandbox, for an accountant to review; posting rules are pending sign-off.</p>
-            <ul className={s.small}>
-              <li><a data-testid="month-end-pack" href={`/api/control/merchant/exports/month-end?entity=${encodeURIComponent(entity.id)}&month=${month}`}>Download the month-end pack (ZIP)</a>: bridges, open exceptions with owner, reason and next step, journal proposals, provenance of every file used, rule-set version.</li>
-              <li><a href={`/api/control/merchant/exports/journal-draft?entity=${encodeURIComponent(entity.id)}&month=${month}&tool=xero`}>Xero manual journal draft (CSV)</a></li>
-              <li><a href={`/api/control/merchant/exports/journal-draft?entity=${encodeURIComponent(entity.id)}&month=${month}&tool=quickbooks`}>QuickBooks journal draft (CSV)</a></li>
+            <ul className={s.small} style={{ lineHeight: 2, paddingLeft: 20 }}>
+              <li style={{ marginBottom: 8 }}><a style={{ display: "inline-block", padding: "4px 0" }} data-testid="month-end-pack" href={`/api/control/merchant/exports/month-end?entity=${encodeURIComponent(entity.id)}&month=${month}`}>Download the month-end pack (ZIP)</a>: bridges, open exceptions with owner, reason and next step, journal proposals, provenance of every file used, rule-set version.</li>
+              <li style={{ marginBottom: 8 }}><a style={{ display: "inline-block", padding: "4px 0" }} href={`/api/control/merchant/exports/journal-draft?entity=${encodeURIComponent(entity.id)}&month=${month}&tool=xero`}>Xero manual journal draft (CSV)</a></li>
+              <li style={{ marginBottom: 8 }}><a style={{ display: "inline-block", padding: "4px 0" }} href={`/api/control/merchant/exports/journal-draft?entity=${encodeURIComponent(entity.id)}&month=${month}&tool=quickbooks`}>QuickBooks journal draft (CSV)</a></li>
             </ul>
           </>
         ) : <p className={s.small}>Exports are made by Finance or an Approver.</p>}

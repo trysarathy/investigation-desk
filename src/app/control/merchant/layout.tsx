@@ -53,7 +53,7 @@ export default async function MerchantLayout({ children }: { children: ReactNode
               <p className={m.brandSub} data-testid="org-name">{shell.kind === "provider" ? "Provider console" : `Merchant reconciliation · ${ctx.orgName}`}</p>
             </div>
           </div>
-          <p className={m.brandWho} data-testid="signed-in-as">Signed in as <strong>{ctx.name}</strong> ({ctx.email}) · {ROLE_LABELS[ctx.role]} · {shell.kind === "merchant" ? <><a className={m.bell} href="/control/merchant/notifications" data-testid="bell" aria-label={`Notifications: ${unread} unread`}>Notifications<span className={m.bellCount} aria-hidden="true">{unread}</span></a> · </> : null}<SignOutButton /></p>
+          <p className={m.brandWho} data-testid="signed-in-as">Signed in as <strong>{ctx.name}</strong> ({ctx.email}) · {ROLE_LABELS[ctx.role]} · {shell.kind === "merchant" ? <><a className={m.bell} href="/control/merchant/notifications" data-testid="bell">Notifications <span className={m.bellCount}>{unread}</span><span className={m.srOnly}> unread</span></a> · </> : null}<SignOutButton /></p>
         </div>
       </header>
       <aside className={m.demo} aria-label="Data notice"><DataChip label={shell.label} /></aside>
