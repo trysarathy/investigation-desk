@@ -73,6 +73,7 @@ export default async function UploadPage({ params, searchParams }: { params: Pro
         <div className={s.panel}>
           <dl className={m.facts} data-testid="file-facts">
             <dt>Format</dt><dd>{FORMAT_LABELS[u.fileFormat] ?? u.fileFormat}{p.sheet ? `, sheet “${p.sheet}”${p.sheets && p.sheets.length > 1 ? ` (of ${p.sheets.length})` : ""}` : ""}</dd>
+            {p.list ? <><dt>Records read from</dt><dd data-testid="json-list">the list “{p.list}”{p.lists && p.lists.length > 1 ? ` (chosen at upload, of ${p.lists.length} lists: ${p.lists.map((x) => `“${x}”`).join(", ")})` : ""}</dd></> : null}
             {p.encoding ? <><dt>Text encoding</dt><dd>{ENCODING_WORDS[p.encoding] ?? p.encoding}{p.bom ? ", with a byte-order mark (removed)" : ""}</dd></> : null}
             {p.delimiter ? <><dt>Columns separated by</dt><dd>{DELIMITER_WORDS[p.delimiter] ?? p.delimiter}</dd></> : null}
             {p.headerRow ? <><dt>Header row</dt><dd>Row {p.headerRow}</dd></> : null}

@@ -52,21 +52,27 @@ export function sanitiseFileName(name: string): string {
 }
 
 const refuse = (e: unknown): never => {
+  // rc7: a JSON file with several lists names them, so the person can choose one and upload again
+  if (e instanceof IngestError && e.code === "json_shape" && e.choices?.length) throw new RequestRefused(422, "FILE_JSON_LIST_CHOICE", e.message, e.choices);
   if (e instanceof IngestError) throw new RequestRefused(422, `FILE_${e.code.toUpperCase()}`, e.message);
   throw e;
 };
 
 type Parsed = { format: "csv" | "tsv" | "xlsx" | "json"; table: ParsedTable } | { format: "mt940" | "camt053"; statement: BankParseResult };
 
-/** Read a file with the rc7 ingest parsers (size, row and cell limits included). Statements are only bank statements. */
-export async function parseUpload(bytes: Uint8Array, fileType: FileType, fileName?: string): Promise<Parsed> {
+/**
+ * Read a file with the rc7 ingest parsers (size, row and cell limits included). Statements are only bank statements.
+ * `jsonList`: for a JSON file whose top-level object holds several lists, the list the person chose (never guessed).
+ */
+export async function parseUpload(bytes: Uint8Array, fileType: FileType, fileName?: string, jsonList?: string | null): Promise<Parsed> {
   try {
     const kind = sniffFile(bytes, fileName).kind;
+    if (jsonList && kind !== "json") throw new RequestRefused(422, "JSON_LIST_NOT_JSON", "Choosing a list applies to JSON files only.");
     if (kind === "mt940" || kind === "camt053") {
       if (fileType !== "bank_statement") throw new RequestRefused(422, "FILE_NOT_A_TABLE", "This is a bank statement; upload it as a bank statement.");
       return { format: kind, statement: kind === "mt940" ? parseMt940(bytes) : parseCamt053(bytes) };
     }
-    const table = await readTabular(bytes, { fileName });
+    const table = await readTabular(bytes, { fileName, ...(jsonList ? { arrayProperty: jsonList } : {}) });
     return { format: table.kind, table };
   } catch (e) { return refuse(e); }
 }
@@ -94,9 +100,9 @@ function hashRows(fileType: FileType, rows: AppliedRow[]): AnalysedRow[] {
  * The validation of an upload: statements are read by the bank parsers (no mapping), tables through the confirmed
  * mapping. Deterministic: the same file and mapping always give the same rows and hashes.
  */
-export async function analyseUpload(tx: Tx, u: Pick<UploadRow, "fileType" | "fileFormat" | "mapping" | "originalName">, bytes: Uint8Array): Promise<Analysis> {
+export async function analyseUpload(tx: Tx, u: Pick<UploadRow, "fileType" | "fileFormat" | "mapping" | "originalName" | "jsonList">, bytes: Uint8Array): Promise<Analysis> {
   const fileType = u.fileType as FileType;
-  const parsed = await parseUpload(bytes, fileType, u.originalName);
+  const parsed = await parseUpload(bytes, fileType, u.originalName, u.jsonList);
   const notes: string[] = [];
   if ("statement" in parsed) {
     const s = parsed.statement;
@@ -137,13 +143,15 @@ export async function loadUpload(tx: Tx, ctx: TenantContext, id: string, lock = 
 
 export interface UploadSummary {
   id: string; entityId: string; fileType: FileType; fileFormat: Format; originalName: string; byteSize: number; contentSha256: string; encrypted: boolean;
+  /** JSON: the list the records were read from, when the person chose one. */
+  jsonList: string | null;
   status: string; templateId: string | null; templateVersion: number | null; mapping: Mapping | null; rowsSha256: string | null;
   counts: { rows: number; accepted: number; rejected: number; warning: number; duplicate: number }; notes: string[];
   uploadedBy: string; confirmedBy: string | null; deleteAfter: string; createdAt: string;
 }
 export const summary = (u: UploadRow): UploadSummary => ({
   id: u.id, entityId: u.entityId, fileType: u.fileType as FileType, fileFormat: u.fileFormat, originalName: u.originalName, byteSize: u.byteSize, contentSha256: u.contentSha256,
-  encrypted: u.encrypted, status: u.status, templateId: u.templateId, templateVersion: u.templateVersion, mapping: (u.mapping as Mapping | null) ?? null, rowsSha256: u.rowsSha256,
+  encrypted: u.encrypted, jsonList: u.jsonList ?? null, status: u.status, templateId: u.templateId, templateVersion: u.templateVersion, mapping: (u.mapping as Mapping | null) ?? null, rowsSha256: u.rowsSha256,
   counts: { rows: u.rowCount, accepted: u.acceptedCount, rejected: u.rejectedCount, warning: u.warningCount, duplicate: u.duplicateCount }, notes: u.notes as string[],
   uploadedBy: u.uploadedBy, confirmedBy: u.confirmedBy, deleteAfter: u.deleteAfter.toISOString(), createdAt: u.createdAt.toISOString(),
 });
@@ -151,6 +159,8 @@ const counts = (u: UploadSummary) => ({ ...u.counts });
 
 export interface Preview {
   headers: string[]; rows: string[][]; totalRows: number; excludedRows: number; sheet?: string; sheets?: string[]; warnings: string[];
+  /** JSON: the list read ("" for a top-level array) and every list of the top-level object. */
+  list?: string; lists?: string[];
   /** What the reader detected, for the person to check (CSV/TSV: encoding, byte-order mark, delimiter; tables: the header row). */
   encoding?: string; bom?: boolean; delimiter?: string; headerRow?: number;
 }
@@ -160,6 +170,7 @@ function previewOf(p: Parsed, n = PREVIEW_ROWS): Preview {
   if ("table" in p) {
     const v = previewRows(p.table, n);
     return { headers: v.headers, rows: v.rows.map((r) => r.cells), totalRows: p.table.rows.length, excludedRows: p.table.excludedRows.length, sheet: p.table.sheet, sheets: p.table.sheets, warnings: p.table.warnings.map((w) => w.code),
+      ...(p.table.kind === "json" ? { list: p.table.list, lists: p.table.lists } : {}),
       encoding: p.table.encoding, bom: p.table.bom, delimiter: p.table.delimiter, headerRow: p.table.headerRowNumber };
   }
   const lines = p.statement.lines;
@@ -171,7 +182,7 @@ function previewOf(p: Parsed, n = PREVIEW_ROWS): Preview {
   };
 }
 
-export const CreateUpload = z.object({ entityId: z.string().min(1).max(64), fileType: z.enum(FILE_TYPES), fileName: z.string().min(1).max(1000) }).strict();
+export const CreateUpload = z.object({ entityId: z.string().min(1).max(64), fileType: z.enum(FILE_TYPES), fileName: z.string().min(1).max(1000), jsonList: z.string().min(1).max(200).optional() }).strict();
 
 export interface UploadResult { upload: UploadSummary; label: DataLabel; preview: Preview; suggestion: TemplateSuggestion | null }
 
@@ -183,12 +194,12 @@ export interface UploadResult { upload: UploadSummary; label: DataLabel; preview
 export async function createUpload(ctx: TenantContext, input: z.input<typeof CreateUpload> & { bytes: Uint8Array }, idempotencyKey: string, storage: UploadStorage = uploadStorage()): Promise<UploadResult & { status: number; replayed: boolean }> {
   require(ctx, "merchant_upload");
   const key = IdempotencyKey.parse(idempotencyKey);
-  const v = CreateUpload.parse({ entityId: input.entityId, fileType: input.fileType, fileName: input.fileName });
+  const v = CreateUpload.parse({ entityId: input.entityId, fileType: input.fileType, fileName: input.fileName, ...(input.jsonList ? { jsonList: input.jsonList } : {}) });
   const bytes = input.bytes;
   if (!(bytes instanceof Uint8Array)) throw new RequestRefused(400, "INVALID_FILE", "The upload is not a file.");
   const originalName = sanitiseFileName(v.fileName);
   const contentSha256 = sha256(bytes);
-  const parsed = await parseUpload(bytes, v.fileType, originalName).catch(async (e) => {
+  const parsed = await parseUpload(bytes, v.fileType, originalName, v.jsonList).catch(async (e) => {
     await tenantTx(ctx, (tx) => serverAudit(tx, ctx, "upload_refused", "upload", null, `Upload refused before storing (${e instanceof RequestRefused ? e.code : "error"})`,
       { code: e instanceof RequestRefused ? e.code : "error", byteSize: bytes.byteLength, fileType: v.fileType, entityId: v.entityId }));
     throw e;
@@ -212,7 +223,7 @@ export async function createUpload(ctx: TenantContext, input: z.input<typeof Cre
     });
     const [u] = await tx.insert(t.uploads).values({
       orgId: ctx.orgId, entityId: v.entityId, fileType: v.fileType, fileFormat, originalName, byteSize: bytes.byteLength, contentSha256,
-      storageKey: stored.storageKey, encrypted: stored.encrypted, status: "stored", uploadedBy: ctx.userId, deleteAfter: new Date(Date.now() + days * 86_400_000),
+      storageKey: stored.storageKey, encrypted: stored.encrypted, ...(v.jsonList ? { jsonList: v.jsonList } : {}), status: "stored", uploadedBy: ctx.userId, deleteAfter: new Date(Date.now() + days * 86_400_000),
     }).returning().catch(async (e) => { await storage.delete(ctx.orgId, stored.storageKey); throw e; });
     await serverAudit(tx, ctx, "upload_stored", "upload", u.id, `File stored for ${v.entityId} (${v.fileType}, ${fileFormat}, ${bytes.byteLength} bytes${stored.encrypted ? ", encrypted" : ""}); deleted after ${days} days`,
       { uploadId: u.id, entityId: v.entityId, fileType: v.fileType, fileFormat, byteSize: bytes.byteLength, encrypted: stored.encrypted, retentionDays: days });
@@ -240,7 +251,7 @@ export async function listUploads(ctx: TenantContext) {
 export async function uploadPreview(ctx: TenantContext, id: string, storage: UploadStorage = uploadStorage()) {
   require(ctx, "read");
   const u = await tenantRead(ctx, (tx) => loadUpload(tx, ctx, id));
-  const parsed = await parseUpload(await storage.get(ctx.orgId, u.storageKey!), u.fileType as FileType, u.originalName);
+  const parsed = await parseUpload(await storage.get(ctx.orgId, u.storageKey!), u.fileType as FileType, u.originalName, u.jsonList);
   const suggestion = "table" in parsed ? await suggestTemplate(ctx, { fileType: u.fileType as FileType, headers: parsed.table.headers }) : null;
   return { label: dataLabel("live"), upload: summary(u), preview: previewOf(parsed), suggestion };
 }
@@ -266,7 +277,7 @@ export async function setUploadMapping(ctx: TenantContext, id: string, input: z.
       if (!tpl || !ok) throw new AccessDenied(404, "Not found.");
       ({ mapping } = tpl); templateId = tpl.id; templateVersion = tpl.version;
     } else mapping = v.mapping;
-    const parsed = await parseUpload(await storage.get(ctx.orgId, u.storageKey!), u.fileType as FileType, u.originalName);
+    const parsed = await parseUpload(await storage.get(ctx.orgId, u.storageKey!), u.fileType as FileType, u.originalName, u.jsonList);
     if (!("table" in parsed)) throw new RequestRefused(409, "NO_MAPPING_NEEDED", "This statement needs no column mapping.");
     const check = validateMapping(mapping, parsed.table.headers);
     if (!check.ok) throw new RequestRefused(422, "MAPPING_INVALID", check.issues.map((i) => i.message).join(" "));

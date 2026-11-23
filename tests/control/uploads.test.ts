@@ -106,6 +106,32 @@ describe("storing an upload", () => {
   });
 });
 
+describe("a JSON file with several lists (rc7 blind test, generic)", () => {
+  // an invoicing export with two lists and nested totals: a generic shape, not any provider's format (fictional)
+  const FILE = utf8(JSON.stringify({ exported: "2026-11-30", invoices: [{ no: "INV-J1", total: { amount: "10.00", ccy: "SGD" } }, { no: "INV-J2", total: { amount: "5.50", ccy: "SGD" } }], refunds: [{ no: "RF-J1", of: "INV-J1", amount: "1.00" }] }));
+  const ORDERS: Mapping = { fileType: "orders_invoices", columns: { order_id: { header: "no" }, invoice_amount: { header: "total.amount" }, currency: { header: "total.ccy" } } };
+  it("is refused with its lists named; uploaded again with the chosen list, which is kept as a file fact the database will not change", async () => {
+    const fin = await liveCtx(s, "finance@live-a.example", "a");
+    let err: unknown;
+    try { await createUpload(fin, { entityId: "ENT-LIVE-SG", fileType: "orders_invoices", fileName: "invoices.json", bytes: FILE }, key()); } catch (e) { err = e; }
+    expect(err).toBeInstanceOf(RequestRefused);
+    expect(err).toMatchObject({ status: 422, code: "FILE_JSON_LIST_CHOICE", choices: ["invoices", "refunds"] });
+    expect(await ownerDb().select().from(t.uploads).where(and(eq(t.uploads.orgId, s.orgs.a), eq(t.uploads.originalName, "invoices.json")))).toEqual([]);
+    await refused(createUpload(fin, { entityId: "ENT-LIVE-SG", fileType: "orders_invoices", fileName: "invoices.json", bytes: FILE, jsonList: "payments" }, key()), "FILE_JSON_LIST_CHOICE");
+    await refused(createUpload(fin, { entityId: "ENT-LIVE-SG", fileType: "orders_invoices", fileName: "x.csv", bytes: utf8("Order,Amount\nA,1\n"), jsonList: "invoices" }, key()), "JSON_LIST_NOT_JSON");
+    const up = await createUpload(fin, { entityId: "ENT-LIVE-SG", fileType: "orders_invoices", fileName: "invoices.json", bytes: FILE, jsonList: "invoices" }, key());
+    expect(up).toMatchObject({ status: 201, upload: { fileFormat: "json", jsonList: "invoices" }, preview: { headers: ["no", "total.amount", "total.ccy"], totalRows: 2, list: "invoices", lists: ["invoices", "refunds"] } });
+    expect((await uploadPreview(fin, up.upload.id)).preview).toMatchObject({ list: "invoices", totalRows: 2 });
+    await setUploadMapping(fin, up.upload.id, { mapping: ORDERS }, key());
+    expect((await validateUpload(fin, up.upload.id, key())).body.counts).toMatchObject({ rows: 2, accepted: 2, rejected: 0 });
+    // the other list of the same file is another file type's upload; the same file, type and entity again is a duplicate
+    await refused(createUpload(fin, { entityId: "ENT-LIVE-SG", fileType: "orders_invoices", fileName: "invoices.json", bytes: FILE, jsonList: "refunds" }, key()), "DUPLICATE_UPLOAD");
+    await dbRefuses(ownerDb().execute(sql`update uploads set status = 'mapped', json_list = 'refunds' where id = ${up.upload.id}`), /file facts are immutable/);
+    await dbRefuses(ownerDb().execute(sql`insert into uploads (org_id, entity_id, file_type, file_format, original_name, byte_size, content_sha256, encrypted, uploaded_by, delete_after, json_list)
+      values (${s.orgs.a}, 'ENT-LIVE-SG', 'orders_invoices', 'csv', 'x', 1, ${"b".repeat(64)}, false, ${s.users["finance@live-a.example"]}, now(), 'invoices')`), /uploads_json_list_chk/);
+  });
+});
+
 describe("mapping and validation", () => {
   it("validates rows with reason codes, and marks rows already in another upload as duplicates", async () => {
     const { up, validated } = await uploadAndValidate("ops@live-a.example", "provider_export", utf8(exportCsv([101, 102, 103]).replace("Q-102,", "Q-102 ,").replace("1.3500,", "abc,")), MAPPING);

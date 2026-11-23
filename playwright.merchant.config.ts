@@ -19,6 +19,8 @@ const launchOptions = preinstalled ? { executablePath: preinstalled } : {};
 export default defineConfig({
   testDir: "./tests/e2e-merchant",
   testMatch: "*.spec.ts",
+  // rc7 Phase 5: the blind test (a month through the UI, about 2,000 payments) runs on its own: npm run e2e:blind
+  testIgnore: process.env.CLEARLINE_BLIND ? [] : ["blind.spec.ts"],
   globalSetup: "./tests/e2e-merchant/global-setup.ts",
   timeout: 180_000,
   expect: { timeout: 15_000 },

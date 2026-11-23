@@ -54,6 +54,8 @@ export const uploads = pgTable("uploads", {
   contentSha256: text("content_sha256").notNull(),
   storageKey: text("storage_key"),
   encrypted: boolean("encrypted").notNull(),
+  /** rc7 blind test: for a JSON file whose top-level object has several lists, the list the person chose (a file fact). */
+  jsonList: text("json_list"),
   status: text("status").notNull().default("stored"),
   /** Why a file was refused (a stable code, never file content). */
   rejectionCode: text("rejection_code"),
@@ -93,6 +95,7 @@ export const uploads = pgTable("uploads", {
   check("uploads_size_chk", sql`${t.byteSize} > 0`),
   check("uploads_sha_chk", sql`${t.contentSha256} ~ '^[0-9a-f]{64}$'`),
   check("uploads_key_chk", sql`${t.storageKey} is null or ${t.storageKey} ~ '^[0-9a-f]{32}$'`),
+  check("uploads_json_list_chk", sql`${t.jsonList} is null or (${t.fileFormat} = 'json' and length(${t.jsonList}) between 1 and 200)`),
   check("uploads_confirmer_chk", sql`${t.confirmedBy} is null or ${t.fileType} <> 'bank_statement' or ${t.confirmedBy} <> ${t.uploadedBy}`),
 ]);
 

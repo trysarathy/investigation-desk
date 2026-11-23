@@ -3,7 +3,7 @@
  * screen. Nothing is interpreted yet: amounts and dates stay as written (see decimal.ts and dates.ts).
  */
 import { splitRecords } from "./csv";
-import { IngestError, type IngestWarning } from "./errors";
+import { IngestError, echo, type IngestWarning } from "./errors";
 import { parseJson, JsonNumber, type JsonValue } from "./json";
 import { checkCell, checkColumnCount, checkFileSize, checkRowCount, resolveLimits, type IngestLimits } from "./limits";
 import { decodeText, detectDelimiter, sniffFile, type Delimiter, type TextEncoding } from "./sniff";
@@ -31,6 +31,9 @@ export interface ParsedTable {
   /** CSV/TSV: the file started with a byte-order mark. */
   bom?: boolean;
   delimiter?: Delimiter;
+  /** JSON: the list the records were read from ("" for a top-level array), and every list of the top-level object. */
+  list?: string;
+  lists?: string[];
 }
 
 export interface ReadOptions {
@@ -44,7 +47,10 @@ export interface ReadOptions {
 export interface DelimitedOptions extends ReadOptions { delimiter?: Delimiter }
 export interface XlsxOptions extends ReadOptions { sheet?: string }
 export interface JsonOptions extends ReadOptions {
-  /** Property holding the array, when the top-level object has more than one array. */
+  /**
+   * Property holding the array, when the top-level object has more than one array (the person chooses it; never
+   * guessed). Any JSON file of that kind: e.g. { "records": [...], "payouts": [...] } or { "invoices": [...], "refunds": [...] }.
+   */
   arrayProperty?: string;
 }
 
@@ -103,16 +109,27 @@ export function readJson(bytes: Uint8Array, opts: JsonOptions = {}): ParsedTable
   const root = parseJson(decoded.text);
   let items: JsonValue[];
   const warnings: IngestWarning[] = [...decoded.warnings];
-  if (Array.isArray(root)) items = root;
-  else if (isObject(root)) {
+  let list = "", lists: string[] | undefined;
+  if (Array.isArray(root)) {
+    if (opts.arrayProperty !== undefined) throw new IngestError("json_shape", "The JSON file is a single list; it has no named lists to choose from.");
+    items = root;
+  } else if (isObject(root)) {
     const arrays = Object.keys(root).filter((k) => Array.isArray(root[k]));
+    // the lists a person may choose from (names up to 200 characters, at most 50 of them)
+    const offer = arrays.filter((a) => a.length <= 200).slice(0, 50);
+    const named = offer.map((a) => `"${echo(a)}"`).join(", ") + (offer.length < arrays.length ? ", …" : "");
+    lists = offer;
     const key = opts.arrayProperty ?? (arrays.length === 1 ? arrays[0] : undefined);
-    if (key === undefined || !Array.isArray(root[key])) {
+    if (opts.arrayProperty !== undefined && !arrays.includes(opts.arrayProperty)) {
+      throw new IngestError("json_shape", `The JSON file has no list named "${echo(opts.arrayProperty)}"${arrays.length ? `; its lists are ${named}` : ""}.`, { choices: offer });
+    }
+    if (key === undefined) {
       throw new IngestError("json_shape", arrays.length === 0
         ? "The JSON file has no list of records. Expected an array of objects, or an object such as { \"data\": [ ... ] }."
-        : `The JSON file has several lists (${arrays.map((a) => `"${a}"`).join(", ")}); choose which one holds the records.`);
+        : `The JSON file has several lists (${named}); choose which one holds the records.`, offer.length ? { choices: offer } : {});
     }
     items = root[key] as JsonValue[];
+    list = key;
     warnings.push({ code: "json_array_property", message: `Records were read from the "${key}" list.` });
   } else {
     throw new IngestError("json_shape", "The JSON file holds a single value, not a list of records.");
@@ -141,7 +158,7 @@ export function readJson(bytes: Uint8Array, opts: JsonOptions = {}): ParsedTable
     rows.push({ rowNumber: i + 1, cells });
   });
   if (blank) warnings.push({ code: "blank_rows_skipped", message: `${blank} empty record(s) were skipped.` });
-  return { kind: "json", headers, rows, warnings, headerRowNumber: 0, blankRowsSkipped: blank, excludedRows: [], encoding: decoded.encoding };
+  return { kind: "json", headers, rows, warnings, headerRowNumber: 0, blankRowsSkipped: blank, excludedRows: [], encoding: decoded.encoding, list, ...(lists ? { lists } : {}) };
 }
 
 /** Sniff the bytes and read them with the matching reader. MT940 and camt.053 go to the bank parsers instead. */
