@@ -25,3 +25,10 @@ export {
   readDelimited, readJson, readTabular, readXlsx,
   type DelimitedOptions, type ExcludedRow, type JsonOptions, type ParsedTable, type ReadOptions, type TabularKind, type TabularRow, type XlsxOptions,
 } from "./tabular";
+export { parseMt940, type Mt940Options } from "./bank/mt940";
+export { parseCamt053, type Camt053Options } from "./bank/camt053";
+export { BANK_CURRENCY_DECIMALS, currencyPrecision } from "./bank/currency";
+export {
+  assignLineIds, expectedClosing,
+  type BankDirection, type BankLine, type BankLineDraft, type BankParseResult, type BankSourceFormat, type BankStatement, type SkippedEntry, type StatedBalance,
+} from "./bank/types";
