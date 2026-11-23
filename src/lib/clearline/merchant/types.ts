@@ -31,7 +31,10 @@ export interface MerchantEntity { id: string; name: string; functionalCurrency: 
 export interface MerchantPolicy {
   /** Tolerance as basis points of the invoice (50 = 0.5%). */
   tolerancePct: number;
+  /** Fixed amount in the entity currency, combined with the percentage by `toleranceCombine`. */
   toleranceAbsMinor: bigint;
+  /** "larger": band = max(pct × invoice, fixed) — the founder's decision for rc7. "smaller": band = min(…). */
+  toleranceCombine: "smaller" | "larger";
   /** Largest difference the engine may propose to write off; above it the order goes to review. */
   writeoffThresholdMinor: bigint;
   approverRoles: readonly string[];

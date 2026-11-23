@@ -12,7 +12,7 @@ import { bytesToHex } from "@noble/hashes/utils";
 import { decodeUtf8, parseCsv } from "../../../csv/parse";
 import { parseStatementCsv } from "../../../csv/statement";
 import { fmtFiat, sum } from "../amounts";
-import { DEFAULT_POLICY, FIAT_DECIMALS, NETWORKS, TOKENS, normAddress } from "../config";
+import { DEFAULT_POLICY, FIAT_DECIMALS, defaultPolicyFor, NETWORKS, TOKENS, normAddress } from "../config";
 import { proposeJournals, MERCHANT_ACCOUNTS, type JournalProposal } from "../journal";
 import { reconcile, type ReconcileResult } from "../reconcile";
 import { JOURNAL_RULES, RULES } from "../rules";
@@ -90,7 +90,7 @@ export const DIFFERENCE_TEXT: Record<DifferenceType, string> = {
   refund_netted: "Refund netted from the settlement", timing_prior_batch: "Settled in the prior batch", timing_next_batch: "Next-day order in this batch",
   held_by_provider: "Held by the provider", partial_payment_open: "Part paid, balance open", unexplained: "Unexplained",
 };
-const JOURNAL_KIND_TEXT: Record<JournalProposal["kind"], string> = { provider_confirmation: "Provider confirmation", approved_writeoff: "Write-off (after approval)", settlement: "Settlement" };
+const JOURNAL_KIND_TEXT: Record<JournalProposal["kind"], string> = { provider_confirmation: "Provider confirmation", refund: "Refund netted in a settlement", approved_writeoff: "Write-off (after approval)", settlement: "Settlement" };
 const ruleText = (id: string): string => (RULES as Record<string, { text: string }>)[id]?.text ?? (JOURNAL_RULES as Record<string, { text: string }>)[id]?.text ?? "";
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
@@ -184,10 +184,13 @@ function dayConfig(raw: unknown, gaps: Gaps): DayConfig {
       out.addressFacts.push({ network: f.network as NetworkId, address: f.address, fact: f.fact as AddressFact["fact"] });
     else gaps.rejected.push({ source: "day.json", row: i + 1, code: "invalid", reason: "an address fact needs network, address and fact" });
   });
+  // rc7: the entity's per-currency default policy (larger of 0.5% or SGD/USD 5.00, AED 20.00), before any override.
+  if (out.entity) out.policy = { ...defaultPolicyFor(out.entity.functionalCurrency) };
   const p = raw.policy;
   if (isObj(p)) {
     // The imported-bank-line policy is never set from input: it stays with the founder (default off).
     const cur = out.entity?.functionalCurrency ?? "USD";
+    if (p.toleranceCombine === "smaller" || p.toleranceCombine === "larger") out.policy.toleranceCombine = p.toleranceCombine;
     try {
       if (p.tolerancePct !== undefined) { if (!Number.isInteger(p.tolerancePct) || (p.tolerancePct as number) < 0 || (p.tolerancePct as number) > 10_000) throw new Error("tolerancePct is basis points 0–10000"); out.policy.tolerancePct = p.tolerancePct as number; }
       if (typeof p.toleranceAbs === "string") out.policy.toleranceAbsMinor = toUnits(p.toleranceAbs, FIAT_DECIMALS[cur], "toleranceAbs");
@@ -565,7 +568,7 @@ export async function reconstructDay(files: readonly InputFile[], opts: Reconstr
     provider: providerName, day: day.day ?? null,
     entity: { id: entity.id, name: entity.name, currency: cur, timeZone: tzText(entity.timeZone) },
     policy: {
-      band: `min(${(day.policy.tolerancePct / 100).toFixed(2)}% of the invoice, ${fmtFiat(day.policy.toleranceAbsMinor, cur)})`, writeOffThreshold: fmtFiat(day.policy.writeoffThresholdMinor, cur),
+      band: `${day.policy.toleranceCombine === "smaller" ? "min" : "max"}(${(day.policy.tolerancePct / 100).toFixed(2)}% of the invoice, ${fmtFiat(day.policy.toleranceAbsMinor, cur)})`, writeOffThreshold: fmtFiat(day.policy.writeoffThresholdMinor, cur),
       senderFeeBound: `${fromUnits(day.policy.senderFeeBoundBaseUnits, 6)} token units`, importedBankLinesVerify: false,
     },
     figures: figures(engine, bankConfirmed, cur), items, bridges, groupings,

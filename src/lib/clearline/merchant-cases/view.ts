@@ -106,6 +106,7 @@ export const networkName = (id: string): string => NETWORKS.find((n) => n.networ
 export const JOURNAL_KIND_TEXT: Record<JournalProposal["kind"], string> = {
   provider_confirmation: "Provider confirmation",
   approved_writeoff: "Write-off (after approval)",
+  refund: "Refund netted in a settlement",
   settlement: "Settlement",
 };
 export const POSTING_RULE_PENDING = "Posting rule pending sign-off";

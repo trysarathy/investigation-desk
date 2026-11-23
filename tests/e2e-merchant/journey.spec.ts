@@ -202,7 +202,11 @@ test("Case 3 (AED, two chains, two links): the 14.16 write-off proposed by Finan
 
   await signIn(page, "finance@dunehaven-demo.example", info);
   await nav(page, "Accounting export");
-  await expect(page.getByTestId("journal-entry").filter({ hasText: "Write-off (after approval)" })).toBeVisible();
+  // Document A: the 14.16 shortfall and rate difference sit inside the part-2 payment entry, marked "(on approval)".
+  const part2 = page.getByTestId("journal-entry").filter({ hasText: "JP-CONF-PP-25102-2" });
+  await expect(part2).toBeVisible();
+  await expect(part2.getByText("(on approval)")).toHaveCount(2);
+  await expect(part2.getByText("Post only after write-off approval")).toBeVisible();
   const j = JSON.parse((await download(page, () => page.getByRole("link", { name: "Download journal JSON (sandbox)" }).click())).bytes.toString("utf8"));
   expect(j).toMatchObject({ label: LABEL, marking: "sandbox/demo company only; posting rules pending sign-off", entity: { id: "ENT-AE-03" } });
 });

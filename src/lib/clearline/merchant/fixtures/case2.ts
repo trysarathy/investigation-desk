@@ -4,7 +4,7 @@
  * Test mode · illustrative data: every name, address and hash is fictional.
  */
 import { divRoundHalfUp } from "../amounts";
-import { DEFAULT_POLICY } from "../config";
+import { DEFAULT_POLICY, defaultPolicyFor } from "../config";
 import type { ChainTransfer, Invoice, MerchantEntity, ProviderPaymentRecord, Quote, ReconcileInput, SettlementBatchLine, TokenRef } from "../types";
 import { SGT, USDC, USDT, UTC, label, minor, networks, quote, record, tokens, transfer, walletAddress } from "./common";
 
@@ -87,7 +87,7 @@ export function case2Sgd(): ReconcileInput {
 export function case2Usd(): ReconcileInput {
   const specs = USD_AMOUNTS.map((a, i) => ({ orderId: `BK-2490${i + 1}`, amount: minor(a), at: iso("2026-11-25T01:00:00.000Z", i * 60), batchId: "B-1125-USD" }));
   return {
-    ...common, ...build(CASE2_US, specs, "1.0000", () => USDC), entity: CASE2_US, policy: DEFAULT_POLICY,
+    ...common, ...build(CASE2_US, specs, "1.0000", () => USDC), entity: CASE2_US, policy: defaultPolicyFor("USD"),
     batches: [{ batchId: "B-1125-USD", providerDay: "2026-11-25", providerTimeZone: UTC, currency: "USD", targetBankAccount: "USD-OPS-FICT-002", grossMinor: minor("9450.00"), feesMinor: minor("94.50"), refundsMinor: 0n, netMinor: minor("9355.50") }],
     bankLines: [{ bankLineId: "BL-US-1126-02", account: "USD-OPS-FICT-002", currency: "USD", valueDate: "2026-11-26", amountMinor: minor("9355.50"), description: "Fictional Pay Provider settlement B-1125-USD", source: "bank_feed", provenance: "fictional bank feed 2026-11-26" }],
     fxRates: [{ pair: "USDC/USD", rate: "1.0000", source: "Fictional Rate Desk", timestamp: "2026-11-25T00:00:00.000Z" }],

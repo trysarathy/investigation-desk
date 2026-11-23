@@ -46,7 +46,7 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
   if (!pol) throw new MissingEntity(`policy of ${entityId}`);
   const entity: MerchantEntity = { id: ent.id, name: ent.name, functionalCurrency: ent.functionalCurrency as FiatCurrency, ledger: ent.ledger, timeZone: { name: ent.timezone, utcOffsetMinutes: ent.utcOffsetMinutes } };
   const policy: MerchantPolicy = {
-    tolerancePct: pol.toleranceBps, toleranceAbsMinor: pol.toleranceAbsMinor, writeoffThresholdMinor: pol.writeoffThresholdMinor,
+    tolerancePct: pol.toleranceBps, toleranceAbsMinor: pol.toleranceAbsMinor, toleranceCombine: pol.toleranceCombine === "smaller" ? "smaller" : "larger", writeoffThresholdMinor: pol.writeoffThresholdMinor,
     approverRoles: pol.approverRoles as string[], allowImportedBankLinesAsVerified: pol.allowImportedBankLinesAsVerified, senderFeeBoundBaseUnits: BigInt(pol.senderFeeBoundBaseUnits),
   };
   const netRows = await tx.select().from(t.networkConfig);

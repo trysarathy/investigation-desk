@@ -41,8 +41,8 @@ Test mode · illustrative data.
 
 ## Tolerance policy (per entity; editable; changes are Admin-only)
 
-- **Band:** `band = min(tolerance_bps × invoice, tolerance_abs)`. The default is 50 bps and 5.00 in the entity currency [ASSUMPTION per the founder's prompt].
-- **Inside the band**, with only typed differences: `matched_with_difference`, plus a write-off proposal, if the amount is at or below the write-off threshold (default 5.00).
+- **Band (founder decision, rc7):** `band = max(tolerance_bps × invoice, fixed amount)` per entity. The defaults are 50 bps and a fixed amount per currency: SGD 5.00, USD 5.00 and AED 20.00. An Admin can edit them, and can set `tolerance_combine = 'smaller'` to use `min(…)` instead.
+- **Inside the band**, with only typed differences: `matched_with_difference`, plus a write-off proposal, if the amount is at or below the write-off threshold. The threshold defaults to the same fixed amount per currency [ASSUMPTION]. Above the threshold, the order goes to `suggested_for_review`.
 - **Outside the band but explained:** `suggested_for_review`. An under- or overpayment beyond the band is an `exception`.
 - **Imported bank lines** (`csv_import`) never make settlement verified on their own unless `allow_imported_bank_lines_as_verified` is on. It defaults to off, and the decision is the founder's.
 
@@ -60,4 +60,5 @@ Test mode · illustrative data.
 - **Case 3:**
   - 11,017.50 + 7,333.34 = 18,350.84. The gap of **14.16** splits into an underpayment (shortfall) of 12.86 and a rate difference of 1.30.
   - After part 1 only: an open balance of 7,347.50 as `partial_payment_open`.
-  - **Policy conflict.** Under the **default** policy (band 5.00 AED) this is an `exception`, because the 12.86 shortfall is beyond the band. The fixture's UAE policy (absolute cap 100.00, so band 91.83 [ASSUMPTION]) gives `matched_with_difference`, with a 14.16 write-off proposed. This is a founder decision: "whichever is smaller" against "whichever is larger", or a per-entity policy.
+  - **Tolerance (decided, rc7):** under the AED default, the band is max(91.83, 20.00) = 91.83, so the result is `matched_with_difference` with a 14.16 write-off proposed. That is within the AED 20.00 write-off threshold. Under rc6's "smaller of 0.5% or 5.00", the same case was an `exception`.
+  - **Fees (Document A):** 1% on each part: 110.18 on B-UAE-1201 (net 10,907.32) and 73.33 on B-UAE-1203 (net 7,260.01).

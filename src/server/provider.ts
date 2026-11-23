@@ -210,7 +210,7 @@ export async function merchantSettings(ctx: TenantContext) {
     const [org] = await tx.select({ providerOrgId: t.organizations.providerOrgId }).from(t.organizations).where(eq(t.organizations.id, ctx.orgId));
     return {
       label: LABEL, hasProvider: !!org?.providerOrgId,
-      policies: policies.map(({ p, name, currency }) => ({ entityId: p.entityId, name, currency, toleranceBps: p.toleranceBps, toleranceAbsMinor: p.toleranceAbsMinor.toString(), writeoffThresholdMinor: p.writeoffThresholdMinor.toString(), allowImportedBankLinesAsVerified: p.allowImportedBankLinesAsVerified, revision: p.revision, updatedAt: p.updatedAt.toISOString() })),
+      policies: policies.map(({ p, name, currency }) => ({ entityId: p.entityId, name, currency, toleranceBps: p.toleranceBps, toleranceAbsMinor: p.toleranceAbsMinor.toString(), toleranceCombine: p.toleranceCombine, writeoffThresholdMinor: p.writeoffThresholdMinor.toString(), allowImportedBankLinesAsVerified: p.allowImportedBankLinesAsVerified, revision: p.revision, updatedAt: p.updatedAt.toISOString() })),
       proposal: prop ? { providerName: prop.provider_name, policyDefaults: prop.policy_defaults, mappedColumns: prop.column_mapping?.columns ? Object.keys(prop.column_mapping.columns).length : 0, revision: prop.revision } : null,
       grantScope: grant?.scope === "full" ? "full" as const : "aggregates" as const,
     };

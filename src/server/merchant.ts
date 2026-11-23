@@ -120,7 +120,9 @@ export async function runReconciliation(ctx: TenantContext, entityId: string, id
       await tx.update(t.writeoffProposals).set({ status: "superseded" }).where(and(eq(t.writeoffProposals.orgId, ctx.orgId), eq(t.writeoffProposals.id, w.id)));
     }
     for (const j of journals) {
-      const row = { entityId, pattern: j.kind, lines: plain(j.lines) as object, currency: j.currency,
+      // Document A "(on approval)" lines name the approval they wait for; write-off ids map to their stored ids.
+      const lines = j.lines.map((l) => (l.onApproval ? { ...l, onApproval: woIdOf.get(l.onApproval) ?? l.onApproval } : l));
+      const row = { entityId, pattern: j.kind, lines: plain(lines) as object, currency: j.currency,
         evidenceRefs: plain({ ...j.evidence, ruleId: j.ruleId, entryDate: j.entryDate, memo: j.memo, requiresApprovalOf: j.requiresApprovalOf ? woIdOf.get(j.requiresApprovalOf) ?? j.requiresApprovalOf : null, label: j.label }) as object };
       await tx.insert(t.merchantJournalProposals).values({ orgId: ctx.orgId, id: j.id, ...row, status: "proposed", postingRuleStatus: "pending_sign_off" })
         .onConflictDoUpdate({ target: [t.merchantJournalProposals.orgId, t.merchantJournalProposals.id], set: row, setWhere: sql`${t.merchantJournalProposals.status} = 'proposed'` });
@@ -144,6 +146,7 @@ const Minor = z.union([z.string().regex(/^\d{1,15}$/), z.number().int().min(0)])
 export const PolicyPatch = z.object({
   toleranceBps: z.number().int().min(0).max(1000).optional(),
   toleranceAbsMinor: Minor.optional(),
+  toleranceCombine: z.enum(["smaller", "larger"]).optional(),
   writeoffThresholdMinor: Minor.optional(),
   allowImportedBankLinesAsVerified: z.boolean().optional(),
 }).strict();

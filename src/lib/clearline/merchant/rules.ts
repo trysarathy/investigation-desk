@@ -50,6 +50,7 @@ export const JOURNAL_RULES = {
   "J.confirmation.overpayment_liability": { text: "Credit beyond the invoice goes to Customer overpayments (liability), never to AR." },
   "J.writeoff.on_approval": { text: "A proposed write-off has a matching entry, to post only after the rc5 two-person approval." },
   "J.settlement.verified_batch": { text: "Settlement is proposed only for a tied batch whose settlement is verified." },
+  "J.settlement.refund_netted": { text: "A refund netted in a verified settlement is its own entry, Dr Sales refunds / Cr Provider clearing (Document A, Case 2)." },
 } as const satisfies Record<string, { text: string }>;
 export type JournalRuleId = keyof typeof JOURNAL_RULES;
 

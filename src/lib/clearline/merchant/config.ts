@@ -24,12 +24,21 @@ export const TOKENS: readonly TokenConfig[] = [
 ];
 
 /**
- * Default policy: band = min(0.5% of invoice, 5.00) [ASSUMPTION per the prompt; editable].
- * Sender-side fee bound 5.000000 token units [ASSUMPTION: covers typical exchange withdrawal fees].
+ * Founder decision (rc7): per-entity policy, band = the LARGER of 0.5% of the invoice or a fixed amount per
+ * currency (SGD 5.00, USD 5.00, AED 20.00). Editable per entity by an Admin.
+ * [ASSUMPTION] the write-off threshold defaults to the same fixed amount per currency.
  */
+export const TOLERANCE_FIXED_MINOR: Readonly<Record<FiatCurrency, bigint>> = { SGD: 500n, USD: 500n, AED: 2000n };
+
+export const defaultPolicyFor = (currency: FiatCurrency): MerchantPolicy => ({
+  ...DEFAULT_POLICY, toleranceAbsMinor: TOLERANCE_FIXED_MINOR[currency], writeoffThresholdMinor: TOLERANCE_FIXED_MINOR[currency],
+});
+
+/** The SGD default (kept for callers that predate per-currency defaults). */
 export const DEFAULT_POLICY: MerchantPolicy = {
   tolerancePct: 50,
   toleranceAbsMinor: 500n,
+  toleranceCombine: "larger",
   writeoffThresholdMinor: 500n,
   approverRoles: ["finance_approver"],
   allowImportedBankLinesAsVerified: false,

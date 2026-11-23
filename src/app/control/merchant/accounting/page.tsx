@@ -11,8 +11,8 @@ import { Chip, DEMO_LABEL, Empty, PendingSignOff, fiat, one } from "@/components
 
 export const metadata: Metadata = { title: "Accounting export" };
 
-const PATTERN: Record<string, string> = { provider_confirmation: "Provider confirmation", approved_writeoff: "Write-off (after approval)", settlement: "Settlement" };
-type Line = { side: "debit" | "credit"; account: keyof typeof MERCHANT_ACCOUNTS; amountMinor: string; orderId?: string; batchId?: string };
+const PATTERN: Record<string, string> = { provider_confirmation: "Provider confirmation", approved_writeoff: "Write-off (after approval)", refund: "Refund netted in a settlement", settlement: "Settlement" };
+type Line = { side: "debit" | "credit"; account: keyof typeof MERCHANT_ACCOUNTS; amountMinor: string; orderId?: string; batchId?: string; onApproval?: string };
 type Ev = { entryDate: string | null; memo: string; ruleId: string; requiresApprovalOf: string | null };
 
 export default async function AccountingPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
@@ -55,14 +55,14 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
           return (
             <article className={s.panel} key={j.id} aria-labelledby={`j-${i}`} data-testid="journal-entry">
               <h3 className={s.h3} id={`j-${i}`}>{PATTERN[j.pattern] ?? j.pattern} · <span className={s.mono}>{j.id}</span></h3>
-              <p className={s.row}><PendingSignOff /> <Chip>Proposed</Chip> {ev.requiresApprovalOf ? <Chip tone="amber">Post only after write-off approval</Chip> : null} <span className={s.small}>Entry date {ev.entryDate ?? "when approved"} · rule <span className={s.mono}>{ev.ruleId}</span></span></p>
+              <p className={s.row}><PendingSignOff /> <Chip>Proposed</Chip> {ev.requiresApprovalOf ? <Chip tone="amber">{ev.requiresApprovalOf.startsWith("resolution:") ? "Post only after the controller's resolution" : "Post only after write-off approval"}</Chip> : null} <span className={s.small}>Entry date {ev.entryDate ?? "when approved"} · rule <span className={s.mono}>{ev.ruleId}</span></span></p>
               <p className={s.small}>{ev.memo}</p>
               <div className={s.tableWrap} role="region" aria-label={`Lines of ${j.id}`} tabIndex={0}>
                 <table className={s.table}>
                   <thead><tr><th scope="col">Account</th><th scope="col" className={s.num}>Debit</th><th scope="col" className={s.num}>Credit</th><th scope="col">Reference</th></tr></thead>
                   <tbody>
                     {(j.lines as Line[]).map((l, k) => (
-                      <tr key={k}><td>{MERCHANT_ACCOUNTS[l.account] ?? l.account}</td><td className={s.num}>{l.side === "debit" ? fiat(l.amountMinor, cur) : ""}</td><td className={s.num}>{l.side === "credit" ? fiat(l.amountMinor, cur) : ""}</td><td className={s.mono}>{l.orderId ?? l.batchId ?? ""}</td></tr>
+                      <tr key={k}><td>{MERCHANT_ACCOUNTS[l.account] ?? l.account}{l.onApproval ? <span className={s.small}> (on approval)</span> : null}</td><td className={s.num}>{l.side === "debit" ? fiat(l.amountMinor, cur) : ""}</td><td className={s.num}>{l.side === "credit" ? fiat(l.amountMinor, cur) : ""}</td><td className={s.mono}>{l.orderId ?? l.batchId ?? ""}</td></tr>
                     ))}
                     <tr><th scope="row">Total</th><td className={s.num}><strong>{fiat(totals[i].dr, cur)}</strong></td><td className={s.num}><strong>{fiat(totals[i].cr, cur)}</strong></td><td>{totals[i].dr === totals[i].cr ? <Chip tone="ok">Balanced</Chip> : <Chip tone="warn">Not balanced</Chip>}</td></tr>
                   </tbody>

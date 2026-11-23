@@ -63,11 +63,15 @@ export const merchantEntities = pgTable("merchant_entities", {
   check("merchant_entities_ledger_chk", sql`${t.ledger} in ('xero','quickbooks','none')`),
 ]);
 
-/** Per-entity policy. Defaults per the rc6 prompt [ASSUMPTION; editable]: 0.5% or 5.00, whichever is smaller. */
+/**
+ * Per-entity policy. rc7 founder decision: band = the LARGER of 0.5% or a fixed amount per currency (SGD 5.00,
+ * USD 5.00, AED 20.00); the code sets the per-currency amount when an entity is created. Editable by an Admin.
+ */
 export const merchantPolicy = pgTable("merchant_policy", {
   orgId: org(), entityId: text("entity_id").notNull(),
   toleranceBps: integer("tolerance_bps").notNull().default(50),
   toleranceAbsMinor: money("tolerance_abs_minor").notNull().default(sql`500`),
+  toleranceCombine: text("tolerance_combine").notNull().default("larger"),
   writeoffThresholdMinor: money("writeoff_threshold_minor").notNull().default(sql`500`),
   approverRoles: jsonb("approver_roles").notNull().default(["approver"]),
   /** rc5 open decision: an imported (csv_import) bank line never makes settlement verified unless this is on. */
@@ -80,6 +84,7 @@ export const merchantPolicy = pgTable("merchant_policy", {
   foreignKey({ columns: [t.orgId, t.entityId], foreignColumns: [merchantEntities.orgId, merchantEntities.id], name: "merchant_policy_entity_fk" }),
   check("merchant_policy_bps_chk", sql`${t.toleranceBps} between 0 and 1000`),
   check("merchant_policy_abs_chk", sql`${t.toleranceAbsMinor} >= 0`),
+  check("merchant_policy_combine_chk", sql`${t.toleranceCombine} in ('smaller', 'larger')`),
 ]);
 
 export const invoices = pgTable("invoices", {
