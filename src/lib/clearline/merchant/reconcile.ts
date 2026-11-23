@@ -1,5 +1,6 @@
 /** rc6 merchant reconciliation entry point. Pure: same input, same output; no I/O, no clock, no randomness. */
 import { indexesOf } from "./indexes";
+import { resolveClaimedTransfers } from "./claims";
 import { buildBridges, type BatchBridge, type ProposedGrouping } from "./bridge";
 import { matchPayments, type MatchOutput } from "./match";
 import { active, type RuleId } from "./rules";
@@ -35,7 +36,9 @@ function applyStep5(rec: MatchRecord, bridges: BatchBridge[], groupings: Propose
   return null;
 }
 
-export function reconcile(input: ReconcileInput): ReconcileResult {
+export function reconcile(raw: ReconcileInput): ReconcileResult {
+  // rc7: provider records named by tx hash only are resolved against chain facts once, for matching and the bridge alike
+  const { input } = resolveClaimedTransfers(raw);
   const matched = matchPayments(input);
   const orderOf = (pid: string): string => {
     const ix = indexesOf(input);

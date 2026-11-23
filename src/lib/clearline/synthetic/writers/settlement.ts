@@ -3,16 +3,22 @@ import { SYNTHETIC_LABEL } from "../fictional";
 import type { SyntheticWorld } from "../world";
 import { csv, json, minorPlain, utf8 } from "./format";
 
-/** One row per batch line (payments and refunds), batches in id order. */
+/**
+ * One row per batch line, batches in id order: payments, refunds, and (rc7) one batch-level fee line per batch, as a
+ * real per-payment settlement report shows them. Refunds and fees are written as negative amounts.
+ */
 export function settlementLinesCsv(world: SyntheticWorld): Uint8Array {
   const batch = new Map(world.batches.map((b) => [b.batchId, b]));
+  const fees = world.batches.filter((b) => b.feesMinor !== 0n)
+    .map((b) => [b.batchId, b.providerDay, b.currency, "fee", "", "", "", minorPlain(-b.feesMinor), b.targetBankAccount]);
   const rows = [...world.batchLines]
     .sort((a, b) => (a.batchId < b.batchId ? -1 : a.batchId > b.batchId ? 1 : a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : (a.providerPaymentId ?? a.refundId ?? "") < (b.providerPaymentId ?? b.refundId ?? "") ? -1 : 1))
     .map((l) => {
       const b = batch.get(l.batchId)!;
       return [l.batchId, b.providerDay, b.currency, l.kind, l.providerPaymentId ?? "", l.refundId ?? "", l.orderId, minorPlain(l.kind === "refund" ? -l.amountMinor : l.amountMinor), b.targetBankAccount];
     });
-  return utf8(csv([["batch_id", "provider_day_utc", "currency", "line_type", "payment_id", "refund_id", "order_ref", "amount", "bank_account"], ...rows]));
+  const all = [...rows, ...fees].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[3] === "fee" ? 1 : b[3] === "fee" ? -1 : 0));
+  return utf8(csv([["batch_id", "provider_day_utc", "currency", "line_type", "payment_id", "refund_id", "order_ref", "amount", "bank_account"], ...all]));
 }
 
 export function settlementTotalsJson(world: SyntheticWorld): Uint8Array {

@@ -150,6 +150,9 @@ describe("synthetic provider and order files", () => {
       const mine = rows.filter((r) => r[0] === b.batchId);
       expect(mine.filter((r) => r[3] === "payment").reduce((t, r) => t + plainMinor(r[7]), 0n)).toBe(b.grossMinor);
       expect(-mine.filter((r) => r[3] === "refund").reduce((t, r) => t + BigInt(r[7].replace(".", "")), 0n)).toBe(b.refundsMinor);
+      // rc7: the batch's fee is on the report too (a batch-level fee line, negative), so the lines alone bridge to net
+      expect(-mine.filter((r) => r[3] === "fee").reduce((t, r) => t + BigInt(r[7].replace(".", "")), 0n)).toBe(b.feesMinor);
+      expect(mine.reduce((t, r) => t + BigInt(r[7].replace(".", "")), 0n)).toBe(b.netMinor);
     }
     const totals = JSON.parse(text(file("settlement_totals").bytes));
     for (const t of totals.batches) {

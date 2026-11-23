@@ -89,7 +89,7 @@ export function applyMapping(table: TableLike, mappingInput: unknown, opts: Appl
   const cellsOf = (c: ColumnMapping, cells: readonly string[]) => headersOf(c).map((h) => cells[index.get(h)!] ?? "");
   const textOf = (c: ColumnMapping, cells: readonly string[]) => (c.constant !== undefined ? c.constant : cellsOf(c, cells).map((x) => x.trim()).filter((x) => x !== "").join(" "));
   // Evaluation order: what other fields need first (currency for fiat precision, network + contract for tokens).
-  const order = ["currency", "network", "token_contract", "direction"];
+  const order = ["currency", "network", "token_symbol", "token_contract", "direction", "line_type"];
   const rank = (k: string) => (order.includes(k) ? order.indexOf(k) : order.length);
   const keys = Object.keys(mapping.columns).sort((a, b) => rank(a) - rank(b) || (a < b ? -1 : 1));
   const columnIssues: ColumnIssue[] = [];
@@ -111,6 +111,16 @@ export function applyMapping(table: TableLike, mappingInput: unknown, opts: Appl
       return res.value;
     };
     const read = (key: string, def: FieldDef, c: ColumnMapping, p: ColumnPlan): MappedValue | undefined => {
+      if (c.derive === "network_and_symbol") {
+        // the confirmed mapping default: the one configured token on the row's network (with its symbol, when the file
+        // has a symbol column); two candidates are refused, never guessed
+        const n = network(), sym = values.token_symbol;
+        if (!n || (mapping.columns.token_symbol && typeof sym !== "string")) throw new Bad("token_needs_network_and_symbol");
+        const hits = tokens.filter((t) => t.network === n && (typeof sym !== "string" || t.symbol.toUpperCase() === sym));
+        if (hits.length > 1) throw new Bad(typeof sym === "string" ? "token_symbol_ambiguous" : "token_needs_symbol");
+        if (hits.length === 0) throw new Bad("unknown_token");
+        return hits[0].contract;
+      }
       if (c.sign === "credit_debit_columns") {
         const [credit, debit] = cellsOf(c, r.cells).map((x) => x.trim());
         if (credit === "" && debit === "") return undefined;
@@ -189,6 +199,13 @@ export function applyMapping(table: TableLike, mappingInput: unknown, opts: Appl
             values.direction = dir;
             return v < 0n ? -v : v;
           }
+          if (mapping.fileType === "settlement_report" && key === "line_amount" && c.deductionSign === "negative") {
+            // refunds and fees are written as negative amounts: stored as their size, the line type says what they are
+            const deduction = values.line_type === "refund" || values.line_type === "fee";
+            if (deduction && v > 0n) throw new Bad("deduction_line_positive");
+            if (!deduction && v < 0n) throw new Bad("payment_line_negative");
+            return v < 0n ? -v : v;
+          }
           if (v < 0n) throw new Bad("negative_amount");
           return v;
         }
@@ -238,7 +255,7 @@ function crossChecks(m: Mapping, v: Record<string, MappedValue>, errors: RowIssu
   const has = (k: string) => v[k] !== undefined || errors.some((e) => e.field === k);
   if (m.fileType === "provider_export") {
     if (typeof v.created_at === "string" && typeof v.expires_at === "string" && Date.parse(v.expires_at) <= Date.parse(v.created_at)) errors.push({ field: "expires_at", code: "quote_expires_before_created" });
-    if (has("tx_hash") && !has("log_index")) warnings.push({ field: "log_index", code: "log_index_missing_assumed_0" });
+    if (has("tx_hash") && !has("log_index")) warnings.push({ field: "log_index", code: "log_index_missing_resolved_from_chain" });
     if (has("token_symbol") && token && v.token_symbol !== token.symbol.toUpperCase()) warnings.push({ field: "token_symbol", code: "symbol_differs_from_contract" });
     if (has("payment_id") && !has("received_token_amount")) errors.push({ field: "received_token_amount", code: "missing_value" });
     if (has("payment_id") && !has("status")) errors.push({ field: "status", code: "missing_value" });
@@ -246,9 +263,9 @@ function crossChecks(m: Mapping, v: Record<string, MappedValue>, errors: RowIssu
     if (has("payment_id") && !has("executed_rate")) errors.push({ field: "executed_rate", code: "missing_value" });
   }
   if (m.fileType === "settlement_report" && m.shape === "per_payment_lines") {
-    const refund = v.line_type === "refund";
-    if (!refund && !has("payment_id")) errors.push({ field: "payment_id", code: "missing_value" });
-    if (refund && !has("refund_id")) errors.push({ field: "refund_id", code: "missing_value" });
+    // a fee line (batch-level fee) names no payment; a payment line and a refund line name theirs
+    if (v.line_type !== "refund" && v.line_type !== "fee" && !has("payment_id")) errors.push({ field: "payment_id", code: "missing_value" });
+    if (v.line_type === "refund" && !has("refund_id")) errors.push({ field: "refund_id", code: "missing_value" });
   }
   // A batch is never invented: totals without a batch ID cannot be stored (the engine proposes groupings itself).
   if (m.fileType === "settlement_report" && m.shape === "batch_totals" && !has("batch_id")) errors.push({ field: "batch_id", code: "batch_id_needed_for_totals" });

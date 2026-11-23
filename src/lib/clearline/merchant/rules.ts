@@ -16,6 +16,8 @@ export const RULES = {
   "M3.window.before_quote": { step: 3, text: "The transfer predates the quote." },
   "M3.window.after_expiry_no_requote": { step: 3, text: "The transfer arrived after the quote expired and the provider did not re-quote." },
   "M3.quote.invoice_mismatch": { step: 3, text: "The quoted amount at the quoted rate does not equal the invoice." },
+  "M3.provider.transfer_ambiguous": { step: 3, text: "The provider names a transaction without a log index, and several of its transfers reach this order's address: the engine does not choose one." },
+  "M3.quote.terms_unknown": { step: 3, text: "The source files lack quote terms this order needs (rate, quoted amount or window): the engine abstains; nothing is derived or assumed." },
   "M3.provider.no_record": { step: 3, text: "A final, referenced transfer has no provider record." },
   "M3.provider.received_mismatch": { step: 3, text: "The provider's received amount differs from the chain." },
   "M3.batch.unknown_batch": { step: 3, text: "The provider names a settlement batch that does not exist." },

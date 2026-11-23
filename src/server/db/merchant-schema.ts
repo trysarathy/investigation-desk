@@ -114,9 +114,10 @@ export const merchantQuotes = pgTable("merchant_quotes", {
   orgId: org(), quoteId: text("quote_id").notNull(),
   orderId: text("order_id").notNull(),
   network: text("network").notNull(), tokenContract: text("token_contract").notNull(),
-  quotedBaseUnits: baseUnits("quoted_base_units").notNull(),
-  rate: rate("rate").notNull(), rateSource: text("rate_source").notNull(), rateAt: ts("rate_at").notNull(),
-  createdAt: ts("created_at").notNull(), expiresAt: ts("expires_at").notNull(),
+  // rc7: a quote's terms may be missing from an uploaded provider export (NULL = not in the file; never derived)
+  quotedBaseUnits: baseUnits("quoted_base_units"),
+  rate: rate("rate"), rateSource: text("rate_source"), rateAt: ts("rate_at"),
+  createdAt: ts("created_at"), expiresAt: ts("expires_at"),
   depositAddress: text("deposit_address").notNull(),
   ...fromUpload(),
 }, (t) => [
@@ -131,7 +132,7 @@ export const paymentLinks = pgTable("payment_links", {
   orgId: org(), linkId: text("link_id").notNull(),
   orderId: text("order_id").notNull(), kind: text("kind").notNull(),
   network: text("network").notNull(), depositAddress: text("deposit_address").notNull(),
-  requestedMinor: money("requested_minor").notNull(),
+  requestedMinor: money("requested_minor"), // rc7: NULL when the quote's rate is not in the uploaded file
   // rc6 phase 6: what the engine needs of a link (its quote, token, amount and own validity window)
   quoteId: text("quote_id"), tokenContract: text("token_contract"), requestedBaseUnits: baseUnits("requested_base_units"),
   createdAt: ts("created_at"), expiresAt: ts("expires_at"),

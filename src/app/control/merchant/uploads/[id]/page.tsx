@@ -25,7 +25,7 @@ function MappingSummary({ mapping }: { mapping: Mapping }) {
   return (
     <dl className={m.facts} data-testid="mapping-summary">
       {Object.entries(mapping.columns).map(([k, c]) => (
-        <div key={k} style={{ display: "contents" }}><dt>{fieldOf(mapping.fileType, k)?.label ?? k}</dt><dd>{c.header ?? c.headers?.join(" + ") ?? `fixed value “${c.constant}”`}{c.dateFormat ? ` · dates ${c.dateFormat}` : ""}{c.decimalSeparator ? ` · decimal “${c.decimalSeparator}”` : ""}</dd></div>
+        <div key={k} style={{ display: "contents" }}><dt>{fieldOf(mapping.fileType, k)?.label ?? k}</dt><dd>{c.derive ? "worked out from the network and token symbol (configured tokens)" : c.header ?? c.headers?.join(" + ") ?? `fixed value “${c.constant}”`}{c.dateFormat ? ` · dates ${c.dateFormat}` : ""}{c.decimalSeparator ? ` · decimal “${c.decimalSeparator}”` : ""}{c.deductionSign === "negative" ? " · refunds and fees negative" : ""}</dd></div>
       ))}
     </dl>
   );

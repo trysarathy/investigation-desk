@@ -34,20 +34,25 @@ const f = (key: string, label: string, kind: FieldKind, required: boolean, synon
 
 const ORDER_ID = f("order_id", "Order ID", "id", true, ["order id", "order", "order reference", "merchant order id", "merchant reference", "invoice id", "invoice number", "invoice"]);
 const CURRENCY = f("currency", "Currency", "currency", true, ["currency", "fiat currency", "invoice currency", "order currency", "currency code"], { allowConstant: true });
+/** rc7: a file covering several entities: rows naming another entity are left out of this upload's entity. */
+const ENTITY = f("entity", "Entity", "id", false, ["entity", "entity id", "legal entity", "merchant entity"]);
 
 export const CATALOGUE: Readonly<Record<FileType, readonly FieldDef[]>> = {
   provider_export: [
     ORDER_ID,
-    f("quote_id", "Quote ID", "id", true, ["quote id", "quote", "quotation id", "checkout id", "session id"]),
+    // rc7: what reconciling safely needs is the order, the deposit address, the token and the network. Quote terms a
+    // file lacks (amount, rate, window) are stored as unknown and the engine abstains on those orders; nothing is derived.
+    f("quote_id", "Quote ID", "id", false, ["quote id", "quote", "quotation id", "checkout id", "session id"]),
     f("payment_id", "Payment ID", "id", false, ["payment id", "provider payment id", "transaction id", "provider reference", "payment reference"]),
     f("payment_link_id", "Payment link ID", "id", false, ["payment link id", "link id", "payment link", "invoice link id"]),
-    f("invoice_amount", "Invoice amount", "fiat_amount", true, ["invoice amount", "order amount", "amount", "fiat amount", "price", "total"], { currencyField: "currency" }),
+    f("invoice_amount", "Invoice amount", "fiat_amount", false, ["invoice amount", "order amount", "amount", "fiat amount", "price", "total"], { currencyField: "currency" }),
     CURRENCY,
-    f("quoted_token_amount", "Quoted token amount", "token_amount", true, ["quoted amount", "crypto amount", "token amount", "expected amount", "amount due", "quoted crypto amount"]),
+    ENTITY,
+    f("quoted_token_amount", "Quoted token amount", "token_amount", false, ["quoted amount", "crypto amount", "token amount", "expected amount", "amount due", "quoted crypto amount"]),
     f("received_token_amount", "Received token amount", "token_amount", false, ["received amount", "amount received", "paid amount", "received crypto amount", "actual amount"]),
     f("credited_fiat", "Credited fiat amount", "fiat_amount", false, ["credited amount", "credited fiat", "settled amount", "merchant amount", "credit amount"], { currencyField: "currency" }),
-    f("quote_rate", "Quoted rate", "rate", true, ["quote rate", "quoted rate", "exchange rate", "rate", "fx rate"]),
-    f("rate_source", "Rate source", "text", true, ["rate source", "price source", "fx source"], { allowConstant: true }),
+    f("quote_rate", "Quoted rate", "rate", false, ["quote rate", "quoted rate", "exchange rate", "rate", "fx rate"]),
+    f("rate_source", "Rate source", "text", false, ["rate source", "price source", "fx source"], { allowConstant: true }),
     f("executed_rate", "Executed rate", "rate", false, ["executed rate", "execution rate", "settlement rate", "conversion rate"]),
     f("token_symbol", "Token symbol", "token_symbol", false, ["token", "asset", "coin", "crypto currency", "cryptocurrency", "token symbol", "symbol"]),
     f("token_contract", "Token contract", "address", true, ["token contract", "contract", "contract address", "token address", "asset contract"], { allowConstant: true }),
@@ -59,8 +64,8 @@ export const CATALOGUE: Readonly<Record<FileType, readonly FieldDef[]>> = {
     f("status", "Status", "status", false, ["status", "payment status", "state"]),
     f("batch_id", "Settlement batch ID", "batch_id", false, ["batch id", "settlement id", "settlement batch", "payout id", "batch"]),
     f("fee", "Fee", "fiat_amount", false, ["fee", "fees", "provider fee", "processing fee", "commission"], { currencyField: "currency" }),
-    f("created_at", "Quote created at", "datetime", true, ["created at", "created", "quote created", "creation time", "date created"], { allowMultiple: true }),
-    f("expires_at", "Quote expires at", "datetime", true, ["expires at", "expiry", "expiration", "quote expiry", "valid until"], { allowMultiple: true }),
+    f("created_at", "Quote created at", "datetime", false, ["created at", "created", "quote created", "creation time", "date created"], { allowMultiple: true }),
+    f("expires_at", "Quote expires at", "datetime", false, ["expires at", "expiry", "expiration", "quote expiry", "valid until"], { allowMultiple: true }),
     f("paid_at", "Paid at", "datetime", false, ["paid at", "payment time", "completed at", "confirmed at", "paid date"], { allowMultiple: true }),
   ],
   settlement_report: [
@@ -74,7 +79,7 @@ export const CATALOGUE: Readonly<Record<FileType, readonly FieldDef[]>> = {
     f("refund_id", "Refund ID", "id", false, ["refund id", "refund reference"]),
     f("order_id", "Order ID", "id", false, ["order id", "order", "merchant reference", "invoice id"]),
     f("line_amount", "Line amount", "fiat_amount", false, ["amount", "line amount", "payment amount"], { currencyField: "currency" }),
-    f("line_type", "Line type (payment or refund)", "status", false, ["type", "line type", "kind", "transaction type"]),
+    f("line_type", "Line type (payment, refund or fee)", "status", false, ["type", "line type", "kind", "transaction type"]),
     // batch totals
     f("gross", "Gross", "fiat_amount", false, ["gross", "gross amount", "total gross", "sales"], { currencyField: "currency" }),
     f("fee", "Fees", "fiat_amount", false, ["fee", "fees", "total fees", "provider fee", "commission"], { currencyField: "currency" }),
@@ -83,6 +88,7 @@ export const CATALOGUE: Readonly<Record<FileType, readonly FieldDef[]>> = {
   ],
   orders_invoices: [
     ORDER_ID,
+    ENTITY,
     f("invoice_amount", "Invoice amount", "fiat_amount", true, ["invoice amount", "amount", "total", "order amount", "amount due"], { currencyField: "currency" }),
     CURRENCY,
     f("status", "Invoice status", "status", false, ["status", "invoice status", "state"]),
@@ -117,7 +123,7 @@ export function fieldOf(fileType: FileType, key: string): FieldDef | undefined {
 export const STATUS_TARGETS: Readonly<Partial<Record<FileType, Readonly<Record<string, readonly string[]>>>>> = {
   provider_export: { status: ["paid", "underpaid", "overpaid", "held_for_review", "re_quoted", "partially_paid", "pending"] },
   orders_invoices: { status: ["open", "void"] },
-  settlement_report: { line_type: ["payment", "refund"] },
+  settlement_report: { line_type: ["payment", "refund", "fee"] },
 };
 
 /** Settlement reports come as one row per payment line, or as one row per batch with totals only. */

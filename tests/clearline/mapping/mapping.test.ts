@@ -118,7 +118,7 @@ describe("applyMapping", () => {
   it("reads a provider export exactly: thousand separators, DD/MM with a default offset, token by contract, status claims, hash case", () => {
     const r = applyMapping(table(PE_HEADERS, [peRow({})]), PE);
     if (!r.ok) throw new Error(JSON.stringify(r.issues));
-    expect(r.rows[0]).toMatchObject({ status: "warning", errors: [], warnings: [{ field: "log_index", code: "log_index_missing_assumed_0" }] });
+    expect(r.rows[0]).toMatchObject({ status: "warning", errors: [], warnings: [{ field: "log_index", code: "log_index_missing_resolved_from_chain" }] });
     expect(r.rows[0].values).toMatchObject({
       invoice_amount: 135000n, currency: "SGD", quoted_token_amount: 1_000_000_000n, received_token_amount: 999_500_000n, quote_rate: "1.35", network: "tron",
       token_contract: USDT_TRON, token_symbol: "USDT", status: "paid", status_text: "Completed", tx_hash: hash(1), created_at: "2026-11-03T01:15:00.000Z", expires_at: "2026-11-03T01:45:00.000Z",

@@ -58,7 +58,14 @@ export interface Quote {
   createdAt: string;
   expiresAt: string;
   depositAddress: string;
+  /**
+   * rc7: quote terms the source file did not carry (a provider export often lists payments, not quotes). Their fields
+   * then hold placeholders that are never used: an order whose quote has unknown terms is never closed (abstains,
+   * M3.quote.terms_unknown). Nothing is derived to fill them: no rate is ever invented.
+   */
+  unknown?: readonly QuoteTerm[];
 }
+export type QuoteTerm = "rate" | "quoted_amount" | "window";
 
 export interface PaymentLink {
   linkId: string;
@@ -71,6 +78,8 @@ export interface PaymentLink {
   /** The link's own validity window (a balance link is issued later than the quote). */
   createdAt: string;
   expiresAt: string;
+  /** rc7: the source gave no window for this link (placeholder values; never used to decide). */
+  windowUnknown?: true;
 }
 
 export interface TransferRef { network: NetworkId; txHash: string; logIndex: number }
@@ -105,6 +114,12 @@ export interface ProviderPaymentRecord {
   executedRate: string;
   feeMinor?: bigint;
   batchId?: string;
+  /**
+   * rc7: the provider file named the transaction but not the transfer's log index. The engine resolves it from chain
+   * facts (same network and hash, the record's token, to the address issued for the record's quote or link): exactly
+   * one transfer → that one; several → the order abstains (M3.provider.transfer_ambiguous). Never assumed to be 0.
+   */
+  logIndexUnknown?: true;
 }
 
 export interface SettlementBatch {
