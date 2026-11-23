@@ -144,6 +144,12 @@ export interface FxRate { pair: string; rate: string; source: string; timestamp:
 /** A fact about an address. Recorded, never judged. */
 export interface AddressFact { network: NetworkId; address: string; fact: "registered_wallet" | "intermediate_wallet" | "exchange_hot_wallet" | "unknown" }
 
+/**
+ * rc7: a chain read that could not be done (API down, rate-limited, keys missing, re-check incomplete). Scoped to a
+ * deposit address or a transaction. Never zero, never "not received": the order waits and is never matched.
+ */
+export interface ChainUnavailable { network: NetworkId; address?: string; txHash?: string; source: string; reason: string; at: string }
+
 export interface ReconcileInput {
   label: TestModeLabel;
   entity: MerchantEntity;
@@ -160,6 +166,8 @@ export interface ReconcileInput {
   bankLines: readonly BankLine[];
   fxRates: readonly FxRate[];
   addressFacts: readonly AddressFact[];
+  /** rc7: chain reads that failed for this run (optional; absent = every read succeeded or recorded data is used). */
+  chainUnavailable?: readonly ChainUnavailable[];
 }
 
 // ---------- outputs ----------

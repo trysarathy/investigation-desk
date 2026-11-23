@@ -1,7 +1,8 @@
 /**
  * Chain data, read-only. A ChainClient only READS transfers to an address and a transaction's confirmations; there is
- * no signing, sending or key anywhere. `RecordedChainClient` replays recorded fixture JSON. `LiveChainClient` is a
- * stub behind CLEARLINE_CHAIN_LIVE=1, OFF by default, and refuses to exist in tests or CI: rc6 makes no live calls.
+ * no signing, sending or key anywhere. `RecordedChainClient` replays recorded fixture JSON and is the default.
+ * `LiveChainClient` (rc7: real read-only TronGrid / JSON-RPC readers) is behind CLEARLINE_CHAIN_LIVE=1, OFF by default,
+ * and refuses to exist in tests or CI.
  *
  * `readChainTransfers` validates what a client returns (decimals against the token's configuration; amounts in base
  * units) and `refreshFinality` returns a transfer to "not final" on a reorg (fewer confirmations, a different block,
@@ -11,6 +12,8 @@ import { z } from "zod";
 import { NETWORKS, TOKENS, normAddress } from "../config";
 import type { ChainTransfer, NetworkConfig, NetworkId, TokenConfig } from "../types";
 import { type AdapterResult, type AdapterSource, type RawItem, RowError, collect, isoInstant, jsonItems } from "./common";
+import { type Env, assertLiveChainAllowed, processEnv } from "../chain/guard";
+import { RealChainClient, liveReadersFromEnv } from "../chain/client";
 
 export interface ChainHead { confirmations: number; block: number }
 
@@ -54,21 +57,19 @@ export class RecordedChainClient implements ChainClient {
   }
 }
 
-type Env = Record<string, string | undefined>;
-const processEnv = (): Env => (globalThis as { process?: { env: Env } }).process?.env ?? {};
+export { assertLiveChainAllowed };
 
-/** Live mode needs CLEARLINE_CHAIN_LIVE=1 and is refused outright under a test runner or CI. */
-export function assertLiveChainAllowed(env: Env = processEnv()): void {
-  if (env.CLEARLINE_CHAIN_LIVE !== "1") throw new Error("Live chain mode is off (set CLEARLINE_CHAIN_LIVE=1 outside tests to enable the stub).");
-  if (env.CI || env.VITEST || env.NODE_ENV === "test") throw new Error("Live chain mode is refused in tests and CI: use RecordedChainClient.");
-}
-
-/** A stub. rc6 implements no live provider: every method refuses, so nothing can reach a chain by accident. */
+/**
+ * The live client (rc7): TronGrid + Ethereum JSON-RPC readers (src/lib/clearline/merchant/chain), still read-only,
+ * still OFF unless CLEARLINE_CHAIN_LIVE=1 and refused under a test runner or CI. Unavailable chain data is thrown as
+ * ChainDataUnavailableError, which readChainTransfers records as a per-source failure.
+ */
 export class LiveChainClient implements ChainClient {
   readonly mode = "live" as const;
-  constructor(env: Env = processEnv()) { assertLiveChainAllowed(env); }
-  async transfersTo(): Promise<unknown[]> { throw new Error("LiveChainClient is a read-only stub in rc6; no live chain reader is configured."); }
-  async confirmations(): Promise<ChainHead | null> { throw new Error("LiveChainClient is a read-only stub in rc6; no live chain reader is configured."); }
+  private readonly inner: RealChainClient;
+  constructor(env: Env = processEnv()) { assertLiveChainAllowed(env); this.inner = new RealChainClient(liveReadersFromEnv(env)); }
+  async transfersTo(network: NetworkId, address: string, since: string): Promise<unknown[]> { return this.inner.transfersTo(network, address, since); }
+  async confirmations(network: NetworkId, txHash: string): Promise<ChainHead | null> { return this.inner.confirmations(network, txHash); }
 }
 
 /** The client to use: recorded unless live mode is explicitly enabled (and allowed). */
