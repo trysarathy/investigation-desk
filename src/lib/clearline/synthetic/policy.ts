@@ -58,6 +58,7 @@ export function toEnginePolicy(policy: SyntheticPolicy, currency: FiatCurrency):
   return {
     tolerancePct: policy.toleranceBps,
     toleranceAbsMinor: policy.fixedMinor[currency],
+    toleranceCombine: policy.bandRule,
     writeoffThresholdMinor: policy.writeoffThresholdMinor[currency],
     approverRoles: policy.approverRoles,
     allowImportedBankLinesAsVerified: false,

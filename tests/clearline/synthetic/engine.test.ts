@@ -85,7 +85,7 @@ function suite(name: string, make: () => SyntheticWorld) {
       expect(checked).toBeGreaterThan(20);
     });
 
-    it("policy-sensitive orders follow ONE band rule consistently (larger = target, smaller = rc6 as shipped)", () => {
+    it("policy-sensitive orders follow the founder's decision: the LARGER band rule (rc7)", () => {
       const agree: Record<"larger" | "smaller", string[]> = { larger: [], smaller: [] };
       const sensitive = target.orders.filter((o) => o.policySensitive);
       expect(sensitive.length).toBeGreaterThanOrEqual(2);
@@ -100,7 +100,7 @@ function suite(name: string, make: () => SyntheticWorld) {
       }
       const rule = agree.larger.length === sensitive.length ? "larger" : agree.smaller.length === sensitive.length ? "smaller" : "mixed";
       console.info(`[synthetic ${name}] engine band rule detected: ${rule} (${sensitive.length} policy-sensitive orders: ${sensitive.map((o) => o.orderId).join(", ")})`);
-      expect(rule).not.toBe("mixed");
+      expect(rule).toBe("larger");
     });
 
     it("every bank line is tied to a batch or explained; every batch bridges as built", () => {
