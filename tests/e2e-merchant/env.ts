@@ -11,6 +11,9 @@ export const MERCHANT_E2E = {
   /** Test-only Better Auth secret (40 characters). Never use it outside this suite. */
   authSecret: "test-only-e2e-secret-not-for-deploy-0001",
   password: process.env.CLEARLINE_E2E_PASSWORD ?? "fictional-e2e-pass-01",
+  /** rc7 upload storage for this suite: its own folder, and a test-only key (32 bytes) so files are encrypted as in production. */
+  uploadDir: process.env.CLEARLINE_MERCHANT_E2E_UPLOAD_DIR ?? `.data/e2e-merchant-uploads-${PORT}`,
+  uploadKey: Buffer.from("test-only-e2e-upload-key-0000001", "utf8").toString("base64"),
 } as const;
 
 export function merchantServerEnv(): Record<string, string> {
@@ -20,5 +23,7 @@ export function merchantServerEnv(): Record<string, string> {
     BETTER_AUTH_SECRET: MERCHANT_E2E.authSecret,
     CLEARLINE_ORIGIN: MERCHANT_E2E.origin,
     NEXT_TELEMETRY_DISABLED: "1",
+    CLEARLINE_UPLOAD_DIR: MERCHANT_E2E.uploadDir,
+    CLEARLINE_UPLOAD_KEY: MERCHANT_E2E.uploadKey,
   };
 }

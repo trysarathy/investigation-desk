@@ -10,6 +10,8 @@ import { can, isAppRole, type Permission } from "./authz";
 import { Decision, IdempotencyKey, canonical, idempotent, serverAudit } from "./control";
 import { decideWriteoff, monthEnd } from "./merchant";
 import { MissingEntity, loadReconcileInput } from "./merchant-store";
+import { dataModeOf } from "./mapping-templates";
+import type { DataLabel, DataMode } from "@/lib/clearline/data-mode";
 import { AccessDenied, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
 
@@ -64,14 +66,16 @@ export function partsOf(m: typeof t.matchRecords.$inferSelect) {
 
 export interface EntitySummary { id: string; name: string; currency: string; timezone: string; utcOffsetMinutes: number; ledger: string; days: string[]; months: string[]; dataAsOf: string | null }
 
-export async function merchantShell(ctx: TenantContext): Promise<{ label: typeof LABEL; kind: "merchant" | "provider"; providerName: string | null; theme: SafeTheme; entities: EntitySummary[] }> {
+/** rc7: the data label comes from the organisation's data mode ("Your data" for a live merchant, the demo label for sample data). */
+export async function merchantShell(ctx: TenantContext): Promise<{ label: DataLabel; dataMode: DataMode; kind: "merchant" | "provider"; providerName: string | null; theme: SafeTheme; entities: EntitySummary[] }> {
   return tenantRead(ctx, async (tx) => {
     const r = await tx.execute(sql`select provider_name, theme, org_kind from merchant_provider_theme()`);
     const row = (r.rows[0] ?? {}) as { provider_name?: string | null; theme?: unknown; org_kind?: string };
     const kind = row.org_kind === "provider" ? "provider" : "merchant";
     const theme = safeTheme(row.theme, row.provider_name ?? null);
-    if (kind === "provider" || !can(ctx.role, "read")) return { label: LABEL, kind, providerName: row.provider_name ?? null, theme, entities: [] };
-    return { label: LABEL, kind, providerName: row.provider_name ?? null, theme, entities: await entitySummaries(tx, ctx.orgId) };
+    const { label, dataMode } = await dataModeOf(tx, ctx.orgId);
+    if (kind === "provider" || !can(ctx.role, "read")) return { label, dataMode, kind, providerName: row.provider_name ?? null, theme, entities: [] };
+    return { label, dataMode, kind, providerName: row.provider_name ?? null, theme, entities: await entitySummaries(tx, ctx.orgId) };
   });
 }
 

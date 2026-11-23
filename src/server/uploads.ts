@@ -149,13 +149,18 @@ export const summary = (u: UploadRow): UploadSummary => ({
 });
 const counts = (u: UploadSummary) => ({ ...u.counts });
 
-export interface Preview { headers: string[]; rows: string[][]; totalRows: number; excludedRows: number; sheet?: string; sheets?: string[]; warnings: string[] }
+export interface Preview {
+  headers: string[]; rows: string[][]; totalRows: number; excludedRows: number; sheet?: string; sheets?: string[]; warnings: string[];
+  /** What the reader detected, for the person to check (CSV/TSV: encoding, byte-order mark, delimiter; tables: the header row). */
+  encoding?: string; bom?: boolean; delimiter?: string; headerRow?: number;
+}
 
 /** First rows of a parsed file, for the person who maps it (served to them, never logged or stored). */
 function previewOf(p: Parsed, n = PREVIEW_ROWS): Preview {
   if ("table" in p) {
     const v = previewRows(p.table, n);
-    return { headers: v.headers, rows: v.rows.map((r) => r.cells), totalRows: p.table.rows.length, excludedRows: p.table.excludedRows.length, sheet: p.table.sheet, sheets: p.table.sheets, warnings: p.table.warnings.map((w) => w.code) };
+    return { headers: v.headers, rows: v.rows.map((r) => r.cells), totalRows: p.table.rows.length, excludedRows: p.table.excludedRows.length, sheet: p.table.sheet, sheets: p.table.sheets, warnings: p.table.warnings.map((w) => w.code),
+      encoding: p.table.encoding, bom: p.table.bom, delimiter: p.table.delimiter, headerRow: p.table.headerRowNumber };
   }
   const lines = p.statement.lines;
   const amount = (minor: bigint, cur: string) => { const pr = currencyPrecision(cur); return pr.ok ? formatMinor(minor, pr.value) : minor.toString(); };

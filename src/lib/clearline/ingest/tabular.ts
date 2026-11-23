@@ -28,6 +28,8 @@ export interface ParsedTable {
   /** Trailing total rows that were left out, with their cells, so the UI can show them. */
   excludedRows: ExcludedRow[];
   encoding?: TextEncoding;
+  /** CSV/TSV: the file started with a byte-order mark. */
+  bom?: boolean;
   delimiter?: Delimiter;
 }
 
@@ -61,6 +63,7 @@ export function readDelimited(bytes: Uint8Array, opts: DelimitedOptions = {}): P
     ...table,
     warnings: [...decoded.warnings, ...warnings, ...table.warnings],
     encoding: decoded.encoding,
+    bom: decoded.bom,
     delimiter,
   };
 }

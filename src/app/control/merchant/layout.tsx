@@ -3,7 +3,7 @@ import { ROLE_LABELS } from "@/server/authz";
 import { merchantPage } from "@/server/merchant-page";
 import { SignOutButton } from "@/components/control/forms";
 import { MerchantNav, type NavItem } from "@/components/merchant/Nav";
-import { DemoChip } from "@/components/merchant/ui";
+import { DataChip } from "@/components/merchant/ui";
 import m from "@/components/merchant/merchant.module.css";
 
 const MERCHANT_NAV: NavItem[] = [
@@ -11,6 +11,7 @@ const MERCHANT_NAV: NavItem[] = [
   { href: "/control/merchant/payments", label: "Payments" },
   { href: "/control/merchant/exceptions", label: "Exceptions" },
   { href: "/control/merchant/batches", label: "Batches" },
+  { href: "/control/merchant/uploads", label: "Uploads" },
   { href: "/control/merchant/approvals", label: "Approvals" },
   { href: "/control/merchant/month-end", label: "Month-end" },
   { href: "/control/merchant/evidence", label: "Evidence packs" },
@@ -28,7 +29,8 @@ const PROVIDER_NAV: NavItem[] = [
 /**
  * The white-label merchant reconciliation surface. The provider's name, logo placeholder and colours come from the
  * provider organisation's theme (read through merchant_provider_theme(), never its other rows); Clearline appears
- * only in the small print. Every page carries the demo label.
+ * only in the small print. Every page carries the organisation's data label (rc7: the demo label for sample data,
+ * "Your data" for a live merchant).
  */
 export default async function MerchantLayout({ children }: { children: ReactNode }) {
   const { ctx, shell } = await merchantPage();
@@ -50,11 +52,11 @@ export default async function MerchantLayout({ children }: { children: ReactNode
           <p className={m.brandWho} data-testid="signed-in-as">Signed in as <strong>{ctx.name}</strong> ({ctx.email}) · {ROLE_LABELS[ctx.role]} · <SignOutButton /></p>
         </div>
       </header>
-      <aside className={m.demo} aria-label="Data notice"><DemoChip /></aside>
+      <aside className={m.demo} aria-label="Data notice"><DataChip label={shell.label} /></aside>
       <MerchantNav items={nav} label={shell.kind === "provider" ? "Provider console" : "Merchant reconciliation"} />
       <main className={m.mmain} id="main">{children}</main>
       <footer className={m.mfooter}>
-        <p>Read-only reconciliation: nothing here moves money or tokens. Provider statuses are claims, not proof; chain data in this pilot is a recorded fixture. {shell.label}.</p>
+        <p>Read-only reconciliation: nothing here moves money or tokens. Provider statuses are claims, not proof{shell.dataMode === "live" ? "; imported bank statements are not bank-authenticated" : "; chain data in this pilot is a recorded fixture"}. {shell.label}.</p>
         <p className={m.powered}>powered by Clearline</p>
       </footer>
     </div>

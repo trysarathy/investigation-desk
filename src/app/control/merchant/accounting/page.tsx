@@ -7,7 +7,7 @@ import { merchantMember } from "@/server/merchant-page";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
 import { EntityMonthForm, pickEntityMonth } from "@/components/merchant/EntityMonth";
-import { Chip, DEMO_LABEL, Empty, PendingSignOff, fiat, one } from "@/components/merchant/ui";
+import { Chip, Empty, PendingSignOff, fiat, one } from "@/components/merchant/ui";
 
 export const metadata: Metadata = { title: "Accounting export" };
 
@@ -49,7 +49,7 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
 
       <section className={s.section} aria-labelledby="preview">
         <h2 className={s.h2} id="preview">Journal preview ({js.length})</h2>
-        <p className={s.row}><Chip tone="amber">{DEMO_LABEL}</Chip><span className={s.small}>Fictional entries from the illustrative cases.</span></p>
+        <p className={s.row}><Chip tone={shell.dataMode === "live" ? "info" : "amber"}>{shell.label}</Chip><span className={s.small}>{shell.dataMode === "live" ? "Proposed from your reconciled data; nothing is posted to a ledger." : "Fictional entries from the illustrative cases."}</span></p>
         {js.length === 0 ? <Empty>No journal proposals for {entity.id} in {month}. Run reconciliation from the daily report first.</Empty> : js.map((j, i) => {
           const ev = j.evidence as Ev;
           return (

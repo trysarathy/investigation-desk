@@ -22,6 +22,12 @@ export function DemoChip() {
   return <span className={m.demoChip} data-testid="demo-label">{DEMO_LABEL}</span>;
 }
 
+/** rc7: the organisation's data label: the demo label for sample data, "Your data" for a live merchant (never both). */
+export function DataChip({ label }: { label: string }) {
+  if (label === DEMO_LABEL) return <DemoChip />;
+  return <span className={m.liveChip} data-testid="data-label">{label}</span>;
+}
+
 export function PendingSignOff() {
   return <Chip tone="amber" testId="pending-sign-off">{PENDING_SIGN_OFF}</Chip>;
 }
