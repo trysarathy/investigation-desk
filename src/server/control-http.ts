@@ -1,6 +1,7 @@
 import "server-only";
 import { currentPrincipal } from "./auth";
 import { IdempotencyKey } from "./control";
+import { LIMITS } from "@/lib/clearline/ingest/limits";
 import { RequestRefused } from "./errors";
 import { errorResponse, sameOriginOrNull } from "./http";
 import { AccessDenied, resolveTenant, type Principal, type TenantContext } from "./tenant";
@@ -78,5 +79,34 @@ export async function mutate(req: Request, run: (ctx: TenantContext, body: unkno
     const key = idempotencyKeyFrom(req);
     const body = await jsonBody(req);
     return await run(ctx, body, key);
+  } catch (e) { return errorResponse(e); }
+}
+
+/** rc7: the largest multipart upload request: the largest file the ingest limits accept plus room for the form fields. */
+export const MAX_UPLOAD_REQUEST_BYTES = LIMITS.maxFileBytes + 64 * 1024;
+
+/**
+ * rc7: a file upload (multipart/form-data with a `file` part and text fields). Same order of checks as `mutate`
+ * (Origin, session, organisation, Idempotency-Key); the declared and the actual size are capped before the file is
+ * read by any parser. The file's bytes are passed to `run` and never logged.
+ */
+export async function mutateUpload(req: Request, run: (ctx: TenantContext, form: { fields: Record<string, string>; fileName: string; bytes: Uint8Array }, key: string) => Promise<Response>): Promise<Response> {
+  const csrf = sameOriginOrNull(req);
+  if (csrf) return csrf;
+  try {
+    const ctx = await tenantFrom(req);
+    const key = idempotencyKeyFrom(req);
+    if (!/^multipart\/form-data\b/i.test(req.headers.get("content-type") ?? "")) throw new RequestRefused(400, "MULTIPART_REQUIRED", "Send the file as multipart/form-data with a \"file\" part.");
+    const declared = Number(req.headers.get("content-length") ?? "0");
+    if (!Number.isFinite(declared) || declared > MAX_UPLOAD_REQUEST_BYTES) throw new RequestRefused(422, "FILE_TOO_LARGE", "The file is larger than the largest file accepted (20 MB). Split it into smaller files.");
+    let form: FormData;
+    try { form = await req.formData(); } catch { throw new RequestRefused(400, "INVALID_FORM", "The upload could not be read as a form."); }
+    const file = form.get("file");
+    if (!(file instanceof Blob)) throw new RequestRefused(400, "FILE_REQUIRED", "Attach the file in a \"file\" part.");
+    if (file.size > LIMITS.maxFileBytes) throw new RequestRefused(422, "FILE_TOO_LARGE", "The file is larger than the largest file accepted (20 MB). Split it into smaller files.");
+    const fields: Record<string, string> = {};
+    for (const [k, v] of form.entries()) if (typeof v === "string" && v.length <= 1000) fields[k] = v;
+    const fileName = file instanceof File && file.name ? file.name : "upload";
+    return await run(ctx, { fields, fileName, bytes: new Uint8Array(await file.arrayBuffer()) }, key);
   } catch (e) { return errorResponse(e); }
 }
