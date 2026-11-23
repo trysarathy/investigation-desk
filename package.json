@@ -9,6 +9,7 @@
     "test": "vitest run",
     "test:control": "vitest run --config vitest.control.config.ts",
     "e2e:control": "playwright test -c playwright.control.config.ts",
+    "e2e:blind": "CLEARLINE_BLIND=1 playwright test -c playwright.merchant.config.ts blind.spec.ts --project=desktop",
     "db:migrate": "drizzle-kit migrate",
     "control:admin": "tsx --conditions=react-server scripts/control/admin.ts",
     "jobs:worker": "tsx --conditions=react-server scripts/jobs/worker.ts",
