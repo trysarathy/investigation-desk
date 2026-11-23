@@ -5,6 +5,7 @@
  * proposed (status "proposed_needs_confirmation") and never closed by the engine.
  */
 import { fmtFiat, localDate, sum } from "./amounts";
+import { indexesOf, transferKey } from "./indexes";
 import { active } from "./rules";
 import type { BankLine, DifferenceType, FiatCurrency, ReconcileInput, TimeZoneRef } from "./types";
 import { IMPORTED_BANK_LINE_LABEL, TEST_MODE_LABEL, type TestModeLabel } from "./types";
@@ -59,7 +60,7 @@ const DEFAULT_PROVIDER_TZ: TimeZoneRef = { name: "UTC", utcOffsetMinutes: 0 }; /
 function payments(input: ReconcileInput, orderOf: (paymentId: string) => string): Payment[] {
   const ptz = input.batches[0]?.providerTimeZone ?? DEFAULT_PROVIDER_TZ;
   return input.providerRecords.map((r) => {
-    const t = r.transferRef && input.transfers.find((x) => x.network === r.transferRef!.network && x.txHash === r.transferRef!.txHash && x.logIndex === r.transferRef!.logIndex);
+    const t = r.transferRef && indexesOf(input).transferByKey.get(transferKey(r.transferRef));
     return {
       paymentId: r.providerPaymentId, orderId: orderOf(r.providerPaymentId), creditedMinor: r.creditedMinor, held: r.statusClaim === "held_for_review" && !r.batchId,
       ...(t ? { merchantDay: localDate(t.timestamp, input.entity.timeZone.utcOffsetMinutes), providerDay: localDate(t.timestamp, ptz.utcOffsetMinutes) } : {}),

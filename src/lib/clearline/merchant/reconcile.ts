@@ -1,4 +1,5 @@
 /** rc6 merchant reconciliation entry point. Pure: same input, same output; no I/O, no clock, no randomness. */
+import { indexesOf } from "./indexes";
 import { buildBridges, type BatchBridge, type ProposedGrouping } from "./bridge";
 import { matchPayments, type MatchOutput } from "./match";
 import { active, type RuleId } from "./rules";
@@ -37,9 +38,10 @@ function applyStep5(rec: MatchRecord, bridges: BatchBridge[], groupings: Propose
 export function reconcile(input: ReconcileInput): ReconcileResult {
   const matched = matchPayments(input);
   const orderOf = (pid: string): string => {
-    const r = input.providerRecords.find((x) => x.providerPaymentId === pid);
+    const ix = indexesOf(input);
+    const r = ix.recordByPaymentId.get(pid);
     const id = r?.ref.linkId ?? r?.ref.quoteId;
-    return input.paymentLinks.find((l) => l.linkId === id)?.orderId ?? input.quotes.find((q) => q.quoteId === id)?.orderId ?? "unknown";
+    return (id === undefined ? undefined : ix.linkById.get(id)?.orderId ?? ix.quoteById.get(id)?.orderId) ?? "unknown";
   };
   const { bridges, groupings } = buildBridges(input, orderOf);
   const exceptions = [...matched.exceptions];
