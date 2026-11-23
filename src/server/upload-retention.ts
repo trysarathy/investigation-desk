@@ -49,7 +49,7 @@ export async function purgeDerivedRows(tx: Db | Tx, u: { orgId: string; id: stri
   if (orders.length || bankIds.length) {
     if (orders.length) {
       count("recon_exception_notes", (await tx.execute(sql`delete from recon_exception_notes where org_id = ${org} and exception_id in (select id from recon_exceptions where org_id = ${org} and order_id in (${list(orders)})) returning 1`)).rows);
-      for (const table of ["recon_exceptions", "match_reviews", "writeoff_proposals", "match_records"]) count(table, (await tx.execute(sql`delete from ${sql.identifier(table)} where org_id = ${org} and order_id in (${list(orders)}) returning 1`)).rows);
+      for (const table of ["recon_exceptions", "match_reviews", "writeoff_proposals", "match_records", "rule_change_notices"]) count(table, (await tx.execute(sql`delete from ${sql.identifier(table)} where org_id = ${org} and order_id in (${list(orders)}) returning 1`)).rows);
     }
     const journalRefs = sql.join([
       ...(orders.length ? [sql`evidence_refs -> 'orderIds' ?| array[${list(orders)}]::text[]`] : []),
