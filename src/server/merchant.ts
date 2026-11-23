@@ -15,6 +15,8 @@ import { Decision, IdempotencyKey, canonical, idempotent, serverAudit } from "./
 import { MissingEntity, type IngestParts, loadReconcileInput, plain, writeIngested } from "./merchant-store";
 import { AccessDenied, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
+import { isLiveOrg, verifyChainForEntity, verifyClientFromEnv } from "./chain-verify";
+import type { VerifyChainClient } from "@/lib/clearline/merchant/chain";
 
 /**
  * rc6 Merchant Reconciliation services. Every function takes a TenantContext built on the server from the session
@@ -67,12 +69,15 @@ export async function ingestAdapterOutput(ctx: TenantContext, entityId: string, 
 }
 
 /**
- * Load the entity's rows → reconcile → persist the five parts, differences (append-only), exceptions, write-off
+ * (Live data: verify against the chain first, see chain-verify.ts.) Load the entity's rows → reconcile → persist the five parts, differences (append-only), exceptions, write-off
  * proposals and journal proposals (always pending sign-off) → audit. An identical rerun changes nothing.
  */
-export async function runReconciliation(ctx: TenantContext, entityId: string, idempotencyKey: string) {
+export async function runReconciliation(ctx: TenantContext, entityId: string, idempotencyKey: string, opts: { chain?: VerifyChainClient } = {}) {
   require(ctx, "merchant_reconcile");
   const key = IdempotencyKey.parse(idempotencyKey);
+  // rc7 phase 2: a live organisation's payments are verified against chain data first (sample data is seeded with
+  // its recorded chain facts). Reads happen outside the reconcile transaction; failed reads are stored, not thrown.
+  if (await isLiveOrg(ctx)) await verifyChainForEntity(ctx, entityId, opts.chain ?? verifyClientFromEnv());
   return tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "merchant_reconcile", entityId }, async () => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${ctx.orgId}|merchant_reconcile|${entityId}`}))`);
     const input = await load(tx, ctx, entityId);

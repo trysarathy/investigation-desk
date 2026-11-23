@@ -2,10 +2,11 @@ import "server-only";
 import { and, asc, eq, inArray, or } from "drizzle-orm";
 import {
   NETWORKS, localDate, toFiatMinor,
-  type BankLine, type ChainTransfer, type FiatCurrency, type Invoice, type MerchantEntity, type MerchantPolicy, type NetworkId, type PaymentLink,
+  type BankLine, type ChainTransfer, type ChainUnavailable, type FiatCurrency, type Invoice, type MerchantEntity, type MerchantPolicy, type NetworkId, type PaymentLink,
   type ProviderPaymentRecord, type Quote, type ReconcileInput, type SettlementBatch, type SettlementBatchLine,
 } from "@/lib/clearline/merchant";
 import { TEST_MODE_LABEL } from "@/lib/clearline/merchant/types";
+import { normAddress } from "@/lib/clearline/merchant/config";
 import type { Tx } from "./db/client";
 import * as t from "./db/schema";
 
@@ -79,8 +80,12 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
     };
   });
   const required = (n: string) => networks.find((x) => x.network === n)?.confirmationsRequired ?? 1;
-  const ct = await tx.select().from(t.chainTransfers).where(and(eq(t.chainTransfers.orgId, orgId), eq(t.chainTransfers.entityId, entityId)))
-    .orderBy(asc(t.chainTransfers.network), asc(t.chainTransfers.txHash), asc(t.chainTransfers.logIndex));
+  const all = await tx.select().from(t.chainTransfers).where(and(eq(t.chainTransfers.orgId, orgId), eq(t.chainTransfers.entityId, entityId)))
+    .orderBy(asc(t.chainTransfers.network), asc(t.chainTransfers.txHash), asc(t.chainTransfers.logIndex), asc(t.chainTransfers.source));
+  // rc7: a provider file's claimed transfer is a claim, not a fact. The engine reads chain facts only; the claim is on
+  // the provider record. A claim no chain read has covered yet is "chain data unavailable", never "nothing arrived".
+  const ct = all.filter((c) => c.source !== "provider_export");
+  const chainUnavailable = await unavailableReads(tx, orgId, entityId, all);
   const transfers: ChainTransfer[] = ct.map((c) => ({
     network: dbNetwork(c.network), txHash: c.txHash, logIndex: c.logIndex, tokenContract: c.tokenContract, ...(c.claimedSymbol ? { claimedSymbol: c.claimedSymbol } : {}),
     from: c.fromAddress, to: c.toAddress, amountBaseUnits: BigInt(c.amountBaseUnits), decimals: c.decimals, block: c.block, timestamp: iso(c.blockTime),
@@ -110,7 +115,41 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
     label: TEST_MODE_LABEL, entity, policy, networks, tokens, invoices, quotes, paymentLinks, transfers, providerRecords, batches, batchLines, bankLines,
     fxRates: fx.map((r) => ({ pair: r.pair, rate: normRate(r.rate), source: r.source, timestamp: iso(r.observedAt) })),
     addressFacts: af.map((a) => ({ network: dbNetwork(a.network), address: a.address, fact: a.fact as ReconcileInput["addressFacts"][number]["fact"] })),
+    ...(chainUnavailable.length ? { chainUnavailable } : {}),
   };
+}
+
+const txNorm = (network: string, h: string) => (network === "tron" ? h.toLowerCase().replace(/^0x/, "") : h.toLowerCase());
+
+/**
+ * rc7 phase 2: the chain reads that could not be done for this entity (the latest read of each address or transaction
+ * is `unavailable`), plus every provider-claimed transaction no read has covered and no chain fact confirms yet.
+ */
+async function unavailableReads(tx: Tx, orgId: string, entityId: string, transfers: (typeof t.chainTransfers.$inferSelect)[]): Promise<ChainUnavailable[]> {
+  const reads = await tx.select().from(t.chainReads).where(and(eq(t.chainReads.orgId, orgId), eq(t.chainReads.entityId, entityId)))
+    .orderBy(asc(t.chainReads.at), asc(t.chainReads.id));
+  const latest = new Map<string, typeof reads[number]>();
+  for (const r of reads) {
+    const n = dbNetwork(r.network);
+    // ids order rows written in one run arbitrarily; within one instant an unavailable read wins (never hide an outage)
+    const k = r.address !== null ? `a|${n}|${normAddress(n, r.address)}` : `t|${n}|${txNorm(n, r.txHash!)}`;
+    const prev = latest.get(k);
+    if (!prev || prev.at.getTime() < r.at.getTime() || r.status === "unavailable") latest.set(k, r);
+  }
+  const out: ChainUnavailable[] = [...latest.values()].filter((r) => r.status === "unavailable").map((r) => ({
+    network: dbNetwork(r.network), ...(r.address !== null ? { address: r.address } : { txHash: r.txHash! }), source: r.host ? `${r.source} (${r.host})` : r.source,
+    reason: r.reason ?? "chain data unavailable", at: iso(r.at),
+  }));
+  const facts = new Set(transfers.filter((c) => c.source !== "provider_export").map((c) => `${dbNetwork(c.network)}|${txNorm(c.network, c.txHash)}`));
+  const seen = new Set<string>();
+  for (const c of transfers) {
+    if (c.source !== "provider_export") continue;
+    const n = dbNetwork(c.network), k = `${n}|${txNorm(n, c.txHash)}`;
+    if (facts.has(k) || latest.has(`t|${k}`) || seen.has(k)) continue;
+    seen.add(k);
+    out.push({ network: n, txHash: c.txHash, source: "not read", reason: "This transaction, claimed by a provider file, has not been read from the chain yet", at: iso(c.observedAt) });
+  }
+  return out.sort((a, b) => (`${a.network}|${a.address ?? a.txHash}` < `${b.network}|${b.address ?? b.txHash}` ? -1 : 1));
 }
 
 /** What one ingestion stores: adapter outputs (and bank lines / address facts, which are not adapter data). */
@@ -162,7 +201,7 @@ export async function writeIngested(tx: Tx, orgId: string, entityId: string, p: 
       source: opts.chainSource, entityId, claimedSymbol: c.claimedSymbol ?? null, priorHops: c.priorHops ? (plain(c.priorHops) as object) : null,
     };
     count("transfers", await tx.insert(t.chainTransfers).values(row).onConflictDoUpdate({
-      target: [t.chainTransfers.orgId, t.chainTransfers.network, t.chainTransfers.txHash, t.chainTransfers.logIndex],
+      target: [t.chainTransfers.orgId, t.chainTransfers.network, t.chainTransfers.txHash, t.chainTransfers.logIndex, t.chainTransfers.source],
       set: { confirmations: row.confirmations, finalised: row.finalised, block: row.block },
     }).returning({ id: t.chainTransfers.txHash }));
   }

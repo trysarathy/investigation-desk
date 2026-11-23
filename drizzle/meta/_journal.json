@@ -155,6 +155,13 @@
       "when": 1795414547825,
       "tag": "0021_normalise_security",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1795500000000,
+      "tag": "0022_chain_verify",
+      "breakpoints": true
     }
   ]
 }

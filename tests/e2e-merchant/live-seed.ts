@@ -1,16 +1,20 @@
 /**
  * rc7 upload journeys: a fictional LIVE merchant ("Your data") for the upload screens, its fictional provider, a
- * second live merchant (tenant isolation) and fictional users. Chain transfers, FX rates and address facts come from
- * the synthetic generator's small preset and are written as a chain reader would (Phase 2 readers; recorded here):
+ * second live merchant (tenant isolation) and fictional users. FX rates and address facts come from the synthetic
+ * generator's small preset; its chain transfers become the recording the server's chain client serves (rc7 phase 2):
  * uploads never carry chain facts. Owner connection, like the admin CLI. Nothing here is real.
  */
+import { mkdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { eq } from "drizzle-orm";
 import type { Db } from "../../src/server/db/client";
 import * as t from "../../src/server/db/schema";
 import { createOrganization, createUser, grantMembership } from "../../src/server/admin";
 import { writeIngested } from "../../src/server/merchant-store";
 import type { AppRole } from "../../src/server/authz";
-import { smallWorld, toEnginePolicy, transferKey } from "../../src/lib/clearline/synthetic";
+import { smallWorld, toEnginePolicy } from "../../src/lib/clearline/synthetic";
+import { recordingOf } from "../../src/lib/clearline/merchant/chain/recording";
+import { MERCHANT_E2E } from "./env";
 
 export const LIVE = {
   provider: { slug: "kestrel-provider-live", name: "Kestrel Settle (fictional)" },
@@ -45,13 +49,13 @@ export async function seedLiveMerchant(db: Db, password: string) {
       approverRoles: ["approver"], allowImportedBankLinesAsVerified: false, senderFeeBoundBaseUnits: p.senderFeeBoundBaseUnits.toString(),
     });
   }
-  // What the merchant's chain readers observed (not an upload): every transfer seen for each entity, FX rates, address facts.
+  // FX rates and address facts (not an upload). Chain data is NOT written here: the server's verify step reads it
+  // through the recorded chain client (CLEARLINE_CHAIN_RECORDING), exactly as it would read a live chain.
   for (const e of world.entities) {
-    const keys = new Set(world.transferMeta.filter((m) => m.entityId === e.id).map((m) => m.key));
-    await db.transaction((tx) => writeIngested(tx, merchant, e.id, {
-      transfers: world.transfers.filter((x) => keys.has(transferKey(x))), fxRates: world.fxRates.filter((r) => r.pair.endsWith(`/${e.functionalCurrency}`)), addressFacts: world.addressFacts,
-    }, { chainSource: "recorded_fixture" }));
+    await db.transaction((tx) => writeIngested(tx, merchant, e.id, { fxRates: world.fxRates.filter((r) => r.pair.endsWith(`/${e.functionalCurrency}`)), addressFacts: world.addressFacts }, { chainSource: "recorded_fixture" }));
   }
+  mkdirSync(path.dirname(MERCHANT_E2E.chainRecording), { recursive: true });
+  writeFileSync(MERCHANT_E2E.chainRecording, JSON.stringify(recordingOf(world.transfers)));
   const orgs = { merchant: LIVE.merchant.slug, other: LIVE.other.slug };
   for (const [email, org, role, name] of LIVE.users) {
     await createUser(db, { email, name, password });

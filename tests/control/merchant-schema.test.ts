@@ -37,14 +37,18 @@ beforeAll(async () => {
 afterAll(async () => { await closeDatabase(); await closeOwner(); });
 
 describe("reference data", () => {
-  it("only the two public token contracts are seeded, and only TRON and Ethereum are enabled", async () => {
-    const t = (await q(`select network, contract from token_config order by network`)).rows;
-    expect(t).toEqual([{ network: "ethereum", contract: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" }, { network: "tron", contract: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t" }]);
+  it("only the three public token contracts are seeded (USDT on Ethereum by founder decision, rc7), and only TRON and Ethereum are enabled", async () => {
+    const t = (await q(`select network, contract, symbol, decimals from token_config order by network, contract`)).rows;
+    expect(t).toEqual([
+      { network: "ethereum", contract: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", symbol: "USDC", decimals: 6 },
+      { network: "ethereum", contract: "0xdAC17F958D2ee523a2206206994597C13D831ec7", symbol: "USDT", decimals: 6 },
+      { network: "tron", contract: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t", symbol: "USDT", decimals: 6 },
+    ]);
     const n = (await q(`select network from network_config where enabled order by network`)).rows.map((r) => (r as { network: string }).network);
     expect(n).toEqual(["ethereum", "tron"]);
   });
   it("every merchant table has forced RLS", async () => {
-    const r = await q(`select relname from pg_class where relname in ('invoices','chain_transfers','bank_lines','match_records','differences','recon_exceptions','writeoff_proposals','merchant_journal_proposals') and not (relrowsecurity and relforcerowsecurity)`);
+    const r = await q(`select relname from pg_class where relname in ('invoices','chain_transfers','chain_reads','bank_lines','match_records','differences','recon_exceptions','writeoff_proposals','merchant_journal_proposals') and not (relrowsecurity and relforcerowsecurity)`);
     expect(r.rows).toEqual([]);
   });
 });

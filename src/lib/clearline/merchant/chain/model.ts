@@ -7,7 +7,8 @@ import { NETWORKS, TOKENS } from "../config";
 import type { NetworkConfig, TokenConfig } from "../types";
 
 export type ChainNetwork = "tron" | "ethereum";
-export type EvidenceSource = "trongrid" | "ethereum-rpc";
+/** "recording": a recorded or fixture client (tests, the synthetic e2e flow); never a live read. */
+export type EvidenceSource = "trongrid" | "ethereum-rpc" | "recording";
 
 /** Where a fact came from. `host` is the hostname only: never a path, query, header or key. */
 export interface Evidence {

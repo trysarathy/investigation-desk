@@ -155,8 +155,13 @@ export const chainTransfers = pgTable("chain_transfers", {
   observedAt: ts("observed_at").notNull().defaultNow(),
   entityId: text("entity_id"), claimedSymbol: text("claimed_symbol"), priorHops: jsonb("prior_hops"),
   ...fromUpload(),
+  // rc7 phase 2: where a chain_client fact was read (host only, never a key), when, and the block's hash
+  evidenceSource: text("evidence_source"), evidenceHost: text("evidence_host"), evidenceEndpoint: text("evidence_endpoint"),
+  fetchedAt: ts("fetched_at"), blockHash: text("block_hash"),
 }, (t) => [
-  primaryKey({ columns: [t.orgId, t.network, t.txHash, t.logIndex] }),
+  // rc7: the source is part of the key, so a provider's claim and the chain's fact about one transfer are two rows
+  primaryKey({ columns: [t.orgId, t.network, t.txHash, t.logIndex, t.source] }),
+  check("chain_transfers_evidence_chk", sql`${t.source} <> 'chain_client' or (${t.evidenceSource} is not null and ${t.evidenceHost} is not null and ${t.evidenceEndpoint} is not null and ${t.fetchedAt} is not null)`),
   check("chain_transfers_amount_chk", sql`${t.amountBaseUnits} > 0`),
   // rc7: 'provider_export' = a transfer a provider's file CLAIMS (by tx hash); never finalised by the file (trigger, 0021)
   check("chain_transfers_source_chk", sql`${t.source} in ('recorded_fixture','chain_client','seed_fictional','provider_export')`),
@@ -301,6 +306,24 @@ export const merchantJournalProposals = pgTable("merchant_journal_proposals", {
   primaryKey({ columns: [t.orgId, t.id] }),
   check("merchant_journal_status_chk", sql`${t.status} in ('proposed','approved','exported','rejected','superseded')`),
   check("merchant_journal_rule_chk", sql`${t.postingRuleStatus} = 'pending_sign_off'`),
+]);
+
+/**
+ * rc7 phase 2: every chain read the verify step made for an entity (append-only): a deposit address (listing) or a
+ * transaction hash. `unavailable` reads feed ReconcileInput.chainUnavailable until a later read of the same target
+ * succeeds. Host and endpoint only, never a key or a URL.
+ */
+export const chainReads = pgTable("chain_reads", {
+  orgId: org(), id: uuid("id").notNull().defaultRandom(), entityId: text("entity_id").notNull(),
+  network: text("network").notNull(), address: text("address"), txHash: text("tx_hash"),
+  status: text("status").notNull(), reason: text("reason"), source: text("source").notNull(),
+  host: text("host"), endpoint: text("endpoint"), transfers: integer("transfers").notNull().default(0), at: ts("at").notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.orgId, t.id] }),
+  foreignKey({ columns: [t.orgId, t.entityId], foreignColumns: [merchantEntities.orgId, merchantEntities.id], name: "chain_reads_entity_fk" }),
+  check("chain_reads_target_chk", sql`(${t.address} is null) <> (${t.txHash} is null)`),
+  check("chain_reads_status_chk", sql`${t.status} in ('ok','unavailable','not_found','failed_transaction','reorged')`),
+  index("chain_reads_entity_idx").on(t.orgId, t.entityId, t.at),
 ]);
 
 /** Optional "minutes spent today" log for the pilot's time-saved measurement. */

@@ -101,7 +101,7 @@ describe("three provider exports and three bank formats, end to end", () => {
       "SG-1001": "suggested_for_review M5.bank.imported_not_verified", // ties, but the bank line is imported: never verified with the flag off
       "SG-1002": "suggested_for_review M5.bank.imported_not_verified",
       "SG-1003": "exception M4.tolerance.underpayment_beyond_band",
-      "SG-1004": "suggested_for_review M1.finality.pending", // the provider says Completed; the claimed transfer is not chain-verified
+      "SG-1004": "exception M1.chain.unavailable", // the provider says Completed; no chain read has verified the claimed transfer yet
     });
     expect(diffs(r)).toEqual({ "SG-1002": ["sender_side_fee -135"], "SG-1003": ["underpayment -27000"] });
     const b = r.bridges.find((x) => x.batchId === sc.SG.batch.id)!;
@@ -167,7 +167,7 @@ describe("three provider exports and three bank formats, end to end", () => {
   it("rows carry provenance; a duplicate row in a later upload is not imported twice; conflicts write nothing", async () => {
     const [inv] = await ownerDb().select().from(t.invoices).where(and(eq(t.invoices.orgId, s.orgs.a), eq(t.invoices.orderId, "SG-1001")));
     expect(inv).toMatchObject({ uploadId: uploadIds.sgOrders, sourceRow: 2, uploadedBy: fin.userId });
-    const [claim] = await ownerDb().select().from(t.chainTransfers).where(and(eq(t.chainTransfers.orgId, s.orgs.a), eq(t.chainTransfers.source, "provider_export")));
+    const [claim] = await ownerDb().select().from(t.chainTransfers).where(and(eq(t.chainTransfers.orgId, s.orgs.a), eq(t.chainTransfers.entityId, sc.SG.entityId), eq(t.chainTransfers.source, "provider_export")));
     expect(claim).toMatchObject({ finalised: false, confirmations: 0, uploadId: uploadIds.sgExport });
     const [line] = await ownerDb().select().from(t.bankLines).where(and(eq(t.bankLines.orgId, s.orgs.a), eq(t.bankLines.amountMinor, 400816n)));
     expect(line).toMatchObject({ source: "file_import", uploadId: uploadIds.sgBank });
