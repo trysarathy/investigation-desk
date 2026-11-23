@@ -2,7 +2,7 @@
  * Clearline Control administration (fictional data only). Uses the schema OWNER connection:
  *   DATABASE_URL=$DATABASE_OWNER_URL npx tsx --conditions=react-server scripts/control/admin.ts <command> ...
  * Commands:
- *   create-org <slug> <name> [sample|empty]
+ *   create-org <slug> <name> [sample|empty|live] (rc7 "live": an empty organisation for real uploads, "Your data")
  *   create-user <email> <name>              (password read from CLEARLINE_NEW_PASSWORD; never an argument)
  *   grant <org-slug> <email> <admin|payment_ops|finance|approver|viewer>
  *   revoke <org-slug> <email>
@@ -36,7 +36,7 @@ async function main() {
   const [cmd, ...a] = process.argv.slice(2);
   const db = database();
   switch (cmd) {
-    case "create-org": console.log(await createOrganization(db, { slug: a[0], name: a[1], seed: (a[2] as "sample" | "empty") ?? "sample" })); break;
+    case "create-org": console.log(await createOrganization(db, a[2] === "live" ? { slug: a[0], name: a[1], seed: "empty", dataMode: "live" } : { slug: a[0], name: a[1], seed: (a[2] as "sample" | "empty") ?? "sample" })); break;
     case "create-user": {
       const pw = process.env.CLEARLINE_NEW_PASSWORD;
       if (!pw) throw new Error("set CLEARLINE_NEW_PASSWORD");

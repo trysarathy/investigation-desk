@@ -92,10 +92,13 @@ export const organizations = pgTable("organizations", {
   providerOrgId: uuid("provider_org_id"),
   /** rc6: white-label theme of a provider (name, logoUrl, colours); never secrets. */
   theme: jsonb("theme"),
+  /** rc7: 'sample' (seeded, "Test mode · illustrative data") or 'live' (real uploads, "Your data"). Set by an operator. */
+  dataMode: text("data_mode").notNull().default("sample"),
   createdAt: ts("created_at").notNull().defaultNow(),
 }, (t) => [
   check("organizations_slug_chk", sql`${t.slug} ~ '^[a-z0-9][a-z0-9-]{1,62}$'`),
   check("organizations_kind_chk", sql`${t.kind} in ('merchant','provider')`),
+  check("organizations_data_mode_chk", sql`${t.dataMode} in ('sample','live')`),
   check("organizations_provider_chk", sql`${t.kind} = 'merchant' or ${t.providerOrgId} is null`),
   foreignKey({ columns: [t.providerOrgId], foreignColumns: [t.id], name: "organizations_provider_fk" }),
 ]);
@@ -390,3 +393,4 @@ export const statementImports = pgTable("statement_imports", {
 ]);
 
 export * from "./merchant-schema";
+export * from "./upload-schema";
