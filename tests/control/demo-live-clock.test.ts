@@ -18,7 +18,7 @@ import { createOrganization, createUser, grantMembership } from "../../src/serve
 import { resolveTenant, withTenant } from "../../src/server/tenant";
 import { stampNow } from "../../src/server/live-clock";
 import { saveDemoFeedback } from "../../src/server/demo-feedback";
-import { resetProcessDayOffset } from "../../src/server/demo-live-clock";
+import { resetProcessShift } from "../../src/server/demo-live-clock";
 import { DEMO_NOW, DEMO_TODAY } from "../../src/lib/clearline/demo/clock";
 import { installDemoLiveClock, uninstallDemoLiveClock } from "../../scripts/demo/live-clock-db";
 
@@ -68,37 +68,39 @@ describe("the database half (demo databases only)", () => {
 
 describe("a demo build", () => {
   it("stamps a demo organisation's live note on the demo day, in the database and in the app", async () => {
-    build(true); resetProcessDayOffset();
+    build(true); resetProcessShift();
     const ctx = await resolveTenant({ userId: user, name: "Finance (fictional)", email: "finance@clock.demo" }, "nw-clock-demo");
     const saved = await saveDemoFeedback(ctx, { screen: "Overview", route: "/control/merchant", note: "live note (fictional)" });
     const at = new Date(saved.at);
     expect(sgDay(at)).toBe(DEMO_TODAY);
     expect(at.getTime()).toBeGreaterThanOrEqual(Date.parse(DEMO_NOW));
     const app = await withTenant({ userId: user, orgId: demoOrg }, async (tx) => {
-      const r = await tx.execute(sql`select clearline_demo_now() as d, now() as n`);
-      return { stamp: stampNow(), db: new Date(r.rows[0].d as string), now: new Date(r.rows[0].n as string) };
+      const r = await tx.execute(sql`select clearline_demo_now()::text as d, now()::text as n, current_setting('clearline.demo_shift_ms', true) as s`);
+      return { stamp: stampNow(), db: new Date(r.rows[0].d as string), now: new Date(r.rows[0].n as string), shift: Number(r.rows[0].s) };
     });
     expect(sgDay(app.stamp)).toBe(DEMO_TODAY);
     expect(sgDay(app.db)).toBe(DEMO_TODAY);
-    // the same formula on both sides: whole days apart from the real clock, the same time of day (or both DEMO_NOW)
-    expect(Math.abs(app.stamp.getTime() - app.db.getTime())).toBeLessThan(60_000);
+    // the same shift on both sides: the database adds it to its transaction start, the app to the moment it stamps
+    expect(app.db.getTime()).toBe(Math.max(app.now.getTime() + app.shift, Date.parse(DEMO_NOW)));
+    expect(app.stamp.getTime()).toBeGreaterThanOrEqual(app.db.getTime());
+    expect(app.stamp.getTime() - app.db.getTime()).toBeLessThan(60_000);
   });
 
   it("leaves a live organisation on the machine clock, even if the database setting were forced", async () => {
-    build(true); resetProcessDayOffset();
+    build(true); resetProcessShift();
     const r = await withTenant({ userId: user, orgId: liveOrg }, async (tx) => {
       const s = stampNow();
-      await tx.execute(sql`select set_config('clearline.demo_offset_days', '14', true)`);
-      const q = await tx.execute(sql`select clearline_demo_now() = now() as same, current_setting('clearline.demo_offset_days', true) as forced`);
+      await tx.execute(sql`select set_config('clearline.demo_shift_ms', '1209600000', true)`);
+      const q = await tx.execute(sql`select clearline_demo_now() = now() as same, current_setting('clearline.demo_shift_ms', true) as forced`);
       return { s, same: q.rows[0].same, forced: q.rows[0].forced };
     });
-    expect(r.forced).toBe("14");
+    expect(r.forced).toBe("1209600000");
     expect(r.same).toBe(true);
     expect(Math.abs(r.s.getTime() - Date.now())).toBeLessThan(5_000);
   });
 
   it("reads stay on the machine clock (no setting in a read-only snapshot)", async () => {
-    build(true); resetProcessDayOffset();
+    build(true); resetProcessShift();
     const q = await withTenant({ userId: user, orgId: demoOrg }, (tx) => tx.execute(sql`select clearline_demo_now() = now() as same`), { read: true });
     expect(q.rows[0].same).toBe(true);
   });
@@ -106,9 +108,9 @@ describe("a demo build", () => {
 
 describe("a real build", () => {
   it("never moves a demo organisation's stamps", async () => {
-    build(false); resetProcessDayOffset();
+    build(false); resetProcessShift();
     const r = await withTenant({ userId: user, orgId: demoOrg }, async (tx) => {
-      const q = await tx.execute(sql`select clearline_demo_now() = now() as same, current_setting('clearline.demo_offset_days', true) as setting`);
+      const q = await tx.execute(sql`select clearline_demo_now() = now() as same, current_setting('clearline.demo_shift_ms', true) as setting`);
       return { s: stampNow(), same: q.rows[0].same, setting: q.rows[0].setting };
     });
     expect(r.same).toBe(true);

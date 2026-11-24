@@ -3,10 +3,10 @@
  *
  * Installs, in the DEMO database (and its reset template) only, the function clearline_demo_now() and makes it the
  * default of every timestamp column whose default is now(). The function is now() unless BOTH hold for the current
- * transaction: the demo build's app set `clearline.demo_offset_days` (transaction-local; src/server/tenant.ts does so
+ * transaction: the demo build's app set `clearline.demo_shift_ms` (transaction-local; src/server/tenant.ts does so
  * only for a demo organisation in a demo build), and the transaction's organisation (app.org_id) is a demo
- * organisation (app_org_is_demo, migration 0032). Then it is now() moved by that many whole days, never earlier than
- * DEMO_NOW, exactly the app's formula (demoLiveTime).
+ * organisation (app_org_is_demo, migration 0032). Then it is now() plus that shift, never earlier than DEMO_NOW,
+ * exactly the app's formula (demoLiveTime).
  *
  * Never a migration: real databases never have this function and their defaults stay now(). It refuses a database
  * that holds any non-demo organisation (as restampDemoSeed does); `allowNonDemoOrgs` exists for the integration test
@@ -15,17 +15,20 @@
 import type { Client } from "pg";
 import { DEMO_NOW } from "../../src/lib/clearline/demo/clock";
 
+/** Same bound as src/server/demo-live-clock.ts MAX_SHIFT_MS (ten years), written out: that module is server-only. */
+const MAX_SHIFT_MS = 3660 * 86_400_000;
+
 export const DEMO_NOW_FUNCTION = "clearline_demo_now";
 
 const FUNCTION_SQL = `
 CREATE OR REPLACE FUNCTION public.${DEMO_NOW_FUNCTION}() RETURNS timestamptz
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $fn$
-DECLARE d text := current_setting('clearline.demo_offset_days', true);
+DECLARE d text := current_setting('clearline.demo_shift_ms', true);
 BEGIN
-  IF d IS NULL OR d !~ '^-?[0-9]{1,4}$' OR abs(d::int) > 3660 OR NOT public.app_org_is_demo(public.app_org_id()) THEN
+  IF d IS NULL OR d !~ '^-?[0-9]{1,12}$' OR abs(d::bigint) > ${MAX_SHIFT_MS} OR NOT public.app_org_is_demo(public.app_org_id()) THEN
     RETURN now();
   END IF;
-  RETURN greatest(now() + make_interval(days => d::int), '${DEMO_NOW}'::timestamptz);
+  RETURN greatest(now() + d::bigint * interval '1 millisecond', '${DEMO_NOW}'::timestamptz);
 END
 $fn$`;
 
