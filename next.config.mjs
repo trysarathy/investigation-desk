@@ -69,6 +69,11 @@ export function deploymentConfigProblems(env) {
     if (env.CLEARLINE_TEST_BUILD === '1') problems.push('CLEARLINE_DEMO_BUILD and CLEARLINE_TEST_BUILD are both "1"; a build is either a demo build or a test build. Set only one.');
     if (env.CLEARLINE_CHAIN_LIVE === '1' || env.CLEARLINE_LEDGER_PULL === '1') problems.push('A demo build runs offline: unset CLEARLINE_CHAIN_LIVE and CLEARLINE_LEDGER_PULL.');
   }
+  // v1: where this build or server is meant to run (src/server/deploy-guard.ts checks it again at server start, against
+  // the build's inlined flags). A staging or production deployment is never a demo build or a test build.
+  const deployEnv = ON(env.CLEARLINE_DEPLOY_ENV);
+  if (deployEnv && !['local', 'ci', 'demo', 'staging', 'production'].includes(deployEnv)) problems.push(`CLEARLINE_DEPLOY_ENV is ${JSON.stringify(deployEnv)}; use one of local, ci, demo, staging, production (or unset it for local).`);
+  if ((deployEnv === 'staging' || deployEnv === 'production') && (demo === '1' || env.CLEARLINE_TEST_BUILD === '1')) problems.push(`CLEARLINE_DEPLOY_ENV=${deployEnv} cannot be built with CLEARLINE_DEMO_BUILD=1 or CLEARLINE_TEST_BUILD=1: a demo or test build never serves staging or production.`);
   const user = ON(env.PREVIEW_USER);
   const password = ON(env.PREVIEW_PASSWORD);
   if (!!user !== !!password) problems.push(`Only ${user ? 'PREVIEW_USER' : 'PREVIEW_PASSWORD'} is set; the preview password gate needs both, and with one alone nothing is protected.`);
