@@ -19,7 +19,7 @@ import { resolveTenant, withTenant } from "../../src/server/tenant";
 import { loadReconcileInput } from "../../src/server/merchant-store";
 import { accountBalance, proposeJournals, reconcile } from "../../src/lib/clearline/merchant";
 import { pairKey } from "../../src/lib/clearline/synthetic";
-import { expectationsFor, isClosing, type FileShapes } from "../fixtures/synthetic/truth-expect";
+import { exactByReference, expectationsFor, isClosing, type FileShapes } from "../fixtures/synthetic/truth-expect";
 import { BLIND, blindWorld } from "./blind-world";
 
 export interface EntityVerdict {
@@ -34,6 +34,9 @@ export interface EntityVerdict {
   expected: { truth: number; rule: number; abstain: number };
   mismatched: string[];
   wrongMatches: string[];
+  /** rc8 decision 1: orders M4.exact.no_quote_terms closed at step 4, and those the generator's truth does not match exactly (must be none). */
+  exactNoTerms: number;
+  exactNotTruth: string[];
   bankLines: { total: number; credits: number; bridged: number; explained: number; problems: string[] };
   batches: { stored: number; bridged: number; tiedVerified: number; clearingNonZero: string[] };
   exceptions: { open: number; missingOwnerReasonOrNextStep: string[] };
@@ -63,7 +66,7 @@ export async function judgeBlind(): Promise<{ flag: Record<string, boolean>; ent
     const mine = stored.filter((m) => exp.has(m.orderId));
     const recs = new Map(r.records.map((x) => [x.orderId, x]));
     const v: EntityVerdict = {
-      entityId, orders: exp.size, records: mine.length, decisions: {}, rules: {}, unpaid: 0, abstainedForLackOfData: {}, expected: { truth: 0, rule: 0, abstain: 0 }, mismatched: [], wrongMatches: [],
+      entityId, orders: exp.size, records: mine.length, decisions: {}, rules: {}, unpaid: 0, abstainedForLackOfData: {}, expected: { truth: 0, rule: 0, abstain: 0 }, mismatched: [], wrongMatches: [], exactNoTerms: 0, exactNotTruth: [],
       bankLines: { total: 0, credits: 0, bridged: 0, explained: 0, problems: [] }, batches: { stored: input.batches.length, bridged: 0, tiedVerified: 0, clearingNonZero: [] },
       exceptions: { open: 0, missingOwnerReasonOrNextStep: [] }, storedEqualsComputed: true, stateSha256: "",
     };
@@ -83,6 +86,13 @@ export async function judgeBlind(): Promise<{ flag: Record<string, boolean>; ent
       if (!truth.correctPairs.has(pairKey(k, rec.orderId))) v.wrongMatches.push(`${rec.orderId} ← ${k}`);
     }
     for (const rec of r.records) if (isClosing(rec.explanation.decision) && !exp.has(rec.orderId)) v.wrongMatches.push(`${rec.orderId}: closed but not in this entity's orders`);
+    // rc8 decision 1: every order its rule closed at step 4 is one the truth matches exactly (no difference)
+    for (const rec of r.records) {
+      if (!rec.explanation.history.some((h) => h.ruleId === "M4.exact.no_quote_terms" && h.outcome === "pass")) continue;
+      v.exactNoTerms++;
+      const t = truth.orders.find((o) => o.orderId === rec.orderId);
+      if (!t || t.decision !== "matched" || t.differences.length || !exactByReference(world, rec.orderId, shapes)) v.exactNotTruth.push(`${rec.orderId}: truth ${t?.decision} ${t?.ruleId ?? ""}`);
+    }
     // decisions against the truth
     for (const [orderId, e] of exp) {
       const rec = recs.get(orderId);
