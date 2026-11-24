@@ -72,7 +72,7 @@ Labels: **[VERIFIED]** read in the code or seen in a recorded run; **[ASSUMPTION
 | 0018 | `uploads`, `upload_rows`, `merchant_data_settings` | `retention_days` default 90, between 1 and 3650; `uploads.delete_after` |
 | 0019 | upload triggers | status changes step by step; no delete; second person for bank statements |
 | 0020 | provenance columns on `bank_lines`, `chain_transfers`, `invoices`, `merchant_quotes`, `payment_links` | `upload_id`, `source_row`, `mapping_template_id`/`_version`, `uploaded_by`; sources `file_import` and `provider_export` |
-| 0021 | normalise triggers | provenance kept; upload targets checked (`check_upload_target`, per row) |
+| 0021 | normalise triggers | provenance kept; upload targets checked (`check_upload_target`, per row; per statement from 0030) |
 | 0022 | USDT on Ethereum in `token_config`; `source` in the `chain_transfers` key; evidence columns; `chain_reads` | evidence required for `chain_client` rows; `chain_reads` append-only with RLS |
 | 0023 | quote terms nullable | only for uploaded rows (CHECK) |
 | 0024 | `reconciliation_runs`, `rule_change_notices` | runs append-only |
@@ -80,6 +80,8 @@ Labels: **[VERIFIED]** read in the code or seen in a recorded run; **[ASSUMPTION
 | 0026 | `ledger_invoices` | reference data for month-end; never an engine input |
 | 0027 | `notifications`, `notification_reads`, `rule_change_acks` | raised only by triggers; app login cannot insert, change or delete one |
 | 0028 | `uploads.json_list` | which list of a multi-list JSON file holds the records; its own immutability trigger |
+| 0029 (rc8) | `clearline_jobs` login: grants on `jobs` and `reconciliation_schedules`, `jobs_due_schedules()`, `jobs_run_principal()` | the job queue's own limited login (see Connections) |
+| 0030 (rc8) | provenance and upload-target checks run once per INSERT statement | same rules and messages, set-based over the inserted rows (`REFERENCING NEW TABLE`); any bad row refuses the whole statement; update triggers unchanged |
 
 **[VERIFIED]** Migrations 0022–0028 were written by hand. The journal was updated, but the drizzle-kit snapshots were not regenerated (see the threat model's residual risks).
 
