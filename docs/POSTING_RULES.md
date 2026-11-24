@@ -435,11 +435,11 @@ Remaining rows: ____________________ Date: __________ SGT
 - **What goes in:** only journal proposals with `status: proposed` and `postingRuleStatus: pending_sign_off`. Every journal must balance (debits = credits, checked in BigInt), or the export fails.
 - **Every row is marked:** "DRAFT - sandbox/demo company only; posting rules pending sign-off; nothing posted".
 - **Nothing is posted:** Clearline makes no write call to any ledger. The read-only ledger pull (`CLEARLINE_LEDGER_PULL=1`) refuses any write before it is sent.
-- **Who can export:** Finance or an Approver (`merchant_export`). Each export is audited with ids, counts and the file's SHA-256, never its contents.
+- **Who can export:** Finance, an Approver or an Admin (`merchant_export`; rc8 founder decision 3, was Finance or an Approver). Each export is audited with ids, counts and the file's SHA-256, never its contents.
 - **Accounts:** the account column carries Clearline's account keys and names. An accountant maps them to the real chart of accounts.
 - **Cells:** formula characters are neutralised (a leading `'`), and line breaks are removed.
 - **Month-end pack:** the same draft files also go into the month-end ZIP, with the bridges, open exceptions, journal proposals, file provenance, the ledger-invoice comparison, the evidence pack and a manifest (rule-set version, policy revision, latest run, SHA-256 of each file).
 
 **Not proven [ASSUMPTION].** The two layouts follow each tool's published import template. They have **not** been tried in a real import.
 
-**Open for the founder (from #154).** The rc6 journal file stays Finance-only and the evidence pack stays open to any member. The "Finance or an Approver" rule applies only to the new exports. Aligning them would change an rc6 control.
+**Decided (rc8 founder decision 3).** The rc6 journal file (was Finance only) and the evidence pack (was any member) now follow the same rule as the rc7 exports: Finance, an Approver or an Admin. Payment Operations, a Viewer and provider users are refused (`tests/control/export-access.test.ts`).

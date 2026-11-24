@@ -70,7 +70,7 @@ DATABASE_URL=<runtime login> DATABASE_OWNER_URL=<owner login> npm run jobs:worke
 | Retention purge (run daily; **not** run by the worker) | `DATABASE_URL=$DATABASE_OWNER_URL npm run control:admin -- purge-uploads` (prints counts only) |
 | Delete one merchant: preview | `DATABASE_URL=$DATABASE_OWNER_URL npm run control:admin -- delete-merchant <slug>` |
 | Delete one merchant: do it | `DATABASE_URL=$DATABASE_OWNER_URL npm run control:admin -- delete-merchant <slug> --confirm <slug>` |
-| Create a live (empty, "Your data") organisation | `DATABASE_URL=$DATABASE_OWNER_URL npm run control:admin -- create-org <slug> "<name>" live` |
+| Create a live (empty, "Your data") organisation | `DATABASE_URL=$DATABASE_OWNER_URL npm run control:admin -- create-org <slug> "<name>" live`; rc8: a whole merchant with `create-merchant`, `add-entity`, `link-provider`, `add-member` (see "First run" below) |
 | Create a user and grant a role | `CLEARLINE_NEW_PASSWORD=… npm run control:admin -- create-user <email> "<name>"`, then `… grant <slug> <email> <admin\|payment_ops\|finance\|approver\|viewer>` |
 | End-to-end benchmark | `DATABASE_URL=<runtime login> CLEARLINE_BENCH_OWNER_URL=<owner login> npm run bench:e2e` (options: `-- --months 8 --per-month 1250 --keep`) |
 | Synthetic files | `npm run synthetic -- --out synthetic-data` (options: `--preset month\|small`, `--seed N`, `--month YYYY-MM`) |
@@ -79,18 +79,44 @@ DATABASE_URL=<runtime login> DATABASE_OWNER_URL=<owner login> npm run jobs:worke
 
 ## First run with your own file (from a blank account)
 
-**Honest gap [VERIFIED, #155].** The setup wizard is **not built**. There is no screen or CLI command that creates a merchant's entities, matching policy or provider link. The blind test did this with owner-connection code (`tests/e2e-merchant/blind-seed.ts`). Until a wizard exists, an operator must do steps 2–3 with owner access.
+**rc8 (founder decision 4) [VERIFIED, `tests/control/merchant-setup.test.ts`].** There is still no wizard; an operator sets the merchant up with the admin CLI instead of hand SQL. The setup commands read **`DATABASE_OWNER_URL` only** (the owner login; they refuse without it or with the runtime login), print ids, roles and counts only, and can be re-run: the same values change nothing. Anything that would overwrite (a policy change, a different provider, a member's new role) is a dry run (exit 2) until `--confirm <org-slug>` repeats the slug. The runtime app's grants and row-level security are unchanged.
 
-1. **Organisation and people.** `create-org <slug> "<name>" live`; create users; grant at least Finance, an Approver (not the same person) and an Admin.
-2. **Provider link (operator).** A merchant's provider files can be mapped only when the organisation has a provider (`organizations.provider_org_id`); otherwise template saving is refused with `NO_PROVIDER` [VERIFIED].
-3. **Entities and policy (operator).** One `merchant_entities` row per legal entity (functional currency SGD, USD or AED; ledger; time zone and UTC offset) and one `merchant_policy` row each (defaults: larger of 0.5% or SGD 5 / USD 5 / AED 20; imported-bank-line flag **off**). FX rates for cross-currency orders were also seeded in the blind test [ASSUMPTION: needed only when invoice and settlement currencies differ].
-4. **Chain access.** Set `CLEARLINE_CHAIN_LIVE=1`, `TRONGRID_API_KEY` and `ETHEREUM_RPC_URL` (see above).
-5. **Upload your order list first** (Finance, `/control/merchant/uploads`). Map Order ID, Invoice amount and Currency. Without it, provider rows fail as "in conflict".
-6. **Upload the provider export.** For a JSON file with several lists, choose the list. Check every suggestion against values you know (your own deposit addresses). Map every status word; words outside the 20-row preview must be added by hand with "Add word". Save the mapping as a template.
-7. **Upload the settlement report** (per-payment lines if you have them; totals otherwise) and the **bank statement** (MT940 and camt.053 need no mapping).
-8. **Validate and confirm.** Read the validation report. Confirm; the confirmation is bound to the file's hash. A bank statement waits for an Approver who did not upload it.
-9. **Bring into reconciliation, then Reconcile now.** Expect mostly "suggested for review" if your export has no quote rate or window (`docs/product/SUPPORTED_FORMATS.md`, section D).
-10. **Optional:** set a daily schedule on `/control/merchant/runs`; export draft journals or the month-end pack (Finance or an Approver); an Admin can change the retention days in Settings.
+```bash
+export DATABASE_OWNER_URL=postgres://clearline_owner:<owner-password>@127.0.0.1:54329/clearline_rc7
+A="npm run -s control:admin --"
+# the provider that sends you its files (skip if it exists already)
+$A create-provider acme-pay --name "Acme Pay" --timezone UTC
+# 1. the organisation: live (empty, "Your data"), in its own time zone
+$A create-merchant acme-trading --name "Acme Trading" --timezone Asia/Singapore
+# 2. one entity per legal entity; it gets the default policy (larger of 0.5% or SGD 5 / USD 5 / AED 20; imported-bank-line flag off)
+$A add-entity acme-trading ENT-SG-01 --name "Acme Trading Pte Ltd" --currency SGD --timezone Asia/Singapore --utc-offset +08:00 --ledger xero
+# 3. the provider link (needed to save mapping templates; otherwise NO_PROVIDER). The provider sees aggregates only and can invite only Viewers
+$A link-provider acme-trading acme-pay
+# 4. people: at least Finance, an Approver (a different person) and an Admin. A new person's password comes only from
+#    CLEARLINE_SEED_PASSWORD (read it from your secrets store; never an argument, never printed)
+read -rs CLEARLINE_SEED_PASSWORD && export CLEARLINE_SEED_PASSWORD
+$A add-member acme-trading finance@acme.example finance --name "<name>"
+$A add-member acme-trading approver@acme.example approver --name "<name>"
+$A add-member acme-trading admin@acme.example admin --name "<name>"
+unset CLEARLINE_SEED_PASSWORD
+# optional: change the policy (validated exactly as the Settings page does); shows the change, then apply it
+$A set-policy acme-trading ENT-SG-01 --writeoff-threshold-minor 300
+$A set-policy acme-trading ENT-SG-01 --writeoff-threshold-minor 300 --confirm acme-trading
+# check: ids and counts
+$A setup-summary acme-trading
+```
+
+Not covered by the CLI [VERIFIED]: **bank accounts** (`add-bank-account` was asked for but is not built: there is no table for a merchant's registered accounts and adding one needs a migration; the bank account a settlement or statement names still comes from the files, mapped or typed as a constant) and **FX rates** for cross-currency orders (seeded by owner code in the blind test; [ASSUMPTION] needed only when invoice and settlement currencies differ). The merchant's Admin can also change the policy later in Settings.
+
+Then, in the app:
+
+1. **Chain access.** Set `CLEARLINE_CHAIN_LIVE=1`, `TRONGRID_API_KEY` and `ETHEREUM_RPC_URL` (see above).
+2. **Upload your order list first** (Finance, `/control/merchant/uploads`). Map Order ID, Invoice amount and Currency. Without it, provider rows fail as "in conflict".
+3. **Upload the provider export.** For a JSON file with several lists, choose the list. Check every suggestion against values you know (your own deposit addresses). Map every status word; words outside the 20-row preview must be added by hand with "Add word". Save the mapping as a template.
+4. **Upload the settlement report** (per-payment lines if you have them; totals otherwise) and the **bank statement** (MT940 and camt.053 need no mapping).
+5. **Validate and confirm.** Read the validation report. Confirm; the confirmation is bound to the file's hash. A bank statement waits for an Approver who did not upload it.
+6. **Bring into reconciliation, then Reconcile now.** Expect mostly "suggested for review" if your export has no quote rate or window (`docs/product/SUPPORTED_FORMATS.md`, section D).
+7. **Optional:** set a daily schedule on `/control/merchant/runs`; export the evidence pack, the journal files, the draft journals or the month-end pack (rc8 founder decision 3: **Finance, an Approver or an Admin** only; the links are hidden for other roles and the routes answer 403); an Admin can change the retention days in Settings.
 
 **Time [GUESS, from the blind test].** 30–60 minutes the first time; 5–10 minutes a month with saved templates.
 
