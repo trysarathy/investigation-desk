@@ -30,6 +30,8 @@ export async function seedBlindMerchant(db: Db, password: string) {
       orgId: org, entityId: e.id, toleranceBps: p.tolerancePct, toleranceAbsMinor: p.toleranceAbsMinor, toleranceCombine: p.toleranceCombine, writeoffThresholdMinor: p.writeoffThresholdMinor,
       approverRoles: ["approver"], allowImportedBankLinesAsVerified: false, senderFeeBoundBaseUnits: p.senderFeeBoundBaseUnits.toString(),
     });
+    // v1: a bank statement upload names one of the entity's bank accounts (masked number only; fictional)
+    await db.insert(t.bankAccounts).values({ orgId: org, entityId: e.id, currency: e.functionalCurrency, displayName: `${e.id} operating (fictional)`, accountLast4: "0001", bankName: "Fictional Test Bank" });
     await db.transaction((tx) => writeIngested(tx, org, e.id, { fxRates: world.fxRates.filter((r) => r.pair.endsWith(`/${e.functionalCurrency}`)), addressFacts: world.addressFacts }, { chainSource: "recorded_fixture" }));
   }
   // the server reads chain data through the recording; keep the upload journeys' transfers and add this month's

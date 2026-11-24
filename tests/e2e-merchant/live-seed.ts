@@ -48,6 +48,8 @@ export async function seedLiveMerchant(db: Db, password: string) {
       orgId: org, entityId: e.id, toleranceBps: p.tolerancePct, toleranceAbsMinor: p.toleranceAbsMinor, toleranceCombine: p.toleranceCombine, writeoffThresholdMinor: p.writeoffThresholdMinor,
       approverRoles: ["approver"], allowImportedBankLinesAsVerified: false, senderFeeBoundBaseUnits: p.senderFeeBoundBaseUnits.toString(),
     });
+    // v1: a bank statement upload names one of the entity's bank accounts (masked number only; fictional)
+    await db.insert(t.bankAccounts).values({ orgId: org, entityId: e.id, currency: e.functionalCurrency, displayName: `${e.id} operating (fictional)`, accountLast4: "0001", bankName: "Fictional Test Bank" });
   }
   // FX rates and address facts (not an upload). Chain data is NOT written here: the server's verify step reads it
   // through the recorded chain client (CLEARLINE_CHAIN_RECORDING), exactly as it would read a live chain.

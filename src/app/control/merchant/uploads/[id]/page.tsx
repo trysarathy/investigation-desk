@@ -13,7 +13,7 @@ import { RunReconciliation } from "@/components/merchant/forms";
 import { DeleteUpload, NormaliseUpload, UploadDecisionForm, ValidateUpload } from "@/components/merchant/upload-review-forms";
 import { Chip, Empty, one, q } from "@/components/merchant/ui";
 import { fieldOf, type Mapping } from "@/lib/clearline/mapping";
-import { DELIMITER_WORDS, ENCODING_WORDS, FILE_TYPE_LABELS, FORMAT_LABELS, reasonText, statusLabel, warningText } from "@/lib/clearline/upload-words";
+import { DELIMITER_WORDS, ENCODING_WORDS, FILE_TYPE_LABELS, FORMAT_LABELS, bankAccountLabel, reasonText, statusLabel, warningText } from "@/lib/clearline/upload-words";
 
 export const metadata: Metadata = { title: "Upload" };
 
@@ -62,7 +62,7 @@ export default async function UploadPage({ params, searchParams }: { params: Pro
     <>
       <p className={s.small}><a href="/control/merchant/uploads">← All uploads</a></p>
       <h1 className={s.title}>{u.originalName}</h1>
-      <p className={s.lede}>{FILE_TYPE_LABELS[u.fileType]} for {w.entity.name} ({u.entityId}) · uploaded by {w.uploadedByName} · <Chip tone="plain" testId="upload-status">{statusLabel(u.status)}</Chip></p>
+      <p className={s.lede}>{FILE_TYPE_LABELS[u.fileType]} for {w.entity.name} ({u.entityId}){w.bankAccount ? <> · bank account <span data-testid="upload-bank-account">{bankAccountLabel(w.bankAccount)}</span></> : bank ? " · no bank account recorded (uploaded before accounts existed)" : ""} · uploaded by {w.uploadedByName} · <Chip tone="plain" testId="upload-status">{statusLabel(u.status)}</Chip></p>
       <ol className={m.steps} aria-label="Steps">{STEPS.map((x, i) => <li key={x} aria-current={i === step ? "step" : undefined}>{i + 1}. {x}</li>)}</ol>
       <FlashMessage flashKey={`upload:${u.id}`} />
       <FlashMessage flashKey={`mapping:${u.id}`} />

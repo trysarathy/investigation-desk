@@ -95,6 +95,9 @@ $A create-provider acme-pay --name "Acme Pay" --timezone UTC
 $A create-merchant acme-trading --name "Acme Trading" --timezone Asia/Singapore
 # 2. one entity per legal entity; it gets the default policy (larger of 0.5% or SGD 5 / USD 5 / AED 20; imported-bank-line flag off)
 $A add-entity acme-trading ENT-SG-01 --name "Acme Trading Pte Ltd" --currency SGD --timezone Asia/Singapore --utc-offset +08:00 --ledger xero
+# 2b. (v1) each bank account of the entity: name, currency, LAST FOUR characters of the number only (a full number is
+#     refused, never stored), bank name, optional BIC. A bank statement upload names one of these accounts.
+$A add-bank-account acme-trading ENT-SG-01 --name "SGD operating" --currency SGD --last4 4321 --bank "<bank name>" --bic <BIC>
 # 3. the provider link (needed to save mapping templates; otherwise NO_PROVIDER). The provider sees aggregates only and can invite only Viewers
 $A link-provider acme-trading acme-pay
 # 4. people: at least Finance, an Approver (a different person) and an Admin. A new person's password comes only from
@@ -111,7 +114,9 @@ $A set-policy acme-trading ENT-SG-01 --writeoff-threshold-minor 300 --confirm ac
 $A setup-summary acme-trading
 ```
 
-Not covered by the CLI [VERIFIED]: **bank accounts** (`add-bank-account` was asked for but is not built: there is no table for a merchant's registered accounts and adding one needs a migration; the bank account a settlement or statement names still comes from the files, mapped or typed as a constant) and **FX rates** for cross-currency orders (seeded by owner code in the blind test; [ASSUMPTION] needed only when invoice and settlement currencies differ). The merchant's Admin can also change the policy later in Settings.
+v1 [VERIFIED, tests/control/bank-accounts.test.ts]: **bank accounts** are a table (migration 0039) set up with `add-bank-account` (and `close-bank-account <org> <account-id> --confirm <org>`); a new bank statement must name an active account of its entity, and its lines must be in that account's currency (an MT940 / camt.053 file in another currency is refused before it is stored; table rows in another currency are rejected). An account's currency may differ from the entity's, but reconciliation still reads only statement credits in the entity's functional currency. The account text a settlement report names still comes from the file. v1 (migration 0038): the web app can no longer insert entities or policies at all; `add-entity` is the only way to create them.
+
+Not covered by the CLI [VERIFIED]: **FX rates** for cross-currency orders (seeded by owner code in the blind test; [ASSUMPTION] needed only when invoice and settlement currencies differ). The merchant's Admin can also change the policy later in Settings.
 
 Then, in the app:
 

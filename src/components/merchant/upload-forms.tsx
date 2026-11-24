@@ -5,7 +5,7 @@ import { FILE_TYPES, NETWORK_IDS, STATUS_TARGETS, fieldsOf, validateMapping, typ
 import type { ColumnMapping, MappingSuggestion } from "@/lib/clearline/mapping";
 import { detectDateFormat } from "@/lib/clearline/ingest/dates";
 import { detectDecimalSeparator } from "@/lib/clearline/ingest/decimal";
-import { ACCEPT, FILE_TYPE_HINTS, FILE_TYPE_LABELS, LIMITS_TEXT } from "@/lib/clearline/upload-words";
+import { ACCEPT, FILE_TYPE_HINTS, FILE_TYPE_LABELS, LIMITS_TEXT, bankAccountLabel } from "@/lib/clearline/upload-words";
 import s from "@/components/control/control.module.css";
 import m from "./merchant.module.css";
 
@@ -45,8 +45,14 @@ export function reloadWith(key: string, message: string, url?: string) {
 
 const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1)} MB`;
 
-export function UploadForm({ entities }: { entities: { id: string; name: string; currency: string }[] }) {
+export interface BankAccountChoice { id: string; entityId: string; displayName: string; accountLast4: string; currency: string }
+
+export function UploadForm({ entities, bankAccounts = [] }: { entities: { id: string; name: string; currency: string }[]; bankAccounts?: BankAccountChoice[] }) {
   const id = useId();
+  const [entityId, setEntityId] = useState(entities.length === 1 ? entities[0].id : "");
+  const [fileType, setFileType] = useState<string>(FILE_TYPES[0]);
+  /** v1: a bank statement belongs to one of the entity's active bank accounts (chosen by the person; preselected only when there is one). */
+  const accounts = bankAccounts.filter((a) => a.entityId === entityId);
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [over, setOver] = useState(false);
@@ -85,7 +91,7 @@ export function UploadForm({ entities }: { entities: { id: string; name: string;
       <div className={m.formGrid}>
         <div className={s.field}>
           <label className={s.label} htmlFor={`${id}-entity`}>Entity</label>
-          <select className={s.select} id={`${id}-entity`} name="entityId" required defaultValue={entities.length === 1 ? entities[0].id : ""}>
+          <select className={s.select} id={`${id}-entity`} name="entityId" required value={entityId} onChange={(ev) => setEntityId(ev.currentTarget.value)}>
             {entities.length === 1 ? null : <option value="" disabled>Choose an entity</option>}
             {entities.map((e) => <option key={e.id} value={e.id}>{e.name} ({e.id}, {e.currency})</option>)}
           </select>
@@ -94,11 +100,25 @@ export function UploadForm({ entities }: { entities: { id: string; name: string;
           <legend>File type</legend>
           {FILE_TYPES.map((t, i) => (
             <div className={s.check} key={t}>
-              <input type="radio" id={`${id}-${t}`} name="fileType" value={t} required defaultChecked={i === 0} aria-describedby={`${id}-${t}-hint`} />
+              <input type="radio" id={`${id}-${t}`} name="fileType" value={t} required defaultChecked={i === 0} aria-describedby={`${id}-${t}-hint`} onChange={(ev) => { if (ev.currentTarget.checked) setFileType(t); }} />
               <label htmlFor={`${id}-${t}`}>{FILE_TYPE_LABELS[t]} <span className={s.hint} id={`${id}-${t}-hint`}>{FILE_TYPE_HINTS[t]}</span></label>
             </div>
           ))}
         </fieldset>
+        {fileType === "bank_statement" ? (
+          <div className={s.field}>
+            <label className={s.label} htmlFor={`${id}-account`}>Bank account</label>
+            {accounts.length === 0 ? (
+              <p className={s.hint} id={`${id}-account`} data-testid="no-bank-account">{entityId ? "This entity has no active bank account yet. Ask your administrator to add one; statements are uploaded to an account." : "Choose an entity first."}</p>
+            ) : (
+              <select className={s.select} id={`${id}-account`} name="bankAccountId" required key={entityId} defaultValue={accounts.length === 1 ? accounts[0].id : ""} aria-describedby={`${id}-account-h`}>
+                {accounts.length === 1 ? null : <option value="" disabled>Choose a bank account</option>}
+                {accounts.map((a) => <option key={a.id} value={a.id}>{bankAccountLabel(a)}</option>)}
+              </select>
+            )}
+            <span className={s.hint} id={`${id}-account-h`}>The statement&rsquo;s lines must be in this account&rsquo;s currency.</span>
+          </div>
+        ) : null}
       </div>
       <div className={`${m.drop} ${over ? m.dropOver : ""}`} onDragOver={(ev) => { ev.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)} onDrop={drop} data-testid="drop-zone">
         <label className={s.label} htmlFor={`${id}-file`}>File</label>
