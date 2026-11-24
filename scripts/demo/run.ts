@@ -20,16 +20,12 @@ import path from "node:path";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import {
-  APP_PORT, DB, DemoStop, ROOT, STATE_DIR, TEMPLATE, canConnect, demoPassword, dropDemoDatabases, ensureLogins, ensurePostgres, fmtMs, loginUrl, portAnswers,
+  APP_PORT, DB, DIST, DemoStop, ORIGIN, RECORDING, ROOT, STATE_DIR, TEMPLATE, UPLOADS, appEnv, canConnect, demoPassword, dropDemoDatabases, ensureLogins, ensurePostgres, fmtMs, loginUrl, portAnswers,
   readState, secret, withDb, writeState, type DemoState,
 } from "./lib";
 
 const flag = (name: string) => process.argv.includes(`--${name}`) || process.env[`npm_config_${name.replace(/-/g, "_")}`] === "true";
 const FRESH = flag("fresh"), NO_START = flag("no-start"), RESET_ROLES = flag("reset-role-passwords");
-const DIST = ".next-demo";
-const RECORDING = path.join(STATE_DIR, "chain-recording.json");
-const UPLOADS = path.join(STATE_DIR, "uploads");
-const ORIGIN = `http://127.0.0.1:${APP_PORT}`;
 const out = (s: string) => process.stdout.write(`${s}\n`);
 const step = (s: string) => out(`\n▸ ${s}`);
 
@@ -38,20 +34,6 @@ function gitHead(): string {
 }
 function treeDirty(): boolean {
   try { return execFileSync("git", ["status", "--porcelain", "--", "src", "next.config.mjs", "package.json"], { cwd: ROOT, encoding: "utf8" }).trim() !== ""; } catch { return true; }
-}
-
-/** Environment of the demo server (and the build, which needs the same build-time switches). */
-export function appEnv(s: DemoState): NodeJS.ProcessEnv {
-  return {
-    ...process.env,
-    NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1",
-    CLEARLINE_DEMO_BUILD: "1", CLEARLINE_CONTROL_PILOT: "1", CLEARLINE_DIST_DIR: DIST,
-    DATABASE_URL: loginUrl(s, "runtime"), BETTER_AUTH_SECRET: s.authSecret, CLEARLINE_ORIGIN: ORIGIN,
-    CLEARLINE_CHAIN_RECORDING: RECORDING, CLEARLINE_UPLOAD_DIR: UPLOADS, CLEARLINE_UPLOAD_KEY: s.uploadKey,
-    CLEARLINE_DEMO_RESET_URL: s.pg.superUrl, CLEARLINE_DEMO_DB: DB, CLEARLINE_DEMO_TEMPLATE: TEMPLATE,
-    // offline: no live chain reads, no ledger pull (a demo build also refuses them at start)
-    CLEARLINE_CHAIN_LIVE: "", CLEARLINE_LEDGER_PULL: "", CLEARLINE_TEST_BUILD: "",
-  };
 }
 
 async function main() {

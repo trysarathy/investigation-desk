@@ -18,6 +18,10 @@ export const TEMPLATE = `${DB}_template`;
 export const PG_PORT = Number(process.env.CLEARLINE_DEMO_PG_PORT ?? 54330);
 export const APP_PORT = Number(process.env.CLEARLINE_DEMO_PORT ?? 3100);
 export const COMPOSE = path.join(ROOT, "docker-compose.demo.yml");
+export const DIST = ".next-demo";
+export const RECORDING = path.join(STATE_DIR, "chain-recording.json");
+export const UPLOADS = path.join(STATE_DIR, "uploads");
+export const ORIGIN = `http://127.0.0.1:${APP_PORT}`;
 
 export interface DemoState {
   version: 1;
@@ -152,3 +156,17 @@ export async function dropDemoDatabases(s: DemoState): Promise<void> {
 }
 
 export const fmtMs = (ms: number) => (ms < 1_000 ? `${ms} ms` : `${(ms / 1_000).toFixed(1)} s`);
+
+/** Environment of the demo server (and the build, which needs the same build-time switches). */
+export function appEnv(s: DemoState): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1",
+    CLEARLINE_DEMO_BUILD: "1", CLEARLINE_CONTROL_PILOT: "1", CLEARLINE_DIST_DIR: DIST,
+    DATABASE_URL: loginUrl(s, "runtime"), BETTER_AUTH_SECRET: s.authSecret, CLEARLINE_ORIGIN: ORIGIN,
+    CLEARLINE_CHAIN_RECORDING: RECORDING, CLEARLINE_UPLOAD_DIR: UPLOADS, CLEARLINE_UPLOAD_KEY: s.uploadKey,
+    CLEARLINE_DEMO_RESET_URL: s.pg.superUrl, CLEARLINE_DEMO_DB: DB, CLEARLINE_DEMO_TEMPLATE: TEMPLATE,
+    // offline: no live chain reads, no ledger pull (a demo build also refuses them at start)
+    CLEARLINE_CHAIN_LIVE: "", CLEARLINE_LEDGER_PULL: "", CLEARLINE_TEST_BUILD: "",
+  };
+}
