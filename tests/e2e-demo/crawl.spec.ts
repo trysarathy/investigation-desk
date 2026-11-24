@@ -111,12 +111,15 @@ async function clickSafe(page: Page, url: string, problems: string[]): Promise<n
   for (const c of candidates.slice(0, MAX_CLICKS)) {
     const el = page.locator("button, summary, input[type=submit]").nth(c.i);
     if (!(await el.isVisible())) continue;
-    await el.click();
+    await el.click({ timeout: 15_000 });
     await page.waitForLoadState("load");
     await settled(page).catch(() => undefined);
     n++;
     expect(problems, `after clicking “${c.name}” on ${url}:\n${problems.join("\n")}`).toEqual([]);
-    if (page.url() !== url || c.name) { await page.goto(url); await settled(page); }
+    // back to the page as it was: a panel opened by a click (the presenter guide remembers "open" for the tab) is closed
+    await page.evaluate(() => { try { sessionStorage.clear(); } catch { /* none */ } });
+    await page.goto(url);
+    await settled(page);
   }
   return n;
 }
