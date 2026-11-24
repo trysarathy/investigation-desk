@@ -8,8 +8,9 @@ and amount is fictional; the only real values are the public USDT (TRON, Ethereu
 addresses. It runs on one machine with no network at build or run time.
 
 A **demo build** is a `next build` made with `CLEARLINE_DEMO_BUILD=1`. Only a demo build contains the demo's
-conveniences (recorded chain data for a demo organisation, the reset route and the "Reset demo" button); a real build
-cannot turn them on at run time (see "Demo build vs real build").
+conveniences (recorded chain data for a demo organisation, the reset route and the "Reset demo" button, the role
+switcher, the presenter guide and "Note feedback"); a real build cannot turn them on at run time (see "Demo build vs
+real build"). The 10-minute talk track, likely questions and what is real or fictional are in `DEMO_SCRIPT.md`.
 
 ## Prerequisites
 
@@ -30,6 +31,8 @@ npm run demo -- --fresh   # start over: drop the demo databases and the demo bui
 npm run demo -- --no-start  # everything except starting the app
 npm run demo:reset        # back to the seeded state, timed (the app may keep running)
 npm run demo:files        # rewrite demo-files/ (they are committed; only needed after changing the demo world)
+npm run demo:feedback     # write the presenters' "Note feedback" notes to docs/demo/FEEDBACK_<YYYY-MM-DD>.md
+npm run demo:video        # re-record docs/demo/walkthrough.webm and docs/demo/screenshots/ (needs CLEARLINE_DEMO_PG_URL like the suite)
 ```
 
 With a local PostgreSQL 16 instead of Docker:
@@ -44,9 +47,9 @@ CLEARLINE_DEMO_PG_URL='postgres://postgres:<superuser password>@127.0.0.1:5432/p
 |---|---|---|
 | (a) PostgreSQL | `CLEARLINE_DEMO_PG_URL` if set; else the server saved in `.demo/state.json`; else a server answering on 127.0.0.1:54330 that accepts the saved Docker password; else `docker compose -f docker-compose.demo.yml up -d --wait` (postgres:16, named volume `clearline-demo-pg`, health check) | — (checked every time) [ASSUMPTION for the Docker path: the build machine had the Docker CLI but no daemon, so only the "Docker is not running" stop was run; the timings below used a local PostgreSQL 16 through `CLEARLINE_DEMO_PG_URL`] |
 | (b) database and logins | `clearline_demo`, and the owner, runtime and jobs logins with random passwords saved in `.demo/state.json` (mode 0600, git-ignored) | they exist. On a server that already has these logins, the demo uses them only if they accept the saved passwords (or the server trusts local connections); it never changes them unless `--reset-role-passwords` |
-| (c) migrations | `drizzle-kit migrate` as the owner (0000–0031) | — (idempotent, about 2 s) |
+| (c) migrations | `drizzle-kit migrate` as the owner (0000–0032); a reset template made by an older checkout is migrated too (its rows untouched), so a reset never brings back an old schema | — (idempotent, about 2 s) |
 | recorded chain file | `.demo/chain-recording.json`: every demo transfer (the 30 days and the demo-files day) | — (rewritten, deterministic) |
-| (d) seed | the demo world, one day at a time, with a reconciliation per entity after each day (below) | seeded |
+| (d) seed | the demo world, one day at a time, with a reconciliation per entity after each day (below); then the times database defaults stamped during the seed are moved to the demo calendar (below) | seeded |
 | (e) template | `clearline_demo_template`, a copy of the seeded database for `npm run demo:reset` | made |
 | (f) demo build | `next build` with `CLEARLINE_DEMO_BUILD=1 CLEARLINE_CONTROL_PILOT=1` into `.next-demo/` (output in `.demo/build.log`), then the bundle check `--marker demo --expect present` | the same commit was built and the check passes (a dirty tree always rebuilds) |
 | (g) start | `next start -H 127.0.0.1 -p 3100` with the recorded chain file, uploads in `.demo/uploads` (encrypted with a key from the state file) and the reset settings | `--no-start` |
@@ -91,8 +94,19 @@ A re-run without `--fresh` on a clean tree skips the seed, the template and the 
 - **Dates.** The demo's "today" is **Tuesday 2026-12-08** (`src/lib/clearline/demo/clock.ts`). The data covers the 30
   days 2026-11-08 … 2026-12-07; `demo-files/` holds the files of 2026-12-08. Chain verification for the demo
   organisation reads at 2026-12-08 10:00 SGT whatever the machine's date, and the seed runs on a simulated clock, so
-  runs, exceptions and proposals carry demo dates and the data never ages. [ASSUMPTION] What a presenter does during
-  the demo (an approval, a new run) is stamped with the machine's clock.
+  runs, exceptions and proposals carry demo dates and the data never ages.
+- **Database-stamped times.** Columns filled by a database default (`now()`: approval requests and decisions,
+  notifications, chain transfers' observed time, the first policy revision, users, memberships) cannot follow the
+  seed's simulated clock. The seed records the database clock before and after each simulated step, and `npm run demo`
+  then moves exactly those values (default `now()` and inside that step's window) to the step's demo instant
+  (`restampDemoSeed` in `src/server/demo-seed.ts`, as the demo superuser, one transaction with triggers off for that
+  transaction only). It changes no amount, decision, rule or policy. So BK-25102's write-off is requested and approved on
+  8 Dec 09:30 SGT, after its 1 and 3 Dec payments. [VERIFIED: `tests/e2e-demo/cases.spec.ts` finds no such time outside
+  2026-11-08 … 2026-12-08 10:00 SGT in the seeded database, and `tests/control/demo.test.ts` checks the same per
+  organisation.] What a presenter does during the demo (an approval, an upload, a run, a feedback note) is stamped
+  with the machine's clock, so it can sort before the seeded month.
+- **The demo's today in the daily report.** Four transfers made late on 7 Dec (UTC) fall on 8 Dec on the merchants'
+  clocks, so the date list has a 31st day. It is shown and labelled **"2026-12-08 (today, partial)"**, with a note.
 - **Entities.** Singapore SGD book `NW-SG` (Xero; account `NW-SGD-OPS-DEMO-01`), the Singapore company's USD account as
   its USD book `NW-SG-USD` (Xero; `NW-USD-OPS-DEMO-02`), and UAE `NW-AE` (AED, QuickBooks; `NW-AED-OPS-DEMO-03`). There is
   no table of bank accounts: an entity has one functional currency, and the account a batch or statement names is a
@@ -128,13 +142,18 @@ Decisions of the 1,471 evaluated payments (29 orders are unpaid and not evaluate
 
 | Decision | Count | Share | Rules |
 |---|---|---|---|
-| matched | 1,154 | 78.4% | M5.batch.tied_verified 1,154 |
+| matched | 1,154 | 78.45% | M5.batch.tied_verified 1,154 |
 | matched with difference | 178 | 12.1% | M4.tolerance.within_band 178 |
 | suggested for review | 25 | 1.7% | explained outside the band 16, not final yet 6, above the write-off threshold 3 |
 | exception | 114 | 7.7% | batch not tied yet 84 (the bank credit for the last batches is due on the demo day or later, and Case 1 shares a provider day with Case 2's prior batch), underpaid beyond the band 10, overpaid beyond the band 8, unknown batch 3, unexplained 3, no chain transfer 3, held by the provider 2, look-alike token 1 |
 
 Differences by type: sender-side fee 59, underpayment 48, rate difference 45, overpayment 40, re-quote after expiry 29,
-partial payment open 9, unexplained 3.
+partial payment open 9, unexplained 3. [VERIFIED again after the seed fixes of this branch, by query on the seeded
+database; the counts are unchanged.]
+
+The reason text of a payment paid in parts in different tokens names each part: BK-25102 reads "Customer paid
+3,000.00 USDT + 1,996.50 USDC (4,996.50 together) of 5,000.00 USDT (0.1% short)…" (display text only; the decision and
+amounts are unchanged).
 
 [ASSUMPTION] Case 1's batch (B-1124-001) and Case 2's prior batch (B-1124-SGD) share provider day 24 Nov in the same
 SGD book. The bridge runs per merchant day, so B-1124-SGD shows Case 1's four payments as unexplained and does not
@@ -144,6 +163,10 @@ tie (3 exceptions). Case 1's 5,961.24 and Case 2's 44,412.30 → 40,228.68 bridg
 
 - `npm run demo:reset` ends every session on `clearline_demo`, drops it and creates it again from
   `clearline_demo_template` (owned by the schema owner), clears `.demo/uploads`, and prints the time (target < 30 s).
+- **Feedback notes and a reset.** The template is the database right after the seed, so it has no feedback notes:
+  a reset (the command or the button) drops them like every other change. Before it does, it saves them to
+  `.demo/feedback/<time>.json` (git-ignored with the rest of `.demo/`), and `npm run demo:feedback` exports those
+  together with the notes still in the database.
   A running app recovers by itself: its pool drops the ended connections and opens new ones.
 - **"Reset demo" button** (top of every merchant and provider page, next to the data label): shown only in a demo
   build and only for a demo organisation. **Any signed-in member of a demo organisation may use it, whatever the role**
@@ -166,6 +189,39 @@ Who may switch: a signed-in member whose organisations are **all** demo organisa
 are all demo organisations too. Anyone else gets 404, and in a real build the route is 404 for everyone and its code is
 not in the bundle (the demo controls are imported only inside the build-constant branch, `src/components/merchant/DemoBar.tsx`).
 
+## Presenter guide (demo build only)
+
+**"Presenter guide"** next to the data label opens a side panel with the 13 steps of the journey, each with two or
+three plain-English talking points and **"Go there"**. When a step needs a different demo login (step 6 the Approver,
+step 12 Provider ops), "Go there (as …)" switches through the role switcher first, so the same rules apply as for the
+switcher. Keyboard: Enter or Space opens it with focus in the panel; Escape or "Close" closes it and returns focus to
+the button. It stays open across pages in the same browser tab. The steps are `src/lib/clearline/demo/guide.ts`, shared
+with `DEMO_SCRIPT.md`, the journey test and the walkthrough recording. Shown only to a member whose organisations are all
+demo organisations (as the switcher).
+
+## "Note feedback" (demo build only)
+
+**"Note feedback"** on every merchant and provider screen (not on the sign-in page, which has no session) saves a note
+with the screen's name (its heading), its address, the member's role (taken from the session, never from the
+request), the time and the text, to the table `demo_feedback` (migration 0032). The table exists in every database, but
+its row-level security lets a member insert only as themselves, with their current role, for an organisation whose
+data mode is `demo`; the runtime login can read and insert, never change or delete. `POST /api/control/demo/feedback`
+answers 404 in a real build and for a member of a live or sample organisation. `npm run demo:feedback` writes every note
+(and those a reset saved, see "Reset") to `docs/demo/FEEDBACK_<YYYY-MM-DD>.md` (`CLEARLINE_DEMO_FEEDBACK_OUT` writes
+elsewhere), grouped by screen, oldest first.
+
+## The walkthrough video and screenshots
+
+`docs/demo/walkthrough.webm` is the 13-step journey recorded at 1440 px on the demo build from the seeded state, and
+`docs/demo/screenshots/NN-<step>.png` one screenshot per step (1440 × 900 at deviceScaleFactor 2). `npm run demo:video`
+records them again (`playwright.demo-video.config.ts`, `tests/e2e-demo/walkthrough.record.ts`; it resets the demo
+first). Use them as the fallback if the live demo misbehaves. Recording needs Playwright's ffmpeg (`npx playwright
+install ffmpeg` on a normal machine; it is a one-off download). [VERIFIED on the build machine, which had no Playwright
+ffmpeg: recorded with the system ffmpeg 6.1 by pointing `PLAYWRIGHT_BROWSERS_PATH` at a scratch folder whose
+`ffmpeg-1013/ffmpeg-linux` links to `/usr/bin/ffmpeg`; 85 s of video at 1440 × 900, VP9, 19.8 MB.] The screenshots are
+committed; **the video is not** (the repository rules keep large binaries out of git): record it with
+`npm run demo:video`, or take it from wherever the team keeps demo assets.
+
 ## The demo journey in the browser (`playwright.demo.config.ts`)
 
 ```bash
@@ -176,14 +232,30 @@ CLEARLINE_DEMO_PG_URL=… npx playwright test -c playwright.demo.config.ts journ
 The web server (`scripts/demo/e2e-server.ts`) runs `npm run demo -- --no-start` (sets up, seeds and builds what is
 missing, with this checkout's `.demo/state.json`) and starts the demo build on `CLEARLINE_DEMO_E2E_PORT` (default 3402).
 Each spec resets the demo database first, so do not present from the same checkout while it runs.
+`CLEARLINE_DEMO_E2E_REUSE=1` uses a demo server already running on that port (only while iterating on a test).
 
-- `tests/e2e-demo/journey.spec.ts`: the 13 steps (overview, daily report, payments filters and search, BK-24823,
+- `tests/e2e-demo/journey.spec.ts`: the journey (`journey.ts`) **twice**: from the seeded state, then the "Reset demo"
+  button, then all 13 steps again. The steps (overview, daily report, payments filters and search, BK-24823,
   its exception, the switcher and the self-approval refusals, the B-1125-SGD waterfall, BK-25102, month-end, exports
   and the Viewer refusal, the upload of `demo-files/` checked against `expected-outcomes.json`, the provider console,
   settings), with axe (WCAG 2.2 AA) at 1280 px and 390 px, no horizontal scroll, no console error and no 5xx on
   every page it visits.
 - `tests/e2e-demo/pages.spec.ts`: every journey page, the median of 5 loads (must be under 1 s; written to
   `test-results/demo-page-times-<project>.json`) and axe.
+- `tests/e2e-demo/crawl.spec.ts`: for each of the five demo logins, every screen reachable from the navigation and
+  from links on the pages (same-origin, at most 2 pages of each shape and 90 per login), downloads fetched (not
+  opened), and every button that only shows, hides or filters clicked; it fails on a 5xx, a console or page error, an
+  unlabelled control (axe's name and label rules and an own check of every visible control), visible "TODO", "coming
+  soon" or "lorem", a missing data label or horizontal scroll, with full axe at 1280 px and 390 px on the first page of
+  each shape. It never clicks sign out, reset, the switcher, approvals, uploads, runs or saves.
+- `tests/e2e-demo/upload.spec.ts`: `demo-files/` through the browser, then the database must hold exactly
+  `expected-outcomes.json` (rows per file, decisions before and after, every rule, each new order, the run's counts,
+  the statement lines) and both batch pages show "tied" with "imported, not bank-authenticated".
+- `tests/e2e-demo/cases.spec.ts`: the three cases' numbers on their screens and in the seeded database (read-only), and
+  the seed's database-stamped times on the demo calendar.
+- `tests/e2e-demo/guide.spec.ts` and `feedback.spec.ts`: the presenter guide (keyboard, axe with the panel open, every
+  "Go there" lands signed in as the right login) and "Note feedback" (one note per login, the export, kept across a
+  reset).
 
 ## Demo build vs real build
 
@@ -193,6 +265,9 @@ Each spec resets the demo database first, so do not present from the same checko
 | Live chain reads, ledger pull | as configured | refused at start (offline) |
 | `POST /api/control/demo/reset`, "Reset demo" | 404 / not rendered; the code is not in the bundle | present |
 | `POST /api/control/demo/switch`, "Sign in as" (role switcher) | 404 / not rendered; the code is not in the bundle | present, for members of demo organisations only |
+| Presenter guide | not rendered; not in the bundle | present, for members of demo organisations only |
+| `POST /api/control/demo/feedback`, "Note feedback" | 404 / not rendered; the code is not in the bundle | present, for demo organisations only (and the table's row-level security refuses any other) |
+| Table `demo_feedback` (migration 0032) | exists, empty; its insert policy refuses every non-demo organisation | holds the notes |
 | Data mode `demo` (migration 0031) | the label still shows; nothing else changes | as left |
 | Check | `node scripts/build/check-chain-recording.mjs --marker demo --expect absent` | `NEXT_DIST_DIR=.next-demo node scripts/build/check-chain-recording.mjs --marker demo --expect present` |
 
