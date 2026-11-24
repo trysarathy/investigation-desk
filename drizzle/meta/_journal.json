@@ -260,6 +260,13 @@
       "when": 1796370000000,
       "tag": "0037_chain_reads_rls_indexed",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1796380000000,
+      "tag": "0038_entity_policy_insert_owner_only",
+      "breakpoints": true
     }
   ]
 }

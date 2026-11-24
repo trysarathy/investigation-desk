@@ -161,7 +161,8 @@ describe("rows that would make auto-matching more permissive are refused", () =>
       await dbRefuses(as(seed.users[who], o, sql`update merchant_policy set allow_imported_bank_lines_as_verified = true, revision = revision + 1 where entity_id = 'ENT-SG-02'`), /only by an Admin/, who);
     }
     await ownerDb().execute(sql`insert into merchant_entities (org_id, id, name, functional_currency, ledger, timezone) values (${o}, 'ENT-SG-NEW', 'New entity (fictional)', 'SGD', 'none', 'Asia/Singapore')`);
-    await dbRefuses(as(seed.users["ops@straits-demo.example"], o, sql`insert into merchant_policy (org_id, entity_id, tolerance_bps, tolerance_abs_minor) values (${o}, 'ENT-SG-NEW', 1000, 1000000)`), /only by an Admin/);
+    // v1 (0038): the runtime login has no INSERT on merchant_policy at all; a policy is created only by add-entity (owner)
+    await dbRefuses(as(seed.users["ops@straits-demo.example"], o, sql`insert into merchant_policy (org_id, entity_id, tolerance_bps, tolerance_abs_minor) values (${o}, 'ENT-SG-NEW', 1000, 1000000)`), /permission denied/);
     const admin = seed.users["admin@straits-demo.example"];
     await dbRefuses(as(admin, o, sql`update merchant_policy set tolerance_abs_minor = 600 where entity_id = 'ENT-SG-01'`), /one revision at a time/);
     const ctxA = await ctx("admin@straits-demo.example", "sg");
