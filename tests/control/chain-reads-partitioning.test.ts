@@ -1,6 +1,8 @@
 /**
- * v1 phase 0: chain_reads partitioned by month (drizzle/0036), against PostgreSQL 16. Structure, the append-only
- * guard on every partition, a month without a partition refused loudly. Fictional data.
+ * v1 phase 0: chain_reads partitioned by month (drizzle/0036) with indexed row-level security (drizzle/0037,
+ * approval-only), against PostgreSQL 16. Structure, the append-only guard on every partition, a month without a
+ * partition refused loudly, and isolation control tests: another organisation's reads invisible, writes refused,
+ * provider reads only under a 'full' grant; the policies' organisation check is an index condition. Fictional data.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
@@ -20,6 +22,8 @@ async function refused(p: Promise<unknown>, re: RegExp) {
   expect(e, "expected a refusal").toBeDefined();
   expect(`${e!.message ?? ""} | ${e!.cause?.message ?? ""}`).toMatch(re);
 }
+const count = async (userId: string, orgId: string, where = sql`true`) =>
+  Number((await asUser(userId, orgId, sql`select count(*)::int as n from chain_reads where ${where}`)).rows[0].n);
 const readRow = (orgId: string, at: string, status = "ok") =>
   sql`insert into chain_reads (org_id, entity_id, network, tx_hash, status, source, at) values (${orgId}, 'ENT-1', 'tron', md5(random()::text), ${status}, 'recording', ${at}::timestamptz)`;
 
@@ -103,5 +107,91 @@ describe("chain_reads partitioned by month", () => {
     await asUser(ids["fin@cr-a.example"], org["cr-merchant-a"], readRow(org["cr-merchant-a"], "2099-03-01T00:00:00Z"));
     expect((await rows(`select tableoid::regclass::text as part from chain_reads where at = '2099-03-01T00:00:00Z'`))[0].part).toBe("chain_reads_p209903");
     await refused(q(`delete from chain_reads where at = '2099-03-01T00:00:00Z'`), /is append-only: (UPDATE|DELETE) refused/); // append-only on the new partition too
+  });
+});
+
+describe("SECURITY (approval-only, 0037): chain_reads isolation with indexed policies", () => {
+  const A = () => org["cr-merchant-a"], B = () => org["cr-merchant-b"];
+
+  it("a member sees only their organisation's reads; another organisation's are invisible, even when named", async () => {
+    expect(await count(ids["fin@cr-a.example"], A())).toBe(5); // 4 seeded + the 2099 read above
+    expect(await count(ids["fin@cr-b.example"], B())).toBe(1);
+    expect(await count(ids["fin@cr-b.example"], B(), sql`org_id = ${A()}`)).toBe(0);
+    // a member of B claiming A's context sees nothing (not a member of A)
+    expect(await count(ids["fin@cr-b.example"], A())).toBe(0);
+    // no organisation in context: nothing
+    expect(Number((await withTenant({ userId: ids["fin@cr-a.example"] }, (tx) => tx.execute(sql`select count(*)::int as n from chain_reads`))).rows[0].n)).toBe(0);
+  });
+
+  it("writes into another organisation, or outside a membership, are refused", async () => {
+    await refused(asUser(ids["fin@cr-b.example"], B(), readRow(A(), "2026-11-20T00:00:00Z")), /row-level security/);
+    await refused(asUser(ids["fin@cr-b.example"], A(), readRow(A(), "2026-11-20T00:00:00Z")), /row-level security/);
+    await refused(asUser(ids["admin@cr-provider-a.example"], org["cr-provider-a"], readRow(A(), "2026-11-20T00:00:00Z")), /row-level security/);
+    // a multi-row insert with one foreign row is refused as a whole
+    await refused(asUser(ids["fin@cr-a.example"], A(), sql`insert into chain_reads (org_id, entity_id, network, tx_hash, status, source, at)
+      values (${A()}, 'ENT-1', 'tron', 'c1', 'ok', 'recording', '2026-11-20T00:00:00Z'), (${B()}, 'ENT-1', 'tron', 'c2', 'ok', 'recording', '2026-11-20T00:00:00Z')`), /row-level security/);
+    expect(Number((await rows(`select count(*)::int as n from chain_reads where at = '2026-11-20T00:00:00Z'`))[0].n)).toBe(0);
+  });
+
+  it("a revoked member sees nothing and cannot write", async () => {
+    const email = "revoked@cr-a.example";
+    ids[email] = await createUser(ownerDb(), { email, name: "revoked (fictional)", password: PASSWORD });
+    await grantMembership(ownerDb(), { orgSlug: "cr-merchant-a", email, role: "finance" as never });
+    expect(await count(ids[email], A())).toBe(5); // 4 seeded + the 2099 read above
+    await q(`update organization_memberships set revoked_at = now() where user_id = '${ids[email]}'`);
+    expect(await count(ids[email], A())).toBe(0);
+    await refused(asUser(ids[email], A(), readRow(A(), "2026-11-20T00:00:00Z")), /row-level security/);
+  });
+
+  it("a provider reads a merchant's reads only under an unrevoked 'full' grant, never another provider's merchants", async () => {
+    const pa = ids["admin@cr-provider-a.example"], pb = ids["admin@cr-provider-b.example"];
+    expect(await count(pa, org["cr-provider-a"])).toBe(0); // no grant yet (aggregates-only default)
+    await q(`insert into provider_grants (merchant_org_id, provider_org_id, scope, granted_by) values ('${A()}', '${org["cr-provider-a"]}', 'aggregates', '${ids["fin@cr-a.example"]}')`);
+    expect(await count(pa, org["cr-provider-a"])).toBe(0);
+    await q(`update provider_grants set scope = 'full' where merchant_org_id = '${A()}'`);
+    expect(await count(pa, org["cr-provider-a"])).toBe(5); // A only, not B
+    expect(await count(pa, org["cr-provider-a"], sql`org_id = ${B()}`)).toBe(0);
+    expect(await count(pb, org["cr-provider-b"])).toBe(0); // the other provider
+    expect(await count(pb, org["cr-provider-a"])).toBe(0); // not a member of provider A
+    // a grant to a provider that is not the merchant's own provider is ignored
+    await q(`insert into provider_grants (merchant_org_id, provider_org_id, scope, granted_by) values ('${B()}', '${org["cr-provider-b"]}', 'full', '${ids["fin@cr-b.example"]}')`);
+    expect(await count(pb, org["cr-provider-b"])).toBe(0);
+    await q(`update provider_grants set revoked_at = now() where merchant_org_id = '${A()}'`);
+    expect(await count(pa, org["cr-provider-a"])).toBe(0);
+    await q(`delete from provider_grants`);
+  });
+
+  it("the policies: one indexed organisation predicate for reads, the membership check once per statement for inserts", async () => {
+    const pol = await rows(`select polname, polcmd, pg_get_expr(polqual, polrelid) as q, pg_get_expr(polwithcheck, polrelid) as c from pg_policy
+      where polrelid = 'chain_reads'::regclass order by polname`);
+    expect(pol).toEqual([
+      { polname: "chain_reads_insert", polcmd: "a", q: null, c: "((org_id = app_org_id()) AND ( SELECT app_is_member(app_org_id()) AS app_is_member))" },
+      { polname: "chain_reads_read", polcmd: "r", q: "(org_id = ANY (( SELECT app_readable_org_ids() AS app_readable_org_ids)::uuid[]))", c: null },
+    ]);
+    // no UPDATE or DELETE policy and no such privilege: both stay refused (plus the append-only trigger)
+    for (const f of ["app_readable_org_ids()", "app_provider_full_access_merchants()"]) {
+      const r = (await rows(`select p.prosecdef, p.provolatile, has_function_privilege('clearline_runtime', '${f}', 'EXECUTE') as rt,
+        has_function_privilege('clearline_jobs', '${f}', 'EXECUTE') as jb from pg_proc p where p.oid = '${f}'::regprocedure`))[0];
+      expect(r).toEqual({ prosecdef: true, provolatile: "s", rt: true, jb: false });
+    }
+  });
+
+  it("EXPLAIN as the runtime login: the organisation check is an index condition on the parameter of one InitPlan, not a per-row call", async () => {
+    const explain = async (userId: string, orgId: string, query: string) => (await withTenant({ userId, orgId }, async (tx) => {
+      await tx.execute(sql`set local enable_seqscan = off`); // a few rows would be scanned anyway; this checks the index CAN serve the policy
+      return tx.execute(sql.raw(`explain (costs off) ${query}`));
+    })).rows.map((r) => String(r["QUERY PLAN"])).join("\n");
+    for (const [userId, orgId] of [[ids["fin@cr-a.example"], A()], [ids["admin@cr-provider-a.example"], org["cr-provider-a"]]]) {
+      const all = await explain(userId, orgId, `select count(*) from chain_reads`);
+      expect(all).toMatch(/InitPlan 1/);
+      expect(all).toMatch(/Index Scan (using|on) chain_reads_p202611_\w+/);
+      expect(all).not.toMatch(/Seq Scan/);
+      expect(all).toMatch(/Index Cond: \(org_id = ANY \(\$0\)\)/);
+      expect(all).not.toMatch(/SubPlan|app_is_member\(|app_provider_full_access\(|Filter: .*org_id = ANY/);
+    }
+    const probe = await explain(ids["fin@cr-a.example"], A(), `select id from chain_reads where org_id = '${A()}' and entity_id = 'ENT-1' and status = 'unavailable' limit 1`);
+    expect(probe).toMatch(/Index Cond: \(\(org_id = ANY \(\$0\)\) AND \(org_id = '[0-9a-f-]+'::uuid\) AND \(entity_id = 'ENT-1'::text\)\)/);
+    const ins = await explain(ids["fin@cr-a.example"], A(), `insert into chain_reads (org_id, entity_id, network, tx_hash, status, source, at) values ('${A()}', 'ENT-1', 'tron', 'x', 'ok', 'recording', '2026-11-20T00:00:00Z')`);
+    expect(ins).toMatch(/InitPlan 1/);
   });
 });
