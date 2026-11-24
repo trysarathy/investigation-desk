@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import { can } from "@/server/authz";
 import { dailyReports } from "@/server/merchant";
-import { DEMO_LAST_DAY } from "@/lib/clearline/demo/clock";
+import { DEMO_LAST_DAY, DEMO_TODAY } from "@/lib/clearline/demo/clock";
 import { merchantMember } from "@/server/merchant-page";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
@@ -36,6 +36,10 @@ export default async function DailyReportPage({ searchParams }: { searchParams: 
   const perEntity = date ? scope.filter((e) => e.days.includes(date)).map((e) => ({ e, r: reports.get(e.id)!.get(date)! })) : [];
   const perDate = days.map((d) => ({ d, t: total(scope.filter((e) => e.days.includes(d)).map((e) => reports.get(e.id)!.get(d)!)) }));
   const t = total(perEntity.map((x) => x.r));
+  // a demo organisation's data runs into the demo's "today" (transfers late on the last day, UTC, fall on the next
+  // merchant day): that day is shown, and named for what it is, a partial day
+  const partial = (d: string) => shell.dataMode === "demo" && d === DEMO_TODAY;
+  const dayLabel = (d: string) => (partial(d) ? `${d} (today, partial)` : d);
 
   return (
     <>
@@ -55,7 +59,7 @@ export default async function DailyReportPage({ searchParams }: { searchParams: 
             <div className={s.field}>
               <label className={s.label} htmlFor="date">Date (merchant day)</label>
               <select className={s.select} id="date" name="date" defaultValue={date ?? ""}>
-                {days.length === 0 ? <option value="">No data yet</option> : days.map((d) => <option key={d} value={d}>{d}</option>)}
+                {days.length === 0 ? <option value="">No data yet</option> : days.map((d) => <option key={d} value={d}>{dayLabel(d)}</option>)}
               </select>
             </div>
             <div><button type="submit" className={s.button}>Show report</button></div>
@@ -65,8 +69,9 @@ export default async function DailyReportPage({ searchParams }: { searchParams: 
             <Empty>Nothing has been reconciled yet. {mayReconcile ? "Run reconciliation below to match the ingested provider, chain and bank records." : "Ask Payment Operations or Finance to run reconciliation."}</Empty>
           ) : (
             <section className={s.section} aria-labelledby="summary-h">
-              <h2 className={s.h2} id="summary-h">Summary for {date}{sel ? ` · ${sel.id}` : ""}</h2>
+              <h2 className={s.h2} id="summary-h">Summary for {dayLabel(date)}{sel ? ` · ${sel.id}` : ""}</h2>
               <div className={s.panel}>
+                {partial(date) ? <p className={s.small} data-testid="partial-day">This is the demo&rsquo;s today, and only part of it is in: the payments here were made late on {DEMO_LAST_DAY} (UTC), which is already {DEMO_TODAY} on the merchant&rsquo;s clock. The day&rsquo;s files are on the Uploads page.</p> : null}
                 <p className={m.summary} data-testid="daily-summary">{t.summary}</p>
                 <p className={m.cutoff} data-testid="cutoff-note">Cut-off: provider day = UTC. {scope.map((e) => `${e.id} merchant day = ${e.timezone} (${offset(e.utcOffsetMinutes)})`).join("; ")}.</p>
                 <ul className={m.kpis}>
@@ -81,7 +86,7 @@ export default async function DailyReportPage({ searchParams }: { searchParams: 
 
           {perEntity.length > 0 ? (
             <section className={s.section} aria-labelledby="per-entity">
-              <h2 className={s.h2} id="per-entity">Per entity, {date}</h2>
+              <h2 className={s.h2} id="per-entity">Per entity, {dayLabel(date!)}</h2>
               <div className={s.tableWrap} role="region" aria-label="Per entity table" tabIndex={0}>
                 <table className={s.table}>
                   <thead><tr><th scope="col">Entity</th><th scope="col" className={s.num}>Payments</th><th scope="col" className={s.num}>Settlements tied</th><th scope="col" className={s.num}>Exceptions</th><th scope="col" className={s.num}>Write-offs awaiting approval</th><th scope="col">Merchant day</th></tr></thead>
@@ -105,7 +110,7 @@ export default async function DailyReportPage({ searchParams }: { searchParams: 
               <div className={s.tableWrap} role="region" aria-label="Per date table" tabIndex={0}>
                 <table className={s.table}>
                   <thead><tr><th scope="col">Date</th><th scope="col">Summary</th></tr></thead>
-                  <tbody>{perDate.map(({ d, t: x }) => <tr key={d}><td><a href={`/control/merchant${q({ entity: sel?.id, date: d })}`} aria-current={d === date ? "true" : undefined}>{d}</a></td><td>{x.summary}</td></tr>)}</tbody>
+                  <tbody>{perDate.map(({ d, t: x }) => <tr key={d}><td><a href={`/control/merchant${q({ entity: sel?.id, date: d })}`} aria-current={d === date ? "true" : undefined}>{dayLabel(d)}</a></td><td>{x.summary}</td></tr>)}</tbody>
                 </table>
               </div>
             </section>

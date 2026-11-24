@@ -24,7 +24,7 @@ import { closeOwner, ownerDb, resetBlank } from "./harness";
 import { useTestStorage } from "./upload-harness";
 import { closeDatabase, database } from "../../src/server/db/client";
 import * as t from "../../src/server/db/schema";
-import { seedDemo, DEMO_USERS } from "../../src/server/demo-seed";
+import { seedDemo, restampDemoSeed, DEMO_USERS, type DemoStampWindow } from "../../src/server/demo-seed";
 import { resetDemoDatabase, snapshotDemoTemplate } from "../../src/server/demo-reset";
 import { createMerchant, addEntity } from "../../src/server/merchant-setup";
 import { resolveTenant, type TenantContext } from "../../src/server/tenant";
@@ -50,6 +50,7 @@ const recordingFile = path.join(mkdtempSync(path.join(tmpdir(), "clearline-demo-
 writeFileSync(recordingFile, JSON.stringify(recording));
 
 let orgId = "";
+let stampWindows: DemoStampWindow[] = [];
 const users: Record<string, TenantContext> = {};
 let n = 0;
 const key = () => `demo-test-${++n}-${Date.now()}`;
@@ -108,6 +109,7 @@ beforeAll(async () => {
   try {
     const r = await seedDemo(ownerDb(), { password: PASSWORD, recording, setClock: clock.set });
     orgId = r.orgs.merchant;
+    stampWindows = r.stampWindows;
     expect(r).toMatchObject({ days: 30, runs: 90 });
   } finally { clock.restore(); }
   for (const u of DEMO_USERS) {
@@ -127,6 +129,26 @@ describe("the seeded demo world", () => {
     expect(b).toEqual(a);
     expect(Number(a.match_records.split(":")[0])).toBeGreaterThan(1_400);
   }, 600_000);
+
+  it("reads on the demo calendar once the seed's database-stamped times are moved (as `npm run demo` does)", async () => {
+    // the twin seed above is a second demo organisation; only this seed's windows are applied
+    expect(stampWindows.length).toBe(32); // set-up, 30 days, the morning of the demo day
+    const r = await restampDemoSeed(superUrl(), testDbName(), stampWindows);
+    expect(r.rows).toBeGreaterThan(1_000);
+    for (const k of ["approval_requests.created_at", "approval_decisions.created_at", "notifications.created_at", "chain_transfers.observed_at", "merchant_policy.updated_at"]) expect(r.columns[k], k).toBeGreaterThan(0);
+    const db = ownerDb();
+    const cols = (await db.execute(sql`select table_name t, column_name c from information_schema.columns where table_schema = 'public' and data_type like 'timestamp%' and column_default ilike '%now()%' and exists (select 1 from information_schema.columns o where o.table_schema = 'public' and o.table_name = columns.table_name and o.column_name = 'org_id')`)).rows as { t: string; c: string }[];
+    for (const { t: tb, c } of cols) {
+      const n = Number((await db.execute(sql.raw(`select count(*) n from "${tb}" where org_id = '${orgId}' and ("${c}" < '2026-11-08T00:00:00Z' or "${c}" > '2026-12-08T02:00:00Z')`))).rows[0].n);
+      expect(n, `${tb}.${c}`).toBe(0);
+    }
+    // Case 3's write-off is requested and approved on the demo day, after its two payments (1 and 3 Dec)
+    const wo = (await db.execute(sql`select r.created_at::text req, d.created_at::text dec from approval_requests r join approval_decisions d on d.request_id = r.id where r.org_id = ${orgId} and r.subject_id like 'WO-BK-25102@%'`)).rows[0] as { req: string; dec: string };
+    expect(wo.req.slice(0, 16)).toBe("2026-12-08 01:30");
+    expect(wo.dec.slice(0, 16)).toBe("2026-12-08 01:30");
+    // only a plain demo database name is accepted
+    await expect(restampDemoSeed(superUrl(), "Bad-Name", stampWindows)).rejects.toThrow(/bad demo database name/);
+  }, 120_000);
 
   it("holds the three documented cases with their exact numbers", async () => {
     const c1 = await batchBridge(users.finance, "B-1124-001");
