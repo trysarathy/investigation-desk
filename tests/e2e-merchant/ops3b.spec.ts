@@ -36,7 +36,7 @@ test("admin: members and audit log; notifications page; an Admin exports (rc8 de
   expect(m.status()).toBe(200);
   const d = await api(page, "GET", "/api/control/merchant/exports/journal-draft?entity=ENT-SG-01&month=2026-11&tool=xero");
   expect(d.status()).toBe(200);
-  for (const path of ["/api/control/merchant/evidence?order=BK-24817&format=json", "/api/control/merchant/journals/export?entity=ENT-SG-01&month=2026-11&format=csv"]) expect((await api(page, "GET", path)).status(), path).toBe(200);
+  for (const path of ["/api/control/merchant/evidence?entity=ENT-SG-01&month=2026-11&format=json", "/api/control/merchant/journals/export?entity=ENT-SG-01&month=2026-11&format=csv"]) expect((await api(page, "GET", path)).status(), path).toBe(200);
   await page.goto("/control/merchant/month-end?entity=ENT-SG-01&month=2026-11");
   await expect(page.getByTestId("month-end-pack")).toBeVisible();
   const audit = await api(page, "GET", "/api/control/merchant/admin/audit?pageSize=5");
