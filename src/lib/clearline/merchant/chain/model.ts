@@ -41,6 +41,8 @@ export interface ChainTransferFact {
   /** confirmations >= the network's confirmationsRequired AND the receipt was re-read unchanged. */
   finalised: boolean;
   evidence: Evidence[];
+  /** Earlier wallet-to-wallet hops a recording names for this transfer (facts only; live readers never set it). */
+  priorHops?: readonly { from: string; to: string; txHash: string }[];
 }
 
 /** A Transfer-shaped log or listing from a contract that is NOT configured (look-alike token). A fact, not a payment. */

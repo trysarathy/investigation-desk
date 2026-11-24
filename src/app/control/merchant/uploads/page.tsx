@@ -1,3 +1,4 @@
+import { usesUploadPipeline } from "@/lib/clearline/data-mode";
 import type { Metadata } from "next";
 import { can, ROLE_LABELS } from "@/server/authz";
 import { merchantMember } from "@/server/merchant-page";
@@ -26,7 +27,7 @@ export default async function UploadsPage() {
 
       <section className={s.section} aria-labelledby="new-upload">
         <h2 className={s.h2} id="new-upload">Upload a file</h2>
-        {v.dataMode !== "live" ? (
+        {!usesUploadPipeline(v.dataMode) ? (
           <Empty>This organisation holds sample data ({v.label}). Files are uploaded to your live organisation, where they are shown as &ldquo;Your data&rdquo;.</Empty>
         ) : !mayUpload ? (
           <p className={s.small} data-testid="read-only-note">Finance or Payment Operations upload files. Your role ({ROLE_LABELS[ctx.role]}) can read the list below.</p>
@@ -40,7 +41,7 @@ export default async function UploadsPage() {
       <section className={s.section} aria-labelledby="list">
         <h2 className={s.h2} id="list">Your uploads</h2>
         <p className={s.small}>Each file and the data derived only from it are deleted after {v.retentionDays} days (the delete-after date is set when the file is uploaded).</p>
-        {v.uploads.length === 0 ? <Empty>No uploads yet.{mayUpload && v.dataMode === "live" ? " Upload a file above to start." : ""}</Empty> : (
+        {v.uploads.length === 0 ? <Empty>No uploads yet.{mayUpload && usesUploadPipeline(v.dataMode) ? " Upload a file above to start." : ""}</Empty> : (
           <div className={s.tableWrap} role="region" aria-label="Uploads table" tabIndex={0}>
             <table className={s.table}>
               <thead><tr><th scope="col">File</th><th scope="col">Type</th><th scope="col">Entity</th><th scope="col">Status</th><th scope="col" className={s.num}>Accepted</th><th scope="col" className={s.num}>Warnings</th><th scope="col" className={s.num}>Rejected</th><th scope="col" className={s.num}>Duplicates</th><th scope="col">Uploaded by</th><th scope="col">Delete after</th></tr></thead>

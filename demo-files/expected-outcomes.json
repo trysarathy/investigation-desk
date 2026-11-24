@@ -1,0 +1,257 @@
+{
+  "label": "Demo · fictional data",
+  "entityId": "NW-SG",
+  "mappings": {
+    "orders": {
+      "fileType": "orders_invoices",
+      "columns": {
+        "order_id": {
+          "header": "Booking"
+        },
+        "entity": {
+          "header": "Book"
+        },
+        "invoice_amount": {
+          "header": "Amount due"
+        },
+        "currency": {
+          "header": "Currency"
+        },
+        "status": {
+          "header": "State",
+          "statusValueMap": {
+            "open": "open"
+          }
+        },
+        "issued_at": {
+          "header": "Booked (SGT)",
+          "dateFormat": "d_mon_y",
+          "defaultUtcOffsetMinutes": 480
+        }
+      }
+    },
+    "provider": {
+      "fileType": "provider_export",
+      "columns": {
+        "payment_id": {
+          "header": "Txn No."
+        },
+        "order_id": {
+          "header": "Booking Ref"
+        },
+        "quote_id": {
+          "header": "Checkout Ref"
+        },
+        "invoice_amount": {
+          "header": "Order total (SGD)"
+        },
+        "currency": {
+          "constant": "SGD"
+        },
+        "network": {
+          "header": "Chain"
+        },
+        "token_symbol": {
+          "header": "Coin"
+        },
+        "token_contract": {
+          "header": "Coin contract"
+        },
+        "deposit_address": {
+          "header": "Pay-to wallet"
+        },
+        "sender": {
+          "header": "Payer wallet"
+        },
+        "quoted_token_amount": {
+          "header": "Coins expected"
+        },
+        "received_token_amount": {
+          "header": "Coins received"
+        },
+        "quote_rate": {
+          "header": "Offer price"
+        },
+        "rate_source": {
+          "constant": "Provider P (demo) offer price"
+        },
+        "executed_rate": {
+          "header": "Fill price"
+        },
+        "credited_fiat": {
+          "header": "Net to merchant"
+        },
+        "fee": {
+          "header": "Charge"
+        },
+        "status": {
+          "header": "Result",
+          "statusValueMap": {
+            "COMPLETE": "paid",
+            "SHORT": "underpaid",
+            "REPRICED": "re_quoted"
+          }
+        },
+        "tx_hash": {
+          "header": "On-chain ref"
+        },
+        "log_index": {
+          "header": "Log #"
+        },
+        "created_at": {
+          "header": "Offer opened (SGT)",
+          "dateFormat": "d_mon_y",
+          "defaultUtcOffsetMinutes": 480
+        },
+        "expires_at": {
+          "header": "Offer ends (SGT)",
+          "dateFormat": "d_mon_y",
+          "defaultUtcOffsetMinutes": 480
+        },
+        "paid_at": {
+          "header": "Paid (SGT)",
+          "dateFormat": "d_mon_y",
+          "defaultUtcOffsetMinutes": 480
+        },
+        "batch_id": {
+          "header": "Payout ref"
+        }
+      }
+    }
+  },
+  "uploads": {
+    "northwind-sg-bookings-2026-12-08.xlsx": {
+      "rows": {
+        "rows": 24,
+        "accepted": 24,
+        "rejected": 0,
+        "warning": 0,
+        "duplicate": 0
+      },
+      "normalised": {
+        "created": 24,
+        "existing": 0,
+        "conflict": 0,
+        "skipped": 0
+      }
+    },
+    "provider-p-payments-2026-12-08.csv": {
+      "rows": {
+        "rows": 24,
+        "accepted": 24,
+        "rejected": 0,
+        "warning": 0,
+        "duplicate": 0
+      },
+      "normalised": {
+        "created": 24,
+        "existing": 0,
+        "conflict": 0,
+        "skipped": 0
+      }
+    },
+    "northwind-sgd-statement-2026-12-08.camt053.xml": {
+      "rows": {
+        "rows": 2,
+        "accepted": 2,
+        "rejected": 0,
+        "warning": 0,
+        "duplicate": 0
+      },
+      "normalised": {
+        "created": 2,
+        "existing": 0,
+        "conflict": 0,
+        "skipped": 0
+      }
+    }
+  },
+  "bankLinesOnDemoDay": [
+    {
+      "source": "file_import",
+      "n": 2
+    }
+  ],
+  "run": {
+    "status": "changed",
+    "records": 919,
+    "exceptions": 22,
+    "runCounts": {
+      "matched": 697,
+      "withDifference": 97,
+      "review": 103,
+      "exceptions": 22,
+      "unpaid": 7,
+      "kept": 9,
+      "notices": 0
+    }
+  },
+  "decisionsBefore": {
+    "exception": 87,
+    "matched": 697,
+    "matched_with_difference": 97,
+    "suggested_for_review": 14
+  },
+  "decisionsAfter": {
+    "exception": 22,
+    "matched": 697,
+    "matched_with_difference": 97,
+    "suggested_for_review": 103
+  },
+  "rulesAfter": {
+    "exception M2.reference.no_chain_transfer": 2,
+    "exception M3.batch.held_by_provider": 2,
+    "exception M3.batch.unknown_batch": 2,
+    "exception M4.tolerance.overpayment_beyond_band": 6,
+    "exception M4.tolerance.underpayment_beyond_band": 6,
+    "exception M4.tolerance.unexplained": 1,
+    "exception M5.batch.not_tied": 3,
+    "matched M5.batch.tied_verified": 697,
+    "matched_with_difference M4.tolerance.within_band": 97,
+    "suggested_for_review M1.finality.pending": 5,
+    "suggested_for_review M4.tolerance.explained_outside_band": 9,
+    "suggested_for_review M4.tolerance.writeoff_threshold": 1,
+    "suggested_for_review M5.bank.imported_not_verified": 65,
+    "suggested_for_review M5.grouping.proposed_needs_confirmation": 23
+  },
+  "newOrders": {
+    "BK-39001": "suggested_for_review M5.grouping.proposed_needs_confirmation",
+    "BK-39002": "suggested_for_review M5.grouping.proposed_needs_confirmation",
+    "BK-39003": "suggested_for_review M5.grouping.proposed_needs_confirmation",
+    "BK-39004": "suggested_for_review M5.grouping.proposed_needs_confirmation",
+    "BK-39005": "suggested_for_review M5.grouping.proposed_needs_confirmation",
+    "BK-39006": "suggested_for_review M5.grouping.proposed_needs_confirmation",
+    "BK-39007": "suggested_for_review M5.grouping.proposed_needs_confirmation",
+    "BK-39008": "suggested_for_review M5.grouping.proposed_needs_confirmation",
+    "BK-39009": "suggested_for_review M5.grouping.proposed_needs_confirmation",
+    "BK-39010": "suggested_for_review M5.grouping.proposed_needs_confirmation",
+    "BK-39011": "suggested_for_review M5.grouping.proposed_needs_confirmation",
+    "BK-39012": "suggested_for_review M5.grouping.proposed_needs_confirmation",
+    "BK-39013": "suggested_for_review M5.grouping.proposed_needs_confirmation",
+    "BK-39014": "suggested_for_review M5.grouping.proposed_needs_confirmation",
+    "BK-39015": "suggested_for_review M5.grouping.proposed_needs_confirmation",
+    "BK-39016": "suggested_for_review M5.grouping.proposed_needs_confirmation",
+    "BK-39017": "suggested_for_review M5.grouping.proposed_needs_confirmation",
+    "BK-39018": "suggested_for_review M5.grouping.proposed_needs_confirmation",
+    "BK-39019": "suggested_for_review M5.grouping.proposed_needs_confirmation",
+    "BK-39020": "suggested_for_review M5.grouping.proposed_needs_confirmation",
+    "BK-39021": "exception M4.tolerance.underpayment_beyond_band",
+    "BK-39022": "suggested_for_review M5.grouping.proposed_needs_confirmation",
+    "BK-39023": "suggested_for_review M5.grouping.proposed_needs_confirmation",
+    "BK-39024": "suggested_for_review M5.grouping.proposed_needs_confirmation"
+  },
+  "batches": {
+    "B-SGD-20261205": {
+      "tied": true,
+      "settlementVerified": false,
+      "bankLineSource": "csv_import",
+      "bankLineLabel": "imported, not bank-authenticated"
+    },
+    "B-SGD-20261207": {
+      "tied": true,
+      "settlementVerified": false,
+      "bankLineSource": "csv_import",
+      "bankLineLabel": "imported, not bank-authenticated"
+    }
+  }
+}

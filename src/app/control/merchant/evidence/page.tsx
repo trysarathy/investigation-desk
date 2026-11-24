@@ -21,7 +21,7 @@ export default async function EvidencePage({ searchParams }: { searchParams: Pro
           <EntityMonthForm action="/control/merchant/evidence" entities={shell.entities} entity={pick.entity} month={pick.month} label="Choose entity and month" />
           <section className={s.section} aria-labelledby="month-pack">
             <h2 className={s.h2} id="month-pack">Month pack: {pick.entity.id}, {pick.month}</h2>
-            <p className={s.small}>Every payment of {pick.entity.name} whose transfer falls in {pick.month} (merchant day, {pick.entity.timezone}). Each download is recorded in the audit history with its SHA-256. {shell.dataMode === "live" ? null : <>Files are marked &ldquo;{DEMO_LABEL}&rdquo;; </>}CSV cells that a spreadsheet could run as a formula are escaped.</p>
+            <p className={s.small}>Every payment of {pick.entity.name} whose transfer falls in {pick.month} (merchant day, {pick.entity.timezone}). Each download is recorded in the audit history with its SHA-256. {shell.dataMode !== "sample" ? null : <>Files are marked &ldquo;{DEMO_LABEL}&rdquo;; </>}CSV cells that a spreadsheet could run as a formula are escaped.</p>
             <ul className={m.downloads}>
               {(["pdf", "csv", "json"] as const).map((f) => (
                 <li key={f}><a href={`/api/control/merchant/evidence?entity=${encodeURIComponent(pick.entity.id)}&month=${pick.month}&format=${f}`} download>Download {f === "pdf" ? "PDF summary" : f.toUpperCase()}</a></li>

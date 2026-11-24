@@ -11,6 +11,8 @@
  *
  * The same condition is written out inline in src/server/chain-verify.ts so the bundler can drop that branch.
  */
+import { demoBuild } from "./demo-build";
+
 export function chainRecordingAllowed(): boolean {
   return process.env.CLEARLINE_NEXT_BUILD === "1" ? process.env.CLEARLINE_TEST_BUILD === "1" : process.env.VITEST === "true";
 }
@@ -22,7 +24,11 @@ export class ChainRecordingRefused extends Error {
   constructor() { super(CHAIN_RECORDING_REFUSED); }
 }
 
-/** Server start (src/instrumentation.ts) and the job worker: refuse to run with a recording in a non-test build. */
+/**
+ * Server start (src/instrumentation.ts) and the job worker: refuse to run with a recording in a build that is neither a
+ * test build nor a demo build (src/server/demo-build.ts). A demo build starts with one, and still refuses it, per
+ * call, for every organisation that is not a demo organisation.
+ */
 export function assertNoChainRecordingOutsideTestBuild(env: Record<string, string | undefined> = process.env): void {
-  if (env.CLEARLINE_CHAIN_RECORDING && !chainRecordingAllowed()) throw new ChainRecordingRefused();
+  if (env.CLEARLINE_CHAIN_RECORDING && !chainRecordingAllowed() && !demoBuild()) throw new ChainRecordingRefused();
 }

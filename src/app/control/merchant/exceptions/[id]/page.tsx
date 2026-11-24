@@ -4,6 +4,7 @@ import { can } from "@/server/authz";
 import { orNotFound } from "@/server/control-page";
 import { exceptionDetail } from "@/server/merchant-ui";
 import { merchantMember } from "@/server/merchant-page";
+import { pageNow } from "@/server/demo-build";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
 import { FlashMessage } from "@/components/control/forms";
@@ -16,7 +17,7 @@ export const metadata: Metadata = { title: "Exception" };
 const STATUS: Record<string, string> = { open: "Open", in_review: "In review (resolution awaiting approval)", resolved: "Resolved" };
 
 export default async function ExceptionPage({ params }: { params: Promise<{ id: string }> }) {
-  const { ctx } = await merchantMember();
+  const { ctx, shell } = await merchantMember();
   const id = decodeURIComponent((await params).id);
   const d = await orNotFound(exceptionDetail(ctx, id));
   const e = d.exception;
@@ -29,7 +30,7 @@ export default async function ExceptionPage({ params }: { params: Promise<{ id: 
     <>
       <p className={s.small}><a href="/control/merchant/exceptions">← All exceptions</a></p>
       <h1 className={s.title}>Exception {e.id}</h1>
-      <p className={s.lede}>{e.orderId ? <>Payment <a href={`/control/merchant/payments/${encodeURIComponent(e.orderId)}`}>{e.orderId}</a> · </> : null}opened {when(e.openedAt)} ({age(e.openedAt, Date.now())} ago) · <Chip tone={open ? "warn" : "ok"} testId="exception-status">{STATUS[e.status] ?? e.status}</Chip></p>
+      <p className={s.lede}>{e.orderId ? <>Payment <a href={`/control/merchant/payments/${encodeURIComponent(e.orderId)}`}>{e.orderId}</a> · </> : null}opened {when(e.openedAt)} ({age(e.openedAt, pageNow(shell.dataMode))} ago) · <Chip tone={open ? "warn" : "ok"} testId="exception-status">{STATUS[e.status] ?? e.status}</Chip></p>
       <FlashMessage flashKey={`resolution:${e.id}`} />
 
       <div className={m.cols2}>

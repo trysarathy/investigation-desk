@@ -81,6 +81,7 @@ export class RecordingChainClient implements VerifyChainClient {
         network: t.network, txHash: t.txHash, logIndex: t.logIndex, tokenContract: token.contract, symbol: token.symbol, from: t.from, to: t.to,
         amountBaseUnits: BigInt(t.amountBaseUnits), decimals: t.decimals, blockNumber: BigInt(t.block), timestamp: new Date(Date.parse(t.timestamp)).toISOString(),
         confirmations: BigInt(t.confirmations), finalised: t.confirmations >= required, evidence: ev,
+        ...(t.priorHops ? { priorHops: t.priorHops.map((h) => ({ ...h })) } : {}),
       });
     }
     return { transfers, nonMatching };
@@ -118,6 +119,7 @@ export function recordingOf(transfers: readonly ChainTransfer[]): { label: "Test
     transfers: transfers.map((t) => ({
       network: t.network, txHash: t.txHash, logIndex: t.logIndex, tokenContract: t.tokenContract, ...(t.claimedSymbol ? { claimedSymbol: t.claimedSymbol } : {}),
       from: t.from, to: t.to, amountBaseUnits: t.amountBaseUnits.toString(), decimals: t.decimals, block: t.block, timestamp: t.timestamp, confirmations: t.confirmations,
+      ...(t.priorHops?.length ? { priorHops: t.priorHops.map((h) => ({ from: h.from, to: h.to, txHash: h.txHash })) } : {}),
     })),
   };
 }

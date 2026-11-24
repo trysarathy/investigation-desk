@@ -130,3 +130,8 @@
 .filterLinks { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin: 12px 0 8px; font-size: 14px; }
 .filterLinks a[aria-current="true"] { font-weight: 700; color: var(--ink); }
 .reasons { margin: 0; padding-left: 18px; }
+
+/* Demo build only: the Reset demo button next to the data label. */
+.demoReset { margin-left: 0.75rem; font-size: 0.875rem; }
+.demoReset button { font: inherit; padding: 0.15rem 0.6rem; border: 1px solid currentColor; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
+.demoReset button:disabled { opacity: 0.6; cursor: progress; }

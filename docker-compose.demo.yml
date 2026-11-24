@@ -1,0 +1,23 @@
+# `npm run demo` only: a local PostgreSQL 16 for the Clearline demo (fictional data). Started by scripts/demo/run.ts
+# when no CLEARLINE_DEMO_PG_URL is given; the superuser password comes from .demo/state.json via the environment and
+# is never committed. Bound to 127.0.0.1 only.
+name: clearline-demo
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${CLEARLINE_DEMO_PG_PASSWORD:?set by npm run demo}
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "127.0.0.1:${CLEARLINE_DEMO_PG_PORT:-54330}:5432"
+    volumes:
+      - clearline-demo-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+volumes:
+  clearline-demo-pg:

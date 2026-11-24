@@ -17,16 +17,17 @@ import type { DataMode } from "@/lib/clearline/data-mode";
 
 /**
  * `dataMode` (rc7): "sample" (the default, every seeded organisation) or "live" — an empty organisation for a
- * merchant's own uploads, labelled "Your data". A live organisation is never seeded with sample data.
+ * merchant's own uploads, labelled "Your data". A live organisation is never seeded with sample data. "demo" (demo
+ * build, `npm run demo` only): empty here too, then filled with the fictional demo world by src/server/demo-seed.ts.
  */
 export async function createOrganization(db: Db, input: { slug: string; name: string; seed: "sample" | "empty"; dataMode?: DataMode }): Promise<string> {
   const dataMode = input.dataMode ?? "sample";
-  if (dataMode === "live" && input.seed !== "empty") throw new Error("a live organisation starts empty");
+  if ((dataMode === "live" || dataMode === "demo") && input.seed !== "empty") throw new Error(`a ${dataMode} organisation starts empty`);
   const ws: Workspace = input.seed === "sample" ? pilotSeedWorkspace() : emptyWorkspace();
   return db.transaction(async (tx) => {
-    const [org] = await tx.insert(t.organizations).values({ slug: input.slug, name: input.name, timezone: ws.organization.timezone, fictional: dataMode === "sample", dataMode }).returning({ id: t.organizations.id });
+    const [org] = await tx.insert(t.organizations).values({ slug: input.slug, name: input.name, timezone: ws.organization.timezone, fictional: dataMode !== "live", dataMode }).returning({ id: t.organizations.id });
     await saveWorkspaceDiff(tx, org.id, null, ws, { provenance: "seed_fictional", actorUserId: null, seedActors: ws.actors });
-    await tx.insert(t.auditEvents).values({ orgId: org.id, source: "server", action: "organization_created", summary: `Organisation ${input.slug} created with ${input.seed} ${dataMode === "live" ? "(live, for uploads)" : "fictional"} data`, at: new Date() });
+    await tx.insert(t.auditEvents).values({ orgId: org.id, source: "server", action: "organization_created", summary: `Organisation ${input.slug} created with ${input.seed} ${dataMode === "live" ? "(live, for uploads)" : dataMode === "demo" ? "fictional (demo, for the demo build)" : "fictional"} data`, at: new Date() });
     return org.id;
   });
 }

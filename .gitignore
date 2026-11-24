@@ -20,3 +20,7 @@ reconstruction-data/
 
 # rc7 synthetic data generator output (regenerate with npm run synthetic)
 synthetic-data/
+
+# `npm run demo`: local state (passwords, recorded chain file, uploads) and the demo build. Never commit.
+.demo/
+.next-demo/

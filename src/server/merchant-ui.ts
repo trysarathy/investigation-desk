@@ -11,7 +11,7 @@ import { Decision, IdempotencyKey, canonical, idempotent, serverAudit } from "./
 import { decideWriteoff, monthEnd } from "./merchant";
 import { MissingEntity, loadReconcileInput } from "./merchant-store";
 import { dataModeOf } from "./mapping-templates";
-import { LIVE_DATA_LABEL, type DataLabel, type DataMode } from "@/lib/clearline/data-mode";
+import { DEMO_DATA_LABEL, labelUsesUploadPipeline, type DataLabel, type DataMode } from "@/lib/clearline/data-mode";
 import { AccessDenied, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
 
@@ -150,7 +150,7 @@ export async function paymentContext(ctx: TenantContext, orderId: string) {
     const label = await orgLabel(tx, ctx.orgId);
     for (const x of p.chain.transfers) {
       const row = chainRows.find((c) => c.txHash === x.txHash && c.logIndex === x.logIndex);
-      tl.push({ at: x.timestamp, kind: "chain", title: `On-chain transfer on ${x.network}`, detail: `${x.txHash} · ${x.confirmations} confirmations${row ? (row.finalised ? " · final" : " · not final") : ""}${label === LIVE_DATA_LABEL ? ` · ${row?.source ?? "chain data"}` : " · recorded fixture"}`, independent: true });
+      tl.push({ at: x.timestamp, kind: "chain", title: `On-chain transfer on ${x.network}`, detail: `${x.txHash} · ${x.confirmations} confirmations${row ? (row.finalised ? " · final" : " · not final") : ""}${labelUsesUploadPipeline(label) ? ` · ${row?.source ?? "chain data"}` : " · recorded fixture"}`, independent: true });
     }
     for (const r of p.provider.records) tl.push({ at: m.computedAt.toISOString(), kind: "provider", title: `Provider record ${r.providerPaymentId}`, detail: `Provider claims "${r.statusClaim}"${r.displayedStatus ? ` (shown as "${r.displayedStatus}")` : ""}; credited ${money(r.creditedMinor, inv.currency)}. A claim, not proof.`, independent: false });
     for (const b of batches) tl.push({ at: b.dayEnd.toISOString(), kind: "settlement", title: `Settlement batch ${b.batchId}`, detail: `Provider day ${b.dayStart.toISOString().slice(0, 10)} (provider day = UTC); net ${money(b.netMinor, b.currency)}. Provider report, not proof.`, independent: false });
@@ -489,7 +489,7 @@ export async function packData(tx: Tx, ctx: TenantContext, scope: PackScope) {
   return {
     label, organisation: ctx.orgName, entity: { id: ent.id, name: ent.name, currency: ent.functionalCurrency, timezone: ent.timezone, ledger: ent.ledger },
     scope, cutOffNote: "provider day = UTC",
-    note: label === LIVE_DATA_LABEL ? "Read-only evidence. Provider statuses are claims, not proof; each chain fact names its source; imported bank statements are not bank-authenticated; nothing moves money."
+    note: labelUsesUploadPipeline(label) ? "Read-only evidence. Provider statuses are claims, not proof; each chain fact names its source; imported bank statements are not bank-authenticated; nothing moves money."
       : "Read-only evidence. Provider statuses are claims, not proof; chain data is a recorded fixture; nothing moves money.",
     payments: parts.map(({ m, p }) => ({ orderId: m.orderId, decision: m.decision, decidingStep: m.decidingStep, ruleId: m.ruleId, engineVersion: m.engineVersion, inputSha256: m.inputSha256, ledger: p.ledger, bank: p.bank, explanation: { history: p.explanation.history, differences: p.explanation.differences } })),
     chainProof: chain.map((c) => ({ network: c.network, txHash: c.txHash, logIndex: c.logIndex, block: c.block, blockTime: c.blockTime.toISOString(), tokenContract: c.tokenContract, from: c.fromAddress, to: c.toAddress, amountBaseUnits: c.amountBaseUnits, decimals: c.decimals, confirmations: c.confirmations, finalised: c.finalised, source: c.source })),
@@ -543,7 +543,7 @@ async function packPdf(p: Pack): Promise<Uint8Array> {
   const LABEL = p.label;
   doc.setTitle(`Clearline evidence pack — ${LABEL}`);
   doc.setSubject(LABEL);
-  doc.setProducer(LABEL === LIVE_DATA_LABEL ? "Clearline" : "Clearline (test mode)");
+  doc.setProducer(LABEL === DEMO_DATA_LABEL ? "Clearline (demo build)" : labelUsesUploadPipeline(LABEL) ? "Clearline" : "Clearline (test mode)");
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const W = 595, H = 842, M = 48;
@@ -573,7 +573,7 @@ async function packPdf(p: Pack): Promise<Uint8Array> {
   const head = (s: string) => { y -= 4; line(s, { b: true, size: 11, gap: 2 }); };
   head(`Payments (${p.payments.length})`);
   for (const x of p.payments) line(`${x.orderId}: ${x.decision} at step ${x.decidingStep} (rule ${x.ruleId}); invoice ${money(x.ledger.invoice.amountMinor, x.ledger.invoice.currency)}, credited ${money(x.ledger.creditedMinor, x.ledger.invoice.currency)}, ${x.ledger.balanceLabel}; bank ${x.bank.status}${x.bank.batchTied ? ", batch tied" : ""}.`);
-  head(`Chain proof (${p.chainProof.length})${LABEL === LIVE_DATA_LABEL ? "" : " — recorded fixture"}`);
+  head(`Chain proof (${p.chainProof.length})${labelUsesUploadPipeline(LABEL) ? "" : " — recorded fixture"}`);
   for (const c of p.chainProof.slice(0, 60)) line(`${c.network} ${c.txHash} log ${c.logIndex}, block ${c.block}, ${c.blockTime}, ${c.confirmations} confirmations${c.finalised ? " (final)" : " (not final)"}, to ${c.to}`);
   if (p.chainProof.length > 60) line(`… ${p.chainProof.length - 60} more in the CSV and JSON files.`);
   head(`Provider records (${p.providerRecords.length}) — claims, not proof`);
