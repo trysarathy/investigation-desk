@@ -17,6 +17,8 @@
  *
  * The same condition is written out inline where a branch must be dropped (chain-verify.ts, the reset route).
  */
+import { DEMO_NOW } from "@/lib/clearline/demo/clock";
+
 export function demoBuild(): boolean {
   return process.env.CLEARLINE_NEXT_BUILD === "1" ? process.env.CLEARLINE_DEMO_BUILD === "1" : false;
 }
@@ -38,4 +40,9 @@ export class DemoNetworkRefused extends Error {
 /** Server start (src/instrumentation.ts): a demo build never reaches the network for chain or ledger data. */
 export function assertDemoBuildOffline(env: Record<string, string | undefined> = process.env): void {
   if (demoBuild() && (env.CLEARLINE_CHAIN_LIVE === "1" || env.CLEARLINE_LEDGER_PULL === "1")) throw new DemoNetworkRefused();
+}
+
+/** "Now" for a page's ages: the demo clock for a demo organisation in a demo build, the machine clock otherwise. */
+export function pageNow(dataMode: string): number {
+  return demoBuild() && dataMode === "demo" ? Date.parse(DEMO_NOW) : Date.now();
 }

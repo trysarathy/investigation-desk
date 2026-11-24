@@ -9,7 +9,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { assertNoChainRecordingOutsideTestBuild, ChainRecordingRefused } from "@/server/test-build";
-import { assertDemoBuildOffline, demoBuild, DemoNetworkRefused, DemoRecordingRefused } from "@/server/demo-build";
+import { assertDemoBuildOffline, demoBuild, DemoNetworkRefused, DemoRecordingRefused, pageNow } from "@/server/demo-build";
+import { DEMO_NOW } from "@/lib/clearline/demo/clock";
 import { verifyClientFromEnv } from "@/server/chain-verify";
 import { recordingOf } from "@/lib/clearline/merchant/chain";
 import { DEMO_DATA_LABEL, LIVE_DATA_LABEL, dataLabel, isDataMode, usesUploadPipeline } from "@/lib/clearline/data-mode";
@@ -74,6 +75,16 @@ describe("recorded chain data in a demo build", () => {
     expect(() => assertDemoBuildOffline({})).not.toThrow();
     build({});
     expect(() => assertDemoBuildOffline({ CLEARLINE_CHAIN_LIVE: "1" })).not.toThrow(); // not a demo build: unchanged
+  });
+});
+
+describe("the demo clock on pages", () => {
+  it("is used only in a demo build and only for a demo organisation", () => {
+    build({ demo: true });
+    expect(pageNow("demo")).toBe(Date.parse(DEMO_NOW));
+    expect(Math.abs(pageNow("live") - Date.now())).toBeLessThan(5_000);
+    build({});
+    expect(Math.abs(pageNow("demo") - Date.now())).toBeLessThan(5_000);
   });
 });
 
