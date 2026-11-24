@@ -135,3 +135,7 @@
 .demoReset { margin-left: 0.75rem; font-size: 0.875rem; }
 .demoReset button { font: inherit; padding: 0.15rem 0.6rem; border: 1px solid currentColor; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
 .demoReset button:disabled { opacity: 0.6; cursor: progress; }
+.demoSwitch { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-left: 0.75rem; font-size: 0.875rem; }
+.demoSwitch select { font: inherit; min-height: 32px; padding: 0.15rem 0.4rem; border: 1px solid var(--line, #8a8f98); border-radius: 4px; background: var(--surface, #fff); color: inherit; max-width: 100%; }
+.demoSwitch button { font: inherit; min-height: 32px; padding: 0.15rem 0.6rem; border: 1px solid currentColor; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
+.demoSwitch button:disabled, .demoSwitch select:disabled { opacity: 0.6; cursor: progress; }

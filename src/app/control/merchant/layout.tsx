@@ -5,8 +5,7 @@ import { unreadCount } from "@/server/notifications";
 import { SignOutButton } from "@/components/control/forms";
 import { MerchantNav, type NavItem } from "@/components/merchant/Nav";
 import { DataChip } from "@/components/merchant/ui";
-import { ResetDemoButton } from "@/components/merchant/ResetDemoButton";
-import { demoBuild } from "@/server/demo-build";
+import { DemoBar } from "@/components/merchant/DemoBar";
 import m from "@/components/merchant/merchant.module.css";
 
 const MERCHANT_NAV: NavItem[] = [
@@ -60,7 +59,7 @@ export default async function MerchantLayout({ children }: { children: ReactNode
           <p className={m.brandWho} data-testid="signed-in-as">Signed in as <strong>{ctx.name}</strong> ({ctx.email}) · {ROLE_LABELS[ctx.role]} · {shell.kind === "merchant" ? <><a className={m.bell} href="/control/merchant/notifications" data-testid="bell">Notifications <span className={m.bellCount}>{unread}</span><span className={m.srOnly}> unread</span></a> · </> : null}<SignOutButton /></p>
         </div>
       </header>
-      <aside className={m.demo} aria-label="Data notice"><DataChip label={shell.label} />{demoBuild() && shell.dataMode === "demo" ? <ResetDemoButton /> : null}</aside>
+      <aside className={m.demo} aria-label="Data notice"><DataChip label={shell.label} /><DemoBar dataMode={shell.dataMode} who={{ userId: ctx.userId, name: ctx.name, email: ctx.email }} /></aside>
       <MerchantNav items={nav} label={shell.kind === "provider" ? "Provider console" : "Merchant reconciliation"} />
       <main className={m.mmain} id="main">{children}</main>
       <footer className={m.mfooter}>
