@@ -62,7 +62,7 @@ export const warningText = (code: string) => {
 };
 
 const REASONS: Readonly<Record<string, string>> = {
-  missing_value: "is empty but needed", unknown_currency: "is not a currency code Clearline knows", unknown_network: "is not a network Clearline knows",
+  missing_value: "is empty but needed", currency_not_bank_account: "is not the currency of the statement's bank account", unknown_currency: "is not a currency code Clearline knows", unknown_network: "is not a network Clearline knows",
   unknown_direction: "is neither credit nor debit", unmapped_status: "has a word you did not map to a Clearline status", invalid_address: "is not a valid address for the row's network",
   invalid_tx_hash: "is not a valid transaction hash", rate_not_positive: "is not a positive rate", date_format_needed: "needs you to choose the date order",
   invalid_date: "is not a date in the chosen format", missing_time: "has no time of day", utc_offset_unknown: "has no time zone and none was chosen",
@@ -82,3 +82,6 @@ const REASONS: Readonly<Record<string, string>> = {
   amount_conflicting_signs: "has two signs", amount_dr_cr_disabled: "is marked DR or CR, which this field does not accept", amount_too_long: "is too long",
 };
 export const reasonText = (code: string) => REASONS[code] ?? code.replace(/^amount_/, "amount: ").replace(/_/g, " ");
+
+/** v1: a bank account as people read it: its name, masked number and currency (never a full account number). */
+export const bankAccountLabel = (a: { displayName: string; accountLast4: string; currency: string }) => `${a.displayName} (•••• ${a.accountLast4}, ${a.currency})`;

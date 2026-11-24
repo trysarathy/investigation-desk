@@ -34,7 +34,7 @@ export default async function UploadsPage() {
         ) : v.entities.length === 0 ? (
           <Empty>No entities are set up yet, so there is nothing to upload a file for.</Empty>
         ) : (
-          <div className={s.panel}><UploadForm entities={v.entities} /></div>
+          <div className={s.panel}><UploadForm entities={v.entities} bankAccounts={v.bankAccounts} /></div>
         )}
       </section>
 

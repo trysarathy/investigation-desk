@@ -103,6 +103,22 @@ describe("the admin CLI creates a merchant from a blank database", () => {
     expect(await rows(sql`select tolerance_bps, tolerance_abs_minor::text as abs, tolerance_combine, writeoff_threshold_minor::text as wo, allow_imported_bank_lines_as_verified as imported, revision from merchant_policy`))
       .toEqual([{ tolerance_bps: d.tolerancePct, abs: d.toleranceAbsMinor.toString(), tolerance_combine: d.toleranceCombine, wo: d.writeoffThresholdMinor.toString(), imported: false, revision: 1 }]);
 
+    // v1: the entity's bank account; only the last four characters of the number are accepted or stored
+    const acct = await ok(["add-bank-account", M, sc.SG.entityId, "--name", "SGD operating", "--currency", "SGD", "--last4", "4321", "--bank", "Fictional Bank", "--bic", "FICTSGSGXXX"]);
+    expect(acct).toEqual({ status: "created", orgId: mer.orgId, entityId: sc.SG.entityId, bankAccountId: expect.any(String), currency: "SGD", entityCurrency: "SGD" });
+    expect(await ok(["add-bank-account", M, sc.SG.entityId, "--name", "SGD operating", "--currency", "SGD", "--last4", "4321", "--bank", "Fictional Bank", "--bic", "FICTSGSGXXX"])).toMatchObject({ status: "exists", bankAccountId: acct.bankAccountId });
+    const full = await cli(["add-bank-account", M, sc.SG.entityId, "--name", "USD operating", "--currency", "USD", "--last4", "GB82WEST12345698765432", "--bank", "Fictional Bank"]);
+    expect([full.code, full.err.trim()]).toEqual([1, "last four: pass exactly the LAST FOUR letters or digits of the account number; the full number is never stored"]);
+    for (const bad of [["--currency", "EUR"], ["--bic", "NOPE"]]) {
+      const f: Record<string, string> = { "--name": "Bad", "--currency": "USD", "--last4": "0001", "--bank": "Fictional Bank", [bad[0]]: bad[1] };
+      expect((await cli(["add-bank-account", M, sc.SG.entityId, ...Object.entries(f).flat()])).code, bad.join(" ")).toBe(1);
+    }
+    expect((await cli(["add-bank-account", M, "ENT-NONE", "--name", "X", "--currency", "SGD", "--last4", "0001", "--bank", "Fictional Bank"])).err).toMatch(/No such entity/);
+    const clashAcct = await cli(["add-bank-account", M, sc.SG.entityId, "--name", "SGD operating", "--currency", "SGD", "--last4", "9999", "--bank", "Fictional Bank", "--bic", "FICTSGSGXXX"]);
+    expect([clashAcct.code, clashAcct.err]).toEqual([1, expect.stringMatching(/different values .*nothing changed/)]);
+    expect(await rows(sql`select currency, account_last4, status, created_by from bank_accounts`)).toEqual([{ currency: "SGD", account_last4: "4321", status: "active", created_by: null }]);
+    expect(await rows(sql`select actor_user_id, details from audit_events where action = 'bank_account_created'`)).toEqual([{ actor_user_id: null, details: { entityId: sc.SG.entityId, bankAccountId: acct.bankAccountId, currency: "SGD" } }]);
+
     expect((await ok(["link-provider", M, P])).status).toBe("linked");
     expect((await ok(["link-provider", M, P])).status).toBe("exists");
 
@@ -122,7 +138,7 @@ describe("the admin CLI creates a merchant from a blank database", () => {
     expect((await rows(sql`select m.role from organization_memberships m join users u on u.id = m.user_id where u.email = 'viewer@live-a.example'`))[0].role).toBe("viewer");
 
     const sum = await ok(["setup-summary", M]);
-    expect(sum).toMatchObject({ slug: M, kind: "merchant", dataMode: "live", providerOrgId: prov.orgId, entities: [{ id: sc.SG.entityId, currency: "SGD", utcOffsetMinutes: 480, policyRevision: 1 }],
+    expect(sum).toMatchObject({ slug: M, kind: "merchant", dataMode: "live", providerOrgId: prov.orgId, entities: [{ id: sc.SG.entityId, currency: "SGD", utcOffsetMinutes: 480, policyRevision: 1, bankAccounts: [{ id: acct.bankAccountId, currency: "SGD", status: "active" }] }],
       members: { admin: 1, approver: 2, finance: 1, payment_ops: 1, viewer: 1 } });
   });
 

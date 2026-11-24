@@ -71,6 +71,41 @@ export const merchantEntities = pgTable("merchant_entities", {
   check("merchant_entities_ledger_chk", sql`${t.ledger} in ('xero','quickbooks','none')`),
 ]);
 
+export const BANK_ACCOUNT_STATUSES = ["active", "closed"] as const;
+
+/**
+ * v1: a bank account of an entity (drizzle/0039). Only a MASKED identifier is stored (the last four characters of the
+ * account number or IBAN); the full number is never stored, encrypted or otherwise. The account's currency may differ
+ * from the entity's functional currency (a Singapore company's USD account). Created and closed only through the
+ * provisioning path (`npm run control:admin -- add-bank-account`, schema owner); the app reads it. A statement upload
+ * names its account; its lines must be in the account's currency (service and database).
+ */
+export const bankAccounts = pgTable("bank_accounts", {
+  orgId: org(), id: uuid("id").notNull().defaultRandom(),
+  entityId: text("entity_id").notNull(),
+  currency: text("currency").notNull(),
+  displayName: text("display_name").notNull(),
+  /** Last four characters of the account number / IBAN, upper case. Never the full identifier. */
+  accountLast4: text("account_last4").notNull(),
+  bankName: text("bank_name").notNull(),
+  bic: text("bic"),
+  status: text("status").notNull().default("active"),
+  /** The person who created it; null when an operator created it with the admin CLI (the audit event says so). */
+  createdBy: text("created_by").references(() => users.id),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  closedAt: ts("closed_at"),
+}, (t) => [
+  primaryKey({ columns: [t.orgId, t.id] }),
+  foreignKey({ columns: [t.orgId, t.entityId], foreignColumns: [merchantEntities.orgId, merchantEntities.id], name: "bank_accounts_entity_fk" }),
+  uniqueIndex("bank_accounts_name_uq").on(t.orgId, t.entityId, t.displayName),
+  check("bank_accounts_cur_chk", CUR(t.currency)),
+  check("bank_accounts_last4_chk", sql`${t.accountLast4} ~ '^[A-Z0-9]{4}$'`),
+  check("bank_accounts_name_chk", sql`length(${t.displayName}) between 1 and 120`),
+  check("bank_accounts_bank_chk", sql`length(${t.bankName}) between 1 and 120`),
+  check("bank_accounts_bic_chk", sql`${t.bic} is null or ${t.bic} ~ '^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$'`),
+  check("bank_accounts_status_chk", sql`${t.status} in ('active','closed') and (${t.status} = 'closed') = (${t.closedAt} is not null)`),
+]);
+
 /**
  * Per-entity policy. rc7 founder decision: band = the LARGER of 0.5% or a fixed amount per currency (SGD 5.00,
  * USD 5.00, AED 20.00); the code sets the per-currency amount when an entity is created. Editable by an Admin.
@@ -218,9 +253,12 @@ export const bankLines = pgTable("bank_lines", {
   amountMinor: money("amount_minor").notNull(), description: text("description").notNull(),
   source: text("source").notNull(), importId: uuid("import_id"),
   entityId: text("entity_id"), provenance: text("provenance"),
+  /** v1: the entity's bank account the line belongs to (null on rows from before 0039 and on seed / rc5 CSV lines). */
+  bankAccountId: uuid("bank_account_id"),
   ...fromUpload(),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.lineId] }),
+  foreignKey({ columns: [t.orgId, t.bankAccountId], foreignColumns: [bankAccounts.orgId, bankAccounts.id], name: "bank_lines_bank_account_fk" }),
   // rc7: 'file_import' = a line from an uploaded statement (CSV, XLSX, MT940, camt.053): imported, not bank-authenticated
   check("bank_lines_source_chk", sql`${t.source} in ('bank_feed','csv_import','seed_fictional','file_import')`),
   check("bank_lines_import_chk", sql`${t.source} <> 'csv_import' or ${t.importId} is not null`),

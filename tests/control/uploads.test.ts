@@ -10,7 +10,7 @@ import { uploadStorage } from "../../src/server/storage";
 import path from "node:path";
 import { and, eq, sql } from "drizzle-orm";
 import { closeOwner, ownerDb, resetAndSeed } from "./harness";
-import { liveCtx, seedLiveMerchants, useTestStorage, type LiveSeed } from "./upload-harness";
+import { accountFields, liveCtx, seedLiveMerchants, useTestStorage, type LiveSeed } from "./upload-harness";
 import { closeDatabase } from "../../src/server/db/client";
 import * as t from "../../src/server/db/schema";
 import { AccessDenied, resolveTenant, withTenant } from "../../src/server/tenant";
@@ -61,7 +61,7 @@ const BANK: Mapping = { fileType: "bank_statement", columns: { bank_account: { c
 
 async function uploadAndValidate(email: string, fileType: "provider_export" | "bank_statement", bytes: Uint8Array, mapping: Mapping, entityId = "ENT-LIVE-SG") {
   const c = await liveCtx(s, email, "a");
-  const up = await createUpload(c, { entityId, fileType, fileName: `${fileType}.csv`, bytes }, key());
+  const up = await createUpload(c, { entityId, fileType, fileName: `${fileType}.csv`, bytes, ...(await accountFields(c, entityId, fileType)) }, key());
   await setUploadMapping(c, up.upload.id, { mapping }, key());
   return { up, validated: (await validateUpload(c, up.upload.id, key())).body };
 }

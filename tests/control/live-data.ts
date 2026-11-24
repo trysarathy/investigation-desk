@@ -4,7 +4,7 @@
  * recorded chain data (a recording client, as a chain reader would see it). Fictional values from upload-scenarios.ts.
  */
 import * as sc from "./upload-scenarios";
-import { liveCtx, type LiveSeed } from "./upload-harness";
+import { accountFields, liveCtx, type LiveSeed } from "./upload-harness";
 import type { TenantContext } from "../../src/server/tenant";
 import { createUpload, decideUpload, setUploadMapping, validateUpload } from "../../src/server/uploads";
 import { normaliseUpload } from "../../src/server/normalise";
@@ -25,7 +25,7 @@ let n = 0;
 export const liveKey = (tag = "live") => `${tag}-${++n}-${Date.now()}`;
 
 export async function pushFile(uploader: TenantContext, confirmer: TenantContext, entityId: string, fileType: FileType, fileName: string, bytes: Uint8Array, mapping?: Mapping) {
-  const up = await createUpload(uploader, { entityId, fileType, fileName, bytes }, liveKey());
+  const up = await createUpload(uploader, { entityId, fileType, fileName, bytes, ...(await accountFields(uploader, entityId, fileType)) }, liveKey());
   if (mapping) await setUploadMapping(uploader, up.upload.id, { mapping }, liveKey());
   const v = (await validateUpload(uploader, up.upload.id, liveKey())).body;
   await decideUpload(confirmer, up.upload.id, { decision: "confirm", reason: "Checked against the source (fictional)", contentSha256: v.contentSha256, rowsSha256: v.rowsSha256! }, liveKey());

@@ -188,7 +188,7 @@ async function bankRow(c: Ctx, v: Record<string, MappedValue>, row: number, rowH
   const outcome = await put(c, t.bankLines, "bank_lines", lineId, {
     orgId: c.orgId, lineId, account: v.bank_account as string, currency: v.currency as string, valueDate: v.value_date as string, amountMinor: big(v.amount)!,
     description: [str(v.reference), str(v.bank_reference), str(v.description)].filter((x) => x).join(" · ").slice(0, 500) || "(no reference)",
-    source: "file_import", entityId: c.entityId, provenance: `${IMPORTED_BANK_LINE_LABEL}: upload ${c.u.id} row ${row} (sha256 ${c.u.contentSha256.slice(0, 12)}…)`, ...c.prov(row),
+    source: "file_import", entityId: c.entityId, bankAccountId: c.u.bankAccountId ?? null, provenance: `${IMPORTED_BANK_LINE_LABEL}: upload ${c.u.id} row ${row} (sha256 ${c.u.contentSha256.slice(0, 12)}…)`, ...c.prov(row),
   }, async () => (await c.tx.select().from(t.bankLines).where(and(eq(t.bankLines.orgId, c.orgId), eq(t.bankLines.lineId, lineId))))[0],
   (r) => [r.account, r.currency, r.valueDate, r.amountMinor], targets);
   return { outcome, targets };

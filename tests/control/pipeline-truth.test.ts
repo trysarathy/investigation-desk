@@ -12,7 +12,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { closeOwner, ownerDb, resetAndSeed, PASSWORD } from "./harness";
-import { useTestStorage } from "./upload-harness";
+import { accountFields, addTestBankAccount, useTestStorage } from "./upload-harness";
 import { closeDatabase } from "../../src/server/db/client";
 import * as t from "../../src/server/db/schema";
 import { createOrganization, createUser, grantMembership } from "../../src/server/admin";
@@ -89,6 +89,7 @@ async function seedOrg(tag: string): Promise<Users> {
       orgId, entityId: e.id, toleranceBps: p.tolerancePct, toleranceAbsMinor: p.toleranceAbsMinor, toleranceCombine: p.toleranceCombine, writeoffThresholdMinor: p.writeoffThresholdMinor,
       approverRoles: ["approver"], allowImportedBankLinesAsVerified: false, senderFeeBoundBaseUnits: p.senderFeeBoundBaseUnits.toString(),
     });
+    await addTestBankAccount(db, orgId, e.id, e.functionalCurrency);
     await db.transaction((tx) => writeIngested(tx, orgId, e.id, { fxRates: P.world.fxRates.filter((r) => r.pair.endsWith(`/${e.functionalCurrency}`)), addressFacts: P.world.addressFacts }, { chainSource: "recorded_fixture" }));
   }
   const users: Record<string, TenantContext> = {};
@@ -120,7 +121,7 @@ function filesFor(v: Variant, entityId: string): Upload[] {
 async function push(u: Users, entityId: string, f: Upload, shuffle?: (b: Uint8Array) => Uint8Array) {
   const cur = P.world.entities.find((e) => e.id === entityId)!.functionalCurrency;
   const bytes = shuffle ? shuffle(f.bytes) : f.bytes;
-  const up = await createUpload(u.fin, { entityId, fileType: f.fileType, fileName: f.name, bytes }, key());
+  const up = await createUpload(u.fin, { entityId, fileType: f.fileType, fileName: f.name, bytes, ...(await accountFields(u.fin, entityId, f.fileType)) }, key());
   if (f.kind !== "mt940" && f.kind !== "camt053") {
     const c = confirmations(f.kind, cur, f.account);
     const proposal = Object.fromEntries(Object.entries(up.suggestion?.suggestion.proposal ?? {}).filter(([k]) => !c.drop.includes(k)).map(([k, x]) => [k, { header: x.header }]));
@@ -345,7 +346,7 @@ describe("properties", () => {
     expect(first.body).toMatchObject({ changed: true });
     for (const e of P.world.entitySpecs) {
       for (const f of filesFor(V, e.id)) {
-        await expect(createUpload(u.fin, { entityId: e.id, fileType: f.fileType, fileName: f.name, bytes: f.bytes }, key())).rejects.toSatisfy((x: unknown) => x instanceof RequestRefused && x.code === "DUPLICATE_UPLOAD");
+        await expect(createUpload(u.fin, { entityId: e.id, fileType: f.fileType, fileName: f.name, bytes: f.bytes, ...(await accountFields(u.fin, e.id, f.fileType)) }, key())).rejects.toSatisfy((x: unknown) => x instanceof RequestRefused && x.code === "DUPLICATE_UPLOAD");
       }
       const ups = await ownerDb().select().from(t.uploads).where(and(eq(t.uploads.orgId, u.orgId), eq(t.uploads.entityId, e.id)));
       for (const up of ups) expect((await normaliseUpload(up.fileType === "bank_statement" ? u.approver : u.fin, up.id, key())).body).toMatchObject({ changed: false });

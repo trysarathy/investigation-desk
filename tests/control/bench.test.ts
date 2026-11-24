@@ -32,7 +32,7 @@ describe("benchmark (small)", () => {
       where t.org_id = ${org} order by 1, 2, 3, 4`;
     expect(await rows(bulk.orgId, targets)).toEqual(await rows(slow.orgId, targets));
     for (const tb of ["invoices", "merchant_quotes", "payment_links", "provider_payment_records", "settlement_batches", "settlement_batch_lines", "bank_lines"]) {
-      const q = (org: string) => sql`select (to_jsonb(x) - 'org_id' - 'upload_id' - 'uploaded_by' - 'observed_at' - 'mapping_template_id' - 'provenance')::text as j from ${sql.identifier(tb)} x where x.org_id = ${org} order by 1`;
+      const q = (org: string) => sql`select (to_jsonb(x) - 'org_id' - 'upload_id' - 'uploaded_by' - 'observed_at' - 'mapping_template_id' - 'provenance' - 'bank_account_id')::text as j from ${sql.identifier(tb)} x where x.org_id = ${org} order by 1`;
       expect(await rows(bulk.orgId, q), tb).toEqual(await rows(slow.orgId, q));
     }
     const decisions = (org: string) => sql`select order_id, decision, rule_id, deciding_step from match_records where org_id = ${org} order by order_id`;

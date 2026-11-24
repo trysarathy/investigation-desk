@@ -4,13 +4,13 @@ import { Client } from "pg";
 import type { Db } from "./db/client";
 import * as t from "./db/schema";
 import { createOrganization } from "./admin";
-import { addEntity, addMember, linkProvider } from "./merchant-setup";
+import { addBankAccount, addEntity, addMember, linkProvider } from "./merchant-setup";
 import { writeIngested } from "./merchant-store";
 import { runReconciliation, proposeWriteoff, decideWriteoff } from "./merchant";
 import { assignException } from "./merchant-ui";
 import { resolveTenant, type TenantContext } from "./tenant";
 import { RecordingChainClient } from "@/lib/clearline/merchant/chain";
-import { DEMO_ENTITIES, DEMO_MERCHANT, DEMO_PROVIDER, DEMO_SEED_MARKER, DEMO_THEME, demoWorld } from "@/lib/clearline/demo/world";
+import { DEMO_BANK_ACCOUNTS, DEMO_ENTITIES, DEMO_MERCHANT, DEMO_PROVIDER, DEMO_SEED_MARKER, DEMO_THEME, demoWorld } from "@/lib/clearline/demo/world";
 import { partsByDay, windowDays } from "@/lib/clearline/demo/days";
 import { DEMO_NOW } from "@/lib/clearline/demo/clock";
 
@@ -83,6 +83,9 @@ export async function seedDemo(owner: Db, opts: DemoSeedOptions): Promise<DemoSe
   await owner.update(t.organizations).set({ timezone: DEMO_MERCHANT.timezone }).where(eq(t.organizations.id, merchant));
   for (const e of DEMO_ENTITIES) {
     await addEntity(owner, { orgSlug: merchantSlug, entityId: e.id, name: e.name, currency: e.currency, timezone: e.timeZone.name, utcOffset: e.timeZone.utcOffsetMinutes === 480 ? "+08:00" : "+04:00", ledger: e.ledgerProduct });
+    // v1: the entity's bank account as a row (masked number only); its statement lines still name the text reference
+    const a = DEMO_BANK_ACCOUNTS[e.id];
+    await addBankAccount(owner, { orgSlug: merchantSlug, entityId: e.id, name: a.name, currency: e.currency, last4: a.last4, bankName: a.bankName });
   }
   await linkProvider(owner, { orgSlug: merchantSlug, providerSlug });
   const users: Record<string, TenantContext> = {};

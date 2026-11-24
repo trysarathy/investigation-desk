@@ -6,7 +6,7 @@
 import { sql } from "drizzle-orm";
 import { boolean, check, foreignKey, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { organizations, users } from "./schema";
-import { merchantEntities } from "./merchant-schema";
+import { bankAccounts, merchantEntities } from "./merchant-schema";
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 const FILE_TYPES_SQL = sql.raw(`('provider_export','settlement_report','orders_invoices','bank_statement','ledger_invoices')`);
@@ -47,6 +47,8 @@ export const uploads = pgTable("uploads", {
   orgId: uuid("org_id").notNull().references(() => organizations.id),
   id: uuid("id").notNull().defaultRandom(),
   entityId: text("entity_id").notNull(),
+  /** v1: the bank account a statement belongs to (required for a new bank statement; null for other files and older rows). */
+  bankAccountId: uuid("bank_account_id"),
   fileType: text("file_type").notNull(),
   fileFormat: text("file_format").notNull(),
   originalName: text("original_name").notNull(),
@@ -86,6 +88,8 @@ export const uploads = pgTable("uploads", {
   primaryKey({ columns: [t.orgId, t.id] }),
   foreignKey({ columns: [t.orgId, t.entityId], foreignColumns: [merchantEntities.orgId, merchantEntities.id], name: "uploads_entity_fk" }),
   foreignKey({ columns: [t.orgId, t.templateId], foreignColumns: [mappingTemplates.orgId, mappingTemplates.id], name: "uploads_template_fk" }),
+  foreignKey({ columns: [t.orgId, t.bankAccountId], foreignColumns: [bankAccounts.orgId, bankAccounts.id], name: "uploads_bank_account_fk" }),
+  check("uploads_bank_account_type_chk", sql`${t.bankAccountId} is null or ${t.fileType} = 'bank_statement'`),
   uniqueIndex("uploads_content_uq").on(t.orgId, t.entityId, t.fileType, t.contentSha256).where(sql`${t.status} <> 'deleted'`),
   index("uploads_delete_after_idx").on(t.deleteAfter).where(sql`${t.status} <> 'deleted'`),
   check("uploads_type_chk", sql`${t.fileType} in ${FILE_TYPES_SQL}`),
