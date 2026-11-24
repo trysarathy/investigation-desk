@@ -85,7 +85,7 @@ export const GUIDE_STEPS: GuideStep[] = [
     "'Wrong' is shown as not measured yet: there is no independent review to measure it against.",
   ] },
   { n: 13, slug: "settings", title: "Settings", path: "/control/merchant/settings", as: "finance", minutes: 0.5, points: [
-    "The tolerance policy, read-only for Finance: the band is the larger of 50 bps and SGD 5.00.",
+    "Finance sees the tolerance policy but cannot change it: the band is the larger of 50 bps and SGD 5.00.",
     "The provider's white-label theme, with the demo label on every screen.",
   ] },
 ];
