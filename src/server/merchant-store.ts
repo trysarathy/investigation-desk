@@ -25,6 +25,15 @@ export function plain<T>(v: T): unknown {
   return v;
 }
 
+/** Like plain(), but a Date becomes its ISO string (plain() turns a Date into {}). For values read back for display, never for hashing. */
+export function plainForDisplay<T>(v: T): unknown {
+  if (v instanceof Date) return v.toISOString();
+  if (typeof v === "bigint") return v.toString();
+  if (Array.isArray(v)) return v.map(plainForDisplay);
+  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v as object).filter(([, x]) => x !== undefined).map(([k, x]) => [k, plainForDisplay(x)]));
+  return v;
+}
+
 /** numeric(24,10) comes back as "1.3500000000": trim to at least 4 decimals [ASSUMPTION: rates are quoted to ≥ 4 places]. */
 export function normRate(r: string): string {
   const [w, f = ""] = r.split(".");

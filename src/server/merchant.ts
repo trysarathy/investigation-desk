@@ -13,7 +13,7 @@ import type { Tx } from "./db/client";
 import * as t from "./db/schema";
 import { can, type Permission } from "./authz";
 import { Decision, IdempotencyKey, canonical, idempotent, serverAudit } from "./control";
-import { MissingEntity, type IngestParts, loadReconcileInput, plain, writeIngested } from "./merchant-store";
+import { MissingEntity, type IngestParts, loadReconcileInput, plain, plainForDisplay, writeIngested } from "./merchant-store";
 import { AccessDenied, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
 import { dataModeOf } from "./mapping-templates";
@@ -496,7 +496,7 @@ export async function merchantPaymentDetail(ctx: TenantContext, orderId: string)
       label, orderId, invoice: plain(inv), decision: m.decision, decidingStep: m.decidingStep, ruleId: m.ruleId,
       parts: { chain: m.chain, provider: m.provider, bank: m.bank, ledger: m.ledger }, explanation: { ...(m.explanation as Record<string, unknown>), label } as typeof m.explanation, engineVersion: m.engineVersion, inputSha256: m.inputSha256,
       // v1 phase 0: the current decision's differences; rows an earlier run wrote and a later run superseded, apart
-      differences: plain(split.current), supersededDifferences: plain(split.superseded), exceptions, writeoffs: plain(writeoffs),
+      differences: plainForDisplay(split.current), supersededDifferences: plainForDisplay(split.superseded), exceptions, writeoffs: plainForDisplay(writeoffs),
       approvals: approvals.map((a) => ({ id: a.id, version: a.version, status: a.status, requestedBy: a.requestedBy, payloadSha256: a.payloadSha256 })), reviews,
     };
   });
