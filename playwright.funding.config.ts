@@ -1,4 +1,9 @@
+import { existsSync } from 'node:fs';
 import { defineConfig } from '@playwright/test';
+
+// Local containers ship a preinstalled Chromium (as in the other configs); CI installs its own.
+const preinstalled = [process.env.CLEARLINE_PW_CHROMIUM, '/opt/pw-browsers/chromium-1243/chrome-linux64/chrome'].find((p) => p && existsSync(p));
+const launchOptions = preinstalled ? { executablePath: preinstalled } : {};
 
 const password = process.env.CLEARLINE_BROWSER_PASSWORD;
 if (!password || password.length < 12) throw Error('Set CLEARLINE_BROWSER_PASSWORD for disposable synthetic browser fixtures.');
@@ -13,7 +18,7 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   outputDir: 'funding-browser-artifacts/results',
   reporter: [['list'], ['json', { outputFile: 'funding-browser-artifacts/results.json' }]],
-  use: { browserName: 'chromium', trace: 'off', screenshot: 'only-on-failure' },
+  use: { browserName: 'chromium', trace: 'off', screenshot: 'only-on-failure', launchOptions },
   projects: [
     { name: 'desktop', use: { baseURL: 'http://127.0.0.1:3000', viewport: { width: 1280, height: 800 } } },
     { name: 'phone', use: { baseURL: 'http://127.0.0.1:3001', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
