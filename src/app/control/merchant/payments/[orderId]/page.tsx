@@ -43,10 +43,10 @@ export default async function MerchantPaymentPage({ params }: { params: Promise<
   const fin = (r: (typeof c.chainRows)[number] | undefined) => (r ? (r.finalised ? "final" : "not final") : "—");
   const ent = shell.entities.find((e) => e.id === c.entityId) ?? null;
   const when = (v: string | Date | null | undefined) => whenIn(v, ent);
-  // the differences of the current decision; rows a run before the latest data wrote are kept, and shown apart
+  // the differences of the current decision; rows an earlier run wrote and a later run superseded are kept, and shown
+  // apart (v1 phase 0: marked superseded in the database, not filtered here)
   const current = ex.differences;
-  const currentIds = new Set(current.map((x) => x.persistedId ?? x.id));
-  const earlier = (d.differences as { id: string; type: string; amountMinor: string; currency: string; reason: string; ruleId: string }[]).filter((x) => !currentIds.has(x.id));
+  const earlier = d.supersededDifferences as { id: string; type: string; amountMinor: string; currency: string; reason: string; ruleId: string; supersededAt: string | null }[];
   // a payment in parts: the parts, and the differences that make up what is still open (or over)
   const parts = chain.transfers.length > 1 ? [...chain.transfers].sort((a, b) => a.timestamp.localeCompare(b.timestamp)) : [];
   const gap = BigInt(ledger.openBalanceMinor) - BigInt(ledger.customerOverpaymentMinor);
@@ -166,8 +166,8 @@ export default async function MerchantPaymentPage({ params }: { params: Promise<
         )}
         {earlier.length ? (
           <details className={s.small} data-testid="earlier-differences">
-            <summary>{earlier.length === 1 ? "1 difference" : `${earlier.length} differences`} recorded by an earlier run, before the latest data (kept for the record; not part of the current result)</summary>
-            <ul>{earlier.map((x) => <li key={x.id}>{differenceLabel(x.type)} {fiat(x.amountMinor, x.currency)}: {x.reason} <span className={s.mono}>({x.ruleId})</span></li>)}</ul>
+            <summary>{earlier.length === 1 ? "1 difference" : `${earlier.length} differences`} recorded by an earlier run and superseded by a later one (kept for the record; not part of the current result)</summary>
+            <ul>{earlier.map((x) => <li key={x.id}>{differenceLabel(x.type)} {fiat(x.amountMinor, x.currency)}: {x.reason} <span className={s.mono}>({x.ruleId})</span>{x.supersededAt ? <> · superseded {when(x.supersededAt)}</> : null}</li>)}</ul>
           </details>
         ) : null}
       </section>

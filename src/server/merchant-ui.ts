@@ -4,6 +4,7 @@ import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { MERCHANT_ACCOUNTS, fmtFiat, localDate, reconcile, type FiatCurrency } from "@/lib/clearline/merchant";
 import { safeTheme, type SafeTheme } from "@/lib/clearline/merchant/theme";
+import { splitDifferences } from "@/lib/clearline/merchant/difference-rows";
 import type { Tx } from "./db/client";
 import * as t from "./db/schema";
 import { can, isAppRole, type Permission } from "./authz";
@@ -517,7 +518,7 @@ export async function packData(tx: Tx, ctx: TenantContext, scope: PackScope) {
   const bank = blIds.length ? await tx.select().from(t.bankLines).where(and(eq(t.bankLines.orgId, ctx.orgId), inArray(t.bankLines.lineId, blIds))).orderBy(asc(t.bankLines.lineId)) : [];
   const bIds = [...new Set(parts.flatMap(({ p }) => p.bank.batchIds))];
   const batches = bIds.length ? await tx.select().from(t.settlementBatches).where(and(eq(t.settlementBatches.orgId, ctx.orgId), inArray(t.settlementBatches.batchId, bIds))).orderBy(asc(t.settlementBatches.batchId)) : [];
-  const diffs = orderIds.length ? await tx.select().from(t.differences).where(and(eq(t.differences.orgId, ctx.orgId), inArray(t.differences.orderId, orderIds))).orderBy(asc(t.differences.id)) : [];
+  const diffs = splitDifferences(orderIds.length ? await tx.select().from(t.differences).where(and(eq(t.differences.orgId, ctx.orgId), inArray(t.differences.orderId, orderIds))).orderBy(asc(t.differences.id)) : []);
   const exs = orderIds.length ? await tx.select().from(t.reconExceptions).where(and(eq(t.reconExceptions.orgId, ctx.orgId), inArray(t.reconExceptions.orderId, orderIds))).orderBy(asc(t.reconExceptions.id)) : [];
   const notes = exs.length ? await tx.select().from(t.reconExceptionNotes).where(and(eq(t.reconExceptionNotes.orgId, ctx.orgId), inArray(t.reconExceptionNotes.exceptionId, exs.map((e) => e.id)))).orderBy(asc(t.reconExceptionNotes.createdAt)) : [];
   const wos = orderIds.length ? await tx.select().from(t.writeoffProposals).where(and(eq(t.writeoffProposals.orgId, ctx.orgId), inArray(t.writeoffProposals.orderId, orderIds))).orderBy(asc(t.writeoffProposals.id)) : [];
@@ -538,7 +539,11 @@ export async function packData(tx: Tx, ctx: TenantContext, scope: PackScope) {
     providerRecords: provider.map((r) => ({ providerPaymentId: r.providerPaymentId, statusClaim: r.statusClaim, creditedMinor: r.creditedMinor?.toString() ?? null, currency: r.creditedCurrency, executedRate: r.executedRate, feeMinor: r.feeMinor?.toString() ?? null, batchId: r.batchId, note: "a claim, not proof", record: r.record })),
     settlementBatches: batches.map((b) => ({ batchId: b.batchId, providerDay: b.dayStart.toISOString().slice(0, 10), currency: b.currency, grossMinor: b.grossMinor.toString(), feesMinor: b.feesMinor.toString(), refundsMinor: b.refundsMinor.toString(), netMinor: b.netMinor.toString(), targetBankAccount: b.targetBankAccount })),
     bankLines: bank.map((l) => ({ lineId: l.lineId, account: l.account, valueDate: l.valueDate, amountMinor: l.amountMinor.toString(), currency: l.currency, source: l.source, provenance: l.provenance, label: l.source === "csv_import" ? "imported, not bank-authenticated" : null })),
-    differences: diffs.map((d) => ({ id: d.id, orderId: d.orderId, type: d.type, amountMinor: d.amountMinor.toString(), currency: d.currency, reason: d.reason, ruleId: d.ruleId })),
+    // v1 phase 0: the current differences (what each payment's decision names); those a later run superseded are kept
+    // in the pack as evidence, apart, and never counted with them
+    differences: diffs.current.map((d) => ({ id: d.id, orderId: d.orderId, type: d.type, amountMinor: d.amountMinor.toString(), currency: d.currency, reason: d.reason, ruleId: d.ruleId, runId: d.runId, ruleSetVersion: d.ruleSetVersion })),
+    supersededDifferences: diffs.superseded.map((d) => ({ id: d.id, orderId: d.orderId, type: d.type, amountMinor: d.amountMinor.toString(), currency: d.currency, reason: d.reason, ruleId: d.ruleId, runId: d.runId, ruleSetVersion: d.ruleSetVersion,
+      supersededAt: d.supersededAt!.toISOString(), supersededByRunId: d.supersededByRunId })),
     exceptions: exs.map((e) => ({ id: e.id, orderId: e.orderId, owner: e.ownerRole, reason: e.reason, nextStep: e.nextStep, status: e.status, openedAt: e.openedAt.toISOString(), closedAt: e.closedAt?.toISOString() ?? null,
       notes: notes.filter((n) => n.exceptionId === e.id).map((n) => ({ kind: n.kind, body: n.body, reference: n.reference, by: who(n.authorUserId), at: n.createdAt.toISOString(), class: n.kind === "evidence" ? "attached by a person, not independent" : "note" })) })),
     writeoffs: wos.map((w) => ({ id: w.id, orderId: w.orderId, amountMinor: w.amountMinor.toString(), currency: w.currency, status: w.status })),
@@ -560,6 +565,7 @@ function packCsv(p: Pack): string {
   for (const b of p.settlementBatches) rows.push(["settlement_batch", b.batchId, "", b.providerDay, b.grossMinor, b.feesMinor, b.netMinor, `refunds ${b.refundsMinor} ${b.currency}`, M]);
   for (const l of p.bankLines) rows.push(["bank_line", l.lineId, "", l.valueDate, l.amountMinor, l.currency, l.source, l.label ?? l.provenance ?? "", M]);
   for (const d of p.differences) rows.push(["difference", d.id, d.orderId, d.type, d.amountMinor, d.currency, d.ruleId, d.reason, M]);
+  for (const d of p.supersededDifferences) rows.push(["difference_superseded", d.id, d.orderId, d.type, d.amountMinor, d.currency, d.ruleId, `superseded ${d.supersededAt} by run ${d.supersededByRunId ?? "unknown (before runs were recorded)"}; not part of the current result. ${d.reason}`, M]);
   for (const e of p.exceptions) {
     rows.push(["exception", e.id, e.orderId, e.owner, e.status, e.openedAt, e.closedAt, `${e.reason} Next: ${e.nextStep}`, M]);
     for (const n of e.notes) rows.push([n.kind === "evidence" ? "exception_evidence" : "exception_note", e.id, e.orderId, n.by, n.at, n.reference, n.class, n.body, M]);
@@ -626,6 +632,11 @@ async function packPdf(p: Pack): Promise<Uint8Array> {
   for (const l of p.bankLines) line(`Bank line ${l.lineId}: ${money(l.amountMinor, l.currency)}, value date ${l.valueDate}${l.label ? ` (${l.label})` : ""}`);
   head(`Differences (${p.differences.length})`);
   for (const d of p.differences) line(`${d.orderId} ${d.type} ${money(d.amountMinor, d.currency)}: ${d.reason}`);
+  if (p.supersededDifferences.length) {
+    head(`Superseded differences (${p.supersededDifferences.length}) — written by an earlier run, kept for the record, not part of the current result`);
+    for (const d of p.supersededDifferences.slice(0, 60)) line(`${d.orderId} ${d.type} ${money(d.amountMinor, d.currency)}: superseded ${d.supersededAt}`);
+    if (p.supersededDifferences.length > 60) line(`… ${p.supersededDifferences.length - 60} more in the CSV and JSON files.`);
+  }
   head(`Exceptions (${p.exceptions.length})`);
   for (const e of p.exceptions) { line(`${e.id} (${e.status}, owner ${e.owner}): ${e.reason}`); for (const n of e.notes) line(`  ${n.kind === "evidence" ? "Evidence (attached by a person)" : "Note"} by ${n.by}: ${n.body}${n.reference ? ` [${n.reference}]` : ""}`); }
   head(`Approvals (${p.approvals.length}) — two people, bound by hash`);

@@ -7,7 +7,7 @@ import {
   type BatchBridge, type Decision as MatchDecision, type FiatCurrency, type ReconcileInput,
 } from "@/lib/clearline/merchant";
 import { stableJson } from "@/lib/clearline/merchant/adapters";
-import { differenceIdsFor } from "@/lib/clearline/merchant/difference-rows";
+import { differenceIdsFor, splitDifferences } from "@/lib/clearline/merchant/difference-rows";
 import type { StatementLineInput } from "@/lib/clearline";
 import type { Tx } from "./db/client";
 import * as t from "./db/schema";
@@ -484,7 +484,7 @@ export async function merchantPaymentDetail(ctx: TenantContext, orderId: string)
     const [m] = await tx.select().from(t.matchRecords).where(and(eq(t.matchRecords.orgId, ctx.orgId), eq(t.matchRecords.orderId, orderId)));
     if (!m) throw new AccessDenied(404, "Not found.");
     const [inv] = await tx.select().from(t.invoices).where(and(eq(t.invoices.orgId, ctx.orgId), eq(t.invoices.orderId, orderId)));
-    const diffs = await tx.select().from(t.differences).where(and(eq(t.differences.orgId, ctx.orgId), eq(t.differences.orderId, orderId))).orderBy(asc(t.differences.id));
+    const split = splitDifferences(await tx.select().from(t.differences).where(and(eq(t.differences.orgId, ctx.orgId), eq(t.differences.orderId, orderId))).orderBy(asc(t.differences.id)));
     const exceptions = await tx.select().from(t.reconExceptions).where(and(eq(t.reconExceptions.orgId, ctx.orgId), eq(t.reconExceptions.orderId, orderId)));
     const writeoffs = await tx.select().from(t.writeoffProposals).where(and(eq(t.writeoffProposals.orgId, ctx.orgId), eq(t.writeoffProposals.orderId, orderId)));
     const reqIds = writeoffs.map((w) => w.id);
@@ -495,7 +495,8 @@ export async function merchantPaymentDetail(ctx: TenantContext, orderId: string)
     return {
       label, orderId, invoice: plain(inv), decision: m.decision, decidingStep: m.decidingStep, ruleId: m.ruleId,
       parts: { chain: m.chain, provider: m.provider, bank: m.bank, ledger: m.ledger }, explanation: { ...(m.explanation as Record<string, unknown>), label } as typeof m.explanation, engineVersion: m.engineVersion, inputSha256: m.inputSha256,
-      differences: plain(diffs), exceptions, writeoffs: plain(writeoffs),
+      // v1 phase 0: the current decision's differences; rows an earlier run wrote and a later run superseded, apart
+      differences: plain(split.current), supersededDifferences: plain(split.superseded), exceptions, writeoffs: plain(writeoffs),
       approvals: approvals.map((a) => ({ id: a.id, version: a.version, status: a.status, requestedBy: a.requestedBy, payloadSha256: a.payloadSha256 })), reviews,
     };
   });
