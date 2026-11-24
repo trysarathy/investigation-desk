@@ -464,7 +464,9 @@ export async function listMerchantPayments(ctx: TenantContext, filters: z.input<
       const tr = rec.chain.transfers;
       const deposit = [...quotes.filter((q) => q.orderId === rec.orderId).map((q) => q.depositAddress), ...links.filter((l) => l.orderId === rec.orderId).map((l) => l.depositAddress)];
       return {
-        label, orderId: rec.orderId, entityId: inv.entityId, decision: rec.decision, ruleId: rec.ruleId, invoiceMinor: inv.amountMinor.toString(), currency: inv.currency,
+        label, orderId: rec.orderId, entityId: inv.entityId, decision: rec.decision, ruleId: rec.ruleId, invoiceMinor: inv.amountMinor === null ? null : inv.amountMinor.toString(), currency: inv.currency,
+        // v1: a token-priced invoice has no fiat price; its token price (base units) is given instead
+        ...(inv.priceTokenAmount !== null ? { priceToken: { network: inv.priceNetwork, contract: inv.priceTokenContract, baseUnits: String(inv.priceTokenAmount) } } : {}),
         creditedMinor: rec.ledger.creditedMinor, openBalanceMinor: rec.ledger.openBalanceMinor, balanceLabel: rec.ledger.balanceLabel,
         differenceTypes: [...new Set(rec.explanation.differences.map((d) => d.type))], networks: [...new Set(tr.map((x) => x.network))],
         tokens: [...new Set(tr.flatMap((x) => [x.symbol, x.tokenContract]))], batchIds: [...new Set(rec.provider.records.map((r) => r.batchId).filter((x): x is string => !!x))],

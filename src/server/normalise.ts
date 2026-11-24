@@ -159,11 +159,20 @@ async function providerRow(c: Ctx, v: Record<string, MappedValue>, row: number):
 async function invoiceRow(c: Ctx, v: Record<string, MappedValue>, row: number): Promise<RowResult> {
   const orderId = v.order_id as string;
   const targets: Target[] = [];
+  // v1: a row gives exactly one pricing mode (apply.ts): a fiat amount, or a token price on a configured token
+  const units = big(v.price_token_amount);
+  const net = str(v.network);
+  const token = units !== undefined && net ? c.tokens.find((k) => k.network === dbNet(net) && normAddress(net as NetworkId, k.contract) === normAddress(net as NetworkId, v.token_contract as string)) : undefined;
+  if (units !== undefined && !token) throw new Conflict("invoices");
+  const price = token ? { amountMinor: null, priceNetwork: token.network, priceTokenContract: token.contract, priceTokenAmount: units!.toString() } : { amountMinor: big(v.invoice_amount)! };
+  // the facts compared with an existing row: fiat rows keep their rc7 projection exactly; token rows add their price
+  const facts = (r: Record<string, unknown>) => (r.priceTokenAmount === null || r.priceTokenAmount === undefined ? [r.entityId, r.amountMinor, r.currency]
+    : [r.entityId, r.amountMinor ?? null, r.currency, r.priceNetwork, r.priceTokenContract, String(r.priceTokenAmount)]);
   const outcome = await put(c, t.invoices, "invoices", orderId, {
-    orgId: c.orgId, orderId, entityId: c.entityId, amountMinor: big(v.invoice_amount)!, currency: v.currency as string, status: v.status === "void" ? "void" : "open",
+    orgId: c.orgId, orderId, entityId: c.entityId, ...price, currency: v.currency as string, status: v.status === "void" ? "void" : "open",
     issuedAt: new Date(str(v.issued_at) ?? c.u.createdAt), ...c.prov(row),
   }, async () => (await c.tx.select().from(t.invoices).where(and(eq(t.invoices.orgId, c.orgId), eq(t.invoices.orderId, orderId))))[0],
-  (r) => [r.entityId, r.amountMinor, r.currency], targets);
+  facts, targets);
   return { outcome, targets };
 }
 

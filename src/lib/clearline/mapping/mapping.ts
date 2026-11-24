@@ -74,6 +74,11 @@ export function validateMapping(input: unknown, fileHeaders?: readonly string[])
   if (m.fileType === "settlement_report" && !m.shape) add("shape_required", "Choose whether the settlement report has one row per payment or one row per batch with totals.");
   if (m.fileType !== "settlement_report" && m.shape) add("shape_not_allowed", "Only settlement reports have a shape.");
   for (const key of requiredFields(m.fileType, m.shape)) if (!m.columns[key]) add("required_field_unmapped", `${fieldOf(m.fileType, key)?.label ?? key} must be mapped.`, { field: key });
+  // v1: an orders file maps its fiat amount, or its token price with the price's network and token contract (or both columns)
+  if (m.fileType === "orders_invoices") {
+    if (!m.columns.invoice_amount && !m.columns.price_token_amount) add("required_field_unmapped", "Invoice amount (or a token price) must be mapped.", { field: "invoice_amount" });
+    if (m.columns.price_token_amount) for (const key of ["network", "token_contract"]) if (!m.columns[key]) add("required_field_unmapped", `${fieldOf(m.fileType, key)!.label} must be mapped with a token price.`, { field: key });
+  }
   const used = new Map<string, string[]>();
   for (const [key, c] of Object.entries(m.columns)) {
     const def = fieldOf(m.fileType, key);
@@ -90,7 +95,7 @@ export function validateMapping(input: unknown, fileHeaders?: readonly string[])
     if (c.amountUnit && !["fiat_amount", "token_amount"].includes(def.kind)) add("option_not_allowed", `${def.label} has no amount unit.`, { field: key });
     if ((c.dateFormat || c.defaultUtcOffsetMinutes !== undefined) && !["date", "datetime"].includes(def.kind)) add("option_not_allowed", `${def.label} is not a date.`, { field: key });
     if (c.networkValueMap && def.kind !== "network") add("option_not_allowed", `${def.label} is not a network.`, { field: key });
-    if (c.derive && (m.fileType !== "provider_export" || key !== "token_contract")) add("option_not_allowed", `${def.label} cannot be worked out from other columns.`, { field: key });
+    if (c.derive && ((m.fileType !== "provider_export" && m.fileType !== "orders_invoices") || key !== "token_contract")) add("option_not_allowed", `${def.label} cannot be worked out from other columns.`, { field: key });
     if (c.deductionSign && (m.fileType !== "settlement_report" || key !== "line_amount")) add("option_not_allowed", `${def.label} has no sign option.`, { field: key });
     if (c.directionValueMap && def.kind !== "direction") add("option_not_allowed", `${def.label} is not a direction.`, { field: key });
     if (c.statusValueMap) {

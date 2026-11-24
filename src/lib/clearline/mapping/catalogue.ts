@@ -89,10 +89,16 @@ export const CATALOGUE: Readonly<Record<FileType, readonly FieldDef[]>> = {
   orders_invoices: [
     ORDER_ID,
     ENTITY,
-    f("invoice_amount", "Invoice amount", "fiat_amount", true, ["invoice amount", "amount", "total", "order amount", "amount due"], { currencyField: "currency" }),
+    // v1: an order is priced in fiat (invoice amount) OR directly in a token (token price + network + token contract);
+    // the mapping maps at least one, and each row must give exactly one (apply.ts). Never both, never derived.
+    f("invoice_amount", "Invoice amount", "fiat_amount", false, ["invoice amount", "amount", "total", "order amount", "amount due"], { currencyField: "currency" }),
     CURRENCY,
     f("status", "Invoice status", "status", false, ["status", "invoice status", "state"]),
     f("issued_at", "Issued at", "datetime", false, ["issued at", "invoice date", "created at", "date", "order date"], { allowMultiple: true }),
+    f("price_token_amount", "Token price (priced in a token)", "token_amount", false, ["token price", "price in token", "crypto price", "price token amount", "token invoice amount"]),
+    f("network", "Price network", "network", false, ["network", "chain", "blockchain", "price network"], { allowConstant: true }),
+    f("token_symbol", "Price token symbol", "token_symbol", false, ["price token", "token symbol", "price asset", "price coin"]),
+    f("token_contract", "Price token contract", "address", false, ["token contract", "contract", "contract address", "price token contract"], { allowConstant: true }),
   ],
   // rc7 phase 3b: sales invoices as the merchant's accounting ledger holds them (a ledger export, or a read-only pull
   // from a Xero demo company / QuickBooks sandbox rendered as the same CSV). Reference data for month-end: it is never

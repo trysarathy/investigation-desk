@@ -133,14 +133,21 @@ export const merchantPolicy = pgTable("merchant_policy", {
 export const invoices = pgTable("invoices", {
   orgId: org(), orderId: text("order_id").notNull(),
   entityId: text("entity_id").notNull(),
-  amountMinor: money("amount_minor").notNull(),
+  /** Fiat price in minor units; NULL for a token-priced invoice (v1, migration 0040: exactly one pricing mode). */
+  amountMinor: money("amount_minor"),
+  /** For a token-priced invoice: the currency it is accounted in (the entity's); otherwise the invoice currency. */
   currency: text("currency").notNull(),
   status: text("status").notNull(),
   issuedAt: ts("issued_at").notNull(),
+  /** v1: a token price, a configured (network, contract) and base units. Immutable once written (0040 trigger). */
+  priceNetwork: text("price_network"), priceTokenContract: text("price_token_contract"), priceTokenAmount: baseUnits("price_token_amount"),
   ...fromUpload(),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.orderId] }),
   foreignKey({ columns: [t.orgId, t.entityId], foreignColumns: [merchantEntities.orgId, merchantEntities.id], name: "invoices_entity_fk" }),
+  foreignKey({ columns: [t.priceNetwork, t.priceTokenContract], foreignColumns: [tokenConfig.network, tokenConfig.contract], name: "invoices_price_token_fk" }),
+  check("invoices_pricing_mode_chk", sql`(${t.amountMinor} is not null and ${t.priceNetwork} is null and ${t.priceTokenContract} is null and ${t.priceTokenAmount} is null)
+    or (${t.amountMinor} is null and ${t.priceNetwork} is not null and ${t.priceTokenContract} is not null and ${t.priceTokenAmount} is not null and ${t.priceTokenAmount} > 0)`),
   check("invoices_amount_chk", sql`${t.amountMinor} > 0`), check("invoices_cur_chk", CUR(t.currency)),
   check("invoices_status_chk", sql`${t.status} in ('open','part_paid','paid','closed_with_difference','overpaid','void')`),
 ]);
@@ -295,7 +302,9 @@ export const matchRecords = pgTable("match_records", {
 ]);
 
 export const DIFFERENCE_TYPES = ["sender_side_fee", "underpayment", "overpayment", "requote_after_expiry", "rate_difference", "provider_fee",
-  "refund_netted", "timing_prior_batch", "timing_next_batch", "held_by_provider", "partial_payment_open", "unexplained"] as const;
+  "refund_netted", "timing_prior_batch", "timing_next_batch", "held_by_provider", "partial_payment_open", "unexplained",
+  // v1 (migration 0040): token-priced invoices
+  "price_token_mismatch", "price_token_amount"] as const;
 
 export const differences = pgTable("differences", {
   orgId: org(), id: text("id").notNull(), orderId: text("order_id").notNull(),

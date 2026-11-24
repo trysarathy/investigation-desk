@@ -67,7 +67,12 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
 
   const inv = await tx.select().from(t.invoices).where(and(eq(t.invoices.orgId, orgId), eq(t.invoices.entityId, entityId))).orderBy(asc(t.invoices.orderId));
   const orderIds = inv.map((i) => i.orderId);
-  const invoices: Invoice[] = inv.map((i) => ({ orderId: i.orderId, entityId, amountMinor: i.amountMinor, currency: i.currency as FiatCurrency, status: INVOICE_STATUS[i.status] ?? "open" }));
+  // v1: a token-priced invoice (migration 0040) has no fiat amount: the engine gets 0n, never used, and its token price
+  const invoices: Invoice[] = inv.map((i) => ({
+    orderId: i.orderId, entityId, amountMinor: i.amountMinor ?? 0n, currency: i.currency as FiatCurrency, status: INVOICE_STATUS[i.status] ?? "open",
+    ...(i.priceTokenAmount !== null && i.priceNetwork !== null && i.priceTokenContract !== null
+      ? { price: { token: { network: dbNetwork(i.priceNetwork), contract: i.priceTokenContract }, baseUnits: BigInt(i.priceTokenAmount) } } : {}),
+  }));
   const qs = orderIds.length ? await tx.select().from(t.merchantQuotes).where(and(eq(t.merchantQuotes.orgId, orgId), inArray(t.merchantQuotes.orderId, orderIds))).orderBy(asc(t.merchantQuotes.quoteId)) : [];
   // rc7: terms an uploaded export did not carry are NULL. The engine gets placeholders it never uses, and the list of
   // unknown terms, so the order abstains (M3.quote.terms_unknown). Nothing is derived to fill them.
@@ -194,7 +199,10 @@ export async function writeIngested(tx: Tx, orgId: string, entityId: string, p: 
   if (!ent) throw new MissingEntity(entityId);
   const quotes = p.quotes ?? [];
   if (p.invoices?.length) count("invoices", await tx.insert(t.invoices).values(p.invoices.map((i) => ({
-    orgId, orderId: i.orderId, entityId, amountMinor: i.amountMinor, currency: i.currency, status: i.status === "void" ? "void" : "open",
+    orgId, orderId: i.orderId, entityId, currency: i.currency, status: i.status === "void" ? "void" : "open",
+    // v1: a token-priced invoice stores its token price and no fiat amount (exactly one pricing mode, migration 0040)
+    ...(i.price ? { amountMinor: null, priceNetwork: i.price.token.network === "arbitrum_one" ? "arbitrum-one" : i.price.token.network, priceTokenContract: i.price.token.contract, priceTokenAmount: i.price.baseUnits.toString() }
+      : { amountMinor: i.amountMinor }),
     // [ASSUMPTION] an invoice's issue time is its first quote's creation (the export carries no invoice date)
     issuedAt: new Date(quotes.filter((q) => q.orderId === i.orderId).map((q) => q.createdAt).sort()[0] ?? "2026-01-01T00:00:00.000Z"),
   }))).onConflictDoNothing().returning({ id: t.invoices.orderId }));
