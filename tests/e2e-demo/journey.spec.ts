@@ -214,6 +214,11 @@ test("the 13-step demo journey", async ({ page }, info) => {
     await expect(requests).toContainText("Finance (demo)");
     await expect(requests).toContainText("Approved by Approver (demo)");
     await check("exception resolved");
+    // the payment's audit history names both people
+    await page.goto("/control/merchant/payments/BK-24823");
+    const audit = page.getByRole("region", { name: "Audit history table" });
+    await expect(audit.getByRole("row").filter({ hasText: "Finance (demo)" }).first()).toBeVisible();
+    await expect(audit.getByRole("row").filter({ hasText: "Approver (demo)" }).first()).toBeVisible();
 
     // back to Finance through the switcher: still the same person, so a write-off she prepared stays hers to wait on
     await switchTo(page, DEMO_USERS.finance);
