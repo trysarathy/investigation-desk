@@ -5,6 +5,7 @@ import { pageNow } from "@/server/demo-build";
 import s from "@/components/control/control.module.css";
 import { Chip, Empty, age } from "@/components/merchant/ui";
 import { when } from "@/components/control/ui";
+import { EXCEPTION_RATE_DEFINITION, rateText } from "@/lib/clearline/merchant/exception-rate";
 
 export const metadata: Metadata = { title: "Merchants" };
 
@@ -19,13 +20,14 @@ export default async function ProviderMerchantsPage() {
       {p.merchants.length === 0 ? <Empty>No merchants are onboarded yet.</Empty> : (
         <div className={s.tableWrap} role="region" aria-label="Merchants table" tabIndex={0}>
           <table className={s.table}>
-            <thead><tr><th scope="col">Merchant</th><th scope="col" className={s.num}>Payments</th><th scope="col" className={s.num}>Auto-match rate</th><th scope="col" className={s.num}>Exceptions per 100 payments</th><th scope="col">Oldest open exception</th><th scope="col">Last ingestion</th><th scope="col">Access</th></tr></thead>
+            <thead><tr><th scope="col">Merchant</th><th scope="col" className={s.num}>Payments</th><th scope="col" className={s.num}>Auto-match rate</th><th scope="col" className={s.num}>Exceptions per 100 payments</th><th scope="col" className={s.num}>Batch not tied</th><th scope="col">Oldest open exception</th><th scope="col">Last ingestion</th><th scope="col">Access</th></tr></thead>
             <tbody>{p.merchants.map((m) => (
               <tr key={m.merchantOrgId} data-testid="merchant-row">
                 <td>{m.name}</td>
                 <td className={s.num}>{m.payments}</td>
                 <td className={s.num}>{m.autoMatchRatePct === null ? "—" : `${m.autoMatchRatePct}%`}</td>
-                <td className={s.num}>{m.exceptionsPer100 ?? "—"}</td>
+                <td className={s.num} data-testid="merchant-per100">{rateText(m.exceptionsPer100)}</td>
+                <td className={s.num} data-testid="merchant-batch-not-tied">{m.exceptionRate.openBatchNotTied} <span className={s.small}>({rateText(m.exceptionRate.batchNotTiedPer100)} per 100)</span></td>
                 <td>{m.oldestOpenExceptionAt ? <>{age(m.oldestOpenExceptionAt, now)} <span className={s.small}>({when(m.oldestOpenExceptionAt)})</span></> : <span className={s.muted}>None open</span>}</td>
                 <td>{when(m.lastIngestionAt)}</td>
                 <td>{m.grantScope === "full"
@@ -36,7 +38,7 @@ export default async function ProviderMerchantsPage() {
           </table>
         </div>
       )}
-      <p className={s.small}>Auto-match rate: payments matched without a person (matched, or matched with an explained difference). Exceptions per 100: open exceptions per 100 reconciled payments.</p>
+      <p className={s.small}>Auto-match rate: payments matched without a person (matched, or matched with an explained difference). {EXCEPTION_RATE_DEFINITION}</p>
     </>
   );
 }

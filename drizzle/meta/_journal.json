@@ -239,6 +239,13 @@
       "when": 1796100400000,
       "tag": "0034_difference_runs",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1796100500000,
+      "tag": "0035_exception_rate",
+      "breakpoints": true
     }
   ]
 }

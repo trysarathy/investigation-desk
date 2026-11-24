@@ -8,6 +8,7 @@ import {
 } from "@/lib/clearline/merchant";
 import { stableJson } from "@/lib/clearline/merchant/adapters";
 import { differenceIdsFor, splitDifferences } from "@/lib/clearline/merchant/difference-rows";
+import { exceptionRate, exceptionRateCounts } from "@/lib/clearline/merchant/exception-rate";
 import type { StatementLineInput } from "@/lib/clearline";
 import type { Tx } from "./db/client";
 import * as t from "./db/schema";
@@ -566,6 +567,8 @@ export async function pilotMetrics(ctx: TenantContext) {
     const auto = recs.filter((r) => r.rec.decision === "matched" || r.rec.decision === "matched_with_difference").length;
     const reviews = await tx.select().from(t.matchReviews).where(eq(t.matchReviews.orgId, ctx.orgId));
     const ex = await tx.select().from(t.reconExceptions).where(eq(t.reconExceptions.orgId, ctx.orgId));
+    // v1 phase 0: still-open exceptions per 100 reconciled payments (exception-rate.ts), batch not tied apart
+    const rate = exceptionRate(exceptionRateCounts(recs.map((r) => ({ orderId: r.rec.orderId, ruleId: r.rec.ruleId, creditedMinor: String(r.rec.ledger.creditedMinor ?? 0) })), ex));
     const resolved = ex.filter((e) => e.closedAt).map((e) => (e.closedAt!.getTime() - e.openedAt.getTime()) / 60_000);
     const entities = await tx.select({ id: t.merchantEntities.id }).from(t.merchantEntities).where(eq(t.merchantEntities.orgId, ctx.orgId)).orderBy(asc(t.merchantEntities.id));
     let batches = 0, tied = 0;
@@ -575,7 +578,7 @@ export async function pilotMetrics(ctx: TenantContext) {
     return {
       label: await orgLabel(tx, ctx.orgId), payments: recs.length, autoMatchedPct: pct(auto, recs.length),
       reviewedSample: reviews.length, wrongInSample: reviews.filter((r) => r.verdict === "wrong").length,
-      exceptionsPer100: recs.length ? Math.round((ex.length * 1000) / recs.length) / 10 : null, medianMinutesToResolve: median(resolved),
+      exceptionsPer100: rate.per100, exceptionRate: rate, medianMinutesToResolve: median(resolved),
       batches, batchesTiedToTheCent: tied, minutesLogged: minutes[0]?.n ?? 0,
     };
   });

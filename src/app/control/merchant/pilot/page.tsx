@@ -7,6 +7,7 @@ import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
 import { MinutesForm, ReviewButtons } from "@/components/merchant/forms";
 import { Chip, DecisionChip, Empty } from "@/components/merchant/ui";
+import { EXCEPTION_RATE_DEFINITION, rateText } from "@/lib/clearline/merchant/exception-rate";
 
 export const metadata: Metadata = { title: "Pilot metrics" };
 
@@ -22,11 +23,13 @@ export default async function MerchantPilotPage() {
       <ul className={m.kpis} aria-label="Pilot metrics">
         <li className={m.kpi}><span className={m.kpiValue} data-testid="metric-auto">{p.autoMatchedPct === null ? "—" : `${p.autoMatchedPct}%`}</span><span className={m.kpiLabel}>Matched automatically ({p.payments} payments)</span></li>
         <li className={m.kpi}><span className={m.kpiValue} data-testid="metric-wrong">{p.wrongInSample} of {p.reviewedSample}</span><span className={m.kpiLabel}>Wrong matches in the reviewed sample{p.reviewedSample === 0 ? " (none reviewed yet: no rate)" : ""}</span></li>
-        <li className={m.kpi}><span className={m.kpiValue}>{p.exceptionsPer100 ?? "—"}</span><span className={m.kpiLabel}>Exceptions opened per 100 payments, including those a later run closed</span></li>
+        <li className={m.kpi}><span className={m.kpiValue} data-testid="metric-per100">{rateText(p.exceptionsPer100)}</span><span className={m.kpiLabel}>Exceptions still open per 100 reconciled payments ({p.exceptionRate.openExceptions} open, {p.exceptionRate.reconciledPayments} payments)</span></li>
+        <li className={m.kpi}><span className={m.kpiValue} data-testid="metric-batch-not-tied">{p.exceptionRate.openBatchNotTied}</span><span className={m.kpiLabel}>Batch not tied, still open ({rateText(p.exceptionRate.batchNotTiedPer100)} per 100 reconciled payments; not in the rate above)</span></li>
         <li className={m.kpi}><span className={m.kpiValue}>{p.medianMinutesToResolve === null ? "—" : `${Math.round(p.medianMinutesToResolve)} min`}</span><span className={m.kpiLabel}>Median time to resolve an exception</span></li>
         <li className={m.kpi}><span className={m.kpiValue}>{p.batchesTiedToTheCent} of {p.batches}</span><span className={m.kpiLabel}>Batches tied to the cent</span></li>
         <li className={m.kpi}><span className={m.kpiValue} data-testid="metric-minutes">{p.minutesLogged}</span><span className={m.kpiLabel}>Minutes logged</span></li>
       </ul>
+      <p className={s.small}>{EXCEPTION_RATE_DEFINITION}</p>
 
       <section className={s.section} aria-labelledby="sample">
         <h2 className={s.h2} id="sample">Reviewed sample</h2>
