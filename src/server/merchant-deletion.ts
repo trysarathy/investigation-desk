@@ -27,11 +27,16 @@ export interface DeletionPlan { orgId: string; slug: string; tables: Record<stri
 const ident = (s: string) => sql.identifier(s);
 const ORG_COLUMNS = ["org_id", "merchant_org_id"] as const;
 
-/** Tables (and columns) that can hold a merchant's rows. */
+/**
+ * Tables (and columns) that can hold a merchant's rows. A partition is reached through its partitioned table (v1:
+ * chain_reads by month), so partitions are left out: counted and deleted once, through the parent.
+ */
 export async function orgScopedTables(db: Db): Promise<{ table: string; column: string }[]> {
   const r = await db.execute(sql`select c.table_name as t, c.column_name as c from information_schema.columns c join information_schema.tables x
     on x.table_schema = c.table_schema and x.table_name = c.table_name and x.table_type = 'BASE TABLE'
-    where c.table_schema = 'public' and c.column_name in ('org_id', 'merchant_org_id') order by c.table_name, c.column_name`);
+    where c.table_schema = 'public' and c.column_name in ('org_id', 'merchant_org_id')
+      and not (select k.relispartition from pg_class k where k.oid = format('%I.%I', c.table_schema, c.table_name)::regclass)
+    order by c.table_name, c.column_name`);
   return r.rows.map((x) => ({ table: String(x.t), column: String(x.c) })).filter((x) => (ORG_COLUMNS as readonly string[]).includes(x.column));
 }
 
