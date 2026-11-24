@@ -9,8 +9,7 @@ import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
 import { FlashMessage } from "@/components/control/forms";
 import { AssignForm, ExceptionNoteForm, ProposeResolutionForm } from "@/components/merchant/forms";
-import { Chip, DecisionChip, age, differenceLabel, fiat } from "@/components/merchant/ui";
-import { when } from "@/components/control/ui";
+import { Chip, DecisionChip, age, differenceLabel, fiat, whenIn } from "@/components/merchant/ui";
 
 export const metadata: Metadata = { title: "Exception" };
 
@@ -25,6 +24,8 @@ export default async function ExceptionPage({ params }: { params: Promise<{ id: 
   const mayAct = can(ctx.role, "merchant_investigate") && open;
   const pending = d.requests.find((r) => r.status === "pending");
   const evidence = d.notes.filter((n) => n.kind === "evidence");
+  const ent = shell.entities.find((x) => x.id === d.match?.ledger.invoice.entityId) ?? null;
+  const when = (v: string | Date | null | undefined) => whenIn(v, ent);
 
   return (
     <>
@@ -78,7 +79,7 @@ export default async function ExceptionPage({ params }: { params: Promise<{ id: 
         <section className={s.section} aria-labelledby="act">
           <h2 className={s.h2} id="act">Work this exception</h2>
           <div className={m.cols2}>
-            <div className={s.panel}><h3 className={s.h3}>Assign</h3><AssignForm exceptionId={e.id} members={d.members} current={e.ownerUserId} /></div>
+            <div className={s.panel}><h3 className={s.h3}>Assign</h3><AssignForm exceptionId={e.id} members={d.members} current={e.ownerUserId} me={ctx.userId} /></div>
             <div className={s.panel}><h3 className={s.h3}>Add a note</h3><ExceptionNoteForm exceptionId={e.id} kind="note" /></div>
             <div className={s.panel}><h3 className={s.h3}>Attach evidence</h3><ExceptionNoteForm exceptionId={e.id} kind="evidence" /></div>
             <div className={s.panel}>

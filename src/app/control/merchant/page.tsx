@@ -1,7 +1,8 @@
 /* eslint-disable @next/next/no-html-link-for-pages -- plain links on purpose: every page is a full load rendered on the server from the database (as in rc5 Control) */
 import type { Metadata } from "next";
 import { can } from "@/server/authz";
-import { dailyReport } from "@/server/merchant";
+import { dailyReports } from "@/server/merchant";
+import { DEMO_LAST_DAY } from "@/lib/clearline/demo/clock";
 import { merchantMember } from "@/server/merchant-page";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
@@ -10,7 +11,7 @@ import { Empty, one, q } from "@/components/merchant/ui";
 
 export const metadata: Metadata = { title: "Daily report" };
 
-type Report = Awaited<ReturnType<typeof dailyReport>>;
+type Report = NonNullable<ReturnType<Awaited<ReturnType<typeof dailyReports>>["get"]>>;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const offset = (min: number) => `UTC${min >= 0 ? "+" : "−"}${String(Math.floor(Math.abs(min) / 60)).padStart(2, "0")}:${String(Math.abs(min) % 60).padStart(2, "0")}`;
 
@@ -27,10 +28,13 @@ export default async function DailyReportPage({ searchParams }: { searchParams: 
   const sel = ents.find((e) => e.id === one(sp.entity)) ?? null;
   const scope = sel ? [sel] : ents;
   const days = [...new Set(scope.flatMap((e) => e.days))].sort();
-  const date = days.includes(one(sp.date) ?? "") ? one(sp.date)! : days.at(-1) ?? null;
+  // a demo organisation opens on the last full demo day (the day before the demo's "today"); otherwise the latest day
+  const fallback = shell.dataMode === "demo" && days.includes(DEMO_LAST_DAY) ? DEMO_LAST_DAY : days.at(-1) ?? null;
+  const date = days.includes(one(sp.date) ?? "") ? one(sp.date)! : fallback;
   const mayReconcile = can(ctx.role, "merchant_reconcile");
-  const perEntity = date ? await Promise.all(scope.filter((e) => e.days.includes(date)).map(async (e) => ({ e, r: await dailyReport(ctx, e.id, date) }))) : [];
-  const perDate = await Promise.all(days.map(async (d) => ({ d, t: total(await Promise.all(scope.filter((e) => e.days.includes(d)).map((e) => dailyReport(ctx, e.id, d)))) })));
+  const reports = new Map(await Promise.all(scope.map(async (e) => [e.id, await dailyReports(ctx, e.id, e.days)] as const)));
+  const perEntity = date ? scope.filter((e) => e.days.includes(date)).map((e) => ({ e, r: reports.get(e.id)!.get(date)! })) : [];
+  const perDate = days.map((d) => ({ d, t: total(scope.filter((e) => e.days.includes(d)).map((e) => reports.get(e.id)!.get(d)!)) }));
   const t = total(perEntity.map((x) => x.r));
 
   return (

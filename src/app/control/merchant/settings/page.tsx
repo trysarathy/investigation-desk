@@ -1,5 +1,7 @@
 /* eslint-disable @next/next/no-html-link-for-pages -- plain links on purpose: every page is a full load rendered on the server from the database (as in rc5 Control) */
+import type { CSSProperties } from "react";
 import type { Metadata } from "next";
+import { contrast } from "@/lib/clearline/merchant/theme";
 import { can, ROLE_LABELS } from "@/server/authz";
 import { merchantSettings } from "@/server/provider";
 import { merchantMember } from "@/server/merchant-page";
@@ -8,13 +10,13 @@ import { RetentionForm } from "@/components/merchant/upload-review-forms";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
 import { GrantForm, PolicyForm } from "@/components/merchant/forms";
-import { Chip, Empty, fiat } from "@/components/merchant/ui";
-import { when } from "@/components/control/ui";
+import { Chip, Empty, fiat, whenIn } from "@/components/merchant/ui";
 
 export const metadata: Metadata = { title: "Settings" };
 
 export default async function MerchantSettingsPage() {
-  const { ctx } = await merchantMember();
+  const { ctx, shell } = await merchantMember();
+  const th = shell.theme;
   const v = await merchantSettings(ctx);
   const up = await uploadsOverview(ctx);
   const isAdmin = can(ctx.role, "manage_policy");
@@ -36,11 +38,28 @@ export default async function MerchantSettingsPage() {
           <div className={m.cols2}>{v.policies.map((p) => (
             <article className={s.panel} key={p.entityId} aria-labelledby={`pol-${p.entityId}`}>
               <h3 className={s.h3} id={`pol-${p.entityId}`}>{p.name} <span className={s.mono}>{p.entityId}</span></h3>
-              <p className={s.small}>Revision {p.revision}, {when(p.updatedAt)}. Band = the {p.toleranceCombine === "smaller" ? "smaller" : "larger"} of {p.toleranceBps} bps and {fiat(p.toleranceAbsMinor, p.currency)}; write-offs up to {fiat(p.writeoffThresholdMinor, p.currency)}; imported bank lines {p.allowImportedBankLinesAsVerified ? <Chip tone="warn">may verify settlement</Chip> : "never verify settlement alone"}.</p>
+              <p className={s.small}>{isAdmin ? null : <><Chip>Read-only for {ROLE_LABELS[ctx.role]}</Chip> </>}Revision {p.revision}, {whenIn(p.updatedAt, shell.entities.find((e) => e.id === p.entityId))}. Band = the {p.toleranceCombine === "smaller" ? "smaller" : "larger"} of {p.toleranceBps} bps and {fiat(p.toleranceAbsMinor, p.currency)}; write-offs up to {fiat(p.writeoffThresholdMinor, p.currency)}; imported bank lines {p.allowImportedBankLinesAsVerified ? <Chip tone="warn">may verify settlement</Chip> : "never verify settlement alone"}.</p>
               {isAdmin ? <PolicyForm entityId={p.entityId} revision={p.revision} current={p} /> : null}
             </article>
           ))}</div>
         )}
+      </section>
+
+      <section className={s.section} aria-labelledby="theme">
+        <h2 className={s.h2} id="theme">Your provider&rsquo;s theme</h2>
+        <p className={s.small}>These screens carry {shell.providerName ?? "your provider"}&rsquo;s name, logo placeholder and colours; Clearline appears only in small print. The provider sets them; this is a preview.</p>
+        <div className={m.themeCard} data-testid="theme-preview" style={{ "--brand": th.primary, "--on-brand": th.onPrimary, "--accent": th.accent } as CSSProperties}>
+          <div className={`${m.themeBar} ${m.brandBar}`}>
+            <span className={m.logo} role="img" aria-label={th.logoAlt}>{th.logoText}</span>
+            <div><p className={m.brandName}>{th.name}</p><p className={m.brandSub}>Merchant reconciliation · {ctx.orgName}</p></div>
+          </div>
+          <ul className={m.swatches}>
+            <li><span className={m.swatch} style={{ background: th.primary }} aria-hidden="true" />Primary {th.primary}</li>
+            <li><span className={m.swatch} style={{ background: th.accent }} aria-hidden="true" />Accent {th.accent}</li>
+            <li>Text on primary {th.onPrimary}: contrast {contrast(th.primary, th.onPrimary).toFixed(2)}:1 (AA needs 4.5:1)</li>
+          </ul>
+          <p className={`${s.small} ${m.themeBar}`}><span className={m.demoChip}>{shell.label}</span><span className={m.powered}>powered by Clearline</span></p>
+        </div>
       </section>
 
       <section className={s.section} aria-labelledby="retention">

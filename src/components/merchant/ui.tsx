@@ -9,6 +9,23 @@ import m from "./merchant.module.css";
 export const DEMO_LABEL = "Test mode · illustrative data";
 export const PENDING_SIGN_OFF = "Posting rules pending sign-off";
 
+const TZ_ABBR: Record<string, string> = { "Asia/Singapore": "SGT", "Asia/Dubai": "GST" };
+const utcOffset = (min: number) => `UTC${min >= 0 ? "+" : "−"}${String(Math.floor(Math.abs(min) / 60)).padStart(2, "0")}:${String(Math.abs(min) % 60).padStart(2, "0")}`;
+/**
+ * An instant in an entity's own time zone ("2026-11-24 10:15 SGT"), from the entity's stored offset; without an
+ * entity, UTC ("2026-11-24 02:15 UTC") as everywhere else.
+ */
+export function whenIn(v: string | Date | null | undefined, z?: { timezone: string; utcOffsetMinutes: number } | null): string {
+  if (!v) return "—";
+  const d = typeof v === "string" ? new Date(v) : v;
+  if (Number.isNaN(d.getTime())) return String(v);
+  const tz = z ?? { timezone: "UTC", utcOffsetMinutes: 0 };
+  const l = new Date(d.getTime() + tz.utcOffsetMinutes * 60_000).toISOString();
+  return `${l.slice(0, 10)} ${l.slice(11, 16)} ${tz.timezone === "UTC" ? "UTC" : TZ_ABBR[tz.timezone] ?? utcOffset(tz.utcOffsetMinutes)}`;
+}
+const NETWORK_LABELS: Record<string, string> = { tron: "TRON", ethereum: "Ethereum" };
+export const networkLabel = (n: string) => NETWORK_LABELS[n] ?? n;
+
 export const fiat = (minor: string | bigint | number | null | undefined, cur: string) => (minor === null || minor === undefined ? "—" : fmtFiat(BigInt(minor), cur as FiatCurrency));
 export const token = (base: string, decimals: number, symbol: string) => fmtToken(BigInt(base), decimals, symbol);
 

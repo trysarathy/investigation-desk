@@ -4,6 +4,8 @@ import { headers } from "next/headers";
 import { currentPrincipal } from "@/server/auth";
 import { SignInForm } from "@/components/control/forms";
 import s from "@/components/control/control.module.css";
+import { demoBuild } from "@/server/demo-build";
+import { DEMO_DATA_LABEL } from "@/lib/clearline/data-mode";
 
 export const metadata: Metadata = { title: "Sign in" };
 
@@ -18,6 +20,7 @@ export default async function SignInPage() {
         <SignInForm />
       </div>
       <p className={`${s.small} ${s.muted}`}>Private staging. Every organisation, person and payment here is fictional.</p>
+      {demoBuild() ? <p className={s.small} data-testid="data-label">{DEMO_DATA_LABEL}: sign in with one of the demo logins that <code>npm run demo</code> printed.</p> : null}
     </main>
   );
 }

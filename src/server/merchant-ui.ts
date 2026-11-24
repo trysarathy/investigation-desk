@@ -8,7 +8,7 @@ import type { Tx } from "./db/client";
 import * as t from "./db/schema";
 import { can, isAppRole, type Permission } from "./authz";
 import { Decision, IdempotencyKey, canonical, idempotent, serverAudit } from "./control";
-import { decideWriteoff, monthEnd } from "./merchant";
+import { decideWriteoff, entityOnly, monthEnd } from "./merchant";
 import { MissingEntity, loadReconcileInput } from "./merchant-store";
 import { dataModeOf } from "./mapping-templates";
 import { DEMO_DATA_LABEL, labelUsesUploadPipeline, type DataLabel, type DataMode } from "@/lib/clearline/data-mode";
@@ -82,10 +82,12 @@ export async function merchantShell(ctx: TenantContext): Promise<{ label: DataLa
 
 async function entitySummaries(tx: Tx, orgId: string): Promise<EntitySummary[]> {
   const ents = await tx.select().from(t.merchantEntities).where(eq(t.merchantEntities.orgId, orgId)).orderBy(asc(t.merchantEntities.id));
-  const rows = await tx.select({ m: t.matchRecords, entityId: t.invoices.entityId }).from(t.matchRecords)
-    .innerJoin(t.invoices, and(eq(t.invoices.orgId, t.matchRecords.orgId), eq(t.invoices.orderId, t.matchRecords.orderId))).where(eq(t.matchRecords.orgId, orgId));
+  // only the stored chain transfers' timestamps (every page's shell needs the days, not the records)
+  const rows = (await tx.execute(sql`select i.entity_id, x->>'timestamp' as ts from match_records m
+    join invoices i on i.org_id = m.org_id and i.order_id = m.order_id cross join lateral jsonb_array_elements(m.chain->'transfers') x
+    where m.org_id = ${orgId}`)).rows as { entity_id: string; ts: string }[];
   return ents.map((e) => {
-    const ts = rows.filter((r) => r.entityId === e.id).flatMap((r) => partsOf(r.m).chain.transfers.map((x) => x.timestamp));
+    const ts = rows.filter((r) => r.entity_id === e.id).map((r) => r.ts);
     const days = [...new Set(ts.map((x) => localDate(x, e.utcOffsetMinutes)))].sort();
     return {
       id: e.id, name: e.name, currency: e.functionalCurrency, timezone: e.timezone, utcOffsetMinutes: e.utcOffsetMinutes, ledger: e.ledger,
@@ -102,6 +104,43 @@ export function dataAsOf(entities: EntitySummary[]): string | null {
 // ---------------------------------------------------------------------------------------------
 // Batches
 // ---------------------------------------------------------------------------------------------
+
+/**
+ * The overview's counts, one per record kind in the order Clearline follows a payment: the provider's records, the
+ * chain transfers (chain facts only, never a provider's claim of one), the orders, the settlement batches and the bank
+ * lines; and the decisions so far. Counts only.
+ */
+export async function overviewCounts(ctx: TenantContext) {
+  require(ctx, "read");
+  return tenantRead(ctx, async (tx) => {
+    const n = async (q: ReturnType<typeof sql>) => Number(((await tx.execute(q)).rows[0] as { n: string | number }).n);
+    const o = ctx.orgId;
+    const decisions = (await tx.execute(sql`select decision, count(*)::int as n from match_records where org_id = ${o} group by decision`)).rows as { decision: string; n: number }[];
+    return {
+      providerRecords: await n(sql`select count(*)::int as n from provider_payment_records where org_id = ${o}`),
+      chainTransfers: await n(sql`select count(*)::int as n from chain_transfers where org_id = ${o} and source <> 'provider_export'`),
+      orders: await n(sql`select count(*)::int as n from invoices where org_id = ${o}`),
+      batches: await n(sql`select count(*)::int as n from settlement_batches where org_id = ${o}`),
+      bankLines: await n(sql`select count(*)::int as n from bank_lines where org_id = ${o}`),
+      decisions: Object.fromEntries(decisions.map((d) => [d.decision, d.n])) as Partial<Record<"matched" | "matched_with_difference" | "suggested_for_review" | "exception", number>>,
+    };
+  });
+}
+
+/** The open exceptions of some orders (id, order, reason), for pages that show where a person is needed. */
+export async function openExceptionsOf(ctx: TenantContext, orderIds: string[]) {
+  require(ctx, "read");
+  if (orderIds.length === 0) return [];
+  return tenantRead(ctx, async (tx) => tx.select({ id: t.reconExceptions.id, orderId: t.reconExceptions.orderId, reason: t.reconExceptions.reason, status: t.reconExceptions.status }).from(t.reconExceptions)
+    .where(and(eq(t.reconExceptions.orgId, ctx.orgId), inArray(t.reconExceptions.orderId, orderIds), sql`${t.reconExceptions.status} <> 'resolved'`)).orderBy(asc(t.reconExceptions.id)));
+}
+
+/** The settlement batch ids, in the batches page's order (for a filter list; no bridge is computed). */
+export async function batchIds(ctx: TenantContext): Promise<string[]> {
+  require(ctx, "read");
+  return tenantRead(ctx, async (tx) => (await tx.select({ batchId: t.settlementBatches.batchId }).from(t.settlementBatches).where(eq(t.settlementBatches.orgId, ctx.orgId))
+    .orderBy(asc(t.settlementBatches.dayStart), asc(t.settlementBatches.batchId))).map((b) => b.batchId));
+}
 
 export async function listBatches(ctx: TenantContext) {
   require(ctx, "read");
@@ -402,10 +441,12 @@ const AGE_BUCKETS = [{ label: "Under 1 day", max: 1 }, { label: "1–7 days", ma
 export async function monthEndView(ctx: TenantContext, entityId: string, month: string, asOf: string | null) {
   const base = await monthEnd(ctx, entityId, month);
   return tenantRead(ctx, async (tx) => {
-    const input = await load(tx, ctx, entityId);
+    // the entity's own facts and its batches' currencies (the full reconcile input is not needed here)
+    const ent = await entityOnly(tx, ctx, entityId);
+    const batchCurrencies = (await tx.select({ c: t.settlementBatches.currency }).from(t.settlementBatches).where(and(eq(t.settlementBatches.orgId, ctx.orgId), eq(t.settlementBatches.entityId, entityId))).orderBy(asc(t.settlementBatches.batchId))).map((b) => b.c);
     const recs = await tx.select({ m: t.matchRecords }).from(t.matchRecords).innerJoin(t.invoices, and(eq(t.invoices.orgId, t.matchRecords.orgId), eq(t.invoices.orderId, t.matchRecords.orderId)))
       .where(and(eq(t.matchRecords.orgId, ctx.orgId), eq(t.invoices.entityId, entityId))).orderBy(asc(t.matchRecords.orderId));
-    const off = input.entity.timeZone.utcOffsetMinutes;
+    const off = ent.utcOffsetMinutes;
     const receivable = new Map<string, { batchId: string; orderIds: string[]; creditedMinor: bigint; reason: string }>();
     for (const { m } of recs) {
       const p = partsOf(m);
@@ -422,12 +463,12 @@ export async function monthEndView(ctx: TenantContext, entityId: string, month: 
     const ref = asOf ? Date.parse(asOf) : Date.now();
     const ages = AGE_BUCKETS.map((b, i) => ({ label: b.label, ids: ex.filter((e) => { const d = Math.max(0, (ref - e.openedAt.getTime()) / 86_400_000); return d < b.max && (i === 0 || d >= AGE_BUCKETS[i - 1].max); }).map((e) => e.id) }));
     const fx = (await tx.select().from(t.fxRates).where(eq(t.fxRates.orgId, ctx.orgId)).orderBy(desc(t.fxRates.observedAt))).filter((r) => r.observedAt.toISOString().startsWith(month) || !r.entityId || r.entityId === entityId);
-    const foreign = [...new Set(input.batches.map((b) => b.currency).filter((c) => c !== input.entity.functionalCurrency))];
+    const foreign = [...new Set(batchCurrencies.filter((c) => c !== ent.functionalCurrency))];
     return {
       ...base,
       receivableFromProvider: [...receivable.values()].map((g) => ({ ...g, creditedMinor: g.creditedMinor.toString() })),
       exceptionAges: ages,
-      fx: { functionalCurrency: input.entity.functionalCurrency, foreignCurrencies: foreign, rates: fx.slice(0, 6).map((r) => ({ pair: r.pair, rate: r.rate, source: r.source, observedAt: r.observedAt.toISOString() })) },
+      fx: { functionalCurrency: ent.functionalCurrency, foreignCurrencies: foreign, rates: fx.slice(0, 6).map((r) => ({ pair: r.pair, rate: r.rate, source: r.source, observedAt: r.observedAt.toISOString() })) },
     };
   });
 }

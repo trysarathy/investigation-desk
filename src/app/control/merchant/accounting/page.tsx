@@ -26,7 +26,15 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
   const cur = me.currency;
   const mayExport = can(ctx.role, "merchant_export");
   const ledger = entity.ledger === "quickbooks" ? "QuickBooks" : entity.ledger === "xero" ? "Xero" : "ledger";
-  const totals = js.map((j) => (j.lines as Line[]).reduce((t, l) => ({ dr: t.dr + (l.side === "debit" ? BigInt(l.amountMinor) : 0n), cr: t.cr + (l.side === "credit" ? BigInt(l.amountMinor) : 0n) }), { dr: 0n, cr: 0n }));
+  // the preview is paged (50 entries a page); the export file and the counts cover every proposal
+  const PER = 50;
+  const pages = Math.max(1, Math.ceil(js.length / PER));
+  const raw = one(sp.page);
+  const pageNo = Math.min(pages, Math.max(1, raw && /^\d{1,4}$/.test(raw) ? Number(raw) : 1));
+  const first = (pageNo - 1) * PER;
+  const shown = js.slice(first, first + PER);
+  const pageHref = (n: number) => `/control/merchant/accounting?entity=${encodeURIComponent(entity.id)}&month=${month}${n > 1 ? `&page=${n}` : ""}`;
+  const totals = shown.map((j) => (j.lines as Line[]).reduce((t, l) => ({ dr: t.dr + (l.side === "debit" ? BigInt(l.amountMinor) : 0n), cr: t.cr + (l.side === "credit" ? BigInt(l.amountMinor) : 0n) }), { dr: 0n, cr: 0n }));
   return (
     <>
       <h1 className={s.title}>Accounting export</h1>
@@ -50,7 +58,8 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
       <section className={s.section} aria-labelledby="preview">
         <h2 className={s.h2} id="preview">Journal preview ({js.length})</h2>
         <p className={s.row}><Chip tone={shell.dataMode === "sample" ? "amber" : "info"}>{shell.label}</Chip><span className={s.small}>{shell.dataMode === "demo" ? "Proposed from the reconciled demo data (fictional); nothing is posted to a ledger." : shell.dataMode === "live" ? "Proposed from your reconciled data; nothing is posted to a ledger." : "Fictional entries from the illustrative cases."}</span></p>
-        {js.length === 0 ? <Empty>No journal proposals for {entity.id} in {month}. Run reconciliation from the daily report first.</Empty> : js.map((j, i) => {
+        {pages > 1 ? <p className={s.small} data-testid="journal-range">Showing entries {first + 1}–{Math.min(first + PER, js.length)} of {js.length}.</p> : null}
+        {js.length === 0 ? <Empty>No journal proposals for {entity.id} in {month}. Run reconciliation from the daily report first.</Empty> : shown.map((j, i) => {
           const ev = j.evidence as Ev;
           return (
             <article className={s.panel} key={j.id} aria-labelledby={`j-${i}`} data-testid="journal-entry">
@@ -71,6 +80,13 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
             </article>
           );
         })}
+        {pages > 1 ? (
+          <nav className={m.pager} aria-label="Pages of journal proposals">
+            <span className={s.small}>Page {pageNo} of {pages}</span>
+            {pageNo > 1 ? <a href={pageHref(pageNo - 1)} rel="prev">Previous page</a> : null}
+            {pageNo < pages ? <a href={pageHref(pageNo + 1)} rel="next">Next page</a> : null}
+          </nav>
+        ) : null}
       </section>
     </>
   );

@@ -152,6 +152,39 @@ tie (3 exceptions). Case 1's 5,961.24 and Case 2's 44,412.30 → 40,228.68 bridg
   gets 404, and in a real build the route is 404 for everyone). The seeded state has no sign-in sessions, so after a
   reset everyone signs in again.
 
+## Role switcher (demo build only)
+
+Next to the data label and "Reset demo", a demo build shows **"Sign in as"** with the five demo logins. Switching
+**signs in as that seeded user**: the server creates a real session for them (as a password sign-in does) and ends
+the presenter's current one (`POST /api/control/demo/switch`, `src/server/demo-switch.ts`). There is no impersonation
+flag, so whatever happens next is recorded as that user, and every rule still applies: Finance can propose, an Approver
+approves, and Finance signing in again through the switcher still cannot approve her own proposal (the server and the
+database's maker-checker check refuse it). Each switch is written to the audit history. [VERIFIED by
+`tests/control/demo-switch.test.ts` and the demo journey]
+
+Who may switch: a signed-in member whose organisations are **all** demo organisations, to a user whose organisations
+are all demo organisations too. Anyone else gets 404, and in a real build the route is 404 for everyone and its code is
+not in the bundle (the demo controls are imported only inside the build-constant branch, `src/components/merchant/DemoBar.tsx`).
+
+## The demo journey in the browser (`playwright.demo.config.ts`)
+
+```bash
+CLEARLINE_DEMO_PG_URL=… npx playwright test -c playwright.demo.config.ts               # both specs, 1440 px and iPhone
+CLEARLINE_DEMO_PG_URL=… npx playwright test -c playwright.demo.config.ts journey.spec.ts --project=desktop
+```
+
+The web server (`scripts/demo/e2e-server.ts`) runs `npm run demo -- --no-start` (sets up, seeds and builds what is
+missing, with this checkout's `.demo/state.json`) and starts the demo build on `CLEARLINE_DEMO_E2E_PORT` (default 3402).
+Each spec resets the demo database first, so do not present from the same checkout while it runs.
+
+- `tests/e2e-demo/journey.spec.ts`: the 13 steps (overview, daily report, payments filters and search, BK-24823,
+  its exception, the switcher and the self-approval refusals, the B-1125-SGD waterfall, BK-25102, month-end, exports
+  and the Viewer refusal, the upload of `demo-files/` checked against `expected-outcomes.json`, the provider console,
+  settings), with axe (WCAG 2.2 AA) at 1280 px and 390 px, no horizontal scroll, no console error and no 5xx on
+  every page it visits.
+- `tests/e2e-demo/pages.spec.ts`: every journey page, the median of 5 loads (must be under 1 s; written to
+  `test-results/demo-page-times-<project>.json`) and axe.
+
 ## Demo build vs real build
 
 | | Real build (`next build`) | Demo build (`CLEARLINE_DEMO_BUILD=1 next build`) |
@@ -159,6 +192,7 @@ tie (3 exceptions). Case 1's 5,961.24 and Case 2's 44,412.30 → 40,228.68 bridg
 | Recorded chain data (`CLEARLINE_CHAIN_RECORDING`) | refused at start and per call (unless a test build) | honoured only for an organisation whose data mode is `demo`; refused for live and sample ones |
 | Live chain reads, ledger pull | as configured | refused at start (offline) |
 | `POST /api/control/demo/reset`, "Reset demo" | 404 / not rendered; the code is not in the bundle | present |
+| `POST /api/control/demo/switch`, "Sign in as" (role switcher) | 404 / not rendered; the code is not in the bundle | present, for members of demo organisations only |
 | Data mode `demo` (migration 0031) | the label still shows; nothing else changes | as left |
 | Check | `node scripts/build/check-chain-recording.mjs --marker demo --expect absent` | `NEXT_DIST_DIR=.next-demo node scripts/build/check-chain-recording.mjs --marker demo --expect present` |
 

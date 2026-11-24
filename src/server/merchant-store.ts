@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, inArray, or } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, or } from "drizzle-orm";
 import {
   NETWORKS, localDate, toFiatMinor,
   type BankLine, type ChainTransfer, type ChainUnavailable, type FiatCurrency, type Invoice, type MerchantEntity, type MerchantPolicy, type NetworkId, type PaymentLink,
@@ -141,7 +141,13 @@ const txNorm = (network: string, h: string) => (network === "tron" ? h.toLowerCa
  * is `unavailable`), plus every provider-claimed transaction no read has covered and no chain fact confirms yet.
  */
 async function unavailableReads(tx: Tx, orgId: string, entityId: string, transfers: (typeof t.chainTransfers.$inferSelect)[]): Promise<ChainUnavailable[]> {
-  const reads = await tx.select().from(t.chainReads).where(and(eq(t.chainReads.orgId, orgId), eq(t.chainReads.entityId, entityId)))
+  // Every run records its chain reads, so this table grows by a few hundred rows a day. When no read of the entity is
+  // `unavailable` (the usual case), only the transaction reads can matter below (the provider-claim check); the
+  // address reads cannot produce an output. Both filters are leakproof, so PostgreSQL applies them before the
+  // per-row RLS check instead of checking every read. Same result as reading every row.
+  const where = and(eq(t.chainReads.orgId, orgId), eq(t.chainReads.entityId, entityId));
+  const anyUnavailable = (await tx.select({ id: t.chainReads.id }).from(t.chainReads).where(and(where, eq(t.chainReads.status, "unavailable"))).limit(1)).length > 0;
+  const reads = await tx.select().from(t.chainReads).where(anyUnavailable ? where : and(where, isNotNull(t.chainReads.txHash)))
     .orderBy(asc(t.chainReads.at), asc(t.chainReads.id));
   const latest = new Map<string, typeof reads[number]>();
   for (const r of reads) {
