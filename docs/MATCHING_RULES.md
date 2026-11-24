@@ -1,4 +1,4 @@
-# Matching rules — merchant reconciliation (rc6, updated in rc7)
+# Matching rules — merchant reconciliation (rc6, updated in rc7 and rc8)
 
 Test mode · illustrative data.
 
@@ -19,7 +19,7 @@ Test mode · illustrative data.
 | 1 Identity | `M1.chain.unavailable` (rc7), `M1.identity.unknown_token`, `M1.identity.lookalike_token`, `M1.identity.network_disabled`, `M1.finality.pending` | A token is identified by **(network, contract)**, never by symbol. A transfer is ignored until it is final on its network (TRON 19, Ethereum 12 [ASSUMPTION]). A disabled network, an unknown contract or a look-alike becomes an exception. If chain data cannot be read, the order is an exception and nothing is assumed (rc7). | Any "USDT" on another contract becomes an exception |
 | 2 Reference first | `M2.reference.unattributed`, `M2.reference.no_chain_transfer`, `M2.reference.provider_ref_mismatch` | A transfer links to its order **only** through the order's quote ID, payment link or deposit address. **The sender never decides, and neither does the amount.** | Case 1: the two SGD 1,350.00 orders never cross-match, in any arrival order |
 | 3 Checks | `M3.currency.*`, `M3.direction.outbound`, `M3.window.before_quote`, `M3.window.after_expiry_no_requote`, `M3.quote.invoice_mismatch`, `M3.provider.no_record`, `M3.provider.received_mismatch`, `M3.batch.unknown_batch`, `M3.batch.held_by_provider`, `M3.quote.terms_unknown` (rc7), `M3.provider.transfer_ambiguous` (rc7) | Currency, direction, time window, the provider record and the settlement batch. Missing quote terms or an ambiguous claimed transfer stop the order (rc7). | Case 2: BK-24871 is shown as completed but is in no settlement, so it becomes an exception owned by Treasury |
-| 4 Explained tolerance | `M4.tolerance.sender_side_fee`, `underpayment`, `overpayment`, `requote_after_expiry`, `rate_difference`, `unexplained`, `within_band`, `explained_outside_band`, `underpayment_beyond_band`, `overpayment_beyond_band`, `writeoff_threshold`; `M4.partial.balance_link_open`; `M4.provider.credit_mismatch`; `M4.match.no_difference` | Typed items first, then comparison with the band (below) | See the cases below |
+| 4 Explained tolerance | `M4.tolerance.sender_side_fee`, `underpayment`, `overpayment`, `requote_after_expiry`, `rate_difference`, `unexplained`, `within_band`, `explained_outside_band`, `underpayment_beyond_band`, `overpayment_beyond_band`, `writeoff_threshold`; `M4.partial.balance_link_open`; `M4.provider.credit_mismatch`; `M4.match.no_difference`; `M4.exact.no_quote_terms` (rc8) | Typed items first, then comparison with the band (below) | See the cases below |
 | 5 Grouping and bridge | `M5.batch.tied_verified`, `M5.batch.not_tied`, `M5.bank.imported_not_verified`, `M5.grouping.proposed_needs_confirmation`, `M5.bridge.timing_prior_batch`, `M5.bridge.timing_next_batch`, `M5.bridge.held_by_provider` | Payments are grouped by batch ID. A batch ties only if gross − fees − refunds = net = the bank line, to the cent. Without a batch ID, a grouping is **proposed** and never closed automatically. Step 5 only confirms or tightens a decision. | Case 2: gross 41,862.30 → net 40,228.68 |
 
 ## Difference types
@@ -57,9 +57,28 @@ Each rule's own test fails when only that rule is disabled; the runs are listed 
 | `M3.provider.transfer_ambiguous` | 3 | `exception`, Payment Operations | The provider names a tx hash without a log index, and several transfers in that transaction reach the order's address. Clearline does not choose. With exactly one match, that transfer is used. A missing log index is never assumed to be 0. |
 | `J.settlement.refund_netted` | journal | proposal, `pending_sign_off` | A refund netted inside a verified settlement gets its own entry: Dr Sales refunds / Cr Provider clearing (Document A, Case 2: 1,215.00). See `docs/POSTING_RULES.md`. |
 
-**What this means for real files [VERIFIED in #152 and the blind test].** Exports that carry no quote rate or quote window are abstained on, not auto-matched. In the blind test this gave 0 wrong matches and a 0.00% auto-match rate (1,895 of 1,952 payments abstained). Whether Clearline should close exact payments without quote terms is an open founder decision; today it does not.
+**What this meant for real files in rc7 [VERIFIED in #152 and the blind test].** Exports that carry no quote rate or quote window were abstained on, not auto-matched. In the blind test this gave 0 wrong matches and a 0.00% auto-match rate (1,895 of 1,952 payments abstained). rc8 adds founder decision 1 below.
 
-**Unchanged in rc7.** The tolerance band above (larger of 0.5% or SGD 5 / USD 5 / AED 20) was set in #140. No rc7 change loosens matching: an amount alone still never closes a match, and the sender never decides.
+## rc8: founder decision 1 — an exact payment closes without quote terms
+
+| Rule | Step | Outcome | What it means |
+|---|---|---|---|
+| `M4.exact.no_quote_terms` | 4 | `matched` (then step 5 as usual) | The files give no quote terms, yet the payment is exact and linked by reference. It is checked only after the provider's credit (an unexplained credit is still an exception). |
+
+The order closes **only when every condition holds**; otherwise it keeps its existing outcome (`M3.quote.terms_unknown`, or the exception its facts call for):
+
+- **(a) Linked by reference.** Exactly one transfer reached a deposit address issued for the order. Exactly one provider record names the order. That record names the same quote or payment link as the address, and if it names a transaction, it names this transfer. Amount, time and sender are never used.
+- **(b) A verified chain fact.** The transfer was read by Clearline's own chain client (source `chain_client`, not a fixture, a seed or a provider's claim). It is final, inbound, and on the configured contract of the order's token, so look-alikes are excluded. Chain data unavailable, a pending transfer, several transfers, or an ambiguous claimed transaction all mean no close.
+- **(c) Exact amount.** The provider's credited amount equals the invoice to the minor unit, in the same currency, and the file must give the credited currency. Any difference of any size means no close. This path never gives `matched_with_difference` and never proposes a write-off.
+- **Also required.** The provider claims `paid`. There is no refund line for the order, no balance payment link (part payment) and the invoice is not void. Over- and underpayments fail (c).
+- **Step 5 still applies.** An untied batch is an exception. An imported bank line (flag off) or a totals-only report's proposed grouping keeps the order in review.
+- **Not implemented [VERIFIED by schema]: the token-priced branch** ("the invoice is token-priced and equals the on-chain amount"). Merchant invoices are fiat only (`invoices_cur_chk`). Adding token-priced invoices needs a database migration, which rc8 does not add.
+- **Unchanged.** Inputs that carry quote terms are decided exactly as before (cases 1–3 and the A+quotes pipeline variants are unchanged).
+- **Proofs.** Disabling the rule, or removing guard (a), (b) or (c), makes its tests fail (`tests/clearline/merchant/rules-exact-no-terms.test.ts`, `properties-exact.test.ts`). The pipeline-truth control and the blind judge also check that every order this rule closes is one the generator's truth matches exactly.
+
+**Payment link IDs without a requested amount (rc8 fix).** A reference column mapped as "Payment link ID" in a file with no quoted amount used to fail the whole run ("payment link … lacks the fields reconciliation needs"). The link's requested amount is now unknown, so the order abstains or gets the exception its facts call for.
+
+**Unchanged in rc7 and rc8.** The tolerance band above (larger of 0.5% or SGD 5 / USD 5 / AED 20) was set in #140. No rc7 change loosens matching. rc8's decision 1 closes only exact payments linked by reference. An amount alone still never closes a match, and the sender never decides.
 
 ## The three cases (every figure is asserted in `tests/clearline/merchant/`)
 
