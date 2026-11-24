@@ -317,6 +317,15 @@ describe("demo reset", () => {
     try { await su.connect(); } catch (e) { throw new Error(`BLOCKED: the demo reset test needs a superuser of the test server (CLEARLINE_TEST_SUPER_URL): ${(e as Error).message}`); }
     try {
       await closeDatabase(); await closeOwner();
+      // v1: the pools' end() resolves before their backends have finished closing. Terminating a backend while its
+      // client is still closing makes PostgreSQL send that client a FATAL 57P01 it no longer listens for, which
+      // vitest reports as an unhandled error and fails the whole run (CI control-db at 727d4cf; 1 of 2 local runs).
+      // Wait (up to 10 s) for this process's own pools to be gone; only then end whatever else is left.
+      for (let i = 0; i < 100; i++) {
+        const { rows: left } = await su.query("select count(*)::int as n from pg_stat_activity where datname = $1 and pid <> pg_backend_pid() and usename in ('clearline_owner', 'clearline_runtime')", [db]);
+        if (left[0].n === 0) break;
+        await new Promise((res) => setTimeout(res, 100));
+      }
       await su.query("select pg_terminate_backend(pid) from pg_stat_activity where datname = $1 and pid <> pg_backend_pid()", [db]);
       await su.query(`drop database if exists "${copy}" with (force)`); await su.query(`drop database if exists "${copy}_template" with (force)`);
       await su.query(`create database "${copy}" template "${db}" owner clearline_owner`);
