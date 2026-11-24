@@ -90,6 +90,8 @@ export const DIFFERENCE_TEXT: Record<DifferenceType, string> = {
   held_by_provider: "Held by the provider",
   partial_payment_open: "Part paid, balance open",
   unexplained: "Unexplained",
+  price_token_mismatch: "Paid in another token than the invoice's",
+  price_token_amount: "Token amount differs from the invoice's",
 };
 
 export const FACT_TEXT: Record<AddressFact["fact"], string> = {

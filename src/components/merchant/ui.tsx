@@ -65,6 +65,7 @@ export const DIFFERENCE_LABELS: Record<string, string> = {
   sender_side_fee: "Sender-side fee", underpayment: "Underpayment", overpayment: "Overpayment", requote_after_expiry: "Re-quote after expiry",
   rate_difference: "Rate difference", provider_fee: "Provider fee", refund_netted: "Refund netted", timing_prior_batch: "Timing: prior batch",
   timing_next_batch: "Timing: next batch", held_by_provider: "Held by provider", partial_payment_open: "Partial payment open", unexplained: "Unexplained",
+  price_token_mismatch: "Paid in another token", price_token_amount: "Token amount differs",
 };
 export const differenceLabel = (t: string) => DIFFERENCE_LABELS[t] ?? t;
 

@@ -49,7 +49,12 @@ async function load(tx: Tx, ctx: TenantContext, entityId: string) {
 export interface StoredTransfer { network: string; txHash: string; logIndex: number; timestamp: string; to: string; from: string; symbol: string; tokenContract: string; amountBaseUnits: string; decimals: number; confirmations: number; block: number; senderFacts: string[]; quoteId?: string; linkId?: string }
 export interface StoredProviderRecord { providerPaymentId: string; statusClaim: string; displayedStatus?: string; creditedMinor: string; receivedBaseUnits: string; executedRate: string; feeMinor?: string; batchId?: string; ref: { quoteId?: string; linkId?: string } }
 export interface StoredBank { status: string; batchIds: string[]; bankLineIds: string[]; batchTied: boolean; settlementVerified: boolean; bankLineLabels: string[] }
-export interface StoredLedger { invoice: { orderId: string; amountMinor: string; currency: string; entityId: string; status: string }; creditedMinor: string; openBalanceMinor: string; customerOverpaymentMinor: string; balanceState: string; balanceLabel: string }
+export interface StoredLedger {
+  invoice: { orderId: string; amountMinor: string; currency: string; entityId: string; status: string; price?: { token: { network: string; contract: string }; baseUnits: string } };
+  creditedMinor: string; openBalanceMinor: string; customerOverpaymentMinor: string; balanceState: string; balanceLabel: string;
+  /** v1: token-priced invoices only (see LedgerPart.fiatValue). */
+  fiatValue?: { status: "rated"; amountMinor: string; pair: string; rate: string; source: string; at: string } | { status: "needs_rate"; pair: string; reason: string };
+}
 export interface StoredDifference { id: string; persistedId?: string; type: string; amountMinor: string; currency: string; reason: string; ruleId: string }
 export interface StoredExplanation { decision: string; decidingStep: number; ruleId: string; differences: StoredDifference[]; history: { step: number; ruleId: string; outcome: string; detail: string }[]; attention: { owner: string; reason: string; nextStep: string } | null }
 

@@ -53,11 +53,14 @@ export default async function MerchantPaymentPage({ params }: { params: Promise<
   const gapSet = parts.length && gap !== 0n ? explainingSet(current.filter((x) => x.type !== "partial_payment_open"), -gap) : null;
   const networks = new Set(parts.map((x) => x.network));
 
+  // v1: a token-priced invoice shows its token price (base units), never a fiat amount it does not have
+  const price = ledger.invoice.price;
+  const invoiceText = price ? `${price.baseUnits} base units of ${price.token.contract} on ${networkLabel(price.token.network)} (priced in a token)` : fiat(ledger.invoice.amountMinor, cur);
   return (
     <>
       <p className={s.small}><a href="/control/merchant/payments">← All payments</a></p>
       <h1 className={s.title}>{orderId}</h1>
-      <p className={s.lede}>Invoice {fiat(ledger.invoice.amountMinor, cur)} · entity {c.entityId} · issued {when(c.issuedAt)} · <DecisionChip decision={d.decision} /></p>
+      <p className={s.lede}>Invoice {invoiceText} · entity {c.entityId} · issued {when(c.issuedAt)} · <DecisionChip decision={d.decision} /></p>
 
       <section className={s.section} aria-labelledby="five">
         <h2 className={s.h2} id="five">Five records, side by side</h2>
@@ -116,7 +119,10 @@ export default async function MerchantPaymentPage({ params }: { params: Promise<
             <h3 className={m.partName} id="p-ledger">Ledger</h3>
             <div className={m.partBody}>
               <dl className={m.kv}>
-                <dt>Invoice</dt><dd>{fiat(ledger.invoice.amountMinor, cur)}</dd>
+                <dt>Invoice</dt><dd>{invoiceText}</dd>
+                {ledger.fiatValue ? <><dt>Fiat value</dt><dd data-testid="fiat-value">{ledger.fiatValue.status === "rated"
+                  ? <>{fiat(ledger.fiatValue.amountMinor, cur)} at {ledger.fiatValue.rate} ({ledger.fiatValue.pair}, {ledger.fiatValue.source})</>
+                  : <>Needs a recorded rate: {ledger.fiatValue.reason}</>}</dd></> : null}
                 <dt>Credited</dt><dd>{fiat(ledger.creditedMinor, cur)}</dd>
                 <dt>Open</dt><dd>{fiat(ledger.openBalanceMinor, cur)}</dd>
                 {ledger.customerOverpaymentMinor !== "0" ? <><dt>Overpaid</dt><dd>{fiat(ledger.customerOverpaymentMinor, cur)} (customer liability)</dd></> : null}

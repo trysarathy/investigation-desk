@@ -262,6 +262,16 @@ function crossChecks(m: Mapping, v: Record<string, MappedValue>, errors: RowIssu
     if (has("payment_id") && !has("credited_fiat")) errors.push({ field: "credited_fiat", code: "missing_value" });
     if (has("payment_id") && !has("executed_rate")) errors.push({ field: "executed_rate", code: "missing_value" });
   }
+  if (m.fileType === "orders_invoices") {
+    // v1: exactly one pricing mode per row: a fiat amount, or a token price on a configured token (never both, never neither)
+    const fiat = has("invoice_amount"), priced = has("price_token_amount");
+    if (fiat && priced) errors.push({ field: "price_token_amount", code: "two_pricing_modes" });
+    if (!fiat && !priced) errors.push({ field: "invoice_amount", code: "missing_value" });
+    if (priced && !has("network")) errors.push({ field: "network", code: "missing_value" });
+    if (priced && !has("token_contract")) errors.push({ field: "token_contract", code: "missing_value" });
+    if (priced && v.price_token_amount === 0n) errors.push({ field: "price_token_amount", code: "amount_not_positive" });
+    if (has("token_symbol") && token && v.token_symbol !== token.symbol.toUpperCase()) warnings.push({ field: "token_symbol", code: "symbol_differs_from_contract" });
+  }
   if (m.fileType === "settlement_report" && m.shape === "per_payment_lines") {
     // a fee line (batch-level fee) names no payment; a payment line and a refund line name theirs
     if (v.line_type !== "refund" && v.line_type !== "fee" && !has("payment_id")) errors.push({ field: "payment_id", code: "missing_value" });

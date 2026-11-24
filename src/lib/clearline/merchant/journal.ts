@@ -59,7 +59,11 @@ export function proposeJournals(input: ReconcileInput, result: ReconcileResult):
   const base = { label: TEST_MODE_LABEL, status: "proposed" as const, postingRuleStatus: "pending_sign_off" as const, entityId: input.entity.id, currency: cur };
   const out: JournalProposal[] = [];
 
+  // v1 (Phase 0): how a token-priced invoice is booked (its fiat value, FX gain or loss) is pending the founder's
+  // sign-off, so no entry is proposed for it, nor for a batch that settles one of its payments.
+  const tokenPriced = new Set(result.records.filter((r) => r.ledger.invoice.price).map((r) => r.orderId));
   for (const rec of result.records) {
+    if (tokenPriced.has(rec.orderId)) continue;
     const e = rec.explanation;
     // Chain evidence first: a provider "paid" or "completed" is a claim, and an amount alone never closes AR.
     const evidenced = (e.decidingStep >= 4 || e.ruleId === "M3.batch.held_by_provider") && !e.differences.some((d) => d.ruleId === "M4.provider.credit_mismatch");
@@ -104,6 +108,7 @@ export function proposeJournals(input: ReconcileInput, result: ReconcileResult):
 
   for (const b of result.bridges) {
     if (!b.tied || (!b.settlementVerified && active("J.settlement.verified_batch"))) continue;
+    if (b.lines.some((l) => l.orderIds.some((o) => tokenPriced.has(o)))) continue;
     const batch = input.batches.find((x) => x.batchId === b.batchId)!;
     const bank = input.bankLines.find((l) => l.bankLineId === b.bankLineId)!;
     const tag = { batchId: b.batchId };
