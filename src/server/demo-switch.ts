@@ -27,8 +27,11 @@ import { stampAt } from "./live-clock";
  * Each switch is written to the audit history of the organisations involved.
  */
 export const DEMO_SWITCH_MARKER = "clearline-demo[demo-build-only]";
+/** The role switcher's own marker (scripts/build/check-chain-recording.mjs --marker switcher). */
+export const DEMO_SWITCHER_MARKER = "clearline-demo-switcher[demo-build-only]";
 
 export class DemoSwitchRefused extends Error {
+  readonly marker = DEMO_SWITCHER_MARKER;
   constructor(readonly status: 400 | 401 | 404, readonly code: string, message: string) { super(message); }
 }
 const notFound = () => new DemoSwitchRefused(404, "NOT_FOUND", "Not found.");

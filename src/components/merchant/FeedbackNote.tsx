@@ -36,7 +36,7 @@ export function FeedbackNote() {
   }
 
   return (
-    <span className={m.feedbackWrap} data-testid="feedback">
+    <span className={m.feedbackWrap} data-testid="feedback" data-demo-build="clearline-demo-feedback[demo-build-only]">
       <button ref={toggle} type="button" className={m.demoButton} aria-expanded={open} aria-controls={`${id}-form`} onClick={() => show(!open)} data-testid="feedback-toggle">Note feedback</button>
       <form
         id={`${id}-form`}

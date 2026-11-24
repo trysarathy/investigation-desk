@@ -10,7 +10,7 @@ import { runReconciliation, proposeWriteoff, decideWriteoff } from "./merchant";
 import { assignException } from "./merchant-ui";
 import { resolveTenant, type TenantContext } from "./tenant";
 import { RecordingChainClient } from "@/lib/clearline/merchant/chain";
-import { DEMO_ENTITIES, DEMO_MERCHANT, DEMO_PROVIDER, DEMO_THEME, demoWorld } from "@/lib/clearline/demo/world";
+import { DEMO_ENTITIES, DEMO_MERCHANT, DEMO_PROVIDER, DEMO_SEED_MARKER, DEMO_THEME, demoWorld } from "@/lib/clearline/demo/world";
 import { partsByDay, windowDays } from "@/lib/clearline/demo/days";
 import { DEMO_NOW } from "@/lib/clearline/demo/clock";
 
@@ -153,7 +153,7 @@ export async function restampDemoSeed(superUrl: string, database: string, window
   let rows = 0;
   try {
     const { rows: dataMode } = await c.query("select count(*)::int as n from organizations where data_mode <> 'demo'");
-    if (dataMode[0].n !== 0) throw new Error("restampDemoSeed: this database holds a non-demo organisation; refusing");
+    if (dataMode[0].n !== 0) throw new Error(`restampDemoSeed: this database holds a non-demo organisation; refusing (${DEMO_SEED_MARKER})`);
     const { rows: cols } = await c.query(`select table_name as t, column_name as c from information_schema.columns
       where table_schema = 'public' and data_type like 'timestamp%' and column_default ilike '%now()%' order by 1, 2`);
     const instants = windows.map((w) => w.at);

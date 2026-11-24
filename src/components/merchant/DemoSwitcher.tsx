@@ -24,7 +24,7 @@ export function DemoSwitcher({ users, current }: { users: { email: string; label
   }
   if (others.length === 0) return null;
   return (
-    <form className={m.demoSwitch} data-testid="demo-switcher" aria-label="Demo role switcher" onSubmit={(ev) => { ev.preventDefault(); void go(String(new FormData(ev.currentTarget).get("email") ?? "")); }}>
+    <form className={m.demoSwitch} data-testid="demo-switcher" data-demo-build="clearline-demo-switcher[demo-build-only]" aria-label="Demo role switcher" onSubmit={(ev) => { ev.preventDefault(); void go(String(new FormData(ev.currentTarget).get("email") ?? "")); }}>
       <label htmlFor={id}>Sign in as</label>
       <select id={id} name="email" defaultValue={others[0].email} disabled={state.busy}>
         {others.map((u) => <option key={u.email} value={u.email}>{u.label} ({u.email})</option>)}

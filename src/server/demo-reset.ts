@@ -16,9 +16,12 @@ import { Client } from "pg";
 const NAME = /^[a-z][a-z0-9_]{2,40}$/;
 /** Exists only in demo builds' server bundles (scripts/build/check-chain-recording.mjs --marker demo). */
 export const DEMO_RESET_MARKER = "clearline-demo[demo-build-only]";
+/** The reset's own marker (scripts/build/check-chain-recording.mjs --marker reset). */
+export const DEMO_RESET_ONLY_MARKER = "clearline-demo-reset[demo-build-only]";
 export class DemoResetRefused extends Error {
   readonly code = "DEMO_RESET_REFUSED";
   readonly marker = DEMO_RESET_MARKER;
+  readonly area = DEMO_RESET_ONLY_MARKER;
 }
 
 export interface DemoResetConfig {

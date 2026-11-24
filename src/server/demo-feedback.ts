@@ -14,8 +14,11 @@ import { ROLE_LABELS } from "./authz";
  * same again in the database. Nothing else changes: a note is not an action on any record.
  */
 export const DEMO_FEEDBACK_MARKER = "clearline-demo[demo-build-only]";
+/** The feedback note's own marker (scripts/build/check-chain-recording.mjs --marker feedback). */
+export const DEMO_FEEDBACK_ONLY_MARKER = "clearline-demo-feedback[demo-build-only]";
 
 export class DemoFeedbackRefused extends Error {
+  readonly marker = DEMO_FEEDBACK_ONLY_MARKER;
   constructor(readonly status: 400 | 404, readonly code: string, message: string) { super(message); }
 }
 
