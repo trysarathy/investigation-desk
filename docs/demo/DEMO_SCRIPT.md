@@ -33,7 +33,7 @@ the same steps are `src/lib/clearline/demo/guide.ts`, the journey test and the w
 | 8 | 6:00–6:45 | Payment BK-25102 (Finance) | Show the two parts and the gap box | "Case 3: paid in two parts on two chains, USDT on TRON and USDC on Ethereum. The AED 14.16 left is explained: AED 12.86 underpayment and AED 1.30 rate difference, inside the band." |
 | 9 | 6:45–7:30 | Month-end, NW-SG, Nov (Finance) | Point at confirmed-not-settled, exceptions by age, journals pending sign-off | "What finance needs at month-end. Journal proposals wait for sign-off: the posting rules are not signed off, so nothing is posted." |
 | 10 | 7:30–8:00 | Accounting export (Finance) | Show the Xero and QuickBooks drafts, the evidence and month-end packs | "Drafts a person imports; evidence packs per payment. A Viewer cannot download them." |
-| 11 | 8:00–9:00 | Uploads (Finance, then Approver) | Upload the three files in `demo-files/`; map the provider file once, save it as a template; the Approver confirms the statement; Reconcile now | "The provider's own layout, mapped once. Every row is validated before it counts. The bank statement needs a second person, and it is still 'imported, not bank-authenticated', so nothing closes on it. BK-39021 comes out as an exception." |
+| 11 | 8:00–9:00 | Uploads (Finance, then Approver) | Upload the three files in `demo-files/`; map the provider file once, save it as a template; the Approver confirms the statement; click "Run reconciliation for NW-SG" | "The provider's own layout, mapped once. Every row is validated before it counts. The bank statement needs a second person, and it is still 'imported, not bank-authenticated', so nothing closes on it. BK-39021 comes out as an exception." |
 | 12 | 9:00–9:30 | Provider console (ops@providerp.demo) | Merchants, Pilot metrics | "The provider sees aggregates only, never a merchant's payments. 'Wrong' says not measured yet: there is no independent review to measure it against." |
 | 13 | 9:30–10:00 | Settings (Finance) | Tolerance policy, theme preview | "Finance can read the tolerance policy but not change it. The provider's white-label theme, with the demo label on every screen." |
 
@@ -125,7 +125,7 @@ is a separate setup.
 | The app: the matching rules, tolerances, the second-person rule, row-level security, the upload pipeline (mapping, validation, confirmation), the exports, all running as they would for a customer | Northwind Travel (demo), Provider P (demo), every person, login, email, address and bank account |
 | The public USDT (TRON, Ethereum) and USDC (Ethereum) token contract addresses | Every transaction hash, wallet address, block, amount, order, quote, batch and bank line |
 | PostgreSQL 16, and the database checks (maker-checker, append-only audit) | The 30-day month (a seeded generator) and the three documented cases |
-| The reconciliation runs are computed by the engine at seed time and when you click "Reconcile now" | The chain data (a recorded file; no network) and the "Demo bank feed (simulated, fictional)" |
+| The reconciliation runs are computed by the engine at seed time and when you click "Run reconciliation for …" (the "Reconcile now" step) | The chain data (a recorded file; no network) and the "Demo bank feed (simulated, fictional)" |
 
 ## What the demo does not show yet
 
