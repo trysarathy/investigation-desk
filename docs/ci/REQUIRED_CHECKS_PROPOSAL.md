@@ -92,18 +92,16 @@ There is **exactly one** case in all 300 runs [VERIFIED: one run has `run_attemp
   - Then set `retries: 0` like every other suite, so a flake fails loudly.
   - Do not quarantine it: it checks accessibility, and quarantining it would hide a real `document-title` violation if one appeared.
 
-### 3. `control-db` at 727d4cf (the tip of `release/v1`): one unhandled database error. Not yet classified.
+### 3. `control-db`: the demo reset test's unhandled database error. Flaky; fixed in v1 Phase 0, not quarantined.
 
-- **Symptom:** run 45429403352, job `control-db`:
+- **Symptom:** run 45429403352 at 727d4cf (the tip of `release/v1`), job `control-db`:
   - **365 of 365 tests passed (33 files)**, but vitest reported **1 unhandled error**, so the job failed with exit code 1.
-  - The error was `terminating connection due to administrator command` (57P01) on an idle `clearline_owner` pool connection.
-  - Vitest attributes it to `tests/control/demo.test.ts`, "restores the seeded database exactly, in under 30 s, and a live pool recovers". That test ends every session on the copied database on purpose, then checks that the app's pool recovers.
-- **Not shown to be a flake:**
-  - It failed once and was not re-run.
-  - The same job passed at 2184ac0 and 0a79e37, but `tests/control/demo.test.ts` changed between those runs and 727d4cf (commits 4d050ca and fd10723). So this may be a regression in the test rather than chance.
-- **What would settle it [ASSUMPTION]:** run `npm run test:control` several times on a fresh database. The likely fix is in the test: give the owner pool an `error` listener, or end it before the reset terminates its connection.
-- **Until it is settled:** `control-db` is not reliably green on `release/v1`. Requiring it would block the v1 merge PR, so this must be fixed (not quarantined) before the v1 PR.
-- One local run on branch v1/p0-release-guard (727d4cf plus this phase's commits), fresh database, 24 Nov 2026 [VERIFIED]: 34 files, 372 of 372 tests passed, no unhandled error. One green run does not prove the failure was chance.
+  - The error was `terminating connection due to administrator command` (57P01) on a `clearline_owner` client.
+  - Vitest attributes it to `tests/control/demo.test.ts`, "restores the seeded database exactly, in under 30 s, and a live pool recovers". That test ends every session on the database on purpose before copying it.
+- **Reproduced locally [VERIFIED]:** on branch v1/p0-release-guard, two full `npm run test:control` runs on fresh databases before the fix: run 1 had 34 files, 372 of 372 passed, no error; run 2 had 372 of 372 passed plus the same unhandled 57P01 error from the same test (exit 1). So it is intermittent: 2 failures in the 4 runs observed (CI at 727d4cf, local run 2), and passes at 2184ac0, 0a79e37 and local run 1.
+- **Cause [VERIFIED by reading pg-pool and the error state]:** `pool.end()` resolves as soon as the pool has removed its clients, before their sockets have closed (the failing client is `_ending: true, _ended: false`). The test then terminated those backends at once, and the still-closing client received a FATAL it no longer listened for.
+- **Fix (commit "demo reset test waits for its pools to close", test-only):** before terminating, the test waits (up to 10 s) until its own owner and runtime backends have left `pg_stat_activity`. After the fix [VERIFIED]: `tests/control/demo.test.ts` alone 3 of 3 runs clean (10 of 10 each), and a full `npm run test:control` on a fresh database: 34 files, 372 of 372 passed, no unhandled error. [ASSUMPTION: a few clean runs do not prove a timing race is gone; watch the next CI runs.]
+- `control-db` can be required once this commit is in `release/v1`.
 
 ### 4. Not flaky: real failures
 
@@ -151,4 +149,4 @@ gh api -X PUT repos/trysarathy/investigation-desk/rulesets/26284409 --input rule
 - `strict_required_status_checks_policy: true`: the PR branch must be up to date with `main` before merging.
 - The existing `pull_request` rule requires 0 approvals. For the v1 merge, the founder may want 1, so that the independent review is recorded in GitHub.
 
-**Order:** fix item 3 (`control-db` on `release/v1`) first. Otherwise the v1 merge PR is blocked by its own required check.
+**Order:** land the item 3 fix in `release/v1` first. Otherwise the v1 merge PR can be blocked by its own required check.
