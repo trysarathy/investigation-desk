@@ -375,6 +375,39 @@ export async function dailyReport(ctx: TenantContext, entityId: string, date: st
   });
 }
 
+/**
+ * The daily report for every date of one entity in one read (the same figures as dailyReport for each date): the
+ * entity's input and stored records are loaded once and the bridges computed once, instead of once per date.
+ */
+export async function dailyReports(ctx: TenantContext, entityId: string, dates: string[]) {
+  require(ctx, "read");
+  for (const d of dates) if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) throw new RequestRefused(422, "BAD_DATE", "Use YYYY-MM-DD.");
+  return tenantRead(ctx, async (tx) => {
+    const input = await load(tx, ctx, entityId);
+    const off = input.entity.timeZone.utcOffsetMinutes;
+    const all = await storedRecords(tx, ctx.orgId, entityId);
+    const allBridges = reconcile(input).bridges;
+    const ex = await tx.select().from(t.reconExceptions).where(and(eq(t.reconExceptions.orgId, ctx.orgId), sql`${t.reconExceptions.status} <> 'resolved'`));
+    const wos = await tx.select().from(t.writeoffProposals).where(and(eq(t.writeoffProposals.orgId, ctx.orgId), inArray(t.writeoffProposals.status, ["proposed", "awaiting_approval"])));
+    const label = await orgLabel(tx, ctx.orgId);
+    const out = new Map<string, { label: string; entityId: string; date: string; timeZone: string; cutOffNote: string; payments: number; settlementsTied: number; settlements: number; exceptions: number; writeoffsAwaitingApproval: number; summary: string }>();
+    for (const date of dates) {
+      const recs = all.filter((r) => r.rec.chain.transfers.some((x) => localDate(x.timestamp, off) === date));
+      const orders = new Set(recs.map((r) => r.row.orderId));
+      const bridges = allBridges.filter((b) => b.providerDay === date);
+      const nEx = ex.filter((e) => e.orderId && orders.has(e.orderId)).length;
+      const nWo = wos.filter((w) => orders.has(w.orderId)).length;
+      const tied = bridges.filter((b) => b.tied).length;
+      out.set(date, {
+        label, entityId, date, timeZone: input.entity.timeZone.name, cutOffNote: PROVIDER_DAY_NOTE,
+        payments: recs.length, settlementsTied: tied, settlements: bridges.length, exceptions: nEx, writeoffsAwaitingApproval: nWo,
+        summary: `${plural(recs.length, "payment")} · ${plural(tied, "settlement")} tied · ${plural(nEx, "exception")} · ${plural(nWo, "write-off")} awaiting approval`,
+      });
+    }
+    return out;
+  });
+}
+
 export const PaymentFilters = z.object({
   entityId: z.string().max(64).optional(), result: z.enum(["matched", "matched_with_difference", "suggested_for_review", "exception"]).optional(),
   differenceType: z.string().max(40).optional(), network: z.string().max(20).optional(), token: z.string().max(120).optional(), batchId: z.string().max(64).optional(),
