@@ -203,6 +203,25 @@ async function bankRow(c: Ctx, v: Record<string, MappedValue>, row: number, rowH
   return { outcome, targets };
 }
 
+/**
+ * v1 (approval-only draft): one row of a per-payment settlement file. The batch must already be in reconciliation for
+ * this entity (from a settlement report); a row in another currency than the entity's is skipped, as for batches.
+ */
+async function paymentLineRow(c: Ctx, v: Record<string, MappedValue>, row: number): Promise<RowResult> {
+  if (v.currency !== c.currency) return { outcome: "skipped", targets: [] };
+  const batchId = v.batch_id as string, paymentId = v.payment_id as string;
+  const batch = c.mode === "collect" ? (note(c, "settlement_batches", batchId), { entityId: c.entityId }) : c.mode === "plan" ? lookup(c, "settlement_batches", batchId)
+    : (await c.tx.select({ entityId: t.settlementBatches.entityId }).from(t.settlementBatches).where(and(eq(t.settlementBatches.orgId, c.orgId), eq(t.settlementBatches.batchId, batchId))))[0];
+  if (!batch || batch.entityId !== c.entityId) throw new Conflict("settlement_batches");
+  const targets: Target[] = [];
+  const outcome = await put(c, t.settlementPaymentLines, "settlement_payment_lines", paymentId, {
+    orgId: c.orgId, entityId: c.entityId, providerPaymentId: paymentId, batchId, orderId: str(v.order_id) ?? null, currency: v.currency as string,
+    grossMinor: big(v.gross)!, feeMinor: big(v.fee)!, netMinor: big(v.net)!, settlementDate: str(v.settlement_date) ?? null, ...c.prov(row),
+  }, async () => (await c.tx.select().from(t.settlementPaymentLines).where(and(eq(t.settlementPaymentLines.orgId, c.orgId), eq(t.settlementPaymentLines.providerPaymentId, paymentId))))[0],
+  (r) => [r.entityId, r.batchId, r.orderId ?? null, r.currency, r.grossMinor, r.feeMinor, r.netMinor], targets);
+  return { outcome, targets };
+}
+
 /** One settlement batch from its rows: per-payment lines (gross, fees and refunds summed) or one totals row. */
 async function batchRows(c: Ctx, batchId: string, rows: AnalysedRow[], lines: boolean): Promise<RowResult> {
   const v0 = rows[0].values;
@@ -260,11 +279,13 @@ const LOADERS: Record<string, { table: PgTable; keyOf: (r: Row) => string; load:
   settlement_batches: { table: t.settlementBatches, keyOf: (r) => String(r.batchId), load: (tx, o, k) => tx.select().from(t.settlementBatches).where(and(eq(t.settlementBatches.orgId, o), inArray(t.settlementBatches.batchId, k))) },
   settlement_batch_lines: { table: t.settlementBatchLines, keyOf: (r) => `${r.batchId}|${r.lineNo}`,
     load: (tx, o, k) => tx.select().from(t.settlementBatchLines).where(and(eq(t.settlementBatchLines.orgId, o), inArray(t.settlementBatchLines.batchId, [...new Set(k.map((x) => x.slice(0, x.lastIndexOf("|"))))]))) },
+  settlement_payment_lines: { table: t.settlementPaymentLines, keyOf: (r) => String(r.providerPaymentId),
+    load: (tx, o, k) => tx.select().from(t.settlementPaymentLines).where(and(eq(t.settlementPaymentLines.orgId, o), inArray(t.settlementPaymentLines.providerPaymentId, k))) },
   bank_lines: { table: t.bankLines, keyOf: (r) => String(r.lineId), load: (tx, o, k) => tx.select().from(t.bankLines).where(and(eq(t.bankLines.orgId, o), inArray(t.bankLines.lineId, k))) },
   ledger_invoices: { table: t.ledgerInvoices, keyOf: (r) => `${r.entityId}|${r.invoiceNumber}`,
     load: (tx, o, k) => tx.select().from(t.ledgerInvoices).where(and(eq(t.ledgerInvoices.orgId, o), inArray(t.ledgerInvoices.invoiceNumber, [...new Set(k.map((x) => x.slice(x.indexOf("|") + 1)))]))) },
 };
-const WRITE_ORDER = ["invoices", "merchant_quotes", "payment_links", "provider_payment_records", "chain_transfers", "settlement_batches", "settlement_batch_lines", "bank_lines", "ledger_invoices"];
+const WRITE_ORDER = ["invoices", "merchant_quotes", "payment_links", "provider_payment_records", "chain_transfers", "settlement_batches", "settlement_batch_lines", "settlement_payment_lines", "bank_lines", "ledger_invoices"];
 
 async function loadExisting(tx: Tx, orgId: string, name: string, keys: string[]): Promise<Map<string, Row>> {
   const l = LOADERS[name];
@@ -342,7 +363,8 @@ export async function normaliseUpload(ctx: TenantContext, uploadId: string, idem
       } else {
         for (const r of live) await attempt([r.rowNumber], () =>
           u.fileType === "provider_export" ? providerRow(c, r.values, r.rowNumber) : u.fileType === "orders_invoices" ? invoiceRow(c, r.values, r.rowNumber)
-            : u.fileType === "ledger_invoices" ? ledgerRow(c, r.values, r.rowNumber) : bankRow(c, r.values, r.rowNumber, r.rowHash!));
+            : u.fileType === "ledger_invoices" ? ledgerRow(c, r.values, r.rowNumber) : u.fileType === "settlement_payments" ? paymentLineRow(c, r.values, r.rowNumber)
+            : bankRow(c, r.values, r.rowNumber, r.rowHash!));
       }
     };
     const creates: Pending[] = [];
@@ -384,7 +406,7 @@ export async function normaliseUpload(ctx: TenantContext, uploadId: string, idem
       const targets = [...new Map(res.targets.map((x) => [`${x.table}|${x.key}`, x])).values()];
       for (const x of targets) targetRows.push({ orgId: ctx.orgId, uploadId, rowNumber, targetTable: x.table, targetKey: x.key });
       for (const x of targets) if (res.outcome === "created") tables[x.table] = (tables[x.table] ?? 0) + 1;
-      const primary = targets.find((x) => ["provider_payment_records", "bank_lines", "settlement_batches", "invoices", "ledger_invoices"].includes(x.table)) ?? targets[0];
+      const primary = targets.find((x) => ["provider_payment_records", "bank_lines", "settlement_batches", "invoices", "ledger_invoices", "settlement_payment_lines"].includes(x.table)) ?? targets[0];
       outcomes.push([rowNumber, res.outcome, primary ? `${primary.table}:${primary.key}` : null]);
     }
     for (let i = 0; i < targetRows.length; i += 5000) await tx.insert(t.uploadRowTargets).values(targetRows.slice(i, i + 5000));

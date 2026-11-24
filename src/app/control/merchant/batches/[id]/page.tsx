@@ -14,6 +14,7 @@ export const metadata: Metadata = { title: "Batch bridge" };
 const CHECKS: Record<string, string> = {
   linesEqualGross: "The batch's lines add up to its gross", bridgeEqualsGross: "The bridge from the merchant's day equals the gross",
   grossLessFeesRefundsEqualsNet: "Gross − fees − refunds = net", netEqualsBankLine: "Net = the bank line", noUnexplained: "No unexplained amount",
+  perPaymentLines: "Per-payment settlement lines add up to the batch and to the bank credit",
 };
 const TOTALS = new Set(["merchant_day", "gross", "net"]);
 const pct = (x: bigint, max: bigint) => Number((x * 10000n) / max) / 100;

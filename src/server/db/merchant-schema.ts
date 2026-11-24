@@ -253,6 +253,26 @@ export const settlementBatchLines = pgTable("settlement_batch_lines", {
   check("settlement_batch_lines_kind_chk", sql`${t.kind} in ('payment','refund')`),
 ]);
 
+/**
+ * v1 (migration 0041, approval-only draft): one row of a per-payment settlement file: the provider says this payment
+ * (by its payment ID) settled in this batch with this gross, fee and net. Only from a confirmed settlement_payments
+ * upload; insert-only; one batch per payment.
+ */
+export const settlementPaymentLines = pgTable("settlement_payment_lines", {
+  orgId: org(), entityId: text("entity_id").notNull(), providerPaymentId: text("provider_payment_id").notNull(), batchId: text("batch_id").notNull(),
+  orderId: text("order_id"), currency: text("currency").notNull(),
+  grossMinor: money("gross_minor").notNull(), feeMinor: money("fee_minor").notNull(), netMinor: money("net_minor").notNull(),
+  settlementDate: text("settlement_date"),
+  uploadId: uuid("upload_id").notNull(), sourceRow: integer("source_row").notNull(), mappingTemplateId: uuid("mapping_template_id"),
+  mappingTemplateVersion: integer("mapping_template_version"), uploadedBy: text("uploaded_by").notNull().references(() => users.id),
+}, (t) => [
+  primaryKey({ columns: [t.orgId, t.providerPaymentId] }),
+  foreignKey({ columns: [t.orgId, t.entityId], foreignColumns: [merchantEntities.orgId, merchantEntities.id], name: "settlement_payment_lines_entity_fk" }),
+  foreignKey({ columns: [t.orgId, t.batchId], foreignColumns: [settlementBatches.orgId, settlementBatches.batchId], name: "settlement_payment_lines_batch_fk" }),
+  check("settlement_payment_lines_cur_chk", CUR(t.currency)),
+  check("settlement_payment_lines_arith_chk", sql`${t.grossMinor} >= 0 and ${t.feeMinor} >= 0 and ${t.grossMinor} - ${t.feeMinor} = ${t.netMinor}`),
+]);
+
 /** Bank lines: 'bank_feed' or 'csv_import' (imported, not bank-authenticated) with provenance. */
 export const bankLines = pgTable("bank_lines", {
   orgId: org(), lineId: text("line_id").notNull(),

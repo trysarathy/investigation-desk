@@ -36,7 +36,15 @@ export interface BatchBridge {
   bankLineId: string | null;
   bankLineSource: BankLine["source"] | null;
   bankLineLabel: typeof IMPORTED_BANK_LINE_LABEL | null;
-  checks: { linesEqualGross: boolean; bridgeEqualsGross: boolean; grossLessFeesRefundsEqualsNet: boolean; netEqualsBankLine: boolean; noUnexplained: boolean };
+  checks: {
+    linesEqualGross: boolean; bridgeEqualsGross: boolean; grossLessFeesRefundsEqualsNet: boolean; netEqualsBankLine: boolean; noUnexplained: boolean;
+    /**
+     * v1, only when a per-payment settlement file names payments in this batch: its lines sum exactly to the batch's
+     * gross, fees and net, each line is consistent (gross − fee = net, the batch's currency, a known payment whose credit
+     * is the line's gross, its order and batch as the provider record names them), and no payment is put in two batches.
+     */
+    perPaymentLines?: boolean;
+  };
   tied: boolean;
   settlementVerified: boolean;
 }
@@ -77,7 +85,34 @@ export function buildBridges(input: ReconcileInput, orderOf: (paymentId: string)
   const cur = input.entity.functionalCurrency;
   const all = payments(input, orderOf);
   const batchOf = new Map(input.batchLines.filter((l) => l.kind === "payment" && l.providerPaymentId).map((l) => [l.providerPaymentId!, l.batchId]));
+  // v1: per-payment settlement lines link a payment to its batch by the provider's payment ID (a reference, never an
+  // amount). Only lines naming a batch in the settlement report link anything; a payment named in two batches, or in
+  // another batch than a settlement line puts it in, makes both batches untied.
+  const known = new Set(input.batches.map((b) => b.batchId));
+  const pLines = [...(input.settlementPaymentLines ?? [])].filter((l) => known.has(l.batchId)).sort((a, b) => (a.providerPaymentId < b.providerPaymentId ? -1 : a.providerPaymentId > b.providerPaymentId ? 1 : a.batchId < b.batchId ? -1 : 1));
+  const conflicted = new Set<string>();
+  const fromLines = new Map<string, string>();
+  for (const l of pLines) {
+    const other = fromLines.get(l.providerPaymentId) ?? batchOf.get(l.providerPaymentId);
+    if (other !== undefined && other !== l.batchId) { conflicted.add(other); conflicted.add(l.batchId); }
+    if (!fromLines.has(l.providerPaymentId)) fromLines.set(l.providerPaymentId, l.batchId);
+  }
+  for (const [pid, bid] of fromLines) if (!batchOf.has(pid)) batchOf.set(pid, bid);
+  const ix = indexesOf(input);
   const dayOf = new Map(input.batches.map((b) => [b.batchId, b.providerDay]));
+  const perPayment = (batchId: string) => pLines.filter((l) => l.batchId === batchId);
+  const perPaymentTie = (b: (typeof input.batches)[number]): boolean => {
+    const ls = perPayment(b.batchId);
+    const sums = sum(ls.map((l) => l.grossMinor)) === b.grossMinor && sum(ls.map((l) => l.feeMinor)) === b.feesMinor && sum(ls.map((l) => l.netMinor)) - b.refundsMinor === b.netMinor;
+    const each = ls.every((l) => {
+      const r = ix.recordByPaymentId.get(l.providerPaymentId);
+      return l.grossMinor - l.feeMinor === l.netMinor && l.currency === b.currency && !!r && r.creditedMinor === l.grossMinor
+        && (l.orderId === undefined || l.orderId === orderOf(l.providerPaymentId)) && (r.batchId === undefined || r.batchId === b.batchId);
+    });
+    const lined = input.batchLines.filter((l) => l.batchId === b.batchId && l.kind === "payment").map((l) => l.providerPaymentId ?? "").sort();
+    const sameSet = lined.length === 0 || JSON.stringify(lined) === JSON.stringify(ls.map((l) => l.providerPaymentId).sort());
+    return sums && each && sameSet && !conflicted.has(b.batchId) && new Set(ls.map((l) => l.providerPaymentId)).size === ls.length;
+  };
   const bridges = [...input.batches].sort((a, b) => (a.batchId < b.batchId ? -1 : 1)).map((b): BatchBridge => {
     const D = b.providerDay; // the merchant day this batch is bridged from: the same calendar date in the entity's zone
     const inB = all.filter((p) => batchOf.get(p.paymentId) === b.batchId);
@@ -118,6 +153,7 @@ export function buildBridges(input: ReconcileInput, orderOf: (paymentId: string)
       grossLessFeesRefundsEqualsNet: b.grossMinor - b.feesMinor - b.refundsMinor === b.netMinor,
       netEqualsBankLine: !!bank && bank.amountMinor === b.netMinor,
       noUnexplained: !lines.some((l) => l.kind === "unexplained"),
+      ...(perPayment(b.batchId).length ? { perPaymentLines: perPaymentTie(b) } : {}),
     };
     const tied = Object.values(checks).every(Boolean);
     const imported = bank?.source === "csv_import";

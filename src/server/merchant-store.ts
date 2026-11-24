@@ -3,7 +3,7 @@ import { and, asc, eq, inArray, isNotNull, or } from "drizzle-orm";
 import {
   NETWORKS, localDate, toFiatMinor,
   type BankLine, type ChainTransfer, type ChainUnavailable, type FiatCurrency, type Invoice, type MerchantEntity, type MerchantPolicy, type NetworkId, type PaymentLink,
-  type ProviderPaymentRecord, type Quote, type ReconcileInput, type SettlementBatch, type SettlementBatchLine,
+  type ProviderPaymentRecord, type Quote, type ReconcileInput, type SettlementBatch, type SettlementBatchLine, type SettlementPaymentLine,
 } from "@/lib/clearline/merchant";
 import { TEST_MODE_LABEL } from "@/lib/clearline/merchant/types";
 import { normAddress } from "@/lib/clearline/merchant/config";
@@ -133,6 +133,13 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
   const batchLines: SettlementBatchLine[] = bl.map((l) => ({
     batchId: l.batchId, kind: l.kind as SettlementBatchLine["kind"], ...(l.kind === "payment" ? { providerPaymentId: l.ref } : { refundId: l.ref }), orderId: l.orderId ?? "", amountMinor: l.amountMinor,
   }));
+  // v1: per-payment settlement lines of this entity's batches (absent from the input when there are none)
+  const spl = bIds.length ? await tx.select().from(t.settlementPaymentLines).where(and(eq(t.settlementPaymentLines.orgId, orgId), eq(t.settlementPaymentLines.entityId, entityId), inArray(t.settlementPaymentLines.batchId, bIds)))
+    .orderBy(asc(t.settlementPaymentLines.batchId), asc(t.settlementPaymentLines.providerPaymentId)) : [];
+  const settlementPaymentLines: SettlementPaymentLine[] = spl.map((l) => ({
+    batchId: l.batchId, providerPaymentId: l.providerPaymentId, ...(l.orderId ? { orderId: l.orderId } : {}), currency: l.currency as FiatCurrency,
+    grossMinor: l.grossMinor, feeMinor: l.feeMinor, netMinor: l.netMinor, ...(l.settlementDate ? { settlementDate: l.settlementDate } : {}),
+  }));
   const bk = await tx.select().from(t.bankLines).where(and(eq(t.bankLines.orgId, orgId), eq(t.bankLines.entityId, entityId))).orderBy(asc(t.bankLines.lineId));
   // [ASSUMPTION] a seeded fictional feed line ('seed_fictional') counts as a bank feed in test mode; csv_import never does.
   // rc7: an uploaded statement line ('file_import') is imported, not bank-authenticated, exactly like csv_import.
@@ -141,7 +148,8 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
   const fx = await tx.select().from(t.fxRates).where(and(eq(t.fxRates.orgId, orgId), eq(t.fxRates.entityId, entityId))).orderBy(asc(t.fxRates.pair), asc(t.fxRates.source), asc(t.fxRates.observedAt));
   const af = await tx.select().from(t.addressFacts).where(eq(t.addressFacts.orgId, orgId)).orderBy(asc(t.addressFacts.network), asc(t.addressFacts.address), asc(t.addressFacts.fact));
   return {
-    label: TEST_MODE_LABEL, entity, policy, networks, tokens, invoices, quotes, paymentLinks, transfers, providerRecords, batches, batchLines, bankLines,
+    label: TEST_MODE_LABEL, entity, policy, networks, tokens, invoices, quotes, paymentLinks, transfers, providerRecords, batches, batchLines,
+    ...(settlementPaymentLines.length ? { settlementPaymentLines } : {}), bankLines,
     fxRates: fx.map((r) => ({ pair: r.pair, rate: normRate(r.rate), source: r.source, timestamp: iso(r.observedAt) })),
     addressFacts: af.map((a) => ({ network: dbNetwork(a.network), address: a.address, fact: a.fact as ReconcileInput["addressFacts"][number]["fact"] })),
     ...(chainUnavailable.length ? { chainUnavailable } : {}),

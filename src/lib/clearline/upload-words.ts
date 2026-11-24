@@ -10,6 +10,7 @@ export const FILE_TYPE_LABELS: Readonly<Record<FileType, string>> = {
   orders_invoices: "Orders or invoices",
   bank_statement: "Bank statement",
   ledger_invoices: "Ledger invoices",
+  settlement_payments: "Settlement, per payment",
 };
 export const FILE_TYPE_HINTS: Readonly<Record<FileType, string>> = {
   provider_export: "Your payment provider's list of quotes and payments (CSV, TSV, XLSX or JSON).",
@@ -17,6 +18,7 @@ export const FILE_TYPE_HINTS: Readonly<Record<FileType, string>> = {
   orders_invoices: "Your own orders or invoices (CSV, TSV, XLSX or JSON).",
   bank_statement: "A statement of your bank account (CSV, TSV, XLSX, MT940 or camt.053). A second person, an Approver who did not upload it, confirms it.",
   ledger_invoices: "Sales invoices from your accounting system (CSV, TSV, XLSX or JSON). Used for month-end comparison; never changes a match.",
+  settlement_payments: "The provider's settlement, one row per payment: payment ID, gross, fee, net and batch (CSV, TSV, XLSX or JSON). Upload the batch totals report first.",
 };
 export const ACCEPT = ".csv,.tsv,.txt,.xlsx,.json,.sta,.mt940,.940,.xml";
 export const LIMITS_TEXT = "CSV, TSV, XLSX or JSON tables, or MT940 and camt.053 bank statements. At most 20 MB, 100,000 rows and 200 columns per file.";
@@ -77,6 +79,7 @@ const REASONS: Readonly<Record<string, string>> = {
   deduction_line_positive: "is positive on a refund or fee line (the mapping says deductions are negative)", payment_line_negative: "is negative on a payment line",
   symbol_differs_from_contract: "differs from the token the contract identifies (the contract is used)", batch_id_needed_for_totals: "is needed for a totals row",
   totals_do_not_add_up: "does not equal gross minus fees minus refunds", zero_amount: "is zero",
+  gross_less_fee_not_net: "does not equal gross minus fee", two_pricing_modes: "is given together with a fiat amount (give one price only)", amount_not_positive: "is not more than zero",
   amount_not_a_number: "is not an amount", amount_too_many_decimals: "has more decimals than the currency or token allows", amount_empty: "is empty",
   amount_bad_grouping: "has thousand separators in the wrong places", amount_exponent: "is written with an exponent", amount_too_large: "is too large",
   amount_conflicting_signs: "has two signs", amount_dr_cr_disabled: "is marked DR or CR, which this field does not accept", amount_too_long: "is too long",

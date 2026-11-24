@@ -67,7 +67,17 @@ export async function purgeDerivedRows(tx: Db | Tx, u: { orgId: string; id: stri
   for (const [network, txHash, logIndex] of transfers) await del("chain_transfers", sql`network = ${network} and tx_hash = ${txHash} and log_index = ${Number(logIndex)} and source = 'provider_export'`);
   const lines = get("settlement_batch_lines").map((k) => { const i = k.lastIndexOf("|"); return [k.slice(0, i), Number(k.slice(i + 1))] as const; });
   for (const [batchId, lineNo] of lines) await del("settlement_batch_lines", sql`batch_id = ${batchId} and line_no = ${lineNo}`);
-  if (get("settlement_batches").length) await del("settlement_batches", sql`batch_id in (${list(get("settlement_batches"))}) and not exists (select 1 from settlement_batch_lines l where l.org_id = settlement_batches.org_id and l.batch_id = settlement_batches.batch_id)`);
+  // v1: per-payment settlement lines go before their batch (they reference it); a batch another upload's lines still name stays
+  if (get("settlement_payment_lines").length) {
+    const named = (await tx.execute(sql`select distinct batch_id from settlement_payment_lines where org_id = ${org} and upload_id is not null and provider_payment_id in (${list(get("settlement_payment_lines"))})`)).rows.map((r) => String(r.batch_id));
+    await del("settlement_payment_lines", sql`provider_payment_id in (${list(get("settlement_payment_lines"))})`);
+    // a batch kept only because these lines named it, whose own report was purged before (no upload refers to it any more)
+    if (named.length) await del("settlement_batches", sql`batch_id in (${list(named)}) and not exists (select 1 from upload_row_targets r where r.org_id = settlement_batches.org_id and r.target_table = 'settlement_batches' and r.target_key = settlement_batches.batch_id)
+      and not exists (select 1 from settlement_batch_lines l where l.org_id = settlement_batches.org_id and l.batch_id = settlement_batches.batch_id)
+      and not exists (select 1 from settlement_payment_lines p where p.org_id = settlement_batches.org_id and p.batch_id = settlement_batches.batch_id)`);
+  }
+  if (get("settlement_batches").length) await del("settlement_batches", sql`batch_id in (${list(get("settlement_batches"))}) and not exists (select 1 from settlement_batch_lines l where l.org_id = settlement_batches.org_id and l.batch_id = settlement_batches.batch_id)
+    and not exists (select 1 from settlement_payment_lines p where p.org_id = settlement_batches.org_id and p.batch_id = settlement_batches.batch_id)`);
   if (get("payment_links").length) await del("payment_links", sql`link_id in (${list(get("payment_links"))})`);
   if (get("merchant_quotes").length) await del("merchant_quotes", sql`quote_id in (${list(get("merchant_quotes"))}) and not exists (select 1 from payment_links l where l.org_id = merchant_quotes.org_id and l.quote_id = merchant_quotes.quote_id)`);
   if (orders.length) await del("invoices", sql`order_id in (${list(orders)}) and not exists (select 1 from merchant_quotes q where q.org_id = invoices.org_id and q.order_id = invoices.order_id)`);

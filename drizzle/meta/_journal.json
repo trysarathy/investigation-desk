@@ -281,6 +281,13 @@
       "when": 1796100000000,
       "tag": "0040_token_priced_invoices",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1796200000000,
+      "tag": "0041_settlement_payment_lines",
+      "breakpoints": true
     }
   ]
 }

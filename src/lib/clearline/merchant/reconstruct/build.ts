@@ -421,6 +421,7 @@ function figures(run: EngineRun, confirmed: EngineRun, cur: FiatCurrency): Repor
 const CHECK_TEXT: Record<keyof ReconcileResult["bridges"][number]["checks"], string> = {
   linesEqualGross: "Per-payment lines add up to the gross", bridgeEqualsGross: "Merchant-day bridge reaches the gross",
   grossLessFeesRefundsEqualsNet: "Gross − fees − refunds = net", netEqualsBankLine: "Net = the bank line", noUnexplained: "Nothing unexplained",
+  perPaymentLines: "Per-payment settlement lines add up to the batch and to the bank credit",
 };
 
 const tzText = (t: TimeZoneRef) => `${t.name} (UTC${t.utcOffsetMinutes < 0 ? "−" : "+"}${String(Math.floor(Math.abs(t.utcOffsetMinutes) / 60)).padStart(2, "0")}:${String(Math.abs(t.utcOffsetMinutes) % 60).padStart(2, "0")})`;
@@ -552,7 +553,7 @@ export async function reconstructDay(files: readonly InputFile[], opts: Reconstr
     batchId: b.batchId, currency: b.currency, merchantDay: b.merchantDay, merchantTimeZone: tzText(b.merchantTimeZone), providerDay: b.providerDay, providerTimeZone: tzText(b.providerTimeZone),
     bankLineId: b.bankLineId, bankLineLabel: b.bankLineLabel, tied: b.tied, settlementVerified: b.settlementVerified,
     settlementVerifiedOnceBankConfirmed: confirmedBridge.get(b.batchId)?.settlementVerified ?? false,
-    checks: (Object.keys(CHECK_TEXT) as (keyof typeof CHECK_TEXT)[]).map((k) => ({ check: CHECK_TEXT[k], ok: b.checks[k] })),
+    checks: (Object.keys(CHECK_TEXT) as (keyof typeof CHECK_TEXT)[]).filter((k) => b.checks[k] !== undefined).map((k) => ({ check: CHECK_TEXT[k], ok: b.checks[k]! })),
     lines: b.lines.map((l) => ({ kind: l.kind, label: l.label, amount: fmtFiat(l.amountMinor, b.currency), reason: l.reason })),
   }));
   const groupings = [
