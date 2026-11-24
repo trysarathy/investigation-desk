@@ -263,9 +263,19 @@ export const differences = pgTable("differences", {
   orgId: org(), id: text("id").notNull(), orderId: text("order_id").notNull(),
   type: text("type").notNull(), amountMinor: money("amount_minor").notNull(), currency: text("currency").notNull(),
   reason: text("reason").notNull(), ruleId: text("rule_id").notNull(),
+  /**
+   * v1 phase 0 (migration 0034): the run and rule-set version that produced the row. Every new row is written by a run
+   * ('run'); older rows were backfilled ('backfill_derived', or 'backfill_unknown' with rule set 'legacy:unknown').
+   * The run foreign keys (deferred to commit inside a run only) are in the migration.
+   */
+  runId: uuid("run_id"), ruleSetVersion: text("rule_set_version").notNull(),
+  stampSource: text("stamp_source").$type<"run" | "backfill_derived" | "backfill_unknown">().notNull(),
+  /** Set once, by the run that re-decided the payment; the row is kept (evidence and audit views) and never counted again. */
+  supersededAt: ts("superseded_at"), supersededByRunId: uuid("superseded_by_run_id"),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.id] }),
   foreignKey({ columns: [t.orgId, t.orderId], foreignColumns: [invoices.orgId, invoices.orderId], name: "differences_invoice_fk" }),
+  check("differences_superseded_chk", sql`${t.supersededByRunId} is null or ${t.supersededAt} is not null`),
   check("differences_type_chk", sql.raw(`type in (${DIFFERENCE_TYPES.map((x) => `'${x}'`).join(",")})`)),
   check("differences_reason_chk", sql`length(${t.reason}) between 3 and 1000`),
 ]);
