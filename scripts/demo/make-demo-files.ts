@@ -10,7 +10,7 @@
  *   northwind-sgd-statement-2026-12-08.camt053.xml   the SGD account's camt.053 for the day (needs no mapping;
  *                                        imported, not bank-authenticated)
  *   northwind-sg-bookings-2026-12-08.xlsx  the day's bookings (order list) as a spreadsheet
- *   expected-outcomes.json               written by tests/control/demo-files.test.ts (CLEARLINE_DEMO_FILES_RECORD=1)
+ *   expected-outcomes.json               written by tests/control/demo.test.ts (CLEARLINE_DEMO_FILES_RECORD=1)
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";

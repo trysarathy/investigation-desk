@@ -1,5 +1,4 @@
 import "server-only";
-import { closeDatabase } from "./db/client";
 import { tenantFrom } from "./control-http";
 import { errorResponse, json, sameOriginOrNull } from "./http";
 import { orgDataMode } from "./chain-verify";
@@ -13,8 +12,9 @@ import { DEMO_DATA_LABEL } from "@/lib/clearline/data-mode";
  * demo login is a presenter's and the data is fictional [ASSUMPTION, documented in docs/demo/DEMO_RUNBOOK.md]. A
  * member of a live or sample organisation gets 404. The exact-Origin check comes first, as for every mutation.
  *
- * The app's connection pool is closed first (so it holds no session on the database being dropped) and opens again
- * on the next request. The reset restores the seeded sign-in sessions too, so the presenter signs in again.
+ * The reset ends the app's own connections too; the pool drops them (src/server/db/client.ts) and opens new ones on
+ * the next request. The pool itself is NOT closed: Better Auth holds the same pool, and a closed pool cannot be
+ * reopened. The seeded state has no sign-in sessions, so the presenter signs in again.
  */
 let running = false;
 const MARKER = "clearline-demo[demo-build-only]";
@@ -30,7 +30,6 @@ export async function demoResetRequest(req: Request): Promise<Response> {
     running = true;
     try {
       const cfg = demoResetConfigFromEnv();
-      await closeDatabase();
       const r = await resetDemoDatabase(cfg);
       console.log(JSON.stringify({ event: "demo_reset", ms: r.ms, marker: MARKER }));
       return json(200, { label: DEMO_DATA_LABEL, reset: true, ms: r.ms, next: "/control/sign-in" });
