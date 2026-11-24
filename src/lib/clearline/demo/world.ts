@@ -25,7 +25,7 @@ import { TARGET_POLICY, generateWorld, toReconcileInput, type SyntheticWorld, ty
 import type { WorldEntitySpec } from "../synthetic/world";
 import { DEMO_FIRST_DAY, DEMO_WINDOW_DAYS } from "./clock";
 
-export const DEMO_SEED = 20_261_206;
+export const DEMO_SEED = 20_261_207;
 
 export const DEMO_PROVIDER = { slug: "provider-p-demo", name: "Provider P (demo)" } as const;
 export const DEMO_MERCHANT = { slug: "northwind-travel-demo", name: "Northwind Travel (demo)", timezone: "Asia/Singapore" } as const;
