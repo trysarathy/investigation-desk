@@ -8,7 +8,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { closeOwner, ownerDb, resetAndSeed } from "./harness";
-import { liveCtx, seedLiveMerchants, useTestStorage, type LiveSeed } from "./upload-harness";
+import { accountFields, liveCtx, seedLiveMerchants, useTestStorage, type LiveSeed } from "./upload-harness";
 import * as sc from "./upload-scenarios";
 import { closeDatabase } from "../../src/server/db/client";
 import * as t from "../../src/server/db/schema";
@@ -28,7 +28,7 @@ const key = () => `pp-settle-${++n}-${Date.now()}`;
 const utf8 = (x: string) => new TextEncoder().encode(x);
 
 async function pipeline(up: TenantContext, conf: TenantContext, fileType: FileType, fileName: string, bytes: Uint8Array, mapping: Mapping) {
-  const u = await createUpload(up, { entityId: sc.SG.entityId, fileType, fileName, bytes }, key());
+  const u = await createUpload(up, { entityId: sc.SG.entityId, fileType, fileName, bytes, ...(await accountFields(up, sc.SG.entityId, fileType)) }, key());
   await setUploadMapping(up, u.upload.id, { mapping }, key());
   const v = (await validateUpload(up, u.upload.id, key())).body;
   await decideUpload(conf, u.upload.id, { decision: "confirm", reason: "Checked against the source (fictional)", contentSha256: v.contentSha256, rowsSha256: v.rowsSha256! }, key());
