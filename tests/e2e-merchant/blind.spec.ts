@@ -357,9 +357,9 @@ test("blind: a month in a never-seen provider format, through the generic upload
 
   // ---------------------------------------------------------------- the report
   const summary = (v: Verdict) => {
-    const s = { orders: 0, records: 0, matched: 0, matched_with_difference: 0, suggested_for_review: 0, exception: 0, unpaid: 0, abstainedForLackOfData: 0 };
+    const s = { orders: 0, records: 0, matched: 0, matched_with_difference: 0, suggested_for_review: 0, exception: 0, unpaid: 0, abstainedForLackOfData: 0, exactNoTermsAtStep4: 0 };
     for (const e of v.entities) {
-      s.orders += e.orders; s.records += e.records; s.unpaid += e.unpaid;
+      s.orders += e.orders; s.records += e.records; s.unpaid += e.unpaid; s.exactNoTermsAtStep4 += e.exactNoTerms;
       for (const k of ["matched", "matched_with_difference", "suggested_for_review", "exception"] as const) s[k] += e.decisions[k] ?? 0;
       s.abstainedForLackOfData += Object.values(e.abstainedForLackOfData).reduce((a, b) => a + b, 0);
     }
@@ -381,6 +381,7 @@ test("blind: a month in a never-seen provider format, through the generic upload
     for (const e of v.entities) {
       expect(v.flag[e.entityId], "policy flag as set by the Admin").toBe(flag);
       expect(e.wrongMatches, `${e.entityId}: zero wrong matches`).toEqual([]);
+      expect(e.exactNotTruth, `${e.entityId}: decision 1 closes only what the truth matches exactly`).toEqual([]);
       expect(e.mismatched, `${e.entityId}: every decision is the truth, a documented rule on it, or an abstention`).toEqual([]);
       expect(e.expected.truth + e.expected.rule + e.expected.abstain).toBe(e.orders);
       expect(e.bankLines.problems, `${e.entityId}: every bank line tied or explained`).toEqual([]);

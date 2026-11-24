@@ -72,10 +72,13 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
   });
   const ls = orderIds.length ? await tx.select().from(t.paymentLinks).where(and(eq(t.paymentLinks.orgId, orgId), inArray(t.paymentLinks.orderId, orderIds))).orderBy(asc(t.paymentLinks.linkId)) : [];
   const paymentLinks: PaymentLink[] = ls.map((l) => {
-    if (!l.quoteId || !l.tokenContract || !l.requestedBaseUnits) throw new Error(`payment link ${l.linkId} lacks the fields reconciliation needs`);
+    // the upload pipeline always records a link's quote and token (normalise); only a hand-made row could lack them
+    if (!l.quoteId || !l.tokenContract) throw new Error(`payment link ${l.linkId} lacks the fields reconciliation needs`);
     // rc7: an uploaded export gives a payment, not its link's own window: unknown (placeholders, never used to decide)
     const window = l.createdAt && l.expiresAt ? { createdAt: iso(l.createdAt), expiresAt: iso(l.expiresAt) } : { createdAt: iso(EPOCH), expiresAt: iso(EPOCH), windowUnknown: true as const };
-    return { linkId: l.linkId, orderId: l.orderId, quoteId: l.quoteId, kind: l.kind as PaymentLink["kind"], token: { network: dbNetwork(l.network), contract: l.tokenContract }, depositAddress: l.depositAddress, requestedBaseUnits: BigInt(l.requestedBaseUnits), ...window };
+    // rc8: a link row whose file gives no requested (quoted) amount: unknown, so the order abstains instead of the run failing
+    const requested = l.requestedBaseUnits ? { requestedBaseUnits: BigInt(l.requestedBaseUnits) } : { requestedBaseUnits: 0n, requestedUnknown: true as const };
+    return { linkId: l.linkId, orderId: l.orderId, quoteId: l.quoteId, kind: l.kind as PaymentLink["kind"], token: { network: dbNetwork(l.network), contract: l.tokenContract }, depositAddress: l.depositAddress, ...requested, ...window };
   });
   const qIds = quotes.map((q) => q.quoteId), lIds = paymentLinks.map((l) => l.linkId);
   const refs = [...(qIds.length ? [inArray(t.providerPaymentRecords.quoteId, qIds)] : []), ...(lIds.length ? [inArray(t.providerPaymentRecords.linkId, lIds)] : [])];
@@ -84,7 +87,8 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
     const r = p.record as { ref: ProviderPaymentRecord["ref"]; transferRef?: ProviderPaymentRecord["transferRef"]; displayedStatus?: string; executedRate: string; logIndexUnknown?: boolean };
     return {
       providerPaymentId: p.providerPaymentId, ref: r.ref, ...(r.transferRef ? { transferRef: r.transferRef } : {}), statusClaim: p.statusClaim as ProviderPaymentRecord["statusClaim"],
-      ...(r.displayedStatus ? { displayedStatus: r.displayedStatus } : {}), receivedBaseUnits: BIG(p.receivedBaseUnits), creditedMinor: BIG(p.creditedMinor), executedRate: r.executedRate,
+      ...(r.displayedStatus ? { displayedStatus: r.displayedStatus } : {}), receivedBaseUnits: BIG(p.receivedBaseUnits), creditedMinor: BIG(p.creditedMinor),
+      ...(p.creditedCurrency ? { creditedCurrency: p.creditedCurrency as FiatCurrency } : {}), executedRate: r.executedRate,
       ...(p.feeMinor !== null ? { feeMinor: p.feeMinor } : {}), ...(p.batchId ? { batchId: p.batchId } : {}), ...(r.transferRef && r.logIndexUnknown ? { logIndexUnknown: true as const } : {}),
     };
   });
@@ -101,6 +105,8 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
     // a transfer marked not final (e.g. after a reorg) stays pending for the engine whatever its count
     confirmations: c.finalised ? c.confirmations : Math.min(c.confirmations, required(c.network) - 1),
     ...(c.priorHops ? { priorHops: c.priorHops as ChainTransfer["priorHops"] } : {}),
+    // rc8: where the fact came from (only a chain_client read can close an order without quote terms)
+    source: c.source as NonNullable<ChainTransfer["source"]>,
   }));
   const bs = await tx.select().from(t.settlementBatches).where(and(eq(t.settlementBatches.orgId, orgId), eq(t.settlementBatches.entityId, entityId))).orderBy(asc(t.settlementBatches.batchId));
   const batches: SettlementBatch[] = bs.map((b) => ({
