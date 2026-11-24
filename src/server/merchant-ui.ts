@@ -8,7 +8,7 @@ import type { Tx } from "./db/client";
 import * as t from "./db/schema";
 import { can, isAppRole, type Permission } from "./authz";
 import { Decision, IdempotencyKey, canonical, idempotent, serverAudit } from "./control";
-import { decideWriteoff, monthEnd } from "./merchant";
+import { decideWriteoff, entityOnly, monthEnd } from "./merchant";
 import { MissingEntity, loadReconcileInput } from "./merchant-store";
 import { dataModeOf } from "./mapping-templates";
 import { DEMO_DATA_LABEL, labelUsesUploadPipeline, type DataLabel, type DataMode } from "@/lib/clearline/data-mode";
@@ -441,10 +441,12 @@ const AGE_BUCKETS = [{ label: "Under 1 day", max: 1 }, { label: "1–7 days", ma
 export async function monthEndView(ctx: TenantContext, entityId: string, month: string, asOf: string | null) {
   const base = await monthEnd(ctx, entityId, month);
   return tenantRead(ctx, async (tx) => {
-    const input = await load(tx, ctx, entityId);
+    // the entity's own facts and its batches' currencies (the full reconcile input is not needed here)
+    const ent = await entityOnly(tx, ctx, entityId);
+    const batchCurrencies = (await tx.select({ c: t.settlementBatches.currency }).from(t.settlementBatches).where(and(eq(t.settlementBatches.orgId, ctx.orgId), eq(t.settlementBatches.entityId, entityId))).orderBy(asc(t.settlementBatches.batchId))).map((b) => b.c);
     const recs = await tx.select({ m: t.matchRecords }).from(t.matchRecords).innerJoin(t.invoices, and(eq(t.invoices.orgId, t.matchRecords.orgId), eq(t.invoices.orderId, t.matchRecords.orderId)))
       .where(and(eq(t.matchRecords.orgId, ctx.orgId), eq(t.invoices.entityId, entityId))).orderBy(asc(t.matchRecords.orderId));
-    const off = input.entity.timeZone.utcOffsetMinutes;
+    const off = ent.utcOffsetMinutes;
     const receivable = new Map<string, { batchId: string; orderIds: string[]; creditedMinor: bigint; reason: string }>();
     for (const { m } of recs) {
       const p = partsOf(m);
@@ -461,12 +463,12 @@ export async function monthEndView(ctx: TenantContext, entityId: string, month: 
     const ref = asOf ? Date.parse(asOf) : Date.now();
     const ages = AGE_BUCKETS.map((b, i) => ({ label: b.label, ids: ex.filter((e) => { const d = Math.max(0, (ref - e.openedAt.getTime()) / 86_400_000); return d < b.max && (i === 0 || d >= AGE_BUCKETS[i - 1].max); }).map((e) => e.id) }));
     const fx = (await tx.select().from(t.fxRates).where(eq(t.fxRates.orgId, ctx.orgId)).orderBy(desc(t.fxRates.observedAt))).filter((r) => r.observedAt.toISOString().startsWith(month) || !r.entityId || r.entityId === entityId);
-    const foreign = [...new Set(input.batches.map((b) => b.currency).filter((c) => c !== input.entity.functionalCurrency))];
+    const foreign = [...new Set(batchCurrencies.filter((c) => c !== ent.functionalCurrency))];
     return {
       ...base,
       receivableFromProvider: [...receivable.values()].map((g) => ({ ...g, creditedMinor: g.creditedMinor.toString() })),
       exceptionAges: ages,
-      fx: { functionalCurrency: input.entity.functionalCurrency, foreignCurrencies: foreign, rates: fx.slice(0, 6).map((r) => ({ pair: r.pair, rate: r.rate, source: r.source, observedAt: r.observedAt.toISOString() })) },
+      fx: { functionalCurrency: ent.functionalCurrency, foreignCurrencies: foreign, rates: fx.slice(0, 6).map((r) => ({ pair: r.pair, rate: r.rate, source: r.source, observedAt: r.observedAt.toISOString() })) },
     };
   });
 }

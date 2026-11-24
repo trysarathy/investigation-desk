@@ -59,6 +59,17 @@ async function load(tx: Tx, ctx: TenantContext, entityId: string) {
   }
 }
 
+/**
+ * The entity and its policy row, and nothing else: for a read that needs only the entity's own facts (its currency,
+ * its time zone). Not found, exactly as `load`, when either is missing.
+ */
+export async function entityOnly(tx: Tx, ctx: TenantContext, entityId: string) {
+  const [ent] = await tx.select().from(t.merchantEntities).where(and(eq(t.merchantEntities.orgId, ctx.orgId), eq(t.merchantEntities.id, entityId)));
+  const [pol] = ent ? await tx.select({ id: t.merchantPolicy.entityId }).from(t.merchantPolicy).where(and(eq(t.merchantPolicy.orgId, ctx.orgId), eq(t.merchantPolicy.entityId, entityId))) : [];
+  if (!ent || !pol) throw new AccessDenied(404, "Not found.");
+  return ent;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Ingestion and reconciliation
 // ---------------------------------------------------------------------------------------------
@@ -489,7 +500,7 @@ export async function monthEnd(ctx: TenantContext, entityId: string, month: stri
   require(ctx, "read");
   if (!/^\d{4}-\d{2}$/.test(month)) throw new RequestRefused(422, "BAD_MONTH", "Use YYYY-MM.");
   return tenantRead(ctx, async (tx) => {
-    const input = await load(tx, ctx, entityId);
+    const ent = await entityOnly(tx, ctx, entityId);
     const js = await tx.select().from(t.merchantJournalProposals).where(and(eq(t.merchantJournalProposals.orgId, ctx.orgId), eq(t.merchantJournalProposals.entityId, entityId), sql`${t.merchantJournalProposals.status} <> 'superseded'`)).orderBy(asc(t.merchantJournalProposals.id));
     const inMonth = js.filter((j) => { const d = (j.evidenceRefs as { entryDate: string | null }).entryDate; return d === null || d.startsWith(month); });
     const balances: Record<string, bigint> = {};
@@ -501,7 +512,7 @@ export async function monthEnd(ctx: TenantContext, entityId: string, month: stri
     const wos = (await tx.select().from(t.writeoffProposals).where(eq(t.writeoffProposals.orgId, ctx.orgId))).filter((w) => orders.has(w.orderId));
     const label = await orgLabel(tx, ctx.orgId);
     return {
-      label, entityId, month, currency: input.entity.functionalCurrency, postingRuleStatus: "pending_sign_off" as const,
+      label, entityId, month, currency: ent.functionalCurrency, postingRuleStatus: "pending_sign_off" as const,
       journals: inMonth.map((j) => ({ id: j.id, pattern: j.pattern, status: j.status, postingRuleStatus: j.postingRuleStatus, lines: j.lines, evidence: { ...(j.evidenceRefs as Record<string, unknown>), label } as unknown })),
       balances: Object.fromEntries(Object.entries(balances).map(([k, v]) => [k, v.toString()])), openReceivablesMinor: openAr.toString(), openExceptions: ex.length,
       writeoffs: { pending: wos.filter((w) => w.status !== "approved" && w.status !== "rejected").length, approved: wos.filter((w) => w.status === "approved").length },
