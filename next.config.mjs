@@ -124,6 +124,8 @@ const nextConfig = {
     NEXT_PUBLIC_CLEARLINE_FUNDING_DESK_URL: releaseUrls.fundingDesk,
     NEXT_PUBLIC_CLEARLINE_RELEASE_SOURCE: releaseUrls.source,
   },
+  // `npm run demo` builds into .next-demo (CLEARLINE_DIST_DIR) so a demo build never overwrites a real one in .next.
+  ...(process.env.CLEARLINE_DIST_DIR ? { distDir: process.env.CLEARLINE_DIST_DIR } : {}),
   poweredByHeader: false,
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
