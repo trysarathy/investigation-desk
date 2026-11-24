@@ -171,8 +171,9 @@ export class FundingStore {
       );
     }
   }
+  /** Reads inside the store's lock, so a read never overlaps the rename of a write in progress. */
   async load() {
-    return (await this.readEnvelope()).data;
+    return this.locked(async () => (await this.readEnvelope()).data);
   }
   async inspectAudit(anchor?: AuditAnchor) {
     return this.locked(async () => {
