@@ -3,6 +3,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { database, type Tx } from "./db/client";
 import { organizationMemberships, organizations } from "./db/schema";
 import { type AppRole, isAppRole } from "./authz";
+import { runWithLiveClock } from "./live-clock";
 
 /** The authenticated principal for one request: always derived on the server from the session, never from input. */
 export interface Principal {
@@ -32,6 +33,15 @@ export async function withTenant<T>(ctx: { userId: string; orgId?: string }, fn:
   // Reads run in one REPEATABLE READ, read-only snapshot, so a page never sees half of a concurrent action.
   return database().transaction(async (tx) => {
     await tx.execute(sql`select set_config('app.user_id', ${ctx.userId}, true), set_config('app.org_id', ${ctx.orgId ?? ""}, true)`);
+    // Demo build only (inlined constant; any other build drops this branch and the import): a write for a DEMO
+    // organisation is stamped on the demo calendar, app side and database side (src/server/demo-live-clock.ts).
+    if (process.env.CLEARLINE_NEXT_BUILD === "1" ? process.env.CLEARLINE_DEMO_BUILD === "1" : false) {
+      if (ctx.orgId && !opts.read) {
+        const { enterDemoClock } = await import("./demo-live-clock");
+        const clock = await enterDemoClock(tx, ctx.orgId);
+        if (clock) return runWithLiveClock(clock, () => fn(tx));
+      }
+    }
     return fn(tx);
   }, opts.read ? { isolationLevel: "repeatable read", accessMode: "read only" } : undefined);
 }

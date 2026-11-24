@@ -49,6 +49,7 @@ import { csvCell } from "@/lib/csv/cell";
 export { MAX_FILE_BYTES, MAX_ROWS, MAX_STORED_ERRORS, STATEMENT_COLUMNS, parseStatementCsv } from "@/lib/csv/statement";
 export type { ImportErrorCode, ImportError, ParsedStatementRow, ParseResult, ParseOptions } from "@/lib/csv/statement";
 import { MAX_FILE_BYTES, MAX_STORED_ERRORS, hasForbiddenText, parseStatementCsv, type ImportError, type StatementColumn } from "@/lib/csv/statement";
+import { stampNow } from "./live-clock";
 
 /** The import error report as CSV. Every cell goes through csvCell, so a formula in the file is never re-armed. */
 export function importErrorReportCsv(errors: readonly ImportError[]): string {
@@ -66,7 +67,7 @@ function require(ctx: TenantContext, p: Permission) {
 }
 const tenantTx = <T>(ctx: TenantContext, fn: (tx: Tx) => Promise<T>) => withTenant({ userId: ctx.userId, orgId: ctx.orgId }, fn);
 async function serverAudit(tx: Tx, ctx: TenantContext, action: string, entityType: string | null, entityId: string | null, summary: string, details?: unknown) {
-  await tx.insert(t.auditEvents).values({ orgId: ctx.orgId, source: "server", actorUserId: ctx.userId, action, entityType, entityId, summary, at: new Date(), details: details ?? null });
+  await tx.insert(t.auditEvents).values({ orgId: ctx.orgId, source: "server", actorUserId: ctx.userId, action, entityType, entityId, summary, at: stampNow(), details: details ?? null });
 }
 const sha256Hex = (b: Uint8Array | string) => createHash("sha256").update(b).digest("hex");
 function canonical(v: unknown): string {
@@ -161,7 +162,7 @@ export async function importStatementCsv(ctx: TenantContext, input: { fileName: 
       let ws = loaded.workspace;
       let at = Date.parse(ws.asOf);
       for (const r of parsed.rows) {
-        at = Math.max(Date.now(), at + 1);
+        at = Math.max(stampNow().getTime(), at + 1);
         const out = applyAction(ws, { type: "ingest_statement_line", line: r.line }, { actorId: ctx.userId, at: new Date(at).toISOString() });
         if (!out.ok) {
           errorCount++;
@@ -245,7 +246,7 @@ export async function decideStatementImport(ctx: TenantContext, importId: string
       let ws = loaded.workspace;
       let at = Date.parse(ws.asOf);
       for (const s of staged) {
-        at = Math.max(Date.now(), at + 1);
+        at = Math.max(stampNow().getTime(), at + 1);
         const out = applyAction(ws, { type: "ingest_statement_line", line: s.line }, { actorId: imp.importedBy, at: new Date(at).toISOString() });
         if (!out.ok) throw new RequestRefused(422, "ENGINE_REFUSED", `Row ${s.row}: ${out.error.code}: ${out.error.message}. Nothing was ingested; decline this import and upload a corrected file.`);
         ws = out.value.workspace;
@@ -254,7 +255,7 @@ export async function decideStatementImport(ctx: TenantContext, importId: string
       }
       await saveWorkspaceDiff(tx, ctx.orgId, loaded.workspace, ws, { provenance: "csv_import", importId, actorUserId: ctx.userId });
     }
-    await tx.update(t.statementImports).set({ status: d.decision === "confirm" ? "imported" : "declined", acceptedCount: accepted, confirmedBy: ctx.userId, confirmedAt: new Date(), decisionReason: d.reason })
+    await tx.update(t.statementImports).set({ status: d.decision === "confirm" ? "imported" : "declined", acceptedCount: accepted, confirmedBy: ctx.userId, confirmedAt: stampNow(), decisionReason: d.reason })
       .where(and(eq(t.statementImports.orgId, ctx.orgId), eq(t.statementImports.id, importId)));
     await serverAudit(tx, ctx, d.decision === "confirm" ? "statement_import_accepted" : "statement_import_declined", "statement_import", importId,
       d.decision === "confirm" ? `Statement import confirmed by a second person: ${accepted} line(s) ingested (sha256 ${imp.fileSha256.slice(0, 12)}…); matching decided by the engine` : `Statement import declined: ${d.reason}`,

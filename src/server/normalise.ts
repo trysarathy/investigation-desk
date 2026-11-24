@@ -14,6 +14,7 @@ import { AccessDenied, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
 import { analyseUpload, loadUpload, type AnalysedRow, type UploadRow } from "./uploads";
 import { uploadStorage, type UploadStorage } from "./storage";
+import { stampNow } from "./live-clock";
 
 /**
  * rc7 normalisation: the accepted rows of a CONFIRMED upload → the rc6 merchant tables the engine reads
@@ -383,7 +384,7 @@ export async function normaliseUpload(ctx: TenantContext, uploadId: string, idem
       await tx.execute(sql`update upload_rows u set normalise_outcome = v.o, target_ref = v.r from (values ${sql.join(chunk.map(([n, o, r]) => sql`(${n}::int, ${o}::text, ${r}::text)`), sql`, `)}) as v(n, o, r)
         where u.org_id = ${ctx.orgId} and u.upload_id = ${uploadId} and u.row_number = v.n`);
     }
-    await tx.update(t.uploads).set({ status: "normalised", normalisedCounts: { rows: counts, targets: tables }, normalisedAt: new Date() })
+    await tx.update(t.uploads).set({ status: "normalised", normalisedCounts: { rows: counts, targets: tables }, normalisedAt: stampNow() })
       .where(and(eq(t.uploads.orgId, ctx.orgId), eq(t.uploads.id, uploadId)));
     await serverAudit(tx, ctx, "upload_normalised", "upload", uploadId,
       `Upload normalised: ${counts.created} row(s) created, ${counts.existing} already present, ${counts.conflict} conflicting, ${counts.skipped} skipped`, { uploadId, rows: counts, targets: tables });

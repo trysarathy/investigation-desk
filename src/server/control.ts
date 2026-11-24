@@ -12,6 +12,7 @@ import { ACTION_PERMISSION, can, type Permission } from "./authz";
 import { EngineRefusal, readWorkspace, runEngineAction } from "./engine-store";
 import { AccessDenied, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
+import { stampNow } from "./live-clock";
 
 /**
  * Clearline Control services. Every function takes a TenantContext built on the server from the session
@@ -30,7 +31,7 @@ const tenantTx = <T>(ctx: TenantContext, fn: (tx: Tx) => Promise<T>) => withTena
 const tenantRead = <T>(ctx: TenantContext, fn: (tx: Tx) => Promise<T>) => withTenant({ userId: ctx.userId, orgId: ctx.orgId }, fn, { read: true });
 
 export async function serverAudit(tx: Tx, ctx: TenantContext, action: string, entityType: string | null, entityId: string | null, summary: string, details?: unknown) {
-  await tx.insert(t.auditEvents).values({ orgId: ctx.orgId, source: "server", actorUserId: ctx.userId, action, entityType, entityId, summary, at: new Date(), details: details ?? null });
+  await tx.insert(t.auditEvents).values({ orgId: ctx.orgId, source: "server", actorUserId: ctx.userId, action, entityType, entityId, summary, at: stampNow(), details: details ?? null });
 }
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -196,7 +197,7 @@ export async function updateCaseDetails(ctx: TenantContext, caseId: string, inpu
   require(ctx, "investigate");
   const d = CaseDetails.parse(input);
   return tenantTx(ctx, async (tx) => {
-    const r = await tx.update(t.investigations).set({ priority: d.priority, nextAction: d.nextAction, dueDate: d.dueDate, updatedAt: new Date() })
+    const r = await tx.update(t.investigations).set({ priority: d.priority, nextAction: d.nextAction, dueDate: d.dueDate, updatedAt: stampNow() })
       .where(and(eq(t.investigations.orgId, ctx.orgId), eq(t.investigations.id, caseId))).returning({ id: t.investigations.id });
     if (r.length === 0) throw new AccessDenied(404, "Not found.");
     await serverAudit(tx, ctx, "case_details_updated", "case", caseId, `Priority ${d.priority}; due ${d.dueDate ?? "none"}; next action ${d.nextAction ?? "none"}`, d);
@@ -265,7 +266,7 @@ export async function requestResolution(ctx: TenantContext, input: ResolutionPro
     const ws = await readWorkspace(tx, ctx.orgId);
     const bound = bindEvidence(ws, p);
     for (const r of prior.filter((x) => x.status === "pending")) {
-      await tx.update(t.approvalRequests).set({ status: "superseded", closedAt: new Date() }).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.id, r.id)));
+      await tx.update(t.approvalRequests).set({ status: "superseded", closedAt: stampNow() }).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.id, r.id)));
     }
     const version = prior.reduce((m, r) => Math.max(m, r.version), 0) + 1;
     const payload = { target: p.target, note: p.note, evidenceRefs: [...p.evidenceRefs].sort(), evidence: bound.evidence, targetState: bound.targetState, version };
@@ -312,7 +313,7 @@ export async function decideApproval(ctx: TenantContext, requestId: string, inpu
       const note = `${payload.note} — approved by a second person (request ${requestId} v${payload.version}; evidence ${payload.evidenceRefs.join(", ")})`;
       outcome = summary(await engine(tx, ctx, { type: "resolve", target: payload.target, note }));
     }
-    await tx.update(t.approvalRequests).set({ status: d.decision === "approve" ? "approved" : "rejected", closedAt: new Date() }).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.id, requestId)));
+    await tx.update(t.approvalRequests).set({ status: d.decision === "approve" ? "approved" : "rejected", closedAt: stampNow() }).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.id, requestId)));
     await serverAudit(tx, ctx, d.decision === "approve" ? "resolution_approved" : "resolution_rejected", "approval_request", requestId, `${d.decision === "approve" ? "Approved" : "Rejected"} v${req.version}: ${d.reason}`, { payloadSha256: d.payloadSha256 });
     return { status: 200, body: { requestId, decision: d.decision, outcome } };
   }));

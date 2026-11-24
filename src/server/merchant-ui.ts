@@ -14,6 +14,7 @@ import { dataModeOf } from "./mapping-templates";
 import { DEMO_DATA_LABEL, labelUsesUploadPipeline, type DataLabel, type DataMode } from "@/lib/clearline/data-mode";
 import { AccessDenied, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
+import { stampNow } from "./live-clock";
 
 /**
  * rc6 phase 7: read models and the few mutations behind the merchant reconciliation screens (/control/merchant/**).
@@ -357,7 +358,7 @@ export async function requestMerchantResolution(ctx: TenantContext, input: z.inp
     const e = await lockException(tx, ctx, p.exceptionId);
     if (e.status === "resolved") throw new RequestRefused(409, "EXCEPTION_RESOLVED", "This exception is resolved.");
     const binding = await resolutionBinding(tx, ctx, e, p.note, p.evidenceIds);
-    for (const r of prior.filter((x) => x.status === "pending")) await tx.update(t.approvalRequests).set({ status: "superseded", closedAt: new Date() }).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.id, r.id)));
+    for (const r of prior.filter((x) => x.status === "pending")) await tx.update(t.approvalRequests).set({ status: "superseded", closedAt: stampNow() }).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.id, r.id)));
     const version = prior.reduce((mx, r) => Math.max(mx, r.version), 0) + 1;
     const payload = { ...binding, version };
     const payloadSha256 = sha256(canonical(payload));
@@ -388,9 +389,9 @@ export async function decideMerchantResolution(ctx: TenantContext, requestId: st
     }
     await tx.insert(t.approvalDecisions).values({ orgId: ctx.orgId, requestId, decidedBy: ctx.userId, decision: d.decision, reason: d.reason, payloadSha256: d.payloadSha256 });
     const status = d.decision === "approve" ? "approved" : "rejected";
-    await tx.update(t.approvalRequests).set({ status, closedAt: new Date() }).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.id, requestId)));
+    await tx.update(t.approvalRequests).set({ status, closedAt: stampNow() }).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.id, requestId)));
     if (e.status !== "resolved") {
-      await tx.update(t.reconExceptions).set(d.decision === "approve" ? { status: "resolved", closedAt: new Date() } : { status: "open" }).where(and(eq(t.reconExceptions.orgId, ctx.orgId), eq(t.reconExceptions.id, e.id)));
+      await tx.update(t.reconExceptions).set(d.decision === "approve" ? { status: "resolved", closedAt: stampNow() } : { status: "open" }).where(and(eq(t.reconExceptions.orgId, ctx.orgId), eq(t.reconExceptions.id, e.id)));
     }
     await serverAudit(tx, ctx, d.decision === "approve" ? "merchant_resolution_approved" : "merchant_resolution_rejected", "exception", e.id,
       `${d.decision === "approve" ? "Approved" : "Rejected"} resolution v${req.version} of ${e.id} by a second person: ${d.reason}`, { requestId, payloadSha256: d.payloadSha256 });

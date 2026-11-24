@@ -10,6 +10,7 @@ import { can, type Permission } from "./authz";
 import { IdempotencyKey, canonical, idempotent, serverAudit } from "./control";
 import { RequestRefused } from "./errors";
 import { AccessDenied, type TenantContext, withTenant } from "./tenant";
+import { stampNow } from "./live-clock";
 
 /**
  * rc7 phase 3a: reconciliation runs and rule versions.
@@ -126,7 +127,7 @@ export async function setRunSchedule(ctx: TenantContext, entityId: string, input
   return withTenant({ userId: ctx.userId, orgId: ctx.orgId }, (tx) => idempotent(tx, ctx, key, { op: "merchant_run_schedule", entityId, ...v }, async () => {
     const [ent] = await tx.select({ id: t.merchantEntities.id }).from(t.merchantEntities).where(and(eq(t.merchantEntities.orgId, ctx.orgId), eq(t.merchantEntities.id, entityId)));
     if (!ent) throw new AccessDenied(404, "Not found.");
-    const row = { localTime: v.localTime, enabled: v.enabled, runAs: ctx.userId, updatedAt: new Date() };
+    const row = { localTime: v.localTime, enabled: v.enabled, runAs: ctx.userId, updatedAt: stampNow() };
     await tx.insert(t.reconciliationSchedules).values({ orgId: ctx.orgId, entityId, ...row })
       .onConflictDoUpdate({ target: [t.reconciliationSchedules.orgId, t.reconciliationSchedules.entityId], set: row });
     await serverAudit(tx, ctx, "merchant_run_schedule_set", "merchant_entity", entityId, `Daily reconciliation ${v.enabled ? `at ${v.localTime} merchant time` : "turned off"}`, v);

@@ -9,6 +9,7 @@ import * as t from "./db/schema";
 import { can, type Permission } from "./authz";
 import { readWorkspace } from "./engine-store";
 import { AccessDenied, type TenantContext, withTenant } from "./tenant";
+import { stampNow } from "./live-clock";
 
 /**
  * Accounting Bridge services for Clearline Control (SANDBOX ONLY). Reads and file downloads; every change goes
@@ -27,7 +28,7 @@ function require(ctx: TenantContext, p: Permission) {
 const tenantTx = <T>(ctx: TenantContext, fn: (tx: Tx) => Promise<T>) => withTenant({ userId: ctx.userId, orgId: ctx.orgId }, fn);
 
 async function serverAudit(tx: Tx, ctx: TenantContext, action: string, entityType: string | null, entityId: string | null, summary: string, details?: unknown) {
-  await tx.insert(t.auditEvents).values({ orgId: ctx.orgId, source: "server", actorUserId: ctx.userId, action, entityType, entityId, summary, at: new Date(), details: details ?? null });
+  await tx.insert(t.auditEvents).values({ orgId: ctx.orgId, source: "server", actorUserId: ctx.userId, action, entityType, entityId, summary, at: stampNow(), details: details ?? null });
 }
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");

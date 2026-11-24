@@ -23,6 +23,7 @@ import { demoNow } from "@/lib/clearline/demo/clock";
 import type { VerifyChainClient } from "@/lib/clearline/merchant/chain";
 import type { RunTrigger } from "./db/ops-schema";
 import { MERCHANT_ENGINE_VERSION, RULE_SET_VERSION, closedOrders, errorCodeOf, newOutcome, outcomeKey, runCounts, runState, storedOutcome, type RunCounts } from "./runs";
+import { stampAt, stampNow } from "./live-clock";
 
 /**
  * rc6 Merchant Reconciliation services. Every function takes a TenantContext built on the server from the session
@@ -114,7 +115,7 @@ export async function runReconciliation(ctx: TenantContext, entityId: string, id
     if (!(e instanceof AccessDenied)) {
       await tenantTx(ctx, async (tx) => {
         const { policyRevision } = await runState(tx, ctx.orgId, entityId);
-        await tx.insert(t.reconciliationRuns).values({ orgId: ctx.orgId, entityId, trigger, jobId: opts.jobId ?? null, startedBy: ctx.userId, ruleSetVersion: version, policyRevision, status: "failed", startedAt, finishedAt: new Date(), errorCode: errorCodeOf(e) });
+        await tx.insert(t.reconciliationRuns).values({ orgId: ctx.orgId, entityId, trigger, jobId: opts.jobId ?? null, startedBy: ctx.userId, ruleSetVersion: version, policyRevision, status: "failed", startedAt: stampAt(startedAt), finishedAt: stampNow(), errorCode: errorCodeOf(e) });
       }).catch(() => undefined);
     }
     throw e;
@@ -132,16 +133,16 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
   const hash = inputSha256(input);
   const orderIds = input.invoices.map((i) => i.orderId);
   const { prev, policyRevision } = await runState(tx, ctx.orgId, entityId);
-  const runRow = { orgId: ctx.orgId, entityId, trigger: run.trigger, jobId: run.jobId, startedBy: ctx.userId, ruleSetVersion: run.version, policyRevision, inputSha256: hash, startedAt: run.startedAt };
+  const runRow = { orgId: ctx.orgId, entityId, trigger: run.trigger, jobId: run.jobId, startedBy: ctx.userId, ruleSetVersion: run.version, policyRevision, inputSha256: hash, startedAt: stampAt(run.startedAt) };
   const meta = { label: await orgLabel(tx, ctx.orgId), entityId, inputSha256: hash, engineVersion: MERCHANT_ENGINE_VERSION, ruleSetVersion: run.version, policyRevision };
   if (prev && prev.inputSha256 === hash && prev.ruleSetVersion === run.version && prev.policyRevision === policyRevision) {
-    const [r] = await tx.insert(t.reconciliationRuns).values({ ...runRow, status: "no_change", finishedAt: new Date(), matched: prev.matched, withDifference: prev.withDifference,
+    const [r] = await tx.insert(t.reconciliationRuns).values({ ...runRow, status: "no_change", finishedAt: stampNow(), matched: prev.matched, withDifference: prev.withDifference,
       review: prev.review, exceptions: prev.exceptions, unpaid: prev.unpaid, kept: prev.kept, notices: 0 }).returning({ id: t.reconciliationRuns.id });
     return { status: 200, body: { ...meta, runId: r.id, status: "no_change" as const, changed: false, records: orderIds.length, newDifferences: 0, exceptions: prev.exceptions, resolvedExceptions: 0, newWriteoffs: 0, supersededWriteoffs: 0, journals: 0, kept: prev.kept, notices: 0 } };
   }
   const result = reconcile(input);
   const journals = proposeJournals(input, result);
-  const now = new Date();
+  const now = stampNow();
   // rc7 phase 3a: a payment a person closed keeps its stored decision; a different new decision becomes a notice
   const closed = await closedOrders(tx, ctx.orgId, orderIds);
   const stored = new Map(closed.size ? (await tx.select().from(t.matchRecords).where(and(eq(t.matchRecords.orgId, ctx.orgId), inArray(t.matchRecords.orderId, [...closed])))).map((m) => [m.orderId, m]) : []);
@@ -220,7 +221,7 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
   })).onConflictDoNothing().returning({ id: t.ruleChangeNotices.id }) : [];
   const effective = result.records.map((r) => (isKept(r.orderId) ? { decision: stored.get(r.orderId)!.decision, creditedMinor: String((stored.get(r.orderId)!.ledger as { creditedMinor: string }).creditedMinor) } : { decision: r.explanation.decision, creditedMinor: r.ledger.creditedMinor.toString() }));
   const rc = runCounts(effective, exceptions.length, stored.size, notices.length);
-  await tx.insert(t.reconciliationRuns).values({ ...runRow, id: runId, status: "changed", finishedAt: new Date(), ...rc });
+  await tx.insert(t.reconciliationRuns).values({ ...runRow, id: runId, status: "changed", finishedAt: stampNow(), ...rc });
   const counts = { records: result.records.length, newDifferences: newDiffs.length, exceptions: exceptions.length, resolvedExceptions: stale.length, newWriteoffs: newWo.length, supersededWriteoffs: oldWo.length, journals: writtenJournals.length, kept: stored.size, notices: notices.length };
   await serverAudit(tx, ctx, "merchant_reconciliation_run", "merchant_entity", entityId,
     `Reconciled ${counts.records} payments (engine ${MERCHANT_ENGINE_VERSION}, rules ${run.version}, policy r${policyRevision}, input sha256 ${hash.slice(0, 12)}…): ${counts.exceptions} exceptions, ${counts.newWriteoffs} new write-off proposals, ${counts.journals} journal proposals pending sign-off, ${counts.kept} closed payments kept, ${counts.notices} rule-change notices`,
@@ -246,7 +247,7 @@ export async function updateMerchantPolicy(ctx: TenantContext, entityId: string,
   const p = PolicyPatch.parse(patch);
   const key = IdempotencyKey.parse(idempotencyKey);
   return tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "merchant_policy", entityId, patch: plain(p), expectedRevision }, async () => {
-    const r = await tx.update(t.merchantPolicy).set({ ...p, revision: expectedRevision + 1, updatedAt: new Date() })
+    const r = await tx.update(t.merchantPolicy).set({ ...p, revision: expectedRevision + 1, updatedAt: stampNow() })
       .where(and(eq(t.merchantPolicy.orgId, ctx.orgId), eq(t.merchantPolicy.entityId, entityId), eq(t.merchantPolicy.revision, expectedRevision))).returning({ revision: t.merchantPolicy.revision });
     if (!r.length) throw new RequestRefused(409, "STALE_POLICY", "The policy changed since you read it (or does not exist). Reload it and try again.");
     await serverAudit(tx, ctx, "merchant_policy_updated", "merchant_entity", entityId, `Matching policy revision ${r[0].revision}: ${Object.keys(p).join(", ")}`, plain(p));
@@ -282,7 +283,7 @@ export async function proposeWriteoff(ctx: TenantContext, writeoffId: string, id
     if (wo.status !== "proposed" && wo.status !== "awaiting_approval") throw new RequestRefused(409, "WRITEOFF_CLOSED", `This write-off is ${wo.status}.`);
     if (binding.matchDecision !== "matched_with_difference") throw new RequestRefused(422, "WRITEOFF_NOT_SUPPORTED", "The payment is no longer matched with a difference; reconcile again.");
     const prior = await tx.select().from(t.approvalRequests).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.subjectKind, "merchant_writeoff"), eq(t.approvalRequests.subjectId, writeoffId))).for("update");
-    for (const r of prior.filter((x) => x.status === "pending")) await tx.update(t.approvalRequests).set({ status: "superseded", closedAt: new Date() }).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.id, r.id)));
+    for (const r of prior.filter((x) => x.status === "pending")) await tx.update(t.approvalRequests).set({ status: "superseded", closedAt: stampNow() }).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.id, r.id)));
     const version = prior.reduce((m, r) => Math.max(m, r.version), 0) + 1;
     const payload = { ...binding, version };
     const payloadSha256 = sha256(canonical(payload));
@@ -313,7 +314,7 @@ export async function decideWriteoff(ctx: TenantContext, requestId: string, inpu
     }
     await tx.insert(t.approvalDecisions).values({ orgId: ctx.orgId, requestId, decidedBy: ctx.userId, decision: d.decision, reason: d.reason, payloadSha256: d.payloadSha256 });
     const status = d.decision === "approve" ? "approved" : "rejected";
-    await tx.update(t.approvalRequests).set({ status, closedAt: new Date() }).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.id, requestId)));
+    await tx.update(t.approvalRequests).set({ status, closedAt: stampNow() }).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.id, requestId)));
     await tx.update(t.writeoffProposals).set({ status }).where(and(eq(t.writeoffProposals.orgId, ctx.orgId), eq(t.writeoffProposals.id, wo.id)));
     await serverAudit(tx, ctx, d.decision === "approve" ? "merchant_writeoff_approved" : "merchant_writeoff_rejected", "writeoff", wo.id, `${status === "approved" ? "Approved" : "Rejected"} write-off ${wo.id} v${req.version} by a second person: ${d.reason}`, { requestId, payloadSha256: d.payloadSha256 });
     return { status: 200, body: { label: await orgLabel(tx, ctx.orgId), requestId, writeoffId: wo.id, status } };
@@ -569,7 +570,7 @@ async function reviewMatch(tx: Tx, ctx: TenantContext, orderId: string, v: { ver
   const [m] = await tx.select({ id: t.matchRecords.orderId }).from(t.matchRecords).where(and(eq(t.matchRecords.orgId, ctx.orgId), eq(t.matchRecords.orderId, orderId)));
   if (!m) throw new AccessDenied(404, "Not found.");
   await tx.insert(t.matchReviews).values({ orgId: ctx.orgId, orderId, reviewerUserId: ctx.userId, verdict: v.verdict, note: v.note ?? null })
-    .onConflictDoUpdate({ target: [t.matchReviews.orgId, t.matchReviews.orderId, t.matchReviews.reviewerUserId], set: { verdict: v.verdict, note: v.note ?? null, reviewedAt: new Date() } });
+    .onConflictDoUpdate({ target: [t.matchReviews.orgId, t.matchReviews.orderId, t.matchReviews.reviewerUserId], set: { verdict: v.verdict, note: v.note ?? null, reviewedAt: stampNow() } });
   await serverAudit(tx, ctx, "merchant_match_reviewed", "payment", orderId, `Match marked ${v.verdict}`, v);
   return { label: await orgLabel(tx, ctx.orgId), orderId, verdict: v.verdict };
 }

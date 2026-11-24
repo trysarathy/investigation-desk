@@ -115,6 +115,14 @@ async function main() {
     s.steps.seed = new Date().toISOString(); delete s.steps.template; writeState(s);
   } else out("\n▸ Seed: already done (use --fresh to seed again)");
 
+  step("Demo calendar for live actions");
+  await lap("live clock", async () => {
+    const n = await installLiveClockOn(s, DB);
+    // a template made before this step existed: give it the same defaults, so a reset keeps them
+    if (s.steps.template && (await templateExists(s))) await withTemplateOpen(s, () => installLiveClockOn(s, TEMPLATE));
+    out(`  live actions of the demo organisations are stamped on the demo calendar (${n} database defaults; src/server/demo-live-clock.ts)`);
+  });
+
   if (!s.steps.template) {
     step("Template for fast reset");
     const { snapshotDemoTemplate } = await import("../../src/server/demo-reset");
@@ -163,6 +171,27 @@ async function main() {
   process.on("SIGINT", stop); process.on("SIGTERM", stop);
   await new Promise<void>((res) => child.on("exit", () => res()));
   rmSync(path.join(STATE_DIR, "server.pid"), { force: true });
+}
+
+/** The demo calendar's database half (scripts/demo/live-clock-db.ts) in `db`, as the cluster's superuser. */
+async function installLiveClockOn(s: DemoState, db: string): Promise<number> {
+  const { installDemoLiveClock } = await import("./live-clock-db");
+  const c = new Client({ connectionString: withDb(s.pg.superUrl, db) });
+  await c.connect();
+  try { return (await installDemoLiveClock(c)).columns.length; } finally { await c.end(); }
+}
+
+/** Let `fn` connect to the reset template (which normally refuses connections), then close it again. */
+async function withTemplateOpen<T>(s: DemoState, fn: () => Promise<T>): Promise<T> {
+  const su = new Client({ connectionString: s.pg.superUrl });
+  await su.connect();
+  try {
+    await su.query(`alter database "${TEMPLATE}" allow_connections true`);
+    try { return await fn(); } finally {
+      await su.query("select pg_terminate_backend(pid) from pg_stat_activity where datname = $1 and pid <> pg_backend_pid()", [TEMPLATE]);
+      await su.query(`alter database "${TEMPLATE}" allow_connections false`);
+    }
+  } finally { await su.end(); }
 }
 
 async function migrationCount(url: string): Promise<number> {
