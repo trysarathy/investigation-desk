@@ -6,7 +6,7 @@ import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
 import { FlashMessage } from "@/components/control/forms";
 import { MerchantDecisionForm, SubmitWriteoff } from "@/components/merchant/forms";
-import { Chip, Empty, differenceLabel, fiat } from "@/components/merchant/ui";
+import { Chip, Empty, differenceLabel, fiat, whenIn } from "@/components/merchant/ui";
 import { when } from "@/components/control/ui";
 
 export const metadata: Metadata = { title: "Approvals" };
@@ -15,7 +15,9 @@ type WoPayload = { amountMinor: string; currency: string; orderId: string; diffe
 type ResPayload = { exception: { id: string; orderId: string | null; reason: string; nextStep: string }; note: string; evidence: { id: string; body: string; reference: string | null }[]; match: { decision: string } | null };
 
 export default async function ApprovalsPage() {
-  const { ctx } = await merchantMember();
+  const { ctx, shell } = await merchantMember();
+  // a write-off is in its entity's currency: its time is shown in that entity's time zone when one entity has the currency
+  const zoneOf = (currency: string | undefined) => { const es = shell.entities.filter((e) => e.currency === currency); return es.length === 1 ? es[0] : null; };
   const a = await listMerchantApprovals(ctx);
   const pending = a.requests.filter((r) => r.status === "pending");
   const closed = a.requests.filter((r) => r.status !== "pending");
@@ -36,7 +38,7 @@ export default async function ApprovalsPage() {
           return (
             <article className={s.panel} key={r.id} aria-labelledby={`req-${r.id}`} data-testid="approval-request">
               <h3 className={s.h3} id={`req-${r.id}`}>{r.kind === "merchant_writeoff" ? `Write-off ${r.amount ?? ""}` : `Resolution of ${r.subjectId}`} · version {r.version}</h3>
-              <p className={s.row}><Chip tone="amber">Awaiting approval</Chip><span className={s.small}>Prepared by {r.requestedByName} · {when(r.createdAt)}{r.orderId ? <> · payment <a href={`/control/merchant/payments/${encodeURIComponent(r.orderId)}`}>{r.orderId}</a></> : null}</span></p>
+              <p className={s.row}><Chip tone="amber">Awaiting approval</Chip><span className={s.small}>Prepared by {r.requestedByName} · {r.kind === "merchant_writeoff" ? whenIn(r.createdAt, zoneOf((r.payload as WoPayload).currency)) : when(r.createdAt)}{r.orderId ? <> · payment <a href={`/control/merchant/payments/${encodeURIComponent(r.orderId)}`}>{r.orderId}</a></> : null}</span></p>
               {r.kind === "merchant_writeoff" ? (() => {
                 const p = r.payload as WoPayload;
                 return (
