@@ -89,6 +89,19 @@ Node 22.23.5 (`npm run demo --fresh` at commit "the reset route no longer closes
 
 A re-run without `--fresh` on a clean tree skips the seed, the template and the build: about 2 s to start.
 
+### Timed fresh clone [VERIFIED, commit 5821f54]
+
+`git clone` of the branch into a new folder, `node_modules` **symlinked** from an existing install (not timed: `npm ci`
+needs the network and was not run; budget it separately), a brand-new PostgreSQL 16 cluster with no databases or
+logins, `CLEARLINE_DEMO_PG_URL` pointing at it, Linux container, Node 22:
+
+| Step | Time |
+|---|---|
+| `npm run demo -- --no-start`, end to end (wall clock) | 125.4 s: PostgreSQL 18 ms, database and logins 71 ms, migrations 0000–0032 1.0 s, seed with the calendar fix 46.5 s, template 0.3 s, demo build 75.8 s |
+| then `npm run demo` until the sign-in page answered 200 | 3.4 s (the script printed the logins at 3.6 s) |
+
+Excluded: `npm ci`, starting PostgreSQL (the cluster was already running) and any Docker pull.
+
 ## The demo world
 
 - **Dates.** The demo's "today" is **Tuesday 2026-12-08** (`src/lib/clearline/demo/clock.ts`). The data covers the 30
