@@ -72,10 +72,13 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
   });
   const ls = orderIds.length ? await tx.select().from(t.paymentLinks).where(and(eq(t.paymentLinks.orgId, orgId), inArray(t.paymentLinks.orderId, orderIds))).orderBy(asc(t.paymentLinks.linkId)) : [];
   const paymentLinks: PaymentLink[] = ls.map((l) => {
-    if (!l.quoteId || !l.tokenContract || !l.requestedBaseUnits) throw new Error(`payment link ${l.linkId} lacks the fields reconciliation needs`);
+    // the upload pipeline always records a link's quote and token (normalise); only a hand-made row could lack them
+    if (!l.quoteId || !l.tokenContract) throw new Error(`payment link ${l.linkId} lacks the fields reconciliation needs`);
     // rc7: an uploaded export gives a payment, not its link's own window: unknown (placeholders, never used to decide)
     const window = l.createdAt && l.expiresAt ? { createdAt: iso(l.createdAt), expiresAt: iso(l.expiresAt) } : { createdAt: iso(EPOCH), expiresAt: iso(EPOCH), windowUnknown: true as const };
-    return { linkId: l.linkId, orderId: l.orderId, quoteId: l.quoteId, kind: l.kind as PaymentLink["kind"], token: { network: dbNetwork(l.network), contract: l.tokenContract }, depositAddress: l.depositAddress, requestedBaseUnits: BigInt(l.requestedBaseUnits), ...window };
+    // rc8: a link row whose file gives no requested (quoted) amount: unknown, so the order abstains instead of the run failing
+    const requested = l.requestedBaseUnits ? { requestedBaseUnits: BigInt(l.requestedBaseUnits) } : { requestedBaseUnits: 0n, requestedUnknown: true as const };
+    return { linkId: l.linkId, orderId: l.orderId, quoteId: l.quoteId, kind: l.kind as PaymentLink["kind"], token: { network: dbNetwork(l.network), contract: l.tokenContract }, depositAddress: l.depositAddress, ...requested, ...window };
   });
   const qIds = quotes.map((q) => q.quoteId), lIds = paymentLinks.map((l) => l.linkId);
   const refs = [...(qIds.length ? [inArray(t.providerPaymentRecords.quoteId, qIds)] : []), ...(lIds.length ? [inArray(t.providerPaymentRecords.linkId, lIds)] : [])];

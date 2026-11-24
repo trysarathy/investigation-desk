@@ -159,7 +159,8 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput, am
   const quote = quotes.find((q) => q.quoteId === pairs[0].s.ref!.quoteId) ?? quotes[0];
   const qTok = input.tokens.find((k) => k.network === quote.token.network && k.contract === quote.token.contract)!;
   // rc7: terms a source file did not carry. Checks that need them are not run; the order then abstains below.
-  const unknownTerms = [...new Set([...quotes.flatMap((q) => q.unknown ?? []), ...(links.some((l) => l.windowUnknown) ? ["window" as const] : [])])].sort();
+  const unknownTerms = [...new Set([...quotes.flatMap((q) => q.unknown ?? []), ...(links.some((l) => l.windowUnknown) ? ["window" as const] : []),
+    ...(links.some((l) => l.requestedUnknown) ? ["quoted_amount" as const] : [])])].sort();
   const knows = (term: QuoteTerm) => !unknownTerms.includes(term);
   if (inv.currency !== cur && active("M3.currency.invoice_currency")) return stop(3, "M3.currency.invoice_currency", `Invoice is in ${inv.currency}; the entity's functional currency is ${cur}.`);
   if (knows("rate") && knows("quoted_amount") && toFiatMinor(quote.quotedBaseUnits, qTok.decimals, quote.rate, cur) !== inv.amountMinor && active("M3.quote.invoice_mismatch"))

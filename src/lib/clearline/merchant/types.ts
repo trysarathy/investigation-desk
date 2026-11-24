@@ -80,6 +80,8 @@ export interface PaymentLink {
   expiresAt: string;
   /** rc7: the source gave no window for this link (placeholder values; never used to decide). */
   windowUnknown?: true;
+  /** rc8: the source gave no requested amount for this link (placeholder 0; never used to decide). */
+  requestedUnknown?: true;
 }
 
 export interface TransferRef { network: NetworkId; txHash: string; logIndex: number }
