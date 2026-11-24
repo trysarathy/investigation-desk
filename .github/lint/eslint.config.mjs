@@ -7,7 +7,7 @@ import { FlatCompat } from "@eslint/eslintrc";
 const compat = new FlatCompat({ baseDirectory: process.cwd() });
 
 const config = [
-  { ignores: [".next/**", "node_modules/**", "next-env.d.ts"] },
+  { ignores: [".next/**", ".next-demo/**", "node_modules/**", "next-env.d.ts"] },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   // CommonJS scripts (role tooling under team/**) must use require(); the TypeScript rule is for ES modules.
   { files: ["**/*.cjs"], rules: { "@typescript-eslint/no-require-imports": "off" } },
