@@ -49,7 +49,7 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
 
       <section className={s.section} aria-labelledby="preview">
         <h2 className={s.h2} id="preview">Journal preview ({js.length})</h2>
-        <p className={s.row}><Chip tone={shell.dataMode === "live" ? "info" : "amber"}>{shell.label}</Chip><span className={s.small}>{shell.dataMode === "live" ? "Proposed from your reconciled data; nothing is posted to a ledger." : "Fictional entries from the illustrative cases."}</span></p>
+        <p className={s.row}><Chip tone={shell.dataMode === "sample" ? "amber" : "info"}>{shell.label}</Chip><span className={s.small}>{shell.dataMode === "demo" ? "Proposed from the reconciled demo data (fictional); nothing is posted to a ledger." : shell.dataMode === "live" ? "Proposed from your reconciled data; nothing is posted to a ledger." : "Fictional entries from the illustrative cases."}</span></p>
         {js.length === 0 ? <Empty>No journal proposals for {entity.id} in {month}. Run reconciliation from the daily report first.</Empty> : js.map((j, i) => {
           const ev = j.evidence as Ev;
           return (
