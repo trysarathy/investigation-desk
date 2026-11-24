@@ -6,7 +6,7 @@
  * need no column mapping (the bank parsers read them); only CSV/XLSX statements are mapped.
  */
 
-export const FILE_TYPES = ["provider_export", "settlement_report", "orders_invoices", "bank_statement", "ledger_invoices"] as const;
+export const FILE_TYPES = ["provider_export", "settlement_report", "orders_invoices", "bank_statement", "ledger_invoices", "settlement_payments"] as const;
 export type FileType = (typeof FILE_TYPES)[number];
 
 export const FIELD_KINDS = [
@@ -116,6 +116,17 @@ export const CATALOGUE: Readonly<Record<FileType, readonly FieldDef[]>> = {
     f("issued_on", "Invoice date", "date", false, ["invoice date", "date", "issue date", "txn date", "issued"]),
     f("due_on", "Due date", "date", false, ["due date", "due", "payment due"]),
     f("ledger_id", "Ledger record ID", "id", false, ["invoice id", "ledger id", "external id", "record id", "id"]),
+  ],
+  // v1 (approval-only draft): one row per payment, beside a batch totals report. Linked to the payment by its ID only.
+  settlement_payments: [
+    f("payment_id", "Payment ID", "id", true, ["payment id", "provider payment id", "transaction id", "payment reference"]),
+    f("order_id", "Order ID", "id", false, ["order id", "order", "order ref", "merchant reference", "invoice id"]),
+    f("batch_id", "Settlement batch ID", "batch_id", true, ["batch id", "settlement id", "settlement batch", "payout id", "batch"]),
+    f("currency", "Settlement currency", "currency", true, ["currency", "settlement currency", "payout currency"], { allowConstant: true }),
+    f("gross", "Gross", "fiat_amount", true, ["gross", "gross amount", "payment amount", "amount"], { currencyField: "currency" }),
+    f("fee", "Fee", "fiat_amount", true, ["fee", "fees", "provider fee", "commission", "processing fee"], { currencyField: "currency" }),
+    f("net", "Net", "fiat_amount", true, ["net", "net amount", "settled amount", "payout amount"], { currencyField: "currency" }),
+    f("settlement_date", "Settlement date", "date", false, ["settlement date", "payout date", "value date", "settled on"]),
   ],
   bank_statement: [
     f("bank_account", "Bank account", "text", true, ["account", "bank account", "account number", "iban", "account no"], { allowConstant: true }),

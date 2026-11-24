@@ -124,7 +124,7 @@ describe("the checks run once per statement", () => {
     const r = (await ownerDb().execute(sql`select c.relname as tbl, t.tgname, (t.tgtype & 1) = 1 as per_row, (t.tgtype & 2) = 2 as before, (t.tgtype & 4) = 4 as on_insert,
         t.tgnewtable, p.proname from pg_trigger t join pg_class c on c.oid = t.tgrelid join pg_proc p on p.oid = t.tgfoid
       where t.tgname like '%upload_provenance' or t.tgname = 'upload_row_targets_check' order by 1`)).rows;
-    expect(r.map((x) => x.tbl)).toEqual(["bank_lines", "chain_transfers", "invoices", "ledger_invoices", "merchant_quotes", "payment_links", "provider_payment_records", "settlement_batch_lines", "settlement_batches", "upload_row_targets"]);
+    expect(r.map((x) => x.tbl)).toEqual(["bank_lines", "chain_transfers", "invoices", "ledger_invoices", "merchant_quotes", "payment_links", "provider_payment_records", "settlement_batch_lines", "settlement_batches", "settlement_payment_lines", "upload_row_targets"]);
     for (const x of r) expect(x, String(x.tbl)).toMatchObject({ per_row: false, before: false, on_insert: true, tgnewtable: "new_rows" });
   });
 });

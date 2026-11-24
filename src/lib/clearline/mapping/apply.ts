@@ -283,6 +283,9 @@ function crossChecks(m: Mapping, v: Record<string, MappedValue>, errors: RowIssu
     const fee = typeof v.fee === "bigint" ? v.fee : 0n, refund = typeof v.refund === "bigint" ? v.refund : 0n;
     if (v.gross - fee - refund !== v.net) errors.push({ field: "net", code: "totals_do_not_add_up" });
   }
+  // v1: a per-payment settlement row adds up on its own (gross − fee = net, to the minor unit); it is never adjusted
+  if (m.fileType === "settlement_payments" && typeof v.gross === "bigint" && typeof v.fee === "bigint" && typeof v.net === "bigint" && v.gross - v.fee !== v.net)
+    errors.push({ field: "net", code: "gross_less_fee_not_net" });
   if (m.fileType === "bank_statement" && v.amount === 0n) warnings.push({ field: "amount", code: "zero_amount" });
   if (m.fileType === "bank_statement" && m.columns.amount?.sign === "direction_field" && !has("direction") && has("amount")) errors.push({ field: "direction", code: "missing_value" });
 }
