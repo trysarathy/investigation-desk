@@ -192,3 +192,20 @@ Notes on the table:
 | `npm run e2e:blind` | 1 passed (2.7 min) |
 
 Hard rules: no database migration was added. The pure engine stays pure; the loader only passes along two facts it already stored (each chain fact's source and the provider's credited currency). Nothing keys on fixture IDs or amounts.
+
+## v1 Phase 0 re-run (branch `v1/p0-token-invoices`, approval-only draft)
+
+Same data, files, spec and judge; the engine gained token-priced invoices (migration 0040) and per-payment settlement files (migration 0041), neither of which the blind files use. **This review is not independent either.**
+
+- **`npm run e2e:blind` [VERIFIED, 1 passed (3.1 min), fresh database, port 3890].** Unchanged from rc8: matched 0, matched with difference 0, auto-match 0.00 %, review 1,911 (97.9 %), exception 41 (2.1 %), unpaid 48, closed at step 4 by decision 1 1,445 (grouping SG 993, US 452), `M3.quote.terms_unknown` SG 326, US 124, wrong matches 0, flag off, on and off again.
+- **Re-runs on a reused database fail at the bank statement's second-person confirmation [VERIFIED].** The page reload after "Confirm upload" does not finish within 60 s. This also happens at the base commit 727d4cf (one pass on a fresh database, one failure on the reused one), so it is not caused by this branch. Not investigated further.
+- **What a per-payment settlement file would change [VERIFIED in memory, not through the browser: `tests/clearline/synthetic/per-payment-blind.test.ts`].** The same month given to the engine as shape D's files give it, plus one per-payment settlement row per payment (fees allocated per payment so the rows sum to each batch's fee):
+
+| variant | payments | auto-match | review | exception | wrong matches |
+|---|---|---|---|---|---|
+| totals only, flag off (default) | 1,960 | 0 (0.00 %) | 1,911 (97.50 %) | 49 (2.50 %) | 0 |
+| totals only, flag on (check only) | 1,960 | 0 (0.00 %) | 1,911 (97.50 %) | 49 (2.50 %) | 0 |
+| + per-payment file, flag off (default) | 1,960 | 0 (0.00 %) | 1,710 (87.24 %) | 250 (12.76 %) | 0 |
+| + per-payment file, flag on (check only) | 1,960 | 1,244 (63.47 %) | 466 (23.78 %) | 250 (12.76 %) | 0 |
+
+  The in-memory count (1,960) differs from the browser's 1,952 because no file rows are refused in memory (for example the 8 look-alike token payments). With the flag off nothing closes: imported bank lines are still "imported, not bank-authenticated". The 201 extra exceptions are exact payments in the 8 batches with refunds: per-payment rows name no refund, so those batches cannot tie (`M5.batch.not_tied`), which is stricter than the proposed grouping they had before.
