@@ -3,6 +3,7 @@ import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { TEST_MODE_LABEL } from "@/lib/clearline/merchant";
 import { ProviderMapping } from "@/lib/clearline/merchant/adapters";
+import { addExceptionRateCounts, exceptionRate, type ExceptionRateCounts } from "@/lib/clearline/merchant/exception-rate";
 import type { Tx } from "./db/client";
 import * as t from "./db/schema";
 import { can, type Permission } from "./authz";
@@ -27,22 +28,38 @@ function require(ctx: TenantContext, p: Permission) {
 const tenantTx = <T>(ctx: TenantContext, fn: (tx: Tx) => Promise<T>) => withTenant({ userId: ctx.userId, orgId: ctx.orgId }, fn);
 const tenantRead = <T>(ctx: TenantContext, fn: (tx: Tx) => Promise<T>) => withTenant({ userId: ctx.userId, orgId: ctx.orgId }, fn, { read: true });
 const pct = (a: number, b: number) => (b ? Math.round((a * 1000) / b) / 10 : null);
-const per100 = (a: number, b: number) => (b ? Math.round((a * 1000) / b) / 10 : null);
+
+/**
+ * v1 phase 0: the counts behind "exceptions per 100" for each of the provider's merchants (aggregates only, the
+ * SECURITY DEFINER function of migration 0035), keyed by merchant. The rate itself is exception-rate.ts.
+ */
+interface RateRow { merchant_org_id: string; reconciled_payments: number; open_exceptions: number; open_batch_not_tied: number; open_on_unpaid: number; open_without_payment: number }
+async function exceptionRateCountsByMerchant(tx: Tx, providerOrgId: string): Promise<Map<string, ExceptionRateCounts>> {
+  const r = await tx.execute(sql`select merchant_org_id, reconciled_payments::int, open_exceptions::int, open_batch_not_tied::int, open_on_unpaid::int, open_without_payment::int from provider_exception_rate(${providerOrgId})`);
+  return new Map((r.rows as unknown as RateRow[]).map((x) => [x.merchant_org_id, {
+    reconciledPayments: x.reconciled_payments, openExceptions: x.open_exceptions, openBatchNotTied: x.open_batch_not_tied, openOnUnpaid: x.open_on_unpaid, openWithoutPayment: x.open_without_payment,
+  }]));
+}
+const NO_COUNTS: ExceptionRateCounts = { reconciledPayments: 0, openExceptions: 0, openBatchNotTied: 0, openOnUnpaid: 0, openWithoutPayment: 0 };
 
 // ---------------------------------------------------------------------------------------------
 // Screen 10: merchants with health (aggregates only)
 // ---------------------------------------------------------------------------------------------
+
+/** "Exceptions per 100" (still open, per 100 reconciled payments; null = not measured) and its counts, batch not tied apart. */
+const rateFields = (c: ExceptionRateCounts) => { const r = exceptionRate(c); return { exceptionsPer100: r.per100, exceptionRate: r }; };
 
 interface HealthRow { merchant_org_id: string; merchant_name: string; payments: number; auto_matched: number; exceptions_open: number; oldest_open_exception_at: string | Date | null; last_ingestion_at: string | Date | null; grant_scope: string }
 const iso = (v: string | Date | null) => (v === null ? null : new Date(v).toISOString());
 
 export async function providerMerchants(ctx: TenantContext) {
   const c = await providerConsole(ctx);
+  const rates = await tenantRead(ctx, (tx) => exceptionRateCountsByMerchant(tx, ctx.orgId));
   return {
     label: LABEL, provider: c.provider, theme: c.theme,
     merchants: (c.merchants as unknown as HealthRow[]).map((m) => ({
       merchantOrgId: m.merchant_org_id, name: m.merchant_name, payments: m.payments, autoMatched: m.auto_matched,
-      autoMatchRatePct: pct(m.auto_matched, m.payments), exceptionsOpen: m.exceptions_open, exceptionsPer100: per100(m.exceptions_open, m.payments),
+      autoMatchRatePct: pct(m.auto_matched, m.payments), exceptionsOpen: m.exceptions_open, ...rateFields(rates.get(m.merchant_org_id) ?? NO_COUNTS),
       oldestOpenExceptionAt: iso(m.oldest_open_exception_at), lastIngestionAt: iso(m.last_ingestion_at), grantScope: m.grant_scope === "full" ? "full" as const : "aggregates" as const,
     })),
   };
@@ -76,18 +93,20 @@ export async function providerPilotMetrics(ctx: TenantContext) {
   return tenantRead(ctx, async (tx) => {
     const r = await tx.execute(sql`select merchant_org_id, merchant_name, payments::int, auto_matched::int, reviewed::int, reviewed_wrong::int, exceptions_total::int, exceptions_open::int,
       median_minutes_to_resolve, batches::int, batches_tied::int, minutes_logged::int from provider_pilot_metrics(${ctx.orgId}) order by merchant_name`);
+    const rates = await exceptionRateCountsByMerchant(tx, ctx.orgId);
     const rows = (r.rows as unknown as PilotRow[]).map((m) => ({
       merchantOrgId: m.merchant_org_id, name: m.merchant_name, payments: m.payments, autoMatchedPct: pct(m.auto_matched, m.payments),
-      reviewed: m.reviewed, reviewedWrong: m.reviewed_wrong, exceptionsPer100: per100(m.exceptions_total, m.payments), exceptionsOpen: m.exceptions_open,
+      reviewed: m.reviewed, reviewedWrong: m.reviewed_wrong, exceptionsOpen: m.exceptions_open, exceptionsOpened: m.exceptions_total, ...rateFields(rates.get(m.merchant_org_id) ?? NO_COUNTS),
       medianMinutesToResolve: m.median_minutes_to_resolve === null ? null : Math.round(Number(m.median_minutes_to_resolve) * 10) / 10,
       batches: m.batches, batchesTied: m.batches_tied, minutesLogged: m.minutes_logged,
     }));
     const sum = (k: "payments" | "reviewed" | "reviewedWrong" | "batches" | "batchesTied" | "minutesLogged") => rows.reduce((a, x) => a + x[k], 0);
     const auto = (r.rows as unknown as PilotRow[]).reduce((a, x) => a + x.auto_matched, 0);
-    const exTotal = (r.rows as unknown as PilotRow[]).reduce((a, x) => a + x.exceptions_total, 0);
+    // the total rate is recomputed from the added counts, never averaged across merchants
+    const total = rateFields(addExceptionRateCounts(rows.map((x) => x.exceptionRate)));
     return {
       label: LABEL, merchants: rows,
-      total: { payments: sum("payments"), autoMatchedPct: pct(auto, sum("payments")), reviewed: sum("reviewed"), reviewedWrong: sum("reviewedWrong"), exceptionsPer100: per100(exTotal, sum("payments")), batches: sum("batches"), batchesTied: sum("batchesTied"), minutesLogged: sum("minutesLogged") },
+      total: { payments: sum("payments"), autoMatchedPct: pct(auto, sum("payments")), reviewed: sum("reviewed"), reviewedWrong: sum("reviewedWrong"), ...total, batches: sum("batches"), batchesTied: sum("batchesTied"), minutesLogged: sum("minutesLogged") },
     };
   });
 }
