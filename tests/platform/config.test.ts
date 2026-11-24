@@ -63,6 +63,8 @@ describe("clearline-release.json is wired into next.config.mjs", () => {
       // rc8: build-time constants for recorded chain data in test builds only (src/server/test-build.ts); not secrets
       CLEARLINE_NEXT_BUILD: "1",
       CLEARLINE_TEST_BUILD: process.env.CLEARLINE_TEST_BUILD === "1" ? "1" : "",
+      // demo build: the local offline demo's switch (src/server/demo-build.ts); not a secret
+      CLEARLINE_DEMO_BUILD: process.env.CLEARLINE_DEMO_BUILD === "1" ? "1" : "",
       NEXT_PUBLIC_CLEARLINE_PRODUCT_URL: r.product,
       NEXT_PUBLIC_CLEARLINE_MARKETING_URL: r.marketing,
       NEXT_PUBLIC_CLEARLINE_FUNDING_DESK_URL: r.fundingDesk,
