@@ -14,7 +14,8 @@
  *                                            the ingestion adapters, and fictional users; passwords from
  *                                            CLEARLINE_SEED_PASSWORD; Test mode · illustrative data)
  *   purge-uploads                           (rc7 retention: delete every upload past its delete_after, its file, its
- *                                            validation rows and the data derived only from it; prints counts only)
+ *                                            validation rows and the data derived only from it; rc8: then delete stored
+ *                                            files no upload row names that are older than 60 minutes; prints counts only)
  *   delete-merchant <org-slug> [--confirm <org-slug>]
  *                                           (rc7 phase 3b: delete ONE merchant organisation, every row it holds in every
  *                                            table, its members who belong nowhere else, and its uploaded files. Without
@@ -28,7 +29,7 @@ import { closeDatabase, database } from "../../src/server/db/client";
 import { acceptInvitation, createOrganization, createUser, grantMembership, revokeMembership, revokeSessions } from "../../src/server/admin";
 import type { AppRole } from "../../src/server/authz";
 import { seedMerchantCases } from "../../src/server/merchant-seed";
-import { purgeExpiredUploads } from "../../src/server/uploads";
+import { purgeExpiredUploads, sweepOrphanFiles } from "../../src/server/uploads";
 import { deleteMerchant, planMerchantDeletion } from "../../src/server/merchant-deletion";
 
 const DEMO_USERS: { email: string; name: string; org: string; role: AppRole }[] = [
@@ -53,7 +54,11 @@ async function main() {
     }
     case "grant": await grantMembership(db, { orgSlug: a[0], email: a[1], role: a[2] as AppRole }); break;
     case "revoke": await revokeMembership(db, { orgSlug: a[0], email: a[1] }); break;
-    case "purge-uploads": console.log(JSON.stringify(await purgeExpiredUploads(db, new Date()))); break;
+    case "purge-uploads": {
+      const now = new Date();
+      console.log(JSON.stringify({ ...(await purgeExpiredUploads(db, now)), orphanFiles: await sweepOrphanFiles(db, now) }));
+      break;
+    }
     case "revoke-sessions": console.log(await revokeSessions(db, a[0]), "sessions revoked"); break;
     case "seed-demo": {
       const pw = process.env.CLEARLINE_SEED_PASSWORD;

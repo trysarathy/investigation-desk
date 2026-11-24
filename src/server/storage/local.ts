@@ -2,7 +2,7 @@ import "server-only";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { UploadStorage } from "./index";
+import type { StoredFile, UploadStorage } from "./index";
 
 export class StorageRefused extends Error {}
 
@@ -47,8 +47,13 @@ export class LocalDiskStorage implements UploadStorage {
     }
     await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
     const tmp = `${file}.tmp`;
-    await writeFile(tmp, body, { mode: 0o600, flag: "wx" });
-    await rename(tmp, file);
+    try {
+      await writeFile(tmp, body, { mode: 0o600, flag: "wx" });
+      await rename(tmp, file);
+    } catch (e) {
+      await rm(tmp, { force: true }).catch(() => undefined); // never leave a partial write behind
+      throw e;
+    }
     return { storageKey, encrypted: this.key !== null };
   }
 
@@ -65,6 +70,31 @@ export class LocalDiskStorage implements UploadStorage {
 
   async delete(orgId: string, storageKey: string): Promise<boolean> {
     const file = this.where(orgId, storageKey);
+    try { await stat(file); } catch { return false; }
+    await rm(file, { force: true });
+    return true;
+  }
+
+  /** rc8: every file and partial write under <dir>/<org id>/ whose name is a storage address; other names are ignored. */
+  async list(): Promise<StoredFile[]> {
+    let orgs: string[];
+    try { orgs = await readdir(this.dir); } catch { return []; }
+    const out: StoredFile[] = [];
+    for (const orgId of orgs.filter((o) => UUID.test(o))) {
+      let names: string[];
+      try { names = await readdir(path.join(this.dir, orgId)); } catch { continue; }
+      for (const name of names) {
+        const partial = name.endsWith(".tmp");
+        const storageKey = partial ? name.slice(0, -4) : name;
+        if (!KEY.test(storageKey)) continue;
+        try { out.push({ orgId, storageKey, partial, modifiedAt: (await stat(path.join(this.dir, orgId, name))).mtime }); } catch { /* removed meanwhile */ }
+      }
+    }
+    return out;
+  }
+
+  async deletePartial(orgId: string, storageKey: string): Promise<boolean> {
+    const file = `${this.where(orgId, storageKey)}.tmp`;
     try { await stat(file); } catch { return false; }
     await rm(file, { force: true });
     return true;

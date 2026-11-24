@@ -205,6 +205,9 @@ export async function createUpload(ctx: TenantContext, input: z.input<typeof Cre
     throw e;
   });
   const fileFormat = parsed.format;
+  // rc8: the file is written before its row, inside the transaction. If anything after the write fails (the insert,
+  // the audit, the idempotency record or the commit itself), the file is removed again unless its row committed.
+  let written: string | undefined;
   const r = await tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "upload_create", ...v, contentSha256 }, async () => {
     if ((await dataModeOf(tx, ctx.orgId)).dataMode !== "live") throw new RequestRefused(409, "SAMPLE_ORGANISATION", "This organisation holds sample data (Test mode · illustrative data); upload your files to your live organisation.");
     const [ent] = await tx.select({ id: t.merchantEntities.id }).from(t.merchantEntities).where(and(eq(t.merchantEntities.orgId, ctx.orgId), eq(t.merchantEntities.id, v.entityId)));
@@ -221,16 +224,34 @@ export async function createUpload(ctx: TenantContext, input: z.input<typeof Cre
       if (e instanceof StorageRefused) throw new RequestRefused(409, "STORAGE_REFUSED", e.message);
       throw e;
     });
+    written = stored.storageKey;
     const [u] = await tx.insert(t.uploads).values({
       orgId: ctx.orgId, entityId: v.entityId, fileType: v.fileType, fileFormat, originalName, byteSize: bytes.byteLength, contentSha256,
       storageKey: stored.storageKey, encrypted: stored.encrypted, ...(v.jsonList ? { jsonList: v.jsonList } : {}), status: "stored", uploadedBy: ctx.userId, deleteAfter: new Date(Date.now() + days * 86_400_000),
-    }).returning().catch(async (e) => { await storage.delete(ctx.orgId, stored.storageKey); throw e; });
+    }).returning();
     await serverAudit(tx, ctx, "upload_stored", "upload", u.id, `File stored for ${v.entityId} (${v.fileType}, ${fileFormat}, ${bytes.byteLength} bytes${stored.encrypted ? ", encrypted" : ""}); deleted after ${days} days`,
       { uploadId: u.id, entityId: v.entityId, fileType: v.fileType, fileFormat, byteSize: bytes.byteLength, encrypted: stored.encrypted, retentionDays: days });
     return { status: 201, body: summary(u) };
-  }));
+  })).catch(async (e) => {
+    if (written) await discardUnrecordedFile(ctx, storage, written);
+    throw e;
+  });
   const suggestion = "table" in parsed ? await suggestTemplate(ctx, { fileType: v.fileType, headers: parsed.table.headers }) : null;
   return { status: r.status, replayed: r.replayed, upload: r.body, label: dataLabel("live"), preview: previewOf(parsed), suggestion };
+}
+
+/**
+ * rc8: remove a file whose upload transaction failed, but only once a fresh read shows no row names it (a commit that
+ * failed in transit may still have committed). If that read fails too, the file is left for the orphan sweep, which
+ * removes it once it is older than the sweep's age and still has no row. Logs ids only.
+ */
+async function discardUnrecordedFile(ctx: TenantContext, storage: UploadStorage, storageKey: string) {
+  try {
+    const [row] = await tenantRead(ctx, (tx) => tx.select({ id: t.uploads.id }).from(t.uploads).where(and(eq(t.uploads.orgId, ctx.orgId), eq(t.uploads.storageKey, storageKey))));
+    if (!row) await storage.delete(ctx.orgId, storageKey);
+  } catch {
+    console.error(JSON.stringify({ event: "upload_file_left_for_sweep", orgId: ctx.orgId, storageKey }));
+  }
 }
 
 /** One upload's status and counts (no file contents). */
@@ -400,6 +421,38 @@ export async function setRetentionDays(ctx: TenantContext, days: number, idempot
     await serverAudit(tx, ctx, "retention_set", "organization", ctx.orgId, `Upload retention set to ${v} days (new uploads)`, { retentionDays: v });
     return { status: 200, body: { retentionDays: v } };
   }));
+}
+
+/** rc8: the default age before a stored file with no upload row counts as an orphan (well above any transaction). */
+export const ORPHAN_MINUTES = 60;
+export interface OrphanSweep { scanned: number; removed: number; partialRemoved: number; kept: number; tooRecent: number }
+
+/**
+ * rc8: delete every stored file (and partial write) that no uploads row names and that is older than `olderThanMinutes`
+ * (default 60). A file a row names is never touched, whatever the row's status. Runs on the schema OWNER connection,
+ * across organisations, with retention (`control:admin -- purge-uploads`). Returns counts; `log` receives ids only.
+ */
+export async function sweepOrphanFiles(db: Db, now: Date, opts: { storage?: UploadStorage; olderThanMinutes?: number; log?: (line: { event: "orphan_file_removed"; orgId: string; storageKey: string; partial: boolean }) => void } = {}): Promise<OrphanSweep> {
+  const storage = opts.storage ?? uploadStorage();
+  const minutes = opts.olderThanMinutes ?? ORPHAN_MINUTES;
+  if (!Number.isFinite(minutes) || minutes < 5) throw new Error("the orphan sweep keeps files younger than 5 minutes");
+  const out: OrphanSweep = { scanned: 0, removed: 0, partialRemoved: 0, kept: 0, tooRecent: 0 };
+  if (!storage.list) return out;
+  const cutoff = now.getTime() - minutes * 60_000;
+  const files = await storage.list();
+  out.scanned = files.length;
+  // read the rows AFTER listing: a file listed above whose row commits meanwhile is young, so it is kept either way
+  const named = new Set((await db.select({ orgId: t.uploads.orgId, key: t.uploads.storageKey }).from(t.uploads).where(sql`${t.uploads.storageKey} is not null`))
+    .map((x) => `${x.orgId}/${x.key}`));
+  for (const f of files) {
+    if (!f.partial && named.has(`${f.orgId}/${f.storageKey}`)) { out.kept++; continue; }
+    if (f.modifiedAt.getTime() > cutoff) { out.tooRecent++; continue; }
+    const gone = f.partial ? await storage.deletePartial?.(f.orgId, f.storageKey) : await storage.delete(f.orgId, f.storageKey);
+    if (!gone) continue;
+    if (f.partial) out.partialRemoved++; else out.removed++;
+    opts.log?.({ event: "orphan_file_removed", orgId: f.orgId, storageKey: f.storageKey, partial: f.partial });
+  }
+  return out;
 }
 
 /** Data derived from an upload, removed by retention (src/server/upload-retention.ts). */

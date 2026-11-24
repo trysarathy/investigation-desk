@@ -71,7 +71,7 @@ DATABASE_URL=<runtime login> DATABASE_JOBS_URL=postgres://clearline_jobs:<jobs-p
 
 | Task | Command [VERIFIED in `package.json` and `scripts/`] |
 |---|---|
-| Retention purge (run daily; **not** run by the worker) | `DATABASE_URL=$DATABASE_OWNER_URL npm run control:admin -- purge-uploads` (prints counts only) |
+| Retention purge (run daily; **not** run by the worker) | `DATABASE_URL=$DATABASE_OWNER_URL npm run control:admin -- purge-uploads` (prints counts only; rc8: also removes stored files no upload row names that are older than 60 minutes, `orphanFiles` in the output) |
 | Delete one merchant: preview | `DATABASE_URL=$DATABASE_OWNER_URL npm run control:admin -- delete-merchant <slug>` |
 | Delete one merchant: do it | `DATABASE_URL=$DATABASE_OWNER_URL npm run control:admin -- delete-merchant <slug> --confirm <slug>` |
 | Create a live (empty, "Your data") organisation | `DATABASE_URL=$DATABASE_OWNER_URL npm run control:admin -- create-org <slug> "<name>" live` |

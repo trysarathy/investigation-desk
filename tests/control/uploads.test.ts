@@ -5,7 +5,8 @@
  * Fictional data only, built in the test.
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, readdirSync, utimesSync, writeFileSync } from "node:fs";
+import { uploadStorage } from "../../src/server/storage";
 import path from "node:path";
 import { and, eq, sql } from "drizzle-orm";
 import { closeOwner, ownerDb, resetAndSeed } from "./harness";
@@ -17,7 +18,7 @@ import { RequestRefused } from "../../src/server/errors";
 import { grantMembership } from "../../src/server/admin";
 import { MERCHANT_SEED_ORGS, seedMerchantCases } from "../../src/server/merchant-seed";
 import {
-  createUpload, decideUpload, deleteUpload, getUpload, listUploads, purgeExpiredUploads, sanitiseFileName, setRetentionDays, setUploadMapping, uploadPreview, validateUpload, validationReport,
+  createUpload, decideUpload, deleteUpload, getUpload, listUploads, purgeExpiredUploads, sanitiseFileName, sweepOrphanFiles, setRetentionDays, setUploadMapping, uploadPreview, validateUpload, validationReport,
 } from "../../src/server/uploads";
 import { saveMappingTemplate } from "../../src/server/mapping-templates";
 import type { Mapping } from "../../src/lib/clearline/mapping";
@@ -251,5 +252,86 @@ describe("file names", () => {
     expect(sanitiseFileName("..")).toBe("upload");
     expect(sanitiseFileName(`${"a".repeat(300)}.csv`)).toHaveLength(120);
     expect(sanitiseFileName(`${"a".repeat(300)}.csv`).endsWith(".csv")).toBe(true);
+  });
+});
+
+describe("SECURITY: orphaned files (rc8)", () => {
+  const filesOf = (org: string) => { try { return readdirSync(path.join(dir, org)).sort(); } catch { return []; } };
+  const age = (file: string, minutes: number) => { const t0 = new Date(Date.now() - minutes * 60_000); utimesSync(file, t0, t0); };
+  const failing = async (ddl: string, drop: string, run: () => Promise<unknown>) => {
+    await ownerDb().execute(sql.raw(ddl));
+    try { return await run().then(() => "stored", (e: Error & { cause?: Error }) => `${e.message} ${e.cause?.message ?? ""}`); }
+    finally { await ownerDb().execute(sql.raw(drop)); }
+  };
+
+  it("a database failure after the file was written leaves no file: at commit, and in the audit write", async () => {
+    const fin = await liveCtx(s, "finance@live-a.example", "a");
+    const before = filesOf(s.orgs.a);
+    const rowsBefore = (await ownerDb().select().from(t.uploads).where(eq(t.uploads.orgId, s.orgs.a))).length;
+    // 1. the commit fails (a deferred check raised only at COMMIT, after the insert and the audit succeeded)
+    const atCommit = await failing(`CREATE FUNCTION rc8_fail() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'forced failure at commit (test)'; END $$;
+      CREATE CONSTRAINT TRIGGER rc8_fail_commit AFTER INSERT ON uploads DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION rc8_fail();`,
+    "DROP TRIGGER rc8_fail_commit ON uploads; DROP FUNCTION rc8_fail();",
+    () => createUpload(fin, { entityId: "ENT-LIVE-SG", fileType: "provider_export", fileName: "commit-fails.csv", bytes: utf8(exportCsv([501, 502])) }, key()));
+    expect(atCommit).toMatch(/forced failure at commit/);
+    expect(filesOf(s.orgs.a)).toEqual(before);
+    // 2. the audit write fails (after the insert of the upload row)
+    const inAudit = await failing(`CREATE FUNCTION rc8_fail() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action = 'upload_stored' THEN RAISE EXCEPTION 'forced audit failure (test)'; END IF; RETURN NEW; END $$;
+      CREATE TRIGGER rc8_fail_audit BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION rc8_fail();`,
+    "DROP TRIGGER rc8_fail_audit ON audit_events; DROP FUNCTION rc8_fail();",
+    () => createUpload(fin, { entityId: "ENT-LIVE-SG", fileType: "provider_export", fileName: "audit-fails.csv", bytes: utf8(exportCsv([503, 504])) }, key()));
+    expect(inAudit).toMatch(/forced audit failure/);
+    expect(filesOf(s.orgs.a)).toEqual(before);
+    expect((await ownerDb().select().from(t.uploads).where(eq(t.uploads.orgId, s.orgs.a))).length).toBe(rowsBefore);
+    // and the same file then uploads normally
+    expect((await createUpload(fin, { entityId: "ENT-LIVE-SG", fileType: "provider_export", fileName: "commit-fails.csv", bytes: utf8(exportCsv([501, 502])) }, key())).status).toBe(201);
+    expect(filesOf(s.orgs.a).length).toBe(before.length + 1);
+  });
+
+  it("the sweep removes old files no row names, and never a file that has a row; logs carry ids and counts only", async () => {
+    const MARKER = "ZQX-ORPHAN-MARKER-7713";
+    const fin = await liveCtx(s, "finance@live-a.example", "a");
+    const kept = await createUpload(fin, { entityId: "ENT-LIVE-SG", fileType: "provider_export", fileName: `${MARKER}.csv`, bytes: utf8(exportCsv([601, 602], MARKER)) }, key());
+    const [row] = await ownerDb().select().from(t.uploads).where(eq(t.uploads.id, kept.upload.id));
+    const keptFile = path.join(dir, s.orgs.a, row.storageKey!);
+    age(keptFile, 24 * 60); // a day old, and still named by its row
+    const store = uploadStorage();
+    const oldOrphan = await store.put(s.orgs.a, utf8(MARKER));
+    age(path.join(dir, s.orgs.a, oldOrphan.storageKey), 120);
+    const newOrphan = await store.put(s.orgs.a, utf8(MARKER));
+    age(path.join(dir, s.orgs.a, newOrphan.storageKey), 10);
+    // a file in merchant B's folder under merchant A's row key is not A's file: no row names (B, key)
+    const misplaced = path.join(dir, s.orgs.b, row.storageKey!);
+    mkdirSync(path.dirname(misplaced), { recursive: true });
+    writeFileSync(misplaced, "CLU0x");
+    age(misplaced, 120);
+    const partial = path.join(dir, s.orgs.a, `${"ab".repeat(16)}.tmp`);
+    writeFileSync(partial, "CLU0partial");
+    age(partial, 120);
+    const named = (await ownerDb().select({ o: t.uploads.orgId, k: t.uploads.storageKey }).from(t.uploads).where(sql`${t.uploads.storageKey} is not null`)).length;
+    const lines: unknown[] = [];
+    const captured: string[] = [];
+    for (const m of ["log", "info", "warn", "error", "debug"] as const) vi.spyOn(console, m).mockImplementation((...a: unknown[]) => { captured.push(a.map(String).join(" ")); });
+    let r;
+    try { r = await sweepOrphanFiles(ownerDb(), new Date(), { log: (l) => lines.push(l) }); } finally { vi.restoreAllMocks(); }
+    expect(r).toEqual({ scanned: named + 4, removed: 2, partialRemoved: 1, kept: named, tooRecent: 1 });
+    expect(existsSync(keptFile)).toBe(true);
+    expect((await uploadPreview(fin, kept.upload.id)).preview.rows.length).toBeGreaterThan(0); // still readable
+    expect(existsSync(path.join(dir, s.orgs.a, oldOrphan.storageKey))).toBe(false);
+    expect(existsSync(path.join(dir, s.orgs.a, newOrphan.storageKey))).toBe(true); // younger than 60 minutes
+    expect(existsSync(misplaced)).toBe(false);
+    expect(existsSync(partial)).toBe(false);
+    // every row-named file is still there
+    for (const u of await ownerDb().select().from(t.uploads).where(sql`${t.uploads.storageKey} is not null`)) expect(existsSync(path.join(dir, u.orgId, u.storageKey!)), u.id).toBe(true);
+    expect(lines).toHaveLength(3);
+    for (const l of lines) {
+      expect(Object.keys(l as object).sort()).toEqual(["event", "orgId", "partial", "storageKey"]);
+      expect(JSON.stringify(l)).toMatch(/^\{"event":"orphan_file_removed","orgId":"[0-9a-f-]{36}","storageKey":"[0-9a-f]{32}","partial":(true|false)\}$/);
+    }
+    expect(captured).toEqual([]);
+    expect(JSON.stringify([r, lines])).not.toContain(MARKER);
+    // a second sweep finds nothing more to remove; a sweep age under 5 minutes is refused
+    expect(await sweepOrphanFiles(ownerDb(), new Date())).toMatchObject({ removed: 0, partialRemoved: 0, tooRecent: 1 });
+    await expect(sweepOrphanFiles(ownerDb(), new Date(), { olderThanMinutes: 1 })).rejects.toThrow(/younger than 5 minutes/);
   });
 });
