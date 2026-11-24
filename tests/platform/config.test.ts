@@ -60,6 +60,9 @@ describe("clearline-release.json is wired into next.config.mjs", () => {
   it("the env block is exactly resolveReleaseUrls(process.env, clearline-release.json)", () => {
     const r = resolveReleaseUrls(process.env, loadRelease(new URL("../../clearline-release.json", import.meta.url)));
     expect(nextConfig.env).toEqual({
+      // rc8: build-time constants for recorded chain data in test builds only (src/server/test-build.ts); not secrets
+      CLEARLINE_NEXT_BUILD: "1",
+      CLEARLINE_TEST_BUILD: process.env.CLEARLINE_TEST_BUILD === "1" ? "1" : "",
       NEXT_PUBLIC_CLEARLINE_PRODUCT_URL: r.product,
       NEXT_PUBLIC_CLEARLINE_MARKETING_URL: r.marketing,
       NEXT_PUBLIC_CLEARLINE_FUNDING_DESK_URL: r.fundingDesk,
