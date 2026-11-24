@@ -52,8 +52,12 @@ jobs:
       - name: Build the pilot
         run: npx next build
         env:
+          # rc8: a test build; only a test build honours the recorded chain data this suite uses
+          CLEARLINE_TEST_BUILD: "1"
           CLEARLINE_CONTROL_PILOT: "1"
           DATABASE_URL: postgres://clearline_runtime:ci-runtime-pw@127.0.0.1:5432/clearline_e2e_merchant
           BETTER_AUTH_SECRET: test-only-e2e-secret-not-for-deploy-0001
           CLEARLINE_ORIGIN: http://127.0.0.1:3207
+      - name: The test build contains the recorded-chain path (proves the deployment check below would see it)
+        run: node scripts/build/check-chain-recording.mjs --expect present
       - run: npx playwright test -c playwright.merchant.config.ts --retries=0 --trace off

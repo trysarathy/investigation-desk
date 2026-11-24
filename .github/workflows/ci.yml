@@ -32,6 +32,8 @@ jobs:
       - run: npx next build
         env:
           NEXT_TELEMETRY_DISABLED: "1"
+      # rc8: a build without CLEARLINE_TEST_BUILD=1 must not contain the recorded-chain path
+      - run: node scripts/build/check-chain-recording.mjs --expect absent
 
   # rc5 Clearline Control: integration tests against a real PostgreSQL 16 (service container; no paid
   # infrastructure). They never skip: without the database URLs the suite fails with "BLOCKED".

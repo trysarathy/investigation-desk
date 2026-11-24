@@ -12,12 +12,14 @@ import { Pool } from "pg";
 import * as schema from "../../src/server/db/schema";
 import { closeDatabase, type Db } from "../../src/server/db/client";
 import { assertJobsLogin, JobsLoginRefused, runWorkerOnce } from "../../src/server/jobs";
+import { assertNoChainRecordingOutsideTestBuild } from "../../src/server/test-build";
 
 async function main() {
   const args = process.argv.slice(2);
   const once = args.includes("--once");
   const i = args.indexOf("--interval-seconds");
   const intervalMs = Math.max(5, Number(i >= 0 ? args[i + 1] : 60)) * 1000;
+  assertNoChainRecordingOutsideTestBuild(); // rc8: recorded chain data never reaches a scheduled run
   const jobsUrl = process.env.DATABASE_JOBS_URL;
   if (!jobsUrl || !process.env.DATABASE_URL) throw new Error(CONFIG);
   const pool = new Pool({ connectionString: jobsUrl, max: 2 });

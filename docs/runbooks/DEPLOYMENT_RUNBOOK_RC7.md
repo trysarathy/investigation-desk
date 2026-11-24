@@ -60,7 +60,8 @@ DATABASE_URL=<runtime login> DATABASE_JOBS_URL=postgres://clearline_jobs:<jobs-p
 | `CLEARLINE_CHAIN_LIVE` | `1` turns on live read-only chain reads; refused under tests and CI | unset (off) |
 | `TRONGRID_API_KEY` | TronGrid key (free tier) | — |
 | `ETHEREUM_RPC_URL` | Ethereum JSON-RPC URL; may embed a key | — |
-| `CLEARLINE_CHAIN_RECORDING` | path to a recorded chain file (tests and demos only; see the threat model's residual risks) | unset |
+| `CLEARLINE_CHAIN_RECORDING` | path to a recorded chain file (tests and demos only). rc8: honoured only by a test build; any other build refuses to start with it set | unset |
+| `CLEARLINE_TEST_BUILD` | rc8, **build time only**: `1` at `next build` makes a test build (browser suites, blind test). Never set it for a deployment build; `node scripts/build/check-chain-recording.mjs --expect absent` checks a build | unset |
 | `CLEARLINE_LEDGER_PULL` | `1` turns on the read-only Xero demo / QuickBooks sandbox pull | unset (off) |
 | `XERO_CLIENT_ID`, `XERO_CLIENT_SECRET` | Xero app for the demo-company connection (`docs/ACCOUNTING_SYNC.md`) | — |
 | `QBO_REALM_ID`, `QBO_ACCESS_TOKEN`, `QBO_ENV` | QuickBooks sandbox; `QBO_ENV` must be `sandbox` | `QBO_ENV=sandbox` |
