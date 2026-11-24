@@ -15,7 +15,7 @@ import { RULE_SET_VERSION, runState } from "./runs";
 import { AccessDenied, type TenantContext, withTenant } from "./tenant";
 
 /**
- * rc7 phase 3b exports, Finance or an Approver only (merchant_export). FILES only: nothing is posted to any ledger and
+ * rc7 phase 3b exports, Finance, an Approver or an Admin only (merchant_export; rc8 founder decision 3). FILES only: nothing is posted to any ledger and
  * the posting rules are unchanged (still pending sign-off). Each export is audited with ids, counts and the file's
  * SHA-256 only, never contents.
  *

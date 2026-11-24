@@ -18,14 +18,22 @@ test("mutations need the exact Origin and an Idempotency-Key; roles and tenants 
   const noKey = await page.request.fetch("/api/control/merchant/reconcile", { method: "POST", headers: { origin: MERCHANT_E2E.origin, "content-type": "application/json" }, data: JSON.stringify({ entityId: "ENT-SG-01" }) });
   expect(noKey.status()).toBe(400);
   expect((await noKey.json()).error.code).toBe("IDEMPOTENCY_KEY_REQUIRED");
-  // Payment Operations may not export journals (Finance) nor decide approvals (Approver)
-  expect((await api(page, "GET", "/api/control/merchant/journals/export?entity=ENT-SG-01&month=2026-11&format=csv")).status()).toBe(403);
+  // Payment Operations may not export (rc8 decision 3: Finance, an Approver or an Admin) nor decide approvals (Approver)
+  for (const path of ["/api/control/merchant/journals/export?entity=ENT-SG-01&month=2026-11&format=csv", "/api/control/merchant/evidence?order=BK-24817&format=json",
+    "/api/control/merchant/evidence?entity=ENT-SG-01&month=2026-11&format=csv", "/api/control/merchant/exports/month-end?entity=ENT-SG-01&month=2026-11",
+    "/api/control/merchant/exports/journal-draft?entity=ENT-SG-01&month=2026-11&tool=quickbooks"]) expect((await api(page, "GET", path)).status(), path).toBe(403);
+  // and the links are not shown
+  await page.goto("/control/merchant/payments/BK-24817");
+  await expect(page.getByTestId("export-not-allowed")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Download PDF summary" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Evidence packs" })).toHaveCount(0);
   // another merchant's payment, exception and entity do not exist for this user
   expect((await api(page, "GET", "/api/control/merchant/payments/BK-25102")).status()).toBe(404);
   await page.goto("/control/merchant/payments/BK-25102");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(/not found/i);
   expect((await api(page, "POST", "/api/control/merchant/reconcile", { entityId: "ENT-AE-03" })).status()).toBe(404);
-  expect((await api(page, "GET", "/api/control/merchant/evidence?entity=ENT-AE-03&month=2026-12&format=json")).status()).toBe(404);
+  // rc8 decision 3: the role check comes first, so another merchant's evidence is a 403 to Payment Operations (no lookup)
+  expect((await api(page, "GET", "/api/control/merchant/evidence?entity=ENT-AE-03&month=2026-12&format=json")).status()).toBe(403);
 });
 
 test("a provider user is refused every merchant URL (page and API)", async ({ page }) => {
