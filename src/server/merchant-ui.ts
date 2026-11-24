@@ -593,8 +593,9 @@ async function packPdf(p: Pack): Promise<Uint8Array> {
   return doc.save({ useObjectStreams: false });
 }
 
+/** rc8 founder decision 3: Finance, an Approver or an Admin only (merchant_export), whatever the scope. */
 export async function evidencePack(ctx: TenantContext, scope: PackScope, format: z.infer<typeof PackFormat>) {
-  require(ctx, "read");
+  require(ctx, "merchant_export");
   return tenantTx(ctx, async (tx) => {
     const p = await packData(tx, ctx, scope);
     const body: string | Uint8Array = format === "json" ? JSON.stringify(p, null, 2) + "\n" : format === "csv" ? packCsv(p) : await packPdf(p);
@@ -612,8 +613,9 @@ export async function evidencePack(ctx: TenantContext, scope: PackScope, format:
 
 export const SANDBOX_EXPORT_LABEL = "sandbox/demo company only; posting rules pending sign-off";
 
+/** rc8 founder decision 3: Finance, an Approver or an Admin only (merchant_export; was Finance only). */
 export async function journalExport(ctx: TenantContext, entityId: string, month: string, format: "csv" | "json") {
-  require(ctx, "accounting_prepare");
+  require(ctx, "merchant_export");
   const me = await monthEnd(ctx, entityId, month);
   return tenantTx(ctx, async (tx) => {
     const [ent] = await tx.select().from(t.merchantEntities).where(and(eq(t.merchantEntities.orgId, ctx.orgId), eq(t.merchantEntities.id, entityId)));

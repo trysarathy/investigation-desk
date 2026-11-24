@@ -24,7 +24,7 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
   const me = await monthEnd(ctx, entity.id, month);
   const js = me.journals.filter((j) => j.status === "proposed");
   const cur = me.currency;
-  const mayExport = can(ctx.role, "accounting_prepare");
+  const mayExport = can(ctx.role, "merchant_export");
   const ledger = entity.ledger === "quickbooks" ? "QuickBooks" : entity.ledger === "xero" ? "Xero" : "ledger";
   const totals = js.map((j) => (j.lines as Line[]).reduce((t, l) => ({ dr: t.dr + (l.side === "debit" ? BigInt(l.amountMinor) : 0n), cr: t.cr + (l.side === "credit" ? BigInt(l.amountMinor) : 0n) }), { dr: 0n, cr: 0n }));
   return (
@@ -44,7 +44,7 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
               <li><a href={`/api/control/merchant/journals/export?entity=${encodeURIComponent(entity.id)}&month=${month}&format=json`} download>Download journal JSON (sandbox)</a></li>
             </ul>
           </>
-        ) : <p className={s.small}>Finance exports journal files. Your role previews them.</p>}
+        ) : <p className={s.small} data-testid="export-not-allowed">Finance, an Approver or an Admin exports journal files. Your role previews them.</p>}
       </section>
 
       <section className={s.section} aria-labelledby="preview">

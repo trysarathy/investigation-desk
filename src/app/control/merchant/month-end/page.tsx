@@ -87,7 +87,7 @@ export default async function MonthEndPage({ searchParams }: { searchParams: Pro
               <li style={{ marginBottom: 8 }}><a style={{ display: "inline-block", padding: "4px 0" }} href={`/api/control/merchant/exports/journal-draft?entity=${encodeURIComponent(entity.id)}&month=${month}&tool=quickbooks`}>QuickBooks journal draft (CSV)</a></li>
             </ul>
           </>
-        ) : <p className={s.small}>Exports are made by Finance or an Approver.</p>}
+        ) : <p className={s.small} data-testid="export-not-allowed">Exports are made by Finance, an Approver or an Admin.</p>}
       </section>
     </>
   );

@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * ?entity=<entityId>&month=YYYY-MM&tool=xero|quickbooks: a DRAFT manual-journal file for a sandbox / demo company
- * (Finance or an Approver). Nothing is posted; posting rules stay pending sign-off. The export is audited.
+ * (Finance, an Approver or an Admin). Nothing is posted; posting rules stay pending sign-off. The export is audited.
  */
 export const GET = (req: Request) => read(req, async (ctx) => {
   const q = new URL(req.url).searchParams;

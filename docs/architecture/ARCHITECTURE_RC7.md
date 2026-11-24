@@ -46,7 +46,7 @@ Labels: **[VERIFIED]** read in the code or seen in a recorded run; **[ASSUMPTION
 - **Chain verify [VERIFIED].** Live organisations only; sample organisations keep their seeded facts. Client choice: real readers with `CLEARLINE_CHAIN_LIVE=1` (refused under tests and CI); a recording with `CLEARLINE_CHAIN_RECORDING`; otherwise every read is unavailable. A fact is stored as final only after a second read returns the same block (and block hash on Ethereum). Only final facts are cached.
 - **Reconcile [VERIFIED].** `loadReconcileInput` gives the engine chain facts only, never provider claims. Unavailable reads reach the engine as `chainUnavailable` → rule `M1.chain.unavailable`.
 - **Runs and jobs [VERIFIED].** Each run stores trigger, rule-set version (a hash of active rule ids), policy revision, input hash, counts, status and an error **code** only. Same input, rules and policy → `no_change`, nothing written. Approved or closed items are never changed by a re-run; a "rule change would differ" notice is recorded instead. Jobs are claimed with `FOR UPDATE SKIP LOCKED`; a lost job is taken again after 15 minutes. The worker is `npm run jobs:worker`.
-- **Exports [VERIFIED].** Finance or an Approver only. Draft journals come only from `pending_sign_off` proposals, each must balance, and every row says DRAFT. See `docs/POSTING_RULES.md`.
+- **Exports [VERIFIED].** Finance, an Approver or an Admin only (rc8 founder decision 3; also the rc6 journal file and the evidence pack). Draft journals come only from `pending_sign_off` proposals, each must balance, and every row says DRAFT. See `docs/POSTING_RULES.md`.
 
 ## Where the pure engine boundary is
 
