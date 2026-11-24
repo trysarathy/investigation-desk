@@ -17,6 +17,8 @@
     "demo": "tsx --conditions=react-server scripts/demo/run.ts",
     "demo:reset": "tsx --conditions=react-server scripts/demo/reset.ts",
     "demo:files": "tsx scripts/demo/make-demo-files.ts",
+    "demo:feedback": "tsx scripts/demo/feedback.ts",
+    "demo:video": "playwright test -c playwright.demo.config.ts walkthrough.record.ts --project=desktop",
     "typecheck": "tsc --noEmit",
     "reconstruct": "tsx scripts/reconstruct/reconstruct.ts",
     "synthetic": "tsx scripts/synthetic/generate.ts",

@@ -397,3 +397,4 @@ export * from "./upload-schema";
 export * from "./ops-schema";
 export * from "./ledger-schema";
 export * from "./notify-schema";
+export * from "./demo-schema";

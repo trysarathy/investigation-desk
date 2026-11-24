@@ -31,8 +31,8 @@ export async function demoResetRequest(req: Request): Promise<Response> {
     try {
       const cfg = demoResetConfigFromEnv();
       const r = await resetDemoDatabase(cfg);
-      console.log(JSON.stringify({ event: "demo_reset", ms: r.ms, marker: MARKER }));
-      return json(200, { label: DEMO_DATA_LABEL, reset: true, ms: r.ms, next: "/control/sign-in" });
+      console.log(JSON.stringify({ event: "demo_reset", ms: r.ms, feedbackSaved: r.feedbackSaved, marker: MARKER }));
+      return json(200, { label: DEMO_DATA_LABEL, reset: true, ms: r.ms, feedbackSaved: r.feedbackSaved, next: "/control/sign-in" });
     } finally { running = false; }
   } catch (e) {
     if (e instanceof DemoResetRefused) return json(409, { error: { code: e.code, message: e.message } });
