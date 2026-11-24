@@ -10,7 +10,7 @@ import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { closeOwner, ownerDb, resetAndSeed } from "./harness";
-import { liveCtx, seedLiveMerchants, useTestStorage, type LiveSeed } from "./upload-harness";
+import { accountFields, liveCtx, seedLiveMerchants, useTestStorage, type LiveSeed } from "./upload-harness";
 import * as sc from "./upload-scenarios";
 import { closeDatabase } from "../../src/server/db/client";
 import * as t from "../../src/server/db/schema";
@@ -45,7 +45,7 @@ async function dbRefuses(p: Promise<unknown>, re: RegExp) {
 
 /** upload → map (tables) → validate → confirm (by `confirmer`) → normalise; returns the validated summary. */
 async function pipeline(name: string, uploader: TenantContext, confirmer: TenantContext, entityId: string, fileType: FileType, fileName: string, bytes: Uint8Array, mapping?: Mapping) {
-  const up = await createUpload(uploader, { entityId, fileType, fileName, bytes }, key());
+  const up = await createUpload(uploader, { entityId, fileType, fileName, bytes, ...(await accountFields(uploader, entityId, fileType)) }, key());
   uploadIds[name] = up.upload.id;
   if (mapping) await setUploadMapping(uploader, up.upload.id, { mapping }, key());
   const v = (await validateUpload(uploader, up.upload.id, key())).body;
@@ -190,7 +190,7 @@ describe("three provider exports and three bank formats, end to end", () => {
   });
 
   it("SECURITY: the database refuses a statement line without a second person's confirmation, and a finalised provider claim", async () => {
-    const up = await createUpload(fin, { entityId: sc.SG.entityId, fileType: "bank_statement", fileName: "late.csv", bytes: new TextEncoder().encode("Valuta;Betrag;Buchungstag;Verwendungszweck;Auftraggeber\n06.11.2026;5,00;06.11.2026;X;\n") }, key());
+    const up = await createUpload(fin, { entityId: sc.SG.entityId, fileType: "bank_statement", ...(await accountFields(fin, sc.SG.entityId, "bank_statement")), fileName: "late.csv", bytes: new TextEncoder().encode("Valuta;Betrag;Buchungstag;Verwendungszweck;Auftraggeber\n06.11.2026;5,00;06.11.2026;X;\n") }, key());
     await setUploadMapping(fin, up.upload.id, { mapping: sc.SG_BANK_MAPPING }, key());
     await validateUpload(fin, up.upload.id, key());
     await refused(normaliseUpload(fin, up.upload.id, key()), "UPLOAD_NOT_CONFIRMED");

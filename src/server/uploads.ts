@@ -8,6 +8,7 @@ import {
 } from "@/lib/clearline/ingest";
 import { FILE_TYPES, applyMapping, validateMapping, type AppliedRow, type FileType, type Mapping, type MappedValue } from "@/lib/clearline/mapping";
 import { usesUploadPipeline, type DataLabel } from "@/lib/clearline/data-mode";
+import { otherCurrencies, rejectOtherCurrency } from "@/lib/clearline/bank-accounts";
 import type { NetworkId, TokenConfig } from "@/lib/clearline/merchant/types";
 import { stableJson } from "@/lib/clearline/merchant/adapters";
 import type { Db, Tx } from "./db/client";
@@ -103,10 +104,13 @@ function hashRows(fileType: FileType, rows: AppliedRow[]): AnalysedRow[] {
  * The validation of an upload: statements are read by the bank parsers (no mapping), tables through the confirmed
  * mapping. Deterministic: the same file and mapping always give the same rows and hashes.
  */
-export async function analyseUpload(tx: Tx, u: Pick<UploadRow, "fileType" | "fileFormat" | "mapping" | "originalName" | "jsonList">, bytes: Uint8Array): Promise<Analysis> {
+export async function analyseUpload(tx: Tx, u: Pick<UploadRow, "orgId" | "fileType" | "fileFormat" | "mapping" | "originalName" | "jsonList" | "bankAccountId">, bytes: Uint8Array): Promise<Analysis> {
   const fileType = u.fileType as FileType;
   const parsed = await parseUpload(bytes, fileType, u.originalName, u.jsonList);
   const notes: string[] = [];
+  const accountCurrency = u.bankAccountId ? (await bankAccountOf(tx, u.orgId, u.bankAccountId))?.currency : undefined;
+  /** v1: a statement row in another currency than its bank account's is rejected (never imported into that account). */
+  const inAccountCurrency = (rows: AppliedRow[]) => rejectOtherCurrency(rows, accountCurrency);
   if ("statement" in parsed) {
     const s = parsed.statement;
     if (s.statements.some((x) => x.balanced === false)) notes.push("statement_not_balanced");
@@ -117,7 +121,7 @@ export async function analyseUpload(tx: Tx, u: Pick<UploadRow, "fileType" | "fil
       const warnings = l.amountMinor === 0n ? [{ field: "amount", code: "zero_amount" }] : [];
       return { rowNumber: l.sourceRow, status: warnings.length ? "warning" : "accepted", values, errors: [], warnings };
     });
-    return { rows: hashRows(fileType, rows), notes };
+    return { rows: hashRows(fileType, inAccountCurrency(rows)), notes };
   }
   if (!u.mapping) throw new RequestRefused(409, "NOT_MAPPED", "Map the file's columns first.");
   const applied = applyMapping(parsed.table, u.mapping, { tokens: await tokensOf(tx) });
@@ -125,7 +129,14 @@ export async function analyseUpload(tx: Tx, u: Pick<UploadRow, "fileType" | "fil
   if (parsed.table.excludedRows.length) notes.push("total_rows_excluded");
   if (parsed.table.blankRowsSkipped) notes.push("blank_rows_skipped");
   for (const c of applied.columnIssues) notes.push(`column:${c.field}:${c.code}`);
-  return { rows: hashRows(fileType, applied.rows), notes };
+  return { rows: hashRows(fileType, inAccountCurrency(applied.rows)), notes };
+}
+
+/** A bank account of the organisation (RLS: the tenant's own rows only). */
+export async function bankAccountOf(tx: Tx, orgId: string, id: string) {
+  if (!z.uuid().safeParse(id).success) return undefined;
+  const [a] = await tx.select().from(t.bankAccounts).where(and(eq(t.bankAccounts.orgId, orgId), eq(t.bankAccounts.id, id)));
+  return a;
 }
 
 export const rowsDigest = (rows: { rowNumber: number; status: string; rowHash: string | null; reasonCodes: unknown }[]) =>
@@ -145,7 +156,7 @@ export async function loadUpload(tx: Tx, ctx: TenantContext, id: string, lock = 
 }
 
 export interface UploadSummary {
-  id: string; entityId: string; fileType: FileType; fileFormat: Format; originalName: string; byteSize: number; contentSha256: string; encrypted: boolean;
+  id: string; entityId: string; bankAccountId: string | null; fileType: FileType; fileFormat: Format; originalName: string; byteSize: number; contentSha256: string; encrypted: boolean;
   /** JSON: the list the records were read from, when the person chose one. */
   jsonList: string | null;
   status: string; templateId: string | null; templateVersion: number | null; mapping: Mapping | null; rowsSha256: string | null;
@@ -153,7 +164,7 @@ export interface UploadSummary {
   uploadedBy: string; confirmedBy: string | null; deleteAfter: string; createdAt: string;
 }
 export const summary = (u: UploadRow): UploadSummary => ({
-  id: u.id, entityId: u.entityId, fileType: u.fileType as FileType, fileFormat: u.fileFormat, originalName: u.originalName, byteSize: u.byteSize, contentSha256: u.contentSha256,
+  id: u.id, entityId: u.entityId, bankAccountId: u.bankAccountId ?? null, fileType: u.fileType as FileType, fileFormat: u.fileFormat, originalName: u.originalName, byteSize: u.byteSize, contentSha256: u.contentSha256,
   encrypted: u.encrypted, jsonList: u.jsonList ?? null, status: u.status, templateId: u.templateId, templateVersion: u.templateVersion, mapping: (u.mapping as Mapping | null) ?? null, rowsSha256: u.rowsSha256,
   counts: { rows: u.rowCount, accepted: u.acceptedCount, rejected: u.rejectedCount, warning: u.warningCount, duplicate: u.duplicateCount }, notes: u.notes as string[],
   uploadedBy: u.uploadedBy, confirmedBy: u.confirmedBy, deleteAfter: u.deleteAfter.toISOString(), createdAt: u.createdAt.toISOString(),
@@ -185,7 +196,11 @@ function previewOf(p: Parsed, n = PREVIEW_ROWS): Preview {
   };
 }
 
-export const CreateUpload = z.object({ entityId: z.string().min(1).max(64), fileType: z.enum(FILE_TYPES), fileName: z.string().min(1).max(1000), jsonList: z.string().min(1).max(200).optional() }).strict();
+export const CreateUpload = z.object({
+  entityId: z.string().min(1).max(64), fileType: z.enum(FILE_TYPES), fileName: z.string().min(1).max(1000), jsonList: z.string().min(1).max(200).optional(),
+  /** v1: the entity's bank account a statement belongs to (required for a bank statement, refused for other files). */
+  bankAccountId: z.uuid().optional(),
+}).strict();
 
 export interface UploadResult { upload: UploadSummary; label: DataLabel; preview: Preview; suggestion: TemplateSuggestion | null }
 
@@ -197,7 +212,10 @@ export interface UploadResult { upload: UploadSummary; label: DataLabel; preview
 export async function createUpload(ctx: TenantContext, input: z.input<typeof CreateUpload> & { bytes: Uint8Array }, idempotencyKey: string, storage: UploadStorage = uploadStorage()): Promise<UploadResult & { status: number; replayed: boolean }> {
   require(ctx, "merchant_upload");
   const key = IdempotencyKey.parse(idempotencyKey);
-  const v = CreateUpload.parse({ entityId: input.entityId, fileType: input.fileType, fileName: input.fileName, ...(input.jsonList ? { jsonList: input.jsonList } : {}) });
+  const v = CreateUpload.parse({ entityId: input.entityId, fileType: input.fileType, fileName: input.fileName, ...(input.jsonList ? { jsonList: input.jsonList } : {}),
+    ...(input.bankAccountId ? { bankAccountId: input.bankAccountId } : {}) });
+  if (v.fileType === "bank_statement" && !v.bankAccountId) throw new RequestRefused(422, "BANK_ACCOUNT_REQUIRED", "Choose the bank account this statement belongs to.");
+  if (v.fileType !== "bank_statement" && v.bankAccountId) throw new RequestRefused(422, "BANK_ACCOUNT_NOT_STATEMENT", "Only a bank statement belongs to a bank account.");
   const bytes = input.bytes;
   if (!(bytes instanceof Uint8Array)) throw new RequestRefused(400, "INVALID_FILE", "The upload is not a file.");
   const originalName = sanitiseFileName(v.fileName);
@@ -208,6 +226,19 @@ export async function createUpload(ctx: TenantContext, input: z.input<typeof Cre
     throw e;
   });
   const fileFormat = parsed.format;
+  if (v.bankAccountId) {
+    // v1: an active account of this entity (the database checks it again when the row is written)
+    const acct = await tenantRead(ctx, (tx) => bankAccountOf(tx, ctx.orgId, v.bankAccountId!));
+    if (!acct || acct.entityId !== v.entityId) throw new AccessDenied(404, "Not found.");
+    if (acct.status !== "active") throw new RequestRefused(409, "BANK_ACCOUNT_CLOSED", "This bank account is closed; upload statements to an active account.");
+    // a structured statement (MT940, camt.053) states its currency: every line must be in the account's currency
+    const other = "statement" in parsed ? otherCurrencies(parsed.statement.lines, acct.currency) : [];
+    if (other.length) {
+      await tenantTx(ctx, (tx) => serverAudit(tx, ctx, "upload_refused", "upload", null, "Upload refused before storing (STATEMENT_CURRENCY_MISMATCH)",
+        { code: "STATEMENT_CURRENCY_MISMATCH", byteSize: bytes.byteLength, fileType: v.fileType, entityId: v.entityId, bankAccountId: acct.id }));
+      throw new RequestRefused(422, "STATEMENT_CURRENCY_MISMATCH", `This statement is in ${other.join(", ")}; the bank account ${acct.displayName} is in ${acct.currency}. Nothing was stored.`);
+    }
+  }
   // rc8: the file is written before its row, inside the transaction. If anything after the write fails (the insert,
   // the audit, the idempotency record or the commit itself), the file is removed again unless its row committed.
   let written: string | undefined;
@@ -229,11 +260,11 @@ export async function createUpload(ctx: TenantContext, input: z.input<typeof Cre
     });
     written = stored.storageKey;
     const [u] = await tx.insert(t.uploads).values({
-      orgId: ctx.orgId, entityId: v.entityId, fileType: v.fileType, fileFormat, originalName, byteSize: bytes.byteLength, contentSha256,
+      orgId: ctx.orgId, entityId: v.entityId, ...(v.bankAccountId ? { bankAccountId: v.bankAccountId } : {}), fileType: v.fileType, fileFormat, originalName, byteSize: bytes.byteLength, contentSha256,
       storageKey: stored.storageKey, encrypted: stored.encrypted, ...(v.jsonList ? { jsonList: v.jsonList } : {}), status: "stored", uploadedBy: ctx.userId, deleteAfter: new Date(Date.now() + days * 86_400_000),
     }).returning();
     await serverAudit(tx, ctx, "upload_stored", "upload", u.id, `File stored for ${v.entityId} (${v.fileType}, ${fileFormat}, ${bytes.byteLength} bytes${stored.encrypted ? ", encrypted" : ""}); deleted after ${days} days`,
-      { uploadId: u.id, entityId: v.entityId, fileType: v.fileType, fileFormat, byteSize: bytes.byteLength, encrypted: stored.encrypted, retentionDays: days });
+      { uploadId: u.id, entityId: v.entityId, ...(v.bankAccountId ? { bankAccountId: v.bankAccountId } : {}), fileType: v.fileType, fileFormat, byteSize: bytes.byteLength, encrypted: stored.encrypted, retentionDays: days });
     return { status: 201, body: summary(u) };
   })).catch(async (e) => {
     if (written) await discardUnrecordedFile(ctx, storage, written);

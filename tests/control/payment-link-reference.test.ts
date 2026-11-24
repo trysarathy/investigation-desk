@@ -10,7 +10,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { closeOwner, ownerDb, resetAndSeed } from "./harness";
-import { liveCtx, seedLiveMerchants, useTestStorage, type LiveSeed } from "./upload-harness";
+import { accountFields, liveCtx, seedLiveMerchants, useTestStorage, type LiveSeed } from "./upload-harness";
 import * as sc from "./upload-scenarios";
 import { closeDatabase } from "../../src/server/db/client";
 import * as t from "../../src/server/db/schema";
@@ -28,7 +28,7 @@ let n = 0;
 const key = () => `pl-ref-${++n}-${Date.now()}`;
 
 async function pipeline(c: TenantContext, entityId: string, fileType: FileType, fileName: string, bytes: Uint8Array, mapping: Mapping) {
-  const up = await createUpload(c, { entityId, fileType, fileName, bytes }, key());
+  const up = await createUpload(c, { entityId, fileType, fileName, bytes, ...(await accountFields(c, entityId, fileType)) }, key());
   await setUploadMapping(c, up.upload.id, { mapping }, key());
   const v = (await validateUpload(c, up.upload.id, key())).body;
   await decideUpload(c, up.upload.id, { decision: "confirm", reason: "Checked against the source (fictional)", contentSha256: v.contentSha256, rowsSha256: v.rowsSha256! }, key());

@@ -2,7 +2,7 @@
  * rc7 test helpers: LIVE fictional merchants for uploads (sample organisations refuse uploads), with entities,
  * per-currency default policies and fictional users. Owner connection, like the admin CLI.
  */
-import { eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -14,7 +14,7 @@ import { defaultPolicyFor } from "../../src/lib/clearline/merchant/config";
 import type { FiatCurrency } from "../../src/lib/clearline/merchant/types";
 import type { AppRole } from "../../src/server/authz";
 import { resolveTenant, type TenantContext } from "../../src/server/tenant";
-import { PASSWORD } from "./harness";
+import { ownerDb, PASSWORD } from "./harness";
 
 /** Upload storage for this test run: a fresh temporary folder and a random (test-only) encryption key. */
 export function useTestStorage(encrypted = true) {
@@ -57,6 +57,7 @@ export async function seedLiveMerchants(db: Db, suffix = ""): Promise<LiveSeed> 
       orgId: orgs[e.org], entityId: e.id, toleranceBps: p.tolerancePct, toleranceAbsMinor: p.toleranceAbsMinor, toleranceCombine: p.toleranceCombine, writeoffThresholdMinor: p.writeoffThresholdMinor,
       approverRoles: ["approver"], allowImportedBankLinesAsVerified: false, senderFeeBoundBaseUnits: p.senderFeeBoundBaseUnits.toString(),
     });
+    await addTestBankAccount(db, orgs[e.org], e.id, e.currency);
   }
   const users: Record<string, string> = {};
   for (const [email, org, role] of USERS) {
@@ -69,3 +70,21 @@ export async function seedLiveMerchants(db: Db, suffix = ""): Promise<LiveSeed> 
 
 export const liveCtx = (s: LiveSeed, email: string, org: keyof LiveSeed["slugs"]): Promise<TenantContext> =>
   resolveTenant({ userId: s.users[email], name: email, email }, s.slugs[org]);
+
+/** v1: one fictional bank account for a test entity (owner connection, as `add-bank-account` writes it). */
+export async function addTestBankAccount(db: Db, orgId: string, entityId: string, currency: string, name = `${entityId} operating account (fictional)`, last4 = "0001") {
+  const [a] = await db.insert(t.bankAccounts).values({ orgId, entityId, currency, displayName: name, accountLast4: last4, bankName: "Fictional Test Bank" }).returning({ id: t.bankAccounts.id });
+  return a.id;
+}
+
+/** v1: the first active bank account of an entity (a bank statement upload names one). */
+export async function accountOf(orgId: string, entityId: string): Promise<string> {
+  const [a] = await ownerDb().select({ id: t.bankAccounts.id }).from(t.bankAccounts)
+    .where(and(eq(t.bankAccounts.orgId, orgId), eq(t.bankAccounts.entityId, entityId), eq(t.bankAccounts.status, "active"))).orderBy(asc(t.bankAccounts.createdAt)).limit(1);
+  if (!a) throw new Error(`test setup: entity ${entityId} has no active bank account`);
+  return a.id;
+}
+
+/** The upload fields a file of this type needs: a bank statement names its entity's bank account. */
+export const accountFields = async (ctx: { orgId: string }, entityId: string, fileType: string): Promise<{ bankAccountId?: string }> =>
+  fileType === "bank_statement" ? { bankAccountId: await accountOf(ctx.orgId, entityId) } : {};

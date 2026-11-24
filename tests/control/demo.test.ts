@@ -21,7 +21,7 @@ import path from "node:path";
 import { Client } from "pg";
 import { and, eq, sql } from "drizzle-orm";
 import { closeOwner, ownerDb, resetBlank } from "./harness";
-import { useTestStorage } from "./upload-harness";
+import { accountFields, useTestStorage } from "./upload-harness";
 import { closeDatabase, database } from "../../src/server/db/client";
 import * as t from "../../src/server/db/schema";
 import { seedDemo, restampDemoSeed, DEMO_USERS, type DemoStampWindow } from "../../src/server/demo-seed";
@@ -275,7 +275,7 @@ describe("demo-files", () => {
     const files = Object.fromEntries((await demoFiles()).map((f) => [f.name, f.bytes]));
     const uploads: Record<string, unknown> = {};
     const push = async (name: string, fileType: Mapping["fileType"], mapping?: Mapping) => {
-      const up = await createUpload(users.finance, { entityId: DEMO_ENTITY_IDS.SG, fileType, fileName: name, bytes: files[name] }, key());
+      const up = await createUpload(users.finance, { entityId: DEMO_ENTITY_IDS.SG, fileType, fileName: name, bytes: files[name], ...(await accountFields(users.finance, DEMO_ENTITY_IDS.SG, fileType)) }, key());
       expect(up.label).toBe(DEMO_DATA_LABEL);
       if (mapping) await setUploadMapping(users.finance, up.upload.id, { mapping }, key());
       const v = (await validateUpload(users.finance, up.upload.id, key())).body;

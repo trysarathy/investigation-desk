@@ -10,10 +10,12 @@ import { createOrganization, createUser, grantMembership } from "./admin";
 import { PolicyPatch } from "./merchant";
 import { defaultPolicyFor } from "@/lib/clearline/merchant/config";
 import type { FiatCurrency } from "@/lib/clearline/merchant/types";
+import { normaliseLast4 } from "@/lib/clearline/bank-accounts";
 
 /**
  * rc8 founder decision 4: an operator creates a merchant from scratch with the admin CLI (no wizard):
- * `npm run control:admin -- create-merchant | create-provider | add-entity | set-policy | link-provider | add-member`.
+ * `npm run control:admin -- create-merchant | create-provider | add-entity | add-bank-account | close-bank-account | set-policy |
+ * link-provider | add-member`.
  *
  * - The schema OWNER login only (DATABASE_OWNER_URL), checked on connect: the login must own the tables and must not
  *   be a member of clearline_app. The runtime app's grants and row-level security are unchanged; the web app still
@@ -194,6 +196,60 @@ export async function setPolicy(db: Db, input: { orgSlug: string; entityId: stri
 }
 
 // ---------------------------------------------------------------------------------------------
+// Bank accounts (v1)
+// ---------------------------------------------------------------------------------------------
+
+const AccountName = z.string().trim().min(1).max(120);
+const BankName = z.string().trim().min(1).max(120);
+const Bic = z.string().regex(/^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$/, "a BIC is 8 or 11 letters and digits (e.g. FICTSGSGXXX)");
+/** Only the last four characters are ever accepted: a longer value is refused (and never echoed), so no full number is stored. */
+const LAST4_HELP = "pass exactly the LAST FOUR letters or digits of the account number; the full number is never stored";
+
+/**
+ * A bank account of an entity (`add-bank-account`). Its currency may differ from the entity's functional currency;
+ * reconciliation still reads only statement lines in the entity's functional currency. Same name and values again: no
+ * change; the same name with other values is refused (an account's entity, currency and number never change).
+ */
+export async function addBankAccount(db: Db, input: { orgSlug: string; entityId: string; name: string; currency: string; last4: string; bankName: string; bic?: string }) {
+  const org = await merchantOrg(db, input.orgSlug);
+  const entityId = parse(EntityId, input.entityId, "entity id"), displayName = parse(AccountName, input.name, "account name");
+  const currency = parse(Currency, input.currency, "currency");
+  const last4 = normaliseLast4(input.last4);
+  if (!last4) throw new SetupRefused(`last four: ${LAST4_HELP}`);
+  const bankName = parse(BankName, input.bankName, "bank name"), bic = input.bic === undefined ? null : parse(Bic, input.bic.trim().toUpperCase(), "bic");
+  const [ent] = await db.select().from(t.merchantEntities).where(and(eq(t.merchantEntities.orgId, org.id), eq(t.merchantEntities.id, entityId)));
+  if (!ent) throw new SetupRefused("No such entity in that organisation (add it with add-entity).");
+  const [prior] = await db.select().from(t.bankAccounts).where(and(eq(t.bankAccounts.orgId, org.id), eq(t.bankAccounts.entityId, entityId), eq(t.bankAccounts.displayName, displayName)));
+  if (prior) {
+    if (prior.currency === currency && prior.accountLast4 === last4 && prior.bankName === bankName && prior.bic === bic && prior.status === "active") {
+      return { status: "exists" as const, orgId: org.id, entityId, bankAccountId: prior.id, currency };
+    }
+    throw new SetupRefused("That entity already has an account with this name and different values (or it is closed); nothing changed.");
+  }
+  const id = await db.transaction(async (tx) => {
+    const [a] = await tx.insert(t.bankAccounts).values({ orgId: org.id, entityId, currency, displayName, accountLast4: last4, bankName, bic, status: "active", createdBy: null }).returning({ id: t.bankAccounts.id });
+    await audit(tx, org.id, "bank_account_created", "bank_account", a.id, `Bank account ${a.id} added to entity ${entityId} (${currency})`, { entityId, bankAccountId: a.id, currency });
+    return a.id;
+  });
+  return { status: "created" as const, orgId: org.id, entityId, bankAccountId: id, currency, entityCurrency: ent.functionalCurrency };
+}
+
+/** Close an account (`close-bank-account`): no new statements are uploaded to it; its lines stay. A dry run unless confirmed. */
+export async function closeBankAccount(db: Db, input: { orgSlug: string; bankAccountId: string; confirm?: string }) {
+  const org = await merchantOrg(db, input.orgSlug);
+  const id = parse(z.uuid(), input.bankAccountId, "bank account id");
+  const [a] = await db.select().from(t.bankAccounts).where(and(eq(t.bankAccounts.orgId, org.id), eq(t.bankAccounts.id, id)));
+  if (!a) throw new SetupRefused("No such bank account in that organisation.");
+  if (a.status === "closed") return { status: "exists" as const, orgId: org.id, bankAccountId: id };
+  if (!confirmed(org.slug, input.confirm)) return { status: "dry_run" as const, orgId: org.id, bankAccountId: id, wouldClose: true };
+  await db.transaction(async (tx) => {
+    await tx.update(t.bankAccounts).set({ status: "closed", closedAt: new Date() }).where(and(eq(t.bankAccounts.orgId, org.id), eq(t.bankAccounts.id, id)));
+    await audit(tx, org.id, "bank_account_closed", "bank_account", id, `Bank account ${id} closed (no new statements)`, { entityId: a.entityId, bankAccountId: id });
+  });
+  return { status: "closed" as const, orgId: org.id, bankAccountId: id };
+}
+
+// ---------------------------------------------------------------------------------------------
 // Provider link and members
 // ---------------------------------------------------------------------------------------------
 
@@ -249,7 +305,8 @@ export async function setupSummary(db: Db, orgSlug: string) {
   const org = await orgBySlug(db, orgSlug);
   if (!org) throw new SetupRefused("No organisation has that slug.");
   const ents = await db.select({ id: t.merchantEntities.id, currency: t.merchantEntities.functionalCurrency, utcOffsetMinutes: t.merchantEntities.utcOffsetMinutes }).from(t.merchantEntities).where(eq(t.merchantEntities.orgId, org.id));
+  const accts = await db.select({ id: t.bankAccounts.id, entityId: t.bankAccounts.entityId, currency: t.bankAccounts.currency, status: t.bankAccounts.status }).from(t.bankAccounts).where(eq(t.bankAccounts.orgId, org.id));
   const pol = await db.select({ entityId: t.merchantPolicy.entityId, revision: t.merchantPolicy.revision }).from(t.merchantPolicy).where(eq(t.merchantPolicy.orgId, org.id));
   const mem = (await db.execute(sql`select role, count(*)::int as n from organization_memberships where org_id = ${org.id} and revoked_at is null group by role order by role`)).rows as { role: string; n: number }[];
-  return { orgId: org.id, slug: org.slug, kind: org.kind, dataMode: org.dataMode, providerOrgId: org.providerOrgId, entities: ents.map((e) => ({ ...e, policyRevision: pol.find((p) => p.entityId === e.id)?.revision ?? null })), members: Object.fromEntries(mem.map((r) => [r.role, r.n])) };
+  return { orgId: org.id, slug: org.slug, kind: org.kind, dataMode: org.dataMode, providerOrgId: org.providerOrgId, entities: ents.map((e) => ({ ...e, policyRevision: pol.find((p) => p.entityId === e.id)?.revision ?? null, bankAccounts: accts.filter((a) => a.entityId === e.id).map(({ entityId: _e, ...a }) => (void _e, a)) })), members: Object.fromEntries(mem.map((r) => [r.role, r.n])) };
 }

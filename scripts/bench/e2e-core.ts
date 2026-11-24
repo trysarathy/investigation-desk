@@ -68,6 +68,7 @@ export async function runBench(owner: Db, opts: BenchOptions = {}): Promise<Benc
   const slug = `bench-${opts.tag ?? randomUUID().slice(0, 8)}`;
   const w0 = worlds[0];
   const users: Record<string, TenantContext> = {};
+  const accounts: Record<string, string> = {};
   const orgId = await lap("seed_org", async () => {
     const id = await createOrganization(owner, { slug, name: `Benchmark ${slug} (synthetic)`, seed: "empty", dataMode: "live" });
     for (const e of w0.entities) {
@@ -77,6 +78,9 @@ export async function runBench(owner: Db, opts: BenchOptions = {}): Promise<Benc
         orgId: id, entityId: e.id, toleranceBps: p.tolerancePct, toleranceAbsMinor: p.toleranceAbsMinor, toleranceCombine: p.toleranceCombine, writeoffThresholdMinor: p.writeoffThresholdMinor,
         approverRoles: ["approver"], allowImportedBankLinesAsVerified: false, senderFeeBoundBaseUnits: p.senderFeeBoundBaseUnits.toString(),
       });
+      // v1: a bank statement upload names the entity's bank account (masked number only; synthetic)
+      const [acct] = await owner.insert(t.bankAccounts).values({ orgId: id, entityId: e.id, currency: e.functionalCurrency, displayName: `${e.id} operating (synthetic)`, accountLast4: "0001", bankName: "Synthetic Bank" }).returning({ id: t.bankAccounts.id });
+      accounts[e.id] = acct.id;
       for (const w of worlds) await owner.transaction((tx) => writeIngested(tx, id, e.id, { fxRates: w.fxRates.filter((r) => r.pair.endsWith(`/${e.functionalCurrency}`)), addressFacts: w.addressFacts }, { chainSource: "recorded_fixture" }));
     }
     for (const role of ["finance", "approver", "payment_ops"] as const) {
@@ -98,7 +102,7 @@ export async function runBench(owner: Db, opts: BenchOptions = {}): Promise<Benc
       for (const kind of ["order_list_csv", "provider_export_a", "settlement_lines", "bank_csv"]) {
         const f = mine.find((x) => x.kind === kind)!;
         const fileType = TYPE[kind];
-        const up = await lap("upload_store", () => createUpload(users.finance, { entityId: spec.id, fileType, fileName: f.name, bytes: f.bytes }, key()));
+        const up = await lap("upload_store", () => createUpload(users.finance, { entityId: spec.id, fileType, fileName: f.name, bytes: f.bytes, ...(fileType === "bank_statement" ? { bankAccountId: accounts[spec.id] } : {}) }, key()));
         const c = confirmations(kind, cur, f.account);
         const proposal = Object.fromEntries(Object.entries(up.suggestion?.suggestion.proposal ?? {}).filter(([k]) => !c.drop.includes(k)).map(([k, x]) => [k, { header: x.header }]));
         const used = new Set(Object.values(c.set).map((x) => x.header).filter(Boolean));

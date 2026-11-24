@@ -5,10 +5,12 @@
  * rc6 cases with their exact numbers. Every name, address, hash and account is fictional; the only real values are the
  * public USDT and USDC contracts.
  *
- * Entities [ASSUMPTION, the existing model]: an entity has one functional currency and there is no table of bank
- * accounts (DEPLOYMENT_RUNBOOK_RC7 "Not covered by the CLI"). The Singapore company's USD account is therefore its
- * USD book, a second entity row in USD (as rc6 Case 2 and the synthetic month preset do); the account a batch or
- * statement names is a text reference (NW-SGD-OPS-DEMO-01 and so on).
+ * Entities [ASSUMPTION, the existing model]: an entity has one functional currency, and reconciliation reads only
+ * statement lines in that currency. v1 added a table of bank accounts (one row per entity below, DEMO_BANK_ACCOUNTS),
+ * but the Singapore company's USD account stays its USD book, a second entity row in USD (as rc6 Case 2 and the
+ * synthetic month preset do): moving it under NW-SG as a second account would need the engine to reconcile USD lines
+ * in an SGD entity, which would change Case 2's USD payments. The account a batch or statement names is still a text
+ * reference (NW-SGD-OPS-DEMO-01 and so on).
  *
  * Cases: Case 1 and Case 2 (SGD) are in the Singapore SGD book, Case 2's USD payments in the USD book, Case 3 in the
  * UAE entity. Only the entity id and the bank account reference of each fixture are changed (to Northwind's); every
@@ -51,6 +53,13 @@ export const DEMO_ENTITIES: readonly (WorldEntitySpec & { ledgerProduct: "xero" 
   { id: DEMO_ENTITY_IDS.SG_USD, code: "SU", name: "Northwind Travel Pte. Ltd., USD account (demo)", currency: "USD", timeZone: SGT, ledger: "LEDGER-NW-SG", bankAccountId: DEMO_ACCOUNTS.USD, share: 0.15, ledgerProduct: "xero" },
   { id: DEMO_ENTITY_IDS.AE, code: "AE", name: "Northwind Travel FZ-LLC (demo)", currency: "AED", timeZone: GST, ledger: "LEDGER-NW-AE", bankAccountId: DEMO_ACCOUNTS.AED, share: 0.25, ledgerProduct: "quickbooks" },
 ];
+
+/** v1: each demo entity's bank account as a bank_accounts row (masked number only; fictional). */
+export const DEMO_BANK_ACCOUNTS: Readonly<Record<string, { name: string; last4: string; bankName: string }>> = {
+  [DEMO_ENTITY_IDS.SG]: { name: `${DEMO_ACCOUNTS.SGD} (SGD operating)`, last4: "DE01", bankName: "Fictional Harbour Bank (demo)" },
+  [DEMO_ENTITY_IDS.SG_USD]: { name: `${DEMO_ACCOUNTS.USD} (USD operating)`, last4: "DE02", bankName: "Fictional Harbour Bank (demo)" },
+  [DEMO_ENTITY_IDS.AE]: { name: `${DEMO_ACCOUNTS.AED} (AED operating)`, last4: "DE03", bankName: "Fictional Harbour Bank (demo)" },
+};
 
 const BANK_ACCOUNTS = DEMO_ENTITIES.map((e) => ({
   accountId: e.bankAccountId, currency: e.currency, bankName: "Fictional Harbour Bank (demo)", holderName: e.name,

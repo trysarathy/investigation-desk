@@ -11,7 +11,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { randomBytes, randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { closeOwner, ownerDb, resetAndSeed } from "./harness";
-import { liveCtx, seedLiveMerchants, useTestStorage, type LiveSeed } from "./upload-harness";
+import { accountFields, liveCtx, seedLiveMerchants, useTestStorage, type LiveSeed } from "./upload-harness";
 import * as sc from "./upload-scenarios";
 import { closeDatabase } from "../../src/server/db/client";
 import { withTenant, type TenantContext } from "../../src/server/tenant";
@@ -29,7 +29,7 @@ const T: Record<string, Row> = {};
 let ROWS: number[] = [];
 
 async function upload(uploader: TenantContext, fileType: FileType, name: string, bytes: Uint8Array, mapping: Mapping, until: "validated" | "confirmed" | "normalised", confirmer?: TenantContext) {
-  const up = await createUpload(uploader, { entityId: sc.SG.entityId, fileType, fileName: name, bytes }, key());
+  const up = await createUpload(uploader, { entityId: sc.SG.entityId, fileType, fileName: name, bytes, ...(await accountFields(uploader, sc.SG.entityId, fileType)) }, key());
   await setUploadMapping(uploader, up.upload.id, { mapping }, key());
   const v = (await validateUpload(uploader, up.upload.id, key())).body;
   if (until !== "validated") await decideUpload(confirmer!, up.upload.id, { decision: "confirm", reason: "Checked (fictional)", contentSha256: v.contentSha256, rowsSha256: v.rowsSha256! }, key());
