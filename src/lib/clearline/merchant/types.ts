@@ -44,7 +44,17 @@ export interface MerchantPolicy {
   senderFeeBoundBaseUnits: bigint;
 }
 
-export interface Invoice { orderId: string; entityId: string; amountMinor: bigint; currency: FiatCurrency; status: "open" | "closed" | "void" }
+export interface Invoice {
+  orderId: string; entityId: string; amountMinor: bigint; currency: FiatCurrency; status: "open" | "closed" | "void";
+  /**
+   * v1 (Phase 0, approval-only): an invoice priced directly in a token, e.g. 1,250.00 USDT = 1250000000 base units on a
+   * configured (network, contract). Then `amountMinor` is not a price: it is 0n and never decides anything, and
+   * `currency` is the currency the invoice is accounted in (the entity's). The fiat value comes only from a recorded
+   * rate (ReconcileInput.fxRates); without one the record says the value needs a rate. Nothing is derived or assumed.
+   */
+  price?: InvoiceTokenPrice;
+}
+export interface InvoiceTokenPrice { token: TokenRef; baseUnits: bigint }
 
 export interface Quote {
   quoteId: string;
@@ -143,6 +153,23 @@ export interface SettlementBatch {
   netMinor: bigint;
 }
 
+/**
+ * v1 (Phase 0, approval-only): one row of a per-payment settlement file: the provider says this payment was settled in
+ * this batch, with its own gross, fee and net. Linked to the payment by the provider's payment ID (a reference), never by
+ * amount. A batch ties from these lines only when they sum exactly to the batch's totals and the batch's net to its bank
+ * credit (bridge.ts); a line naming a batch that is not in the settlement report links nothing.
+ */
+export interface SettlementPaymentLine {
+  batchId: string;
+  providerPaymentId: string;
+  orderId?: string;
+  currency: FiatCurrency;
+  grossMinor: bigint;
+  feeMinor: bigint;
+  netMinor: bigint;
+  settlementDate?: string;
+}
+
 export interface SettlementBatchLine {
   batchId: string;
   kind: "payment" | "refund";
@@ -187,6 +214,8 @@ export interface ReconcileInput {
   providerRecords: readonly ProviderPaymentRecord[];
   batches: readonly SettlementBatch[];
   batchLines: readonly SettlementBatchLine[];
+  /** v1: per-payment settlement lines (optional; absent = none uploaded, the engine behaves exactly as before). */
+  settlementPaymentLines?: readonly SettlementPaymentLine[];
   bankLines: readonly BankLine[];
   fxRates: readonly FxRate[];
   addressFacts: readonly AddressFact[];
@@ -201,9 +230,18 @@ export type Step = 1 | 2 | 3 | 4 | 5;
 
 export type DifferenceType =
   | "sender_side_fee" | "underpayment" | "overpayment" | "requote_after_expiry" | "rate_difference" | "provider_fee"
-  | "refund_netted" | "timing_prior_batch" | "timing_next_batch" | "held_by_provider" | "partial_payment_open" | "unexplained";
+  | "refund_netted" | "timing_prior_batch" | "timing_next_batch" | "held_by_provider" | "partial_payment_open" | "unexplained"
+  // v1: a token-priced invoice paid in another token (or on another network), or with a different token amount
+  | "price_token_mismatch" | "price_token_amount";
 
-export interface Difference { id: string; type: DifferenceType; amountMinor: bigint; currency: FiatCurrency; reason: string; ruleId: string }
+export interface Difference {
+  id: string; type: DifferenceType; amountMinor: bigint; currency: FiatCurrency; reason: string; ruleId: string;
+  /**
+   * v1, token-priced invoices: the difference in the token itself (signed base units: received − price, or the amount
+   * received in the wrong token). `amountMinor` is then its fiat value at a recorded rate, or 0n when no rate is recorded.
+   */
+  token?: { network: NetworkId; contract: string; symbol: string; decimals: number; baseUnits: bigint };
+}
 
 export interface HistoryEntry { step: Step; ruleId: string; outcome: "pass" | "fail" | "note"; detail: string }
 
@@ -252,6 +290,11 @@ export interface LedgerPart {
   customerOverpaymentMinor: bigint;
   balanceState: "nothing_received" | "part_paid" | "short_paid" | "fully_credited" | "over_credited";
   balanceLabel: string;
+  /**
+   * v1, token-priced invoices only: the fiat accounting value. "rated" = price × a recorded rate (pair, source and time
+   * given); "needs_rate" = no usable recorded rate, so the fiat value is unknown (never invented) and must be recorded.
+   */
+  fiatValue?: { status: "rated"; amountMinor: bigint; pair: string; rate: string; source: string; at: string } | { status: "needs_rate"; pair: string; reason: string };
 }
 
 export interface MatchRecord {

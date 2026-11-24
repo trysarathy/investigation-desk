@@ -9,8 +9,8 @@ import { indexesOf } from "./indexes";
 import { resolveClaimedTransfers } from "./claims";
 import { active, type RuleId } from "./rules";
 import type {
-  Attention, ChainTransfer, ChainTransferView, Decision, Difference, DifferenceType, ExceptionItem, HistoryEntry, Invoice, MatchRecord,
-  Owner, PaymentLink, ProviderPaymentRecord, Quote, QuoteTerm, ReconcileInput, Step, TokenConfig, TokenRef, TransferFinding, TransferRef, WriteOffProposal,
+  Attention, ChainTransfer, ChainTransferView, Decision, Difference, DifferenceType, ExceptionItem, HistoryEntry, Invoice, InvoiceTokenPrice, LedgerPart, MatchRecord,
+  NetworkId, Owner, PaymentLink, ProviderPaymentRecord, Quote, QuoteTerm, ReconcileInput, Step, TokenConfig, TokenRef, TransferFinding, TransferRef, WriteOffProposal,
 } from "./types";
 import { TEST_MODE_LABEL } from "./types";
 
@@ -91,10 +91,22 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput, am
   const partOpen = balanceLinkOpen && credited > 0n && credited < inv.amountMinor && active("M4.partial.balance_link_open");
   /** Every provider record that names one of this order's quotes or links (a claim, paired with a transfer or not). */
   const claimsOfOrder = () => [...new Set([...quotes.map((q) => q.quoteId), ...links.map((l) => l.linkId)])].flatMap((id) => ix.recordsByRef.get(id) ?? []);
+  // v1: a token-priced invoice's fiat value, from a recorded rate only (undefined for a fiat-priced invoice)
+  const fiat = inv.price ? fiatValueOf(inv.price, cur, input, pairs.map((p) => p.s)) : undefined;
   const finish = (v: Verdict, writeOff?: WriteOffProposal) => {
     note(v.step, v.ruleId, v.decision === "matched" ? "pass" : "fail", `Decision: ${v.decision}.`);
     const open = inv.amountMinor - credited;
-    const balanceState = credited === 0n ? "nothing_received" : partOpen ? "part_paid" : open > 0n ? "short_paid" : open < 0n ? "over_credited" : "fully_credited";
+    let balanceState: LedgerPart["balanceState"] = credited === 0n ? "nothing_received" : partOpen ? "part_paid" : open > 0n ? "short_paid" : open < 0n ? "over_credited" : "fully_credited";
+    let ledgerAmounts = { invoice: inv, openBalanceMinor: open > 0n ? open : 0n, customerOverpaymentMinor: open < 0n ? -open : 0n };
+    if (inv.price && fiat) {
+      // v1: a token-priced invoice is settled in its token: the balance is the token received against the price, its
+      // fiat value at the recorded rate (0n when no rate is recorded: the record says so, nothing is invented)
+      const got = sum(pairs.filter((p) => p.rec && p.s.inbound && p.rec.receivedBaseUnits === p.s.t.amountBaseUnits && sameToken(p.s.t, inv.price!.token)).map((p) => p.s.t.amountBaseUnits));
+      const gap = inv.price.baseUnits - got;
+      balanceState = got === 0n ? "nothing_received" : partOpen ? "part_paid" : gap > 0n ? "short_paid" : gap < 0n ? "over_credited" : "fully_credited";
+      const valueOf = (u: bigint) => (fiat.status === "rated" ? toFiatMinor(u, fiatDecimals(inv.price!, input), fiat.rate, cur) : 0n);
+      ledgerAmounts = { invoice: { ...inv, amountMinor: fiat.status === "rated" ? fiat.amountMinor : 0n }, openBalanceMinor: gap > 0n ? valueOf(gap) : 0n, customerOverpaymentMinor: gap < 0n ? valueOf(-gap) : 0n };
+    }
     // Every provider claim about this order is shown, paired with a transfer or not (a claim without a transfer is not proof).
     const claims = claimsOfOrder();
     const records = [...new Set([...pairs.map((p) => p.rec).filter((r): r is ProviderPaymentRecord => !!r), ...claims])].sort(byKey((r) => r.providerPaymentId));
@@ -107,8 +119,7 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput, am
       provider: { records, note: "provider statuses are claims, not proof" },
       bank: { status: held ? "held_by_provider" : batchIds.length ? "in_batch" : "not_in_batch", batchIds, bankLineIds: [], batchTied: false, settlementVerified: false, bankLineLabels: [] },
       ledger: {
-        invoice: inv, creditedMinor: credited, openBalanceMinor: open > 0n ? open : 0n, customerOverpaymentMinor: open < 0n ? -open : 0n,
-        balanceState, balanceLabel: BALANCE_LABEL[balanceState],
+        ...ledgerAmounts, creditedMinor: credited, balanceState, balanceLabel: BALANCE_LABEL[balanceState], ...(fiat ? { fiatValue: fiat } : {}),
       },
       explanation: { decision: v.decision, decidingStep: v.step, ruleId: v.ruleId, differences, history },
       ...(v.attention ? { attention: v.attention } : {}),
@@ -116,6 +127,50 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput, am
     return { record, writeOff };
   };
   const stop = (step: Step, ruleId: RuleId, detail: string, decision: Decision = "exception") => finish({ decision, step, ruleId, attention: attentionFor(ruleId, detail) });
+
+  /** v1: steps 4 for a token-priced invoice (steps 1–3 have passed). Typed differences, never a write-off. */
+  const finishTokenPriced = () => {
+    const price = inv.price!;
+    const pTok = input.tokens.find((k) => sameToken({ network: k.network, tokenContract: k.contract }, price.token));
+    // the provider's credit is still checked against the chain amount and its own rate (it needs no quote term)
+    for (const { s, rec } of pairs) {
+      const recomputed = toFiatMinor(s.t.amountBaseUnits, s.t.decimals, rec!.executedRate, cur);
+      if (recomputed !== rec!.creditedMinor && active("M4.provider.credit_mismatch"))
+        addDiff("unexplained", rec!.creditedMinor - recomputed, "M4.provider.credit_mismatch", `Provider credited ${fmtFiat(rec!.creditedMinor, cur)}, but ${fmtToken(s.t.amountBaseUnits, s.t.decimals, s.token!.symbol)} at ${rec!.executedRate} is ${fmtFiat(recomputed, cur)}.`);
+    }
+    const unexplained = differences.find((x) => x.type === "unexplained");
+    if (unexplained && active("M4.tolerance.unexplained")) return stop(4, "M4.tolerance.unexplained", unexplained.reason);
+    const symbol = pTok?.symbol ?? "token";
+    const want = pTok ? fmtToken(price.baseUnits, pTok.decimals, pTok.symbol) : `${price.baseUnits} base units`;
+    const valueOf = (u: bigint) => (fiat?.status === "rated" && pTok ? toFiatMinor(u, pTok.decimals, fiat.rate, cur) : 0n);
+    const typed = (type: "price_token_mismatch" | "price_token_amount", ruleId: RuleId, net: TokenRef, decimals: number, sym: string, units: bigint, reason: string) =>
+      differences.push({ id: `${inv.orderId}.D${differences.length + 1}`, type, amountMinor: type === "price_token_amount" ? valueOf(units) : 0n, currency: cur, reason, ruleId,
+        token: { network: net.network, contract: net.contract, symbol: sym, decimals, baseUnits: units } });
+    const wrong = pairs.filter((p) => !sameToken(p.s.t, price.token));
+    for (const { s } of wrong)
+      typed("price_token_mismatch", "M4.token_priced.token_mismatch", { network: s.t.network, contract: s.t.tokenContract }, s.t.decimals, s.token?.symbol ?? "unknown", s.t.amountBaseUnits,
+        `The invoice is priced in ${want} on ${price.token.network}, but ${fmtToken(s.t.amountBaseUnits, s.t.decimals, s.token?.symbol ?? "unknown")} arrived on ${s.t.network}${s.t.network === price.token.network ? " (another token)" : ""}. Nothing is converted between tokens.`);
+    const received = sum(pairs.filter((p) => sameToken(p.s.t, price.token)).map((p) => p.s.t.amountBaseUnits));
+    const gap = received - price.baseUnits;
+    if (gap !== 0n && pTok)
+      typed("price_token_amount", "M4.token_priced.amount_difference", price.token, pTok.decimals, pTok.symbol, gap,
+        `Received ${fmtToken(received, pTok.decimals, pTok.symbol)} against the invoice's ${want}: ${gap < 0n ? "short" : "over"} by ${fmtToken(gap < 0n ? -gap : gap, pTok.decimals, pTok.symbol)} (${gap < 0n ? -gap : gap} base units).${fiat?.status === "rated" ? "" : " Its fiat value needs a recorded rate."}`);
+    const review = (ruleId: RuleId, reason: string, nextStep: string) => {
+      note(4, ruleId, "fail", reason);
+      return finish({ decision: "suggested_for_review", step: 4, ruleId, attention: att("Payment Operations", reason, nextStep) });
+    };
+    if (wrong.length && active("M4.token_priced.token_mismatch"))
+      return review("M4.token_priced.token_mismatch", differences.find((d) => d.type === "price_token_mismatch")!.reason, "Agree with the customer how the invoice is settled (refund and re-pay in the invoice's token, or re-issue the invoice). Clearline never converts between tokens.");
+    if (gap !== 0n && active("M4.token_priced.amount_difference"))
+      return review("M4.token_priced.amount_difference", differences.find((d) => d.type === "price_token_amount")?.reason ?? `Received ${received} base units against the invoice's ${price.baseUnits}.`, gap < 0n ? "Ask the customer for the rest in the invoice's token, or decide the shortfall by hand." : "Agree with the customer whether to refund the excess or keep it as credit.");
+    const blocker = exactTokenPriced(inv, price, states, pairs, quotes, links, claimsOfOrder(), input, partOpen);
+    if (blocker !== undefined || !active("M4.exact.token_priced"))
+      return review("M4.token_priced.not_exact", `The token amount is exact, but the payment is not closed automatically: ${blocker ?? "the rule is off"}.`, "Check the order, the provider record and the chain transfer, then decide by hand.");
+    const { s, rec } = pairs[0];
+    note(4, "M4.exact.token_priced", "pass", `${s.t.txHash} (read from the chain, final, ${symbol} on its configured contract on ${s.t.network}) reached the deposit address issued for ${s.ref!.linkId ?? s.ref!.quoteId}; provider record ${rec!.providerPaymentId} names it; received ${want}, exactly the invoice's price.`);
+    note(4, "M4.exact.token_priced", "note", fiat?.status === "rated" ? `Fiat value ${fmtFiat(fiat.amountMinor, cur)} at ${fiat.rate} (${fiat.pair}, ${fiat.source}, ${fiat.at}).` : `Matched for cash; the fiat value needs a recorded rate: ${fiat?.status === "needs_rate" ? fiat.reason : "none"}.`);
+    return finish({ decision: "matched", step: 4, ruleId: "M4.exact.token_priced" });
+  };
 
   // Step 1a (rc7): chain data unavailable for this order's deposit addresses or transactions → never matched.
   const down = (input.chainUnavailable ?? []).filter((u) => {
@@ -164,7 +219,7 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput, am
     ...(links.some((l) => l.requestedUnknown) ? ["quoted_amount" as const] : [])])].sort();
   const knows = (term: QuoteTerm) => !unknownTerms.includes(term);
   if (inv.currency !== cur && active("M3.currency.invoice_currency")) return stop(3, "M3.currency.invoice_currency", `Invoice is in ${inv.currency}; the entity's functional currency is ${cur}.`);
-  if (knows("rate") && knows("quoted_amount") && toFiatMinor(quote.quotedBaseUnits, qTok.decimals, quote.rate, cur) !== inv.amountMinor && active("M3.quote.invoice_mismatch"))
+  if (!inv.price && knows("rate") && knows("quoted_amount") && toFiatMinor(quote.quotedBaseUnits, qTok.decimals, quote.rate, cur) !== inv.amountMinor && active("M3.quote.invoice_mismatch"))
     return stop(3, "M3.quote.invoice_mismatch", `Quote ${quote.quoteId} at ${quote.rate} does not equal the invoice ${fmtFiat(inv.amountMinor, cur)}.`);
   for (const { s, rec } of pairs) {
     if (!s.inbound && active("M3.direction.outbound")) return stop(3, "M3.direction.outbound", `${s.t.txHash} leaves the deposit address; it is not a payment in.`);
@@ -187,6 +242,10 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput, am
       return stop(3, "M3.batch.held_by_provider", `${rec.displayedStatus === "completed" ? "Shown as completed, in no settlement, held for review" : "Held for review by the provider, in no settlement"}.`);
   }
   note(3, "M3.currency.invoice_currency", "pass", unknownTerms.length ? `Currency, direction and settlement batch checked; not checkable without the quote's ${unknownTerms.join(", ")}.` : "Currency, direction, time window and settlement batch checked.");
+
+  // v1 (Phase 0, approval-only): an invoice priced directly in a token. The price is the token amount, so no quote
+  // term or rate decides anything; the conditions are decision 1's, with the token amount in place of the fiat credit.
+  if (inv.price) return finishTokenPriced();
 
   // rc7: quote terms missing from the files. The provider's credit is still checked (it needs no quote term); the
   // rest of step 4 would need the quote's rate, amount or window, so the engine abstains instead of assuming them.
@@ -313,6 +372,67 @@ function exactWithoutTerms(inv: Invoice, cur: Invoice["currency"], states: TStat
   // guard (c): the provider's credit equals the invoice exactly, in the same currency, to the minor unit
   if (rec.creditedCurrency === undefined || rec.creditedCurrency !== inv.currency || inv.currency !== cur) return `the provider's credited currency (${rec.creditedCurrency ?? "not given"}) is not the invoice's ${inv.currency}`;
   if (rec.creditedMinor !== inv.amountMinor) return `credited ${fmtFiat(rec.creditedMinor, cur)} is not exactly the invoice ${fmtFiat(inv.amountMinor, cur)}`;
+  return undefined;
+}
+
+const sameToken = (t: { network: NetworkId; tokenContract: string }, ref: TokenRef): boolean =>
+  t.network === ref.network && normAddress(t.network, t.tokenContract) === normAddress(ref.network, ref.contract);
+const fiatDecimals = (price: InvoiceTokenPrice, input: ReconcileInput): number =>
+  input.tokens.find((k) => sameToken({ network: k.network, tokenContract: k.contract }, price.token))?.decimals ?? 0;
+/** [ASSUMPTION, for sign-off] a rate is usable for a payment only when recorded at most this long before it. */
+export const TOKEN_PRICE_RATE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * v1: the fiat accounting value of a token-priced invoice, from a RECORDED rate only (ReconcileInput.fxRates, pair
+ * "<symbol>/<currency>"): the latest rate observed at or before the payment's final transfer, at most
+ * TOKEN_PRICE_RATE_MAX_AGE_MS earlier. No payment yet, no such rate, or two recorded rates at that instant that disagree:
+ * "needs_rate". A rate is never derived from the provider's credit, a quote or another pair.
+ */
+export function fiatValueOf(price: InvoiceTokenPrice, cur: Invoice["currency"], input: ReconcileInput, paid: readonly { t: ChainTransfer }[]): NonNullable<LedgerPart["fiatValue"]> {
+  const tok = input.tokens.find((k) => sameToken({ network: k.network, tokenContract: k.contract }, price.token));
+  const pair = `${tok?.symbol ?? "?"}/${cur}`;
+  if (!tok) return { status: "needs_rate", pair, reason: "the invoice's token is not a configured token" };
+  const at = paid.filter((p) => sameToken(p.t, price.token)).map((p) => instantMs(p.t.timestamp)).sort((a, b) => b - a)[0];
+  if (at === undefined) return { status: "needs_rate", pair, reason: "no final payment in the invoice's token yet (the value is taken at the payment's time)" };
+  const usable = input.fxRates.filter((r) => r.pair === pair && instantMs(r.timestamp) <= at && at - instantMs(r.timestamp) <= TOKEN_PRICE_RATE_MAX_AGE_MS);
+  if (usable.length === 0) return { status: "needs_rate", pair, reason: `no ${pair} rate is recorded in the 24 hours up to the payment` };
+  const latest = Math.max(...usable.map((r) => instantMs(r.timestamp)));
+  const tied = usable.filter((r) => instantMs(r.timestamp) === latest);
+  if (tied.some((r) => !sameRate(r.rate, tied[0].rate))) return { status: "needs_rate", pair, reason: `two recorded ${pair} rates at the same time disagree; Clearline does not choose` };
+  const r = [...tied].sort(byKey((x) => x.source))[0];
+  return { status: "rated", amountMinor: toFiatMinor(price.baseUnits, tok.decimals, r.rate, cur), pair, rate: r.rate, source: r.source, at: r.timestamp };
+}
+
+/**
+ * v1 (M4.exact.token_priced): may a token-priced order whose token amount is exact close as matched? The same
+ * conditions as decision 1 (exactWithoutTerms), with the token itself in place of the fiat credit: returns the first
+ * condition that fails (undefined = all hold). Never by amount, time or sender.
+ */
+function exactTokenPriced(inv: Invoice, price: InvoiceTokenPrice, states: TState[], pairs: { s: TState; rec?: ProviderPaymentRecord }[], quotes: Quote[], links: PaymentLink[],
+  claims: ProviderPaymentRecord[], input: ReconcileInput, partOpen: boolean): string | undefined {
+  if (states.length !== 1 || pairs.length !== 1) return `${states.length} transfers reached this order's addresses (${pairs.length} final); exactly one final transfer is needed`;
+  const { s, rec } = pairs[0];
+  if (!rec) return "no provider record names this transfer";
+  const n = s.t.network;
+  // linked by reference: the order's own deposit address, and the one provider record naming the order names it too
+  const byRef = s.ref !== undefined && s.ref.orderId === inv.orderId && (s.ref.linkId !== undefined
+    ? rec.ref.linkId === s.ref.linkId && links.some((l) => l.linkId === rec.ref.linkId)
+    : rec.ref.linkId === undefined && rec.ref.quoteId === s.ref.quoteId && quotes.some((q) => q.quoteId === rec.ref.quoteId));
+  if (!byRef || claims.length !== 1 || claims[0] !== rec || (rec.transferRef !== undefined && tkey(rec.transferRef) !== tkey(s.t)))
+    return claims.length !== 1 ? `${claims.length} provider records name this order; exactly one is needed` : "the provider record is not linked to this transfer by the order's own reference";
+  // a chain fact Clearline read itself, final, inbound, on the configured contract of exactly the invoice's token
+  if (s.t.source !== "chain_client") return `the transfer is ${s.t.source ? `a ${s.t.source.replace("_", " ")} record` : "not marked as read from the chain"}, not a fact Clearline read from the chain`;
+  if (s.pending || !s.inbound || !s.token || !sameToken({ network: s.token.network, tokenContract: s.token.contract }, price.token) || !sameToken(s.t, price.token)
+    || s.token.network !== s.ref!.token.network || normAddress(n, s.token.contract) !== normAddress(n, s.ref!.token.contract) || s.t.decimals !== s.token.decimals)
+    return "the transfer is not a final inbound transfer on the configured contract of the invoice's token";
+  if (rec.receivedBaseUnits !== s.t.amountBaseUnits || s.t.amountBaseUnits !== price.baseUnits) return "the amount received is not exactly the invoice's token amount";
+  // a quote whose own amount is known must agree with the price (it never overrides it)
+  const quote = quotes.find((q) => q.quoteId === s.ref!.quoteId);
+  if (quote && !(quote.unknown ?? []).includes("quoted_amount") && quote.quotedBaseUnits !== price.baseUnits) return "the quote's token amount differs from the invoice's price";
+  if (rec.statusClaim !== "paid") return `the provider's status is ${rec.statusClaim}, not paid`;
+  if (partOpen || links.some((l) => l.kind === "balance")) return "the order has a balance payment link (part payment)";
+  if (input.batchLines.some((l) => l.kind === "refund" && l.orderId === inv.orderId)) return "a refund is recorded for this order";
+  if (inv.status === "void") return "the invoice is void";
   return undefined;
 }
 

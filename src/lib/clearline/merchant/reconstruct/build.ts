@@ -89,6 +89,7 @@ export const DIFFERENCE_TEXT: Record<DifferenceType, string> = {
   requote_after_expiry: "Re-quote after the quote expired", rate_difference: "Rate difference", provider_fee: "Provider fee",
   refund_netted: "Refund netted from the settlement", timing_prior_batch: "Settled in the prior batch", timing_next_batch: "Next-day order in this batch",
   held_by_provider: "Held by the provider", partial_payment_open: "Part paid, balance open", unexplained: "Unexplained",
+  price_token_mismatch: "Paid in another token than the invoice's", price_token_amount: "Token amount differs from the invoice's",
 };
 const JOURNAL_KIND_TEXT: Record<JournalProposal["kind"], string> = { provider_confirmation: "Provider confirmation", refund: "Refund netted in a settlement", approved_writeoff: "Write-off (after approval)", settlement: "Settlement" };
 const ruleText = (id: string): string => (RULES as Record<string, { text: string }>)[id]?.text ?? (JOURNAL_RULES as Record<string, { text: string }>)[id]?.text ?? "";
