@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import { DIFFERENCE_TYPES } from "@/server/db/merchant-schema";
 import { PaymentFilters, listMerchantPayments } from "@/server/merchant";
-import { dataAsOf, listBatches, partsSummaries } from "@/server/merchant-ui";
+import { batchIds, dataAsOf, partsSummaries } from "@/server/merchant-ui";
 import { merchantMember } from "@/server/merchant-page";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
@@ -14,6 +14,8 @@ const RESULTS = [["matched", "Matched"], ["matched_with_difference", "Matched wi
 const NETWORKS = [["tron", "TRON"], ["ethereum", "Ethereum"]] as const;
 const TOKENS = [["USDT", "USDT (TRON contract TR7NHq…)"], ["USDC", "USDC (Ethereum contract 0xA0b8…)"]] as const;
 const num = (v: string | undefined) => (v && /^\d{1,4}$/.test(v) ? Number(v) : undefined);
+/** Rows per page: the list is paged so a month of payments loads quickly; filters and the count cover every payment. */
+const PAGE = 100;
 
 export default async function PaymentsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { ctx, shell } = await merchantMember();
@@ -25,9 +27,19 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   });
   const filters = f.success ? f.data : {};
   const orders = (one(sp.orders) ?? "").split(",").map((x) => x.trim()).filter(Boolean).slice(0, 200);
-  const [rows, parts, batches] = await Promise.all([listMerchantPayments(ctx, filters), partsSummaries(ctx), listBatches(ctx)]);
+  const [rows, parts, batches] = await Promise.all([listMerchantPayments(ctx, filters), partsSummaries(ctx), batchIds(ctx)]);
   const shown = orders.length ? rows.filter((r) => orders.includes(r.orderId)) : rows;
   const active = Object.values(filters).some((v) => v !== undefined && v !== asOf) || orders.length > 0;
+  const pages = Math.max(1, Math.ceil(shown.length / PAGE));
+  const pageNo = Math.min(pages, Math.max(1, num(one(sp.page)) ?? 1));
+  const visible = shown.slice((pageNo - 1) * PAGE, pageNo * PAGE);
+  const pageHref = (n: number) => {
+    const u = new URLSearchParams();
+    for (const [k, v] of Object.entries(sp)) { const x = one(v); if (x && k !== "page") u.set(k, x); }
+    if (n > 1) u.set("page", String(n));
+    const qs = u.toString();
+    return `/control/merchant/payments${qs ? `?${qs}` : ""}`;
+  };
 
   return (
     <>
@@ -45,7 +57,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         <div className={s.field}><label className={s.label} htmlFor="f-token">Token</label>
           <select className={s.select} id="f-token" name="token" defaultValue={one(sp.token) ?? ""}><option value="">Any</option>{TOKENS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
         <div className={s.field}><label className={s.label} htmlFor="f-batch">Settlement batch</label>
-          <select className={s.select} id="f-batch" name="batch" defaultValue={one(sp.batch) ?? ""}><option value="">Any</option>{batches.map((b) => <option key={b.batchId} value={b.batchId}>{b.batchId}</option>)}</select></div>
+          <select className={s.select} id="f-batch" name="batch" defaultValue={one(sp.batch) ?? ""}><option value="">Any</option>{batches.map((b) => <option key={b} value={b}>{b}</option>)}</select></div>
         <div className={s.field}><label className={s.label} htmlFor="f-min">Age at least (days)</label>
           <input className={s.input} id="f-min" name="minAge" inputMode="numeric" pattern="[0-9]*" defaultValue={one(sp.minAge) ?? ""} /></div>
         <div className={s.field}><label className={s.label} htmlFor="f-max">Age at most (days)</label>
@@ -61,7 +73,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
           <table className={s.table}>
             <thead><tr><th scope="col">Order</th><th scope="col">Entity</th><th scope="col" className={s.num}>Invoice</th><th scope="col">Explanation</th><th scope="col">Chain</th><th scope="col">Provider</th><th scope="col">Bank</th><th scope="col">Ledger</th><th scope="col">Differences</th><th scope="col" className={s.num}>Age</th></tr></thead>
             <tbody>
-              {shown.map((r) => (
+              {visible.map((r) => (
                 <tr key={r.orderId}>
                   <td><a href={`/control/merchant/payments/${encodeURIComponent(r.orderId)}`}>{r.orderId}</a></td>
                   <td className={s.mono}>{r.entityId}</td>
@@ -79,6 +91,13 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
           </table>
         </div>
       )}
+      {pages > 1 ? (
+        <nav className={m.pager} aria-label="Pages of payments" data-testid="payments-pager">
+          <span className={s.small}>Showing {(pageNo - 1) * PAGE + 1}–{Math.min(pageNo * PAGE, shown.length)} of {shown.length} · page {pageNo} of {pages}</span>
+          {pageNo > 1 ? <a href={pageHref(pageNo - 1)} rel="prev">Previous page</a> : null}
+          {pageNo < pages ? <a href={pageHref(pageNo + 1)} rel="next">Next page</a> : null}
+        </nav>
+      ) : null}
     </>
   );
 }

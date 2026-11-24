@@ -8,7 +8,7 @@ import { providerMember } from "@/server/merchant-page";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
 import { DefaultsForm, InviteForm, MappingEditor } from "@/components/merchant/forms";
-import { Chip, DEMO_LABEL, Empty, one } from "@/components/merchant/ui";
+import { Chip, Empty, one } from "@/components/merchant/ui";
 import { when } from "@/components/control/ui";
 
 export const metadata: Metadata = { title: "Onboarding" };
@@ -78,7 +78,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
                   <li><span className={m.swatch} style={{ background: t.accent }} aria-hidden="true" />Accent {t.accent}</li>
                   <li>Text on primary {t.onPrimary}: contrast {contrast(t.primary, t.onPrimary).toFixed(2)}:1 (AA needs 4.5:1)</li>
                 </ul>
-                <p className={`${s.small} ${m.themeBar}`}><span className={m.demoChip}>{DEMO_LABEL}</span><span className={m.powered}>powered by Clearline</span></p>
+                <p className={`${s.small} ${m.themeBar}`}><span className={m.demoChip}>{shell.label}</span><span className={m.powered}>powered by Clearline</span></p>
               </div>
             </section>
           </div>

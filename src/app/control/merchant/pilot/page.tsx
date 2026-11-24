@@ -21,8 +21,8 @@ export default async function MerchantPilotPage() {
       <p className={s.lede}>How well reconciliation is working for {ctx.orgName}. Your provider sees these numbers as totals only, never your records.</p>
       <ul className={m.kpis} aria-label="Pilot metrics">
         <li className={m.kpi}><span className={m.kpiValue} data-testid="metric-auto">{p.autoMatchedPct === null ? "—" : `${p.autoMatchedPct}%`}</span><span className={m.kpiLabel}>Matched automatically ({p.payments} payments)</span></li>
-        <li className={m.kpi}><span className={m.kpiValue} data-testid="metric-wrong">{p.wrongInSample} of {p.reviewedSample}</span><span className={m.kpiLabel}>Wrong matches in the reviewed sample</span></li>
-        <li className={m.kpi}><span className={m.kpiValue}>{p.exceptionsPer100 ?? "—"}</span><span className={m.kpiLabel}>Exceptions per 100 payments</span></li>
+        <li className={m.kpi}><span className={m.kpiValue} data-testid="metric-wrong">{p.wrongInSample} of {p.reviewedSample}</span><span className={m.kpiLabel}>Wrong matches in the reviewed sample{p.reviewedSample === 0 ? " (none reviewed yet: no rate)" : ""}</span></li>
+        <li className={m.kpi}><span className={m.kpiValue}>{p.exceptionsPer100 ?? "—"}</span><span className={m.kpiLabel}>Exceptions opened per 100 payments, including those a later run closed</span></li>
         <li className={m.kpi}><span className={m.kpiValue}>{p.medianMinutesToResolve === null ? "—" : `${Math.round(p.medianMinutesToResolve)} min`}</span><span className={m.kpiLabel}>Median time to resolve an exception</span></li>
         <li className={m.kpi}><span className={m.kpiValue}>{p.batchesTiedToTheCent} of {p.batches}</span><span className={m.kpiLabel}>Batches tied to the cent</span></li>
         <li className={m.kpi}><span className={m.kpiValue} data-testid="metric-minutes">{p.minutesLogged}</span><span className={m.kpiLabel}>Minutes logged</span></li>

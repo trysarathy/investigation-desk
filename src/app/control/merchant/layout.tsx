@@ -9,6 +9,7 @@ import { DemoBar } from "@/components/merchant/DemoBar";
 import m from "@/components/merchant/merchant.module.css";
 
 const MERCHANT_NAV: NavItem[] = [
+  { href: "/control/merchant/overview", label: "Overview" },
   { href: "/control/merchant", label: "Daily report" },
   { href: "/control/merchant/payments", label: "Payments" },
   { href: "/control/merchant/exceptions", label: "Exceptions" },
