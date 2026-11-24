@@ -21,6 +21,8 @@ export const COMPOSE = path.join(ROOT, "docker-compose.demo.yml");
 export const DIST = ".next-demo";
 export const RECORDING = path.join(STATE_DIR, "chain-recording.json");
 export const UPLOADS = path.join(STATE_DIR, "uploads");
+/** Presenter feedback notes saved by a reset before it drops them (`npm run demo:feedback` reads them). */
+export const FEEDBACK_DIR = path.join(STATE_DIR, "feedback");
 export const ORIGIN = `http://127.0.0.1:${APP_PORT}`;
 
 export interface DemoState {
@@ -165,7 +167,7 @@ export function appEnv(s: DemoState): NodeJS.ProcessEnv {
     CLEARLINE_DEMO_BUILD: "1", CLEARLINE_CONTROL_PILOT: "1", CLEARLINE_DIST_DIR: DIST,
     DATABASE_URL: loginUrl(s, "runtime"), BETTER_AUTH_SECRET: s.authSecret, CLEARLINE_ORIGIN: ORIGIN,
     CLEARLINE_CHAIN_RECORDING: RECORDING, CLEARLINE_UPLOAD_DIR: UPLOADS, CLEARLINE_UPLOAD_KEY: s.uploadKey,
-    CLEARLINE_DEMO_RESET_URL: s.pg.superUrl, CLEARLINE_DEMO_DB: DB, CLEARLINE_DEMO_TEMPLATE: TEMPLATE,
+    CLEARLINE_DEMO_RESET_URL: s.pg.superUrl, CLEARLINE_DEMO_DB: DB, CLEARLINE_DEMO_TEMPLATE: TEMPLATE, CLEARLINE_DEMO_FEEDBACK_DIR: FEEDBACK_DIR,
     // offline: no live chain reads, no ledger pull (a demo build also refuses them at start)
     CLEARLINE_CHAIN_LIVE: "", CLEARLINE_LEDGER_PULL: "", CLEARLINE_TEST_BUILD: "",
   };

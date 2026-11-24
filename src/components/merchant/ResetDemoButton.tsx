@@ -11,7 +11,7 @@ import m from "./merchant.module.css";
 export function ResetDemoButton() {
   const [state, setState] = useState<{ busy: boolean; message: string | null }>({ busy: false, message: null });
   async function reset() {
-    if (!window.confirm("Reset the demo to its seeded state? Everything done since (uploads, approvals, runs) is discarded. Demo · fictional data.")) return;
+    if (!window.confirm("Reset the demo to its seeded state? Everything done since (uploads, approvals, runs) is discarded. Feedback notes are saved to .demo/feedback first (npm run demo:feedback exports them). Demo · fictional data.")) return;
     setState({ busy: true, message: "Resetting the demo…" });
     try {
       const res = await fetch("/api/control/demo/reset", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: "{}" });

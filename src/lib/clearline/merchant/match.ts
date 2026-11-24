@@ -232,16 +232,20 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput, am
   const d = received - quote.quotedBaseUnits;
   const recs = pairs.map((p) => p.rec!);
   const q = (u: bigint) => fmtToken(u, qTok.decimals, qTok.symbol);
+  // Display text only: when the parts were paid in different tokens (USDT and USDC), name each part instead of
+  // labelling their sum with the quote's token. The amounts and the decision are unchanged.
+  const mixed = new Set(pairs.map((p) => p.s.token!.symbol)).size > 1;
+  const paid = mixed ? `${pairs.map((p) => fmtToken(p.s.t.amountBaseUnits, p.s.t.decimals, p.s.token!.symbol)).join(" + ")} (${fmtToken(received, qTok.decimals, "together")})` : q(received);
   if (partOpen) {
     const open = links.filter((l) => l.kind === "balance" && !final.some((s) => s.ref?.linkId === l.linkId)).map((l) => l.linkId).join(", ");
     addDiff("partial_payment_open", credited - inv.amountMinor, "M4.partial.balance_link_open", `Part paid: ${fmtFiat(inv.amountMinor - credited, cur)} is still open on balance link ${open}. This is not overdue; rate and fee differences are settled when the balance arrives.`);
   } else if (d < 0n && abs(d) <= policy.senderFeeBoundBaseUnits && recs[recs.length - 1].statusClaim === "paid" && active("M4.tolerance.sender_side_fee")) {
-    addDiff("sender_side_fee", tokenPart, "M4.tolerance.sender_side_fee", `Received ${q(received)} of ${q(quote.quotedBaseUnits)}. The ${q(-d)} gap is within the network-fee bound and the provider claims paid, so it is treated as a fee deducted on the sender's side.`);
+    addDiff("sender_side_fee", tokenPart, "M4.tolerance.sender_side_fee", `Received ${paid} of ${q(quote.quotedBaseUnits)}. The ${q(-d)} gap is within the network-fee bound and the provider claims paid, so it is treated as a fee deducted on the sender's side.`);
   } else if (d < 0n && active("M4.tolerance.underpayment")) {
-    addDiff("underpayment", tokenPart, "M4.tolerance.underpayment", `Customer paid ${q(received)} of ${q(quote.quotedBaseUnits)} (${fmtPct(d, quote.quotedBaseUnits)} short). ${fmtFiat(-tokenPart, cur)} at the quoted rate is still owed.`);
+    addDiff("underpayment", tokenPart, "M4.tolerance.underpayment", `Customer paid ${paid} of ${q(quote.quotedBaseUnits)} (${fmtPct(d, quote.quotedBaseUnits)} short). ${fmtFiat(-tokenPart, cur)} at the quoted rate is still owed.`);
   } else if (d > 0n && active("M4.tolerance.overpayment")) {
-    addDiff("overpayment", tokenPart, "M4.tolerance.overpayment", `Customer paid ${q(received)} against ${q(quote.quotedBaseUnits)} (${fmtPct(d, quote.quotedBaseUnits)} over). The excess is a customer-overpayment liability.`);
-  } else addDiff("unexplained", tokenPart, "M4.tolerance.unexplained", `Received ${q(received)} against ${q(quote.quotedBaseUnits)} with no typed explanation.`);
+    addDiff("overpayment", tokenPart, "M4.tolerance.overpayment", `Customer paid ${paid} against ${q(quote.quotedBaseUnits)} (${fmtPct(d, quote.quotedBaseUnits)} over). The excess is a customer-overpayment liability.`);
+  } else addDiff("unexplained", tokenPart, "M4.tolerance.unexplained", `Received ${paid} against ${q(quote.quotedBaseUnits)} with no typed explanation.`);
   if (!partOpen && ratePart !== 0n) {
     const late = pairs.find((p) => instantMs(p.s.t.timestamp) > instantMs(windowOf(p.s, quote).expiresAt));
     const requoted = recs.find((r) => r.statusClaim === "re_quoted");

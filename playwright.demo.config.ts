@@ -35,7 +35,8 @@ export default defineConfig({
     url: `${DEMO_E2E.origin}/control/sign-in`,
     // a first run seeds (about a minute) and builds (about a minute and a half)
     timeout: 900_000,
-    reuseExistingServer: false,
+    // CLEARLINE_DEMO_E2E_REUSE=1: use a demo server already running on the port (iterating on tests); never in a verification run
+    reuseExistingServer: process.env.CLEARLINE_DEMO_E2E_REUSE === "1",
     env: { CLEARLINE_DEMO_PORT: String(DEMO_E2E.port) },
     stdout: "ignore",
     stderr: "pipe",

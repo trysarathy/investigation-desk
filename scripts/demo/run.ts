@@ -18,7 +18,7 @@ import { randomBytes } from "node:crypto";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
+import { Client, Pool } from "pg";
 import {
   APP_PORT, DB, DIST, DemoStop, ORIGIN, RECORDING, ROOT, STATE_DIR, TEMPLATE, UPLOADS, appEnv, canConnect, demoPassword, dropDemoDatabases, ensureLogins, ensurePostgres, fmtMs, loginUrl, portAnswers,
   readState, secret, withDb, writeState, type DemoState,
@@ -78,6 +78,9 @@ async function main() {
   await lap("migrations", () => { execFileSync(path.join(ROOT, "node_modules/.bin/drizzle-kit"), ["migrate"], { cwd: ROOT, stdio: ["ignore", "ignore", "inherit"], env: { ...process.env, DATABASE_OWNER_URL: loginUrl(s, "owner") } }); });
   s.steps.migrations = new Date().toISOString(); writeState(s);
   out("  up to date");
+  // a template made by an older checkout lacks the newer migrations (a reset would bring back the old schema): bring
+  // it up to date too, without touching its seeded rows
+  if (s.steps.template) await lap("template migrations", async () => { if (await migrateTemplate(s)) out(`  ${TEMPLATE} brought up to date as well`); });
 
   step("Recorded chain file");
   const { demoWorld } = await import("../../src/lib/clearline/demo/world");
@@ -95,14 +98,18 @@ async function main() {
     await lap("seed", async () => {
       process.env.DATABASE_URL = loginUrl(s, "runtime");
       const { installDemoClock } = await import("./clock");
-      const { seedDemo } = await import("../../src/server/demo-seed");
+      const { seedDemo, restampDemoSeed } = await import("../../src/server/demo-seed");
       const { closeDatabase } = await import("../../src/server/db/client");
       const schema = await import("../../src/server/db/schema");
       const pool = new Pool({ connectionString: loginUrl(s, "owner"), max: 4 });
       const clock = installDemoClock();
       try {
         const owner = drizzle(pool, { schema }) as never;
-        s.seed = await seedDemo(owner, { password: s.passwords.demo, recording, setClock: clock.set, log: (l) => out(`  ${l}`) }) as unknown as Record<string, unknown>;
+        const { stampWindows, ...seeded } = await seedDemo(owner, { password: s.passwords.demo, recording, setClock: clock.set, log: (l) => out(`  ${l}`) });
+        // database defaults (now()) took the machine clock: move them to the demo day that wrote them
+        const re = await restampDemoSeed(s.pg.superUrl, DB, stampWindows);
+        out(`  ${re.rows} database-stamped times moved to the demo calendar (${Object.keys(re.columns).length} columns)`);
+        s.seed = seeded as unknown as Record<string, unknown>;
       } finally { clock.restore(); await pool.end(); await closeDatabase(); }
     });
     s.steps.seed = new Date().toISOString(); delete s.steps.template; writeState(s);
@@ -156,6 +163,39 @@ async function main() {
   process.on("SIGINT", stop); process.on("SIGTERM", stop);
   await new Promise<void>((res) => child.on("exit", () => res()));
   rmSync(path.join(STATE_DIR, "server.pid"), { force: true });
+}
+
+async function migrationCount(url: string): Promise<number> {
+  const c = new Client({ connectionString: url });
+  await c.connect();
+  try {
+    const { rows } = await c.query("select to_regclass('drizzle.__drizzle_migrations') is not null as ok");
+    if (!rows[0].ok) return 0;
+    return Number((await c.query("select count(*)::int as n from drizzle.__drizzle_migrations")).rows[0].n);
+  } finally { await c.end(); }
+}
+
+/** Run the migrations on the reset template when it is behind the demo database. Returns whether it was. */
+async function migrateTemplate(s: DemoState): Promise<boolean> {
+  if (!(await templateExists(s))) return false;
+  const su = new Client({ connectionString: s.pg.superUrl });
+  await su.connect();
+  try {
+    await su.query(`alter database "${TEMPLATE}" allow_connections true`);
+    try {
+      if ((await migrationCount(withDb(s.pg.superUrl, TEMPLATE))) >= (await migrationCount(withDb(s.pg.superUrl, DB)))) return false;
+      execFileSync(path.join(ROOT, "node_modules/.bin/drizzle-kit"), ["migrate"], { cwd: ROOT, stdio: ["ignore", "ignore", "inherit"], env: { ...process.env, DATABASE_OWNER_URL: loginUrl(s, "owner", TEMPLATE) } });
+      return true;
+    } finally {
+      await su.query("select pg_terminate_backend(pid) from pg_stat_activity where datname = $1 and pid <> pg_backend_pid()", [TEMPLATE]);
+      await su.query(`alter database "${TEMPLATE}" allow_connections false`);
+    }
+  } finally { await su.end(); }
+}
+async function templateExists(s: DemoState): Promise<boolean> {
+  const c = new Client({ connectionString: s.pg.superUrl });
+  await c.connect();
+  try { return (await c.query("select 1 from pg_database where datname = $1", [TEMPLATE])).rows.length > 0; } finally { await c.end(); }
 }
 
 function printAccess(s: DemoState) {

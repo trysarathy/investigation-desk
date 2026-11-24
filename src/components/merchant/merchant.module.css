@@ -172,3 +172,24 @@
 }
 .pager { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 12px 0 0; }
 .pager a { display: inline-block; padding: 6px 0; }
+
+/* Demo build only: presenter guide (side panel) and "Note feedback" */
+.demoButton { font: inherit; font-size: 0.875rem; min-height: 32px; padding: 0.15rem 0.6rem; border: 1px solid currentColor; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
+.demoButton:disabled { opacity: 0.6; cursor: progress; }
+.feedbackWrap, .guideWrap { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-left: 0.75rem; font-size: 0.875rem; max-width: 100%; }
+.feedbackForm { position: fixed; left: 16px; bottom: 16px; z-index: 45; display: grid; gap: 0.4rem; width: min(520px, calc(100vw - 32px)); box-sizing: border-box; padding: 12px 14px; background: var(--panel, #fff); color: var(--ink, #111); border: 1px solid var(--hairline, #ccc); border-radius: 8px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15); }
+.feedbackForm[hidden] { display: none; }
+.feedbackForm textarea { font: inherit; width: 100%; box-sizing: border-box; padding: 0.4rem; border: 1px solid var(--line, #8a8f98); border-radius: 4px; background: var(--surface, #fff); color: inherit; }
+.feedbackActions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.guidePanel { position: fixed; top: 0; right: 0; bottom: 0; z-index: 50; width: min(380px, 100vw); box-sizing: border-box; overflow-y: auto; background: var(--panel, #fff); color: var(--ink, #111); border-left: 1px solid var(--hairline, #ccc); box-shadow: -6px 0 18px rgba(0, 0, 0, 0.12); padding: 14px 16px 24px; font-size: 14px; }
+.guidePanel[hidden] { display: none; }
+.guidePanel:focus { outline: 2px solid var(--brand, #1b4fd6); outline-offset: -2px; }
+.guideHead { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.guideTitle { font-size: 16px; font-weight: 700; margin: 0; }
+.guideNote { color: var(--muted, #555); font-size: 12px; margin: 6px 0; }
+.guideList { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; }
+.guideStep { border: 1px solid var(--hairline, #ccc); border-radius: 6px; padding: 8px 10px; }
+.guideStepTitle { font-weight: 600; margin: 0 0 4px; }
+.guideNum { display: inline-grid; place-items: center; min-width: 22px; height: 22px; border-radius: 999px; background: var(--brand, #1b4fd6); color: var(--on-brand, #fff); font-size: 12px; font-weight: 700; margin-right: 4px; }
+.guidePoints { margin: 0 0 6px; padding-left: 18px; }
+.guidePoints li { margin: 2px 0; }

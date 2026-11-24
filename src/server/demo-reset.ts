@@ -1,5 +1,5 @@
 import "server-only";
-import { rmSync, mkdirSync } from "node:fs";
+import { rmSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { Client } from "pg";
 
@@ -21,22 +21,50 @@ export class DemoResetRefused extends Error {
   readonly marker = DEMO_RESET_MARKER;
 }
 
-export interface DemoResetConfig { adminUrl: string; database: string; template?: string; uploadDir?: string }
+export interface DemoResetConfig {
+  adminUrl: string; database: string; template?: string; uploadDir?: string;
+  /** Where presenter feedback notes are saved before the reset drops them (.demo/feedback; `npm run demo:feedback` reads it). */
+  feedbackDir?: string;
+}
 
 export function demoResetConfigFromEnv(env: Record<string, string | undefined> = process.env): DemoResetConfig {
   const adminUrl = env.CLEARLINE_DEMO_RESET_URL;
   const database = env.CLEARLINE_DEMO_DB ?? "";
   if (!adminUrl || !NAME.test(database)) throw new DemoResetRefused("The demo reset is not configured (CLEARLINE_DEMO_RESET_URL and CLEARLINE_DEMO_DB are set by `npm run demo`).");
-  return { adminUrl, database, template: env.CLEARLINE_DEMO_TEMPLATE, uploadDir: env.CLEARLINE_UPLOAD_DIR };
+  return { adminUrl, database, template: env.CLEARLINE_DEMO_TEMPLATE, uploadDir: env.CLEARLINE_UPLOAD_DIR, feedbackDir: env.CLEARLINE_DEMO_FEEDBACK_DIR };
 }
 
 const ident = (s: string) => `"${s}"`;
+const inDemoDir = (dir: string, name: string) => path.basename(path.resolve(dir)) === name && path.basename(path.dirname(path.resolve(dir))) === ".demo";
+const withDb = (url: string, db: string) => { const u = new URL(url); u.pathname = `/${db}`; return u.toString(); };
+
+/**
+ * Presenter feedback notes (demo_feedback) are not in the template, so a reset drops them like everything else done
+ * since the seed. Before that, they are saved to <feedbackDir>/<time>.json, which `npm run demo:feedback` exports
+ * with the notes still in the database. Returns how many notes were saved.
+ */
+async function saveFeedback(cfg: DemoResetConfig): Promise<number> {
+  if (!cfg.feedbackDir || !inDemoDir(cfg.feedbackDir, "feedback")) return 0;
+  const c = new Client({ connectionString: withDb(cfg.adminUrl, cfg.database) });
+  try { await c.connect(); } catch { return 0; } // no demo database (a failed earlier reset): nothing to save
+  try {
+    const { rows: has } = await c.query("select to_regclass('public.demo_feedback') is not null as ok");
+    if (!has[0].ok) return 0;
+    const { rows } = await c.query(`select f.id, f.created_at, f.role, f.screen, f.route, f.note, u.email, u.name, o.name as org
+      from demo_feedback f join users u on u.id = f.user_id join organizations o on o.id = f.org_id order by f.created_at, f.id`);
+    if (!rows.length) return 0;
+    mkdirSync(cfg.feedbackDir, { recursive: true, mode: 0o700 });
+    writeFileSync(path.join(cfg.feedbackDir, `${new Date().toISOString().replace(/[:.]/g, "-")}.json`), `${JSON.stringify({ savedBeforeReset: true, notes: rows }, null, 2)}\n`, { mode: 0o600 });
+    return rows.length;
+  } finally { await c.end(); }
+}
 
 /** Recreate the demo database from its template. Returns the time it took. */
-export async function resetDemoDatabase(cfg: DemoResetConfig): Promise<{ ms: number }> {
+export async function resetDemoDatabase(cfg: DemoResetConfig): Promise<{ ms: number; feedbackSaved: number }> {
   const t0 = performance.now();
   const template = cfg.template ?? `${cfg.database}_template`;
   if (!NAME.test(cfg.database) || template !== `${cfg.database}_template`) throw new DemoResetRefused("The demo database and its template must be <name> and <name>_template.");
+  const feedbackSaved = await saveFeedback(cfg);
   const c = new Client({ connectionString: cfg.adminUrl });
   await c.connect();
   try {
@@ -49,11 +77,11 @@ export async function resetDemoDatabase(cfg: DemoResetConfig): Promise<{ ms: num
     await c.end();
   }
   // files uploaded during the demo belong to rows that no longer exist
-  if (cfg.uploadDir && path.basename(path.resolve(cfg.uploadDir)) === "uploads" && path.basename(path.dirname(path.resolve(cfg.uploadDir))) === ".demo") {
+  if (cfg.uploadDir && inDemoDir(cfg.uploadDir, "uploads")) {
     rmSync(cfg.uploadDir, { recursive: true, force: true });
     mkdirSync(cfg.uploadDir, { recursive: true, mode: 0o700 });
   }
-  return { ms: Math.round(performance.now() - t0) };
+  return { ms: Math.round(performance.now() - t0), feedbackSaved };
 }
 
 /** Make (or remake) the template from the freshly seeded database. */

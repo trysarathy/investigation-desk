@@ -1,5 +1,6 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
+import { Client } from "pg";
 import type { Db } from "./db/client";
 import * as t from "./db/schema";
 import { createOrganization } from "./admin";
@@ -46,15 +47,31 @@ export interface DemoSeedOptions {
   suffix?: string;
 }
 
-export interface DemoSeedResult { orgs: { provider: string; merchant: string }; days: number; runs: number; writeoffsProposed: number; writeoffsApproved: number; exceptionsAssigned: number }
+/**
+ * One step of the seed on the simulated clock: the demo instant it stands for, and the database clock just before
+ * and just after it ran. Rows that a database default (now()) stamped during the step carry a time inside
+ * [dbFrom, dbTo]; restampDemoSeed moves exactly those to `at`.
+ */
+export interface DemoStampWindow { at: string; dbFrom: string; dbTo: string }
+
+export interface DemoSeedResult { orgs: { provider: string; merchant: string }; days: number; runs: number; writeoffsProposed: number; writeoffsApproved: number; exceptionsAssigned: number; stampWindows: DemoStampWindow[] }
 
 const runAt = (d: string) => new Date(Date.parse(`${d}T00:00:00.000Z`) + 25 * 3_600_000).toISOString(); // 01:00 UTC the next day
 
 export async function seedDemo(owner: Db, opts: DemoSeedOptions): Promise<DemoSeedResult> {
   const log = opts.log ?? (() => undefined);
-  const clock = opts.setClock ?? (() => undefined);
+  const setClock = opts.setClock ?? (() => undefined);
+  // the database's own clock, which its now() defaults use (the simulated clock only reaches this process)
+  const dbClock = async () => {
+    const r = (await owner.execute(sql`select clock_timestamp()::text as t`)) as unknown as { rows: { t: string }[] };
+    return r.rows[0].t;
+  };
+  const stampWindows: DemoStampWindow[] = [];
+  let open: { at: string; dbFrom: string } | null = null;
+  const closeWindow = async () => { if (open) stampWindows.push({ ...open, dbTo: await dbClock() }); open = null; };
+  const clock = async (at: string) => { await closeWindow(); setClock(at); open = { at, dbFrom: await dbClock() }; };
   const days = windowDays();
-  clock(`${days[0]}T00:00:00.000Z`);
+  await clock(`${days[0]}T00:00:00.000Z`);
   const { inputs } = demoWorld();
   const sfx = opts.suffix ?? "";
   const providerSlug = DEMO_PROVIDER.slug + sfx, merchantSlug = DEMO_MERCHANT.slug + sfx;
@@ -83,7 +100,7 @@ export async function seedDemo(owner: Db, opts: DemoSeedOptions): Promise<DemoSe
   let runs = 0;
   for (const d of days) {
     const at = runAt(d);
-    clock(at);
+    await clock(at);
     for (const e of byEntity) {
       const parts = e.days.get(d);
       if (parts) await owner.transaction((tx) => writeIngested(tx, merchant, e.id, parts, { chainSource: "chain_client", bankSource: "seed_fictional" }));
@@ -96,7 +113,7 @@ export async function seedDemo(owner: Db, opts: DemoSeedOptions): Promise<DemoSe
 
   // the morning of the demo day: Finance prepares write-offs, the Approver has approved the older ones; every open
   // exception has an owner (the engine already gives each one its owner team, reason and next step)
-  clock(new Date(Date.parse(DEMO_NOW) - 30 * 60_000).toISOString());
+  await clock(new Date(Date.parse(DEMO_NOW) - 30 * 60_000).toISOString());
   const wos = await owner.select().from(t.writeoffProposals).where(and(eq(t.writeoffProposals.orgId, merchant), eq(t.writeoffProposals.status, "proposed")));
   wos.sort((a, b) => (a.id < b.id ? -1 : 1));
   const prepare = wos.slice(0, 24);
@@ -108,8 +125,50 @@ export async function seedDemo(owner: Db, opts: DemoSeedOptions): Promise<DemoSe
       approved++;
     }
   }
-  const open = await owner.select({ id: t.reconExceptions.id }).from(t.reconExceptions).where(and(eq(t.reconExceptions.orgId, merchant), eq(t.reconExceptions.status, "open")));
-  for (const [i, x] of open.entries()) await assignException(users.finance, x.id, { ownerUserId: users.finance.userId }, `demo-seed${sfx}-assign-${i}`);
-  log(`${prepare.length} write-offs prepared (${approved} approved), ${open.length} exceptions assigned`);
-  return { orgs: { provider, merchant }, days: days.length, runs, writeoffsProposed: prepare.length, writeoffsApproved: approved, exceptionsAssigned: open.length };
+  const openEx = await owner.select({ id: t.reconExceptions.id }).from(t.reconExceptions).where(and(eq(t.reconExceptions.orgId, merchant), eq(t.reconExceptions.status, "open")));
+  for (const [i, x] of openEx.entries()) await assignException(users.finance, x.id, { ownerUserId: users.finance.userId }, `demo-seed${sfx}-assign-${i}`);
+  log(`${prepare.length} write-offs prepared (${approved} approved), ${openEx.length} exceptions assigned`);
+  await closeWindow();
+  return { orgs: { provider, merchant }, days: days.length, runs, writeoffsProposed: prepare.length, writeoffsApproved: approved, exceptionsAssigned: openEx.length, stampWindows };
+}
+
+/**
+ * `npm run demo` only, right after seedDemo: the demo's seed data must read on the demo calendar, but columns filled
+ * by a database default (now(): approval requests and decisions, notifications raised by triggers, chain transfers'
+ * observed time, the policy's first revision, users and memberships) took the machine's clock, since the simulated
+ * clock only reaches the seed process. This moves each such value, and only those, to the demo instant of the step
+ * that wrote it: a column qualifies only when its default is now() and its value lies inside that step's window of
+ * the database clock (and is not itself a demo instant). It touches no amount, decision, rule or policy value.
+ *
+ * It runs as the demo cluster's superuser with session_replication_role = replica for this one transaction, because
+ * the append-only triggers (approval decisions, notifications, chain facts) rightly refuse updates from the app's
+ * logins. Never used by the app or by a real install; the database name is checked like the reset's.
+ */
+export async function restampDemoSeed(superUrl: string, database: string, windows: DemoStampWindow[]): Promise<{ rows: number; columns: Record<string, number> }> {
+  if (!/^[a-z][a-z0-9_]{2,40}$/.test(database)) throw new Error("bad demo database name");
+  const u = new URL(superUrl); u.pathname = `/${database}`;
+  const c = new Client({ connectionString: u.toString() });
+  await c.connect();
+  const columns: Record<string, number> = {};
+  let rows = 0;
+  try {
+    const { rows: dataMode } = await c.query("select count(*)::int as n from organizations where data_mode <> 'demo'");
+    if (dataMode[0].n !== 0) throw new Error("restampDemoSeed: this database holds a non-demo organisation; refusing");
+    const { rows: cols } = await c.query(`select table_name as t, column_name as c from information_schema.columns
+      where table_schema = 'public' and data_type like 'timestamp%' and column_default ilike '%now()%' order by 1, 2`);
+    const instants = windows.map((w) => w.at);
+    await c.query("begin");
+    await c.query("set local session_replication_role = replica");
+    for (const { t: table, c: col } of cols as { t: string; c: string }[]) {
+      let n = 0;
+      for (const w of windows) {
+        const r = await c.query(`update "${table}" set "${col}" = $1::timestamptz where "${col}" between $2::timestamptz and $3::timestamptz and "${col}" <> all($4::timestamptz[])`, [w.at, w.dbFrom, w.dbTo, instants]);
+        n += r.rowCount ?? 0;
+      }
+      if (n) columns[`${table}.${col}`] = n;
+      rows += n;
+    }
+    await c.query("commit");
+  } catch (e) { await c.query("rollback").catch(() => undefined); throw e; } finally { await c.end(); }
+  return { rows, columns };
 }
