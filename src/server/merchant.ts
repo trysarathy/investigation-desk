@@ -17,7 +17,9 @@ import { AccessDenied, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
 import { dataModeOf } from "./mapping-templates";
 import type { DataLabel } from "@/lib/clearline/data-mode";
-import { isLiveOrg, verifyChainForEntity, verifyClientFromEnv } from "./chain-verify";
+import { orgDataMode, verifyChainForEntity, verifyClientFromEnv } from "./chain-verify";
+import { usesUploadPipeline, isDataMode } from "@/lib/clearline/data-mode";
+import { demoNow } from "@/lib/clearline/demo/clock";
 import type { VerifyChainClient } from "@/lib/clearline/merchant/chain";
 import type { RunTrigger } from "./db/ops-schema";
 import { MERCHANT_ENGINE_VERSION, RULE_SET_VERSION, closedOrders, errorCodeOf, newOutcome, outcomeKey, runCounts, runState, storedOutcome, type RunCounts } from "./runs";
@@ -74,7 +76,7 @@ export async function ingestAdapterOutput(ctx: TenantContext, entityId: string, 
 }
 
 /** Options of a run. `ruleSetVersion` replaces the code's version only in tests (to show a rule change re-runs). */
-export interface RunOptions { chain?: VerifyChainClient; trigger?: RunTrigger; jobId?: string; ruleSetVersion?: string }
+export interface RunOptions { chain?: VerifyChainClient; trigger?: RunTrigger; jobId?: string; ruleSetVersion?: string; /** The instant chain reads are made at (default: now; the demo clock for a demo organisation). */ now?: Date }
 
 /**
  * (Live data: verify against the chain first, see chain-verify.ts.) Load the entity's rows → reconcile → persist the five parts, differences (append-only), exceptions, write-off
@@ -91,7 +93,10 @@ export async function runReconciliation(ctx: TenantContext, entityId: string, id
   try {
     // rc7 phase 2: a live organisation's payments are verified against chain data first (sample data is seeded with
     // its recorded chain facts). Reads happen outside the reconcile transaction; failed reads are stored, not thrown.
-    if (await isLiveOrg(ctx)) await verifyChainForEntity(ctx, entityId, opts.chain ?? verifyClientFromEnv());
+    // Demo build: a demo organisation goes through the same verification, against the recorded chain file, at the
+    // demo clock (src/lib/clearline/demo/clock.ts); verifyClientFromEnv refuses the recording for any other org.
+    const mode = await orgDataMode(ctx);
+    if (isDataMode(mode) && usesUploadPipeline(mode)) await verifyChainForEntity(ctx, entityId, opts.chain ?? verifyClientFromEnv(process.env, mode), mode === "demo" ? { now: opts.now ?? demoNow() } : opts.now ? { now: opts.now } : {});
     return await tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "merchant_reconcile", entityId }, () => reconcileInTx(tx, ctx, entityId, { trigger, version, startedAt, jobId: opts.jobId ?? null })));
   } catch (e) {
     // A failed run is recorded with a code (never the message). An unknown entity or a refused member is not a run.
