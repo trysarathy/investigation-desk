@@ -5,7 +5,7 @@
  * RUNTIME app works for that merchant with no hand SQL: sign in, save a mapping template, upload and confirm the four
  * files, reconcile, export. The CLI uses DATABASE_OWNER_URL only and refuses without it (or with the runtime login);
  * re-running is a no-op; overwriting is a dry run without --confirm; its output holds ids, roles and counts only.
- * The runtime login still cannot create organisations or another merchant's entities, and only an Admin may write a
+ * The runtime login cannot create organisations or any entity (v1: not even its own merchant's), and only an Admin may change a
  * policy (the database's rules are unchanged). Fictional values only.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -186,7 +186,7 @@ describe("the runtime app then works for that merchant (no hand SQL)", () => {
 });
 
 describe("the runtime login still cannot set up a merchant", () => {
-  it("no organisation, no entity for another merchant, and a policy only by an Admin (database rules unchanged)", async () => {
+  it("no organisation, no entity (for any merchant), and a policy change only by an Admin", async () => {
     const as = (email: string, q: ReturnType<typeof sql>) => withTenant({ userId: seed.users[email], orgId: seed.orgs.a }, (tx) => tx.execute(q));
     const refuses = async (p: Promise<unknown>, re: RegExp) => {
       try { await p; } catch (e) { const err = e as Error & { cause?: Error }; expect(`${err.message} ${err.cause?.message ?? ""}`).toMatch(re); return; }
@@ -195,7 +195,9 @@ describe("the runtime login still cannot set up a merchant", () => {
     for (const email of ["admin@live-a.example", "finance@live-a.example"]) {
       await refuses(as(email, sql`insert into organizations (slug, name, timezone) values ('forged-org', 'Forged (fictional)', 'UTC')`), /permission denied|row-level security/);
       await refuses(as(email, sql`update organizations set provider_org_id = null where id = ${seed.orgs.a}`), /permission denied/);
-      await refuses(as(email, sql`insert into merchant_entities (org_id, id, name, functional_currency, ledger, timezone) values (${seed.orgs.providerA}, 'ENT-FORGED', 'Forged (fictional)', 'SGD', 'none', 'UTC')`), /row-level security/);
+      await refuses(as(email, sql`insert into merchant_entities (org_id, id, name, functional_currency, ledger, timezone) values (${seed.orgs.providerA}, 'ENT-FORGED', 'Forged (fictional)', 'SGD', 'none', 'UTC')`), /permission denied/);
+      // v1 (0038): not even in its own organisation; entities come from add-entity (owner) only
+      await refuses(as(email, sql`insert into merchant_entities (org_id, id, name, functional_currency, ledger, timezone) values (${seed.orgs.a}, 'ENT-OWN', 'Own (fictional)', 'SGD', 'none', 'UTC')`), /permission denied/);
     }
     await refuses(as("finance@live-a.example", sql`update merchant_policy set tolerance_bps = 1000, revision = revision + 1 where org_id = ${seed.orgs.a}`), /only by an Admin/);
     await refuses(withTenant({ userId: seed.users["finance@live-a.example"] }, (tx) => tx.execute(sql`insert into organization_memberships (org_id, user_id, role) values (${seed.orgs.a}, ${seed.users["finance@live-a.example"]}, 'admin')`)), /permission denied|row-level security/);
