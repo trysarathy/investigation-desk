@@ -23,6 +23,22 @@
  *   accept-invitation <invitation-id>       (rc6: accept a provider's invitation record: creates the user if needed,
  *                                            password from CLEARLINE_NEW_PASSWORD, name from CLEARLINE_NEW_NAME, and
  *                                            grants the invited merchant role; no email is ever sent)
+ *
+ * rc8 founder decision 4, a merchant from scratch (src/server/merchant-setup.ts). These read DATABASE_OWNER_URL ONLY
+ * (the schema owner login; refused without it or with any other login), print ids, roles and counts only, and are
+ * idempotent: the same values again change nothing; overwriting needs --confirm <org-slug> (otherwise a dry run, exit 2).
+ *   create-merchant <slug> --name <name> --timezone <IANA>      (a LIVE merchant, "Your data", empty)
+ *   create-provider <slug> --name <name> --timezone <IANA>      (a payment provider organisation)
+ *   add-entity <org-slug> <entity-id> --name <legal name> --currency SGD|USD|AED --timezone <IANA>
+ *              [--utc-offset +08:00|minutes] [--ledger xero|quickbooks|none]
+ *                                           (with the default policy: defaultPolicyFor(currency), imported-bank-line flag off)
+ *   set-policy <org-slug> <entity-id> [--defaults] [--tolerance-bps N] [--tolerance-abs-minor N] [--combine larger|smaller]
+ *              [--writeoff-threshold-minor N] [--allow-imported-bank-lines true|false] [--confirm <org-slug>]
+ *                                           (validated exactly as the Settings page validates it)
+ *   link-provider <org-slug> <provider-slug> [--confirm <org-slug>]   (aggregates only; provider invites stay Viewer-only)
+ *   add-member <org-slug> <email> <role> [--name <name>] [--confirm <org-slug>]
+ *                                           (a new person's password from CLEARLINE_SEED_PASSWORD only; never an argument)
+ *   setup-summary <org-slug>                (what the organisation holds: ids and counts)
  */
 import { closeDatabase, database } from "../../src/server/db/client";
 import { acceptInvitation, createOrganization, createUser, grantMembership, revokeMembership, revokeSessions } from "../../src/server/admin";
@@ -30,6 +46,7 @@ import type { AppRole } from "../../src/server/authz";
 import { seedMerchantCases } from "../../src/server/merchant-seed";
 import { purgeExpiredUploads } from "../../src/server/uploads";
 import { deleteMerchant, planMerchantDeletion } from "../../src/server/merchant-deletion";
+import { addEntity, addMember, createMerchant, createProvider, linkProvider, openOwnerDb, setPolicy, setupSummary } from "../../src/server/merchant-setup";
 
 const DEMO_USERS: { email: string; name: string; org: string; role: AppRole }[] = [
   { email: "ops@lumen.example", name: "Priya Raman (fictional)", org: "lumen-demo", role: "payment_ops" },
@@ -41,8 +58,53 @@ const DEMO_USERS: { email: string; name: string; org: string; role: AppRole }[] 
   { email: "approver@harbour.example", name: "Nur Aisyah (fictional)", org: "harbour-demo", role: "approver" },
 ];
 
+/** `--key value` flags and positional arguments (a flag never takes a secret: passwords come from the environment). */
+function flags(args: string[]) {
+  const pos: string[] = [], f: Record<string, string> = {};
+  for (let i = 0; i < args.length; i++) {
+    if (!args[i].startsWith("--")) { pos.push(args[i]); continue; }
+    const k = args[i].slice(2);
+    if (["defaults"].includes(k)) { f[k] = "true"; continue; }
+    if (i + 1 >= args.length) throw new Error(`--${k} needs a value`);
+    f[k] = args[++i];
+  }
+  return { pos, f };
+}
+const POLICY_FLAGS: Record<string, [string, (v: string) => unknown]> = {
+  "tolerance-bps": ["toleranceBps", (v) => (/^\d+$/.test(v) ? Number(v) : v)], "tolerance-abs-minor": ["toleranceAbsMinor", (v) => v], combine: ["toleranceCombine", (v) => v],
+  "writeoff-threshold-minor": ["writeoffThresholdMinor", (v) => v], "allow-imported-bank-lines": ["allowImportedBankLinesAsVerified", (v) => (v === "true" ? true : v === "false" ? false : v)],
+};
+const SETUP = new Set(["create-merchant", "create-provider", "add-entity", "set-policy", "link-provider", "add-member", "setup-summary"]);
+
+/** rc8 founder decision 4: the owner-only merchant setup commands. Exit 2 for a dry run (nothing changed). */
+async function setup(cmd: string, args: string[]) {
+  const { pos, f } = flags(args);
+  const known = new Set(["name", "timezone", "currency", "utc-offset", "ledger", "confirm", "defaults", ...Object.keys(POLICY_FLAGS)]);
+  for (const k of Object.keys(f)) if (!known.has(k)) throw new Error(`unknown flag --${k}`);
+  const { db, close } = await openOwnerDb(process.env.DATABASE_OWNER_URL);
+  try {
+    const need = (v: string | undefined, what: string) => { if (!v) throw new Error(`missing ${what}`); return v; };
+    let out: { status?: string } & Record<string, unknown>;
+    switch (cmd) {
+      case "create-merchant": out = await createMerchant(db, { slug: need(pos[0], "<slug>"), name: need(f.name, "--name"), timezone: need(f.timezone, "--timezone") }); break;
+      case "create-provider": out = await createProvider(db, { slug: need(pos[0], "<slug>"), name: need(f.name, "--name"), timezone: need(f.timezone, "--timezone") }); break;
+      case "add-entity": out = await addEntity(db, { orgSlug: need(pos[0], "<org-slug>"), entityId: need(pos[1], "<entity-id>"), name: need(f.name, "--name"), currency: need(f.currency, "--currency"), timezone: need(f.timezone, "--timezone"), utcOffset: f["utc-offset"], ledger: f.ledger }); break;
+      case "set-policy": {
+        const patch = Object.fromEntries(Object.entries(POLICY_FLAGS).filter(([k]) => f[k] !== undefined).map(([k, [field, conv]]) => [field, conv(f[k])]));
+        out = await setPolicy(db, { orgSlug: need(pos[0], "<org-slug>"), entityId: need(pos[1], "<entity-id>"), patch, defaults: f.defaults === "true", confirm: f.confirm }); break;
+      }
+      case "link-provider": out = await linkProvider(db, { orgSlug: need(pos[0], "<org-slug>"), providerSlug: need(pos[1], "<provider-slug>"), confirm: f.confirm }); break;
+      case "add-member": out = await addMember(db, { orgSlug: need(pos[0], "<org-slug>"), email: need(pos[1], "<email>"), role: need(pos[2], "<role>"), name: f.name, password: process.env.CLEARLINE_SEED_PASSWORD, confirm: f.confirm }); break;
+      default: out = await setupSummary(db, need(pos[0], "<org-slug>"));
+    }
+    console.log(JSON.stringify(out));
+    if (out.status === "dry_run") { console.log(`Nothing changed. To apply, run again with: --confirm ${pos[0]}`); process.exitCode = 2; }
+  } finally { await close(); }
+}
+
 async function main() {
   const [cmd, ...a] = process.argv.slice(2);
+  if (SETUP.has(cmd)) return setup(cmd, a);
   const db = database();
   switch (cmd) {
     case "create-org": console.log(await createOrganization(db, a[2] === "live" ? { slug: a[0], name: a[1], seed: "empty", dataMode: "live" } : { slug: a[0], name: a[1], seed: (a[2] as "sample" | "empty") ?? "sample" })); break;

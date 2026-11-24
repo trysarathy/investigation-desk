@@ -505,6 +505,7 @@ Test mode · illustrative data.
 - **Exports:** draft Xero and QuickBooks journal files and a month-end pack. Nothing is posted.
 - **Honest limit:** exports without a quote rate or window are abstained on. The blind test gave 0 wrong matches and a 0.00% auto-match rate.
 - **Not hosted:** decision 4 was not given, so everything runs locally.
+- **rc8 (branch `rc8/access-setup`, not merged):** every merchant export (evidence pack, journal files, draft journals, month-end pack) is for Finance, an Approver or an Admin only; an operator now sets up a merchant with the admin CLI (`create-merchant`, `add-entity`, `set-policy`, `link-provider`, `add-member`) instead of hand SQL. See "First run with your own file" in `docs/runbooks/DEPLOYMENT_RUNBOOK_RC7.md`.
 - **Read more:**
   - `docs/product/SUPPORTED_FORMATS.md` (what works, what needs mapping, what is not supported)
   - `docs/runbooks/DEPLOYMENT_RUNBOOK_RC7.md`

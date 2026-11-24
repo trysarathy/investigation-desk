@@ -6,7 +6,8 @@ export const dynamic = "force-dynamic";
 
 /**
  * The evidence pack as an attachment: ?order=<orderId> (one payment) or ?entity=<entityId>&month=YYYY-MM, with
- * &format=pdf|csv|json. Chain proof, provider record, bank line, approvals and audit trail. The export is audited.
+ * &format=pdf|csv|json. Chain proof, provider record, bank line, approvals and audit trail. Finance, an Approver or an
+ * Admin only (rc8 founder decision 3; the service checks it). The export is audited.
  */
 export const GET = (req: Request) => read(req, async (ctx) => {
   const q = new URL(req.url).searchParams;

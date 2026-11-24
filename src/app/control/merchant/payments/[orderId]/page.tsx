@@ -163,11 +163,13 @@ export default async function MerchantPaymentPage({ params }: { params: Promise<
       <section className={s.section} aria-labelledby="pack">
         <h2 className={s.h2} id="pack">Evidence pack</h2>
         <p className={s.small}>Chain proof, provider record, bank line, approvals and audit trail for this payment. Each download is recorded in the audit history. {d.label}.</p>
-        <ul className={m.downloads}>
-          <li><a href={`/api/control/merchant/evidence?order=${encodeURIComponent(orderId)}&format=pdf`} download>Download PDF summary</a></li>
-          <li><a href={`/api/control/merchant/evidence?order=${encodeURIComponent(orderId)}&format=csv`} download>Download CSV</a></li>
-          <li><a href={`/api/control/merchant/evidence?order=${encodeURIComponent(orderId)}&format=json`} download>Download JSON</a></li>
-        </ul>
+        {can(ctx.role, "merchant_export") ? (
+          <ul className={m.downloads}>
+            <li><a href={`/api/control/merchant/evidence?order=${encodeURIComponent(orderId)}&format=pdf`} download>Download PDF summary</a></li>
+            <li><a href={`/api/control/merchant/evidence?order=${encodeURIComponent(orderId)}&format=csv`} download>Download CSV</a></li>
+            <li><a href={`/api/control/merchant/evidence?order=${encodeURIComponent(orderId)}&format=json`} download>Download JSON</a></li>
+          </ul>
+        ) : <p className={s.small} data-testid="export-not-allowed">Evidence packs are downloaded by Finance, an Approver or an Admin.</p>}
       </section>
 
       <section className={s.section} aria-labelledby="audit">

@@ -208,7 +208,9 @@ describe("evidence pack and journal file", () => {
     expect(csvCell("plain")).toBe("plain");
     const ops = await ctx("ops@straits-demo.example", "sg");
     await addExceptionNote(ops, "EX-BK-24830", { kind: "note", body: "=cmd|' /C calc'!A0" }, key());
-    const r = await evidencePack(ops, { kind: "month", entityId: "ENT-SG-01", month: "2026-11" }, "csv");
+    // rc8 founder decision 3: Payment Operations adds the note but may not export; Finance does
+    await refused(evidencePack(ops, { kind: "month", entityId: "ENT-SG-01", month: "2026-11" }, "csv"), "ACCESS_403");
+    const r = await evidencePack(await ctx("finance@straits-demo.example", "sg"), { kind: "month", entityId: "ENT-SG-01", month: "2026-11" }, "csv");
     const body = r.body as string;
     expect(body.split("\r\n")[0]).toBe("section,id,order_id,field_1,field_2,field_3,field_4,detail,marking");
     expect(body).toContain("\"'=cmd|' /C calc'!A0\"");
@@ -225,7 +227,7 @@ describe("evidence pack and journal file", () => {
     expect(doc.getPageCount()).toBeGreaterThanOrEqual(1);
     expect(doc.getSubject()).toBe(LABEL);
   });
-  it("the journal file is sandbox-only, pending sign-off, Finance-only, audited, and changes no journal status", async () => {
+  it("the journal file is sandbox-only, pending sign-off, Finance/Approver/Admin only (rc8 decision 3), audited, and changes no journal status", async () => {
     const fin = await ctx("finance@straits-demo.example", "sg");
     const before = await rows(sql`select id, status from merchant_journal_proposals where org_id = ${fin.orgId} order by id`);
     const r = await journalExport(fin, "ENT-SG-01", "2026-11", "csv");
@@ -240,7 +242,8 @@ describe("evidence pack and journal file", () => {
     expect(setl.lines.map((l: { side: string; accountCode: string; amountMinor: string }) => [l.side, l.accountCode, l.amountMinor])).toEqual([["debit", "bank", "596124"], ["debit", "payment_processing_fees", "6021"], ["credit", "provider_clearing", "602145"]]);
     expect(await rows(sql`select id, status from merchant_journal_proposals where org_id = ${fin.orgId} order by id`)).toEqual(before);
     await refused(journalExport(await ctx("ops@straits-demo.example", "sg"), "ENT-SG-01", "2026-11", "csv"), "ACCESS_403");
-    await refused(journalExport(await ctx("approver@straits-demo.example", "sg"), "ENT-SG-01", "2026-11", "csv"), "ACCESS_403");
+    // rc8 founder decision 3: an Approver and an Admin now export the journal file too (rc6: Finance only)
+    for (const who of ["approver@straits-demo.example", "admin@straits-demo.example"]) expect((await journalExport(await ctx(who, "sg"), "ENT-SG-01", "2026-11", "csv")).body).toBe(r.body);
     await refused(journalExport(fin, "ENT-AE-03", "2026-12", "csv"), "ACCESS_404");
   });
 });
