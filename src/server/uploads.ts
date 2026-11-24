@@ -19,6 +19,7 @@ import { AccessDenied, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
 import { StorageRefused, uploadStorage, type UploadStorage } from "./storage";
 import { purgeDerivedRows } from "./upload-retention";
+import { stampNow } from "./live-clock";
 
 /**
  * rc7 uploads: a merchant's own files → storage → mapping → validation report → confirmation. The file's bytes live
@@ -388,7 +389,7 @@ export async function decideUpload(ctx: TenantContext, id: string, input: z.inpu
     if (u.status !== "validated") throw new RequestRefused(409, "UPLOAD_NOT_VALIDATED", `This upload is ${u.status}; only a validated upload can be decided.`);
     if (u.contentSha256 !== d.contentSha256 || u.rowsSha256 !== d.rowsSha256) throw new RequestRefused(409, "VERSION_MISMATCH", "The file or validation report you reviewed does not match this upload.");
     if (d.decision === "confirm" && u.acceptedCount + u.warningCount === 0) throw new RequestRefused(409, "NOTHING_TO_CONFIRM", "No row of this upload was accepted.");
-    const [row] = await tx.update(t.uploads).set({ status: d.decision === "confirm" ? "confirmed" : "rejected", confirmedBy: ctx.userId, confirmedAt: new Date(), decisionReason: d.reason })
+    const [row] = await tx.update(t.uploads).set({ status: d.decision === "confirm" ? "confirmed" : "rejected", confirmedBy: ctx.userId, confirmedAt: stampNow(), decisionReason: d.reason })
       .where(and(eq(t.uploads.orgId, ctx.orgId), eq(t.uploads.id, id))).returning();
     await serverAudit(tx, ctx, d.decision === "confirm" ? "upload_confirmed" : "upload_declined", "upload", id,
       `Upload ${d.decision === "confirm" ? "confirmed" : "declined"}${bank ? " by a second person" : ""}: ${row.acceptedCount + row.warningCount} row(s) ${d.decision === "confirm" ? "to import" : "not imported"}`,
@@ -406,7 +407,7 @@ export async function deleteUpload(ctx: TenantContext, id: string, idempotencyKe
     if (u.status === "confirmed" || u.status === "normalised") throw new RequestRefused(409, "UPLOAD_CONFIRMED", "Confirmed data is deleted on the retention schedule.");
     if (u.storageKey) await storage.delete(ctx.orgId, u.storageKey);
     const gone = await tx.delete(t.uploadRows).where(and(eq(t.uploadRows.orgId, ctx.orgId), eq(t.uploadRows.uploadId, id))).returning({ n: t.uploadRows.rowNumber });
-    await tx.update(t.uploads).set({ status: "deleted", storageKey: null, deletedAt: new Date() }).where(and(eq(t.uploads.orgId, ctx.orgId), eq(t.uploads.id, id)));
+    await tx.update(t.uploads).set({ status: "deleted", storageKey: null, deletedAt: stampNow() }).where(and(eq(t.uploads.orgId, ctx.orgId), eq(t.uploads.id, id)));
     await serverAudit(tx, ctx, "upload_deleted", "upload", id, `Upload deleted: file removed, ${gone.length} validation row(s) removed`, { uploadId: id, rowsRemoved: gone.length });
     return { status: 200, body: { id, status: "deleted" } };
   }));
@@ -419,7 +420,7 @@ export async function setRetentionDays(ctx: TenantContext, days: number, idempot
   const v = z.number().int().min(1).max(3650).parse(days);
   return tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "retention_set", days: v }, async () => {
     await tx.insert(t.merchantDataSettings).values({ orgId: ctx.orgId, retentionDays: v, updatedBy: ctx.userId })
-      .onConflictDoUpdate({ target: t.merchantDataSettings.orgId, set: { retentionDays: v, updatedBy: ctx.userId, updatedAt: new Date() } });
+      .onConflictDoUpdate({ target: t.merchantDataSettings.orgId, set: { retentionDays: v, updatedBy: ctx.userId, updatedAt: stampNow() } });
     await serverAudit(tx, ctx, "retention_set", "organization", ctx.orgId, `Upload retention set to ${v} days (new uploads)`, { retentionDays: v });
     return { status: 200, body: { retentionDays: v } };
   }));

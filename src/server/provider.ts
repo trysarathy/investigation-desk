@@ -10,6 +10,7 @@ import { IdempotencyKey, idempotent, serverAudit } from "./control";
 import { providerConsole } from "./merchant";
 import { AccessDenied, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
+import { stampNow } from "./live-clock";
 
 /**
  * rc6 phase 8: the provider console (Provider Admin, Provider Ops) and the merchant-side settings it relies on.
@@ -144,7 +145,7 @@ async function saveOnboarding(tx: Tx, ctx: TenantContext, merchantOrgId: string,
     if (!r.length) throw new RequestRefused(409, "STALE_ONBOARDING", "The onboarding changed since you read it. Reload and try again.");
     return r[0].revision;
   }
-  const r = await tx.update(t.merchantOnboarding).set({ ...set, revision: expectedRevision + 1, updatedBy: ctx.userId, updatedAt: new Date() })
+  const r = await tx.update(t.merchantOnboarding).set({ ...set, revision: expectedRevision + 1, updatedBy: ctx.userId, updatedAt: stampNow() })
     .where(and(eq(t.merchantOnboarding.orgId, ctx.orgId), eq(t.merchantOnboarding.merchantOrgId, merchantOrgId), eq(t.merchantOnboarding.revision, expectedRevision))).returning({ revision: t.merchantOnboarding.revision });
   if (!r.length) throw new RequestRefused(409, "STALE_ONBOARDING", "The onboarding changed since you read it. Reload and try again.");
   return r[0].revision;
@@ -229,9 +230,9 @@ export async function setProviderGrant(ctx: TenantContext, input: z.input<typeof
     if (!org?.providerOrgId) throw new RequestRefused(422, "NO_PROVIDER", "This organisation is not served by a provider.");
     if (v.scope === "full") {
       await tx.insert(t.providerGrants).values({ merchantOrgId: ctx.orgId, providerOrgId: org.providerOrgId, scope: "full", grantedBy: ctx.userId })
-        .onConflictDoUpdate({ target: [t.providerGrants.merchantOrgId, t.providerGrants.providerOrgId], set: { scope: "full", grantedBy: ctx.userId, grantedAt: new Date(), revokedAt: null } });
+        .onConflictDoUpdate({ target: [t.providerGrants.merchantOrgId, t.providerGrants.providerOrgId], set: { scope: "full", grantedBy: ctx.userId, grantedAt: stampNow(), revokedAt: null } });
     } else {
-      await tx.update(t.providerGrants).set({ revokedAt: new Date(), grantedBy: ctx.userId }).where(and(eq(t.providerGrants.merchantOrgId, ctx.orgId), isNull(t.providerGrants.revokedAt)));
+      await tx.update(t.providerGrants).set({ revokedAt: stampNow(), grantedBy: ctx.userId }).where(and(eq(t.providerGrants.merchantOrgId, ctx.orgId), isNull(t.providerGrants.revokedAt)));
     }
     await serverAudit(tx, ctx, v.scope === "full" ? "provider_full_access_granted" : "provider_full_access_revoked", "organization", ctx.orgId,
       v.scope === "full" ? "Provider granted full read access to this merchant's rows" : "Provider full access revoked: aggregates only", v);

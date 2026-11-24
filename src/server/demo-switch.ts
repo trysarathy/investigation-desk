@@ -7,6 +7,7 @@ import * as t from "./db/schema";
 import { demoBuild } from "./demo-build";
 import { membershipsFor, withTenant, type Principal } from "./tenant";
 import { ROLE_LABELS, isAppRole } from "./authz";
+import { stampAt } from "./live-clock";
 
 /**
  * Demo build only: the demo role switcher (POST /api/control/demo/switch; the route answers 404 in any other build
@@ -86,7 +87,7 @@ export async function switchDemoUser(caller: Principal, callerSessionId: string,
   const at = new Date();
   for (const orgId of new Set([...callerOrgs, ...tgt.memberships.map((m) => m.orgId)])) {
     const actor = callerOrgs.includes(orgId) ? caller.userId : target.id;
-    await withTenant({ userId: actor, orgId }, (tx) => tx.insert(t.auditEvents).values({ orgId, source: "auth", actorUserId: actor, action: "demo_user_switched", entityType: "user", entityId: target.id, summary, at, details: { marker: DEMO_SWITCH_MARKER, from: caller.email, to: target.email } }));
+    await withTenant({ userId: actor, orgId }, (tx) => tx.insert(t.auditEvents).values({ orgId, source: "auth", actorUserId: actor, action: "demo_user_switched", entityType: "user", entityId: target.id, summary, at: stampAt(at), details: { marker: DEMO_SWITCH_MARKER, from: caller.email, to: target.email } }));
   }
   const provider = role === "provider_admin" || role === "provider_ops";
   return { userId: target.id, name: target.name, email: target.email, role, token: session.token, next: provider ? "/control/merchant/provider" : "/control/merchant" };

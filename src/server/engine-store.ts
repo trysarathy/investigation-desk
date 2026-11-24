@@ -9,6 +9,7 @@ import type { Tx } from "./db/client";
 import * as t from "./db/schema";
 import { ENGINE_ROLE, isAppRole } from "./authz";
 import { AccessDenied } from "./tenant";
+import { stampNow } from "./live-clock";
 
 /**
  * Maps the engine's workspace collections to authoritative PostgreSQL rows and back.
@@ -128,7 +129,7 @@ export async function saveWorkspaceDiff(tx: Tx, orgId: string, before: Workspace
       const r = next[i];
       const old = prev.get(r.id);
       if (old && same(old.r, r)) continue;
-      const values = { orgId, id: r.id, ord: old ? old.i : i, record: r, ...s.extract(r), updatedAt: new Date() };
+      const values = { orgId, id: r.id, ord: old ? old.i : i, record: r, ...s.extract(r), updatedAt: stampNow() };
       if (old) {
         // provenance and import id describe where a record came from: they never change after insert
         const { provenance: _p, importId: _i, ...upd } = values as Record<string, unknown>;
@@ -152,7 +153,7 @@ export async function saveWorkspaceDiff(tx: Tx, orgId: string, before: Workspace
     for (let i = 0; i < next.length; i++) {
       const r = next[i]; const old = prev.get(r.id);
       if (old && same(old.r, r)) continue;
-      const values = { orgId, id: r.id, ord: old ? old.i : i, record: r, ...extract(r), updatedAt: new Date() };
+      const values = { orgId, id: r.id, ord: old ? old.i : i, record: r, ...extract(r), updatedAt: stampNow() };
       if (old) await tx.update(table).set(values as never).where(and(eq(table.orgId, orgId), eq(table.id, r.id)));
       else await tx.insert(table).values(values as never);
     }
@@ -177,7 +178,7 @@ export async function saveWorkspaceDiff(tx: Tx, orgId: string, before: Workspace
   } else {
     const cur = await tx.select({ state: t.orgEngineState.state }).from(t.orgEngineState).where(eq(t.orgEngineState.orgId, orgId));
     state.seedActors = (cur[0].state as { seedActors?: Actor[] }).seedActors ?? [];
-    await tx.update(t.orgEngineState).set({ state, version: sql`${t.orgEngineState.version} + 1`, updatedAt: new Date() }).where(eq(t.orgEngineState.orgId, orgId));
+    await tx.update(t.orgEngineState).set({ state, version: sql`${t.orgEngineState.version} + 1`, updatedAt: stampNow() }).where(eq(t.orgEngineState.orgId, orgId));
   }
 }
 
@@ -191,7 +192,7 @@ export class EngineRefusal extends Error {
  */
 export async function runEngineAction(tx: Tx, orgId: string, userId: string, action: WorkspaceAction, opts: { provenance?: Provenance; importId?: string } = {}): Promise<ActionOutput> {
   const { workspace } = await loadWorkspaceForUpdate(tx, orgId);
-  const at = new Date(Math.max(Date.now(), Date.parse(workspace.asOf) + 1)).toISOString();
+  const at = new Date(Math.max(stampNow().getTime(), Date.parse(workspace.asOf) + 1)).toISOString();
   const r = applyAction(workspace, action, { actorId: userId, at });
   if (!r.ok) throw new EngineRefusal(r.error.code, r.error.message, (r.error as { field?: string }).field);
   await saveWorkspaceDiff(tx, orgId, workspace, r.value.workspace, { provenance: opts.provenance ?? "engine_action", importId: opts.importId ?? null, actorUserId: userId });
