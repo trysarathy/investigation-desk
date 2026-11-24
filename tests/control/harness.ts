@@ -15,6 +15,13 @@ export function ownerDb(): Db {
   return drizzle(ownerPool, { schema }) as Db;
 }
 export async function closeOwner() { await ownerPool?.end(); ownerPool = undefined; }
+let jobsPool: Pool | undefined;
+/** The job worker's limited queue login (rc8, `clearline_jobs`; scripts/db/setup-local.sh creates it). */
+export function jobsDb(): Db {
+  jobsPool ??= new Pool({ connectionString: process.env.CLEARLINE_TEST_JOBS_URL });
+  return drizzle(jobsPool, { schema }) as Db;
+}
+export async function closeJobs() { await jobsPool?.end(); jobsPool = undefined; }
 
 /** Truncate all data (owner; triggers disabled only for the reset) and seed two fictional organisations. */
 export async function resetAndSeed() {

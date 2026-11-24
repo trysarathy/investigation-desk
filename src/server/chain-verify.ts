@@ -13,6 +13,7 @@ import * as t from "./db/schema";
 import { can } from "./authz";
 import { serverAudit } from "./control";
 import { AccessDenied, type TenantContext, withTenant } from "./tenant";
+import { ChainRecordingRefused } from "./test-build";
 
 /**
  * rc7 phase 2: verify an entity's payments against CHAIN data. For every deposit address issued for its orders
@@ -25,7 +26,7 @@ import { AccessDenied, type TenantContext, withTenant } from "./tenant";
  * - Finality: confirmations ≥ the network's confirmations_required, and a fact is stored as final only after a second
  *   read of its transaction returns the same block (and block hash when the source gives one).
  * - Cache: a transaction whose stored facts are all final is not read again. Nothing non-final is cached.
- * - Clients: the recorded client by default (CLEARLINE_CHAIN_RECORDING); the real readers only with
+ * - Clients: the recorded client (CLEARLINE_CHAIN_RECORDING; rc8: test builds only); the real readers only with
  *   CLEARLINE_CHAIN_LIVE=1 and keys (refused under tests and CI); otherwise every read is unavailable.
  * Logs and audit carry ids and counts only.
  */
@@ -36,11 +37,21 @@ const DAY_MS = 86_400_000;
 const LOOKBACK_MS = DAY_MS;
 const hashKey = (network: string, h: string) => `${network}|${network === "tron" ? h.toLowerCase().replace(/^0x/, "") : h.toLowerCase()}`;
 
-/** The client to use, from the server's environment. */
+/**
+ * The client to use, from the server's environment. rc8: a recording (CLEARLINE_CHAIN_RECORDING) is honoured only in
+ * a test build; anywhere else it is refused (src/server/test-build.ts). The test-build condition is written inline,
+ * not called, so that `next build` without CLEARLINE_TEST_BUILD=1 sees the constant `false` and drops the branch.
+ */
 export function verifyClientFromEnv(env: Env = process.env): VerifyChainClient {
   if (env.CLEARLINE_CHAIN_LIVE === "1") return liveChainClientFromEnv(env); // refused under tests / CI by its guard
   if (env.CLEARLINE_CHAIN_RECORDING) {
-    return new RecordingChainClient(JSON.parse(readFileSync(env.CLEARLINE_CHAIN_RECORDING, "utf8")), { now: new Date().toISOString() });
+    if (process.env.CLEARLINE_NEXT_BUILD === "1" ? process.env.CLEARLINE_TEST_BUILD === "1" : process.env.VITEST === "true") {
+      let recording: unknown;
+      // the marker below exists only in this branch: the build check greps the server bundle for it
+      try { recording = JSON.parse(readFileSync(env.CLEARLINE_CHAIN_RECORDING, "utf8")); } catch { throw new Error("clearline-chain-recording[test-build-only]: the recording file could not be read as JSON"); }
+      return new RecordingChainClient(recording, { now: new Date().toISOString() });
+    }
+    throw new ChainRecordingRefused();
   }
   return new NoChainClient();
 }

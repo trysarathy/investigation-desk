@@ -103,6 +103,10 @@ const releaseUrls = resolveReleaseUrls(process.env, loadRelease(new URL('./clear
 const nextConfig = {
   reactStrictMode: true,
   env: {
+    // rc8: build-time constants for src/server/test-build.ts. Recorded chain data (CLEARLINE_CHAIN_RECORDING) is
+    // honoured only in a build made with CLEARLINE_TEST_BUILD=1; the value is fixed at build, never read at run time.
+    CLEARLINE_NEXT_BUILD: '1',
+    CLEARLINE_TEST_BUILD: process.env.CLEARLINE_TEST_BUILD === '1' ? '1' : '',
     NEXT_PUBLIC_CLEARLINE_PRODUCT_URL: releaseUrls.product,
     NEXT_PUBLIC_CLEARLINE_MARKETING_URL: releaseUrls.marketing,
     NEXT_PUBLIC_CLEARLINE_FUNDING_DESK_URL: releaseUrls.fundingDesk,

@@ -46,7 +46,7 @@ jobs:
           node-version: "22.22.0"
           cache: npm
       - run: npm ci
-      - run: scripts/db/setup-local.sh clearline_e2e ci-owner-pw ci-runtime-pw
+      - run: scripts/db/setup-local.sh clearline_e2e ci-owner-pw ci-runtime-pw ci-jobs-pw
       - run: npx playwright install --with-deps chromium
       # The build must use the same pilot environment as `next start` (the deployment gate reads it).
       - name: Build the pilot
