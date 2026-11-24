@@ -86,4 +86,4 @@ Labels: **[VERIFIED]** read in the code or seen in a recorded run; **[ASSUMPTION
 ## Connections
 
 - **Runtime login** (`DATABASE_URL`): the app and reconciliation, under forced row-level security.
-- **Owner login** (`DATABASE_OWNER_URL`): migrations, the admin CLI, retention purge, the job queue and scheduler. Reconciliation started by a job still runs on the runtime login as the member who set the schedule [VERIFIED in `src/server/jobs.ts`].
+- **Owner login** (`DATABASE_OWNER_URL`): migrations, the admin CLI, retention purge. rc7 also ran the job queue and scheduler on it; from rc8 they use the limited **jobs login** (`DATABASE_JOBS_URL`, `clearline_jobs`, migration 0029). Reconciliation started by a job still runs on the runtime login as the member who set the schedule [VERIFIED in `src/server/jobs.ts`, `tests/control/jobs.test.ts`].

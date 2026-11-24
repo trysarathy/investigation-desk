@@ -17,9 +17,10 @@ This extends `DEPLOYMENT_RUNBOOK_RC6.md` and `DEPLOYMENT_RUNBOOK_RC5.md`; their 
 ```bash
 # 1. Database and roles (any local PostgreSQL 16)
 export PGHOST=127.0.0.1 PGPORT=54329 PGUSER=postgres
-scripts/db/setup-local.sh clearline_rc7 '<owner-password>' '<runtime-password>'
+scripts/db/setup-local.sh clearline_rc7 '<owner-password>' '<runtime-password>' '<jobs-password>'
+#   (rc8: the jobs password may come from CLEARLINE_JOBS_PASSWORD instead; it is required and never printed)
 
-# 2. Migrations 0000–0028 (as the OWNER; drizzle.config.ts reads DATABASE_OWNER_URL)
+# 2. Migrations 0000–0029 and later (as the OWNER; drizzle.config.ts reads DATABASE_OWNER_URL)
 export DATABASE_OWNER_URL=postgres://clearline_owner:<owner-password>@127.0.0.1:54329/clearline_rc7
 npm run db:migrate
 
@@ -37,8 +38,10 @@ npx next build && npx next start -H 127.0.0.1 -p 3000
 # open http://127.0.0.1:3000/control/merchant/uploads
 
 # 5. The job worker (daily schedules and rule-change re-runs), in a second terminal
-DATABASE_URL=<runtime login> DATABASE_OWNER_URL=<owner login> npm run jobs:worker -- --interval-seconds 60
-#   --once runs one pass and exits
+DATABASE_URL=<runtime login> DATABASE_JOBS_URL=postgres://clearline_jobs:<jobs-password>@127.0.0.1:54329/clearline_rc7 \
+  npm run jobs:worker -- --interval-seconds 60
+#   --once runs one pass and exits. rc8: the worker refuses to start unless DATABASE_JOBS_URL is the limited
+#   clearline_jobs login (never the owner or the runtime login); it prints JOBS_LOGIN_REFUSED with reason codes.
 ```
 
 - **Keep the upload key.** Files encrypted with one key cannot be read with another. Store it outside the repository (for example in `.env.local`, which is git-ignored). Generating a new key on each start, as the one-liner above does, makes earlier files unreadable; use it for a throwaway try only.
@@ -49,7 +52,8 @@ DATABASE_URL=<runtime login> DATABASE_OWNER_URL=<owner login> npm run jobs:worke
 | Variable | Purpose | Default |
 |---|---|---|
 | `DATABASE_URL` | runtime login (app, reconciliation under RLS) | — |
-| `DATABASE_OWNER_URL` | owner login (migrations, worker queue) | — |
+| `DATABASE_OWNER_URL` | owner login (migrations, admin CLI, retention purge) | — |
+| `DATABASE_JOBS_URL` | rc8: the worker's queue login `clearline_jobs` (migration 0029: read/write `jobs`, read `reconciliation_schedules`, two narrow functions; no merchant tables, no BYPASSRLS, no DDL). Reconciliation still runs on `DATABASE_URL` under RLS | — |
 | `CLEARLINE_CONTROL_PILOT`, `CLEARLINE_ORIGIN`, `BETTER_AUTH_SECRET` | as rc5/rc6 | — |
 | `CLEARLINE_UPLOAD_DIR` | where uploaded files are stored | `.data/uploads` (git-ignored) |
 | `CLEARLINE_UPLOAD_KEY` | 32 random bytes, base64; turns on AES-256-GCM. Required when `NODE_ENV=production` | unset (files stored unencrypted, local only) |
@@ -100,7 +104,7 @@ DATABASE_URL=<runtime login> DATABASE_OWNER_URL=<owner login> npm run jobs:worke
 |---|---|
 | Type check | `npm run typecheck` |
 | Unit | `npx vitest run` (or `npm test`) |
-| Database | `npm run test:control`, with `CLEARLINE_TEST_OWNER_URL` and `CLEARLINE_TEST_RUNTIME_URL` |
+| Database | `npm run test:control`, with `CLEARLINE_TEST_OWNER_URL`, `CLEARLINE_TEST_RUNTIME_URL` and (rc8) `CLEARLINE_TEST_JOBS_URL` |
 | Merchant browser | build as shown at the top of `playwright.merchant.config.ts`, then `npx playwright test -c playwright.merchant.config.ts --retries=0 --trace off` (also the `merchant-e2e` CI job, not required) |
 | Lint | `npm run lint` installs packages with `--no-save` before running eslint; it changes `node_modules`, so do not run it in a shared checkout |
 
@@ -108,7 +112,7 @@ DATABASE_URL=<runtime login> DATABASE_OWNER_URL=<owner login> npm run jobs:worke
 
 Nothing below is deployed or priced. All items are [ASSUMPTION] until the founder decides decision 4.
 
-- **Managed PostgreSQL 16**, with two logins (owner and runtime) as today, encrypted at rest, and point-in-time recovery.
+- **Managed PostgreSQL 16**, with three logins (owner, runtime and, from rc8, the jobs queue login) as today, encrypted at rest, and point-in-time recovery.
 - **Encrypted object storage** for uploads in place of the local folder, with the upload key held in a secrets manager, never in the repository or CI.
 - **An access-controlled host** for `next start` (pilot only, behind sign-in), with TLS and a trusted proxy header configured so per-IP sign-in rate limiting works.
 - **A worker process** for `npm run jobs:worker`, plus a daily `purge-uploads` run.

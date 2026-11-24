@@ -5,16 +5,19 @@ import type { Db, Tx } from "./db/client";
 import * as t from "./db/schema";
 import type { JobStatus } from "./db/ops-schema";
 import { runReconciliation } from "./merchant";
-import { RULE_SET_VERSION, errorCodeOf, runState } from "./runs";
+import { RULE_SET_VERSION, errorCodeOf } from "./runs";
 import { AccessDenied, resolveTenant } from "./tenant";
 import { RequestRefused } from "./errors";
 
 /**
  * rc7 phase 3a: a job queue in PostgreSQL, a daily schedule per entity and the worker that runs both.
  *
- * - The queue and the scheduler use the schema OWNER connection (like retention): they see every organisation's
- *   schedules and jobs. The reconciliation itself runs on the runtime connection under row-level security, as the
- *   member who set the schedule; that member's access is checked again at every run (a revoked member's job dies).
+ * - The queue and the scheduler use their own login, `clearline_jobs` (rc8, migration 0029): it reads and writes the
+ *   jobs table, reads the schedules, and reaches merchant data only through two narrow functions (what enqueueDue
+ *   needs, and who a scheduled job runs as). It is not the owner, has no BYPASSRLS and cannot change the schema;
+ *   `assertJobsLogin` refuses any other login at worker start. The reconciliation itself runs on the runtime connection
+ *   under row-level security, as the member who set the schedule; that member's access is checked again at every run
+ *   (a revoked member's job dies).
  * - Claiming is `SELECT … FOR UPDATE SKIP LOCKED`: two workers never take the same job. A running job whose worker
  *   vanished is taken again after its lease. Failures retry with exponential backoff; after max attempts, or on an
  *   error that cannot succeed on retry (access, a refused request), the job is dead.
@@ -36,25 +39,29 @@ export function localClock(now: Date, utcOffsetMinutes: number) {
 }
 
 export interface ScheduleResult { daily: number; ruleChange: number }
+interface DueSchedule {
+  org_id: string; entity_id: string; local_time: string; run_as: string; utc_offset_minutes: number;
+  prev_rule_set_version: string | null; prev_policy_revision: number | null; policy_revision: number;
+}
 
 /**
  * Enqueue every due run: an entity's daily run once its local time has passed the schedule's time (once per local
  * day), and a re-run when the rule-set version or the policy revision differs from the entity's last run.
  */
 export async function enqueueDue(db: Conn, now: Date, ruleSetVersion = RULE_SET_VERSION): Promise<ScheduleResult> {
-  const due = await db.select({ s: t.reconciliationSchedules, offset: t.merchantEntities.utcOffsetMinutes }).from(t.reconciliationSchedules)
-    .innerJoin(t.merchantEntities, and(eq(t.merchantEntities.orgId, t.reconciliationSchedules.orgId), eq(t.merchantEntities.id, t.reconciliationSchedules.entityId)))
-    .where(eq(t.reconciliationSchedules.enabled, true));
+  // Every enabled schedule with its entity's offset, the last run that did not fail and the current policy revision
+  // (the same reads as runState, through the jobs login's one function).
+  const due = (await db.execute(sql`select * from jobs_due_schedules()`)).rows as unknown as DueSchedule[];
   const out: ScheduleResult = { daily: 0, ruleChange: 0 };
-  for (const { s, offset } of due) {
-    const base = { orgId: s.orgId, entityId: s.entityId, runAs: s.runAs, runAfter: now };
-    const clock = localClock(now, offset);
-    if (clock.time >= s.localTime) {
+  for (const s of due) {
+    const base = { orgId: s.org_id, entityId: s.entity_id, runAs: s.run_as, runAfter: now };
+    const clock = localClock(now, Number(s.utc_offset_minutes));
+    if (clock.time >= s.local_time) {
       const r = await db.insert(t.jobs).values({ ...base, trigger: "schedule", dedupeKey: `day:${clock.date}` }).onConflictDoNothing().returning({ id: t.jobs.id });
       out.daily += r.length;
     }
-    const { prev, policyRevision } = await runState(db as Tx, s.orgId, s.entityId);
-    if (prev && (prev.ruleSetVersion !== ruleSetVersion || prev.policyRevision !== policyRevision)) {
+    const policyRevision = Number(s.policy_revision);
+    if (s.prev_rule_set_version !== null && (s.prev_rule_set_version !== ruleSetVersion || Number(s.prev_policy_revision) !== policyRevision)) {
       const r = await db.insert(t.jobs).values({ ...base, trigger: "rule_change", dedupeKey: `rules:${ruleSetVersion}/p${policyRevision}` }).onConflictDoNothing().returning({ id: t.jobs.id });
       out.ruleChange += r.length;
     }
@@ -107,14 +114,14 @@ export const isPermanent = (e: unknown) => e instanceof AccessDenied || e instan
  * resolveTenant (active membership; runReconciliation checks the permission) and run. The job id is the run's
  * idempotency key, so a job retried after its run committed replays it instead of writing twice.
  */
-export function reconcileHandler(owner: Conn): JobHandler {
+export function reconcileHandler(queue: Conn): JobHandler {
   return async (job) => {
-    const [s] = await owner.select().from(t.reconciliationSchedules).where(and(eq(t.reconciliationSchedules.orgId, job.orgId), eq(t.reconciliationSchedules.entityId, job.entityId)));
+    const [s] = await queue.select().from(t.reconciliationSchedules).where(and(eq(t.reconciliationSchedules.orgId, job.orgId), eq(t.reconciliationSchedules.entityId, job.entityId)));
     if (!s || !s.enabled || s.runAs !== job.runAs) return { runId: null, status: "cancelled", code: "SCHEDULE_CHANGED" };
-    const [o] = await owner.select({ slug: t.organizations.slug }).from(t.organizations).where(eq(t.organizations.id, job.orgId));
-    const [u] = await owner.select({ id: t.users.id, name: t.users.name, email: t.users.email }).from(t.users).where(eq(t.users.id, job.runAs));
-    if (!o || !u) throw new AccessDenied(404, "Not found.");
-    const ctx = await resolveTenant({ userId: u.id, name: u.name, email: u.email }, o.slug);
+    const p = (await queue.execute(sql`select * from jobs_run_principal(${job.orgId}::uuid, ${job.entityId}, ${job.runAs})`)).rows[0] as
+      { slug: string; user_id: string; name: string; email: string } | undefined;
+    if (!p) throw new AccessDenied(404, "Not found.");
+    const ctx = await resolveTenant({ userId: p.user_id, name: p.name, email: p.email }, p.slug);
     const r = await runReconciliation(ctx, job.entityId, `job-${job.id}`, { trigger: job.trigger, jobId: job.id });
     const c = r.body.runCounts;
     return { runId: r.body.runId, status: "done", ...(c ? { counts: { ...c } } : {}) };
@@ -137,30 +144,58 @@ export function safeLog(e: WorkerLog): WorkerLog {
   return out as unknown as WorkerLog;
 }
 
-export interface WorkerOptions { owner: Conn; handler?: JobHandler; now?: () => Date; workerId?: string; maxJobs?: number; log?: (line: WorkerLog) => void }
+export interface WorkerOptions { queue: Conn; handler?: JobHandler; now?: () => Date; workerId?: string; maxJobs?: number; log?: (line: WorkerLog) => void }
+
+/**
+ * The worker's queue login must be the limited `clearline_jobs` role: not a superuser, no BYPASSRLS, no CREATEROLE or
+ * CREATEDB, owns no table, schema or database, cannot create in the schema, and is neither the owner nor the runtime
+ * login. Anything else (the owner login above all) is refused before the worker does any work. Reasons are codes only.
+ */
+export async function assertJobsLogin(db: Conn): Promise<void> {
+  const r = (await db.execute(sql`
+    select r.rolsuper as super, r.rolbypassrls as bypass, r.rolcreaterole or r.rolcreatedb as create_roles_or_db,
+      has_schema_privilege('public', 'CREATE') as schema_create,
+      exists (select 1 from pg_class c where c.relowner = r.oid) or exists (select 1 from pg_namespace n where n.nspowner = r.oid)
+        or exists (select 1 from pg_database d where d.datdba = r.oid) as owns,
+      pg_has_role(current_user, 'clearline_owner', 'MEMBER') as owner_member,
+      pg_has_role(current_user, 'clearline_app', 'MEMBER') as runtime_member,
+      exists (select 1 from pg_roles j where j.rolname = 'clearline_jobs') and pg_has_role(current_user, 'clearline_jobs', 'MEMBER') as jobs_member
+    from pg_roles r where r.rolname = current_user`)).rows[0] as Record<string, boolean> | undefined;
+  if (!r) throw new JobsLoginRefused(["UNKNOWN_LOGIN"]);
+  const reasons = [
+    ...(r.super ? ["SUPERUSER"] : []), ...(r.bypass ? ["BYPASSRLS"] : []), ...(r.create_roles_or_db ? ["CREATEROLE_OR_CREATEDB"] : []),
+    ...(r.schema_create ? ["SCHEMA_CREATE"] : []), ...(r.owns ? ["OWNS_OBJECTS"] : []), ...(r.owner_member ? ["OWNER_LOGIN"] : []),
+    ...(r.runtime_member ? ["RUNTIME_LOGIN"] : []), ...(r.jobs_member ? [] : ["NOT_JOBS_LOGIN"]),
+  ];
+  if (reasons.length) throw new JobsLoginRefused(reasons);
+}
+export class JobsLoginRefused extends Error {
+  readonly code = "JOBS_LOGIN_REFUSED";
+  constructor(readonly reasons: string[]) { super(`JOBS_LOGIN_REFUSED: ${reasons.join(",")}`); }
+}
 
 /** One worker pass: enqueue due runs, then run due jobs until none is left (or maxJobs). */
 export async function runWorkerOnce(o: WorkerOptions) {
   const now = o.now ?? (() => new Date());
   const workerId = o.workerId ?? `worker-${randomUUID()}`;
-  const handler = o.handler ?? reconcileHandler(o.owner);
+  const handler = o.handler ?? reconcileHandler(o.queue);
   const log = (l: WorkerLog) => o.log?.(safeLog(l));
-  const scheduled = await enqueueDue(o.owner, now());
+  const scheduled = await enqueueDue(o.queue, now());
   if (scheduled.daily || scheduled.ruleChange) log({ event: "scheduled", counts: { ...scheduled } });
   const summary = { scheduled, done: 0, cancelled: 0, retried: 0, dead: 0 };
   for (let i = 0; i < (o.maxJobs ?? 100); i++) {
-    const job = await claimJob(o.owner, workerId, now());
+    const job = await claimJob(o.queue, workerId, now());
     if (!job) break;
     const ids = { jobId: job.id, orgId: job.orgId, entityId: job.entityId, attempt: job.attempts };
     log({ event: "job_claimed", ...ids });
     try {
       const r = await handler(job);
-      await completeJob(o.owner, job, now(), r);
+      await completeJob(o.queue, job, now(), r);
       log({ event: r.status === "done" ? "job_done" : "job_cancelled", ...ids, runId: r.runId, status: r.status, ...(r.code ? { code: r.code } : {}), ...(r.counts ? { counts: r.counts } : {}) });
       summary[r.status === "done" ? "done" : "cancelled"]++;
     } catch (e) {
       const code = errorCodeOf(e);
-      const st = await failJob(o.owner, job, now(), code, isPermanent(e));
+      const st = await failJob(o.queue, job, now(), code, isPermanent(e));
       log({ event: st === "dead" ? "job_dead" : "job_retry", ...ids, code });
       summary[st === "dead" ? "dead" : "retried"]++;
     }

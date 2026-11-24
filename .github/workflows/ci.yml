@@ -54,6 +54,7 @@ jobs:
       PGPASSWORD: ci-only-superuser-password
       CLEARLINE_TEST_OWNER_URL: postgres://clearline_owner:ci-owner-pw@127.0.0.1:5432/clearline_test
       CLEARLINE_TEST_RUNTIME_URL: postgres://clearline_runtime:ci-runtime-pw@127.0.0.1:5432/clearline_test
+      CLEARLINE_TEST_JOBS_URL: postgres://clearline_jobs:ci-jobs-pw@127.0.0.1:5432/clearline_test
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -63,7 +64,7 @@ jobs:
           node-version: "22.22.0"
           cache: npm
       - run: npm ci
-      - run: scripts/db/setup-local.sh clearline_test ci-owner-pw ci-runtime-pw
+      - run: scripts/db/setup-local.sh clearline_test ci-owner-pw ci-runtime-pw ci-jobs-pw
       - run: npm run test:control
 
   # Not required yet: main has 5 existing lint errors in app code
