@@ -25,7 +25,7 @@ export function ResetDemoButton() {
     } catch { setState({ busy: false, message: "The server could not be reached." }); }
   }
   return (
-    <span className={m.demoReset} data-testid="demo-reset">
+    <span className={m.demoReset} data-testid="demo-reset" data-demo-build="clearline-demo-reset[demo-build-only]">
       <button type="button" onClick={() => void reset()} disabled={state.busy} data-testid="demo-reset-button">Reset demo</button>
       {state.message ? <span role="status"> {state.message}</span> : null}
     </span>

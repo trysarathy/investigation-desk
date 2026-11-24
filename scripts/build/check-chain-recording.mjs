@@ -10,6 +10,9 @@
  * ran with CLEARLINE_DEMO_BUILD=1:
  *   node scripts/build/check-chain-recording.mjs --marker demo --expect absent    (any real build)
  *   node scripts/build/check-chain-recording.mjs --marker demo --expect present   (the `npm run demo` build)
+ * v1: also --marker switcher|guide|feedback|reset|clock|seed (one per demo-only area, see DEMO_AREA_MARKERS), and
+ * every check scans the client bundles (.next/static) as well as the server bundles. `npm run build:prod-check`
+ * (scripts/build/prod-check.mjs) runs all of them against a plain production build.
  * Prints file counts and paths relative to .next only.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -17,10 +20,34 @@ import path from "node:path";
 
 export const MARKER = "clearline-chain-recording[test-build-only]";
 export const DEMO_MARKER = "clearline-demo[demo-build-only]";
-export const MARKERS = { chain: MARKER, demo: DEMO_MARKER };
+/**
+ * v1: one marker per demo-only area, so a leak names what leaked. Each string exists only in that area's code (server
+ * module and, for screens, a data-demo-build attribute of its client component), so it reaches a bundle only when
+ * that code does:
+ *   switcher  the role switcher (src/server/demo-switch.ts, src/components/merchant/DemoSwitcher.tsx)
+ *   guide     the presenter guide (src/components/merchant/PresenterGuide.tsx)
+ *   feedback  "Note feedback" (src/server/demo-feedback.ts, src/components/merchant/FeedbackNote.tsx)
+ *   reset     the demo reset (src/server/demo-reset.ts, src/components/merchant/ResetDemoButton.tsx)
+ *   clock     the demo calendar for live actions (src/server/demo-live-clock.ts)
+ *   seed      the demo world and its seed (src/lib/clearline/demo/world.ts, src/server/demo-seed.ts): never bundled,
+ *             not even in a demo build (only `npm run demo`'s scripts load it)
+ */
+export const DEMO_AREA_MARKERS = {
+  switcher: "clearline-demo-switcher[demo-build-only]",
+  guide: "clearline-demo-guide[demo-build-only]",
+  feedback: "clearline-demo-feedback[demo-build-only]",
+  reset: "clearline-demo-reset[demo-build-only]",
+  clock: "clearline-demo-clock[demo-build-only]",
+  seed: "clearline-demo-seed[demo-build-only]",
+};
+export const MARKERS = { chain: MARKER, demo: DEMO_MARKER, ...DEMO_AREA_MARKERS };
+/** Markers a demo build must contain (the proof that the absent-check would catch them). */
+export const DEMO_BUILD_MARKERS = ["demo", "switcher", "guide", "feedback", "reset", "clock"];
+/** Markers no build of any kind may contain. */
+export const NEVER_BUNDLED = ["seed"];
 
-export function serverFilesWithMarker(nextDir, marker = MARKER) {
-  const root = path.join(nextDir, "server");
+function scan(nextDir, sub, marker) {
+  const root = path.join(nextDir, sub);
   const hits = [];
   let scanned = 0;
   const walk = (dir) => {
@@ -30,8 +57,20 @@ export function serverFilesWithMarker(nextDir, marker = MARKER) {
       else if (/\.(js|mjs|cjs)$/.test(name)) { scanned++; if (readFileSync(p, "utf8").includes(marker)) hits.push(path.relative(nextDir, p)); }
     }
   };
+  try { statSync(root); } catch { return { scanned, hits }; }
   walk(root);
   return { scanned, hits };
+}
+
+/** The server bundles (.next/server). */
+export function serverFilesWithMarker(nextDir, marker = MARKER) {
+  return scan(nextDir, "server", marker);
+}
+
+/** The server bundles and the client bundles (.next/static, what browsers download). */
+export function bundleFilesWithMarker(nextDir, marker = MARKER) {
+  const a = scan(nextDir, "server", marker), b = scan(nextDir, "static", marker);
+  return { scanned: a.scanned + b.scanned, serverScanned: a.scanned, clientScanned: b.scanned, hits: [...a.hits, ...b.hits] };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -40,12 +79,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   if (expect !== "absent" && expect !== "present") { console.error("--expect absent|present"); process.exit(2); }
   const m = process.argv.indexOf("--marker");
   const which = m >= 0 ? process.argv[m + 1] : "chain";
-  if (!(which in MARKERS)) { console.error("--marker chain|demo"); process.exit(2); }
+  if (!(which in MARKERS)) { console.error(`--marker ${Object.keys(MARKERS).join("|")}`); process.exit(2); }
   const nextDir = path.resolve(process.env.NEXT_DIST_DIR ?? ".next");
-  const { scanned, hits } = serverFilesWithMarker(nextDir, MARKERS[which]);
-  if (scanned === 0) { console.error(`no server bundle under ${path.relative(process.cwd(), nextDir) || "."}/server: run next build first`); process.exit(2); }
-  console.log(JSON.stringify({ marker: which, scanned, [which === "demo" ? "withDemoPath" : "withRecordingPath"]: hits.length, files: hits }));
-  if (which === "demo") {
+  const { scanned, serverScanned, hits } = bundleFilesWithMarker(nextDir, MARKERS[which]);
+  if (serverScanned === 0) { console.error(`no server bundle under ${path.relative(process.cwd(), nextDir) || "."}/server: run next build first`); process.exit(2); }
+  console.log(JSON.stringify({ marker: which, scanned, [which === "chain" ? "withRecordingPath" : "withDemoPath"]: hits.length, files: hits }));
+  if (which !== "chain") {
     if (expect === "absent" && hits.length) { console.error("FAIL: this build contains the demo paths; build without CLEARLINE_DEMO_BUILD=1 for any deployment"); process.exit(1); }
     if (expect === "present" && !hits.length) { console.error("FAIL: a demo build (CLEARLINE_DEMO_BUILD=1) should contain the demo paths; the check would not catch them"); process.exit(1); }
     process.exit(0);

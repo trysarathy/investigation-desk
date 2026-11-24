@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:prod-check": "node scripts/build/prod-check.mjs",
+    "build:demo-check": "node scripts/build/prod-check.mjs --demo",
     "start": "next start",
     "test": "vitest run",
     "test:control": "vitest run --config vitest.control.config.ts",

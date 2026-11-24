@@ -106,7 +106,13 @@ export const DEMO_CASES = (): { entityId: string; caseId: "case1" | "case2" | "c
   { entityId: DEMO_ENTITY_IDS.AE, caseId: "case3", input: moveCase(case3(), DEMO_ENTITY_IDS.AE, DEMO_ACCOUNTS.AED) },
 ];
 
-export interface DemoWorld { world: SyntheticWorld; inputs: ReconcileInput[] }
+/**
+ * Exists only where the demo world is bundled. Never in any Next build today (only `npm run demo`'s tsx scripts and the
+ * tests load it); scripts/build/check-chain-recording.mjs --marker seed checks that no build ever starts carrying it.
+ */
+export const DEMO_SEED_MARKER = "clearline-demo-seed[demo-build-only]";
+
+export interface DemoWorld { world: SyntheticWorld; inputs: ReconcileInput[]; marker: typeof DEMO_SEED_MARKER }
 
 const concat = <K extends keyof ReconcileInput>(xs: ReconcileInput[], k: K) => xs.flatMap((x) => (x[k] ?? []) as unknown[]) as unknown as ReconcileInput[K];
 
@@ -125,5 +131,5 @@ export function demoWorld(): DemoWorld {
       fxRates: concat(parts, "fxRates"), addressFacts: concat(parts, "addressFacts"),
     } satisfies ReconcileInput;
   });
-  return { world, inputs };
+  return { world, inputs, marker: DEMO_SEED_MARKER };
 }

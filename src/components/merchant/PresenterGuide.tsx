@@ -46,7 +46,7 @@ export function PresenterGuide({ current }: { current: string }) {
   }
 
   return (
-    <span className={m.guideWrap} data-testid="presenter-guide">
+    <span className={m.guideWrap} data-testid="presenter-guide" data-demo-build="clearline-demo-guide[demo-build-only]">
       <button ref={toggle} type="button" className={m.demoButton} aria-expanded={open} aria-controls={`${id}-panel`} onClick={() => show(!open)} data-testid="guide-toggle">
         Presenter guide
       </button>

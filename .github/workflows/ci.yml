@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Required check (branch protection): type-check, tests, production build.
+  # Required check (branch protection): type-check, tests, production build + the v1 production-build gate.
   ci:
     name: ci
     runs-on: ubuntu-24.04
@@ -29,11 +29,15 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npx vitest run
-      - run: npx next build
+      # v1 release gate: a plain production `next build` (demo/test switches stripped), then no demo, recorded-chain,
+      # role-switcher, presenter-guide, feedback, reset, demo-calendar or demo-seed code in the server or client
+      # bundles (scripts/build/prod-check.mjs). Fails the job on any marker.
+      - run: npm run build:prod-check
         env:
           NEXT_TELEMETRY_DISABLED: "1"
-      # rc8: a build without CLEARLINE_TEST_BUILD=1 must not contain the recorded-chain path
+      # rc8: a build without CLEARLINE_TEST_BUILD=1 must not contain the recorded-chain path (kept as its own step)
       - run: node scripts/build/check-chain-recording.mjs --expect absent
+      - run: node scripts/build/check-chain-recording.mjs --marker demo --expect absent
 
   # rc5 Clearline Control: integration tests against a real PostgreSQL 16 (service container; no paid
   # infrastructure). They never skip: without the database URLs the suite fails with "BLOCKED".
