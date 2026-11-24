@@ -1,18 +1,19 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   IMPORTED_BANK_LINE_LABEL, fmtFiat, localDate, proposeJournals, reconcile,
   type BatchBridge, type Decision as MatchDecision, type FiatCurrency, type ReconcileInput,
 } from "@/lib/clearline/merchant";
 import { stableJson } from "@/lib/clearline/merchant/adapters";
+import { differenceIdsFor, splitDifferences } from "@/lib/clearline/merchant/difference-rows";
 import type { StatementLineInput } from "@/lib/clearline";
 import type { Tx } from "./db/client";
 import * as t from "./db/schema";
 import { can, type Permission } from "./authz";
 import { Decision, IdempotencyKey, canonical, idempotent, serverAudit } from "./control";
-import { MissingEntity, type IngestParts, loadReconcileInput, plain, writeIngested } from "./merchant-store";
+import { MissingEntity, type IngestParts, loadReconcileInput, plain, plainForDisplay, writeIngested } from "./merchant-store";
 import { AccessDenied, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
 import { dataModeOf } from "./mapping-templates";
@@ -52,6 +53,16 @@ export const inputSha256 = (input: ReconcileInput) => sha256(stableJson(input));
  * row immutable and deduplicates an identical rerun exactly.
  */
 const contentId = (engineId: string, content: unknown) => `${engineId}@${sha256(canonical(plain(content))).slice(0, 10)}`;
+
+/** Every stored difference id of these payments, with whether it is superseded. */
+async function storedDifferenceIds(tx: Tx, orgId: string, orderIds: string[]) {
+  const out = new Map<string, boolean>();
+  for (let i = 0; i < orderIds.length; i += 1000) {
+    for (const r of await tx.select({ id: t.differences.id, supersededAt: t.differences.supersededAt }).from(t.differences)
+      .where(and(eq(t.differences.orgId, orgId), inArray(t.differences.orderId, orderIds.slice(i, i + 1000))))) out.set(r.id, r.supersededAt !== null);
+  }
+  return out;
+}
 
 async function load(tx: Tx, ctx: TenantContext, entityId: string) {
   try { return await loadReconcileInput(tx, ctx.orgId, entityId); } catch (e) {
@@ -124,7 +135,7 @@ export async function runReconciliation(ctx: TenantContext, entityId: string, id
 
 export type RunBody = {
   label: DataLabel; entityId: string; inputSha256: string; engineVersion: string; ruleSetVersion: string; policyRevision: number; runId: string; status: "changed" | "no_change"; changed: boolean;
-  records?: number; newDifferences?: number; exceptions?: number; resolvedExceptions?: number; newWriteoffs?: number; supersededWriteoffs?: number; journals?: number; kept?: number; notices?: number; runCounts?: RunCounts;
+  records?: number; newDifferences?: number; supersededDifferences?: number; exceptions?: number; resolvedExceptions?: number; newWriteoffs?: number; supersededWriteoffs?: number; journals?: number; kept?: number; notices?: number; runCounts?: RunCounts;
 };
 
 async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: { trigger: RunTrigger; version: string; startedAt: Date; jobId: string | null }): Promise<{ status: number; body: RunBody }> {
@@ -138,7 +149,7 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
   if (prev && prev.inputSha256 === hash && prev.ruleSetVersion === run.version && prev.policyRevision === policyRevision) {
     const [r] = await tx.insert(t.reconciliationRuns).values({ ...runRow, status: "no_change", finishedAt: stampNow(), matched: prev.matched, withDifference: prev.withDifference,
       review: prev.review, exceptions: prev.exceptions, unpaid: prev.unpaid, kept: prev.kept, notices: 0 }).returning({ id: t.reconciliationRuns.id });
-    return { status: 200, body: { ...meta, runId: r.id, status: "no_change" as const, changed: false, records: orderIds.length, newDifferences: 0, exceptions: prev.exceptions, resolvedExceptions: 0, newWriteoffs: 0, supersededWriteoffs: 0, journals: 0, kept: prev.kept, notices: 0 } };
+    return { status: 200, body: { ...meta, runId: r.id, status: "no_change" as const, changed: false, records: orderIds.length, newDifferences: 0, supersededDifferences: 0, exceptions: prev.exceptions, resolvedExceptions: 0, newWriteoffs: 0, supersededWriteoffs: 0, journals: 0, kept: prev.kept, notices: 0 } };
   }
   const result = reconcile(input);
   const journals = proposeJournals(input, result);
@@ -150,7 +161,11 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
   const open = result.records.filter((r) => !isKept(r.orderId));
   const differ = result.records.filter((r) => isKept(r.orderId) && outcomeKey(newOutcome(r)) !== outcomeKey(storedOutcome(stored.get(r.orderId)!)));
   const runId = randomUUID();
-  const diffIdOf = new Map(open.flatMap((r) => r.explanation.differences.map((d) => [`${r.orderId}|${d.id}`, contentId(d.id, { orderId: r.orderId, type: d.type, amountMinor: d.amountMinor, currency: d.currency, ruleId: d.ruleId })] as const)));
+  const openIds = orderIds.filter((o) => !isKept(o));
+  // v1 phase 0: the open payments' stored difference rows; the current ones are what each payment's decision named
+  // before this run re-decides it
+  const storedDiffs = await storedDifferenceIds(tx, ctx.orgId, openIds);
+  const diffIdOf = differenceIdsFor(new Map(open.flatMap((r) => r.explanation.differences.map((d) => [`${r.orderId}|${d.id}`, contentId(d.id, { orderId: r.orderId, type: d.type, amountMinor: d.amountMinor, currency: d.currency, ruleId: d.ruleId })] as const))), storedDiffs, runId);
   const writeOffs = result.writeOffs.filter((w) => !isKept(w.orderId));
   const woIdOf = new Map(writeOffs.map((w) => [w.id, contentId(w.id, { orderId: w.orderId, amountMinor: w.amountMinor, direction: w.direction, currency: w.currency, differenceIds: w.differenceIds.map((id) => diffIdOf.get(`${w.orderId}|${id}`)) })]));
   // rc7 phase 3b: written in chunks (the same rows and values as one statement per row)
@@ -169,16 +184,26 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
       explanation: ex("explanation"), engineVersion: ex("engine_version"), inputSha256: ex("input_sha256"), computedAt: ex("computed_at"),
     } });
   }
-  const diffs = open.flatMap((r) => r.explanation.differences.map((d) => ({ orgId: ctx.orgId, id: diffIdOf.get(`${r.orderId}|${d.id}`)!, orderId: r.orderId, type: d.type, amountMinor: d.amountMinor, currency: d.currency, reason: d.reason, ruleId: d.ruleId })));
+  // the run's own row is written last (with its counts): its foreign keys from differences are checked at commit
+  await tx.execute(sql`set constraints differences_run_fk, differences_superseded_by_run_fk deferred`);
+  const diffs = open.flatMap((r) => r.explanation.differences.map((d) => ({ orgId: ctx.orgId, id: diffIdOf.get(`${r.orderId}|${d.id}`)!, orderId: r.orderId, type: d.type, amountMinor: d.amountMinor, currency: d.currency, reason: d.reason, ruleId: d.ruleId,
+    runId, ruleSetVersion: run.version, stampSource: "run" as const })));
   const newDiffs: { id: string }[] = [];
   for (let i = 0; i < diffs.length; i += 1000) newDiffs.push(...await tx.insert(t.differences).values(diffs.slice(i, i + 1000)).onConflictDoNothing().returning({ id: t.differences.id }));
+  // v1 phase 0: a re-decided payment's earlier rows that its new decision no longer names are marked superseded by this
+  // run (kept, never deleted; amounts never change). Closed payments are not re-decided, so their rows are untouched.
+  const currentDiffIds = new Set(diffIdOf.values());
+  const supersede = [...storedDiffs].filter(([id, superseded]) => !superseded && !currentDiffIds.has(id)).map(([id]) => id);
+  for (let i = 0; i < supersede.length; i += 1000) {
+    await tx.update(t.differences).set({ supersededAt: now, supersededByRunId: runId })
+      .where(and(eq(t.differences.orgId, ctx.orgId), inArray(t.differences.id, supersede.slice(i, i + 1000)), isNull(t.differences.supersededAt)));
+  }
   const exceptions = result.exceptions.filter((e) => !isKept(e.orderId));
   const exIds = new Set(exceptions.map((e) => e.id));
   for (let i = 0; i < exceptions.length; i += 500) {
     await tx.insert(t.reconExceptions).values(exceptions.slice(i, i + 500).map((e) => ({ orgId: ctx.orgId, id: e.id, orderId: e.orderId ?? null, ownerRole: e.owner, reason: e.reason, nextStep: e.nextStep, status: "open", openedAt: now })))
       .onConflictDoUpdate({ target: [t.reconExceptions.orgId, t.reconExceptions.id], set: { ownerRole: ex("owner_role"), reason: ex("reason"), nextStep: ex("next_step"), status: sql`case when ${t.reconExceptions.status} = 'resolved' then 'open' else ${t.reconExceptions.status} end`, closedAt: null } });
   }
-  const openIds = orderIds.filter((o) => !isKept(o));
   const stale = openIds.length ? (await tx.select({ id: t.reconExceptions.id }).from(t.reconExceptions)
     .where(and(eq(t.reconExceptions.orgId, ctx.orgId), inArray(t.reconExceptions.orderId, openIds), sql`${t.reconExceptions.status} <> 'resolved'`))).filter((x) => !exIds.has(x.id)) : [];
   for (let i = 0; i < stale.length; i += 1000) await tx.update(t.reconExceptions).set({ status: "resolved", closedAt: now }).where(and(eq(t.reconExceptions.orgId, ctx.orgId), inArray(t.reconExceptions.id, stale.slice(i, i + 1000).map((x) => x.id))));
@@ -222,7 +247,7 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
   const effective = result.records.map((r) => (isKept(r.orderId) ? { decision: stored.get(r.orderId)!.decision, creditedMinor: String((stored.get(r.orderId)!.ledger as { creditedMinor: string }).creditedMinor) } : { decision: r.explanation.decision, creditedMinor: r.ledger.creditedMinor.toString() }));
   const rc = runCounts(effective, exceptions.length, stored.size, notices.length);
   await tx.insert(t.reconciliationRuns).values({ ...runRow, id: runId, status: "changed", finishedAt: stampNow(), ...rc });
-  const counts = { records: result.records.length, newDifferences: newDiffs.length, exceptions: exceptions.length, resolvedExceptions: stale.length, newWriteoffs: newWo.length, supersededWriteoffs: oldWo.length, journals: writtenJournals.length, kept: stored.size, notices: notices.length };
+  const counts = { records: result.records.length, newDifferences: newDiffs.length, supersededDifferences: supersede.length, exceptions: exceptions.length, resolvedExceptions: stale.length, newWriteoffs: newWo.length, supersededWriteoffs: oldWo.length, journals: writtenJournals.length, kept: stored.size, notices: notices.length };
   await serverAudit(tx, ctx, "merchant_reconciliation_run", "merchant_entity", entityId,
     `Reconciled ${counts.records} payments (engine ${MERCHANT_ENGINE_VERSION}, rules ${run.version}, policy r${policyRevision}, input sha256 ${hash.slice(0, 12)}…): ${counts.exceptions} exceptions, ${counts.newWriteoffs} new write-off proposals, ${counts.journals} journal proposals pending sign-off, ${counts.kept} closed payments kept, ${counts.notices} rule-change notices`,
     { inputSha256: hash, engineVersion: MERCHANT_ENGINE_VERSION, ruleSetVersion: run.version, policyRevision, runId, ...counts });
@@ -459,7 +484,7 @@ export async function merchantPaymentDetail(ctx: TenantContext, orderId: string)
     const [m] = await tx.select().from(t.matchRecords).where(and(eq(t.matchRecords.orgId, ctx.orgId), eq(t.matchRecords.orderId, orderId)));
     if (!m) throw new AccessDenied(404, "Not found.");
     const [inv] = await tx.select().from(t.invoices).where(and(eq(t.invoices.orgId, ctx.orgId), eq(t.invoices.orderId, orderId)));
-    const diffs = await tx.select().from(t.differences).where(and(eq(t.differences.orgId, ctx.orgId), eq(t.differences.orderId, orderId))).orderBy(asc(t.differences.id));
+    const split = splitDifferences(await tx.select().from(t.differences).where(and(eq(t.differences.orgId, ctx.orgId), eq(t.differences.orderId, orderId))).orderBy(asc(t.differences.id)));
     const exceptions = await tx.select().from(t.reconExceptions).where(and(eq(t.reconExceptions.orgId, ctx.orgId), eq(t.reconExceptions.orderId, orderId)));
     const writeoffs = await tx.select().from(t.writeoffProposals).where(and(eq(t.writeoffProposals.orgId, ctx.orgId), eq(t.writeoffProposals.orderId, orderId)));
     const reqIds = writeoffs.map((w) => w.id);
@@ -470,7 +495,8 @@ export async function merchantPaymentDetail(ctx: TenantContext, orderId: string)
     return {
       label, orderId, invoice: plain(inv), decision: m.decision, decidingStep: m.decidingStep, ruleId: m.ruleId,
       parts: { chain: m.chain, provider: m.provider, bank: m.bank, ledger: m.ledger }, explanation: { ...(m.explanation as Record<string, unknown>), label } as typeof m.explanation, engineVersion: m.engineVersion, inputSha256: m.inputSha256,
-      differences: plain(diffs), exceptions, writeoffs: plain(writeoffs),
+      // v1 phase 0: the current decision's differences; rows an earlier run wrote and a later run superseded, apart
+      differences: plainForDisplay(split.current), supersededDifferences: plainForDisplay(split.superseded), exceptions, writeoffs: plainForDisplay(writeoffs),
       approvals: approvals.map((a) => ({ id: a.id, version: a.version, status: a.status, requestedBy: a.requestedBy, payloadSha256: a.payloadSha256 })), reviews,
     };
   });
