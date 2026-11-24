@@ -19,7 +19,7 @@ BEGIN
   END IF;
   IF TG_OP = 'INSERT' THEN
     IF COALESCE((SELECT o.data_mode FROM public.organizations o WHERE o.id = NEW.org_id AND o.kind = 'merchant'), '') NOT IN ('live', 'demo') THEN
-      RAISE EXCEPTION 'uploads go to a live (or demo) merchant organisation; sample organisations hold fictional data only' USING ERRCODE = 'check_violation';
+      RAISE EXCEPTION 'uploads go to a live merchant organisation (or a demo one); sample organisations hold fictional data only' USING ERRCODE = 'check_violation';
     END IF;
     IF NEW.status NOT IN ('stored', 'rejected') OR NEW.confirmed_by IS NOT NULL OR NEW.template_id IS NOT NULL OR NEW.rows_sha256 IS NOT NULL THEN
       RAISE EXCEPTION 'an upload is created stored (or rejected), unmapped and unconfirmed' USING ERRCODE = 'check_violation';

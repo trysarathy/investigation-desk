@@ -129,6 +129,7 @@ describe("data mode", () => {
     const [row] = await ownerDb().select({ m: t.organizations.dataMode, f: t.organizations.fictional }).from(t.organizations).where(eq(t.organizations.id, live));
     expect(row).toEqual({ m: "live", f: false });
     await expect(createOrganization(ownerDb(), { slug: "live-sample-demo", name: "x", seed: "sample", dataMode: "live" })).rejects.toThrow(/starts empty/);
-    await dbRefuses(ownerDb().execute(sql`update organizations set data_mode = 'demo' where id = ${live}`), /organizations_data_mode_chk/);
+    // migration 0031 added 'demo' (demo builds); any other value is still refused
+    await dbRefuses(ownerDb().execute(sql`update organizations set data_mode = 'preview' where id = ${live}`), /organizations_data_mode_chk/);
   });
 });
