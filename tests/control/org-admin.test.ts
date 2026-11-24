@@ -37,9 +37,9 @@ async function refused(p: Promise<unknown>, code: string) {
 }
 const session = (userId: string) => ownerDb().insert(t.sessions).values({ id: randomUUID(), token: randomBytes(24).toString("hex"), userId, expiresAt: new Date(Date.now() + 3_600_000), createdAt: new Date(), updatedAt: new Date() });
 
-/** Every base table in the public schema with the number of rows whose text mentions `needle`. */
+/** Every base table in the public schema (a partition is counted through its parent, v1 chain_reads) with the number of rows whose text mentions `needle`. */
 async function mentions(needle: string): Promise<Record<string, number>> {
-  const tables = (await ownerDb().execute(sql`select table_name as t from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE' order by 1`)).rows.map((r) => String(r.t));
+  const tables = (await ownerDb().execute(sql`select table_name as t from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE' and not (select relispartition from pg_class where oid = format('public.%I', table_name)::regclass) order by 1`)).rows.map((r) => String(r.t));
   const out: Record<string, number> = {};
   for (const tb of tables) {
     const n = Number((await ownerDb().execute(sql`select count(*)::int as n from ${sql.identifier(tb)} x where x::text like ${`%${needle}%`}`)).rows[0].n);
@@ -48,7 +48,7 @@ async function mentions(needle: string): Promise<Record<string, number>> {
   return out;
 }
 async function allCounts(): Promise<Record<string, number>> {
-  const tables = (await ownerDb().execute(sql`select table_name as t from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE' order by 1`)).rows.map((r) => String(r.t));
+  const tables = (await ownerDb().execute(sql`select table_name as t from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE' and not (select relispartition from pg_class where oid = format('public.%I', table_name)::regclass) order by 1`)).rows.map((r) => String(r.t));
   return Object.fromEntries(await Promise.all(tables.map(async (tb) => [tb, Number((await ownerDb().execute(sql`select count(*)::int as n from ${sql.identifier(tb)}`)).rows[0].n)] as const)));
 }
 

@@ -330,11 +330,14 @@ export const chainReads = pgTable("chain_reads", {
   status: text("status").notNull(), reason: text("reason"), source: text("source").notNull(),
   host: text("host"), endpoint: text("endpoint"), transfers: integer("transfers").notNull().default(0), at: ts("at").notNull(),
 }, (t) => [
-  primaryKey({ columns: [t.orgId, t.id] }),
+  // v1: partitioned by month on `at` (drizzle/0036, hand-written: drizzle-kit does not model partitions), so the key
+  // carries `at`; RLS policies in drizzle/0037
+  primaryKey({ columns: [t.orgId, t.id, t.at] }),
   foreignKey({ columns: [t.orgId, t.entityId], foreignColumns: [merchantEntities.orgId, merchantEntities.id], name: "chain_reads_entity_fk" }),
   check("chain_reads_target_chk", sql`(${t.address} is null) <> (${t.txHash} is null)`),
   check("chain_reads_status_chk", sql`${t.status} in ('ok','unavailable','not_found','failed_transaction','reorged')`),
-  index("chain_reads_entity_idx").on(t.orgId, t.entityId, t.at),
+  index("chain_reads_entity_idx").on(t.orgId, t.entityId, t.at, t.id),
+  index("chain_reads_unavailable_idx").on(t.orgId, t.entityId, t.at).where(sql`${t.status} = 'unavailable'`),
 ]);
 
 /** Optional "minutes spent today" log for the pilot's time-saved measurement. */
