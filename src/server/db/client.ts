@@ -17,6 +17,9 @@ export function database(): Db {
     const url = process.env.DATABASE_URL;
     if (!url) throw new Error("DATABASE_URL is not set: Clearline Control needs PostgreSQL (see docs/runbooks/DEPLOYMENT_RUNBOOK_RC5.md)");
     const pool = new Pool({ connectionString: url, max: Number(process.env.DATABASE_POOL_MAX ?? 10), statement_timeout: 15_000 });
+    // An idle connection the server ends (a restart, or the demo reset recreating the database) is dropped from the
+    // pool and the next query opens a new one. Without a listener the pool's 'error' event would end the process.
+    pool.on("error", (e) => console.error(JSON.stringify({ event: "db_idle_connection_lost", code: (e as { code?: string }).code ?? "unknown" })));
     globalThis.__clearlineDb = { pool, db: drizzle(pool, { schema }) };
   }
   return globalThis.__clearlineDb.db;

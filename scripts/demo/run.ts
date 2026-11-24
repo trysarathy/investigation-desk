@@ -59,7 +59,7 @@ async function main() {
   const lap = async <T>(name: string, fn: () => Promise<T> | T): Promise<T> => { const t0 = performance.now(); try { return await fn(); } finally { timings[name] = Math.round(performance.now() - t0); } };
   const started = performance.now();
   out("Clearline demo · Demo · fictional data (local, offline)");
-  let prev = readState();
+  const prev = readState();
 
   step("PostgreSQL");
   const pg = await lap("postgres", () => ensurePostgres(prev, out));
