@@ -37,6 +37,27 @@ const SHAPE = {
   ethereumToken: { A: true, B: false, C: true, Aq: true },
 } as const;
 
+/** The provider claim a shape's file gives the engine (shape A: the displayed word, as a person maps it). */
+const CLAIM_FROM_DISPLAYED: Record<string, string> = { Paid: "paid", Completed: "paid", Underpaid: "underpaid", Overpaid: "overpaid", "Partially paid": "partially_paid", Confirming: "pending" };
+
+/**
+ * rc8 founder decision 1 (M4.exact.no_quote_terms), from the generator's facts only: one provider record and one chain
+ * transfer for the order, both linked by its own reference (no balance link), the file's claim is "paid", no refund in the files,
+ * and the credit equals the invoice to the minor unit. Then the engine closes the order at step 4 without quote terms.
+ */
+export function exactByReference(world: SyntheticWorld, orderId: string, files: FileShapes): boolean {
+  const order = world.orders.find((o) => o.orderId === orderId)!;
+  const refs = new Set([...order.quoteIds, ...order.linkIds]);
+  const recs = world.providerRecords.filter((r) => refs.has(r.ref.linkId ?? r.ref.quoteId ?? ""));
+  if (recs.length !== 1 || order.design.transferKeys.length !== 1) return false;
+  if (world.paymentLinks.some((l) => l.orderId === orderId && l.kind === "balance")) return false;
+  // a refund blocks it only where the files show it (per-line settlement); a totals-only report names no order
+  if (files.settlement === "lines" && world.batchLines.some((l) => l.kind === "refund" && l.orderId === orderId)) return false;
+  const meta = world.paymentMeta.find((m) => m.providerPaymentId === recs[0].providerPaymentId);
+  const claim = SHAPE.claims[files.provider] ? recs[0].statusClaim : CLAIM_FROM_DISPLAYED[meta?.displayedStatus ?? ""];
+  return claim === "paid" && recs[0].creditedMinor === order.invoice.amountMinor;
+}
+
 export function expectationFor(world: SyntheticWorld, truth: SyntheticTruth, t: OrderTruth, files: FileShapes): Expectation {
   const order = world.orders.find((o) => o.orderId === t.orderId)!;
   const metas = world.paymentMeta.filter((m) => m.orderId === t.orderId);
@@ -54,11 +75,18 @@ export function expectationFor(world: SyntheticWorld, truth: SyntheticTruth, t: 
     const why = `shape ${files.provider} shows the displayed status "Completed", not the provider's claim (${held ? "held for review" : "re-quoted"})`;
     // what the engine then decides from what the file does say: without quote terms it abstains; with them, a held
     // payment in no batch is only a proposed grouping and a late payment the file does not call re-quoted is an exception
-    const got = !SHAPE.quoteTerms[files.provider] ? ["suggested_for_review", "M3.quote.terms_unknown"]
+    // (rc8: without quote terms, a held payment the file shows as an exact "Completed" one closes at step 4 under decision 1,
+    // and step 5 then only proposes a grouping, as with quote terms: it is never closed)
+    const exactHeld = held && !SHAPE.quoteTerms[files.provider] && exactByReference(world, t.orderId, files);
+    const got = !SHAPE.quoteTerms[files.provider] && !exactHeld ? ["suggested_for_review", "M3.quote.terms_unknown"]
       : held ? ["suggested_for_review", "M5.grouping.proposed_needs_confirmation"] : ["exception", "M3.window.after_expiry_no_requote"];
     return { kind: "abstain", why, decision: got[0], ruleId: got[1] };
   }
-  if (!early && !t.differenceTypes.includes("unexplained") && (!SHAPE.quoteTerms[files.provider] || linkRows)) {
+  // rc8 decision 1: an exact payment linked by reference closes without quote terms; the generator's truth must agree
+  const exact = !early && (!SHAPE.quoteTerms[files.provider] || linkRows) && exactByReference(world, t.orderId, files);
+  if (exact && !(t.decision === "matched" && t.differences.length === 0))
+    throw new Error(`${t.orderId}: decision 1 would close it, but the truth is ${t.decision} ${t.ruleId ?? ""} (${t.differenceTypes.join(", ")})`);
+  if (!exact && !early && !t.differenceTypes.includes("unexplained") && (!SHAPE.quoteTerms[files.provider] || linkRows)) {
     return {
       kind: "rule", decision: "suggested_for_review", ruleId: "M3.quote.terms_unknown", differences: [],
       why: linkRows ? "a payment-link row gives the link's address and amount, not its quote's terms or the link's window" : `shape ${files.provider} has no quote rate or validity window${files.provider === "B" ? " (nor the quoted amount)" : ""}`,
@@ -74,6 +102,9 @@ export function expectationFor(world: SyntheticWorld, truth: SyntheticTruth, t: 
     return { kind: "abstain", decision: "exception", ruleId: "M5.batch.not_tied", why: `batch ${untieable.join(", ")} cannot tie from these files: ${tieGap(world, truth, untieable[0], files)}` };
   if (files.settlement === "lines" && !files.importedLinesVerify && isClosing(t.decision) && t.batchIds.length)
     return { kind: "rule", decision: "suggested_for_review", ruleId: "M5.bank.imported_not_verified", differences: diffs(), why: "the bank line is imported, not bank-authenticated, and the policy flag is off" };
+  // without a batch, the exact match is decided at step 4 by decision 1's rule (with quote terms: M4.match.no_difference)
+  if (exact && t.ruleId === "M4.match.no_difference")
+    return { kind: "rule", decision: "matched", ruleId: "M4.exact.no_quote_terms", differences: [], why: "decision 1: exact payment linked by reference, no quote terms needed" };
   return { kind: "truth", decision: t.decision, ...(t.ruleId ? { ruleId: t.ruleId } : {}), differences: diffs() };
 }
 

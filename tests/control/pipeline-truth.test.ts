@@ -28,7 +28,7 @@ import { RecordingChainClient, recordingOf } from "../../src/lib/clearline/merch
 import { pairKey, smallPreset, toEnginePolicy, type Preset, type SyntheticFile } from "../../src/lib/clearline/synthetic";
 import type { ColumnMapping, FileType, Mapping } from "../../src/lib/clearline/mapping";
 import { providerExportWithQuotes } from "../fixtures/synthetic/quote-export";
-import { batchTieable, expectationsFor, isClosing, type Expectation, type FileShapes, type ProviderShape } from "../fixtures/synthetic/truth-expect";
+import { batchTieable, exactByReference, expectationsFor, isClosing, type Expectation, type FileShapes, type ProviderShape } from "../fixtures/synthetic/truth-expect";
 
 let P: Preset;
 let n = 0;
@@ -153,13 +153,35 @@ async function runVariant(v: Variant, u: Users, opts: { shuffle?: (b: Uint8Array
 
 // ---------------------------------------------------------------- judging against the truth
 
-interface Row { variant: string; entity: string; orders: number; truth: number; rule: number; abstain: number; mismatched: string[]; wrongMatches: string[]; abstentions: string[]; rules: Record<string, number>; rawOn?: number }
+interface Row { variant: string; entity: string; orders: number; truth: number; rule: number; abstain: number; mismatched: string[]; wrongMatches: string[]; abstentions: string[]; rules: Record<string, number>; rawOn?: number;
+  /** rc8: orders decision 1 (M4.exact.no_quote_terms) closed at step 4, before step 5; and orders closed in the end (flag off / on) */
+  exact: number; exactNotTruth: string[]; closed: number; closedOn?: number }
 const table: Row[] = [];
+
+/**
+ * rc8: an order decision 1 closed at step 4 is one the truth matches exactly. The one exception is a payment held for
+ * review that the file shows as "Completed" (shape A hides the claim): step 4 cannot tell, and step 5 must then keep it
+ * open (it is in no batch), so it is never closed.
+ */
+function exactClosureIsTruth(rec: ReconcileResult["records"][number], shapes: FileShapes): boolean {
+  const t = P.truth.orders.find((o) => o.orderId === rec.orderId);
+  if (!t || !exactByReference(P.world, rec.orderId, shapes)) return false;
+  if (t.decision === "matched" && t.differences.length === 0) return true;
+  const hidden = shapes.provider === "A" && P.world.orders.find((o) => o.orderId === rec.orderId)?.design.scenario === "held_by_provider";
+  return hidden && !isClosing(rec.explanation.decision);
+}
 
 function judge(v: Variant, entityId: string, input: Awaited<ReturnType<typeof inputOf>>, r: ReconcileResult, shapes: FileShapes): Row {
   const exp = expectationsFor(P.world, P.truth, shapes, entityId);
   const recs = new Map(r.records.map((x) => [x.orderId, x]));
-  const row: Row = { variant: v.name, entity: entityId, orders: exp.size, truth: 0, rule: 0, abstain: 0, mismatched: [], wrongMatches: [], abstentions: [], rules: {} };
+  const row: Row = { variant: v.name, entity: entityId, orders: exp.size, truth: 0, rule: 0, abstain: 0, mismatched: [], wrongMatches: [], abstentions: [], rules: {}, exact: 0, exactNotTruth: [], closed: 0 };
+  // rc8 decision 1: every order its rule closed at step 4 is one the generator's truth matches exactly (no difference)
+  for (const rec of r.records) {
+    if (isClosing(rec.explanation.decision)) row.closed++;
+    if (!rec.explanation.history.some((h) => h.ruleId === "M4.exact.no_quote_terms" && h.outcome === "pass")) continue;
+    row.exact++;
+    if (!exactClosureIsTruth(rec, shapes)) row.exactNotTruth.push(`${rec.orderId}: ${rec.explanation.decision} ${rec.explanation.ruleId}, truth ${P.truth.orders.find((o) => o.orderId === rec.orderId)?.decision}`);
+  }
   // zero wrong matches: every transfer on a record is one the truth attaches to that order
   for (const rec of r.records) for (const tr of [...rec.chain.transfers, ...rec.chain.pending]) {
     const k = `${tr.network}|${tr.txHash}|${tr.logIndex}`;
@@ -225,8 +247,8 @@ beforeAll(async () => {
   P = await smallPreset();
 });
 afterAll(async () => {
-  const lines = ["", "| variant | entity | orders | = truth | = truth + rule (rules) | abstained (file lacks it) | = raw truth, flag on | mismatched | wrong matches |", "|---|---|---|---|---|---|---|---|---|",
-    ...table.map((r) => `| ${r.variant} | ${r.entity} | ${r.orders} | ${r.truth} | ${r.rule} (${Object.entries(r.rules).map(([k, x]) => `${k} ${x}`).join(", ")}) | ${r.abstain} | ${r.rawOn ?? "–"} | ${r.mismatched.length} | ${r.wrongMatches.length} |`),
+  const lines = ["", "| variant | entity | orders | = truth | = truth + rule (rules) | abstained (file lacks it) | = raw truth, flag on | decision 1 at step 4 | closed (flag off / on) | mismatched | wrong matches |", "|---|---|---|---|---|---|---|---|---|---|---|",
+    ...table.map((r) => `| ${r.variant} | ${r.entity} | ${r.orders} | ${r.truth} | ${r.rule} (${Object.entries(r.rules).map(([k, x]) => `${k} ${x}`).join(", ")}) | ${r.abstain} | ${r.rawOn ?? "–"} | ${r.exact} | ${r.closed} / ${r.closedOn ?? "–"} | ${r.mismatched.length} | ${r.wrongMatches.length} |`),
     "", ...table.flatMap((r) => r.abstentions.map((a) => `- ${r.variant} · ${a}`))];
   process.stdout.write(lines.join("\n") + "\n");
   if (process.env.TRUTH_REPORT) (await import("node:fs")).writeFileSync(process.env.TRUTH_REPORT, lines.join("\n") + "\n");
@@ -244,6 +266,7 @@ describe.each(VARIANTS)("truth: $name", (v) => {
     const row = judge(v, entityId, input, r, shapes(false));
     table.push(row);
     expect(row.wrongMatches).toEqual([]);
+    expect(row.exactNotTruth).toEqual([]);
     expect(row.mismatched).toEqual([]);
     expect(row.truth + row.rule + row.abstain).toBe(row.orders);
     expect(bankLinesExplained(v, entityId, input, r, shapes(false))).toEqual([]);
@@ -275,7 +298,10 @@ describe.each(VARIANTS)("truth: $name", (v) => {
         const raw = P.truth.orders.filter((o) => o.entityId === entityId && o.decision !== "not_evaluated" && r2[o.orderId]?.d === o.decision && r2[o.orderId]?.r === o.ruleId
           && JSON.stringify(r2[o.orderId].diffs.map(([a, b]) => [a, String(b)]).sort()) === JSON.stringify(o.differences.map((d) => [d.type, String(d.amountMinor)]).sort())).length;
         const row = table.find((x) => x.variant === v.name && x.entity === entityId);
-        if (row) row.rawOn = raw;
+        if (row) { row.rawOn = raw; row.closedOn = r.records.filter((x) => isClosing(x.explanation.decision)).length; }
+        // rc8: with the flag on too, decision 1 closes only what the truth matches exactly
+        for (const rec of r.records) if (rec.explanation.history.some((h) => h.ruleId === "M4.exact.no_quote_terms" && h.outcome === "pass"))
+          expect([rec.orderId, exactClosureIsTruth(rec, shapes(true))]).toEqual([rec.orderId, true]);
         // and the decisions are the truth's where the files carry it (flag on)
         for (const [o, e] of exp) if (e.kind === "truth" && e.decision !== "any_non_closing") expect([o, r2[o]?.d, r2[o]?.r], o).toEqual([o, e.decision, e.ruleId ?? r2[o]?.r]);
       } finally {
