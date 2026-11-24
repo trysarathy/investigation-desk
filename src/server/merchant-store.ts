@@ -87,7 +87,8 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
     const r = p.record as { ref: ProviderPaymentRecord["ref"]; transferRef?: ProviderPaymentRecord["transferRef"]; displayedStatus?: string; executedRate: string; logIndexUnknown?: boolean };
     return {
       providerPaymentId: p.providerPaymentId, ref: r.ref, ...(r.transferRef ? { transferRef: r.transferRef } : {}), statusClaim: p.statusClaim as ProviderPaymentRecord["statusClaim"],
-      ...(r.displayedStatus ? { displayedStatus: r.displayedStatus } : {}), receivedBaseUnits: BIG(p.receivedBaseUnits), creditedMinor: BIG(p.creditedMinor), executedRate: r.executedRate,
+      ...(r.displayedStatus ? { displayedStatus: r.displayedStatus } : {}), receivedBaseUnits: BIG(p.receivedBaseUnits), creditedMinor: BIG(p.creditedMinor),
+      ...(p.creditedCurrency ? { creditedCurrency: p.creditedCurrency as FiatCurrency } : {}), executedRate: r.executedRate,
       ...(p.feeMinor !== null ? { feeMinor: p.feeMinor } : {}), ...(p.batchId ? { batchId: p.batchId } : {}), ...(r.transferRef && r.logIndexUnknown ? { logIndexUnknown: true as const } : {}),
     };
   });
@@ -104,6 +105,8 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
     // a transfer marked not final (e.g. after a reorg) stays pending for the engine whatever its count
     confirmations: c.finalised ? c.confirmations : Math.min(c.confirmations, required(c.network) - 1),
     ...(c.priorHops ? { priorHops: c.priorHops as ChainTransfer["priorHops"] } : {}),
+    // rc8: where the fact came from (only a chain_client read can close an order without quote terms)
+    source: c.source as NonNullable<ChainTransfer["source"]>,
   }));
   const bs = await tx.select().from(t.settlementBatches).where(and(eq(t.settlementBatches.orgId, orgId), eq(t.settlementBatches.entityId, entityId))).orderBy(asc(t.settlementBatches.batchId));
   const batches: SettlementBatch[] = bs.map((b) => ({

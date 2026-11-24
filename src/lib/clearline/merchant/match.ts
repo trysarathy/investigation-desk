@@ -89,13 +89,14 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput, am
   const balanceLinkOpen = links.some((l) => l.kind === "balance" && !final.some((s) => s.ref?.linkId === l.linkId));
   const credited = sum(pairs.filter((p) => p.rec && p.s.inbound && p.rec.receivedBaseUnits === p.s.t.amountBaseUnits).map((p) => p.rec!.creditedMinor));
   const partOpen = balanceLinkOpen && credited > 0n && credited < inv.amountMinor && active("M4.partial.balance_link_open");
+  /** Every provider record that names one of this order's quotes or links (a claim, paired with a transfer or not). */
+  const claimsOfOrder = () => [...new Set([...quotes.map((q) => q.quoteId), ...links.map((l) => l.linkId)])].flatMap((id) => ix.recordsByRef.get(id) ?? []);
   const finish = (v: Verdict, writeOff?: WriteOffProposal) => {
     note(v.step, v.ruleId, v.decision === "matched" ? "pass" : "fail", `Decision: ${v.decision}.`);
     const open = inv.amountMinor - credited;
     const balanceState = credited === 0n ? "nothing_received" : partOpen ? "part_paid" : open > 0n ? "short_paid" : open < 0n ? "over_credited" : "fully_credited";
     // Every provider claim about this order is shown, paired with a transfer or not (a claim without a transfer is not proof).
-    const refIds = new Set([...quotes.map((q) => q.quoteId), ...links.map((l) => l.linkId)]);
-    const claims = [...refIds].flatMap((id) => ix.recordsByRef.get(id) ?? []);
+    const claims = claimsOfOrder();
     const records = [...new Set([...pairs.map((p) => p.rec).filter((r): r is ProviderPaymentRecord => !!r), ...claims])].sort(byKey((r) => r.providerPaymentId));
     const held = records.some((r) => r.statusClaim === "held_for_review" && !r.batchId);
     const batchIds = [...new Set(records.map((r) => r.batchId).filter((b): b is string => !!b))].sort();
@@ -198,6 +199,16 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput, am
     }
     const unexplained = differences.find((x) => x.type === "unexplained");
     if (unexplained && active("M4.tolerance.unexplained")) return stop(4, "M4.tolerance.unexplained", unexplained.reason);
+    // rc8 founder decision 1: without quote terms, only an exact payment linked by reference closes (every condition).
+    if (active("M4.exact.no_quote_terms")) {
+      const blocker = exactWithoutTerms(inv, cur, states, pairs, quotes, links, claimsOfOrder(), input, partOpen);
+      if (blocker === undefined) {
+        const { s, rec } = pairs[0];
+        note(4, "M4.exact.no_quote_terms", "pass", `${s.t.txHash} (read from the chain, final, ${s.token!.symbol} on its configured contract) reached the deposit address issued for ${s.ref!.linkId ?? s.ref!.quoteId}; provider record ${rec!.providerPaymentId} names it and credited ${fmtFiat(rec!.creditedMinor, cur)}, exactly the invoice. No quote term is needed or assumed.`);
+        return finish({ decision: "matched", step: 4, ruleId: "M4.exact.no_quote_terms" });
+      }
+      note(4, "M4.exact.no_quote_terms", "note", `Not closed without quote terms: ${blocker}.`);
+    }
     const missing = unknownTerms.map((x) => (x === "quoted_amount" ? "quoted amount" : x)).join(", ");
     note(3, "M3.quote.terms_unknown", "fail", `The files do not give the quote's ${missing}.`);
     return finish({ decision: "suggested_for_review", step: 3, ruleId: "M3.quote.terms_unknown", attention: att("Payment Operations",
@@ -265,6 +276,40 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput, am
   if (active("M4.tolerance.explained_outside_band"))
     return finish({ decision: "suggested_for_review", step: 4, ruleId: "M4.tolerance.explained_outside_band", attention: att("Payment Operations", `${differences.map((x) => x.reason).join(" ")} Outside the ${fmtFiat(band, cur)} band.`, partOpen ? "Wait for the balance link to be paid; nothing is overdue." : "Review the explained difference and accept or reject it.") });
   return stop(4, "M4.tolerance.unexplained", "Difference outside the band.");
+}
+
+/**
+ * rc8 founder decision 1 (M4.exact.no_quote_terms): may an order whose quote terms are not in the files close as
+ * matched? Only when ALL hold; returns the first condition that fails (undefined = all hold). Never by amount, time or
+ * sender, never with a difference of any size, and never matched_with_difference.
+ */
+function exactWithoutTerms(inv: Invoice, cur: Invoice["currency"], states: TState[], pairs: { s: TState; rec?: ProviderPaymentRecord }[], quotes: Quote[], links: PaymentLink[],
+  claims: ProviderPaymentRecord[], input: ReconcileInput, partOpen: boolean): string | undefined {
+  // one candidate only: exactly one transfer reached this order's addresses, and it is final
+  if (states.length !== 1 || pairs.length !== 1) return `${states.length} transfers reached this order's addresses (${pairs.length} final); exactly one final transfer is needed`;
+  const { s, rec } = pairs[0];
+  if (!rec) return "no provider record names this transfer";
+  const n = s.t.network;
+  // guard (a): linked by reference. The transfer reached a deposit address issued for this order; the one provider record
+  // that names this order names that same quote or link, and (if it names a transaction) this very transfer.
+  const byRef = s.ref !== undefined && s.ref.orderId === inv.orderId && (s.ref.linkId !== undefined
+    ? rec.ref.linkId === s.ref.linkId && links.some((l) => l.linkId === rec.ref.linkId)
+    : rec.ref.linkId === undefined && rec.ref.quoteId === s.ref.quoteId && quotes.some((q) => q.quoteId === rec.ref.quoteId));
+  if (!byRef || claims.length !== 1 || claims[0] !== rec || (rec.transferRef !== undefined && tkey(rec.transferRef) !== tkey(s.t)))
+    return claims.length !== 1 ? `${claims.length} provider records name this order; exactly one is needed` : "the provider record is not linked to this transfer by the order's own reference";
+  // guard (b): a chain fact Clearline read itself, final, inbound, on the configured contract of the order's token
+  if (s.t.source !== "chain_client") return `the transfer is ${s.t.source ? `a ${s.t.source.replace("_", " ")} record` : "not marked as read from the chain"}, not a fact Clearline read from the chain`;
+  if (s.pending || !s.inbound || !s.token || s.token.network !== s.ref!.token.network || normAddress(n, s.token.contract) !== normAddress(n, s.ref!.token.contract) || s.t.decimals !== s.token.decimals)
+    return "the transfer is not a final inbound transfer on the configured contract of this order's token";
+  // no refund, partial or balance payment, and the provider claims paid
+  if (rec.statusClaim !== "paid") return `the provider's status is ${rec.statusClaim}, not paid`;
+  if (partOpen || links.some((l) => l.kind === "balance")) return "the order has a balance payment link (part payment)";
+  if (input.batchLines.some((l) => l.kind === "refund" && l.orderId === inv.orderId)) return "a refund is recorded for this order";
+  if (inv.status === "void") return "the invoice is void";
+  // guard (c): the provider's credit equals the invoice exactly, in the same currency, to the minor unit
+  if (rec.creditedCurrency === undefined || rec.creditedCurrency !== inv.currency || inv.currency !== cur) return `the provider's credited currency (${rec.creditedCurrency ?? "not given"}) is not the invoice's ${inv.currency}`;
+  if (rec.creditedMinor !== inv.amountMinor) return `credited ${fmtFiat(rec.creditedMinor, cur)} is not exactly the invoice ${fmtFiat(inv.amountMinor, cur)}`;
+  return undefined;
 }
 
 function view(s: TState, input: ReconcileInput): ChainTransferView {

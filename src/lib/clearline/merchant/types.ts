@@ -99,6 +99,11 @@ export interface ChainTransfer extends TransferRef {
   confirmations: number;
   /** Earlier hops traced before this transfer: recorded as facts only. */
   priorHops?: readonly { from: string; to: string; txHash: string }[];
+  /**
+   * rc8: where the fact came from. 'chain_client' = read from the chain by Clearline's own client (rc7 verify).
+   * Absent for fixtures built in memory. Only a chain_client fact can close an order whose quote terms are unknown.
+   */
+  source?: "chain_client" | "recorded_fixture" | "seed_fictional";
 }
 
 export type ProviderStatusClaim = "paid" | "underpaid" | "overpaid" | "held_for_review" | "re_quoted" | "partially_paid" | "pending";
@@ -113,6 +118,8 @@ export interface ProviderPaymentRecord {
   displayedStatus?: string;
   receivedBaseUnits: bigint;
   creditedMinor: bigint;
+  /** rc8: the currency the provider says it credited in, when its file gives it. Never assumed. */
+  creditedCurrency?: FiatCurrency;
   executedRate: string;
   feeMinor?: bigint;
   batchId?: string;
