@@ -55,6 +55,8 @@
 .kpiLabel { font-size: 13px; color: var(--muted); }
 
 .chip { display: inline-block; font-size: 12px; font-weight: 600; line-height: 18px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--rule); background: var(--panel); color: var(--ink); white-space: nowrap; }
+/* a long chip (a sentence, e.g. the bank evidence level) wraps instead of widening the page at 390 px */
+.chipWrap { white-space: normal; max-width: 100%; border-radius: 10px; }
 .chipOk { color: var(--green); border-color: var(--green); background: var(--ok-bg); }
 .chipWarn { color: var(--oxblood); border-color: var(--oxblood); background: var(--warn-bg); }
 .chipInfo { color: var(--info); border-color: var(--info); background: var(--info-bg); }
