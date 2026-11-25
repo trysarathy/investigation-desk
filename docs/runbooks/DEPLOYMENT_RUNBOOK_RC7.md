@@ -67,6 +67,9 @@ DATABASE_URL=<runtime login> DATABASE_JOBS_URL=postgres://clearline_jobs:<jobs-p
 | `CLEARLINE_LEDGER_PULL` | `1` turns on the read-only Xero demo / QuickBooks sandbox pull | unset (off) |
 | `XERO_CLIENT_ID`, `XERO_CLIENT_SECRET` | Xero app for the demo-company connection (`docs/ACCOUNTING_SYNC.md`) | — |
 | `QBO_REALM_ID`, `QBO_ACCESS_TOKEN`, `QBO_ENV` | QuickBooks sandbox; `QBO_ENV` must be `sandbox` | `QBO_ENV=sandbox` |
+| `CLEARLINE_LEDGER_ENV` | v1: `standin` or `sandbox` turns on per-organisation ledger connections (`docs/LEDGER_CONNECT.md`); no production value exists | unset (off) |
+| `CLEARLINE_LEDGER_TOKEN_KEY` | v1: 32 random bytes, base64; seals ledger OAuth tokens at rest. Without it nothing connects | — |
+| `QBO_CLIENT_ID`, `QBO_CLIENT_SECRET`, `XERO_SCOPES`, `QBO_SCOPES` | v1: QuickBooks app and scope overrides for ledger connections | — |
 
 **Chain keys** go in `.env.local` only, set by the founder. Without `CLEARLINE_CHAIN_LIVE=1` and keys (or a recording), every chain read is unavailable and every order becomes an `M1.chain.unavailable` exception. Nothing is matched.
 
