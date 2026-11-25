@@ -195,6 +195,8 @@ tie (3 exceptions). Case 1's 5,961.24 and Case 2's 44,412.30 → 40,228.68 bridg
 
 ## Reset
 
+The template is analysed (`ANALYZE`) when it is made, so a reset database starts with planner statistics (v1 wave 1: without them the Approvals page planned row-level-security joins badly and took about 4 s).
+
 - `npm run demo:reset` ends every session on `clearline_demo`, drops it and creates it again from
   `clearline_demo_template` (owned by the schema owner), clears `.demo/uploads`, and prints the time (target < 30 s).
 - **Feedback notes and a reset.** The template is the database right after the seed, so it has no feedback notes:

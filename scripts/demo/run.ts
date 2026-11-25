@@ -129,6 +129,12 @@ async function main() {
 
   if (!s.steps.template) {
     step("Template for fast reset");
+    // planner statistics first: a database made from the template inherits them, so every reset starts analysed
+    // (a never-analysed seed planned some row-level-security joins as nested loops: the Approvals page took ~4 s)
+    const an = new Client({ connectionString: withDb(s.pg.superUrl, DB) });
+    await an.connect();
+    try { await an.query("ANALYZE"); } finally { await an.end(); }
+    out("  statistics collected (ANALYZE)");
     const { snapshotDemoTemplate } = await import("../../src/server/demo-reset");
     await lap("template", () => snapshotDemoTemplate({ adminUrl: s.pg.superUrl, database: DB }));
     s.steps.template = new Date().toISOString(); writeState(s);
