@@ -431,3 +431,4 @@ export * from "./notify-schema";
 export * from "./demo-schema";
 export * from "./onboarding-schema";
 export * from "./auth-schema";
+export * from "./provider-api-schema";
