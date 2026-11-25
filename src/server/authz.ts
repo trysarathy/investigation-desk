@@ -59,7 +59,9 @@ export type Permission =
                            // Admin for the provider's own members
   | "manage_provider_api"  // v1 phase 2.2: connect or disable the merchant's own provider's API (secret references only) — Admin only
   | "sign_posting_rules"   // v1 phase 4: sign a version of the posting rules (with a fresh MFA step-up) — a merchant Admin only
-  | "audit_download";      // v1 phase 4: the Auditor's evidence packs, for its granted period (and entities) only, until it expires
+  | "audit_download"      // v1 phase 4: the Auditor's evidence packs, for its granted period (and entities) only, until it expires
+  | "period_close_request" // v1 phase 3: ask for a month-end sign-off (lock) of an entity's month
+  | "period_close_approve";// v1 phase 3: lock that month (an Admin who did not ask)
 
 const MATRIX: Record<Permission, readonly AppRole[]> = {
   read: ["admin", "payment_ops", "finance", "approver", "viewer"],
@@ -87,6 +89,9 @@ const MATRIX: Record<Permission, readonly AppRole[]> = {
   manage_provider_api: ["admin"],
   sign_posting_rules: ["admin"],
   audit_download: ["auditor"],
+  // v1 phase 3: month-end sign-off; the lock itself is an Admin's, never the preparer's (0080, was 0065)
+  period_close_request: ["finance", "admin"],
+  period_close_approve: ["admin"],
 };
 
 export const can = (role: AppRole, p: Permission): boolean => MATRIX[p].includes(role);

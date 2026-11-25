@@ -68,3 +68,19 @@ export const ruleChangeNotices = pgTable("rule_change_notices", {
   newDecision: text("new_decision").notNull(), newRuleId: text("new_rule_id").notNull(),
   fingerprint: text("fingerprint").notNull(), createdAt: ts("created_at").notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.id] })]);
+
+/** v1 phase 3 (0080, was 0065): a month of an entity, signed off by a preparer and locked by a different Admin. */
+export const periodLocks = pgTable("period_locks", {
+  orgId: org(), entityId: text("entity_id").notNull(), period: text("period").notNull(),
+  status: text("status").$type<"requested" | "locked" | "rejected">().notNull().default("requested"),
+  requestedBy: text("requested_by").notNull().references(() => users.id), requestedAt: ts("requested_at").notNull().defaultNow(), reason: text("reason").notNull(),
+  decidedBy: text("decided_by").references(() => users.id), decidedAt: ts("decided_at"), decisionReason: text("decision_reason"),
+}, (t) => [primaryKey({ columns: [t.orgId, t.entityId, t.period] })]);
+
+/** v1 phase 3 (0080, was 0065): what a run would now decide for a locked month's payment, filed in the next open month. */
+export const periodCorrections = pgTable("period_corrections", {
+  orgId: org(), id: uuid("id").notNull().defaultRandom(), entityId: text("entity_id").notNull(), orderId: text("order_id").notNull(),
+  correctsPeriod: text("corrects_period").notNull(), correctionPeriod: text("correction_period").notNull(), runId: uuid("run_id").notNull(),
+  storedDecision: text("stored_decision"), storedRuleId: text("stored_rule_id"), newDecision: text("new_decision").notNull(), newRuleId: text("new_rule_id").notNull(),
+  fingerprint: text("fingerprint").notNull(), createdAt: ts("created_at").notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.id] })]);

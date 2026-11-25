@@ -8,6 +8,8 @@ import m from "@/components/merchant/merchant.module.css";
 import { EntityMonthForm, pickEntityMonth } from "@/components/merchant/EntityMonth";
 import { Empty, PendingSignOff, fiat, one } from "@/components/merchant/ui";
 import { NEEDS_A_RATE } from "@/lib/clearline/merchant/fiat-value";
+import { listPeriods } from "@/server/period-close";
+import { DecidePeriodLock, RequestPeriodLock } from "@/components/merchant/period-close";
 
 export const metadata: Metadata = { title: "Month-end" };
 
@@ -20,11 +22,32 @@ export default async function MonthEndPage({ searchParams }: { searchParams: Pro
   const v = await monthEndView(ctx, entity.id, month, dataAsOf(shell.entities));
   const cur = v.currency;
   const ready = v.journals.filter((j) => j.status === "proposed");
+  const periods = await listPeriods(ctx, entity.id);
+  const lock = periods.periods.find((p) => p.period === month);
   return (
     <>
       <h1 className={s.title}>Month-end</h1>
       <p className={s.lede}>What is still open at the end of {month} for {entity.name}: money the provider has confirmed but not yet settled, exceptions by age, foreign-currency balances and the journal proposals ready to export.</p>
       <EntityMonthForm action="/control/merchant/month-end" entities={shell.entities} entity={entity} month={month} label="Choose entity and month" />
+
+      <section className={s.section} aria-labelledby="signoff">
+        <h2 className={s.h2} id="signoff">Month-end sign-off</h2>
+        <p className={s.small} data-testid="period-status">{lock?.status === "locked" ? `${month} is locked: nothing in it can change. A later run that would decide one of its payments differently files a correction in the next open month.`
+          : lock?.status === "requested" ? `${month} is waiting for an Admin to lock it (the person who asked cannot).` : lock?.status === "rejected" ? `The last sign-off request for ${month} was rejected; it can be asked again.` : `${month} is open.`}</p>
+        {(!lock || lock.status === "rejected") && can(ctx.role, "period_close_request") ? <RequestPeriodLock entityId={entity.id} period={month} /> : null}
+        {lock?.status === "requested" && !lock.mine && can(ctx.role, "period_close_approve") ? <DecidePeriodLock entityId={entity.id} period={month} /> : null}
+        {periods.corrections.length ? (
+          <div className={s.tableWrap} role="region" aria-label="Corrections of locked months" tabIndex={0}>
+            <table className={s.table}>
+              <thead><tr><th scope="col">Payment</th><th scope="col">Corrects</th><th scope="col">Filed in</th><th scope="col">Decision kept</th><th scope="col">Would now be</th></tr></thead>
+              <tbody>{periods.corrections.map((c) => (
+                <tr key={c.id}><td><a href={`/control/merchant/payments/${encodeURIComponent(c.orderId)}`}>{c.orderId}</a></td><td>{c.correctsPeriod}</td><td>{c.correctionPeriod}</td>
+                  <td>{c.storedDecision ?? "none"} <span className={s.mono}>{c.storedRuleId ?? ""}</span></td><td>{c.newDecision} <span className={s.mono}>{c.newRuleId}</span></td></tr>
+              ))}</tbody>
+            </table>
+          </div>
+        ) : null}
+      </section>
 
       <section className={s.section} aria-labelledby="recv">
         <h2 className={s.h2} id="recv">Confirmed but not settled (receivable from the provider)</h2>

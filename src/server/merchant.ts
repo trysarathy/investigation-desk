@@ -14,6 +14,7 @@ import type { StatementLineInput } from "@/lib/clearline";
 import type { Tx } from "./db/client";
 import * as t from "./db/schema";
 import { anyOf, bulkInsert, setExcluded } from "./db/bulk";
+import { correctionPeriod, lockedPayments } from "./period-close";
 import { can, type Permission } from "./authz";
 import { Decision, IdempotencyKey, canonical, idempotent, serverAudit } from "./control";
 import { MissingEntity, type IngestParts, loadReconcileInput, plain, plainForDisplay, writeIngested } from "./merchant-store";
@@ -206,10 +207,16 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
   const now = stampNow();
   // rc7 phase 3a: a payment a person closed keeps its stored decision; a different new decision becomes a notice
   const closed = await closedOrders(tx, ctx.orgId, orderIds);
-  const stored = new Map(closed.size ? (await tx.select().from(t.matchRecords).where(and(eq(t.matchRecords.orgId, ctx.orgId), inArray(t.matchRecords.orderId, [...closed])))).map((m) => [m.orderId, m]) : []);
-  const isKept = (orderId: string | null | undefined) => !!orderId && stored.has(orderId);
+  // v1 phase 3: a payment of a locked month is kept too, whatever its state (period-close.ts; the database refuses any
+  // write to it anyway); a different new decision for it becomes a correction in the next open month
+  const locked = await lockedPayments(tx, ctx.orgId, entityId);
+  const keepIds = [...new Set([...closed, ...locked.orders.keys()])];
+  const stored = new Map(keepIds.length ? (await tx.select().from(t.matchRecords).where(and(eq(t.matchRecords.orgId, ctx.orgId), anyOf(t.matchRecords.orderId, keepIds)))).map((m) => [m.orderId, m]) : []);
+  const isKept = (orderId: string | null | undefined) => !!orderId && ((closed.has(orderId) && stored.has(orderId)) || locked.orders.has(orderId));
+  const keptCount = result.records.filter((r) => isKept(r.orderId)).length;
   const open = result.records.filter((r) => !isKept(r.orderId));
-  const differ = result.records.filter((r) => isKept(r.orderId) && outcomeKey(newOutcome(r)) !== outcomeKey(storedOutcome(stored.get(r.orderId)!)));
+  const differ = result.records.filter((r) => isKept(r.orderId) && !locked.orders.has(r.orderId) && outcomeKey(newOutcome(r)) !== outcomeKey(storedOutcome(stored.get(r.orderId)!)));
+  const toCorrect = result.records.filter((r) => locked.orders.has(r.orderId) && (!stored.has(r.orderId) || outcomeKey(newOutcome(r)) !== outcomeKey(storedOutcome(stored.get(r.orderId)!))));
   const runId = randomUUID();
   const openIds = orderIds.filter((o) => !isKept(o));
   // v1 phase 0: the open payments' stored difference rows; the current ones are what each payment's decision named
@@ -276,7 +283,9 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
   }
   // a journal about closed payments only is left as it was (it may wait for an approved write-off)
   const keptJournal = (orderIdsOf: string[]) => orderIdsOf.length > 0 && orderIdsOf.every((o) => isKept(o));
-  const writtenJournals = journals.filter((j) => !keptJournal(j.evidence.orderIds));
+  // v1 phase 3: and a journal dated in a locked month is left as it was
+  const lockedEntry = (entryDate: string | null | undefined) => !!entryDate && locked.periods.has(entryDate.slice(0, 7));
+  const writtenJournals = journals.filter((j) => !keptJournal(j.evidence.orderIds) && !lockedEntry(j.entryDate));
   const journalRows = writtenJournals.map((j) => {
     // Document A "(on approval)" lines name the approval they wait for; write-off ids map to their stored ids.
     const lines = j.lines.map((l) => (l.onApproval ? { ...l, onApproval: woIdOf.get(l.onApproval) ?? l.onApproval } : l));
@@ -291,19 +300,28 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
   const journalWrites = journalSha.filter((j) => { const o = storedJ.get(j.id); return !o || (o.status === "proposed" && o.sha !== j.contentSha256); });
   await bulkInsert(tx, t.merchantJournalProposals, journalWrites, { onConflict: { target: ["org_id", "id"], set: setExcluded(["entity_id", "pattern", "lines", "currency", "evidence_refs", "content_sha256"]), where: sql`merchant_journal_proposals.status = 'proposed'` } });
   const keep = journals.map((j) => j.id);
-  const keptOrders = [...stored.keys()];
+  const keptOrders = keepIds.filter((o) => isKept(o));
   await tx.update(t.merchantJournalProposals).set({ status: "superseded" }).where(and(eq(t.merchantJournalProposals.orgId, ctx.orgId), eq(t.merchantJournalProposals.entityId, entityId),
-    eq(t.merchantJournalProposals.status, "proposed"), keep.length ? sql`${t.merchantJournalProposals.id} not in (${sql.join(keep.map((k) => sql`${k}`), sql`, `)})` : sql`true`,
+    eq(t.merchantJournalProposals.status, "proposed"), keep.length ? sql`not (${anyOf(t.merchantJournalProposals.id, keep)})` : sql`true`,
+    locked.periods.size ? sql`coalesce(substr(${t.merchantJournalProposals.evidenceRefs} ->> 'entryDate', 1, 7), '') <> all(${sql.param([...locked.periods])}::text[])` : sql`true`,
     keptOrders.length ? sql`not (coalesce(${t.merchantJournalProposals.evidenceRefs} -> 'orderIds', '[]'::jsonb) <@ ${JSON.stringify(keptOrders)}::jsonb and jsonb_array_length(coalesce(${t.merchantJournalProposals.evidenceRefs} -> 'orderIds', '[]'::jsonb)) > 0)` : sql`true`));
   const notices = differ.length ? await tx.insert(t.ruleChangeNotices).values(differ.map((r) => {
     const m = stored.get(r.orderId)!;
     const fingerprint = sha256(`${outcomeKey(storedOutcome(m))}|${outcomeKey(newOutcome(r))}`);
     return { orgId: ctx.orgId, entityId, orderId: r.orderId, runId, ruleSetVersion: run.version, policyRevision, storedDecision: m.decision, storedRuleId: m.ruleId, newDecision: r.explanation.decision, newRuleId: r.explanation.ruleId, fingerprint };
   })).onConflictDoNothing().returning({ id: t.ruleChangeNotices.id }) : [];
-  const effective = result.records.map((r) => (isKept(r.orderId) ? { decision: stored.get(r.orderId)!.decision, creditedMinor: String((stored.get(r.orderId)!.ledger as { creditedMinor: string }).creditedMinor) } : { decision: r.explanation.decision, creditedMinor: r.ledger.creditedMinor.toString() }));
-  const rc = runCounts(effective, exceptions.length, stored.size, notices.length);
+  // v1 phase 3: corrections of locked months, each filed once per (payment, outcome) in the next open month
+  if (toCorrect.length) await bulkInsert(tx, t.periodCorrections, toCorrect.map((r) => {
+    const m = stored.get(r.orderId);
+    const corrects = locked.orders.get(r.orderId)!;
+    return { orgId: ctx.orgId, entityId, orderId: r.orderId, correctsPeriod: corrects, correctionPeriod: correctionPeriod(corrects, locked.periods), runId,
+      storedDecision: m?.decision ?? null, storedRuleId: m?.ruleId ?? null, newDecision: r.explanation.decision, newRuleId: r.explanation.ruleId,
+      fingerprint: sha256(`${m ? outcomeKey(storedOutcome(m)) : "none"}|${outcomeKey(newOutcome(r))}`) };
+  }), { onConflict: { target: ["org_id", "order_id", "fingerprint"], doNothing: true } });
+  const effective = result.records.map((r) => (isKept(r.orderId) && stored.has(r.orderId) ? { decision: stored.get(r.orderId)!.decision, creditedMinor: String((stored.get(r.orderId)!.ledger as { creditedMinor: string }).creditedMinor) } : { decision: r.explanation.decision, creditedMinor: r.ledger.creditedMinor.toString() }));
+  const rc = runCounts(effective, exceptions.length, keptCount, notices.length);
   await tx.insert(t.reconciliationRuns).values({ ...runRow, id: runId, status: "changed", finishedAt: stampNow(), ...rc });
-  const counts = { records: result.records.length, newDifferences: newDiffs.length, supersededDifferences: supersede.length, exceptions: exceptions.length, resolvedExceptions: stale.length, newWriteoffs: newWo.length, supersededWriteoffs: oldWo.length, journals: writtenJournals.length, kept: stored.size, notices: notices.length };
+  const counts = { records: result.records.length, newDifferences: newDiffs.length, supersededDifferences: supersede.length, exceptions: exceptions.length, resolvedExceptions: stale.length, newWriteoffs: newWo.length, supersededWriteoffs: oldWo.length, journals: writtenJournals.length, kept: keptCount, notices: notices.length };
   if (opts.timings) opts.timings.write = (opts.timings.write ?? 0) + Math.round(performance.now() - writeStarted);
   await serverAudit(tx, ctx, "merchant_reconciliation_run", "merchant_entity", entityId,
     `Reconciled ${counts.records} payments (engine ${MERCHANT_ENGINE_VERSION}, rules ${run.version}, policy r${policyRevision}, input sha256 ${hash.slice(0, 12)}…): ${counts.exceptions} exceptions, ${counts.newWriteoffs} new write-off proposals, ${counts.journals} journal proposals pending sign-off, ${counts.kept} closed payments kept, ${counts.notices} rule-change notices`,
