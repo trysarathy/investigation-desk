@@ -8,6 +8,8 @@
  * The queue uses the limited jobs login (rc8: `clearline_jobs`, never the owner; the worker refuses to start with any
  * other login). Work runs on the runtime connection under row-level security, as the job's member. Retention needs the
  * owner's rights (as the admin CLI's purge-uploads): its connection is separate and used by the retention handler only.
+ * (v1 5.6, wave 2: the full retention job, also covering orphan files, 7-year audit and approvals and retained records,
+ * is its own process too: npm run jobs:retention, or control:admin -- retention.)
  *
  * Shutdown is graceful: SIGTERM or SIGINT stops claiming; the job in hand finishes (its heartbeat keeps it), then the
  * worker exits. A second signal exits at once: the job's heartbeat stops and another worker takes it back after the

@@ -33,6 +33,11 @@
  *                                            table, its members who belong nowhere else, and its uploaded files. Without
  *                                            --confirm repeating the slug it only prints what would be deleted.
  *                                            Prints counts only)
+ *   retention [--dry-run]                   (v1 5.6: one retention pass — uploads past their merchant's retention (default
+ *                                            90 days) and orphan files, audit events and approvals older than 7 years
+ *                                            [ASSUMPTION], deleted merchants' minimal records past retain_until; recorded
+ *                                            in retention_runs; idempotent. --dry-run counts and changes nothing.
+ *                                            Long-running form: npm run jobs:retention. Prints counts only)
  *   export-merchant <org-slug> --out <file>
  *                                           (v1 5.6: everything Clearline holds for ONE merchant — every row of every table
  *                                            that holds its data, its members' profiles, its audit log and approvals, its
@@ -104,6 +109,7 @@ import { cleanupOrphans } from "../../src/server/upload-orphans";
 import { runPickup } from "../../src/server/upload-pickup";
 import { deleteMerchant, planMerchantDeletion } from "../../src/server/merchant-deletion";
 import { exportMerchant } from "../../src/server/privacy/export";
+import { runRetention } from "../../src/server/privacy/retention";
 import { openExport, passphraseFrom, publicKeyFrom, signingKeyFrom, untar, type ExportSignature } from "../../src/server/privacy/archive";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -254,6 +260,11 @@ async function main() {
         break;
       }
       console.log(JSON.stringify({ deleted: await deleteMerchant(db, a[0], confirm) }));
+      break;
+    }
+    case "retention": {
+      const r = await runRetention(db, { now: new Date(), dryRun: a.includes("--dry-run") });
+      console.log(JSON.stringify({ retention: r }));
       break;
     }
     case "export-merchant": {

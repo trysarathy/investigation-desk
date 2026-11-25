@@ -623,6 +623,9 @@ export async function purgeExpiredUploads(db: Db, now: Date, opts: { storage?: U
   for (const u of due) {
     const file = u.storageKey ? await storage.delete(u.orgId, u.storageKey) : false;
     await db.transaction(async (tx) => {
+      // v1 5.6: two retention runs at once never purge (or audit) the same upload twice
+      const [still] = await tx.select({ id: t.uploads.id }).from(t.uploads).where(and(eq(t.uploads.orgId, u.orgId), eq(t.uploads.id, u.id), ne(t.uploads.status, "deleted"))).for("update");
+      if (!still) return;
       const removed = await derived(tx, u);
       const rows = await tx.delete(t.uploadRows).where(and(eq(t.uploadRows.orgId, u.orgId), eq(t.uploadRows.uploadId, u.id))).returning({ n: t.uploadRows.rowNumber });
       await tx.update(t.uploads).set({ status: "deleted", storageKey: null, deletedAt: now }).where(and(eq(t.uploads.orgId, u.orgId), eq(t.uploads.id, u.id)));

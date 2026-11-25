@@ -16,6 +16,7 @@
     "control:admin": "tsx --conditions=react-server scripts/control/admin.ts",
     "jobs:worker": "tsx --conditions=react-server scripts/jobs/worker.ts",
     "worker": "tsx --conditions=react-server scripts/jobs/worker.ts",
+    "jobs:retention": "tsx --conditions=react-server scripts/jobs/retention.ts",
     "bench:e2e": "tsx --conditions=react-server scripts/bench/e2e.ts",
     "bench:volume": "tsx --conditions=react-server scripts/perf/volume-bench.ts",
     "bench:engine-digest": "tsx scripts/perf/engine-digest.ts",
