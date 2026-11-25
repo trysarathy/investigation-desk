@@ -110,7 +110,20 @@ export async function ingestAdapterOutput(ctx: TenantContext, entityId: string, 
 }
 
 /** Options of a run. `ruleSetVersion` replaces the code's version only in tests (to show a rule change re-runs). */
-export interface RunOptions { chain?: VerifyChainClient; trigger?: RunTrigger; jobId?: string; ruleSetVersion?: string; /** The instant chain reads are made at (default: now; the demo clock for a demo organisation). */ now?: Date }
+export interface RunOptions {
+  chain?: VerifyChainClient; trigger?: RunTrigger; jobId?: string; ruleSetVersion?: string; /** The instant chain reads are made at (default: now; the demo clock for a demo organisation). */ now?: Date;
+  /** v1 phase 3: milliseconds per stage of this run, filled in for the caller (benchmarks, the worker's progress). */
+  timings?: Record<string, number>;
+  /** v1 phase 3: called as each stage starts (the worker records it as the job's progress). Stage names only. */
+  onStage?: (stage: RunStage) => void | Promise<void>;
+}
+export const RUN_STAGES = ["chain_verify", "load", "engine", "write", "done"] as const;
+export type RunStage = (typeof RUN_STAGES)[number];
+async function staged<T>(opts: Pick<RunOptions, "timings" | "onStage">, stage: RunStage, fn: () => Promise<T>): Promise<T> {
+  await opts.onStage?.(stage);
+  const t0 = performance.now();
+  try { return await fn(); } finally { if (opts.timings) opts.timings[stage] = (opts.timings[stage] ?? 0) + Math.round(performance.now() - t0); }
+}
 
 /**
  * (Live data: verify against the chain first, see chain-verify.ts.) Load the entity's rows → reconcile → persist the five parts, differences (append-only), exceptions, write-off
@@ -131,8 +144,10 @@ export async function runReconciliation(ctx: TenantContext, entityId: string, id
     // Demo build: a demo organisation goes through the same verification, against the recorded chain file, at the
     // demo clock (src/lib/clearline/demo/clock.ts); verifyClientFromEnv refuses the recording for any other org.
     const mode = await orgDataMode(ctx);
-    if (isDataMode(mode) && usesUploadPipeline(mode)) await verifyChainForEntity(ctx, entityId, opts.chain ?? verifyClientFromEnv(process.env, mode), mode === "demo" ? { now: opts.now ?? demoNow() } : opts.now ? { now: opts.now } : {});
-    return await tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "merchant_reconcile", entityId }, () => reconcileInTx(tx, ctx, entityId, { trigger, version, startedAt, jobId: opts.jobId ?? null })));
+    if (isDataMode(mode) && usesUploadPipeline(mode)) await staged(opts, "chain_verify", () => verifyChainForEntity(ctx, entityId, opts.chain ?? verifyClientFromEnv(process.env, mode), mode === "demo" ? { now: opts.now ?? demoNow() } : opts.now ? { now: opts.now } : {}));
+    const r = await tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "merchant_reconcile", entityId }, () => reconcileInTx(tx, ctx, entityId, { trigger, version, startedAt, jobId: opts.jobId ?? null }, opts)));
+    await opts.onStage?.("done");
+    return r;
   } catch (e) {
     // A failed run is recorded with a code (never the message). An unknown entity or a refused member is not a run.
     if (!(e instanceof AccessDenied)) {
@@ -150,9 +165,9 @@ export type RunBody = {
   records?: number; newDifferences?: number; supersededDifferences?: number; exceptions?: number; resolvedExceptions?: number; newWriteoffs?: number; supersededWriteoffs?: number; journals?: number; kept?: number; notices?: number; runCounts?: RunCounts;
 };
 
-async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: { trigger: RunTrigger; version: string; startedAt: Date; jobId: string | null }): Promise<{ status: number; body: RunBody }> {
+async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: { trigger: RunTrigger; version: string; startedAt: Date; jobId: string | null }, opts: Pick<RunOptions, "timings" | "onStage"> = {}): Promise<{ status: number; body: RunBody }> {
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${ctx.orgId}|merchant_reconcile|${entityId}`}))`);
-  const input = await load(tx, ctx, entityId);
+  const input = await staged(opts, "load", () => load(tx, ctx, entityId));
   const hash = inputSha256(input);
   const orderIds = input.invoices.map((i) => i.orderId);
   const { prev, policyRevision } = await runState(tx, ctx.orgId, entityId);
@@ -163,8 +178,9 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
       review: prev.review, exceptions: prev.exceptions, unpaid: prev.unpaid, kept: prev.kept, notices: 0 }).returning({ id: t.reconciliationRuns.id });
     return { status: 200, body: { ...meta, runId: r.id, status: "no_change" as const, changed: false, records: orderIds.length, newDifferences: 0, supersededDifferences: 0, exceptions: prev.exceptions, resolvedExceptions: 0, newWriteoffs: 0, supersededWriteoffs: 0, journals: 0, kept: prev.kept, notices: 0 } };
   }
-  const result = reconcile(input);
-  const journals = proposeJournals(input, result);
+  const { result, journals } = await staged(opts, "engine", async () => { const result = reconcile(input); return { result, journals: proposeJournals(input, result) }; });
+  await opts.onStage?.("write");
+  const writeStarted = performance.now();
   const now = stampNow();
   // rc7 phase 3a: a payment a person closed keeps its stored decision; a different new decision becomes a notice
   const closed = await closedOrders(tx, ctx.orgId, orderIds);
@@ -262,6 +278,7 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
   const rc = runCounts(effective, exceptions.length, stored.size, notices.length);
   await tx.insert(t.reconciliationRuns).values({ ...runRow, id: runId, status: "changed", finishedAt: stampNow(), ...rc });
   const counts = { records: result.records.length, newDifferences: newDiffs.length, supersededDifferences: supersede.length, exceptions: exceptions.length, resolvedExceptions: stale.length, newWriteoffs: newWo.length, supersededWriteoffs: oldWo.length, journals: writtenJournals.length, kept: stored.size, notices: notices.length };
+  if (opts.timings) opts.timings.write = (opts.timings.write ?? 0) + Math.round(performance.now() - writeStarted);
   await serverAudit(tx, ctx, "merchant_reconciliation_run", "merchant_entity", entityId,
     `Reconciled ${counts.records} payments (engine ${MERCHANT_ENGINE_VERSION}, rules ${run.version}, policy r${policyRevision}, input sha256 ${hash.slice(0, 12)}…): ${counts.exceptions} exceptions, ${counts.newWriteoffs} new write-off proposals, ${counts.journals} journal proposals pending sign-off, ${counts.kept} closed payments kept, ${counts.notices} rule-change notices`,
     { inputSha256: hash, engineVersion: MERCHANT_ENGINE_VERSION, ruleSetVersion: run.version, policyRevision, runId, ...counts });

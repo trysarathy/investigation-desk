@@ -236,19 +236,26 @@ export async function writeIngested(tx: Tx, orgId: string, entityId: string, p: 
   const [ent] = await tx.select().from(t.merchantEntities).where(and(eq(t.merchantEntities.orgId, orgId), eq(t.merchantEntities.id, entityId)));
   if (!ent) throw new MissingEntity(entityId);
   const quotes = p.quotes ?? [];
+  // v1 phase 3 (volume): each invoice's first quote time and each link's quote, found through maps (same values as the scans)
+  const firstQuoteAt = new Map<string, string>();
+  for (const q of quotes) { const a = firstQuoteAt.get(q.orderId); if (a === undefined || q.createdAt < a) firstQuoteAt.set(q.orderId, q.createdAt); }
   if (p.invoices?.length) count("invoices", await tx.insert(t.invoices).values(p.invoices.map((i) => ({
     orgId, orderId: i.orderId, entityId, currency: i.currency, status: i.status === "void" ? "void" : "open",
     // v1: a token-priced invoice stores its token price and no fiat amount (exactly one pricing mode, migration 0040)
     ...(i.price ? { amountMinor: null, priceNetwork: i.price.token.network === "arbitrum_one" ? "arbitrum-one" : i.price.token.network, priceTokenContract: i.price.token.contract, priceTokenAmount: i.price.baseUnits.toString() }
       : { amountMinor: i.amountMinor }),
     // [ASSUMPTION] an invoice's issue time is its first quote's creation (the export carries no invoice date)
-    issuedAt: new Date(quotes.filter((q) => q.orderId === i.orderId).map((q) => q.createdAt).sort()[0] ?? "2026-01-01T00:00:00.000Z"),
+    issuedAt: new Date(firstQuoteAt.get(i.orderId) ?? "2026-01-01T00:00:00.000Z"),
   }))).onConflictDoNothing().returning({ id: t.invoices.orderId }));
   if (quotes.length) count("quotes", await tx.insert(t.merchantQuotes).values(quotes.map((q) => ({
     orgId, quoteId: q.quoteId, orderId: q.orderId, network: q.network, tokenContract: q.token.contract, quotedBaseUnits: q.quotedBaseUnits.toString(), rate: q.rate,
     rateSource: q.rateSource, rateAt: new Date(q.rateAt), createdAt: new Date(q.createdAt), expiresAt: new Date(q.expiresAt), depositAddress: q.depositAddress,
   }))).onConflictDoNothing().returning({ id: t.merchantQuotes.quoteId }));
-  const allQuotes = await tx.select().from(t.merchantQuotes).where(eq(t.merchantQuotes.orgId, orgId));
+  const linkQuoteIds = [...new Set((p.paymentLinks ?? []).map((l) => l.quoteId))];
+  const quoteById = new Map<string, typeof t.merchantQuotes.$inferSelect>();
+  for (let i = 0; i < linkQuoteIds.length; i += 1000) {
+    for (const q of await tx.select().from(t.merchantQuotes).where(and(eq(t.merchantQuotes.orgId, orgId), inArray(t.merchantQuotes.quoteId, linkQuoteIds.slice(i, i + 1000))))) quoteById.set(q.quoteId, q);
+  }
   const tokenRows = await tx.select().from(t.tokenConfig);
   const decimalsOf = (network: string, contract: string) => {
     const k = tokenRows.find((x) => dbNetwork(x.network) === network && x.contract === contract);
@@ -256,7 +263,7 @@ export async function writeIngested(tx: Tx, orgId: string, entityId: string, p: 
     return k.decimals;
   };
   if (p.paymentLinks?.length) count("paymentLinks", await tx.insert(t.paymentLinks).values(p.paymentLinks.map((l) => {
-    const q = allQuotes.find((x) => x.quoteId === l.quoteId);
+    const q = quoteById.get(l.quoteId);
     if (!q) throw new Error(`link ${l.linkId}: unknown quote ${l.quoteId}`);
     return {
       orgId, linkId: l.linkId, orderId: l.orderId, kind: l.kind, network: l.token.network, depositAddress: l.depositAddress, tokenContract: l.token.contract, quoteId: l.quoteId,
@@ -288,8 +295,10 @@ export async function writeIngested(tx: Tx, orgId: string, entityId: string, p: 
       currency: b.currency, targetBankAccount: b.targetBankAccount, grossMinor: b.grossMinor, feesMinor: b.feesMinor, refundsMinor: b.refundsMinor, netMinor: b.netMinor,
     };
   })).onConflictDoNothing().returning({ id: t.settlementBatches.batchId }));
-  const lineRows = [...new Set((p.batchLines ?? []).map((l) => l.batchId))].flatMap((batchId) =>
-    (p.batchLines ?? []).filter((l) => l.batchId === batchId).sort((a, b) => ((a.kind + (a.providerPaymentId ?? a.refundId)) < (b.kind + (b.providerPaymentId ?? b.refundId)) ? -1 : 1))
+  const linesByBatch = new Map<string, NonNullable<IngestParts["batchLines"]>[number][]>();
+  for (const l of p.batchLines ?? []) { const a = linesByBatch.get(l.batchId); if (a) a.push(l); else linesByBatch.set(l.batchId, [l]); }
+  const lineRows = [...linesByBatch.keys()].flatMap((batchId) =>
+    [...linesByBatch.get(batchId)!].sort((a, b) => ((a.kind + (a.providerPaymentId ?? a.refundId)) < (b.kind + (b.providerPaymentId ?? b.refundId)) ? -1 : 1))
       .map((l, i) => ({ orgId, batchId, lineNo: i + 1, kind: l.kind, ref: (l.kind === "payment" ? l.providerPaymentId : l.refundId) ?? "", amountMinor: l.amountMinor, orderId: l.orderId })));
   if (lineRows.length) count("batchLines", await tx.insert(t.settlementBatchLines).values(lineRows).onConflictDoNothing().returning({ id: t.settlementBatchLines.lineNo }));
   if (p.bankLines?.length) count("bankLines", await tx.insert(t.bankLines).values(p.bankLines.map((b) => ({

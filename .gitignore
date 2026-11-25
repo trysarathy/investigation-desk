@@ -27,3 +27,4 @@ synthetic-data/
 
 # the demo walkthrough video (npm run demo:video): a large binary, kept out of git
 docs/demo/walkthrough.webm
+/.bench/
