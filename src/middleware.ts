@@ -95,21 +95,35 @@ export function gateResponse(decision: GateDecision, requestUrl: string): Respon
 
 // ---- R2: nonce-based Content-Security-Policy ----------------------------------------------------
 // Directives other than script-src are identical to the static fallback policy in next.config.mjs
-// (a test checks this). style-src keeps 'unsafe-inline': React renders `style={...}` props as inline
-// style attributes in the server HTML, which a nonce cannot cover (see SECURITY_PLATFORM_RC3.md).
+// (a test checks this). v1 E1 tightening: style ELEMENTS are 'self' only (no 'unsafe-inline'); only style
+// ATTRIBUTES keep 'unsafe-inline' via style-src-attr, because React renders `style={...}` props as inline
+// style attributes in the server HTML, which a nonce cannot cover. A style attribute cannot run script.
+// base-uri is 'none' (nothing uses <base>), and frame-src/worker-src/manifest-src are pinned explicitly.
 export function nonceContentSecurityPolicy(nonce: string, dev = process.env.NODE_ENV !== "production"): string {
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
-    "style-src 'self' 'unsafe-inline'",
+    ...sharedCspDirectives(dev),
+  ].join("; ");
+}
+
+/** Every directive but default-src and script-src; next.config.mjs builds the same list (a test checks they agree). */
+function sharedCspDirectives(dev: boolean): string[] {
+  return [
+    // Development keeps 'unsafe-inline' for styles: Next's dev overlay and React Refresh inject <style> elements.
+    `style-src 'self'${dev ? " 'unsafe-inline'" : ""}`,
+    "style-src-attr 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
     `connect-src 'self'${dev ? " ws: wss:" : ""}`,
+    "frame-src 'none'",
+    "worker-src 'self'",
+    "manifest-src 'self'",
     "object-src 'none'",
-    "base-uri 'self'",
+    "base-uri 'none'",
     "form-action 'self'",
     "frame-ancestors 'none'",
-  ].join("; ");
+  ];
 }
 
 /** 128 random bits, base64. */
