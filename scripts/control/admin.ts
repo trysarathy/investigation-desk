@@ -77,7 +77,7 @@
  */
 import { sql } from "drizzle-orm";
 import { closeDatabase, database } from "../../src/server/db/client";
-import { acceptInvitation, createOrganization, createUser, grantMembership, revokeMembership, revokeSessions, setEntityScope } from "../../src/server/admin";
+import { acceptInvitation, createOrganization, createUser, grantAuditor, grantMembership, revokeAuditor, revokeMembership, revokeSessions, setEntityScope } from "../../src/server/admin";
 
 /** "all" or a comma-separated list of entity ids (refused when empty). */
 function entityList(v: string | undefined): string[] | "all" {
@@ -175,6 +175,14 @@ async function main() {
     }
     case "set-entity-scope": console.log(JSON.stringify(await setEntityScope(db, { orgSlug: a[0], email: a[1], entities: entityList(a[2]) }))); break;
     case "revoke": await revokeMembership(db, { orgSlug: a[0], email: a[1] }); break;
+    // v1 phase 4: grant-auditor <org> <email> --from YYYY-MM --to YYYY-MM --expires <ISO> --by <who asked> [--entities A,B]
+    case "grant-auditor": {
+      const f = (k: string) => { const i = a.indexOf(`--${k}`); return i >= 0 ? a[i + 1] : undefined; };
+      const req = (k: string) => { const v = f(k); if (!v) throw new Error(`--${k} is required`); return v; };
+      console.log(JSON.stringify(await grantAuditor(db, { orgSlug: a[0], email: a[1], from: req("from"), to: req("to"), expiresAt: req("expires"), grantedBy: req("by"), ...(f("entities") ? { entities: entityList(f("entities")) } : {}) })));
+      break;
+    }
+    case "revoke-auditor": console.log(JSON.stringify(await revokeAuditor(db, { orgSlug: a[0], email: a[1] }))); break;
     case "purge-uploads": {
       const now = new Date();
       console.log(JSON.stringify({ ...(await purgeExpiredUploads(db, now)), orphanFiles: await sweepOrphanFiles(db, now) }));

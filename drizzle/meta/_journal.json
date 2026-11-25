@@ -428,6 +428,13 @@
       "when": 1796770000000,
       "tag": "0077_posting_rules_signatures",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1796780000000,
+      "tag": "0078_auditor_role",
+      "breakpoints": true
     }
   ]
 }
