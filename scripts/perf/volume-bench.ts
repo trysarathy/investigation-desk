@@ -162,4 +162,4 @@ async function main() {
     await closeDatabase();
   }
 }
-if (/volume-bench\.[cm]?[jt]s$/.test(process.argv[1] ?? "")) main().catch((e: unknown) => { process.stderr.write(`${e instanceof Error ? (process.env.BENCH_DEBUG ? e.stack : e.message) : String(e)}\n`); process.exitCode = 1; });
+if (/volume-bench\.[cm]?[jt]s$/.test(process.argv[1] ?? "")) main().catch((e: unknown) => { process.stderr.write(`${e instanceof Error ? (process.env.BENCH_DEBUG ? `${e.stack}\ncause: ${String((e as { cause?: unknown }).cause)}` : e.message) : String(e)}\n`); process.exitCode = 1; });

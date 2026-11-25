@@ -1,6 +1,6 @@
 import "server-only";
 import { readFileSync } from "node:fs";
-import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { NETWORKS, normAddress } from "@/lib/clearline/merchant/config";
 import type { NetworkId } from "@/lib/clearline/merchant/types";
 import {
@@ -10,6 +10,7 @@ import {
 import type { Env } from "@/lib/clearline/merchant/chain/guard";
 import type { Tx } from "./db/client";
 import * as t from "./db/schema";
+import { anyOf, bulkInsert, setExcluded } from "./db/bulk";
 import { can } from "./authz";
 import { serverAudit } from "./control";
 import { AccessDenied, requireEntity, type TenantContext, withTenant } from "./tenant";
@@ -89,8 +90,8 @@ async function targetsOf(tx: Tx, orgId: string, entityId: string) {
     .where(and(eq(t.invoices.orgId, orgId), eq(t.invoices.entityId, entityId), ne(t.invoices.status, "void")));
   const issued = new Map(inv.map((i) => [i.orderId, i.issuedAt.getTime()]));
   const ids = [...issued.keys()];
-  const quotes = ids.length ? await tx.select().from(t.merchantQuotes).where(and(eq(t.merchantQuotes.orgId, orgId), inArray(t.merchantQuotes.orderId, ids))) : [];
-  const links = ids.length ? await tx.select().from(t.paymentLinks).where(and(eq(t.paymentLinks.orgId, orgId), inArray(t.paymentLinks.orderId, ids))) : [];
+  const quotes = ids.length ? await tx.select().from(t.merchantQuotes).where(and(eq(t.merchantQuotes.orgId, orgId), anyOf(t.merchantQuotes.orderId, ids))) : [];
+  const links = ids.length ? await tx.select().from(t.paymentLinks).where(and(eq(t.paymentLinks.orgId, orgId), anyOf(t.paymentLinks.orderId, ids))) : [];
   const addresses = new Map<string, AddressTarget>();
   const add = (network: string, address: string, at: Date | null | undefined, orderId: string) => {
     const n = dbNetwork(network);
@@ -215,18 +216,14 @@ export async function verifyChainForEntity(ctx: TenantContext, entityId: string,
     }
     // rc7 phase 3b: written in chunks (same rows, same order); facts stay as first read (trigger 0007); only
     // confirmations, finality, block and evidence of the latest read change
-    for (let i = 0; i < rows.length; i += 500) {
-      await tx.insert(t.chainTransfers).values(rows.slice(i, i + 500)).onConflictDoUpdate({
-        target: [t.chainTransfers.orgId, t.chainTransfers.network, t.chainTransfers.txHash, t.chainTransfers.logIndex, t.chainTransfers.source],
-        set: { confirmations: sql`excluded.confirmations`, finalised: sql`excluded.finalised`, block: sql`excluded.block`, blockHash: sql`excluded.block_hash`,
-          evidenceSource: sql`excluded.evidence_source`, evidenceHost: sql`excluded.evidence_host`, evidenceEndpoint: sql`excluded.evidence_endpoint`, fetchedAt: sql`excluded.fetched_at` },
-      });
-    }
+    // v1 phase 3: bulk statements (db/bulk.ts), the same rows and conflict handling
+    await bulkInsert(tx, t.chainTransfers, rows, { chunk: 2_000, onConflict: { target: ["org_id", "network", "tx_hash", "log_index", "source"],
+      set: setExcluded(["confirmations", "finalised", "block", "block_hash", "evidence_source", "evidence_host", "evidence_endpoint", "fetched_at"]) } });
     const readRows = reads.map((r) => ({
       orgId: ctx.orgId, entityId, network: r.network, address: r.address ?? null, txHash: r.txHash ?? null, status: r.status, reason: r.reason?.slice(0, 500) ?? null,
       source: r.evidence[0]?.source ?? client.mode, host: r.evidence[0]?.host ?? null, endpoint: r.evidence[0]?.method ?? null, transfers: r.transfers, at: now,
     }));
-    for (let i = 0; i < readRows.length; i += 1000) await tx.insert(t.chainReads).values(readRows.slice(i, i + 1000));
+    await bulkInsert(tx, t.chainReads, readRows);
     // v1: a stored final fact this run did not re-store, but a read contradicts, goes back to not final too
     const written = new Set([...facts.values()].map(factKey));
     for (const st of stored) {

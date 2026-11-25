@@ -13,6 +13,7 @@ import { NEEDS_RATE_STATUS, minorOrNull, unknownFiat } from "@/lib/clearline/mer
 import type { StatementLineInput } from "@/lib/clearline";
 import type { Tx } from "./db/client";
 import * as t from "./db/schema";
+import { anyOf, bulkInsert, setExcluded } from "./db/bulk";
 import { can, type Permission } from "./authz";
 import { Decision, IdempotencyKey, canonical, idempotent, serverAudit } from "./control";
 import { MissingEntity, type IngestParts, loadReconcileInput, plain, plainForDisplay, writeIngested } from "./merchant-store";
@@ -59,10 +60,9 @@ const contentId = (engineId: string, content: unknown) => `${engineId}@${sha256(
 /** Every stored difference id of these payments, with whether it is superseded. */
 async function storedDifferenceIds(tx: Tx, orgId: string, orderIds: string[]) {
   const out = new Map<string, boolean>();
-  for (let i = 0; i < orderIds.length; i += 1000) {
-    for (const r of await tx.select({ id: t.differences.id, supersededAt: t.differences.supersededAt }).from(t.differences)
-      .where(and(eq(t.differences.orgId, orgId), inArray(t.differences.orderId, orderIds.slice(i, i + 1000))))) out.set(r.id, r.supersededAt !== null);
-  }
+  if (!orderIds.length) return out;
+  for (const r of await tx.select({ id: t.differences.id, supersededAt: t.differences.supersededAt }).from(t.differences)
+    .where(and(eq(t.differences.orgId, orgId), anyOf(t.differences.orderId, orderIds)))) out.set(r.id, r.supersededAt !== null);
   return out;
 }
 
@@ -206,20 +206,14 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
       bankEvidence: storableEvidence(r.bank.evidence), settled: r.bank.settled,
     };
   });
-  const ex = (c: string) => sql.raw(`excluded.${c}`);
-  for (let i = 0; i < records.length; i += 500) {
-    await tx.insert(t.matchRecords).values(records.slice(i, i + 500)).onConflictDoUpdate({ target: [t.matchRecords.orgId, t.matchRecords.orderId], set: {
-      decision: ex("decision"), decidingStep: ex("deciding_step"), ruleId: ex("rule_id"), chain: ex("chain"), provider: ex("provider"), bank: ex("bank"), ledger: ex("ledger"),
-      explanation: ex("explanation"), engineVersion: ex("engine_version"), inputSha256: ex("input_sha256"), computedAt: ex("computed_at"),
-      bankEvidence: ex("bank_evidence"), settled: ex("settled"),
-    } });
-  }
+  // v1 phase 3: bulk statements (bulk.ts): the same rows and conflict handling as the per-row-values inserts they replace
+  await bulkInsert(tx, t.matchRecords, records, { onConflict: { target: ["org_id", "order_id"], set: setExcluded(["decision", "deciding_step", "rule_id", "chain", "provider", "bank", "ledger",
+    "explanation", "engine_version", "input_sha256", "computed_at", "bank_evidence", "settled"]) } });
   // the run's own row is written last (with its counts): its foreign keys from differences are checked at commit
   await tx.execute(sql`set constraints differences_run_fk, differences_superseded_by_run_fk deferred`);
   const diffs = open.flatMap((r) => r.explanation.differences.map((d) => ({ orgId: ctx.orgId, id: diffIdOf.get(`${r.orderId}|${d.id}`)!, orderId: r.orderId, type: d.type, amountMinor: d.amountMinor, currency: d.currency, reason: d.reason, ruleId: d.ruleId,
     runId, ruleSetVersion: run.version, stampSource: "run" as const })));
-  const newDiffs: { id: string }[] = [];
-  for (let i = 0; i < diffs.length; i += 1000) newDiffs.push(...await tx.insert(t.differences).values(diffs.slice(i, i + 1000)).onConflictDoNothing().returning({ id: t.differences.id }));
+  const newDiffs = await bulkInsert(tx, t.differences, diffs, { onConflict: { target: ["org_id", "id"], doNothing: true }, returning: ["id"] });
   // v1 phase 0: a re-decided payment's earlier rows that its new decision no longer names are marked superseded by this
   // run (kept, never deleted; amounts never change). Closed payments are not re-decided, so their rows are untouched.
   const currentDiffIds = new Set(diffIdOf.values());
@@ -230,22 +224,21 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
   }
   const exceptions = result.exceptions.filter((e) => !isKept(e.orderId));
   const exIds = new Set(exceptions.map((e) => e.id));
-  for (let i = 0; i < exceptions.length; i += 500) {
-    await tx.insert(t.reconExceptions).values(exceptions.slice(i, i + 500).map((e) => ({ orgId: ctx.orgId, id: e.id, orderId: e.orderId ?? null, entityId, ownerRole: e.owner, reason: e.reason, nextStep: e.nextStep, status: "open", openedAt: now })))
-      .onConflictDoUpdate({ target: [t.reconExceptions.orgId, t.reconExceptions.id], set: { entityId: sql`coalesce(${t.reconExceptions.entityId}, excluded.entity_id)`, ownerRole: ex("owner_role"), reason: ex("reason"), nextStep: ex("next_step"), status: sql`case when ${t.reconExceptions.status} = 'resolved' then 'open' else ${t.reconExceptions.status} end`, closedAt: null } });
-  }
+  await bulkInsert(tx, t.reconExceptions, exceptions.map((e) => ({ orgId: ctx.orgId, id: e.id, orderId: e.orderId ?? null, entityId, ownerRole: e.owner, reason: e.reason, nextStep: e.nextStep, status: "open", openedAt: now })), {
+    onConflict: { target: ["org_id", "id"], set: sql`entity_id = coalesce(recon_exceptions.entity_id, excluded.entity_id), owner_role = excluded.owner_role, reason = excluded.reason, next_step = excluded.next_step,
+      status = case when recon_exceptions.status = 'resolved' then 'open' else recon_exceptions.status end, closed_at = null` },
+  });
   const stale = openIds.length ? (await tx.select({ id: t.reconExceptions.id }).from(t.reconExceptions)
-    .where(and(eq(t.reconExceptions.orgId, ctx.orgId), inArray(t.reconExceptions.orderId, openIds), sql`${t.reconExceptions.status} <> 'resolved'`))).filter((x) => !exIds.has(x.id)) : [];
+    .where(and(eq(t.reconExceptions.orgId, ctx.orgId), anyOf(t.reconExceptions.orderId, openIds), sql`${t.reconExceptions.status} <> 'resolved'`))).filter((x) => !exIds.has(x.id)) : [];
   for (let i = 0; i < stale.length; i += 1000) await tx.update(t.reconExceptions).set({ status: "resolved", closedAt: now }).where(and(eq(t.reconExceptions.orgId, ctx.orgId), inArray(t.reconExceptions.id, stale.slice(i, i + 1000).map((x) => x.id))));
   const woRows = writeOffs.map((w) => ({
     orgId: ctx.orgId, id: woIdOf.get(w.id)!, orderId: w.orderId, amountMinor: w.amountMinor, currency: w.currency,
     differenceIds: w.differenceIds.map((id) => diffIdOf.get(`${w.orderId}|${id}`)!), status: "proposed",
   }));
-  const newWo: { id: string }[] = [];
-  for (let i = 0; i < woRows.length; i += 1000) newWo.push(...await tx.insert(t.writeoffProposals).values(woRows.slice(i, i + 1000)).onConflictDoNothing().returning({ id: t.writeoffProposals.id }));
+  const newWo = await bulkInsert(tx, t.writeoffProposals, woRows, { onConflict: { target: ["org_id", "id"], doNothing: true }, returning: ["id"] });
   // a write-off the engine no longer proposes (the payment changed) is superseded, with any pending request for it
   const currentWo = new Set(woIdOf.values());
-  const oldWo = openIds.length ? (await tx.select().from(t.writeoffProposals).where(and(eq(t.writeoffProposals.orgId, ctx.orgId), inArray(t.writeoffProposals.orderId, openIds),
+  const oldWo = openIds.length ? (await tx.select().from(t.writeoffProposals).where(and(eq(t.writeoffProposals.orgId, ctx.orgId), anyOf(t.writeoffProposals.orderId, openIds),
     inArray(t.writeoffProposals.status, ["proposed", "awaiting_approval"])))).filter((w) => !currentWo.has(w.id)) : [];
   for (const w of oldWo) {
     await tx.update(t.approvalRequests).set({ status: "superseded", closedAt: now }).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.subjectKind, "merchant_writeoff"), eq(t.approvalRequests.subjectId, w.id), eq(t.approvalRequests.status, "pending")));
@@ -260,10 +253,7 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
     return { orgId: ctx.orgId, id: j.id, entityId, pattern: j.kind, lines: plain(lines) as object, currency: j.currency, status: "proposed", postingRuleStatus: "pending_sign_off",
       evidenceRefs: plain({ ...j.evidence, ruleId: j.ruleId, entryDate: j.entryDate, memo: j.memo, requiresApprovalOf: j.requiresApprovalOf ? woIdOf.get(j.requiresApprovalOf) ?? j.requiresApprovalOf : null, label: meta.label }) as object };
   });
-  for (let i = 0; i < journalRows.length; i += 500) {
-    await tx.insert(t.merchantJournalProposals).values(journalRows.slice(i, i + 500)).onConflictDoUpdate({ target: [t.merchantJournalProposals.orgId, t.merchantJournalProposals.id],
-      set: { entityId: ex("entity_id"), pattern: ex("pattern"), lines: ex("lines"), currency: ex("currency"), evidenceRefs: ex("evidence_refs") }, setWhere: sql`${t.merchantJournalProposals.status} = 'proposed'` });
-  }
+  await bulkInsert(tx, t.merchantJournalProposals, journalRows, { onConflict: { target: ["org_id", "id"], set: setExcluded(["entity_id", "pattern", "lines", "currency", "evidence_refs"]), where: sql`merchant_journal_proposals.status = 'proposed'` } });
   const keep = journals.map((j) => j.id);
   const keptOrders = [...stored.keys()];
   await tx.update(t.merchantJournalProposals).set({ status: "superseded" }).where(and(eq(t.merchantJournalProposals.orgId, ctx.orgId), eq(t.merchantJournalProposals.entityId, entityId),

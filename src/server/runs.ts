@@ -6,6 +6,7 @@ import { JOURNAL_RULES, RULES, type ReconcileResult } from "@/lib/clearline/merc
 import { active, type JournalRuleId, type RuleId } from "@/lib/clearline/merchant/rules";
 import type { Tx } from "./db/client";
 import * as t from "./db/schema";
+import { anyOf } from "./db/bulk";
 import { can, type Permission } from "./authz";
 import { IdempotencyKey, canonical, idempotent, serverAudit } from "./control";
 import { RequestRefused } from "./errors";
@@ -46,12 +47,13 @@ export function errorCodeOf(e: unknown): string {
 /** Orders a person closed: an approved write-off, or an exception resolved through an approved resolution. */
 export async function closedOrders(tx: Tx, orgId: string, orderIds: string[]): Promise<Set<string>> {
   if (!orderIds.length) return new Set();
+  const among = (col: typeof t.writeoffProposals.orderId | typeof t.reconExceptions.orderId) => anyOf(col, orderIds);
   const wo = await tx.selectDistinct({ orderId: t.writeoffProposals.orderId }).from(t.writeoffProposals)
-    .where(and(eq(t.writeoffProposals.orgId, orgId), eq(t.writeoffProposals.status, "approved"), inArray(t.writeoffProposals.orderId, orderIds)));
+    .where(and(eq(t.writeoffProposals.orgId, orgId), eq(t.writeoffProposals.status, "approved"), among(t.writeoffProposals.orderId)));
   const res = await tx.selectDistinct({ orderId: t.reconExceptions.orderId }).from(t.reconExceptions)
     .innerJoin(t.approvalRequests, and(eq(t.approvalRequests.orgId, t.reconExceptions.orgId), eq(t.approvalRequests.subjectKind, "merchant_resolution"),
       eq(t.approvalRequests.subjectId, t.reconExceptions.id), eq(t.approvalRequests.status, "approved")))
-    .where(and(eq(t.reconExceptions.orgId, orgId), eq(t.reconExceptions.status, "resolved"), inArray(t.reconExceptions.orderId, orderIds)));
+    .where(and(eq(t.reconExceptions.orgId, orgId), eq(t.reconExceptions.status, "resolved"), among(t.reconExceptions.orderId)));
   return new Set([...wo.map((x) => x.orderId), ...res.map((x) => x.orderId).filter((x): x is string => !!x)]);
 }
 

@@ -1,5 +1,6 @@
 import "server-only";
 import { and, asc, eq, inArray, isNotNull, or } from "drizzle-orm";
+import { anyOf } from "./db/bulk";
 import {
   NETWORKS, localDate, toFiatMinor,
   type BankLine, type ChainTransfer, type ChainUnavailable, type FiatCurrency, type Invoice, type MerchantEntity, type MerchantPolicy, type NetworkId, type PaymentLink,
@@ -73,7 +74,7 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
     ...(i.priceTokenAmount !== null && i.priceNetwork !== null && i.priceTokenContract !== null
       ? { price: { token: { network: dbNetwork(i.priceNetwork), contract: i.priceTokenContract }, baseUnits: BigInt(i.priceTokenAmount) } } : {}),
   }));
-  const qs = orderIds.length ? await tx.select().from(t.merchantQuotes).where(and(eq(t.merchantQuotes.orgId, orgId), inArray(t.merchantQuotes.orderId, orderIds))).orderBy(asc(t.merchantQuotes.quoteId)) : [];
+  const qs = orderIds.length ? await tx.select().from(t.merchantQuotes).where(and(eq(t.merchantQuotes.orgId, orgId), anyOf(t.merchantQuotes.orderId, orderIds))).orderBy(asc(t.merchantQuotes.quoteId)) : [];
   // rc7: terms an uploaded export did not carry are NULL. The engine gets placeholders it never uses, and the list of
   // unknown terms, so the order abstains (M3.quote.terms_unknown). Nothing is derived to fill them.
   const quotes: Quote[] = qs.map((q) => {
@@ -84,7 +85,7 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
       expiresAt: iso(q.expiresAt ?? EPOCH), depositAddress: q.depositAddress, ...(unknown.length ? { unknown } : {}),
     };
   });
-  const ls = orderIds.length ? await tx.select().from(t.paymentLinks).where(and(eq(t.paymentLinks.orgId, orgId), inArray(t.paymentLinks.orderId, orderIds))).orderBy(asc(t.paymentLinks.linkId)) : [];
+  const ls = orderIds.length ? await tx.select().from(t.paymentLinks).where(and(eq(t.paymentLinks.orgId, orgId), anyOf(t.paymentLinks.orderId, orderIds))).orderBy(asc(t.paymentLinks.linkId)) : [];
   const paymentLinks: PaymentLink[] = ls.map((l) => {
     // the upload pipeline always records a link's quote and token (normalise); only a hand-made row could lack them
     if (!l.quoteId || !l.tokenContract) throw new Error(`payment link ${l.linkId} lacks the fields reconciliation needs`);
@@ -95,7 +96,7 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
     return { linkId: l.linkId, orderId: l.orderId, quoteId: l.quoteId, kind: l.kind as PaymentLink["kind"], token: { network: dbNetwork(l.network), contract: l.tokenContract }, depositAddress: l.depositAddress, ...requested, ...window };
   });
   const qIds = quotes.map((q) => q.quoteId), lIds = paymentLinks.map((l) => l.linkId);
-  const refs = [...(qIds.length ? [inArray(t.providerPaymentRecords.quoteId, qIds)] : []), ...(lIds.length ? [inArray(t.providerPaymentRecords.linkId, lIds)] : [])];
+  const refs = [...(qIds.length ? [anyOf(t.providerPaymentRecords.quoteId, qIds)] : []), ...(lIds.length ? [anyOf(t.providerPaymentRecords.linkId, lIds)] : [])];
   const prs = refs.length ? await tx.select().from(t.providerPaymentRecords).where(and(eq(t.providerPaymentRecords.orgId, orgId), or(...refs))).orderBy(asc(t.providerPaymentRecords.providerPaymentId)) : [];
   const providerRecords: ProviderPaymentRecord[] = prs.map((p) => {
     const r = p.record as { ref: ProviderPaymentRecord["ref"]; transferRef?: ProviderPaymentRecord["transferRef"]; displayedStatus?: string; executedRate: string; logIndexUnknown?: boolean };
