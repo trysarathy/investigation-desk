@@ -166,3 +166,12 @@ check), so it is neither offline nor free of a third-party fetch. The in-repo sc
 (`tests/platform/security-ci.test.ts`), never prints a matched value, and runs in under a second. Trade-off: fewer
 rules than gitleaks' ~150. To switch, replace the job's two steps with a SHA-pinned gitleaks action and keep the
 allow-list semantics.
+
+## v1 phase 6 update (proposal; nothing changed on GitHub)
+
+- The `paths:` filters are removed from `clearline-browser`, `funding-browser`, `funding-replay` and `mentor-browser`,
+  so every pull request runs every suite and any of them can now be required without leaving a PR waiting.
+- New job `migrations` in `ci.yml` (`scripts/deploy/check-migrations.mjs`, expand/contract lint; see
+  docs/ops/DEPLOY_AND_ROLLBACK.md). Proposed as required, with the five above.
+- `ci.yml`, `control-e2e.yml` and `merchant-e2e.yml` can also be called (`workflow_call`) by `deploy-staging.yml`,
+  which runs them as its gates before building the release image.

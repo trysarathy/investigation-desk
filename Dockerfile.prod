@@ -34,4 +34,6 @@ COPY --from=build --chown=node:node /app/src ./src
 COPY --from=build --chown=node:node /app/scripts ./scripts
 USER node
 EXPOSE 8080
+# writes the managed database's CA certificate (if given) for sslmode=verify-full, then runs the command
+ENTRYPOINT ["scripts/deploy/entrypoint.sh"]
 CMD ["npx", "next", "start", "-H", "0.0.0.0", "-p", "8080"]

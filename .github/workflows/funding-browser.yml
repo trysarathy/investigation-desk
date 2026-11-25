@@ -1,15 +1,7 @@
 name: Funding browser acceptance
 on:
+  # v1 phase 6: every pull request runs every suite (path filters removed, so each can be a required check)
   pull_request:
-    paths:
-      - 'src/**'
-      - 'scripts/**'
-      - 'fixtures/funding/**'
-      - 'tests/browser/**'
-      - 'playwright.funding.config.ts'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/funding-browser.yml'
 permissions:
   contents: read
 concurrency:
