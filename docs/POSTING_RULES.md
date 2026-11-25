@@ -478,6 +478,23 @@ common practice, not built]; Q-FX-D whether Xero/QuickBooks revalue the foreign 
 revalues only provider clearing, as built) [ASSUMPTION]; Q-FX-E payment-level matching of USD invoices under an SGD entity
 (today `M3.currency.invoice_currency`, an exception: allowing it would loosen matching and is approval-only, not built).
 
+### Sign-off screen (v1 phase 4) — **BUILT; APPROVAL-ONLY (a new control). Signing approves no journal and posts nothing.**
+
+- **What is shown:** `/control/merchant/posting-rules` lists every pattern above (Document A, the FX patterns FX1–FX3, the
+  token-priced pattern and the §4 receipts cases C1–C17) with its status. The worked examples are computed by the engine
+  on fictional inputs (`src/lib/clearline/merchant/posting-rules.ts`: `proposeJournals` on the case fixtures,
+  `proposeRevaluations`, and the `fx.ts` / `amounts.ts` conversions for the drafted patterns); none is typed by hand.
+  The §4 cases belong to the earlier receipts product and are listed by reference without a generated example.
+- **Version:** `PR-` + the first 12 hex digits of the SHA-256 of the canonical catalogue. Any change to a rule, a text or
+  an engine result is a new version and needs a new signature.
+- **Who signs:** a merchant Admin with access to every entity, with a second factor proved in the last 10 minutes (a
+  password alone never counts). drizzle/0066 records the signer's name and user id, the time (the database's), the
+  version and its SHA-256 and the catalogue itself; append-only, revoked at most once.
+- **The gate:** `postingRulesSigned(orgId, userId?)` (`src/server/posting-rules.ts`) is true only when the newest
+  unrevoked signature of the organisation is for the **current** version; anything else, or any error, is false. Until
+  then every journal is labelled a draft (month-end pack) and must not be sent to a ledger. Journal proposals keep
+  `postingRuleStatus: pending_sign_off` in the database whatever is signed.
+
 ### Draft Xero and QuickBooks export (rc7, PR #154) — **DRAFT FILES ONLY, NOTHING POSTED**
 
 **Status [VERIFIED in `src/lib/clearline/exports/journal-drafts.ts` and `src/server/exports.ts`].** The Document A section above is unchanged by this export. The posting rules are still pending sign-off.
