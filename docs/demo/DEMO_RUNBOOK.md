@@ -309,7 +309,9 @@ What the three files give after upload, confirmation (the statement by an Approv
   imported and second-person confirmed). The 10 with a difference stay in review (`M5.bank.imported_not_verified`).
   Before the split all 65 stayed in review. Nothing is ever bank-authenticated.
 - The 24 new payments are verified against the recorded chain data with their quote terms. 23 wait for settlement
-  (no payout yet: "suggested for review: M5.grouping.proposed_needs_confirmation"), and BK-39021, underpaid by 6%, is an
+  (no payout yet: "suggested for review: M5.grouping.proposed_needs_confirmation"). This is unchanged by v1 Phase 0.5
+  (`M5.grouping.matched_settlement_unlinked` matches an exact payment with an unlinked settlement only when its provider
+  row names a payout batch in the settlement report, and these rows name none), and BK-39021, underpaid by 6%, is an
   exception (M4.tolerance.underpayment_beyond_band) with an owner, reason and next step.
 - NW-SG decisions before → after: matched 697 → 752, with difference 97 → 97, review 14 → 48, exception 87 → 22.
   (Before the v1 Phase 0.5 split: matched 697 → 697, review 14 → 103.)
