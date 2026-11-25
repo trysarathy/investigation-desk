@@ -43,6 +43,10 @@
  *                                            are stored, never the full number. Prints ids and the currency only)
  *   close-bank-account <org-slug> <bank-account-id> [--confirm <org-slug>]
  *                                           (v1: no new statements to it; its lines stay)
+ *   record-rate <org-slug> <BASE/QUOTE> <rate> --as-of <ISO instant> --source <label>
+ *                                           (v1 decision 9: one recorded fiat rate, e.g. USD/SGD 1.3500 = SGD per 1 USD;
+ *                                            append-only, never edited; calls no rate API. Shows other-currency amounts in
+ *                                            the entity's currency and values revaluation proposals; never makes a tie)
  *   set-policy <org-slug> <entity-id> [--defaults] [--tolerance-bps N] [--tolerance-abs-minor N] [--combine larger|smaller]
  *              [--writeoff-threshold-minor N] [--allow-imported-bank-lines true|false] [--confirm <org-slug>]
  *                                           (validated exactly as the Settings page validates it)
@@ -58,7 +62,7 @@ import type { AppRole } from "../../src/server/authz";
 import { seedMerchantCases } from "../../src/server/merchant-seed";
 import { purgeExpiredUploads, sweepOrphanFiles } from "../../src/server/uploads";
 import { deleteMerchant, planMerchantDeletion } from "../../src/server/merchant-deletion";
-import { addBankAccount, addEntity, addMember, closeBankAccount, createMerchant, createProvider, linkProvider, openOwnerDb, setPolicy, setupSummary } from "../../src/server/merchant-setup";
+import { addBankAccount, addEntity, addMember, closeBankAccount, createMerchant, createProvider, linkProvider, openOwnerDb, recordFiatRate, setPolicy, setupSummary } from "../../src/server/merchant-setup";
 
 const DEMO_USERS: { email: string; name: string; org: string; role: AppRole }[] = [
   { email: "ops@lumen.example", name: "Priya Raman (fictional)", org: "lumen-demo", role: "payment_ops" },
@@ -86,12 +90,12 @@ const POLICY_FLAGS: Record<string, [string, (v: string) => unknown]> = {
   "tolerance-bps": ["toleranceBps", (v) => (/^\d+$/.test(v) ? Number(v) : v)], "tolerance-abs-minor": ["toleranceAbsMinor", (v) => v], combine: ["toleranceCombine", (v) => v],
   "writeoff-threshold-minor": ["writeoffThresholdMinor", (v) => v], "allow-imported-bank-lines": ["allowImportedBankLinesAsVerified", (v) => (v === "true" ? true : v === "false" ? false : v)],
 };
-const SETUP = new Set(["create-merchant", "create-provider", "add-entity", "add-bank-account", "close-bank-account", "set-policy", "link-provider", "add-member", "setup-summary"]);
+const SETUP = new Set(["create-merchant", "create-provider", "add-entity", "add-bank-account", "close-bank-account", "record-rate", "set-policy", "link-provider", "add-member", "setup-summary"]);
 
 /** rc8 founder decision 4: the owner-only merchant setup commands. Exit 2 for a dry run (nothing changed). */
 async function setup(cmd: string, args: string[]) {
   const { pos, f } = flags(args);
-  const known = new Set(["name", "timezone", "currency", "utc-offset", "ledger", "confirm", "defaults", "last4", "bank", "bic", ...Object.keys(POLICY_FLAGS)]);
+  const known = new Set(["name", "timezone", "currency", "utc-offset", "ledger", "confirm", "defaults", "last4", "bank", "bic", "as-of", "source", ...Object.keys(POLICY_FLAGS)]);
   for (const k of Object.keys(f)) if (!known.has(k)) throw new Error(`unknown flag --${k}`);
   const { db, close } = await openOwnerDb(process.env.DATABASE_OWNER_URL);
   try {
@@ -102,6 +106,7 @@ async function setup(cmd: string, args: string[]) {
       case "create-provider": out = await createProvider(db, { slug: need(pos[0], "<slug>"), name: need(f.name, "--name"), timezone: need(f.timezone, "--timezone") }); break;
       case "add-entity": out = await addEntity(db, { orgSlug: need(pos[0], "<org-slug>"), entityId: need(pos[1], "<entity-id>"), name: need(f.name, "--name"), currency: need(f.currency, "--currency"), timezone: need(f.timezone, "--timezone"), utcOffset: f["utc-offset"], ledger: f.ledger }); break;
       case "add-bank-account": out = await addBankAccount(db, { orgSlug: need(pos[0], "<org-slug>"), entityId: need(pos[1], "<entity-id>"), name: need(f.name, "--name"), currency: need(f.currency, "--currency"), last4: need(f.last4, "--last4"), bankName: need(f.bank, "--bank"), bic: f.bic }); break;
+      case "record-rate": out = await recordFiatRate(db, { orgSlug: need(pos[0], "<org-slug>"), pair: need(pos[1], "<BASE/QUOTE>"), rate: need(pos[2], "<rate>"), asOf: need(f["as-of"], "--as-of"), source: need(f.source, "--source") }); break;
       case "close-bank-account": out = await closeBankAccount(db, { orgSlug: need(pos[0], "<org-slug>"), bankAccountId: need(pos[1], "<bank-account-id>"), confirm: f.confirm }); break;
       case "set-policy": {
         const patch = Object.fromEntries(Object.entries(POLICY_FLAGS).filter(([k]) => f[k] !== undefined).map(([k, [field, conv]]) => [field, conv(f[k])]));

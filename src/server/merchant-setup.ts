@@ -11,6 +11,7 @@ import { PolicyPatch } from "./merchant";
 import { defaultPolicyFor } from "@/lib/clearline/merchant/config";
 import type { FiatCurrency } from "@/lib/clearline/merchant/types";
 import { normaliseLast4 } from "@/lib/clearline/bank-accounts";
+import { parseFiatPair, validRate, type RateSource } from "@/lib/clearline/fx/rate-source";
 
 /**
  * rc8 founder decision 4: an operator creates a merchant from scratch with the admin CLI (no wizard):
@@ -206,8 +207,9 @@ const Bic = z.string().regex(/^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$/, "a B
 const LAST4_HELP = "pass exactly the LAST FOUR letters or digits of the account number; the full number is never stored";
 
 /**
- * A bank account of an entity (`add-bank-account`). Its currency may differ from the entity's functional currency;
- * reconciliation still reads only statement lines in the entity's functional currency. Same name and values again: no
+ * A bank account of an entity (`add-bank-account`). Its currency may differ from the entity's functional currency
+ * (v1 decision 9: its statement lines and the batches settled to it are reconciled in the ACCOUNT's currency, never
+ * converted; the entity value is shown from a recorded rate, `record-rate`). Same name and values again: no
  * change; the same name with other values is refused (an account's entity, currency and number never change).
  */
 export async function addBankAccount(db: Db, input: { orgSlug: string; entityId: string; name: string; currency: string; last4: string; bankName: string; bic?: string }) {
@@ -247,6 +249,52 @@ export async function closeBankAccount(db: Db, input: { orgSlug: string; bankAcc
     await audit(tx, org.id, "bank_account_closed", "bank_account", id, `Bank account ${id} closed (no new statements)`, { entityId: a.entityId, bankAccountId: id });
   });
   return { status: "closed" as const, orgId: org.id, bankAccountId: id };
+}
+
+// ---------------------------------------------------------------------------------------------
+// v1 founder decision 9: recorded fiat rates (fiat_rates, append-only)
+// ---------------------------------------------------------------------------------------------
+
+const SourceLabel = z.string().trim().min(1).max(120);
+/** [ASSUMPTION] a rate may not be recorded as of a time more than five minutes ahead of the recording clock. */
+const FUTURE_SLACK_MS = 5 * 60_000;
+
+/**
+ * Record one rate (`record-rate <org-slug> <BASE/QUOTE> <rate> --as-of <ISO instant> --source <label>`). Append-only:
+ * the same pair, instant, source and rate again is "exists"; the same pair, instant and source with another rate is
+ * refused (record a correction under a new instant or source; disagreeing sources at one instant read as "needs a rate").
+ */
+export async function recordFiatRate(db: Db, input: { orgSlug: string; pair: string; rate: string; asOf: string; source: string; recordedBy?: string }, now: Date = new Date()) {
+  const org = await merchantOrg(db, input.orgSlug);
+  const pair = parseFiatPair(input.pair);
+  if (!pair) throw new SetupRefused("pair: BASE/QUOTE in two different reconciliation currencies (SGD, USD, AED), e.g. USD/SGD");
+  const rate = validRate(input.rate);
+  if (!rate) throw new SetupRefused("rate: a plain positive decimal with at most 10 places, e.g. 1.3500 (quote units per 1 base)");
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/.test(input.asOf) || !Number.isFinite(Date.parse(input.asOf))) throw new SetupRefused("as-of: an ISO instant with a zone, e.g. 2026-11-25T00:00:00Z");
+  const asOf = new Date(input.asOf);
+  if (asOf.getTime() > now.getTime() + FUTURE_SLACK_MS) throw new SetupRefused("as-of: a rate cannot be recorded for a time in the future");
+  const sourceLabel = parse(SourceLabel, input.source, "source");
+  const recordedBy = input.recordedBy ?? "admin-cli";
+  const [prior] = await db.select().from(t.fiatRates).where(and(eq(t.fiatRates.orgId, org.id), eq(t.fiatRates.baseCurrency, pair.base), eq(t.fiatRates.quoteCurrency, pair.quote),
+    eq(t.fiatRates.asOf, asOf), eq(t.fiatRates.sourceLabel, sourceLabel)));
+  if (prior) {
+    const norm = (x: string) => (x.includes(".") ? x.replace(/0+$/, "").replace(/\.$/, "") : x);
+    if (norm(prior.rate) === norm(rate)) return { status: "exists" as const, orgId: org.id, rateId: prior.id, pair: input.pair };
+    throw new SetupRefused("A different rate is already recorded for this pair, instant and source; rates are never changed. Record the correction under another instant or source.");
+  }
+  const id = await db.transaction(async (tx) => {
+    const [r] = await tx.insert(t.fiatRates).values({ orgId: org.id, baseCurrency: pair.base, quoteCurrency: pair.quote, rate, asOf, sourceLabel, recordedBy }).returning({ id: t.fiatRates.id });
+    await audit(tx, org.id, "fiat_rate_recorded", "fiat_rate", r.id, `Rate ${pair.base}/${pair.quote} recorded as of ${asOf.toISOString()}`, { rateId: r.id, pair: `${pair.base}/${pair.quote}`, asOf: asOf.toISOString() });
+    return r.id;
+  });
+  return { status: "created" as const, orgId: org.id, rateId: id, pair: `${pair.base}/${pair.quote}` };
+}
+
+/** Ask a RateSource (the local stand-in in tests; never a real API here) and record what it answers; null = nothing to record. */
+export async function recordFromRateSource(db: Db, source: RateSource, input: { orgSlug: string; pair: string; asOf: string }, now: Date = new Date()) {
+  const q = await source.quote(input.pair, new Date(input.asOf));
+  if (!q) return { status: "no_rate" as const, pair: input.pair };
+  return recordFiatRate(db, { orgSlug: input.orgSlug, pair: q.pair, rate: q.rate, asOf: q.asOf.toISOString(), source: q.sourceLabel }, now);
 }
 
 // ---------------------------------------------------------------------------------------------

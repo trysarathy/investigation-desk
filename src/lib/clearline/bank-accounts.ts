@@ -8,6 +8,7 @@
  * fingerprint (no account) and the old line id; a later re-upload of such a line to ANY account of the entity is still
  * a duplicate (its account was never recorded, so Clearline cannot tell it apart), as is one to the same account made
  * before this change. An identical FILE stays refused for the entity whatever the account (uploads_content_uq).
+ * Reconciliation reads a statement's credits in its account's currency (normalise.ts); see bridge.ts.
  */
 import type { AppliedRow } from "./mapping";
 

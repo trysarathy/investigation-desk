@@ -146,11 +146,16 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
   const imported = (s: string) => s === "csv_import" || s === "file_import";
   const bankLines: BankLine[] = bk.map((b) => ({ bankLineId: b.lineId, account: b.account, currency: b.currency as FiatCurrency, valueDate: b.valueDate, amountMinor: b.amountMinor, description: b.description, source: imported(b.source) ? "csv_import" : "bank_feed", provenance: b.provenance ?? b.source }));
   const fx = await tx.select().from(t.fxRates).where(and(eq(t.fxRates.orgId, orgId), eq(t.fxRates.entityId, entityId))).orderBy(asc(t.fxRates.pair), asc(t.fxRates.source), asc(t.fxRates.observedAt));
+  // v1 (decision 9): recorded fiat rates INTO the entity's currency (USD/SGD for the SGD entity); shown, never used to tie
+  const fr = await tx.select().from(t.fiatRates).where(and(eq(t.fiatRates.orgId, orgId), eq(t.fiatRates.quoteCurrency, ent.functionalCurrency)))
+    .orderBy(asc(t.fiatRates.baseCurrency), asc(t.fiatRates.asOf), asc(t.fiatRates.sourceLabel));
+  const fiatRates = fr.map((r) => ({ pair: `${r.baseCurrency}/${r.quoteCurrency}`, rate: normRate(r.rate), asOf: iso(r.asOf), source: r.sourceLabel }));
   const af = await tx.select().from(t.addressFacts).where(eq(t.addressFacts.orgId, orgId)).orderBy(asc(t.addressFacts.network), asc(t.addressFacts.address), asc(t.addressFacts.fact));
   return {
     label: TEST_MODE_LABEL, entity, policy, networks, tokens, invoices, quotes, paymentLinks, transfers, providerRecords, batches, batchLines,
     ...(settlementPaymentLines.length ? { settlementPaymentLines } : {}), bankLines,
     fxRates: fx.map((r) => ({ pair: r.pair, rate: normRate(r.rate), source: r.source, timestamp: iso(r.observedAt) })),
+    ...(fiatRates.length ? { fiatRates } : {}),
     addressFacts: af.map((a) => ({ network: dbNetwork(a.network), address: a.address, fact: a.fact as ReconcileInput["addressFacts"][number]["fact"] })),
     ...(chainUnavailable.length ? { chainUnavailable } : {}),
   };
