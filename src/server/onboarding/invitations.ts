@@ -3,7 +3,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 import { z } from "zod";
 import { ROLE_LABELS, type AppRole } from "../authz";
-import { emailSender, type EmailSender } from "../email";
+import type { EmailSender } from "../email";
 import { withProvisioning } from "../db/provisioning";
 import { RequestRefused } from "../errors";
 
@@ -48,9 +48,11 @@ export function invitationEmail(input: { to: string; orgName: string; role: AppR
 
 /**
  * Create an invitation (through `create`, inside a transaction) and send its email in the same transaction: if the
- * sender refuses, the invitation is rolled back, so an invitation never exists that nobody was told about.
+ * sender refuses, the invitation is rolled back, so an invitation never exists that nobody was told about. `sender`
+ * is bound to that transaction (`emailSender({ required: true, prov: tx })` or `{ tx }`), so with the local outbox the
+ * email row commits or rolls back with the invitation.
  */
-export async function inviteAndSend<T>(create: (t: NewToken) => Promise<T>, mail: (t: NewToken) => ReturnType<typeof invitationEmail>, sender: EmailSender = emailSender({ required: true })): Promise<T> {
+export async function inviteAndSend<T>(create: (t: NewToken) => Promise<T>, mail: (t: NewToken) => ReturnType<typeof invitationEmail>, sender: EmailSender): Promise<T> {
   const t = newInvitationToken();
   const out = await create(t);
   await sender.send(mail(t));

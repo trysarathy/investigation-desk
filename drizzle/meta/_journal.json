@@ -358,6 +358,13 @@
       "when": 1796540000000,
       "tag": "0054_access_review",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1796680000000,
+      "tag": "0068_invitation_email_outbox",
+      "breakpoints": true
     }
   ]
 }

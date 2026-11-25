@@ -58,6 +58,8 @@ export const emailOutbox = pgTable("email_outbox", {
   subject: text("subject").notNull(),
   textBody: text("text_body").notNull(),
   htmlBody: text("html_body"),
+  /** v1 wave 1 (drizzle/0068): what the message is for, e.g. "invitation". */
+  kind: text("kind"),
   createdAt: ts("created_at").notNull().defaultNow(),
 });
 

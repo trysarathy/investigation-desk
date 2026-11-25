@@ -63,7 +63,7 @@
  * v1 phase 1.1, onboarding (also DATABASE_OWNER_URL only; ids and roles printed, never an email or a token):
  *   invite-admin <org-slug> <email>         (invite the organisation's FIRST admin — Admin of a merchant, Provider Admin
  *                                            of a provider; refused once it has one. The invitation email goes through
- *                                            the email sender: the local outbox, CLEARLINE_EMAIL_OUTBOX_DIR)
+ *                                            the email sender: the local outbox, CLEARLINE_EMAIL_SENDER=outbox)
  *   grant-platform-operator <email>         (the person may open the platform console, which also needs
  *                                            CLEARLINE_PLATFORM_CONSOLE=1 on the deployment)
  *   revoke-platform-operator <email>        (and signs them out everywhere)

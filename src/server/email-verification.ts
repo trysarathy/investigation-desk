@@ -35,6 +35,7 @@ export async function sendVerificationEmail(p: Principal, ip: string | null): Pr
   const link = `${process.env.CLEARLINE_ORIGIN ?? ""}/control/sign-in/verify-email#token=${token}`;
   await emailSender().send({
     to: u.email,
+    kind: "email_verification",
     subject: "Verify your e-mail address for Clearline Control",
     text: [`To verify ${u.email} for Clearline Control, open this link within ${VERIFY_MINUTES} minutes. It works once:`, link, "", "If you did not ask for this, ignore this e-mail."].join("\n"),
   });

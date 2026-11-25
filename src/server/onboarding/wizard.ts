@@ -15,6 +15,7 @@ import { merchantShell } from "../merchant-ui";
 import { listOrgUsers } from "../org-admin";
 import { AccessDenied, type TenantContext, withTenant } from "../tenant";
 import { offsetOf, parseUtcOffset, SetupRefused, validTimeZone } from "../merchant-setup";
+import { emailSender } from "../email";
 import { Email, invitationEmail, inviteAndSend } from "./invitations";
 
 /**
@@ -180,7 +181,8 @@ export async function inviteMember(ctx: TenantContext, input: z.input<typeof Inv
   return prov(ctx, async (tx) => ({
     invitationId: await inviteAndSend(
       async (tk) => String((await tx.call("prov_invite_member", [v.email, v.role, tk.sha256, tk.expiresAt]))[0].prov_invite_member),
-      (tk) => invitationEmail({ to: v.email, orgName: ctx.orgName, role: v.role, token: tk.token, expiresAt: tk.expiresAt })),
+      (tk) => invitationEmail({ to: v.email, orgName: ctx.orgName, role: v.role, token: tk.token, expiresAt: tk.expiresAt }),
+      emailSender({ required: true, prov: tx })),
     role: v.role, roleLabel: ROLE_LABELS[v.role],
   }));
 }

@@ -4,6 +4,7 @@ import { emptyWorkspace } from "@/lib/clearline";
 import { engineStateOf } from "../engine-store";
 import { withProvisioning } from "../db/provisioning";
 import { AccessDenied, type Principal } from "../tenant";
+import { emailSender } from "../email";
 import { Email, invitationEmail, inviteAndSend } from "./invitations";
 
 /**
@@ -55,7 +56,8 @@ export async function createOrganizationAndInvite(p: Principal, input: z.input<t
     const orgId = String(o.prov_platform_create_org);
     const invitationId = await inviteAndSend(
       async (t) => String((await tx.call("prov_platform_invite_admin", [orgId, v.adminEmail, t.sha256, t.expiresAt]))[0].prov_platform_invite_admin),
-      (t) => invitationEmail({ to: v.adminEmail, orgName: v.name, role: v.kind === "provider" ? "provider_admin" : "admin", token: t.token, expiresAt: t.expiresAt }));
+      (t) => invitationEmail({ to: v.adminEmail, orgName: v.name, role: v.kind === "provider" ? "provider_admin" : "admin", token: t.token, expiresAt: t.expiresAt }),
+      emailSender({ required: true, prov: tx }));
     return { orgId, slug: v.slug, kind: v.kind, invitationId };
   });
 }
@@ -70,6 +72,7 @@ export async function reinviteFirstAdmin(p: Principal, input: z.input<typeof Rei
   return withProvisioning({ userId: p.userId }, async (tx) => ({
     invitationId: await inviteAndSend(
       async (t) => String((await tx.call("prov_platform_invite_admin", [v.orgId, v.adminEmail, t.sha256, t.expiresAt]))[0].prov_platform_invite_admin),
-      (t) => invitationEmail({ to: v.adminEmail, orgName: org.name, role: org.kind === "provider" ? "provider_admin" : "admin", token: t.token, expiresAt: t.expiresAt })),
+      (t) => invitationEmail({ to: v.adminEmail, orgName: org.name, role: org.kind === "provider" ? "provider_admin" : "admin", token: t.token, expiresAt: t.expiresAt }),
+      emailSender({ required: true, prov: tx })),
   }));
 }

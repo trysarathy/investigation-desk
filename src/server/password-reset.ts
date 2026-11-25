@@ -17,6 +17,7 @@ export async function sendPasswordResetEmail(user: { email: string; name: string
   const link = `${origin}/control/sign-in/reset#token=${encodeURIComponent(token)}`;
   await emailSender().send({
     to: user.email,
+    kind: "password_reset",
     subject: "Reset your Clearline Control password",
     text: [
       `Someone asked to reset the password for ${user.email} on Clearline Control.`,

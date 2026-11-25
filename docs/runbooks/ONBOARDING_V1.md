@@ -51,16 +51,19 @@ organisation data, member list or emails.
 
 ## Email
 
-`src/server/email` defines `EmailSender { send({ to, subject, text, kind }) }`. The only implementation is the local
-outbox (`CLEARLINE_EMAIL_OUTBOX_DIR`: one JSON file per message; it holds one-time links, keep it under the
-git-ignored `.data/`). Without it, inviting is refused and nothing is created. The invitation row and its email are
-in one transaction: if the sender refuses, the invitation is rolled back.
+`src/server/email` defines ONE `EmailSender { send({ to, subject, text, html?, kind? }) }`, shared with login
+security (phase 1.2; unified at the wave 1 integration). The only implementation is the local outbox
+(`CLEARLINE_EMAIL_SENDER=outbox`: the `email_outbox` table; the web app may insert but never read it, the provisioning
+role queues invitation emails only through `prov_queue_invitation_email`, drizzle/0068). Without it, inviting is
+refused and nothing is created. The invitation row and its email are in one transaction (the provisioning
+transaction, or the owner's for the CLI): if the sender refuses or anything later fails, both are rolled back. Tests
+read the outbox as the owner (`tests/support/email-outbox.ts`, test-only).
 
 ## CLI (schema owner, `DATABASE_OWNER_URL`)
 
 ```sh
 npm run control:admin -- create-merchant acme-sg --name "Acme SG (fictional)" --timezone Asia/Singapore
-npm run control:admin -- invite-admin acme-sg first.admin@acme.example      # needs CLEARLINE_EMAIL_OUTBOX_DIR, CLEARLINE_ORIGIN
+npm run control:admin -- invite-admin acme-sg first.admin@acme.example      # needs CLEARLINE_EMAIL_SENDER=outbox, CLEARLINE_ORIGIN
 ```
 
 ## The setup wizard (`/control/merchant/setup`, merchant Admin only)

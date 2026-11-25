@@ -5,15 +5,15 @@
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { Pool } from "pg";
 import { closeOwner, ownerDb, PASSWORD, resetBlank } from "./harness";
 import { runtimeGrantSnapshot } from "./runtime-grants";
 import { closeDatabase } from "../../src/server/db/client";
 import { closeProvisioningDatabase, withProvisioning } from "../../src/server/db/provisioning";
-import { readOutbox, setEmailSenderForTests } from "../../src/server/email";
+import { setEmailSenderForTests } from "../../src/server/email";
+import { lastInvitation, readOutbox } from "../support/email-outbox";
 import { createUser, grantMembership } from "../../src/server/admin";
 import { createMerchant, createProvider } from "../../src/server/merchant-setup";
 import { resolveTenant, type TenantContext } from "../../src/server/tenant";
@@ -28,8 +28,9 @@ if (!process.env.CLEARLINE_TEST_PROVISIONING_URL) throw new Error("BLOCKED: set 
 process.env.DATABASE_PROVISIONING_URL = process.env.CLEARLINE_TEST_PROVISIONING_URL;
 
 const ORIGIN = process.env.CLEARLINE_ORIGIN!;
-const outbox = mkdtempSync(path.join(tmpdir(), "clearline-xb1-outbox-"));
-process.env.CLEARLINE_EMAIL_OUTBOX_DIR = outbox;
+// wave 1: the one EmailSender, the local outbox table (read here as the owner; the web app can only insert)
+process.env.CLEARLINE_EMAIL_SENDER = "outbox";
+const OWNER_URL = process.env.CLEARLINE_TEST_OWNER_URL!;
 const provPool = new Pool({ connectionString: process.env.CLEARLINE_TEST_PROVISIONING_URL, max: 2 });
 const rows = async (q: ReturnType<typeof sql>) => (await ownerDb().execute(q)).rows as Record<string, unknown>[];
 async function refused(p: Promise<unknown>, re: RegExp, what?: string) {
@@ -46,13 +47,7 @@ async function asProvisioningLogin(text: string, ctx: { userId?: string; orgId?:
   } finally { await c.query("rollback").catch(() => undefined); c.release(); }
 }
 /** The newest invitation email to `to`, and its token. */
-async function lastInvite(to: string) {
-  const m = (await readOutbox(outbox)).filter((x) => x.to === to).at(-1);
-  if (!m) throw new Error(`no invitation email to ${to}`);
-  const token = /#token=([A-Za-z0-9_-]{43})/.exec(m.text)?.[1];
-  if (!token) throw new Error("no token in the email");
-  return { message: m, token };
-}
+const lastInvite = (to: string) => lastInvitation(OWNER_URL, to);
 
 const ids: Record<string, string> = {};
 const orgs: Record<string, string> = {};
@@ -75,7 +70,7 @@ beforeAll(async () => {
   otherAdmin = await resolveTenant(p("admin@xb1-b.example"), "xb1-merchant-b");
 }, 120_000);
 afterEach(() => { setEmailSenderForTests(undefined); delete process.env.CLEARLINE_PLATFORM_CONSOLE; });
-afterAll(async () => { await provPool.end(); await closeProvisioningDatabase(); await closeDatabase(); await closeOwner(); rmSync(outbox, { recursive: true, force: true }); });
+afterAll(async () => { await provPool.end(); await closeProvisioningDatabase(); await closeDatabase(); await closeOwner(); });
 
 describe("the runtime role is exactly unchanged", () => {
   it("its grants, memberships, attributes and policies equal the snapshot taken before migration 0048 (base 6352925)", async () => {
@@ -111,11 +106,11 @@ describe("the provisioning role holds only its function grants", () => {
     expect((await rows(sql`select has_schema_privilege('clearline_provisioning', 'public', 'CREATE') as c`))[0].c).toBe(false);
   });
 
-  it("may execute exactly the 14 prov_* entry points (the internal helpers are not executable), besides what PUBLIC may execute", async () => {
+  it("may execute exactly the 15 prov_* entry points (the internal helpers are not executable), besides what PUBLIC may execute", async () => {
     const fns = (await rows(sql`select p.proname as f from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and p.proname like 'prov\\_%' and has_function_privilege('clearline_provisioning', p.oid, 'EXECUTE') order by 1`)).map((r) => r.f);
     expect(fns).toEqual(["prov_accept_invitation", "prov_add_bank_account", "prov_add_entity", "prov_add_mapping_template", "prov_invite_member", "prov_is_platform_operator",
-      "prov_link_provider", "prov_mark_step", "prov_platform_create_org", "prov_platform_invite_admin", "prov_platform_orgs", "prov_revoke_invitation", "prov_set_entity_ledger", "prov_setup_state"]);
+      "prov_link_provider", "prov_mark_step", "prov_platform_create_org", "prov_platform_invite_admin", "prov_platform_orgs", "prov_queue_invitation_email", "prov_revoke_invitation", "prov_set_entity_ledger", "prov_setup_state"]);
     // everything else it may execute, PUBLIC (hence the runtime role) may execute too: nothing extra was granted
     expect(await rows(sql`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname not like 'prov\\_%'
       and has_function_privilege('clearline_provisioning', p.oid, 'EXECUTE') and not has_function_privilege('clearline_runtime', p.oid, 'EXECUTE')`)).toEqual([]);
@@ -258,6 +253,22 @@ describe("the setup wizard (merchant Admin, provisioning role)", () => {
     await refused(wizard.inviteMember(otherAdmin, { email: "nobody@xb1-b.example", role: "viewer" }), /fictional sender outage/);
     expect((await rows(sql`select count(*)::int as n from org_invitations where email = 'nobody@xb1-b.example'`))[0].n).toBe(0);
     expect((await rows(sql`select count(*)::int as n from audit_events where org_id = ${orgs.b} and action = 'invitation_created'`))[0].n).toBe(0);
+  });
+
+  it("the invitation email is queued in the invitation's own transaction: rolled back with it, never without one", async () => {
+    // a later failure in the same provisioning transaction takes the queued email with the invitation
+    await refused(withProvisioning({ userId: otherAdmin.userId, orgId: otherAdmin.orgId }, async (tx) => {
+      await tx.call("prov_invite_member", ["rolledback@xb1-b.example", "viewer", "d".repeat(64), new Date(Date.now() + 86_400_000)]);
+      await tx.call("prov_queue_invitation_email", ["rolledback@xb1-b.example", "Invitation", "fictional body"]);
+      throw new Error("fictional failure after the email was queued");
+    }), /fictional failure/);
+    expect(await readOutbox(OWNER_URL, "rolledback@xb1-b.example")).toEqual([]);
+    expect((await rows(sql`select count(*)::int as n from org_invitations where email = 'rolledback@xb1-b.example'`))[0].n).toBe(0);
+    // the provisioning login cannot queue mail for an address without an invitation created in that transaction
+    await refused(asProvisioningLogin("select prov_queue_invitation_email('anyone@elsewhere.example', 'Hello', 'fictional')", { userId: otherAdmin.userId, orgId: otherAdmin.orgId }), /only with an invitation created in the same transaction/);
+    await refused(asProvisioningLogin("select prov_queue_invitation_email('twice@xb1-b.example', 'Hello', 'fictional')", {}), /no signed-in user/);
+    // nor read the outbox
+    await refused(asProvisioningLogin("select * from email_outbox"), /permission denied/);
   });
 
   it("re-inviting replaces the pending invitation; a revoked or expired token is refused; an existing account joins with its own password", async () => {
