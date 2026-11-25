@@ -65,7 +65,7 @@ export default async function SecurityPage({ searchParams }: { searchParams: Pro
                         <thead><tr><th scope="col">Name</th><th scope="col">Added</th><th scope="col">Last used</th><th scope="col">Action</th></tr></thead>
                         <tbody>{st.passkeys.map((p) => (
                           <tr key={p.id}><td>{p.name}</td><td>{when(p.createdAt)}</td><td>{when(p.lastUsedAt)}</td>
-                            <td><ActionButton url="/api/control/security/remove-passkey" body={{ id: p.id }} label={`Remove ${p.name}`} done="Passkey removed." flashKey={`pk-${p.id}`} variant="secondary" /></td></tr>
+                            <td><ActionButton url="/api/control/security/remove-passkey" body={{ id: p.id }} label={`Remove ${p.name}`} done="Passkey removed." flashKey="passkey-add" variant="secondary" /></td></tr>
                         ))}</tbody>
                       </table>
                     </TableRegion>
@@ -96,12 +96,13 @@ export default async function SecurityPage({ searchParams }: { searchParams: Pro
               <tbody>{sessions.map((x) => (
                 <tr key={x.id} data-testid={x.current ? "session-current" : "session-other"}>
                   <td>{x.device}{x.current ? " (this session)" : ""}</td><td>{when(x.createdAt)}</td><td>{when(x.lastActiveAt)}</td><td>{x.mfa ? "Yes" : "No"}</td>
-                  <td>{x.current ? <SignOutButton /> : <ActionButton url="/api/control/security/revoke-session" body={{ id: x.id }} label="Revoke" done="Session revoked." flashKey={`rs-${x.id}`} variant="secondary" />}</td>
+                  <td>{x.current ? <SignOutButton /> : <ActionButton url="/api/control/security/revoke-session" body={{ id: x.id }} label="Revoke" done="Session revoked." flashKey="sessions" variant="secondary" />}</td>
                 </tr>
               ))}</tbody>
             </table>
           </TableRegion>
-          {sessions.length > 1 ? <ActionButton url="/api/control/security/revoke-other-sessions" label="Sign out all other sessions" done="Every other session is signed out." flashKey="revoke-others" variant="secondary" /> : null}
+          {/* Always shown: it also carries the confirmation of a revoke after the reload (the revoked row is gone). */}
+          <ActionButton url="/api/control/security/revoke-other-sessions" label="Sign out all other sessions" done="Every other session is signed out." flashKey="sessions" variant="secondary" />
         </section>
 
         {!mustEnrol && !mustVerify ? <p><a href="/control">Continue to Clearline Control</a></p> : null}

@@ -60,7 +60,7 @@ test("an Admin without MFA is blocked until enrolled; enrols TOTP; then signs in
   // enrol: password, scan (here: read the key), confirm with a code
   await page.getByLabel("Your password").fill("wrong-password-123");
   await page.getByRole("button", { name: "Set up an authenticator app" }).click();
-  await expect(page.getByRole("alert").filter({ hasText: "That password is not right." })).toBeVisible();
+  await expect(page.getByRole("main").getByRole("alert").filter({ hasText: "That password is not right." })).toBeVisible();
   await page.getByLabel("Your password").fill(E2E.password);
   await page.getByRole("button", { name: "Set up an authenticator app" }).click();
   const secret = base32decode((await page.getByTestId("totp-secret").textContent())!.trim());
@@ -68,7 +68,7 @@ test("an Admin without MFA is blocked until enrolled; enrols TOTP; then signs in
   await expectNoAxeViolations(page, "security page, scanning the code");
   await page.getByLabel("6-digit code from the app").fill(totp(secret, Date.now() + 5 * 60_000));
   await page.getByRole("button", { name: "Turn on" }).click();
-  await expect(page.getByRole("alert").filter({ hasText: /code is not right/ })).toBeVisible();
+  await expect(page.getByRole("main").getByRole("alert").filter({ hasText: /code is not right/ })).toBeVisible();
   await page.getByLabel("6-digit code from the app").fill(totp(secret));
   await page.getByRole("button", { name: "Turn on" }).click();
   await expect(page.getByTestId("recovery-codes")).toBeVisible();
@@ -85,10 +85,11 @@ test("an Admin without MFA is blocked until enrolled; enrols TOTP; then signs in
   await forgetUsedCodes();
   await passwordOnly(page, "admin@lumen.example");
   await expect(page).toHaveURL(/\/control\/sign-in\/two-factor$/);
+  await page.waitForLoadState("networkidle");
   await expectNoAxeViolations(page, "second step of sign-in");
   await page.getByLabel("6-digit code from your authenticator app").fill(totp(secret, Date.now() + 10 * 60_000));
   await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByRole("alert")).toContainText("not right");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("not right");
   await page.getByLabel("6-digit code from your authenticator app").fill(totp(secret));
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page).toHaveURL(/\/control$/);
@@ -103,13 +104,13 @@ test("password reset through the local outbox (after verifying the e-mail addres
   await page.goto("/control/security");
   await expect(page.getByTestId("email-status")).toContainText("not verified");
   await page.getByRole("button", { name: "Send a verification link" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "verification link is on its way" })).toBeVisible();
+  await expect(page.getByRole("main").getByRole("status").filter({ hasText: "verification link is on its way" })).toBeVisible();
   const verify = await lastMail(email, /Verify/);
   await page.goto(verify);
   await expect(page).toHaveURL(/\/control\/sign-in\/verify-email$/); // the token left the address bar
   await expectNoAxeViolations(page, "verify e-mail page");
   await page.getByRole("button", { name: "Verify my e-mail address" }).click();
-  await expect(page.getByRole("status")).toContainText("Your e-mail address is verified.");
+  await expect(page.getByRole("main").getByRole("status")).toContainText("Your e-mail address is verified.");
   await page.goto("/control/security");
   await signOut(page);
 
@@ -118,7 +119,7 @@ test("password reset through the local outbox (after verifying the e-mail addres
   await expectNoAxeViolations(page, "forgot password page");
   await page.getByLabel("Email").fill(email);
   await page.getByRole("button", { name: "Send reset link" }).click();
-  await expect(page.getByRole("status")).toContainText("reset link is on its way");
+  await expect(page.getByRole("main").getByRole("status")).toContainText("reset link is on its way");
   const link = await lastMail(email, /Reset/);
   await page.goto(link);
   await expect(page).toHaveURL(/\/control\/sign-in\/reset$/);
@@ -126,16 +127,17 @@ test("password reset through the local outbox (after verifying the e-mail addres
   await page.getByLabel("New password", { exact: true }).fill(newPassword);
   await page.getByLabel("New password again").fill(newPassword);
   await page.getByRole("button", { name: "Set new password" }).click();
-  await expect(page.getByRole("status")).toContainText("Your password is changed");
+  await expect(page.getByRole("main").getByRole("status")).toContainText("Your password is changed");
   // the same link again: refused
+  await page.goto("about:blank");
   await page.goto(link);
   await page.getByLabel("New password", { exact: true }).fill("fictional-e2e-reset-03");
   await page.getByLabel("New password again").fill("fictional-e2e-reset-03");
   await page.getByRole("button", { name: "Set new password" }).click();
-  await expect(page.getByRole("alert")).toContainText("not valid");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("not valid");
   // the old password no longer works; the new one does
   await passwordOnly(page, email, E2E.password);
-  await expect(page.getByRole("alert")).toContainText("Sign-in failed");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Sign-in failed");
   await signIn(page, email, test.info(), newPassword);
   await signOut(page);
   // put the fictional user back (the other project runs the same test): a second reset, through the API
@@ -156,7 +158,7 @@ test("the session list: revoke another session; it stops working at once", async
   const o = await horizontalOverflow(page);
   expect(o.scroll).toBeLessThanOrEqual(o.client);
   await page.getByRole("button", { name: "Sign out all other sessions" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Every other session is signed out." })).toBeVisible();
+  await expect(page.getByRole("main").getByRole("status").filter({ hasText: "Every other session is signed out." })).toBeVisible();
   await expect(page.getByTestId("session-other")).toHaveCount(0);
   await p2.goto("/control/payments");
   await expect(p2).toHaveURL(/\/control\/sign-in$/);
@@ -165,7 +167,7 @@ test("the session list: revoke another session; it stops working at once", async
   await page.reload();
   await expect(page.getByTestId("session-other")).toHaveCount(1);
   await page.getByTestId("session-other").getByRole("button", { name: "Revoke" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Session revoked." })).toBeVisible();
+  await expect(page.getByRole("main").getByRole("status").filter({ hasText: "Session revoked." })).toBeVisible();
   await p2.goto("/control");
   await expect(p2).toHaveURL(/\/control\/sign-in$/);
   await page.goto("/control");
@@ -176,12 +178,12 @@ test("the session list: revoke another session; it stops working at once", async
 test("rate limit trips: after 5 failed sign-ins the account is refused, even with the right password", async ({ page }) => {
   for (let i = 0; i < 5; i++) {
     await passwordOnly(page, "viewer@lumen.example", "wrong-password-123");
-    await expect(page.getByRole("alert")).toContainText("Sign-in failed");
+    await expect(page.getByRole("main").getByRole("alert")).toContainText("Sign-in failed");
   }
   await passwordOnly(page, "viewer@lumen.example", "wrong-password-123");
-  await expect(page.getByRole("alert")).toContainText("Too many sign-in attempts");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Too many sign-in attempts");
   await passwordOnly(page, "viewer@lumen.example", E2E.password);
-  await expect(page.getByRole("alert")).toContainText("Too many sign-in attempts");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Too many sign-in attempts");
   await expectNoAxeViolations(page, "sign-in page with the rate-limit message");
   await ownerQuery("delete from login_failures");
 });
@@ -191,15 +193,18 @@ test("rate limit trips for the second factor: 5 wrong codes, then even the right
   for (let i = 0; i < 6; i++) {
     await passwordOnly(page, "approver@lumen.example");
     await expect(page).toHaveURL(/\/two-factor$/);
+    await page.waitForLoadState("networkidle"); // hydrated: the form submits through the client handler
     await page.getByLabel("6-digit code from your authenticator app").fill(totp(E2E.totpSecret, Date.now() + (20 + i) * 60_000));
     await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByRole("alert")).toContainText(i < 5 ? "not right" : "Too many");
+    await expect(page.getByRole("main").getByRole("alert")).toContainText(i < 5 ? "not right" : "Too many");
   }
   await forgetUsedCodes();
   await passwordOnly(page, "approver@lumen.example");
+  await expect(page).toHaveURL(/\/two-factor$/);
+  await page.waitForLoadState("networkidle");
   await page.getByLabel("6-digit code from your authenticator app").fill(totp());
   await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByRole("alert")).toContainText("Too many");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Too many");
   await ownerQuery("delete from auth_rate_events");
   await ownerQuery("update two_factors set failed_verification_count = 0, locked_until = null");
 });

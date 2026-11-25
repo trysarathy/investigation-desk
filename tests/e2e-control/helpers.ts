@@ -37,6 +37,7 @@ export async function signIn(page: Page, email: string, info: TestInfo, password
   await expect(page).toHaveURL(/\/control(\/sign-in\/two-factor)?$/);
   if (page.url().endsWith("/two-factor")) {
     await forgetUsedCodes();
+    await page.waitForLoadState("networkidle"); // hydrated: the form submits through the client handler
     await page.getByLabel("6-digit code from your authenticator app").fill(totp(secret));
     await page.getByRole("button", { name: "Continue" }).click();
   }
