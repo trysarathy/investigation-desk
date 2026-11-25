@@ -96,6 +96,9 @@ describe("#174 refund rows in a per-payment settlement file", () => {
     expect([sg1(after, true).decision, sg1(after, true).ruleId]).toEqual(["matched", "M5.batch.tied_verified"]);
     // the refunded order is never closed
     expect(reconcile({ ...after, policy: { ...after.policy, allowImportedBankLinesAsVerified: true } }).records.find((x) => x.orderId === "SG-1002")!.explanation.decision).not.toMatch(/^matched/);
+    // wave 1: nor with the flag off, by the evidence split or the unlinked-grouping rule
+    expect(reconcile(after).records.find((x) => x.orderId === "SG-1002")!.explanation.decision).not.toMatch(/^matched/);
+    expect(reconcile(before).records.find((x) => x.orderId === "SG-1002")!.explanation.decision).not.toMatch(/^matched/);
     const stored = await ownerDb().select().from(t.matchRecords).where(eq(t.matchRecords.orgId, s.orgs.a));
     expect(stored.find((m) => m.orderId === "SG-1001")!.ruleId).toBe("M5.batch.tied_evidence_separate");
   });

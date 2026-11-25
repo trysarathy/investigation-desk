@@ -186,3 +186,40 @@ describe("bank_authenticated is reserved", () => {
     expect(bridge.split("\n").filter((l) => l.includes("bank_authenticated")).every((l) => l.trim().startsWith("*"))).toBe(true);
   });
 });
+
+/**
+ * Wave 1 integration (A1's unlinked-grouping rule × A3's refund rows): an order with a refund (a settlement report
+ * refund line, or a per-payment refund row naming the order or its payment), a balance payment link or any difference
+ * is NEVER matched by M5.grouping.matched_settlement_unlinked; it keeps the proposed-grouping review.
+ */
+describe("the unlinked-grouping match never closes a refunded, part-paid or different order (25 seeds)", () => {
+  it("totals only: refunds and balance links added to random unlinked-matched orders take them out of that rule", () => {
+    const base = TOTALS.map((i) => reconcile(i));
+    const candidates = base.flatMap((r, k) => r.records.filter((x) => x.explanation.ruleId === "M5.grouping.matched_settlement_unlinked").map((x) => ({ k, rec: x })));
+    expect(candidates.length).toBeGreaterThan(3);
+    const ANY_LINK = TOTALS.flatMap((i) => i.paymentLinks)[0];
+    expect(ANY_LINK).toBeDefined();
+    let checked = 0;
+    for (const seed of SEEDS) {
+      const next = prng(seed);
+      const { k, rec } = candidates[next() % candidates.length];
+      const input = TOTALS[k];
+      const pid = rec.provider.records[0].providerPaymentId;
+      const batchId = rec.provider.records[0].batchId!;
+      const cur = input.entity.functionalCurrency;
+      const kind = next() % 4;
+      const changed: ReconcileInput =
+        kind === 0 ? { ...input, batchLines: [...input.batchLines, { batchId, kind: "refund", orderId: rec.orderId, refundId: `RF-PROP-${seed}`, amountMinor: -100n } as never] }
+        : kind === 1 ? { ...input, settlementPaymentLines: [{ batchId, kind: "refund", refundId: `RF-PROP-${seed}`, providerPaymentId: pid, currency: cur, grossMinor: -100n, feeMinor: 0n, netMinor: -100n }] }
+        : kind === 2 ? { ...input, settlementPaymentLines: [{ batchId, kind: "refund", refundId: `RF-PROP-${seed}`, providerPaymentId: `P-OTHER-${seed}`, orderId: rec.orderId, currency: cur, grossMinor: -100n, feeMinor: 0n, netMinor: -100n }] }
+        : { ...input, paymentLinks: [...input.paymentLinks, { ...ANY_LINK, linkId: `PL-BAL-${seed}`, orderId: rec.orderId, kind: "balance" }] };
+      const after = reconcile(changed).records.find((x) => x.orderId === rec.orderId);
+      if (!after) continue;
+      expect(after.explanation.ruleId, `seed ${seed} kind ${kind}`).not.toBe("M5.grouping.matched_settlement_unlinked");
+      checked++;
+      // and nothing else became unlinked-matched with a difference
+      for (const r of reconcile(changed).records) if (r.explanation.ruleId === "M5.grouping.matched_settlement_unlinked") expect(r.explanation.differences).toEqual([]);
+    }
+    expect(checked).toBeGreaterThan(20);
+  });
+});
