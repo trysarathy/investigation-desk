@@ -400,6 +400,13 @@
       "when": 1796730000000,
       "tag": "0073_ledger_journal_drafts",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1796740000000,
+      "tag": "0074_upload_pickup",
+      "breakpoints": true
     }
   ]
 }

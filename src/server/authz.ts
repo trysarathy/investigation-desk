@@ -49,6 +49,7 @@ export type Permission =
   | "merchant_investigate" // rc6 phase 7: assign, note, attach evidence and propose a resolution on a merchant exception
   | "merchant_upload"      // rc7: upload a file, map its columns, save a mapping template, validate
   | "manage_retention"     // rc7: how long uploads and the data derived from them are kept — Admin only
+  | "manage_pickup"        // v1 phase 2.1: scheduled pickup sources (SFTP folder, email inbox) — Admin only
   | "merchant_export"      // rc8 founder decision 3: every merchant export (evidence pack, rc6 journal file, rc7 draft journal files,
                            // month-end pack) — exactly Finance, an Approver or an Admin
   | "ledger_connect"       // v1 phase 2.3: connect, choose the organisation of, reconnect or disconnect a ledger — Admin only
@@ -74,6 +75,7 @@ const MATRIX: Record<Permission, readonly AppRole[]> = {
   merchant_investigate: ["payment_ops", "finance"],
   merchant_upload: ["finance", "payment_ops"],
   manage_retention: ["admin"],
+  manage_pickup: ["admin"],
   merchant_export: ["finance", "approver", "admin"],
   access_review: ["admin", "provider_admin"],
   ledger_connect: ["admin"],

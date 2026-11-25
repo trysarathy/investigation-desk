@@ -26,6 +26,8 @@
  *                                            is gone (closed as deleted); confirmed uploads without a file are only
  *                                            reported. --dry-run changes nothing. One audit row per organisation; prints
  *                                            counts only)
+ *   pickup-run                              (v1 phase 2.1: scheduled pickup — read every enabled, due SFTP / email
+ *                                            source into the upload pipeline as its configured member; prints counts)
  *   delete-merchant <org-slug> [--confirm <org-slug>]
  *                                           (rc7 phase 3b: delete ONE merchant organisation, every row it holds in every
  *                                            table, its members who belong nowhere else, and its uploaded files. Without
@@ -89,6 +91,7 @@ import type { AppRole } from "../../src/server/authz";
 import { seedMerchantCases } from "../../src/server/merchant-seed";
 import { purgeExpiredUploads, sweepOrphanFiles } from "../../src/server/uploads";
 import { cleanupOrphans } from "../../src/server/upload-orphans";
+import { runPickup } from "../../src/server/upload-pickup";
 import { deleteMerchant, planMerchantDeletion } from "../../src/server/merchant-deletion";
 import { monthsAheadArg } from "../../src/server/chain-read-partitions";
 import { addBankAccount, addEntity, addMember, closeBankAccount, createMerchant, createProvider, linkProvider, openOwnerDb, recordFiatRate, setPolicy, setupSummary } from "../../src/server/merchant-setup";
@@ -184,6 +187,7 @@ async function main() {
       console.log(JSON.stringify({ dryRun: r.dryRun, files: r.files, rows: r.rows, organisations: Object.keys(r.byOrg).length }));
       break;
     }
+    case "pickup-run": console.log(JSON.stringify(await runPickup(db, new Date()))); break;
     case "revoke-sessions": console.log(await revokeSessions(db, a[0]), "sessions revoked"); break;
     case "seed-demo": {
       const pw = process.env.CLEARLINE_SEED_PASSWORD;

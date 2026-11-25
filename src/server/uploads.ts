@@ -217,12 +217,14 @@ export interface UploadSummary {
   status: string; templateId: string | null; templateVersion: number | null; mapping: Mapping | null; rowsSha256: string | null;
   counts: { rows: number; accepted: number; rejected: number; warning: number; duplicate: number }; notes: string[];
   uploadedBy: string; confirmedBy: string | null; deleteAfter: string; createdAt: string;
+  /** v1 phase 2.1: the pickup source the file came from (absent when a person uploaded it). */
+  pickupSourceId?: string;
 }
 export const summary = (u: UploadRow): UploadSummary => ({
   id: u.id, entityId: u.entityId, bankAccountId: u.bankAccountId ?? null, fileType: u.fileType as FileType, fileFormat: u.fileFormat, originalName: u.originalName, byteSize: u.byteSize, contentSha256: u.contentSha256,
   encrypted: u.encrypted, jsonList: u.jsonList ?? null, status: u.status, templateId: u.templateId, templateVersion: u.templateVersion, mapping: (u.mapping as Mapping | null) ?? null, rowsSha256: u.rowsSha256,
   counts: { rows: u.rowCount, accepted: u.acceptedCount, rejected: u.rejectedCount, warning: u.warningCount, duplicate: u.duplicateCount }, notes: u.notes as string[],
-  uploadedBy: u.uploadedBy, confirmedBy: u.confirmedBy, deleteAfter: u.deleteAfter.toISOString(), createdAt: u.createdAt.toISOString(),
+  uploadedBy: u.uploadedBy, confirmedBy: u.confirmedBy, deleteAfter: u.deleteAfter.toISOString(), createdAt: u.createdAt.toISOString(), ...(u.pickupSourceId ? { pickupSourceId: u.pickupSourceId } : {}),
 });
 const counts = (u: UploadSummary) => ({ ...u.counts });
 
@@ -264,7 +266,9 @@ export interface UploadResult { upload: UploadSummary; label: DataLabel; preview
  * unreadable or oversized file (with the parser's plain-English reason), or the same file already uploaded for this
  * entity and file type. Returns the preview (first 20 rows) and the template / header suggestions to confirm.
  */
-export async function createUpload(ctx: TenantContext, input: z.input<typeof CreateUpload> & { bytes: Uint8Array }, idempotencyKey: string, storage: UploadStorage = uploadStorage()): Promise<UploadResult & { status: number; replayed: boolean }> {
+export async function createUpload(ctx: TenantContext, input: z.input<typeof CreateUpload> & { bytes: Uint8Array }, idempotencyKey: string, storage: UploadStorage = uploadStorage(),
+  /** v1 phase 2.1: set by scheduled pickup only (src/server/upload-pickup.ts); the database checks it (drizzle/0074, was 0055). */
+  opts: { pickupSourceId?: string } = {}): Promise<UploadResult & { status: number; replayed: boolean }> {
   require(ctx, "merchant_upload");
   const key = IdempotencyKey.parse(idempotencyKey);
   const v = CreateUpload.parse({ entityId: input.entityId, fileType: input.fileType, fileName: input.fileName, ...(input.jsonList ? { jsonList: input.jsonList } : {}),
@@ -306,7 +310,8 @@ export async function createUpload(ctx: TenantContext, input: z.input<typeof Cre
   // rc8: the file is written before its row, inside the transaction. If anything after the write fails (the insert,
   // the audit, the idempotency record or the commit itself), the file is removed again unless its row committed.
   let written: string | undefined;
-  const r = await tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "upload_create", ...v, contentSha256 }, async () => {
+  const pickup = opts.pickupSourceId ? { pickupSourceId: z.uuid().parse(opts.pickupSourceId) } : {};
+  const r = await tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "upload_create", ...v, contentSha256, ...pickup }, async () => {
     if (!usesUploadPipeline((await dataModeOf(tx, ctx.orgId)).dataMode)) throw new RequestRefused(409, "SAMPLE_ORGANISATION", "This organisation holds sample data (Test mode · illustrative data); upload your files to your live organisation.");
     const [ent] = await tx.select({ id: t.merchantEntities.id }).from(t.merchantEntities).where(and(eq(t.merchantEntities.orgId, ctx.orgId), eq(t.merchantEntities.id, v.entityId)));
     if (!ent) throw new AccessDenied(404, "Not found.");
@@ -326,9 +331,10 @@ export async function createUpload(ctx: TenantContext, input: z.input<typeof Cre
     const [u] = await tx.insert(t.uploads).values({
       orgId: ctx.orgId, entityId: v.entityId, ...(v.bankAccountId ? { bankAccountId: v.bankAccountId } : {}), fileType: v.fileType, fileFormat, originalName, byteSize: bytes.byteLength, contentSha256,
       storageKey: stored.storageKey, encrypted: stored.encrypted, ...(v.jsonList ? { jsonList: v.jsonList } : {}), status: "stored", uploadedBy: ctx.userId, deleteAfter: new Date(Date.now() + days * 86_400_000),
+      ...pickup,
     }).returning();
-    await serverAudit(tx, ctx, "upload_stored", "upload", u.id, `File stored for ${v.entityId} (${v.fileType}, ${fileFormat}, ${bytes.byteLength} bytes${stored.encrypted ? ", encrypted" : ""}); deleted after ${days} days`,
-      { uploadId: u.id, entityId: v.entityId, ...(v.bankAccountId ? { bankAccountId: v.bankAccountId } : {}), fileType: v.fileType, fileFormat, byteSize: bytes.byteLength, encrypted: stored.encrypted, retentionDays: days });
+    await serverAudit(tx, ctx, "upload_stored", "upload", u.id, `File stored for ${v.entityId} (${v.fileType}, ${fileFormat}, ${bytes.byteLength} bytes${stored.encrypted ? ", encrypted" : ""}${opts.pickupSourceId ? ", picked up" : ""}); deleted after ${days} days`,
+      { uploadId: u.id, entityId: v.entityId, ...(v.bankAccountId ? { bankAccountId: v.bankAccountId } : {}), fileType: v.fileType, fileFormat, byteSize: bytes.byteLength, encrypted: stored.encrypted, retentionDays: days, ...pickup });
     return { status: 201, body: summary(u) };
   })).catch(async (e) => {
     if (written) await discardUnrecordedFile(ctx, storage, written);
