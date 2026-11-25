@@ -13,7 +13,7 @@ import { RequestRefused } from "../errors";
 import { headerSignature, listMappingTemplates } from "../mapping-templates";
 import { merchantShell } from "../merchant-ui";
 import { listOrgUsers } from "../org-admin";
-import { AccessDenied, type TenantContext, withTenant } from "../tenant";
+import { AccessDenied, requireUnscoped, type TenantContext, withTenant } from "../tenant";
 import { offsetOf, parseUtcOffset, SetupRefused, validTimeZone } from "../merchant-setup";
 import { emailSender } from "../email";
 import { Email, invitationEmail, inviteAndSend } from "./invitations";
@@ -44,6 +44,8 @@ export const TEMPLATE_FILE_TYPES = ["orders_invoices", "bank_statement", "ledger
 /** Only a merchant organisation's Admin runs its setup (the database checks it again). */
 export function requireSetupAdmin(ctx: TenantContext) {
   if (!can(ctx.role, "manage_members")) throw new AccessDenied(403, "Only an Admin of this organisation runs its setup.");
+  // wave 1: setup changes the whole organisation (entities, bank accounts, members); the database agrees (drizzle/0069)
+  requireUnscoped(ctx);
 }
 
 const prov = <T>(ctx: TenantContext, fn: Parameters<typeof withProvisioning<T>>[1]) => withProvisioning({ userId: ctx.userId, orgId: ctx.orgId }, fn);
