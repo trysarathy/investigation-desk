@@ -107,8 +107,10 @@ describe("retention job", () => {
     const reqs = (await ownerDb().select({ id: t.approvalRequests.id }).from(t.approvalRequests).where(eq(t.approvalRequests.orgId, s.orgs.a))).map((x) => x.id).sort();
     expect(reqs).toEqual([keptReq, youngReq].sort());
     expect((await ownerDb().select().from(t.approvalDecisions).where(eq(t.approvalDecisions.requestId, oldReq))).length).toBe(0);
-    expect((await ownerDb().select().from(t.retainedRecords)).map((x) => x.deletionId)).toEqual([youngDeletion]);
-    expect((await ownerDb().select().from(t.merchantDeletions)).map((x) => x.id)).toEqual([youngDeletion]);
+    // (other test files' deletions leave young receipts in this database: only this test's two are looked at)
+    const mine = (ids: string[]) => ids.filter((id) => id === oldDeletion || id === youngDeletion);
+    expect(mine((await ownerDb().select().from(t.retainedRecords)).map((x) => x.deletionId))).toEqual([youngDeletion]);
+    expect(mine((await ownerDb().select().from(t.merchantDeletions)).map((x) => x.id))).toEqual([youngDeletion]);
     // each organisation's own log says what went (counts only); the upload purge is audited per upload
     for (const org of [s.orgs.a, s.orgs.b]) {
       const [ev] = await ownerDb().select().from(t.auditEvents).where(and(eq(t.auditEvents.orgId, org), eq(t.auditEvents.action, "retention_purged")));
