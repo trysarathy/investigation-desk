@@ -28,6 +28,12 @@ import { DEMO_NOW } from "@/lib/clearline/demo/clock";
  * - Finality: confirmations ≥ the network's confirmations_required, and a fact is stored as final only after a second
  *   read of its transaction returns the same block (and block hash when the source gives one).
  * - Cache: a transaction whose stored facts are all final is not read again. Nothing non-final is cached.
+ * - v1: "chain data conflicting" (a primary and a fallback provider disagree) is stored as a `conflicting` read: those
+ *   orders are a typed exception (M1.chain.conflicting), never matched.
+ * - v1 reorg revert: when any read now reports a transaction that has a stored FINAL fact as reorged, missing, failed
+ *   or conflicting (or returns its fact as not final), the fact goes back to not final, so a payment matched on it
+ *   returns to review on the next reconciliation; an audit entry (`merchant_chain_final_reverted`, counts only)
+ *   records it. Never silent.
  * - Clients: the recorded client (CLEARLINE_CHAIN_RECORDING; rc8: test builds only); the real readers only with
  *   CLEARLINE_CHAIN_LIVE=1 and keys (refused under tests and CI); otherwise every read is unavailable.
  * Logs and audit carry ids and counts only.
@@ -71,10 +77,10 @@ export function verifyClientFromEnv(env: Env = process.env, dataMode?: string): 
 }
 
 interface AddressTarget { network: NetworkId; address: string; fromMs: number }
-interface ChainRead { network: NetworkId; address?: string; txHash?: string; status: "ok" | "unavailable" | "not_found" | "failed_transaction" | "reorged"; reason?: string; evidence: Evidence[]; transfers: number }
+interface ChainRead { network: NetworkId; address?: string; txHash?: string; status: "ok" | "unavailable" | "not_found" | "failed_transaction" | "reorged" | "conflicting"; reason?: string; evidence: Evidence[]; transfers: number }
 type Fact = { kind: "transfer"; f: ChainTransferFact } | { kind: "lookalike"; f: NonMatchingTokenFact };
 
-export interface VerifyResult { entityId: string; mode: VerifyChainClient["mode"]; addresses: number; transactions: number; cached: number; facts: number; final: number; pending: number; unavailable: number }
+export interface VerifyResult { entityId: string; mode: VerifyChainClient["mode"]; addresses: number; transactions: number; cached: number; facts: number; final: number; pending: number; unavailable: number; conflicting: number; reverted: number }
 
 const factKey = (f: Fact) => `${f.f.network}|${f.f.txHash}|${f.f.logIndex ?? 0}`;
 
@@ -133,6 +139,10 @@ export async function verifyChainForEntity(ctx: TenantContext, entityId: string,
     for (const f of o.transfers) keep({ kind: "transfer", f });
     for (const f of o.nonMatching) if (toIssued(f.network, f.to)) keep({ kind: "lookalike", f });
     for (const u of o.unresolved) reads.push({ network: a.network, txHash: u.txHash, status: u.status, reason: u.reason, evidence: [], transfers: 0 });
+    // v1: a conflicting transaction to this address makes the address's read conflicting too, so the order it belongs
+    // to is a typed exception (never "nothing arrived") even when no provider file names the transaction
+    const clashes = o.unresolved.filter((u) => u.status === "conflicting");
+    if (clashes.length) reads.push({ network: a.network, address: a.address, status: "conflicting", reason: `${clashes.length} transaction(s) to this address: ${clashes[0].reason}`, evidence: o.evidence, transfers: 0 });
   }
   let cached = 0;
   for (const c of claims) {
@@ -141,7 +151,7 @@ export async function verifyChainForEntity(ctx: TenantContext, entityId: string,
     if (storedFinal.get(k) === true) { cached++; continue; } // a transaction whose stored facts are all final is not read again
     const o = await client.transfer(network, c.txHash);
     readTx.add(k);
-    if (o.status === "unavailable" || o.status === "not_found" || o.status === "failed_transaction") {
+    if (o.status === "unavailable" || o.status === "not_found" || o.status === "failed_transaction" || o.status === "conflicting") {
       reads.push({ network, txHash: c.txHash, status: o.status, reason: o.reason, evidence: o.evidence, transfers: 0 });
       continue;
     }
@@ -161,12 +171,15 @@ export async function verifyChainForEntity(ctx: TenantContext, entityId: string,
       && (x.blockHash === undefined || f.f.blockHash === undefined || x.blockHash === f.f.blockHash));
     if (!same) {
       f.f = { ...f.f, finalised: false };
-      reads.push({ network: f.f.network, txHash: f.f.txHash, status: again.status === "unavailable" ? "unavailable" : "reorged", reason: again.status === "unavailable" ? again.reason : "the transaction's block changed on the re-check before finalising (reorg)", evidence: again.evidence, transfers: 0 });
+      reads.push({ network: f.f.network, txHash: f.f.txHash, status: again.status === "unavailable" || again.status === "conflicting" ? again.status : "reorged", reason: again.status === "unavailable" || again.status === "conflicting" ? again.reason : "the transaction's block changed on the re-check before finalising (reorg)", evidence: again.evidence, transfers: 0 });
     }
   }
 
   const required = (n: string) => NETWORKS.find((x) => x.network === n)?.confirmationsRequired ?? Number.MAX_SAFE_INTEGER;
   const counts = { facts: 0, final: 0, pending: 0 };
+  // v1: stored final facts that a read in this run contradicts (reorged, missing, failed or conflicting)
+  const contradicted = new Set(reads.filter((r) => r.txHash && (r.status === "reorged" || r.status === "not_found" || r.status === "failed_transaction" || r.status === "conflicting")).map((r) => hashKey(r.network, r.txHash!)));
+  let reverted = 0;
   await withTenant(tenant, async (tx) => {
     const netRows = await tx.select().from(t.networkConfig);
     const requiredOf = (n: string) => netRows.find((x) => dbNetwork(x.network) === n)?.confirmationsRequired ?? required(n);
@@ -186,6 +199,7 @@ export async function verifyChainForEntity(ctx: TenantContext, entityId: string,
           claimedSymbol: x.symbol, blockHash: x.blockHash ?? ev.blockHash ?? null, ...(x.priorHops?.length ? { priorHops: x.priorHops.map((h) => ({ ...h })) } : {}), ...evidence,
         };
         counts[finalised ? "final" : "pending"]++;
+        if (!finalised && storedByKey.get(factKey(f))?.finalised) reverted++;
       } else {
         const x = f.f;
         if (!x.rawAmount || x.rawAmount <= 0n || !x.from || !x.to) continue;
@@ -213,12 +227,26 @@ export async function verifyChainForEntity(ctx: TenantContext, entityId: string,
       source: r.evidence[0]?.source ?? client.mode, host: r.evidence[0]?.host ?? null, endpoint: r.evidence[0]?.method ?? null, transfers: r.transfers, at: now,
     }));
     for (let i = 0; i < readRows.length; i += 1000) await tx.insert(t.chainReads).values(readRows.slice(i, i + 1000));
+    // v1: a stored final fact this run did not re-store, but a read contradicts, goes back to not final too
+    const written = new Set([...facts.values()].map(factKey));
+    for (const st of stored) {
+      if (!st.finalised || written.has(`${dbNetwork(st.network)}|${st.txHash}|${st.logIndex}`) || !contradicted.has(hashKey(st.network, st.txHash))) continue;
+      await tx.update(t.chainTransfers).set({ finalised: false, confirmations: 0 }).where(and(eq(t.chainTransfers.orgId, ctx.orgId), eq(t.chainTransfers.network, st.network),
+        eq(t.chainTransfers.txHash, st.txHash), eq(t.chainTransfers.logIndex, st.logIndex), eq(t.chainTransfers.source, "chain_client")));
+      reverted++;
+    }
+    if (reverted > 0) {
+      await serverAudit(tx, ctx, "merchant_chain_final_reverted", "merchant_entity", entityId,
+        `Chain re-read: ${reverted} final chain transfer(s) returned to not final (reorg, missing, failed or conflicting chain data); payments matched on them go back to review`,
+        { mode: client.mode, reverted });
+    }
     const unavailable = reads.filter((r) => r.status === "unavailable").length;
+    const conflicting = reads.filter((r) => r.status === "conflicting").length;
     await serverAudit(tx, ctx, "merchant_chain_verified", "merchant_entity", entityId,
-      `Chain verified (${client.mode}): ${addresses.length} address(es), ${readTx.size} transaction(s) read, ${cached} cached final; ${counts.facts} fact(s), ${counts.final} final, ${counts.pending} not final; ${unavailable} read(s) unavailable`,
-      { mode: client.mode, addresses: addresses.length, transactions: readTx.size, cached, ...counts, unavailable });
+      `Chain verified (${client.mode}): ${addresses.length} address(es), ${readTx.size} transaction(s) read, ${cached} cached final; ${counts.facts} fact(s), ${counts.final} final, ${counts.pending} not final; ${unavailable} read(s) unavailable; ${conflicting} conflicting; ${reverted} final reverted`,
+      { mode: client.mode, addresses: addresses.length, transactions: readTx.size, cached, ...counts, unavailable, conflicting, reverted });
   });
-  return { entityId, mode: client.mode, addresses: addresses.length, transactions: readTx.size, cached, ...counts, unavailable: reads.filter((r) => r.status === "unavailable").length };
+  return { entityId, mode: client.mode, addresses: addresses.length, transactions: readTx.size, cached, ...counts, unavailable: reads.filter((r) => r.status === "unavailable").length, conflicting: reads.filter((r) => r.status === "conflicting").length, reverted };
 }
 
 /** The organisation's data mode (sample, live or demo); undefined when the row is not visible. */

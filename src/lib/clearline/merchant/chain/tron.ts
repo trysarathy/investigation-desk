@@ -15,7 +15,8 @@ export const TRONGRID_DEFAULT_BASE_URL = "https://api.trongrid.io";
 /** [ASSUMPTION] 50 pages × 200 = 10,000 listed transfers per window before the read is reported unavailable. */
 export const TRON_DEFAULT_MAX_PAGES = 50;
 
-export interface TronReaderOptions extends ReaderOptions { apiKey?: string; baseUrl?: string; maxPages?: number }
+/** v1: `provider` labels this endpoint ("primary", "fallback"); a fallback is any TronGrid-API-compatible base URL. */
+export interface TronReaderOptions extends ReaderOptions { apiKey?: string; baseUrl?: string; maxPages?: number; provider?: string }
 
 interface Head { number: bigint; evidence: Evidence }
 type HeadResult = { ok: true; head: Head } | { ok: false; reason: string; evidence: Evidence };
@@ -23,13 +24,16 @@ type HeadResult = { ok: true; head: Head } | { ok: false; reason: string; eviden
 const TX_RE = /^(0x)?[0-9a-fA-F]{64}$/;
 
 export class TronReader {
+  readonly network = "tron" as const;
+  readonly provider: string;
   private readonly d: ReaderDeps;
   private readonly base: string;
   private readonly headers: Record<string, string>;
   private readonly maxPages: number;
 
   constructor(o: TronReaderOptions) {
-    this.d = makeDeps("trongrid", o, new Secrets([o.apiKey]));
+    this.provider = o.provider ?? "primary";
+    this.d = makeDeps("trongrid", o, new Secrets([o.apiKey, ...Secrets.fromUrl(o.baseUrl)]));
     this.base = (o.baseUrl ?? TRONGRID_DEFAULT_BASE_URL).replace(/\/+$/, "");
     this.headers = { accept: "application/json", "content-type": "application/json", ...(o.apiKey ? { "TRON-PRO-API-KEY": o.apiKey } : {}) };
     this.maxPages = o.maxPages ?? TRON_DEFAULT_MAX_PAGES;
@@ -47,6 +51,12 @@ export class TronReader {
     const number = BigInt(raw);
     const blockID = isObj(r.json) && typeof r.json.blockID === "string" ? r.json.blockID : undefined;
     return { ok: true, head: { number, evidence: { ...r.evidence, blockNumber: number, ...(blockID ? { blockHash: blockID } : {}) } } };
+  }
+
+  /** v1 health check: one wallet/getnowblock read. Never throws. */
+  async health(): Promise<{ ok: true; head: bigint; evidence: Evidence } | { ok: false; reason: string; evidence: Evidence }> {
+    const h = await this.head();
+    return h.ok ? { ok: true, head: h.head.number, evidence: h.head.evidence } : h;
   }
 
   /** One transaction by hash: its TRC-20 Transfer logs of configured tokens (any recipient), plus look-alike facts. */
