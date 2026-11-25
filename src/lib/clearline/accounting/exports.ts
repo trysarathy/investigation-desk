@@ -23,6 +23,7 @@ import { EXPORT_EVIDENCE_CLASS, EXPORT_MOVEMENT, EXPORT_ROW_RULE, JOURNAL_RULE, 
 import { unmappedKeys } from "./periods";
 import type { CurrencyCode, EngineError, Result, Workspace } from "../types";
 import type { AccountMappingEntry, JournalProposal } from "./types";
+import { isFormulaLike } from "../../csv/cell";
 
 export const ACCOUNTING_EXPORT_MARKING = "FICTIONAL · SANDBOX — synthetic data from the Clearline test-mode engine. Not a real bank, chain, payment or ledger record. Clearline has posted nothing." as const;
 
@@ -230,7 +231,7 @@ export function buildReconciliationExport(ws: Workspace, range: { from: string; 
 /** One CSV cell. Text cells starting with = + - @ (or a tab/CR) are prefixed with ' so spreadsheets never run them. */
 export function csvCell(v: string | undefined, kind: "text" | "amount" = "text"): string {
   let s = (v ?? "").replace(/[\r\n\u2028\u2029]+/g, " ⏎ ");
-  if (kind === "text" && /^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  if (kind === "text" && isFormulaLike(s)) s = "'" + s;
   return /[",\r\n]|^\s|\s$/.test(s) || s.includes("'") ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

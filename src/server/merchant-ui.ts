@@ -1,4 +1,5 @@
 import "server-only";
+import { isFormulaLike } from "@/lib/csv/cell";
 import { createHash } from "node:crypto";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -530,7 +531,7 @@ export async function monthEndView(ctx: TenantContext, entityId: string, month: 
 /** One CSV cell. Text starting with = + - @ (or a tab/CR) is prefixed with ' so a spreadsheet never runs it. */
 export function csvCell(v: unknown): string {
   let s = (v === null || v === undefined ? "" : String(v)).replace(/[\r\n\u2028\u2029]+/g, " ");
-  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  if (isFormulaLike(s)) s = "'" + s;
   return /[",\r\n']|^\s|\s$/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 const csv = (rows: unknown[][]) => rows.map((r) => r.map(csvCell).join(",")).join("\r\n") + "\r\n";

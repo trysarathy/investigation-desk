@@ -27,6 +27,7 @@ import {
   instant,
 } from "@/lib/funding/model";
 import { sub, sum } from "@/lib/payments/money";
+import { AMOUNT_TEXT, formulaSafe } from "@/lib/csv/cell";
 import {
   buildOutputs,
   digest,
@@ -340,7 +341,8 @@ export async function POST(request: Request) {
               classification,
               [free, ...restricted][i],
             ]
-              .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+              // v1 phase 2.1: the shared formula rule (amounts stay numbers)
+              .map((v) => { const c = String(v); return `"${(AMOUNT_TEXT.test(c) ? c : formulaSafe(c)).replace(/"/g, '""')}"`; })
               .join(","),
           );
           mapping =
@@ -348,7 +350,7 @@ export async function POST(request: Request) {
             Object.fromEntries(columns.cash.map((k) => [k, k]));
           text =
             columns.cash
-              .map((k) => `"${mapping![k].replace(/"/g, '""')}"`)
+              .map((k) => `"${formulaSafe(mapping![k]).replace(/"/g, '""')}"`)
               .join(",") +
             "\n" +
             rows.join("\n") +

@@ -4,6 +4,7 @@
  */
 import { fmtFiat } from "../merchant";
 import { DECISION_TEXT, LABEL, bookCurrency, caseModel, type CaseSlug } from "./view";
+import { formulaSafe } from "../../csv/cell";
 
 export const CSV_COLUMNS = ["order", "amounts", "difference", "type", "result", "rule", "owner"] as const;
 
@@ -12,7 +13,7 @@ export const CSV_COLUMNS = ["order", "amounts", "difference", "type", "result", 
  * (CSV injection). Then RFC 4180 quoting: a cell with a comma, quote or line break is quoted, quotes doubled.
  */
 export function escapeCell(value: string): string {
-  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  const safe = formulaSafe(value);
   return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 

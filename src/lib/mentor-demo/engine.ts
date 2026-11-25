@@ -1,5 +1,6 @@
 // All values in this module are fictional. This is a deterministic, browser-only
 // mentor simulation; it NEVER creates a real credit approval or moves money.
+import { AMOUNT_TEXT, csvCell, formulaSafe } from "../csv/cell";
 export type Role = "operator" | "approver" | "viewer";
 export type Stage = "proposed" | "prepared" | "approved" | "supplier_paid" | "partly_repaid" | "repaid" | "declined" | "written_off";
 export type Customer = { id: string; name: string; creditLimit: number; terms: string; active: boolean };
@@ -135,7 +136,7 @@ export function ledgerCsv(s: Demo) {
   }
   // Guard against spreadsheet-formula injection on untrusted future inputs.
   const cell = (s: string) => {
-    const safe = /^[=+@\-\t\r]/.test(s) ? "'" + s : s;
+    const safe = formulaSafe(s);
     return '"' + safe.replaceAll('"', '""') + '"';
   };
   return rows.map((r) => r.map(cell).join(",")).join("\r\n") + "\r\n";
@@ -152,7 +153,8 @@ export function journalCsv(s: Demo) {
       rows.push([s.asOf, a.invoice, "Advance receivable", "0", String(a.repaid), "SGD"]);
     }
   }
-  return rows.map((r) => r.join(",")).join("\r\n") + "\r\n";
+  // v1 phase 2.1: every cell through the shared formula rule (amounts here are plain numbers, which it leaves alone)
+  return rows.map((r) => r.map((c) => (AMOUNT_TEXT.test(c) ? c : csvCell(c))).join(",")).join("\r\n") + "\r\n";
 }
 
 export type NewAdvanceInput = {
