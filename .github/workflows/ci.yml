@@ -31,6 +31,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx tsc --noEmit
+      # v1 phase 5.4: no console call logs a request body (logs go through src/server/ops/log.ts, scrubbed)
+      - run: node scripts/ops/check-log-safety.mjs
       - run: npx vitest run
       # v1 release gate: a plain production `next build` (demo/test switches stripped), then no demo, recorded-chain,
       # role-switcher, presenter-guide, feedback, reset, demo-calendar or demo-seed code in the server or client

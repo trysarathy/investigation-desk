@@ -21,3 +21,18 @@ export async function register() {
     process.exit(1);
   }
 }
+
+/**
+ * v1 phase 5.4: every error Next catches while rendering or handling a request goes to the logger and the error tracker
+ * (src/server/ops). Only the route pattern (e.g. "/api/control/payments/[id]"), the router kind and the method are
+ * kept: never the actual path (a payment link's path is its secret), a header, a cookie or the body.
+ */
+export async function onRequestError(err: unknown, request: { method?: string }, context: { routePath?: string; routerKind?: string; routeType?: string }) {
+  // The import sits inside the runtime check so the edge bundle never includes the Node-only logger.
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { log } = await import("./server/ops/log");
+    const route = typeof context?.routePath === "string" && /^[A-Za-z0-9_\-/[\].]{1,200}$/.test(context.routePath) ? context.routePath : "unknown";
+    const method = typeof request?.method === "string" && /^[A-Z]{3,7}$/.test(request.method) ? request.method : "unknown";
+    log.error("request_error", err, { route, method, routeType: context?.routeType ?? "unknown" });
+  }
+}
