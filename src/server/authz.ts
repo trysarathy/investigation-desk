@@ -53,8 +53,9 @@ export type Permission =
   | "merchant_export"      // rc8 founder decision 3: every merchant export (evidence pack, rc6 journal file, rc7 draft journal files,
                            // month-end pack) — exactly Finance, an Approver or an Admin
   | "ledger_connect"       // v1 phase 2.3: connect, choose the organisation of, reconnect or disconnect a ledger — Admin only
-  | "access_review";       // v1 phase 1.4: who has access to what, exportable for auditors — a merchant Admin, or a Provider
+  | "access_review"        // v1 phase 1.4: who has access to what, exportable for auditors — a merchant Admin, or a Provider
                            // Admin for the provider's own members
+  | "manage_provider_api"; // v1 phase 2.2: connect or disable the merchant's own provider's API (secret references only) — Admin only
 
 const MATRIX: Record<Permission, readonly AppRole[]> = {
   read: ["admin", "payment_ops", "finance", "approver", "viewer"],
@@ -79,6 +80,7 @@ const MATRIX: Record<Permission, readonly AppRole[]> = {
   merchant_export: ["finance", "approver", "admin"],
   access_review: ["admin", "provider_admin"],
   ledger_connect: ["admin"],
+  manage_provider_api: ["admin"],
 };
 
 export const can = (role: AppRole, p: Permission): boolean => MATRIX[p].includes(role);
