@@ -125,6 +125,41 @@ describe("rule versions", () => {
     expect(p).toMatchObject({ status: "changed", inputSha256: v2.inputSha256, policyRevision: 2, ruleSetVersion: RULE_SET_VERSION });
   });
 
+  it("v1 phase 3: a run is idempotent (same inputs, same stored results, no duplicate rows) and records what it ran on", async () => {
+    const ops = await ctx("ops@straits-demo.example", "sg");
+    const content = async () => {
+      const out: Record<string, unknown> = {};
+      out.records = await rows(sql`select order_id, decision, rule_id, chain::text, provider::text, bank::text, ledger::text, explanation::text, content_sha256 from match_records m where org_id = ${seed.orgs.sg} order by order_id`);
+      for (const tb of ["differences", "recon_exceptions", "writeoff_proposals", "merchant_journal_proposals", "rule_change_notices"]) out[tb] = (await rows(sql`select count(*)::int as n from ${sql.identifier(tb)} where org_id = ${seed.orgs.sg}`))[0].n;
+      out.currentDiffs = (await rows(sql`select id, amount_minor::text, type from differences where org_id = ${seed.orgs.sg} and superseded_at is null order by id`));
+      return out;
+    };
+    await runReconciliation(ops, "ENT-SG-01", key(), { ruleSetVersion: "idem#1" });
+    const a = await content();
+    // the same input under the same rules: nothing written at all
+    const same = (await runReconciliation(ops, "ENT-SG-01", key(), { ruleSetVersion: "idem#1" })).body;
+    expect(same.status).toBe("no_change");
+    expect(await content()).toEqual(a);
+    // re-decided from scratch under another version: the same results, no new rows anywhere
+    expect((await runReconciliation(ops, "ENT-SG-01", key(), { ruleSetVersion: "idem#2" })).body).toMatchObject({ status: "changed", newDifferences: 0, newWriteoffs: 0, notices: 0 });
+    expect(await content()).toEqual(a);
+    // every run records the engine version and an input manifest (a sha-256 per input part; uploads and mapping versions)
+    const [run] = await rows(sql`select engine_version, input_manifest, input_sha256 from reconciliation_runs where org_id = ${seed.orgs.sg} and entity_id = 'ENT-SG-01' order by started_at desc, finished_at desc limit 1`);
+    expect(run.engine_version).toBe(MERCHANT_ENGINE_VERSION);
+    const m = run.input_manifest as { parts: Record<string, string>; uploads: unknown[]; mappingVersions: string[] };
+    expect(Object.keys(m.parts)).toEqual(expect.arrayContaining(["invoices", "quotes", "transfers", "providerRecords", "batches", "bankLines", "policy"]));
+    for (const h of Object.values(m.parts)) expect(h).toMatch(/^[0-9a-f]{64}$/);
+    expect(m.uploads).toEqual([]); // the sample organisation's rows were seeded, not uploaded
+    expect(m.mappingVersions).toEqual([]);
+    // the fingerprint is guarded: a content change without a new fingerprint clears it, so the next run rewrites the row
+    const [one] = await rows(sql`select m.order_id from match_records m join invoices i on i.org_id = m.org_id and i.order_id = m.order_id where m.org_id = ${seed.orgs.sg} and i.entity_id = 'ENT-SG-01' and m.content_sha256 is not null order by m.order_id limit 1`);
+    await ownerDb().execute(sql`update match_records set rule_id = rule_id where org_id = ${seed.orgs.sg} and order_id = ${one.order_id}`);
+    expect((await rows(sql`select content_sha256 from match_records where org_id = ${seed.orgs.sg} and order_id = ${one.order_id}`))[0].content_sha256).toBeNull();
+    await runReconciliation(ops, "ENT-SG-01", key(), { ruleSetVersion: "idem#3" });
+    expect(await content()).toEqual(a);
+    await runReconciliation(ops, "ENT-SG-01", key()); // back to the code's rules for the tests below
+  });
+
   it("a rule change re-runs only unclosed payments: an approved write-off and an approved resolution keep their decision, and a different new decision becomes a notice", async () => {
     const ops = await ctx("ops@straits-demo.example", "sg");
     const fin = await ctx("finance@straits-demo.example", "sg");
@@ -136,7 +171,7 @@ describe("rule versions", () => {
     const ev = (await addExceptionNote(ops, "EX-BK-24823", { kind: "evidence", body: "Balance receipt reviewed (fictional)." }, key())).body as { id: string };
     const rr = (await requestMerchantResolution(ops, { exceptionId: "EX-BK-24823", note: "Customer paid the balance through the link (fictional).", evidenceIds: [ev.id] }, key())).body;
     await decideMerchantApproval(appr, rr.requestId, { decision: "approve", reason: "Receipt reviewed (fictional).", payloadSha256: rr.payloadSha256 }, key());
-    const closedBefore = await rows(sql`select order_id, decision, rule_id, input_sha256, explanation::text as e from match_records where org_id = ${seed.orgs.sg} and order_id in ('BK-24817', 'BK-24823') order by order_id`);
+    const closedBefore = await rows(sql`select order_id, decision, rule_id, input_sha256, computed_at, content_sha256, explanation::text as e from match_records where org_id = ${seed.orgs.sg} and order_id in ('BK-24817', 'BK-24823') order by order_id`);
     const openBefore = await rows(sql`select order_id, input_sha256 from match_records m where org_id = ${seed.orgs.sg} and order_id not in ('BK-24817', 'BK-24823') and exists (select 1 from invoices i where i.org_id = m.org_id and i.order_id = m.order_id and i.entity_id = 'ENT-SG-01')`);
     expect(openBefore.length).toBeGreaterThan(0);
 
@@ -147,7 +182,8 @@ describe("rule versions", () => {
     expect(r).toMatchObject({ status: "changed", kept: 2, notices: 1 });
 
     // closed payments are exactly as they were; the approved write-off and the resolution stand
-    expect(await rows(sql`select order_id, decision, rule_id, input_sha256, explanation::text as e from match_records where org_id = ${seed.orgs.sg} and order_id in ('BK-24817', 'BK-24823') order by order_id`)).toEqual(closedBefore);
+    // (v1 phase 3: not even their computed time or fingerprint is written)
+    expect(await rows(sql`select order_id, decision, rule_id, input_sha256, computed_at, content_sha256, explanation::text as e from match_records where org_id = ${seed.orgs.sg} and order_id in ('BK-24817', 'BK-24823') order by order_id`)).toEqual(closedBefore);
     expect((await rows(sql`select status from writeoff_proposals where org_id = ${seed.orgs.sg} and id = ${wo}`))[0].status).toBe("approved");
     expect((await rows(sql`select status from recon_exceptions where org_id = ${seed.orgs.sg} and id = 'EX-BK-24823'`))[0].status).toBe("resolved");
     // every other payment of the entity was re-run on the new input
