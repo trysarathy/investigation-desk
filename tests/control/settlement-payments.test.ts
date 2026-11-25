@@ -73,7 +73,10 @@ describe("per-payment settlement file beside a totals-only report", () => {
     const before = reconcile(await load());
     const sg1 = (r: typeof before) => r.records.find((x) => x.orderId === "SG-1001")!.explanation;
     expect((await load()).settlementPaymentLines).toBeUndefined();
-    expect([sg1(before).decision, sg1(before).ruleId]).toEqual(["suggested_for_review", "M5.grouping.proposed_needs_confirmation"]);
+    // v1 Phase 0.5 (decisions 12 and 14): exact by reference and its provider record names the batch → matched, with
+    // settlement not linked and not settled (was: suggested_for_review M5.grouping.proposed_needs_confirmation)
+    expect([sg1(before).decision, sg1(before).ruleId]).toEqual(["matched", "M5.grouping.matched_settlement_unlinked"]);
+    expect(before.records.find((x) => x.orderId === "SG-1001")!.bank).toMatchObject({ evidence: "none", settled: false });
     expect(before.bridges[0].paymentIds).toEqual([]);
 
     const pp = await pipeline(ops, ops, "settlement_payments", "per-payment.csv", PER_PAYMENT, PER_PAYMENT_MAPPING);

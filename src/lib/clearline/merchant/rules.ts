@@ -50,7 +50,8 @@ export const RULES = {
   "M5.bank.imported_not_verified": { step: 5, text: "A csv_import bank line alone never makes settlement verified (unless the policy allows it). Since v1 Phase 0.5 an exact payment (matched at step 4) is no longer held by it (M5.batch.tied_evidence_separate; the rule is then recorded as a note); a payment with any difference is still held in review by it." },
   // v1 Phase 0.5 (founder decisions 12–16): the evidence-level split
   "M5.batch.tied_evidence_separate": { step: 5, text: "An exact payment in a batch that ties to the cent, whose bank line is imported (not bank-authenticated): matched. Settlement is not verified; the bank evidence level (none, or imported and confirmed by a second person) is shown apart and never raises the match." },
-  "M5.grouping.proposed_needs_confirmation": { step: 5, text: "No batch ID: a grouping is only proposed and never auto-closed." },
+  "M5.grouping.proposed_needs_confirmation": { step: 5, text: "No batch ID: a grouping is only proposed and never auto-closed. Since v1 Phase 0.5 it no longer holds an exact payment whose provider record names a batch in the settlement report (M5.grouping.matched_settlement_unlinked); it holds everything else as before." },
+  "M5.grouping.matched_settlement_unlinked": { step: 5, text: "An exact payment (matched at step 4) whose provider record names a settlement batch in the report, but whose settlement is batch totals only (the grouping is only proposed): matched. Settlement is not linked and not settled; bank evidence none. Recorded with a 'settlement not linked' note; it never closes a grouping or proposes a settlement journal." },
   "M5.batch.tied_verified": { step: 5, text: "An exact payment in a tied, verified batch is matched at step 5." },
 } as const satisfies Record<string, { step: Step; text: string }>;
 

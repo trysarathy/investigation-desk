@@ -157,10 +157,14 @@ describe("three provider exports and three bank formats, end to end", () => {
     expect(set.norm.counts.created).toBe(1);
     await pipeline("aeBank", finB, approverB, sc.AE.entityId, "bank_statement", "camt053.xml", sc.aeCamt053());
     const r = reconcile(await reconcileFromDb(finB, sc.AE.entityId));
+    // v1 Phase 0.5 (decisions 12 and 14): both payments are exact at step 4 and their provider records name the batch,
+    // so they are matched; the totals-only report links neither to it, so settlement is not linked, not settled, and bank
+    // evidence is none. Before: suggested_for_review M5.grouping.proposed_needs_confirmation.
     expect(decisions(r)).toEqual({
-      "AE-3001": "suggested_for_review M5.grouping.proposed_needs_confirmation",
-      "AE-3002": "suggested_for_review M5.grouping.proposed_needs_confirmation",
+      "AE-3001": "matched M5.grouping.matched_settlement_unlinked",
+      "AE-3002": "matched M5.grouping.matched_settlement_unlinked",
     });
+    for (const x of r.records) expect(x.bank).toMatchObject({ status: "proposed_grouping", batchIds: [], evidence: "none", settled: false });
     expect(r.proposedGroupings.map((g) => [g.id, g.paymentIds, g.totalMinor])).toEqual([["PG-AED-2026-11-20", ["P-AE-1", "P-AE-2"], 550875n]]);
     expect(r.bridges[0]).toMatchObject({ batchId: sc.AE.batch.id, tied: false, settlementVerified: false });
     expect(shape(r)).toEqual(shape(reconcile(sc.engineInput(sc.AE))));

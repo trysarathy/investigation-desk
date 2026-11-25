@@ -8,8 +8,9 @@
  * v1 Phase 0.5 (evidence-level split, decisions 12–16): with the flag off, an exact payment in a tied batch whose bank
  * line is imported is now MATCHED (M5.batch.tied_evidence_separate) instead of staying in review
  * (M5.bank.imported_not_verified); its bank evidence is shown apart. Before this change the test asserted that nothing
- * closes with the flag off; it now asserts exactly which payments the split closes, and that totals-only input is
- * unchanged (a proposed grouping still never closes). The table is printed for the report (run with --silent=false). A batch with refunds
+ * closes with the flag off; it now asserts exactly which payments the split closes. Totals-only input: exact payments
+ * whose provider record names a batch are matched with settlement not linked (M5.grouping.matched_settlement_unlinked);
+ * none is settled. The table is printed for the report (run with --silent=false). A batch with refunds
  * cannot tie from per-payment rows alone (they name no refund), so its exact payments become M5.batch.not_tied
  * exceptions instead of proposed groupings: stricter, never looser. Synthetic · fictional data.
  * v1 #174 (A3): refund rows (linked to the original payment by its ID) let those batches tie.
@@ -76,8 +77,11 @@ describe("per-payment settlement: blind-test style numbers (in memory)", () => {
         expect(r.closedNotTruth, v).toBe(0);
       }
       const [beforeOff, beforeOn, afterOff, afterOn, refundOff, refundOn] = rows.map(([, r]) => r);
-      // totals only: a proposed grouping never closes, flag off or on (unchanged by the evidence split)
-      expect(beforeOff.matched + beforeOff.withDifference).toBe(0);
+      // totals only: the grouping is only proposed, so nothing is settled; since v1 Phase 0.5 (decisions 12 and 14) the exact
+      // payments whose provider record names a batch are matched with settlement not linked (was: 0 closed). Nothing
+      // with a difference closes.
+      expect(beforeOff.withDifference).toBe(0);
+      expect(beforeOff.rules["matched M5.grouping.matched_settlement_unlinked"] ?? 0).toBe(beforeOff.matched);
       // v1 Phase 0.5: flag off, exact payments in tied batches are matched with their bank evidence shown apart; nothing
       // else closes (a difference in such a batch is still review), and they are exactly the ones the flag would close
       expect(afterOff.withDifference).toBe(0);
@@ -86,7 +90,7 @@ describe("per-payment settlement: blind-test style numbers (in memory)", () => {
       expect(afterOff.matched).toBe(afterOn.matched);
       expect(afterOff.exception).toBe(afterOn.exception);
       // before, the flag changes nothing (no payment is linked to a batch), as in the rc7 blind test
-      expect(beforeOn.matched + beforeOn.withDifference).toBe(0);
+      expect([beforeOn.matched, beforeOn.withDifference, beforeOn.review, beforeOn.exception]).toEqual([beforeOff.matched, beforeOff.withDifference, beforeOff.review, beforeOff.exception]);
       // after, with the flag on (a check only), exact payments in tied batches close
       expect(afterOn.matched).toBeGreaterThan(0);
       expect(afterOn.rules["matched M5.batch.tied_verified"]).toBe(afterOn.matched);

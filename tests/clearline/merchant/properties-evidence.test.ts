@@ -20,7 +20,10 @@ function prng(seed: number) {
 }
 
 const world = smallWorld();
-const BASE: ReconcileInput[] = world.entitySpecs.map((e) => blindInput(world, e.id)).map((i) => ({ ...i, settlementPaymentLines: perPaymentLines(world, i) }));
+const TOTALS: ReconcileInput[] = world.entitySpecs.map((e) => blindInput(world, e.id));
+const BASE: ReconcileInput[] = TOTALS.map((i) => ({ ...i, settlementPaymentLines: perPaymentLines(world, i) }));
+/** Both settlement shapes: per-payment lines (batches tie) and totals only (only a grouping is proposed). */
+const SHAPES: [string, ReconcileInput[], string][] = [["per-payment lines", BASE, "M5.batch.tied_evidence_separate"], ["totals only", TOTALS, "M5.grouping.matched_settlement_unlinked"]];
 const CLOSING = new Set(["matched", "matched_with_difference"]);
 const view = (r: MatchRecord) => [r.orderId, r.explanation.decision, r.explanation.ruleId, r.explanation.decidingStep, r.bank.evidence, r.bank.settled, r.bank.batchTied, r.bank.settlementVerified];
 const json = (x: unknown) => JSON.stringify(x, (_k, v) => (typeof v === "bigint" ? `${v}n` : v));
@@ -58,11 +61,12 @@ describe("evidence-level split: baseline", () => {
 });
 
 describe("evidence-level split properties (25 seeds)", () => {
-  it("an amount alone never matches: a transfer to an address not issued for the order, of exactly its invoice, never closes it", () => {
+  for (const [shape, inputs, rule] of SHAPES) it(`${shape}: an amount alone never matches: a transfer to an address not issued for the order, of exactly its invoice, never closes it`, () => {
     for (const seed of SEEDS) {
       const next = prng(seed);
-      const input = BASE[seed % BASE.length];
-      const closedNow = reconcile(input).records.filter((r) => r.explanation.ruleId === "M5.batch.tied_evidence_separate");
+      const input = inputs[seed % inputs.length];
+      const closedNow = reconcile(input).records.filter((r) => r.explanation.ruleId === rule);
+      expect(closedNow.length).toBeGreaterThan(0);
       const victim = closedNow[next() % closedNow.length];
       const tr = victim.chain.transfers[0];
       // the same transfer and amount, but to an address Clearline never issued: only the amount still "matches"
@@ -74,11 +78,11 @@ describe("evidence-level split properties (25 seeds)", () => {
     }
   });
 
-  it("an invoice with the same amount as a matched payment, but no reference to it, never matches", () => {
+  for (const [shape, inputs, rule] of SHAPES) it(`${shape}: an invoice with the same amount as a matched payment, but no reference to it, never matches`, () => {
     for (const seed of SEEDS) {
       const next = prng(seed);
-      const input = BASE[seed % BASE.length];
-      const matched = reconcile(input).records.filter((r) => r.explanation.ruleId === "M5.batch.tied_evidence_separate");
+      const input = inputs[seed % inputs.length];
+      const matched = reconcile(input).records.filter((r) => r.explanation.ruleId === rule);
       const twin = matched[next() % matched.length];
       const inv = input.invoices.find((i) => i.orderId === twin.orderId)!;
       const withTwin: ReconcileInput = { ...input, invoices: [...input.invoices, { ...inv, orderId: `TWIN-${seed}` }] };
@@ -88,25 +92,25 @@ describe("evidence-level split properties (25 seeds)", () => {
     }
   });
 
-  it("shuffled input order gives identical results, evidence levels included", () => {
+  for (const [shape, inputs] of SHAPES) it(`${shape}: shuffled input order gives identical results, evidence levels included`, () => {
     for (const seed of SEEDS) {
-      const input = vary(BASE[seed % BASE.length], seed);
+      const input = vary(inputs[seed % inputs.length], seed);
       const a = reconcile(input), b = reconcile(shuffleInput(input, seed));
       expect(json(b.records.map(view))).toBe(json(a.records.map(view)));
       expect(json(b.bridges.map((x) => [x.batchId, x.tied, x.settlementVerified, x.bankEvidence, x.settled]))).toBe(json(a.bridges.map((x) => [x.batchId, x.tied, x.settlementVerified, x.bankEvidence, x.settled])));
     }
   });
 
-  it("re-runs are idempotent: the same input gives exactly the same output", () => {
+  for (const [shape, inputs] of SHAPES) it(`${shape}: re-runs are idempotent: the same input gives exactly the same output`, () => {
     for (const seed of SEEDS.slice(0, 8)) {
-      const input = vary(BASE[seed % BASE.length], seed);
+      const input = vary(inputs[seed % inputs.length], seed);
       expect(json(reconcile(input))).toBe(json(reconcile(input)));
     }
   });
 
-  it("the evidence level never shows higher than the evidence supports; the flag never raises it; nothing is bank_authenticated", () => {
+  for (const [shape, inputs] of SHAPES) it(`${shape}: the evidence level never shows higher than the evidence supports; the flag never raises it; nothing is bank_authenticated`, () => {
     for (const seed of SEEDS) {
-      const input = vary(BASE[seed % BASE.length], seed);
+      const input = vary(inputs[seed % inputs.length], seed);
       const r = reconcile(input);
       const lineOf = new Map(input.bankLines.map((l) => [l.bankLineId, l]));
       for (const b of r.bridges) {
@@ -132,6 +136,33 @@ describe("evidence-level split properties (25 seeds)", () => {
       // still needs the flag (a check only) to leave review, exactly as before the split
       const matchedOf = (x: typeof r) => x.records.filter((y) => y.explanation.decision === "matched").map((y) => y.orderId);
       expect(matchedOf(flipped)).toEqual(matchedOf(r));
+    }
+  });
+});
+
+describe("a matched payment whose settlement is not linked is never settled (25 seeds)", () => {
+  for (const [shape, inputs] of SHAPES) it(`${shape}: unlinked, proposed-grouping or untied → not settled, evidence none; and only exact step-4 payments are matched that way`, () => {
+    for (const seed of SEEDS) {
+      // also drop the per-payment line of one random payment, so some exact payments lose their batch link
+      const next = prng(seed);
+      const base = vary(inputs[seed % inputs.length], seed);
+      const lines = base.settlementPaymentLines;
+      const input = lines ? { ...base, settlementPaymentLines: lines.filter((_, k) => k !== next() % lines.length) } : base;
+      const r = reconcile(input);
+      const tiedOf = new Map(r.bridges.map((b) => [b.batchId, b.tied]));
+      for (const rec of r.records) {
+        const linked = rec.bank.batchIds.length > 0 && rec.bank.status !== "proposed_grouping" && rec.bank.batchIds.every((id) => tiedOf.get(id));
+        if (!linked) expect([rec.orderId, rec.bank.settled, rec.bank.evidence]).toEqual([rec.orderId, false, "none"]);
+        if (rec.explanation.ruleId === "M5.grouping.matched_settlement_unlinked") {
+          expect(rec.explanation.decision).toBe("matched");
+          expect(rec.explanation.differences).toEqual([]);
+          expect(rec.explanation.history.some((h) => h.step === 4 && h.outcome === "pass" && (h.ruleId === "M4.exact.no_quote_terms" || h.ruleId === "M4.match.no_difference"))).toBe(true);
+          expect(rec.explanation.history.some((h) => h.ruleId === "M5.grouping.proposed_needs_confirmation" && h.outcome === "note" && h.detail.startsWith("Settlement not linked"))).toBe(true);
+          expect([rec.bank.status, rec.bank.settled, rec.bank.evidence]).toEqual(["proposed_grouping", false, "none"]);
+        }
+      }
+      // a proposed grouping itself is never settled or closed
+      for (const g of r.proposedGroupings) expect(g.status).toBe("proposed_needs_confirmation");
     }
   });
 });

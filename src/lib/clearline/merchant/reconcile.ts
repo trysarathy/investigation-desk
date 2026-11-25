@@ -17,7 +17,7 @@ const RANK: Record<Decision, number> = { matched: 0, matched_with_difference: 1,
  * recorded apart. Everything else is unchanged: a payment with any difference in such a batch is still review
  * (M5.bank.imported_not_verified), a proposed grouping is still review, an untied batch is still an exception.
  */
-function applyStep5(rec: MatchRecord, bridges: BatchBridge[], groupings: ProposedGrouping[]): { decision: Decision; ruleId: RuleId; attention?: Attention; note?: HistoryEntry } | null {
+function applyStep5(rec: MatchRecord, bridges: BatchBridge[], groupings: ProposedGrouping[], knownBatches: ReadonlySet<string>): { decision: Decision; ruleId: RuleId; attention?: Attention; note?: HistoryEntry } | null {
   const ids = new Set(rec.provider.records.map((r) => r.providerPaymentId));
   const mine = bridges.filter((b) => b.paymentIds.some((id) => ids.has(id)));
   const grouped = groupings.filter((g) => g.paymentIds.some((id) => ids.has(id)));
@@ -33,6 +33,15 @@ function applyStep5(rec: MatchRecord, bridges: BatchBridge[], groupings: Propose
   };
   const e = rec.explanation;
   if (e.decision === "exception" || e.decidingStep < 4) return null;
+  // v1 Phase 0.5 (decisions 12 and 14): an exact payment whose settlement is only a proposed grouping is still matched;
+  // settlement is a separate dimension (not linked, not settled, bank evidence none). Only when its provider record
+  // itself names a settlement batch that is in the settlement report (a reference, never an amount): a payment the
+  // provider names no batch for may be held or unsettled, and stays in review as before.
+  if (grouped.length && e.decision === "matched" && active("M5.grouping.matched_settlement_unlinked")
+    && rec.provider.records.length > 0 && rec.provider.records.every((r) => r.batchId !== undefined && knownBatches.has(r.batchId))) {
+    const note: HistoryEntry = { step: 5, ruleId: "M5.grouping.proposed_needs_confirmation", outcome: "note", detail: `Settlement not linked: the settlement report gives batch totals only, so no payment is linked to batch ${[...new Set(rec.provider.records.map((r) => r.batchId))].join(", ")}; grouping ${grouped.map((g) => g.id).join(", ")} is only proposed. Not settled; ${BANK_EVIDENCE_LABEL[rec.bank.evidence]}. It does not decide the match.` };
+    return { decision: "matched", ruleId: "M5.grouping.matched_settlement_unlinked", note };
+  }
   if (grouped.length && active("M5.grouping.proposed_needs_confirmation"))
     return { decision: "suggested_for_review", ruleId: "M5.grouping.proposed_needs_confirmation", attention: { owner: "Payment Operations", reason: `No settlement batch ID. Grouping ${grouped.map((g) => g.id).join(", ")} is only proposed.`, nextStep: "Confirm the grouping against the provider's settlement report and the bank line; the engine never closes it." } };
   const offCurrency = mine.find((b) => b.checks.currencyAgrees === false);
@@ -64,12 +73,13 @@ export function reconcile(raw: ReconcileInput): ReconcileResult {
   };
   const { bridges, groupings } = buildBridges(input, orderOf);
   const exceptions = [...matched.exceptions];
+  const knownBatches = new Set(input.batches.map((b) => b.batchId));
   for (const rec of matched.records) {
-    const v = applyStep5(rec, bridges, groupings);
+    const v = applyStep5(rec, bridges, groupings, knownBatches);
     if (v?.note) rec.explanation = { ...rec.explanation, history: [...rec.explanation.history, v.note] };
-    const confirms = v?.ruleId === "M5.batch.tied_verified" || v?.ruleId === "M5.batch.tied_evidence_separate";
+    const confirms = v?.ruleId === "M5.batch.tied_verified" || v?.ruleId === "M5.batch.tied_evidence_separate" || v?.ruleId === "M5.grouping.matched_settlement_unlinked";
     if (!v || (RANK[v.decision] < RANK[rec.explanation.decision]) || (RANK[v.decision] === RANK[rec.explanation.decision] && !confirms)) continue;
-    rec.explanation = { ...rec.explanation, decision: v.decision, decidingStep: 5, ruleId: v.ruleId, history: [...rec.explanation.history, { step: 5, ruleId: v.ruleId, outcome: v.decision === "matched" ? "pass" : "fail", detail: `Decision: ${v.decision}.${v.ruleId === "M5.batch.tied_evidence_separate" ? ` ${BANK_EVIDENCE_LABEL[rec.bank.evidence]}.` : ""}` }] };
+    rec.explanation = { ...rec.explanation, decision: v.decision, decidingStep: 5, ruleId: v.ruleId, history: [...rec.explanation.history, { step: 5, ruleId: v.ruleId, outcome: v.decision === "matched" ? "pass" : "fail", detail: `Decision: ${v.decision}.${v.ruleId === "M5.batch.tied_evidence_separate" || v.ruleId === "M5.grouping.matched_settlement_unlinked" ? ` ${BANK_EVIDENCE_LABEL[rec.bank.evidence]}.${rec.bank.settled ? "" : " Not settled."}` : ""}` }] };
     if (v.attention) rec.attention = v.attention;
     if (v.decision === "exception") exceptions.push({ id: `EX-${rec.orderId}`, step: 5, ruleId: v.ruleId, orderId: rec.orderId, ...v.attention! });
   }
