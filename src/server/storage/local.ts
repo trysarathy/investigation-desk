@@ -21,6 +21,35 @@ export function uploadKeyFromEnv(value: string | undefined): Buffer | null {
   return key;
 }
 
+/** A storage address: an organisation id (UUID) and a random 32-hex key. */
+export function validAddress(orgId: string, storageKey: string): boolean {
+  return UUID.test(orgId) && KEY.test(storageKey);
+}
+
+/**
+ * The stored form of an upload (any backend): "CLU1" | 12-byte IV | AES-256-GCM ciphertext | 16-byte tag, with
+ * "<org id>/<storage key>" as additional data, so a file moved to another organisation or key fails to open.
+ * Without a key (development only) "CLU0" | bytes.
+ */
+export function sealUpload(key: Buffer | null, orgId: string, storageKey: string, bytes: Uint8Array): Buffer {
+  if (!key) return Buffer.concat([PLAIN, Buffer.from(bytes)]);
+  const iv = randomBytes(12);
+  const c = createCipheriv("aes-256-gcm", key, iv);
+  c.setAAD(Buffer.from(`${orgId}/${storageKey}`));
+  return Buffer.concat([MAGIC, iv, c.update(Buffer.from(bytes)), c.final(), c.getAuthTag()]);
+}
+
+/** The inverse of sealUpload; refuses a file that is not an upload, or an encrypted one without the key. */
+export function openUpload(key: Buffer | null, orgId: string, storageKey: string, body: Buffer): Uint8Array {
+  if (body.subarray(0, 4).equals(PLAIN)) return new Uint8Array(body.subarray(4));
+  if (!body.subarray(0, 4).equals(MAGIC)) throw new StorageRefused("Not an upload file.");
+  if (!key) throw new StorageRefused("This file is encrypted and CLEARLINE_UPLOAD_KEY is not set.");
+  const d = createDecipheriv("aes-256-gcm", key, body.subarray(4, 16));
+  d.setAAD(Buffer.from(`${orgId}/${storageKey}`));
+  d.setAuthTag(body.subarray(body.length - 16));
+  return new Uint8Array(Buffer.concat([d.update(body.subarray(16, body.length - 16)), d.final()]));
+}
+
 /**
  * Files on local disk: <dir>/<org id>/<random key>. Encrypted files are "CLU1" | 12-byte IV | ciphertext | 16-byte
  * GCM tag, with the organisation and key as additional data (a file moved to another organisation fails to open).
@@ -38,13 +67,7 @@ export class LocalDiskStorage implements UploadStorage {
     if (this.refusal) throw new StorageRefused(this.refusal);
     const storageKey = randomBytes(16).toString("hex");
     const file = this.where(orgId, storageKey);
-    let body: Buffer = Buffer.concat([PLAIN, Buffer.from(bytes)]);
-    if (this.key) {
-      const iv = randomBytes(12);
-      const c = createCipheriv("aes-256-gcm", this.key, iv);
-      c.setAAD(Buffer.from(`${orgId}/${storageKey}`));
-      body = Buffer.concat([MAGIC, iv, c.update(Buffer.from(bytes)), c.final(), c.getAuthTag()]);
-    }
+    const body = sealUpload(this.key, orgId, storageKey, bytes);
     await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
     const tmp = `${file}.tmp`;
     try {
@@ -58,14 +81,7 @@ export class LocalDiskStorage implements UploadStorage {
   }
 
   async get(orgId: string, storageKey: string): Promise<Uint8Array> {
-    const body = await readFile(this.where(orgId, storageKey));
-    if (body.subarray(0, 4).equals(PLAIN)) return new Uint8Array(body.subarray(4));
-    if (!body.subarray(0, 4).equals(MAGIC)) throw new StorageRefused("Not an upload file.");
-    if (!this.key) throw new StorageRefused("This file is encrypted and CLEARLINE_UPLOAD_KEY is not set.");
-    const d = createDecipheriv("aes-256-gcm", this.key, body.subarray(4, 16));
-    d.setAAD(Buffer.from(`${orgId}/${storageKey}`));
-    d.setAuthTag(body.subarray(body.length - 16));
-    return new Uint8Array(Buffer.concat([d.update(body.subarray(16, body.length - 16)), d.final()]));
+    return openUpload(this.key, orgId, storageKey, await readFile(this.where(orgId, storageKey)));
   }
 
   async delete(orgId: string, storageKey: string): Promise<boolean> {
