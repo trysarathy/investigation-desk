@@ -17,6 +17,9 @@ import * as t from "../../src/server/db/schema";
 import { currentPrincipal } from "../../src/server/auth";
 import { POST as authPOST } from "../../src/app/api/auth/[...all]/route";
 import { POST as switchPOST } from "../../src/app/api/control/demo/switch/route";
+import { GET as paymentsGET } from "../../src/app/api/control/payments/route";
+import { demoSwitchMfaProof, DEMO_MFA_PROOF_MARKER } from "../../src/server/demo-switch";
+import { enrolTestTotp } from "./harness";
 import { createOrganization, createUser, grantMembership } from "../../src/server/admin";
 import { resolveTenant, withTenant } from "../../src/server/tenant";
 
@@ -116,6 +119,38 @@ describe("the demo role switcher", () => {
     expect((await sw(c, "approver@switch.demo", "https://evil.example")).status).toBe(403);
     expect((await sw("", "approver@switch.demo")).status).toBe(401);
     expect(await currentPrincipal(new Headers({ cookie: c }))).toMatchObject({ email: "finance@switch.demo" });
+  });
+
+  it("v1 wave 1: a switch to an ENROLLED demo Approver is an MFA-proved session (demo build only); without MFA the wall stays", async () => {
+    build(true);
+    const gated = (cookie: string) => paymentsGET(new Request(`${ORIGIN}/api/control/payments`, { headers: { cookie } }));
+    // not enrolled: the switch signs in, and the MFA gate still asks for enrolment
+    const plain = (await sw(await signIn("finance@switch.demo"), "approver@switch.demo")).headers.getSetCookie().find((c) => c.startsWith("clearline.session_token="))!.split(";")[0];
+    const wall = await gated(plain);
+    expect(wall.status).toBe(403);
+    expect((await wall.json()).error.code).toBe("MFA_ENROLLMENT_REQUIRED");
+    // enrolled (as the demo seed does): the switcher's session counts as proved, the gate lets it through
+    await enrolTestTotp(ids["approver@switch.demo"]);
+    try {
+      const r = await sw(await signIn("finance@switch.demo"), "approver@switch.demo");
+      expect(r.status).toBe(200);
+      const proved = r.headers.getSetCookie().find((c) => c.startsWith("clearline.session_token="))!.split(";")[0];
+      expect((await gated(proved)).status).toBe(200);
+      const audit = (await ownerDb().execute(sql`select a.details->>'mfa' as mfa from audit_events a join organizations o on o.id = a.org_id where o.slug = 'nw-switch-demo' and a.action = 'demo_user_switched' order by a.seq desc limit 1`)).rows;
+      expect(audit).toEqual([{ mfa: DEMO_MFA_PROOF_MARKER }]);
+      // the switcher's new session carries the proof; the earlier one (made before the Approver had MFA) does not
+      const s = (await ownerDb().select().from(t.sessions).where(eq(t.sessions.userId, ids["approver@switch.demo"]))).sort((x, y) => +y.createdAt - +x.createdAt);
+      expect(s[0].mfaVerifiedAt).not.toBeNull();
+      expect(s.slice(1).every((x) => x.mfaVerifiedAt === null)).toBe(true);
+      // impossible in a real build, and for a user outside demo organisations
+      build(false);
+      await expect(demoSwitchMfaProof(s[0].id, ids["approver@switch.demo"])).rejects.toMatchObject({ status: 404 });
+      build(true);
+      await expect(demoSwitchMfaProof(s[0].id, ids["live@switch.example"])).rejects.toMatchObject({ status: 404 });
+    } finally {
+      await ownerDb().execute(sql`delete from two_factors where user_id = ${ids["approver@switch.demo"]}`);
+      await ownerDb().execute(sql`update users set two_factor_enabled = false where id = ${ids["approver@switch.demo"]}`);
+    }
   });
 
   it("does not weaken the second-person rule: Finance, signed in again through the switcher, cannot decide her own request", async () => {

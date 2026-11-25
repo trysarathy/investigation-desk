@@ -29,6 +29,8 @@ export const DEMO_MARKER = "clearline-demo[demo-build-only]";
  *   feedback  "Note feedback" (src/server/demo-feedback.ts, src/components/merchant/FeedbackNote.tsx)
  *   reset     the demo reset (src/server/demo-reset.ts, src/components/merchant/ResetDemoButton.tsx)
  *   clock     the demo calendar for live actions (src/server/demo-live-clock.ts)
+ *   mfa       the switcher's MFA-proved session for an enrolled demo Admin/Approver (src/server/demo-switch.ts,
+ *             demoSwitchMfaProof): never in a real build
  *   seed      the demo world and its seed (src/lib/clearline/demo/world.ts, src/server/demo-seed.ts): never bundled,
  *             not even in a demo build (only `npm run demo`'s scripts load it)
  */
@@ -38,11 +40,12 @@ export const DEMO_AREA_MARKERS = {
   feedback: "clearline-demo-feedback[demo-build-only]",
   reset: "clearline-demo-reset[demo-build-only]",
   clock: "clearline-demo-clock[demo-build-only]",
+  mfa: "clearline-demo-mfa-proof[demo-build-only]",
   seed: "clearline-demo-seed[demo-build-only]",
 };
 export const MARKERS = { chain: MARKER, demo: DEMO_MARKER, ...DEMO_AREA_MARKERS };
 /** Markers a demo build must contain (the proof that the absent-check would catch them). */
-export const DEMO_BUILD_MARKERS = ["demo", "switcher", "guide", "feedback", "reset", "clock"];
+export const DEMO_BUILD_MARKERS = ["demo", "switcher", "guide", "feedback", "reset", "clock", "mfa"];
 /** Markers no build of any kind may contain. */
 export const NEVER_BUNDLED = ["seed"];
 

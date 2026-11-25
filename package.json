@@ -18,6 +18,7 @@
     "bench:e2e": "tsx --conditions=react-server scripts/bench/e2e.ts",
     "demo": "tsx --conditions=react-server scripts/demo/run.ts",
     "demo:reset": "tsx --conditions=react-server scripts/demo/reset.ts",
+    "demo:totp": "tsx scripts/demo/totp.ts",
     "demo:files": "tsx scripts/demo/make-demo-files.ts",
     "demo:feedback": "tsx scripts/demo/feedback.ts",
     "demo:video": "playwright test -c playwright.demo-video.config.ts",

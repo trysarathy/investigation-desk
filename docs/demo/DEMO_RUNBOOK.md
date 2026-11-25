@@ -65,10 +65,31 @@ Clearline demo — Demo · fictional data
             admin@northwind.demo     (Admin: settings, members)
             ops@providerp.demo       (Provider ops at Provider P (demo))
   Password  demo-…                   (shared by every demo login; fictional, local, in .demo/state.json)
+  2-step    approver@ and admin@northwind.demo also ask for a 6-digit code (the MFA rule for Approvers and Admins):
+            npm run demo:totp  prints the current code; or add this fictional key to an authenticator app: …
+            The role switcher signs them in without a code (demo build only).
 ```
 
-The shared demo password is generated once per install (20 characters) and is the only secret ever printed. Other
-passwords, the auth secret and the upload key stay in `.demo/state.json`.
+The shared demo password is generated once per install (20 characters) and is the only secret ever printed, with the
+demo authenticator's key (below). Other passwords, the auth secret and the upload key stay in `.demo/state.json`.
+
+### Second factor for the demo Admin and Approver (v1 wave 1)
+
+Since v1 phase 1.2 every Admin and Approver must have a second factor (`src/server/mfa-gate.ts`, unchanged for the
+demo). `npm run demo` therefore enrols `admin@northwind.demo` and `approver@northwind.demo` with ONE fictional TOTP
+secret made once per install (`totpSecret` in `.demo/state.json`; stored in the database exactly as Better Auth stores
+an authenticator, encrypted with the demo's auth secret; no recovery codes). It is kept by `demo:reset` (the template
+holds it). To sign in directly as either of them:
+
+- `npm run demo:totp` prints the current 6-digit code (and the next one); a code works once, a new one comes every 30 s;
+- or add the printed key (base32) to any authenticator app once.
+
+The role switcher needs no code: in a demo build, for members of demo organisations only, a switch to an enrolled
+demo Admin or Approver creates a session that counts as MFA-proved, as a second-factor sign-in does
+(`demoSwitchMfaProof` in `src/server/demo-switch.ts`; audited with the `mfa` marker). It is impossible in a real
+build: the switcher route is 404 and its code is not in the bundle, and the prod-build gate checks the separate `mfa`
+marker (`clearline-demo-mfa-proof[demo-build-only]`) is absent (`npm run build:prod-check`) and present in a demo build
+(`npm run build:demo-check`). A demo seeded before this existed prints a note: run `npm run demo -- --fresh`.
 
 ### Time on the build machine [VERIFIED]
 
@@ -278,6 +299,7 @@ Each spec resets the demo database first, so do not present from the same checko
 | Live chain reads, ledger pull | as configured | refused at start (offline) |
 | `POST /api/control/demo/reset`, "Reset demo" | 404 / not rendered; the code is not in the bundle | present |
 | `POST /api/control/demo/switch`, "Sign in as" (role switcher) | 404 / not rendered; the code is not in the bundle | present, for members of demo organisations only |
+| Switcher session counts as MFA-proved for an enrolled demo Admin/Approver (marker `mfa`) | impossible: not in the bundle | demo organisations only |
 | Presenter guide | not rendered; not in the bundle | present, for members of demo organisations only |
 | `POST /api/control/demo/feedback`, "Note feedback" | 404 / not rendered; the code is not in the bundle | present, for demo organisations only (and the table's row-level security refuses any other) |
 | Table `demo_feedback` (migration 0032) | exists, empty; its insert policy refuses every non-demo organisation | holds the notes |
