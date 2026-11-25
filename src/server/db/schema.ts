@@ -398,3 +398,4 @@ export * from "./ops-schema";
 export * from "./ledger-schema";
 export * from "./notify-schema";
 export * from "./demo-schema";
+export * from "./onboarding-schema";

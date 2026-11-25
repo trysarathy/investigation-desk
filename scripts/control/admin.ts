@@ -54,6 +54,14 @@
  *   add-member <org-slug> <email> <role> [--name <name>] [--confirm <org-slug>]
  *                                           (a new person's password from CLEARLINE_SEED_PASSWORD only; never an argument)
  *   setup-summary <org-slug>                (what the organisation holds: ids and counts)
+ *
+ * v1 phase 1.1, onboarding (also DATABASE_OWNER_URL only; ids and roles printed, never an email or a token):
+ *   invite-admin <org-slug> <email>         (invite the organisation's FIRST admin — Admin of a merchant, Provider Admin
+ *                                            of a provider; refused once it has one. The invitation email goes through
+ *                                            the email sender: the local outbox, CLEARLINE_EMAIL_OUTBOX_DIR)
+ *   grant-platform-operator <email>         (the person may open the platform console, which also needs
+ *                                            CLEARLINE_PLATFORM_CONSOLE=1 on the deployment)
+ *   revoke-platform-operator <email>        (and signs them out everywhere)
  */
 import { sql } from "drizzle-orm";
 import { closeDatabase, database } from "../../src/server/db/client";
@@ -64,6 +72,7 @@ import { purgeExpiredUploads, sweepOrphanFiles } from "../../src/server/uploads"
 import { deleteMerchant, planMerchantDeletion } from "../../src/server/merchant-deletion";
 import { monthsAheadArg } from "../../src/server/chain-read-partitions";
 import { addBankAccount, addEntity, addMember, closeBankAccount, createMerchant, createProvider, linkProvider, openOwnerDb, recordFiatRate, setPolicy, setupSummary } from "../../src/server/merchant-setup";
+import { grantPlatformOperator, inviteFirstAdmin, revokePlatformOperator } from "../../src/server/onboarding/operator";
 
 const DEMO_USERS: { email: string; name: string; org: string; role: AppRole }[] = [
   { email: "ops@lumen.example", name: "Priya Raman (fictional)", org: "lumen-demo", role: "payment_ops" },
@@ -91,7 +100,8 @@ const POLICY_FLAGS: Record<string, [string, (v: string) => unknown]> = {
   "tolerance-bps": ["toleranceBps", (v) => (/^\d+$/.test(v) ? Number(v) : v)], "tolerance-abs-minor": ["toleranceAbsMinor", (v) => v], combine: ["toleranceCombine", (v) => v],
   "writeoff-threshold-minor": ["writeoffThresholdMinor", (v) => v], "allow-imported-bank-lines": ["allowImportedBankLinesAsVerified", (v) => (v === "true" ? true : v === "false" ? false : v)],
 };
-const SETUP = new Set(["create-merchant", "create-provider", "add-entity", "add-bank-account", "close-bank-account", "record-rate", "set-policy", "link-provider", "add-member", "setup-summary"]);
+const SETUP = new Set(["create-merchant", "create-provider", "add-entity", "add-bank-account", "close-bank-account", "record-rate", "set-policy", "link-provider", "add-member", "setup-summary",
+  "invite-admin", "grant-platform-operator", "revoke-platform-operator"]);
 
 /** rc8 founder decision 4: the owner-only merchant setup commands. Exit 2 for a dry run (nothing changed). */
 async function setup(cmd: string, args: string[]) {
@@ -114,6 +124,9 @@ async function setup(cmd: string, args: string[]) {
         out = await setPolicy(db, { orgSlug: need(pos[0], "<org-slug>"), entityId: need(pos[1], "<entity-id>"), patch, defaults: f.defaults === "true", confirm: f.confirm }); break;
       }
       case "link-provider": out = await linkProvider(db, { orgSlug: need(pos[0], "<org-slug>"), providerSlug: need(pos[1], "<provider-slug>"), confirm: f.confirm }); break;
+      case "invite-admin": out = await inviteFirstAdmin(db, { orgSlug: need(pos[0], "<org-slug>"), email: need(pos[1], "<email>") }); break;
+      case "grant-platform-operator": out = await grantPlatformOperator(db, need(pos[0], "<email>")); break;
+      case "revoke-platform-operator": out = await revokePlatformOperator(db, need(pos[0], "<email>")); break;
       case "add-member": out = await addMember(db, { orgSlug: need(pos[0], "<org-slug>"), email: need(pos[1], "<email>"), role: need(pos[2], "<role>"), name: f.name, password: process.env.CLEARLINE_SEED_PASSWORD, confirm: f.confirm }); break;
       default: out = await setupSummary(db, need(pos[0], "<org-slug>"));
     }
