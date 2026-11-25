@@ -2,6 +2,7 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import { expectNoAxeViolations, expectNoOverflow } from "../e2e-merchant/helpers";
 import { ONBOARDING_E2E } from "./env";
 import { lastInvitation } from "../support/email-outbox";
+import { base32decode, totp } from "../support/totp";
 
 /*
  * v1 phase 1.1, on desktop and on a phone: a platform operator creates a merchant and invites its first admin; the
@@ -86,9 +87,23 @@ test("platform console → invitation → setup wizard → finish; a non-admin i
     await signOut(page);
   });
 
-  await test.step("the first admin accepts the invitation and signs in", async () => {
+  await test.step("the first admin accepts the invitation, signs in and must set up a second factor (v1 1.2)", async () => {
     await accept(page, (await invitationTo(adminEmail)).token, `First Admin ${p} (fictional)`, pw);
     await signIn(page, adminEmail, pw, info);
+    // an Admin cannot use Control without MFA: the enrolment wall, then an authenticator app (its key read off the page)
+    await expect(page).toHaveURL(/\/control\/security\?required=enrol$/);
+    await expectNoAxeViolations(page, "security page, enrolment required");
+    await page.getByLabel("Your password").fill(pw);
+    await page.getByRole("button", { name: "Set up an authenticator app" }).click();
+    const secret = base32decode((await page.getByTestId("totp-secret").textContent())!.trim());
+    await page.getByLabel("6-digit code from the app").fill(totp(secret));
+    await page.getByRole("button", { name: "Turn on" }).click();
+    await expect(page.getByTestId("recovery-codes")).toBeVisible();
+    await page.getByRole("button", { name: "I have saved them" }).click();
+    await expect(page.getByTestId("mfa-status")).toContainText("On: authenticator app");
+    await expectNoAxeViolations(page, "security page, MFA on");
+    await page.getByRole("link", { name: "Continue to Clearline Control" }).click();
+    await expect(page).toHaveURL(/\/control(\/merchant)?$/);
     // a merchant member is not a platform operator: the console does not exist for them
     await page.goto("/control/platform");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(/not found/i);

@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
 import { MERCHANT_E2E } from "./env";
+import { enrolFictionalTotp } from "../support/totp";
 
 /**
  * Rebuilds the merchant e2e database from the committed migrations (schema owner) and seeds the fictional provider,
@@ -28,6 +29,8 @@ export async function resetMerchantDatabase() {
     encoding: "utf8",
   });
   if (live.status !== 0) throw new Error(`live merchant seed failed: ${live.stderr || live.stdout}`);
+  // v1 1.2: the seeded fictional Admins and Approvers get the suite's test authenticator (the MFA gate is unchanged)
+  await enrolFictionalTotp(MERCHANT_E2E.ownerUrl, MERCHANT_E2E.authSecret);
 }
 
 /** Owner-side SQL for assertions and for the one test-only setup step (a merchant's full grant). */
