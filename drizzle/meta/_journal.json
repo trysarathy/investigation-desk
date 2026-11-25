@@ -323,6 +323,20 @@
       "when": 1796490000000,
       "tag": "0049_provisioning_role",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1796500000000,
+      "tag": "0050_mfa_passkeys",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1796510000000,
+      "tag": "0051_email_tokens_rate_limits",
+      "breakpoints": true
     }
   ]
 }
