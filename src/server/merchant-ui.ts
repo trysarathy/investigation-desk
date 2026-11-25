@@ -525,7 +525,7 @@ export async function monthEndView(ctx: TenantContext, entityId: string, month: 
     const foreign = [...new Set(batchCurrencies.filter((c) => c !== ent.functionalCurrency))];
     return {
       ...base,
-      receivableFromProvider: receivable.map((g) => ({ ...g, creditedMinor: g.creditedMinor.toString() })),
+      receivableFromProvider: receivable.map((g) => ({ batchId: g.batchId, orderIds: g.orderIds, creditedMinor: g.creditedMinor.toString(), reason: g.reason })),
       exceptionAges: ages,
       fx: { functionalCurrency: ent.functionalCurrency, foreignCurrencies: foreign, rates: fx.slice(0, 6).map((r) => ({ pair: r.pair, rate: r.rate, source: r.source, observedAt: r.observedAt.toISOString() })) },
     };
