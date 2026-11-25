@@ -51,6 +51,7 @@ export type Permission =
   | "manage_retention"     // rc7: how long uploads and the data derived from them are kept — Admin only
   | "merchant_export"      // rc8 founder decision 3: every merchant export (evidence pack, rc6 journal file, rc7 draft journal files,
                            // month-end pack) — exactly Finance, an Approver or an Admin
+  | "ledger_connect"       // v1 phase 2.3: connect, choose the organisation of, reconnect or disconnect a ledger — Admin only
   | "access_review";       // v1 phase 1.4: who has access to what, exportable for auditors — a merchant Admin, or a Provider
                            // Admin for the provider's own members
 
@@ -75,6 +76,7 @@ const MATRIX: Record<Permission, readonly AppRole[]> = {
   manage_retention: ["admin"],
   merchant_export: ["finance", "approver", "admin"],
   access_review: ["admin", "provider_admin"],
+  ledger_connect: ["admin"],
 };
 
 export const can = (role: AppRole, p: Permission): boolean => MATRIX[p].includes(role);

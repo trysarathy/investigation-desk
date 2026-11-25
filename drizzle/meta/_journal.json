@@ -386,6 +386,20 @@
       "when": 1796710000000,
       "tag": "0071_chain_reads_conflicting",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1796720000000,
+      "tag": "0072_ledger_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1796730000000,
+      "tag": "0073_ledger_journal_drafts",
+      "breakpoints": true
     }
   ]
 }
