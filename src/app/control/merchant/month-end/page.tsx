@@ -67,7 +67,7 @@ export default async function MonthEndPage({ searchParams }: { searchParams: Pro
 
       <section className={s.section} aria-labelledby="journals">
         <h2 className={s.h2} id="journals">Journal proposals ready to export ({ready.length})</h2>
-        <p className={s.row}><PendingSignOff /> <span className={s.small}>Every proposal stays a proposal; nothing is posted. <a href={`/control/merchant/accounting?entity=${encodeURIComponent(entity.id)}&month=${month}`}>Open the accounting export</a>.</span></p>
+        <p className={s.row}><PendingSignOff /> <span className={s.small}>Every proposal stays a proposal; nothing is posted. Until an Admin signs the current <a href="/control/merchant/posting-rules">posting rules</a>, every journal is a draft. <a href={`/control/merchant/accounting?entity=${encodeURIComponent(entity.id)}&month=${month}`}>Open the accounting export</a>.</span></p>
         {Object.keys(v.balances).length ? (
           <div className={s.tableWrap} role="region" aria-label="Net movement by account table" tabIndex={0}>
             <table className={s.table}>
@@ -86,6 +86,7 @@ export default async function MonthEndPage({ searchParams }: { searchParams: Pro
             <p className={s.small}>Files only: nothing is posted to any ledger. Journal drafts are for a Xero demo company or a QuickBooks sandbox, for an accountant to review; posting rules are pending sign-off.</p>
             <ul className={s.small} style={{ lineHeight: 2, paddingLeft: 20 }}>
               <li style={{ marginBottom: 8 }}><a style={{ display: "inline-block", padding: "4px 0" }} data-testid="month-end-pack" href={`/api/control/merchant/exports/month-end?entity=${encodeURIComponent(entity.id)}&month=${month}`}>Download the month-end pack (ZIP)</a>: bridges, open exceptions with owner, reason and next step, journal proposals, provenance of every file used, rule-set version.</li>
+              <li style={{ marginBottom: 8 }}><a style={{ display: "inline-block", padding: "4px 0" }} data-testid="month-end-pdf" href={`/api/control/merchant/exports/month-end?entity=${encodeURIComponent(entity.id)}&month=${month}&format=pdf`}>Month-end pack (PDF)</a> · <a style={{ display: "inline-block", padding: "4px 0" }} data-testid="month-end-xlsx" href={`/api/control/merchant/exports/month-end?entity=${encodeURIComponent(entity.id)}&month=${month}&format=xlsx`}>(XLSX)</a>: bridges, receivable from the provider by batch, exceptions by age, write-offs with preparer and approver, FX revaluation, journals with their sign-off status, the evidence index with each payment&apos;s bank evidence level, and the checks that the totals agree across sections.</li>
               <li style={{ marginBottom: 8 }}><a style={{ display: "inline-block", padding: "4px 0" }} href={`/api/control/merchant/exports/journal-draft?entity=${encodeURIComponent(entity.id)}&month=${month}&tool=xero`}>Xero manual journal draft (CSV)</a></li>
               <li style={{ marginBottom: 8 }}><a style={{ display: "inline-block", padding: "4px 0" }} href={`/api/control/merchant/exports/journal-draft?entity=${encodeURIComponent(entity.id)}&month=${month}&tool=quickbooks`}>QuickBooks journal draft (CSV)</a></li>
             </ul>

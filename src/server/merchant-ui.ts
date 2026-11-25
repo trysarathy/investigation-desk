@@ -487,7 +487,26 @@ export async function listMerchantApprovals(ctx: TenantContext) {
 // Month-end
 // ---------------------------------------------------------------------------------------------
 
-const AGE_BUCKETS = [{ label: "Under 1 day", max: 1 }, { label: "1–7 days", max: 7 }, { label: "8–30 days", max: 30 }, { label: "Over 30 days", max: Infinity }] as const;
+export const AGE_BUCKETS = [{ label: "Under 1 day", max: 1 }, { label: "1–7 days", max: 7 }, { label: "8–30 days", max: 30 }, { label: "Over 30 days", max: Infinity }] as const;
+
+/**
+ * Money the provider confirmed for the month's payments (a transfer in the month, entity zone) that is not yet in a
+ * settlement verified against a bank line, by batch ("(no settlement batch)" when in none), in the invoice's currency.
+ */
+export function receivableFromProvider(recs: (typeof t.matchRecords.$inferSelect)[], month: string, off: number) {
+  const receivable = new Map<string, { batchId: string; currency: string; orderIds: string[]; creditedMinor: bigint; reason: string }>();
+  for (const m of recs) {
+    const p = partsOf(m);
+    if (!p.chain.transfers.some((x) => localDate(x.timestamp, off).startsWith(month))) continue;
+    for (const r of p.provider.records) {
+      if (p.bank.settlementVerified || !r.creditedMinor || big(r.creditedMinor) === 0n) continue;
+      const k = r.batchId ?? "(no settlement batch)";
+      const g = receivable.get(k) ?? { batchId: k, currency: p.ledger.invoice.currency, orderIds: [], creditedMinor: 0n, reason: r.batchId ? "In a batch that is not yet verified against a bank line." : p.bank.status === "held_by_provider" ? "Held by the provider; in no settlement." : "In no settlement yet." };
+      g.orderIds.push(m.orderId); g.creditedMinor += big(r.creditedMinor); receivable.set(k, g);
+    }
+  }
+  return [...receivable.values()];
+}
 
 export async function monthEndView(ctx: TenantContext, entityId: string, month: string, asOf: string | null) {
   const base = await monthEnd(ctx, entityId, month);
@@ -497,18 +516,7 @@ export async function monthEndView(ctx: TenantContext, entityId: string, month: 
     const batchCurrencies = (await tx.select({ c: t.settlementBatches.currency }).from(t.settlementBatches).where(and(eq(t.settlementBatches.orgId, ctx.orgId), eq(t.settlementBatches.entityId, entityId))).orderBy(asc(t.settlementBatches.batchId))).map((b) => b.c);
     const recs = await tx.select({ m: t.matchRecords }).from(t.matchRecords).innerJoin(t.invoices, and(eq(t.invoices.orgId, t.matchRecords.orgId), eq(t.invoices.orderId, t.matchRecords.orderId)))
       .where(and(eq(t.matchRecords.orgId, ctx.orgId), eq(t.invoices.entityId, entityId))).orderBy(asc(t.matchRecords.orderId));
-    const off = ent.utcOffsetMinutes;
-    const receivable = new Map<string, { batchId: string; orderIds: string[]; creditedMinor: bigint; reason: string }>();
-    for (const { m } of recs) {
-      const p = partsOf(m);
-      if (!p.chain.transfers.some((x) => localDate(x.timestamp, off).startsWith(month))) continue;
-      for (const r of p.provider.records) {
-        if (p.bank.settlementVerified || !r.creditedMinor || big(r.creditedMinor) === 0n) continue;
-        const k = r.batchId ?? "(no settlement batch)";
-        const g = receivable.get(k) ?? { batchId: k, orderIds: [], creditedMinor: 0n, reason: r.batchId ? "In a batch that is not yet verified against a bank line." : p.bank.status === "held_by_provider" ? "Held by the provider; in no settlement." : "In no settlement yet." };
-        g.orderIds.push(m.orderId); g.creditedMinor += big(r.creditedMinor); receivable.set(k, g);
-      }
-    }
+    const receivable = receivableFromProvider(recs.map((r) => r.m), month, ent.utcOffsetMinutes);
     const orders = new Set(recs.map((r) => r.m.orderId));
     const ex = (await tx.select().from(t.reconExceptions).where(and(eq(t.reconExceptions.orgId, ctx.orgId), sql`${t.reconExceptions.status} <> 'resolved'`))).filter((e) => e.orderId && orders.has(e.orderId));
     const ref = asOf ? Date.parse(asOf) : Date.now();
@@ -517,7 +525,7 @@ export async function monthEndView(ctx: TenantContext, entityId: string, month: 
     const foreign = [...new Set(batchCurrencies.filter((c) => c !== ent.functionalCurrency))];
     return {
       ...base,
-      receivableFromProvider: [...receivable.values()].map((g) => ({ ...g, creditedMinor: g.creditedMinor.toString() })),
+      receivableFromProvider: receivable.map((g) => ({ ...g, creditedMinor: g.creditedMinor.toString() })),
       exceptionAges: ages,
       fx: { functionalCurrency: ent.functionalCurrency, foreignCurrencies: foreign, rates: fx.slice(0, 6).map((r) => ({ pair: r.pair, rate: r.rate, source: r.source, observedAt: r.observedAt.toISOString() })) },
     };
