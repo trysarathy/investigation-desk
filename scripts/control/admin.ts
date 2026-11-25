@@ -33,6 +33,16 @@
  *                                            table, its members who belong nowhere else, and its uploaded files. Without
  *                                            --confirm repeating the slug it only prints what would be deleted.
  *                                            Prints counts only)
+ *   export-merchant <org-slug> --out <file>
+ *                                           (v1 5.6: everything Clearline holds for ONE merchant — every row of every table
+ *                                            that holds its data, its members' profiles, its audit log and approvals, its
+ *                                            uploaded files — as a tar archive encrypted with CLEARLINE_EXPORT_PASSPHRASE
+ *                                            and signed with CLEARLINE_EXPORT_SIGNING_KEY (Ed25519); writes <file> and
+ *                                            <file>.sig.json (never overwrites). Audited. Prints counts and digests only)
+ *   open-export <file> --public-key <spki-pem-file> --out-dir <new-dir>
+ *                                           (v1 5.6: verify the signature with the TRUSTED public key, decrypt with
+ *                                            CLEARLINE_EXPORT_PASSPHRASE and unpack into a new folder; refuses on any
+ *                                            mismatch. No database needed)
  *   chain-read-partitions [--months-ahead N] (v1: create the missing monthly partitions of chain_reads from this month
  *                                            to N months ahead, default 24 (#169), max 120; idempotent; prints the count
  *                                            and the last month covered. Run monthly (docs/runbooks/CHAIN_READ_PARTITIONS.md):
@@ -93,6 +103,10 @@ import { purgeExpiredUploads, sweepOrphanFiles } from "../../src/server/uploads"
 import { cleanupOrphans } from "../../src/server/upload-orphans";
 import { runPickup } from "../../src/server/upload-pickup";
 import { deleteMerchant, planMerchantDeletion } from "../../src/server/merchant-deletion";
+import { exportMerchant } from "../../src/server/privacy/export";
+import { openExport, passphraseFrom, publicKeyFrom, signingKeyFrom, untar, type ExportSignature } from "../../src/server/privacy/archive";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { monthsAheadArg } from "../../src/server/chain-read-partitions";
 import { addBankAccount, addEntity, addMember, closeBankAccount, createMerchant, createProvider, linkProvider, openOwnerDb, recordFiatRate, setPolicy, setupSummary } from "../../src/server/merchant-setup";
 import { grantPlatformOperator, inviteFirstAdmin, revokePlatformOperator } from "../../src/server/onboarding/operator";
@@ -161,6 +175,21 @@ async function setup(cmd: string, args: string[]) {
 async function main() {
   const [cmd, ...a] = process.argv.slice(2);
   if (SETUP.has(cmd)) return setup(cmd, a);
+  if (cmd === "open-export") {
+    const { pos, f } = flags(a);
+    if (!pos[0] || !f["public-key"] || !f["out-dir"]) throw new Error("usage: open-export <file> --public-key <spki-pem-file> --out-dir <new-dir>");
+    const sig = JSON.parse(readFileSync(`${pos[0]}.sig.json`, "utf8")) as ExportSignature;
+    const { plain } = openExport(readFileSync(pos[0]), sig, { passphrase: passphraseFrom(process.env.CLEARLINE_EXPORT_PASSPHRASE), trusted: publicKeyFrom(readFileSync(f["public-key"], "utf8")) });
+    const entries = untar(plain);
+    mkdirSync(f["out-dir"], { mode: 0o700 }); // a new folder: refuses an existing one
+    for (const x of entries) {
+      const dest = path.join(f["out-dir"], x.name);
+      mkdirSync(path.dirname(dest), { recursive: true, mode: 0o700 });
+      writeFileSync(dest, x.data, { mode: 0o600, flag: "wx" });
+    }
+    console.log(JSON.stringify({ verified: true, entries: entries.length }));
+    return;
+  }
   const db = database();
   switch (cmd) {
     case "create-org": console.log(await createOrganization(db, a[2] === "live" ? { slug: a[0], name: a[1], seed: "empty", dataMode: "live" } : { slug: a[0], name: a[1], seed: (a[2] as "sample" | "empty") ?? "sample" })); break;
@@ -225,6 +254,17 @@ async function main() {
         break;
       }
       console.log(JSON.stringify({ deleted: await deleteMerchant(db, a[0], confirm) }));
+      break;
+    }
+    case "export-merchant": {
+      const { pos, f } = flags(a);
+      if (!pos[0] || !f.out) throw new Error("usage: export-merchant <org-slug> --out <file>");
+      if (existsSync(f.out) || existsSync(`${f.out}.sig.json`)) throw new Error("the output file exists; name a new one");
+      const passphrase = passphraseFrom(process.env.CLEARLINE_EXPORT_PASSPHRASE), signingKey = signingKeyFrom(process.env.CLEARLINE_EXPORT_SIGNING_KEY);
+      const r = await exportMerchant(db, pos[0], { passphrase, signingKey });
+      writeFileSync(f.out, r.archive, { mode: 0o600, flag: "wx" });
+      writeFileSync(`${f.out}.sig.json`, JSON.stringify(r.signature, null, 2), { mode: 0o644, flag: "wx" });
+      console.log(JSON.stringify({ exported: { ...r.summary, publicKeySha256: r.signature.publicKeySha256 } }));
       break;
     }
     case "chain-read-partitions": {
