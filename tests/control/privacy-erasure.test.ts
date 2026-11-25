@@ -20,6 +20,7 @@ import * as t from "../../src/server/db/schema";
 import { allTables, deleteMerchant, findMerchantTraces, planMerchantDeletion } from "../../src/server/merchant-deletion";
 import { orgRef, pseudonym } from "../../src/server/privacy/retained";
 import { uploadPreview } from "../../src/server/uploads";
+import { outboxSenderIn } from "../../src/server/email/outbox";
 import { LIMITS, keyHash, type Scope } from "../../src/server/rate-limit";
 import { GLOBAL_TABLES, MARKER, seedEveryTable, type ErasureSeed } from "./privacy-seed";
 
@@ -51,6 +52,10 @@ async function rowsOf(where: (tb: string) => ReturnType<typeof sql>): Promise<Re
 beforeAll(async () => {
   dir = useTestStorage();
   e = await seedEveryTable("-erase");
+  // wave 2: the one local stand-in outbox is the email_outbox table (w1-27; the folder form was removed): one message
+  // to A's member, one to B's, through the one EmailSender's owner-transaction form
+  await outboxSenderIn(ownerDb()).send({ to: e.aEmails[2], subject: "Invitation (fictional)", text: "Join Merchant A (fictional)" });
+  await outboxSenderIn(ownerDb()).send({ to: "finance-erase@live-b.example", subject: "Invitation (fictional)", text: "Join Merchant B (fictional)" });
 });
 afterAll(async () => { await closeDatabase(); await closeOwner(); });
 
@@ -84,6 +89,7 @@ describe("merchant deletion leaves nothing but the minimal retained records", ()
 
     expect(await scan(needles())).toEqual({});
     expect(existsSync(path.join(dir, e.s.orgs.a))).toBe(false);
+    expect((await ownerDb().execute(sql`select to_address from email_outbox where to_address in (${e.aEmails[2]}, 'finance-erase@live-b.example') order by 1`)).rows.map((x) => x.to_address)).toEqual(["finance-erase@live-b.example"]);
     expect(await findMerchantTraces(ownerDb(), { orgId: e.s.orgs.a, slug: e.s.slugs.a, name: "Merchant A (fictional)", userIds: e.aUsers, emails: e.aEmails })).toEqual({});
   });
 
