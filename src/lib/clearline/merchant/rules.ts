@@ -45,6 +45,7 @@ export const RULES = {
   "M5.bridge.timing_prior_batch": { step: 5, text: "Merchant-day payments settled in an earlier batch are bridged out (and earlier-day payments in)." },
   "M5.bridge.timing_next_batch": { step: 5, text: "Next-day payments inside this provider day are bridged in (and later-batch payments out)." },
   "M5.bridge.held_by_provider": { step: 5, text: "Payments held by the provider are bridged out of the merchant day." },
+  "M5.batch.currency_mismatch": { step: 5, text: "v1 (decision 9): a batch is evaluated in its own currency (an other-currency bank account's, e.g. USD under an SGD entity). A payment in another currency than its batch, or a bank line naming the batch in another currency, is an exception: amounts are never converted to tie." },
   "M5.batch.not_tied": { step: 5, text: "A batch ties only when gross − fees − refunds = net = the bank line, to the cent; otherwise exception." },
   "M5.bank.imported_not_verified": { step: 5, text: "A csv_import bank line alone never makes settlement verified (unless the policy allows it)." },
   "M5.grouping.proposed_needs_confirmation": { step: 5, text: "No batch ID: a grouping is only proposed and never auto-closed." },

@@ -5,9 +5,10 @@
  * proposed (status "proposed_needs_confirmation") and never closed by the engine.
  */
 import { fmtFiat, localDate, sum } from "./amounts";
+import { endOfLocalDay, valueIn } from "./fx";
 import { indexesOf, transferKey } from "./indexes";
 import { active } from "./rules";
-import type { BankLine, DifferenceType, FiatCurrency, ReconcileInput, TimeZoneRef } from "./types";
+import type { BankLine, DifferenceType, FiatCurrency, FxValue, ReconcileInput, TimeZoneRef } from "./types";
 import { IMPORTED_BANK_LINE_LABEL, TEST_MODE_LABEL, type TestModeLabel } from "./types";
 
 export type BridgeLineKind = "merchant_day" | "timing_prior_batch" | "held_by_provider" | "timing_next_batch" | "unexplained" | "gross" | "provider_fee" | "refund_netted" | "net";
@@ -44,9 +45,20 @@ export interface BatchBridge {
      * is the line's gross, its order and batch as the provider record names them), and no payment is put in two batches.
      */
     perPaymentLines?: boolean;
+    /**
+     * v1 (founder decision 9), present only for a batch in another currency than the entity's or when a currency
+     * disagrees: every payment in the batch is in the batch's currency, and the bank line the batch names (by reference
+     * and account) is in it too. False is an exception (M5.batch.currency_mismatch); nothing is ever converted to tie.
+     */
+    currencyAgrees?: boolean;
   };
   tied: boolean;
   settlementVerified: boolean;
+  /**
+   * v1 (decision 9): for a batch in another currency than the entity's, its net in the entity's currency at the recorded
+   * rate at or before the bank line's value date (no more than 24 h older), or "needs a rate". Shown only; it decides nothing.
+   */
+  entityValue?: FxValue;
 }
 
 export interface ProposedGrouping {
@@ -61,7 +73,7 @@ export interface ProposedGrouping {
   reason: string;
 }
 
-interface Payment { paymentId: string; orderId: string; creditedMinor: bigint; merchantDay?: string; providerDay?: string; held: boolean }
+interface Payment { paymentId: string; orderId: string; creditedMinor: bigint; currency: FiatCurrency; merchantDay?: string; providerDay?: string; held: boolean }
 
 const DEFAULT_PROVIDER_TZ: TimeZoneRef = { name: "UTC", utcOffsetMinutes: 0 }; // [ASSUMPTION] when no batch names the provider's day
 
@@ -70,7 +82,8 @@ function payments(input: ReconcileInput, orderOf: (paymentId: string) => string)
   return input.providerRecords.map((r) => {
     const t = r.transferRef && indexesOf(input).transferByKey.get(transferKey(r.transferRef));
     return {
-      paymentId: r.providerPaymentId, orderId: orderOf(r.providerPaymentId), creditedMinor: r.creditedMinor, held: r.statusClaim === "held_for_review" && !r.batchId,
+      paymentId: r.providerPaymentId, orderId: orderOf(r.providerPaymentId), creditedMinor: r.creditedMinor, currency: r.creditedCurrency ?? input.entity.functionalCurrency,
+      held: r.statusClaim === "held_for_review" && !r.batchId,
       ...(t ? { merchantDay: localDate(t.timestamp, input.entity.timeZone.utcOffsetMinutes), providerDay: localDate(t.timestamp, ptz.utcOffsetMinutes) } : {}),
     };
   }).sort((a, b) => (a.paymentId < b.paymentId ? -1 : 1));
@@ -116,7 +129,8 @@ export function buildBridges(input: ReconcileInput, orderOf: (paymentId: string)
   const bridges = [...input.batches].sort((a, b) => (a.batchId < b.batchId ? -1 : 1)).map((b): BatchBridge => {
     const D = b.providerDay; // the merchant day this batch is bridged from: the same calendar date in the entity's zone
     const inB = all.filter((p) => batchOf.get(p.paymentId) === b.batchId);
-    const mDay = all.filter((p) => p.merchantDay === D);
+    // v1 (decision 9): the merchant-day line holds payments in the batch's own currency only (never summed across currencies)
+    const mDay = all.filter((p) => p.merchantDay === D && p.currency === b.currency);
     const out = mDay.filter((p) => batchOf.get(p.paymentId) !== b.batchId);
     const otherDay = (p: Payment) => dayOf.get(batchOf.get(p.paymentId) ?? "") ?? "";
     const lines: BridgeLine[] = [line("merchant_day", `${mDay.length} orders, merchant day ${D} (${input.entity.timeZone.name})`, mDay, 1n, "Payments whose chain transfer falls on the merchant's day.")];
@@ -141,12 +155,16 @@ export function buildBridges(input: ReconcileInput, orderOf: (paymentId: string)
     const refundLines = input.batchLines.filter((l) => l.batchId === b.batchId && l.kind === "refund");
     const allIds = inB.map((p) => p.paymentId);
     lines.push({ kind: "gross", label: `Gross, batch ${b.batchId} (${inB.length} payments)`, amountMinor: b.grossMinor, paymentIds: allIds, orderIds: [...new Set(inB.map((p) => p.orderId))].sort(), reason: "Settlement report gross." });
-    lines.push({ kind: "provider_fee", label: "Provider fee", amountMinor: -b.feesMinor, paymentIds: allIds, orderIds: [], differenceType: "provider_fee", reason: `Provider fee on ${fmtFiat(b.grossMinor, cur)} gross.` });
+    lines.push({ kind: "provider_fee", label: "Provider fee", amountMinor: -b.feesMinor, paymentIds: allIds, orderIds: [], differenceType: "provider_fee", reason: `Provider fee on ${fmtFiat(b.grossMinor, b.currency)} gross.` });
     if (refundLines.length || b.refundsMinor !== 0n)
       lines.push({ kind: "refund_netted", label: `Refund (${refundLines.map((l) => l.orderId).join(", ")})`, amountMinor: -b.refundsMinor, paymentIds: refundLines.map((l) => l.refundId ?? l.orderId), orderIds: refundLines.map((l) => l.orderId), differenceType: "refund_netted", reason: "Refund netted from the settlement." });
     lines.push({ kind: "net", label: "Net = bank credit", amountMinor: b.netMinor, paymentIds: allIds, orderIds: [], reason: "Settlement report net." });
-    const bank = [...input.bankLines].sort((x, y) => (x.bankLineId < y.bankLineId ? -1 : 1))
-      .find((l) => l.description.includes(b.batchId) && l.account === b.targetBankAccount && l.currency === b.currency);
+    const named = [...input.bankLines].sort((x, y) => (x.bankLineId < y.bankLineId ? -1 : 1)).filter((l) => l.description.includes(b.batchId) && l.account === b.targetBankAccount);
+    const bank = named.find((l) => l.currency === b.currency);
+    // v1 (decision 9): a bank line naming this batch in another currency is a mismatch (an exception), never a tie
+    const otherCurrencyLine = !bank && named.some((l) => l.currency !== b.currency);
+    const offCurrency = inB.filter((p) => p.currency !== b.currency);
+    const currencyCheck = b.currency !== cur || otherCurrencyLine || offCurrency.length > 0;
     const checks = {
       linesEqualGross: sum(inB.map((p) => p.creditedMinor)) === b.grossMinor && sum(refundLines.map((l) => l.amountMinor)) === b.refundsMinor,
       bridgeEqualsGross: bridgeGross === b.grossMinor,
@@ -154,6 +172,7 @@ export function buildBridges(input: ReconcileInput, orderOf: (paymentId: string)
       netEqualsBankLine: !!bank && bank.amountMinor === b.netMinor,
       noUnexplained: !lines.some((l) => l.kind === "unexplained"),
       ...(perPayment(b.batchId).length ? { perPaymentLines: perPaymentTie(b) } : {}),
+      ...(currencyCheck ? { currencyAgrees: !otherCurrencyLine && offCurrency.length === 0 } : {}),
     };
     const tied = Object.values(checks).every(Boolean);
     const imported = bank?.source === "csv_import";
@@ -162,18 +181,22 @@ export function buildBridges(input: ReconcileInput, orderOf: (paymentId: string)
       label: TEST_MODE_LABEL, batchId: b.batchId, currency: b.currency, merchantDay: D, merchantTimeZone: input.entity.timeZone, providerDay: b.providerDay,
       providerTimeZone: b.providerTimeZone, lines, paymentIds: allIds, bankLineId: bank?.bankLineId ?? null, bankLineSource: bank?.source ?? null,
       bankLineLabel: imported ? IMPORTED_BANK_LINE_LABEL : null, checks, tied, settlementVerified: tied && !importedBlocks,
+      ...(b.currency !== cur ? { entityValue: valueIn(b.netMinor, b.currency, cur, input.fiatRates ?? [],
+        bank ? endOfLocalDay(bank.valueDate, input.entity.timeZone.utcOffsetMinutes) : endOfLocalDay(b.providerDay, b.providerTimeZone.utcOffsetMinutes)) } : {}),
     };
   });
   // No batch ID: propose a grouping by provider day and currency. Never closed by the engine.
   const unbatched = all.filter((p) => !batchOf.has(p.paymentId) && !p.held && p.providerDay && active("M5.grouping.proposed_needs_confirmation"));
   const used = new Set(bridges.map((x) => x.bankLineId));
-  const days = [...new Set(unbatched.map((p) => p.providerDay!))].sort();
-  const groupings = days.map((day): ProposedGrouping => {
-    const ps = unbatched.filter((p) => p.providerDay === day);
+  // v1 (decision 9): one proposal per provider day AND currency (payments in two currencies are never grouped together)
+  const keys = [...new Set(unbatched.map((p) => `${p.providerDay!}|${p.currency}`))].sort();
+  const groupings = keys.map((k): ProposedGrouping => {
+    const [day, currency] = k.split("|") as [string, FiatCurrency];
+    const ps = unbatched.filter((p) => p.providerDay === day && p.currency === currency);
     return {
-      id: `PG-${cur}-${day}`, status: "proposed_needs_confirmation", currency: cur, providerDay: day, paymentIds: ps.map((p) => p.paymentId),
+      id: `PG-${currency}-${day}`, status: "proposed_needs_confirmation", currency, providerDay: day, paymentIds: ps.map((p) => p.paymentId),
       orderIds: [...new Set(ps.map((p) => p.orderId))].sort(), totalMinor: sum(ps.map((p) => p.creditedMinor)),
-      candidateBankLineIds: input.bankLines.filter((l) => l.currency === cur && l.valueDate >= day && !used.has(l.bankLineId)).map((l) => l.bankLineId).sort(),
+      candidateBankLineIds: input.bankLines.filter((l) => l.currency === currency && l.valueDate >= day && !used.has(l.bankLineId)).map((l) => l.bankLineId).sort(),
       reason: "The provider gave no batch ID. This grouping by provider day is a proposal; a person must confirm it against the settlement report and the bank line.",
     };
   });

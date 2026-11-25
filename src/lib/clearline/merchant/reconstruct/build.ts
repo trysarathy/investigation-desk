@@ -422,6 +422,7 @@ const CHECK_TEXT: Record<keyof ReconcileResult["bridges"][number]["checks"], str
   linesEqualGross: "Per-payment lines add up to the gross", bridgeEqualsGross: "Merchant-day bridge reaches the gross",
   grossLessFeesRefundsEqualsNet: "Gross − fees − refunds = net", netEqualsBankLine: "Net = the bank line", noUnexplained: "Nothing unexplained",
   perPaymentLines: "Per-payment settlement lines add up to the batch and to the bank credit",
+  currencyAgrees: "Payments and the bank line are in the batch's currency (never converted)",
 };
 
 const tzText = (t: TimeZoneRef) => `${t.name} (UTC${t.utcOffsetMinutes < 0 ? "−" : "+"}${String(Math.floor(Math.abs(t.utcOffsetMinutes) / 60)).padStart(2, "0")}:${String(Math.abs(t.utcOffsetMinutes) % 60).padStart(2, "0")})`;

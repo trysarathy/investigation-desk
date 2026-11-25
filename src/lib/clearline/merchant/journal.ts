@@ -108,6 +108,10 @@ export function proposeJournals(input: ReconcileInput, result: ReconcileResult):
 
   for (const b of result.bridges) {
     if (!b.tied || (!b.settlementVerified && active("J.settlement.verified_batch"))) continue;
+    // v1 (decision 9): a batch in another currency than the entity's (e.g. to the SGD entity's USD account) is not
+    // proposed: how it is booked (at which rate, realised FX at settlement) is pending the founder's sign-off
+    // (docs/POSTING_RULES.md, "Other-currency bank accounts"), and the journal files carry one currency per entity.
+    if (b.currency !== cur) continue;
     if (b.lines.some((l) => l.orderIds.some((o) => tokenPriced.has(o)))) continue;
     const batch = input.batches.find((x) => x.batchId === b.batchId)!;
     const bank = input.bankLines.find((l) => l.bankLineId === b.bankLineId)!;

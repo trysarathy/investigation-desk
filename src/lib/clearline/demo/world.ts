@@ -5,12 +5,13 @@
  * rc6 cases with their exact numbers. Every name, address, hash and account is fictional; the only real values are the
  * public USDT and USDC contracts.
  *
- * Entities [ASSUMPTION, the existing model]: an entity has one functional currency, and reconciliation reads only
- * statement lines in that currency. v1 added a table of bank accounts (one row per entity below, DEMO_BANK_ACCOUNTS),
- * but the Singapore company's USD account stays its USD book, a second entity row in USD (as rc6 Case 2 and the
- * synthetic month preset do): moving it under NW-SG as a second account would need the engine to reconcile USD lines
- * in an SGD entity, which would change Case 2's USD payments. The account a batch or statement names is still a text
- * reference (NW-SGD-OPS-DEMO-01 and so on).
+ * Entities [ASSUMPTION, the existing model]: an entity has one functional currency. v1 added a table of bank accounts
+ * (one row per entity below, DEMO_BANK_ACCOUNTS), and founder decision 9 lets an entity's other-currency account be
+ * reconciled in its own currency (bridge.ts). The Singapore company's USD account still stays its USD book, a second
+ * entity row in USD (as rc6 Case 2 and the synthetic month preset do): moved under NW-SG, Case 2's seven USD payments
+ * would go from matched (M5.batch.tied_verified) to exceptions (M3.currency.invoice_currency: a USD invoice in an SGD
+ * entity), because payment-level matching of other-currency invoices is not loosened (a decision for the founder). The
+ * account a batch or statement names is still a text reference (NW-SGD-OPS-DEMO-01 and so on).
  *
  * Cases: Case 1 and Case 2 (SGD) are in the Singapore SGD book, Case 2's USD payments in the USD book, Case 3 in the
  * UAE entity. Only the entity id and the bank account reference of each fixture are changed (to Northwind's); every

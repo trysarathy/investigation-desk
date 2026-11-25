@@ -26,6 +26,9 @@ function applyStep5(rec: MatchRecord, bridges: BatchBridge[], groupings: Propose
   if (e.decision === "exception" || e.decidingStep < 4) return null;
   if (grouped.length && active("M5.grouping.proposed_needs_confirmation"))
     return { decision: "suggested_for_review", ruleId: "M5.grouping.proposed_needs_confirmation", attention: { owner: "Payment Operations", reason: `No settlement batch ID. Grouping ${grouped.map((g) => g.id).join(", ")} is only proposed.`, nextStep: "Confirm the grouping against the provider's settlement report and the bank line; the engine never closes it." } };
+  const offCurrency = mine.find((b) => b.checks.currencyAgrees === false);
+  if (offCurrency && active("M5.batch.currency_mismatch"))
+    return { decision: "exception", ruleId: "M5.batch.currency_mismatch", attention: { owner: "Payment Operations", reason: `Settlement batch ${offCurrency.batchId} is in ${offCurrency.currency}, but a payment in it or the bank line naming it is in another currency. Amounts are never converted to make them tie.`, nextStep: "Check which bank account and currency the provider settled this batch to, and correct the settlement report or the statement's account." } };
   const untied = mine.find((b) => !b.tied);
   if (untied && active("M5.batch.not_tied"))
     return { decision: "exception", ruleId: "M5.batch.not_tied", attention: { owner: "Payment Operations", reason: `Settlement batch ${untied.batchId} does not tie to the cent (${Object.entries(untied.checks).filter(([, v]) => !v).map(([k]) => k).join(", ")}).`, nextStep: "Get the settlement report and the bank statement for this batch and find the gap." } };
