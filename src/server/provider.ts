@@ -9,7 +9,7 @@ import * as t from "./db/schema";
 import { can, type Permission } from "./authz";
 import { IdempotencyKey, idempotent, serverAudit } from "./control";
 import { providerConsole } from "./merchant";
-import { AccessDenied, type TenantContext, withTenant } from "./tenant";
+import { AccessDenied, requireUnscoped, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
 import { stampNow } from "./live-clock";
 
@@ -242,6 +242,7 @@ export const GrantInput = z.object({ scope: z.enum(["full", "aggregates"]) }).st
 /** The merchant's Admin grants its provider full read access, or takes it back (aggregates only). */
 export async function setProviderGrant(ctx: TenantContext, input: z.input<typeof GrantInput>, idempotencyKey: string) {
   require(ctx, "manage_members");
+  requireUnscoped(ctx);
   const v = GrantInput.parse(input);
   const key = IdempotencyKey.parse(idempotencyKey);
   return tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "provider_grant", ...v }, async () => {

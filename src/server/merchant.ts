@@ -16,7 +16,7 @@ import * as t from "./db/schema";
 import { can, type Permission } from "./authz";
 import { Decision, IdempotencyKey, canonical, idempotent, serverAudit } from "./control";
 import { MissingEntity, type IngestParts, loadReconcileInput, plain, plainForDisplay, writeIngested } from "./merchant-store";
-import { AccessDenied, type TenantContext, withTenant } from "./tenant";
+import { AccessDenied, inEntityScope, requireEntity, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
 import { dataModeOf } from "./mapping-templates";
 import type { DataLabel } from "@/lib/clearline/data-mode";
@@ -67,6 +67,7 @@ async function storedDifferenceIds(tx: Tx, orgId: string, orderIds: string[]) {
 }
 
 async function load(tx: Tx, ctx: TenantContext, entityId: string) {
+  requireEntity(ctx, entityId);
   try { return await loadReconcileInput(tx, ctx.orgId, entityId); } catch (e) {
     if (e instanceof MissingEntity) throw new AccessDenied(404, "Not found.");
     throw e;
@@ -78,6 +79,7 @@ async function load(tx: Tx, ctx: TenantContext, entityId: string) {
  * its time zone). Not found, exactly as `load`, when either is missing.
  */
 export async function entityOnly(tx: Tx, ctx: TenantContext, entityId: string) {
+  requireEntity(ctx, entityId);
   const [ent] = await tx.select().from(t.merchantEntities).where(and(eq(t.merchantEntities.orgId, ctx.orgId), eq(t.merchantEntities.id, entityId)));
   const [pol] = ent ? await tx.select({ id: t.merchantPolicy.entityId }).from(t.merchantPolicy).where(and(eq(t.merchantPolicy.orgId, ctx.orgId), eq(t.merchantPolicy.entityId, entityId))) : [];
   if (!ent || !pol) throw new AccessDenied(404, "Not found.");
@@ -91,6 +93,7 @@ export async function entityOnly(tx: Tx, ctx: TenantContext, entityId: string) {
 /** Store adapter output for one entity (fictional or recorded data only). Facts are insert-only. */
 export async function ingestAdapterOutput(ctx: TenantContext, entityId: string, parts: IngestParts, idempotencyKey: string, opts: { finalised?: (x: NonNullable<IngestParts["transfers"]>[number]) => boolean } = {}) {
   require(ctx, "merchant_reconcile");
+  requireEntity(ctx, entityId);
   const key = IdempotencyKey.parse(idempotencyKey);
   return tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "merchant_ingest", entityId, parts: plain(parts) }, async () => {
     const written = await writeIngested(tx, ctx.orgId, entityId, parts, { chainSource: "recorded_fixture", ...(opts.finalised ? { finalised: opts.finalised } : {}) })
@@ -111,6 +114,7 @@ export interface RunOptions { chain?: VerifyChainClient; trigger?: RunTrigger; j
  */
 export async function runReconciliation(ctx: TenantContext, entityId: string, idempotencyKey: string, opts: RunOptions = {}) {
   require(ctx, "merchant_reconcile");
+  requireEntity(ctx, entityId);
   const key = IdempotencyKey.parse(idempotencyKey);
   const trigger = opts.trigger ?? "manual";
   const version = opts.ruleSetVersion ?? RULE_SET_VERSION;
@@ -203,8 +207,8 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
   const exceptions = result.exceptions.filter((e) => !isKept(e.orderId));
   const exIds = new Set(exceptions.map((e) => e.id));
   for (let i = 0; i < exceptions.length; i += 500) {
-    await tx.insert(t.reconExceptions).values(exceptions.slice(i, i + 500).map((e) => ({ orgId: ctx.orgId, id: e.id, orderId: e.orderId ?? null, ownerRole: e.owner, reason: e.reason, nextStep: e.nextStep, status: "open", openedAt: now })))
-      .onConflictDoUpdate({ target: [t.reconExceptions.orgId, t.reconExceptions.id], set: { ownerRole: ex("owner_role"), reason: ex("reason"), nextStep: ex("next_step"), status: sql`case when ${t.reconExceptions.status} = 'resolved' then 'open' else ${t.reconExceptions.status} end`, closedAt: null } });
+    await tx.insert(t.reconExceptions).values(exceptions.slice(i, i + 500).map((e) => ({ orgId: ctx.orgId, id: e.id, orderId: e.orderId ?? null, entityId, ownerRole: e.owner, reason: e.reason, nextStep: e.nextStep, status: "open", openedAt: now })))
+      .onConflictDoUpdate({ target: [t.reconExceptions.orgId, t.reconExceptions.id], set: { entityId: sql`coalesce(${t.reconExceptions.entityId}, excluded.entity_id)`, ownerRole: ex("owner_role"), reason: ex("reason"), nextStep: ex("next_step"), status: sql`case when ${t.reconExceptions.status} = 'resolved' then 'open' else ${t.reconExceptions.status} end`, closedAt: null } });
   }
   const stale = openIds.length ? (await tx.select({ id: t.reconExceptions.id }).from(t.reconExceptions)
     .where(and(eq(t.reconExceptions.orgId, ctx.orgId), inArray(t.reconExceptions.orderId, openIds), sql`${t.reconExceptions.status} <> 'resolved'`))).filter((x) => !exIds.has(x.id)) : [];
@@ -271,6 +275,7 @@ export const PolicyPatch = z.object({
 
 export async function updateMerchantPolicy(ctx: TenantContext, entityId: string, patch: z.input<typeof PolicyPatch>, expectedRevision: number, idempotencyKey: string) {
   require(ctx, "manage_policy");
+  requireEntity(ctx, entityId);
   const p = PolicyPatch.parse(patch);
   const key = IdempotencyKey.parse(idempotencyKey);
   return tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "merchant_policy", entityId, patch: plain(p), expectedRevision }, async () => {
@@ -286,9 +291,18 @@ export async function updateMerchantPolicy(ctx: TenantContext, entityId: string,
 // Write-offs: the engine proposes; a person submits it; a DIFFERENT Approver decides (rc5 two-person flow)
 // ---------------------------------------------------------------------------------------------
 
+/** v1 phase 1.3: refuse a payment of an entity outside the membership's scope as "not found". */
+export async function requireOrderEntity(tx: Tx, ctx: TenantContext, orderId: string | null | undefined): Promise<string> {
+  const [inv] = orderId ? await tx.select({ entityId: t.invoices.entityId }).from(t.invoices).where(and(eq(t.invoices.orgId, ctx.orgId), eq(t.invoices.orderId, orderId))) : [];
+  if (!inv) throw new AccessDenied(404, "Not found.");
+  requireEntity(ctx, inv.entityId);
+  return inv.entityId;
+}
+
 async function writeoffBinding(tx: Tx, ctx: TenantContext, writeoffId: string) {
   const [wo] = await tx.select().from(t.writeoffProposals).where(and(eq(t.writeoffProposals.orgId, ctx.orgId), eq(t.writeoffProposals.id, writeoffId))).for("update");
   if (!wo) throw new AccessDenied(404, "Not found.");
+  await requireOrderEntity(tx, ctx, wo.orderId);
   const [mr] = await tx.select().from(t.matchRecords).where(and(eq(t.matchRecords.orgId, ctx.orgId), eq(t.matchRecords.orderId, wo.orderId)));
   const ids = wo.differenceIds as string[];
   const ds = ids.length ? await tx.select().from(t.differences).where(and(eq(t.differences.orgId, ctx.orgId), inArray(t.differences.id, ids))).orderBy(asc(t.differences.id)) : [];
@@ -329,6 +343,8 @@ export async function decideWriteoff(ctx: TenantContext, requestId: string, inpu
   return tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "merchant_writeoff_decide", requestId, ...d }, async () => {
     const [req] = await tx.select().from(t.approvalRequests).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.id, requestId))).for("update");
     if (!req || req.subjectKind !== "merchant_writeoff") throw new AccessDenied(404, "Not found.");
+    const [subject] = await tx.select({ orderId: t.writeoffProposals.orderId }).from(t.writeoffProposals).where(and(eq(t.writeoffProposals.orgId, ctx.orgId), eq(t.writeoffProposals.id, req.subjectId)));
+    await requireOrderEntity(tx, ctx, subject?.orderId);
     if (req.requestedBy === ctx.userId) throw new RequestRefused(409, "MAKER_CANNOT_APPROVE", "You submitted this write-off; another approver must decide it.");
     if (req.status !== "pending") throw new RequestRefused(409, "REQUEST_CLOSED", `This request is ${req.status}.`);
     if (req.payloadSha256 !== d.payloadSha256) throw new RequestRefused(409, "VERSION_MISMATCH", "The write-off changed since you reviewed it. Review the current version.");
@@ -359,6 +375,7 @@ export async function decideWriteoff(ctx: TenantContext, requestId: string, inpu
  */
 export async function bankLinesFromImport(ctx: TenantContext, importId: string, entityId: string, idempotencyKey: string) {
   require(ctx, "import_statement");
+  requireEntity(ctx, entityId);
   const key = IdempotencyKey.parse(idempotencyKey);
   if (!z.uuid().safeParse(importId).success) throw new AccessDenied(404, "Not found.");
   return tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "merchant_bank_lines_from_import", importId, entityId }, async () => {
@@ -456,12 +473,13 @@ export const PaymentFilters = z.object({
 export async function listMerchantPayments(ctx: TenantContext, filters: z.input<typeof PaymentFilters> = {}) {
   require(ctx, "read");
   const f = PaymentFilters.parse(filters);
+  if (f.entityId !== undefined) requireEntity(ctx, f.entityId);
   const asOf = f.asOf ? Date.parse(f.asOf) : Date.now();
   return tenantRead(ctx, async (tx) => {
     const quotes = await tx.select().from(t.merchantQuotes).where(eq(t.merchantQuotes.orgId, ctx.orgId));
     const links = await tx.select().from(t.paymentLinks).where(eq(t.paymentLinks.orgId, ctx.orgId));
     const label = await orgLabel(tx, ctx.orgId);
-    const rows = (await storedRecords(tx, ctx.orgId, f.entityId)).map(({ rec, inv }) => {
+    const rows = (await storedRecords(tx, ctx.orgId, f.entityId)).filter(({ inv }) => inEntityScope(ctx, inv.entityId)).map(({ rec, inv }) => {
       const tr = rec.chain.transfers;
       // v1 (#173): a token-priced invoice's fiat value only from a recorded rate; without one its amounts are null and
       // fiatValueStatus says "needs_rate" (never 0)
@@ -492,6 +510,8 @@ export async function merchantPaymentDetail(ctx: TenantContext, orderId: string)
     const [m] = await tx.select().from(t.matchRecords).where(and(eq(t.matchRecords.orgId, ctx.orgId), eq(t.matchRecords.orderId, orderId)));
     if (!m) throw new AccessDenied(404, "Not found.");
     const [inv] = await tx.select().from(t.invoices).where(and(eq(t.invoices.orgId, ctx.orgId), eq(t.invoices.orderId, orderId)));
+    if (!inv) throw new AccessDenied(404, "Not found.");
+    requireEntity(ctx, inv.entityId);
     const split = splitDifferences(await tx.select().from(t.differences).where(and(eq(t.differences.orgId, ctx.orgId), eq(t.differences.orderId, orderId))).orderBy(asc(t.differences.id)));
     const exceptions = await tx.select().from(t.reconExceptions).where(and(eq(t.reconExceptions.orgId, ctx.orgId), eq(t.reconExceptions.orderId, orderId)));
     const writeoffs = await tx.select().from(t.writeoffProposals).where(and(eq(t.writeoffProposals.orgId, ctx.orgId), eq(t.writeoffProposals.orderId, orderId)));
@@ -513,8 +533,9 @@ export async function merchantPaymentDetail(ctx: TenantContext, orderId: string)
 export async function exceptionsQueue(ctx: TenantContext) {
   require(ctx, "read");
   return tenantRead(ctx, async (tx) => {
-    const open = await tx.select().from(t.reconExceptions).where(and(eq(t.reconExceptions.orgId, ctx.orgId), sql`${t.reconExceptions.status} <> 'resolved'`)).orderBy(asc(t.reconExceptions.openedAt), asc(t.reconExceptions.id));
-    const review = (await storedRecords(tx, ctx.orgId)).filter((r) => r.rec.decision === "suggested_for_review")
+    const open = (await tx.select().from(t.reconExceptions).where(and(eq(t.reconExceptions.orgId, ctx.orgId), sql`${t.reconExceptions.status} <> 'resolved'`)).orderBy(asc(t.reconExceptions.openedAt), asc(t.reconExceptions.id)))
+      .filter((e) => inEntityScope(ctx, e.entityId));
+    const review = (await storedRecords(tx, ctx.orgId)).filter((r) => inEntityScope(ctx, r.inv.entityId) && r.rec.decision === "suggested_for_review")
       .map((r) => ({ orderId: r.row.orderId, ruleId: r.row.ruleId, attention: (r.row.explanation as { attention?: unknown }).attention ?? null }));
     return { label: await orgLabel(tx, ctx.orgId), exceptions: open.map((e) => ({ id: e.id, orderId: e.orderId, owner: e.ownerRole, reason: e.reason, nextStep: e.nextStep, status: e.status, openedAt: e.openedAt })), needsReview: review };
   });
@@ -525,6 +546,7 @@ export async function batchBridge(ctx: TenantContext, batchId: string) {
   return tenantRead(ctx, async (tx) => {
     const [b] = await tx.select().from(t.settlementBatches).where(and(eq(t.settlementBatches.orgId, ctx.orgId), eq(t.settlementBatches.batchId, batchId)));
     if (!b?.entityId) throw new AccessDenied(404, "Not found.");
+    requireEntity(ctx, b.entityId);
     const bridge = reconcile(await load(tx, ctx, b.entityId)).bridges.find((x) => x.batchId === batchId);
     if (!bridge) throw new AccessDenied(404, "Not found.");
     return { ...(plain(bridge) as Jsonified<BatchBridge>), label: await orgLabel(tx, ctx.orgId), entityId: b.entityId, cutOffNote: PROVIDER_DAY_NOTE };
@@ -573,14 +595,15 @@ const median = (xs: number[]) => { if (!xs.length) return null; const s = [...xs
 export async function pilotMetrics(ctx: TenantContext) {
   require(ctx, "read");
   return tenantRead(ctx, async (tx) => {
-    const recs = await storedRecords(tx, ctx.orgId);
+    const recs = (await storedRecords(tx, ctx.orgId)).filter((r) => inEntityScope(ctx, r.inv.entityId));
     const auto = recs.filter((r) => r.rec.decision === "matched" || r.rec.decision === "matched_with_difference").length;
-    const reviews = await tx.select().from(t.matchReviews).where(eq(t.matchReviews.orgId, ctx.orgId));
-    const ex = await tx.select().from(t.reconExceptions).where(eq(t.reconExceptions.orgId, ctx.orgId));
+    const inScope = new Set(recs.map((r) => r.row.orderId));
+    const reviews = (await tx.select().from(t.matchReviews).where(eq(t.matchReviews.orgId, ctx.orgId))).filter((r) => ctx.entityScope === null || inScope.has(r.orderId));
+    const ex = (await tx.select().from(t.reconExceptions).where(eq(t.reconExceptions.orgId, ctx.orgId))).filter((e) => inEntityScope(ctx, e.entityId));
     // v1 phase 0: still-open exceptions per 100 reconciled payments (exception-rate.ts), batch not tied apart
     const rate = exceptionRate(exceptionRateCounts(recs.map((r) => ({ orderId: r.rec.orderId, ruleId: r.rec.ruleId, creditedMinor: String(r.rec.ledger.creditedMinor ?? 0) })), ex));
     const resolved = ex.filter((e) => e.closedAt).map((e) => (e.closedAt!.getTime() - e.openedAt.getTime()) / 60_000);
-    const entities = await tx.select({ id: t.merchantEntities.id }).from(t.merchantEntities).where(eq(t.merchantEntities.orgId, ctx.orgId)).orderBy(asc(t.merchantEntities.id));
+    const entities = (await tx.select({ id: t.merchantEntities.id }).from(t.merchantEntities).where(eq(t.merchantEntities.orgId, ctx.orgId)).orderBy(asc(t.merchantEntities.id))).filter((e) => inEntityScope(ctx, e.id));
     let batches = 0, tied = 0;
     for (const e of entities) { const b = reconcile(await load(tx, ctx, e.id)).bridges; batches += b.length; tied += b.filter((x) => x.tied).length; }
     const minutes = await tx.select({ n: sql<number>`coalesce(sum(${t.pilotTimeLog.minutes}), 0)::int` }).from(t.pilotTimeLog).where(eq(t.pilotTimeLog.orgId, ctx.orgId));
@@ -608,6 +631,7 @@ export async function recordMatchReview(ctx: TenantContext, orderId: string, inp
 async function reviewMatch(tx: Tx, ctx: TenantContext, orderId: string, v: { verdict: "correct" | "wrong"; note?: string }) {
   const [m] = await tx.select({ id: t.matchRecords.orderId }).from(t.matchRecords).where(and(eq(t.matchRecords.orgId, ctx.orgId), eq(t.matchRecords.orderId, orderId)));
   if (!m) throw new AccessDenied(404, "Not found.");
+  await requireOrderEntity(tx, ctx, orderId);
   await tx.insert(t.matchReviews).values({ orgId: ctx.orgId, orderId, reviewerUserId: ctx.userId, verdict: v.verdict, note: v.note ?? null })
     .onConflictDoUpdate({ target: [t.matchReviews.orgId, t.matchReviews.orderId, t.matchReviews.reviewerUserId], set: { verdict: v.verdict, note: v.note ?? null, reviewedAt: stampNow() } });
   await serverAudit(tx, ctx, "merchant_match_reviewed", "payment", orderId, `Match marked ${v.verdict}`, v);

@@ -13,7 +13,7 @@ import { serverAudit } from "./control";
 import { MissingEntity, loadReconcileInput } from "./merchant-store";
 import { memberNames, orgLabel, packData } from "./merchant-ui";
 import { RULE_SET_VERSION, runState } from "./runs";
-import { AccessDenied, type TenantContext, withTenant } from "./tenant";
+import { AccessDenied, requireEntity, type TenantContext, withTenant } from "./tenant";
 
 /**
  * rc7 phase 3b exports, Finance, an Approver or an Admin only (merchant_export; rc8 founder decision 3). FILES only: nothing is posted to any ledger and
@@ -37,6 +37,7 @@ function requireExport(ctx: TenantContext) {
 const csv = (rows: unknown[][]) => rows.map((r) => r.map((v) => draftCell(v === null || v === undefined ? "" : String(v))).join(",")).join("\r\n") + "\r\n";
 
 async function entityOf(tx: Tx, ctx: TenantContext, entityId: string) {
+  requireEntity(ctx, entityId);
   const [ent] = await tx.select().from(t.merchantEntities).where(and(eq(t.merchantEntities.orgId, ctx.orgId), eq(t.merchantEntities.id, entityId)));
   if (!ent) throw new AccessDenied(404, "Not found.");
   return ent;

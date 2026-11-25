@@ -16,7 +16,7 @@ import * as t from "./db/schema";
 import { can, type Permission } from "./authz";
 import { IdempotencyKey, canonical, idempotent, serverAudit } from "./control";
 import { dataModeOf, suggestTemplate, type TemplateSuggestion } from "./mapping-templates";
-import { AccessDenied, type TenantContext, withTenant } from "./tenant";
+import { AccessDenied, inEntityScope, requireEntity, requireUnscoped, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
 import { StorageRefused, uploadStorage, type UploadStorage } from "./storage";
 import { purgeDerivedRows } from "./upload-retention";
@@ -173,6 +173,7 @@ export async function loadUpload(tx: Tx, ctx: TenantContext, id: string, lock = 
   const q = tx.select().from(t.uploads).where(and(eq(t.uploads.orgId, ctx.orgId), eq(t.uploads.id, id)));
   const [u] = lock ? await q.for("update") : await q;
   if (!u || u.status === "deleted") throw new AccessDenied(404, "Not found.");
+  requireEntity(ctx, u.entityId);
   return u;
 }
 
@@ -235,6 +236,7 @@ export async function createUpload(ctx: TenantContext, input: z.input<typeof Cre
   const key = IdempotencyKey.parse(idempotencyKey);
   const v = CreateUpload.parse({ entityId: input.entityId, fileType: input.fileType, fileName: input.fileName, ...(input.jsonList ? { jsonList: input.jsonList } : {}),
     ...(input.bankAccountId ? { bankAccountId: input.bankAccountId } : {}) });
+  requireEntity(ctx, v.entityId);
   if (v.fileType === "bank_statement" && !v.bankAccountId) throw new RequestRefused(422, "BANK_ACCOUNT_REQUIRED", "Choose the bank account this statement belongs to.");
   if (v.fileType !== "bank_statement" && v.bankAccountId) throw new RequestRefused(422, "BANK_ACCOUNT_NOT_STATEMENT", "Only a bank statement belongs to a bank account.");
   const bytes = input.bytes;
@@ -319,7 +321,7 @@ export async function listUploads(ctx: TenantContext) {
   require(ctx, "read");
   return tenantRead(ctx, async (tx) => ({
     label: (await dataModeOf(tx, ctx.orgId)).label,
-    uploads: (await tx.select().from(t.uploads).where(and(eq(t.uploads.orgId, ctx.orgId), ne(t.uploads.status, "deleted"))).orderBy(asc(t.uploads.createdAt))).map(summary),
+    uploads: (await tx.select().from(t.uploads).where(and(eq(t.uploads.orgId, ctx.orgId), ne(t.uploads.status, "deleted"))).orderBy(asc(t.uploads.createdAt))).filter((u) => inEntityScope(ctx, u.entityId)).map(summary),
   }));
 }
 
@@ -481,6 +483,7 @@ export async function deleteUpload(ctx: TenantContext, id: string, idempotencyKe
 /** Admin: how long this merchant's uploads (and the data derived only from them) are kept. Applies to new uploads. */
 export async function setRetentionDays(ctx: TenantContext, days: number, idempotencyKey: string) {
   require(ctx, "manage_retention");
+  requireUnscoped(ctx);
   const key = IdempotencyKey.parse(idempotencyKey);
   const v = z.number().int().min(1).max(3650).parse(days);
   return tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "retention_set", days: v }, async () => {

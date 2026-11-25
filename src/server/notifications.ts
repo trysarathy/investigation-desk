@@ -5,7 +5,7 @@ import * as t from "./db/schema";
 import { can } from "./authz";
 import { IdempotencyKey, idempotent, serverAudit } from "./control";
 import { RequestRefused } from "./errors";
-import { AccessDenied, type TenantContext, withTenant } from "./tenant";
+import { AccessDenied, inEntityScope, requireEntity, type TenantContext, withTenant } from "./tenant";
 
 /**
  * rc7 phase 3b: in-app notifications. The database raises them (triggers in drizzle/0027_notifications.sql); row-level
@@ -46,7 +46,9 @@ export async function listNotifications(ctx: TenantContext, opts: { limit?: numb
       sql`not exists (select 1 from notification_reads r where r.org_id = ${t.notifications.orgId} and r.notification_id = ${t.notifications.id} and r.user_id = ${ctx.userId})`));
     return {
       unread,
-      notifications: rows.map((r) => {
+      // v1 phase 1.3: an entity's notification only within the member's scope (the database's entity_scope agrees;
+      // organisation-level ones are filtered there by their subject)
+      notifications: rows.filter((r) => r.entityId === null || inEntityScope(ctx, r.entityId)).map((r) => {
         const ack = acks.find((a) => a.noticeId === r.subjectId);
         return { id: r.id, kind: r.kind, entityId: r.entityId, subjectType: r.subjectType, subjectId: r.subjectId, title: r.title, createdAt: r.createdAt.toISOString(), read: reads.has(r.id), href: hrefOf(r),
           ...(r.subjectType === "rule_change_notice" ? { notice: { orderId: notices.get(r.subjectId) ?? "", acknowledged: ack ? { by: ack.name, at: ack.at.toISOString() } : null } } : {}) };
@@ -87,9 +89,10 @@ export async function acknowledgeRuleChange(ctx: TenantContext, noticeId: string
   const key = IdempotencyKey.parse(idempotencyKey);
   const v = Acknowledge.parse(input);
   return withTenant({ userId: ctx.userId, orgId: ctx.orgId }, (tx) => idempotent(tx, ctx, key, { op: "rule_change_ack", noticeId }, async () => {
-    const [n] = await tx.select({ id: t.ruleChangeNotices.id, runId: t.ruleChangeNotices.runId, orderId: t.ruleChangeNotices.orderId }).from(t.ruleChangeNotices)
+    const [n] = await tx.select({ id: t.ruleChangeNotices.id, runId: t.ruleChangeNotices.runId, orderId: t.ruleChangeNotices.orderId, entityId: t.ruleChangeNotices.entityId }).from(t.ruleChangeNotices)
       .where(and(eq(t.ruleChangeNotices.orgId, ctx.orgId), eq(t.ruleChangeNotices.id, noticeId)));
     if (!n) throw new AccessDenied(404, "Not found.");
+    requireEntity(ctx, n.entityId);
     const [run] = await tx.select({ startedBy: t.reconciliationRuns.startedBy }).from(t.reconciliationRuns).where(and(eq(t.reconciliationRuns.orgId, ctx.orgId), eq(t.reconciliationRuns.id, n.runId)));
     if (!run || run.startedBy === ctx.userId) throw new RequestRefused(409, "PREPARER_CANNOT_ACKNOWLEDGE", "You started the run that raised this notice; another Approver must acknowledge it.");
     const [done] = await tx.select({ by: t.ruleChangeAcks.ackedBy }).from(t.ruleChangeAcks).where(and(eq(t.ruleChangeAcks.orgId, ctx.orgId), eq(t.ruleChangeAcks.noticeId, noticeId)));

@@ -9,7 +9,7 @@ import type { Fetch } from "@/lib/accounting/providers/xero";
 import { accessToken, loadTokens } from "@/lib/accounting/providers/xero-auth";
 import * as t from "./db/schema";
 import { can, type Permission } from "./authz";
-import { withTenant, AccessDenied, type TenantContext } from "./tenant";
+import { withTenant, AccessDenied, requireEntity, type TenantContext } from "./tenant";
 import { RequestRefused } from "./errors";
 import { dataModeOf } from "./mapping-templates";
 import { createUpload, setUploadMapping, validateUpload } from "./uploads";
@@ -54,6 +54,7 @@ async function defaultCreds(source: LedgerSource): Promise<Pick<PullDeps, "xero"
 export async function pullLedgerInvoices(ctx: TenantContext, input: z.input<typeof PullInput>, idempotencyKey: string, deps: PullDeps = {}) {
   require(ctx, "merchant_upload");
   const v = PullInput.parse(input);
+  requireEntity(ctx, v.entityId);
   if (!ledgerPullEnabled()) throw new RequestRefused(409, "LEDGER_PULL_OFF", `Reading invoices from a ledger is off (${LEDGER_PULL_FLAG} is not set). Upload a ledger export instead.`);
   const mode = await withTenant({ userId: ctx.userId, orgId: ctx.orgId }, (tx) => dataModeOf(tx, ctx.orgId), { read: true });
   if (mode.dataMode !== "live") throw new RequestRefused(409, "SAMPLE_ORGANISATION", "This organisation holds sample data; ledger invoices go to your live organisation.");
@@ -78,6 +79,7 @@ export async function pullLedgerInvoices(ctx: TenantContext, input: z.input<type
 /** This entity's ledger invoices (the merchant's own members; RLS keeps every row in the organisation). */
 export async function listLedgerInvoices(ctx: TenantContext, entityId: string) {
   require(ctx, "read");
+  requireEntity(ctx, entityId);
   return withTenant({ userId: ctx.userId, orgId: ctx.orgId }, async (tx) => {
     const { label } = await dataModeOf(tx, ctx.orgId);
     const rows = await tx.select().from(t.ledgerInvoices).where(and(eq(t.ledgerInvoices.orgId, ctx.orgId), eq(t.ledgerInvoices.entityId, entityId))).orderBy(asc(t.ledgerInvoices.invoiceNumber));

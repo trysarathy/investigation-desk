@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { database, type Tx } from "./db/client";
-import { organizationMemberships, organizations } from "./db/schema";
+import { membershipEntityScopes, organizationMemberships, organizations } from "./db/schema";
 import { type AppRole, isAppRole } from "./authz";
 import { runWithLiveClock } from "./live-clock";
 
@@ -17,6 +17,11 @@ export interface TenantContext extends Principal {
   orgSlug: string;
   orgName: string;
   role: AppRole;
+  /**
+   * v1 phase 1.3: the entities this membership may read and act on; null = every entity of the organisation (an
+   * unscoped membership, the default). The database enforces the same scope (drizzle/0053, RESTRICTIVE policies).
+   */
+  entityScope: readonly string[] | null;
 }
 
 export class AccessDenied extends Error {
@@ -63,11 +68,39 @@ export async function checkRuntimeRole(db: { execute: (q: ReturnType<typeof sql>
 /** The organisations this user may act in (active memberships only). */
 export async function membershipsFor(p: Principal) {
   return withTenant({ userId: p.userId }, (tx) =>
-    tx.select({ orgId: organizations.id, slug: organizations.slug, name: organizations.name, role: organizationMemberships.role })
+    tx.select({ orgId: organizations.id, slug: organizations.slug, name: organizations.name, role: organizationMemberships.role, entityScoped: organizationMemberships.entityScoped })
       .from(organizationMemberships)
       .innerJoin(organizations, eq(organizations.id, organizationMemberships.orgId))
       .where(and(eq(organizationMemberships.userId, p.userId), isNull(organizationMemberships.revokedAt)))
       .orderBy(organizations.name));
+}
+
+/** The entity scope of this user's membership in `orgId`: null when unscoped; the scoped entity ids otherwise. */
+async function entityScopeOf(p: Principal, orgId: string, scoped: boolean): Promise<readonly string[] | null> {
+  if (!scoped) return null;
+  const rows = await withTenant({ userId: p.userId }, (tx) => tx.select({ entityId: membershipEntityScopes.entityId }).from(membershipEntityScopes)
+    .where(and(eq(membershipEntityScopes.orgId, orgId), eq(membershipEntityScopes.userId, p.userId))).orderBy(membershipEntityScopes.entityId), { read: true });
+  return Object.freeze(rows.map((r) => r.entityId));
+}
+
+/** Whether this context may see and act on `entityId` (an unscoped membership: every entity). */
+export const inEntityScope = (ctx: Pick<TenantContext, "entityScope">, entityId: string | null | undefined): boolean =>
+  ctx.entityScope === null || (!!entityId && ctx.entityScope.includes(entityId));
+
+/**
+ * Organisation-wide changes (a provider's access to every entity, the retention of every upload, the access review
+ * of every member) need an unscoped membership: a member limited to some entities cannot act for the others.
+ */
+export function requireUnscoped(ctx: Pick<TenantContext, "entityScope">): void {
+  if (ctx.entityScope !== null) throw new AccessDenied(403, "This applies to every entity; your access is limited to some entities.");
+}
+
+/**
+ * Refuse an entity outside the membership's scope as "not found", exactly like an entity that does not exist, so a
+ * scoped member learns nothing about the organisation's other entities. Call before any read or write of the entity.
+ */
+export function requireEntity(ctx: Pick<TenantContext, "entityScope">, entityId: string | null | undefined): void {
+  if (!inEntityScope(ctx, entityId)) throw new AccessDenied(404, "Not found.");
 }
 
 /**
@@ -81,5 +114,5 @@ export async function resolveTenant(p: Principal, requestedSlug: string | undefi
   const m = requestedSlug ? ms.find((x) => x.slug === requestedSlug) : ms[0];
   if (!m) throw new AccessDenied(404, "Not found.");
   if (!isAppRole(m.role)) throw new AccessDenied(403, "Unknown role.");
-  return { ...p, orgId: m.orgId, orgSlug: m.slug, orgName: m.name, role: m.role };
+  return { ...p, orgId: m.orgId, orgSlug: m.slug, orgName: m.name, role: m.role, entityScope: await entityScopeOf(p, m.orgId, m.entityScoped) };
 }

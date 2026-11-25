@@ -14,7 +14,7 @@ import { decideWriteoff, entityOnly, monthEnd } from "./merchant";
 import { MissingEntity, loadReconcileInput } from "./merchant-store";
 import { dataModeOf } from "./mapping-templates";
 import { DEMO_DATA_LABEL, labelUsesUploadPipeline, type DataLabel, type DataMode } from "@/lib/clearline/data-mode";
-import { AccessDenied, type TenantContext, withTenant } from "./tenant";
+import { AccessDenied, inEntityScope, requireEntity, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
 import { stampNow } from "./live-clock";
 
@@ -37,6 +37,7 @@ const big = (v: unknown) => BigInt(typeof v === "string" || typeof v === "number
 const money = (minor: unknown, cur: string) => fmtFiat(big(minor), cur as FiatCurrency);
 
 async function load(tx: Tx, ctx: TenantContext, entityId: string) {
+  requireEntity(ctx, entityId);
   try { return await loadReconcileInput(tx, ctx.orgId, entityId); } catch (e) {
     if (e instanceof MissingEntity) throw new AccessDenied(404, "Not found.");
     throw e;
@@ -84,7 +85,7 @@ export async function merchantShell(ctx: TenantContext): Promise<{ label: DataLa
     const theme = safeTheme(row.theme, row.provider_name ?? null);
     const { label, dataMode } = await dataModeOf(tx, ctx.orgId);
     if (kind === "provider" || !can(ctx.role, "read")) return { label, dataMode, kind, providerName: row.provider_name ?? null, theme, entities: [] };
-    return { label, dataMode, kind, providerName: row.provider_name ?? null, theme, entities: await entitySummaries(tx, ctx.orgId) };
+    return { label, dataMode, kind, providerName: row.provider_name ?? null, theme, entities: (await entitySummaries(tx, ctx.orgId)).filter((e) => inEntityScope(ctx, e.id)) };
   });
 }
 
@@ -123,13 +124,18 @@ export async function overviewCounts(ctx: TenantContext) {
   return tenantRead(ctx, async (tx) => {
     const n = async (q: ReturnType<typeof sql>) => Number(((await tx.execute(q)).rows[0] as { n: string | number }).n);
     const o = ctx.orgId;
-    const decisions = (await tx.execute(sql`select decision, count(*)::int as n from match_records where org_id = ${o} group by decision`)).rows as { decision: string; n: number }[];
+    // v1 phase 1.3: a scoped member counts only their entities' rows (the database's entity_scope policy agrees)
+    const sc = ctx.entityScope;
+    const arr = sql`array(select jsonb_array_elements_text(${JSON.stringify(sc ?? [])}::jsonb))`;
+    const ent = (col: string) => sc === null ? sql`` : sql` and ${sql.raw(col)} = any(${arr})`;
+    const ord = (alias: string) => sc === null ? sql`` : sql` and exists (select 1 from invoices i where i.org_id = ${sql.raw(alias)}.org_id and i.order_id = ${sql.raw(alias)}.order_id and i.entity_id = any(${arr}))`;
+    const decisions = (await tx.execute(sql`select decision, count(*)::int as n from match_records m where org_id = ${o}${ord("m")} group by decision`)).rows as { decision: string; n: number }[];
     return {
-      providerRecords: await n(sql`select count(*)::int as n from provider_payment_records where org_id = ${o}`),
-      chainTransfers: await n(sql`select count(*)::int as n from chain_transfers where org_id = ${o} and source <> 'provider_export'`),
-      orders: await n(sql`select count(*)::int as n from invoices where org_id = ${o}`),
-      batches: await n(sql`select count(*)::int as n from settlement_batches where org_id = ${o}`),
-      bankLines: await n(sql`select count(*)::int as n from bank_lines where org_id = ${o}`),
+      providerRecords: await n(sql`select count(*)::int as n from provider_payment_records r where org_id = ${o}${sc === null ? sql`` : sql` and (exists (select 1 from merchant_quotes q join invoices i on i.org_id = q.org_id and i.order_id = q.order_id where q.org_id = r.org_id and q.quote_id = r.quote_id and i.entity_id = any(${arr})) or exists (select 1 from payment_links l join invoices i on i.org_id = l.org_id and i.order_id = l.order_id where l.org_id = r.org_id and l.link_id = r.link_id and i.entity_id = any(${arr})))`}`),
+      chainTransfers: await n(sql`select count(*)::int as n from chain_transfers where org_id = ${o} and source <> 'provider_export'${ent("entity_id")}`),
+      orders: await n(sql`select count(*)::int as n from invoices where org_id = ${o}${ent("entity_id")}`),
+      batches: await n(sql`select count(*)::int as n from settlement_batches where org_id = ${o}${ent("entity_id")}`),
+      bankLines: await n(sql`select count(*)::int as n from bank_lines where org_id = ${o}${ent("entity_id")}`),
       decisions: Object.fromEntries(decisions.map((d) => [d.decision, d.n])) as Partial<Record<"matched" | "matched_with_difference" | "suggested_for_review" | "exception", number>>,
     };
   });
@@ -139,21 +145,22 @@ export async function overviewCounts(ctx: TenantContext) {
 export async function openExceptionsOf(ctx: TenantContext, orderIds: string[]) {
   require(ctx, "read");
   if (orderIds.length === 0) return [];
-  return tenantRead(ctx, async (tx) => tx.select({ id: t.reconExceptions.id, orderId: t.reconExceptions.orderId, reason: t.reconExceptions.reason, status: t.reconExceptions.status }).from(t.reconExceptions)
-    .where(and(eq(t.reconExceptions.orgId, ctx.orgId), inArray(t.reconExceptions.orderId, orderIds), sql`${t.reconExceptions.status} <> 'resolved'`)).orderBy(asc(t.reconExceptions.id)));
+  return tenantRead(ctx, async (tx) => (await tx.select({ id: t.reconExceptions.id, orderId: t.reconExceptions.orderId, reason: t.reconExceptions.reason, status: t.reconExceptions.status, entityId: t.reconExceptions.entityId }).from(t.reconExceptions)
+    .where(and(eq(t.reconExceptions.orgId, ctx.orgId), inArray(t.reconExceptions.orderId, orderIds), sql`${t.reconExceptions.status} <> 'resolved'`)).orderBy(asc(t.reconExceptions.id)))
+    .filter((e) => inEntityScope(ctx, e.entityId)).map(({ entityId: _e, ...e }) => (void _e, e)));
 }
 
 /** The settlement batch ids, in the batches page's order (for a filter list; no bridge is computed). */
 export async function batchIds(ctx: TenantContext): Promise<string[]> {
   require(ctx, "read");
-  return tenantRead(ctx, async (tx) => (await tx.select({ batchId: t.settlementBatches.batchId }).from(t.settlementBatches).where(eq(t.settlementBatches.orgId, ctx.orgId))
-    .orderBy(asc(t.settlementBatches.dayStart), asc(t.settlementBatches.batchId))).map((b) => b.batchId));
+  return tenantRead(ctx, async (tx) => (await tx.select({ batchId: t.settlementBatches.batchId, entityId: t.settlementBatches.entityId }).from(t.settlementBatches).where(eq(t.settlementBatches.orgId, ctx.orgId))
+    .orderBy(asc(t.settlementBatches.dayStart), asc(t.settlementBatches.batchId))).filter((b) => inEntityScope(ctx, b.entityId)).map((b) => b.batchId));
 }
 
 export async function listBatches(ctx: TenantContext) {
   require(ctx, "read");
   return tenantRead(ctx, async (tx) => {
-    const bs = await tx.select().from(t.settlementBatches).where(eq(t.settlementBatches.orgId, ctx.orgId)).orderBy(asc(t.settlementBatches.dayStart), asc(t.settlementBatches.batchId));
+    const bs = (await tx.select().from(t.settlementBatches).where(eq(t.settlementBatches.orgId, ctx.orgId)).orderBy(asc(t.settlementBatches.dayStart), asc(t.settlementBatches.batchId))).filter((b) => inEntityScope(ctx, b.entityId));
     const ids = [...new Set(bs.map((b) => b.entityId).filter((x): x is string => !!x))];
     const bridges = new Map<string, { tied: boolean; settlementVerified: boolean; bankLineId: string | null }>();
     for (const id of ids) for (const b of reconcile(await load(tx, ctx, id)).bridges) bridges.set(b.batchId, { tied: b.tied, settlementVerified: b.settlementVerified, bankLineId: b.bankLineId });
@@ -178,6 +185,8 @@ export async function paymentContext(ctx: TenantContext, orderId: string) {
     const [m] = await tx.select().from(t.matchRecords).where(and(eq(t.matchRecords.orgId, ctx.orgId), eq(t.matchRecords.orderId, orderId)));
     if (!m) throw new AccessDenied(404, "Not found.");
     const [inv] = await tx.select().from(t.invoices).where(and(eq(t.invoices.orgId, ctx.orgId), eq(t.invoices.orderId, orderId)));
+    if (!inv) throw new AccessDenied(404, "Not found.");
+    requireEntity(ctx, inv.entityId);
     const p = partsOf(m);
     const chainRows = p.chain.transfers.length ? await tx.select().from(t.chainTransfers).where(and(eq(t.chainTransfers.orgId, ctx.orgId), inArray(t.chainTransfers.txHash, p.chain.transfers.map((x) => x.txHash)))) : [];
     const batchIds = [...new Set([...p.bank.batchIds, ...p.provider.records.map((r) => r.batchId).filter((x): x is string => !!x)])];
@@ -234,17 +243,20 @@ export async function memberNames(tx: Tx, orgId: string) {
 export async function exceptionsView(ctx: TenantContext) {
   require(ctx, "read");
   return tenantRead(ctx, async (tx) => {
-    const ex = await tx.select().from(t.reconExceptions).where(and(eq(t.reconExceptions.orgId, ctx.orgId), sql`${t.reconExceptions.status} <> 'resolved'`)).orderBy(asc(t.reconExceptions.openedAt), asc(t.reconExceptions.id));
+    const ex = (await tx.select().from(t.reconExceptions).where(and(eq(t.reconExceptions.orgId, ctx.orgId), sql`${t.reconExceptions.status} <> 'resolved'`)).orderBy(asc(t.reconExceptions.openedAt), asc(t.reconExceptions.id)))
+      .filter((e) => inEntityScope(ctx, e.entityId));
     const ids = ex.map((e) => e.id);
     const notes = ids.length ? await tx.select({ exceptionId: t.reconExceptionNotes.exceptionId, kind: t.reconExceptionNotes.kind }).from(t.reconExceptionNotes).where(and(eq(t.reconExceptionNotes.orgId, ctx.orgId), inArray(t.reconExceptionNotes.exceptionId, ids))) : [];
     const pending = ids.length ? await tx.select({ subjectId: t.approvalRequests.subjectId, version: t.approvalRequests.version }).from(t.approvalRequests).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.subjectKind, "merchant_resolution"), eq(t.approvalRequests.status, "pending"), inArray(t.approvalRequests.subjectId, ids))) : [];
     const inv = ex.some((e) => e.orderId) ? await tx.select({ orderId: t.invoices.orderId, entityId: t.invoices.entityId }).from(t.invoices).where(and(eq(t.invoices.orgId, ctx.orgId), inArray(t.invoices.orderId, ex.map((e) => e.orderId).filter((x): x is string => !!x)))) : [];
     const names = await memberNames(tx, ctx.orgId);
-    const recs = await tx.select({ orderId: t.matchRecords.orderId, decision: t.matchRecords.decision, ruleId: t.matchRecords.ruleId, explanation: t.matchRecords.explanation }).from(t.matchRecords).where(and(eq(t.matchRecords.orgId, ctx.orgId), eq(t.matchRecords.decision, "suggested_for_review"))).orderBy(asc(t.matchRecords.orderId));
+    const recs = (await tx.select({ orderId: t.matchRecords.orderId, decision: t.matchRecords.decision, ruleId: t.matchRecords.ruleId, explanation: t.matchRecords.explanation, entityId: t.invoices.entityId }).from(t.matchRecords)
+      .innerJoin(t.invoices, and(eq(t.invoices.orgId, t.matchRecords.orgId), eq(t.invoices.orderId, t.matchRecords.orderId)))
+      .where(and(eq(t.matchRecords.orgId, ctx.orgId), eq(t.matchRecords.decision, "suggested_for_review"))).orderBy(asc(t.matchRecords.orderId))).filter((r) => inEntityScope(ctx, r.entityId));
     return {
       label: await orgLabel(tx, ctx.orgId),
       exceptions: ex.map((e) => ({
-        id: e.id, orderId: e.orderId, entityId: inv.find((i) => i.orderId === e.orderId)?.entityId ?? null, ownerRole: e.ownerRole,
+        id: e.id, orderId: e.orderId, entityId: inv.find((i) => i.orderId === e.orderId)?.entityId ?? e.entityId, ownerRole: e.ownerRole,
         ownerName: e.ownerUserId ? names.get(e.ownerUserId) ?? "A former member" : null, reason: e.reason, nextStep: e.nextStep, status: e.status, openedAt: e.openedAt.toISOString(),
         evidenceCount: notes.filter((n) => n.exceptionId === e.id && n.kind === "evidence").length, noteCount: notes.filter((n) => n.exceptionId === e.id && n.kind === "note").length,
         pendingResolutionVersion: pending.find((p) => p.subjectId === e.id)?.version ?? null,
@@ -259,6 +271,7 @@ export async function exceptionDetail(ctx: TenantContext, exceptionId: string) {
   return tenantRead(ctx, async (tx) => {
     const [e] = await tx.select().from(t.reconExceptions).where(and(eq(t.reconExceptions.orgId, ctx.orgId), eq(t.reconExceptions.id, exceptionId)));
     if (!e) throw new AccessDenied(404, "Not found.");
+    requireEntity(ctx, e.entityId);
     const notes = await tx.select().from(t.reconExceptionNotes).where(and(eq(t.reconExceptionNotes.orgId, ctx.orgId), eq(t.reconExceptionNotes.exceptionId, e.id))).orderBy(asc(t.reconExceptionNotes.createdAt));
     const reqs = await tx.select().from(t.approvalRequests).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.subjectKind, "merchant_resolution"), eq(t.approvalRequests.subjectId, e.id))).orderBy(desc(t.approvalRequests.version));
     const decisions = reqs.length ? await tx.select().from(t.approvalDecisions).where(and(eq(t.approvalDecisions.orgId, ctx.orgId), inArray(t.approvalDecisions.requestId, reqs.map((r) => r.id)))) : [];
@@ -283,6 +296,7 @@ export async function exceptionDetail(ctx: TenantContext, exceptionId: string) {
 async function lockException(tx: Tx, ctx: TenantContext, id: string) {
   const [e] = await tx.select().from(t.reconExceptions).where(and(eq(t.reconExceptions.orgId, ctx.orgId), eq(t.reconExceptions.id, id))).for("update");
   if (!e) throw new AccessDenied(404, "Not found.");
+  requireEntity(ctx, e.entityId);
   return e;
 }
 
@@ -384,6 +398,8 @@ export async function decideMerchantResolution(ctx: TenantContext, requestId: st
   return tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "merchant_resolution_decide", requestId, ...d }, async () => {
     const [req] = await tx.select().from(t.approvalRequests).where(and(eq(t.approvalRequests.orgId, ctx.orgId), eq(t.approvalRequests.id, requestId))).for("update");
     if (!req || req.subjectKind !== "merchant_resolution") throw new AccessDenied(404, "Not found.");
+    const [subject] = await tx.select({ entityId: t.reconExceptions.entityId }).from(t.reconExceptions).where(and(eq(t.reconExceptions.orgId, ctx.orgId), eq(t.reconExceptions.id, req.subjectId)));
+    requireEntity(ctx, subject?.entityId);
     if (req.requestedBy === ctx.userId) throw new RequestRefused(409, "MAKER_CANNOT_APPROVE", "You proposed this resolution; another approver must decide it.");
     if (req.status !== "pending") throw new RequestRefused(409, "REQUEST_CLOSED", `This request is ${req.status}.`);
     if (req.payloadSha256 !== d.payloadSha256) throw new RequestRefused(409, "VERSION_MISMATCH", "The proposal changed since you reviewed it. Review the current version.");
@@ -416,12 +432,30 @@ export async function decideMerchantApproval(ctx: TenantContext, requestId: stri
   throw new AccessDenied(404, "Not found.");
 }
 
+/** The entity of each merchant request's subject (a write-off's payment; an exception's own entity). */
+async function subjectEntities(tx: Tx, ctx: TenantContext, reqs: { subjectKind: string; subjectId: string }[]): Promise<Map<string, string | null>> {
+  const out = new Map<string, string | null>();
+  const wo = [...new Set(reqs.filter((r) => r.subjectKind === "merchant_writeoff").map((r) => r.subjectId))];
+  const ex = [...new Set(reqs.filter((r) => r.subjectKind === "merchant_resolution").map((r) => r.subjectId))];
+  if (wo.length) for (const r of await tx.select({ id: t.writeoffProposals.id, entityId: t.invoices.entityId }).from(t.writeoffProposals)
+    .innerJoin(t.invoices, and(eq(t.invoices.orgId, t.writeoffProposals.orgId), eq(t.invoices.orderId, t.writeoffProposals.orderId)))
+    .where(and(eq(t.writeoffProposals.orgId, ctx.orgId), inArray(t.writeoffProposals.id, wo)))) out.set(`merchant_writeoff|${r.id}`, r.entityId);
+  if (ex.length) for (const r of await tx.select({ id: t.reconExceptions.id, entityId: t.reconExceptions.entityId }).from(t.reconExceptions)
+    .where(and(eq(t.reconExceptions.orgId, ctx.orgId), inArray(t.reconExceptions.id, ex)))) out.set(`merchant_resolution|${r.id}`, r.entityId);
+  return out;
+}
+
 export async function listMerchantApprovals(ctx: TenantContext) {
   require(ctx, "read");
   return tenantRead(ctx, async (tx) => {
-    const reqs = await tx.select().from(t.approvalRequests).where(and(eq(t.approvalRequests.orgId, ctx.orgId), inArray(t.approvalRequests.subjectKind, ["merchant_writeoff", "merchant_resolution"]))).orderBy(desc(t.approvalRequests.createdAt)).limit(200);
+    const all = await tx.select().from(t.approvalRequests).where(and(eq(t.approvalRequests.orgId, ctx.orgId), inArray(t.approvalRequests.subjectKind, ["merchant_writeoff", "merchant_resolution"]))).orderBy(desc(t.approvalRequests.createdAt)).limit(200);
+    // v1 phase 1.3: a scoped member sees only requests about their entities (the database's entity_scope agrees)
+    const subjectEntity = await subjectEntities(tx, ctx, all);
+    const reqs = all.filter((r) => inEntityScope(ctx, subjectEntity.get(`${r.subjectKind}|${r.subjectId}`)));
     const decisions = reqs.length ? await tx.select().from(t.approvalDecisions).where(and(eq(t.approvalDecisions.orgId, ctx.orgId), inArray(t.approvalDecisions.requestId, reqs.map((r) => r.id)))) : [];
-    const proposed = await tx.select().from(t.writeoffProposals).where(and(eq(t.writeoffProposals.orgId, ctx.orgId), eq(t.writeoffProposals.status, "proposed"))).orderBy(asc(t.writeoffProposals.id));
+    const proposed = (await tx.select({ w: t.writeoffProposals, entityId: t.invoices.entityId }).from(t.writeoffProposals)
+      .innerJoin(t.invoices, and(eq(t.invoices.orgId, t.writeoffProposals.orgId), eq(t.invoices.orderId, t.writeoffProposals.orderId)))
+      .where(and(eq(t.writeoffProposals.orgId, ctx.orgId), eq(t.writeoffProposals.status, "proposed"))).orderBy(asc(t.writeoffProposals.id))).filter((x) => inEntityScope(ctx, x.entityId)).map((x) => x.w);
     const names = await memberNames(tx, ctx.orgId);
     const who = (id: string | null) => (id ? names.get(id) ?? "A former member" : "—");
     return {
@@ -503,9 +537,11 @@ export async function packData(tx: Tx, ctx: TenantContext, scope: PackScope) {
     const [inv] = await tx.select().from(t.invoices).where(and(eq(t.invoices.orgId, ctx.orgId), eq(t.invoices.orderId, scope.orderId)));
     const [m] = await tx.select({ id: t.matchRecords.orderId }).from(t.matchRecords).where(and(eq(t.matchRecords.orgId, ctx.orgId), eq(t.matchRecords.orderId, scope.orderId)));
     if (!inv || !m) throw new AccessDenied(404, "Not found.");
+    requireEntity(ctx, inv.entityId);
     orderIds = [scope.orderId]; entityId = inv.entityId;
   } else {
     if (!/^\d{4}-\d{2}$/.test(scope.month)) throw new RequestRefused(422, "BAD_MONTH", "Use YYYY-MM.");
+    requireEntity(ctx, scope.entityId);
     const [ent] = await tx.select().from(t.merchantEntities).where(and(eq(t.merchantEntities.orgId, ctx.orgId), eq(t.merchantEntities.id, scope.entityId)));
     if (!ent) throw new AccessDenied(404, "Not found.");
     entityId = ent.id;
@@ -594,7 +630,7 @@ function packCsv(p: Pack): string {
 }
 
 /** Helvetica (WinAnsi) cannot draw every character: map the few we use and replace anything else. */
-function winAnsi(s: string): string {
+export function winAnsi(s: string): string {
   return s.replace(/[→]/g, "->").replace(/[−–—]/g, "-").replace(/[≥]/g, ">=").replace(/[≤]/g, "<=").replace(/[…]/g, "...").replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[⏎]/g, " ")
     .replace(/[^\x20-\x7E -ÿ]/g, "?");
 }
@@ -730,7 +766,9 @@ export interface PartsSummary { chain: { transfers: number; pending: number; net
 export async function partsSummaries(ctx: TenantContext): Promise<Map<string, PartsSummary>> {
   require(ctx, "read");
   return tenantRead(ctx, async (tx) => {
-    const ms = await tx.select().from(t.matchRecords).where(eq(t.matchRecords.orgId, ctx.orgId));
+    const ms = (await tx.select({ m: t.matchRecords, entityId: t.invoices.entityId }).from(t.matchRecords)
+      .innerJoin(t.invoices, and(eq(t.invoices.orgId, t.matchRecords.orgId), eq(t.invoices.orderId, t.matchRecords.orderId)))
+      .where(eq(t.matchRecords.orgId, ctx.orgId))).filter((x) => inEntityScope(ctx, x.entityId)).map((x) => x.m);
     return new Map(ms.map((m) => {
       const p = partsOf(m);
       return [m.orderId, {

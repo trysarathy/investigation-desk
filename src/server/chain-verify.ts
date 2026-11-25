@@ -12,7 +12,7 @@ import type { Tx } from "./db/client";
 import * as t from "./db/schema";
 import { can } from "./authz";
 import { serverAudit } from "./control";
-import { AccessDenied, type TenantContext, withTenant } from "./tenant";
+import { AccessDenied, requireEntity, type TenantContext, withTenant } from "./tenant";
 import { ChainRecordingRefused } from "./test-build";
 import { DemoRecordingRefused } from "./demo-build";
 import { DEMO_NOW } from "@/lib/clearline/demo/clock";
@@ -108,6 +108,7 @@ async function targetsOf(tx: Tx, orgId: string, entityId: string) {
  */
 export async function verifyChainForEntity(ctx: TenantContext, entityId: string, client: VerifyChainClient = verifyClientFromEnv(), opts: { now?: Date } = {}): Promise<VerifyResult> {
   if (!can(ctx.role, "merchant_reconcile")) throw new AccessDenied(403, `Your role (${ctx.role}) does not allow this.`);
+  requireEntity(ctx, entityId);
   const tenant = { userId: ctx.userId, orgId: ctx.orgId };
   const now = opts.now ?? new Date();
   const { addresses, claims, stored } = await withTenant(tenant, async (tx) => {
