@@ -183,6 +183,14 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput, am
     .map((r) => `${r.transferRef!.network}|${r.transferRef!.txHash}`)) : new Set<string>();
   const down = unavailable.filter((u) => (u.address !== undefined && myAddresses.has(`${u.network}|${normAddress(u.network, u.address)}`))
     || (u.txHash !== undefined && myTxs.has(`${u.network}|${u.txHash}`)));
+  // v1: two providers disagree (chain data conflicting) → a typed exception for a person; it outranks "unavailable".
+  const clash = down.filter((u) => u.kind === "conflicting");
+  if (clash.length > 0 && active("M1.chain.conflicting")) {
+    const d = clash[0];
+    note(1, "M1.chain.conflicting", "fail", `Chain data conflicting (${d.source}, ${d.at}): ${d.reason}`);
+    return finish({ decision: "exception", step: 1, ruleId: "M1.chain.conflicting",
+      attention: att("Payment Operations", `Chain data conflicting for ${clash.length === 1 ? "one" : clash.length} ${d.network} read${clash.length === 1 ? "" : "s"} (${d.source}, ${d.at}): ${d.reason}. Nothing is treated as received or missing.`, "Check the transaction on a block explorer and with both chain data providers; Clearline re-reads it on the next run and never matches it while the providers disagree.") });
+  }
   if (down.length > 0 && active("M1.chain.unavailable")) {
     const d = down[0];
     note(1, "M1.chain.unavailable", "fail", `Chain data unavailable (${d.source}, ${d.at}): ${d.reason}`);

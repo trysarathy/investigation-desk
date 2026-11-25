@@ -195,7 +195,8 @@ async function unavailableReads(tx: Tx, orgId: string, entityId: string, transfe
   // address reads cannot produce an output. Both filters are leakproof, so PostgreSQL applies them before the
   // per-row RLS check instead of checking every read. Same result as reading every row.
   const where = and(eq(t.chainReads.orgId, orgId), eq(t.chainReads.entityId, entityId));
-  const anyUnavailable = (await tx.select({ id: t.chainReads.id }).from(t.chainReads).where(and(where, eq(t.chainReads.status, "unavailable"))).limit(1)).length > 0;
+  // v1: a `conflicting` read (two providers disagree) is loaded exactly like an unavailable one, typed as conflicting
+  const anyUnavailable = (await tx.select({ id: t.chainReads.id }).from(t.chainReads).where(and(where, inArray(t.chainReads.status, ["unavailable", "conflicting"]))).limit(1)).length > 0;
   const reads = await tx.select().from(t.chainReads).where(anyUnavailable ? where : and(where, isNotNull(t.chainReads.txHash)))
     .orderBy(asc(t.chainReads.at), asc(t.chainReads.id));
   const latest = new Map<string, typeof reads[number]>();
@@ -204,11 +205,13 @@ async function unavailableReads(tx: Tx, orgId: string, entityId: string, transfe
     // ids order rows written in one run arbitrarily; within one instant an unavailable read wins (never hide an outage)
     const k = r.address !== null ? `a|${n}|${normAddress(n, r.address)}` : `t|${n}|${txNorm(n, r.txHash!)}`;
     const prev = latest.get(k);
-    if (!prev || prev.at.getTime() < r.at.getTime() || r.status === "unavailable") latest.set(k, r);
+    // within one instant a conflicting read wins over everything, then an unavailable one
+    const rank = (x: typeof r) => (x.status === "conflicting" ? 2 : x.status === "unavailable" ? 1 : 0);
+    if (!prev || prev.at.getTime() < r.at.getTime() || (prev.at.getTime() === r.at.getTime() && rank(r) >= rank(prev) && rank(r) > 0)) latest.set(k, r);
   }
-  const out: ChainUnavailable[] = [...latest.values()].filter((r) => r.status === "unavailable").map((r) => ({
+  const out: ChainUnavailable[] = [...latest.values()].filter((r) => r.status === "unavailable" || r.status === "conflicting").map((r) => ({
     network: dbNetwork(r.network), ...(r.address !== null ? { address: r.address } : { txHash: r.txHash! }), source: r.host ? `${r.source} (${r.host})` : r.source,
-    reason: r.reason ?? "chain data unavailable", at: iso(r.at),
+    reason: r.reason ?? (r.status === "conflicting" ? "chain data conflicting" : "chain data unavailable"), at: iso(r.at), ...(r.status === "conflicting" ? { kind: "conflicting" as const } : {}),
   }));
   const facts = new Set(transfers.filter((c) => c.source !== "provider_export").map((c) => `${dbNetwork(c.network)}|${txNorm(c.network, c.txHash)}`));
   const seen = new Set<string>();

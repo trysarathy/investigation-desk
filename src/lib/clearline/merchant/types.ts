@@ -252,7 +252,11 @@ export interface AddressFact { network: NetworkId; address: string; fact: "regis
  * rc7: a chain read that could not be done (API down, rate-limited, keys missing, re-check incomplete). Scoped to a
  * deposit address or a transaction. Never zero, never "not received": the order waits and is never matched.
  */
-export interface ChainUnavailable { network: NetworkId; address?: string; txHash?: string; source: string; reason: string; at: string }
+export interface ChainUnavailable {
+  network: NetworkId; address?: string; txHash?: string; source: string; reason: string; at: string;
+  /** v1: "conflicting" = two chain data providers disagree on this read (chain data conflicting); absent = unavailable. */
+  kind?: "conflicting";
+}
 
 export interface ReconcileInput {
   label: TestModeLabel;
