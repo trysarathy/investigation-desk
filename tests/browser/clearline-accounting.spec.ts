@@ -681,7 +681,10 @@ test("accounting and audit pages: axe 0 violations and no horizontal overflow at
     await check(`review open @${width}`);
     await open(page, "/clearline/payments");
     await page.locator('#payments a[href^="/clearline/payments/pi_"]').nth(1).click();
+    await page.waitForURL(/\/clearline\/payments\/pi_/);
     await hydrated(page);
+    // A client-side navigation swaps the <title> after hydration: wait for the destination's own title.
+    await expect(page).toHaveTitle(/Payment investigation/);
     await check(`investigation with accounting outcome @${width}`);
   }
   expect(report, report.join("\n")).toEqual([]);
