@@ -6,7 +6,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
-import { closeOwner, ownerDb, PASSWORD, resetAndSeed } from "./harness";
+import { closeOwner, enrolTestTotp, ownerDb, PASSWORD, resetAndSeed } from "./harness";
 import { closeDatabase } from "../../src/server/db/client";
 import { AccessDenied, resolveTenant, type TenantContext } from "../../src/server/tenant";
 import { acceptInvitation, createUser, grantMembership, revokeMembership } from "../../src/server/admin";
@@ -55,12 +55,11 @@ describe("who may review access", () => {
 });
 
 describe("what the review shows", () => {
-  it("every membership with role, scope, status, invited by, and second factor 'not recorded' without a 2FA column", async () => {
+  it("every membership with role, scope, status, invited by, and its second factor (off until enrolled)", async () => {
     const v = await accessReview(await ctx("admin@straits-demo.example", "sg"));
     expect(v.organisation.kind).toBe("merchant");
-    expect(v.mfaRecorded).toBe(false);
     const by = new Map(v.rows.map((r) => [r.email, r]));
-    expect(by.get("finance@straits-demo.example")).toMatchObject({ role: "finance", roleLabel: "Finance", status: "active", entityScope: "all", mfa: "not_recorded", invitedBy: null });
+    expect(by.get("finance@straits-demo.example")).toMatchObject({ role: "finance", roleLabel: "Finance", status: "active", entityScope: "all", mfa: "not_enabled", passkeys: 0, invitedBy: null });
     expect(by.get("scoped@straits-demo.example")).toMatchObject({ entityScope: ["ENT-SG-02"] });
     expect(by.get("gone@straits-demo.example")).toMatchObject({ status: "revoked" });
     expect(by.get("gone@straits-demo.example")!.revokedAt).not.toBeNull();
@@ -87,16 +86,19 @@ describe("what the review shows", () => {
     expect(r.lastSignInAt).toBe(at.toISOString());
   });
 
-  it("reads a second factor when the deployment records one (column added for this test only)", async () => {
-    await ownerDb().execute(sql`alter table users add column two_factor_enabled boolean not null default false`);
+  it("reads the second factor from login security's own columns (users.two_factor_enabled, passkeys)", async () => {
+    const approver = seed.users["approver@straits-demo.example"];
+    await enrolTestTotp(approver);
+    await ownerDb().execute(sql`insert into passkeys (id, user_id, name, credential_id, public_key_spki, alg, sign_count)
+      values (${randomUUID()}, ${approver}, 'Fictional key', ${"Fictional-credential-0001"}, ${"fictional-public-key"}, -7, 0)`);
     try {
-      await ownerDb().execute(sql`update users set two_factor_enabled = true where id = ${seed.users["approver@straits-demo.example"]}`);
       const v = await accessReview(await ctx("admin@straits-demo.example", "sg"));
-      expect(v.mfaRecorded).toBe(true);
-      expect(v.rows.find((r) => r.email === "approver@straits-demo.example")!.mfa).toBe("enabled");
-      expect(v.rows.find((r) => r.email === "finance@straits-demo.example")!.mfa).toBe("not_enabled");
+      expect(v.rows.find((r) => r.email === "approver@straits-demo.example")).toMatchObject({ mfa: "enabled", passkeys: 1 });
+      expect(v.rows.find((r) => r.email === "finance@straits-demo.example")).toMatchObject({ mfa: "not_enabled", passkeys: 0 });
     } finally {
-      await ownerDb().execute(sql`alter table users drop column two_factor_enabled`);
+      await ownerDb().execute(sql`delete from passkeys where user_id = ${approver}`);
+      await ownerDb().execute(sql`delete from two_factors where user_id = ${approver}`);
+      await ownerDb().execute(sql`update users set two_factor_enabled = false where id = ${approver}`);
     }
   });
 });
@@ -107,8 +109,8 @@ describe("exports for an auditor", () => {
     const c = await accessReviewExport(admin, "csv");
     const text = c.body as string;
     expect(c.contentType).toMatch(/text\/csv/);
-    expect(text).toContain("name,email,role,status,entity_scope,second_factor,access_granted_at,access_revoked_at,last_sign_in_at,invited_by");
-    expect(text).toContain("scoped@straits-demo.example,Finance,active,ENT-SG-02,Not recorded");
+    expect(text).toContain("name,email,role,status,entity_scope,second_factor,passkeys,access_granted_at,access_revoked_at,last_sign_in_at,invited_by");
+    expect(text).toContain("scoped@straits-demo.example,Finance,active,ENT-SG-02,Off,0,");
     expect(text).toContain("'=Former Viewer (fictional)"); // a spreadsheet never runs a name as a formula
     expect(text).toBe(accessReviewCsv({ ...(await accessReview(admin)), generatedAt: text.match(/generated_at,([^\r\n]+)/)![1] }));
     const p = await accessReviewExport(admin, "pdf");

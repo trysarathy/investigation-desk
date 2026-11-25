@@ -18,13 +18,14 @@ import { stampNow } from "./live-clock";
  * each CSV or PDF export is audited with its hash and row count (never names or emails in the audit row).
  */
 
-export type MfaStatus = "enabled" | "not_enabled" | "not_recorded";
+/** v1 1.2: users.two_factor_enabled (a verified authenticator app; the MFA gate requires it for Admins and Approvers). */
+export type MfaStatus = "enabled" | "not_enabled";
 
 export interface AccessReviewRow {
   userId: string; name: string; email: string; role: string; roleLabel: string; status: "active" | "revoked";
   /** "all" = every entity of the organisation; otherwise the entity ids (possibly none: no entity). */
   entityScope: "all" | string[];
-  mfa: MfaStatus; grantedAt: string; revokedAt: string | null; lastSignInAt: string | null;
+  mfa: MfaStatus; passkeys: number; grantedAt: string; revokedAt: string | null; lastSignInAt: string | null;
   /** The inviter's name; null when an operator granted the membership with the admin command. */
   invitedBy: string | null;
 }
@@ -32,8 +33,6 @@ export interface AccessReviewRow {
 export interface AccessReview {
   organisation: { id: string; name: string; kind: "merchant" | "provider" };
   generatedAt: string;
-  /** Whether this deployment records a second factor at all (another workstream adds it; read defensively). */
-  mfaRecorded: boolean;
   entities: { id: string; name: string }[];
   rows: AccessReviewRow[];
 }
@@ -43,41 +42,31 @@ function requireReviewer(ctx: TenantContext) {
   requireUnscoped(ctx);
 }
 
-/**
- * The second factor per user, if the users table records one (Better Auth's two-factor plugin adds
- * users.two_factor_enabled). Absent column, or any error reading it: not recorded, never "not enabled".
- */
-async function mfaOf(tx: Tx, userIds: string[]): Promise<Map<string, boolean> | null> {
+/** Passkeys per user (v1 1.2, drizzle/0050): a second way to prove the second factor, on top of the authenticator app. */
+async function passkeysOf(tx: Tx, userIds: string[]): Promise<Map<string, number>> {
   if (!userIds.length) return new Map();
-  try {
-    const col = (await tx.execute(sql`select column_name from information_schema.columns where table_schema = 'public' and table_name = 'users'
-      and column_name in ('two_factor_enabled', 'twoFactorEnabled') order by column_name limit 1`)).rows[0] as { column_name?: string } | undefined;
-    if (!col?.column_name) return null;
-    const r = await tx.execute(sql`select id, ${sql.identifier(col.column_name)} as on from users where id in ${userIds}`);
-    return new Map((r.rows as { id: string; on: unknown }[]).map((x) => [x.id, x.on === true]));
-  } catch {
-    return null;
-  }
+  const r = await tx.select({ userId: t.passkeys.userId, n: sql<number>`count(*)::int` }).from(t.passkeys).where(inArray(t.passkeys.userId, userIds)).groupBy(t.passkeys.userId);
+  return new Map(r.map((x) => [x.userId, Number(x.n)]));
 }
 
 async function load(tx: Tx, ctx: TenantContext): Promise<AccessReview> {
   const [org] = await tx.select({ id: t.organizations.id, name: t.organizations.name, kind: t.organizations.kind }).from(t.organizations).where(eq(t.organizations.id, ctx.orgId));
   if (!org) throw new AccessDenied(404, "Not found.");
-  const ms = await tx.select({ m: t.organizationMemberships, name: t.users.name, email: t.users.email, lastSignInAt: t.users.lastSignInAt })
+  const ms = await tx.select({ m: t.organizationMemberships, name: t.users.name, email: t.users.email, lastSignInAt: t.users.lastSignInAt, mfa: t.users.twoFactorEnabled })
     .from(t.organizationMemberships).innerJoin(t.users, eq(t.users.id, t.organizationMemberships.userId))
     .where(eq(t.organizationMemberships.orgId, ctx.orgId)).orderBy(asc(t.users.name), asc(t.users.email));
   const scopes = await tx.select().from(t.membershipEntityScopes).where(eq(t.membershipEntityScopes.orgId, ctx.orgId)).orderBy(asc(t.membershipEntityScopes.entityId));
   const inviterIds = [...new Set(ms.map((x) => x.m.invitedBy).filter((x): x is string => !!x))];
   const inviters = new Map(inviterIds.length ? (await tx.select({ id: t.users.id, name: t.users.name }).from(t.users).where(inArray(t.users.id, inviterIds))).map((u) => [u.id, u.name]) : []);
   const ents = org.kind === "merchant" ? await tx.select({ id: t.merchantEntities.id, name: t.merchantEntities.name }).from(t.merchantEntities).where(eq(t.merchantEntities.orgId, ctx.orgId)).orderBy(asc(t.merchantEntities.id)) : [];
-  const mfa = await mfaOf(tx, ms.map((x) => x.m.userId));
+  const keys = await passkeysOf(tx, [...new Set(ms.map((x) => x.m.userId))]);
   return {
     organisation: { id: org.id, name: org.name, kind: org.kind === "provider" ? "provider" : "merchant" },
-    generatedAt: stampNow().toISOString(), mfaRecorded: mfa !== null, entities: ents,
-    rows: ms.map(({ m, name, email, lastSignInAt }) => ({
+    generatedAt: stampNow().toISOString(), entities: ents,
+    rows: ms.map(({ m, name, email, lastSignInAt, mfa }) => ({
       userId: m.userId, name, email, role: m.role, roleLabel: isAppRole(m.role) ? ROLE_LABELS[m.role] : m.role, status: m.revokedAt ? "revoked" : "active",
       entityScope: m.entityScoped ? scopes.filter((s) => s.userId === m.userId).map((s) => s.entityId) : "all",
-      mfa: mfa === null ? "not_recorded" : mfa.get(m.userId) ? "enabled" : "not_enabled",
+      mfa: mfa ? "enabled" : "not_enabled", passkeys: keys.get(m.userId) ?? 0,
       grantedAt: m.createdAt.toISOString(), revokedAt: m.revokedAt?.toISOString() ?? null, lastSignInAt: lastSignInAt?.toISOString() ?? null,
       invitedBy: m.invitedBy ? inviters.get(m.invitedBy) ?? "A former user" : null,
     })),
@@ -89,15 +78,15 @@ export async function accessReview(ctx: TenantContext): Promise<AccessReview> {
   return withTenant({ userId: ctx.userId, orgId: ctx.orgId }, (tx) => load(tx, ctx), { read: true });
 }
 
-export const MFA_LABEL: Record<MfaStatus, string> = { enabled: "On", not_enabled: "Off", not_recorded: "Not recorded" };
+export const MFA_LABEL: Record<MfaStatus, string> = { enabled: "On", not_enabled: "Off" };
 export const scopeLabel = (s: AccessReviewRow["entityScope"]) => (s === "all" ? "All entities" : s.length ? s.join(", ") : "No entity");
 export const invitedLabel = (s: string | null) => s ?? "Operator (admin command)";
 
-const HEADER = ["name", "email", "role", "status", "entity_scope", "second_factor", "access_granted_at", "access_revoked_at", "last_sign_in_at", "invited_by"];
-const cells = (r: AccessReviewRow) => [r.name, r.email, r.roleLabel, r.status, scopeLabel(r.entityScope), MFA_LABEL[r.mfa], r.grantedAt, r.revokedAt ?? "", r.lastSignInAt ?? "never recorded", invitedLabel(r.invitedBy)];
+const HEADER = ["name", "email", "role", "status", "entity_scope", "second_factor", "passkeys", "access_granted_at", "access_revoked_at", "last_sign_in_at", "invited_by"];
+const cells = (r: AccessReviewRow) => [r.name, r.email, r.roleLabel, r.status, scopeLabel(r.entityScope), MFA_LABEL[r.mfa], String(r.passkeys), r.grantedAt, r.revokedAt ?? "", r.lastSignInAt ?? "never recorded", invitedLabel(r.invitedBy)];
 
 export function accessReviewCsv(v: AccessReview): string {
-  const meta = [["organisation", v.organisation.name], ["generated_at", v.generatedAt], ["members", String(v.rows.length)], ["second_factor", v.mfaRecorded ? "recorded by this deployment" : "not recorded by this deployment"]];
+  const meta = [["organisation", v.organisation.name], ["generated_at", v.generatedAt], ["members", String(v.rows.length)], ["second_factor", "authenticator app (users.two_factor_enabled); passkeys counted apart"]];
   return [...meta, [], HEADER, ...v.rows.map(cells)].map((row) => row.map(csvCell).join(",")).join("\r\n") + "\r\n";
 }
 
@@ -120,7 +109,7 @@ export async function accessReviewPdf(v: AccessReview): Promise<Uint8Array> {
     y -= (o.size ?? 9) + 5;
   };
   text(`Access review — ${v.organisation.name}`, { size: 15, b: true });
-  text(`Generated ${v.generatedAt}. ${v.rows.length} membership(s). Second factor: ${v.mfaRecorded ? "recorded by this deployment" : "not recorded by this deployment"}.`);
+  text(`Generated ${v.generatedAt}. ${v.rows.length} membership(s). Second factor: authenticator app On/Off, passkeys counted apart.`);
   y -= 6;
   // columns: name+email, role, status, scope, 2FA, granted, last sign-in, invited by
   const COLS = [{ h: "Member", w: 190 }, { h: "Role", w: 80 }, { h: "Status", w: 48 }, { h: "Entity scope", w: 120 }, { h: "2nd factor", w: 54 }, { h: "Granted", w: 74 }, { h: "Last sign-in", w: 74 }, { h: "Invited by", w: 130 }];
@@ -139,7 +128,7 @@ export async function accessReviewPdf(v: AccessReview): Promise<Uint8Array> {
   };
   row(COLS.map((c) => c.h), true);
   for (const r of v.rows) {
-    row([`${r.name} <${r.email}>`, r.roleLabel, r.status, scopeLabel(r.entityScope), MFA_LABEL[r.mfa], r.grantedAt.slice(0, 10), r.lastSignInAt?.slice(0, 16).replace("T", " ") ?? "never recorded", invitedLabel(r.invitedBy)]);
+    row([`${r.name} <${r.email}>`, r.roleLabel, r.status, scopeLabel(r.entityScope), `${MFA_LABEL[r.mfa]}${r.passkeys ? ` +${r.passkeys} passkey${r.passkeys === 1 ? "" : "s"}` : ""}`, r.grantedAt.slice(0, 10), r.lastSignInAt?.slice(0, 16).replace("T", " ") ?? "never recorded", invitedLabel(r.invitedBy)]);
   }
   return doc.save({ useObjectStreams: false });
 }
