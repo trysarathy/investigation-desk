@@ -263,14 +263,24 @@ export const settlementPaymentLines = pgTable("settlement_payment_lines", {
   orderId: text("order_id"), currency: text("currency").notNull(),
   grossMinor: money("gross_minor").notNull(), feeMinor: money("fee_minor").notNull(), netMinor: money("net_minor").notNull(),
   settlementDate: text("settlement_date"),
+  /**
+   * v1 #174 (migration 0046): 'payment' (as before) or 'refund'. A refund row names the original payment
+   * (providerPaymentId) and its own refundId; it carries the money returned as a negative gross and net, fee 0.
+   */
+  kind: text("kind").$type<"payment" | "refund">().notNull().default("payment"), refundId: text("refund_id"),
+  /** Generated: the payment ID for a payment row, 'refund:' + the refund ID for a refund row (the primary key). */
+  lineKey: text("line_key").notNull().generatedAlwaysAs(sql`CASE WHEN kind = 'refund' THEN 'refund:' || refund_id ELSE provider_payment_id END`),
   uploadId: uuid("upload_id").notNull(), sourceRow: integer("source_row").notNull(), mappingTemplateId: uuid("mapping_template_id"),
   mappingTemplateVersion: integer("mapping_template_version"), uploadedBy: text("uploaded_by").notNull().references(() => users.id),
 }, (t) => [
-  primaryKey({ columns: [t.orgId, t.providerPaymentId] }),
+  primaryKey({ columns: [t.orgId, t.lineKey] }),
   foreignKey({ columns: [t.orgId, t.entityId], foreignColumns: [merchantEntities.orgId, merchantEntities.id], name: "settlement_payment_lines_entity_fk" }),
   foreignKey({ columns: [t.orgId, t.batchId], foreignColumns: [settlementBatches.orgId, settlementBatches.batchId], name: "settlement_payment_lines_batch_fk" }),
   check("settlement_payment_lines_cur_chk", CUR(t.currency)),
-  check("settlement_payment_lines_arith_chk", sql`${t.grossMinor} >= 0 and ${t.feeMinor} >= 0 and ${t.grossMinor} - ${t.feeMinor} = ${t.netMinor}`),
+  check("settlement_payment_lines_kind_chk", sql`(${t.kind} = 'payment' and ${t.refundId} is null) or (${t.kind} = 'refund' and ${t.refundId} is not null and length(${t.refundId}) between 1 and 128)`),
+  check("settlement_payment_lines_arith_chk", sql`(${t.kind} = 'payment' and ${t.grossMinor} >= 0 and ${t.feeMinor} >= 0 and ${t.grossMinor} - ${t.feeMinor} = ${t.netMinor})
+    or (${t.kind} = 'refund' and ${t.grossMinor} < 0 and ${t.feeMinor} = 0 and ${t.netMinor} = ${t.grossMinor})`),
+  index("settlement_payment_lines_payment_idx").on(t.orgId, t.providerPaymentId),
 ]);
 
 /** Bank lines: 'bank_feed' or 'csv_import' (imported, not bank-authenticated) with provenance. */

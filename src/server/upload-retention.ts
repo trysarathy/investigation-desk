@@ -69,8 +69,9 @@ export async function purgeDerivedRows(tx: Db | Tx, u: { orgId: string; id: stri
   for (const [batchId, lineNo] of lines) await del("settlement_batch_lines", sql`batch_id = ${batchId} and line_no = ${lineNo}`);
   // v1: per-payment settlement lines go before their batch (they reference it); a batch another upload's lines still name stays
   if (get("settlement_payment_lines").length) {
-    const named = (await tx.execute(sql`select distinct batch_id from settlement_payment_lines where org_id = ${org} and upload_id is not null and provider_payment_id in (${list(get("settlement_payment_lines"))})`)).rows.map((r) => String(r.batch_id));
-    await del("settlement_payment_lines", sql`provider_payment_id in (${list(get("settlement_payment_lines"))})`);
+    // v1 #174: the row target key is the line key (a payment ID, or 'refund:' + a refund ID)
+    const named = (await tx.execute(sql`select distinct batch_id from settlement_payment_lines where org_id = ${org} and upload_id is not null and line_key in (${list(get("settlement_payment_lines"))})`)).rows.map((r) => String(r.batch_id));
+    await del("settlement_payment_lines", sql`line_key in (${list(get("settlement_payment_lines"))})`);
     // a batch kept only because these lines named it, whose own report was purged before (no upload refers to it any more)
     if (named.length) await del("settlement_batches", sql`batch_id in (${list(named)}) and not exists (select 1 from upload_row_targets r where r.org_id = settlement_batches.org_id and r.target_table = 'settlement_batches' and r.target_key = settlement_batches.batch_id)
       and not exists (select 1 from settlement_batch_lines l where l.org_id = settlement_batches.org_id and l.batch_id = settlement_batches.batch_id)

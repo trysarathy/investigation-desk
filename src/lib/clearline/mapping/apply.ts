@@ -206,6 +206,12 @@ export function applyMapping(table: TableLike, mappingInput: unknown, opts: Appl
             if (!deduction && v < 0n) throw new Bad("payment_line_negative");
             return v < 0n ? -v : v;
           }
+          // v1 #174: a per-payment settlement file's refund row carries the money returned as a negative gross and net
+          // (its fee is 0); a payment row's amounts are never negative
+          if (mapping.fileType === "settlement_payments" && values.line_type === "refund" && (key === "gross" || key === "net")) {
+            if (v >= 0n) throw new Bad("refund_amount_not_negative");
+            return v;
+          }
           if (v < 0n) throw new Bad("negative_amount");
           return v;
         }
@@ -286,6 +292,12 @@ function crossChecks(m: Mapping, v: Record<string, MappedValue>, errors: RowIssu
   // v1: a per-payment settlement row adds up on its own (gross − fee = net, to the minor unit); it is never adjusted
   if (m.fileType === "settlement_payments" && typeof v.gross === "bigint" && typeof v.fee === "bigint" && typeof v.net === "bigint" && v.gross - v.fee !== v.net)
     errors.push({ field: "net", code: "gross_less_fee_not_net" });
+  // v1 #174: a refund row names its own refund ID and the original payment (payment ID), has no fee and net = gross
+  if (m.fileType === "settlement_payments" && v.line_type === "refund") {
+    if (!has("refund_id")) errors.push({ field: "refund_id", code: "missing_value" });
+    if (typeof v.fee === "bigint" && v.fee !== 0n) errors.push({ field: "fee", code: "refund_fee_not_zero" });
+  }
+  if (m.fileType === "settlement_payments" && v.line_type !== "refund" && has("refund_id")) errors.push({ field: "refund_id", code: "refund_id_on_payment_row" });
   if (m.fileType === "bank_statement" && v.amount === 0n) warnings.push({ field: "amount", code: "zero_amount" });
   if (m.fileType === "bank_statement" && m.columns.amount?.sign === "direction_field" && !has("direction") && has("amount")) errors.push({ field: "direction", code: "missing_value" });
 }
