@@ -43,7 +43,7 @@ export default async function MerchantLayout({ children }: { children: ReactNode
   const vars = { "--brand": t.primary, "--on-brand": t.onPrimary, "--accent": t.accent } as CSSProperties;
   // rc8 founder decision 3: the evidence packs page is listed only for the roles that may download them
   const merchantNav = MERCHANT_NAV.filter((i) => i.href !== "/control/merchant/evidence" || can(ctx.role, "merchant_export"));
-  const nav = shell.kind === "merchant" ? [...merchantNav, ...(can(ctx.role, "manage_members") ? [{ href: "/control/merchant/admin", label: "Admin" }] : [])] : PROVIDER_NAV;
+  const nav = shell.kind === "merchant" ? [...merchantNav, ...(can(ctx.role, "manage_members") ? [...(process.env.DATABASE_PROVISIONING_URL ? [{ href: "/control/merchant/setup", label: "Setup" }] : []), { href: "/control/merchant/admin", label: "Admin" }] : [])] : PROVIDER_NAV;
   const unread = shell.kind === "merchant" ? await unreadCount(ctx) : 0;
   return (
     <div className={m.mroot} style={vars}>
