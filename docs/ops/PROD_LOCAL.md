@@ -76,6 +76,13 @@ secret, stored the way Better Auth stores one (as `tests/e2e-control/db.ts` does
 2. Clean repeat: `run.sh destroy`, then `SKIP_BUILD=1 run.sh up` (**14 s**), `smoke.sh` **11/11**, Playwright:
    **3 passed** (50 s).
 
+3. After a container restart, under a machine load of about 11 (other agents' suites running): `destroy`, `SKIP_BUILD=1 up`,
+   `smoke.sh` **11/11**. Playwright: **1 passed, 1 failed, 1 did not run** (the serial suite stops after a failure).
+   The upload/reconcile/month-end test failed. Its error output was cut off and was not kept. The database showed the
+   reconciliation had run (28 records, `M1.chain.unavailable`, `exception`). Cause not established [GUESS: a 20 s
+   step timeout under load].
+4. Immediately after, fresh again (`destroy`, `SKIP_BUILD=1 up`): Playwright **3 passed** (54 s).
+
 What the result means: on a production build with no chain keys, the pipeline stores, maps, validates, confirms and
 reconciles, and abstains on every payment (exception, chain unavailable). It never matches on amounts alone. A matched
 result needs live chain reads (`CLEARLINE_CHAIN_LIVE=1` and the founder's keys), which prod-local deliberately does not
