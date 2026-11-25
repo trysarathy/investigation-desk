@@ -2,21 +2,23 @@ import "server-only";
 import { cache } from "react";
 import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { currentPrincipal } from "./auth";
+import { currentSession } from "./auth";
+import { assertMfaGate, MfaRequired } from "./mfa-gate";
 import { ORG_COOKIE } from "./control-http";
 import { AccessDenied, resolveTenant, type TenantContext } from "./tenant";
 
 /**
  * The tenant context for a /control page, once per request. No session → redirect to sign-in. The `clearline_org`
- * cookie only selects among the user's own memberships; a cookie naming any other organisation is a 404 (as in the
+ * cookie only selects among the user's own memberships (then the MFA gate); a cookie naming any other organisation is a 404 (as in the
  * API), so a page never reveals whether that organisation exists.
  */
 export const pageContext = cache(async (): Promise<TenantContext> => {
-  const p = await currentPrincipal(await headers());
-  if (!p) redirect("/control/sign-in");
+  const s = await currentSession(await headers());
+  if (!s) redirect("/control/sign-in");
   const slug = (await cookies()).get(ORG_COOKIE)?.value || undefined;
+  let ctx: TenantContext;
   try {
-    return await resolveTenant(p, slug);
+    ctx = await resolveTenant(s.principal, slug);
   } catch (e) {
     if (e instanceof AccessDenied && e.status === 404) notFound();
     // v1 phase 1.1: a signed-in person with no organisation (e.g. a platform operator) goes to the platform console,
@@ -24,6 +26,14 @@ export const pageContext = cache(async (): Promise<TenantContext> => {
     if (e instanceof AccessDenied && e.status === 403 && process.env.CLEARLINE_PLATFORM_CONSOLE === "1") redirect("/control/platform");
     throw e;
   }
+  // The MFA gate (src/server/mfa-gate.ts): a member who must set up or prove a second factor goes to the Security page.
+  try {
+    await assertMfaGate(s, ctx);
+  } catch (e) {
+    if (e instanceof MfaRequired) redirect(e.code === "MFA_ENROLLMENT_REQUIRED" ? "/control/security?required=enrol" : "/control/security?required=verify");
+    throw e;
+  }
+  return ctx;
 });
 
 /** Runs a service read and turns its 404 into the page's not-found answer. */

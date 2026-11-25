@@ -11,7 +11,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { closeOwner, ownerDb, PASSWORD, resetAndSeed } from "./harness";
+import { closeOwner, ownerDb, PASSWORD, resetAndSeed, signInWithMfa } from "./harness";
 import { closeDatabase } from "../../src/server/db/client";
 import * as t from "../../src/server/db/schema";
 import { currentPrincipal } from "../../src/server/auth";
@@ -28,9 +28,8 @@ const noBuild = () => { for (const k of ["CLEARLINE_NEXT_BUILD", "CLEARLINE_TEST
 let ids: Record<string, string> = {};
 let ip = 20;
 async function signIn(email: string) {
-  const res = await authPOST(new Request(`${ORIGIN}/api/auth/sign-in/email`, { method: "POST", headers: { "content-type": "application/json", origin: ORIGIN, "x-forwarded-for": `198.51.100.${ip++}` }, body: JSON.stringify({ email, password: PASSWORD }) }));
-  expect(res.status, `sign-in ${email}`).toBe(200);
-  return cookieFrom(res);
+  // v1 1.2: password, then the authenticator code when the account has MFA (tests/control/harness.ts)
+  return signInWithMfa(email, PASSWORD, `198.51.100.${ip++}`);
 }
 const cookieFrom = (res: Response) => res.headers.getSetCookie().filter((c) => c.startsWith("clearline.session_token=")).map((c) => c.split(";")[0]).join("; ");
 const sw = (cookie: string, email: unknown, origin = ORIGIN) => switchPOST(new Request(`${ORIGIN}/api/control/demo/switch`, { method: "POST", headers: { "content-type": "application/json", origin, cookie }, body: JSON.stringify({ email }) }));

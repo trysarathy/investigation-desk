@@ -1,5 +1,6 @@
 import "server-only";
-import { currentPrincipal } from "./auth";
+import { currentSession, type SessionInfo } from "./auth";
+import { assertMfaGate } from "./mfa-gate";
 import { IdempotencyKey } from "./control";
 import { LIMITS } from "@/lib/clearline/ingest/limits";
 import { RequestRefused } from "./errors";
@@ -33,14 +34,22 @@ export function readCookie(h: Headers, name: string): string | undefined {
   return undefined;
 }
 
-export async function principalFrom(req: Request): Promise<Principal> {
-  const p = await currentPrincipal(req.headers);
-  if (!p) throw new AccessDenied(401, "Sign in to continue.");
-  return p;
+export async function sessionFrom(req: Request): Promise<SessionInfo> {
+  const s = await currentSession(req.headers);
+  if (!s) throw new AccessDenied(401, "Sign in to continue.");
+  return s;
 }
 
+export async function principalFrom(req: Request): Promise<Principal> {
+  return (await sessionFrom(req)).principal;
+}
+
+/** The organisation context, after the MFA gate (src/server/mfa-gate.ts): no tenant route runs without it. */
 export async function tenantFrom(req: Request): Promise<TenantContext> {
-  return resolveTenant(await principalFrom(req), readCookie(req.headers, ORG_COOKIE) || undefined);
+  const s = await sessionFrom(req);
+  const ctx = await resolveTenant(s.principal, readCookie(req.headers, ORG_COOKIE) || undefined);
+  await assertMfaGate(s, ctx);
+  return ctx;
 }
 
 export function idempotencyKeyFrom(req: Request): string {
@@ -79,6 +88,21 @@ export async function mutate(req: Request, run: (ctx: TenantContext, body: unkno
     const key = idempotencyKeyFrom(req);
     const body = await jsonBody(req);
     return await run(ctx, body, key);
+  } catch (e) { return errorResponse(e); }
+}
+
+/**
+ * v1 1.2: a mutation of the caller's OWN sign-in security (no organisation, no MFA gate: the Security page is where a
+ * blocked member sets MFA up). Same order of checks as `mutate`: exact Origin, session, Idempotency-Key, JSON body.
+ */
+export async function mutateOwnSecurity(req: Request, run: (s: SessionInfo, body: unknown) => Promise<Response>): Promise<Response> {
+  const csrf = sameOriginOrNull(req);
+  if (csrf) return csrf;
+  try {
+    const s = await sessionFrom(req);
+    idempotencyKeyFrom(req);
+    const body = await jsonBody(req);
+    return await run(s, body);
   } catch (e) { return errorResponse(e); }
 }
 

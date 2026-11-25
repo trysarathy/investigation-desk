@@ -8,7 +8,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
-import { closeOwner, ownerDb, PASSWORD, resetAndSeed } from "./harness";
+import { closeOwner, ownerDb, PASSWORD, resetAndSeed, signInWithMfa, enrolTestTotp } from "./harness";
 import { closeDatabase } from "../../src/server/db/client";
 import { createUser, grantMembership } from "../../src/server/admin";
 import { AccessDenied, resolveTenant, type TenantContext } from "../../src/server/tenant";
@@ -54,11 +54,8 @@ const ENDPOINTS: { name: string; path: string; handler: (req: Request) => Promis
 ];
 
 async function signIn(email: string) {
-  const res = await authPOST(new Request(`${ORIGIN}/api/auth/sign-in/email`, {
-    method: "POST", headers: { "content-type": "application/json", origin: ORIGIN, "x-forwarded-for": `198.51.100.${ip++}` }, body: JSON.stringify({ email, password: PASSWORD }),
-  }));
-  expect(res.status, email).toBe(200);
-  return res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+  // v1 1.2: password, then the authenticator code when the account has MFA (tests/control/harness.ts)
+  return signInWithMfa(email, PASSWORD, `198.51.100.${ip++}`);
 }
 const call = (e: (typeof ENDPOINTS)[number], email: string, org: string) => e.handler(new Request(`${ORIGIN}${e.path}`, { headers: { cookie: `${cookies[email]}; clearline_org=${org}` } }));
 
@@ -75,7 +72,10 @@ const services = (c: TenantContext): Promise<unknown>[] => [
 beforeAll(async () => {
   await resetAndSeed();
   seed = await seedMerchantCases(ownerDb(), { password: PASSWORD });
-  for (const u of MERCHANT_SEED_USERS) users[u.email] = seed.users[u.email];
+  for (const u of MERCHANT_SEED_USERS) {
+    users[u.email] = seed.users[u.email];
+    if (u.role === "admin" || u.role === "approver") await enrolTestTotp(users[u.email]); // v1 1.2: MFA is required for them
+  }
   users[VIEWER] = await createUser(ownerDb(), { email: VIEWER, name: "Viewer (fictional)", password: PASSWORD });
   await grantMembership(ownerDb(), { orgSlug: SLUG.sg, email: VIEWER, role: "viewer" });
   const ops = await ctx("ops@straits-demo.example", "sg");

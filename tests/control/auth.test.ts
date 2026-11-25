@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
-import { closeOwner, ownerDb, PASSWORD, resetAndSeed } from "./harness";
+import { closeOwner, ownerDb, PASSWORD, resetAndSeed, signInWithMfa } from "./harness";
 import { closeDatabase } from "../../src/server/db/client";
 import { auth, currentPrincipal } from "../../src/server/auth";
 import { POST as authPOST } from "../../src/app/api/auth/[...all]/route";
@@ -71,7 +71,8 @@ describe("real sign-in (Better Auth, database sessions)", () => {
   });
 
   it("sign-out deletes the server-side session; the old cookie no longer works", async () => {
-    const c = cookieFrom(await signIn("approver@lumen.example", PASSWORD));
+    const c = await signInWithMfa("approver@lumen.example"); // v1 1.2: an Approver has MFA
+    expect(await session(c)).not.toBeNull();
     const out = await authPOST(new Request(`${ORIGIN}/api/auth/sign-out`, { method: "POST", headers: { cookie: c, origin: ORIGIN, "content-type": "application/json" }, body: "{}" }));
     expect(out.status).toBe(200);
     expect(await session(c)).toBeNull();
@@ -100,12 +101,14 @@ describe("real sign-in (Better Auth, database sessions)", () => {
     expect(statuses.slice(5)).toEqual([429, 429]);
     // while locked, even the right password is refused; another account is unaffected
     expect((await signIn("admin@lumen.example", PASSWORD)).status).toBe(429);
-    expect((await signIn("approver2@lumen.example", PASSWORD)).status).toBe(200);
+    const other = await signIn("approver2@lumen.example", PASSWORD);
+    expect(other.status).toBe(200);
+    expect((await other.json()).twoFactorRedirect).toBe(true); // v1 1.2: the password was right; the second factor comes next
   });
 
   it("a session older than 8 hours is refused even if Better Auth refreshed its expiry (absolute lifetime, review M6)", async () => {
     await revokeSessions(ownerDb(), "approver2@lumen.example"); // start from exactly one session
-    const c = cookieFrom(await signIn("approver2@lumen.example", PASSWORD));
+    const c = await signInWithMfa("approver2@lumen.example");
     expect(await session(c)).not.toBeNull();
     await ownerDb().execute(sql`update sessions set created_at = now() - interval '9 hours', expires_at = now() + interval '7 hours' where user_id = ${ids["approver2@lumen.example"]}`);
     expect(await session(c)).toBeNull();
