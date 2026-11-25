@@ -50,7 +50,7 @@ export function invitationEmail(input: { to: string; orgName: string; role: AppR
  * Create an invitation (through `create`, inside a transaction) and send its email in the same transaction: if the
  * sender refuses, the invitation is rolled back, so an invitation never exists that nobody was told about.
  */
-export async function inviteAndSend<T>(create: (t: NewToken) => Promise<T>, mail: (t: NewToken) => ReturnType<typeof invitationEmail>, sender: EmailSender = emailSender()): Promise<T> {
+export async function inviteAndSend<T>(create: (t: NewToken) => Promise<T>, mail: (t: NewToken) => ReturnType<typeof invitationEmail>, sender: EmailSender = emailSender({ required: true })): Promise<T> {
   const t = newInvitationToken();
   const out = await create(t);
   await sender.send(mail(t));
