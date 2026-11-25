@@ -127,9 +127,17 @@ export function parseCamt(input: Uint8Array | string, spec: CamtSpec, opts: Camt
     throw new IngestError("unsafe_xml", "The XML file declares a DOCTYPE or entities, which bank statements never need; it was refused for safety.");
   }
   if (xmlDepthExceeds(xml)) throw new IngestError("unsafe_xml", `The XML file nests elements more than ${MAX_XML_DEPTH} levels deep, which bank statements never need; it was refused for safety.`);
-  const valid = XMLValidator.validate(xml);
-  if (valid !== true) throw new IngestError(spec.invalid, `The file is not well-formed XML (line ${valid.err.line}: ${valid.err.msg}).`, { row: valid.err.line });
-  const doc = parser.parse(xml) as Node;
+  // v1 phase 2.1 (fuzzing): the XML library throws plain Errors on some malformed input (an unclosed processing
+  // instruction, nesting beyond its limit); every such failure is a refused file, never a crash
+  let doc: Node;
+  try {
+    const valid = XMLValidator.validate(xml);
+    if (valid !== true) throw new IngestError(spec.invalid, `The file is not well-formed XML (line ${valid.err.line}: ${valid.err.msg}).`, { row: valid.err.line });
+    doc = parser.parse(xml) as Node;
+  } catch (e) {
+    if (e instanceof IngestError) throw e;
+    throw new IngestError(spec.invalid, "The file is not well-formed XML, or nests elements too deeply for a bank statement.");
+  }
   const document = node(doc["Document"]);
   // removeNSPrefix drops xmlns attributes, so the namespace is read from the root tag itself.
   const ns = new RegExp(`<(?:[\\w.-]+:)?Document\\b[^>]*?\\sxmlns(?::[\\w.-]+)?\\s*=\\s*["']urn:iso:std:iso:20022:tech:xsd:camt\\.${spec.message}\\.001\\.(\\d{2})["']`);
