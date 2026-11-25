@@ -433,3 +433,4 @@ export * from "./onboarding-schema";
 export * from "./auth-schema";
 export * from "./provider-api-schema";
 export * from "./signoff-schema";
+export * from "./privacy-schema";

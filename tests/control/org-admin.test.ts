@@ -120,6 +120,7 @@ describe("per-merchant deletion (owner only)", () => {
 
     const r = await deleteMerchant(ownerDb(), s.slugs.a, s.slugs.a);
     expect(r).toMatchObject({ users: 6, files: 4 });
+    expect(r.retained).toBeGreaterThan(0);
     expect(JSON.stringify(r)).not.toContain(aId);
 
     expect(await mentions(aId)).toEqual({});
@@ -129,7 +130,10 @@ describe("per-merchant deletion (owner only)", () => {
 
     expect(await mentions(bId)).toEqual(bBefore);
     const totalAfter = await allCounts();
-    for (const [tb, n] of Object.entries(totalAfter)) expect(n, tb).toBe(totalBefore[tb] - (r.tables[tb] ?? 0) - (tb === "users" ? r.users : 0));
+    expect(r.residue).toEqual({});
+    // v1 5.6: the receipt and the minimal retained records are the only rows added
+    const added: Record<string, number> = { merchant_deletions: 1, retained_records: r.retained };
+    for (const [tb, n] of Object.entries(totalAfter)) expect(n, tb).toBe(totalBefore[tb] - (r.tables[tb] ?? 0) - (tb === "users" ? r.users : 0) + (added[tb] ?? 0));
     expect((await uploadPreview(finB, bUpload)).preview.rows).toHaveLength(2);
     // triggers are back on: an append-only table refuses an update again
     await expect(ownerDb().execute(sql`update audit_events set summary = 'x' where org_id = ${bId}`)).rejects.toThrow();

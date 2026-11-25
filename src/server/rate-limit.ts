@@ -37,7 +37,8 @@ export const LIMITS = {
 } as const satisfies Record<string, Rule>;
 export type Scope = keyof typeof LIMITS;
 
-function keyHash(scope: Scope, key: string): string {
+/** The stored HMAC of one key (exported for merchant deletion, which removes the counters of deleted accounts). */
+export function keyHash(scope: Scope, key: string): string {
   const secret = process.env.BETTER_AUTH_SECRET;
   if (!secret) throw new Error("BETTER_AUTH_SECRET is required");
   return createHmac("sha256", secret).update(`clearline-rate:${scope}:${key.trim().toLowerCase()}`).digest("hex");

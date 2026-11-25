@@ -456,6 +456,13 @@
       "when": 1796810000000,
       "tag": "0081_ops_health_alerts",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1796820000000,
+      "tag": "0082_privacy_retention",
+      "breakpoints": true
     }
   ]
 }
