@@ -4,9 +4,11 @@
  * schema, every non-partition relation and column, every sequence and every function, and the row-level-security
  * policies that name it (or PUBLIC). Only privileges it HAS are listed, so a new object it cannot touch adds nothing.
  *
- * The committed fixture (tests/control/fixtures/runtime-grants.json) was captured from migrations 0000–0041 at the
- * base commit 6352925, before the provisioning role existed; tests/control/provisioning.test.ts compares it with the
- * fully migrated database. Regenerate it ONLY when a reviewed migration intentionally changes the runtime grants:
+ * The committed fixture (tests/control/fixtures/runtime-grants.json) was first captured from migrations 0000–0041 at
+ * the base commit 6352925, before the provisioning role existed (B1 changed nothing in it). It was regenerated on the
+ * integrated wave 1 stack (migrations to 0069), adding only what B2 (0050/0051), A2 (0044) and B3 (0053/0054) grant
+ * on purpose (listed in the wave 1 integration commit); tests/control/provisioning.test.ts compares it with the fully
+ * migrated database. Regenerate it ONLY when a reviewed migration intentionally changes the runtime grants:
  *   CLEARLINE_TEST_OWNER_URL=... npx tsx tests/control/runtime-grants.ts > tests/control/fixtures/runtime-grants.json
  */
 import { Pool } from "pg";
