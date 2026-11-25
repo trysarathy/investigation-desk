@@ -154,12 +154,18 @@ describe("the seeded demo world", () => {
     const c1 = await batchBridge(users.finance, "B-1124-001");
     expect(c1.lines.find((l) => l.kind === "net")!.amountMinor).toBe("596124");
     expect(c1.tied).toBe(true);
+    // v1 Phase 0.5 (evidence-level split): the case numbers are unchanged. What is new is the bank evidence level, shown
+    // apart: the cases' bank lines are seeded fictional "feed" lines (counted as a feed in test mode, so settlement stays
+    // verified and the decisions are unchanged), but no line is bank-authenticated (reserved) or an imported statement a
+    // second person confirmed, so the evidence level is "none" and no case batch is "settled".
+    expect([c1.settlementVerified, c1.bankEvidence, c1.settled]).toEqual([true, "none", false]);
     const c2 = await batchBridge(users.finance, "B-1125-SGD");
     expect(c2.lines.map((l) => [l.kind, l.amountMinor])).toEqual([
       ["merchant_day", "4441230"], ["timing_prior_batch", "-297000"], ["held_by_provider", "-120000"], ["timing_next_batch", "162000"],
       ["gross", "4186230"], ["provider_fee", "-41862"], ["refund_netted", "-121500"], ["net", "4022868"],
     ]);
     expect(c2.lines.find((l) => l.kind === "held_by_provider")!.orderIds).toEqual(["BK-24871"]);
+    expect([c2.tied, c2.settlementVerified, c2.bankEvidence, c2.settled]).toEqual([true, true, "none", false]);
     const [held] = await ownerDb().select().from(t.matchRecords).where(and(eq(t.matchRecords.orgId, orgId), eq(t.matchRecords.orderId, "BK-24871")));
     expect(held.ruleId).toBe("M3.batch.held_by_provider");
     const [c3] = await ownerDb().select().from(t.matchRecords).where(and(eq(t.matchRecords.orgId, orgId), eq(t.matchRecords.orderId, "BK-25102")));
@@ -297,14 +303,17 @@ describe("demo-files", () => {
     const rulesAfter = Object.fromEntries((await db.execute(sql`select m.decision || ' ' || m.rule_id k, count(*)::int n from match_records m join invoices i on i.org_id = m.org_id and i.order_id = m.order_id where m.org_id = ${orgId} and i.entity_id = ${DEMO_ENTITY_IDS.SG} group by 1 order by 1`)).rows.map((r) => [r.k, r.n]));
     const newOrders = Object.fromEntries((await db.execute(sql`select order_id, decision, rule_id from match_records where org_id = ${orgId} and order_id like 'BK-390%' order by 1`)).rows.map((r) => [r.order_id, `${r.decision} ${r.rule_id}`]));
     const batches: Record<string, unknown> = {};
-    for (const b of ["B-SGD-20261205", "B-SGD-20261207"]) { const x = await batchBridge(users.finance, b); batches[b] = { tied: x.tied, settlementVerified: x.settlementVerified, bankLineSource: x.bankLineSource, bankLineLabel: x.bankLineLabel }; }
+    for (const b of ["B-SGD-20261205", "B-SGD-20261207"]) { const x = await batchBridge(users.finance, b); batches[b] = { tied: x.tied, settlementVerified: x.settlementVerified, bankLineSource: x.bankLineSource, bankLineLabel: x.bankLineLabel, bankEvidence: x.bankEvidence, settled: x.settled }; }
     const actual = { label: DEMO_DATA_LABEL, entityId: DEMO_ENTITY_IDS.SG, mappings: DEMO_FILE_MAPPINGS, uploads, bankLinesOnDemoDay: bankSources, run: { status: run.body.status, records: run.body.records, exceptions: run.body.exceptions, runCounts: run.body.runCounts }, decisionsBefore: before, decisionsAfter: after, rulesAfter, newOrders, batches };
     const json = JSON.parse(JSON.stringify(actual, (_k, v) => (typeof v === "bigint" ? v.toString() : v)));
     if (process.env.CLEARLINE_DEMO_FILES_RECORD === "1") writeFileSync(EXPECTED, `${JSON.stringify(json, null, 2)}\n`);
     expect(json).toEqual(JSON.parse(readFileSync(EXPECTED, "utf8")));
     // the accounting rule holds: imported statement lines tie a batch but never verify its settlement (flag off)
-    for (const b of Object.values(batches) as { tied: boolean; settlementVerified: boolean; bankLineSource: string }[]) {
+    for (const b of Object.values(batches) as { tied: boolean; settlementVerified: boolean; bankLineSource: string; bankEvidence: string; settled: boolean }[]) {
       if (b.bankLineSource === "csv_import") expect(b.settlementVerified).toBe(false);
+      // v1 Phase 0.5: never bank-authenticated; settled only when tied with second-person-confirmed evidence
+      expect(b.bankEvidence).not.toBe("bank_authenticated");
+      expect(b.settled).toBe(b.tied && b.bankEvidence === "imported_two_person_confirmed");
     }
   }, 300_000);
 });
