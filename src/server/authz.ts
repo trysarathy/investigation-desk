@@ -5,7 +5,7 @@
  */
 import type { ActorRole, WorkspaceAction } from "@/lib/clearline";
 
-export const APP_ROLES = ["admin", "payment_ops", "finance", "approver", "viewer", "provider_admin", "provider_ops"] as const;
+export const APP_ROLES = ["admin", "payment_ops", "finance", "approver", "viewer", "provider_admin", "provider_ops", "auditor"] as const;
 export type AppRole = (typeof APP_ROLES)[number];
 export const isAppRole = (r: string): r is AppRole => (APP_ROLES as readonly string[]).includes(r);
 
@@ -17,6 +17,7 @@ export const ROLE_LABELS: Record<AppRole, string> = {
   viewer: "Viewer",
   provider_admin: "Provider Admin",
   provider_ops: "Provider Ops",
+  auditor: "Auditor",
 };
 
 /** The engine's own role for this member (the engine's checks run on top of the matrix below). */
@@ -28,6 +29,7 @@ export const ENGINE_ROLE: Record<AppRole, ActorRole> = {
   viewer: "viewer",
   provider_admin: "viewer",
   provider_ops: "viewer",
+  auditor: "viewer",
 };
 
 export type Permission =
@@ -56,7 +58,8 @@ export type Permission =
   | "access_review"        // v1 phase 1.4: who has access to what, exportable for auditors — a merchant Admin, or a Provider
                            // Admin for the provider's own members
   | "manage_provider_api"  // v1 phase 2.2: connect or disable the merchant's own provider's API (secret references only) — Admin only
-  | "sign_posting_rules";  // v1 phase 4: sign a version of the posting rules (with a fresh MFA step-up) — a merchant Admin only
+  | "sign_posting_rules"   // v1 phase 4: sign a version of the posting rules (with a fresh MFA step-up) — a merchant Admin only
+  | "audit_download";      // v1 phase 4: the Auditor's evidence packs, for its granted period (and entities) only, until it expires
 
 const MATRIX: Record<Permission, readonly AppRole[]> = {
   read: ["admin", "payment_ops", "finance", "approver", "viewer"],
@@ -83,6 +86,7 @@ const MATRIX: Record<Permission, readonly AppRole[]> = {
   ledger_connect: ["admin"],
   manage_provider_api: ["admin"],
   sign_posting_rules: ["admin"],
+  audit_download: ["auditor"],
 };
 
 export const can = (role: AppRole, p: Permission): boolean => MATRIX[p].includes(role);

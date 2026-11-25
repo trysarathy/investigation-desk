@@ -716,12 +716,17 @@ async function packPdf(p: Pack): Promise<Uint8Array> {
   return doc.save({ useObjectStreams: false });
 }
 
+/** The evidence pack's file in one format (the same bytes for every role that may download it). */
+export async function renderPack(p: Pack, format: z.infer<typeof PackFormat>): Promise<string | Uint8Array> {
+  return format === "json" ? JSON.stringify(p, null, 2) + "\n" : format === "csv" ? packCsv(p) : await packPdf(p);
+}
+
 /** rc8 founder decision 3: Finance, an Approver or an Admin only (merchant_export), whatever the scope. */
 export async function evidencePack(ctx: TenantContext, scope: PackScope, format: z.infer<typeof PackFormat>) {
   require(ctx, "merchant_export");
   return tenantTx(ctx, async (tx) => {
     const p = await packData(tx, ctx, scope);
-    const body: string | Uint8Array = format === "json" ? JSON.stringify(p, null, 2) + "\n" : format === "csv" ? packCsv(p) : await packPdf(p);
+    const body = await renderPack(p, format);
     const digest = sha256(body);
     const id = scope.kind === "payment" ? scope.orderId : `${scope.entityId}-${scope.month}`;
     await serverAudit(tx, ctx, "merchant_evidence_pack_exported", scope.kind === "payment" ? "payment" : "merchant_entity", scope.kind === "payment" ? scope.orderId : scope.entityId, `Evidence pack exported (${format}, ${id}, sha256 ${digest.slice(0, 12)}…)`, { sha256: digest, format, scope });
