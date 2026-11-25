@@ -46,11 +46,19 @@ describe("per-payment settlement lines tie a totals-only batch", () => {
     expect(bridge(i)).toMatchObject({ tied: true, settlementVerified: true, checks: { perPaymentLines: true, linesEqualGross: true, netEqualsBankLine: true } });
     expect(verdict(i)).toBe("matched M5.batch.tied_verified");
   });
-  it("an imported bank line keeps 'imported, not bank-authenticated': tied, never verified, review (flag off)", () => {
+  // v1 Phase 0.5 (decisions 12–16, evidence-level split): this exact payment used to stay in review
+  // (M5.bank.imported_not_verified) only because the bank line is imported. It is now matched by reference, and the bank
+  // side is shown apart: settlement is still never verified by an imported line while the flag is off.
+  it("an imported bank line keeps 'imported, not bank-authenticated': tied, never verified; the exact payment is matched with its evidence shown apart (flag off)", () => {
     const i = perPayment({ bank: "csv_import" });
-    expect(bridge(i)).toMatchObject({ tied: true, settlementVerified: false, bankLineLabel: "imported, not bank-authenticated" });
-    expect(verdict(i)).toBe("suggested_for_review M5.bank.imported_not_verified");
+    expect(bridge(i)).toMatchObject({ tied: true, settlementVerified: false, bankLineLabel: "imported, not bank-authenticated", bankEvidence: "none", settled: false });
+    expect(verdict(i)).toBe("matched M5.batch.tied_evidence_separate");
+    const confirmed = { ...i, bankLines: i.bankLines.map((b) => ({ ...b, secondPersonConfirmed: true as const })) };
+    expect(bridge(confirmed)).toMatchObject({ tied: true, settlementVerified: false, bankEvidence: "imported_two_person_confirmed", settled: true });
+    expect(reconcile(confirmed).records.find((x) => x.orderId === ORDER)!.bank).toMatchObject({ evidence: "imported_two_person_confirmed", settled: true, settlementVerified: false });
+    // the flag verifies settlement (as before) but never raises the evidence level
     expect(verdict({ ...i, policy: { ...i.policy, allowImportedBankLinesAsVerified: true } })).toBe("matched M5.batch.tied_verified");
+    expect(bridge({ ...i, policy: { ...i.policy, allowImportedBankLinesAsVerified: true } })).toMatchObject({ settlementVerified: true, bankEvidence: "none", settled: false });
   });
 });
 
@@ -131,7 +139,11 @@ describe("#174 refund rows: a batch with refunds ties only when every row adds u
     expect(verdict(i)).toBe("matched M5.batch.tied_verified");
   });
   it("imported bank line: still never verified with the flag off", () => {
-    expect(verdict(withRefund({ bank: "csv_import" }))).toBe("suggested_for_review M5.bank.imported_not_verified");
+    // v1 Phase 0.5 (evidence-level split, integration with #174): the exact payment is matched by reference with its
+    // bank evidence shown apart; the batch is never "settlement verified" nor settled from an unconfirmed import
+    const i = withRefund({ bank: "csv_import" });
+    expect(verdict(i)).toBe("matched M5.batch.tied_evidence_separate");
+    expect(bridge(i)).toMatchObject({ tied: true, settlementVerified: false, bankEvidence: "none", settled: false });
   });
   it("before #174: the same batch without the refund row cannot tie (the refund is unnamed): not matched", () => {
     const i = withRefund({ row: null });

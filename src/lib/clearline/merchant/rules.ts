@@ -47,7 +47,9 @@ export const RULES = {
   "M5.bridge.held_by_provider": { step: 5, text: "Payments held by the provider are bridged out of the merchant day." },
   "M5.batch.currency_mismatch": { step: 5, text: "v1 (decision 9): a batch is evaluated in its own currency (an other-currency bank account's, e.g. USD under an SGD entity). A payment in another currency than its batch, or a bank line naming the batch in another currency, is an exception: amounts are never converted to tie." },
   "M5.batch.not_tied": { step: 5, text: "A batch ties only when gross − fees − refunds = net = the bank line, to the cent; otherwise exception." },
-  "M5.bank.imported_not_verified": { step: 5, text: "A csv_import bank line alone never makes settlement verified (unless the policy allows it)." },
+  "M5.bank.imported_not_verified": { step: 5, text: "A csv_import bank line alone never makes settlement verified (unless the policy allows it). Since v1 Phase 0.5 an exact payment (matched at step 4) is no longer held by it (M5.batch.tied_evidence_separate; the rule is then recorded as a note); a payment with any difference is still held in review by it." },
+  // v1 Phase 0.5 (founder decisions 12–16): the evidence-level split
+  "M5.batch.tied_evidence_separate": { step: 5, text: "An exact payment in a batch that ties to the cent, whose bank line is imported (not bank-authenticated): matched. Settlement is not verified; the bank evidence level (none, or imported and confirmed by a second person) is shown apart and never raises the match." },
   "M5.grouping.proposed_needs_confirmation": { step: 5, text: "No batch ID: a grouping is only proposed and never auto-closed." },
   "M5.batch.tied_verified": { step: 5, text: "An exact payment in a tied, verified batch is matched at step 5." },
 } as const satisfies Record<string, { step: Step; text: string }>;

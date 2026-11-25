@@ -29,10 +29,17 @@ export function blindInput(world: SyntheticWorld, entityId: string, o: BlindInpu
   };
 }
 
-/** One row per payment of each batch (the generator's own settlement), its fee allocated so the rows sum to the batch fee. */
-export function perPaymentLines(world: SyntheticWorld, input: ReconcileInput): SettlementPaymentLine[] {
+/**
+ * One row per payment of each batch (the generator's own settlement), its fee allocated so the rows sum to the batch fee.
+ * With `refunds` (v1 #174), also one refund row per refund the batch nets: kind "refund", the ORIGINAL payment's ID, its
+ * own refund ID, the amount returned as a negative gross and net, fee 0.
+ */
+export function perPaymentLines(world: SyntheticWorld, input: ReconcileInput, refunds = false): SettlementPaymentLine[] {
   const out: SettlementPaymentLine[] = [];
+  const paymentOf = new Map(world.batchLines.filter((l) => l.kind === "payment").map((l) => [l.orderId, l.providerPaymentId!]));
   for (const b of input.batches) {
+    if (refunds) for (const r of world.refunds.filter((x) => x.batchId === b.batchId).sort((x, y) => (x.refundId < y.refundId ? -1 : 1)))
+      out.push({ batchId: b.batchId, kind: "refund", refundId: r.refundId, providerPaymentId: paymentOf.get(r.orderId)!, orderId: r.orderId, currency: b.currency, grossMinor: -r.amountMinor, feeMinor: 0n, netMinor: -r.amountMinor, settlementDate: b.providerDay });
     const pays = world.batchLines.filter((l) => l.batchId === b.batchId && l.kind === "payment").sort((x, y) => (x.providerPaymentId! < y.providerPaymentId! ? -1 : 1));
     let left = b.feesMinor;
     pays.forEach((p, k) => {

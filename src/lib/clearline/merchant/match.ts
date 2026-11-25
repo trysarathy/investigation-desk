@@ -118,7 +118,7 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput, am
       orderId: inv.orderId,
       chain: { transfers: states.filter((s) => !s.pending).map((s) => view(s, input)), pending: states.filter((s) => s.pending).map((s) => refOf(s.t)) },
       provider: { records, note: "provider statuses are claims, not proof" },
-      bank: { status: held ? "held_by_provider" : batchIds.length ? "in_batch" : "not_in_batch", batchIds, bankLineIds: [], batchTied: false, settlementVerified: false, bankLineLabels: [] },
+      bank: { status: held ? "held_by_provider" : batchIds.length ? "in_batch" : "not_in_batch", batchIds, bankLineIds: [], batchTied: false, settlementVerified: false, bankLineLabels: [], evidence: "none", settled: false },
       ledger: {
         ...ledgerAmounts, creditedMinor: credited, balanceState, balanceLabel: BALANCE_LABEL[balanceState], ...(fiat ? { fiatValue: fiat } : {}),
       },
