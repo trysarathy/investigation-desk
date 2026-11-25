@@ -14,7 +14,7 @@ export default defineConfig({
   testDir: "./tests/browser",
   testMatch: "clearline-*.spec.ts",
   timeout: 60000,
-  retries: 1,
+  retries: 0,
   workers: 2,
   use: { baseURL: "http://127.0.0.1:3184", trace: "retain-on-failure", screenshot: "only-on-failure", launchOptions },
   projects: [

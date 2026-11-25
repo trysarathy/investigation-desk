@@ -691,6 +691,7 @@ test("every console page has unique landmarks; axe finds no violations (axe-core
     const dup = await duplicateLandmarks(page);
     expect(dup, `${path} duplicate landmarks`).toEqual([]);
     {
+      await page.waitForFunction(() => document.title.trim().length > 0); // the <title> streams in just after hydration
       await page.evaluate(axe); // evaluated over CDP: the nonce CSP (rc3) blocks injected inline <script> tags
       const v = await page.evaluate(async () => {
         const r = await (window as unknown as { axe: { run: (o: unknown) => Promise<{ violations: { id: string; impact: string; nodes: unknown[] }[] }> } }).axe.run({ resultTypes: ["violations"] });
