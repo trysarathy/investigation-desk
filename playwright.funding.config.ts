@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { defineConfig } from '@playwright/test';
+import { testDeployEnv } from './tests/deploy-env';
 
 // Local containers ship a preinstalled Chromium (as in the other configs); CI installs its own.
 const preinstalled = [process.env.CLEARLINE_PW_CHROMIUM, '/opt/pw-browsers/chromium-1243/chrome-linux64/chrome'].find((p) => p && existsSync(p));
@@ -30,5 +31,7 @@ export default defineConfig({
     reuseExistingServer: false,
     stdout: 'pipe' as const,
     stderr: 'pipe' as const,
+    // v1 #165: a production server refuses to start without CLEARLINE_DEPLOY_ENV (start-funding-server.mjs passes it on)
+    env: { CLEARLINE_DEPLOY_ENV: testDeployEnv() },
   })),
 });

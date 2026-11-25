@@ -3,7 +3,8 @@
  * set (src/server/test-build.ts): recorded chain data must never reach a live organisation. A demo build may start with
  * one (it refuses it per call for every non-demo organisation), but refuses to start with live chain reads or the
  * ledger pull on (src/server/demo-build.ts). v1: a demo or test build never starts as a staging or production
- * deployment (CLEARLINE_DEPLOY_ENV; src/server/deploy-guard.ts).
+ * deployment (CLEARLINE_DEPLOY_ENV; src/server/deploy-guard.ts). v1 #165: with NODE_ENV=production (`next start`) the server
+ * refuses to start when CLEARLINE_DEPLOY_ENV is unset (docs/runbooks/DEPLOY_ENV.md).
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;

@@ -1,5 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import { existsSync } from "node:fs";
+import { testDeployEnv } from "./tests/deploy-env";
 
 // Use a preinstalled Chromium when Playwright's own pinned build is absent (no download in some sandboxes).
 // CI runs `npx playwright install chromium` and uses Playwright's build. Set CLEARLINE_PW_CHROMIUM to a chrome binary
@@ -26,7 +27,7 @@ export default defineConfig({
     url: "http://127.0.0.1:3184/clearline",
     timeout: 120000,
     reuseExistingServer: false,
-    env: { CLEARLINE_CUSTOMER_PREVIEW: "1", NEXT_TELEMETRY_DISABLED: "1" },
+    env: { CLEARLINE_CUSTOMER_PREVIEW: "1", NEXT_TELEMETRY_DISABLED: "1", CLEARLINE_DEPLOY_ENV: testDeployEnv() },
   },
   reporter: [["line"]],
 });

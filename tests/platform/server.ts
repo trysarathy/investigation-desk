@@ -8,6 +8,7 @@ import http from "node:http";
 import net from "node:net";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { testDeployEnv } from "../deploy-env";
 
 export const PORT = 3284;
 export const BASE = `http://127.0.0.1:${PORT}`;
@@ -30,7 +31,8 @@ export const MODE_ENV: Record<Mode, Record<string, string>> = {
 function baseEnv(extra: Record<string, string>): NodeJS.ProcessEnv {
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined && !MODE_KEYS.includes(k)) env[k] = v;
-  return { ...env, NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1", ...extra } as NodeJS.ProcessEnv;
+  // v1 #165: a production server refuses to start without CLEARLINE_DEPLOY_ENV (a mode may still override it)
+  return { ...env, NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1", CLEARLINE_DEPLOY_ENV: testDeployEnv(), ...extra } as NodeJS.ProcessEnv;
 }
 
 export type Server = { pid: number; output: () => string; stop: () => Promise<void> };

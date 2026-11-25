@@ -103,7 +103,7 @@ The demo (`npm run demo`) lives in the same tree, but it can never be part of a 
 3. **Start-up refusal** (`src/server/deploy-guard.ts`): a demo or test build refuses to start with `NODE_ENV=production` and `CLEARLINE_DEPLOY_ENV=staging|production`; `next.config.mjs` refuses to make one for those environments.
 4. **Runtime gates already in place**: demo routes answer 404 outside a demo build; in a demo build every demo convenience applies only to an organisation whose `data_mode` is `demo`, which only the schema owner can set.
 
-Set `CLEARLINE_DEPLOY_ENV=staging` (or `production`) on every real deployment so that check 3 is active. [ASSUMPTION: no deployment sets it today; it is new in v1.]
+Set `CLEARLINE_DEPLOY_ENV=staging` (or `production`) on every real deployment so that check 3 is active. [ASSUMPTION: no deployment sets it today; it is new in v1.] **Decided (v1 #165):** it is required: a production server refuses to start without it (docs/runbooks/DEPLOY_ENV.md); local, CI and demo flows set `local`, `ci` or `demo`.
 
 ## Steps (founder, after independent review; Claude does not run these)
 

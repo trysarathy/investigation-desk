@@ -8,8 +8,17 @@
  * (src/instrumentation.ts), whatever else the environment says. The production build gate
  * (`npm run build:prod-check`) proves the plain build has neither; this check stops a wrong artefact from starting.
  * A misspelt CLEARLINE_DEPLOY_ENV also refuses, so a typo can never switch the check off.
+ *
+ * v1 #165 (founder decision): CLEARLINE_DEPLOY_ENV is REQUIRED whenever the server runs with NODE_ENV=production
+ * (`next start`, whatever the build): an unset or empty value refuses to start, so a real deployment can never run
+ * without saying it is one. Local runs, CI and the demo set it explicitly (local, ci, demo); `next dev` and the unit
+ * tests (NODE_ENV development / test) are unaffected. See docs/runbooks/DEPLOY_ENV.md.
  */
 export const DEPLOY_ENVS = ["local", "ci", "demo", "staging", "production"] as const;
+
+/** v1 #165: the message when a production server starts without CLEARLINE_DEPLOY_ENV (names no secret). */
+export const DEPLOY_ENV_REQUIRED = "CLEARLINE_DEPLOY_ENV is not set. A production server (NODE_ENV=production, `next start`) must say where it runs: "
+  + "set CLEARLINE_DEPLOY_ENV=production or staging on a real deployment, or local, ci or demo for a local run, CI or the demo. See docs/runbooks/DEPLOY_ENV.md.";
 
 export class DeployBuildRefused extends Error {
   readonly code = "DEPLOY_BUILD_REFUSED";
@@ -25,8 +34,9 @@ export function buildFlags(): { demo: boolean; test: boolean } {
 export function deployBuildProblem(env: Record<string, string | undefined>, flags = buildFlags()): string | null {
   const deploy = env.CLEARLINE_DEPLOY_ENV;
   if (deploy !== undefined && deploy !== "" && !(DEPLOY_ENVS as readonly string[]).includes(deploy)) {
-    return `CLEARLINE_DEPLOY_ENV is ${JSON.stringify(deploy)}; use one of ${DEPLOY_ENVS.join(", ")} (or unset it for local).`;
+    return `CLEARLINE_DEPLOY_ENV is ${JSON.stringify(deploy)}; use one of ${DEPLOY_ENVS.join(", ")}.`;
   }
+  if (env.NODE_ENV === "production" && (deploy === undefined || deploy === "")) return DEPLOY_ENV_REQUIRED;
   if (env.NODE_ENV !== "production" || (deploy !== "staging" && deploy !== "production")) return null;
   const made = [flags.demo ? "CLEARLINE_DEMO_BUILD=1" : null, flags.test ? "CLEARLINE_TEST_BUILD=1" : null].filter(Boolean);
   if (made.length === 0) return null;

@@ -16,4 +16,6 @@ COPY --from=build /app/.next ./.next
 RUN mkdir .data && chown node:node .data
 USER node
 EXPOSE 3000
+# v1 #165: CLEARLINE_DEPLOY_ENV is deliberately not set here; the server refuses to start until the deployer sets it
+# (demo for a preview: docker run -e CLEARLINE_DEPLOY_ENV=demo ...). See docs/runbooks/DEPLOY_ENV.md.
 CMD ["npx", "next", "start", "-p", "3000"]

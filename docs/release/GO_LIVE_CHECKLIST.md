@@ -3,6 +3,12 @@
 > **Status: incomplete. This checklist will be completed in Phase 8.** Items are added as decisions are made; an item
 > here is a reminder, not evidence that it was done. Tick an item only with the date, who did it and the evidence.
 
+## Deployment
+
+- [ ] **`CLEARLINE_DEPLOY_ENV` is set on every real deployment** (v1 #165): `staging` or `production`. A production
+      server (`next start`, `NODE_ENV=production`) refuses to start without it. Local, CI and demo flows set `local`,
+      `ci` or `demo` explicitly. See docs/runbooks/DEPLOY_ENV.md.
+
 ## Database
 
 - [ ] **chain_reads partitions 24 months ahead** (v1 #169): the owner runs `chain-read-partitions` monthly

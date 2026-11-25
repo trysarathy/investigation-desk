@@ -164,6 +164,8 @@ export function appEnv(s: DemoState): NodeJS.ProcessEnv {
   return {
     ...process.env,
     NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1",
+    // v1 #165: a production server says where it runs; the demo is "demo" (a demo build never serves staging or production)
+    CLEARLINE_DEPLOY_ENV: "demo",
     CLEARLINE_DEMO_BUILD: "1", CLEARLINE_CONTROL_PILOT: "1", CLEARLINE_DIST_DIR: DIST,
     DATABASE_URL: loginUrl(s, "runtime"), BETTER_AUTH_SECRET: s.authSecret, CLEARLINE_ORIGIN: ORIGIN,
     CLEARLINE_CHAIN_RECORDING: RECORDING, CLEARLINE_UPLOAD_DIR: UPLOADS, CLEARLINE_UPLOAD_KEY: s.uploadKey,

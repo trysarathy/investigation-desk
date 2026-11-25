@@ -1,6 +1,6 @@
 """End-to-end test of the customer demo, cases a-g, in a real browser (Playwright, Chromium).
 
-    npm run build && DESK_DATA_DIR=/tmp/demo-data npx next start -p 3300
+    npm run build && CLEARLINE_DEPLOY_ENV=local DESK_DATA_DIR=/tmp/demo-data npx next start -p 3300
     python3 tests/e2e/demo_cases.py [out_dir]          # BASE=http://localhost:3300 by default
 
 Each case: load the demo day -> open the case -> the verdict, evidence, next step and reply are

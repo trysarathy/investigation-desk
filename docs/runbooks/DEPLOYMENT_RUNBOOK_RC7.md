@@ -34,6 +34,8 @@ export CLEARLINE_CONTROL_PILOT=1 CLEARLINE_ORIGIN=http://127.0.0.1:3000 \
        DATABASE_URL=postgres://clearline_runtime:<runtime-password>@127.0.0.1:54329/clearline_rc7 \
        CLEARLINE_UPLOAD_DIR=.data/uploads \
        CLEARLINE_UPLOAD_KEY="$(openssl rand -base64 32)"
+# v1 #165: required at start; `staging` or `production` on a real deployment (docs/runbooks/DEPLOY_ENV.md)
+export CLEARLINE_DEPLOY_ENV=local
 npx next build && npx next start -H 127.0.0.1 -p 3000
 # open http://127.0.0.1:3000/control/merchant/uploads
 

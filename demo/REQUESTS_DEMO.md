@@ -9,7 +9,7 @@
 ```
 npm ci
 npm run build
-npx next start            # http://localhost:3000 · demo mode is on by default · no keys, no network
+CLEARLINE_DEPLOY_ENV=local npx next start            # http://localhost:3000 · demo mode is on by default · no keys, no network
 ```
 
 1. Open `http://localhost:3000`. It opens on **At a glance**.

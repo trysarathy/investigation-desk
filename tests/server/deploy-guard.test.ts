@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { assertDeployableBuild, buildFlags, deployBuildProblem, DeployBuildRefused } from "@/server/deploy-guard";
+import { assertDeployableBuild, buildFlags, DEPLOY_ENV_REQUIRED, deployBuildProblem, DeployBuildRefused } from "@/server/deploy-guard";
 
 const env = { ...process.env };
 afterEach(() => { process.env = { ...env }; });
@@ -33,7 +33,7 @@ describe("server start: demo and test builds never serve staging or production",
   });
   it("a demo build still starts locally, for the demo, in CI and outside NODE_ENV=production", () => {
     build({ demo: true });
-    for (const d of [undefined, "", "local", "demo", "ci"]) expect(deployBuildProblem(prod(d))).toBeNull();
+    for (const d of ["local", "demo", "ci"]) expect(deployBuildProblem(prod(d))).toBeNull();
     expect(deployBuildProblem({ NODE_ENV: "development", CLEARLINE_DEPLOY_ENV: "production" })).toBeNull();
     build({ test: true });
     expect(deployBuildProblem(prod("ci"))).toBeNull();
@@ -57,6 +57,40 @@ describe("server start: demo and test builds never serve staging or production",
     const flags = readFileSync(path.resolve(__dirname, "../../src/server/deploy-guard.ts"), "utf8");
     expect(flags).toMatch(/process\.env\.CLEARLINE_DEMO_BUILD === "1"/);
     expect(flags).toMatch(/process\.env\.CLEARLINE_TEST_BUILD === "1"/);
+  });
+});
+
+describe("v1 #165: CLEARLINE_DEPLOY_ENV is required for a production server", () => {
+  it("NODE_ENV=production with CLEARLINE_DEPLOY_ENV unset or empty refuses to start, in every build, with a clear message", () => {
+    for (const flags of [{}, { demo: true }, { test: true }]) {
+      build(flags);
+      for (const d of [undefined, ""]) {
+        expect(() => assertDeployableBuild(prod(d))).toThrow(DeployBuildRefused);
+        expect(deployBuildProblem(prod(d))).toBe(DEPLOY_ENV_REQUIRED);
+      }
+    }
+    expect(DEPLOY_ENV_REQUIRED).toMatch(/CLEARLINE_DEPLOY_ENV is not set/);
+    expect(DEPLOY_ENV_REQUIRED).toMatch(/production or staging on a real deployment, or local, ci or demo/);
+  });
+  it("every named environment starts a plain build; next dev and tests (not NODE_ENV=production) need none", () => {
+    build({});
+    for (const d of ["local", "ci", "demo", "staging", "production"]) expect(deployBuildProblem(prod(d))).toBeNull();
+    for (const n of ["development", "test", undefined]) expect(deployBuildProblem({ NODE_ENV: n })).toBeNull();
+  });
+  it("test servers say local or ci, never staging, production or demo", async () => {
+    const { testDeployEnv } = await import("../deploy-env");
+    expect(testDeployEnv({})).toBe("local");
+    expect(testDeployEnv({ CI: "true" })).toBe("ci");
+    expect(testDeployEnv({ CLEARLINE_DEPLOY_ENV: "ci" })).toBe("ci");
+    for (const v of ["production", "staging", "demo", "prod"]) expect(() => testDeployEnv({ CLEARLINE_DEPLOY_ENV: v })).toThrow(/local or ci/);
+  });
+  it("every Playwright web server, spawned test server, the demo and every CI job set it", () => {
+    const read = (f: string) => readFileSync(path.resolve(__dirname, "../..", f), "utf8");
+    for (const f of ["playwright.clearline.config.ts", "playwright.rc3-console.config.ts", "playwright.mentor.config.ts", "playwright.funding.config.ts", "tests/qa-release-v2/playwright.qa-v2.config.ts",
+      "tests/e2e-control/env.ts", "tests/e2e-merchant/env.ts", "tests/platform/server.ts"]) expect(read(f), f).toMatch(/CLEARLINE_DEPLOY_ENV: testDeployEnv\(\)/);
+    expect(read("scripts/demo/lib.ts")).toMatch(/CLEARLINE_DEPLOY_ENV: "demo"/);
+    for (const f of ["ci.yml", "clearline-browser.yml", "control-e2e.yml", "funding-browser.yml", "funding-replay.yml", "mentor-browser.yml", "merchant-e2e.yml"])
+      expect(read(`.github/workflows/${f}`), f).toMatch(/CLEARLINE_DEPLOY_ENV: ci/);
   });
 });
 

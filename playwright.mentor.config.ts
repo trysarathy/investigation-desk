@@ -1,4 +1,5 @@
 import { defineConfig } from "@playwright/test";
+import { testDeployEnv } from "./tests/deploy-env";
 
 export default defineConfig({
   testDir: "./tests/browser",
@@ -22,5 +23,7 @@ export default defineConfig({
     reuseExistingServer: false,
     stdout: "pipe",
     stderr: "pipe",
+    // v1 #165: a production server refuses to start without CLEARLINE_DEPLOY_ENV
+    env: { CLEARLINE_DEPLOY_ENV: testDeployEnv() },
   },
 });
