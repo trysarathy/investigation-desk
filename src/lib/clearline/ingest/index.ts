@@ -28,6 +28,7 @@ export {
 export { parseMt940, type Mt940Options } from "./bank/mt940";
 export { parseCamt053, type Camt053Options } from "./bank/camt053";
 export { parseCamt054, type Camt054Options } from "./bank/camt054";
+export { parseBai2, type Bai2Options } from "./bank/bai2";
 export { BANK_CURRENCY_DECIMALS, currencyPrecision } from "./bank/currency";
 export {
   assignLineIds, expectedClosing,
