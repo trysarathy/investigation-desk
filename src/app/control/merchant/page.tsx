@@ -94,7 +94,7 @@ export default async function DailyReportPage({ searchParams }: { searchParams: 
                     {perEntity.map(({ e, r }) => (
                       <tr key={e.id}>
                         <td><a href={`/control/merchant${q({ entity: e.id, date })}`}>{e.name}</a> <span className={s.mono}>{e.id}</span></td>
-                        <td className={s.num}>{r.payments}</td><td className={s.num}>{r.settlementsTied} of {r.settlements}</td><td className={s.num}>{r.exceptions}</td><td className={s.num}>{r.writeoffsAwaitingApproval}</td>
+                        <td className={s.num}>{r.payments}</td><td className={s.num}>{r.settlementsTied} of {r.settlements}<br /><span className={s.small}>{r.settlementsSettled} settled</span></td><td className={s.num}>{r.exceptions}</td><td className={s.num}>{r.writeoffsAwaitingApproval}</td>
                         <td>{e.timezone}</td>
                       </tr>
                     ))}

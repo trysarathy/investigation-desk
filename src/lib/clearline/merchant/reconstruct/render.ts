@@ -84,7 +84,7 @@ export function reportHtml(r: ReconstructionReport): string {
   s.push(`<section aria-labelledby="h-bridges"><h2 id="h-bridges">Bridge per batch</h2>`);
   if (!r.bridges.length) s.push(`<p>No settlement batch.</p>`);
   for (const b of r.bridges) {
-    s.push(`<h3>Batch ${esc(b.batchId)}</h3><p class="muted">Merchant day ${esc(b.merchantDay)} (${esc(b.merchantTimeZone)}); provider day ${esc(b.providerDay)} (${esc(b.providerTimeZone)}). Bank line ${esc(b.bankLineId ?? "none")}${b.bankLineLabel ? ` (${esc(b.bankLineLabel)})` : ""}. Tied: ${yesNo(b.tied)}. Settlement verified: ${yesNo(b.settlementVerified)}; once the bank line is confirmed: ${yesNo(b.settlementVerifiedOnceBankConfirmed)}.</p>`);
+    s.push(`<h3>Batch ${esc(b.batchId)}</h3><p class="muted">Merchant day ${esc(b.merchantDay)} (${esc(b.merchantTimeZone)}); provider day ${esc(b.providerDay)} (${esc(b.providerTimeZone)}). Bank line ${esc(b.bankLineId ?? "none")}${b.bankLineLabel ? ` (${esc(b.bankLineLabel)})` : ""}. Tied: ${yesNo(b.tied)}. Settlement verified: ${yesNo(b.settlementVerified)}; once the bank line is confirmed: ${yesNo(b.settlementVerifiedOnceBankConfirmed)}. ${esc(b.bankEvidenceLabel)}.</p>`);
     s.push(table(`Bridge for ${b.batchId}`, ["Line", "Amount", "Reason"], b.lines.map((l) => [esc(l.label), esc(l.amount), esc(l.reason)]), [1]));
     s.push(table(`Checks for ${b.batchId}`, ["Check", "Holds"], b.checks.map((c) => [esc(c.check), yesNo(c.ok)])));
   }

@@ -2,7 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
-import { MERCHANT_ACCOUNTS, fmtFiat, localDate, reconcile, type FiatCurrency } from "@/lib/clearline/merchant";
+import { BANK_EVIDENCE_LABEL, BANK_EVIDENCE_SHORT, MERCHANT_ACCOUNTS, fmtFiat, localDate, reconcile, type BankEvidenceLevel, type FiatCurrency } from "@/lib/clearline/merchant";
 import { safeTheme, type SafeTheme } from "@/lib/clearline/merchant/theme";
 import { splitDifferences } from "@/lib/clearline/merchant/difference-rows";
 import { NEEDS_A_RATE, NEEDS_RATE_STATUS, differenceNeedsRate, ledgerWire, minorOrNull } from "@/lib/clearline/merchant/fiat-value";
@@ -50,7 +50,11 @@ async function load(tx: Tx, ctx: TenantContext, entityId: string) {
 
 export interface StoredTransfer { network: string; txHash: string; logIndex: number; timestamp: string; to: string; from: string; symbol: string; tokenContract: string; amountBaseUnits: string; decimals: number; confirmations: number; block: number; senderFacts: string[]; quoteId?: string; linkId?: string }
 export interface StoredProviderRecord { providerPaymentId: string; statusClaim: string; displayedStatus?: string; creditedMinor: string; receivedBaseUnits: string; executedRate: string; feeMinor?: string; batchId?: string; ref: { quoteId?: string; linkId?: string } }
-export interface StoredBank { status: string; batchIds: string[]; bankLineIds: string[]; batchTied: boolean; settlementVerified: boolean; bankLineLabels: string[] }
+export interface StoredBank {
+  status: string; batchIds: string[]; bankLineIds: string[]; batchTied: boolean; settlementVerified: boolean; bankLineLabels: string[];
+  /** v1 Phase 0.5: from the match record's own columns (migration 0042; 'none' for rows decided before it). */
+  evidence: BankEvidenceLevel; evidenceLabel: string; settled: boolean;
+}
 export interface StoredLedger {
   invoice: { orderId: string; amountMinor: string; currency: string; entityId: string; status: string; price?: { token: { network: string; contract: string }; baseUnits: string } };
   creditedMinor: string; openBalanceMinor: string; customerOverpaymentMinor: string; balanceState: string; balanceLabel: string;
@@ -64,7 +68,7 @@ export function partsOf(m: typeof t.matchRecords.$inferSelect) {
   return {
     chain: m.chain as { transfers: StoredTransfer[]; pending: { network: string; txHash: string; logIndex: number }[] },
     provider: m.provider as { records: StoredProviderRecord[]; note: string },
-    bank: m.bank as StoredBank,
+    bank: { ...(m.bank as Omit<StoredBank, "evidence" | "evidenceLabel" | "settled">), evidence: m.bankEvidence, evidenceLabel: BANK_EVIDENCE_LABEL[m.bankEvidence], settled: m.settled } as StoredBank,
     ledger: m.ledger as StoredLedger,
     explanation: m.explanation as StoredExplanation,
   };
@@ -130,6 +134,7 @@ export async function overviewCounts(ctx: TenantContext) {
     const ent = (col: string) => sc === null ? sql`` : sql` and ${sql.raw(col)} = any(${arr})`;
     const ord = (alias: string) => sc === null ? sql`` : sql` and exists (select 1 from invoices i where i.org_id = ${sql.raw(alias)}.org_id and i.order_id = ${sql.raw(alias)}.order_id and i.entity_id = any(${arr}))`;
     const decisions = (await tx.execute(sql`select decision, count(*)::int as n from match_records m where org_id = ${o}${ord("m")} group by decision`)).rows as { decision: string; n: number }[];
+    const evidence = (await tx.execute(sql`select bank_evidence, count(*)::int as n from match_records m where org_id = ${o}${ord("m")} group by bank_evidence`)).rows as { bank_evidence: BankEvidenceLevel; n: number }[];
     return {
       providerRecords: await n(sql`select count(*)::int as n from provider_payment_records r where org_id = ${o}${sc === null ? sql`` : sql` and (exists (select 1 from merchant_quotes q join invoices i on i.org_id = q.org_id and i.order_id = q.order_id where q.org_id = r.org_id and q.quote_id = r.quote_id and i.entity_id = any(${arr})) or exists (select 1 from payment_links l join invoices i on i.org_id = l.org_id and i.order_id = l.order_id where l.org_id = r.org_id and l.link_id = r.link_id and i.entity_id = any(${arr})))`}`),
       chainTransfers: await n(sql`select count(*)::int as n from chain_transfers where org_id = ${o} and source <> 'provider_export'${ent("entity_id")}`),
@@ -137,6 +142,8 @@ export async function overviewCounts(ctx: TenantContext) {
       batches: await n(sql`select count(*)::int as n from settlement_batches where org_id = ${o}${ent("entity_id")}`),
       bankLines: await n(sql`select count(*)::int as n from bank_lines where org_id = ${o}${ent("entity_id")}`),
       decisions: Object.fromEntries(decisions.map((d) => [d.decision, d.n])) as Partial<Record<"matched" | "matched_with_difference" | "suggested_for_review" | "exception", number>>,
+      /** v1 Phase 0.5: payments by bank evidence level (shown apart from the decisions). */
+      bankEvidence: Object.fromEntries(evidence.map((d) => [d.bank_evidence, d.n])) as Partial<Record<BankEvidenceLevel, number>>,
     };
   });
 }
@@ -162,13 +169,14 @@ export async function listBatches(ctx: TenantContext) {
   return tenantRead(ctx, async (tx) => {
     const bs = (await tx.select().from(t.settlementBatches).where(eq(t.settlementBatches.orgId, ctx.orgId)).orderBy(asc(t.settlementBatches.dayStart), asc(t.settlementBatches.batchId))).filter((b) => inEntityScope(ctx, b.entityId));
     const ids = [...new Set(bs.map((b) => b.entityId).filter((x): x is string => !!x))];
-    const bridges = new Map<string, { tied: boolean; settlementVerified: boolean; bankLineId: string | null }>();
-    for (const id of ids) for (const b of reconcile(await load(tx, ctx, id)).bridges) bridges.set(b.batchId, { tied: b.tied, settlementVerified: b.settlementVerified, bankLineId: b.bankLineId });
+    const bridges = new Map<string, { tied: boolean; settlementVerified: boolean; bankLineId: string | null; bankEvidence: BankEvidenceLevel; settled: boolean }>();
+    for (const id of ids) for (const b of reconcile(await load(tx, ctx, id)).bridges) bridges.set(b.batchId, { tied: b.tied, settlementVerified: b.settlementVerified, bankLineId: b.bankLineId, bankEvidence: b.bankEvidence, settled: b.settled });
     const label = await orgLabel(tx, ctx.orgId);
     return bs.map((b) => ({
       label, batchId: b.batchId, entityId: b.entityId, providerDay: b.dayStart.toISOString().slice(0, 10), currency: b.currency,
       grossMinor: b.grossMinor.toString(), feesMinor: b.feesMinor.toString(), refundsMinor: b.refundsMinor.toString(), netMinor: b.netMinor.toString(),
       tied: bridges.get(b.batchId)?.tied ?? false, settlementVerified: bridges.get(b.batchId)?.settlementVerified ?? false, bankLineId: bridges.get(b.batchId)?.bankLineId ?? null,
+      bankEvidence: bridges.get(b.batchId)?.bankEvidence ?? "none", bankEvidenceLabel: BANK_EVIDENCE_SHORT[bridges.get(b.batchId)?.bankEvidence ?? "none"], settled: bridges.get(b.batchId)?.settled ?? false,
     }));
   });
 }
@@ -582,7 +590,7 @@ export async function packData(tx: Tx, ctx: TenantContext, scope: PackScope) {
     scope, cutOffNote: "provider day = UTC",
     note: labelUsesUploadPipeline(label) ? "Read-only evidence. Provider statuses are claims, not proof; each chain fact names its source; imported bank statements are not bank-authenticated; nothing moves money."
       : "Read-only evidence. Provider statuses are claims, not proof; chain data is a recorded fixture; nothing moves money.",
-    payments: parts.map(({ m, p }) => ({ orderId: m.orderId, decision: m.decision, decidingStep: m.decidingStep, ruleId: m.ruleId, engineVersion: m.engineVersion, inputSha256: m.inputSha256, ledger: ledgerWire(p.ledger), bank: p.bank,
+    payments: parts.map(({ m, p }) => ({ orderId: m.orderId, decision: m.decision, decidingStep: m.decidingStep, ruleId: m.ruleId, bankEvidence: p.bank.evidence, bankEvidenceLabel: p.bank.evidenceLabel, settled: p.bank.settled, engineVersion: m.engineVersion, inputSha256: m.inputSha256, ledger: ledgerWire(p.ledger), bank: p.bank,
       explanation: { history: p.explanation.history, differences: p.explanation.differences.map((d) => (differenceNeedsRate(d.type, p.ledger) ? { ...d, amountMinor: null, fiatValueStatus: NEEDS_RATE_STATUS } : d)) } })),
     chainProof: chain.map((c) => ({ network: c.network, txHash: c.txHash, logIndex: c.logIndex, block: c.block, blockTime: c.blockTime.toISOString(), tokenContract: c.tokenContract, from: c.fromAddress, to: c.toAddress, amountBaseUnits: c.amountBaseUnits, decimals: c.decimals, confirmations: c.confirmations, finalised: c.finalised, source: c.source })),
     providerRecords: provider.map((r) => ({ providerPaymentId: r.providerPaymentId, statusClaim: r.statusClaim, creditedMinor: r.creditedMinor?.toString() ?? null, currency: r.creditedCurrency, executedRate: r.executedRate, feeMinor: r.feeMinor?.toString() ?? null, batchId: r.batchId, note: "a claim, not proof", record: r.record })),
@@ -608,8 +616,11 @@ function packCsv(p: Pack): string {
   const rows: unknown[][] = [["section", "id", "order_id", "field_1", "field_2", "field_3", "field_4", "detail", "marking"]];
   const M = p.label;
   rows.push(["meta", p.scope.kind === "payment" ? p.scope.orderId : `${p.entity.id} ${p.scope.month}`, "", p.organisation, p.entity.name, p.entity.currency, p.cutOffNote, p.note, M]);
-  for (const x of p.payments) rows.push(["payment", x.orderId, x.orderId, x.decision, `step ${x.decidingStep}`, x.ruleId, x.ledger.balanceLabel,
-    `input sha256 ${x.inputSha256}; engine ${x.engineVersion}${x.ledger.fiatValueStatus === NEEDS_RATE_STATUS ? `; fiat value ${NEEDS_A_RATE}` : ""}`, M]);
+  for (const x of p.payments) {
+    rows.push(["payment", x.orderId, x.orderId, x.decision, `step ${x.decidingStep}`, x.ruleId, x.ledger.balanceLabel,
+      `input sha256 ${x.inputSha256}; engine ${x.engineVersion}${x.ledger.fiatValueStatus === NEEDS_RATE_STATUS ? `; fiat value ${NEEDS_A_RATE}` : ""}`, M]);
+    rows.push(["bank_evidence", x.orderId, x.orderId, x.bankEvidence, x.settled ? "settled" : "not settled", x.bank.settlementVerified ? "settlement verified" : "settlement not verified", "", x.bankEvidenceLabel, M]);
+  }
   for (const c of p.chainProof) rows.push(["chain_proof", c.txHash, "", c.network, `block ${c.block}`, `${c.amountBaseUnits} base units (${c.decimals} dp)`, `${c.confirmations} confirmations${c.finalised ? " final" : " not final"}`, `to ${c.to}; contract ${c.tokenContract}; ${c.source}`, M]);
   for (const r of p.providerRecords) rows.push(["provider_record", r.providerPaymentId, "", r.statusClaim, r.creditedMinor, r.currency, r.batchId, "provider claim, not proof", M]);
   for (const b of p.settlementBatches) rows.push(["settlement_batch", b.batchId, "", b.providerDay, b.grossMinor, b.feesMinor, b.netMinor, `refunds ${b.refundsMinor} ${b.currency}`, M]);
@@ -670,7 +681,7 @@ async function packPdf(p: Pack): Promise<Uint8Array> {
   line(p.note, { gap: 8 });
   const head = (s: string) => { y -= 4; line(s, { b: true, size: 11, gap: 2 }); };
   head(`Payments (${p.payments.length})`);
-  for (const x of p.payments) line(`${x.orderId}: ${x.decision} at step ${x.decidingStep} (rule ${x.ruleId}); invoice ${x.ledger.invoice.amountMinor === null ? `priced in a token, fiat value ${NEEDS_A_RATE}` : money(x.ledger.invoice.amountMinor, x.ledger.invoice.currency)}, credited ${money(x.ledger.creditedMinor, x.ledger.invoice.currency)}, ${x.ledger.balanceLabel}; bank ${x.bank.status}${x.bank.batchTied ? ", batch tied" : ""}.`);
+  for (const x of p.payments) line(`${x.orderId}: ${x.decision} at step ${x.decidingStep} (rule ${x.ruleId}); invoice ${x.ledger.invoice.amountMinor === null ? `priced in a token, fiat value ${NEEDS_A_RATE}` : money(x.ledger.invoice.amountMinor, x.ledger.invoice.currency)}, credited ${money(x.ledger.creditedMinor, x.ledger.invoice.currency)}, ${x.ledger.balanceLabel}; bank ${x.bank.status}${x.bank.batchTied ? ", batch tied" : ""}; ${x.bankEvidenceLabel}; ${x.settled ? "settled" : "not settled"}.`);
   head(`Chain proof (${p.chainProof.length})${labelUsesUploadPipeline(LABEL) ? "" : " — recorded fixture"}`);
   for (const c of p.chainProof.slice(0, 60)) line(`${c.network} ${c.txHash} log ${c.logIndex}, block ${c.block}, ${c.blockTime}, ${c.confirmations} confirmations${c.finalised ? " (final)" : " (not final)"}, to ${c.to}`);
   if (p.chainProof.length > 60) line(`… ${p.chainProof.length - 60} more in the CSV and JSON files.`);
@@ -760,7 +771,7 @@ export async function orgKind(ctx: TenantContext): Promise<{ kind: "merchant" | 
   });
 }
 
-export interface PartsSummary { chain: { transfers: number; pending: number; networks: string[] }; provider: { claims: string[]; records: number }; bank: { status: string; tied: boolean; verified: boolean; imported: boolean }; ledger: { state: string; label: string } }
+export interface PartsSummary { chain: { transfers: number; pending: number; networks: string[] }; provider: { claims: string[]; records: number }; bank: { status: string; tied: boolean; verified: boolean; imported: boolean; evidence: BankEvidenceLevel; evidenceLabel: string; settled: boolean }; ledger: { state: string; label: string } }
 
 /** Per order: what each of the five parts says on its own (never merged into one status). */
 export async function partsSummaries(ctx: TenantContext): Promise<Map<string, PartsSummary>> {
@@ -774,7 +785,7 @@ export async function partsSummaries(ctx: TenantContext): Promise<Map<string, Pa
       return [m.orderId, {
         chain: { transfers: p.chain.transfers.length, pending: p.chain.pending.length, networks: [...new Set(p.chain.transfers.map((x) => x.network))] },
         provider: { claims: [...new Set(p.provider.records.map((r) => r.statusClaim))], records: p.provider.records.length },
-        bank: { status: p.bank.status, tied: p.bank.batchTied, verified: p.bank.settlementVerified, imported: p.bank.bankLineLabels.length > 0 },
+        bank: { status: p.bank.status, tied: p.bank.batchTied, verified: p.bank.settlementVerified, imported: p.bank.bankLineLabels.length > 0, evidence: p.bank.evidence, evidenceLabel: BANK_EVIDENCE_SHORT[p.bank.evidence], settled: p.bank.settled },
         ledger: { state: p.ledger.balanceState, label: p.ledger.balanceLabel },
       }];
     }));

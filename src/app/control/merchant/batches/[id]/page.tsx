@@ -7,7 +7,8 @@ import { openExceptionsOf } from "@/server/merchant-ui";
 import { merchantMember } from "@/server/merchant-page";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
-import { Chip, differenceLabel, fiat } from "@/components/merchant/ui";
+import { Chip, EvidenceChip, differenceLabel, fiat } from "@/components/merchant/ui";
+import { BANK_EVIDENCE_LABEL } from "@/lib/clearline/merchant";
 
 export const metadata: Metadata = { title: "Batch bridge" };
 
@@ -94,7 +95,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
       <section className={s.section} aria-labelledby="checks">
         <h2 className={s.h2} id="checks">Checks</h2>
         <ul className={s.plainList}>{Object.entries(b.checks).map(([k, v]) => <li key={k} className={s.row}>{v ? <Chip tone="ok">Pass</Chip> : <Chip tone="warn">Fail</Chip>} {CHECKS[k] ?? k}</li>)}</ul>
-        <p className={s.small}>Bank line: {b.bankLineId ? <span className={s.mono}>{b.bankLineId}</span> : "none yet"}{b.bankLineLabel ? ` (${b.bankLineLabel})` : ""}. Settlement {b.settlementVerified ? "verified by the bank line" : "not verified"}.</p>
+        <p className={s.small}>Bank line: {b.bankLineId ? <span className={s.mono}>{b.bankLineId}</span> : "none yet"}{b.bankLineLabel ? ` (${b.bankLineLabel})` : ""}. Settlement {b.settlementVerified ? "verified by the bank line" : "not verified"}. <EvidenceChip level={b.bankEvidence} label={BANK_EVIDENCE_LABEL[b.bankEvidence]} /> {b.settled ? <Chip tone="ok" testId="batch-settled">Settled</Chip> : <Chip tone="plain" testId="batch-settled">Not settled</Chip>}</p>
         {b.entityValue ? (b.entityValue.status === "rated"
           ? <p className={s.small} data-testid="batch-entity-value">In the entity&rsquo;s currency: {fiat(b.entityValue.amountMinor, b.entityValue.currency)} at {b.entityValue.pair} {b.entityValue.rate} ({b.entityValue.source}, as of {b.entityValue.asOf}). Shown only: the batch is tied in {b.currency}, never converted.</p>
           : <p className={s.small} data-testid="batch-entity-value"><Chip tone="warn" testId="batch-needs-rate">Needs a rate</Chip> In the entity&rsquo;s currency: not shown ({b.entityValue.reason}). The batch is tied in {b.currency}, never converted.</p>) : null}

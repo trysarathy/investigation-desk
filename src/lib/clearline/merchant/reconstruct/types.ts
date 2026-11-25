@@ -47,6 +47,9 @@ export interface ReportBridge {
   tied: boolean;
   settlementVerified: boolean;
   settlementVerifiedOnceBankConfirmed: boolean;
+  /** v1 Phase 0.5: the bank evidence level and its label (a file-only reconstruction has no second-person confirmation: always none). */
+  bankEvidence: string;
+  bankEvidenceLabel: string;
   checks: { check: string; ok: boolean }[];
   lines: { kind: string; label: string; amount: string; reason: string }[];
 }

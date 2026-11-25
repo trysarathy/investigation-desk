@@ -49,7 +49,7 @@ export function ReportView({ report: r }: { report: ReconstructionReport }) {
       <h3 className={s.h}>Bridge per batch</h3>
       {r.bridges.length ? r.bridges.map((b) => (
         <section key={b.batchId} aria-label={`Batch ${b.batchId}`}>
-          <p>Batch {b.batchId}: tied {b.tied ? "yes" : "no"}; settlement verified {b.settlementVerified ? "yes" : "no"}{b.bankLineLabel ? ` (${b.bankLineLabel})` : ""}.</p>
+          <p>Batch {b.batchId}: tied {b.tied ? "yes" : "no"}; settlement verified {b.settlementVerified ? "yes" : "no"}{b.bankLineLabel ? ` (${b.bankLineLabel})` : ""}. {b.bankEvidenceLabel}.</p>
           <Table label={`Bridge for batch ${b.batchId}`} head={["Line", "Amount", "Reason"]} rows={b.lines.map((l) => [l.label, l.amount, l.reason])} />
         </section>
       )) : <p>No settlement batch.</p>}

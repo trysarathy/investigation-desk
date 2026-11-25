@@ -11,7 +11,7 @@ import {
   type Book, type CaseModel, type CaseSlug,
 } from "@/lib/clearline/merchant-cases/view";
 import { CASES_HREF } from "@/lib/clearline/merchant-cases/slugs";
-import { type BatchBridge, type Decision, type JournalProposal, type MatchRecord } from "@/lib/clearline/merchant";
+import { BANK_EVIDENCE_LABEL, type BatchBridge, type Decision, type JournalProposal, type MatchRecord } from "@/lib/clearline/merchant";
 
 export function TestModeLabel() {
   return (
@@ -128,6 +128,7 @@ function Evidence({ r, b }: { r: MatchRecord; b: Book }) {
           <div><dt>Bank line</dt><dd className={c.code}>{bank.bankLineIds.join(", ") || "none"}</dd></div>
           <div><dt>Batch ties to the cent</dt><dd>{bank.batchTied ? "Yes" : "No"}</dd></div>
           <div><dt>Settlement verified</dt><dd>{bank.settlementVerified ? "Yes, bank feed" : "No"}{bank.bankLineLabels.length > 0 && ` (${bank.bankLineLabels.join(", ")})`}</dd></div>
+          <div><dt>Bank evidence</dt><dd>{BANK_EVIDENCE_LABEL[bank.evidence].replace(/^Bank evidence: /, "")}{bank.settled ? " · settled" : " · not settled"}</dd></div>
         </dl>
       </section>
       <section aria-label={`Ledger evidence for ${r.orderId}`}>

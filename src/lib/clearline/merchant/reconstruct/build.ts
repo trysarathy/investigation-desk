@@ -16,7 +16,7 @@ import { DEFAULT_POLICY, FIAT_DECIMALS, defaultPolicyFor, NETWORKS, TOKENS, norm
 import { proposeJournals, MERCHANT_ACCOUNTS, type JournalProposal } from "../journal";
 import { reconcile, type ReconcileResult } from "../reconcile";
 import { JOURNAL_RULES, RULES } from "../rules";
-import { IMPORTED_BANK_LINE_LABEL } from "../types";
+import { BANK_EVIDENCE_LABEL, IMPORTED_BANK_LINE_LABEL } from "../types";
 import type { AddressFact, BankLine, Decision, DifferenceType, FiatCurrency, MerchantEntity, MerchantPolicy, NetworkId, ReconcileInput, TimeZoneRef } from "../types";
 import { assembleInput } from "../adapters/fixture-sources";
 import { readChainTransfers, type ChainClient, type ChainHead } from "../adapters/chain";
@@ -554,6 +554,7 @@ export async function reconstructDay(files: readonly InputFile[], opts: Reconstr
     batchId: b.batchId, currency: b.currency, merchantDay: b.merchantDay, merchantTimeZone: tzText(b.merchantTimeZone), providerDay: b.providerDay, providerTimeZone: tzText(b.providerTimeZone),
     bankLineId: b.bankLineId, bankLineLabel: b.bankLineLabel, tied: b.tied, settlementVerified: b.settlementVerified,
     settlementVerifiedOnceBankConfirmed: confirmedBridge.get(b.batchId)?.settlementVerified ?? false,
+    bankEvidence: b.bankEvidence, bankEvidenceLabel: BANK_EVIDENCE_LABEL[b.bankEvidence],
     checks: (Object.keys(CHECK_TEXT) as (keyof typeof CHECK_TEXT)[]).filter((k) => b.checks[k] !== undefined).map((k) => ({ check: CHECK_TEXT[k], ok: b.checks[k]! })),
     lines: b.lines.map((l) => ({ kind: l.kind, label: l.label, amount: fmtFiat(l.amountMinor, b.currency), reason: l.reason })),
   }));

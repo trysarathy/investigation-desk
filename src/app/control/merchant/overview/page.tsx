@@ -6,7 +6,8 @@ import { demoBuild } from "@/server/demo-build";
 import { DEMO_LAST_DAY, DEMO_TODAY } from "@/lib/clearline/demo/clock";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
-import { DecisionChip } from "@/components/merchant/ui";
+import { DecisionChip, EvidenceChip } from "@/components/merchant/ui";
+import { BANK_EVIDENCE_SHORT } from "@/lib/clearline/merchant";
 
 export const metadata: Metadata = { title: "Overview" };
 
@@ -55,7 +56,12 @@ export default async function OverviewPage() {
               <li key={d}><DecisionChip decision={d} /> <span className={m.flowCount}>{n(c.decisions[d] ?? 0)}</span>{evaluated ? <span className={s.small}> of {n(evaluated)} evaluated</span> : null}</li>
             ))}
           </ul>
-          <p className={s.small}>Every exception has an owner, a reason and a next step.</p>
+          <ul className={m.decisions} aria-label="Bank evidence, shown apart from the decisions" data-testid="overview-evidence">
+            {(["none", "imported_two_person_confirmed"] as const).map((lvl) => (
+              <li key={lvl}><EvidenceChip level={lvl} label={BANK_EVIDENCE_SHORT[lvl]} /> <span className={m.flowCount}>{n(c.bankEvidence[lvl] ?? 0)}</span></li>
+            ))}
+          </ul>
+          <p className={s.small}>Bank evidence is shown apart from the match: a payment is matched by its chain, provider and invoice records; nothing is bank-authenticated yet. Every exception has an owner, a reason and a next step.</p>
         </div>
       </section>
 

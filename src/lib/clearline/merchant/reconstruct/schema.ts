@@ -32,7 +32,7 @@ const Report = z.object({
   })).max(20_000),
   bridges: z.array(z.object({
     batchId: t(120), currency: t(8), merchantDay: t(20), merchantTimeZone: t(80), providerDay: t(20), providerTimeZone: t(80), bankLineId: t(120).nullable(), bankLineLabel: t(80).nullable(),
-    tied: z.boolean(), settlementVerified: z.boolean(), settlementVerifiedOnceBankConfirmed: z.boolean(),
+    tied: z.boolean(), settlementVerified: z.boolean(), settlementVerifiedOnceBankConfirmed: z.boolean(), bankEvidence: z.enum(["none", "imported_two_person_confirmed"]), bankEvidenceLabel: t(200),
     checks: z.array(z.object({ check: t(200), ok: z.boolean() })).max(20),
     lines: z.array(z.object({ kind: t(40), label: t(300), amount: t(60), reason: t() })).max(100),
   })).max(1000),
