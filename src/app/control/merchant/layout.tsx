@@ -22,6 +22,7 @@ const MERCHANT_NAV: NavItem[] = [
   { href: "/control/merchant/evidence", label: "Evidence packs" },
   { href: "/control/merchant/accounting", label: "Accounting export" },
   { href: "/control/merchant/ledger", label: "Ledger" },
+  { href: "/control/merchant/posting-rules", label: "Posting rules" },
   { href: "/control/merchant/pilot", label: "Pilot metrics" },
   { href: "/control/merchant/settings", label: "Settings" },
 ];

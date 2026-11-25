@@ -421,6 +421,13 @@
       "when": 1796760000000,
       "tag": "0076_provider_api_security",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1796770000000,
+      "tag": "0077_posting_rules_signatures",
+      "breakpoints": true
     }
   ]
 }
