@@ -109,23 +109,40 @@ describe("cache", () => {
   });
 });
 
+// v1 E1: the transport runs through the SSRF-safe client; these tests allow the fictional hosts and answer DNS with a
+// public documentation-free address, so only the injected fetch is ever called.
+const SAFE = { policy: { name: "test", hosts: ["secret.example.invalid", "x.example.invalid"] }, lookup: async () => [{ address: "93.184.216.34", family: 4 }] };
 describe("fetchTransport (injected fetch only)", () => {
   it("times out via AbortController and never echoes the URL in errors", async () => {
     const hanging: typeof fetch = (_u, init) => new Promise((_r, rej) => init!.signal!.addEventListener("abort", () => rej(Object.assign(new Error("aborted https://secret.example.invalid/KEY"), { name: "AbortError" }))));
-    const t = fetchTransport({ timeoutMs: 10, fetchImpl: hanging });
+    const t = fetchTransport({ ...SAFE, timeoutMs: 10, fetchImpl: hanging });
     const err = await t({ url: "https://secret.example.invalid/KEY", method: "GET", headers: {} }).catch((e) => e);
     expect(err).toBeInstanceOf(TransportError);
     expect(err.kind).toBe("timeout");
     expect(String(err.message)).not.toContain("KEY");
     const failing: typeof fetch = async () => { throw new TypeError("fetch failed for https://secret.example.invalid/KEY"); };
-    const e2 = await fetchTransport({ fetchImpl: failing })({ url: "https://secret.example.invalid/KEY", method: "GET", headers: {} }).catch((e) => e);
+    const e2 = await fetchTransport({ ...SAFE, fetchImpl: failing })({ url: "https://secret.example.invalid/KEY", method: "GET", headers: {} }).catch((e) => e);
     expect(e2.kind).toBe("network");
     expect(String(e2.message)).not.toContain("KEY");
   });
 
   it("returns status, lower-cased headers and body", async () => {
     const ok: typeof fetch = async () => new Response('{"a":1}', { status: 200, headers: { "Retry-After": "1" } });
-    const r = await fetchTransport({ fetchImpl: ok })({ url: "https://x.example.invalid/", method: "POST", headers: {}, body: "{}" });
+    const r = await fetchTransport({ ...SAFE, fetchImpl: ok })({ url: "https://x.example.invalid/", method: "POST", headers: {}, body: "{}" });
     expect(r).toEqual({ status: 200, headers: expect.objectContaining({ "retry-after": "1" }), body: '{"a":1}' });
+  });
+
+  it("v1 E1: refuses a host outside the policy, a private address and a redirect, without calling fetch for the first two", async () => {
+    let calls = 0;
+    const ok: typeof fetch = async () => { calls++; return new Response("", { status: 302, headers: { location: "http://169.254.169.254/" } }); };
+    const off = await fetchTransport({ ...SAFE, fetchImpl: ok })({ url: "https://other.example.invalid/KEY", method: "GET", headers: {} }).catch((e) => e);
+    expect(off).toBeInstanceOf(TransportError);
+    expect(off.message).toBe("outbound request refused (HOST_NOT_ALLOWED)");
+    const priv = await fetchTransport({ ...SAFE, lookup: async () => [{ address: "10.0.0.5", family: 4 }], fetchImpl: ok })({ url: "https://x.example.invalid/", method: "GET", headers: {} }).catch((e) => e);
+    expect(priv.message).toBe("outbound request refused (PRIVATE_ADDRESS)");
+    expect(calls).toBe(0);
+    const redir = await fetchTransport({ ...SAFE, fetchImpl: ok })({ url: "https://x.example.invalid/", method: "GET", headers: {} }).catch((e) => e);
+    expect(redir.message).toBe("outbound request refused (REDIRECT_REFUSED)");
+    expect(calls).toBe(1);
   });
 });

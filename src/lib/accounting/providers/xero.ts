@@ -9,12 +9,17 @@
 // The access token comes from the OAuth connection (see ./xero-auth.ts); this file never stores it.
 
 import { PartialPostError } from "../types";
+import { safeFetcher } from "../../net/safe-fetch";
+import { LEDGER_POLICY } from "../../net/outbound-hosts";
 import type { BooksAdapter, BooksInvoice, InvoiceLink, PostedLine, PostingLine } from "../types";
 
 export const XERO_API = "https://api.xero.com/api.xro/2.0";
 
 export type Fetch = (url: string, init: { method: string; headers: Record<string, string>; body?: string }) =>
   Promise<{ ok: boolean; status: number; json(): Promise<unknown>; text(): Promise<string> }>;
+
+/** v1 E1: the default fetch for every ledger call: the SSRF-safe client under LEDGER_POLICY (Xero + QuickBooks sandbox). */
+export const ledgerFetch: Fetch = safeFetcher(LEDGER_POLICY) as unknown as Fetch;
 
 export interface XeroCredentials { accessToken(): Promise<string>; tenantId: string }
 
@@ -55,7 +60,7 @@ export function xeroBody(link: InvoiceLink, l: PostingLine) {
 
 export class XeroAdapter implements BooksAdapter {
   readonly provider = "xero" as const;
-  constructor(private readonly creds: XeroCredentials, private readonly fetchFn: Fetch = fetch as unknown as Fetch) {}
+  constructor(private readonly creds: XeroCredentials, private readonly fetchFn: Fetch = ledgerFetch) {}
 
   private async call(method: "GET" | "PUT", path: string, body?: unknown, idempotencyKey?: string): Promise<Record<string, unknown>> {
     const headers: Record<string, string> = {

@@ -19,6 +19,7 @@ import { type ChainNetwork, type ChainTransferFact, type IncomingOutcome, type T
 import { type ChainFactCache, MemoryChainFactCache, RateLimiter, DEFAULT_RATE_LIMITS, type Runtime, systemRuntime } from "./resilience";
 import { TronReader } from "./tron";
 import { fetchTransport, type HttpTransport } from "./transport";
+import { merchantChainPolicy } from "../../../net/outbound-hosts";
 
 export class ChainDataUnavailableError extends Error {
   readonly code = "chain_data_unavailable";
@@ -136,7 +137,7 @@ export interface LiveOptions {
 export function liveReadersFromEnv(env: Env = processEnv(), o: LiveOptions = {}): ChainReaders {
   assertLiveChainAllowed(env);
   const runtime = o.runtime ?? systemRuntime;
-  const transport = o.transport ?? fetchTransport({ timeoutMs: o.timeoutMs });
+  const transport = o.transport ?? fetchTransport({ timeoutMs: o.timeoutMs, policy: merchantChainPolicy(env) });
   const readers: ChainReaders = { runtime, missing: {}, byNetwork: {} };
   // each provider gets its own fact cache and limiter (a fallback must not be answered from the primary's cache)
   const cache = () => o.cache ?? new MemoryChainFactCache();
