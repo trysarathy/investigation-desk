@@ -2,13 +2,15 @@
  * rc7 phase 3a: software operations. Reconciliation runs (append-only history), the PostgreSQL job queue, the daily
  * schedule per entity and rule-change notices. Security and constraints: drizzle/0024_reconciliation_runs.sql and 0025_jobs_schedules.sql.
  */
-import { boolean, integer, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { organizations, users } from "./schema";
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 const org = () => uuid("org_id").notNull().references(() => organizations.id);
 
 export const RUN_TRIGGERS = ["manual", "schedule", "rule_change"] as const;
+export const JOB_KINDS = ["reconcile", "retention", "revaluation", "pickup"] as const;
+export type JobKind = (typeof JOB_KINDS)[number];
 export type RunTrigger = (typeof RUN_TRIGGERS)[number];
 
 /** One reconciliation run of one entity: what decided it (rule set + policy revision), on which input, and counts. */
@@ -25,6 +27,8 @@ export const reconciliationRuns = pgTable("reconciliation_runs", {
   /** "Rule change would differ" notices this run recorded. */
   notices: integer("notices").notNull().default(0),
   errorCode: text("error_code"),
+  /** v1 phase 3 (0079, was 0064): per-part input hashes, the uploads and mapping template versions the rows came from. */
+  inputManifest: jsonb("input_manifest"), engineVersion: text("engine_version"),
 }, (t) => [primaryKey({ columns: [t.orgId, t.id] })]);
 
 export const reconciliationSchedules = pgTable("reconciliation_schedules", {
@@ -35,15 +39,27 @@ export const reconciliationSchedules = pgTable("reconciliation_schedules", {
 
 export type JobStatus = "queued" | "running" | "done" | "dead" | "cancelled";
 export const jobs = pgTable("jobs", {
-  id: uuid("id").primaryKey().defaultRandom(), orgId: org(), entityId: text("entity_id").notNull(),
-  kind: text("kind").notNull().default("reconcile"), trigger: text("trigger").$type<"schedule" | "rule_change">().notNull(),
-  dedupeKey: text("dedupe_key").notNull(), runAs: text("run_as").notNull().references(() => users.id),
+  /** v1 phase 3 (0079, was 0064): a retention job belongs to an organisation only (no entity, no member). */
+  id: uuid("id").primaryKey().defaultRandom(), orgId: org(), entityId: text("entity_id"),
+  kind: text("kind").$type<JobKind>().notNull().default("reconcile"), trigger: text("trigger").$type<"schedule" | "rule_change" | "manual">().notNull(),
+  dedupeKey: text("dedupe_key").notNull(), runAs: text("run_as").references(() => users.id),
   status: text("status").$type<JobStatus>().notNull().default("queued"),
   attempts: integer("attempts").notNull().default(0), maxAttempts: integer("max_attempts").notNull().default(5),
   runAfter: ts("run_after").notNull(), lockedAt: ts("locked_at"), lockedBy: text("locked_by"),
   lastErrorCode: text("last_error_code"), runId: uuid("run_id"),
   createdAt: ts("created_at").notNull().defaultNow(), finishedAt: ts("finished_at"),
+  /** v1 phase 3 (0079, was 0064): the stage it is at, the worker's last heartbeat, how often it was taken back from a vanished worker. */
+  stage: text("stage"), heartbeatAt: ts("heartbeat_at"), recoveries: integer("recoveries").notNull().default(0),
+  params: jsonb("params").notNull().default({}), result: jsonb("result"),
 });
+
+/** v1 phase 3 (0079, was 0064): what the worker did with a job, stage by stage (append-only; ids, stages, codes and counts). */
+export const JOB_EVENTS = ["claimed", "stage", "heartbeat", "done", "cancelled", "retry", "dead", "recovered", "requeued"] as const;
+export const jobEvents = pgTable("job_events", {
+  orgId: org(), id: bigint("id", { mode: "number" }).generatedAlwaysAsIdentity(), jobId: uuid("job_id").notNull(),
+  at: ts("at").notNull().defaultNow(), event: text("event").$type<(typeof JOB_EVENTS)[number]>().notNull(), stage: text("stage"),
+  attempt: integer("attempt"), code: text("code"), counts: jsonb("counts"),
+}, (t) => [primaryKey({ columns: [t.orgId, t.id] })]);
 
 export const ruleChangeNotices = pgTable("rule_change_notices", {
   orgId: org(), id: uuid("id").notNull().defaultRandom(), entityId: text("entity_id").notNull(), orderId: text("order_id").notNull(),

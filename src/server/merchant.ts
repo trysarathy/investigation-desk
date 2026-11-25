@@ -66,6 +66,27 @@ async function storedDifferenceIds(tx: Tx, orgId: string, orderIds: string[]) {
   return out;
 }
 
+/**
+ * v1 phase 3: what a run ran on. A sha-256 per part of the input (invoices, quotes, transfers, bank lines …), and the
+ * entity's uploads whose rows are stored (id, file type, content and validated-rows hashes, mapping template and
+ * version). Ids and hashes only, never file contents or names.
+ */
+export async function inputManifest(tx: Tx, orgId: string, entityId: string, input: ReconcileInput) {
+  const parts = Object.fromEntries(Object.keys(input).sort().filter((k) => k !== "label")
+    .map((k) => [k, sha256(stableJson((input as unknown as Record<string, unknown>)[k] ?? null))]));
+  const ups = await tx.select({ id: t.uploads.id, fileType: t.uploads.fileType, contentSha256: t.uploads.contentSha256, rowsSha256: t.uploads.rowsSha256,
+    templateId: t.uploads.templateId, templateVersion: t.uploads.templateVersion }).from(t.uploads)
+    .where(and(eq(t.uploads.orgId, orgId), eq(t.uploads.entityId, entityId), eq(t.uploads.status, "normalised"))).orderBy(asc(t.uploads.id));
+  return { parts, uploads: ups, mappingVersions: [...new Set(ups.filter((u) => u.templateId).map((u) => `${u.templateId}@${u.templateVersion}`))].sort() };
+}
+
+/** v1 phase 3: the fingerprint of a stored decision's content (all but the input hash and the time it was computed). */
+const recordSha = (r: { decision: string; decidingStep: number; ruleId: string; chain: object; provider: object; bank: object; ledger: object; explanation: object; engineVersion: string; bankEvidence: string; settled: boolean }) =>
+  sha256(canonical({ decision: r.decision, decidingStep: r.decidingStep, ruleId: r.ruleId, chain: r.chain, provider: r.provider, bank: r.bank, ledger: r.ledger, explanation: r.explanation,
+    engineVersion: r.engineVersion, bankEvidence: r.bankEvidence, settled: r.settled }));
+const journalContentSha = (j: { entityId: string; pattern: string; lines: object; currency: string; evidenceRefs: object }) =>
+  sha256(canonical({ entityId: j.entityId, pattern: j.pattern, lines: j.lines, currency: j.currency, evidenceRefs: j.evidenceRefs }));
+
 /** v1 Phase 0.5: 'bank_authenticated' is reserved; nothing may store it until a bank connection exists (the database refuses it too). */
 function storableEvidence(level: BankEvidenceLevel): "none" | "imported_two_person_confirmed" {
   if (level === "bank_authenticated") throw new Error("bank_authenticated is reserved: no bank connection exists");
@@ -171,7 +192,8 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
   const hash = inputSha256(input);
   const orderIds = input.invoices.map((i) => i.orderId);
   const { prev, policyRevision } = await runState(tx, ctx.orgId, entityId);
-  const runRow = { orgId: ctx.orgId, entityId, trigger: run.trigger, jobId: run.jobId, startedBy: ctx.userId, ruleSetVersion: run.version, policyRevision, inputSha256: hash, startedAt: stampAt(run.startedAt) };
+  const runRow = { orgId: ctx.orgId, entityId, trigger: run.trigger, jobId: run.jobId, startedBy: ctx.userId, ruleSetVersion: run.version, policyRevision, inputSha256: hash, startedAt: stampAt(run.startedAt),
+    engineVersion: MERCHANT_ENGINE_VERSION, inputManifest: await inputManifest(tx, ctx.orgId, entityId, input) };
   const meta = { label: await orgLabel(tx, ctx.orgId), entityId, inputSha256: hash, engineVersion: MERCHANT_ENGINE_VERSION, ruleSetVersion: run.version, policyRevision };
   if (prev && prev.inputSha256 === hash && prev.ruleSetVersion === run.version && prev.policyRevision === policyRevision) {
     const [r] = await tx.insert(t.reconciliationRuns).values({ ...runRow, status: "no_change", finishedAt: stampNow(), matched: prev.matched, withDifference: prev.withDifference,
@@ -206,9 +228,17 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
       bankEvidence: storableEvidence(r.bank.evidence), settled: r.bank.settled,
     };
   });
-  // v1 phase 3: bulk statements (bulk.ts): the same rows and conflict handling as the per-row-values inserts they replace
-  await bulkInsert(tx, t.matchRecords, records, { onConflict: { target: ["org_id", "order_id"], set: setExcluded(["decision", "deciding_step", "rule_id", "chain", "provider", "bank", "ledger",
-    "explanation", "engine_version", "input_sha256", "computed_at", "bank_evidence", "settled"]) } });
+  // v1 phase 3 (volume): only records whose content changed are rewritten (bulk.ts statements); every other open
+  // record gets this run's input hash and time in one narrow update. The stored state is exactly what rewriting every
+  // record gives. The fingerprint is guarded by the database (0079, was 0064: any other change to a record's content clears it).
+  const withSha = records.map((r) => ({ ...r, contentSha256: recordSha(r) }));
+  const storedSha = new Map((await tx.select({ orderId: t.matchRecords.orderId, sha: t.matchRecords.contentSha256 }).from(t.matchRecords)
+    .where(and(eq(t.matchRecords.orgId, ctx.orgId), anyOf(t.matchRecords.orderId, records.map((r) => r.orderId))))).map((x) => [x.orderId, x.sha]));
+  const changedRecords = withSha.filter((r) => storedSha.get(r.orderId) !== r.contentSha256);
+  const sameRecords = withSha.filter((r) => storedSha.get(r.orderId) === r.contentSha256).map((r) => r.orderId);
+  await bulkInsert(tx, t.matchRecords, changedRecords, { onConflict: { target: ["org_id", "order_id"], set: setExcluded(["decision", "deciding_step", "rule_id", "chain", "provider", "bank", "ledger",
+    "explanation", "engine_version", "input_sha256", "computed_at", "bank_evidence", "settled", "content_sha256"]) } });
+  if (sameRecords.length) await tx.update(t.matchRecords).set({ inputSha256: hash, computedAt: now }).where(and(eq(t.matchRecords.orgId, ctx.orgId), anyOf(t.matchRecords.orderId, sameRecords)));
   // the run's own row is written last (with its counts): its foreign keys from differences are checked at commit
   await tx.execute(sql`set constraints differences_run_fk, differences_superseded_by_run_fk deferred`);
   const diffs = open.flatMap((r) => r.explanation.differences.map((d) => ({ orgId: ctx.orgId, id: diffIdOf.get(`${r.orderId}|${d.id}`)!, orderId: r.orderId, type: d.type, amountMinor: d.amountMinor, currency: d.currency, reason: d.reason, ruleId: d.ruleId,
@@ -253,7 +283,13 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
     return { orgId: ctx.orgId, id: j.id, entityId, pattern: j.kind, lines: plain(lines) as object, currency: j.currency, status: "proposed", postingRuleStatus: "pending_sign_off",
       evidenceRefs: plain({ ...j.evidence, ruleId: j.ruleId, entryDate: j.entryDate, memo: j.memo, requiresApprovalOf: j.requiresApprovalOf ? woIdOf.get(j.requiresApprovalOf) ?? j.requiresApprovalOf : null, label: meta.label }) as object };
   });
-  await bulkInsert(tx, t.merchantJournalProposals, journalRows, { onConflict: { target: ["org_id", "id"], set: setExcluded(["entity_id", "pattern", "lines", "currency", "evidence_refs"]), where: sql`merchant_journal_proposals.status = 'proposed'` } });
+  // v1 phase 3: a proposal already stored with the same content (or no longer proposed) is left as it is: the same
+  // state as the upsert below writes for it
+  const journalSha = journalRows.map((j) => ({ ...j, contentSha256: journalContentSha(j) }));
+  const storedJ = new Map((await tx.select({ id: t.merchantJournalProposals.id, sha: t.merchantJournalProposals.contentSha256, status: t.merchantJournalProposals.status }).from(t.merchantJournalProposals)
+    .where(and(eq(t.merchantJournalProposals.orgId, ctx.orgId), anyOf(t.merchantJournalProposals.id, journalRows.map((j) => j.id))))).map((x) => [x.id, x]));
+  const journalWrites = journalSha.filter((j) => { const o = storedJ.get(j.id); return !o || (o.status === "proposed" && o.sha !== j.contentSha256); });
+  await bulkInsert(tx, t.merchantJournalProposals, journalWrites, { onConflict: { target: ["org_id", "id"], set: setExcluded(["entity_id", "pattern", "lines", "currency", "evidence_refs", "content_sha256"]), where: sql`merchant_journal_proposals.status = 'proposed'` } });
   const keep = journals.map((j) => j.id);
   const keptOrders = [...stored.keys()];
   await tx.update(t.merchantJournalProposals).set({ status: "superseded" }).where(and(eq(t.merchantJournalProposals.orgId, ctx.orgId), eq(t.merchantJournalProposals.entityId, entityId),

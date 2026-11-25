@@ -347,6 +347,8 @@ export const matchRecords = pgTable("match_records", {
   /** v1 Phase 0.5 (migration 0042): the bank evidence level, apart from the decision ('bank_authenticated' is reserved and refused). */
   bankEvidence: text("bank_evidence").$type<"none" | "imported_two_person_confirmed">().notNull().default("none"),
   settled: boolean("settled").notNull().default(false),
+  /** v1 phase 3 (0079, was 0064): sha-256 of the stored decision's content (everything above but the input hash and time). */
+  contentSha256: text("content_sha256"),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.orderId] }),
   foreignKey({ columns: [t.orgId, t.orderId], foreignColumns: [invoices.orgId, invoices.orderId], name: "match_records_invoice_fk" }),
@@ -418,6 +420,8 @@ export const merchantJournalProposals = pgTable("merchant_journal_proposals", {
   pattern: text("pattern").notNull(), lines: jsonb("lines").notNull(), currency: text("currency").notNull(),
   evidenceRefs: jsonb("evidence_refs").notNull(),
   status: text("status").notNull().default("proposed"), postingRuleStatus: text("posting_rule_status").notNull().default("pending_sign_off"),
+  /** v1 phase 3 (0079, was 0064): sha-256 of entity, pattern, lines, currency and evidence. */
+  contentSha256: text("content_sha256"),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.id] }),
   check("merchant_journal_status_chk", sql`${t.status} in ('proposed','approved','exported','rejected','superseded')`),

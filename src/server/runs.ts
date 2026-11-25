@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { JOURNAL_RULES, RULES, type ReconcileResult } from "@/lib/clearline/merchant";
 import { active, type JournalRuleId, type RuleId } from "@/lib/clearline/merchant/rules";

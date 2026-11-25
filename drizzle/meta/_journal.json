@@ -435,6 +435,13 @@
       "when": 1796780000000,
       "tag": "0078_auditor_role",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1796790000000,
+      "tag": "0079_worker_runs_volume",
+      "breakpoints": true
     }
   ]
 }

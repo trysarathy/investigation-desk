@@ -1,6 +1,6 @@
 import "server-only";
 import { readFileSync } from "node:fs";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { NETWORKS, normAddress } from "@/lib/clearline/merchant/config";
 import type { NetworkId } from "@/lib/clearline/merchant/types";
 import {
