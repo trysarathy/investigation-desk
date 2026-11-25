@@ -48,7 +48,9 @@ jobs:
           node-version: "22.22.0"
           cache: npm
       - run: npm ci
-      - run: scripts/db/setup-local.sh clearline_e2e_merchant ci-owner-pw ci-runtime-pw ci-jobs-pw
+      - run: scripts/db/setup-local.sh clearline_e2e_merchant ci-owner-pw ci-runtime-pw ci-jobs-pw ci-provisioning-pw
+      # v1 phase 1.1: the onboarding suite's own database (platform console, invitation, setup wizard)
+      - run: scripts/db/setup-local.sh clearline_e2e_onboarding ci-owner-pw ci-runtime-pw ci-jobs-pw ci-provisioning-pw
       - run: npx playwright install --with-deps chromium
       # The build must use the same pilot environment as `next start` (the deployment gate reads it).
       - name: Build the pilot
@@ -63,3 +65,9 @@ jobs:
       - name: The test build contains the recorded-chain path (proves the deployment check below would see it)
         run: node scripts/build/check-chain-recording.mjs --expect present
       - run: npx playwright test -c playwright.merchant.config.ts --retries=0 --trace off
+      - name: Onboarding (platform console, invitation, setup wizard; desktop and mobile, axe)
+        run: npx playwright test -c playwright.onboarding.config.ts --retries=0 --trace off
+        env:
+          CLEARLINE_ONBOARDING_E2E_OWNER_URL: postgres://clearline_owner:ci-owner-pw@127.0.0.1:5432/clearline_e2e_onboarding
+          CLEARLINE_ONBOARDING_E2E_RUNTIME_URL: postgres://clearline_runtime:ci-runtime-pw@127.0.0.1:5432/clearline_e2e_onboarding
+          CLEARLINE_ONBOARDING_E2E_PROVISIONING_URL: postgres://clearline_provisioning:ci-provisioning-pw@127.0.0.1:5432/clearline_e2e_onboarding
