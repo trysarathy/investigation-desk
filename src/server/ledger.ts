@@ -8,6 +8,7 @@ import {
 import { ledgerFetch, type Fetch } from "@/lib/accounting/providers/xero";
 import { accessToken, loadTokens } from "@/lib/accounting/providers/xero-auth";
 import * as t from "./db/schema";
+import { openRows } from "./crypto/fields";
 import { can, type Permission } from "./authz";
 import { withTenant, AccessDenied, requireEntity, type TenantContext } from "./tenant";
 import { RequestRefused } from "./errors";
@@ -82,7 +83,7 @@ export async function listLedgerInvoices(ctx: TenantContext, entityId: string) {
   requireEntity(ctx, entityId);
   return withTenant({ userId: ctx.userId, orgId: ctx.orgId }, async (tx) => {
     const { label } = await dataModeOf(tx, ctx.orgId);
-    const rows = await tx.select().from(t.ledgerInvoices).where(and(eq(t.ledgerInvoices.orgId, ctx.orgId), eq(t.ledgerInvoices.entityId, entityId))).orderBy(asc(t.ledgerInvoices.invoiceNumber));
+    const rows = await openRows(tx, ctx.orgId, "ledger_invoices", await tx.select().from(t.ledgerInvoices).where(and(eq(t.ledgerInvoices.orgId, ctx.orgId), eq(t.ledgerInvoices.entityId, entityId))).orderBy(asc(t.ledgerInvoices.invoiceNumber)));
     return {
       label, entityId,
       invoices: rows.map((r) => ({

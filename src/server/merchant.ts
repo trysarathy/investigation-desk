@@ -15,6 +15,7 @@ import type { Tx } from "./db/client";
 import * as t from "./db/schema";
 import { anyOf, bulkInsert, setExcluded } from "./db/bulk";
 import { correctionPeriod, lockedPayments } from "./period-close";
+import { openRows } from "./crypto/fields";
 import { can, type Permission } from "./authz";
 import { Decision, IdempotencyKey, canonical, idempotent, serverAudit } from "./control";
 import { MissingEntity, type IngestParts, loadReconcileInput, plain, plainForDisplay, writeIngested } from "./merchant-store";
@@ -545,8 +546,9 @@ export async function listMerchantPayments(ctx: TenantContext, filters: z.input<
   if (f.entityId !== undefined) requireEntity(ctx, f.entityId);
   const asOf = f.asOf ? Date.parse(f.asOf) : Date.now();
   return tenantRead(ctx, async (tx) => {
-    const quotes = await tx.select().from(t.merchantQuotes).where(eq(t.merchantQuotes.orgId, ctx.orgId));
-    const links = await tx.select().from(t.paymentLinks).where(eq(t.paymentLinks.orgId, ctx.orgId));
+    // v1 Phase 5.3: deposit addresses from their sealed copies
+    const quotes = await openRows(tx, ctx.orgId, "merchant_quotes", await tx.select().from(t.merchantQuotes).where(eq(t.merchantQuotes.orgId, ctx.orgId)));
+    const links = await openRows(tx, ctx.orgId, "payment_links", await tx.select().from(t.paymentLinks).where(eq(t.paymentLinks.orgId, ctx.orgId)));
     const label = await orgLabel(tx, ctx.orgId);
     const rows = (await storedRecords(tx, ctx.orgId, f.entityId)).filter(({ inv }) => inEntityScope(ctx, inv.entityId)).map(({ rec, inv }) => {
       const tr = rec.chain.transfers;

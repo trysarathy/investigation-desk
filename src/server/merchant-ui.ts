@@ -9,6 +9,7 @@ import { splitDifferences } from "@/lib/clearline/merchant/difference-rows";
 import { NEEDS_A_RATE, NEEDS_RATE_STATUS, differenceNeedsRate, ledgerWire, minorOrNull } from "@/lib/clearline/merchant/fiat-value";
 import type { Tx } from "./db/client";
 import * as t from "./db/schema";
+import { openRows } from "./crypto/fields";
 import { can, isAppRole, type Permission } from "./authz";
 import { Decision, IdempotencyKey, canonical, idempotent, serverAudit } from "./control";
 import { decideWriteoff, entityOnly, monthEnd } from "./merchant";
@@ -197,7 +198,7 @@ export async function paymentContext(ctx: TenantContext, orderId: string) {
     if (!inv) throw new AccessDenied(404, "Not found.");
     requireEntity(ctx, inv.entityId);
     const p = partsOf(m);
-    const chainRows = p.chain.transfers.length ? await tx.select().from(t.chainTransfers).where(and(eq(t.chainTransfers.orgId, ctx.orgId), inArray(t.chainTransfers.txHash, p.chain.transfers.map((x) => x.txHash)))) : [];
+    const chainRows = p.chain.transfers.length ? await openRows(tx, ctx.orgId, "chain_transfers", await tx.select().from(t.chainTransfers).where(and(eq(t.chainTransfers.orgId, ctx.orgId), inArray(t.chainTransfers.txHash, p.chain.transfers.map((x) => x.txHash))))) : [];
     const batchIds = [...new Set([...p.bank.batchIds, ...p.provider.records.map((r) => r.batchId).filter((x): x is string => !!x)])];
     const batches = batchIds.length ? await tx.select().from(t.settlementBatches).where(and(eq(t.settlementBatches.orgId, ctx.orgId), inArray(t.settlementBatches.batchId, batchIds))) : [];
     const banks = p.bank.bankLineIds.length ? await tx.select().from(t.bankLines).where(and(eq(t.bankLines.orgId, ctx.orgId), inArray(t.bankLines.lineId, p.bank.bankLineIds))) : [];
@@ -570,7 +571,7 @@ export async function packData(tx: Tx, ctx: TenantContext, scope: PackScope) {
   const recs = orderIds.length ? await tx.select().from(t.matchRecords).where(and(eq(t.matchRecords.orgId, ctx.orgId), inArray(t.matchRecords.orderId, orderIds))).orderBy(asc(t.matchRecords.orderId)) : [];
   const parts = recs.map((m) => ({ m, p: partsOf(m) }));
   const txHashes = parts.flatMap(({ p }) => p.chain.transfers.map((x) => x.txHash));
-  const chain = txHashes.length ? await tx.select().from(t.chainTransfers).where(and(eq(t.chainTransfers.orgId, ctx.orgId), inArray(t.chainTransfers.txHash, txHashes))).orderBy(asc(t.chainTransfers.blockTime)) : [];
+  const chain = txHashes.length ? await openRows(tx, ctx.orgId, "chain_transfers", await tx.select().from(t.chainTransfers).where(and(eq(t.chainTransfers.orgId, ctx.orgId), inArray(t.chainTransfers.txHash, txHashes))).orderBy(asc(t.chainTransfers.blockTime))) : [];
   const ppIds = parts.flatMap(({ p }) => p.provider.records.map((r) => r.providerPaymentId));
   const provider = ppIds.length ? await tx.select().from(t.providerPaymentRecords).where(and(eq(t.providerPaymentRecords.orgId, ctx.orgId), inArray(t.providerPaymentRecords.providerPaymentId, ppIds))).orderBy(asc(t.providerPaymentRecords.providerPaymentId)) : [];
   const blIds = [...new Set(parts.flatMap(({ p }) => p.bank.bankLineIds))];

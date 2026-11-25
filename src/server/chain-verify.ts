@@ -1,4 +1,5 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { and, eq, ne } from "drizzle-orm";
 import { NETWORKS, normAddress } from "@/lib/clearline/merchant/config";
@@ -13,6 +14,8 @@ import * as t from "./db/schema";
 import { anyOf, bulkInsert, setExcluded } from "./db/bulk";
 import { can } from "./authz";
 import { serverAudit } from "./control";
+import { openRows, sealRows } from "./crypto/fields";
+import { cipherFor } from "./crypto/org-keys";
 import { AccessDenied, requireEntity, type TenantContext, withTenant } from "./tenant";
 import { ChainRecordingRefused } from "./test-build";
 import { DemoRecordingRefused } from "./demo-build";
@@ -90,8 +93,9 @@ async function targetsOf(tx: Tx, orgId: string, entityId: string) {
     .where(and(eq(t.invoices.orgId, orgId), eq(t.invoices.entityId, entityId), ne(t.invoices.status, "void")));
   const issued = new Map(inv.map((i) => [i.orderId, i.issuedAt.getTime()]));
   const ids = [...issued.keys()];
-  const quotes = ids.length ? await tx.select().from(t.merchantQuotes).where(and(eq(t.merchantQuotes.orgId, orgId), anyOf(t.merchantQuotes.orderId, ids))) : [];
-  const links = ids.length ? await tx.select().from(t.paymentLinks).where(and(eq(t.paymentLinks.orgId, orgId), anyOf(t.paymentLinks.orderId, ids))) : [];
+  // v1 Phase 5.3: deposit addresses from their sealed copies
+  const quotes = ids.length ? await openRows(tx, orgId, "merchant_quotes", await tx.select().from(t.merchantQuotes).where(and(eq(t.merchantQuotes.orgId, orgId), anyOf(t.merchantQuotes.orderId, ids)))) : [];
+  const links = ids.length ? await openRows(tx, orgId, "payment_links", await tx.select().from(t.paymentLinks).where(and(eq(t.paymentLinks.orgId, orgId), anyOf(t.paymentLinks.orderId, ids)))) : [];
   const addresses = new Map<string, AddressTarget>();
   const add = (network: string, address: string, at: Date | null | undefined, orderId: string) => {
     const n = dbNetwork(network);
@@ -217,12 +221,17 @@ export async function verifyChainForEntity(ctx: TenantContext, entityId: string,
     // rc7 phase 3b: written in chunks (same rows, same order); facts stay as first read (trigger 0007); only
     // confirmations, finality, block and evidence of the latest read change
     // v1 phase 3: bulk statements (db/bulk.ts), the same rows and conflict handling
-    await bulkInsert(tx, t.chainTransfers, rows, { chunk: 2_000, onConflict: { target: ["org_id", "network", "tx_hash", "log_index", "source"],
+    // v1 Phase 5.3: addresses sealed on insert; a transfer seen again keeps the sealed values it was first written with
+    // (the conflict update sets none of the sealed columns)
+    const cipher = rows.length || reads.some((r) => r.address !== undefined) ? await cipherFor(tx, ctx.orgId, "write") : null;
+    const sealed = await sealRows(tx, ctx.orgId, "chain_transfers", rows, cipher);
+    await bulkInsert(tx, t.chainTransfers, sealed, { chunk: 2_000, onConflict: { target: ["org_id", "network", "tx_hash", "log_index", "source"],
       set: setExcluded(["confirmations", "finalised", "block", "block_hash", "evidence_source", "evidence_host", "evidence_endpoint", "fetched_at"]) } });
-    const readRows = reads.map((r) => ({
-      orgId: ctx.orgId, entityId, network: r.network, address: r.address ?? null, txHash: r.txHash ?? null, status: r.status, reason: r.reason?.slice(0, 500) ?? null,
+    const readRows = await sealRows(tx, ctx.orgId, "chain_reads", reads.map((r) => ({
+      // the id is made here (not by the column default) because a sealed address is bound to its row's id
+      orgId: ctx.orgId, id: randomUUID(), entityId, network: r.network, address: r.address ?? null, txHash: r.txHash ?? null, status: r.status, reason: r.reason?.slice(0, 500) ?? null,
       source: r.evidence[0]?.source ?? client.mode, host: r.evidence[0]?.host ?? null, endpoint: r.evidence[0]?.method ?? null, transfers: r.transfers, at: now,
-    }));
+    })), cipher);
     await bulkInsert(tx, t.chainReads, readRows);
     // v1: a stored final fact this run did not re-store, but a read contradicts, goes back to not final too
     const written = new Set([...facts.values()].map(factKey));
