@@ -12,6 +12,12 @@
  * Shutdown is graceful: SIGTERM or SIGINT stops claiming; the job in hand finishes (its heartbeat keeps it), then the
  * worker exits. A second signal exits at once: the job's heartbeat stops and another worker takes it back after the
  * lease (a recovery). Prints one JSON line per event with ids, codes and counts only.
+ *
+ * v1 phase 5.5: after each pass the worker records its heartbeat (/api/ready and the status page read it) and evaluates
+ * the alert rules (src/server/ops/alerts.ts) against counts read through the same jobs login, sending what changed to
+ * the configured sinks: a log line always, CLEARLINE_ALERT_FILE and CLEARLINE_ALERT_EMAIL_TO when set
+ * (docs/runbooks/INCIDENT_RESPONSE.md; e-mail only through the one EmailSender, src/server/email). CLEARLINE_ALERTS=0
+ * turns the rules off (the heartbeat stays). Every line goes through the structured logger and its PII scrubber.
  */
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -20,8 +26,14 @@ import { closeDatabase, type Db } from "../../src/server/db/client";
 import { assertJobsLogin, JobsLoginRefused, requeueDeadJob, runWorkerOnce } from "../../src/server/jobs";
 import { FolderPickup, workerHandlers } from "../../src/server/job-handlers";
 import { assertNoChainRecordingOutsideTestBuild } from "../../src/server/test-build";
+import { randomUUID } from "node:crypto";
+import { emailSender } from "../../src/server/email";
+import { alertSinkFromEnv } from "../../src/server/ops/alert-sinks";
+import { log } from "../../src/server/ops/log";
+import { recordHeartbeat, runAlertsOnce } from "../../src/server/ops/monitor";
 
-const out = (o: Record<string, unknown>) => console.log(JSON.stringify(o));
+// wave 2: every worker line goes through the structured logger (E4: PII scrubber), one JSON line per event
+const out = (o: Record<string, unknown>) => { const { event, ...rest } = o; log.info(String(event), rest); };
 
 async function main() {
   const args = process.argv.slice(2);
@@ -42,6 +54,8 @@ async function main() {
     if (signals > 1) process.exit(130);
   });
   const stop = () => signals > 0;
+  const workerId = `worker-${randomUUID()}`;
+  const alerts = process.env.CLEARLINE_ALERTS === "0" ? null : alertSinkFromEnv(process.env, () => emailSender());
   try {
     await assertJobsLogin(queue);
     if (rq >= 0) {
@@ -55,9 +69,17 @@ async function main() {
       ...(process.env.CLEARLINE_PICKUP_DIR ? { pickup: new FolderPickup(process.env.CLEARLINE_PICKUP_DIR) } : {}),
     });
     out({ event: "started", kinds: Object.keys(handlers) });
+    if (alerts) log.info("alerts_enabled", { sinks: alerts.kinds.join(",") });
     do {
-      const s = await runWorkerOnce({ queue, handlers, retention: !!retentionPool, shouldStop: stop, log: (l) => out({ ...l }) });
+      const s = await runWorkerOnce({ queue, workerId, handlers, retention: !!retentionPool, shouldStop: stop, log: (l) => out({ ...l }) });
       out({ event: "pass", ...s.scheduled, retention: s.retention, done: s.done, cancelled: s.cancelled, retried: s.retried, dead: s.dead });
+      try {
+        await recordHeartbeat(queue, workerId, new Date());
+        if (alerts) {
+          const a = await runAlertsOnce({ db: queue, now: new Date(), sink: alerts.sink, store: alerts.store });
+          if (a.sent || a.resolved || a.failed) log.info("alerts_dispatched", { firing: a.firing, sent: a.sent, resolved: a.resolved, failed: a.failed });
+        }
+      } catch (e) { log.error("ops_monitor_failed", e); }
       if (once) break;
       for (let w = 0; w < intervalMs && !stop(); w += 1000) await new Promise((r) => setTimeout(r, 1000));
     } while (!stop());
@@ -71,7 +93,6 @@ async function main() {
 
 const CONFIG = "set DATABASE_URL (runtime login) and DATABASE_JOBS_URL (jobs login)";
 main().catch((e) => {
-  console.error(JSON.stringify({ event: "worker_failed", code: (e as { code?: string })?.code ?? "INTERNAL", ...((e as Error)?.message === CONFIG ? { hint: CONFIG } : {}),
-    ...(e instanceof JobsLoginRefused ? { reasons: e.reasons } : {}) }));
-  process.exit(1);
+  log.error("worker_failed", e, { ...((e as Error)?.message === CONFIG ? { hint: CONFIG } : {}), ...(e instanceof JobsLoginRefused ? { reasons: e.reasons } : {}) });
+  process.exitCode = 1;
 });

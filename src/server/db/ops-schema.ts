@@ -84,3 +84,9 @@ export const periodCorrections = pgTable("period_corrections", {
   storedDecision: text("stored_decision"), storedRuleId: text("stored_rule_id"), newDecision: text("new_decision").notNull(), newRuleId: text("new_rule_id").notNull(),
   fingerprint: text("fingerprint").notNull(), createdAt: ts("created_at").notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.id] })]);
+
+/** v1 phase 5.5 (drizzle/0081, was 0075): one row per job worker, updated every pass. Only the jobs login reads or writes it. */
+export const opsWorkerHeartbeats = pgTable("ops_worker_heartbeats", {
+  workerId: text("worker_id").primaryKey(), startedAt: ts("started_at").notNull().defaultNow(),
+  lastSeenAt: ts("last_seen_at").notNull().defaultNow(), passes: bigint("passes", { mode: "number" }).notNull().default(0),
+});
