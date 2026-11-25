@@ -222,3 +222,9 @@ Same month, same engine input, now also given one refund row per refund each bat
 | + per-payment file with refund rows, flag on (check only) | 1,960 | 1,435 (73.21 %) | 476 (24.29 %) | 49 (2.50 %) | 0 |
 
 With the refund rows the 8 batches with refunds tie, so the 201 `M5.batch.not_tied` exceptions go: with the flag off they return to review (imported bank lines still never verify settlement); with the flag on 191 more exact payments close at `M5.batch.tied_verified` and 10 go to review [inferred from the counts: the refunded orders, which a refund row never lets close]. Small preset (seed 40): payment rows only, flag on 17 / 16 / 6; with refund rows 17 / 17 / 5 (auto-match / review / exception), wrong matches 0 everywhere.
+
+[Integration, wave 1] The flag-off rows above were measured before the evidence-level split (Phase 0.5, below). With the split, flag off, the exact payments in tied batches are matched with their bank evidence shown apart, so each flag-off row's auto-match equals the flag-on row's (asserted by `tests/clearline/synthetic/per-payment-blind.test.ts`); exceptions are unchanged.
+
+## v1 Phase 0.5 re-run: the evidence-level split (branch `v1/a1-evidence-levels`)
+
+Unchanged in the browser: matched 0, review 1,911 (97.9 %), exception 41 (2.1 %), wrong matches 0 (fresh database, 1 passed, 3.0 min) [VERIFIED]. The blind files give settlement as totals only, and the split leaves the proposed-grouping rule as it was. With a per-payment settlement file (in memory), 1,244 exact payments are now matched with their bank evidence shown apart, 0 wrong matches. Full breakdown by blocking reason: `BLIND_BREAKDOWN_BEFORE.md` and `BLIND_BREAKDOWN_AFTER.md`.
