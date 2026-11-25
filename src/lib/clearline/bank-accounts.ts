@@ -1,6 +1,13 @@
 /**
  * v1 bank accounts: the pure rules shared by the upload service and its tests. A bank account is identified by the
  * last four characters of its number only; a statement's lines must be in the account's currency.
+ *
+ * Duplicates (founder decision 9, src/server/uploads.ts `bankLineFingerprintBody`): a statement row's fingerprint, and
+ * the bank line id made from it, include the upload's bank account, so the same line in two accounts is two lines and
+ * again in the same account a duplicate. A row of an upload with NO account (before migration 0039) keeps the old
+ * fingerprint (no account) and the old line id; a later re-upload of such a line to ANY account of the entity is still
+ * a duplicate (its account was never recorded, so Clearline cannot tell it apart), as is one to the same account made
+ * before this change. An identical FILE stays refused for the entity whatever the account (uploads_content_uq).
  */
 import type { AppliedRow } from "./mapping";
 
