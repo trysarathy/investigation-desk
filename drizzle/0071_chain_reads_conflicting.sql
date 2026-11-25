@@ -5,6 +5,5 @@
 ALTER TABLE "chain_reads" DROP CONSTRAINT "chain_reads_status_chk";
 --> statement-breakpoint
 ALTER TABLE "chain_reads" ADD CONSTRAINT "chain_reads_status_chk" CHECK ("status" in ('ok','unavailable','not_found','failed_transaction','reorged','conflicting'));
---> statement-breakpoint
--- The loader's probe ("is any read of this entity unavailable or conflicting?") uses this partial index.
-CREATE INDEX "chain_reads_blocked_idx" ON "chain_reads" USING btree ("org_id","entity_id","at") WHERE "status" in ('unavailable','conflicting');
+-- No new index: the partition checks pin each partition's index set (tests/control/chain-reads-partitioning.test.ts).
+-- The loader's probe for unavailable-or-conflicting reads uses the existing partial index for its 'unavailable' arm.

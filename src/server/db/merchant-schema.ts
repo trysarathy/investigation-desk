@@ -443,7 +443,6 @@ export const chainReads = pgTable("chain_reads", {
   check("chain_reads_status_chk", sql`${t.status} in ('ok','unavailable','not_found','failed_transaction','reorged','conflicting')`), // v1 0071 (was 0061): + conflicting
   index("chain_reads_entity_idx").on(t.orgId, t.entityId, t.at, t.id),
   index("chain_reads_unavailable_idx").on(t.orgId, t.entityId, t.at).where(sql`${t.status} = 'unavailable'`),
-  index("chain_reads_blocked_idx").on(t.orgId, t.entityId, t.at).where(sql`${t.status} in ('unavailable','conflicting')`), // v1 0071 (was 0061)
 ]);
 
 /** Optional "minutes spent today" log for the pilot's time-saved measurement. */

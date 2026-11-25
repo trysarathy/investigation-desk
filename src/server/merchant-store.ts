@@ -196,7 +196,7 @@ async function unavailableReads(tx: Tx, orgId: string, entityId: string, transfe
   // per-row RLS check instead of checking every read. Same result as reading every row.
   const where = and(eq(t.chainReads.orgId, orgId), eq(t.chainReads.entityId, entityId));
   // v1: a `conflicting` read (two providers disagree) is loaded exactly like an unavailable one, typed as conflicting
-  const anyUnavailable = (await tx.select({ id: t.chainReads.id }).from(t.chainReads).where(and(where, inArray(t.chainReads.status, ["unavailable", "conflicting"]))).limit(1)).length > 0;
+  const anyUnavailable = (await tx.select({ id: t.chainReads.id }).from(t.chainReads).where(and(where, or(eq(t.chainReads.status, "unavailable"), eq(t.chainReads.status, "conflicting")))).limit(1)).length > 0;
   const reads = await tx.select().from(t.chainReads).where(anyUnavailable ? where : and(where, isNotNull(t.chainReads.txHash)))
     .orderBy(asc(t.chainReads.at), asc(t.chainReads.id));
   const latest = new Map<string, typeof reads[number]>();
