@@ -1,0 +1,21 @@
+{
+  "_comment": "Accepted npm audit advisories (scripts/security/audit-gate.mjs). Each entry: GHSA id, owner, a reason of at least 20 characters and an expiry (YYYY-MM-DD, at most 90 days out). An expired entry fails the gate until someone re-decides it. Only HIGH/CRITICAL advisories fail the gate; lower ones are listed here only to record that they were looked at.",
+  "accepted": [
+    {
+      "id": "GHSA-67mh-4wv8-2f99",
+      "package": "esbuild (via drizzle-kit > @esbuild-kit/esm-loader)",
+      "severity": "moderate",
+      "owner": "devops-engineer",
+      "reason": "Affects esbuild's development server only. drizzle-kit is the migration CLI run by an operator; Clearline never starts an esbuild dev server and no production bundle contains esbuild. [ASSUMPTION] re-check when drizzle-kit drops @esbuild-kit.",
+      "expires": "2027-02-23"
+    },
+    {
+      "id": "GHSA-w5hq-g745-h8pq",
+      "package": "uuid (via exceljs)",
+      "severity": "moderate",
+      "owner": "devops-engineer",
+      "reason": "Missing bounds check only when a caller passes its own output buffer to uuid v3/v5/v6. Clearline never calls uuid; exceljs is used to READ uploaded workbooks. [ASSUMPTION] exceljs does not pass a caller buffer to v3/v5/v6; re-check on the next exceljs release.",
+      "expires": "2027-02-23"
+    }
+  ]
+}
