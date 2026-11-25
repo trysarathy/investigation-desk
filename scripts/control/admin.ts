@@ -22,9 +22,9 @@
  *                                            --confirm repeating the slug it only prints what would be deleted.
  *                                            Prints counts only)
  *   chain-read-partitions [--months-ahead N] (v1: create the missing monthly partitions of chain_reads from this month
- *                                            to N months ahead, default 12, max 120; idempotent; prints the count and the
- *                                            last month covered. Run monthly (docs/perf/CHAIN_READS_PARTITIONING.md): a
- *                                            read in a month without a partition is refused)
+ *                                            to N months ahead, default 24 (#169), max 120; idempotent; prints the count
+ *                                            and the last month covered. Run monthly (docs/runbooks/CHAIN_READ_PARTITIONS.md):
+ *                                            a read in a month without a partition is refused)
  *   accept-invitation <invitation-id>       (rc6: accept a provider's invitation record: creates the user if needed,
  *                                            password from CLEARLINE_NEW_PASSWORD, name from CLEARLINE_NEW_NAME, and
  *                                            grants the invited merchant role; no email is ever sent)
@@ -62,6 +62,7 @@ import type { AppRole } from "../../src/server/authz";
 import { seedMerchantCases } from "../../src/server/merchant-seed";
 import { purgeExpiredUploads, sweepOrphanFiles } from "../../src/server/uploads";
 import { deleteMerchant, planMerchantDeletion } from "../../src/server/merchant-deletion";
+import { monthsAheadArg } from "../../src/server/chain-read-partitions";
 import { addBankAccount, addEntity, addMember, closeBankAccount, createMerchant, createProvider, linkProvider, openOwnerDb, recordFiatRate, setPolicy, setupSummary } from "../../src/server/merchant-setup";
 
 const DEMO_USERS: { email: string; name: string; org: string; role: AppRole }[] = [
@@ -171,9 +172,7 @@ async function main() {
       break;
     }
     case "chain-read-partitions": {
-      const i = a.indexOf("--months-ahead");
-      const ahead = i >= 0 ? Number(a[i + 1]) : 12;
-      if (!Number.isInteger(ahead) || ahead < 0 || ahead > 120) throw new Error("--months-ahead must be a whole number from 0 to 120");
+      const ahead = monthsAheadArg(a);
       const r = await db.execute(sql`select chain_reads_ensure_partitions(current_date, (current_date + make_interval(months => ${ahead}))::date) as created,
         (select max(c.relname) from pg_inherits i join pg_class c on c.oid = i.inhrelid where i.inhparent = 'chain_reads'::regclass) as last`);
       console.log(JSON.stringify({ created: r.rows[0].created, lastPartition: r.rows[0].last })); break;

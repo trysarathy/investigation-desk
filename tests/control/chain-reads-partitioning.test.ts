@@ -56,7 +56,10 @@ describe("chain_reads partitioned by month", () => {
     expect(String((await rows(`select pg_get_partkeydef('chain_reads'::regclass) as k`))[0].k)).toBe("RANGE (at)");
     const parts = await rows(`select c.relname, pg_get_expr(c.relpartbound, c.oid) as bound from pg_inherits i join pg_class c on c.oid = i.inhrelid
       where i.inhparent = 'chain_reads'::regclass order by c.relname`);
-    expect(parts.length).toBeGreaterThanOrEqual(24); // January 2025 to 12 months ahead of the migration
+    expect(parts.length).toBeGreaterThanOrEqual(24); // January 2025 to 24 months ahead of the migration (0047, #169)
+    // v1 #169: every month from now to 24 months ahead has its partition
+    const want = Array.from({ length: 25 }, (_, k) => { const d = new Date(); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + k); return `chain_reads_p${d.toISOString().slice(0, 7).replace("-", "")}`; });
+    expect(want.filter((p) => !parts.some((x) => x.relname === p))).toEqual([]);
     expect(parts.find((p) => p.relname === "chain_reads_p202611")!.bound).toMatch(/FROM \('2026-11-01 00:00:00\+00'\) TO \('2026-12-01 00:00:00\+00'\)/);
     expect(parts.some((p) => String(p.bound).includes("DEFAULT"))).toBe(false); // no catch-all partition
     const placed = await rows(`select tableoid::regclass::text as part, count(*)::int as n from chain_reads group by 1 order by 1`);
