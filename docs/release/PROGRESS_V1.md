@@ -66,10 +66,31 @@ database: 3 files, 18/18 passed [VERIFIED]; the full control suite on the stack 
 | w1-35-merchant-header-security-link | Security link contrast in the merchant header (integration) | no |
 | w1-36-chain-unavailable-perf | step 1a no longer quadratic; identical results (found by e2e:blind) (integration) | no (same outputs; matching code touched, review) |
 | w1-37-progress-decisions | this file and the decisions log | no |
+| w1-38-evidence-chip-wraps | the bank evidence chip wraps at 390 px (found by the demo suite) (integration) | no |
+| w1-39-demo-analyze | the seeded demo is analysed before its template (Approvals page 4 s → fast) (integration) | no |
+| w1-40-test-counts | the counts below | no |
 
 ## Test counts on the stack top (wave 1)
 
-TEST_COUNTS_PLACEHOLDER
+Local runs, 25 Nov 2026, fresh databases (PostgreSQL 16), retries 0. Revision: top of the stack (w1-39, 41f4652) unless
+noted; "w1-37" = 26e2c14, which differs from the top only by the evidence-chip CSS (w1-38) and the demo script (w1-39).
+
+| Check | Result |
+|---|---|
+| `npx tsc --noEmit` (every slice w1-01 … w1-39 on its own, and the top) | 0 errors [VERIFIED] |
+| lint (shared config) | 0 errors, 68 warnings [VERIFIED] |
+| `npx vitest run` | 2,823 passed, 57 skipped (2,880), 159 files passed, 1 skipped [VERIFIED]. An earlier full run under load timed out one rc4 property test (5 s); alone it passed 25/25 |
+| `npm run test:control` (with the provisioning URL) | 510 / 510, 48 files [VERIFIED] |
+| control-e2e (pilot build), incl. login-security spec | 34 / 34 (w1-37) [VERIFIED] |
+| merchant-e2e (CLEARLINE_TEST_BUILD build, `check-chain-recording --expect present`: 1 file) | 37 passed, 1 skipped [VERIFIED] |
+| onboarding Playwright spec (desktop + mobile) | 2 / 2 (w1-37) [VERIFIED] |
+| `npm run build:prod-check` | every marker absent, `mfa` included; chain and demo checks absent [VERIFIED] |
+| public demo browser (`playwright.clearline.config.ts`, plain build) | 291 passed, 11 skipped (w1-37) [VERIFIED] |
+| funding-browser (random CLEARLINE_BROWSER_PASSWORD) | 4 / 4 (w1-37) [VERIFIED] |
+| `npm run demo -- --fresh --no-start` (private PostgreSQL 16) | ok, 2 min 31 s; 2 demo Admin/Approver logins enrolled; ANALYZE; demo marker present, `mfa` marker present in `.next-demo` |
+| `demo:reset` × 3 | 678 ms, 369 ms, 308 ms |
+| demo suite (`playwright.demo.config.ts`) | 28 / 28 [VERIFIED] (before w1-38/w1-39: 24 passed, 4 failed — chip overflow and the 4 s Approvals page) |
+| `npm run e2e:blind` (fresh database, w1-37) | 1 passed (2.1 min): matched 1,445 (74.03 %), review 466 (23.87 %), exception 41 (2.10 %), **wrong matches 0** (both entities, flag off and on); idempotent [VERIFIED] |
 
 ## Next
 Review the approval-only slices; push the wave 1 stack as stacked draft PRs on #175 when asked; then Phase 2.
