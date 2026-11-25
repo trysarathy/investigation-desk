@@ -36,7 +36,7 @@ seen is remembered by a hash of its remote identity (`upload_pickup_items`), so 
   itself.
 
 `POST /api/control/merchant/uploads/pickup/<id>` with `{ "enabled": false }` switches a source off. Nothing else about a
-source can change; to change a source, add a new one. The database checks every rule above again (drizzle/0055).
+source can change; to change a source, add a new one. The database checks every rule above again (drizzle/0074, was 0055).
 
 ## Running it
 

@@ -199,7 +199,8 @@ describe("wave 1: every table that carries an entity has the scope policy", () =
 describe("the server check holds on its own", () => {
   it("with every entity_scope policy dropped (owner, this test only), the services still refuse and filter", async () => {
     const pols = await rows(sql`select tablename, qual, with_check from pg_policies where policyname = 'entity_scope' order by tablename`);
-    expect(pols.length).toBe(33);
+    // v1 phase 2.1 (drizzle/0074, was 0055): +2, upload_pickup_sources and upload_pickup_items
+    expect(pols.length).toBe(35);
     try {
       for (const p of pols) await ownerDb().execute(sql.raw(`drop policy entity_scope on ${p.tablename}`));
       const f = await ctx("finance-one@straits-demo.example");
@@ -221,7 +222,7 @@ describe("the server check holds on its own", () => {
     } finally {
       for (const p of pols) await ownerDb().execute(sql.raw(`create policy entity_scope on ${p.tablename} as restrictive for all to clearline_app using (${p.qual}) with check (${p.with_check})`));
     }
-    expect((await rows(sql`select count(*)::int as n from pg_policies where policyname = 'entity_scope' and permissive = 'RESTRICTIVE'`))[0].n).toBe(33);
+    expect((await rows(sql`select count(*)::int as n from pg_policies where policyname = 'entity_scope' and permissive = 'RESTRICTIVE'`))[0].n).toBe(35);
   });
 });
 
