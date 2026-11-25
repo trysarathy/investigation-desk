@@ -196,7 +196,12 @@ describe("isolation between merchants", () => {
       expect(Number((await as(sg.userId, sg.orgId, sql`select count(*)::int as n from ${sql.identifier(tb)}`)).rows[0].n), tb).toBeGreaterThan(0);
     }
     expect((await listRuns(ae)).schedules).toEqual([]);
-    await dbRefuses(as(sg.userId, sg.orgId, sql`insert into jobs (org_id, entity_id, trigger, dedupe_key, run_as, run_after) values (${sg.orgId}, 'ENT-SG-01', 'schedule', 'forged', ${sg.userId}, now())`), /permission denied/);
+    // v1 phase 3 (0064): a member may enqueue a MANUAL job for themselves only; a scheduled one, or one for another member, is refused
+    await dbRefuses(as(sg.userId, sg.orgId, sql`insert into jobs (org_id, entity_id, trigger, dedupe_key, run_as, run_after) values (${sg.orgId}, 'ENT-SG-01', 'schedule', 'forged', ${sg.userId}, now())`), /row-level security/);
+    await dbRefuses(as(sg.userId, sg.orgId, sql`insert into jobs (org_id, entity_id, trigger, dedupe_key, run_as, run_after) values (${sg.orgId}, 'ENT-SG-01', 'manual', 'forged2', ${seed.users["finance@straits-demo.example"]}, now())`), /row-level security/);
+    await dbRefuses(as(sg.userId, sg.orgId, sql`insert into jobs (org_id, entity_id, trigger, dedupe_key, run_as, run_after, status) values (${sg.orgId}, 'ENT-SG-01', 'manual', 'forged3', ${sg.userId}, now(), 'done')`), /permission denied/);
+    await dbRefuses(as(ae.userId, seed.orgs.sg, sql`insert into jobs (org_id, entity_id, trigger, dedupe_key, run_as, run_after) values (${seed.orgs.sg}, 'ENT-SG-01', 'manual', 'forged4', ${ae.userId}, now())`), /row-level security/);
+    await dbRefuses(as(sg.userId, sg.orgId, sql`delete from jobs`), /permission denied/);
     await dbRefuses(as(sg.userId, sg.orgId, sql`update jobs set status = 'done'`), /permission denied/);
     await dbRefuses(as(ae.userId, seed.orgs.sg, sql`insert into reconciliation_schedules (org_id, entity_id, run_as) values (${seed.orgs.sg}, 'ENT-SG-02', ${ae.userId})`), /row-level security/);
   });
@@ -221,7 +226,7 @@ describe("SECURITY: the job queue's own login (rc8, clearline_jobs)", () => {
       const ok = (await jobs(sql`select has_table_privilege(current_user, ${`public.${tb}`}, ${p}) as ok`)).rows[0].ok;
       if (ok) granted.push(`${tb}:${p}`);
     }
-    expect(granted.sort()).toEqual(["jobs:INSERT", "jobs:SELECT", "jobs:UPDATE", "reconciliation_schedules:SELECT"]);
+    expect(granted.sort()).toEqual(["job_events:INSERT", "job_events:SELECT", "jobs:INSERT", "jobs:SELECT", "jobs:UPDATE", "reconciliation_schedules:SELECT"]);
   });
 
   it("cannot read or write merchant data, nor change the schema", async () => {
@@ -244,6 +249,9 @@ describe("SECURITY: the job queue's own login (rc8, clearline_jobs)", () => {
     const sg = await ctx("ops@straits-demo.example", "sg");
     await dbRefuses(as(sg.userId, sg.orgId, sql`select * from jobs_due_schedules()`), /permission denied/);
     await dbRefuses(as(sg.userId, sg.orgId, sql`select * from jobs_run_principal(${sg.orgId}::uuid, 'ENT-SG-01', ${sg.userId})`), /permission denied/);
+    await dbRefuses(as(sg.userId, sg.orgId, sql`select * from jobs_requester_principal(${sg.orgId}::uuid, ${sg.userId})`), /permission denied/);
+    await dbRefuses(as(sg.userId, sg.orgId, sql`select * from jobs_retention_due(now())`), /permission denied/);
+    await dbRefuses(jobs(sql`update job_events set event = 'done'`), /permission denied|append-only/);
   });
 
   it("learns who a job runs as only from that member's enabled schedule", async () => {

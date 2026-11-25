@@ -615,10 +615,10 @@ export type DerivedPurge = (tx: Db | Tx, u: UploadRow) => Promise<Record<string,
  * and the data derived only from it, and mark it deleted. Runs with the schema OWNER connection (a scheduled job,
  * like the admin CLI), across organisations. Audit rows record counts only.
  */
-export async function purgeExpiredUploads(db: Db, now: Date, opts: { storage?: UploadStorage; derived?: DerivedPurge } = {}) {
+export async function purgeExpiredUploads(db: Db, now: Date, opts: { storage?: UploadStorage; derived?: DerivedPurge; /** v1 phase 3: one organisation only (the worker's retention job). */ orgId?: string } = {}) {
   const storage = opts.storage ?? uploadStorage();
   const derived = opts.derived ?? purgeDerivedRows;
-  const due = await db.select().from(t.uploads).where(and(ne(t.uploads.status, "deleted"), lte(t.uploads.deleteAfter, now))).orderBy(asc(t.uploads.deleteAfter));
+  const due = await db.select().from(t.uploads).where(and(ne(t.uploads.status, "deleted"), lte(t.uploads.deleteAfter, now), ...(opts.orgId ? [eq(t.uploads.orgId, opts.orgId)] : []))).orderBy(asc(t.uploads.deleteAfter));
   const total = { uploads: 0, files: 0, rows: 0 } as Record<string, number>;
   for (const u of due) {
     const file = u.storageKey ? await storage.delete(u.orgId, u.storageKey) : false;
