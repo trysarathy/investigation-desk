@@ -4,7 +4,12 @@
  * Commands:
  *   create-org <slug> <name> [sample|empty|live] (rc7 "live": an empty organisation for real uploads, "Your data")
  *   create-user <email> <name>              (password read from CLEARLINE_NEW_PASSWORD; never an argument)
- *   grant <org-slug> <email> <admin|payment_ops|finance|approver|viewer>
+ *   grant <org-slug> <email> <admin|payment_ops|finance|approver|viewer> [--entities <ENT-1,ENT-2>|all]
+ *                                           (v1: --entities limits the membership to those entities of the merchant;
+ *                                            "all" removes a limit; without it a new membership covers every entity and
+ *                                            an existing one keeps its limit)
+ *   set-entity-scope <org-slug> <email> <ENT-1,ENT-2|all>
+ *                                           (v1: change which entities an active membership may read and act on; audited)
  *   revoke <org-slug> <email>
  *   revoke-sessions <email>
  *   seed-demo                               (two fictional organisations and fictional users; passwords from
@@ -65,7 +70,16 @@
  */
 import { sql } from "drizzle-orm";
 import { closeDatabase, database } from "../../src/server/db/client";
-import { acceptInvitation, createOrganization, createUser, grantMembership, revokeMembership, revokeSessions } from "../../src/server/admin";
+import { acceptInvitation, createOrganization, createUser, grantMembership, revokeMembership, revokeSessions, setEntityScope } from "../../src/server/admin";
+
+/** "all" or a comma-separated list of entity ids (refused when empty). */
+function entityList(v: string | undefined): string[] | "all" {
+  if (!v) throw new Error("name the entities (ENT-1,ENT-2) or all");
+  if (v === "all") return "all";
+  const ids = v.split(",").map((x) => x.trim()).filter(Boolean);
+  if (!ids.length) throw new Error("name the entities (ENT-1,ENT-2) or all");
+  return ids;
+}
 import type { AppRole } from "../../src/server/authz";
 import { seedMerchantCases } from "../../src/server/merchant-seed";
 import { purgeExpiredUploads, sweepOrphanFiles } from "../../src/server/uploads";
@@ -146,7 +160,11 @@ async function main() {
       if (!pw) throw new Error("set CLEARLINE_NEW_PASSWORD");
       console.log(await createUser(db, { email: a[0], name: a[1], password: pw })); break;
     }
-    case "grant": await grantMembership(db, { orgSlug: a[0], email: a[1], role: a[2] as AppRole }); break;
+    case "grant": {
+      const i = a.indexOf("--entities");
+      await grantMembership(db, { orgSlug: a[0], email: a[1], role: a[2] as AppRole, ...(i >= 0 ? { entities: entityList(a[i + 1]) } : {}) }); break;
+    }
+    case "set-entity-scope": console.log(JSON.stringify(await setEntityScope(db, { orgSlug: a[0], email: a[1], entities: entityList(a[2]) }))); break;
     case "revoke": await revokeMembership(db, { orgSlug: a[0], email: a[1] }); break;
     case "purge-uploads": {
       const now = new Date();

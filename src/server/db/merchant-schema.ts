@@ -383,8 +383,11 @@ export const reconExceptions = pgTable("recon_exceptions", {
   ownerRole: text("owner_role").notNull(), ownerUserId: text("owner_user_id").references(() => users.id),
   reason: text("reason").notNull(), nextStep: text("next_step").notNull(),
   status: text("status").notNull().default("open"), openedAt: ts("opened_at").notNull(), closedAt: ts("closed_at"),
+  /** v1 (drizzle/0053): the entity whose run opened it (null only on rows from before 0053 without a payment). */
+  entityId: text("entity_id"),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.id] }),
+  foreignKey({ columns: [t.orgId, t.entityId], foreignColumns: [merchantEntities.orgId, merchantEntities.id], name: "recon_exceptions_entity_fk" }),
   check("recon_exceptions_status_chk", sql`${t.status} in ('open','in_review','resolved')`),
   check("recon_exceptions_text_chk", sql`length(${t.reason}) >= 3 and length(${t.nextStep}) >= 3 and length(${t.ownerRole}) >= 3`),
 ]);
