@@ -13,7 +13,7 @@ import { RunReconciliation } from "@/components/merchant/forms";
 import { DeleteUpload, NormaliseUpload, UploadDecisionForm, ValidateUpload } from "@/components/merchant/upload-review-forms";
 import { Chip, Empty, one, q } from "@/components/merchant/ui";
 import { fieldOf, type Mapping } from "@/lib/clearline/mapping";
-import { DELIMITER_WORDS, ENCODING_WORDS, FILE_TYPE_LABELS, FORMAT_LABELS, bankAccountLabel, reasonText, statusLabel, warningText } from "@/lib/clearline/upload-words";
+import { DELIMITER_WORDS, ENCODING_WORDS, FILE_TYPE_LABELS, FORMAT_LABELS, bankAccountLabel, isStatementFormat, reasonText, statusLabel, warningText } from "@/lib/clearline/upload-words";
 
 export const metadata: Metadata = { title: "Upload" };
 
@@ -42,7 +42,7 @@ export default async function UploadPage({ params, searchParams }: { params: Pro
   const sp = await searchParams;
   const w = await orNotFound(uploadWorkspace(ctx, (await params).id));
   const u = w.upload, p = w.preview;
-  const statement = u.fileFormat === "mt940" || u.fileFormat === "camt053";
+  const statement = isStatementFormat(u.fileFormat);
   const mayMap = can(ctx.role, "merchant_upload") && ["stored", "mapped", "validated"].includes(u.status) && !statement;
   const step = stepOf(u.status, statement);
   const exact = w.suggestion?.exact ?? null;
@@ -96,7 +96,7 @@ export default async function UploadPage({ params, searchParams }: { params: Pro
 
       <section className={s.section} aria-labelledby="map">
         <h2 className={s.h2} id="map">Map columns</h2>
-        {statement ? <p className={s.small}>MT940 and camt.053 statements need no column mapping: the statement format says which value is which.</p>
+        {statement ? <p className={s.small}>MT940, camt.053, camt.054 and BAI2 statements need no column mapping: the statement format says which value is which.</p>
           : mayMap && w.suggestion ? (
             <>
               {u.mapping ? <p className={s.small}>Mapped{w.templateName ? ` with template “${w.templateName}” v${u.templateVersion}` : ""}. You can change it until the upload is confirmed; changing it clears the validation report.</p> : null}

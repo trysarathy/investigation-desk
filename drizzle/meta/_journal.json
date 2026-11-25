@@ -372,6 +372,13 @@
       "when": 1796690000000,
       "tag": "0069_setup_requires_unscoped_admin",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1796700000000,
+      "tag": "0070_bank_formats_camt054_bai2",
+      "breakpoints": true
     }
   ]
 }

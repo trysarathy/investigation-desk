@@ -35,7 +35,7 @@ export const mappingTemplates = pgTable("mapping_templates", {
 ]);
 
 export const UPLOAD_STATUSES = ["stored", "mapped", "validated", "confirmed", "normalised", "rejected", "deleted"] as const;
-export const UPLOAD_FORMATS = ["csv", "tsv", "xlsx", "json", "mt940", "camt053"] as const;
+export const UPLOAD_FORMATS = ["csv", "tsv", "xlsx", "json", "mt940", "camt053", "camt054", "bai2"] as const;
 const inList = (xs: readonly string[]) => sql.raw(`(${xs.map((x) => `'${x}'`).join(",")})`);
 
 /**

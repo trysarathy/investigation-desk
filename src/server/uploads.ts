@@ -3,12 +3,13 @@ import { createHash } from "node:crypto";
 import { and, asc, eq, inArray, isNull, lte, ne, notInArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
-  IngestError, formatMinor, currencyPrecision, parseCamt053, parseMt940, preview as previewRows, readTabular, sniffFile,
+  IngestError, formatMinor, currencyPrecision, parseBai2, parseCamt053, parseCamt054, parseMt940, preview as previewRows, readTabular, sniffFile,
   type BankParseResult, type ParsedTable,
 } from "@/lib/clearline/ingest";
 import { FILE_TYPES, applyMapping, validateMapping, type AppliedRow, type FileType, type Mapping, type MappedValue } from "@/lib/clearline/mapping";
 import { usesUploadPipeline, type DataLabel } from "@/lib/clearline/data-mode";
-import { otherCurrencies, rejectOtherCurrency } from "@/lib/clearline/bank-accounts";
+import { otherCurrencies, rejectOtherCurrency, statementAccountsNotLast4 } from "@/lib/clearline/bank-accounts";
+import { isStatementFormat, type StatementFormat } from "@/lib/clearline/upload-words";
 import type { NetworkId, TokenConfig } from "@/lib/clearline/merchant/types";
 import { stableJson } from "@/lib/clearline/merchant/adapters";
 import type { Db, Tx } from "./db/client";
@@ -62,7 +63,13 @@ const refuse = (e: unknown): never => {
   throw e;
 };
 
-type Parsed = { format: "csv" | "tsv" | "xlsx" | "json"; table: ParsedTable } | { format: "mt940" | "camt053"; statement: BankParseResult };
+type Parsed = { format: "csv" | "tsv" | "xlsx" | "json"; table: ParsedTable } | { format: StatementFormat; statement: BankParseResult };
+/**
+ * v1: formats whose account must match the chosen bank account's last four characters. MT940 and camt.053 are not
+ * checked yet (existing behaviour kept; extending the check to them is a pending decision).
+ */
+const ACCOUNT_CHECKED_FORMATS: ReadonlySet<StatementFormat> = new Set(["camt054", "bai2"]);
+const STATEMENT_PARSERS: Readonly<Record<StatementFormat, (bytes: Uint8Array) => BankParseResult>> = { mt940: parseMt940, camt053: parseCamt053, camt054: parseCamt054, bai2: parseBai2 };
 
 /**
  * Read a file with the rc7 ingest parsers (size, row and cell limits included). Statements are only bank statements.
@@ -72,9 +79,9 @@ export async function parseUpload(bytes: Uint8Array, fileType: FileType, fileNam
   try {
     const kind = sniffFile(bytes, fileName).kind;
     if (jsonList && kind !== "json") throw new RequestRefused(422, "JSON_LIST_NOT_JSON", "Choosing a list applies to JSON files only.");
-    if (kind === "mt940" || kind === "camt053") {
+    if (isStatementFormat(kind)) {
       if (fileType !== "bank_statement") throw new RequestRefused(422, "FILE_NOT_A_TABLE", "This is a bank statement; upload it as a bank statement.");
-      return { format: kind, statement: kind === "mt940" ? parseMt940(bytes) : parseCamt053(bytes) };
+      return { format: kind, statement: STATEMENT_PARSERS[kind](bytes) };
     }
     const table = await readTabular(bytes, { fileName, ...(jsonList ? { arrayProperty: jsonList } : {}) });
     return { format: table.kind, table };
@@ -139,7 +146,9 @@ export async function analyseUpload(tx: Tx, u: Pick<UploadRow, "orgId" | "fileTy
     const rows: AppliedRow[] = s.lines.map((l) => {
       const values: Record<string, MappedValue> = { bank_account: l.account, value_date: l.valueDate, amount: l.amountMinor, currency: l.currency, direction: l.direction, reference: l.reference };
       for (const [k, v] of [["booking_date", l.bookingDate], ["counterparty", l.counterparty], ["bank_reference", l.bankReference], ["description", l.narrative]] as const) if (v) values[k] = v;
-      const warnings = l.amountMinor === 0n ? [{ field: "amount", code: "zero_amount" }] : [];
+      const warnings = [...(l.amountMinor === 0n ? [{ field: "amount", code: "zero_amount" }] : []),
+        // v1: a reversal or return the bank marked (camt RvslInd, BAI2 return code) is accepted only with a warning, for review
+        ...(l.reversal ? [{ field: "direction", code: "bank_reversal" }] : [])];
       return { rowNumber: l.sourceRow, status: warnings.length ? "warning" : "accepted", values, errors: [], warnings };
     });
     return { rows: hashRows(fileType, inAccountCurrency(rows), u.bankAccountId ?? null), notes };
@@ -254,12 +263,18 @@ export async function createUpload(ctx: TenantContext, input: z.input<typeof Cre
     const acct = await tenantRead(ctx, (tx) => bankAccountOf(tx, ctx.orgId, v.bankAccountId!));
     if (!acct || acct.entityId !== v.entityId) throw new AccessDenied(404, "Not found.");
     if (acct.status !== "active") throw new RequestRefused(409, "BANK_ACCOUNT_CLOSED", "This bank account is closed; upload statements to an active account.");
-    // a structured statement (MT940, camt.053) states its currency: every line must be in the account's currency
+    // a structured statement (MT940, camt.053, camt.054, BAI2) states its currency: every line must be in the account's currency
     const other = "statement" in parsed ? otherCurrencies(parsed.statement.lines, acct.currency) : [];
     if (other.length) {
       await tenantTx(ctx, (tx) => serverAudit(tx, ctx, "upload_refused", "upload", null, "Upload refused before storing (STATEMENT_CURRENCY_MISMATCH)",
         { code: "STATEMENT_CURRENCY_MISMATCH", byteSize: bytes.byteLength, fileType: v.fileType, entityId: v.entityId, bankAccountId: acct.id }));
       throw new RequestRefused(422, "STATEMENT_CURRENCY_MISMATCH", `This statement is in ${other.join(", ")}; the bank account ${acct.displayName} is in ${acct.currency}. Nothing was stored.`);
+    }
+    // v1 (camt.054, BAI2): the account the file names must end in the bank account's last four characters
+    if ("statement" in parsed && ACCOUNT_CHECKED_FORMATS.has(parsed.format) && statementAccountsNotLast4(parsed.statement.statements, acct.accountLast4)) {
+      await tenantTx(ctx, (tx) => serverAudit(tx, ctx, "upload_refused", "upload", null, "Upload refused before storing (STATEMENT_ACCOUNT_MISMATCH)",
+        { code: "STATEMENT_ACCOUNT_MISMATCH", byteSize: bytes.byteLength, fileType: v.fileType, entityId: v.entityId, bankAccountId: acct.id }));
+      throw new RequestRefused(422, "STATEMENT_ACCOUNT_MISMATCH", `This statement names an account that does not end in ${acct.accountLast4}, the last four characters of ${acct.displayName}. Nothing was stored.`);
     }
   }
   // rc8: the file is written before its row, inside the transaction. If anything after the write fails (the insert,
@@ -347,7 +362,7 @@ export async function setUploadMapping(ctx: TenantContext, id: string, input: z.
   return tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "upload_map", id, ...v }, async () => {
     const u = await loadUpload(tx, ctx, id, true);
     if (!["stored", "mapped", "validated"].includes(u.status)) throw new RequestRefused(409, "UPLOAD_DECIDED", `This upload is ${u.status}; its mapping cannot change.`);
-    if (u.fileFormat === "mt940" || u.fileFormat === "camt053") throw new RequestRefused(409, "NO_MAPPING_NEEDED", "MT940 and camt.053 statements need no column mapping; validate the upload.");
+    if (isStatementFormat(u.fileFormat)) throw new RequestRefused(409, "NO_MAPPING_NEEDED", "MT940, camt.053, camt.054 and BAI2 statements need no column mapping; validate the upload.");
     let mapping: unknown, templateId: string | null = null, templateVersion: number | null = null;
     if ("templateId" in v) {
       const [tpl] = await tx.select().from(t.mappingTemplates).where(and(eq(t.mappingTemplates.orgId, ctx.orgId), eq(t.mappingTemplates.id, v.templateId)));
@@ -378,7 +393,7 @@ export async function validateUpload(ctx: TenantContext, id: string, idempotency
   return tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "upload_validate", id }, async () => {
     const u = await loadUpload(tx, ctx, id, true);
     if (!["stored", "mapped", "validated"].includes(u.status)) throw new RequestRefused(409, "UPLOAD_DECIDED", `This upload is ${u.status}.`);
-    if (u.status === "stored" && u.fileFormat !== "mt940" && u.fileFormat !== "camt053") throw new RequestRefused(409, "NOT_MAPPED", "Map the file's columns first.");
+    if (u.status === "stored" && !isStatementFormat(u.fileFormat)) throw new RequestRefused(409, "NOT_MAPPED", "Map the file's columns first.");
     const analysis = await analyseUpload(tx, u, await storage.get(ctx.orgId, u.storageKey!));
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${ctx.orgId}|upload-rows|${u.entityId}|${u.fileType}`}))`);
     const hashes = [...new Set(analysis.rows.map((r) => r.rowHash).filter((h): h is string => h !== null))];
