@@ -96,7 +96,8 @@ CREATE POLICY member_read ON job_events FOR SELECT TO clearline_app USING (org_i
 --> statement-breakpoint
 -- a scoped member sees an event only when its job is visible (the job's own policies, entity_scope included, apply)
 CREATE POLICY entity_scope ON job_events AS RESTRICTIVE FOR ALL TO clearline_app
-  USING (EXISTS (SELECT 1 FROM jobs p WHERE p.id = job_events.job_id AND p.org_id = job_events.org_id));
+  USING (EXISTS (SELECT 1 FROM jobs p WHERE p.id = job_events.job_id AND p.org_id = job_events.org_id))
+  WITH CHECK (EXISTS (SELECT 1 FROM jobs p WHERE p.id = job_events.job_id AND p.org_id = job_events.org_id));
 --> statement-breakpoint
 CREATE POLICY jobs_queue ON job_events TO clearline_jobs USING (true) WITH CHECK (true);
 --> statement-breakpoint
