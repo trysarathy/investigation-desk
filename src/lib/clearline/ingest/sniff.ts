@@ -66,7 +66,7 @@ export function decodeText(bytes: Uint8Array): DecodedText {
   return { text: legacy, encoding: "windows-1252", bom: false, warnings };
 }
 
-export type FileKind = "csv" | "tsv" | "xlsx" | "json" | "mt940" | "camt053";
+export type FileKind = "csv" | "tsv" | "xlsx" | "json" | "mt940" | "camt053" | "camt054" | "bai2";
 export type SniffResult =
   | { kind: FileKind; reason: string; encoding?: TextEncoding; delimiter?: Delimiter; warnings: IngestWarning[] }
   | { kind: "unknown"; reason: string; warnings: IngestWarning[] };
@@ -86,6 +86,12 @@ function zipHasWorkbook(bytes: Uint8Array): boolean {
 /** MT940 shape: a :20: reference and at least one balance or statement-line field. */
 export const looksLikeMt940 = (text: string): boolean => /(^|[\r\n{]|\{4:\s*)\s*:20:/.test(text) && /(^|[\r\n]):(60[FM]|61|62[FM]):/.test(text);
 export const looksLikeCamt053 = (text: string): boolean => /^\s*</.test(text) && /camt\.053\./.test(text);
+export const looksLikeCamt054 = (text: string): boolean => /^\s*</.test(text) && /camt\.054\./.test(text) && !/camt\.053\./.test(text);
+/**
+ * BAI2 shape: a 01 file header of eight fields ending in version 2 (or 3, the BTRS successor, which the parser then
+ * refuses by name), then a 02 group header and a 03 account record on lines of their own.
+ */
+export const looksLikeBai2 = (text: string): boolean => /^\s*01,(?:[^,\r\n]*,){7}\s*[23]\s*\/?\s*[\r\n]/.test(text) && /(^|[\r\n])02,/.test(text) && /(^|[\r\n])03,/.test(text);
 
 /**
  * Decide the file kind from content. The file name never decides it: it only adds a warning when its extension
@@ -101,7 +107,7 @@ export function sniffFile(bytes: Uint8Array, fileName?: string): SniffResult {
   if (bytes.length >= 4 && bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0) {
     return { kind: "unknown", reason: "This is an old-style Excel (.xls) file. Open it in Excel and save it as .xlsx or CSV.", warnings: [] };
   }
-  if (ascii(bytes, 0, 5) === "%PDF-") return { kind: "unknown", reason: "This is a PDF. Download the statement as CSV, Excel, MT940 or camt.053 instead.", warnings: [] };
+  if (ascii(bytes, 0, 5) === "%PDF-") return { kind: "unknown", reason: "This is a PDF. Download the statement as CSV, Excel, MT940, camt.053, camt.054 or BAI2 instead.", warnings: [] };
 
   let decoded: DecodedText;
   try {
@@ -114,15 +120,18 @@ export function sniffFile(bytes: Uint8Array, fileName?: string): SniffResult {
   const trimmed = head.trimStart();
   const named = (kind: FileKind): IngestWarning[] => {
     const ext = fileName?.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1];
-    const expected: Record<string, FileKind[]> = { csv: ["csv", "tsv"], tsv: ["tsv", "csv"], txt: ["csv", "tsv", "mt940"], json: ["json"], xml: ["camt053"], sta: ["mt940"], mt940: ["mt940"], xlsx: ["xlsx"] };
+    const expected: Record<string, FileKind[]> = { csv: ["csv", "tsv"], tsv: ["tsv", "csv"], txt: ["csv", "tsv", "mt940", "bai2"], json: ["json"], xml: ["camt053", "camt054"], sta: ["mt940"], mt940: ["mt940"], xlsx: ["xlsx"], bai: ["bai2"], bai2: ["bai2"] };
     if (ext === undefined || !(ext in expected) || expected[ext].includes(kind)) return warnings;
     return [...warnings, { code: "extension_mismatch", message: `The file is named .${ext} but its content is ${kind.toUpperCase()}; it was read as ${kind.toUpperCase()}.` }];
   };
   if (looksLikeMt940(head)) return { kind: "mt940", reason: "SWIFT MT940 fields (:20:, :60F:, :61:).", encoding, warnings: named("mt940") };
+  // Before the CSV check: BAI2 is comma separated too.
+  if (looksLikeBai2(head)) return { kind: "bai2", reason: "BAI2 records (01 file header, 02 group, 03 account).", encoding, warnings: named("bai2") };
   if (trimmed.startsWith("{")) return { kind: "json", reason: "Text starting with a JSON object.", encoding, warnings: named("json") };
   if (trimmed.startsWith("[")) return { kind: "json", reason: "Text starting with a JSON array.", encoding, warnings: named("json") };
   if (looksLikeCamt053(head)) return { kind: "camt053", reason: "ISO 20022 camt.053 XML.", encoding, warnings: named("camt053") };
-  if (trimmed.startsWith("<")) return { kind: "unknown", reason: "This is XML or HTML, but not a camt.053 bank statement.", warnings };
+  if (looksLikeCamt054(head)) return { kind: "camt054", reason: "ISO 20022 camt.054 XML.", encoding, warnings: named("camt054") };
+  if (trimmed.startsWith("<")) return { kind: "unknown", reason: "This is XML or HTML, but not a camt.053 or camt.054 bank statement.", warnings };
 
   const delimiter = detectDelimiter(head);
   if (text.trim() === "") return { kind: "unknown", reason: "The file has no text.", warnings };
