@@ -226,7 +226,10 @@ describe("SECURITY: the job queue's own login (rc8, clearline_jobs)", () => {
       const ok = (await jobs(sql`select has_table_privilege(current_user, ${`public.${tb}`}, ${p}) as ok`)).rows[0].ok;
       if (ok) granted.push(`${tb}:${p}`);
     }
-    expect(granted.sort()).toEqual(["job_events:INSERT", "job_events:SELECT", "jobs:INSERT", "jobs:SELECT", "jobs:UPDATE", "reconciliation_schedules:SELECT"]);
+    // v1 phase 5.5 (drizzle/0081, was 0075, approval-only): plus its own heartbeat table, which holds worker ids and times only
+    expect(granted.sort()).toEqual(["job_events:INSERT", "job_events:SELECT", "jobs:INSERT", "jobs:SELECT", "jobs:UPDATE",
+      "ops_worker_heartbeats:DELETE", "ops_worker_heartbeats:INSERT", "ops_worker_heartbeats:SELECT", "ops_worker_heartbeats:UPDATE",
+      "reconciliation_schedules:SELECT"]);
   });
 
   it("cannot read or write merchant data, nor change the schema", async () => {
