@@ -54,4 +54,6 @@ BEGIN
   RETURN NEW;
 END $$;
 --> statement-breakpoint
+REVOKE ALL ON FUNCTION guard_org_data_key() FROM PUBLIC;
+--> statement-breakpoint
 CREATE TRIGGER org_data_keys_guard BEFORE UPDATE ON org_data_keys FOR EACH ROW EXECUTE FUNCTION guard_org_data_key();
