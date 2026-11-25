@@ -6,6 +6,7 @@ import { batchIds, dataAsOf, partsSummaries } from "@/server/merchant-ui";
 import { merchantMember } from "@/server/merchant-page";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
+import { NEEDS_A_RATE } from "@/lib/clearline/merchant/fiat-value";
 import { BankChip, ChainChip, DecisionChip, Empty, LedgerChip, ProviderChip, differenceLabel, fiat, one } from "@/components/merchant/ui";
 
 export const metadata: Metadata = { title: "Payments" };
@@ -77,7 +78,10 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
                 <tr key={r.orderId}>
                   <td><a href={`/control/merchant/payments/${encodeURIComponent(r.orderId)}`}>{r.orderId}</a></td>
                   <td className={s.mono}>{r.entityId}</td>
-                  <td className={s.num}>{fiat(r.invoiceMinor, r.currency)}</td>
+                  <td className={s.num} data-testid="invoice-amount">{"priceToken" in r && r.priceToken
+                    // v1 (#173): a token-priced invoice shows its fiat value at a recorded rate, or "needs a rate" (never 0)
+                    ? (r.fiatValueMinor !== null ? <>{fiat(r.fiatValueMinor, r.currency)} <span className={s.muted}>(priced in a token)</span></> : <>{NEEDS_A_RATE} <span className={s.muted}>(priced in a token)</span></>)
+                    : fiat(r.invoiceMinor, r.currency)}</td>
                   <td><DecisionChip decision={r.decision} /></td>
                   <td><ChainChip p={parts.get(r.orderId)} /></td>
                   <td><ProviderChip p={parts.get(r.orderId)} /></td>

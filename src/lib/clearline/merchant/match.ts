@@ -100,7 +100,8 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput, am
     let ledgerAmounts = { invoice: inv, openBalanceMinor: open > 0n ? open : 0n, customerOverpaymentMinor: open < 0n ? -open : 0n };
     if (inv.price && fiat) {
       // v1: a token-priced invoice is settled in its token: the balance is the token received against the price, its
-      // fiat value at the recorded rate (0n when no rate is recorded: the record says so, nothing is invented)
+      // fiat value at the recorded rate (0n when no rate is recorded: the record says so, nothing is invented; every surface
+      // shows "needs a rate" for it, never 0: see fiat-value.ts)
       const got = sum(pairs.filter((p) => p.rec && p.s.inbound && p.rec.receivedBaseUnits === p.s.t.amountBaseUnits && sameToken(p.s.t, inv.price!.token)).map((p) => p.s.t.amountBaseUnits));
       const gap = inv.price.baseUnits - got;
       balanceState = got === 0n ? "nothing_received" : partOpen ? "part_paid" : gap > 0n ? "short_paid" : gap < 0n ? "over_credited" : "fully_credited";

@@ -15,7 +15,8 @@ import * as t from "../../src/server/db/schema";
 import { withTenant, type TenantContext } from "../../src/server/tenant";
 import { createUpload, decideUpload, setUploadMapping, validateUpload } from "../../src/server/uploads";
 import { normaliseUpload } from "../../src/server/normalise";
-import { runReconciliation } from "../../src/server/merchant";
+import { listMerchantPayments, merchantPaymentDetail, monthEnd, runReconciliation } from "../../src/server/merchant";
+import { evidencePack, monthEndView } from "../../src/server/merchant-ui";
 import { RecordingChainClient, recordingOf } from "../../src/lib/clearline/merchant/chain";
 import { loadReconcileInput } from "../../src/server/merchant-store";
 import { reconcile } from "../../src/lib/clearline/merchant";
@@ -95,6 +96,33 @@ describe("token-priced invoices through the pipeline", () => {
     // no journal proposal for a token-priced order
     const jp = await ownerDb().select().from(t.merchantJournalProposals).where(eq(t.merchantJournalProposals.orgId, s.orgs.a));
     expect(jp.filter((j) => JSON.stringify(j).includes("SG-1001") || JSON.stringify(j).includes("SG-1002"))).toEqual([]);
+  });
+
+  it("#173: without a recorded rate no surface shows or emits 0 for the fiat value: lists, payment, month-end, evidence pack", async () => {
+    const ops = await liveCtx(s, "ops@live-a.example", "a");
+    const fin = await liveCtx(s, "finance@live-a.example", "a");
+    // the payments list: the token price, fiatValueStatus needs_rate, no fiat value; SG-1002's open balance (short in
+    // the token) is unknown, SG-1001's (paid exactly in the token) is a true zero
+    const list = Object.fromEntries((await listMerchantPayments(ops, { entityId: sc.SG.entityId })).map((r) => [r.orderId, r]));
+    expect(list["SG-1001"]).toMatchObject({ invoiceMinor: null, fiatValueStatus: "needs_rate", fiatValueMinor: null, openBalanceMinor: "0" });
+    expect(list["SG-1002"]).toMatchObject({ invoiceMinor: null, fiatValueStatus: "needs_rate", fiatValueMinor: null, openBalanceMinor: null });
+    expect(list["SG-1003"]).toMatchObject({ invoiceMinor: "135000" });
+    expect(list["SG-1003"]).not.toHaveProperty("fiatValueStatus");
+    // the payment detail keeps the record (the page renders it through fiat-value.ts; see the unit test)
+    expect((await merchantPaymentDetail(ops, "SG-1002")).parts.ledger).toMatchObject({ fiatValue: { status: "needs_rate" }, balanceState: "short_paid" });
+    // month-end: the unknown open balance is named apart, never added as 0
+    const me = await monthEnd(ops, sc.SG.entityId, "2026-11");
+    expect(me.openReceivablesNeedingRate).toMatchObject({ count: 1, orderIds: ["SG-1002"] });
+    expect((await monthEndView(ops, sc.SG.entityId, "2026-11", null)).openReceivablesNeedingRate.count).toBe(1);
+    // the evidence pack: null with fiatValueStatus in JSON, needs_rate in CSV, "needs a rate" in the PDF text model
+    const pack = JSON.parse((await evidencePack(fin, { kind: "payment", orderId: "SG-1002" }, "json")).body as string);
+    expect(pack.payments[0].ledger).toMatchObject({ fiatValueStatus: "needs_rate", invoice: { amountMinor: null }, openBalanceMinor: null });
+    expect(pack.differences).toEqual([expect.objectContaining({ type: "price_token_amount", amountMinor: null, fiatValueStatus: "needs_rate" })]);
+    expect(pack.payments[0].explanation.differences[0]).toMatchObject({ amountMinor: null, fiatValueStatus: "needs_rate" });
+    const packCsv = (await evidencePack(fin, { kind: "payment", orderId: "SG-1002" }, "csv")).body as string;
+    const diffRow = packCsv.split("\r\n").find((l) => l.startsWith("difference,"))!;
+    expect(diffRow.split(",")[4]).toBe("needs_rate");
+    expect(packCsv).toMatch(/fiat value needs a rate/);
   });
 
   it("the database refuses both pricing modes, neither, an unconfigured token, and any price change", async () => {

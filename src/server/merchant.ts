@@ -9,6 +9,7 @@ import {
 import { stableJson } from "@/lib/clearline/merchant/adapters";
 import { differenceIdsFor, splitDifferences } from "@/lib/clearline/merchant/difference-rows";
 import { exceptionRate, exceptionRateCounts } from "@/lib/clearline/merchant/exception-rate";
+import { NEEDS_RATE_STATUS, minorOrNull, unknownFiat } from "@/lib/clearline/merchant/fiat-value";
 import type { StatementLineInput } from "@/lib/clearline";
 import type { Tx } from "./db/client";
 import * as t from "./db/schema";
@@ -382,7 +383,7 @@ export async function bankLinesFromImport(ctx: TenantContext, importId: string, 
 // ---------------------------------------------------------------------------------------------
 
 interface StoredTransfer { network: string; txHash: string; timestamp: string; to: string; symbol: string; tokenContract: string }
-interface StoredRecord { orderId: string; decision: MatchDecision; ruleId: string; chain: { transfers: StoredTransfer[] }; provider: { records: { batchId?: string }[] }; ledger: { invoice: { amountMinor: string; currency: string; entityId: string }; creditedMinor: string; openBalanceMinor: string; balanceLabel: string }; explanation: { differences: { type: string }[] } }
+interface StoredRecord { orderId: string; decision: MatchDecision; ruleId: string; chain: { transfers: StoredTransfer[] }; provider: { records: { batchId?: string }[] }; ledger: { invoice: { amountMinor: string; currency: string; entityId: string }; creditedMinor: string; openBalanceMinor: string; customerOverpaymentMinor?: string; balanceState?: string; balanceLabel: string; fiatValue?: { status: string; amountMinor?: string } }; explanation: { differences: { type: string }[] } }
 
 async function storedRecords(tx: Tx, orgId: string, entityId?: string) {
   const rows = await tx.select({ m: t.matchRecords, inv: t.invoices }).from(t.matchRecords)
@@ -462,12 +463,16 @@ export async function listMerchantPayments(ctx: TenantContext, filters: z.input<
     const label = await orgLabel(tx, ctx.orgId);
     const rows = (await storedRecords(tx, ctx.orgId, f.entityId)).map(({ rec, inv }) => {
       const tr = rec.chain.transfers;
+      // v1 (#173): a token-priced invoice's fiat value only from a recorded rate; without one its amounts are null and
+      // fiatValueStatus says "needs_rate" (never 0)
+      const unk = unknownFiat(rec.ledger);
       const deposit = [...quotes.filter((q) => q.orderId === rec.orderId).map((q) => q.depositAddress), ...links.filter((l) => l.orderId === rec.orderId).map((l) => l.depositAddress)];
       return {
         label, orderId: rec.orderId, entityId: inv.entityId, decision: rec.decision, ruleId: rec.ruleId, invoiceMinor: inv.amountMinor === null ? null : inv.amountMinor.toString(), currency: inv.currency,
         // v1: a token-priced invoice has no fiat price; its token price (base units) is given instead
-        ...(inv.priceTokenAmount !== null ? { priceToken: { network: inv.priceNetwork, contract: inv.priceTokenContract, baseUnits: String(inv.priceTokenAmount) } } : {}),
-        creditedMinor: rec.ledger.creditedMinor, openBalanceMinor: rec.ledger.openBalanceMinor, balanceLabel: rec.ledger.balanceLabel,
+        ...(inv.priceTokenAmount !== null ? { priceToken: { network: inv.priceNetwork, contract: inv.priceTokenContract, baseUnits: String(inv.priceTokenAmount) },
+          fiatValueStatus: rec.ledger.fiatValue?.status ?? NEEDS_RATE_STATUS, fiatValueMinor: rec.ledger.fiatValue?.status === "rated" ? String(rec.ledger.fiatValue.amountMinor) : null } : {}),
+        creditedMinor: rec.ledger.creditedMinor, openBalanceMinor: minorOrNull(unk.open, rec.ledger.openBalanceMinor), balanceLabel: rec.ledger.balanceLabel,
         differenceTypes: [...new Set(rec.explanation.differences.map((d) => d.type))], networks: [...new Set(tr.map((x) => x.network))],
         tokens: [...new Set(tr.flatMap((x) => [x.symbol, x.tokenContract]))], batchIds: [...new Set(rec.provider.records.map((r) => r.batchId).filter((x): x is string => !!x))],
         txHashes: tr.map((x) => x.txHash), depositAddresses: deposit, ageDays: Math.floor((asOf - inv.issuedAt.getTime()) / 86_400_000),
@@ -536,7 +541,9 @@ export async function monthEnd(ctx: TenantContext, entityId: string, month: stri
     const balances: Record<string, bigint> = {};
     for (const j of inMonth) for (const l of j.lines as { side: string; account: string; amountMinor: string }[]) balances[l.account] = (balances[l.account] ?? 0n) + (l.side === "debit" ? 1n : -1n) * BigInt(l.amountMinor);
     const recs = await storedRecords(tx, ctx.orgId, entityId);
-    const openAr = recs.reduce((s, r) => s + BigInt(r.rec.ledger.openBalanceMinor), 0n);
+    // v1 (#173): an open balance that needs a rate is not a number: it is left out of the total and counted apart
+    const unrated = recs.filter((r) => unknownFiat(r.rec.ledger).open);
+    const openAr = recs.filter((r) => !unknownFiat(r.rec.ledger).open).reduce((s, r) => s + BigInt(r.rec.ledger.openBalanceMinor), 0n);
     const orders = new Set(recs.map((r) => r.row.orderId));
     const ex = (await tx.select().from(t.reconExceptions).where(and(eq(t.reconExceptions.orgId, ctx.orgId), sql`${t.reconExceptions.status} <> 'resolved'`))).filter((e) => e.orderId && orders.has(e.orderId));
     const wos = (await tx.select().from(t.writeoffProposals).where(eq(t.writeoffProposals.orgId, ctx.orgId))).filter((w) => orders.has(w.orderId));
@@ -545,6 +552,7 @@ export async function monthEnd(ctx: TenantContext, entityId: string, month: stri
       label, entityId, month, currency: ent.functionalCurrency, postingRuleStatus: "pending_sign_off" as const,
       journals: inMonth.map((j) => ({ id: j.id, pattern: j.pattern, status: j.status, postingRuleStatus: j.postingRuleStatus, lines: j.lines, evidence: { ...(j.evidenceRefs as Record<string, unknown>), label } as unknown })),
       balances: Object.fromEntries(Object.entries(balances).map(([k, v]) => [k, v.toString()])), openReceivablesMinor: openAr.toString(), openExceptions: ex.length,
+      openReceivablesNeedingRate: { count: unrated.length, orderIds: unrated.map((r) => r.rec.orderId), note: "token-priced invoices whose open balance needs a recorded rate; not included in openReceivablesMinor" },
       writeoffs: { pending: wos.filter((w) => w.status !== "approved" && w.status !== "rejected").length, approved: wos.filter((w) => w.status === "approved").length },
     };
   });
