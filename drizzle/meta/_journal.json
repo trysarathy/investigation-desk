@@ -463,6 +463,20 @@
       "when": 1796820000000,
       "tag": "0082_privacy_retention",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1796830000000,
+      "tag": "0083_org_data_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1796840000000,
+      "tag": "0084_field_encryption_expand",
+      "breakpoints": true
     }
   ]
 }

@@ -161,6 +161,8 @@ export const merchantQuotes = pgTable("merchant_quotes", {
   rate: rate("rate"), rateSource: text("rate_source"), rateAt: ts("rate_at"),
   createdAt: ts("created_at"), expiresAt: ts("expires_at"),
   depositAddress: text("deposit_address").notNull(),
+  /** v1 Phase 5.3 (expand, 0084, was 0072): the address sealed with the organisation's data key, and its blind index. */
+  depositAddressEnc: text("deposit_address_enc"), depositAddressBidx: text("deposit_address_bidx"),
   ...fromUpload(),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.quoteId] }),
@@ -174,6 +176,7 @@ export const paymentLinks = pgTable("payment_links", {
   orgId: org(), linkId: text("link_id").notNull(),
   orderId: text("order_id").notNull(), kind: text("kind").notNull(),
   network: text("network").notNull(), depositAddress: text("deposit_address").notNull(),
+  depositAddressEnc: text("deposit_address_enc"), depositAddressBidx: text("deposit_address_bidx"), // v1 Phase 5.3 (0084, was 0072)
   requestedMinor: money("requested_minor"), // rc7: NULL when the quote's rate is not in the uploaded file
   // rc6 phase 6: what the engine needs of a link (its quote, token, amount and own validity window)
   quoteId: text("quote_id"), tokenContract: text("token_contract"), requestedBaseUnits: baseUnits("requested_base_units"),
@@ -191,6 +194,9 @@ export const chainTransfers = pgTable("chain_transfers", {
   orgId: org(), network: text("network").notNull(), txHash: text("tx_hash").notNull(), logIndex: integer("log_index").notNull(),
   tokenContract: text("token_contract").notNull(),
   fromAddress: text("from_address").notNull(), toAddress: text("to_address").notNull(),
+  // v1 Phase 5.3 (0084, was 0072): both addresses sealed, with blind indexes
+  fromAddressEnc: text("from_address_enc"), fromAddressBidx: text("from_address_bidx"), toAddressEnc: text("to_address_enc"), toAddressBidx: text("to_address_bidx"),
+  priorHopsEnc: text("prior_hops_enc"),
   amountBaseUnits: baseUnits("amount_base_units").notNull(), decimals: integer("decimals").notNull(),
   block: bigint("block", { mode: "number" }).notNull(), blockTime: ts("block_time").notNull(),
   confirmations: integer("confirmations").notNull(), finalised: boolean("finalised").notNull(),
@@ -331,6 +337,7 @@ export const fxRates = pgTable("fx_rates", {
 /** rc6 phase 6: facts about an address (registered, intermediate, exchange hot wallet). Recorded, never judged. */
 export const addressFacts = pgTable("address_facts", {
   orgId: org(), network: text("network").notNull(), address: text("address").notNull(), fact: text("fact").notNull(),
+  addressEnc: text("address_enc"), addressBidx: text("address_bidx"), // v1 Phase 5.3 (0084, was 0072)
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.network, t.address, t.fact] }),
   check("address_facts_fact_chk", sql`${t.fact} in ('registered_wallet','intermediate_wallet','exchange_hot_wallet','unknown')`),
@@ -436,6 +443,7 @@ export const merchantJournalProposals = pgTable("merchant_journal_proposals", {
 export const chainReads = pgTable("chain_reads", {
   orgId: org(), id: uuid("id").notNull().defaultRandom(), entityId: text("entity_id").notNull(),
   network: text("network").notNull(), address: text("address"), txHash: text("tx_hash"),
+  addressEnc: text("address_enc"), addressBidx: text("address_bidx"), // v1 Phase 5.3 (0084, was 0072)
   status: text("status").notNull(), reason: text("reason"), source: text("source").notNull(),
   host: text("host"), endpoint: text("endpoint"), transfers: integer("transfers").notNull().default(0), at: ts("at").notNull(),
 }, (t) => [
