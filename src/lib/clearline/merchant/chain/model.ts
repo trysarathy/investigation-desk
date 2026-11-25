@@ -5,10 +5,15 @@
  */
 import { NETWORKS, TOKENS } from "../config";
 import type { NetworkConfig, TokenConfig } from "../types";
+import { V1_NETWORK_TOKENS } from "./networks";
 
-export type ChainNetwork = "tron" | "ethereum";
-/** "recording": a recorded or fixture client (tests, the synthetic e2e flow); never a live read. */
-export type EvidenceSource = "trongrid" | "ethereum-rpc" | "recording";
+/** v1: Polygon, Base, Arbitrum One and Solana are read behind per-network flags (default OFF; see networks.ts). */
+export type ChainNetwork = "tron" | "ethereum" | "polygon" | "base" | "arbitrum_one" | "solana";
+/**
+ * "recording": a recorded or fixture client (tests, the synthetic e2e flow); never a live read. "evm-rpc": a JSON-RPC
+ * reader on an EVM network other than Ethereum (the evidence's network says which). "solana-rpc": Solana JSON-RPC.
+ */
+export type EvidenceSource = "trongrid" | "ethereum-rpc" | "evm-rpc" | "solana-rpc" | "recording";
 
 /** Where a fact came from. `host` is the hostname only: never a path, query, header or key. */
 export interface Evidence {
@@ -87,9 +92,11 @@ export const CHAIN_TOKENS: readonly TokenConfig[] = [
   ...TOKENS,
   ...(TOKENS.some((t) => t.network === "ethereum" && t.contract.toLowerCase() === USDT_ETHEREUM.toLowerCase())
     ? [] : [{ network: "ethereum" as const, contract: USDT_ETHEREUM, symbol: "USDT", decimals: 6 }]),
+  // v1: the flagged networks' verified allowlists (networks.ts). Recognised by the readers only; matching still needs token_config.
+  ...V1_NETWORK_TOKENS,
 ];
 
-export function requiredConfirmations(network: ChainNetwork, networks: readonly NetworkConfig[] = NETWORKS): bigint {
+export function requiredConfirmations(network: ChainNetwork | string, networks: readonly NetworkConfig[] = NETWORKS): bigint {
   const n = networks.find((x) => x.network === network);
   if (!n) throw new Error(`no network config for ${network}`);
   return BigInt(n.confirmationsRequired);

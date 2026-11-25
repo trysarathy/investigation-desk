@@ -1,13 +1,16 @@
 /**
- * Ethereum JSON-RPC reader for ERC-20 transfers (USDC `0xA0b8…eB48`, USDT `0xdAC1…1ec7`). READ-ONLY: it calls only
+ * EVM JSON-RPC reader (v1: Ethereum, Polygon, Base, Arbitrum One; `EthereumReader` is the Ethereum default) for ERC-20 transfers (USDC `0xA0b8…eB48`, USDT `0xdAC1…1ec7`). READ-ONLY: it calls only
  * eth_getTransactionReceipt, eth_getBlockByNumber, eth_blockNumber and eth_getLogs. No eth_sendRawTransaction, no
  * eth_sendTransaction, no signing method exists here (see READ_ONLY_RPC_METHODS). ETHEREUM_RPC_URL may embed a key in
  * its path or query; it is redacted from every reason and evidence record (evidence keeps the host only).
  *
  * Finality: confirmations = head − block + 1; `finalised` only at ≥ confirmationsRequired AND after a second receipt
  * read returns the same block number AND block hash, and the canonical block at that height has that hash.
+ * v1: on a network whose finality rule is "finalized_tag" (networks.ts) the block must also be at or below the node's
+ * `finalized` block. Other networks report evidence source "evm-rpc" (Ethereum keeps "ethereum-rpc").
  */
 import { type ChainTransferFact, type Evidence, type IncomingOutcome, type NonMatchingTokenFact, type TransferOutcome, type UnresolvedTx, confirmationsOf, hexToBigInt, requiredConfirmations } from "./model";
+import { type FinalityRule, NETWORK_READ_SPECS } from "./networks";
 import { type ReaderDeps, type ReaderOptions, TRANSFER_TOPIC, fetchJson, isObj, makeDeps } from "./reader-common";
 import { Secrets } from "./transport";
 
@@ -15,8 +18,16 @@ import { Secrets } from "./transport";
 export const READ_ONLY_RPC_METHODS = ["eth_getTransactionReceipt", "eth_getBlockByNumber", "eth_blockNumber", "eth_getLogs"] as const;
 type RpcMethod = (typeof READ_ONLY_RPC_METHODS)[number];
 
+export type EvmNetwork = "ethereum" | "polygon" | "base" | "arbitrum_one";
+
 export interface EthereumReaderOptions extends ReaderOptions {
   rpcUrl: string;
+  /** v1: which EVM network this endpoint serves (default "ethereum"). */
+  network?: EvmNetwork;
+  /** v1: the finality rule (default: the network's rule in networks.ts). */
+  finality?: FinalityRule;
+  /** v1: a label for this provider (e.g. "primary", "fallback"), used in health and conflict reasons. */
+  provider?: string;
   /** Largest eth_getLogs block span [ASSUMPTION: 2,000 blocks; common free-tier limits are 2k–10k]. Shrinks on range errors. */
   maxLogRange?: bigint;
   /** Bound on eth_getBlockByNumber probes when mapping a time window to blocks [ASSUMPTION: 96]. */
@@ -39,6 +50,9 @@ const topicAddr = (t: string) => "0x" + t.toLowerCase().replace(/^0x/, "").slice
 interface Receipt { status: string; blockNumber: bigint; blockHash: string; logs: unknown[] }
 
 export class EthereumReader {
+  readonly network: EvmNetwork;
+  readonly provider: string;
+  private readonly finality: FinalityRule;
   private readonly d: ReaderDeps;
   private readonly url: string;
   private readonly maxLogRange: bigint;
@@ -47,7 +61,10 @@ export class EthereumReader {
   private nextId = 1;
 
   constructor(o: EthereumReaderOptions) {
-    this.d = makeDeps("ethereum-rpc", o, new Secrets(Secrets.fromUrl(o.rpcUrl)));
+    this.network = o.network ?? "ethereum";
+    this.provider = o.provider ?? "primary";
+    this.finality = o.finality ?? NETWORK_READ_SPECS[this.network].finality;
+    this.d = makeDeps(this.network === "ethereum" ? "ethereum-rpc" : "evm-rpc", o, new Secrets(Secrets.fromUrl(o.rpcUrl)));
     this.url = o.rpcUrl;
     this.maxLogRange = o.maxLogRange ?? 2_000n;
     this.maxBlockLookups = o.maxBlockLookups ?? 96;
@@ -60,13 +77,13 @@ export class EthereumReader {
     const r = await fetchJson(this.d, { url: this.url, method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body }, method);
     if (!r.ok) return r;
     const j = r.json;
-    if (!isObj(j)) return { ok: false, reason: `ethereum-rpc ${method} at ${r.evidence.host}: malformed JSON-RPC response`, evidence: r.evidence };
+    if (!isObj(j)) return { ok: false, reason: `${this.d.source} ${method} at ${r.evidence.host}: malformed JSON-RPC response`, evidence: r.evidence };
     if (isObj(j.error)) {
       const message = this.d.secrets.redact(String(j.error.message ?? "error")).slice(0, 200);
       const code = typeof j.error.code === "number" ? j.error.code : undefined;
-      return { ok: false, reason: `ethereum-rpc ${method} at ${r.evidence.host}: JSON-RPC error ${code ?? ""} ${message}`.replace(/\s+/g, " ").trim(), rpcError: { code, message }, evidence: r.evidence };
+      return { ok: false, reason: `${this.d.source} ${method} at ${r.evidence.host}: JSON-RPC error ${code ?? ""} ${message}`.replace(/\s+/g, " ").trim(), rpcError: { code, message }, evidence: r.evidence };
     }
-    if (!("result" in j)) return { ok: false, reason: `ethereum-rpc ${method} at ${r.evidence.host}: no result`, evidence: r.evidence };
+    if (!("result" in j)) return { ok: false, reason: `${this.d.source} ${method} at ${r.evidence.host}: no result`, evidence: r.evidence };
     return { ok: true, result: j.result, evidence: r.evidence };
   }
 
@@ -74,12 +91,17 @@ export class EthereumReader {
     const r = await this.rpc("eth_blockNumber", []);
     if (!r.ok) return r;
     try { const head = hexToBigInt(r.result, "block number"); return { ok: true, head, evidence: { ...r.evidence, blockNumber: head } }; } catch (e) {
-      return { ok: false, reason: `ethereum-rpc eth_blockNumber: ${(e as Error).message}`, evidence: r.evidence };
+      return { ok: false, reason: `${this.d.source} eth_blockNumber: ${(e as Error).message}`, evidence: r.evidence };
     }
   }
 
-  private async block(n: bigint): Promise<{ ok: true; block: { number: bigint; hash: string; timestamp: bigint } | null; evidence: Evidence } | { ok: false; reason: string; evidence: Evidence }> {
-    const r = await this.rpc("eth_getBlockByNumber", [toHex(n), false]);
+  /** v1 health check: one eth_blockNumber read. Never throws. */
+  async health(): Promise<{ ok: true; head: bigint; evidence: Evidence } | { ok: false; reason: string; evidence: Evidence }> {
+    return this.headNumber();
+  }
+
+  private async block(n: bigint | "finalized"): Promise<{ ok: true; block: { number: bigint; hash: string; timestamp: bigint } | null; evidence: Evidence } | { ok: false; reason: string; evidence: Evidence }> {
+    const r = await this.rpc("eth_getBlockByNumber", [n === "finalized" ? n : toHex(n), false]);
     if (!r.ok) return r;
     if (r.result === null) return { ok: true, block: null, evidence: r.evidence };
     try {
@@ -87,7 +109,7 @@ export class EthereumReader {
       if (!isObj(b) || typeof b.hash !== "string") throw new Error("malformed block");
       const block = { number: hexToBigInt(b.number, "block number"), hash: b.hash.toLowerCase(), timestamp: hexToBigInt(b.timestamp, "block timestamp") };
       return { ok: true, block, evidence: { ...r.evidence, blockNumber: block.number, blockHash: block.hash } };
-    } catch (e) { return { ok: false, reason: `ethereum-rpc eth_getBlockByNumber: ${(e as Error).message}`, evidence: r.evidence }; }
+    } catch (e) { return { ok: false, reason: `${this.d.source} eth_getBlockByNumber: ${(e as Error).message}`, evidence: r.evidence }; }
   }
 
   private async receipt(hash: string): Promise<{ ok: true; receipt: Receipt | null; evidence: Evidence } | { ok: false; reason: string; evidence: Evidence }> {
@@ -99,7 +121,7 @@ export class EthereumReader {
       if (!isObj(x) || typeof x.blockHash !== "string") throw new Error("malformed receipt");
       const receipt = { status: String(x.status ?? ""), blockNumber: hexToBigInt(x.blockNumber, "receipt block number"), blockHash: x.blockHash.toLowerCase(), logs: Array.isArray(x.logs) ? x.logs : [] };
       return { ok: true, receipt, evidence: { ...r.evidence, blockNumber: receipt.blockNumber, blockHash: receipt.blockHash } };
-    } catch (e) { return { ok: false, reason: `ethereum-rpc eth_getTransactionReceipt: ${(e as Error).message}`, evidence: r.evidence }; }
+    } catch (e) { return { ok: false, reason: `${this.d.source} eth_getTransactionReceipt: ${(e as Error).message}`, evidence: r.evidence }; }
   }
 
   /** One transaction by hash: its Transfer logs of configured tokens (any recipient), plus look-alike facts. */
@@ -108,9 +130,9 @@ export class EthereumReader {
   }
 
   private async readTx(txHash: string, knownHead?: { head: bigint; evidence: Evidence }): Promise<TransferOutcome> {
-    if (!TX_RE.test(txHash)) return { status: "not_found", reason: "not an Ethereum transaction hash (0x + 64 hex)", evidence: [] };
+    if (!TX_RE.test(txHash)) return { status: "not_found", reason: "not an EVM transaction hash (0x + 64 hex)", evidence: [] };
     const hash = txHash.toLowerCase();
-    const cacheKey = `ethereum:tx:${hash}`;
+    const cacheKey = `${this.network}:tx:${hash}`;
     const cached = await this.d.cache.get(cacheKey);
     if (cached) return cached as TransferOutcome;
 
@@ -137,7 +159,14 @@ export class EthereumReader {
     const confirmations = confirmationsOf(h.head, blockNumber);
     const evidence: Evidence[] = [{ ...r1.evidence, confirmationsAtFetch: confirmations }, b.evidence, h.evidence];
     const decoded = this.decode(hash, r1.receipt.logs, blockNumber, blockHash, timestamp, confirmations, evidence);
-    if (confirmations < requiredConfirmations("ethereum", this.d.networks)) return { status: "ok", ...decoded, evidence };
+    if (confirmations < requiredConfirmations(this.network, this.d.networks)) return { status: "ok", ...decoded, evidence };
+    if (this.finality.kind === "finalized_tag") {
+      // v1: the node's finalized block must have reached this block; until then the transfer is seen but not final
+      const fin = await this.block("finalized");
+      if (!fin.ok || !fin.block) return { status: "ok", ...decoded, evidence: [...evidence, fin.evidence] }; // could not confirm: stays not final
+      evidence.push(fin.evidence);
+      if (fin.block.number < blockNumber) return { status: "ok", ...decoded, evidence };
+    }
 
     // Reorg safety: same block number AND same block hash on a second receipt read.
     const r2 = await this.receipt(hash);
@@ -158,18 +187,18 @@ export class EthereumReader {
   private decode(hash: string, logs: unknown[], block: bigint, blockHash: string, timestamp: string, confirmations: bigint, evidence: Evidence[]) {
     const transfers: ChainTransferFact[] = [];
     const nonMatching: NonMatchingTokenFact[] = [];
-    const tokens = this.d.tokens.filter((t) => t.network === "ethereum");
+    const tokens = this.d.tokens.filter((t) => t.network === this.network);
     for (const [i, log] of logs.entries()) {
       const p = parseTransferLog(log);
       if (!p) continue;
       const logIndex = p.logIndex ?? i;
       const token = tokens.find((t) => t.contract.toLowerCase() === p.contract);
       if (!token) {
-        nonMatching.push({ network: "ethereum", txHash: hash, logIndex, contract: p.contract, from: p.from, to: p.to, rawAmount: p.amount, reason: "Transfer log from a contract that is not a configured token (look-alike); ignored", evidence });
+        nonMatching.push({ network: this.network, txHash: hash, logIndex, contract: p.contract, from: p.from, to: p.to, rawAmount: p.amount, reason: "Transfer log from a contract that is not a configured token (look-alike); ignored", evidence });
         continue;
       }
       transfers.push({
-        network: "ethereum", txHash: hash, logIndex, tokenContract: token.contract, symbol: token.symbol, from: p.from, to: p.to, amountBaseUnits: p.amount,
+        network: this.network, txHash: hash, logIndex, tokenContract: token.contract, symbol: token.symbol, from: p.from, to: p.to, amountBaseUnits: p.amount,
         decimals: token.decimals, blockNumber: block, blockHash, timestamp, confirmations, finalised: false, evidence,
       });
     }
@@ -186,7 +215,7 @@ export class EthereumReader {
         if (budget.left-- <= 0) return { ok: false, reason: `mapping the time window to blocks needed more than ${this.maxBlockLookups} block lookups` };
         const b = await this.block(mid);
         if (!b.ok) return { ok: false, reason: b.reason, evidence: b.evidence };
-        if (!b.block) return { ok: false, reason: `ethereum-rpc eth_getBlockByNumber: block ${mid} missing below head`, evidence: b.evidence };
+        if (!b.block) return { ok: false, reason: `${this.d.source} eth_getBlockByNumber: block ${mid} missing below head`, evidence: b.evidence };
         v = b.block.timestamp; ts.set(mid, v);
       }
       if (v >= t) H = mid; else L = mid + 1n;
@@ -200,7 +229,7 @@ export class EthereumReader {
    * Logs from configured contracts become candidates verified by receipt; others are reported as look-alike facts.
    */
   async listIncoming(depositAddress: string, fromMs: number, toMs: number): Promise<IncomingOutcome> {
-    if (!ADDR_RE.test(depositAddress)) return { status: "unavailable", reason: "the deposit address is not a 0x-prefixed 20-byte Ethereum address", evidence: [] };
+    if (!ADDR_RE.test(depositAddress)) return { status: "unavailable", reason: "the deposit address is not a 0x-prefixed 20-byte EVM address", evidence: [] };
     const deposit = depositAddress.toLowerCase();
     const evidence: Evidence[] = [];
     const h = await this.headNumber();
@@ -209,7 +238,7 @@ export class EthereumReader {
     const headBlock = await this.block(h.head);
     evidence.push(headBlock.evidence);
     if (!headBlock.ok) return { status: "unavailable", reason: headBlock.reason, evidence };
-    if (!headBlock.block) return { status: "unavailable", reason: "ethereum-rpc: head block not returned", evidence };
+    if (!headBlock.block) return { status: "unavailable", reason: `${this.d.source}: head block not returned`, evidence };
     const headTs = headBlock.block.timestamp;
     const fromS = BigInt(Math.ceil(fromMs / 1000)), toS = BigInt(Math.floor(toMs / 1000));
     const empty: IncomingOutcome = { status: "ok", transfers: [], nonMatching: [], unresolved: [], evidence };
@@ -232,7 +261,7 @@ export class EthereumReader {
 
     const nonMatching: NonMatchingTokenFact[] = [];
     const candidates: string[] = [];
-    const tokens = this.d.tokens.filter((t) => t.network === "ethereum").map((t) => t.contract.toLowerCase());
+    const tokens = this.d.tokens.filter((t) => t.network === this.network).map((t) => t.contract.toLowerCase());
     let span = this.maxLogRange, start = fromBlock, requests = 0;
     while (start <= toBlock) {
       if (requests++ >= this.maxLogRequests) return { status: "unavailable", reason: `eth_getLogs needed more than ${this.maxLogRequests} requests for this window`, evidence };
@@ -245,13 +274,13 @@ export class EthereumReader {
         return { status: "unavailable", reason: r.reason, evidence };
       }
       evidence.push({ ...r.evidence, blockNumber: end });
-      if (!Array.isArray(r.result)) return { status: "unavailable", reason: "ethereum-rpc eth_getLogs: result is not an array", evidence };
+      if (!Array.isArray(r.result)) return { status: "unavailable", reason: `${this.d.source} eth_getLogs: result is not an array`, evidence };
       for (const log of r.result) {
         const p = parseTransferLog(log);
         if (!p || p.removed || p.to !== deposit || !p.txHash) continue;
         if (tokens.includes(p.contract)) { if (!candidates.includes(p.txHash)) candidates.push(p.txHash); continue; }
         nonMatching.push({
-          network: "ethereum", txHash: p.txHash, ...(p.logIndex !== undefined ? { logIndex: p.logIndex } : {}), contract: p.contract, from: p.from, to: p.to, rawAmount: p.amount,
+          network: this.network, txHash: p.txHash, ...(p.logIndex !== undefined ? { logIndex: p.logIndex } : {}), contract: p.contract, from: p.from, to: p.to, rawAmount: p.amount,
           reason: "Transfer log from a contract that is not a configured token (look-alike); ignored", evidence: [r.evidence],
         });
       }
@@ -270,6 +299,11 @@ export class EthereumReader {
     return { status: "ok", transfers, nonMatching, unresolved, evidence };
   }
 }
+
+/** v1: the same reader for any EVM network (Polygon, Base, Arbitrum One); pass `network`. */
+export const EvmReader = EthereumReader;
+export type EvmReader = EthereumReader;
+export type EvmReaderOptions = EthereumReaderOptions;
 
 /** Decode a Transfer(address,address,uint256) log. Returns undefined for anything else (wrong topic, malformed). */
 export function parseTransferLog(log: unknown): { contract: string; from: string; to: string; amount: bigint; logIndex?: number; txHash?: string; removed: boolean } | undefined {

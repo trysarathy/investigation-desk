@@ -1,4 +1,4 @@
-/** rc7 read-only chain readers: TronGrid (TRC-20) and Ethereum JSON-RPC (ERC-20). No keys held, nothing signed or sent. */
+/** Read-only chain readers: TronGrid (TRC-20), EVM JSON-RPC (ERC-20 on Ethereum; v1: Polygon, Base, Arbitrum One) and v1 Solana JSON-RPC (SPL). No keys held, nothing signed or sent. */
 export * from "./transport";
 export * from "./resilience";
 export * from "./base58";
@@ -10,3 +10,5 @@ export * from "./recorded";
 export * from "./client";
 export * from "./recording";
 export { TRANSFER_TOPIC, type ReaderOptions } from "./reader-common";
+export * from "./networks";
+export * from "./solana";
