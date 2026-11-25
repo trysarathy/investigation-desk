@@ -138,6 +138,15 @@ describe("connections: Admin only, secrets by reference only", () => {
     expect((await listProviderConnections(finA)).connections).toEqual([]);
     expect((await withTenant({ userId: finA.userId, orgId: s.orgs.b }, (tx) => tx.execute(sql`select count(*)::int as n from provider_api_connections`))).rows[0].n).toBe(0);
     await refused(pullProviderConnection(finA, connectionId, key(), pullDeps), "ACCESS_404");
+    // a member of B scoped to another entity sees neither the connection nor its pulls, and cannot pull (0053)
+    await ownerDb().insert(t.merchantEntities).values({ orgId: s.orgs.b, id: "ENT-LIVE-AE2", name: "ENT-LIVE-AE2 (fictional)", functionalCurrency: "AED", ledger: "xero", timezone: "Asia/Dubai", utcOffsetMinutes: 240 });
+    s.users["scoped@live-b.example"] = await createUser(ownerDb(), { email: "scoped@live-b.example", name: "scoped (fictional)", password: PASSWORD });
+    await grantMembership(ownerDb(), { orgSlug: s.slugs.b, email: "scoped@live-b.example", role: "finance", entities: ["ENT-LIVE-AE2"] });
+    const scoped = await liveCtx(s, "scoped@live-b.example", "b");
+    expect((await listProviderConnections(scoped)).connections).toEqual([]);
+    expect((await withTenant({ userId: scoped.userId, orgId: s.orgs.b }, (tx) => tx.execute(sql`select count(*)::int as n from provider_api_connections`))).rows[0].n).toBe(0);
+    await refused(pullProviderConnection(scoped, connectionId, key(), pullDeps), "ACCESS_404");
+    await refused(listProviderPulls(scoped, connectionId), "ACCESS_404");
   });
 });
 
