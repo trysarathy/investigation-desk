@@ -368,13 +368,17 @@ function exactWithoutTerms(inv: Invoice, cur: Invoice["currency"], states: TStat
   // no refund, partial or balance payment, and the provider claims paid
   if (rec.statusClaim !== "paid") return `the provider's status is ${rec.statusClaim}, not paid`;
   if (partOpen || links.some((l) => l.kind === "balance")) return "the order has a balance payment link (part payment)";
-  if (input.batchLines.some((l) => l.kind === "refund" && l.orderId === inv.orderId)) return "a refund is recorded for this order";
+  if (input.batchLines.some((l) => l.kind === "refund" && l.orderId === inv.orderId) || refundRowFor(input, inv.orderId, rec.providerPaymentId)) return "a refund is recorded for this order";
   if (inv.status === "void") return "the invoice is void";
   // guard (c): the provider's credit equals the invoice exactly, in the same currency, to the minor unit
   if (rec.creditedCurrency === undefined || rec.creditedCurrency !== inv.currency || inv.currency !== cur) return `the provider's credited currency (${rec.creditedCurrency ?? "not given"}) is not the invoice's ${inv.currency}`;
   if (rec.creditedMinor !== inv.amountMinor) return `credited ${fmtFiat(rec.creditedMinor, cur)} is not exactly the invoice ${fmtFiat(inv.amountMinor, cur)}`;
   return undefined;
 }
+
+/** v1 #174: a per-payment settlement file's refund row for this order's payment (by its payment ID) or naming the order. */
+const refundRowFor = (input: ReconcileInput, orderId: string, paymentId: string): boolean =>
+  (input.settlementPaymentLines ?? []).some((l) => l.kind === "refund" && (l.providerPaymentId === paymentId || l.orderId === orderId));
 
 const sameToken = (t: { network: NetworkId; tokenContract: string }, ref: TokenRef): boolean =>
   t.network === ref.network && normAddress(t.network, t.tokenContract) === normAddress(ref.network, ref.contract);
@@ -432,7 +436,7 @@ function exactTokenPriced(inv: Invoice, price: InvoiceTokenPrice, states: TState
   if (quote && !(quote.unknown ?? []).includes("quoted_amount") && quote.quotedBaseUnits !== price.baseUnits) return "the quote's token amount differs from the invoice's price";
   if (rec.statusClaim !== "paid") return `the provider's status is ${rec.statusClaim}, not paid`;
   if (partOpen || links.some((l) => l.kind === "balance")) return "the order has a balance payment link (part payment)";
-  if (input.batchLines.some((l) => l.kind === "refund" && l.orderId === inv.orderId)) return "a refund is recorded for this order";
+  if (input.batchLines.some((l) => l.kind === "refund" && l.orderId === inv.orderId) || refundRowFor(input, inv.orderId, rec.providerPaymentId)) return "a refund is recorded for this order";
   if (inv.status === "void") return "the invoice is void";
   return undefined;
 }

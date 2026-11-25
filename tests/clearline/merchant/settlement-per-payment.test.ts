@@ -99,3 +99,94 @@ describe("never by amount alone", () => {
     expect(reconcile(rev)).toEqual(reconcile(i));
   });
 });
+
+/**
+ * v1 #174: refund rows in a per-payment settlement file. A refund row (kind "refund") names the ORIGINAL payment by its
+ * provider payment ID and its own refund ID; by convention its gross and net are negative (the money returned) and its
+ * fee 0. A batch with refunds ties only when gross − fees − refunds = net exactly, every refund row is valid and the net
+ * equals the bank line. A refund row never links a payment to a batch and never closes a payment by its amount.
+ */
+const REFUND = 2000n;
+const PRIOR = "PP-PRIOR-FICTIONAL";
+/** B-PP also nets a refund of SGD 20.00 for an earlier payment (PP-PRIOR-FICTIONAL, credited SGD 50.00, settled before). */
+function withRefund(opts: { bank?: "bank_feed" | "csv_import"; row?: Partial<SettlementPaymentLine> | null } = {}): ReconcileInput {
+  const i = perPayment({ bank: opts.bank });
+  const prior = { ...i.providerRecords[0], providerPaymentId: PRIOR, ref: { quoteId: "Q-PRIOR-FICTIONAL" }, creditedMinor: 5000n, receivedBaseUnits: 1n, batchId: undefined, transferRef: undefined };
+  const b = { ...i.batches[0], refundsMinor: REFUND, netMinor: i.batches[0].netMinor - REFUND };
+  const refund: SettlementPaymentLine = { batchId: "B-PP", kind: "refund", refundId: "RF-FICTIONAL-1", providerPaymentId: PRIOR, currency: "SGD", grossMinor: -REFUND, feeMinor: 0n, netMinor: -REFUND, ...(opts.row ?? {}) };
+  return {
+    ...i, providerRecords: [...i.providerRecords, prior], batches: [b],
+    bankLines: i.bankLines.map((l) => ({ ...l, amountMinor: b.netMinor })),
+    settlementPaymentLines: [...i.settlementPaymentLines!, ...(opts.row === null ? [] : [refund])],
+  };
+}
+
+describe("#174 refund rows: a batch with refunds ties only when every row adds up exactly", () => {
+  it("gross − fee − refunds = net = the bank line, the refund valid: tied; the exact payment closes (bank feed)", () => {
+    const i = withRefund();
+    const br = bridge(i);
+    expect(br).toMatchObject({ tied: true, settlementVerified: true, checks: { perPaymentLines: true, linesEqualGross: true, grossLessFeesRefundsEqualsNet: true, netEqualsBankLine: true } });
+    expect(br.lines.find((l) => l.kind === "refund_netted")).toMatchObject({ amountMinor: -REFUND, paymentIds: ["RF-FICTIONAL-1"] });
+    expect(br.paymentIds).toEqual([i.providerRecords[0].providerPaymentId]);
+    expect(verdict(i)).toBe("matched M5.batch.tied_verified");
+  });
+  it("imported bank line: still never verified with the flag off", () => {
+    expect(verdict(withRefund({ bank: "csv_import" }))).toBe("suggested_for_review M5.bank.imported_not_verified");
+  });
+  it("before #174: the same batch without the refund row cannot tie (the refund is unnamed): not matched", () => {
+    const i = withRefund({ row: null });
+    expect(bridge(i).tied).toBe(false);
+    expect(verdict(i)).not.toMatch(/^matched/);
+  });
+  const bad: [string, Partial<SettlementPaymentLine>][] = [
+    ["names an unknown payment", { providerPaymentId: "PP-UNKNOWN" }],
+    ["another currency", { currency: "USD" }],
+    ["more than the original payment", { grossMinor: -5001n, netMinor: -5001n }],
+    ["a positive amount (sign convention)", { grossMinor: REFUND, netMinor: REFUND }],
+    ["a fee on a refund row", { feeMinor: 1n, netMinor: -REFUND - 1n }],
+    ["net ≠ gross", { netMinor: -REFUND + 1n }],
+    ["no refund ID", { refundId: undefined }],
+    ["one cent off the batch's refunds", { grossMinor: -REFUND + 1n, netMinor: -REFUND + 1n }],
+    ["names another order than its payment's", { orderId: "BK-OTHER" }],
+  ];
+  for (const [why, row] of bad) it(`an invalid refund row leaves the batch untied: ${why}`, () => {
+    const i = withRefund({ row });
+    expect(bridge(i).tied, why).toBe(false);
+    expect(verdict(i), why).not.toMatch(/^matched/);
+  });
+  it("the same refund ID twice: untied", () => {
+    const i = withRefund();
+    const r = i.settlementPaymentLines!.find((l) => l.kind === "refund")!;
+    const half = { ...r, grossMinor: -REFUND / 2n, netMinor: -REFUND / 2n };
+    expect(bridge({ ...i, settlementPaymentLines: [...i.settlementPaymentLines!.filter((l) => l.kind !== "refund"), half, half] }).tied).toBe(false);
+  });
+  it("two refunds of one payment together above its credit: untied", () => {
+    const i = withRefund();
+    const r = i.settlementPaymentLines!.find((l) => l.kind === "refund")!;
+    const big = { ...r, refundId: "RF-FICTIONAL-2", grossMinor: -4000n, netMinor: -4000n };
+    const b = { ...i.batches[0], refundsMinor: REFUND + 4000n, netMinor: i.batches[0].netMinor - 4000n };
+    expect(bridge({ ...i, batches: [b], bankLines: i.bankLines.map((l) => ({ ...l, amountMinor: b.netMinor })), settlementPaymentLines: [...i.settlementPaymentLines!, big] }).tied).toBe(false);
+  });
+});
+
+describe("#174 refund rows never close or link a payment by amount", () => {
+  it("a refund of the order's own payment: the batch may tie, the order is never closed automatically", () => {
+    const i = withRefund({ row: { providerPaymentId: perPayment().providerRecords[0].providerPaymentId } });
+    expect(bridge(i).tied).toBe(true);
+    // decision 1 declines it ("a refund is recorded for this order") and the missing quote terms send it to review
+    expect(verdict(i)).toBe("suggested_for_review M3.quote.terms_unknown");
+    expect(reconcile(i).records.find((x) => x.orderId === ORDER)!.explanation.history.some((h) => /a refund is recorded for this order/.test(h.detail))).toBe(true);
+    // without the refund row the same order closes: the refund row is what stops it
+    expect(verdict(perPayment())).toBe("matched M5.batch.tied_verified");
+  });
+  it("a refund row alone never puts its payment in the batch", () => {
+    const i = withRefund();
+    const onlyRefund = { ...i, settlementPaymentLines: i.settlementPaymentLines!.filter((l) => l.kind === "refund") };
+    expect(bridge(onlyRefund).paymentIds).toEqual([]);
+    expect(verdict(onlyRefund)).not.toMatch(/^matched/);
+  });
+  it("input order never changes the result", () => {
+    const i = withRefund();
+    expect(reconcile({ ...i, settlementPaymentLines: [...i.settlementPaymentLines!].reverse(), providerRecords: [...i.providerRecords].reverse() })).toEqual(reconcile(i));
+  });
+});

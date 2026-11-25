@@ -209,3 +209,16 @@ Same data, files, spec and judge; the engine gained token-priced invoices (migra
 | + per-payment file, flag on (check only) | 1,960 | 1,244 (63.47 %) | 466 (23.78 %) | 250 (12.76 %) | 0 |
 
   The in-memory count (1,960) differs from the browser's 1,952 because no file rows are refused in memory (for example the 8 look-alike token payments). With the flag off nothing closes: imported bank lines are still "imported, not bank-authenticated". The 201 extra exceptions are exact payments in the 8 batches with refunds: per-payment rows name no refund, so those batches cannot tie (`M5.batch.not_tied`), which is stricter than the proposed grouping they had before.
+
+### v1 #174: refund rows in the per-payment file (in memory, branch `v1/a3-followups`)
+
+Same month, same engine input, now also given one refund row per refund each batch nets (line type `refund`, the original payment's ID, the refund's own ID, the amount as a negative gross and net, fee 0). [VERIFIED in memory: `tests/clearline/synthetic/per-payment-blind.test.ts`, printed with `--silent=false`; not through the browser.]
+
+| variant | payments | auto-match | review | exception | wrong matches |
+|---|---|---|---|---|---|
+| + per-payment file (payment rows only), flag off (default) | 1,960 | 0 (0.00 %) | 1,710 (87.24 %) | 250 (12.76 %) | 0 |
+| + per-payment file (payment rows only), flag on (check only) | 1,960 | 1,244 (63.47 %) | 466 (23.78 %) | 250 (12.76 %) | 0 |
+| + per-payment file with refund rows, flag off (default) | 1,960 | 0 (0.00 %) | 1,911 (97.50 %) | 49 (2.50 %) | 0 |
+| + per-payment file with refund rows, flag on (check only) | 1,960 | 1,435 (73.21 %) | 476 (24.29 %) | 49 (2.50 %) | 0 |
+
+With the refund rows the 8 batches with refunds tie, so the 201 `M5.batch.not_tied` exceptions go: with the flag off they return to review (imported bank lines still never verify settlement); with the flag on 191 more exact payments close at `M5.batch.tied_verified` and 10 go to review [inferred from the counts: the refunded orders, which a refund row never lets close]. Small preset (seed 40): payment rows only, flag on 17 / 16 / 6; with refund rows 17 / 17 / 5 (auto-match / review / exception), wrong matches 0 everywhere.

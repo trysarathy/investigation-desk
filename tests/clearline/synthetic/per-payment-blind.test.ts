@@ -6,8 +6,9 @@
  * per-payment settlement row per payment of each batch (fee allocated per payment so the rows sum to the batch's fee).
  * Asserted: zero wrong matches everywhere, nothing closes with the imported-bank-line flag off, every closure is one
  * the generator's truth closes. The table is printed for the report (run with --silent=false). A batch with refunds
- * cannot tie from per-payment rows alone (they name no refund), so its exact payments become M5.batch.not_tied
- * exceptions instead of proposed groupings: stricter, never looser. Synthetic · fictional data.
+ * cannot tie from per-payment payment rows alone (they name no refund), so its exact payments become M5.batch.not_tied
+ * exceptions instead of proposed groupings: stricter, never looser. v1 #174 adds refund rows (linked to the original
+ * payment by its ID), with which those batches can tie. Synthetic · fictional data.
  */
 import { describe, expect, it } from "vitest";
 import { merchant } from "@/lib/clearline";
@@ -31,10 +32,17 @@ function blindInput(world: SyntheticWorld, entityId: string): ReconcileInput {
   };
 }
 
-/** One row per payment of each batch (the generator's own settlement), its fee allocated so the rows sum to the batch fee. */
-function perPaymentLines(world: SyntheticWorld, input: ReconcileInput): SettlementPaymentLine[] {
+/**
+ * One row per payment of each batch (the generator's own settlement), its fee allocated so the rows sum to the batch fee.
+ * With `refunds` (v1 #174), also one refund row per refund the batch nets: kind "refund", the ORIGINAL payment's ID, its
+ * own refund ID, the amount returned as a negative gross and net, fee 0.
+ */
+function perPaymentLines(world: SyntheticWorld, input: ReconcileInput, refunds = false): SettlementPaymentLine[] {
   const out: SettlementPaymentLine[] = [];
+  const paymentOf = new Map(world.batchLines.filter((l) => l.kind === "payment").map((l) => [l.orderId, l.providerPaymentId!]));
   for (const b of input.batches) {
+    if (refunds) for (const r of world.refunds.filter((x) => x.batchId === b.batchId).sort((x, y) => (x.refundId < y.refundId ? -1 : 1)))
+      out.push({ batchId: b.batchId, kind: "refund", refundId: r.refundId, providerPaymentId: paymentOf.get(r.orderId)!, orderId: r.orderId, currency: b.currency, grossMinor: -r.amountMinor, feeMinor: 0n, netMinor: -r.amountMinor, settlementDate: b.providerDay });
     const pays = world.batchLines.filter((l) => l.batchId === b.batchId && l.kind === "payment").sort((x, y) => (x.providerPaymentId! < y.providerPaymentId! ? -1 : 1));
     let left = b.feesMinor;
     pays.forEach((p, k) => {
@@ -77,12 +85,15 @@ function table(label: string, rows: [string, Row][]) {
 function variants(world: SyntheticWorld): [string, Row][] {
   const before = world.entitySpecs.map((e) => blindInput(world, e.id));
   const after = before.map((i) => ({ ...i, settlementPaymentLines: perPaymentLines(world, i) }));
+  const refunds = before.map((i) => ({ ...i, settlementPaymentLines: perPaymentLines(world, i, true) }));
   const flag = (xs: ReconcileInput[]) => xs.map((i) => ({ ...i, policy: { ...i.policy, allowImportedBankLinesAsVerified: true } }));
   return [
     ["before: totals only, flag off (default)", measure(world, before)],
     ["before: totals only, flag on (check only)", measure(world, flag(before))],
     ["after: + per-payment file, flag off (default)", measure(world, after)],
     ["after: + per-payment file, flag on (check only)", measure(world, flag(after))],
+    ["after #174: + per-payment file with refund rows, flag off (default)", measure(world, refunds)],
+    ["after #174: + per-payment file with refund rows, flag on (check only)", measure(world, flag(refunds))],
   ];
 }
 
@@ -96,7 +107,7 @@ describe("per-payment settlement: blind-test style numbers (in memory)", () => {
         expect(r.wrong, v).toBe(0);
         expect(r.closedNotTruth, v).toBe(0);
       }
-      const [beforeOff, beforeOn, afterOff, afterOn] = rows.map(([, r]) => r);
+      const [beforeOff, beforeOn, afterOff, afterOn, refundOff, refundOn] = rows.map(([, r]) => r);
       // flag off: imported bank lines never verify settlement, before or after
       expect(beforeOff.matched + beforeOff.withDifference).toBe(0);
       expect(afterOff.matched + afterOff.withDifference).toBe(0);
@@ -106,6 +117,13 @@ describe("per-payment settlement: blind-test style numbers (in memory)", () => {
       expect(afterOn.matched).toBeGreaterThan(0);
       expect(afterOn.rules["matched M5.batch.tied_verified"]).toBe(afterOn.matched);
       expect(beforeOff.payments).toBe(afterOff.payments);
+      // #174: refund rows let the batches with refunds tie; still nothing closes with the flag off, and with the flag on
+      // never fewer closures nor more exceptions than without them (a refunded order itself is never closed automatically)
+      expect(refundOff.matched + refundOff.withDifference).toBe(0);
+      expect(refundOn.matched).toBeGreaterThanOrEqual(afterOn.matched);
+      expect(refundOn.exception).toBeLessThanOrEqual(afterOn.exception);
+      expect(refundOn.rules["matched M5.batch.tied_verified"]).toBe(refundOn.matched);
+      if (world.refunds.length) expect(refundOn.exception).toBeLessThan(afterOn.exception);
     });
   }
 });

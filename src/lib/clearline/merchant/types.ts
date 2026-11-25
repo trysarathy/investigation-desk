@@ -161,7 +161,17 @@ export interface SettlementBatch {
  */
 export interface SettlementPaymentLine {
   batchId: string;
+  /** A payment row: the payment settled in this batch. A refund row: the ORIGINAL payment the refund returns money for. */
   providerPaymentId: string;
+  /**
+   * v1 #174: "payment" (absent = payment, as before) or "refund". A refund row is linked to its original payment by
+   * the provider's payment ID only; it never links that payment to a batch and never closes a payment by its amount.
+   * Sign convention: a refund row's grossMinor and netMinor are NEGATIVE (the money returned), its feeMinor 0, so
+   * gross − fee = net holds for every row and a batch's rows sum to its net.
+   */
+  kind?: "payment" | "refund";
+  /** A refund row's own ID (required for a refund row; unique). */
+  refundId?: string;
   orderId?: string;
   currency: FiatCurrency;
   grossMinor: bigint;
