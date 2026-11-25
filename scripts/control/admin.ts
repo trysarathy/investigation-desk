@@ -21,6 +21,11 @@
  *   purge-uploads                           (rc7 retention: delete every upload past its delete_after, its file, its
  *                                            validation rows and the data derived only from it; rc8: then delete stored
  *                                            files no upload row names that are older than 60 minutes; prints counts only)
+ *   sweep-orphans [--dry-run] [--older-than-minutes N]
+ *                                           (v1 phase 2.1: stored files no upload row names, and open uploads whose file
+ *                                            is gone (closed as deleted); confirmed uploads without a file are only
+ *                                            reported. --dry-run changes nothing. One audit row per organisation; prints
+ *                                            counts only)
  *   delete-merchant <org-slug> [--confirm <org-slug>]
  *                                           (rc7 phase 3b: delete ONE merchant organisation, every row it holds in every
  *                                            table, its members who belong nowhere else, and its uploaded files. Without
@@ -83,6 +88,7 @@ function entityList(v: string | undefined): string[] | "all" {
 import type { AppRole } from "../../src/server/authz";
 import { seedMerchantCases } from "../../src/server/merchant-seed";
 import { purgeExpiredUploads, sweepOrphanFiles } from "../../src/server/uploads";
+import { cleanupOrphans } from "../../src/server/upload-orphans";
 import { deleteMerchant, planMerchantDeletion } from "../../src/server/merchant-deletion";
 import { monthsAheadArg } from "../../src/server/chain-read-partitions";
 import { addBankAccount, addEntity, addMember, closeBankAccount, createMerchant, createProvider, linkProvider, openOwnerDb, recordFiatRate, setPolicy, setupSummary } from "../../src/server/merchant-setup";
@@ -169,6 +175,13 @@ async function main() {
     case "purge-uploads": {
       const now = new Date();
       console.log(JSON.stringify({ ...(await purgeExpiredUploads(db, now)), orphanFiles: await sweepOrphanFiles(db, now) }));
+      break;
+    }
+    case "sweep-orphans": {
+      // v1 phase 2.1: both directions (files without a row, open uploads without a file); --dry-run changes nothing
+      const i = a.indexOf("--older-than-minutes");
+      const r = await cleanupOrphans(db, new Date(), { dryRun: a.includes("--dry-run"), ...(i >= 0 ? { olderThanMinutes: Number(a[i + 1]) } : {}) });
+      console.log(JSON.stringify({ dryRun: r.dryRun, files: r.files, rows: r.rows, organisations: Object.keys(r.byOrg).length }));
       break;
     }
     case "revoke-sessions": console.log(await revokeSessions(db, a[0]), "sessions revoked"); break;

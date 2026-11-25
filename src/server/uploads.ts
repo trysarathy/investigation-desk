@@ -9,7 +9,7 @@ import {
 import { FILE_TYPES, applyMapping, validateMapping, type AppliedRow, type FileType, type Mapping, type MappedValue } from "@/lib/clearline/mapping";
 import { usesUploadPipeline, type DataLabel } from "@/lib/clearline/data-mode";
 import { otherCurrencies, rejectOtherCurrency, statementAccountsNotLast4 } from "@/lib/clearline/bank-accounts";
-import { isStatementFormat, type StatementFormat } from "@/lib/clearline/upload-words";
+import { isStatementFormat, STATEMENT_FORMATS, type StatementFormat } from "@/lib/clearline/upload-words";
 import type { NetworkId, TokenConfig } from "@/lib/clearline/merchant/types";
 import { stableJson } from "@/lib/clearline/merchant/adapters";
 import type { Db, Tx } from "./db/client";
@@ -20,6 +20,7 @@ import { dataModeOf, suggestTemplate, type TemplateSuggestion } from "./mapping-
 import { AccessDenied, inEntityScope, requireEntity, requireUnscoped, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
 import { StorageRefused, uploadStorage, type UploadStorage } from "./storage";
+import { ScanUnavailable, malwareScanner, scanRequired, type MalwareScanner, type ScanResult } from "./malware";
 import { purgeDerivedRows } from "./upload-retention";
 import { stampNow } from "./live-clock";
 
@@ -63,6 +64,28 @@ const refuse = (e: unknown): never => {
   throw e;
 };
 
+/**
+ * v1 phase 2.1: the strict allowlist. The file's kind is decided from its content (sniffFile: magic bytes, zip parts,
+ * text shape), never from its name; a statement format is accepted only as a bank statement. In addition, a name
+ * that carries an extension (with a letter in it: "report.2026.11" has none) must carry one of these (content is still what decides how the file is read): a CSV
+ * named invoice.exe or report.html is refused rather than stored.
+ */
+export const ALLOWED_EXTENSIONS: ReadonlySet<string> = new Set(["csv", "tsv", "tab", "txt", "xlsx", "json", "xml", "sta", "mt940", "940", "fin", "bai", "bai2"]);
+const TABLE_KINDS = ["csv", "tsv", "xlsx", "json"] as const;
+export function allowedKinds(fileType: FileType): readonly string[] {
+  return fileType === "bank_statement" ? [...TABLE_KINDS, ...STATEMENT_FORMATS] : TABLE_KINDS;
+}
+function checkAllowedFile(kind: string, fileType: FileType, fileName?: string) {
+  if (kind === "unknown") return; // the reader refuses it with the sniffer's plain-English reason
+  if (isStatementFormat(kind)) {
+    if (!allowedKinds(fileType).includes(kind)) throw new RequestRefused(422, "FILE_NOT_A_TABLE", "This is a bank statement; upload it as a bank statement.");
+  } else if (!allowedKinds(fileType).includes(kind)) throw new RequestRefused(422, "FILE_TYPE_NOT_ALLOWED", "This kind of file is not accepted for this upload.");
+  const ext = fileName ? /\.([A-Za-z0-9]{1,10})$/.exec(fileName.split(/[/\\]/).pop() ?? "")?.[1]?.toLowerCase() : undefined;
+  if (ext !== undefined && /[a-z]/.test(ext) && !ALLOWED_EXTENSIONS.has(ext)) {
+    throw new RequestRefused(422, "FILE_EXTENSION_NOT_ALLOWED", `Files named .${ext} are not accepted. Upload a .csv, .xlsx, .json, MT940, camt.053 or camt.054 (.xml) or BAI2 file.`);
+  }
+}
+
 type Parsed = { format: "csv" | "tsv" | "xlsx" | "json"; table: ParsedTable } | { format: StatementFormat; statement: BankParseResult };
 /**
  * v1: formats whose account must match the chosen bank account's last four characters. MT940 and camt.053 are not
@@ -78,6 +101,7 @@ const STATEMENT_PARSERS: Readonly<Record<StatementFormat, (bytes: Uint8Array) =>
 export async function parseUpload(bytes: Uint8Array, fileType: FileType, fileName?: string, jsonList?: string | null): Promise<Parsed> {
   try {
     const kind = sniffFile(bytes, fileName).kind;
+    checkAllowedFile(kind, fileType, fileName);
     if (jsonList && kind !== "json") throw new RequestRefused(422, "JSON_LIST_NOT_JSON", "Choosing a list applies to JSON files only.");
     if (isStatementFormat(kind)) {
       if (fileType !== "bank_statement") throw new RequestRefused(422, "FILE_NOT_A_TABLE", "This is a bank statement; upload it as a bank statement.");
@@ -277,6 +301,8 @@ export async function createUpload(ctx: TenantContext, input: z.input<typeof Cre
       throw new RequestRefused(422, "STATEMENT_ACCOUNT_MISMATCH", `This statement names an account that does not end in ${acct.accountLast4}, the last four characters of ${acct.displayName}. Nothing was stored.`);
     }
   }
+  // v1 phase 2.1: an optional malware scan (a local ClamAV daemon) before anything is stored; fail closed
+  await scanBeforeStoring(ctx, bytes, { fileType: v.fileType, entityId: v.entityId });
   // rc8: the file is written before its row, inside the transaction. If anything after the write fails (the insert,
   // the audit, the idempotency record or the commit itself), the file is removed again unless its row committed.
   let written: string | undefined;
@@ -310,6 +336,32 @@ export async function createUpload(ctx: TenantContext, input: z.input<typeof Cre
   });
   const suggestion = "table" in parsed ? await suggestTemplate(ctx, { fileType: v.fileType, headers: parsed.table.headers }) : null;
   return { status: r.status, replayed: r.replayed, upload: r.body, label: await orgDataLabel(ctx), preview: previewOf(parsed), suggestion };
+}
+
+/**
+ * v1 phase 2.1: scan the bytes with the configured malware scanner (src/server/malware.ts) before storing them. An
+ * infected file is refused (422 FILE_MALWARE_FOUND); while a configured scanner cannot answer, or when scanning is
+ * required and none is configured, every upload is refused (409 MALWARE_SCAN_UNAVAILABLE). Audit: code and sizes,
+ * and the signature name clamd reported; never file contents.
+ */
+async function scanBeforeStoring(ctx: TenantContext, bytes: Uint8Array, at: { fileType: string; entityId: string }) {
+  const refuseWith = async (status: 409 | 422, code: string, message: string, extra: Record<string, unknown> = {}): Promise<never> => {
+    await tenantTx(ctx, (tx) => serverAudit(tx, ctx, "upload_refused", "upload", null, `Upload refused before storing (${code})`, { code, byteSize: bytes.byteLength, ...at, ...extra }));
+    throw new RequestRefused(status, code, message);
+  };
+  const unavailable = "Uploads are paused: the malware scanner is not answering. Nothing was stored; try again later.";
+  let scanner: MalwareScanner | null;
+  try { scanner = malwareScanner(); } catch { return refuseWith(409, "MALWARE_SCAN_UNAVAILABLE", unavailable, { reason: "misconfigured" }); }
+  if (!scanner) {
+    if (scanRequired()) await refuseWith(409, "MALWARE_SCAN_UNAVAILABLE", unavailable, { reason: "not_configured" });
+    return;
+  }
+  let result: ScanResult;
+  try { result = await scanner.scan(bytes); } catch (e) {
+    if (e instanceof ScanUnavailable) return refuseWith(409, "MALWARE_SCAN_UNAVAILABLE", unavailable, { scanner: scanner.name });
+    throw e;
+  }
+  if (!result.clean) await refuseWith(422, "FILE_MALWARE_FOUND", "The malware scanner flagged this file, so it was not stored. Check the file with your IT team before uploading it again.", { scanner: scanner.name, signature: result.signature });
 }
 
 /**
@@ -518,14 +570,20 @@ export interface OrphanSweep { scanned: number; removed: number; partialRemoved:
  * (default 60). A file a row names is never touched, whatever the row's status. Runs on the schema OWNER connection,
  * across organisations, with retention (`control:admin -- purge-uploads`). Returns counts; `log` receives ids only.
  */
-export async function sweepOrphanFiles(db: Db, now: Date, opts: { storage?: UploadStorage; olderThanMinutes?: number; log?: (line: { event: "orphan_file_removed"; orgId: string; storageKey: string; partial: boolean }) => void } = {}): Promise<OrphanSweep> {
+export async function sweepOrphanFiles(db: Db, now: Date, opts: {
+  storage?: UploadStorage; olderThanMinutes?: number; log?: (line: { event: "orphan_file_removed"; orgId: string; storageKey: string; partial: boolean }) => void;
+  /** v1 phase 2.1: count (and report through `onOrphan`) what would be removed, and remove nothing. */
+  dryRun?: boolean; onOrphan?: (f: { orgId: string; storageKey: string; partial: boolean }) => void;
+  /** v1 phase 2.1: the listing already taken by the caller (so both sweep directions see the same files). */
+  files?: Awaited<ReturnType<NonNullable<UploadStorage["list"]>>>;
+} = {}): Promise<OrphanSweep> {
   const storage = opts.storage ?? uploadStorage();
   const minutes = opts.olderThanMinutes ?? ORPHAN_MINUTES;
   if (!Number.isFinite(minutes) || minutes < 5) throw new Error("the orphan sweep keeps files younger than 5 minutes");
   const out: OrphanSweep = { scanned: 0, removed: 0, partialRemoved: 0, kept: 0, tooRecent: 0 };
   if (!storage.list) return out;
   const cutoff = now.getTime() - minutes * 60_000;
-  const files = await storage.list();
+  const files = opts.files ?? await storage.list();
   out.scanned = files.length;
   // read the rows AFTER listing: a file listed above whose row commits meanwhile is young, so it is kept either way
   const named = new Set((await db.select({ orgId: t.uploads.orgId, key: t.uploads.storageKey }).from(t.uploads).where(sql`${t.uploads.storageKey} is not null`))
@@ -533,6 +591,8 @@ export async function sweepOrphanFiles(db: Db, now: Date, opts: { storage?: Uplo
   for (const f of files) {
     if (!f.partial && named.has(`${f.orgId}/${f.storageKey}`)) { out.kept++; continue; }
     if (f.modifiedAt.getTime() > cutoff) { out.tooRecent++; continue; }
+    opts.onOrphan?.({ orgId: f.orgId, storageKey: f.storageKey, partial: f.partial });
+    if (opts.dryRun) { if (f.partial) out.partialRemoved++; else out.removed++; continue; }
     const gone = f.partial ? await storage.deletePartial?.(f.orgId, f.storageKey) : await storage.delete(f.orgId, f.storageKey);
     if (!gone) continue;
     if (f.partial) out.partialRemoved++; else out.removed++;
