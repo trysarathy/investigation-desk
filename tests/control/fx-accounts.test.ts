@@ -1,9 +1,10 @@
 /**
  * v1 founder decision 9 against PostgreSQL 16: other-currency accounts under an entity, recorded fiat rates
- * (drizzle/0044) (duplicates: bank-line-duplicates.test.ts). Fictional values only.
+ * (drizzle/0044) and period-end revaluation proposals (duplicates: bank-line-duplicates.test.ts). Fictional values only.
  *  - Rates: RLS isolation like every merchant table, read-only for the app, append-only for the owner.
  *  - A USD account under the SGD entity: its batch is tied in USD; the SGD value needs a rate until one is recorded
  *    (never 0); a statement naming the batch in another currency is a mismatch, never a tie.
+ *  - Revaluation: proposals only (nothing stored), only the people who may export journals, other tenants' rates unseen.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
@@ -17,6 +18,7 @@ import { createUpload, decideUpload, setUploadMapping, validateUpload } from "..
 import { normaliseUpload } from "../../src/server/normalise";
 import { batchBridge } from "../../src/server/merchant";
 import { recordFiatRate, recordFromRateSource, SetupRefused } from "../../src/server/merchant-setup";
+import { periodEndRevaluation } from "../../src/server/fx-revaluation";
 import { loadReconcileInput } from "../../src/server/merchant-store";
 import { reconcile } from "../../src/lib/clearline/merchant/reconcile";
 import { LocalStandInRateSource } from "../../src/lib/clearline/fx/rate-source";
@@ -152,5 +154,31 @@ describe("recorded fiat rates (0044)", () => {
     await dbRefuses(ownerDb().execute(sql`update fiat_rates set rate = 9`), /append-only/);
     await dbRefuses(ownerDb().execute(sql`delete from fiat_rates`), /append-only/);
     await dbRefuses(ownerDb().execute(sql`insert into fiat_rates (org_id, base_currency, quote_currency, rate, as_of, source_label, recorded_by) values (${s.orgs.a}, 'USD', 'SGD', 0, now(), 'X', 'admin-cli')`), /fiat_rates_rate_chk/);
+  });
+});
+
+describe("period-end revaluation proposals", () => {
+  const balances = [{ account: "provider_clearing", currency: "USD", foreignMinor: "100000", carryingMinor: "135000", ref: "provider-a-usd" }];
+  it("proposed at the period-end rate, pending sign-off, nothing stored; needs a rate without one", async () => {
+    const before = Number((await rows(sql`select count(*)::int as n from merchant_journal_proposals`))[0].n);
+    const none = await periodEndRevaluation(fin, { entityId: "ENT-LIVE-SG", periodEnd: "2026-11-30", balances });
+    expect(none.proposals).toEqual([]);
+    expect(none.items).toMatchObject([{ status: "needs_rate" }]);
+    await recordFiatRate(ownerDb(), { orgSlug: s.slugs.a, pair: "USD/SGD", rate: "1.3600", asOf: "2026-11-30T08:00:00Z", source: "Fictional Rate Desk" }, LATER);
+    const r = await periodEndRevaluation(fin, { entityId: "ENT-LIVE-SG", periodEnd: "2026-11-30", balances });
+    expect(r.proposals).toHaveLength(1);
+    expect(r.proposals[0]).toMatchObject({ kind: "fx_revaluation", status: "proposed", postingRuleStatus: "pending_sign_off", currency: "SGD", entryDate: "2026-11-30",
+      lines: [{ side: "debit", account: "provider_clearing", amountMinor: 1000n }, { side: "credit", account: "unrealised_fx", amountMinor: 1000n }] });
+    expect(Number((await rows(sql`select count(*)::int as n from merchant_journal_proposals`))[0].n)).toBe(before);
+  });
+  it("only Finance, an Approver or an Admin; another merchant cannot see these rates; bad input refused", async () => {
+    for (const email of ["ops@live-a.example", "viewer@live-a.example"]) await refused(periodEndRevaluation(await liveCtx(s, email, "a"), { entityId: "ENT-LIVE-SG", periodEnd: "2026-11-30", balances }), "ACCESS_403");
+    const finB = await liveCtx(s, "finance@live-b.example", "b");
+    // org A holds a USD/AED rate as of 30 Nov; merchant B's AED entity cannot use it
+    const b = await periodEndRevaluation(finB, { entityId: "ENT-LIVE-AE", periodEnd: "2026-11-30", balances });
+    expect([b.proposals, b.items[0].status]).toEqual([[], "needs_rate"]);
+    await refused(periodEndRevaluation(finB, { entityId: "ENT-LIVE-SG", periodEnd: "2026-11-30", balances }), "ACCESS_404");
+    await refused(periodEndRevaluation(fin, { entityId: "ENT-LIVE-SG", periodEnd: "2026-11-30", balances: [{ ...balances[0], currency: "SGD" }] }), "NOT_OTHER_CURRENCY");
+    await refused(periodEndRevaluation(fin, { entityId: "ENT-LIVE-SG", periodEnd: "30/11/2026", balances }), "BAD_REVALUATION_INPUT");
   });
 });

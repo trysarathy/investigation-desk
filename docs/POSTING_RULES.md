@@ -418,7 +418,7 @@ Remaining rows: ____________________ Date: __________ SGT
 
 **Two deliberate differences from Document A (for sign-off).**
 1. **Case 3 shortfall split.** Document A shows one line, "Shortfall and rate difference 14.16". Clearline proposes two typed lines, payment shortfall 12.86 and rate difference 1.30, which add up to the same 14.16. This keeps the rule that every difference has a type and a reason. One combined line is a one-line change if preferred.
-2. **Case 2 USD account.** Document A books the USD bank account inside the Singapore entity "at that day's rate". The fixture keeps the USD lines in USD (same amounts) under a separate entity, ENT-US-02 [ASSUMPTION]. Day-rate translation into SGD in the Singapore entity's ledger is left to the ledger and not proposed by Clearline.
+2. **Case 2 USD account.** Document A books the USD bank account inside the Singapore entity "at that day's rate". The fixture keeps the USD lines in USD (same amounts) under a separate entity, ENT-US-02 [ASSUMPTION]. Day-rate translation into SGD in the Singapore entity's ledger is left to the ledger and not proposed by Clearline. (v1 decision 9 can reconcile a USD account under the SGD entity in USD; the FX entries are drafted below, pending sign-off, and the fixture and demo keep the separate USD book: see "Other-currency bank accounts".)
 
 **Invariants (tested).**
 - **Balance:** every entry balances, checked in BigInt.
@@ -426,6 +426,57 @@ Remaining rows: ____________________ Date: __________ SGT
 - **Held or unsettled payments** (BK-24871, SGD 1,200.00) leave clearing open, as a receivable from the provider at month-end.
 - **Imported bank lines:** a batch evidenced only by an imported bank line gets **no** settlement entry.
 - **Rule proofs:** each journal rule's own test fails when that rule is disabled, including `J.settlement.refund_netted` and `J.writeoff.on_approval`; see `docs/release/TEST_RESULTS_RC7.md`.
+
+### Other-currency bank accounts: FX entries (v1, founder decision 9) — **DRAFT, PENDING FOUNDER SIGN-OFF** (not built as postings; nothing posted)
+
+**Status.** Nothing in this subsection is approved. The code proposes only the period-end revaluation below, as a
+proposal that also waits for this sign-off (`requiresApprovalOf`); it is not stored, exported or posted. No entry is
+proposed for an other-currency payment or settlement batch (`journal.ts` skips a batch whose currency is not the
+entity's), and the draft journal files stay one currency per entity.
+
+**What is built (code, tested).**
+- **Rates:** `fiat_rates` (drizzle/0044): pair, rate, as-of, source label, recorded by/at; append-only, forced RLS, the
+  app can only read it; recorded with `npm run control:admin -- record-rate <org> USD/SGD 1.3500 --as-of <ISO> --source
+  <label>`. A pluggable `RateSource` interface exists with a local stand-in only (`src/lib/clearline/fx/rate-source.ts`);
+  Clearline calls no rate API.
+- **Reconciliation in the account's currency:** a USD account's statement credits and the USD batches settled to it are
+  kept in USD under the SGD entity and the batch is tied in USD, to the cent (`bridge.ts`). A payment or bank line in
+  another currency than its batch is an exception (`M5.batch.currency_mismatch`). Amounts are never converted to tie.
+- **Shown, never used to decide:** the batch's net in the entity's currency at the latest rate recorded at or before
+  the end of the bank line's value date (entity zone), at most 24 h older; otherwise **"needs a rate"** (never 0).
+
+**Proposed rules (for sign-off).** Accounting basis [ASSUMPTION: secondary source, IAS 21 *The Effects of Changes in
+Foreign Exchange Rates* ¶21–23 and ¶28, not re-read for this draft]: a foreign-currency transaction is first recorded
+at the spot rate on the transaction date; at each period end monetary items are translated at the closing rate; exchange
+differences on settlement or translation of monetary items go to profit or loss in the period.
+
+| When | Debit | Credit | Rate |
+|---|---|---|---|
+| FX1 Payment confirmed (USD credit, SGD entity) | Provider clearing (USD amount × rate) | AR (if the invoice is SGD) or AR in USD | Spot at the transfer's block time (≤ 24 h, R2 date) |
+| FX2 Settlement to the USD bank account (**realised FX**) | Bank (USD account) net × settlement rate; Payment processing fees × settlement rate | Provider clearing at its **carrying** value; **Realised FX gain** (or Dr **Realised FX loss**) for the difference | Spot on the bank line's value date |
+| FX3 Period end, still open (**unrealised FX**) | Provider clearing / Unrealised FX loss | Unrealised FX gain / Provider clearing | Closing rate: latest recorded at or before the period's last day ends (entity zone), ≤ 24 h older |
+| No usable rate | — no entry — | | "needs a rate": a person records one (`record-rate`) |
+
+**Worked examples (fictional: SGD entity NW-SG, its USD account, USD/SGD rates from "Fictional Rate Desk").**
+1. **FX1.** 25 Nov, a USD 1,000.00 credit by the provider, rate 1.3500 → Dr Provider clearing SGD 1,350.00 / Cr AR SGD 1,350.00
+   (USD 1,000.00 noted on both lines). Carrying value of the receivable: SGD 1,350.00.
+2. **FX2, realised gain at settlement.** 26 Nov, the batch settles: net USD 990.00 to the USD account, fee USD 10.00;
+   rate on 26 Nov 1.3600. Dr Bank (USD account) SGD 1,346.40 (990.00 × 1.36) / Dr Payment processing fees SGD 13.60
+   (10.00 × 1.36) / Cr Provider clearing SGD 1,350.00 (carrying) / Cr **Realised FX gain SGD 10.00**. Debits 1,360.00 =
+   credits 1,360.00. Provider clearing nets to zero in SGD and in USD.
+3. **FX3, unrealised gain at period end.** If the USD 1,000.00 is still owed on 30 Nov and the closing rate is 1.3600:
+   revalued SGD 1,360.00 − carrying 1,350.00 → Dr Provider clearing SGD 10.00 / Cr **Unrealised FX gain SGD 10.00**
+   (the code's proposal `JP-FXRV-2026-11-30-provider_clearing-USD-…`; asserted in `tests/clearline/merchant/fx-accounts.test.ts`).
+4. **FX3, unrealised loss.** Carrying SGD 1,365.00, closing 1.3600 → Dr **Unrealised FX loss SGD 5.00** / Cr Provider clearing SGD 5.00.
+5. **Needs a rate.** No USD/SGD rate recorded between 29 Nov 16:00 and 30 Nov 15:59:59 UTC (the 24 h before 30 Nov ends
+   in SGT), or two sources disagree at the latest instant, or the carrying value is unknown → no entry; the balance is
+   listed as "needs a rate". Never 0, never another pair, never the provider's credit.
+
+**Open questions (none decided here).** Q-FX-A rate source and which rate (mid, bid, the provider's executed rate?);
+Q-FX-B the 24 h window; Q-FX-C whether the unrealised entry reverses on the first day of the next period [ASSUMPTION:
+common practice, not built]; Q-FX-D whether Xero/QuickBooks revalue the foreign bank account themselves (then Clearline
+revalues only provider clearing, as built) [ASSUMPTION]; Q-FX-E payment-level matching of USD invoices under an SGD entity
+(today `M3.currency.invoice_currency`, an exception: allowing it would loosen matching and is approval-only, not built).
 
 ### Draft Xero and QuickBooks export (rc7, PR #154) — **DRAFT FILES ONLY, NOTHING POSTED**
 

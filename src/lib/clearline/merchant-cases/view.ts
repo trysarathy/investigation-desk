@@ -110,6 +110,7 @@ export const JOURNAL_KIND_TEXT: Record<JournalProposal["kind"], string> = {
   approved_writeoff: "Write-off (after approval)",
   refund: "Refund netted in a settlement",
   settlement: "Settlement",
+  fx_revaluation: "Period-end FX revaluation (pending sign-off)",
 };
 export const POSTING_RULE_PENDING = "Posting rule pending sign-off";
 

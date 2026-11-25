@@ -91,7 +91,7 @@ export const DIFFERENCE_TEXT: Record<DifferenceType, string> = {
   held_by_provider: "Held by the provider", partial_payment_open: "Part paid, balance open", unexplained: "Unexplained",
   price_token_mismatch: "Paid in another token than the invoice's", price_token_amount: "Token amount differs from the invoice's",
 };
-const JOURNAL_KIND_TEXT: Record<JournalProposal["kind"], string> = { provider_confirmation: "Provider confirmation", refund: "Refund netted in a settlement", approved_writeoff: "Write-off (after approval)", settlement: "Settlement" };
+const JOURNAL_KIND_TEXT: Record<JournalProposal["kind"], string> = { provider_confirmation: "Provider confirmation", refund: "Refund netted in a settlement", approved_writeoff: "Write-off (after approval)", settlement: "Settlement", fx_revaluation: "Period-end FX revaluation (pending sign-off)" };
 const ruleText = (id: string): string => (RULES as Record<string, { text: string }>)[id]?.text ?? (JOURNAL_RULES as Record<string, { text: string }>)[id]?.text ?? "";
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
