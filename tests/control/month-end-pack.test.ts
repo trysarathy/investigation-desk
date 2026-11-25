@@ -15,7 +15,7 @@ import { AccessDenied, resolveTenant, withTenant, type TenantContext } from "../
 import { MERCHANT_SEED_ORGS, MERCHANT_SEED_USERS, seedMerchantCases } from "../../src/server/merchant-seed";
 import { decideWriteoff, proposeWriteoff, runReconciliation } from "../../src/server/merchant";
 import { monthEndPackFile, monthEndPackModel } from "../../src/server/month-end-pack";
-import { monthEndChecks } from "../../src/lib/clearline/exports/month-end-pack";
+import { EVIDENCE_LEVELS, monthEndChecks } from "../../src/lib/clearline/exports/month-end-pack";
 import { postingRulesCatalogue } from "../../src/lib/clearline/merchant/posting-rules";
 import { GET as monthEndGET } from "../../src/app/api/control/merchant/exports/month-end/route";
 
@@ -82,7 +82,7 @@ describe("the model: every section, and the totals reconcile across sections", (
 
   it("the evidence index carries the bank evidence level of every payment", async () => {
     const m = await model(FIN, "ENT-SG-02");
-    expect(new Set(m.evidence.map((e) => e.bankEvidence))).toEqual(new Set(m.evidence.map((e) => e.bankEvidence).filter((x) => ["none", "imported_two_person_confirmed", "bank_authenticated"].includes(x))));
+    expect(m.evidence.every((e) => EVIDENCE_LEVELS.some(([k]) => k === e.bankEvidence))).toBe(true);
     expect(m.evidence.every((e) => e.packPath.startsWith("/api/control/merchant/evidence?order="))).toBe(true);
   });
 

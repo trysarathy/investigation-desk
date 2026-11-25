@@ -6,6 +6,7 @@
  * Files only: nothing is posted, approved or sent anywhere. Amounts are exact minor units until they are written.
  */
 import { plainAmount } from "./journal-drafts";
+import { BANK_EVIDENCE_RANK, BANK_EVIDENCE_SHORT, type BankEvidenceLevel } from "../merchant/types";
 
 type Minor = string;
 export interface PackBridge { batchId: string; providerDay: string; currency: string; grossMinor: Minor; feesMinor: Minor; refundsMinor: Minor; netMinor: Minor; bankLineId: string; bankLine: string; tied: boolean; settlementVerified: boolean; bankEvidence: string; bankEvidenceLabel: string; settled: boolean; payments: number }
@@ -28,7 +29,8 @@ export interface MonthEndPackModel {
   writeoffs: PackWriteoff[]; fx: PackFx; journals: PackJournal[]; evidence: PackEvidence[];
 }
 
-export const EVIDENCE_LEVELS: [string, string][] = [["none", "None"], ["imported_two_person_confirmed", "Imported, two-person confirmed (not bank-authenticated)"], ["bank_authenticated", "Bank-authenticated"]];
+/** The three bank evidence levels, in rank order, with their short labels (taken from the definitions, never retyped). */
+export const EVIDENCE_LEVELS: [string, string][] = (Object.keys(BANK_EVIDENCE_RANK) as BankEvidenceLevel[]).sort((a, b) => BANK_EVIDENCE_RANK[a] - BANK_EVIDENCE_RANK[b]).map((k) => [k, BANK_EVIDENCE_SHORT[k]]);
 
 const B = (s: Minor) => BigInt(s);
 const sumOf = <T>(xs: readonly T[], f: (x: T) => bigint) => xs.reduce((t, x) => t + f(x), 0n);
