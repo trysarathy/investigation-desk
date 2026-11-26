@@ -37,7 +37,19 @@ async function main() {
 
   out("▸ Demo database (dropped and made again) and logins");
   await dropDemoDatabases(s);
-  await ensureLogins(s, { resetPasswords: true });
+  // PostgreSQL 16+ on Neon: the owner login that made clearline_owner may not SET ROLE to it, so `create database …
+  // owner clearline_owner` is refused. It administers the roles it made, so it grants itself membership and retries.
+  try { await ensureLogins(s, { resetPasswords: true }); }
+  catch (e) {
+    if (!/must be able to SET ROLE/.test(e instanceof Error ? e.message : "")) throw e;
+    const g = new Client({ connectionString: superUrl });
+    await g.connect();
+    try {
+      const { rows } = await g.query("select rolname from pg_roles where rolname = any($1)", [["clearline_owner", "clearline_app", "clearline_runtime", "clearline_jobs"]]);
+      for (const r of rows) await g.query(`grant "${r.rolname as string}" to current_user with inherit true, set true`);
+    } finally { await g.end(); }
+    await ensureLogins(s, { resetPasswords: true });
+  }
 
   out("▸ Migrations");
   execFileSync(path.join(ROOT, "node_modules/.bin/drizzle-kit"), ["migrate"], { cwd: ROOT, stdio: ["ignore", "ignore", "inherit"], env: { ...env, DATABASE_OWNER_URL: loginUrl(s, "owner") } });
