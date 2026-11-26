@@ -85,3 +85,12 @@ describe("the platform console flag", () => {
     expect(platformConsoleEnabled()).toBe(true);
   });
 });
+
+describe("the pilot's sign-in fast path", () => {
+  it("lets the public invitation page through without a session; every other Control page still needs one", async () => {
+    const { isControlPage } = await import("../../src/middleware");
+    expect(isControlPage("/control/invite")).toBe(false);
+    expect(isControlPage("/control/sign-in")).toBe(false);
+    for (const p of ["/control", "/control/platform", "/control/merchant/setup", "/control/invitex", "/control/merchant"]) expect(isControlPage(p), p).toBe(true);
+  });
+});
