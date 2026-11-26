@@ -1,9 +1,8 @@
 /** v1 phase 1.1 onboarding: pure parts (tokens, the invitation email, header parsing, the email outbox, sign-up refusal). Fictional values only. */
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
-import { EmailNotConfigured, emailSender, OutboxEmailSender, readOutbox } from "../../src/server/email";
+import { EmailNotConfigured, emailSender } from "../../src/server/email";
+import { outboxSender } from "../../src/server/email/outbox";
+import { disabledSender, validMessage } from "../../src/server/email/sender";
 import { AcceptInput, INVITATION_HOURS, invitationEmail, invitationLink, newInvitationToken, tokenSha256 } from "../../src/server/onboarding/invitations";
 import { headersOfLine } from "../../src/server/onboarding/wizard";
 import { platformConsoleEnabled } from "../../src/server/onboarding/platform";
@@ -44,26 +43,33 @@ describe("invitation tokens", () => {
   });
 });
 
-describe("the email sender", () => {
-  it("refuses without a configured outbox (no real email service is ever called)", () => {
-    delete process.env.CLEARLINE_EMAIL_OUTBOX_DIR;
+describe("the email sender (one interface since the wave 1 integration)", () => {
+  it("unconfigured: an invitation refuses (no real email service is ever called); other mail is dropped", () => {
+    delete process.env.CLEARLINE_EMAIL_SENDER;
+    expect(() => emailSender({ required: true })).toThrow(EmailNotConfigured);
+    expect(emailSender()).toBe(disabledSender);
+    process.env.CLEARLINE_EMAIL_SENDER = "smtp"; // anything but "outbox" is not a sender in this build
     expect(() => emailSender({ required: true })).toThrow(EmailNotConfigured);
   });
 
-  it("the local outbox writes one JSON file per message, read back oldest first", async () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "clearline-outbox-"));
-    try {
-      process.env.CLEARLINE_EMAIL_OUTBOX_DIR = dir;
-      const s = emailSender();
-      expect(s).toBeInstanceOf(OutboxEmailSender);
-      const a = await (s as OutboxEmailSender).send({ to: "a@merchant.example", subject: "one", text: "first", kind: "invitation" });
-      await new Promise((r) => setTimeout(r, 5));
-      await s.send({ to: "b@merchant.example", subject: "two", text: "second", kind: "invitation" });
-      const out = await readOutbox(dir);
-      expect(out.map((m) => m.subject)).toEqual(["one", "two"]);
-      expect(out[0].id).toBe(a.id);
-      expect(await readOutbox(path.join(dir, "missing"))).toEqual([]);
-    } finally { rmSync(dir, { recursive: true, force: true }); }
+  it("CLEARLINE_EMAIL_SENDER=outbox selects the local outbox table; a provisioning transaction queues through its own function", async () => {
+    process.env.CLEARLINE_EMAIL_SENDER = "outbox";
+    expect(emailSender({ required: true })).toBe(outboxSender);
+    const calls: [string, unknown[]][] = [];
+    const prov = { call: async (fn: string, args: unknown[]) => { calls.push([fn, args]); return []; } };
+    const s = emailSender({ required: true, prov: prov as never });
+    await s.send({ to: "a@merchant.example", subject: "one", text: "first", kind: "invitation" });
+    expect(calls).toEqual([["prov_queue_invitation_email", ["a@merchant.example", "one", "first"]]]);
+    // only invitations, plain text, valid messages go that way
+    await expect(s.send({ to: "a@merchant.example", subject: "one", text: "first" })).rejects.toThrow(/refused/);
+    await expect(s.send({ to: "a@merchant.example", subject: "two\nlines", text: "x", kind: "invitation" })).rejects.toThrow(/refused/);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("message limits are shared by every sender", () => {
+    expect(validMessage({ to: "a@merchant.example", subject: "s", text: "t", kind: "password_reset" })).toBe(true);
+    expect(validMessage({ to: "not an address", subject: "s", text: "t" })).toBe(false);
+    expect(validMessage({ to: "a@merchant.example", subject: "s", text: "t", kind: "Bad Kind" })).toBe(false);
   });
 });
 

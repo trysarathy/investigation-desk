@@ -1,8 +1,7 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
-import { readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
 import { expectNoAxeViolations, expectNoOverflow } from "../e2e-merchant/helpers";
 import { ONBOARDING_E2E } from "./env";
+import { lastInvitation } from "../support/email-outbox";
 
 /*
  * v1 phase 1.1, on desktop and on a phone: a platform operator creates a merchant and invites its first admin; the
@@ -24,15 +23,10 @@ async function signIn(page: Page, email: string, password: string, info: TestInf
 async function signOut(page: Page) {
   await page.context().clearCookies();
 }
-/** The newest invitation email to `to` in the server's outbox, and its one-time token. */
-function invitationTo(to: string) {
-  const dir = path.resolve(ONBOARDING_E2E.outboxDir);
-  const msgs = readdirSync(dir).filter((f) => f.endsWith(".json")).sort().map((f) => JSON.parse(readFileSync(path.join(dir, f), "utf8")) as { to: string; subject: string; text: string });
-  const m = msgs.filter((x) => x.to === to).at(-1);
-  if (!m) throw new Error(`no invitation email to ${to}`);
-  const token = /#token=([A-Za-z0-9_-]{43})/.exec(m.text)?.[1];
-  if (!token) throw new Error("no token in the invitation email");
-  return { subject: m.subject, token };
+/** The newest invitation email to `to` in the local outbox table (test-only read as the owner), and its one-time token. */
+async function invitationTo(to: string) {
+  const { message, token } = await lastInvitation(ONBOARDING_E2E.ownerUrl, to);
+  return { subject: message.subject, token };
 }
 async function accept(page: Page, token: string, name: string, password: string) {
   await page.goto(`/control/invite#token=${token}`);
@@ -88,12 +82,12 @@ test("platform console → invitation → setup wizard → finish; a non-admin i
     await expect(row).toContainText("Merchant");
     await expect(row).toContainText("Not finished");
     await expectNoAxeViolations(page, "platform console after create");
-    expect(invitationTo(adminEmail).subject).toBe(`You are invited to Fictional Merchant (${p}) on Clearline`);
+    expect((await invitationTo(adminEmail)).subject).toBe(`You are invited to Fictional Merchant (${p}) on Clearline`);
     await signOut(page);
   });
 
   await test.step("the first admin accepts the invitation and signs in", async () => {
-    await accept(page, invitationTo(adminEmail).token, `First Admin ${p} (fictional)`, pw);
+    await accept(page, (await invitationTo(adminEmail)).token, `First Admin ${p} (fictional)`, pw);
     await signIn(page, adminEmail, pw, info);
     // a merchant member is not a platform operator: the console does not exist for them
     await page.goto("/control/platform");
@@ -181,7 +175,7 @@ test("platform console → invitation → setup wizard → finish; a non-admin i
   });
 
   await test.step("the invited Finance member joins and is refused the wizard", async () => {
-    await accept(page, invitationTo(financeEmail).token, `Finance ${p} (fictional)`, pw);
+    await accept(page, (await invitationTo(financeEmail)).token, `Finance ${p} (fictional)`, pw);
     await signIn(page, financeEmail, pw, info);
     await page.goto("/control/merchant/setup");
     await expect(page.getByText("Only an Admin of this organisation runs its setup.")).toBeVisible();

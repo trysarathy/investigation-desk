@@ -52,7 +52,8 @@ export interface ProvTx {
 export type ProvFunction =
   | "prov_is_platform_operator" | "prov_platform_create_org" | "prov_platform_invite_admin" | "prov_platform_orgs" | "prov_accept_invitation"
   | "prov_add_entity" | "prov_set_entity_ledger" | "prov_add_bank_account" | "prov_link_provider" | "prov_add_mapping_template"
-  | "prov_invite_member" | "prov_revoke_invitation" | "prov_mark_step" | "prov_setup_state";
+  | "prov_invite_member" | "prov_revoke_invitation" | "prov_mark_step" | "prov_setup_state"
+  | "prov_queue_invitation_email";
 
 /** The database's own refusal ("provisioning: …" / "provisioning refused: …") as a request error; anything else is rethrown. */
 export function provisioningRefusal(e: unknown): Error {

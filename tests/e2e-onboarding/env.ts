@@ -1,6 +1,6 @@
 /**
  * Test-only configuration for the v1 phase 1.1 onboarding browser suite (platform console, invitation, setup wizard):
- * its own database, port and email outbox. Every value is a fictional, test-only string.
+ * its own database and port; invitation emails go to the local outbox table (read by the suite as the owner). Every value is a fictional, test-only string.
  */
 const PORT = Number(process.env.CLEARLINE_ONBOARDING_E2E_PORT ?? 4061);
 const DB = process.env.CLEARLINE_ONBOARDING_E2E_DB ?? "clearline_xb1_e2e";
@@ -13,7 +13,6 @@ export const ONBOARDING_E2E = {
   /** Test-only Better Auth secret (40 characters). Never use it outside this suite. */
   authSecret: "test-only-e2e-secret-not-for-deploy-0001",
   password: "fictional-e2e-pass-01",
-  outboxDir: `.data/e2e-onboarding-outbox-${PORT}`,
 } as const;
 
 export function onboardingServerEnv(): Record<string, string> {
@@ -24,7 +23,7 @@ export function onboardingServerEnv(): Record<string, string> {
     BETTER_AUTH_SECRET: ONBOARDING_E2E.authSecret,
     CLEARLINE_ORIGIN: ONBOARDING_E2E.origin,
     CLEARLINE_PLATFORM_CONSOLE: "1",
-    CLEARLINE_EMAIL_OUTBOX_DIR: ONBOARDING_E2E.outboxDir,
+    CLEARLINE_EMAIL_SENDER: "outbox",
     NEXT_TELEMETRY_DISABLED: "1",
   };
 }

@@ -3,7 +3,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Db } from "../db/client";
 import * as t from "../db/schema";
 import { SetupRefused } from "../merchant-setup";
-import type { EmailSender } from "../email";
+import { emailSender, type EmailSender } from "../email";
 import { Email, invitationEmail, inviteAndSend } from "./invitations";
 
 /**
@@ -32,7 +32,7 @@ export async function inviteFirstAdmin(db: Db, input: { orgSlug: string; email: 
     const [inv] = await tx.insert(t.orgInvitations).values({ orgId: org.id, email, role, tokenSha256: tk.sha256, invitedVia: "cli", expiresAt: tk.expiresAt }).returning({ id: t.orgInvitations.id });
     await audit(tx, org.id, "invitation_created", "invitation", inv.id, `Invitation ${inv.id} created for the ${role} role`, { invitationId: inv.id, role, via: "cli", replaced: prior.length });
     return { status: "invited" as const, orgId: org.id, invitationId: inv.id, role };
-  }, (tk) => invitationEmail({ to: email, orgName: org.name, role, token: tk.token, expiresAt: tk.expiresAt }), sender));
+  }, (tk) => invitationEmail({ to: email, orgName: org.name, role, token: tk.token, expiresAt: tk.expiresAt }), sender ?? emailSender({ required: true, tx })));
 }
 
 async function userIdOf(db: Db, email: string) {

@@ -1,5 +1,4 @@
 import { spawnSync } from "node:child_process";
-import { rmSync } from "node:fs";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
@@ -14,7 +13,6 @@ export default async function globalSetup() {
   await pool.query("DROP SCHEMA IF EXISTS drizzle CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public; DROP FUNCTION IF EXISTS refuse_change CASCADE;");
   await migrate(drizzle(pool), { migrationsFolder: "drizzle" });
   await pool.end();
-  rmSync(ONBOARDING_E2E.outboxDir, { recursive: true, force: true });
   const env = { ...process.env, DATABASE_URL: ONBOARDING_E2E.ownerUrl, DATABASE_OWNER_URL: ONBOARDING_E2E.ownerUrl, CLEARLINE_NEW_PASSWORD: ONBOARDING_E2E.password, CLEARLINE_ORIGIN: ONBOARDING_E2E.origin };
   for (const args of [
     ["create-provider", "e2e-provider", "--name", "Fictional Provider (e2e)", "--timezone", "Asia/Singapore"],
