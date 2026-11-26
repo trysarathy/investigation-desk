@@ -15,6 +15,8 @@ export const E2E = {
   authSecret: "test-only-e2e-secret-not-for-deploy-0001",
   /** The fictional demo users' password for this suite. */
   password: process.env.CLEARLINE_E2E_PASSWORD ?? "fictional-e2e-pass-01",
+  /** v1 1.2: the fictional test authenticator secret of the seeded Approvers (Better Auth format, 32 characters). */
+  totpSecret: "fictional-e2e-totp-secret-000001",
 } as const;
 
 /** The environment `next build` and `next start` need for the pilot (the build must use the same pilot flag). */
@@ -27,5 +29,8 @@ export function serverEnv(port: number = E2E.port): Record<string, string> {
     NEXT_TELEMETRY_DISABLED: "1",
     // v1 #165: a production server refuses to start without it
     CLEARLINE_DEPLOY_ENV: testDeployEnv(),
+    // v1 1.2: the local outbox stands in for e-mail; the suite's requests carry X-Forwarded-For as one proxy would
+    CLEARLINE_EMAIL_SENDER: "outbox",
+    CLEARLINE_TRUSTED_PROXY_HOPS: "1",
   };
 }

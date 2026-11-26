@@ -1,6 +1,8 @@
 import { expect, type APIResponse, type Page, type TestInfo } from "@playwright/test";
 import { axeSource } from "../browser/axe-source";
+import { createHmac } from "node:crypto";
 import { E2E } from "./env";
+import { ownerQuery } from "./db";
 
 export const REDWOOD = "INV-2026-188";
 export const ORIGIN = E2E.origin;
@@ -16,12 +18,29 @@ function testAddress(info: TestInfo) {
   return `198.18.${(info.project.name === "mobile" ? 128 : 0) + (info.workerIndex % 64)}.${(n % 250) + 1}`;
 }
 
-export async function signIn(page: Page, email: string, info: TestInfo, password: string = E2E.password) {
+/** RFC 6238 TOTP for the suite's fictional authenticator (test-only). */
+export function totp(secret: string = E2E.totpSecret, at: number = Date.now()): string {
+  const buf = Buffer.alloc(8);
+  buf.writeBigUInt64BE(BigInt(Math.floor(at / 30_000)));
+  const h = createHmac("sha1", Buffer.from(secret, "utf8")).update(buf).digest();
+  return String((h.readUInt32BE(h[h.length - 1] & 15) & 0x7fffffff) % 1_000_000).padStart(6, "0");
+}
+/** Test-only: forget accepted TOTP codes, so the replay guard does not refuse a suite that signs in many times. */
+export const forgetUsedCodes = () => ownerQuery("delete from auth_rate_events where scope = 'totp_used'");
+
+export async function signIn(page: Page, email: string, info: TestInfo, password: string = E2E.password, secret: string = E2E.totpSecret) {
   await page.context().setExtraHTTPHeaders({ "x-forwarded-for": testAddress(info) });
   await page.goto("/control/sign-in");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/control(\/sign-in\/two-factor)?$/);
+  if (page.url().endsWith("/two-factor")) {
+    await forgetUsedCodes();
+    await page.waitForLoadState("networkidle"); // hydrated: the form submits through the client handler
+    await page.getByLabel("6-digit code from your authenticator app").fill(totp(secret));
+    await page.getByRole("button", { name: "Continue" }).click();
+  }
   await expect(page).toHaveURL(/\/control$/);
   await expect(page.getByTestId("signed-in-as")).toContainText(email);
 }
