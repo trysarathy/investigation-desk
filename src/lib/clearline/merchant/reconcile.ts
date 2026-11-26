@@ -17,7 +17,20 @@ const RANK: Record<Decision, number> = { matched: 0, matched_with_difference: 1,
  * recorded apart. Everything else is unchanged: a payment with any difference in such a batch is still review
  * (M5.bank.imported_not_verified), a proposed grouping is still review, an untied batch is still an exception.
  */
-function applyStep5(rec: MatchRecord, bridges: BatchBridge[], groupings: ProposedGrouping[], knownBatches: ReadonlySet<string>): { decision: Decision; ruleId: RuleId; attention?: Attention; note?: HistoryEntry } | null {
+/**
+ * Wave 1 integration guard for M5.grouping.matched_settlement_unlinked: never for an order with a refund (a settlement
+ * report refund line, or a per-payment refund row naming the order or its payment, v1 #174), a balance payment link,
+ * or any difference. Such an order keeps the proposed-grouping review, exactly as before decisions 12 and 14.
+ */
+function unlinkedMatchBlocked(rec: MatchRecord, input: ReconcileInput): boolean {
+  const pids = new Set(rec.provider.records.map((r) => r.providerPaymentId));
+  return rec.explanation.differences.length > 0
+    || input.batchLines.some((l) => l.kind === "refund" && l.orderId === rec.orderId)
+    || (input.settlementPaymentLines ?? []).some((l) => l.kind === "refund" && (l.orderId === rec.orderId || pids.has(l.providerPaymentId)))
+    || input.paymentLinks.some((l) => l.kind === "balance" && l.orderId === rec.orderId);
+}
+
+function applyStep5(rec: MatchRecord, bridges: BatchBridge[], groupings: ProposedGrouping[], knownBatches: ReadonlySet<string>, blocked: (r: MatchRecord) => boolean): { decision: Decision; ruleId: RuleId; attention?: Attention; note?: HistoryEntry } | null {
   const ids = new Set(rec.provider.records.map((r) => r.providerPaymentId));
   const mine = bridges.filter((b) => b.paymentIds.some((id) => ids.has(id)));
   const grouped = groupings.filter((g) => g.paymentIds.some((id) => ids.has(id)));
@@ -37,7 +50,7 @@ function applyStep5(rec: MatchRecord, bridges: BatchBridge[], groupings: Propose
   // settlement is a separate dimension (not linked, not settled, bank evidence none). Only when its provider record
   // itself names a settlement batch that is in the settlement report (a reference, never an amount): a payment the
   // provider names no batch for may be held or unsettled, and stays in review as before.
-  if (grouped.length && e.decision === "matched" && active("M5.grouping.matched_settlement_unlinked")
+  if (grouped.length && e.decision === "matched" && !blocked(rec) && active("M5.grouping.matched_settlement_unlinked")
     && rec.provider.records.length > 0 && rec.provider.records.every((r) => r.batchId !== undefined && knownBatches.has(r.batchId))) {
     const note: HistoryEntry = { step: 5, ruleId: "M5.grouping.proposed_needs_confirmation", outcome: "note", detail: `Settlement not linked: the settlement report gives batch totals only, so no payment is linked to batch ${[...new Set(rec.provider.records.map((r) => r.batchId))].join(", ")}; grouping ${grouped.map((g) => g.id).join(", ")} is only proposed. Not settled; ${BANK_EVIDENCE_LABEL[rec.bank.evidence]}. It does not decide the match.` };
     return { decision: "matched", ruleId: "M5.grouping.matched_settlement_unlinked", note };
@@ -75,7 +88,7 @@ export function reconcile(raw: ReconcileInput): ReconcileResult {
   const exceptions = [...matched.exceptions];
   const knownBatches = new Set(input.batches.map((b) => b.batchId));
   for (const rec of matched.records) {
-    const v = applyStep5(rec, bridges, groupings, knownBatches);
+    const v = applyStep5(rec, bridges, groupings, knownBatches, (r) => unlinkedMatchBlocked(r, input));
     if (v?.note) rec.explanation = { ...rec.explanation, history: [...rec.explanation.history, v.note] };
     const confirms = v?.ruleId === "M5.batch.tied_verified" || v?.ruleId === "M5.batch.tied_evidence_separate" || v?.ruleId === "M5.grouping.matched_settlement_unlinked";
     if (!v || (RANK[v.decision] < RANK[rec.explanation.decision]) || (RANK[v.decision] === RANK[rec.explanation.decision] && !confirms)) continue;
