@@ -2,7 +2,7 @@
  * v1 phase 5.5: alert rules. A small, pure rules engine over one metrics snapshot, and a dispatcher that sends only
  * changes (a new alert, a repeat after `renotifyMinutes`, a resolution) to an AlertSink (./alert-sinks.ts).
  *
- * The snapshot is counts only (drizzle/0075 ops_alert_metrics, read by the job worker's limited login, plus the backup
+ * The snapshot is counts only (drizzle/0081 ops_alert_metrics, read by the job worker's limited login, plus the backup
  * status file the backup job writes). An alert's summary is built from those counts: it never names an organisation, a
  * person, an address or an amount.
  *

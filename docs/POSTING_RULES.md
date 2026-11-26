@@ -488,7 +488,7 @@ revalues only provider clearing, as built) [ASSUMPTION]; Q-FX-E payment-level ma
 - **Version:** `PR-` + the first 12 hex digits of the SHA-256 of the canonical catalogue. Any change to a rule, a text or
   an engine result is a new version and needs a new signature.
 - **Who signs:** a merchant Admin with access to every entity, with a second factor proved in the last 10 minutes (a
-  password alone never counts). drizzle/0066 records the signer's name and user id, the time (the database's), the
+  password alone never counts). drizzle/0077 (was 0066) records the signer's name and user id, the time (the database's), the
   version and its SHA-256 and the catalogue itself; append-only, revoked at most once.
 - **The gate:** `postingRulesSigned(orgId, userId?)` (`src/server/posting-rules.ts`) is true only when the newest
   unrevoked signature of the organisation is for the **current** version; anything else, or any error, is false. Until

@@ -54,7 +54,7 @@ Changes:
 | Step 5 scanned every bridge for every payment; address facts, refund lines and provider records scanned per order | engine (079a986) | engine 334 s → 6 s at 70,004 payments (quadratic → linear) |
 | Multi-row VALUES inserts (rows × columns parameters) | `db/bulk.ts` `unnest` per column (f41d237) | one parse per 5,000 rows |
 | Id lists sent as one parameter per id (70,000) | `anyOf`: one `text[]` parameter (f41d237) | no giant statements |
-| Every run rewrote every record and journal | content fingerprints, 0064 (3d4ec10) | unchanged rows get one narrow update |
+| Every run rewrote every record and journal | content fingerprints, 0079 (was 0064; 3d4ec10) | unchanged rows get one narrow update |
 | Journal supersede sent kept ids as separate parameters | one array (707aa8b) | **a 100,000-payment run failed before** (68,000 > 65,535 parameters) |
 | `writeIngested` scanned quotes per invoice and per link | maps (761e4fe) | ingestion linear |
 

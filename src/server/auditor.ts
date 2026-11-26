@@ -15,7 +15,7 @@ import { AccessDenied, requireEntity, type AuditGrant, type TenantContext, withT
  * v1 phase 4: the Auditor. Read-only; one granted period of whole months (and optionally some entities: the membership's
  * entity scope); until the grant expires. It lists the period's payments and downloads evidence packs per payment and
  * per entity-month of the period, nothing else: every other service refuses the role (it holds no "read" permission),
- * and the database refuses every write and every row outside the period (drizzle/0067). Each listing and download is
+ * and the database refuses every write and every row outside the period (drizzle/0078, was 0067). Each listing and download is
  * audited with ids, the grant, the format and the file's SHA-256.
  */
 function grantOf(ctx: TenantContext): AuditGrant {

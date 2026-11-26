@@ -168,7 +168,7 @@ describe("SECURITY (approval-only, 0037): chain_reads isolation with indexed pol
   it("the policies: one indexed organisation predicate for reads, the membership check once per statement for inserts", async () => {
     const pol = await rows(`select polname, polcmd, pg_get_expr(polqual, polrelid) as q, pg_get_expr(polwithcheck, polrelid) as c from pg_policy
       where polrelid = 'chain_reads'::regclass order by polname`);
-    // v1 phase 4 (drizzle/0067, approval-only, tightening): RESTRICTIVE Auditor policies (chain_reads is hidden from an
+    // v1 phase 4 (drizzle/0078, approval-only, tightening): RESTRICTIVE Auditor policies (chain_reads is hidden from an
     // Auditor and it writes nothing); each is an InitPlan, so the rows stay one indexed organisation predicate
     const NOT_AUDITOR = "(NOT ( SELECT app_is_auditor() AS app_is_auditor))";
     expect(pol).toEqual([

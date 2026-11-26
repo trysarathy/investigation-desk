@@ -20,7 +20,7 @@ scope, format and the file's SHA-256 (never contents).
 - **Server:** the role holds one permission (`audit_download`); every other service refuses it. No active grant
   (expired, revoked, never made) is a 403 when the organisation is resolved. A month outside the grant, another entity, or
   a payment of another period is "not found".
-- **Database (drizzle/0067), with the services bypassed:** RESTRICTIVE policies on every organisation table with
+- **Database (drizzle/0078, was 0067; wave 2: 0085 adds them to the later tables), with the services bypassed:** RESTRICTIVE policies on every organisation table with
   row-level security. An Auditor writes nothing except its own audit rows; reads only the tables an evidence pack is
   made of, and only rows of the period (entity calendar date for invoices and chain transfers, provider day for
   settlement batches, value date for bank lines, entry date for journal proposals) and the rows hanging off them; every

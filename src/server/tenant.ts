@@ -125,7 +125,7 @@ export async function resolveTenant(p: Principal, requestedSlug: string | undefi
 
 /**
  * v1 phase 4: an Auditor acts only through an active grant (not revoked, not expired); none → 403. The database
- * applies the same period (drizzle/0067), so this is the server's half of the check, not the only one.
+ * applies the same period (drizzle/0078), so this is the server's half of the check, not the only one.
  */
 async function activeAuditGrant(p: Principal, orgId: string): Promise<AuditGrant> {
   const [g] = await withTenant({ userId: p.userId, orgId }, (tx) => tx.select().from(auditorGrants)

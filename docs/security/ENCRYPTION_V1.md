@@ -43,7 +43,7 @@ These are derived copies written by `src/server/merchant.ts` and read in about 3
 
 ### How
 
-- **Envelope encryption.** Each organisation has its own data keys and one blind-index key (table `org_data_keys`, migration 0071). They are stored only *wrapped* by a master key held in a KMS (`src/server/crypto/kms.ts`). Unwrapped keys live only in server memory.
+- **Envelope encryption.** Each organisation has its own data keys and one blind-index key (table `org_data_keys`, migration 0083, was 0071). They are stored only *wrapped* by a master key held in a KMS (`src/server/crypto/kms.ts`). Unwrapped keys live only in server memory.
 - **Fields.** AES-256-GCM with a random 12-byte IV. The additional authenticated data is `clearline/field/v1|<org>|<table>|<column>|<row id>`, so a ciphertext copied to another row, column, table or organisation does not open. The stored format is `ce1.<data key version>.<base64url(iv|ciphertext|tag)>`, and the version picks the key, so values sealed with a retired key still open.
 - **Blind index.** HMAC-SHA256 with the organisation's index key over a domain (`address` or `order_ref`) and the **exact** value, stored as 64 hex characters. Nothing is lower-cased or normalised. Equality on the index is exactly equality on the plaintext: the same uniqueness (`merchant_quotes_deposit_bidx_uq`, `payment_links_deposit_bidx_uq`) and the same joins (tested: the transfer→quote join on the index returns exactly the rows the plaintext join returns). All address columns share the `address` domain, so they can be joined with one another. Indexes differ between organisations by design.
 - **Matching is unchanged.** The engine never sees ciphertext. `loadReconcileInput` opens every value before the engine runs, and the engine compares addresses as before (`normAddress`). Proof is below.
@@ -55,7 +55,7 @@ These are derived copies written by `src/server/merchant.ts` and read in about 3
 
 ### Expand / contract
 
-1. **Expand (migration 0072, done).** Add `<col>_enc` and `<col>_bidx` beside every plaintext column, with format checks, both-or-neither checks, and blind-index indexes. Every plaintext column, constraint, index and trigger stays.
+1. **Expand (migration 0084, was 0072, done).** Add `<col>_enc` and `<col>_bidx` beside every plaintext column, with format checks, both-or-neither checks, and blind-index indexes. Every plaintext column, constraint, index and trigger stays.
 2. **Dual write (done).** Every insert path writes the plaintext and the sealed copy and index: `writeIngested`, normalisation (row-by-row and bulk), chain verification, and ledger normalisation.
 3. **Backfill (script, done).** `scripts/crypto/keys.ts backfill`, run as the owner in batches while the app serves. It is idempotent. Then `verify` must report `problems: []` and `unsealed: 0`.
 4. **Switch reads (done).** Every read of these columns takes the value from the sealed copy, falls back to the plaintext only where a row is not backfilled yet, and **refuses a row whose two copies disagree** (tamper detection while both exist). The `address_facts` list is still ordered by the plaintext column while it exists.
@@ -88,10 +88,31 @@ The application changes that go with it: the read helpers stop falling back; `ad
 
 ## 4. Changed security controls (complete list)
 
-1. New table `org_data_keys` (0071). RLS is forced. Members read their own organisation's keys, and a provider under a full grant reads them (it already reads those rows). The app may insert only an organisation's first keys (version 1, active). It has no UPDATE or DELETE. A trigger keeps a key's identity immutable, never reactivates a retired key, and requires a re-wrap to be stamped. The runtime role gains SELECT and INSERT on this table (a runtime-grants snapshot change).
-2. `chain_reads` (0072): UPDATE was refused for everyone (`refuse_change`). It is now refused for everyone **except the table owner changing only the sealed columns** (backfill or re-encrypt). DELETE keeps `refuse_change`. The runtime role still has no UPDATE privilege.
-3. `ledger_invoices` (0072): the same change to `ledger_invoices_no_change`.
-4. `chain_transfers`, `merchant_quotes`, `payment_links`, `address_facts` (0072): a new trigger `guard_sealed_update`. Only the table owner may change a sealed value, nobody may remove one, and a blind index never changes once written. `keep_chain_fact` is unchanged.
+1. New table `org_data_keys` (0083, was 0071). RLS is forced. Members read their own organisation's keys, and a provider under a full grant reads them (it already reads those rows). The app may insert only an organisation's first keys (version 1, active). It has no UPDATE or DELETE. A trigger keeps a key's identity immutable, never reactivates a retired key, and requires a re-wrap to be stamped. The runtime role gains SELECT and INSERT on this table (a runtime-grants snapshot change).
+2. `chain_reads` (0084): UPDATE was refused for everyone (`refuse_change`). It is now refused for everyone **except the table owner changing only the sealed columns** (backfill or re-encrypt). DELETE keeps `refuse_change`. The runtime role still has no UPDATE privilege.
+3. `ledger_invoices` (0084): the same change to `ledger_invoices_no_change`.
+4. `chain_transfers`, `merchant_quotes`, `payment_links`, `address_facts` (0084): a new trigger `guard_sealed_update`. Only the table owner may change a sealed value, nobody may remove one, and a blind index never changes once written. `keep_chain_fact` is unchanged.
 5. New CHECK constraints on the shape of sealed values and indexes, and new indexes on the blind indexes. The existing unique indexes on the plaintext stay.
 6. Reads now refuse a row whose sealed and plaintext copies disagree (new refusal, `FieldCryptoError`).
 7. Staging and production refuse to store these fields without a KMS (new refusal).
+
+## Wave 2 integration: the wave 1 tables that hold secrets
+
+Checked on the integrated stack (wave 1 + wave 2, migrations to 0085). Field encryption (this phase) seals wallet
+addresses and order references; the tables below hold secrets or one-time credentials, and are covered or not as follows.
+
+| Table (wave 1) | What it holds | At rest in the app | Status |
+|---|---|---|---|
+| `two_factors` | TOTP secret, recovery codes | encrypted by Better Auth with `BETTER_AUTH_SECRET` (symmetricEncrypt) | covered (not by the KMS envelope) |
+| `accounts` | password hash | scrypt hash | covered (a hash, not a secret) |
+| `auth_tokens`, `org_invitations` | e-mail verification / reset / invitation tokens | SHA-256 of the token only | covered (hash only) |
+| `passkeys` | WebAuthn public keys | plaintext | not a secret |
+| `ledger_connections` (wave 2, c3) | OAuth access and refresh tokens | sealed with `CLEARLINE_LEDGER_TOKEN_KEY` (`v1.` prefix enforced by a check) | covered (its own key, not the KMS envelope) |
+| `provider_api_connections` (wave 2, c2) | names of environment variables only | no secret in the database | covered |
+| `sessions` | session token | **plaintext** (Better Auth's own column) | **GAP**: a database reader can replay a live session until it expires; needs a hashed-token adapter in Better Auth (not built) |
+| `verifications` | Better Auth verification values | **plaintext** | **GAP** (short-lived; the reset and e-mail flows use `auth_tokens` instead) |
+| `email_outbox` | message bodies with one-time links | **plaintext** | **GAP, local stand-in only**: the table is the local outbox (CLEARLINE_EMAIL_SENDER=outbox); a real sender would not keep bodies |
+| `accounts.access_token/refresh_token/id_token` | social sign-in tokens | plaintext columns | unused (no social sign-in is configured); listed so a later provider is not added without sealing them |
+
+None of the gaps is closed in wave 2 (each needs a change to how Better Auth stores its rows, an approval-only security
+change). [ASSUMPTION] Managed PostgreSQL storage encryption (HOSTING_PROPOSAL.md) is in place underneath all of them.

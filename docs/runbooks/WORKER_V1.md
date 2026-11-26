@@ -31,14 +31,14 @@ Every job re-checks its member's access when it runs (a revoked member's job die
 - Progress: `job_events` (append-only: claimed, stage, done, retry, dead, recovered, requeued; ids, stages, codes and
   counts only). The Runs page polls `GET /api/control/merchant/jobs` every 2 s while a job is active.
 
-## Database grants (migrations 0029 and 0064)
+## Database grants (migrations 0029 and 0079, was 0064)
 
 `clearline_jobs` (NOBYPASSRLS, owns nothing, cannot create): SELECT/INSERT/UPDATE on `jobs`; SELECT/INSERT on
 `job_events`; SELECT on `reconciliation_schedules`; EXECUTE on `jobs_due_schedules()`, `jobs_run_principal()`,
 `jobs_requester_principal(org, member)` (an active membership only) and `jobs_retention_due(at)` (organisation ids
 only). Nothing else; the worker refuses to start with any other login.
 
-`clearline_app` (the web app), new in 0064: INSERT of eight columns of `jobs` (org, entity, kind, trigger, dedupe key,
+`clearline_app` (the web app), new in 0079 (was 0064): INSERT of eight columns of `jobs` (org, entity, kind, trigger, dedupe key,
 member, run after, params) under a policy that pins the organisation, `run_as = the signed-in user`, trigger `manual`
 and a queued, untouched row; SELECT on `job_events` (own organisation, entity scope applied through the job).
 **This widens the runtime role's rights (it could not write to the queue before): flagged for review.**

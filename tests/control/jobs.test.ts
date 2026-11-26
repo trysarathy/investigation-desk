@@ -196,7 +196,7 @@ describe("isolation between merchants", () => {
       expect(Number((await as(sg.userId, sg.orgId, sql`select count(*)::int as n from ${sql.identifier(tb)}`)).rows[0].n), tb).toBeGreaterThan(0);
     }
     expect((await listRuns(ae)).schedules).toEqual([]);
-    // v1 phase 3 (0064): a member may enqueue a MANUAL job for themselves only; a scheduled one, or one for another member, is refused
+    // v1 phase 3 (0079): a member may enqueue a MANUAL job for themselves only; a scheduled one, or one for another member, is refused
     await dbRefuses(as(sg.userId, sg.orgId, sql`insert into jobs (org_id, entity_id, trigger, dedupe_key, run_as, run_after) values (${sg.orgId}, 'ENT-SG-01', 'schedule', 'forged', ${sg.userId}, now())`), /row-level security/);
     await dbRefuses(as(sg.userId, sg.orgId, sql`insert into jobs (org_id, entity_id, trigger, dedupe_key, run_as, run_after) values (${sg.orgId}, 'ENT-SG-01', 'manual', 'forged2', ${seed.users["finance@straits-demo.example"]}, now())`), /row-level security/);
     await dbRefuses(as(sg.userId, sg.orgId, sql`insert into jobs (org_id, entity_id, trigger, dedupe_key, run_as, run_after, status) values (${sg.orgId}, 'ENT-SG-01', 'manual', 'forged3', ${sg.userId}, now(), 'done')`), /permission denied/);

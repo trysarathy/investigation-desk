@@ -12,7 +12,7 @@ import { RequestRefused } from "./errors";
 /**
  * rc7 phase 3a, v1 phase 3: a job queue in PostgreSQL, the schedules, and the worker that runs them.
  *
- * - The queue and the scheduler use their own login, `clearline_jobs` (rc8, migrations 0029 and 0064): it reads and
+ * - The queue and the scheduler use their own login, `clearline_jobs` (rc8, migrations 0029 and 0079): it reads and
  *   writes the jobs and job events, reads the schedules, and reaches merchant data only through narrow SECURITY
  *   DEFINER functions (what enqueueDue needs; who a job runs as; which organisations have uploads past retention). It is
  *   not the owner, has no BYPASSRLS and cannot change the schema; `assertJobsLogin` refuses any other login at worker

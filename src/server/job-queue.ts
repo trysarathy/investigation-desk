@@ -11,7 +11,7 @@ import { AccessDenied, inEntityScope, requireEntity, type TenantContext, withTen
 /**
  * v1 phase 3: the web app's side of the job queue. A member enqueues a job for themselves (the database allows the
  * runtime login nothing else on the queue: an INSERT of a queued, manual job naming the signed-in member, migration
- * 0064) and reads their organisation's jobs with their progress events. The worker (jobs.ts) does the work, acting as
+ * 0079) and reads their organisation's jobs with their progress events. The worker (jobs.ts) does the work, acting as
  * that member and checking their access again.
  */
 
@@ -34,7 +34,7 @@ export async function enqueueJob(ctx: TenantContext, input: z.input<typeof Enque
     const [ent] = await tx.select({ id: t.merchantEntities.id }).from(t.merchantEntities).where(and(eq(t.merchantEntities.orgId, ctx.orgId), eq(t.merchantEntities.id, v.entityId)));
     if (!ent) throw new AccessDenied(404, "Not found.");
     const dedupeKey = `manual:${key}`.slice(0, 128).replace(/[^A-Za-z0-9:/._#-]/g, "_");
-    // only the eight columns the runtime login may write (0064); every other column takes its default
+    // only the eight columns the runtime login may write (0079); every other column takes its default
     const ins = (await tx.execute(sql`insert into jobs (org_id, entity_id, kind, trigger, dedupe_key, run_as, run_after, params)
       values (${ctx.orgId}, ${v.entityId}, ${v.kind}, 'manual', ${dedupeKey}, ${ctx.userId}, now(), ${JSON.stringify(v.params ?? {})}::jsonb)
       on conflict do nothing returning id`)).rows;

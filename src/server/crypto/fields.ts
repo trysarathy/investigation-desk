@@ -6,7 +6,7 @@ import { cipherFor } from "./org-keys";
 /**
  * v1 Phase 5.3: which columns hold wallet addresses and customer references, and how each is encrypted.
  *
- * Expand phase (migration 0072; docs/security/ENCRYPTION_V1.md): every column below keeps its plaintext column and
+ * Expand phase (migration 0084, was 0072; docs/security/ENCRYPTION_V1.md): every column below keeps its plaintext column and
  * gains `<column>_enc` (sealed value) and, where it is compared, `<column>_bidx` (blind index). Writes fill all of
  * them; reads take the value from `_enc` (falling back to the plaintext only while a row is not backfilled yet) and
  * refuse a row whose sealed value does not agree with its plaintext copy. The contract step (documented, not run)

@@ -14,7 +14,7 @@ A key is 32 random bytes, base64: `node -e "console.log(require('crypto').random
 
 ## First enablement (expand step)
 
-1. Deploy migrations 0071 and 0072 and the release that writes sealed copies.
+1. Deploy migrations 0083 and 0084 (were 0071 and 0072) and the release that writes sealed copies.
 2. Set `CLEARLINE_KMS_KEYS=k1:<key>` on every server and the worker, then restart them one at a time. New writes are sealed. An organisation gets its keys on its first sealed write.
 3. `backfill`, then `verify`. Expect `"problems":[]` and `"unsealed":0`. `status` shows every value at version 1.
 

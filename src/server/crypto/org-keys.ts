@@ -7,7 +7,7 @@ import { FieldCryptoError, OrgCipher } from "./envelope";
 import { kmsFromEnv, newKeyMaterial, type Kms } from "./kms";
 
 /**
- * v1 Phase 5.3: per-organisation keys (table org_data_keys, migration 0071). Each organisation has
+ * v1 Phase 5.3: per-organisation keys (table org_data_keys, migration 0083, was 0071). Each organisation has
  *  - data keys (purpose 'data', versions 1, 2, …): exactly one is active and seals new values; older (retired) ones
  *    still open what they sealed until the re-encrypt job has moved every value to the active one;
  *  - one blind-index key (purpose 'index', version 1): it is never rotated by a data-key rotation, so indexes stay
