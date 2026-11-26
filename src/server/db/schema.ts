@@ -31,6 +31,8 @@ export const users = pgTable("users", {
   image: text("image"),
   createdAt: ts("created_at").notNull().defaultNow(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
+  /** v1 1.2: Better Auth's two-factor plugin (true once a TOTP authenticator is verified). */
+  twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
 });
 
 export const sessions = pgTable("sessions", {
@@ -42,6 +44,10 @@ export const sessions = pgTable("sessions", {
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  /** v1 1.2: when this session proved a second factor (null = password only). */
+  mfaVerifiedAt: ts("mfa_verified_at"),
+  /** v1 1.2: the last step-up re-authentication in this session. */
+  reauthenticatedAt: ts("reauthenticated_at"),
 }, (t) => [index("sessions_user_idx").on(t.userId)]);
 
 export const accounts = pgTable("accounts", {
@@ -399,3 +405,4 @@ export * from "./ledger-schema";
 export * from "./notify-schema";
 export * from "./demo-schema";
 export * from "./onboarding-schema";
+export * from "./auth-schema";

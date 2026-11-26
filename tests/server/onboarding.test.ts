@@ -47,7 +47,7 @@ describe("invitation tokens", () => {
 describe("the email sender", () => {
   it("refuses without a configured outbox (no real email service is ever called)", () => {
     delete process.env.CLEARLINE_EMAIL_OUTBOX_DIR;
-    expect(() => emailSender()).toThrow(EmailNotConfigured);
+    expect(() => emailSender({ required: true })).toThrow(EmailNotConfigured);
   });
 
   it("the local outbox writes one JSON file per message, read back oldest first", async () => {
@@ -56,7 +56,7 @@ describe("the email sender", () => {
       process.env.CLEARLINE_EMAIL_OUTBOX_DIR = dir;
       const s = emailSender();
       expect(s).toBeInstanceOf(OutboxEmailSender);
-      const a = await s.send({ to: "a@merchant.example", subject: "one", text: "first", kind: "invitation" });
+      const a = await (s as OutboxEmailSender).send({ to: "a@merchant.example", subject: "one", text: "first", kind: "invitation" });
       await new Promise((r) => setTimeout(r, 5));
       await s.send({ to: "b@merchant.example", subject: "two", text: "second", kind: "invitation" });
       const out = await readOutbox(dir);
