@@ -11,7 +11,8 @@
  * run time): redeploy to start again from the seed.
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Client, Pool } from "pg";
@@ -20,6 +21,29 @@ import { DB, RECORDING, ROOT, STATE_DIR, type DemoState, dropDemoDatabases, ensu
 const env = process.env;
 const out = (s: string) => process.stdout.write(`${s}\n`);
 const need = (k: string, min = 1) => { const v = env[k]; if (!v || v.length < min) throw new Error(`hosted demo build: ${k} is not set (or too short)`); return v; };
+
+/** What the seeded database depends on: the migrations and the server/engine code (not pages or styles). */
+function seedFingerprint(): string {
+  const h = createHash("sha256");
+  const walk = (dir: string) => {
+    for (const name of readdirSync(dir).sort()) {
+      const f = path.join(dir, name);
+      if (statSync(f).isDirectory()) walk(f);
+      else { h.update(path.relative(ROOT, f)); h.update("\0"); h.update(readFileSync(f)); }
+    }
+  };
+  for (const d of ["drizzle", "src/server", "src/lib", "scripts/demo"]) walk(path.join(ROOT, d));
+  return `hosted-demo-seed:${h.digest("hex").slice(0, 32)}`;
+}
+
+async function seededFingerprint(superUrl: string): Promise<string | null> {
+  const c = new Client({ connectionString: superUrl });
+  await c.connect();
+  try {
+    const { rows } = await c.query("select shobj_description(oid, 'pg_database') as d from pg_database where datname = $1", [DB]);
+    return (rows[0]?.d as string | undefined) ?? null;
+  } finally { await c.end(); }
+}
 
 async function main() {
   if (env.CLEARLINE_HOSTED_DEMO !== "1") throw new Error("hosted demo build: CLEARLINE_HOSTED_DEMO=1 is required");
@@ -35,8 +59,10 @@ async function main() {
   } as unknown as DemoState;
   const t0 = Date.now();
 
-  out("▸ Demo database (dropped and made again) and logins");
-  await dropDemoDatabases(s);
+  const fingerprint = seedFingerprint();
+  const reuse = (await seededFingerprint(superUrl)) === fingerprint;
+  out(reuse ? "▸ Demo database: already seeded from this code; kept (logins refreshed)" : "▸ Demo database (dropped and made again) and logins");
+  if (!reuse) await dropDemoDatabases(s);
   // PostgreSQL 16+ on Neon: the owner login that made clearline_owner may not SET ROLE to it, so `create database …
   // owner clearline_owner` is refused. It administers the roles it made, so it grants itself membership and retries.
   try { await ensureLogins(s, { resetPasswords: true }); }
@@ -51,8 +77,8 @@ async function main() {
     await ensureLogins(s, { resetPasswords: true });
   }
 
-  out("▸ Migrations");
-  execFileSync(path.join(ROOT, "node_modules/.bin/drizzle-kit"), ["migrate"], { cwd: ROOT, stdio: ["ignore", "ignore", "inherit"], env: { ...env, DATABASE_OWNER_URL: loginUrl(s, "owner") } });
+  if (!reuse) out("▸ Migrations");
+  if (!reuse) execFileSync(path.join(ROOT, "node_modules/.bin/drizzle-kit"), ["migrate"], { cwd: ROOT, stdio: ["ignore", "ignore", "inherit"], env: { ...env, DATABASE_OWNER_URL: loginUrl(s, "owner") } });
 
   out("▸ Recorded chain file");
   const { demoWorld } = await import("../../src/lib/clearline/demo/world");
@@ -63,6 +89,17 @@ async function main() {
   writeFileSync(RECORDING, JSON.stringify(recording));
   out(`  ${recording.transfers.length} transfers in .demo/chain-recording.json`);
 
+  if (!reuse) await seed(s, superUrl, recording, fingerprint);
+  else {
+    process.env.DATABASE_URL = loginUrl(s, "runtime");
+    const { hostedDemoRuntimeUrl } = await import("../../src/server/db/hosted-demo-url");
+    if (env.PGHOST_UNPOOLED) process.env.DATABASE_URL = hostedDemoRuntimeUrl({ ...env, CLEARLINE_DEMO_RUNTIME_PASSWORD: s.passwords.runtime }) ?? process.env.DATABASE_URL;
+  }
+  out(`  database ready in ${fmtMs(Date.now() - t0)}`);
+  build(t0);
+}
+
+async function seed(s: DemoState, superUrl: string, recording: Parameters<typeof import("../../src/server/demo-seed").seedDemo>[1]["recording"], fingerprint: string) {
   out("▸ Seeding the demo world (30 days, a reconciliation after each day)");
   process.env.DATABASE_URL = loginUrl(s, "runtime");
   // the guard in next.config.mjs and the app read the runtime login, never the Neon owner DATABASE_URL
@@ -83,8 +120,11 @@ async function main() {
 
   const a = new Client({ connectionString: withDb(superUrl, DB) });
   await a.connect();
-  try { await a.query("analyze"); } finally { await a.end(); }
-  out(`  seeded in ${fmtMs(Date.now() - t0)}`);
+  // the fingerprint is written last: a seed cut short is never reused
+  try { await a.query("analyze"); await a.query(`comment on database "${DB}" is '${fingerprint}'`); } finally { await a.end(); }
+}
+
+function build(t0: number) {
 
   out("▸ Demo build (CLEARLINE_DEMO_BUILD=1)");
   const buildEnv = { ...env, NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1", CLEARLINE_DEMO_BUILD: "1", CLEARLINE_CONTROL_PILOT: "1", CLEARLINE_DIST_DIR: "", CLEARLINE_TEST_BUILD: "", CLEARLINE_CHAIN_LIVE: "", CLEARLINE_LEDGER_PULL: "" } as NodeJS.ProcessEnv;
