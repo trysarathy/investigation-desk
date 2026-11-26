@@ -1,6 +1,7 @@
 import "server-only";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
+import { hostedDemoRuntimeUrl } from "./hosted-demo-url";
 import * as schema from "./schema";
 
 export type Db = NodePgDatabase<typeof schema>;
@@ -14,7 +15,7 @@ declare global { var __clearlineDb: { pool: Pool; db: Db } | undefined }
  */
 export function database(): Db {
   if (!globalThis.__clearlineDb) {
-    const url = process.env.DATABASE_URL;
+    const url = hostedDemoRuntimeUrl() ?? process.env.DATABASE_URL;
     if (!url) throw new Error("DATABASE_URL is not set: Clearline Control needs PostgreSQL (see docs/runbooks/DEPLOYMENT_RUNBOOK_RC5.md)");
     const pool = new Pool({ connectionString: url, max: Number(process.env.DATABASE_POOL_MAX ?? 10), statement_timeout: 15_000 });
     // An idle connection the server ends (a restart, or the demo reset recreating the database) is dropped from the

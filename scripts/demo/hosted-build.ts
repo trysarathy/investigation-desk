@@ -2,7 +2,7 @@
  * The build of the HOSTED demo (a Vercel preview of demo/integrated): fictional data only, "Demo · fictional data".
  * Run by vercel.json's buildCommand on this branch only. It
  *   (a) refuses to run unless CLEARLINE_HOSTED_DEMO=1 and the deployment is NOT production (VERCEL_ENV=preview);
- *   (b) on the demo database (CLEARLINE_DEMO_SUPER_URL, else the Neon integration owner login NEON_DATABASE_URL_UNPOOLED),
+ *   (b) on the demo database (CLEARLINE_DEMO_SUPER_URL, else the Neon integration owner login DATABASE_URL_UNPOOLED),
  *       makes the owner, runtime and jobs logins with the passwords from the environment, and drops and re-creates
  *       the demo database, so every deployment starts from the same seeded state;
  *   (c) migrations; the recorded chain file; the demo world seeded day by day; ANALYZE;
@@ -24,8 +24,8 @@ const need = (k: string, min = 1) => { const v = env[k]; if (!v || v.length < mi
 async function main() {
   if (env.CLEARLINE_HOSTED_DEMO !== "1") throw new Error("hosted demo build: CLEARLINE_HOSTED_DEMO=1 is required");
   if (env.VERCEL_ENV === "production") throw new Error("hosted demo build: refuses to run for a production deployment");
-  // the Neon owner login, from the Neon integration (prefix NEON) unless CLEARLINE_DEMO_SUPER_URL names another one
-  if (!env.CLEARLINE_DEMO_SUPER_URL && env.NEON_DATABASE_URL_UNPOOLED) env.CLEARLINE_DEMO_SUPER_URL = env.NEON_DATABASE_URL_UNPOOLED;
+  // the Neon owner login, from the Neon integration (DATABASE_URL_UNPOOLED, or NEON_… with a prefix) unless CLEARLINE_DEMO_SUPER_URL names another one
+  if (!env.CLEARLINE_DEMO_SUPER_URL) env.CLEARLINE_DEMO_SUPER_URL = env.NEON_DATABASE_URL_UNPOOLED ?? env.DATABASE_URL_UNPOOLED;
   const superUrl = need("CLEARLINE_DEMO_SUPER_URL");
   const s = {
     version: 1,
@@ -53,6 +53,9 @@ async function main() {
 
   out("▸ Seeding the demo world (30 days, a reconciliation after each day)");
   process.env.DATABASE_URL = loginUrl(s, "runtime");
+  // the guard in next.config.mjs and the app read the runtime login, never the Neon owner DATABASE_URL
+  const { hostedDemoRuntimeUrl } = await import("../../src/server/db/hosted-demo-url");
+  if (env.PGHOST_UNPOOLED) process.env.DATABASE_URL = hostedDemoRuntimeUrl({ ...env, CLEARLINE_DEMO_RUNTIME_PASSWORD: s.passwords.runtime }) ?? process.env.DATABASE_URL;
   const { installDemoClock } = await import("./clock");
   const { seedDemo, restampDemoSeed } = await import("../../src/server/demo-seed");
   const { closeDatabase } = await import("../../src/server/db/client");
