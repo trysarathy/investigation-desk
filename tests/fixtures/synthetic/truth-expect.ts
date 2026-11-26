@@ -96,6 +96,10 @@ export function expectationFor(world: SyntheticWorld, truth: SyntheticTruth, t: 
   if (early || t.decision === "exception" || t.decision === "any_non_closing") return { kind: "truth", decision: t.decision, ...(t.ruleId ? { ruleId: t.ruleId } : {}), differences: diffs() };
   // step 5 on these files
   const unheld = order.design.payments.some((p) => !p.held);
+  // v1 Phase 0.5 (decisions 12 and 14): an exact payment whose provider record names a batch in the settlement report is
+  // matched even though a totals-only report links no payment to it (settlement not linked, not settled)
+  if (files.settlement === "totals" && t.decision === "matched" && t.differences.length === 0 && unheld && namesKnownBatch(world, t.orderId))
+    return { kind: "rule", decision: "matched", ruleId: "M5.grouping.matched_settlement_unlinked", differences: [], why: "matched by reference; a totals-only report links no payment to its batch: settlement not linked, not settled" };
   if (files.settlement === "totals" && isClosing(t.decision) && unheld)
     return { kind: "rule", decision: "suggested_for_review", ruleId: "M5.grouping.proposed_needs_confirmation", differences: diffs(), why: "a totals-only settlement report links no payment to a batch: the grouping is only proposed" };
   const untieable = t.batchIds.filter((b) => !batchTieable(world, truth, b, files));
@@ -111,6 +115,15 @@ export function expectationFor(world: SyntheticWorld, truth: SyntheticTruth, t: 
   if (exact && t.ruleId === "M4.match.no_difference")
     return { kind: "rule", decision: "matched", ruleId: "M4.exact.no_quote_terms", differences: [], why: "decision 1: exact payment linked by reference, no quote terms needed" };
   return { kind: "truth", decision: t.decision, ...(t.ruleId ? { ruleId: t.ruleId } : {}), differences: diffs() };
+}
+
+/** Every provider record of the order names a settlement batch that is in the settlement report. */
+function namesKnownBatch(world: SyntheticWorld, orderId: string): boolean {
+  const order = world.orders.find((o) => o.orderId === orderId)!;
+  const refs = new Set([...order.quoteIds, ...order.linkIds]);
+  const recs = world.providerRecords.filter((r) => refs.has(r.ref.linkId ?? r.ref.quoteId ?? ""));
+  const known = new Set(world.batches.map((b) => b.batchId));
+  return recs.length > 0 && recs.every((r) => r.batchId !== undefined && known.has(r.batchId));
 }
 
 export function expectationsFor(world: SyntheticWorld, truth: SyntheticTruth, files: FileShapes, entityId?: string): Map<string, Expectation> {

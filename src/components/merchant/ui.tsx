@@ -69,7 +69,7 @@ export const DIFFERENCE_LABELS: Record<string, string> = {
 };
 export const differenceLabel = (t: string) => DIFFERENCE_LABELS[t] ?? t;
 
-const BANK: Record<string, string> = { not_in_batch: "Not in a batch", in_batch: "In a batch", held_by_provider: "Held by provider", proposed_grouping: "Grouping proposed" };
+const BANK: Record<string, string> = { not_in_batch: "Not in a batch", in_batch: "In a batch", held_by_provider: "Held by provider", proposed_grouping: "Settlement not linked (grouping only proposed)" };
 export const bankStatusLabel = (v: string) => BANK[v] ?? v;
 export const STEP_NAMES: Record<number, string> = { 1: "Identity", 2: "Reference", 3: "Checks", 4: "Explained tolerance", 5: "Grouping" };
 

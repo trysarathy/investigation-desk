@@ -37,8 +37,12 @@ const line = (i: ReconcileInput, f: (l: SettlementPaymentLine) => SettlementPaym
 const bridge = (i: ReconcileInput) => reconcile(i).bridges.find((b) => b.batchId === "B-PP")!;
 
 describe("per-payment settlement lines tie a totals-only batch", () => {
-  it("before: totals only, no line names the payment → the grouping is only proposed (review), as in rc8", () => {
-    expect(verdict(perPayment({ lines: false }))).toBe("suggested_for_review M5.grouping.proposed_needs_confirmation");
+  // v1 Phase 0.5 (decisions 12 and 14): the payment is exact by reference at step 4 and its provider record names B-PP,
+  // so it is matched; its settlement is only a proposed grouping: not linked, not settled, bank evidence none. Until
+  // then it stayed in review (M5.grouping.proposed_needs_confirmation).
+  it("before: totals only, no line names the payment → the grouping is only proposed; the exact payment is matched, settlement not linked", () => {
+    expect(verdict(perPayment({ lines: false }))).toBe("matched M5.grouping.matched_settlement_unlinked");
+    expect(reconcile(perPayment({ lines: false })).records[0].bank).toMatchObject({ status: "proposed_grouping", batchIds: [], evidence: "none", settled: false });
     expect(bridge(perPayment({ lines: false })).checks.perPaymentLines).toBeUndefined();
   });
   it("after: the lines sum to the batch and the bank credit → tied; a bank-feed line verifies it → matched at step 5", () => {
@@ -89,12 +93,20 @@ describe("any disagreement leaves the batch untied (exception, never closed)", (
 describe("never by amount alone", () => {
   it("a line with the exact amounts but another payment's ID links nothing: the payment stays unbatched", () => {
     const i = line(perPayment(), (l) => ({ ...l, providerPaymentId: "PP-NOT-THIS-ONE" }));
-    expect(verdict(i)).not.toMatch(/^matched/);
+    // v1 Phase 0.5: the line links nothing, so settlement is not linked or settled; the payment itself is matched only
+    // by its own reference at step 4 (decision 1), never through the line's amounts (was: not matched)
+    expect(verdict(i)).toBe("matched M5.grouping.matched_settlement_unlinked");
+    expect(reconcile(i).records[0].bank).toMatchObject({ batchIds: [], batchTied: false, evidence: "none", settled: false });
     expect(bridge(i).paymentIds).toEqual([]);
   });
   it("a line naming a batch that is not in the settlement report links nothing (review, not closed)", () => {
     const i = line(perPayment(), (l) => ({ ...l, batchId: "B-UNKNOWN" }));
-    expect(verdict(i)).not.toMatch(/^matched/);
+    // v1 Phase 0.5: as above, matched by reference with settlement not linked (was: review); never settled
+    expect(verdict(i)).toBe("matched M5.grouping.matched_settlement_unlinked");
+    expect(reconcile(i).records[0].bank).toMatchObject({ batchIds: [], evidence: "none", settled: false });
+    // without the provider naming a batch in the report, the grouping still holds it in review, as before
+    const unnamed = { ...i, providerRecords: i.providerRecords.map((r) => { const { batchId: _b, ...rest } = r; void _b; return rest; }) };
+    expect(verdict(unnamed)).toBe("suggested_for_review M5.grouping.proposed_needs_confirmation");
   });
   it("the step-4 decision still decides first: a payment one cent short is not closed by a tied batch", () => {
     const i = perPayment();
@@ -195,7 +207,14 @@ describe("#174 refund rows never close or link a payment by amount", () => {
     const i = withRefund();
     const onlyRefund = { ...i, settlementPaymentLines: i.settlementPaymentLines!.filter((l) => l.kind === "refund") };
     expect(bridge(onlyRefund).paymentIds).toEqual([]);
-    expect(verdict(onlyRefund)).not.toMatch(/^matched/);
+    // never closed through the batch: since v1 Phase 0.5 (decisions 12 and 14) the exact payment, whose provider record
+    // names the batch by reference, is matched with settlement NOT linked, not settled and with no bank evidence
+    // (integration of #174 with the evidence-level split); a refund row never links it nor closes it by amount
+    expect(verdict(onlyRefund)).not.toMatch(/M5\.batch\.tied/);
+    expect(verdict(onlyRefund)).toBe("matched M5.grouping.matched_settlement_unlinked");
+    const rec = reconcile(onlyRefund).records.find((x) => x.orderId === ORDER)!;
+    expect(rec.bank).toMatchObject({ settled: false, evidence: "none" });
+    expect(bridge(onlyRefund)).toMatchObject({ tied: false, settled: false });
   });
   it("input order never changes the result", () => {
     const i = withRefund();

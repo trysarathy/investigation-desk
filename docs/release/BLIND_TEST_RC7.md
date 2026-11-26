@@ -227,4 +227,7 @@ With the refund rows the 8 batches with refunds tie, so the 201 `M5.batch.not_ti
 
 ## v1 Phase 0.5 re-run: the evidence-level split (branch `v1/a1-evidence-levels`)
 
-Unchanged in the browser: matched 0, review 1,911 (97.9 %), exception 41 (2.1 %), wrong matches 0 (fresh database, 1 passed, 3.0 min) [VERIFIED]. The blind files give settlement as totals only, and the split leaves the proposed-grouping rule as it was. With a per-payment settlement file (in memory), 1,244 exact payments are now matched with their bank evidence shown apart, 0 wrong matches. Full breakdown by blocking reason: `BLIND_BREAKDOWN_BEFORE.md` and `BLIND_BREAKDOWN_AFTER.md`.
+At 3505615, on a fresh database: 1 passed (3.0 min) [VERIFIED]. Matched 1,445 (74.03 %), review 466 (23.87 %), exception 41 (2.10 %), wrong matches 0.
+- The matched payments are the exact payments decision 1 closes at step 4. They are now matched with "settlement not linked" (totals only), not settled, and bank evidence none.
+- At 08701a6 (imported-bank-line change only) the numbers were unchanged from rc8.
+- Full breakdown by blocking reason: `BLIND_BREAKDOWN_BEFORE.md` and `BLIND_BREAKDOWN_AFTER.md`.
