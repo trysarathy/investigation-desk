@@ -6,7 +6,7 @@ own missing root folder, not a build).
 
 ## 1. Is app.clearlineconnect.org working right now?
 
-**Yes.** Last checked 04:29 SGT: `/control/sign-in` returns 200, "Sign in · Clearline Control". Production is still
+**Yes.** Last checked 06:31 SGT: `/control/sign-in` returns 200, "Sign in · Clearline Control". Production is still
 `dpl_5Ws3E1bB3JzxTtEuNbkTXMrQMxTn` (commit 6ad9605), unchanged. The demo link is unchanged too (branch link →
 `dpl_8RLxH7o1GMKkUTouAPi8KXmqkeEQ`, Ready; it answers 302 to Vercel's login, as a protected preview should).
 
@@ -14,6 +14,7 @@ own missing root folder, not a build).
 |---|---|---|
 | 03:14 | 200, "Sign in · Clearline Control" | 302 to Vercel login; link → dpl_8RLxH7o1GMKkUTouAPi8KXmqkeEQ |
 | 04:29 | 200, "Sign in · Clearline Control" | 302 to Vercel login; link → dpl_8RLxH7o1GMKkUTouAPi8KXmqkeEQ (Ready) |
+| 06:31 (end) | 200, "Sign in · Clearline Control" | 302 to Vercel login; link → dpl_8RLxH7o1GMKkUTouAPi8KXmqkeEQ (Ready) |
 
 ## 2. What a company can do (on the branch, after you promote it)
 
