@@ -20,7 +20,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { Client } from "pg";
 import { and, eq, sql } from "drizzle-orm";
-import { closeOwner, ownerDb, resetBlank } from "./harness";
+import { closeOwner, enrolTestTotp, ownerDb, resetBlank, signInWithMfa } from "./harness";
 import { accountFields, useTestStorage } from "./upload-harness";
 import { closeDatabase, database } from "../../src/server/db/client";
 import * as t from "../../src/server/db/schema";
@@ -186,6 +186,7 @@ describe("labels", () => {
     const live = await createMerchant(ownerDb(), { slug: "live-check-demo-w", name: "Live check (fictional)", timezone: "Asia/Singapore" });
     const { addMember } = await import("../../src/server/merchant-setup");
     const m = await addMember(ownerDb(), { orgSlug: "live-check-demo-w", email: "admin@live-check.example", role: "admin", password: PASSWORD });
+    await enrolTestTotp(m.userId); // v1 1.2: an Admin has MFA
     const ctx = await resolveTenant({ userId: m.userId, name: "admin", email: "admin@live-check.example" }, "live-check-demo-w");
     const shell = await merchantShell(ctx);
     expect(shell.label).toBe(LIVE_DATA_LABEL);
@@ -229,7 +230,7 @@ describe("the reset route in a demo build", () => {
     delete process.env.CLEARLINE_DEMO_RESET_URL; delete process.env.CLEARLINE_DEMO_DB; // so a demo member stops at "not configured", nothing is dropped
     try {
       nextBuild({ demo: true });
-      const live = await post(await signIn("admin@live-check.example"));
+      const live = await post(await signInWithMfa("admin@live-check.example", PASSWORD, "198.51.100.69"));
       expect(live.status).toBe(404);
       const demo = await post(await signIn("viewer@northwind.demo"));
       expect(demo.status).toBe(409);

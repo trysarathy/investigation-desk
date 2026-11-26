@@ -4,7 +4,7 @@
  * cap, and JSON the UI can use. Fictional data only.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { closeOwner, ownerDb, PASSWORD, resetAndSeed } from "./harness";
+import { closeOwner, ownerDb, PASSWORD, resetAndSeed, signInWithMfa } from "./harness";
 import { seedLiveMerchants, useTestStorage, type LiveSeed } from "./upload-harness";
 import { closeDatabase } from "../../src/server/db/client";
 import { POST as authPOST } from "../../src/app/api/auth/[...all]/route";
@@ -27,11 +27,8 @@ let k = 0;
 const key = () => `upload-api-${++k}-${Date.now()}`;
 
 async function signIn(email: string) {
-  const res = await authPOST(new Request(`${ORIGIN}/api/auth/sign-in/email`, {
-    method: "POST", headers: { "content-type": "application/json", origin: ORIGIN, "x-forwarded-for": `198.51.100.${ip++}` }, body: JSON.stringify({ email, password: PASSWORD }),
-  }));
-  expect(res.status).toBe(200);
-  return res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+  // v1 1.2: password, then the authenticator code when the account has MFA (tests/control/harness.ts)
+  return signInWithMfa(email, PASSWORD, `198.51.100.${ip++}`);
 }
 const auth = (email: string, extra: Record<string, string> = {}) => ({ cookie: `${cookies[email]}; clearline_org=${s.slugs.a}`, ...extra });
 const multipart = (email: string, file: Blob, fields: Record<string, string>, h: Record<string, string> = {}) => {

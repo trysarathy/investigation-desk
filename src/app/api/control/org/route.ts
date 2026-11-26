@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { ORG_COOKIE, idempotencyKeyFrom, jsonBody, principalFrom } from "@/server/control-http";
+import { ORG_COOKIE, idempotencyKeyFrom, jsonBody, sessionFrom } from "@/server/control-http";
+import { assertMfaGate } from "@/server/mfa-gate";
 import { errorResponse, json, sameOriginOrNull } from "@/server/http";
 import { resolveTenant } from "@/server/tenant";
 
@@ -21,10 +22,11 @@ export async function POST(req: Request) {
   const csrf = sameOriginOrNull(req);
   if (csrf) return csrf;
   try {
-    const p = await principalFrom(req);
+    const s = await sessionFrom(req);
     idempotencyKeyFrom(req);
     const { slug } = Selection.parse(await jsonBody(req));
-    const ctx = await resolveTenant(p, slug);
+    const ctx = await resolveTenant(s.principal, slug);
+    await assertMfaGate(s, ctx);
     return json(200, { org: { slug: ctx.orgSlug, name: ctx.orgName }, role: ctx.role }, { "Set-Cookie": cookie(ctx.orgSlug, 60 * 60 * 24 * 30) });
   } catch (e) { return errorResponse(e); }
 }

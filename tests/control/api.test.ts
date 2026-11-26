@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
-import { closeOwner, ownerDb, PASSWORD, resetAndSeed } from "./harness";
+import { closeOwner, ownerDb, PASSWORD, resetAndSeed, signInWithMfa } from "./harness";
 import { closeDatabase } from "../../src/server/db/client";
 import { POST as authPOST } from "../../src/app/api/auth/[...all]/route";
 import { GET as paymentsGET } from "../../src/app/api/control/payments/route";
@@ -25,12 +25,8 @@ const cookies: Record<string, string> = {};
 let ip = 40;
 
 async function signIn(email: string) {
-  const res = await authPOST(new Request(`${ORIGIN}/api/auth/sign-in/email`, {
-    method: "POST", headers: { "content-type": "application/json", origin: ORIGIN, "x-forwarded-for": `198.51.100.${ip++}` },
-    body: JSON.stringify({ email, password: PASSWORD }),
-  }));
-  expect(res.status).toBe(200);
-  return res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+  // v1 1.2: password, then the authenticator code when the account has MFA (tests/control/harness.ts)
+  return signInWithMfa(email, PASSWORD, `198.51.100.${ip++}`);
 }
 
 let k = 0;
