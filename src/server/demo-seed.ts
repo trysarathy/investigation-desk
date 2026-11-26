@@ -175,3 +175,25 @@ export async function restampDemoSeed(superUrl: string, database: string, window
   } catch (e) { await c.query("rollback").catch(() => undefined); throw e; } finally { await c.end(); }
   return { rows, columns };
 }
+
+/**
+ * v1 wave 1 (demo only; never bundled, like the rest of this file): the MFA gate requires a second factor for Admins and
+ * Approvers, so the demo's Admin and Approver logins are enrolled with ONE fictional TOTP secret, stored exactly as
+ * Better Auth stores one (encrypted with the demo's own auth secret). `npm run demo` prints the secret (for an
+ * authenticator app) and `npm run demo:totp` prints a current code. Only users whose every organisation is a demo
+ * organisation are touched; refused otherwise. Returns the number of users enrolled.
+ */
+export async function enrolDemoTotp(owner: Db, o: { secret: string; authSecret: string }): Promise<number> {
+  if (!/^[A-Za-z0-9-]{20,64}$/.test(o.secret)) throw new Error(`enrolDemoTotp: not a demo TOTP secret (${DEMO_SEED_MARKER})`);
+  const { symmetricEncrypt } = await import("better-auth/crypto");
+  const rows = (await owner.execute(sql`select distinct u.id from users u join organization_memberships m on m.user_id = u.id
+    join organizations o on o.id = m.org_id where m.revoked_at is null and m.role in ('admin', 'approver') and o.data_mode = 'demo'
+    and not exists (select 1 from organization_memberships m2 join organizations o2 on o2.id = m2.org_id where m2.user_id = u.id and o2.data_mode <> 'demo')`)).rows as { id: string }[];
+  for (const { id } of rows) {
+    await owner.execute(sql`delete from two_factors where user_id = ${id}`);
+    await owner.execute(sql`insert into two_factors (id, secret, backup_codes, user_id, verified) values (${`tf_${id}`}, ${await symmetricEncrypt({ key: o.authSecret, data: o.secret })},
+      ${await symmetricEncrypt({ key: o.authSecret, data: JSON.stringify([]) })}, ${id}, true)`);
+    await owner.execute(sql`update users set two_factor_enabled = true where id = ${id}`);
+  }
+  return rows.length;
+}

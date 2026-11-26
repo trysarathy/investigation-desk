@@ -21,6 +21,13 @@ export function demoPassword(): string {
   return (JSON.parse(readFileSync(STATE_FILE, "utf8")) as { passwords: { demo: string } }).passwords.demo;
 }
 
+/** v1 wave 1: the demo authenticator's fictional TOTP secret (demo Admin and Approver; `npm run demo:totp`). */
+export function demoTotpSecret(): string {
+  const s = (JSON.parse(readFileSync(STATE_FILE, "utf8")) as { totpSecret?: string }).totpSecret;
+  if (!s) throw new Error("no demo authenticator in .demo/state.json: run npm run demo -- --fresh");
+  return s;
+}
+
 export const DEMO_USERS = {
   finance: "finance@northwind.demo",
   approver: "approver@northwind.demo",

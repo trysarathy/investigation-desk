@@ -29,6 +29,8 @@ import { stampAt } from "./live-clock";
 export const DEMO_SWITCH_MARKER = "clearline-demo[demo-build-only]";
 /** The role switcher's own marker (scripts/build/check-chain-recording.mjs --marker switcher). */
 export const DEMO_SWITCHER_MARKER = "clearline-demo-switcher[demo-build-only]";
+/** The switcher's MFA proof (scripts/build/check-chain-recording.mjs --marker mfa): never in a real build. */
+export const DEMO_MFA_PROOF_MARKER = "clearline-demo-mfa-proof[demo-build-only]";
 
 export class DemoSwitchRefused extends Error {
   readonly marker = DEMO_SWITCHER_MARKER;
@@ -83,6 +85,7 @@ export async function switchDemoUser(caller: Principal, callerSessionId: string,
   const ac = await auth().$context;
   const session = await ac.internalAdapter.createSession(target.id);
   if (!session?.token) throw new Error("demo switch: no session was created");
+  const mfaProved = await demoSwitchMfaProof(session.id, target.id);
   await database().delete(t.sessions).where(and(eq(t.sessions.id, callerSessionId), eq(t.sessions.userId, caller.userId)));
 
   const callerOrgs = (await membershipsFor(caller)).map((m) => m.orgId);
@@ -90,10 +93,28 @@ export async function switchDemoUser(caller: Principal, callerSessionId: string,
   const at = new Date();
   for (const orgId of new Set([...callerOrgs, ...tgt.memberships.map((m) => m.orgId)])) {
     const actor = callerOrgs.includes(orgId) ? caller.userId : target.id;
-    await withTenant({ userId: actor, orgId }, (tx) => tx.insert(t.auditEvents).values({ orgId, source: "auth", actorUserId: actor, action: "demo_user_switched", entityType: "user", entityId: target.id, summary, at: stampAt(at), details: { marker: DEMO_SWITCH_MARKER, from: caller.email, to: target.email } }));
+    await withTenant({ userId: actor, orgId }, (tx) => tx.insert(t.auditEvents).values({ orgId, source: "auth", actorUserId: actor, action: "demo_user_switched", entityType: "user", entityId: target.id, summary, at: stampAt(at), details: { marker: DEMO_SWITCH_MARKER, from: caller.email, to: target.email, ...(mfaProved ? { mfa: DEMO_MFA_PROOF_MARKER } : {}) } }));
   }
   const provider = role === "provider_admin" || role === "provider_ops";
   return { userId: target.id, name: target.name, email: target.email, role, token: session.token, next: provider ? "/control/merchant/provider" : "/control/merchant" };
+}
+
+/**
+ * v1 wave 1 (demo build ONLY, option (a)): the demo seed enrols the demo Admin and Approver with a fictional TOTP secret
+ * (printed by `npm run demo`; `npm run demo:totp` prints a current code), so the MFA gate applies to them unchanged. A
+ * switch is a sign-in the presenter already proved with the demo password and, for those roles, the demo authenticator
+ * would answer the same; so the session the switcher creates for an ENROLLED target counts as MFA-proved, exactly as a
+ * session created by a second-factor check does (src/server/auth.ts). Refused outside a demo build, for a target outside
+ * demo organisations, and for a target without MFA (who still meets the enrolment wall). Returns whether it stamped.
+ */
+export async function demoSwitchMfaProof(sessionId: string, targetUserId: string): Promise<boolean> {
+  if (!demoBuild()) throw notFound();
+  if (!(await allDemo(targetUserId)).ok) throw notFound();
+  const [u] = await database().select({ mfa: t.users.twoFactorEnabled }).from(t.users).where(eq(t.users.id, targetUserId));
+  if (!u?.mfa) return false;
+  const now = new Date();
+  await database().update(t.sessions).set({ mfaVerifiedAt: now, reauthenticatedAt: now }).where(and(eq(t.sessions.id, sessionId), eq(t.sessions.userId, targetUserId)));
+  return true;
 }
 
 /** The Set-Cookie header for a session token, signed exactly as Better Auth signs its session cookie. */

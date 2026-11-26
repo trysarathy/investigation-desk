@@ -4,7 +4,7 @@
  * passwords are never printed, except the shared demo password, which `npm run demo` prints on purpose.
  */
 import { execFileSync, spawnSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import net from "node:net";
 import path from "node:path";
@@ -30,6 +30,8 @@ export interface DemoState {
   pg: { kind: "url" | "local" | "docker"; superUrl: string; port: number; superPassword?: string };
   passwords: { owner: string; runtime: string; jobs: string; demo: string };
   authSecret: string;
+  /** v1 wave 1: the fictional TOTP secret of the demo Admin and Approver (local; `npm run demo:totp` prints a code). */
+  totpSecret?: string;
   uploadKey: string;
   steps: Partial<Record<"database" | "migrations" | "seed" | "template" | "build", string>>;
   seed?: Record<string, unknown>;
@@ -37,6 +39,8 @@ export interface DemoState {
 }
 
 export const secret = (bytes = 24) => randomBytes(bytes).toString("base64url");
+/** The demo authenticator's secret: fictional, made once per install (letters, digits and dashes). */
+export const demoTotpSecret = () => `demo-totp-${randomBytes(15).toString("hex")}`;
 /** The shared demo password: 20 characters, letters and digits, made once per install. */
 export const demoPassword = () => `demo-${randomBytes(12).toString("base64url").replace(/[-_]/g, "x").slice(0, 15)}`;
 
@@ -173,4 +177,22 @@ export function appEnv(s: DemoState): NodeJS.ProcessEnv {
     // offline: no live chain reads, no ledger pull (a demo build also refuses them at start)
     CLEARLINE_CHAIN_LIVE: "", CLEARLINE_LEDGER_PULL: "", CLEARLINE_TEST_BUILD: "",
   };
+}
+
+/** RFC 6238 TOTP (HMAC-SHA1, 6 digits, 30 s) over the secret's UTF-8 bytes, as Better Auth checks it (demo helper). */
+export function demoTotpCode(secret: string, at = Date.now()): string {
+  const buf = Buffer.alloc(8);
+  buf.writeBigUInt64BE(BigInt(Math.floor(at / 30_000)));
+  const h = createHmac("sha1", Buffer.from(secret, "utf8")).update(buf).digest();
+  return String((h.readUInt32BE(h[h.length - 1] & 15) & 0x7fffffff) % 1_000_000).padStart(6, "0");
+}
+
+/** The secret as an authenticator app takes it (base32, RFC 4648, no padding). */
+export function demoTotpBase32(secret: string): string {
+  const A = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = "";
+  for (const b of Buffer.from(secret, "utf8")) bits += b.toString(2).padStart(8, "0");
+  let out = "";
+  for (let i = 0; i < bits.length; i += 5) out += A[parseInt(bits.slice(i, i + 5).padEnd(5, "0"), 2)];
+  return out;
 }

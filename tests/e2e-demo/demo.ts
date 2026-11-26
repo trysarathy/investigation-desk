@@ -7,7 +7,8 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { expect, type Page, type TestInfo } from "@playwright/test";
 import { expectNoAxeViolations, expectNoOverflow, settled } from "../e2e-merchant/helpers";
-import { DEMO_E2E, DEMO_LABEL, demoPassword } from "./env";
+import { DEMO_E2E, DEMO_LABEL, demoPassword, demoTotpSecret } from "./env";
+import { totp } from "../support/totp";
 
 /** Back to the seeded state (`npm run demo:reset`): every session ends, so sign in again afterwards. */
 export function resetDemo(): string {
@@ -23,11 +24,22 @@ export function guard(page: Page) {
   return { check: () => expect(problems, problems.join("\n")).toEqual([]) };
 }
 
+/** The 30-second step each login last used a code in: a code works once, so the next sign-in waits for a new one. */
+const usedStep = new Map<string, number>();
 export async function signIn(page: Page, email: string, landing: RegExp = /\/control\/merchant(\/provider)?$/) {
   await page.goto("/control/sign-in");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(demoPassword());
   await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).not.toHaveURL(/\/control\/sign-in$/);
+  if (/\/control\/sign-in\/two-factor$/.test(page.url())) {
+    // v1 wave 1: the demo Admin and Approver have the demo authenticator (the MFA rule is unchanged)
+    while (usedStep.get(email) === Math.floor(Date.now() / 30_000)) await page.waitForTimeout(1_000);
+    usedStep.set(email, Math.floor(Date.now() / 30_000));
+    await page.waitForLoadState("networkidle");
+    await page.getByLabel("6-digit code from your authenticator app").fill(totp(demoTotpSecret()));
+    await page.getByRole("button", { name: "Continue" }).click();
+  }
   await expect(page).toHaveURL(landing);
   await expect(page.getByTestId("signed-in-as")).toContainText(email);
 }

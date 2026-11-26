@@ -28,7 +28,7 @@ function fakeBuild(files: Record<string, string>) {
 describe("the markers", () => {
   it("one per demo-only area, distinct, none a substring of another", async () => {
     const { MARKERS } = await markers();
-    expect(Object.keys(MARKERS)).toEqual(["chain", "demo", "switcher", "guide", "feedback", "reset", "clock", "seed"]);
+    expect(Object.keys(MARKERS)).toEqual(["chain", "demo", "switcher", "guide", "feedback", "reset", "clock", "mfa", "seed"]);
     const v = Object.values(MARKERS) as string[];
     for (const a of v) for (const b of v) if (a !== b) expect(a.includes(b)).toBe(false);
   });
@@ -42,6 +42,11 @@ describe("the markers", () => {
     expect(src("src/server/demo-reset.ts")).toContain(m.reset);
     expect(src("src/components/merchant/ResetDemoButton.tsx")).toContain(m.reset);
     expect(src("src/server/demo-live-clock.ts")).toContain(m.clock);
+    // v1 wave 1: the switcher's MFA-proved session (demo build only); a demo build must carry it, a real build never
+    expect(src("src/server/demo-switch.ts")).toContain(m.mfa);
+    const { DEMO_BUILD_MARKERS, NEVER_BUNDLED } = await markers();
+    expect(DEMO_BUILD_MARKERS).toContain("mfa");
+    expect(NEVER_BUNDLED).not.toContain("mfa");
     const { DEMO_CLOCK_MARKER } = await import("@/server/demo-live-clock");
     expect(DEMO_CLOCK_MARKER).toBe(m.clock);
     expect(src("src/lib/clearline/demo/world.ts")).toContain(m.seed);

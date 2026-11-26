@@ -21,7 +21,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Client, Pool } from "pg";
 import {
   APP_PORT, DB, DIST, DemoStop, ORIGIN, RECORDING, ROOT, STATE_DIR, TEMPLATE, UPLOADS, appEnv, canConnect, demoPassword, dropDemoDatabases, ensureLogins, ensurePostgres, fmtMs, loginUrl, portAnswers,
-  readState, secret, withDb, writeState, type DemoState,
+  readState, secret, withDb, writeState, demoTotpBase32, demoTotpSecret, type DemoState,
 } from "./lib";
 
 const flag = (name: string) => process.argv.includes(`--${name}`) || process.env[`npm_config_${name.replace(/-/g, "_")}`] === "true";
@@ -106,6 +106,10 @@ async function main() {
       try {
         const owner = drizzle(pool, { schema }) as never;
         const { stampWindows, ...seeded } = await seedDemo(owner, { password: s.passwords.demo, recording, setClock: clock.set, log: (l) => out(`  ${l}`) });
+        // v1 wave 1: the MFA gate requires a second factor for Admin and Approver; the demo ones get the demo authenticator
+        s.totpSecret ??= demoTotpSecret();
+        const { enrolDemoTotp } = await import("../../src/server/demo-seed");
+        out(`  ${await enrolDemoTotp(owner, { secret: s.totpSecret, authSecret: s.authSecret })} demo Admin/Approver logins enrolled with the demo authenticator`);
         // database defaults (now()) took the machine clock: move them to the demo day that wrote them
         const re = await restampDemoSeed(s.pg.superUrl, DB, stampWindows);
         out(`  ${re.rows} database-stamped times moved to the demo calendar (${Object.keys(re.columns).length} columns)`);
@@ -235,6 +239,13 @@ function printAccess(s: DemoState) {
   out("            admin@northwind.demo     (Admin: settings, members)");
   out("            ops@providerp.demo       (Provider ops at Provider P (demo))");
   out(`  Password  ${s.passwords.demo}   (shared by every demo login; fictional, local, in .demo/state.json)`);
+  if (s.totpSecret) {
+    out(`  2-step    approver@ and admin@northwind.demo also ask for a 6-digit code (the MFA rule for Approvers and Admins):`);
+    out(`            npm run demo:totp  prints the current code; or add this fictional key to an authenticator app: ${demoTotpBase32(s.totpSecret)}`);
+    out("            The role switcher signs them in without a code (demo build only).");
+  } else {
+    out("  2-step    this demo was seeded before the demo authenticator existed: run `npm run demo -- --fresh` to sign in as approver@/admin@");
+  }
 }
 
 main().catch((e: unknown) => {
