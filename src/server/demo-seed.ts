@@ -169,10 +169,11 @@ export async function restampDemoSeed(superUrl: string, database: string, window
     for (const { t: table, c: col } of cols as { t: string; c: string }[]) {
       if (perTable) await c.query(`alter table "${table}" disable trigger user`);
       let n = 0;
-      for (const w of windows) {
-        const r = await c.query(`update "${table}" set "${col}" = $1::timestamptz where "${col}" between $2::timestamptz and $3::timestamptz and "${col}" <> all($4::timestamptz[])`, [w.at, w.dbFrom, w.dbTo, instants]);
-        n += r.rowCount ?? 0;
-      }
+      // one statement per column (the windows do not overlap, so each row matches at most one): a remote database
+      // (the hosted demo) would otherwise need a round trip per column and window
+      const r = await c.query(`update "${table}" as t set "${col}" = w.at from unnest($1::timestamptz[], $2::timestamptz[], $3::timestamptz[]) as w(at, db_from, db_to)
+        where t."${col}" between w.db_from and w.db_to and t."${col}" <> all($4::timestamptz[])`, [windows.map((w) => w.at), windows.map((w) => w.dbFrom), windows.map((w) => w.dbTo), instants]);
+      n += r.rowCount ?? 0;
       if (perTable) await c.query(`alter table "${table}" enable trigger user`);
       if (n) columns[`${table}.${col}`] = n;
       rows += n;
