@@ -30,9 +30,9 @@ export const fiat = (minor: string | bigint | number | null | undefined, cur: st
 export const token = (base: string, decimals: number, symbol: string) => fmtToken(BigInt(base), decimals, symbol);
 
 export type ChipTone = "ok" | "warn" | "info" | "amber" | "plain";
-export function Chip({ tone = "plain", children, testId }: { tone?: ChipTone; children: ReactNode; testId?: string }) {
+export function Chip({ tone = "plain", children, testId, wrap = false }: { tone?: ChipTone; children: ReactNode; testId?: string; wrap?: boolean }) {
   const c = tone === "ok" ? m.chipOk : tone === "warn" ? m.chipWarn : tone === "info" ? m.chipInfo : tone === "amber" ? m.chipAmber : "";
-  return <span className={`${m.chip} ${c}`} data-testid={testId}>{children}</span>;
+  return <span className={`${m.chip} ${c}${wrap ? ` ${m.chipWrap}` : ""}`} data-testid={testId}>{children}</span>;
 }
 
 export function DemoChip() {
@@ -91,7 +91,8 @@ export function BankChip({ p }: { p?: PartsSummary }) {
 }
 /** v1 Phase 0.5: the bank evidence level, always shown beside (never inside) the match decision. */
 export function EvidenceChip({ level, label }: { level: string; label: string }) {
-  return <Chip tone={level === "none" ? "plain" : "info"} testId="bank-evidence">{label}</Chip>;
+  // the evidence label is a sentence ("imported statement, confirmed by a second person (not bank-authenticated)"): it wraps on a phone
+  return <Chip tone={level === "none" ? "plain" : "info"} testId="bank-evidence" wrap>{label}</Chip>;
 }
 export function LedgerChip({ p }: { p?: PartsSummary }) {
   if (!p) return <span className={s.muted}>—</span>;
