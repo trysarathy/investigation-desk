@@ -38,6 +38,17 @@ export const LEDGER_POLICY: OutboundPolicy = {
   hosts: ["identity.xero.com", "api.xero.com", "sandbox-quickbooks.api.intuit.com"],
 };
 
+/**
+ * The ledger connection (src/lib/accounting/connect, v1 phase 2.3): the LEDGER_POLICY hosts plus Intuit's OAuth token
+ * and revoke endpoints, which the QuickBooks SANDBOX also uses. APPROVAL-ONLY (wave 2 integration): two hosts added to
+ * an allow-list; the production QuickBooks API host stays absent. The authorize pages (login.xero.com,
+ * appcenter.intuit.com) are browser redirects, never fetched by the server.
+ */
+export const LEDGER_CONNECT_POLICY: OutboundPolicy = {
+  name: "ledger-connect",
+  hosts: [...LEDGER_POLICY.hosts, "oauth.platform.intuit.com", "developer.api.intuit.com"],
+};
+
 /** AI explanations (src/lib/ai): the Anthropic API, or the operator's ANTHROPIC_BASE_URL host when one is set. */
 export function aiPolicy(env: Readonly<Record<string, string | undefined>> = process.env): OutboundPolicy {
   return policyWithUrls("ai", ["api.anthropic.com"], [env.ANTHROPIC_BASE_URL]);

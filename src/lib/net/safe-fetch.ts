@@ -153,3 +153,33 @@ export function safeFetcher(policy: OutboundPolicy, deps: SafeFetchDeps = {}): t
     return safeFetch(req.url, { method: req.method, headers: req.headers, body: req.body, signal: req.signal, ...(req.body ? { duplex: "half" } : {}), ...init } as RequestInit, policy, deps);
   }) as typeof fetch;
 }
+
+/**
+ * Wave 2 integration: the ONLY way server code calls a LOCAL stand-in (the S3 stand-in of prod-local, the Xero and
+ * QuickBooks stand-ins): the URL's host must be exactly 127.0.0.1, [::1] or localhost, no credentials in the URL, and
+ * redirects are refused. Nothing else is reachable through it, so a stand-in setting can never point a request at
+ * another host. Callers choose it only for an operator setting that was already checked to be loopback (s3ConfigFromEnv,
+ * the ledger stand-in URLs); every other request goes through safeFetch and a policy.
+ */
+export async function loopbackFetch(url: string, init: RequestInit, deps: Pick<SafeFetchDeps, "fetchImpl"> = {}): Promise<Response> {
+  let u: URL;
+  try { u = new URL(url); } catch { throw new OutboundRefused("loopback", "BAD_URL"); }
+  if (u.protocol !== "http:" && u.protocol !== "https:") throw new OutboundRefused("loopback", "BAD_URL");
+  if (u.username || u.password) throw new OutboundRefused("loopback", "CREDENTIALS_IN_URL");
+  if (!isLoopbackHost(u.hostname)) throw new OutboundRefused("loopback", "HOST_NOT_ALLOWED");
+  const f = deps.fetchImpl ?? globalThis.fetch;
+  const res = await f(u.toString(), { ...init, redirect: "manual" });
+  if ((res.status >= 300 && res.status < 400) || res.type === "opaqueredirect") {
+    try { await res.body?.cancel(); } catch { /* nothing to drain */ }
+    throw new OutboundRefused("loopback", "REDIRECT_REFUSED");
+  }
+  return res;
+}
+
+/** Exactly 127.0.0.1, ::1 or localhost (no other loopback spelling, no suffix). */
+export const isLoopbackHost = (hostname: string): boolean => ["127.0.0.1", "[::1]", "::1", "localhost"].includes(hostname.toLowerCase());
+
+/** A fetch-shaped function for loopbackFetch (string or URL inputs only). */
+export function loopbackFetcher(deps: Pick<SafeFetchDeps, "fetchImpl"> = {}): typeof fetch {
+  return ((input: string | URL, init?: RequestInit) => loopbackFetch(input.toString(), init ?? {}, deps)) as typeof fetch;
+}

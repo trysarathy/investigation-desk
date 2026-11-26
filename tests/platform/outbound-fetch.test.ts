@@ -10,12 +10,23 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import { checkOutbound, isPrivateAddress, OutboundRefused, policyWithUrls, safeFetch, safeFetcher, type OutboundPolicy } from "@/lib/net/safe-fetch";
-import { aiPolicy, CHAIN_LEGACY_POLICY, LEDGER_POLICY, merchantChainPolicy } from "@/lib/net/outbound-hosts";
+import { checkOutbound, isPrivateAddress, loopbackFetch, OutboundRefused, policyWithUrls, safeFetch, safeFetcher, type OutboundPolicy } from "@/lib/net/safe-fetch";
+import { aiPolicy, CHAIN_LEGACY_POLICY, LEDGER_CONNECT_POLICY, LEDGER_POLICY, merchantChainPolicy } from "@/lib/net/outbound-hosts";
 
 const ROOT = path.resolve(__dirname, "../..");
 const SRC = path.join(ROOT, "src");
 const SAFE_CLIENT = "src/lib/net/safe-fetch.ts";
+/**
+ * Wave 2 integration: the two other files that may open a connection, each reviewed, with why. Neither takes a URL from
+ * a request. Listing a file here is a reviewed change (approval-only).
+ */
+const OTHER_CLIENTS: Record<string, string> = {
+  // stricter than safeFetch: the address checked is the address connected to (DNS answer checked inside the socket's
+  // own lookup, no rebinding window), exact host allow-list per connection, same-origin redirects only, size limit
+  "src/lib/clearline/provider-api/safe-http.ts": "the provider API's DNS-pinned SSRF-safe client (v1 phase 2.2)",
+  // INSTREAM to the operator's own ClamAV daemon (a unix socket, or CLEARLINE_CLAMD_HOST/PORT); never an HTTP request
+  "src/server/malware.ts": "the optional local malware scanner (v1 phase 2.1)",
+};
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((n) => {
@@ -52,7 +63,7 @@ describe("v1 E1: no outbound request bypasses the SSRF-safe client", () => {
     const offenders: string[] = [];
     for (const f of files) {
       const rel = path.relative(ROOT, f);
-      if (rel === SAFE_CLIENT) continue;
+      if (rel === SAFE_CLIENT || OTHER_CLIENTS[rel]) continue;
       const text = readFileSync(f, "utf8");
       if (isClientFile(text)) continue;
       const src = code(text);
@@ -77,6 +88,7 @@ describe("v1 E1: every API host the outbound modules name is on a policy", () =>
   // Hosts that appear in these files but are never fetched by the server, with why.
   const NOT_FETCHED: Record<string, string> = {
     "login.xero.com": "the OAuth authorize page: the BROWSER is redirected there; the server never fetches it",
+    "appcenter.intuit.com": "the QuickBooks OAuth authorize page: the BROWSER is redirected there; the server never fetches it",
     "quickbooks.api.intuit.com": "production QuickBooks: deliberately NOT allowed (QuickBooks is not offered; QBO_ENV=production is refused)",
     "developer.xero.com": "documentation link in a comment",
     "developer.intuit.com": "documentation link in a comment",
@@ -89,6 +101,7 @@ describe("v1 E1: every API host the outbound modules name is on a policy", () =>
     [["src/lib/chain/tron.ts", "src/lib/chain/evm.ts", "src/lib/chain/sources.ts"], CHAIN_LEGACY_POLICY],
     [["src/lib/clearline/merchant/chain/tron.ts"], merchantChainPolicy({})],
     [["src/lib/accounting/providers/xero.ts", "src/lib/accounting/providers/xero-auth.ts", "src/lib/accounting/providers/quickbooks.ts", "src/lib/accounting/ledger-pull.ts"], LEDGER_POLICY],
+    [["src/lib/accounting/connect/providers.ts", "src/lib/accounting/connect/api.ts"], LEDGER_CONNECT_POLICY],
   ];
   it.each(cases.map(([f, p]) => [p.name, f, p] as const))("%s", (_n, files, policy) => {
     const missing = files.flatMap(hostsIn).filter((h) => !policy.hosts.includes(h) && !NOT_FETCHED[h]);
@@ -97,6 +110,10 @@ describe("v1 E1: every API host the outbound modules name is on a policy", () =>
   it("the production QuickBooks host is refused even if the adapter were pointed at it", async () => {
     await expect(checkOutbound("https://quickbooks.api.intuit.com/v3/company/1/query", LEDGER_POLICY, async () => [{ address: "8.8.8.8", family: 4 }]))
       .rejects.toMatchObject({ code: "HOST_NOT_ALLOWED" });
+  });
+  it("wave 2: the ledger connection policy adds only Intuit's OAuth hosts; production QuickBooks stays refused", () => {
+    expect(LEDGER_CONNECT_POLICY.hosts.filter((h) => !LEDGER_POLICY.hosts.includes(h))).toEqual(["oauth.platform.intuit.com", "developer.api.intuit.com"]);
+    expect(LEDGER_CONNECT_POLICY.hosts).not.toContain("quickbooks.api.intuit.com");
   });
   it("operator-configured endpoints add exactly their own host", () => {
     expect(merchantChainPolicy({ ETHEREUM_RPC_URL: "https://rpc.example.org:8545/v2/KEYKEYKEY", TRONGRID_BASE_URL: "https://Tron.Example.org/" }).hosts)
@@ -175,5 +192,21 @@ describe("v1 E1: the safe client", () => {
   });
   it("policyWithUrls ignores unset and unparsable URLs", () => {
     expect(policyWithUrls("x", ["A.example.org"], [undefined, "", "::bad::"]).hosts).toEqual(["a.example.org"]);
+  });
+});
+
+describe("wave 2: the loopback-only client for local stand-ins", () => {
+  const ok: typeof fetch = async () => new Response("{}", { status: 200 });
+  it("reaches exactly 127.0.0.1, [::1] and localhost, over http or https", async () => {
+    for (const u of ["http://127.0.0.1:9000/b", "http://[::1]:9000/b", "http://localhost:9000/b", "https://127.0.0.1/b"]) {
+      expect((await loopbackFetch(u, {}, { fetchImpl: ok })).status, u).toBe(200);
+    }
+  });
+  it("refuses every other host, credentials in the URL, other schemes and redirects", async () => {
+    for (const u of ["http://127.0.0.2/", "http://10.0.0.1/", "http://169.254.169.254/", "http://localhost.example.org/", "http://api.example.org/", "file:///etc/passwd", "http://u:p@127.0.0.1/"]) {
+      await expect(loopbackFetch(u, {}, { fetchImpl: ok }), u).rejects.toBeInstanceOf(OutboundRefused);
+    }
+    const redirecting: typeof fetch = async () => new Response(null, { status: 302, headers: { location: "http://169.254.169.254/" } });
+    await expect(loopbackFetch("http://127.0.0.1/", {}, { fetchImpl: redirecting })).rejects.toMatchObject({ code: "REDIRECT_REFUSED" });
   });
 });

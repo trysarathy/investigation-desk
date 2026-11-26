@@ -1,6 +1,7 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 import { XMLParser } from "fast-xml-parser";
+import { isLoopbackHost, loopbackFetcher, policyWithUrls, safeFetcher } from "@/lib/net/safe-fetch";
 import type { StoredFile, UploadStorage } from "./index";
 import { openUpload, sealUpload, StorageRefused, validAddress } from "./local";
 import { EMPTY_SHA256, encodePath, sha256Hex, sign, type SigV4Credentials } from "./sigv4";
@@ -25,9 +26,13 @@ const xml = new XMLParser({ ignoreAttributes: true, parseTagValue: false, isArra
 export class S3Storage implements UploadStorage {
   private readonly base: URL;
   constructor(private readonly cfg: S3Config, private readonly key: Buffer | null, private readonly refusal?: string,
-    private readonly fetcher: typeof fetch = fetch) {
+    fetcher?: typeof fetch) {
     this.base = new URL(cfg.endpoint);
+    // wave 2: through the one outbound client: the endpoint's host only (https, public addresses, no redirects), or the
+    // loopback-only client for the local stand-in (s3ConfigFromEnv allows http for 127.0.0.1 and localhost only)
+    this.fetcher = fetcher ?? (isLoopbackHost(this.base.hostname) ? loopbackFetcher() : safeFetcher(policyWithUrls("s3-uploads", [], [cfg.endpoint])));
   }
+  private readonly fetcher: typeof fetch;
 
   private async call(method: string, objectPath: string, opts: { query?: Record<string, string>; body?: Buffer; headers?: Record<string, string> } = {}) {
     const path = `/${encodePath(this.cfg.bucket)}${objectPath ? `/${encodePath(objectPath)}` : ""}`;

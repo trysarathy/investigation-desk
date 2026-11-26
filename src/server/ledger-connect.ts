@@ -7,10 +7,12 @@ import {
   type DraftJournalRequest, type LedgerFetch, type LedgerSession,
 } from "@/lib/accounting/connect/api";
 import {
-  authorizeUrl, exchangeCode, idTokenNonce, LedgerCallFailed, LedgerNotConfigured, providerConfig, refreshTokens, revoke, xeroTenants,
+  authorizeUrl, exchangeCode, idTokenNonce, LedgerCallFailed, LedgerNotConfigured, ledgerEnv, providerConfig, refreshTokens, revoke, xeroTenants,
   type LedgerProvider, type LedgerTenant, type ProviderConfig, type TokenSet,
 } from "@/lib/accounting/connect/providers";
 import { RateLimited, type LedgerRateLimiter } from "@/lib/accounting/connect/rate-limit";
+import { LEDGER_CONNECT_POLICY } from "@/lib/net/outbound-hosts";
+import { isLoopbackHost, loopbackFetch, safeFetch } from "@/lib/net/safe-fetch";
 import { open, pkceChallenge, randomToken, sameText, seal, SealBroken, stateHash, TokenKeyMissing, tokenKey } from "@/lib/accounting/connect/seal";
 import { LedgerPullRefused } from "@/lib/accounting/ledger-pull";
 import { plainAmount } from "@/lib/clearline/exports/journal-drafts";
@@ -52,7 +54,14 @@ const REFRESH_MARGIN_MS = 120_000;
 const STALE_SEND_MS = 120_000;
 
 export interface LedgerDeps { fetchFn?: LedgerFetch; now?: () => number; limiter?: LedgerRateLimiter; storage?: UploadStorage; env?: Record<string, string | undefined> }
-const fetchOf = (d: LedgerDeps): LedgerFetch => d.fetchFn ?? (fetch as unknown as LedgerFetch);
+// wave 2: through the one outbound client: the ledger hosts (LEDGER_CONNECT_POLICY), or the loopback-only client for a
+// stand-in (providerConfig allows loopback http URLs only in "standin" mode)
+const ledgerFetch = (env: Record<string, string | undefined> | undefined): LedgerFetch => (url, init) => {
+  let host = "";
+  try { host = new URL(url).hostname; } catch { /* refused below as BAD_URL */ }
+  return (isLoopbackHost(host) && ledgerEnv(env ?? process.env) === "standin" ? loopbackFetch(url, init) : safeFetch(url, init, LEDGER_CONNECT_POLICY)) as ReturnType<LedgerFetch>;
+};
+const fetchOf = (d: LedgerDeps): LedgerFetch => d.fetchFn ?? ledgerFetch(d.env);
 const nowOf = (d: LedgerDeps) => (d.now ?? Date.now)();
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
