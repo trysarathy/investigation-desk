@@ -192,6 +192,18 @@ export interface BankLine {
 
 export interface FxRate { pair: string; rate: string; source: string; timestamp: string }
 
+/**
+ * v1 (founder decision 9): a recorded rate between two fiat currencies, "USD/SGD" = SGD per 1 USD, as of an instant,
+ * from a named source (table fiat_rates, append-only). Used only to SHOW an other-currency amount in the entity's
+ * currency and to propose period-end revaluations; never to make amounts tie.
+ */
+export interface FiatRate { pair: string; rate: string; asOf: string; source: string }
+
+/** An amount's value in another currency from a recorded rate, or "needs a rate" (never 0, never derived). */
+export type FxValue =
+  | { status: "rated"; amountMinor: bigint; currency: FiatCurrency; pair: string; rate: string; asOf: string; source: string }
+  | { status: "needs_rate"; currency: FiatCurrency; pair: string; reason: string };
+
 /** A fact about an address. Recorded, never judged. */
 export interface AddressFact { network: NetworkId; address: string; fact: "registered_wallet" | "intermediate_wallet" | "exchange_hot_wallet" | "unknown" }
 
@@ -218,6 +230,8 @@ export interface ReconcileInput {
   settlementPaymentLines?: readonly SettlementPaymentLine[];
   bankLines: readonly BankLine[];
   fxRates: readonly FxRate[];
+  /** v1: recorded fiat rates into the entity's currency (optional; absent = none recorded, nothing is converted). */
+  fiatRates?: readonly FiatRate[];
   addressFacts: readonly AddressFact[];
   /** rc7: chain reads that failed for this run (optional; absent = every read succeeded or recorded data is used). */
   chainUnavailable?: readonly ChainUnavailable[];

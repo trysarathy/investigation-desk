@@ -387,13 +387,18 @@ export async function normaliseUpload(ctx: TenantContext, uploadId: string, idem
     // A duplicate row confirms the rows its earlier copy became (so they stay while either upload is kept).
     const dups = stored.filter((s) => s.status === "duplicate" && s.rowHash);
     if (dups.length) {
-      const earlier = await tx.select({ rowHash: t.uploadRows.rowHash, table: t.uploadRowTargets.targetTable, key: t.uploadRowTargets.targetKey }).from(t.uploadRowTargets)
+      // v1 (decision 9): a statement row found a duplicate by its pre-account fingerprint (an earlier upload with no
+      // bank account, or of this account before the account was fingerprinted) confirms what that earlier row became.
+      const legacyOf = new Map(analysis.rows.filter((r) => r.legacyHash).map((r) => [r.rowNumber, r.legacyHash!]));
+      const earlier = await tx.select({ rowHash: t.uploadRows.rowHash, account: t.uploads.bankAccountId, table: t.uploadRowTargets.targetTable, key: t.uploadRowTargets.targetKey }).from(t.uploadRowTargets)
         .innerJoin(t.uploadRows, and(eq(t.uploadRows.orgId, t.uploadRowTargets.orgId), eq(t.uploadRows.uploadId, t.uploadRowTargets.uploadId), eq(t.uploadRows.rowNumber, t.uploadRowTargets.rowNumber)))
         .innerJoin(t.uploads, and(eq(t.uploads.orgId, t.uploadRows.orgId), eq(t.uploads.id, t.uploadRows.uploadId)))
         .where(and(eq(t.uploadRowTargets.orgId, ctx.orgId), ne(t.uploads.id, uploadId), ne(t.uploads.status, "deleted"), eq(t.uploads.entityId, u.entityId), eq(t.uploads.fileType, u.fileType),
-          inArray(t.uploadRows.rowHash, dups.map((d) => d.rowHash!))));
+          inArray(t.uploadRows.rowHash, [...dups.map((d) => d.rowHash!), ...dups.flatMap((d) => (legacyOf.has(d.rowNumber) ? [legacyOf.get(d.rowNumber)!] : []))])));
+      const sameRow = (d: (typeof dups)[number], e: (typeof earlier)[number]) => e.rowHash === d.rowHash
+        || (legacyOf.get(d.rowNumber) === e.rowHash && (e.account === null || e.account === u.bankAccountId));
       for (const d of dups) {
-        const targets = [...new Map(earlier.filter((e) => e.rowHash === d.rowHash).map((e) => [`${e.table}|${e.key}`, { table: e.table, key: e.key }])).values()];
+        const targets = [...new Map(earlier.filter((e) => sameRow(d, e)).map((e) => [`${e.table}|${e.key}`, { table: e.table, key: e.key }])).values()];
         results.set(d.rowNumber, { outcome: targets.length ? "existing" : "skipped", targets });
       }
     }

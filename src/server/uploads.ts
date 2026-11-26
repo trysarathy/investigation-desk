@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { and, asc, eq, inArray, lte, ne, notInArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lte, ne, notInArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   IngestError, formatMinor, currencyPrecision, parseCamt053, parseMt940, preview as previewRows, readTabular, sniffFile,
@@ -85,19 +85,40 @@ async function tokensOf(tx: Tx): Promise<TokenConfig[]> {
   return (await tx.select().from(t.tokenConfig)).map((k) => ({ network: (k.network === "arbitrum-one" ? "arbitrum_one" : k.network) as NetworkId, contract: k.contract, symbol: k.symbol, decimals: k.decimals }));
 }
 
-export interface AnalysedRow extends AppliedRow { rowHash: string | null }
+/**
+ * `legacyHash` (v1, founder decision 9): a statement row of an upload that names a bank account is fingerprinted WITH
+ * that account (`rowHash`); `legacyHash` is the same row's pre-decision fingerprint (without the account), used only
+ * to recognise a re-upload of a line already imported by an upload that named no account (rows from before 0039) or,
+ * before this decision, by an upload to the same account. See bankLineFingerprintBody.
+ */
+export interface AnalysedRow extends AppliedRow { rowHash: string | null; legacyHash?: string }
 export interface Analysis { rows: AnalysedRow[]; notes: string[] }
 
-/** A row's identity for duplicates: its normalised values plus its occurrence among identical rows of the same file. */
-function hashRows(fileType: FileType, rows: AppliedRow[]): AnalysedRow[] {
+/**
+ * A row's identity for duplicates: its normalised values plus its occurrence among identical rows of the same file;
+ * for a bank statement that names its bank account, the account too (the same line in two accounts is two lines).
+ */
+function hashRows(fileType: FileType, rows: AppliedRow[], bankAccountId: string | null = null): AnalysedRow[] {
   const seen = new Map<string, number>();
   return rows.map((r) => {
     if (r.status === "rejected") return { ...r, rowHash: null };
-    const body = stableJson({ fileType, values: r.values });
+    const { body, legacy } = bankLineFingerprintBody(fileType, r.values, bankAccountId);
     const n = seen.get(body) ?? 0;
     seen.set(body, n + 1);
-    return { ...r, rowHash: sha256(`${body}#${n}`) };
+    return { ...r, rowHash: sha256(`${body}#${n}`), ...(legacy !== null ? { legacyHash: sha256(`${legacy}#${n}`) } : {}) };
   });
+}
+
+/**
+ * v1 (founder decision 9): what a row's fingerprint is made of. A bank-statement row of an upload that names its bank
+ * account includes the account id; every other row (other file types, and a statement row with no account, i.e. from
+ * before migration 0039) keeps the old body exactly, so its fingerprint and the bank line id derived from it
+ * (`FILE-<hash>`) are unchanged. `legacy` is the old body of an account-keyed row (null otherwise).
+ */
+export function bankLineFingerprintBody(fileType: FileType, values: Record<string, MappedValue>, bankAccountId: string | null): { body: string; legacy: string | null } {
+  const legacy = stableJson({ fileType, values });
+  if (fileType !== "bank_statement" || !bankAccountId) return { body: legacy, legacy: null };
+  return { body: stableJson({ fileType, bankAccountId, values }), legacy };
 }
 
 /**
@@ -121,7 +142,7 @@ export async function analyseUpload(tx: Tx, u: Pick<UploadRow, "orgId" | "fileTy
       const warnings = l.amountMinor === 0n ? [{ field: "amount", code: "zero_amount" }] : [];
       return { rowNumber: l.sourceRow, status: warnings.length ? "warning" : "accepted", values, errors: [], warnings };
     });
-    return { rows: hashRows(fileType, inAccountCurrency(rows)), notes };
+    return { rows: hashRows(fileType, inAccountCurrency(rows), u.bankAccountId ?? null), notes };
   }
   if (!u.mapping) throw new RequestRefused(409, "NOT_MAPPED", "Map the file's columns first.");
   const applied = applyMapping(parsed.table, u.mapping, { tokens: await tokensOf(tx) });
@@ -129,7 +150,7 @@ export async function analyseUpload(tx: Tx, u: Pick<UploadRow, "orgId" | "fileTy
   if (parsed.table.excludedRows.length) notes.push("total_rows_excluded");
   if (parsed.table.blankRowsSkipped) notes.push("blank_rows_skipped");
   for (const c of applied.columnIssues) notes.push(`column:${c.field}:${c.code}`);
-  return { rows: hashRows(fileType, inAccountCurrency(applied.rows)), notes };
+  return { rows: hashRows(fileType, inAccountCurrency(applied.rows), u.bankAccountId ?? null), notes };
 }
 
 /** A bank account of the organisation (RLS: the tenant's own rows only). */
@@ -367,8 +388,21 @@ export async function validateUpload(ctx: TenantContext, id: string, idempotency
           eq(t.uploads.fileType, u.fileType), notInArray(t.uploads.status, ["deleted", "rejected"]), inArray(t.uploadRows.status, ["accepted", "warning", "duplicate"])));
       for (const f of found) if (f.h) known.add(f.h);
     }
+    // v1 (decision 9): a statement line already imported by an upload with no bank account (before 0039), or by an
+    // upload to this same account fingerprinted before the account was part of the fingerprint, is still a duplicate.
+    const legacy = [...new Set(analysis.rows.map((r) => r.legacyHash).filter((h): h is string => !!h))];
+    const knownLegacy = new Set<string>();
+    for (let i = 0; i < legacy.length; i += 1000) {
+      const found = await tx.select({ h: t.uploadRows.rowHash }).from(t.uploadRows)
+        .innerJoin(t.uploads, and(eq(t.uploads.orgId, t.uploadRows.orgId), eq(t.uploads.id, t.uploadRows.uploadId)))
+        .where(and(eq(t.uploadRows.orgId, ctx.orgId), inArray(t.uploadRows.rowHash, legacy.slice(i, i + 1000)), ne(t.uploads.id, id), eq(t.uploads.entityId, u.entityId),
+          eq(t.uploads.fileType, u.fileType), notInArray(t.uploads.status, ["deleted", "rejected"]), inArray(t.uploadRows.status, ["accepted", "warning", "duplicate"]),
+          or(isNull(t.uploads.bankAccountId), eq(t.uploads.bankAccountId, u.bankAccountId!))));
+      for (const f of found) if (f.h) knownLegacy.add(f.h);
+    }
+    const isDup = (r: AnalysedRow) => (!!r.rowHash && known.has(r.rowHash)) || (!!r.legacyHash && knownLegacy.has(r.legacyHash));
     const rows = analysis.rows.map((r) => ({
-      rowNumber: r.rowNumber, rowHash: r.rowHash, status: r.rowHash && known.has(r.rowHash) ? "duplicate" : r.status,
+      rowNumber: r.rowNumber, rowHash: r.rowHash, status: isDup(r) ? "duplicate" : r.status,
       reasonCodes: [...r.errors.map((e) => ({ ...e, level: "error" })), ...r.warnings.map((w) => ({ ...w, level: "warning" }))],
     }));
     if (u.status === "validated") await tx.update(t.uploads).set({ status: "mapped" }).where(and(eq(t.uploads.orgId, ctx.orgId), eq(t.uploads.id, id)));
