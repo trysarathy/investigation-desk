@@ -33,6 +33,7 @@ export default async function RunsPage() {
     <>
       <h1 className={s.title}>Runs</h1>
       <p className={s.lede}>Each reconciliation run: when it ran, why, under which rules, and what it decided. A run on the same data under the same rules writes nothing and says &ldquo;No change&rdquo;. Payments a person closed are never changed by a run.</p>
+      {can(ctx.role, "merchant_upload") ? <p>{/* eslint-disable-next-line @next/next/no-html-link-for-pages -- a full load, as every merchant page */}<a className={m.cta} href="/control/merchant/uploads" data-testid="runs-upload-files">Upload files</a></p> : null}
 
       <section className={s.section} aria-labelledby="schedule-h">
         <h2 className={s.h2} id="schedule-h">Daily schedule</h2>

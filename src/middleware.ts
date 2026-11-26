@@ -44,6 +44,13 @@ const isPilotPath = (p: string) =>
  */
 export const PUBLIC_STATUS_PATHS: readonly string[] = ["/api/health", "/api/ready", "/status"];
 
+/** v1: the three fictional sample files a pilot customer may download (public/samples/); exact paths only. */
+export const PILOT_SAMPLE_FILES: ReadonlySet<string> = new Set([
+  "/samples/kestrelbay-sample-provider-settlement-report.csv",
+  "/samples/kestrelbay-sample-bank-statement.csv",
+  "/samples/kestrelbay-sample-invoices-orders.csv",
+]);
+
 export function deploymentGate(pathname: string, authorization: string | null, env: GateEnv): GateDecision {
   if (env.CLEARLINE_PUBLIC_STATUS === "1" && PUBLIC_STATUS_PATHS.includes(pathname)) return { action: "next", consoleShell: true };
   // rc5 private staging: Clearline Control with real sign-in and PostgreSQL. A pilot deployment serves ONLY the pilot
@@ -51,7 +58,7 @@ export function deploymentGate(pathname: string, authorization: string | null, e
   // product and the fictional public demo never share a surface, a cookie or a session.
   if (env.CLEARLINE_CONTROL_PILOT === "1") {
     if (pathname === "/") return { action: "redirect", location: "/control" };
-    const allowed = isPilotPath(pathname) || pathname === "/favicon.ico" || pathname === "/icon.svg" || pathname.startsWith("/_next/");
+    const allowed = isPilotPath(pathname) || pathname === "/favicon.ico" || pathname === "/icon.svg" || pathname.startsWith("/_next/") || PILOT_SAMPLE_FILES.has(pathname);
     return allowed ? { action: "next", consoleShell: true } : { action: "not_found", noStore: true };
   }
   if (isPilotPath(pathname)) return { action: "not_found", noStore: true };
