@@ -45,7 +45,7 @@ export default async function MerchantLayout({ children }: { children: ReactNode
   const merchantNav = MERCHANT_NAV.filter((i) => i.href !== "/control/merchant/evidence" || can(ctx.role, "merchant_export"));
   // v1 phase 1.4: the access review, for an Admin of the merchant or the provider with access to every entity
   const review = can(ctx.role, "access_review") && ctx.entityScope === null ? [{ href: "/control/merchant/access-review", label: "Access review" }] : [];
-  const nav = shell.kind === "merchant" ? [...merchantNav, ...(can(ctx.role, "manage_members") ? [...(process.env.DATABASE_PROVISIONING_URL ? [{ href: "/control/merchant/setup", label: "Setup" }] : []), { href: "/control/merchant/admin", label: "Admin" }] : []), ...review] : [...PROVIDER_NAV, ...review];
+  const nav = shell.kind === "merchant" ? [...merchantNav, ...(can(ctx.role, "manage_members") ? [...(process.env.DATABASE_PROVISIONING_URL && ctx.entityScope === null ? [{ href: "/control/merchant/setup", label: "Setup" }] : []), { href: "/control/merchant/admin", label: "Admin" }] : []), ...review] : [...PROVIDER_NAV, ...review];
   const unread = shell.kind === "merchant" ? await unreadCount(ctx) : 0;
   return (
     <div className={m.mroot} style={vars}>

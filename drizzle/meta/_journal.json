@@ -365,6 +365,13 @@
       "when": 1796680000000,
       "tag": "0068_invitation_email_outbox",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1796690000000,
+      "tag": "0069_setup_requires_unscoped_admin",
+      "breakpoints": true
     }
   ]
 }

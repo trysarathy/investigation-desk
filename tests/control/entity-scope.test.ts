@@ -168,6 +168,34 @@ describe("a Finance member scoped to one entity", () => {
   });
 });
 
+describe("wave 1: tables added beside entity scope", () => {
+  it("fiat_rates is organisation-wide by design (no entity): a scoped member reads the org's rates, never writes one", async () => {
+    const E = wo.entityId;
+    await ownerDb().execute(sql`insert into fiat_rates (org_id, base_currency, quote_currency, rate, as_of, source_label, recorded_by)
+      values (${seed.orgs.sg}, 'USD', 'SGD', 1.3500000000, '2026-11-30T09:00:00Z', 'Fictional rate source', 'entity-scope test')`);
+    const all = Number((await rows(sql`select count(*)::int as n from fiat_rates where org_id = ${seed.orgs.sg}`))[0].n);
+    expect((await as("finance-one@straits-demo.example", sql`select count(*)::int as n from fiat_rates`)).rows[0].n).toBe(all);
+    await dbRefuses(as("finance-one@straits-demo.example", sql`insert into fiat_rates (org_id, base_currency, quote_currency, rate, as_of, source_label, recorded_by)
+      values (${seed.orgs.sg}, 'USD', 'SGD', 9, now(), 'Scoped write', 'x')`), /permission denied/);
+    // A1's bank evidence (0042) is a column of match_records: another entity's records stay invisible (above), so does it
+    expect((await as("finance-one@straits-demo.example", sql`select count(*)::int as n from match_records m join invoices i on i.org_id = m.org_id and i.order_id = m.order_id where i.entity_id = ${E} and m.bank_evidence is not null`)).rows[0].n).toBe(0);
+  });
+});
+
+describe("wave 1: every table that carries an entity has the scope policy", () => {
+  it("each public table with an entity_id the app can read has a RESTRICTIVE entity_scope policy (new tables of A1, A2, A3 and B1 included)", async () => {
+    const tables = (await rows(sql`select distinct c.table_name as t from information_schema.columns c
+      join pg_class k on k.relname = c.table_name and k.relnamespace = 'public'::regnamespace and k.relkind in ('r', 'p')
+      where c.table_schema = 'public' and c.column_name = 'entity_id' and has_table_privilege('clearline_runtime', k.oid, 'SELECT') order by 1`)).map((r) => String(r.t));
+    // audit_events.entity_id names the audited object (not a merchant entity); membership_entity_scopes is the scope itself
+    const exempt = new Set(["audit_events", "membership_entity_scopes"]);
+    const policies = new Set((await rows(sql`select tablename as t from pg_policies where schemaname = 'public' and policyname = 'entity_scope' and permissive = 'RESTRICTIVE'`)).map((r) => String(r.t)));
+    const missing = tables.filter((t) => !exempt.has(t) && !policies.has(t));
+    expect(missing).toEqual([]);
+    expect(tables.length).toBeGreaterThan(15);
+  });
+});
+
 describe("the server check holds on its own", () => {
   it("with every entity_scope policy dropped (owner, this test only), the services still refuse and filter", async () => {
     const pols = await rows(sql`select tablename, qual, with_check from pg_policies where policyname = 'entity_scope' order by tablename`);

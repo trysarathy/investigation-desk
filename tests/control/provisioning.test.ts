@@ -248,6 +248,25 @@ describe("the setup wizard (merchant Admin, provisioning role)", () => {
     expect(v.invitations).toEqual([]);
   });
 
+  it("wave 1: an Admin limited to some entities cannot run setup, through the service or the provisioning login", async () => {
+    // B3's entity scope meets B1's wizard: the prov_* functions are SECURITY DEFINER, so 0069 checks the scope inside
+    const email = "scoped.admin@xb1-b.example";
+    ids[email] = await createUser(ownerDb(), { email, name: "Scoped Admin B (fictional)", password: PASSWORD });
+    await grantMembership(ownerDb(), { orgSlug: "xb1-merchant-b", email, role: "admin", entities: ["ENT-B"] });
+    const scoped = await resolveTenant({ userId: ids[email], name: "Scoped Admin B", email }, "xb1-merchant-b");
+    expect(scoped.entityScope).toEqual(["ENT-B"]);
+    await refused(wizard.addEntity(scoped, { entityId: "ENT-B2", name: "Another (fictional)", currency: "AED", timezone: "Asia/Dubai" }), /limited to some entities/);
+    await refused(wizard.inviteMember(scoped, { email: "via-scoped@xb1-b.example", role: "admin" }), /limited to some entities/);
+    const as = { userId: ids[email], orgId: orgs.b };
+    await refused(asProvisioningLogin("select prov_add_entity('ENT-B3', 'X (fictional)', 'AED', 'Asia/Dubai', 240, 'none')", as), /limited to some entities/);
+    await refused(asProvisioningLogin("select prov_add_bank_account('ENT-B', 'Other (fictional)', 'AED', '1234', 'Fictional Bank', null)", as), /limited to some entities/);
+    await refused(asProvisioningLogin("select prov_invite_member('via-scoped@xb1-b.example', 'admin', repeat('e', 64), now() + interval '1 day')", as), /limited to some entities/);
+    await refused(asProvisioningLogin("select prov_setup_state()", as), /limited to some entities/);
+    expect((await rows(sql`select count(*)::int as n from merchant_entities where org_id = ${orgs.b} and id in ('ENT-B2', 'ENT-B3')`))[0].n).toBe(0);
+    // the unscoped Admin of the same organisation still can
+    expect((await wizard.setupView(otherAdmin)).entities.map((e) => e.id)).toEqual(["ENT-B"]);
+  });
+
   it("an invitation is rolled back when the email sender refuses it (no invitation nobody was told about)", async () => {
     setEmailSenderForTests({ send: async () => { throw new Error("fictional sender outage"); } });
     await refused(wizard.inviteMember(otherAdmin, { email: "nobody@xb1-b.example", role: "viewer" }), /fictional sender outage/);
