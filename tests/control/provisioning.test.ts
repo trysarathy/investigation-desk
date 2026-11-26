@@ -73,7 +73,7 @@ afterEach(() => { setEmailSenderForTests(undefined); delete process.env.CLEARLIN
 afterAll(async () => { await provPool.end(); await closeProvisioningDatabase(); await closeDatabase(); await closeOwner(); });
 
 describe("the runtime role is exactly unchanged", () => {
-  it("its grants, memberships, attributes and policies equal the snapshot taken before migration 0048 (base 6352925)", async () => {
+  it("its grants, memberships, attributes and policies equal the reviewed snapshot (wave 1 stack; B1 itself changed nothing)", async () => {
     const before = JSON.parse(readFileSync(path.join(__dirname, "fixtures/runtime-grants.json"), "utf8")) as string[];
     const after = await runtimeGrantSnapshot((t) => ownerDb().execute(sql.raw(t)) as never);
     expect(after).toEqual(before);
