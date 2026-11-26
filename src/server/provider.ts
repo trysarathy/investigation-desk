@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
-import { TEST_MODE_LABEL } from "@/lib/clearline/merchant";
+import { BANK_EVIDENCE_SHORT, TEST_MODE_LABEL } from "@/lib/clearline/merchant";
 import { ProviderMapping } from "@/lib/clearline/merchant/adapters";
 import { addExceptionRateCounts, exceptionRate, type ExceptionRateCounts } from "@/lib/clearline/merchant/exception-rate";
 import type { Tx } from "./db/client";
@@ -76,9 +76,10 @@ export async function providerMerchantPayments(ctx: TenantContext, merchantOrgId
   if (!m) throw new AccessDenied(404, "Not found.");
   if (m.grantScope !== "full") throw new AccessDenied(403, "This merchant has not granted your organisation full access. You see its aggregates only.");
   return tenantRead(ctx, async (tx) => {
-    const rows = await tx.select({ orderId: t.matchRecords.orderId, decision: t.matchRecords.decision, ruleId: t.matchRecords.ruleId, computedAt: t.matchRecords.computedAt })
+    const rows = await tx.select({ orderId: t.matchRecords.orderId, decision: t.matchRecords.decision, ruleId: t.matchRecords.ruleId, bankEvidence: t.matchRecords.bankEvidence, settled: t.matchRecords.settled, computedAt: t.matchRecords.computedAt })
       .from(t.matchRecords).where(eq(t.matchRecords.orgId, merchantOrgId)).orderBy(asc(t.matchRecords.orderId));
-    return { label: LABEL, merchant: { id: m.merchantOrgId, name: m.name }, grantScope: m.grantScope, payments: rows.map((r) => ({ ...r, computedAt: r.computedAt.toISOString() })) };
+    // v1 Phase 0.5: the bank evidence level travels with every decision, with its label
+    return { label: LABEL, merchant: { id: m.merchantOrgId, name: m.name }, grantScope: m.grantScope, payments: rows.map((r) => ({ ...r, bankEvidenceLabel: BANK_EVIDENCE_SHORT[r.bankEvidence], computedAt: r.computedAt.toISOString() })) };
   });
 }
 

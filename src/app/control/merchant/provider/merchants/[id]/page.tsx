@@ -4,7 +4,7 @@ import { AccessDenied } from "@/server/tenant";
 import { providerMerchantPayments } from "@/server/provider";
 import { providerMember } from "@/server/merchant-page";
 import s from "@/components/control/control.module.css";
-import { DecisionChip } from "@/components/merchant/ui";
+import { DecisionChip, EvidenceChip } from "@/components/merchant/ui";
 
 export const metadata: Metadata = { title: "Merchant payments" };
 
@@ -31,8 +31,8 @@ export default async function ProviderMerchantPaymentsPage({ params }: { params:
       <p className={s.lede}>Read-only, under the full access this merchant&rsquo;s Admin granted. The merchant can take it back at any time.</p>
       <div className={s.tableWrap} role="region" aria-label="Merchant payments table" tabIndex={0}>
         <table className={s.table}>
-          <thead><tr><th scope="col">Order</th><th scope="col">Explanation</th><th scope="col">Rule</th></tr></thead>
-          <tbody>{r.payments.map((p) => <tr key={p.orderId}><td className={s.mono}>{p.orderId}</td><td><DecisionChip decision={p.decision} /></td><td className={s.mono}>{p.ruleId}</td></tr>)}</tbody>
+          <thead><tr><th scope="col">Order</th><th scope="col">Explanation</th><th scope="col">Rule</th><th scope="col">Bank evidence</th></tr></thead>
+          <tbody>{r.payments.map((p) => <tr key={p.orderId}><td className={s.mono}>{p.orderId}</td><td><DecisionChip decision={p.decision} /></td><td className={s.mono}>{p.ruleId}</td><td><EvidenceChip level={p.bankEvidence} label={p.bankEvidenceLabel} />{p.settled ? " · settled" : ""}</td></tr>)}</tbody>
         </table>
       </div>
     </>

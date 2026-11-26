@@ -87,7 +87,11 @@ export function ProviderChip({ p }: { p?: PartsSummary }) {
 export function BankChip({ p }: { p?: PartsSummary }) {
   if (!p) return <span className={s.muted}>—</span>;
   const tone: ChipTone = p.bank.verified ? "ok" : p.bank.status === "held_by_provider" || p.bank.status === "not_in_batch" ? "warn" : "plain";
-  return <Chip tone={tone}>{bankStatusLabel(p.bank.status)}{p.bank.tied ? " · tied" : ""}{p.bank.imported ? " · imported" : ""}</Chip>;
+  return <><Chip tone={tone}>{bankStatusLabel(p.bank.status)}{p.bank.tied ? " · tied" : ""}{p.bank.imported ? " · imported" : ""}</Chip> <EvidenceChip level={p.bank.evidence} label={p.bank.evidenceLabel} /></>;
+}
+/** v1 Phase 0.5: the bank evidence level, always shown beside (never inside) the match decision. */
+export function EvidenceChip({ level, label }: { level: string; label: string }) {
+  return <Chip tone={level === "none" ? "plain" : "info"} testId="bank-evidence">{label}</Chip>;
 }
 export function LedgerChip({ p }: { p?: PartsSummary }) {
   if (!p) return <span className={s.muted}>—</span>;

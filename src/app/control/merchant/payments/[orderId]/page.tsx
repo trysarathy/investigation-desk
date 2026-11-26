@@ -10,7 +10,7 @@ import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
 import { SubmitWriteoff } from "@/components/merchant/forms";
 import { FlashMessage } from "@/components/control/forms";
-import { Chip, DecisionChip, STEP_NAMES, bankStatusLabel, differenceLabel, fiat, networkLabel, token, whenIn } from "@/components/merchant/ui";
+import { Chip, DecisionChip, EvidenceChip, STEP_NAMES, bankStatusLabel, differenceLabel, fiat, networkLabel, token, whenIn } from "@/components/merchant/ui";
 import { NEEDS_A_RATE, differenceNeedsRate, fiatOrNeedsRate, unknownFiat } from "@/lib/clearline/merchant/fiat-value";
 
 export const metadata: Metadata = { title: "Payment" };
@@ -110,11 +110,12 @@ export default async function MerchantPaymentPage({ params }: { params: Promise<
           <article className={m.part} aria-labelledby="p-bank" data-testid="part-bank">
             <h3 className={m.partName} id="p-bank">Bank</h3>
             <div className={m.partBody}>
-              <p><Chip tone={bank.settlementVerified ? "ok" : "warn"}>{bank.settlementVerified ? "Settlement verified" : "Settlement not verified"}</Chip></p>
+              <p><Chip tone={bank.settlementVerified ? "ok" : "warn"}>{bank.settlementVerified ? "Settlement verified" : "Settlement not verified"}</Chip> <EvidenceChip level={bank.evidence} label={bank.evidenceLabel} /></p>
               <dl className={m.kv}>
                 <dt>Status</dt><dd>{bankStatusLabel(bank.status)}</dd>
                 <dt>Batch</dt><dd>{bank.batchIds.length ? bank.batchIds.map((b) => <a key={b} className={s.mono} href={`/control/merchant/batches/${encodeURIComponent(b)}`}>{b}</a>) : "none"}</dd>
                 <dt>Tied</dt><dd>{bank.batchTied ? "Yes, to the cent" : "No"}</dd>
+                <dt>Settled</dt><dd data-testid="bank-settled">{bank.settled ? "Yes: tied to the cent, with an imported statement a second person confirmed" : "No"}</dd>
                 {c.bankLines.map((l) => <Fragment key={l.lineId}><dt>Line</dt><dd><span className={s.mono}>{l.lineId}</span> · {fiat(l.amountMinor, l.currency)} · {l.valueDate}{l.source === "csv_import" ? " · imported, not bank-authenticated" : ""}</dd></Fragment>)}
               </dl>
             </div>

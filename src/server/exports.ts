@@ -87,9 +87,9 @@ export async function monthEndPack(ctx: TenantContext, entityId: string, month: 
     // bridges: the month's settlement batches (provider day in the month), as the engine ties them now
     const bridges = reconcile(input).bridges.filter((b) => b.providerDay.startsWith(m));
     const batches = new Map((bridges.length ? await tx.select().from(t.settlementBatches).where(and(eq(t.settlementBatches.orgId, ctx.orgId), inArray(t.settlementBatches.batchId, bridges.map((b) => b.batchId)))) : []).map((b) => [b.batchId, b]));
-    const bridgesCsv = csv([["batch_id", "provider_day", "currency", "gross", "fees", "refunds", "net", "bank_line_id", "bank_line", "tied", "settlement_verified", "payments"],
+    const bridgesCsv = csv([["batch_id", "provider_day", "currency", "gross", "fees", "refunds", "net", "bank_line_id", "bank_line", "tied", "settlement_verified", "bank_evidence", "settled", "payments"],
       ...bridges.map((b) => { const r = batches.get(b.batchId); return [b.batchId, b.providerDay, b.currency, r ? plainAmount(r.grossMinor, b.currency) : "", r ? plainAmount(r.feesMinor, b.currency) : "", r ? plainAmount(r.refundsMinor, b.currency) : "",
-        r ? plainAmount(r.netMinor, b.currency) : "", b.bankLineId ?? "", b.bankLineLabel ?? (b.bankLineSource ?? ""), b.tied, b.settlementVerified, b.paymentIds.length]; })]);
+        r ? plainAmount(r.netMinor, b.currency) : "", b.bankLineId ?? "", b.bankLineLabel ?? (b.bankLineSource ?? ""), b.tied, b.settlementVerified, b.bankEvidence, b.settled, b.paymentIds.length]; })]);
 
     // exceptions of the entity's orders that are still open: owner, reason, next step
     const orders = input.invoices.map((i) => i.orderId);
