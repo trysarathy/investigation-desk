@@ -27,6 +27,7 @@ export default async function PlatformPage() {
       <p className={s.small} data-testid="signed-in-as">Signed in as <strong>{p.name}</strong> ({p.email}) · Platform operator · <SignOutButton /></p>
       <h1 className={s.title}>Platform console</h1>
       <p className={s.lede}>Create a merchant or provider organisation and invite its first admin. The organisation starts empty (&ldquo;Your data&rdquo;); its admin completes setup. You see no organisation&rsquo;s data.</p>
+      <p className={s.small}>When this deployment sends no email, the first admin&rsquo;s one-time invitation link is shown to you once, right after you submit: copy it and send it to them yourself. It works once and expires after 72 hours.</p>
 
       <section className={s.section} aria-labelledby="create-h">
         <h2 className={s.h2} id="create-h">New organisation</h2>

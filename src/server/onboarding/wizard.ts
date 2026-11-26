@@ -15,8 +15,8 @@ import { merchantShell } from "../merchant-ui";
 import { listOrgUsers } from "../org-admin";
 import { AccessDenied, requireUnscoped, type TenantContext, withTenant } from "../tenant";
 import { offsetOf, parseUtcOffset, SetupRefused, validTimeZone } from "../merchant-setup";
-import { emailSender } from "../email";
-import { Email, invitationEmail, inviteAndSend } from "./invitations";
+import { invitationSender } from "../email";
+import { Email, invitationEmail, inviteAndDeliver } from "./invitations";
 
 /**
  * v1 phase 1.1: the merchant's SETUP WIZARD (/control/merchant/setup), for the merchant's Admin.
@@ -176,17 +176,14 @@ export async function addMappingTemplate(ctx: TenantContext, input: z.input<type
 }
 
 export const InviteInput = z.object({ email: Email, role: z.enum(MEMBER_ROLES) }).strict();
-/** Invite a member: the invitation and its email in one provisioning transaction. */
+/** Invite a member: the invitation and its email in one provisioning transaction (no sender: the one-time link is returned). */
 export async function inviteMember(ctx: TenantContext, input: z.input<typeof InviteInput>) {
   requireSetupAdmin(ctx);
   const v = InviteInput.parse(input);
-  return prov(ctx, async (tx) => ({
-    invitationId: await inviteAndSend(
-      async (tk) => String((await tx.call("prov_invite_member", [v.email, v.role, tk.sha256, tk.expiresAt]))[0].prov_invite_member),
-      (tk) => invitationEmail({ to: v.email, orgName: ctx.orgName, role: v.role, token: tk.token, expiresAt: tk.expiresAt }),
-      emailSender({ required: true, prov: tx })),
-    role: v.role, roleLabel: ROLE_LABELS[v.role],
-  }));
+  return prov(ctx, async (tx) => inviteAndDeliver(
+    async (tk) => ({ invitationId: String((await tx.call("prov_invite_member", [v.email, v.role, tk.sha256, tk.expiresAt]))[0].prov_invite_member), role: v.role, roleLabel: ROLE_LABELS[v.role] }),
+    (tk) => invitationEmail({ to: v.email, orgName: ctx.orgName, role: v.role, token: tk.token, expiresAt: tk.expiresAt }),
+    invitationSender({ prov: tx })));
 }
 
 export const RevokeInput = z.object({ invitationId: z.uuid() }).strict();

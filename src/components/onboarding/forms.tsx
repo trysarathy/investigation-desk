@@ -24,12 +24,46 @@ export interface FieldDef {
   pattern?: string;
 }
 
-/** One declarative form posting its fields as JSON (empty optional fields are left out). */
+type IssuedLink = { link: string; expiresAt: string };
+const issuedLink = (d: Record<string, unknown> | null): IssuedLink | null =>
+  d?.delivery === "link" && typeof d.link === "string" && typeof d.expiresAt === "string" ? { link: d.link, expiresAt: d.expiresAt } : null;
+
+/**
+ * A one-time invitation link the server returned because no email provider is configured. It is shown ONCE, here, in
+ * memory only (never in the flash storage, the address bar or a log): the server keeps only its SHA-256. "Done" reloads.
+ */
+export function OneTimeLink({ issued, onDone }: { issued: IssuedLink; onDone: () => void }) {
+  const id = useId();
+  const [copied, setCopied] = useState<"idle" | "ok" | "failed">("idle");
+  const expires = `${issued.expiresAt.slice(0, 16).replace("T", " ")} UTC`;
+  return (
+    <div role="status" className={`${s.result} ${s.resultOk}`} data-testid="one-time-link">
+      <p><strong>Invitation created. Copy this link now: it is shown only once.</strong> Send it to the person yourself (no email was sent). It works once and expires on {expires}.</p>
+      <label className={s.label} htmlFor={`${id}-link`}>One-time invitation link</label>
+      <input className={s.input} id={`${id}-link`} type="text" readOnly value={issued.link} onFocus={(e) => e.currentTarget.select()} data-testid="one-time-link-value" />
+      <p className={s.row}>
+        <button type="button" className={s.button} onClick={() => {
+          if (!navigator.clipboard) { setCopied("failed"); return; }
+          navigator.clipboard.writeText(issued.link).then(() => setCopied("ok"), () => setCopied("failed"));
+        }}>Copy link</button>
+        <button type="button" className={`${s.button} ${s.buttonSecondary}`} onClick={onDone}>Done</button>
+      </p>
+      <p className={s.small} aria-live="polite">{copied === "ok" ? "Copied." : copied === "failed" ? "Copying is not available here: select the link and copy it." : ""}</p>
+    </div>
+  );
+}
+
+/**
+ * One declarative form posting its fields as JSON (empty optional fields are left out). When the answer is a one-time
+ * invitation link, the page is not reloaded: the link is shown once (OneTimeLink).
+ */
 export function JsonForm({ flashKey, url, fields, submit, success, extra, variant }: {
   flashKey: string; url: string; fields: FieldDef[]; submit: string; success: string; extra?: Record<string, string>; variant?: "secondary";
 }) {
   const x = useMutation(flashKey);
   const id = useId();
+  const [issued, setIssued] = useState<IssuedLink | null>(null);
+  if (issued) return <OneTimeLink issued={issued} onDone={() => { setIssued(null); window.location.reload(); }} />;
   return (
     <form className={s.form} autoComplete="off" onSubmit={(ev) => {
       ev.preventDefault();
@@ -39,7 +73,7 @@ export function JsonForm({ flashKey, url, fields, submit, success, extra, varian
         const v = String(f.get(d.name) ?? "").trim();
         if (v !== "" || d.required) body[d.name] = v;
       }
-      void x.run("POST", url, body, () => success);
+      void x.run("POST", url, body, () => success, (d) => { const l = issuedLink(d); if (l) setIssued(l); return !!l; });
     }}>
       {fields.map((d) => {
         const fid = `${id}-${d.name}`;
@@ -105,7 +139,7 @@ export function AcceptInvitationForm() {
     } catch { setState({ kind: "error", message: "The server could not be reached. Nothing was confirmed." }); }
   }
   if (token === null) return <p className={s.small} role="status">Reading the invitation link…</p>;
-  if (token === "") return <p role="alert" className={`${s.result} ${s.resultError}`}>This page needs the invitation link from your email. Open the link from the email again.</p>;
+  if (token === "") return <p role="alert" className={`${s.result} ${s.resultError}`}>This page needs your whole invitation link. Open the link you were sent again.</p>;
   if (state.kind === "done") {
     return (
       <div role="status" data-testid="invite-accepted">
