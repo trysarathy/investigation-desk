@@ -779,10 +779,12 @@ export async function journalExport(ctx: TenantContext, entityId: string, month:
 // Organisation kind (where a signed-in member lands) and the payments list with the five parts kept apart
 // ---------------------------------------------------------------------------------------------
 
-export async function orgKind(ctx: TenantContext): Promise<{ kind: "merchant" | "provider"; hasProvider: boolean }> {
+export async function orgKind(ctx: TenantContext): Promise<{ kind: "merchant" | "provider"; hasProvider: boolean; live: boolean }> {
   return tenantRead(ctx, async (tx) => {
     const r = (await tx.execute(sql`select provider_name, org_kind from merchant_provider_theme()`)).rows[0] as { provider_name?: string | null; org_kind?: string } | undefined;
-    return { kind: r?.org_kind === "provider" ? "provider" : "merchant", hasProvider: r?.org_kind === "merchant" && !!r.provider_name };
+    // a live merchant (made by merchant setup, data mode "live") works in the merchant workspace even with no provider
+    const m = (await tx.execute(sql`select data_mode from organizations where id = ${ctx.orgId}`)).rows[0] as { data_mode?: string } | undefined;
+    return { kind: r?.org_kind === "provider" ? "provider" : "merchant", hasProvider: r?.org_kind === "merchant" && !!r.provider_name, live: m?.data_mode === "live" };
   });
 }
 

@@ -12,7 +12,9 @@ export default async function OverviewPage() {
   const ctx = await pageContext();
   // rc6: a merchant served by a provider works in the white-label merchant reconciliation screens.
   const k = await orgKind(ctx);
-  if (k.kind === "merchant" && k.hasProvider) redirect("/control/merchant");
+  // v1 overnight: a live merchant with no provider (a company onboarded directly) also works there; the rc5 sample
+  // workspaces (data mode "sample") keep these read-only pages
+  if (k.kind === "merchant" && (k.hasProvider || k.live)) redirect("/control/merchant");
   if (k.kind === "provider") redirect("/control/merchant/provider");
   const [o, q] = await Promise.all([overview(ctx), workQueue(ctx)]);
   const openExceptions = q.exceptions.filter((e) => e.status !== "resolved");
