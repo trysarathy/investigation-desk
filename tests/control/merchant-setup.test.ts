@@ -140,7 +140,7 @@ describe("the admin CLI creates a merchant from a blank database", () => {
     const sum = await ok(["setup-summary", M]);
     expect(sum).toMatchObject({ slug: M, kind: "merchant", dataMode: "live", providerOrgId: prov.orgId, entities: [{ id: sc.SG.entityId, currency: "SGD", utcOffsetMinutes: 480, policyRevision: 1, bankAccounts: [{ id: acct.bankAccountId, currency: "SGD", status: "active" }] }],
       members: { admin: 1, approver: 2, finance: 1, payment_ops: 1, viewer: 1 } });
-  });
+  }, 180_000); // ~16 CLI processes (tsx start-up each): 60 s is too short when the full suite shares the machine
 
   it("set-policy: the Settings page's validation, a dry run until confirmed, then the next revision with an audit row", async () => {
     const tooWide = await cli(["set-policy", M, sc.SG.entityId, "--tolerance-bps", "1001"]);
