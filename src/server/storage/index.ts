@@ -1,6 +1,7 @@
 import "server-only";
 import path from "node:path";
 import { LocalDiskStorage, StorageRefused, uploadKeyFromEnv } from "./local";
+import { PostgresStorage, type PostgresStorageVia } from "./postgres";
 import { S3Storage, s3ConfigFromEnv } from "./s3";
 
 export { StorageRefused };
@@ -13,6 +14,10 @@ export { StorageRefused };
  * v1 phase 6: CLEARLINE_UPLOAD_STORE picks the backend: "local" (default: CLEARLINE_UPLOAD_DIR on disk) or "s3"
  * (S3-compatible object storage, src/server/storage/s3.ts; the same sealed bytes, the same refusals). Any other value
  * refuses every upload, so a typo never silently falls back to local disk.
+ *
+ * "postgres" keeps the same sealed bytes in the upload_blobs table (src/server/storage/postgres.ts, drizzle/0087), for
+ * hosts whose functions share no disk; it refuses files over 10 MB. Only that store uses `via` (who it acts for when
+ * called outside a tenant transaction); the other stores ignore it.
  */
 export interface UploadStorage {
   /** Store bytes for an organisation; returns the new random key and whether the file is encrypted at rest. */
@@ -36,7 +41,7 @@ export interface StoredFile { orgId: string; storageKey: string; partial: boolea
 export const DEFAULT_UPLOAD_DIR = ".data/uploads";
 
 /** The configured storage, read from the environment on every call (tests change it). Never prints the key. */
-export function uploadStorage(): UploadStorage {
+export function uploadStorage(via: PostgresStorageVia = {}): UploadStorage {
   const dir = path.resolve(process.env.CLEARLINE_UPLOAD_DIR || DEFAULT_UPLOAD_DIR);
   const key = uploadKeyFromEnv(process.env.CLEARLINE_UPLOAD_KEY);
   const noKey = !key && process.env.NODE_ENV === "production"
@@ -47,7 +52,8 @@ export function uploadStorage(): UploadStorage {
     if ("problem" in cfg) return new RefusingStorage(cfg.problem);
     return new S3Storage(cfg, noKey ? null : key, noKey);
   }
-  if (store !== "local") return new RefusingStorage('Uploads are refused: CLEARLINE_UPLOAD_STORE must be "local" or "s3".');
+  if (store === "postgres") return new PostgresStorage(noKey ? null : key, noKey, via);
+  if (store !== "local") return new RefusingStorage('Uploads are refused: CLEARLINE_UPLOAD_STORE must be "local", "s3" or "postgres".');
   return new LocalDiskStorage(dir, noKey ? null : key, noKey);
 }
 

@@ -266,7 +266,7 @@ export interface UploadResult { upload: UploadSummary; label: DataLabel; preview
  * unreadable or oversized file (with the parser's plain-English reason), or the same file already uploaded for this
  * entity and file type. Returns the preview (first 20 rows) and the template / header suggestions to confirm.
  */
-export async function createUpload(ctx: TenantContext, input: z.input<typeof CreateUpload> & { bytes: Uint8Array }, idempotencyKey: string, storage: UploadStorage = uploadStorage(),
+export async function createUpload(ctx: TenantContext, input: z.input<typeof CreateUpload> & { bytes: Uint8Array }, idempotencyKey: string, storage: UploadStorage = uploadStorage({ tenant: ctx }),
   /** v1 phase 2.1: set by scheduled pickup only (src/server/upload-pickup.ts); the database checks it (drizzle/0074, was 0055). */
   opts: { pickupSourceId?: string } = {}): Promise<UploadResult & { status: number; replayed: boolean }> {
   require(ctx, "merchant_upload");
@@ -399,7 +399,7 @@ export async function listUploads(ctx: TenantContext) {
 }
 
 /** The first 20 rows of the stored file and the mapping suggestions: for the merchant's own members only. */
-export async function uploadPreview(ctx: TenantContext, id: string, storage: UploadStorage = uploadStorage()) {
+export async function uploadPreview(ctx: TenantContext, id: string, storage: UploadStorage = uploadStorage({ tenant: ctx })) {
   require(ctx, "read");
   const u = await tenantRead(ctx, (tx) => loadUpload(tx, ctx, id));
   const parsed = await parseUpload(await storage.get(ctx.orgId, u.storageKey!), u.fileType as FileType, u.originalName, u.jsonList);
@@ -413,7 +413,7 @@ export const SetMapping = z.union([
 ]);
 
 /** Confirm the column mapping for a table upload: a template (its current version) or a mapping entered for this file. */
-export async function setUploadMapping(ctx: TenantContext, id: string, input: z.input<typeof SetMapping>, idempotencyKey: string, storage: UploadStorage = uploadStorage()) {
+export async function setUploadMapping(ctx: TenantContext, id: string, input: z.input<typeof SetMapping>, idempotencyKey: string, storage: UploadStorage = uploadStorage({ tenant: ctx })) {
   require(ctx, "merchant_upload");
   const key = IdempotencyKey.parse(idempotencyKey);
   const v = SetMapping.parse(input);
@@ -445,7 +445,7 @@ export async function setUploadMapping(ctx: TenantContext, id: string, input: z.
  * Validate an upload: every row accepted, accepted with warnings, rejected (reason codes per field) or a duplicate of
  * a row already in another upload of the same entity and file type (it is never imported twice). Writes the report.
  */
-export async function validateUpload(ctx: TenantContext, id: string, idempotencyKey: string, storage: UploadStorage = uploadStorage()) {
+export async function validateUpload(ctx: TenantContext, id: string, idempotencyKey: string, storage: UploadStorage = uploadStorage({ tenant: ctx })) {
   require(ctx, "merchant_upload");
   const key = IdempotencyKey.parse(idempotencyKey);
   return tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "upload_validate", id }, async () => {
@@ -539,7 +539,7 @@ export async function decideUpload(ctx: TenantContext, id: string, input: z.inpu
 }
 
 /** Delete an upload that is not confirmed: the file, its validation rows; the row stays as 'deleted' for audit. */
-export async function deleteUpload(ctx: TenantContext, id: string, idempotencyKey: string, storage: UploadStorage = uploadStorage()) {
+export async function deleteUpload(ctx: TenantContext, id: string, idempotencyKey: string, storage: UploadStorage = uploadStorage({ tenant: ctx })) {
   require(ctx, "merchant_upload");
   const key = IdempotencyKey.parse(idempotencyKey);
   return tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "upload_delete", id }, async () => {
@@ -583,7 +583,7 @@ export async function sweepOrphanFiles(db: Db, now: Date, opts: {
   /** v1 phase 2.1: the listing already taken by the caller (so both sweep directions see the same files). */
   files?: Awaited<ReturnType<NonNullable<UploadStorage["list"]>>>;
 } = {}): Promise<OrphanSweep> {
-  const storage = opts.storage ?? uploadStorage();
+  const storage = opts.storage ?? uploadStorage({ owner: db });
   const minutes = opts.olderThanMinutes ?? ORPHAN_MINUTES;
   if (!Number.isFinite(minutes) || minutes < 5) throw new Error("the orphan sweep keeps files younger than 5 minutes");
   const out: OrphanSweep = { scanned: 0, removed: 0, partialRemoved: 0, kept: 0, tooRecent: 0 };
@@ -616,7 +616,7 @@ export type DerivedPurge = (tx: Db | Tx, u: UploadRow) => Promise<Record<string,
  * like the admin CLI), across organisations. Audit rows record counts only.
  */
 export async function purgeExpiredUploads(db: Db, now: Date, opts: { storage?: UploadStorage; derived?: DerivedPurge; /** v1 phase 3: one organisation only (the worker's retention job). */ orgId?: string } = {}) {
-  const storage = opts.storage ?? uploadStorage();
+  const storage = opts.storage ?? uploadStorage({ owner: db });
   const derived = opts.derived ?? purgeDerivedRows;
   const due = await db.select().from(t.uploads).where(and(ne(t.uploads.status, "deleted"), lte(t.uploads.deleteAfter, now), ...(opts.orgId ? [eq(t.uploads.orgId, opts.orgId)] : []))).orderBy(asc(t.uploads.deleteAfter));
   const total = { uploads: 0, files: 0, rows: 0 } as Record<string, number>;

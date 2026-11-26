@@ -178,7 +178,7 @@ export async function deleteMerchant(db: Db, slug: string, confirm: string, opts
   if (confirm !== slug) throw new DeletionRefused("Confirmation does not match: repeat the organisation's slug exactly to delete it.");
   const org = await merchantOf(db, slug);
   const now = opts.now ?? new Date();
-  const storage = opts.storage ?? uploadStorage();
+  const storage = opts.storage ?? uploadStorage({ owner: db });
   const keys = (await db.select({ k: t.uploads.storageKey }).from(t.uploads).where(and(eq(t.uploads.orgId, org.id), isNotNull(t.uploads.storageKey)))).map((x) => x.k!);
   const scoped = await orgScopedTables(db);
   const tables: Record<string, number> = {};
@@ -244,7 +244,7 @@ export async function findMerchantTraces(db: Db, needles: MerchantNeedles, opts:
     const n = Number((await db.execute(sql`select count(*)::int as n from ${ident(tb)} x where ${mentionsAny(words)}`)).rows[0].n);
     if (n) out[tb] = n;
   }
-  const storage = opts.storage ?? uploadStorage();
+  const storage = opts.storage ?? uploadStorage({ owner: db });
   const files = storage.list ? (await storage.list()).filter((f) => f.orgId === needles.orgId).length : 0;
   if (files) out.storage = files;
   return out;

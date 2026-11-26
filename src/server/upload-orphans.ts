@@ -31,7 +31,7 @@ export interface OrphanCleanup {
 const OPEN = ["stored", "mapped", "validated", "rejected"] as const;
 
 export async function cleanupOrphans(db: Db, now: Date, opts: { storage?: UploadStorage; olderThanMinutes?: number; dryRun?: boolean } = {}): Promise<OrphanCleanup> {
-  const storage = opts.storage ?? uploadStorage();
+  const storage = opts.storage ?? uploadStorage({ owner: db });
   const minutes = opts.olderThanMinutes ?? ORPHAN_MINUTES;
   const dryRun = opts.dryRun === true;
   const byOrg: OrphanCleanup["byOrg"] = {};
