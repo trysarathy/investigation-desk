@@ -9,7 +9,7 @@ import * as t from "./db/schema";
 import { can, type Permission } from "./authz";
 import { IdempotencyKey, canonical, idempotent, serverAudit } from "./control";
 import { RequestRefused } from "./errors";
-import { AccessDenied, type TenantContext, withTenant } from "./tenant";
+import { AccessDenied, inEntityScope, requireEntity, type TenantContext, withTenant } from "./tenant";
 import { stampNow } from "./live-clock";
 
 /**
@@ -94,6 +94,7 @@ export const DEFAULT_LOCAL_TIME = "02:00";
 export async function listRuns(ctx: TenantContext, opts: { entityId?: string; limit?: number } = {}) {
   require(ctx, "read");
   const limit = Math.min(Math.max(opts.limit ?? 50, 1), 200);
+  if (opts.entityId !== undefined) requireEntity(ctx, opts.entityId);
   return tenantRead(ctx, async (tx) => {
     const runs = await tx.select().from(t.reconciliationRuns)
       .where(and(eq(t.reconciliationRuns.orgId, ctx.orgId), ...(opts.entityId ? [eq(t.reconciliationRuns.entityId, opts.entityId)] : [])))
@@ -103,13 +104,13 @@ export async function listRuns(ctx: TenantContext, opts: { entityId?: string; li
     const notices = await tx.select().from(t.ruleChangeNotices).where(eq(t.ruleChangeNotices.orgId, ctx.orgId)).orderBy(desc(t.ruleChangeNotices.createdAt), asc(t.ruleChangeNotices.orderId)).limit(100);
     return {
       ruleSetVersion: RULE_SET_VERSION,
-      runs: runs.map((r) => ({
+      runs: runs.filter((r) => inEntityScope(ctx, r.entityId)).map((r) => ({
         id: r.id, entityId: r.entityId, trigger: r.trigger, status: r.status, ruleSetVersion: r.ruleSetVersion, policyRevision: r.policyRevision,
         startedAt: r.startedAt.toISOString(), finishedAt: r.finishedAt.toISOString(), inputSha256: r.inputSha256, errorCode: r.errorCode,
         counts: { matched: r.matched, withDifference: r.withDifference, review: r.review, exceptions: r.exceptions, unpaid: r.unpaid, kept: r.kept, notices: r.notices },
       })),
-      schedules: schedules.map(({ s, name }) => ({ entityId: s.entityId, localTime: s.localTime, enabled: s.enabled, runAsName: name ?? null })),
-      notices: notices.map((n) => ({ id: n.id, entityId: n.entityId, orderId: n.orderId, runId: n.runId, storedDecision: n.storedDecision, storedRuleId: n.storedRuleId, newDecision: n.newDecision, newRuleId: n.newRuleId, ruleSetVersion: n.ruleSetVersion, policyRevision: n.policyRevision, at: n.createdAt.toISOString() })),
+      schedules: schedules.filter(({ s }) => inEntityScope(ctx, s.entityId)).map(({ s, name }) => ({ entityId: s.entityId, localTime: s.localTime, enabled: s.enabled, runAsName: name ?? null })),
+      notices: notices.filter((n) => inEntityScope(ctx, n.entityId)).map((n) => ({ id: n.id, entityId: n.entityId, orderId: n.orderId, runId: n.runId, storedDecision: n.storedDecision, storedRuleId: n.storedRuleId, newDecision: n.newDecision, newRuleId: n.newRuleId, ruleSetVersion: n.ruleSetVersion, policyRevision: n.policyRevision, at: n.createdAt.toISOString() })),
     };
   });
 }
@@ -122,6 +123,7 @@ export const ScheduleInput = z.object({ localTime: z.string().regex(/^([01]\d|2[
  */
 export async function setRunSchedule(ctx: TenantContext, entityId: string, input: z.input<typeof ScheduleInput>, idempotencyKey: string) {
   require(ctx, "merchant_reconcile");
+  requireEntity(ctx, entityId);
   const v = ScheduleInput.parse(input);
   const key = IdempotencyKey.parse(idempotencyKey);
   return withTenant({ userId: ctx.userId, orgId: ctx.orgId }, (tx) => idempotent(tx, ctx, key, { op: "merchant_run_schedule", entityId, ...v }, async () => {

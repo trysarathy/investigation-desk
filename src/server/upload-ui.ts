@@ -3,7 +3,7 @@ import { and, asc, eq, isNull } from "drizzle-orm";
 import type { Tx } from "./db/client";
 import * as t from "./db/schema";
 import { can } from "./authz";
-import { AccessDenied, type TenantContext, withTenant } from "./tenant";
+import { AccessDenied, inEntityScope, type TenantContext, withTenant } from "./tenant";
 import { DEFAULT_RETENTION_DAYS, listUploads, uploadPreview } from "./uploads";
 import { dataModeOf } from "./mapping-templates";
 
@@ -32,7 +32,7 @@ export async function uploadsOverview(ctx: TenantContext) {
     const accounts = await tx.select({ id: t.bankAccounts.id, entityId: t.bankAccounts.entityId, displayName: t.bankAccounts.displayName, accountLast4: t.bankAccounts.accountLast4, currency: t.bankAccounts.currency })
       .from(t.bankAccounts).where(and(eq(t.bankAccounts.orgId, ctx.orgId), eq(t.bankAccounts.status, "active"))).orderBy(asc(t.bankAccounts.entityId), asc(t.bankAccounts.displayName));
     return {
-      ...(await dataModeOf(tx, ctx.orgId)), entities: ents, bankAccounts: accounts, retentionDays: s?.d ?? DEFAULT_RETENTION_DAYS,
+      ...(await dataModeOf(tx, ctx.orgId)), entities: ents.filter((e) => inEntityScope(ctx, e.id)), bankAccounts: accounts.filter((a) => inEntityScope(ctx, a.entityId)), retentionDays: s?.d ?? DEFAULT_RETENTION_DAYS,
       uploads: uploads.slice().reverse().map((u) => ({ ...u, uploadedByName: who.get(u.uploadedBy) ?? "A former member", confirmedByName: u.confirmedBy ? who.get(u.confirmedBy) ?? "A former member" : null })),
     };
   });

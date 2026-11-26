@@ -164,12 +164,16 @@ describe("SECURITY (approval-only, 0037): chain_reads isolation with indexed pol
     await q(`delete from provider_grants`);
   });
 
+  const ENTITY_SCOPE = "((( SELECT app_entity_scope() AS app_entity_scope) IS NULL) OR (entity_id = ANY (( SELECT app_entity_scope() AS app_entity_scope)::text[])))";
   it("the policies: one indexed organisation predicate for reads, the membership check once per statement for inserts", async () => {
     const pol = await rows(`select polname, polcmd, pg_get_expr(polqual, polrelid) as q, pg_get_expr(polwithcheck, polrelid) as c from pg_policy
       where polrelid = 'chain_reads'::regclass order by polname`);
     expect(pol).toEqual([
       { polname: "chain_reads_insert", polcmd: "a", q: null, c: "((org_id = app_org_id()) AND ( SELECT app_is_member(app_org_id()) AS app_is_member))" },
       { polname: "chain_reads_read", polcmd: "r", q: "(org_id = ANY (( SELECT app_readable_org_ids() AS app_readable_org_ids)::uuid[]))", c: null },
+      // v1 phase 1.3 (drizzle/0053, approval-only, tightening): a RESTRICTIVE entity-scope check, AND-ed with the above;
+      // its function is an InitPlan too (once per statement), so the rows stay one indexed organisation predicate
+      { polname: "entity_scope", polcmd: "*", q: ENTITY_SCOPE, c: ENTITY_SCOPE },
     ]);
     // no UPDATE or DELETE policy and no such privilege: both stay refused (plus the append-only trigger)
     for (const f of ["app_readable_org_ids()", "app_provider_full_access_merchants()"]) {
@@ -189,11 +193,14 @@ describe("SECURITY (approval-only, 0037): chain_reads isolation with indexed pol
       expect(all).toMatch(/InitPlan 1/);
       expect(all).toMatch(/Index Scan (using|on) chain_reads_p202611_\w+/);
       expect(all).not.toMatch(/Seq Scan/);
-      expect(all).toMatch(/Index Cond: \(org_id = ANY \(\$0\)\)/);
-      expect(all).not.toMatch(/SubPlan|app_is_member\(|app_provider_full_access\(|Filter: .*org_id = ANY/);
+      // v1 (0053): the parameter's number moved (the entity-scope InitPlans come first); still one InitPlan, an index condition
+      expect(all).toMatch(/Index Cond: \(org_id = ANY \(\$\d+\)\)/);
+      expect(all).not.toMatch(/SubPlan|app_is_member\(|app_provider_full_access\(|app_entity_scope\(|Filter: .*org_id = ANY/);
+      // the entity-scope check is a filter on two InitPlan parameters, never a per-row function call
+      expect(all).toMatch(/Filter: \(\(\$\d+ IS NULL\) OR \(entity_id = ANY \(\$\d+\)\)\)/);
     }
     const probe = await explain(ids["fin@cr-a.example"], A(), `select id from chain_reads where org_id = '${A()}' and entity_id = 'ENT-1' and status = 'unavailable' limit 1`);
-    expect(probe).toMatch(/Index Cond: \(\(org_id = ANY \(\$0\)\) AND \(org_id = '[0-9a-f-]+'::uuid\) AND \(entity_id = 'ENT-1'::text\)\)/);
+    expect(probe).toMatch(/Index Cond: \(\(org_id = ANY \(\$\d+\)\) AND \(org_id = '[0-9a-f-]+'::uuid\) AND \(entity_id = 'ENT-1'::text\)\)/);
     const ins = await explain(ids["fin@cr-a.example"], A(), `insert into chain_reads (org_id, entity_id, network, tx_hash, status, source, at) values ('${A()}', 'ENT-1', 'tron', 'x', 'ok', 'recording', '2026-11-20T00:00:00Z')`);
     expect(ins).toMatch(/InitPlan 1/);
   });

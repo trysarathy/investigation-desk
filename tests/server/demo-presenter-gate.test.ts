@@ -21,7 +21,7 @@ const build = (demo: boolean) => { process.env.CLEARLINE_NEXT_BUILD = "1"; proce
 const ORIGIN = "http://127.0.0.1:3100";
 const req = (url: string, body: unknown) => new Request(`${ORIGIN}${url}`, { method: "POST", headers: { "content-type": "application/json", origin: ORIGIN }, body: JSON.stringify(body) });
 const src = (p: string) => readFileSync(path.resolve(__dirname, "../..", p), "utf8");
-const ctx = { userId: "u-1", name: "Finance (demo)", email: "finance@northwind.demo", orgId: "00000000-0000-4000-8000-000000000001", orgSlug: "northwind-demo", orgName: "Northwind Travel (demo)", role: "finance" as const };
+const ctx = { userId: "u-1", name: "Finance (demo)", email: "finance@northwind.demo", orgId: "00000000-0000-4000-8000-000000000001", orgSlug: "northwind-demo", orgName: "Northwind Travel (demo)", role: "finance" as const, entityScope: null };
 const BRANCH = 'if (process.env.CLEARLINE_NEXT_BUILD === "1" ? process.env.CLEARLINE_DEMO_BUILD === "1" : false) {';
 
 describe("in a real build every demo convenience is off", () => {

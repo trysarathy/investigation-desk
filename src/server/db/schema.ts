@@ -33,6 +33,8 @@ export const users = pgTable("users", {
   updatedAt: ts("updated_at").notNull().defaultNow(),
   /** v1 1.2: Better Auth's two-factor plugin (true once a TOTP authenticator is verified). */
   twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
+  /** v1 (drizzle/0054): stamped by a trigger from the session row created at sign-in; never written by the app. */
+  lastSignInAt: ts("last_sign_in_at"),
 });
 
 export const sessions = pgTable("sessions", {
@@ -121,9 +123,31 @@ export const organizationMemberships = pgTable("organization_memberships", {
   role: text("role").notNull().references(() => roles.code),
   createdAt: ts("created_at").notNull().defaultNow(),
   revokedAt: ts("revoked_at"),
+  /**
+   * v1 (drizzle/0053): false = every entity of the organisation (the default, and every earlier membership); true =
+   * only the entities in membership_entity_scopes (none = no entity: removing the last one never widens access).
+   */
+  entityScoped: boolean("entity_scoped").notNull().default(false),
+  /** v1 (drizzle/0054): who invited the member (a provider's invitation); null = granted by an operator. */
+  invitedBy: text("invited_by").references(() => users.id),
 }, (t) => [
   uniqueIndex("memberships_org_user_uq").on(t.orgId, t.userId),
   index("memberships_user_idx").on(t.userId),
+]);
+
+/**
+ * v1 (drizzle/0053): the entities a scoped membership may act on and read. Written only by the provisioning path
+ * (owner connection); enforced by the server (tenant.ts requireEntity) and by RESTRICTIVE row-level security.
+ */
+export const membershipEntityScopes = pgTable("membership_entity_scopes", {
+  orgId: uuid("org_id").notNull(),
+  userId: text("user_id").notNull(),
+  entityId: text("entity_id").notNull(),
+  grantedBy: text("granted_by").references(() => users.id),
+  createdAt: ts("created_at").notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.orgId, t.userId, t.entityId], name: "membership_entity_scopes_pk" }),
+  foreignKey({ columns: [t.orgId, t.userId], foreignColumns: [organizationMemberships.orgId, organizationMemberships.userId], name: "membership_entity_scopes_membership_fk" }),
 ]);
 
 /** Per-organisation engine state that is not a record collection (counters, config, the engine's own idempotency). */
