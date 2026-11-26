@@ -7,6 +7,31 @@ export const TEST_MODE_LABEL = "Test mode · illustrative data" as const;
 export type TestModeLabel = typeof TEST_MODE_LABEL;
 export const IMPORTED_BANK_LINE_LABEL = "imported, not bank-authenticated" as const;
 
+/**
+ * v1 Phase 0.5 (founder decisions 12–16): bank evidence is shown apart from the match. A payment is MATCHED when chain,
+ * provider record and invoice agree by reference (exact after typed items, final chain, verified contract); how well
+ * the bank side is evidenced is this separate level:
+ *  - `none`: no bank line ties to it (no batch, an untied batch, a proposed grouping, a seeded or unconfirmed line);
+ *  - `imported_two_person_confirmed`: an imported statement line, confirmed by a second person, in a batch that ties;
+ *  - `bank_authenticated`: RESERVED. Nothing in Clearline produces it yet (no bank connection exists); a test checks this.
+ * A batch is "settled" only when its evidence is at least `imported_two_person_confirmed` AND it ties to the cent.
+ */
+export type BankEvidenceLevel = "none" | "imported_two_person_confirmed" | "bank_authenticated";
+export const BANK_EVIDENCE_RANK: Readonly<Record<BankEvidenceLevel, number>> = { none: 0, imported_two_person_confirmed: 1, bank_authenticated: 2 };
+export const BANK_EVIDENCE_LABEL: Readonly<Record<BankEvidenceLevel, string>> = {
+  none: "Bank evidence: none",
+  imported_two_person_confirmed: "Bank evidence: imported statement, confirmed by a second person (not bank-authenticated)",
+  bank_authenticated: "Bank evidence: bank-authenticated",
+};
+/** Short form for chips and table cells (the long form is BANK_EVIDENCE_LABEL). */
+export const BANK_EVIDENCE_SHORT: Readonly<Record<BankEvidenceLevel, string>> = {
+  none: "Bank evidence: none",
+  imported_two_person_confirmed: "Bank evidence: imported, second-person confirmed",
+  bank_authenticated: "Bank evidence: bank-authenticated",
+};
+/** The lower of two levels (a payment in several batches is only as evidenced as its weakest). */
+export const minEvidence = (a: BankEvidenceLevel, b: BankEvidenceLevel): BankEvidenceLevel => (BANK_EVIDENCE_RANK[a] <= BANK_EVIDENCE_RANK[b] ? a : b);
+
 export type NetworkId = "tron" | "ethereum" | "polygon" | "solana" | "arbitrum_one" | "ton" | "base";
 export type FiatCurrency = "SGD" | "USD" | "AED";
 
@@ -312,6 +337,10 @@ export interface BankPart {
   batchTied: boolean;
   settlementVerified: boolean;
   bankLineLabels: string[];
+  /** v1 Phase 0.5: the bank evidence level (shown separately from the decision; never decides a match). */
+  evidence: BankEvidenceLevel;
+  /** Every batch of the payment is settled: it ties to the cent and its evidence is at least imported_two_person_confirmed. */
+  settled: boolean;
 }
 
 export interface LedgerPart {

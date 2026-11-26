@@ -4,7 +4,8 @@
  *
  * - "truth": the engine must reproduce the generator's decision, rule and differences exactly.
  * - "rule": the truth, made stricter by a documented rule that applies to these files (an imported bank line never
- *   verifies settlement while the policy flag is off — founder decision 2; a totals-only settlement report only
+ *   verifies settlement while the policy flag is off — founder decision 2 — so a payment with a difference stays in
+ *   review, while an exact one is matched with its bank evidence shown apart (v1 Phase 0.5); a totals-only settlement report only
  *   PROPOSES a grouping a person confirms — rc6). Exact decision and rule.
  * - "abstain": the files lack information the truth relies on (named in `why`); the engine must not close the order
  *   (no matched / matched_with_difference), and where the abstention is a rule it is given exactly.
@@ -100,6 +101,10 @@ export function expectationFor(world: SyntheticWorld, truth: SyntheticTruth, t: 
   const untieable = t.batchIds.filter((b) => !batchTieable(world, truth, b, files));
   if (files.settlement === "lines" && isClosing(t.decision) && untieable.length)
     return { kind: "abstain", decision: "exception", ruleId: "M5.batch.not_tied", why: `batch ${untieable.join(", ")} cannot tie from these files: ${tieGap(world, truth, untieable[0], files)}` };
+  // v1 Phase 0.5 (evidence-level split): an exact payment in a tied batch is matched; its imported bank line is shown
+  // apart as bank evidence and no longer holds it in review. A payment with any difference still is held.
+  if (files.settlement === "lines" && !files.importedLinesVerify && t.decision === "matched" && t.differences.length === 0 && t.batchIds.length)
+    return { kind: "rule", decision: "matched", ruleId: "M5.batch.tied_evidence_separate", differences: [], why: "evidence split: matched by reference; the bank line is imported, not bank-authenticated, shown as bank evidence" };
   if (files.settlement === "lines" && !files.importedLinesVerify && isClosing(t.decision) && t.batchIds.length)
     return { kind: "rule", decision: "suggested_for_review", ruleId: "M5.bank.imported_not_verified", differences: diffs(), why: "the bank line is imported, not bank-authenticated, and the policy flag is off" };
   // without a batch, the exact match is decided at step 4 by decision 1's rule (with quote terms: M4.match.no_difference)

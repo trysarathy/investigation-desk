@@ -4,7 +4,7 @@ import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   IMPORTED_BANK_LINE_LABEL, fmtFiat, localDate, proposeJournals, reconcile,
-  type BatchBridge, type Decision as MatchDecision, type FiatCurrency, type ReconcileInput,
+  type BankEvidenceLevel, type BatchBridge, type Decision as MatchDecision, type FiatCurrency, type ReconcileInput,
 } from "@/lib/clearline/merchant";
 import { stableJson } from "@/lib/clearline/merchant/adapters";
 import { differenceIdsFor, splitDifferences } from "@/lib/clearline/merchant/difference-rows";
@@ -64,6 +64,12 @@ async function storedDifferenceIds(tx: Tx, orgId: string, orderIds: string[]) {
       .where(and(eq(t.differences.orgId, orgId), inArray(t.differences.orderId, orderIds.slice(i, i + 1000))))) out.set(r.id, r.supersededAt !== null);
   }
   return out;
+}
+
+/** v1 Phase 0.5: 'bank_authenticated' is reserved; nothing may store it until a bank connection exists (the database refuses it too). */
+function storableEvidence(level: BankEvidenceLevel): "none" | "imported_two_person_confirmed" {
+  if (level === "bank_authenticated") throw new Error("bank_authenticated is reserved: no bank connection exists");
+  return level;
 }
 
 async function load(tx: Tx, ctx: TenantContext, entityId: string) {
@@ -181,6 +187,7 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
       orgId: ctx.orgId, orderId: r.orderId, decision: r.explanation.decision, decidingStep: r.explanation.decidingStep, ruleId: r.explanation.ruleId,
       chain: plain(r.chain) as object, provider: plain(r.provider) as object, bank: plain(r.bank) as object, ledger: plain(r.ledger) as object,
       explanation: plain({ ...explanation, attention: r.attention ?? null, label: meta.label }) as object, engineVersion: MERCHANT_ENGINE_VERSION, inputSha256: hash, computedAt: now,
+      bankEvidence: storableEvidence(r.bank.evidence), settled: r.bank.settled,
     };
   });
   const ex = (c: string) => sql.raw(`excluded.${c}`);
@@ -188,6 +195,7 @@ async function reconcileInTx(tx: Tx, ctx: TenantContext, entityId: string, run: 
     await tx.insert(t.matchRecords).values(records.slice(i, i + 500)).onConflictDoUpdate({ target: [t.matchRecords.orgId, t.matchRecords.orderId], set: {
       decision: ex("decision"), decidingStep: ex("deciding_step"), ruleId: ex("rule_id"), chain: ex("chain"), provider: ex("provider"), bank: ex("bank"), ledger: ex("ledger"),
       explanation: ex("explanation"), engineVersion: ex("engine_version"), inputSha256: ex("input_sha256"), computedAt: ex("computed_at"),
+      bankEvidence: ex("bank_evidence"), settled: ex("settled"),
     } });
   }
   // the run's own row is written last (with its counts): its foreign keys from differences are checked at commit
@@ -425,7 +433,7 @@ export async function dailyReport(ctx: TenantContext, entityId: string, date: st
     const tied = bridges.filter((b) => b.tied).length;
     return {
       label: await orgLabel(tx, ctx.orgId), entityId, date, timeZone: input.entity.timeZone.name, cutOffNote: PROVIDER_DAY_NOTE,
-      payments: recs.length, settlementsTied: tied, settlements: bridges.length, exceptions: ex.length, writeoffsAwaitingApproval: wos.length,
+      payments: recs.length, settlementsTied: tied, settlementsSettled: bridges.filter((b) => b.settled).length, settlements: bridges.length, exceptions: ex.length, writeoffsAwaitingApproval: wos.length,
       summary: `${plural(recs.length, "payment")} · ${plural(tied, "settlement")} tied · ${plural(ex.length, "exception")} · ${plural(wos.length, "write-off")} awaiting approval`,
     };
   });
@@ -446,7 +454,7 @@ export async function dailyReports(ctx: TenantContext, entityId: string, dates: 
     const ex = await tx.select().from(t.reconExceptions).where(and(eq(t.reconExceptions.orgId, ctx.orgId), sql`${t.reconExceptions.status} <> 'resolved'`));
     const wos = await tx.select().from(t.writeoffProposals).where(and(eq(t.writeoffProposals.orgId, ctx.orgId), inArray(t.writeoffProposals.status, ["proposed", "awaiting_approval"])));
     const label = await orgLabel(tx, ctx.orgId);
-    const out = new Map<string, { label: string; entityId: string; date: string; timeZone: string; cutOffNote: string; payments: number; settlementsTied: number; settlements: number; exceptions: number; writeoffsAwaitingApproval: number; summary: string }>();
+    const out = new Map<string, { label: string; entityId: string; date: string; timeZone: string; cutOffNote: string; payments: number; settlementsTied: number; settlementsSettled: number; settlements: number; exceptions: number; writeoffsAwaitingApproval: number; summary: string }>();
     for (const date of dates) {
       const recs = all.filter((r) => r.rec.chain.transfers.some((x) => localDate(x.timestamp, off) === date));
       const orders = new Set(recs.map((r) => r.row.orderId));
@@ -456,7 +464,7 @@ export async function dailyReports(ctx: TenantContext, entityId: string, dates: 
       const tied = bridges.filter((b) => b.tied).length;
       out.set(date, {
         label, entityId, date, timeZone: input.entity.timeZone.name, cutOffNote: PROVIDER_DAY_NOTE,
-        payments: recs.length, settlementsTied: tied, settlements: bridges.length, exceptions: nEx, writeoffsAwaitingApproval: nWo,
+        payments: recs.length, settlementsTied: tied, settlementsSettled: bridges.filter((b) => b.settled).length, settlements: bridges.length, exceptions: nEx, writeoffsAwaitingApproval: nWo,
         summary: `${plural(recs.length, "payment")} · ${plural(tied, "settlement")} tied · ${plural(nEx, "exception")} · ${plural(nWo, "write-off")} awaiting approval`,
       });
     }

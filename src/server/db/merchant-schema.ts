@@ -344,9 +344,14 @@ export const matchRecords = pgTable("match_records", {
   ledger: jsonb("ledger").notNull(), explanation: jsonb("explanation").notNull(),
   engineVersion: text("engine_version").notNull(), inputSha256: text("input_sha256").notNull(),
   computedAt: ts("computed_at").notNull().defaultNow(),
+  /** v1 Phase 0.5 (migration 0042): the bank evidence level, apart from the decision ('bank_authenticated' is reserved and refused). */
+  bankEvidence: text("bank_evidence").$type<"none" | "imported_two_person_confirmed">().notNull().default("none"),
+  settled: boolean("settled").notNull().default(false),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.orderId] }),
   foreignKey({ columns: [t.orgId, t.orderId], foreignColumns: [invoices.orgId, invoices.orderId], name: "match_records_invoice_fk" }),
+  check("match_records_bank_evidence_chk", sql`${t.bankEvidence} in ('none','imported_two_person_confirmed')`),
+  check("match_records_settled_chk", sql`not ${t.settled} or ${t.bankEvidence} <> 'none'`),
   check("match_records_decision_chk", sql`${t.decision} in ('matched','matched_with_difference','suggested_for_review','exception')`),
   check("match_records_step_chk", sql`${t.decidingStep} between 1 and 5`),
 ]);

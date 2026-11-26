@@ -144,7 +144,12 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
   // [ASSUMPTION] a seeded fictional feed line ('seed_fictional') counts as a bank feed in test mode; csv_import never does.
   // rc7: an uploaded statement line ('file_import') is imported, not bank-authenticated, exactly like csv_import.
   const imported = (s: string) => s === "csv_import" || s === "file_import";
-  const bankLines: BankLine[] = bk.map((b) => ({ bankLineId: b.lineId, account: b.account, currency: b.currency as FiatCurrency, valueDate: b.valueDate, amountMinor: b.amountMinor, description: b.description, source: imported(b.source) ? "csv_import" : "bank_feed", provenance: b.provenance ?? b.source }));
+  // v1 Phase 0.5: whether the statement each imported line came from was confirmed by a second person (someone other
+  // than the uploader), read from the stored confirmation, never from the file. It sets the line's bank evidence level
+  // (imported_two_person_confirmed); nothing here can make a line bank-authenticated.
+  const confirmed = await secondPersonConfirmed(tx, orgId, bk);
+  const bankLines: BankLine[] = bk.map((b) => ({ bankLineId: b.lineId, account: b.account, currency: b.currency as FiatCurrency, valueDate: b.valueDate, amountMinor: b.amountMinor, description: b.description, source: imported(b.source) ? "csv_import" : "bank_feed", provenance: b.provenance ?? b.source,
+    ...(imported(b.source) && confirmed.has(b.lineId) ? { secondPersonConfirmed: true as const } : {}) }));
   const fx = await tx.select().from(t.fxRates).where(and(eq(t.fxRates.orgId, orgId), eq(t.fxRates.entityId, entityId))).orderBy(asc(t.fxRates.pair), asc(t.fxRates.source), asc(t.fxRates.observedAt));
   // v1 (decision 9): recorded fiat rates INTO the entity's currency (USD/SGD for the SGD entity); shown, never used to tie
   const fr = await tx.select().from(t.fiatRates).where(and(eq(t.fiatRates.orgId, orgId), eq(t.fiatRates.quoteCurrency, ent.functionalCurrency)))
@@ -159,6 +164,23 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
     addressFacts: af.map((a) => ({ network: dbNetwork(a.network), address: a.address, fact: a.fact as ReconcileInput["addressFacts"][number]["fact"] })),
     ...(chainUnavailable.length ? { chainUnavailable } : {}),
   };
+}
+
+/**
+ * v1 Phase 0.5: the imported bank lines whose statement a second person confirmed: an rc5 statement import that is
+ * 'imported' with a confirmer other than its importer, or a v1 bank-statement upload with a confirmer other than its
+ * uploader that was not rejected. Anything else (no confirmer, the same person, a seeded line) is not confirmed.
+ */
+async function secondPersonConfirmed(tx: Tx, orgId: string, lines: (typeof t.bankLines.$inferSelect)[]): Promise<Set<string>> {
+  const importIds = [...new Set(lines.filter((l) => l.source === "csv_import" && l.importId).map((l) => l.importId!))];
+  const uploadIds = [...new Set(lines.filter((l) => l.source === "file_import" && l.uploadId).map((l) => l.uploadId!))];
+  const okImports = new Set(importIds.length ? (await tx.select({ id: t.statementImports.id, by: t.statementImports.importedBy, conf: t.statementImports.confirmedBy, status: t.statementImports.status })
+    .from(t.statementImports).where(and(eq(t.statementImports.orgId, orgId), inArray(t.statementImports.id, importIds))))
+    .filter((r) => r.status === "imported" && r.conf !== null && r.conf !== r.by).map((r) => r.id) : []);
+  const okUploads = new Set(uploadIds.length ? (await tx.select({ id: t.uploads.id, by: t.uploads.uploadedBy, conf: t.uploads.confirmedBy, status: t.uploads.status, type: t.uploads.fileType })
+    .from(t.uploads).where(and(eq(t.uploads.orgId, orgId), inArray(t.uploads.id, uploadIds))))
+    .filter((r) => r.type === "bank_statement" && r.status !== "rejected" && r.conf !== null && r.conf !== r.by).map((r) => r.id) : []);
+  return new Set(lines.filter((l) => (l.source === "csv_import" && l.importId && okImports.has(l.importId)) || (l.source === "file_import" && l.uploadId && okUploads.has(l.uploadId))).map((l) => l.lineId));
 }
 
 const txNorm = (network: string, h: string) => (network === "tron" ? h.toLowerCase().replace(/^0x/, "") : h.toLowerCase());

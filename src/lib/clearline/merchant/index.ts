@@ -4,6 +4,6 @@ export { DEFAULT_POLICY, TOLERANCE_FIXED_MINOR, defaultPolicyFor, FIAT_DECIMALS,
 export { parseRate, divRoundHalfUp, toFiatMinor, bpsOf, fmtFiat, fmtToken, fmtPct, localDate } from "./amounts";
 export { RULES, JOURNAL_RULES, type RuleId, type JournalRuleId } from "./rules";
 export { matchPayments, type MatchOutput } from "./match";
-export { buildBridges, type BatchBridge, type BridgeLine, type BridgeLineKind, type ProposedGrouping } from "./bridge";
+export { buildBridges, bankLineEvidence, type BatchBridge, type BridgeLine, type BridgeLineKind, type ProposedGrouping } from "./bridge";
 export { reconcile, type ReconcileResult } from "./reconcile";
 export { proposeJournals, accountBalance, MERCHANT_ACCOUNTS, type JournalProposal, type JournalLine, type MerchantAccount } from "./journal";

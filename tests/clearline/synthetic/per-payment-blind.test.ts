@@ -4,55 +4,23 @@
  * entities), handed to the engine the way shape D's files give it: no quote terms, the provider's claimed statuses,
  * chain facts read by Clearline's client, settlement as batch totals only and imported bank lines. "After" adds one
  * per-payment settlement row per payment of each batch (fee allocated per payment so the rows sum to the batch's fee).
- * Asserted: zero wrong matches everywhere, nothing closes with the imported-bank-line flag off, every closure is one
- * the generator's truth closes. The table is printed for the report (run with --silent=false). A batch with refunds
- * cannot tie from per-payment payment rows alone (they name no refund), so its exact payments become M5.batch.not_tied
- * exceptions instead of proposed groupings: stricter, never looser. v1 #174 adds refund rows (linked to the original
- * payment by its ID), with which those batches can tie. Synthetic · fictional data.
+ * Asserted: zero wrong matches everywhere, every closure is one the generator's truth closes.
+ * v1 Phase 0.5 (evidence-level split, decisions 12–16): with the flag off, an exact payment in a tied batch whose bank
+ * line is imported is now MATCHED (M5.batch.tied_evidence_separate) instead of staying in review
+ * (M5.bank.imported_not_verified); its bank evidence is shown apart. Before this change the test asserted that nothing
+ * closes with the flag off; it now asserts exactly which payments the split closes, and that totals-only input is
+ * unchanged (a proposed grouping still never closes). The table is printed for the report (run with --silent=false). A batch with refunds
+ * cannot tie from per-payment rows alone (they name no refund), so its exact payments become M5.batch.not_tied
+ * exceptions instead of proposed groupings: stricter, never looser. Synthetic · fictional data.
+ * v1 #174 (A3): refund rows (linked to the original payment by its ID) let those batches tie.
  */
 import { describe, expect, it } from "vitest";
 import { merchant } from "@/lib/clearline";
-import { bpsOf, type ReconcileInput, type SettlementPaymentLine } from "@/lib/clearline/merchant";
-import { computeTruth, monthWorld, smallWorld, toReconcileInput, transferKey, type SyntheticWorld } from "@/lib/clearline/synthetic";
+import type { ReconcileInput } from "@/lib/clearline/merchant";
+import { computeTruth, monthWorld, smallWorld, transferKey, type SyntheticWorld } from "@/lib/clearline/synthetic";
+import { blindInput, perPaymentLines } from "../../fixtures/synthetic/blind-input";
 
 const CLOSING = new Set(["matched", "matched_with_difference"]);
-
-/** Shape-D-like input: what the blind test's files give the engine. */
-function blindInput(world: SyntheticWorld, entityId: string): ReconcileInput {
-  const i = toReconcileInput(world, entityId);
-  return {
-    ...i,
-    quotes: i.quotes.map((q) => ({ ...q, unknown: ["quoted_amount", "rate", "window"] as const })),
-    paymentLinks: i.paymentLinks.map((l) => ({ ...l, windowUnknown: true as const, requestedUnknown: true as const })),
-    transfers: i.transfers.map((t) => ({ ...t, source: "chain_client" as const })),
-    // the export gives the currency it credited in (shape D does; rc8 decision 1 needs it)
-    providerRecords: i.providerRecords.map((r) => ({ ...r, creditedCurrency: i.entity.functionalCurrency })),
-    batchLines: [],
-    bankLines: i.bankLines.map((b) => ({ ...b, source: "csv_import" as const })),
-  };
-}
-
-/**
- * One row per payment of each batch (the generator's own settlement), its fee allocated so the rows sum to the batch fee.
- * With `refunds` (v1 #174), also one refund row per refund the batch nets: kind "refund", the ORIGINAL payment's ID, its
- * own refund ID, the amount returned as a negative gross and net, fee 0.
- */
-function perPaymentLines(world: SyntheticWorld, input: ReconcileInput, refunds = false): SettlementPaymentLine[] {
-  const out: SettlementPaymentLine[] = [];
-  const paymentOf = new Map(world.batchLines.filter((l) => l.kind === "payment").map((l) => [l.orderId, l.providerPaymentId!]));
-  for (const b of input.batches) {
-    if (refunds) for (const r of world.refunds.filter((x) => x.batchId === b.batchId).sort((x, y) => (x.refundId < y.refundId ? -1 : 1)))
-      out.push({ batchId: b.batchId, kind: "refund", refundId: r.refundId, providerPaymentId: paymentOf.get(r.orderId)!, orderId: r.orderId, currency: b.currency, grossMinor: -r.amountMinor, feeMinor: 0n, netMinor: -r.amountMinor, settlementDate: b.providerDay });
-    const pays = world.batchLines.filter((l) => l.batchId === b.batchId && l.kind === "payment").sort((x, y) => (x.providerPaymentId! < y.providerPaymentId! ? -1 : 1));
-    let left = b.feesMinor;
-    pays.forEach((p, k) => {
-      const fee = k === pays.length - 1 ? left : bpsOf(p.amountMinor, world.providerFeeBps);
-      left -= fee;
-      out.push({ batchId: b.batchId, providerPaymentId: p.providerPaymentId!, orderId: p.orderId, currency: b.currency, grossMinor: p.amountMinor, feeMinor: fee, netMinor: p.amountMinor - fee, settlementDate: b.providerDay });
-    });
-  }
-  return out;
-}
 
 interface Row { payments: number; matched: number; withDifference: number; review: number; exception: number; wrong: number; closedNotTruth: number; rules: Record<string, number> }
 function measure(world: SyntheticWorld, inputs: ReconcileInput[]): Row {
@@ -108,18 +76,29 @@ describe("per-payment settlement: blind-test style numbers (in memory)", () => {
         expect(r.closedNotTruth, v).toBe(0);
       }
       const [beforeOff, beforeOn, afterOff, afterOn, refundOff, refundOn] = rows.map(([, r]) => r);
-      // flag off: imported bank lines never verify settlement, before or after
+      // totals only: a proposed grouping never closes, flag off or on (unchanged by the evidence split)
       expect(beforeOff.matched + beforeOff.withDifference).toBe(0);
-      expect(afterOff.matched + afterOff.withDifference).toBe(0);
+      // v1 Phase 0.5: flag off, exact payments in tied batches are matched with their bank evidence shown apart; nothing
+      // else closes (a difference in such a batch is still review), and they are exactly the ones the flag would close
+      expect(afterOff.withDifference).toBe(0);
+      expect(afterOff.rules["matched M5.batch.tied_evidence_separate"]).toBe(afterOff.matched);
+      expect(afterOff.rules["suggested_for_review M5.bank.imported_not_verified"] ?? 0).toBe(0);
+      expect(afterOff.matched).toBe(afterOn.matched);
+      expect(afterOff.exception).toBe(afterOn.exception);
       // before, the flag changes nothing (no payment is linked to a batch), as in the rc7 blind test
       expect(beforeOn.matched + beforeOn.withDifference).toBe(0);
       // after, with the flag on (a check only), exact payments in tied batches close
       expect(afterOn.matched).toBeGreaterThan(0);
       expect(afterOn.rules["matched M5.batch.tied_verified"]).toBe(afterOn.matched);
       expect(beforeOff.payments).toBe(afterOff.payments);
-      // #174: refund rows let the batches with refunds tie; still nothing closes with the flag off, and with the flag on
-      // never fewer closures nor more exceptions than without them (a refunded order itself is never closed automatically)
-      expect(refundOff.matched + refundOff.withDifference).toBe(0);
+      // #174: refund rows let the batches with refunds tie. Flag off, the evidence split (Phase 0.5) closes exactly the
+      // payments the flag would close, nothing with a difference; with the flag on never fewer closures nor more
+      // exceptions than without refund rows (a refunded order itself is never closed automatically)
+      expect(refundOff.withDifference).toBe(0);
+      expect(refundOff.rules["matched M5.batch.tied_evidence_separate"] ?? 0).toBe(refundOff.matched);
+      expect(refundOff.rules["suggested_for_review M5.bank.imported_not_verified"] ?? 0).toBe(0);
+      expect(refundOff.matched).toBe(refundOn.matched);
+      expect(refundOff.exception).toBe(refundOn.exception);
       expect(refundOn.matched).toBeGreaterThanOrEqual(afterOn.matched);
       expect(refundOn.exception).toBeLessThanOrEqual(afterOn.exception);
       expect(refundOn.rules["matched M5.batch.tied_verified"]).toBe(refundOn.matched);

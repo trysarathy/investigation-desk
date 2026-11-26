@@ -98,7 +98,9 @@ describe("three provider exports and three bank formats, end to end", () => {
 
     const r = reconcile(await reconcileFromDb(ops, sc.SG.entityId));
     expect(decisions(r)).toEqual({
-      "SG-1001": "suggested_for_review M5.bank.imported_not_verified", // ties, but the bank line is imported: never verified with the flag off
+      // v1 Phase 0.5 (evidence-level split): exact and linked by reference in a batch that ties, so matched; its bank line
+      // is imported (never verifies settlement with the flag off) and is shown apart as bank evidence. Was review.
+      "SG-1001": "matched M5.batch.tied_evidence_separate",
       "SG-1002": "suggested_for_review M5.bank.imported_not_verified",
       "SG-1003": "exception M4.tolerance.underpayment_beyond_band",
       "SG-1004": "exception M1.chain.unavailable", // the provider says Completed; no chain read has verified the claimed transfer yet
@@ -140,7 +142,7 @@ describe("three provider exports and three bank formats, end to end", () => {
     expect(bank.norm.counts).toEqual({ created: 1, existing: 0, conflict: 0, skipped: 1 });
     const r = reconcile(await reconcileFromDb(ops, sc.US.entityId));
     expect(decisions(r)).toEqual({
-      "US-2001": "suggested_for_review M5.bank.imported_not_verified",
+      "US-2001": "matched M5.batch.tied_evidence_separate", // v1 Phase 0.5: was review (M5.bank.imported_not_verified); see SG-1001
       "US-2002": "exception M4.tolerance.overpayment_beyond_band",
       "US-2003": "suggested_for_review M4.tolerance.explained_outside_band",
     });

@@ -58,7 +58,7 @@ afterAll(async () => { await closeDatabase(); await closeOwner(); });
 const ids: Record<string, string> = {};
 describe("per-payment settlement file beside a totals-only report", () => {
   let input: ReconcileInput;
-  it("before: totals only → grouping proposed; after: the batch ties from the per-payment lines, imported bank line keeps review", async () => {
+  it("before: totals only → grouping proposed; after: the batch ties from the per-payment lines; the exact payment is matched with its imported bank evidence shown apart", async () => {
     const [ops, approver] = await Promise.all([liveCtx(s, "ops@live-a.example", "a"), liveCtx(s, "approver@live-a.example", "a")]);
     await pipeline(ops, ops, "orders_invoices", "orders.csv", sc.sgOrdersCsv(), sc.SG_ORDERS_MAPPING);
     // provider export without quote terms (the blind test's shape): decision 1 can close only the exact payment, SG-1001
@@ -85,10 +85,15 @@ describe("per-payment settlement file beside a totals-only report", () => {
     expect(input.settlementPaymentLines?.map((l) => [l.providerPaymentId, l.grossMinor, l.feeMinor, l.netMinor])).toEqual([["P-SG-1", 135000n, 1350n, 133650n], ["P-SG-2", 269865n, 2699n, 267166n]]);
     const after = reconcile(input);
     expect(after.bridges[0]).toMatchObject({ batchId: sc.SG.batch.id, tied: true, settlementVerified: false, bankLineLabel: "imported, not bank-authenticated", checks: { perPaymentLines: true } });
-    expect([sg1(after).decision, sg1(after).ruleId]).toEqual(["suggested_for_review", "M5.bank.imported_not_verified"]);
-    // stored = computed
+    // v1 Phase 0.5 (evidence-level split): the exact payment is matched by reference; the imported statement (confirmed by
+    // a second person through the upload pipeline) is its bank evidence, shown apart. Settlement is still not verified.
+    // Before the split it stayed in review (M5.bank.imported_not_verified).
+    expect([sg1(after).decision, sg1(after).ruleId]).toEqual(["matched", "M5.batch.tied_evidence_separate"]);
+    expect(after.bridges[0]).toMatchObject({ bankEvidence: "imported_two_person_confirmed", settled: true });
+    // stored = computed, the evidence level included (migration 0042)
     const stored = await ownerDb().select().from(t.matchRecords).where(eq(t.matchRecords.orgId, s.orgs.a));
-    expect(stored.map((m) => [m.orderId, m.decision, m.ruleId]).sort()).toEqual(after.records.map((x) => [x.orderId, x.explanation.decision, x.explanation.ruleId]).sort());
+    expect(stored.map((m) => [m.orderId, m.decision, m.ruleId, m.bankEvidence, m.settled]).sort()).toEqual(after.records.map((x) => [x.orderId, x.explanation.decision, x.explanation.ruleId, x.bank.evidence, x.bank.settled]).sort());
+    expect(stored.find((m) => m.orderId === "SG-1001")).toMatchObject({ bankEvidence: "imported_two_person_confirmed", settled: true });
     // nothing else closed: every other order keeps a non-closing decision
     for (const r of after.records.filter((x) => x.orderId !== "SG-1001")) expect(r.explanation.decision, r.orderId).not.toMatch(/^matched/);
   });

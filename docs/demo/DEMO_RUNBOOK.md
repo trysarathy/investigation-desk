@@ -302,12 +302,19 @@ What the three files give after upload, confirmation (the statement by an Approv
 
 - 24 + 24 rows accepted, 2 statement lines (source `file_import`: imported, not bank-authenticated).
 - The two statement lines tie batches B-SGD-20261205 and B-SGD-20261207 to the cent, but **settlement is not verified**
-  (the imported-bank-line flag stays off): their 65 payments move from "exception: batch not tied" to "suggested for
-  review: M5.bank.imported_not_verified". Nothing closes on an imported statement.
+  (the imported-bank-line flag stays off). Their 65 payments leave "exception: batch not tied". Since v1 Phase 0.5 (the
+  evidence-level split, decisions 12–16) the 55 that were already exact at step 4 are **matched**
+  (`M5.batch.tied_evidence_separate`), with "Bank evidence: imported statement, confirmed by a second person (not
+  bank-authenticated)" shown beside the decision, and both batches are **settled** (tied to the cent, evidence at least
+  imported and second-person confirmed). The 10 with a difference stay in review (`M5.bank.imported_not_verified`).
+  Before the split all 65 stayed in review. Nothing is ever bank-authenticated.
 - The 24 new payments are verified against the recorded chain data with their quote terms. 23 wait for settlement
   (no payout yet: "suggested for review: M5.grouping.proposed_needs_confirmation"), and BK-39021, underpaid by 6%, is an
   exception (M4.tolerance.underpayment_beyond_band) with an owner, reason and next step.
-- NW-SG decisions before → after: matched 697 → 697, with difference 97 → 97, review 14 → 103, exception 87 → 22.
+- NW-SG decisions before → after: matched 697 → 752, with difference 97 → 97, review 14 → 48, exception 87 → 22.
+  (Before the v1 Phase 0.5 split: matched 697 → 697, review 14 → 103.)
+- The three seeded cases keep every number. Their bank lines are seeded fictional feed lines, so their bank evidence
+  level is "none" and no case batch is "settled" (settlement is still shown as verified in test mode, as before).
 
 ## Troubleshooting
 

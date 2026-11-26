@@ -4,14 +4,20 @@ import { resolveClaimedTransfers } from "./claims";
 import { buildBridges, type BatchBridge, type ProposedGrouping } from "./bridge";
 import { matchPayments, type MatchOutput } from "./match";
 import { active, type RuleId } from "./rules";
-import { TEST_MODE_LABEL, type Attention, type Decision, type MatchRecord, type ReconcileInput, type TestModeLabel } from "./types";
+import { BANK_EVIDENCE_LABEL, TEST_MODE_LABEL, minEvidence, type Attention, type BankEvidenceLevel, type Decision, type HistoryEntry, type MatchRecord, type ReconcileInput, type TestModeLabel } from "./types";
 
 export interface ReconcileResult extends MatchOutput { label: TestModeLabel; entityId: string; bridges: BatchBridge[]; proposedGroupings: ProposedGrouping[] }
 
 const RANK: Record<Decision, number> = { matched: 0, matched_with_difference: 1, suggested_for_review: 2, exception: 3 };
 
-/** Step 5 can only confirm an exact match or make a decision stricter; it never relaxes steps 1–4. */
-function applyStep5(rec: MatchRecord, bridges: BatchBridge[], groupings: ProposedGrouping[]): { decision: Decision; ruleId: RuleId; attention?: Attention } | null {
+/**
+ * Step 5 can only confirm an exact match or make a decision stricter; it never relaxes steps 1–4.
+ * v1 Phase 0.5 (decisions 12–16): an imported bank line no longer decides the payment. A payment already exact at step 4
+ * in a batch that ties to the cent stays matched (M5.batch.tied_evidence_separate) and its bank evidence level is
+ * recorded apart. Everything else is unchanged: a payment with any difference in such a batch is still review
+ * (M5.bank.imported_not_verified), a proposed grouping is still review, an untied batch is still an exception.
+ */
+function applyStep5(rec: MatchRecord, bridges: BatchBridge[], groupings: ProposedGrouping[]): { decision: Decision; ruleId: RuleId; attention?: Attention; note?: HistoryEntry } | null {
   const ids = new Set(rec.provider.records.map((r) => r.providerPaymentId));
   const mine = bridges.filter((b) => b.paymentIds.some((id) => ids.has(id)));
   const grouped = groupings.filter((g) => g.paymentIds.some((id) => ids.has(id)));
@@ -21,6 +27,9 @@ function applyStep5(rec: MatchRecord, bridges: BatchBridge[], groupings: Propose
     batchIds: mine.map((b) => b.batchId), bankLineIds: mine.map((b) => b.bankLineId).filter((x): x is string => !!x),
     batchTied: mine.length > 0 && mine.every((b) => b.tied), settlementVerified: mine.length > 0 && mine.every((b) => b.settlementVerified),
     bankLineLabels: [...new Set(mine.map((b) => b.bankLineLabel).filter((x): x is NonNullable<typeof x> => !!x))],
+    // the payment is only as evidenced as its weakest batch, and a batch that does not tie evidences nothing
+    evidence: mine.length && !grouped.length ? mine.map((b): BankEvidenceLevel => (b.tied ? b.bankEvidence : "none")).reduce(minEvidence) : "none",
+    settled: mine.length > 0 && !grouped.length && mine.every((b) => b.settled),
   };
   const e = rec.explanation;
   if (e.decision === "exception" || e.decidingStep < 4) return null;
@@ -33,6 +42,10 @@ function applyStep5(rec: MatchRecord, bridges: BatchBridge[], groupings: Propose
   if (untied && active("M5.batch.not_tied"))
     return { decision: "exception", ruleId: "M5.batch.not_tied", attention: { owner: "Payment Operations", reason: `Settlement batch ${untied.batchId} does not tie to the cent (${Object.entries(untied.checks).filter(([, v]) => !v).map(([k]) => k).join(", ")}).`, nextStep: "Get the settlement report and the bank statement for this batch and find the gap." } };
   const unverified = mine.find((b) => !b.settlementVerified);
+  if (unverified && e.decision === "matched" && active("M5.batch.tied_evidence_separate")) {
+    const note: HistoryEntry = { step: 5, ruleId: "M5.bank.imported_not_verified", outcome: "note", detail: `Batch ${unverified.batchId} ties to the cent; its bank line is imported, not bank-authenticated, so settlement is not verified. ${BANK_EVIDENCE_LABEL[rec.bank.evidence]}. Shown apart; it does not decide the match.` };
+    return { decision: "matched", ruleId: "M5.batch.tied_evidence_separate", note };
+  }
   if (unverified && active("M5.bank.imported_not_verified"))
     return { decision: "suggested_for_review", ruleId: "M5.bank.imported_not_verified", attention: { owner: "Treasury", reason: `Batch ${unverified.batchId} ties, but its bank line is imported, not bank-authenticated.`, nextStep: "Confirm the credit in the bank feed before treating settlement as verified." } };
   if (mine.length && e.decision === "matched" && active("M5.batch.tied_verified")) return { decision: "matched", ruleId: "M5.batch.tied_verified" };
@@ -53,8 +66,10 @@ export function reconcile(raw: ReconcileInput): ReconcileResult {
   const exceptions = [...matched.exceptions];
   for (const rec of matched.records) {
     const v = applyStep5(rec, bridges, groupings);
-    if (!v || (RANK[v.decision] < RANK[rec.explanation.decision]) || (RANK[v.decision] === RANK[rec.explanation.decision] && v.ruleId !== "M5.batch.tied_verified")) continue;
-    rec.explanation = { ...rec.explanation, decision: v.decision, decidingStep: 5, ruleId: v.ruleId, history: [...rec.explanation.history, { step: 5, ruleId: v.ruleId, outcome: v.decision === "matched" ? "pass" : "fail", detail: `Decision: ${v.decision}.` }] };
+    if (v?.note) rec.explanation = { ...rec.explanation, history: [...rec.explanation.history, v.note] };
+    const confirms = v?.ruleId === "M5.batch.tied_verified" || v?.ruleId === "M5.batch.tied_evidence_separate";
+    if (!v || (RANK[v.decision] < RANK[rec.explanation.decision]) || (RANK[v.decision] === RANK[rec.explanation.decision] && !confirms)) continue;
+    rec.explanation = { ...rec.explanation, decision: v.decision, decidingStep: 5, ruleId: v.ruleId, history: [...rec.explanation.history, { step: 5, ruleId: v.ruleId, outcome: v.decision === "matched" ? "pass" : "fail", detail: `Decision: ${v.decision}.${v.ruleId === "M5.batch.tied_evidence_separate" ? ` ${BANK_EVIDENCE_LABEL[rec.bank.evidence]}.` : ""}` }] };
     if (v.attention) rec.attention = v.attention;
     if (v.decision === "exception") exceptions.push({ id: `EX-${rec.orderId}`, step: 5, ruleId: v.ruleId, orderId: rec.orderId, ...v.attention! });
   }

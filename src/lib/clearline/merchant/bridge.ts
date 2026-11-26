@@ -8,8 +8,8 @@ import { fmtFiat, localDate, sum } from "./amounts";
 import { endOfLocalDay, valueIn } from "./fx";
 import { indexesOf, transferKey } from "./indexes";
 import { active } from "./rules";
-import type { BankLine, DifferenceType, FiatCurrency, FxValue, ReconcileInput, SettlementPaymentLine, TimeZoneRef } from "./types";
-import { IMPORTED_BANK_LINE_LABEL, TEST_MODE_LABEL, type TestModeLabel } from "./types";
+import type { BankEvidenceLevel, BankLine, DifferenceType, FiatCurrency, FxValue, ReconcileInput, SettlementPaymentLine, TimeZoneRef } from "./types";
+import { BANK_EVIDENCE_RANK, IMPORTED_BANK_LINE_LABEL, TEST_MODE_LABEL, type TestModeLabel } from "./types";
 
 export type BridgeLineKind = "merchant_day" | "timing_prior_batch" | "held_by_provider" | "timing_next_batch" | "unexplained" | "gross" | "provider_fee" | "refund_netted" | "net";
 
@@ -59,6 +59,19 @@ export interface BatchBridge {
    * rate at or before the bank line's value date (no more than 24 h older), or "needs a rate". Shown only; it decides nothing.
    */
   entityValue?: FxValue;
+  /** v1 Phase 0.5: the evidence level of the batch's bank line ("none" without one). The policy flag never raises it. */
+  bankEvidence: BankEvidenceLevel;
+  /** Settled = tied to the cent AND bank evidence at least imported_two_person_confirmed. */
+  settled: boolean;
+}
+
+/**
+ * v1 Phase 0.5: the evidence a bank line gives. Only an imported statement line confirmed by a second person gives
+ * imported_two_person_confirmed; everything else (an unconfirmed import, a seeded or recorded "feed" line) gives none.
+ * `bank_authenticated` is reserved: no code path returns it until a bank connection exists.
+ */
+export function bankLineEvidence(l: Pick<BankLine, "source" | "secondPersonConfirmed">): BankEvidenceLevel {
+  return l.source === "csv_import" && l.secondPersonConfirmed === true ? "imported_two_person_confirmed" : "none";
 }
 
 export interface ProposedGrouping {
@@ -206,10 +219,12 @@ export function buildBridges(input: ReconcileInput, orderOf: (paymentId: string)
     const tied = Object.values(checks).every(Boolean);
     const imported = bank?.source === "csv_import";
     const importedBlocks = imported && !input.policy.allowImportedBankLinesAsVerified && active("M5.bank.imported_not_verified");
+    const bankEvidence: BankEvidenceLevel = bank ? bankLineEvidence(bank) : "none";
     return {
       label: TEST_MODE_LABEL, batchId: b.batchId, currency: b.currency, merchantDay: D, merchantTimeZone: input.entity.timeZone, providerDay: b.providerDay,
       providerTimeZone: b.providerTimeZone, lines, paymentIds: allIds, bankLineId: bank?.bankLineId ?? null, bankLineSource: bank?.source ?? null,
       bankLineLabel: imported ? IMPORTED_BANK_LINE_LABEL : null, checks, tied, settlementVerified: tied && !importedBlocks,
+      bankEvidence, settled: tied && BANK_EVIDENCE_RANK[bankEvidence] >= BANK_EVIDENCE_RANK.imported_two_person_confirmed,
       ...(b.currency !== cur ? { entityValue: valueIn(b.netMinor, b.currency, cur, input.fiatRates ?? [],
         bank ? endOfLocalDay(bank.valueDate, input.entity.timeZone.utcOffsetMinutes) : endOfLocalDay(b.providerDay, b.providerTimeZone.utcOffsetMinutes)) } : {}),
     };
