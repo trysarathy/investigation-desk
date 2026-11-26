@@ -1,4 +1,5 @@
 import "server-only";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { database, type Tx } from "./db/client";
 import { auditorGrants, membershipEntityScopes, organizationMemberships, organizations } from "./db/schema";
@@ -42,18 +43,29 @@ export async function withTenant<T>(ctx: { userId: string; orgId?: string }, fn:
   // Reads run in one REPEATABLE READ, read-only snapshot, so a page never sees half of a concurrent action.
   return database().transaction(async (tx) => {
     await tx.execute(sql`select set_config('app.user_id', ${ctx.userId}, true), set_config('app.org_id', ${ctx.orgId ?? ""}, true)`);
+    // the upload store in the database (src/server/storage/postgres.ts) reads and writes inside this same transaction
+    const fnIn = async (t: Tx) => {
+      const scope: TenantTxScope = { tx: t, userId: ctx.userId, orgId: ctx.orgId, read: !!opts.read, open: true };
+      try { return await tenantTxScope.run(scope, () => fn(t)); } finally { scope.open = false; }
+    };
     // Demo build only (inlined constant; any other build drops this branch and the import): a write for a DEMO
     // organisation is stamped on the demo calendar, app side and database side (src/server/demo-live-clock.ts).
     if (process.env.CLEARLINE_NEXT_BUILD === "1" ? process.env.CLEARLINE_DEMO_BUILD === "1" : false) {
       if (ctx.orgId && !opts.read) {
         const { enterDemoClock } = await import("./demo-live-clock");
         const clock = await enterDemoClock(tx, ctx.orgId);
-        if (clock) return runWithLiveClock(clock, () => fn(tx));
+        if (clock) return runWithLiveClock(clock, () => fnIn(tx));
       }
     }
-    return fn(tx);
+    return fnIn(tx);
   }, opts.read ? { isolationLevel: "repeatable read", accessMode: "read only" } : undefined);
 }
+
+/** The tenant transaction a call runs inside (withTenant), if any; its organisation and user are set in the database. */
+export interface TenantTxScope { tx: Tx; userId: string; orgId: string | undefined; read: boolean; open: boolean }
+const tenantTxScope = new AsyncLocalStorage<TenantTxScope>();
+/** The innermost withTenant transaction of the current call, or undefined outside one. */
+export const currentTenantTx = (): TenantTxScope | undefined => { const s = tenantTxScope.getStore(); return s?.open ? s : undefined; };
 
 let roleCheck: Promise<void> | undefined;
 /**

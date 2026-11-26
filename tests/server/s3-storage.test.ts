@@ -137,7 +137,7 @@ describe("S3 upload store against the signature-checking stand-in", () => {
     (process.env as Record<string, string>).NODE_ENV = "test";
     process.env.CLEARLINE_UPLOAD_STORE = "S3";
     expect(uploadStorage()).toBeInstanceOf(RefusingStorage);
-    await expect(uploadStorage().get(org, put.storageKey)).rejects.toThrow(/must be "local" or "s3"/);
+    await expect(uploadStorage().get(org, put.storageKey)).rejects.toThrow(/must be "local", "s3" or "postgres"/);
     process.env.CLEARLINE_UPLOAD_STORE = "s3";
     delete process.env.CLEARLINE_S3_BUCKET;
     await expect(uploadStorage().list!()).rejects.toThrow(/needs CLEARLINE_S3_BUCKET/);
