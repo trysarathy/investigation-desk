@@ -9,7 +9,7 @@ import * as t from "./db/schema";
 import { can, type Permission } from "./authz";
 import { IdempotencyKey, idempotent, serverAudit } from "./control";
 import { providerConsole } from "./merchant";
-import { AccessDenied, requireUnscoped, type TenantContext, withTenant } from "./tenant";
+import { AccessDenied, inEntityScope, requireUnscoped, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
 import { stampNow } from "./live-clock";
 
@@ -230,7 +230,7 @@ export async function merchantSettings(ctx: TenantContext) {
     const [org] = await tx.select({ providerOrgId: t.organizations.providerOrgId }).from(t.organizations).where(eq(t.organizations.id, ctx.orgId));
     return {
       label: LABEL, hasProvider: !!org?.providerOrgId,
-      policies: policies.map(({ p, name, currency }) => ({ entityId: p.entityId, name, currency, toleranceBps: p.toleranceBps, toleranceAbsMinor: p.toleranceAbsMinor.toString(), toleranceCombine: p.toleranceCombine, writeoffThresholdMinor: p.writeoffThresholdMinor.toString(), allowImportedBankLinesAsVerified: p.allowImportedBankLinesAsVerified, revision: p.revision, updatedAt: p.updatedAt.toISOString() })),
+      policies: policies.filter(({ p }) => inEntityScope(ctx, p.entityId)).map(({ p, name, currency }) => ({ entityId: p.entityId, name, currency, toleranceBps: p.toleranceBps, toleranceAbsMinor: p.toleranceAbsMinor.toString(), toleranceCombine: p.toleranceCombine, writeoffThresholdMinor: p.writeoffThresholdMinor.toString(), allowImportedBankLinesAsVerified: p.allowImportedBankLinesAsVerified, revision: p.revision, updatedAt: p.updatedAt.toISOString() })),
       proposal: prop ? { providerName: prop.provider_name, policyDefaults: prop.policy_defaults, mappedColumns: prop.column_mapping?.columns ? Object.keys(prop.column_mapping.columns).length : 0, revision: prop.revision } : null,
       grantScope: grant?.scope === "full" ? "full" as const : "aggregates" as const,
     };
@@ -268,8 +268,10 @@ export async function setProviderGrant(ctx: TenantContext, input: z.input<typeof
 export async function pilotSample(ctx: TenantContext) {
   require(ctx, "read");
   return tenantRead(ctx, async (tx) => {
-    const auto = await tx.select({ orderId: t.matchRecords.orderId, decision: t.matchRecords.decision, ruleId: t.matchRecords.ruleId }).from(t.matchRecords)
-      .where(and(eq(t.matchRecords.orgId, ctx.orgId), inArray(t.matchRecords.decision, ["matched", "matched_with_difference"]))).orderBy(asc(t.matchRecords.orderId));
+    const auto = (await tx.select({ orderId: t.matchRecords.orderId, decision: t.matchRecords.decision, ruleId: t.matchRecords.ruleId, entityId: t.invoices.entityId }).from(t.matchRecords)
+      .innerJoin(t.invoices, and(eq(t.invoices.orgId, t.matchRecords.orgId), eq(t.invoices.orderId, t.matchRecords.orderId)))
+      .where(and(eq(t.matchRecords.orgId, ctx.orgId), inArray(t.matchRecords.decision, ["matched", "matched_with_difference"]))).orderBy(asc(t.matchRecords.orderId)))
+      .filter((x) => inEntityScope(ctx, x.entityId)).map(({ entityId: _e, ...x }) => (void _e, x));
     const step = Math.max(1, Math.ceil(auto.length / 20));
     const sample = auto.filter((_, i) => i % step === 0).slice(0, 20);
     const reviews = sample.length ? await tx.select({ orderId: t.matchReviews.orderId, verdict: t.matchReviews.verdict, reviewer: t.matchReviews.reviewerUserId, name: t.users.name }).from(t.matchReviews)

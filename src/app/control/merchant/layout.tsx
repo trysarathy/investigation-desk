@@ -43,7 +43,9 @@ export default async function MerchantLayout({ children }: { children: ReactNode
   const vars = { "--brand": t.primary, "--on-brand": t.onPrimary, "--accent": t.accent } as CSSProperties;
   // rc8 founder decision 3: the evidence packs page is listed only for the roles that may download them
   const merchantNav = MERCHANT_NAV.filter((i) => i.href !== "/control/merchant/evidence" || can(ctx.role, "merchant_export"));
-  const nav = shell.kind === "merchant" ? [...merchantNav, ...(can(ctx.role, "manage_members") ? [...(process.env.DATABASE_PROVISIONING_URL ? [{ href: "/control/merchant/setup", label: "Setup" }] : []), { href: "/control/merchant/admin", label: "Admin" }] : [])] : PROVIDER_NAV;
+  // v1 phase 1.4: the access review, for an Admin of the merchant or the provider with access to every entity
+  const review = can(ctx.role, "access_review") && ctx.entityScope === null ? [{ href: "/control/merchant/access-review", label: "Access review" }] : [];
+  const nav = shell.kind === "merchant" ? [...merchantNav, ...(can(ctx.role, "manage_members") ? [...(process.env.DATABASE_PROVISIONING_URL ? [{ href: "/control/merchant/setup", label: "Setup" }] : []), { href: "/control/merchant/admin", label: "Admin" }] : []), ...review] : [...PROVIDER_NAV, ...review];
   const unread = shell.kind === "merchant" ? await unreadCount(ctx) : 0;
   return (
     <div className={m.mroot} style={vars}>
@@ -57,7 +59,7 @@ export default async function MerchantLayout({ children }: { children: ReactNode
               <p className={m.brandSub} data-testid="org-name">{shell.kind === "provider" ? "Provider console" : `Merchant reconciliation · ${ctx.orgName}`}</p>
             </div>
           </div>
-          <p className={m.brandWho} data-testid="signed-in-as">Signed in as <strong>{ctx.name}</strong> ({ctx.email}) · {ROLE_LABELS[ctx.role]} · {shell.kind === "merchant" ? <><a className={m.bell} href="/control/merchant/notifications" data-testid="bell">Notifications <span className={m.bellCount}>{unread}</span><span className={m.srOnly}> unread</span></a> · </> : null}<a href="/control/security">Security</a> · <SignOutButton /></p>
+          <p className={m.brandWho} data-testid="signed-in-as">Signed in as <strong>{ctx.name}</strong> ({ctx.email}) · {ROLE_LABELS[ctx.role]}{ctx.entityScope !== null ? <span data-testid="entity-scope"> for {ctx.entityScope.length ? ctx.entityScope.join(", ") : "no entity"} only</span> : null} · {shell.kind === "merchant" ? <><a className={m.bell} href="/control/merchant/notifications" data-testid="bell">Notifications <span className={m.bellCount}>{unread}</span><span className={m.srOnly}> unread</span></a> · </> : null}<a href="/control/security">Security</a> · <SignOutButton /></p>
         </div>
       </header>
       <aside className={m.demo} aria-label="Data notice"><DataChip label={shell.label} /><DemoBar dataMode={shell.dataMode} who={{ userId: ctx.userId, name: ctx.name, email: ctx.email }} /></aside>
