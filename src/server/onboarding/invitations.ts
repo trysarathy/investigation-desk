@@ -59,6 +59,22 @@ export async function inviteAndSend<T>(create: (t: NewToken) => Promise<T>, mail
   return out;
 }
 
+/** How an invitation reached its invitee: by email, or as a one-time link returned to the inviter ONCE (never stored). */
+export type InvitationDelivery = { delivery: "email" } | { delivery: "link"; link: string; expiresAt: string };
+
+/**
+ * Overnight (no email provider): like `inviteAndSend`, but with no sender configured (`sender` null) the absolute
+ * one-time link is returned to the inviter, to copy and pass on. Only the token's SHA-256 is stored, as before; the
+ * link exists only in this response (never in a log, the audit row or an idempotency record), so it is shown once.
+ */
+export async function inviteAndDeliver<T extends object>(create: (t: NewToken) => Promise<T>, mail: (t: NewToken) => ReturnType<typeof invitationEmail>, sender: EmailSender | null): Promise<T & InvitationDelivery> {
+  if (sender) return { ...(await inviteAndSend(create, mail, sender)), delivery: "email" as const };
+  const t = newInvitationToken();
+  const link = invitationLink(t.token); // refused before anything is written when CLEARLINE_ORIGIN is not set
+  const out = await create(t);
+  return { ...out, delivery: "link" as const, link, expiresAt: t.expiresAt.toISOString() };
+}
+
 export const AcceptInput = z.object({
   token: z.string().regex(/^[A-Za-z0-9_-]{43}$/, "This invitation link is not complete. Open the link from the email again."),
   name: z.string().trim().min(1).max(200).optional(),

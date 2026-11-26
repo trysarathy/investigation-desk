@@ -4,8 +4,8 @@ import { emptyWorkspace } from "@/lib/clearline";
 import { engineStateOf } from "../engine-store";
 import { withProvisioning } from "../db/provisioning";
 import { AccessDenied, type Principal } from "../tenant";
-import { emailSender } from "../email";
-import { Email, invitationEmail, inviteAndSend } from "./invitations";
+import { invitationSender } from "../email";
+import { Email, invitationEmail, inviteAndDeliver } from "./invitations";
 
 /**
  * v1 phase 1.1: the PLATFORM CONSOLE (/control/platform). Clearline had no platform-operator concept; this defines
@@ -47,18 +47,21 @@ export const CreateOrgInput = z.object({
   adminEmail: Email,
 }).strict();
 
-/** Create the organisation and invite its first admin, in one provisioning transaction (the email is sent inside it). */
+/**
+ * Create the organisation and invite its first admin, in one provisioning transaction (the email is sent inside it).
+ * With no email sender configured, the answer carries the one-time link (`delivery: "link"`) for the operator to copy.
+ */
 export async function createOrganizationAndInvite(p: Principal, input: z.input<typeof CreateOrgInput>) {
   const v = CreateOrgInput.parse(input);
   await requirePlatformOperator(p);
   return withProvisioning({ userId: p.userId }, async (tx) => {
     const [o] = await tx.call("prov_platform_create_org", [v.kind, v.slug, v.name, v.timezone, v.providerSlug || null, engineStateOf(emptyWorkspace())]);
     const orgId = String(o.prov_platform_create_org);
-    const invitationId = await inviteAndSend(
-      async (t) => String((await tx.call("prov_platform_invite_admin", [orgId, v.adminEmail, t.sha256, t.expiresAt]))[0].prov_platform_invite_admin),
+    const inv = await inviteAndDeliver(
+      async (t) => ({ invitationId: String((await tx.call("prov_platform_invite_admin", [orgId, v.adminEmail, t.sha256, t.expiresAt]))[0].prov_platform_invite_admin) }),
       (t) => invitationEmail({ to: v.adminEmail, orgName: v.name, role: v.kind === "provider" ? "provider_admin" : "admin", token: t.token, expiresAt: t.expiresAt }),
-      emailSender({ required: true, prov: tx }));
-    return { orgId, slug: v.slug, kind: v.kind, invitationId };
+      invitationSender({ prov: tx }));
+    return { orgId, slug: v.slug, kind: v.kind, ...inv };
   });
 }
 
@@ -69,10 +72,8 @@ export async function reinviteFirstAdmin(p: Principal, input: z.input<typeof Rei
   const v = ReinviteInput.parse(input);
   const org = (await platformOrgs(p)).find((o) => o.id === v.orgId);
   if (!org) throw new AccessDenied(404, "Not found.");
-  return withProvisioning({ userId: p.userId }, async (tx) => ({
-    invitationId: await inviteAndSend(
-      async (t) => String((await tx.call("prov_platform_invite_admin", [v.orgId, v.adminEmail, t.sha256, t.expiresAt]))[0].prov_platform_invite_admin),
-      (t) => invitationEmail({ to: v.adminEmail, orgName: org.name, role: org.kind === "provider" ? "provider_admin" : "admin", token: t.token, expiresAt: t.expiresAt }),
-      emailSender({ required: true, prov: tx })),
-  }));
+  return withProvisioning({ userId: p.userId }, async (tx) => inviteAndDeliver(
+    async (t) => ({ invitationId: String((await tx.call("prov_platform_invite_admin", [v.orgId, v.adminEmail, t.sha256, t.expiresAt]))[0].prov_platform_invite_admin) }),
+    (t) => invitationEmail({ to: v.adminEmail, orgName: org.name, role: org.kind === "provider" ? "provider_admin" : "admin", token: t.token, expiresAt: t.expiresAt }),
+    invitationSender({ prov: tx })));
 }

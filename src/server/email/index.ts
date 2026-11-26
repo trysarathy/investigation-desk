@@ -14,6 +14,9 @@ export type { EmailMessage, EmailSender } from "./sender";
  *   - with `required: true` the sender refuses (EmailNotConfigured), so an invitation is never created that nobody
  *     was told about.
  * `tx` / `prov` bind the outbox to the caller's transaction, so an invitation and its email commit or roll back together.
+ *
+ * Invitations use `invitationSender` instead: with no sender configured it answers null, and the inviter is shown the
+ * one-time link to pass on themselves (src/server/onboarding/invitations.ts, `inviteAndDeliver`).
  */
 export class EmailNotConfigured extends Error {
   constructor() { super("No email sender is configured (set CLEARLINE_EMAIL_SENDER=outbox for the local outbox)."); }
@@ -28,4 +31,11 @@ export function emailSender(opts: { required?: boolean; tx?: Pick<Tx, "insert">;
   if (process.env.CLEARLINE_EMAIL_SENDER === "outbox") return opts.prov ? outboxSenderInProvisioning(opts.prov) : opts.tx ? outboxSenderIn(opts.tx) : outboxSender;
   if (opts.required) throw new EmailNotConfigured();
   return disabledSender;
+}
+
+/** The sender for an invitation, or null when none is configured (the invitation is then delivered as a copyable link). */
+export function invitationSender(opts: { tx?: Pick<Tx, "insert">; prov?: ProvTx } = {}): EmailSender | null {
+  if (override) return override;
+  if (process.env.CLEARLINE_EMAIL_SENDER === "outbox") return emailSender({ ...opts, required: true });
+  return null;
 }

@@ -9,7 +9,7 @@ export default function InvitePage() {
   return (
     <main className={s.narrow} id="main">
       <h1 className={s.title}>Accept your invitation</h1>
-      <p className={s.lede}>Clearline is invite-only: an administrator invited you by email. Choose your password to join; then sign in.</p>
+      <p className={s.lede}>Clearline is invite-only: an administrator sent you this one-time link. Choose your name and password to join, then sign in. Admins and Approvers set up multi-factor sign-in at their first sign-in.</p>
       <div className={s.panel}>
         <AcceptInvitationForm />
       </div>
