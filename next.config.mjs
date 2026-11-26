@@ -126,6 +126,11 @@ const nextConfig = {
   },
   // `npm run demo` builds into .next-demo (CLEARLINE_DIST_DIR) so a demo build never overwrites a real one in .next.
   ...(process.env.CLEARLINE_DIST_DIR ? { distDir: process.env.CLEARLINE_DIST_DIR } : {}),
+  // Hosted demo (scripts/demo/hosted-build.ts on Vercel): the recorded chain file is read at run time, so it ships
+  // with every server function. Only in that build; a real build never carries it.
+  ...(process.env.CLEARLINE_HOSTED_DEMO === '1' && process.env.CLEARLINE_DEMO_BUILD === '1'
+    ? { outputFileTracingIncludes: { '/**': ['./.demo/chain-recording.json'] } }
+    : {}),
   poweredByHeader: false,
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
