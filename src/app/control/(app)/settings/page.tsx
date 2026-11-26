@@ -30,7 +30,7 @@ export default async function SettingsPage() {
       </section>
       <section className={s.section} aria-labelledby="members">
         <h2 className={s.h2} id="members">Members and roles</h2>
-        <p className={`${s.small} ${s.muted}`}>Read-only. An administrator manages members outside this console.</p>
+        <p className={`${s.small} ${s.muted}`}>Read-only here. {can(ctx.role, "manage_members") ? <>In a merchant organisation, invite and deactivate members on the <a href="/control/merchant/admin">Admin page</a>.</> : "An Admin manages members."}</p>
         <TableRegion label="Members">
           <table className={s.table}>
             <thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Access</th></tr></thead>

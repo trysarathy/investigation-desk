@@ -399,6 +399,21 @@ export function AcknowledgeNotice({ noticeId, orderId }: { noticeId: string; ord
 }
 
 /** rc7 phase 3b: an Admin signs a member out everywhere. */
+/** Deactivate a member (an unscoped Admin): their membership ends and they are signed out everywhere. Asks first. */
+export function DeactivateMember({ userId, name }: { userId: string; name: string }) {
+  const x = useMutation(`deactivate:${userId}`);
+  return (
+    <form autoComplete="off" onSubmit={(ev) => {
+      ev.preventDefault();
+      if (!window.confirm(`Deactivate ${name}? Their access to this organisation ends now and they are signed out everywhere.`)) return;
+      void x.run("POST", `${API}/admin/member-actions/deactivate`, { userId }, (d) => `Deactivated ${name}: ${String(d?.sessionsRevoked ?? 0)} session(s) ended.`);
+    }}>
+      <Submit busy={x.busy} variant="danger">Deactivate {name}</Submit>
+      <Result outcome={x.outcome} />
+    </form>
+  );
+}
+
 export function RevokeSessions({ userId, name }: { userId: string; name: string }) {
   const x = useMutation(`revoke:${userId}`);
   return (
