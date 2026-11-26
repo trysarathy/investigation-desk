@@ -1,5 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import { existsSync } from "node:fs";
+import { testDeployEnv } from "../deploy-env";
 
 // QA v2 browser checks. Run from the repo root after `npx next build`:
 //   npx playwright test -c tests/qa-release-v2/playwright.qa-v2.config.ts --retries=0
@@ -20,7 +21,7 @@ export default defineConfig({
     url: `http://127.0.0.1:${port}/clearline`,
     timeout: 120000,
     reuseExistingServer: false,
-    env: { CLEARLINE_CUSTOMER_PREVIEW: "1", NEXT_TELEMETRY_DISABLED: "1" },
+    env: { CLEARLINE_CUSTOMER_PREVIEW: "1", NEXT_TELEMETRY_DISABLED: "1", CLEARLINE_DEPLOY_ENV: testDeployEnv() },
   },
   outputDir: "../../test-results/qa-release-v2",
   reporter: [["line"]],

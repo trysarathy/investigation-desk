@@ -78,7 +78,7 @@ and the matching ledger export, so we can measure it on your cases, not mine."
 
 ```
 npm run build
-OFFLINE_REPLAY_DIR=tests/fixtures/real npx next start
+CLEARLINE_DEPLOY_ENV=local OFFLINE_REPLAY_DIR=tests/fixtures/real npx next start
 # then upload the two SAMPLE files in Settings → Data, as above
 ```
 

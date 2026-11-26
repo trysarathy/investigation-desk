@@ -3,6 +3,7 @@
  * shares state with the rc5 Control suite or another worktree. Every value is a fictional, test-only string.
  */
 import path from "node:path";
+import { testDeployEnv } from "../deploy-env";
 const PORT = Number(process.env.CLEARLINE_MERCHANT_E2E_PORT ?? 3207);
 export const MERCHANT_E2E = {
   port: PORT,
@@ -29,5 +30,7 @@ export function merchantServerEnv(): Record<string, string> {
     CLEARLINE_UPLOAD_DIR: MERCHANT_E2E.uploadDir,
     CLEARLINE_UPLOAD_KEY: MERCHANT_E2E.uploadKey,
     CLEARLINE_CHAIN_RECORDING: MERCHANT_E2E.chainRecording,
+    // v1 #165: a production server refuses to start without it
+    CLEARLINE_DEPLOY_ENV: testDeployEnv(),
   };
 }

@@ -99,7 +99,7 @@ fail for merchant A's entity at this volume.
   login's privileges on it are revoked. Its append-only trigger and RLS stay. A partitioned `chain_reads` is created
   with the same columns, checks, foreign keys, append-only trigger (cloned onto every partition, present and future),
   grant (`SELECT, INSERT` to `clearline_app`) and policies. Partitions are created for every month from January 2025, or
-  the oldest read if older, to 12 months ahead, and every row is copied with the same ids. The migration aborts if the
+  the oldest read if older, to 12 months ahead (widened to 24 by 0047, #169), and every row is copied with the same ids. The migration aborts if the
   counts differ. Copying the 1.44M benchmark rows took 23.5 s inside the migration. The 24k demo-sized table takes well
   under a second.
 - **Contract** (later, owner, after checking counts): `DROP TABLE chain_reads_unpartitioned;`. The contract step is not a
@@ -122,9 +122,10 @@ fail for merchant A's entity at this volume.
 
 - `chain_reads_ensure_partitions(from_month date, to_month date)` creates the missing months (idempotent, at most
   10 years per call, owner only). Neither the runtime login nor the jobs login can execute it (tested).
-- Owner command: `DATABASE_URL=$DATABASE_OWNER_URL npm run control:admin -- chain-read-partitions [--months-ahead 12]`.
-  **Run it monthly** (for example from the same owner cron/runbook that runs `purge-uploads`). The migration already
-  covers 12 months ahead, so a missed run leaves a year of slack.
+- Owner command: `DATABASE_URL=$DATABASE_OWNER_URL npm run control:admin -- chain-read-partitions [--months-ahead 24]`.
+  **Run it monthly** (docs/runbooks/CHAIN_READ_PARTITIONS.md). v1 #169: the default is 24 months ahead and migration
+  0047 widens the initial window to 24 months ahead (0036 itself is unchanged and covered 12), so a missed run leaves
+  two years of slack.
 - **A month without a partition fails loudly.** There is deliberately no DEFAULT partition. An insert into a missing month
   raises `no partition of relation "chain_reads" found for row`. The whole chain-verify transaction rolls back (reads,
   facts and audit together), so the run fails visibly instead of losing reads silently (tested for 2099 and for 2024).
@@ -167,7 +168,7 @@ Why isolation is unchanged:
    (a) a small "latest read per target" table maintained on insert, which gives the same result as today's
    latest-per-key fold, or (b) bounding the read window. Option (b) changes behaviour (an old unavailable read could
    stop surfacing) and is **not** recommended without a matching review.
-3. **Contract**: when to drop `chain_reads_unpartitioned`.
+3. **Contract**: when to drop `chain_reads_unpartitioned`. Decided (#169): only after 30 days of verified use, on the go-live checklist (docs/release/GO_LIVE_CHECKLIST.md) with the exact SQL.
 4. **Who runs `chain-read-partitions` monthly**: an owner runbook or cron. The jobs login deliberately cannot run it.
 
 ## Reproduce

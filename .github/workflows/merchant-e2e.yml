@@ -30,6 +30,8 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
     env:
+      # v1 #165: every server this job starts says where it runs (a production server refuses without it)
+      CLEARLINE_DEPLOY_ENV: ci
       PGHOST: 127.0.0.1
       PGPORT: "5432"
       PGUSER: postgres

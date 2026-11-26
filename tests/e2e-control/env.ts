@@ -2,6 +2,8 @@
  * Test-only configuration for the Clearline Control browser suite. Every value here is a fictional, test-only string
  * for a local or CI database; none is a deployment secret. Override with the CLEARLINE_E2E_* variables.
  */
+import { testDeployEnv } from "../deploy-env";
+
 const PORT = Number(process.env.CLEARLINE_E2E_PORT ?? 3197); // overridable so parallel worktrees never share a port
 
 export const E2E = {
@@ -23,5 +25,7 @@ export function serverEnv(port: number = E2E.port): Record<string, string> {
     BETTER_AUTH_SECRET: E2E.authSecret,
     CLEARLINE_ORIGIN: `http://127.0.0.1:${port}`,
     NEXT_TELEMETRY_DISABLED: "1",
+    // v1 #165: a production server refuses to start without it
+    CLEARLINE_DEPLOY_ENV: testDeployEnv(),
   };
 }

@@ -210,7 +210,7 @@ Option 1, a quick tunnel from your laptop (the link lives while the command runs
 
 ```
 npm ci && npm run build
-DEMO_MODE=1 AI_EXPLANATIONS=off PREVIEW_USER=demo PREVIEW_PASSWORD='choose-one' npm start
+CLEARLINE_DEPLOY_ENV=demo DEMO_MODE=1 AI_EXPLANATIONS=off PREVIEW_USER=demo PREVIEW_PASSWORD='choose-one' npm start
 cloudflared tunnel --url http://localhost:3000     # second terminal; prints https://….trycloudflare.com
 ```
 
@@ -219,7 +219,7 @@ Option 2, a hosted container (Fly.io shown; Render or Cloud Run work the same wa
 
 ```
 fly launch --no-deploy --internal-port 3000 --name investigation-desk-preview
-fly secrets set PREVIEW_USER=demo PREVIEW_PASSWORD='choose-one'
+fly secrets set PREVIEW_USER=demo PREVIEW_PASSWORD='choose-one' CLEARLINE_DEPLOY_ENV=demo
 fly deploy
 fly scale count 1      # one machine: bulk jobs and the demo workspace live in its process and disk
 ```
@@ -229,7 +229,11 @@ re-seeds it, which is fine for a demo. Before sharing, open the link in a privat
 the password prompt, then run step 1 from Settings → Data.
 
 To build and run the image locally: `docker build -t desk-preview . && docker run -p 3000:3000
--e PREVIEW_USER=demo -e PREVIEW_PASSWORD=choose-one desk-preview`.
+-e CLEARLINE_DEPLOY_ENV=demo -e PREVIEW_USER=demo -e PREVIEW_PASSWORD=choose-one desk-preview`.
+
+Every production server (`next start`, the image included) refuses to start until `CLEARLINE_DEPLOY_ENV` says where it
+runs (`local`, `ci`, `demo`, `staging` or `production`; v1 #165, docs/runbooks/DEPLOY_ENV.md). The image does not set
+it: whoever runs it says which.
 
 ## Payment records and three-way matching (product direction, chunk 1)
 
@@ -362,7 +366,7 @@ in File A (most likely a mistyped customer ID).
 ## Customer demo (demo mode, the default)
 
 ```
-npm ci && npm run build && npx next start      # http://localhost:3000 → At a glance → Load the demo day
+npm ci && npm run build && CLEARLINE_DEPLOY_ENV=local npx next start      # http://localhost:3000 → At a glance → Load the demo day
 ```
 
 `DEMO_MODE` is **on unless set to `off`**. In demo mode:
@@ -375,7 +379,7 @@ npm ci && npm run build && npx next start      # http://localhost:3000 → At a 
 - **Load the demo day** / **Reload demo day** rebuilds the same records every time, and removes only demo
   records.
 
-For live mode, run `DEMO_MODE=off npx next start`: every page, plus real Ethereum lookups by hash.
+For live mode, run `CLEARLINE_DEPLOY_ENV=local DEMO_MODE=off npx next start`: every page, plus real Ethereum lookups by hash.
 
 The seven cases, the three-minute script and the answers to hard questions are in
 `demo/REQUESTS_DEMO.md` and `demo/WHAT_TO_SAY.md`. The browser tests for every case are in

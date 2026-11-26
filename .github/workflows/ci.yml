@@ -18,6 +18,9 @@ jobs:
     name: ci
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      # v1 #165: every server this job starts says where it runs (a production server refuses without it)
+      CLEARLINE_DEPLOY_ENV: ci
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -54,6 +57,8 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
     env:
+      # v1 #165: every server this job starts says where it runs (a production server refuses without it)
+      CLEARLINE_DEPLOY_ENV: ci
       PGHOST: 127.0.0.1
       PGPORT: "5432"
       PGUSER: postgres

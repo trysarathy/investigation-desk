@@ -24,6 +24,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 22
     env:
+      # v1 #165: every server this job starts says where it runs (a production server refuses without it)
+      CLEARLINE_DEPLOY_ENV: ci
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
