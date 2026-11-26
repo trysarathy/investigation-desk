@@ -27,6 +27,8 @@ export const GLOBAL_TABLES: Record<string, string> = {
   token_config: "token contracts per chain (reference data)",
   roles: "the role codes (reference data)",
   platform_operators: "Clearline's own staff, never a merchant's member (a platform operator is never deleted with a merchant)",
+  // wave 2 integration
+  ops_worker_heartbeats: "one row per job worker process (worker id, start, last seen, passes): no organisation, member or data (e4)",
 };
 
 export const MARKER = "Zephyrine";
@@ -115,6 +117,37 @@ export async function seedEveryTable(suffix: string): Promise<ErasureSeed> {
   await raw(db, "accounting_exports", sql`insert into accounting_exports (org_id, id, ord, record) values (${A}, ${`EXP-${MARKER}`}, 0, ${JSON.stringify({ note: `${MARKER} export` })}::jsonb)`);
   await raw(db, "pilot_time_log", sql`insert into pilot_time_log (org_id, user_id, day, minutes, note) values (${A}, ${fin}, '2026-11-25', 30, ${`${MARKER} time`})`);
   await raw(db, "demo_feedback", sql`insert into demo_feedback (org_id, user_id, role, screen, route, note) values (${A}, ${fin}, 'finance', 'Inbox', '/control', ${`${MARKER} feedback`})`);
+  // wave 2 integration: the tables of c1 (pickup), c2 (provider API), c3 (ledger), d1 (worker, period close), d2 (sign-off,
+  // Auditor) and e2 (data keys), one row of A each, so the deletion is shown to leave none of them behind
+  const jobId = String((await db.execute(sql`select id from jobs where org_id = ${A} limit 1`)).rows[0].id);
+  await raw(db, "job_events", sql`insert into job_events (org_id, job_id, event, stage, attempt) values (${A}, ${jobId}, 'claimed', 'load', 1)`);
+  const tpl = String((await db.execute(sql`select id from mapping_templates where org_id = ${A} limit 1`)).rows[0].id);
+  const pickup = randomUUID();
+  await raw(db, "upload_pickup_sources", sql`insert into upload_pickup_sources (org_id, id, kind, name, entity_id, file_type, location, run_as_user_id, created_by)
+    values (${A}, ${pickup}, 'sftp', ${`${MARKER} sftp`}, ${ent}, 'orders_invoices', 'inbox/a', ${fin}, ${admin})`);
+  await raw(db, "upload_pickup_items", sql`insert into upload_pickup_items (org_id, source_id, item_key, outcome, code) values (${A}, ${pickup}, ${hex()}, 'refused', 'FILE_TYPE_NOT_ALLOWED')`);
+  const papi = randomUUID(), pull = randomUUID();
+  await raw(db, "provider_api_connections", sql`insert into provider_api_connections (org_id, id, entity_id, provider_org_id, name, file_type, template_name, config, api_key_ref, created_by)
+    values (${A}, ${papi}, ${ent}, ${P}, ${`${MARKER} provider API`}, 'provider_export', 'orders', '{}'::jsonb, 'CLEARLINE_PROVIDER_KEY_TEST', ${admin})`);
+  await raw(db, "provider_pulls", sql`insert into provider_pulls (org_id, id, connection_id, entity_id, idempotency_key, status, template_id, template_version, started_by, finished_at)
+    values (${A}, ${pull}, ${papi}, ${ent}, ${`pull-${MARKER}-1`}, 'succeeded', ${tpl}, 1, ${fin}, now())`);
+  await raw(db, "provider_webhook_events", sql`insert into provider_webhook_events (org_id, connection_id, event_id, entity_id, body_sha256, signed_at, pull_id) values (${A}, ${papi}, 'evt-1', ${ent}, ${hex()}, now(), ${pull})`);
+  const lconn = randomUUID();
+  await raw(db, "ledger_connections", sql`insert into ledger_connections (org_id, id, provider, ledger_env, status, tenant_name, created_by) values (${A}, ${lconn}, 'xero', 'standin', 'needs_reconnect', ${`${MARKER} ledger`}, ${admin})`);
+  await raw(db, "ledger_oauth_states", sql`insert into ledger_oauth_states (org_id, state_hash, browser_hash, provider, redirect_uri, created_by, expires_at) values (${A}, ${hex()}, ${hex()}, 'xero', 'http://127.0.0.1/cb', ${admin}, now() + interval '5 minutes')`);
+  await raw(db, "ledger_account_maps", sql`insert into ledger_account_maps (org_id, connection_id, clearline_account, ledger_account_code, set_by) values (${A}, ${lconn}, 'bank', '090', ${fin})`);
+  const jp = `JP-${MARKER}`;
+  await raw(db, "merchant_journal_proposals", sql`insert into merchant_journal_proposals (org_id, id, entity_id, pattern, currency, lines, evidence_refs)
+    values (${A}, ${jp}, ${ent}, 'provider_confirmation', 'SGD', '[]'::jsonb, ${JSON.stringify({ entryDate: "2026-11-05", memo: `${MARKER} journal` })}::jsonb)`);
+  await raw(db, "ledger_journal_drafts", sql`insert into ledger_journal_drafts (org_id, connection_id, ledger_tenant_id, entity_id, proposal_id, idempotency_key, request_sha256, posting_rules_version, status, failure, created_by)
+    values (${A}, ${lconn}, 'tenant-1', ${ent}, ${jp}, ${`cl-jd-${hex().slice(0, 40)}`}, ${hex()}, 'PR-000000000000', 'failed', 'rate limited', ${fin})`);
+  await raw(db, "posting_rules_signatures", sql`insert into posting_rules_signatures (org_id, version, version_sha256, catalogue, signed_by_user_id, signed_by_name, mfa_verified_at)
+    values (${A}, 'PR-000000000000', ${"0".repeat(64)}, '{}'::jsonb, ${admin}, ${aNames[5]}, now())`);
+  await raw(db, "auditor_grants", sql`insert into auditor_grants (org_id, user_id, period_start, period_end, expires_at, granted_by) values (${A}, ${viewer}, '2026-11-01', '2026-11-30', now() + interval '30 days', ${`${MARKER} operator`})`);
+  await raw(db, "period_locks", sql`insert into period_locks (org_id, entity_id, period, status, requested_by, reason, decided_by, decided_at) values (${A}, ${ent}, '2026-10', 'locked', ${fin}, ${`${MARKER} month end`}, ${admin}, now())`);
+  await raw(db, "period_corrections", sql`insert into period_corrections (org_id, entity_id, order_id, corrects_period, correction_period, run_id, new_decision, new_rule_id, fingerprint)
+    values (${A}, ${ent}, ${order}, '2026-10', '2026-11', ${live.runId}, 'review', 'R2', ${hex()})`);
+  await raw(db, "org_data_keys", sql`insert into org_data_keys (org_id, purpose, version, kek_id, wrapped_key) values (${A}, 'data', 1, 'ctest', ${`wrapped-${hex()}`})`);
   // things held about A's members as people (outside A's own tables)
   await db.insert(t.sessions).values({ id: randomUUID(), token: hex(), userId: fin, expiresAt: later, createdAt: now, updatedAt: now, ipAddress: "198.51.100.7", userAgent: `${MARKER}-browser` });
   await db.insert(t.passkeys).values({ userId: fin, credentialId: `cred${MARKER}0123456789`, publicKeySpki: "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE", alg: -7, name: `${MARKER} key` });
