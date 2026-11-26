@@ -119,6 +119,14 @@ async function memberActors(tx: Tx, orgId: string): Promise<Actor[]> {
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
+/** The org_engine_state.state of a workspace (everything but its record collections). v1: also the platform console's empty state. */
+export function engineStateOf(ws: Workspace): Record<string, unknown> {
+  const state: Record<string, unknown> = {};
+  for (const k of STATE_KEYS) state[k] = (ws as unknown as Record<string, unknown>)[k];
+  if (ws.accounting) { const { proposals: _p, exports: _e, ...rest } = ws.accounting as unknown as Record<string, unknown>; void _p; void _e; state.accounting = rest; }
+  return state;
+}
+
 /** Persist the difference between two workspaces of the same organisation. */
 export async function saveWorkspaceDiff(tx: Tx, orgId: string, before: Workspace | null, after: Workspace, opts: { provenance: Provenance; importId?: string | null; actorUserId: string | null; seedActors?: Actor[] }) {
   for (const s of specs(opts.provenance, opts.importId ?? null)) {
@@ -169,9 +177,7 @@ export async function saveWorkspaceDiff(tx: Tx, orgId: string, before: Workspace
     });
   }
   // the remaining state (actors are rebuilt from memberships on every load; seed actors are kept for history)
-  const state: Record<string, unknown> = {};
-  for (const k of STATE_KEYS) state[k] = (after as unknown as Record<string, unknown>)[k];
-  if (after.accounting) { const { proposals: _p, exports: _e, ...rest } = after.accounting as unknown as Record<string, unknown>; void _p; void _e; state.accounting = rest; }
+  const state = engineStateOf(after);
   if (before === null) {
     state.seedActors = opts.seedActors ?? [];
     await tx.insert(t.orgEngineState).values({ orgId, version: 1, state });

@@ -172,8 +172,8 @@ BEGIN
   existed := uid IS NOT NULL;
   IF NOT existed THEN
     IF p_user_id !~ '^[0-9a-f-]{36}$' THEN PERFORM public.prov_invalid('user id'); END IF;
-    IF length(btrim(coalesce(p_name, ''))) NOT BETWEEN 1 AND 200 THEN PERFORM public.prov_invalid('a name is 1–200 characters'); END IF;
-    IF coalesce(p_password_hash, '') !~ '^[0-9a-f]{32}:[0-9a-f]{128}$' THEN PERFORM public.prov_invalid('password hash'); END IF;
+    IF length(btrim(coalesce(p_name, ''))) NOT BETWEEN 1 AND 200 THEN PERFORM public.prov_invalid('a new account needs your name (1–200 characters)'); END IF;
+    IF coalesce(p_password_hash, '') !~ '^[0-9a-f]{32}:[0-9a-f]{128}$' THEN PERFORM public.prov_invalid('a new account needs a password'); END IF;
     INSERT INTO public.users (id, name, email, email_verified) VALUES (p_user_id, btrim(p_name), inv.email, true);
     INSERT INTO public.accounts (id, account_id, provider_id, user_id, password, created_at, updated_at)
     VALUES (gen_random_uuid()::text, p_user_id, 'credential', p_user_id, p_password_hash, now(), now());
