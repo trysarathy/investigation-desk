@@ -166,6 +166,12 @@ describe("the database, with the services bypassed", () => {
     await as(NOV, sql`insert into audit_events (org_id, source, actor_user_id, action, summary, at) values (${seed.orgs.sg}, 'server', ${users[NOV]}, 'auditor_test', 'own row', now())`);
   });
 
+  it("wave 2 (0086): no auditor_read policy plans a parent table inline (each predicate is a function, called only for an Auditor)", async () => {
+    const inline = await rows(sql`select tablename from pg_policies where policyname = 'auditor_read' and (qual ilike '%exists%' or qual ilike '%from %')`);
+    expect(inline).toEqual([]);
+    expect(Number((await rows(sql`select count(*)::int as n from pg_policies where policyname = 'auditor_read' and qual like '%auditor_sees_%'`))[0].n)).toBe(22);
+  });
+
   it("every organisation table with row-level security carries the auditor policies (a new table cannot be forgotten silently)", async () => {
     const missing = await rows(sql`select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
       where n.nspname = 'public' and c.relkind in ('r','p') and not c.relispartition and c.relrowsecurity and c.relname <> 'organizations'

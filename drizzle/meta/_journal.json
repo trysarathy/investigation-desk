@@ -484,6 +484,13 @@
       "when": 1796850000000,
       "tag": "0085_wave2_scope_and_auditor",
       "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1796860000000,
+      "tag": "0086_auditor_predicates_deferred",
+      "breakpoints": true
     }
   ]
 }
