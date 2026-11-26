@@ -114,6 +114,9 @@ export async function seedEveryTable(suffix: string): Promise<ErasureSeed> {
   await raw(db, "fx_rates", sql`insert into fx_rates (org_id, pair, rate, source, observed_at, entity_id) values (${A}, 'USDC/SGD', 1.35, 'fictional', now(), ${ent})`);
   await raw(db, "address_facts", sql`insert into address_facts (org_id, network, address, fact) values (${A}, 'ethereum', '0x00000000000000000000000000000000000fe11c', 'registered_wallet')`);
   await raw(db, "chain_reads_unpartitioned", sql`insert into chain_reads_unpartitioned (org_id, entity_id, network, address, status, source, at) values (${A}, ${ent}, 'ethereum', '0x00000000000000000000000000000000000fe11c', 'ok', 'recorded', now())`);
+  // 0087: a file kept in the database (CLEARLINE_UPLOAD_STORE=postgres); the body is an unencrypted development seal
+  await raw(db, "upload_blobs", sql`insert into upload_blobs (org_id, storage_key, body, size_bytes, sha256) values (${A}, ${"b".repeat(32)}, convert_to(${`CLU0${MARKER}`}, 'UTF8'),
+    octet_length(convert_to(${`CLU0${MARKER}`}, 'UTF8')), encode(sha256(convert_to(${`CLU0${MARKER}`}, 'UTF8')), 'hex'))`);
   await raw(db, "accounting_exports", sql`insert into accounting_exports (org_id, id, ord, record) values (${A}, ${`EXP-${MARKER}`}, 0, ${JSON.stringify({ note: `${MARKER} export` })}::jsonb)`);
   await raw(db, "pilot_time_log", sql`insert into pilot_time_log (org_id, user_id, day, minutes, note) values (${A}, ${fin}, '2026-11-25', 30, ${`${MARKER} time`})`);
   await raw(db, "demo_feedback", sql`insert into demo_feedback (org_id, user_id, role, screen, route, note) values (${A}, ${fin}, 'finance', 'Inbox', '/control', ${`${MARKER} feedback`})`);
