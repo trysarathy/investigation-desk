@@ -147,7 +147,7 @@ export async function seedEveryTable(suffix: string): Promise<ErasureSeed> {
   await raw(db, "period_locks", sql`insert into period_locks (org_id, entity_id, period, status, requested_by, reason, decided_by, decided_at) values (${A}, ${ent}, '2026-10', 'locked', ${fin}, ${`${MARKER} month end`}, ${admin}, now())`);
   await raw(db, "period_corrections", sql`insert into period_corrections (org_id, entity_id, order_id, corrects_period, correction_period, run_id, new_decision, new_rule_id, fingerprint)
     values (${A}, ${ent}, ${order}, '2026-10', '2026-11', ${live.runId}, 'review', 'R2', ${hex()})`);
-  await raw(db, "org_data_keys", sql`insert into org_data_keys (org_id, purpose, version, kek_id, wrapped_key) values (${A}, 'data', 1, 'ctest', ${`wrapped-${hex()}`})`);
+  await raw(db, "org_data_keys", sql`insert into org_data_keys (org_id, purpose, version, kek_id, wrapped_key) values (${A}, 'data', 1, 'ctest', ${`wrapped-${hex()}`}) on conflict do nothing`); // with field encryption on, A already has its keys
   // things held about A's members as people (outside A's own tables)
   await db.insert(t.sessions).values({ id: randomUUID(), token: hex(), userId: fin, expiresAt: later, createdAt: now, updatedAt: now, ipAddress: "198.51.100.7", userAgent: `${MARKER}-browser` });
   await db.insert(t.passkeys).values({ userId: fin, credentialId: `cred${MARKER}0123456789`, publicKeySpki: "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE", alg: -7, name: `${MARKER} key` });
