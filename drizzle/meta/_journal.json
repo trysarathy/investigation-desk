@@ -295,6 +295,13 @@
       "when": 1796440000000,
       "tag": "0044_fiat_rates",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1796450000000,
+      "tag": "0046_settlement_payment_refunds",
+      "breakpoints": true
     }
   ]
 }

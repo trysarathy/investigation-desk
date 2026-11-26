@@ -127,6 +127,10 @@ export const CATALOGUE: Readonly<Record<FileType, readonly FieldDef[]>> = {
     f("fee", "Fee", "fiat_amount", true, ["fee", "fees", "provider fee", "commission", "processing fee"], { currencyField: "currency" }),
     f("net", "Net", "fiat_amount", true, ["net", "net amount", "settled amount", "payout amount"], { currencyField: "currency" }),
     f("settlement_date", "Settlement date", "date", false, ["settlement date", "payout date", "value date", "settled on"]),
+    // v1 #174: a row may be a refund of an earlier payment (the payment ID is then the ORIGINAL payment's); without this
+    // column every row is a payment. A refund row carries the money returned as a NEGATIVE gross and net, fee 0.
+    f("line_type", "Line type (payment or refund)", "status", false, ["type", "line type", "kind", "transaction type", "row type"]),
+    f("refund_id", "Refund ID", "id", false, ["refund id", "refund reference", "refund"]),
   ],
   bank_statement: [
     f("bank_account", "Bank account", "text", true, ["account", "bank account", "account number", "iban", "account no"], { allowConstant: true }),
@@ -159,6 +163,7 @@ export const STATUS_TARGETS: Readonly<Partial<Record<FileType, Readonly<Record<s
   orders_invoices: { status: ["open", "void"] },
   ledger_invoices: { status: ["draft", "open", "paid", "void"] },
   settlement_report: { line_type: ["payment", "refund", "fee"] },
+  settlement_payments: { line_type: ["payment", "refund"] },
 };
 
 /** Settlement reports come as one row per payment line, or as one row per batch with totals only. */

@@ -8,7 +8,7 @@ import { fmtFiat, localDate, sum } from "./amounts";
 import { endOfLocalDay, valueIn } from "./fx";
 import { indexesOf, transferKey } from "./indexes";
 import { active } from "./rules";
-import type { BankLine, DifferenceType, FiatCurrency, FxValue, ReconcileInput, TimeZoneRef } from "./types";
+import type { BankLine, DifferenceType, FiatCurrency, FxValue, ReconcileInput, SettlementPaymentLine, TimeZoneRef } from "./types";
 import { IMPORTED_BANK_LINE_LABEL, TEST_MODE_LABEL, type TestModeLabel } from "./types";
 
 export type BridgeLineKind = "merchant_day" | "timing_prior_batch" | "held_by_provider" | "timing_next_batch" | "unexplained" | "gross" | "provider_fee" | "refund_netted" | "net";
@@ -102,7 +102,11 @@ export function buildBridges(input: ReconcileInput, orderOf: (paymentId: string)
   // amount). Only lines naming a batch in the settlement report link anything; a payment named in two batches, or in
   // another batch than a settlement line puts it in, makes both batches untied.
   const known = new Set(input.batches.map((b) => b.batchId));
-  const pLines = [...(input.settlementPaymentLines ?? [])].filter((l) => known.has(l.batchId)).sort((a, b) => (a.providerPaymentId < b.providerPaymentId ? -1 : a.providerPaymentId > b.providerPaymentId ? 1 : a.batchId < b.batchId ? -1 : 1));
+  // v1 #174: refund rows are kept apart; only payment rows link a payment to a batch
+  const isRefund = (l: SettlementPaymentLine) => l.kind === "refund";
+  const allRows = [...(input.settlementPaymentLines ?? [])].filter((l) => known.has(l.batchId));
+  const rRows = allRows.filter(isRefund).sort((a, b) => ((a.refundId ?? "") < (b.refundId ?? "") ? -1 : (a.refundId ?? "") > (b.refundId ?? "") ? 1 : a.batchId < b.batchId ? -1 : 1));
+  const pLines = allRows.filter((l) => !isRefund(l)).sort((a, b) => (a.providerPaymentId < b.providerPaymentId ? -1 : a.providerPaymentId > b.providerPaymentId ? 1 : a.batchId < b.batchId ? -1 : 1));
   const conflicted = new Set<string>();
   const fromLines = new Map<string, string>();
   for (const l of pLines) {
@@ -114,9 +118,29 @@ export function buildBridges(input: ReconcileInput, orderOf: (paymentId: string)
   const ix = indexesOf(input);
   const dayOf = new Map(input.batches.map((b) => [b.batchId, b.providerDay]));
   const perPayment = (batchId: string) => pLines.filter((l) => l.batchId === batchId);
+  const refundRows = (batchId: string) => rRows.filter((l) => l.batchId === batchId);
+  // v1 #174: a refund row is valid only when it names a known payment of this merchant (the input is one entity's), in
+  // the same currency, with a refund ID used once, a negative amount (fee 0, net = gross) and, with every other refund of
+  // that payment, no more than the payment's credit. Any invalid refund row leaves its batch untied.
+  const refundIdCount = new Map<string, number>();
+  for (const l of rRows) if (l.refundId) refundIdCount.set(l.refundId, (refundIdCount.get(l.refundId) ?? 0) + 1);
+  const refundedOf = new Map<string, bigint>();
+  for (const l of rRows) refundedOf.set(l.providerPaymentId, (refundedOf.get(l.providerPaymentId) ?? 0n) - l.grossMinor);
+  const refundValid = (l: SettlementPaymentLine): boolean => {
+    const r = ix.recordByPaymentId.get(l.providerPaymentId);
+    return !!l.refundId && refundIdCount.get(l.refundId) === 1 && !!r && r.creditedMinor > 0n
+      && l.grossMinor < 0n && l.feeMinor === 0n && l.netMinor === l.grossMinor
+      && l.currency === (r.creditedCurrency ?? cur) && (refundedOf.get(l.providerPaymentId) ?? 0n) <= r.creditedMinor
+      && (l.orderId === undefined || l.orderId === orderOf(l.providerPaymentId));
+  };
   const perPaymentTie = (b: (typeof input.batches)[number]): boolean => {
     const ls = perPayment(b.batchId);
-    const sums = sum(ls.map((l) => l.grossMinor)) === b.grossMinor && sum(ls.map((l) => l.feeMinor)) === b.feesMinor && sum(ls.map((l) => l.netMinor)) - b.refundsMinor === b.netMinor;
+    const rs = refundRows(b.batchId);
+    // gross and fees from the payment rows; refunds from the refund rows (when the file has any); every row's net sums to
+    // the batch's net (gross − fees − refunds = net, exactly)
+    const refunded = -sum(rs.map((l) => l.grossMinor));
+    const sums = sum(ls.map((l) => l.grossMinor)) === b.grossMinor && sum(ls.map((l) => l.feeMinor)) === b.feesMinor && sum(ls.map((l) => l.netMinor)) - b.refundsMinor === b.netMinor
+      && (rs.length === 0 || (refunded === b.refundsMinor && sum([...ls, ...rs].map((l) => l.netMinor)) === b.netMinor && rs.every((l) => l.currency === b.currency && refundValid(l))));
     const each = ls.every((l) => {
       const r = ix.recordByPaymentId.get(l.providerPaymentId);
       return l.grossMinor - l.feeMinor === l.netMinor && l.currency === b.currency && !!r && r.creditedMinor === l.grossMinor
@@ -153,11 +177,14 @@ export function buildBridges(input: ReconcileInput, orderOf: (paymentId: string)
     pushIf(strayOut, "unexplained", -1n, `${strayOut.length} merchant-day payments in no batch`, "Merchant-day payments the provider has not settled; any grouping is only proposed.", "unexplained");
     const bridgeGross = sum(lines.map((l) => l.amountMinor));
     const refundLines = input.batchLines.filter((l) => l.batchId === b.batchId && l.kind === "refund");
+    // v1 #174: refunds a per-payment file names (by refund ID, linked to the original payment by its payment ID)
+    const rowRefunds = refundRows(b.batchId).map((l) => ({ refundId: l.refundId ?? "", orderId: l.orderId ?? orderOf(l.providerPaymentId), amountMinor: -l.grossMinor }));
+    const namedRefunds = [...refundLines, ...(refundLines.length ? [] : rowRefunds)];
     const allIds = inB.map((p) => p.paymentId);
     lines.push({ kind: "gross", label: `Gross, batch ${b.batchId} (${inB.length} payments)`, amountMinor: b.grossMinor, paymentIds: allIds, orderIds: [...new Set(inB.map((p) => p.orderId))].sort(), reason: "Settlement report gross." });
     lines.push({ kind: "provider_fee", label: "Provider fee", amountMinor: -b.feesMinor, paymentIds: allIds, orderIds: [], differenceType: "provider_fee", reason: `Provider fee on ${fmtFiat(b.grossMinor, b.currency)} gross.` });
-    if (refundLines.length || b.refundsMinor !== 0n)
-      lines.push({ kind: "refund_netted", label: `Refund (${refundLines.map((l) => l.orderId).join(", ")})`, amountMinor: -b.refundsMinor, paymentIds: refundLines.map((l) => l.refundId ?? l.orderId), orderIds: refundLines.map((l) => l.orderId), differenceType: "refund_netted", reason: "Refund netted from the settlement." });
+    if (namedRefunds.length || b.refundsMinor !== 0n)
+      lines.push({ kind: "refund_netted", label: `Refund (${namedRefunds.map((l) => l.orderId).join(", ")})`, amountMinor: -b.refundsMinor, paymentIds: namedRefunds.map((l) => l.refundId || l.orderId), orderIds: namedRefunds.map((l) => l.orderId), differenceType: "refund_netted", reason: "Refund netted from the settlement." });
     lines.push({ kind: "net", label: "Net = bank credit", amountMinor: b.netMinor, paymentIds: allIds, orderIds: [], reason: "Settlement report net." });
     const named = [...input.bankLines].sort((x, y) => (x.bankLineId < y.bankLineId ? -1 : 1)).filter((l) => l.description.includes(b.batchId) && l.account === b.targetBankAccount);
     const bank = named.find((l) => l.currency === b.currency);
@@ -166,12 +193,14 @@ export function buildBridges(input: ReconcileInput, orderOf: (paymentId: string)
     const offCurrency = inB.filter((p) => p.currency !== b.currency);
     const currencyCheck = b.currency !== cur || otherCurrencyLine || offCurrency.length > 0;
     const checks = {
-      linesEqualGross: sum(inB.map((p) => p.creditedMinor)) === b.grossMinor && sum(refundLines.map((l) => l.amountMinor)) === b.refundsMinor,
+      // refunds named by the settlement report's lines, else by the per-payment file's refund rows (both, when both exist)
+      linesEqualGross: sum(inB.map((p) => p.creditedMinor)) === b.grossMinor && sum(namedRefunds.map((l) => l.amountMinor)) === b.refundsMinor
+        && (rowRefunds.length === 0 || sum(rowRefunds.map((l) => l.amountMinor)) === b.refundsMinor),
       bridgeEqualsGross: bridgeGross === b.grossMinor,
       grossLessFeesRefundsEqualsNet: b.grossMinor - b.feesMinor - b.refundsMinor === b.netMinor,
       netEqualsBankLine: !!bank && bank.amountMinor === b.netMinor,
       noUnexplained: !lines.some((l) => l.kind === "unexplained"),
-      ...(perPayment(b.batchId).length ? { perPaymentLines: perPaymentTie(b) } : {}),
+      ...(perPayment(b.batchId).length || refundRows(b.batchId).length ? { perPaymentLines: perPaymentTie(b) } : {}),
       ...(currencyCheck ? { currencyAgrees: !otherCurrencyLine && offCurrency.length === 0 } : {}),
     };
     const tied = Object.values(checks).every(Boolean);

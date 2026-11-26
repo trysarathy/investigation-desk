@@ -220,13 +220,38 @@ async function paymentLineRow(c: Ctx, v: Record<string, MappedValue>, row: numbe
   const batch = c.mode === "collect" ? (note(c, "settlement_batches", batchId), { entityId: c.entityId }) : c.mode === "plan" ? lookup(c, "settlement_batches", batchId)
     : (await c.tx.select({ entityId: t.settlementBatches.entityId }).from(t.settlementBatches).where(and(eq(t.settlementBatches.orgId, c.orgId), eq(t.settlementBatches.batchId, batchId))))[0];
   if (!batch || batch.entityId !== c.entityId) throw new Conflict("settlement_batches");
+  // v1 #174: a refund row names the ORIGINAL payment: it must be a payment of this merchant entity already in
+  // reconciliation, in the row's currency, and the refund (with the refunds already stored for it) no more than its credit.
+  const refundId = v.line_type === "refund" ? (v.refund_id as string) : undefined;
+  if (refundId !== undefined && c.mode !== "collect") await refundOriginalOk(c, paymentId, refundId, -big(v.gross)!, v.currency as string);
+  const key = refundId !== undefined ? `refund:${refundId}` : paymentId;
   const targets: Target[] = [];
-  const outcome = await put(c, t.settlementPaymentLines, "settlement_payment_lines", paymentId, {
+  const outcome = await put(c, t.settlementPaymentLines, "settlement_payment_lines", key, {
     orgId: c.orgId, entityId: c.entityId, providerPaymentId: paymentId, batchId, orderId: str(v.order_id) ?? null, currency: v.currency as string,
-    grossMinor: big(v.gross)!, feeMinor: big(v.fee)!, netMinor: big(v.net)!, settlementDate: str(v.settlement_date) ?? null, ...c.prov(row),
-  }, async () => (await c.tx.select().from(t.settlementPaymentLines).where(and(eq(t.settlementPaymentLines.orgId, c.orgId), eq(t.settlementPaymentLines.providerPaymentId, paymentId))))[0],
-  (r) => [r.entityId, r.batchId, r.orderId ?? null, r.currency, r.grossMinor, r.feeMinor, r.netMinor], targets);
+    grossMinor: big(v.gross)!, feeMinor: big(v.fee)!, netMinor: big(v.net)!, settlementDate: str(v.settlement_date) ?? null,
+    kind: refundId !== undefined ? "refund" : "payment", refundId: refundId ?? null, ...c.prov(row),
+  }, async () => (await c.tx.select().from(t.settlementPaymentLines).where(and(eq(t.settlementPaymentLines.orgId, c.orgId), eq(t.settlementPaymentLines.lineKey, key))))[0],
+  (r) => [r.entityId, r.batchId, r.orderId ?? null, r.currency, r.grossMinor, r.feeMinor, r.netMinor, r.kind ?? "payment", r.refundId ?? null, r.providerPaymentId], targets);
   return { outcome, targets };
+}
+
+/**
+ * v1 #174: the original payment of a refund row (read directly; refund rows are few): a provider payment record of this
+ * organisation whose order (through its quote or payment link) is an invoice of this upload's entity, credited in the
+ * refund's currency, with this refund plus the other refunds already stored for it (other refund IDs) at most its credit.
+ * Anything else refuses the row (a conflict: nothing is written for it).
+ */
+async function refundOriginalOk(c: Ctx, paymentId: string, refundId: string, refundMinor: bigint, currency: string): Promise<void> {
+  const r = (await c.tx.execute(sql`select r.credited_minor, r.credited_currency, i.entity_id, i.currency as invoice_currency,
+      (select coalesce(sum(-p.gross_minor), 0) from settlement_payment_lines p where p.org_id = r.org_id and p.kind = 'refund' and p.provider_payment_id = r.provider_payment_id and p.refund_id <> ${refundId}) as refunded
+    from provider_payment_records r
+    left join payment_links l on l.org_id = r.org_id and l.link_id = r.link_id
+    left join merchant_quotes q on q.org_id = r.org_id and q.quote_id = coalesce(l.quote_id, r.quote_id)
+    left join invoices i on i.org_id = r.org_id and i.order_id = coalesce(l.order_id, q.order_id)
+    where r.org_id = ${c.orgId} and r.provider_payment_id = ${paymentId}`)).rows[0] as { credited_minor: string | null; credited_currency: string | null; entity_id: string | null; invoice_currency: string | null; refunded: string } | undefined;
+  const credited = r?.credited_minor === null || r?.credited_minor === undefined ? null : BigInt(r.credited_minor);
+  if (!r || r.entity_id !== c.entityId || credited === null || credited <= 0n || (r.credited_currency ?? r.invoice_currency) !== currency
+    || refundMinor <= 0n || BigInt(r.refunded) + refundMinor > credited) throw new Conflict("provider_payment_records");
 }
 
 /** One settlement batch from its rows: per-payment lines (gross, fees and refunds summed) or one totals row. */
@@ -288,8 +313,9 @@ const LOADERS: Record<string, { table: PgTable; keyOf: (r: Row) => string; load:
   settlement_batches: { table: t.settlementBatches, keyOf: (r) => String(r.batchId), load: (tx, o, k) => tx.select().from(t.settlementBatches).where(and(eq(t.settlementBatches.orgId, o), inArray(t.settlementBatches.batchId, k))) },
   settlement_batch_lines: { table: t.settlementBatchLines, keyOf: (r) => `${r.batchId}|${r.lineNo}`,
     load: (tx, o, k) => tx.select().from(t.settlementBatchLines).where(and(eq(t.settlementBatchLines.orgId, o), inArray(t.settlementBatchLines.batchId, [...new Set(k.map((x) => x.slice(0, x.lastIndexOf("|"))))]))) },
-  settlement_payment_lines: { table: t.settlementPaymentLines, keyOf: (r) => String(r.providerPaymentId),
-    load: (tx, o, k) => tx.select().from(t.settlementPaymentLines).where(and(eq(t.settlementPaymentLines.orgId, o), inArray(t.settlementPaymentLines.providerPaymentId, k))) },
+  // v1 #174: keyed by the generated line key (the payment ID, or 'refund:' + the refund ID)
+  settlement_payment_lines: { table: t.settlementPaymentLines, keyOf: (r) => (r.kind === "refund" ? `refund:${String(r.refundId)}` : String(r.providerPaymentId)),
+    load: (tx, o, k) => tx.select().from(t.settlementPaymentLines).where(and(eq(t.settlementPaymentLines.orgId, o), inArray(t.settlementPaymentLines.lineKey, k))) },
   bank_lines: { table: t.bankLines, keyOf: (r) => String(r.lineId), load: (tx, o, k) => tx.select().from(t.bankLines).where(and(eq(t.bankLines.orgId, o), inArray(t.bankLines.lineId, k))) },
   ledger_invoices: { table: t.ledgerInvoices, keyOf: (r) => `${r.entityId}|${r.invoiceNumber}`,
     load: (tx, o, k) => tx.select().from(t.ledgerInvoices).where(and(eq(t.ledgerInvoices.orgId, o), inArray(t.ledgerInvoices.invoiceNumber, [...new Set(k.map((x) => x.slice(x.indexOf("|") + 1)))]))) },

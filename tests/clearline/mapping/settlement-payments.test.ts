@@ -31,3 +31,22 @@ describe("settlement_payments mapping", () => {
     expect(r.rows[1].errors).toContainEqual({ field: "net", code: "gross_less_fee_not_net" });
   });
 });
+
+describe("#174 refund rows", () => {
+  const HR = [...H, "Type", "Refund ID"];
+  const MR: Mapping = { fileType: "settlement_payments", columns: { ...M.columns, line_type: { header: "Type", statusValueMap: { P: "payment", R: "refund" } }, refund_id: { header: "Refund ID" } } };
+  const row = (cells: string[]) => applyMapping(table(HR, [cells]), MR);
+  const first = (cells: string[]) => { const r = row(cells); if (!r.ok) throw new Error("refused"); return r.rows[0]; };
+  it("a refund row: the original payment's ID, its own refund ID, a negative gross and net, fee 0", () => {
+    expect(first(["P-1", "O-1", "B-2", "SGD", "-50.00", "0.00", "-50.00", "2026-11-04", "R", "RF-1"])).toMatchObject({ status: "accepted", values: { line_type: "refund", payment_id: "P-1", refund_id: "RF-1", gross: -5000n, fee: 0n, net: -5000n } });
+    expect(first(["P-1", "O-1", "B-2", "SGD", "50.00", "0.00", "50.00", "2026-11-04", "P", ""])).toMatchObject({ status: "accepted", values: { line_type: "payment", gross: 5000n } });
+  });
+  it("refused, never adjusted: a positive refund, a fee on a refund, no refund ID, a negative payment, a refund ID on a payment row", () => {
+    const codes = (cells: string[]) => first(cells).errors.map((e) => e.code);
+    expect(codes(["P-1", "", "B-2", "SGD", "50.00", "0.00", "50.00", "", "R", "RF-1"])).toContain("refund_amount_not_negative");
+    expect(codes(["P-1", "", "B-2", "SGD", "-50.00", "1.00", "-51.00", "", "R", "RF-1"])).toContain("refund_fee_not_zero");
+    expect(codes(["P-1", "", "B-2", "SGD", "-50.00", "0.00", "-50.00", "", "R", ""])).toContainEqual("missing_value");
+    expect(codes(["P-1", "", "B-2", "SGD", "-50.00", "0.00", "-50.00", "", "P", ""])).toContain("negative_amount");
+    expect(codes(["P-1", "", "B-2", "SGD", "50.00", "0.00", "50.00", "", "P", "RF-9"])).toContain("refund_id_on_payment_row");
+  });
+});

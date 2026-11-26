@@ -135,9 +135,9 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
   }));
   // v1: per-payment settlement lines of this entity's batches (absent from the input when there are none)
   const spl = bIds.length ? await tx.select().from(t.settlementPaymentLines).where(and(eq(t.settlementPaymentLines.orgId, orgId), eq(t.settlementPaymentLines.entityId, entityId), inArray(t.settlementPaymentLines.batchId, bIds)))
-    .orderBy(asc(t.settlementPaymentLines.batchId), asc(t.settlementPaymentLines.providerPaymentId)) : [];
+    .orderBy(asc(t.settlementPaymentLines.batchId), asc(t.settlementPaymentLines.lineKey)) : [];
   const settlementPaymentLines: SettlementPaymentLine[] = spl.map((l) => ({
-    batchId: l.batchId, providerPaymentId: l.providerPaymentId, ...(l.orderId ? { orderId: l.orderId } : {}), currency: l.currency as FiatCurrency,
+    batchId: l.batchId, providerPaymentId: l.providerPaymentId, ...(l.kind === "refund" ? { kind: "refund" as const, refundId: l.refundId ?? "" } : {}), ...(l.orderId ? { orderId: l.orderId } : {}), currency: l.currency as FiatCurrency,
     grossMinor: l.grossMinor, feeMinor: l.feeMinor, netMinor: l.netMinor, ...(l.settlementDate ? { settlementDate: l.settlementDate } : {}),
   }));
   const bk = await tx.select().from(t.bankLines).where(and(eq(t.bankLines.orgId, orgId), eq(t.bankLines.entityId, entityId))).orderBy(asc(t.bankLines.lineId));
