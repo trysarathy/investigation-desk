@@ -252,7 +252,8 @@ export interface Difference {
   id: string; type: DifferenceType; amountMinor: bigint; currency: FiatCurrency; reason: string; ruleId: string;
   /**
    * v1, token-priced invoices: the difference in the token itself (signed base units: received − price, or the amount
-   * received in the wrong token). `amountMinor` is then its fiat value at a recorded rate, or 0n when no rate is recorded.
+   * received in the wrong token). `amountMinor` is then its fiat value at a recorded rate, or 0n when no rate is recorded (not a value: every surface
+   * shows "needs a rate" for it, see fiat-value.ts).
    */
   token?: { network: NetworkId; contract: string; symbol: string; decimals: number; baseUnits: bigint };
 }

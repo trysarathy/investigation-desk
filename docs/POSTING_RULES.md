@@ -494,3 +494,46 @@ revalues only provider clearing, as built) [ASSUMPTION]; Q-FX-E payment-level ma
 **Not proven [ASSUMPTION].** The two layouts follow each tool's published import template. They have **not** been tried in a real import.
 
 **Decided (rc8 founder decision 3).** The rc6 journal file (was Finance only) and the evidence pack (was any member) now follow the same rule as the rc7 exports: Finance, an Approver or an Admin. Payment Operations, a Viewer and provider users are refused (`tests/control/export-access.test.ts`).
+
+### Token-priced invoices: realised FX gain or loss at settlement (IAS 21 pattern, v1 #173) — **DRAFT, PENDING FOUNDER SIGN-OFF. NOT BUILT, NOT ENABLED, NOTHING POSTED**
+
+**Status.** This is a written pattern for the founder (and an accountant) to review. The engine makes **no** journal proposal for a token-priced order (asserted in `tests/clearline/merchant/rules-token-priced.test.ts`, "no journal proposal is made for a token-priced order"), and this section does not change that. Building it is approval-only work, done only after sign-off.
+
+**What is already decided (and built).** A token-priced invoice's fiat value comes only from a **recorded** rate: the latest `<symbol>/<currency>` rate recorded at or before the payment's final transfer, no more than 24 hours older (both ends inclusive; `fiatValueOf` in `src/lib/clearline/merchant/match.ts`, boundary test in `rules-token-priced.test.ts`). Without such a rate the record says "needs a rate" and every surface (payment page, payments list, month-end, evidence pack, exports) shows "needs a rate", never 0 (`src/lib/clearline/merchant/fiat-value.ts`). A rate is never derived from the provider's credit, a quote or another pair.
+
+**Standard points [ASSUMPTION: secondary, not checked against the standard's text in this session; an accountant must confirm].**
+- IAS 21 records a foreign-currency transaction at the spot rate on the date it is first recognised, retranslates monetary items at the closing rate, and recognises the exchange difference on settlement in profit or loss in that period.
+- **Open question Q-TP1 (blocking):** whether a receivable to be settled in a fixed number of stablecoin units may be accounted for as a foreign-currency monetary item by analogy. The IFRS Interpretations Committee's 2019 agenda decision treats holdings of cryptocurrency as intangible assets or inventory, not cash; IFRS 15's non-cash consideration guidance (fair value at contract inception) is an alternative reading that would give a different answer. Clearline does not decide this. Until it is decided, nothing here is built.
+
+**Inputs (all already recorded or derivable; none invented).**
+- `P`: the invoice's token price, in base units (`invoices.price_token_amount`).
+- `R_inv`: the recorded rate for the invoice's recognition date, chosen by the same rule as above (latest at or before the invoice's issue time, at most 24 hours older). **Not yet computed by the engine** (today only the settlement rate is). No rate → no entry, "needs a rate".
+- `R_set`: the recorded rate at the payment's final transfer (today's `ledger.fiatValue`, status `rated`).
+- `C`: what the provider credited in fiat (`creditedMinor`, checked against the chain amount at the provider's own executed rate, as today).
+- Each fiat figure is `toFiatMinor(P, decimals, rate, currency)` (rounded half-up to the currency's minor unit). The gain or loss is the **difference of the two rounded figures**, so every entry balances to the cent.
+
+**Pattern.**
+1. **Invoice recognised (rate `R_inv`):** Dr Accounts receivable `P × R_inv` / Cr Revenue `P × R_inv`.
+2. **Settled (only when the payment is MATCHED: the exact token amount, linked by reference, final, verified contract; never on an amount alone):**
+   Dr Provider clearing `C`; Dr or Cr **Realised FX gain/loss** `P × R_set − P × R_inv` (a gain is a credit, a loss a debit); Dr or Cr **Rate difference** `C − P × R_set` **(on approval, as today's typed rate difference)**; Cr Accounts receivable `P × R_inv`.
+3. **Settlement batch and bank:** unchanged (the provider clearing pattern above; verified bank line only).
+
+The realised FX line is the movement of the token's recorded rate between recognition and settlement. The rate difference is the provider's conversion against the recorded rate. They are kept as two typed lines and never merged.
+
+**Worked examples (fictional numbers, SGD entity, USDT with 6 decimals).**
+
+| | Example A: loss, provider below the recorded rate | Example B: gain, provider at the recorded rate |
+|---|---|---|
+| Invoice | TP-0001, 1,000.000000 USDT (`P` = 1000000000) | TP-0002, 2,500.000000 USDT (`P` = 2500000000) |
+| `R_inv` (USDT/SGD, recorded) | 1.3500 → SGD 1,350.00 | 1.3400 → SGD 3,350.00 |
+| `R_set` (USDT/SGD, recorded) | 1.3420 → SGD 1,342.00 | 1.3480 → SGD 3,370.00 |
+| Provider credit `C` | at 1.3410 → SGD 1,341.00 | at 1.3480 → SGD 3,370.00 |
+| Entry 1 | Dr AR 1,350.00 / Cr Revenue 1,350.00 | Dr AR 3,350.00 / Cr Revenue 3,350.00 |
+| Entry 2 | Dr Provider clearing 1,341.00; Dr Realised FX loss 8.00; Dr Rate difference 1.00 (on approval) / Cr AR 1,350.00 | Dr Provider clearing 3,370.00 / Cr AR 3,350.00; Cr Realised FX gain 20.00 |
+| Check | 1,341.00 + 8.00 + 1.00 = 1,350.00 | 3,370.00 = 3,350.00 + 20.00 |
+
+**Example C: no rate.** TP-0003, 500.000000 USDT, no USDT/SGD rate recorded in the 24 hours up to the transfer. The payment can still be matched for cash, but its fiat value "needs a rate": **no entry is proposed**, the open balance is shown as "needs a rate" and left out of the month-end receivables total (named apart). Someone records the rate (with its source); the next run values it. Nothing is estimated.
+
+**Not covered (each to a person, as today).** A token amount that differs from the price by any amount (typed `price_token_amount`, review); another token or network (typed `price_token_mismatch`, review; never converted); retranslating an open token-priced receivable at the month-end closing rate (unrealised FX; open question Q-TP2); a rate recorded after the transfer (never used).
+
+**Sign-off needed.** Q-TP1 (the accounting basis), Q-TP2 (month-end retranslation), the account for realised FX (Xero's system `REALISEDCURRENCYGAIN` or an account the organisation chooses), and whether the 24-hour window is right for `R_inv` too.

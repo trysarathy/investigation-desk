@@ -5,6 +5,7 @@ import { z } from "zod";
 import { MERCHANT_ACCOUNTS, fmtFiat, localDate, reconcile, type FiatCurrency } from "@/lib/clearline/merchant";
 import { safeTheme, type SafeTheme } from "@/lib/clearline/merchant/theme";
 import { splitDifferences } from "@/lib/clearline/merchant/difference-rows";
+import { NEEDS_A_RATE, NEEDS_RATE_STATUS, differenceNeedsRate, ledgerWire, minorOrNull } from "@/lib/clearline/merchant/fiat-value";
 import type { Tx } from "./db/client";
 import * as t from "./db/schema";
 import { can, isAppRole, type Permission } from "./authz";
@@ -534,20 +535,27 @@ export async function packData(tx: Tx, ctx: TenantContext, scope: PackScope) {
   const names = await memberNames(tx, ctx.orgId);
   const who = (id: string | null) => (id ? names.get(id) ?? "A former member" : "Clearline");
   const label = await orgLabel(tx, ctx.orgId);
+  // v1 (#173): a fiat amount that needs a recorded rate is emitted as null with fiatValueStatus "needs_rate", never 0
+  const ledgerOf = new Map(parts.map(({ m, p }) => [m.orderId, p.ledger]));
+  const diffFiat = (d: { orderId: string; type: string; amountMinor: bigint }) => {
+    const unknown = differenceNeedsRate(d.type, ledgerOf.get(d.orderId));
+    return { amountMinor: minorOrNull(unknown, d.amountMinor), ...(unknown ? { fiatValueStatus: NEEDS_RATE_STATUS } : {}) };
+  };
   return {
     label, organisation: ctx.orgName, entity: { id: ent.id, name: ent.name, currency: ent.functionalCurrency, timezone: ent.timezone, ledger: ent.ledger },
     scope, cutOffNote: "provider day = UTC",
     note: labelUsesUploadPipeline(label) ? "Read-only evidence. Provider statuses are claims, not proof; each chain fact names its source; imported bank statements are not bank-authenticated; nothing moves money."
       : "Read-only evidence. Provider statuses are claims, not proof; chain data is a recorded fixture; nothing moves money.",
-    payments: parts.map(({ m, p }) => ({ orderId: m.orderId, decision: m.decision, decidingStep: m.decidingStep, ruleId: m.ruleId, engineVersion: m.engineVersion, inputSha256: m.inputSha256, ledger: p.ledger, bank: p.bank, explanation: { history: p.explanation.history, differences: p.explanation.differences } })),
+    payments: parts.map(({ m, p }) => ({ orderId: m.orderId, decision: m.decision, decidingStep: m.decidingStep, ruleId: m.ruleId, engineVersion: m.engineVersion, inputSha256: m.inputSha256, ledger: ledgerWire(p.ledger), bank: p.bank,
+      explanation: { history: p.explanation.history, differences: p.explanation.differences.map((d) => (differenceNeedsRate(d.type, p.ledger) ? { ...d, amountMinor: null, fiatValueStatus: NEEDS_RATE_STATUS } : d)) } })),
     chainProof: chain.map((c) => ({ network: c.network, txHash: c.txHash, logIndex: c.logIndex, block: c.block, blockTime: c.blockTime.toISOString(), tokenContract: c.tokenContract, from: c.fromAddress, to: c.toAddress, amountBaseUnits: c.amountBaseUnits, decimals: c.decimals, confirmations: c.confirmations, finalised: c.finalised, source: c.source })),
     providerRecords: provider.map((r) => ({ providerPaymentId: r.providerPaymentId, statusClaim: r.statusClaim, creditedMinor: r.creditedMinor?.toString() ?? null, currency: r.creditedCurrency, executedRate: r.executedRate, feeMinor: r.feeMinor?.toString() ?? null, batchId: r.batchId, note: "a claim, not proof", record: r.record })),
     settlementBatches: batches.map((b) => ({ batchId: b.batchId, providerDay: b.dayStart.toISOString().slice(0, 10), currency: b.currency, grossMinor: b.grossMinor.toString(), feesMinor: b.feesMinor.toString(), refundsMinor: b.refundsMinor.toString(), netMinor: b.netMinor.toString(), targetBankAccount: b.targetBankAccount })),
     bankLines: bank.map((l) => ({ lineId: l.lineId, account: l.account, valueDate: l.valueDate, amountMinor: l.amountMinor.toString(), currency: l.currency, source: l.source, provenance: l.provenance, label: l.source === "csv_import" ? "imported, not bank-authenticated" : null })),
     // v1 phase 0: the current differences (what each payment's decision names); those a later run superseded are kept
     // in the pack as evidence, apart, and never counted with them
-    differences: diffs.current.map((d) => ({ id: d.id, orderId: d.orderId, type: d.type, amountMinor: d.amountMinor.toString(), currency: d.currency, reason: d.reason, ruleId: d.ruleId, runId: d.runId, ruleSetVersion: d.ruleSetVersion })),
-    supersededDifferences: diffs.superseded.map((d) => ({ id: d.id, orderId: d.orderId, type: d.type, amountMinor: d.amountMinor.toString(), currency: d.currency, reason: d.reason, ruleId: d.ruleId, runId: d.runId, ruleSetVersion: d.ruleSetVersion,
+    differences: diffs.current.map((d) => ({ id: d.id, orderId: d.orderId, type: d.type, ...diffFiat(d), currency: d.currency, reason: d.reason, ruleId: d.ruleId, runId: d.runId, ruleSetVersion: d.ruleSetVersion })),
+    supersededDifferences: diffs.superseded.map((d) => ({ id: d.id, orderId: d.orderId, type: d.type, ...diffFiat(d), currency: d.currency, reason: d.reason, ruleId: d.ruleId, runId: d.runId, ruleSetVersion: d.ruleSetVersion,
       supersededAt: d.supersededAt!.toISOString(), supersededByRunId: d.supersededByRunId })),
     exceptions: exs.map((e) => ({ id: e.id, orderId: e.orderId, owner: e.ownerRole, reason: e.reason, nextStep: e.nextStep, status: e.status, openedAt: e.openedAt.toISOString(), closedAt: e.closedAt?.toISOString() ?? null,
       notes: notes.filter((n) => n.exceptionId === e.id).map((n) => ({ kind: n.kind, body: n.body, reference: n.reference, by: who(n.authorUserId), at: n.createdAt.toISOString(), class: n.kind === "evidence" ? "attached by a person, not independent" : "note" })) })),
@@ -564,13 +572,14 @@ function packCsv(p: Pack): string {
   const rows: unknown[][] = [["section", "id", "order_id", "field_1", "field_2", "field_3", "field_4", "detail", "marking"]];
   const M = p.label;
   rows.push(["meta", p.scope.kind === "payment" ? p.scope.orderId : `${p.entity.id} ${p.scope.month}`, "", p.organisation, p.entity.name, p.entity.currency, p.cutOffNote, p.note, M]);
-  for (const x of p.payments) rows.push(["payment", x.orderId, x.orderId, x.decision, `step ${x.decidingStep}`, x.ruleId, x.ledger.balanceLabel, `input sha256 ${x.inputSha256}; engine ${x.engineVersion}`, M]);
+  for (const x of p.payments) rows.push(["payment", x.orderId, x.orderId, x.decision, `step ${x.decidingStep}`, x.ruleId, x.ledger.balanceLabel,
+    `input sha256 ${x.inputSha256}; engine ${x.engineVersion}${x.ledger.fiatValueStatus === NEEDS_RATE_STATUS ? `; fiat value ${NEEDS_A_RATE}` : ""}`, M]);
   for (const c of p.chainProof) rows.push(["chain_proof", c.txHash, "", c.network, `block ${c.block}`, `${c.amountBaseUnits} base units (${c.decimals} dp)`, `${c.confirmations} confirmations${c.finalised ? " final" : " not final"}`, `to ${c.to}; contract ${c.tokenContract}; ${c.source}`, M]);
   for (const r of p.providerRecords) rows.push(["provider_record", r.providerPaymentId, "", r.statusClaim, r.creditedMinor, r.currency, r.batchId, "provider claim, not proof", M]);
   for (const b of p.settlementBatches) rows.push(["settlement_batch", b.batchId, "", b.providerDay, b.grossMinor, b.feesMinor, b.netMinor, `refunds ${b.refundsMinor} ${b.currency}`, M]);
   for (const l of p.bankLines) rows.push(["bank_line", l.lineId, "", l.valueDate, l.amountMinor, l.currency, l.source, l.label ?? l.provenance ?? "", M]);
-  for (const d of p.differences) rows.push(["difference", d.id, d.orderId, d.type, d.amountMinor, d.currency, d.ruleId, d.reason, M]);
-  for (const d of p.supersededDifferences) rows.push(["difference_superseded", d.id, d.orderId, d.type, d.amountMinor, d.currency, d.ruleId, `superseded ${d.supersededAt} by run ${d.supersededByRunId ?? "unknown (before runs were recorded)"}; not part of the current result. ${d.reason}`, M]);
+  for (const d of p.differences) rows.push(["difference", d.id, d.orderId, d.type, d.amountMinor ?? NEEDS_RATE_STATUS, d.currency, d.ruleId, d.reason, M]);
+  for (const d of p.supersededDifferences) rows.push(["difference_superseded", d.id, d.orderId, d.type, d.amountMinor ?? NEEDS_RATE_STATUS, d.currency, d.ruleId, `superseded ${d.supersededAt} by run ${d.supersededByRunId ?? "unknown (before runs were recorded)"}; not part of the current result. ${d.reason}`, M]);
   for (const e of p.exceptions) {
     rows.push(["exception", e.id, e.orderId, e.owner, e.status, e.openedAt, e.closedAt, `${e.reason} Next: ${e.nextStep}`, M]);
     for (const n of e.notes) rows.push([n.kind === "evidence" ? "exception_evidence" : "exception_note", e.id, e.orderId, n.by, n.at, n.reference, n.class, n.body, M]);
@@ -625,7 +634,7 @@ async function packPdf(p: Pack): Promise<Uint8Array> {
   line(p.note, { gap: 8 });
   const head = (s: string) => { y -= 4; line(s, { b: true, size: 11, gap: 2 }); };
   head(`Payments (${p.payments.length})`);
-  for (const x of p.payments) line(`${x.orderId}: ${x.decision} at step ${x.decidingStep} (rule ${x.ruleId}); invoice ${money(x.ledger.invoice.amountMinor, x.ledger.invoice.currency)}, credited ${money(x.ledger.creditedMinor, x.ledger.invoice.currency)}, ${x.ledger.balanceLabel}; bank ${x.bank.status}${x.bank.batchTied ? ", batch tied" : ""}.`);
+  for (const x of p.payments) line(`${x.orderId}: ${x.decision} at step ${x.decidingStep} (rule ${x.ruleId}); invoice ${x.ledger.invoice.amountMinor === null ? `priced in a token, fiat value ${NEEDS_A_RATE}` : money(x.ledger.invoice.amountMinor, x.ledger.invoice.currency)}, credited ${money(x.ledger.creditedMinor, x.ledger.invoice.currency)}, ${x.ledger.balanceLabel}; bank ${x.bank.status}${x.bank.batchTied ? ", batch tied" : ""}.`);
   head(`Chain proof (${p.chainProof.length})${labelUsesUploadPipeline(LABEL) ? "" : " — recorded fixture"}`);
   for (const c of p.chainProof.slice(0, 60)) line(`${c.network} ${c.txHash} log ${c.logIndex}, block ${c.block}, ${c.blockTime}, ${c.confirmations} confirmations${c.finalised ? " (final)" : " (not final)"}, to ${c.to}`);
   if (p.chainProof.length > 60) line(`… ${p.chainProof.length - 60} more in the CSV and JSON files.`);
@@ -636,10 +645,10 @@ async function packPdf(p: Pack): Promise<Uint8Array> {
   for (const b of p.settlementBatches) line(`Batch ${b.batchId} (provider day ${b.providerDay}): gross ${money(b.grossMinor, b.currency)} − fees ${money(b.feesMinor, b.currency)} − refunds ${money(b.refundsMinor, b.currency)} = net ${money(b.netMinor, b.currency)}`);
   for (const l of p.bankLines) line(`Bank line ${l.lineId}: ${money(l.amountMinor, l.currency)}, value date ${l.valueDate}${l.label ? ` (${l.label})` : ""}`);
   head(`Differences (${p.differences.length})`);
-  for (const d of p.differences) line(`${d.orderId} ${d.type} ${money(d.amountMinor, d.currency)}: ${d.reason}`);
+  for (const d of p.differences) line(`${d.orderId} ${d.type} ${d.amountMinor === null ? NEEDS_A_RATE : money(d.amountMinor, d.currency)}: ${d.reason}`);
   if (p.supersededDifferences.length) {
     head(`Superseded differences (${p.supersededDifferences.length}) — written by an earlier run, kept for the record, not part of the current result`);
-    for (const d of p.supersededDifferences.slice(0, 60)) line(`${d.orderId} ${d.type} ${money(d.amountMinor, d.currency)}: superseded ${d.supersededAt}`);
+    for (const d of p.supersededDifferences.slice(0, 60)) line(`${d.orderId} ${d.type} ${d.amountMinor === null ? NEEDS_A_RATE : money(d.amountMinor, d.currency)}: superseded ${d.supersededAt}`);
     if (p.supersededDifferences.length > 60) line(`… ${p.supersededDifferences.length - 60} more in the CSV and JSON files.`);
   }
   head(`Exceptions (${p.exceptions.length})`);

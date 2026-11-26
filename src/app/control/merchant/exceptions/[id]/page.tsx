@@ -10,6 +10,7 @@ import m from "@/components/merchant/merchant.module.css";
 import { FlashMessage } from "@/components/control/forms";
 import { AssignForm, ExceptionNoteForm, ProposeResolutionForm } from "@/components/merchant/forms";
 import { Chip, DecisionChip, age, differenceLabel, fiat, whenIn } from "@/components/merchant/ui";
+import { differenceNeedsRate, fiatOrNeedsRate, unknownFiat } from "@/lib/clearline/merchant/fiat-value";
 
 export const metadata: Metadata = { title: "Exception" };
 
@@ -26,6 +27,8 @@ export default async function ExceptionPage({ params }: { params: Promise<{ id: 
   const evidence = d.notes.filter((n) => n.kind === "evidence");
   const ent = shell.entities.find((x) => x.id === d.match?.ledger.invoice.entityId) ?? null;
   const when = (v: string | Date | null | undefined) => whenIn(v, ent);
+  // v1 (#173): a token-priced invoice without a recorded rate shows "needs a rate", never 0
+  const unk = unknownFiat(d.match?.ledger);
 
   return (
     <>
@@ -51,11 +54,11 @@ export default async function ExceptionPage({ params }: { params: Promise<{ id: 
             <>
               <p><DecisionChip decision={d.match.decision} /> at step {d.match.decidingStep}, rule <span className={s.mono}>{d.match.ruleId}</span></p>
               <dl className={m.kv}>
-                <dt>Invoice</dt><dd>{fiat(d.match.ledger.invoice.amountMinor, d.match.ledger.invoice.currency)}</dd>
+                <dt>Invoice</dt><dd>{fiatOrNeedsRate(unk.invoice, () => fiat(d.match!.ledger.invoice.amountMinor, d.match!.ledger.invoice.currency))}</dd>
                 <dt>Credited</dt><dd>{fiat(d.match.ledger.creditedMinor, d.match.ledger.invoice.currency)}</dd>
-                <dt>Open balance</dt><dd>{fiat(d.match.ledger.openBalanceMinor, d.match.ledger.invoice.currency)} ({d.match.ledger.balanceLabel})</dd>
+                <dt>Open balance</dt><dd>{fiatOrNeedsRate(unk.open, () => fiat(d.match!.ledger.openBalanceMinor, d.match!.ledger.invoice.currency))} ({d.match.ledger.balanceLabel})</dd>
               </dl>
-              {d.match.differences.length ? <ul className={s.small}>{d.match.differences.map((x) => <li key={x.id}>{differenceLabel(x.type)} {fiat(x.amountMinor, x.currency)}: {x.reason}</li>)}</ul> : null}
+              {d.match.differences.length ? <ul className={s.small}>{d.match.differences.map((x) => <li key={x.id}>{differenceLabel(x.type)} {fiatOrNeedsRate(differenceNeedsRate(x.type, d.match!.ledger), () => fiat(x.amountMinor, x.currency))}: {x.reason}</li>)}</ul> : null}
             </>
           ) : <p>No payment is linked to this exception (a transfer that matched no order).</p>}
         </section>

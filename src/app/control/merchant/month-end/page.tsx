@@ -7,6 +7,7 @@ import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
 import { EntityMonthForm, pickEntityMonth } from "@/components/merchant/EntityMonth";
 import { Empty, PendingSignOff, fiat, one } from "@/components/merchant/ui";
+import { NEEDS_A_RATE } from "@/lib/clearline/merchant/fiat-value";
 
 export const metadata: Metadata = { title: "Month-end" };
 
@@ -42,7 +43,9 @@ export default async function MonthEndPage({ searchParams }: { searchParams: Pro
             </table>
           </div>
         )}
-        <p className={s.small}>Open accounts receivable from customers (all payments of the entity): {fiat(v.openReceivablesMinor, cur)}.</p>
+        <p className={s.small} data-testid="open-receivables">Open accounts receivable from customers (all payments of the entity): {fiat(v.openReceivablesMinor, cur)}{v.openReceivablesNeedingRate.count
+          // v1 (#173): an open balance without a recorded rate is not counted as 0; it is named apart
+          ? <>, plus {v.openReceivablesNeedingRate.count === 1 ? "1 token-priced invoice" : `${v.openReceivablesNeedingRate.count} token-priced invoices`} whose open balance {NEEDS_A_RATE} ({v.openReceivablesNeedingRate.orderIds.join(", ")}), not included in that total</> : null}.</p>
       </section>
 
       <section className={s.section} aria-labelledby="ages">

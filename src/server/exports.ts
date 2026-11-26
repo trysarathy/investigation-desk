@@ -5,6 +5,7 @@ import { z } from "zod";
 import { reconcile } from "@/lib/clearline/merchant";
 import { DRAFT_MARKING, draftCell, journalDraftCsv, plainAmount, type DraftJournal, type DraftTool } from "@/lib/clearline/exports/journal-drafts";
 import { storeZip } from "@/lib/clearline/exports/zip";
+import { NEEDS_A_RATE } from "@/lib/clearline/merchant/fiat-value";
 import type { Tx } from "./db/client";
 import * as t from "./db/schema";
 import { can } from "./authz";
@@ -110,9 +111,17 @@ export async function monthEndPack(ctx: TenantContext, entityId: string, month: 
     // ledger invoices against the orders in reconciliation (reference only; never changes a decision)
     const ledger = await tx.select().from(t.ledgerInvoices).where(and(eq(t.ledgerInvoices.orgId, ctx.orgId), eq(t.ledgerInvoices.entityId, entityId))).orderBy(asc(t.ledgerInvoices.invoiceNumber));
     const inv = new Map(input.invoices.map((i) => [i.orderId, i]));
+    // v1 (#173): a token-priced order has no fiat price; its fiat value is the stored record's, at a recorded rate, or
+    // "needs a rate" (never 0, and never compared as if it were 0)
+    const priced = input.invoices.filter((i) => i.price).map((i) => i.orderId);
+    const rated = new Map((priced.length ? await tx.select({ orderId: t.matchRecords.orderId, ledger: t.matchRecords.ledger }).from(t.matchRecords)
+      .where(and(eq(t.matchRecords.orgId, ctx.orgId), inArray(t.matchRecords.orderId, priced))) : [])
+      .map((r) => [r.orderId, (r.ledger as { fiatValue?: { status: string; amountMinor?: string } }).fiatValue] as const)
+      .filter(([, f]) => f?.status === "rated").map(([id, f]) => [id, BigInt(f!.amountMinor!)] as const));
+    const orderFiat = (o: (typeof input.invoices)[number]) => (o.price ? rated.get(o.orderId) : o.amountMinor);
     const ledgerCsv = csv([["invoice_number", "order_ref", "ledger_total", "ledger_amount_due", "ledger_status", "order_amount", "comparison"],
-      ...ledger.map((l) => { const o = l.orderRef ? inv.get(l.orderRef) : undefined; return [l.invoiceNumber, l.orderRef ?? "", amt(l.totalMinor), l.amountDueMinor === null ? "" : amt(l.amountDueMinor), l.status,
-        o ? amt(o.amountMinor) : "", !l.orderRef ? "no_order_reference" : !o ? "order_not_in_reconciliation" : o.amountMinor === l.totalMinor && l.currency === o.currency ? "same_amount" : "amount_differs"]; })]);
+      ...ledger.map((l) => { const o = l.orderRef ? inv.get(l.orderRef) : undefined; const of = o ? orderFiat(o) : undefined; return [l.invoiceNumber, l.orderRef ?? "", amt(l.totalMinor), l.amountDueMinor === null ? "" : amt(l.amountDueMinor), l.status,
+        !o ? "" : of === undefined ? NEEDS_A_RATE : amt(of), !l.orderRef ? "no_order_reference" : !o ? "order_not_in_reconciliation" : of === undefined ? "order_fiat_value_needs_rate" : of === l.totalMinor && l.currency === o.currency ? "same_amount" : "amount_differs"]; })]);
 
     const evidence = JSON.stringify(await packData(tx, ctx, { kind: "month", entityId, month: m }), null, 2) + "\n";
     const files: [string, string][] = [

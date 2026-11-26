@@ -11,6 +11,7 @@ import m from "@/components/merchant/merchant.module.css";
 import { SubmitWriteoff } from "@/components/merchant/forms";
 import { FlashMessage } from "@/components/control/forms";
 import { Chip, DecisionChip, STEP_NAMES, bankStatusLabel, differenceLabel, fiat, networkLabel, token, whenIn } from "@/components/merchant/ui";
+import { NEEDS_A_RATE, differenceNeedsRate, fiatOrNeedsRate, unknownFiat } from "@/lib/clearline/merchant/fiat-value";
 
 export const metadata: Metadata = { title: "Payment" };
 
@@ -55,6 +56,9 @@ export default async function MerchantPaymentPage({ params }: { params: Promise<
 
   // v1: a token-priced invoice shows its token price (base units), never a fiat amount it does not have
   const price = ledger.invoice.price;
+  // v1 (#173): without a recorded rate the fiat amounts are unknown: "needs a rate", never 0
+  const unk = unknownFiat(ledger);
+  const diffAmount = (x: { type: string; amountMinor: string; currency: string }) => fiatOrNeedsRate(differenceNeedsRate(x.type, ledger), () => fiat(x.amountMinor, x.currency));
   const invoiceText = price ? `${price.baseUnits} base units of ${price.token.contract} on ${networkLabel(price.token.network)} (priced in a token)` : fiat(ledger.invoice.amountMinor, cur);
   return (
     <>
@@ -124,8 +128,8 @@ export default async function MerchantPaymentPage({ params }: { params: Promise<
                   ? <>{fiat(ledger.fiatValue.amountMinor, cur)} at {ledger.fiatValue.rate} ({ledger.fiatValue.pair}, {ledger.fiatValue.source})</>
                   : <>Needs a recorded rate: {ledger.fiatValue.reason}</>}</dd></> : null}
                 <dt>Credited</dt><dd>{fiat(ledger.creditedMinor, cur)}</dd>
-                <dt>Open</dt><dd>{fiat(ledger.openBalanceMinor, cur)}</dd>
-                {ledger.customerOverpaymentMinor !== "0" ? <><dt>Overpaid</dt><dd>{fiat(ledger.customerOverpaymentMinor, cur)} (customer liability)</dd></> : null}
+                <dt>Open</dt><dd data-testid="ledger-open">{fiatOrNeedsRate(unk.open, () => fiat(ledger.openBalanceMinor, cur))}</dd>
+                {unk.overpaid ? <><dt>Overpaid</dt><dd data-testid="ledger-overpaid">{NEEDS_A_RATE} (customer liability)</dd></> : ledger.customerOverpaymentMinor !== "0" ? <><dt>Overpaid</dt><dd>{fiat(ledger.customerOverpaymentMinor, cur)} (customer liability)</dd></> : null}
                 <dt>Balance</dt><dd>{ledger.balanceLabel}</dd>
               </dl>
             </div>
@@ -150,7 +154,7 @@ export default async function MerchantPaymentPage({ params }: { params: Promise<
               const pr = provider.records.find((r) => (x.linkId && r.ref.linkId === x.linkId) || (x.quoteId && r.ref.quoteId === x.quoteId));
               return <li key={`${x.txHash}:${x.logIndex}`} data-testid="part">Part {i + 1}: {token(x.amountBaseUnits, x.decimals, x.symbol)} on {networkLabel(x.network)}, {when(x.timestamp)}{pr ? <>; Provider record <span className={s.mono}>{pr.providerPaymentId}</span> credits {fiat(pr.creditedMinor, cur)} at {pr.executedRate}{pr.batchId ? <> in batch <a href={`/control/merchant/batches/${encodeURIComponent(pr.batchId)}`}>{pr.batchId}</a></> : null}</> : null}.</li>;
             })}</ol>
-            <p data-testid="parts-gap">{gap === 0n ? <>Together the parts settle the invoice of {fiat(ledger.invoice.amountMinor, cur)} exactly.</> : gapSet ? (
+            <p data-testid="parts-gap">{unk.invoice ? <>Together the parts credit {fiat(ledger.creditedMinor, cur)}; the invoice is priced in a token and its fiat value {NEEDS_A_RATE}, so no fiat gap is shown.</> : gap === 0n ? <>Together the parts settle the invoice of {fiat(ledger.invoice.amountMinor, cur)} exactly.</> : gapSet ? (
               <>Together they credit {fiat(ledger.creditedMinor, cur)} of the invoice&rsquo;s {fiat(ledger.invoice.amountMinor, cur)}. The {fiat(gap < 0n ? -gap : gap, cur)} {gap > 0n ? "still open" : "paid over"} is {gapSet.map((x, i) => <span key={x.id}>{i ? (i === gapSet.length - 1 ? " and " : ", ") : ""}{differenceLabel(x.type).toLowerCase()} of {fiat(BigInt(x.amountMinor) < 0n ? -BigInt(x.amountMinor) : BigInt(x.amountMinor), x.currency)} ({x.reason.replace(/\.$/, "")})</span>)}. {d.decision === "matched_with_difference" ? "It is inside this entity's tolerance band, so the payment is matched with a difference, not closed silently." : null}</>
             ) : <>Together they credit {fiat(ledger.creditedMinor, cur)} of the invoice&rsquo;s {fiat(ledger.invoice.amountMinor, cur)}; {fiat(gap < 0n ? -gap : gap, cur)} is {gap > 0n ? "still open" : "paid over"}. The differences below explain it.</>}</p>
           </div>
@@ -165,7 +169,7 @@ export default async function MerchantPaymentPage({ params }: { params: Promise<
               <caption className={s.small}>The typed differences behind the current result, each with the rule that found it.</caption>
               <thead><tr><th scope="col">Type</th><th scope="col" className={s.num}>Amount</th><th scope="col">Reason</th><th scope="col">Rule</th></tr></thead>
               <tbody>{current.map((x) => (
-                <tr key={x.id} data-testid="difference-row"><td><Chip tone="info">{differenceLabel(x.type)}</Chip></td><td className={s.num}>{fiat(x.amountMinor, x.currency)}</td><td>{x.reason}</td><td className={s.mono}>{x.ruleId}</td></tr>
+                <tr key={x.id} data-testid="difference-row"><td><Chip tone="info">{differenceLabel(x.type)}</Chip></td><td className={s.num} data-testid="difference-amount">{diffAmount(x)}</td><td>{x.reason}</td><td className={s.mono}>{x.ruleId}</td></tr>
               ))}</tbody>
             </table>
           </div>
@@ -173,7 +177,7 @@ export default async function MerchantPaymentPage({ params }: { params: Promise<
         {earlier.length ? (
           <details className={s.small} data-testid="earlier-differences">
             <summary>{earlier.length === 1 ? "1 difference" : `${earlier.length} differences`} recorded by an earlier run and superseded by a later one (kept for the record; not part of the current result)</summary>
-            <ul>{earlier.map((x) => <li key={x.id}>{differenceLabel(x.type)} {fiat(x.amountMinor, x.currency)}: {x.reason} <span className={s.mono}>({x.ruleId})</span>{x.supersededAt ? <> · superseded {when(x.supersededAt)}</> : null}</li>)}</ul>
+            <ul>{earlier.map((x) => <li key={x.id}>{differenceLabel(x.type)} {diffAmount(x)}: {x.reason} <span className={s.mono}>({x.ruleId})</span>{x.supersededAt ? <> · superseded {when(x.supersededAt)}</> : null}</li>)}</ul>
           </details>
         ) : null}
       </section>

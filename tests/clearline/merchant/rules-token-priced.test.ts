@@ -75,6 +75,17 @@ describe("[M4.exact.token_priced] an exact token payment linked by reference clo
       expect(rec({ ...tokenPriced(), fxRates: fx }).ledger.fiatValue?.status).toBe("needs_rate");
     expect(rec({ ...tokenPriced(), fxRates: [at(near, "1.3500"), at(near, "1.35", "Desk B")] }).ledger.fiatValue?.status).toBe("rated");
   });
+  it("#173 verified rule: the latest rate at or before the transfer, at most 24 hours older (both ends inclusive)", () => {
+    const t = tokenPriced().transfers[0].timestamp;
+    const off = (ms: number) => new Date(Date.parse(t) - ms).toISOString();
+    const at = (ts: string, rate: string) => ({ pair: "USDT/SGD", rate, source: "Fictional Rate Desk", timestamp: ts });
+    const status = (fx: ReturnType<typeof at>[]) => rec({ ...tokenPriced(), fxRates: fx }).ledger.fiatValue;
+    expect(status([at(t, "1.3500")])).toMatchObject({ status: "rated", rate: "1.3500" });
+    expect(status([at(off(24 * 3_600_000), "1.3500")])).toMatchObject({ status: "rated" });
+    expect(status([at(off(24 * 3_600_000 + 1), "1.3500")])?.status).toBe("needs_rate");
+    // the latest usable one wins, even when an older one is also usable; a later one is never used
+    expect(status([at(off(3_600_000), "1.3400"), at(off(60_000), "1.3500"), at(new Date(Date.parse(t) + 1).toISOString(), "9.9999")])).toMatchObject({ status: "rated", rate: "1.3500" });
+  });
   it("a fiat-priced invoice is unchanged: no fiat value block, same rule", () => {
     const r = rec(exactNoTerms());
     expect(verdict(exactNoTerms())).toBe("matched M4.exact.no_quote_terms");
