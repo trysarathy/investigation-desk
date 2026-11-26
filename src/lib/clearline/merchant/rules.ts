@@ -61,6 +61,7 @@ export const JOURNAL_RULES = {
   "J.writeoff.on_approval": { text: "A proposed write-off has a matching entry, to post only after the rc5 two-person approval." },
   "J.settlement.verified_batch": { text: "Settlement is proposed only for a tied batch whose settlement is verified." },
   "J.settlement.refund_netted": { text: "A refund netted in a verified settlement is its own entry, Dr Sales refunds / Cr Provider clearing (Document A, Case 2)." },
+  "J.revaluation.period_end": { text: "v1 (decision 9, pending sign-off): an other-currency balance (receivable from the provider / provider clearing) is revalued at the period-end rate recorded at most 24 h before the period's end; the difference to its carrying value goes to Unrealised FX gain/loss. No rate: no entry, the balance needs a rate. Proposed only, never posted." },
 } as const satisfies Record<string, { text: string }>;
 export type JournalRuleId = keyof typeof JOURNAL_RULES;
 

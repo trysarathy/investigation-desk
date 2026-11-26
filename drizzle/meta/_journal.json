@@ -278,15 +278,22 @@
     {
       "idx": 40,
       "version": "7",
-      "when": 1796100000000,
+      "when": 1796391000000,
       "tag": "0040_token_priced_invoices",
       "breakpoints": true
     },
     {
       "idx": 41,
       "version": "7",
-      "when": 1796200000000,
+      "when": 1796392000000,
       "tag": "0041_settlement_payment_lines",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1796440000000,
+      "tag": "0044_fiat_rates",
       "breakpoints": true
     }
   ]

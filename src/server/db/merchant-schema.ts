@@ -293,6 +293,26 @@ export const bankLines = pgTable("bank_lines", {
   check("bank_lines_date_chk", sql`${t.valueDate} ~ '^\\d{4}-\\d{2}-\\d{2}$'`),
 ]);
 
+/**
+ * v1 founder decision 9 (drizzle/0044): recorded fiat rates, "base/quote" = quote units per 1 base (USD/SGD 1.3500).
+ * Append-only, forced RLS; recorded only by the provisioning path (`npm run control:admin -- record-rate`, owner). A
+ * rate shows an other-currency amount in the entity's currency and values revaluation proposals; it never makes a tie.
+ */
+export const fiatRates = pgTable("fiat_rates", {
+  orgId: org(), id: uuid("id").notNull().defaultRandom(),
+  baseCurrency: text("base_currency").notNull(), quoteCurrency: text("quote_currency").notNull(), rate: rate("rate").notNull(),
+  asOf: ts("as_of").notNull(), sourceLabel: text("source_label").notNull(),
+  /** A user id, or "admin-cli" when an operator recorded it with the admin CLI. */
+  recordedBy: text("recorded_by").notNull(), recordedAt: ts("recorded_at").notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.orgId, t.id] }),
+  uniqueIndex("fiat_rates_point_uq").on(t.orgId, t.baseCurrency, t.quoteCurrency, t.asOf, t.sourceLabel),
+  check("fiat_rates_cur_chk", sql`${t.baseCurrency} ~ '^[A-Z]{3}$' and ${t.quoteCurrency} ~ '^[A-Z]{3}$' and ${t.baseCurrency} <> ${t.quoteCurrency}`),
+  check("fiat_rates_rate_chk", sql`${t.rate} > 0`),
+  check("fiat_rates_source_chk", sql`length(${t.sourceLabel}) between 1 and 120`),
+  check("fiat_rates_by_chk", sql`length(${t.recordedBy}) between 1 and 200`),
+]);
+
 export const fxRates = pgTable("fx_rates", {
   orgId: org(), pair: text("pair").notNull(), rate: rate("rate").notNull(), source: text("source").notNull(), observedAt: ts("observed_at").notNull(),
   entityId: text("entity_id"),

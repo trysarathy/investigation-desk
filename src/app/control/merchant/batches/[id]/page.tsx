@@ -15,6 +15,7 @@ const CHECKS: Record<string, string> = {
   linesEqualGross: "The batch's lines add up to its gross", bridgeEqualsGross: "The bridge from the merchant's day equals the gross",
   grossLessFeesRefundsEqualsNet: "Gross − fees − refunds = net", netEqualsBankLine: "Net = the bank line", noUnexplained: "No unexplained amount",
   perPaymentLines: "Per-payment settlement lines add up to the batch and to the bank credit",
+  currencyAgrees: "Payments and the bank line are in the batch's currency (never converted)",
 };
 const TOTALS = new Set(["merchant_day", "gross", "net"]);
 const pct = (x: bigint, max: bigint) => Number((x * 10000n) / max) / 100;
@@ -94,6 +95,9 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
         <h2 className={s.h2} id="checks">Checks</h2>
         <ul className={s.plainList}>{Object.entries(b.checks).map(([k, v]) => <li key={k} className={s.row}>{v ? <Chip tone="ok">Pass</Chip> : <Chip tone="warn">Fail</Chip>} {CHECKS[k] ?? k}</li>)}</ul>
         <p className={s.small}>Bank line: {b.bankLineId ? <span className={s.mono}>{b.bankLineId}</span> : "none yet"}{b.bankLineLabel ? ` (${b.bankLineLabel})` : ""}. Settlement {b.settlementVerified ? "verified by the bank line" : "not verified"}.</p>
+        {b.entityValue ? (b.entityValue.status === "rated"
+          ? <p className={s.small} data-testid="batch-entity-value">In the entity&rsquo;s currency: {fiat(b.entityValue.amountMinor, b.entityValue.currency)} at {b.entityValue.pair} {b.entityValue.rate} ({b.entityValue.source}, as of {b.entityValue.asOf}). Shown only: the batch is tied in {b.currency}, never converted.</p>
+          : <p className={s.small} data-testid="batch-entity-value"><Chip tone="warn" testId="batch-needs-rate">Needs a rate</Chip> In the entity&rsquo;s currency: not shown ({b.entityValue.reason}). The batch is tied in {b.currency}, never converted.</p>) : null}
       </section>
     </>
   );

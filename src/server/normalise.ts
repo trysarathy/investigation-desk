@@ -48,6 +48,11 @@ type Mode = "collect" | "plan" | "db";
 interface Pending { name: string; key: string; table: PgTable; values: Record<string, unknown> }
 interface Ctx {
   tx: Tx; orgId: string; entityId: string; currency: FiatCurrency; u: UploadRow;
+  /**
+   * v1 (founder decision 9): the currency of the upload's bank account (a statement), and the currencies of every bank
+   * account of the entity (settlement files: a batch to the entity's USD account is in USD).
+   */
+  accountCurrency: string | undefined; accountCurrencies: ReadonlySet<string>;
   tokens: { network: string; contract: string; decimals: number }[];
   prov: (row: number) => { uploadId: string; sourceRow: number; mappingTemplateId: string | null; mappingTemplateVersion: number | null; uploadedBy: string };
   mode: Mode; keys: Map<string, Set<string>>; state: Map<string, Map<string, Record<string, unknown>>>; pending: Pending[];
@@ -190,8 +195,10 @@ async function ledgerRow(c: Ctx, v: Record<string, MappedValue>, row: number): P
 }
 
 async function bankRow(c: Ctx, v: Record<string, MappedValue>, row: number, rowHash: string): Promise<RowResult> {
-  // [ASSUMPTION] the engine reconciles settlement credits in the entity's currency; debits and other currencies are skipped
-  if (v.direction !== "credit" || v.currency !== c.currency || big(v.amount) === 0n) return { outcome: "skipped", targets: [] };
+  // v1 (decision 9): credits in the statement's bank account currency (the entity's own, or e.g. USD for the SGD
+  // entity's USD account) are reconciled in that currency, never converted; debits and zero lines are skipped. A
+  // statement with no account (before 0039) keeps the old rule: the entity's currency only.
+  if (v.direction !== "credit" || v.currency !== (c.accountCurrency ?? c.currency) || big(v.amount) === 0n) return { outcome: "skipped", targets: [] };
   const lineId = `FILE-${rowHash.slice(0, 32)}`;
   const targets: Target[] = [];
   const outcome = await put(c, t.bankLines, "bank_lines", lineId, {
@@ -208,7 +215,7 @@ async function bankRow(c: Ctx, v: Record<string, MappedValue>, row: number, rowH
  * this entity (from a settlement report); a row in another currency than the entity's is skipped, as for batches.
  */
 async function paymentLineRow(c: Ctx, v: Record<string, MappedValue>, row: number): Promise<RowResult> {
-  if (v.currency !== c.currency) return { outcome: "skipped", targets: [] };
+  if (v.currency !== c.currency && !c.accountCurrencies.has(v.currency as string)) return { outcome: "skipped", targets: [] };
   const batchId = v.batch_id as string, paymentId = v.payment_id as string;
   const batch = c.mode === "collect" ? (note(c, "settlement_batches", batchId), { entityId: c.entityId }) : c.mode === "plan" ? lookup(c, "settlement_batches", batchId)
     : (await c.tx.select({ entityId: t.settlementBatches.entityId }).from(t.settlementBatches).where(and(eq(t.settlementBatches.orgId, c.orgId), eq(t.settlementBatches.batchId, batchId))))[0];
@@ -227,7 +234,9 @@ async function batchRows(c: Ctx, batchId: string, rows: AnalysedRow[], lines: bo
   const v0 = rows[0].values;
   const agree = (k: string) => rows.every((r) => JSON.stringify(plain(r.values[k])) === JSON.stringify(plain(v0[k])));
   if (!agree("provider_day") || !agree("currency") || !agree("bank_account")) throw new Conflict("settlement_batches");
-  if (v0.currency !== c.currency) return { outcome: "skipped", targets: [] };
+  // v1 (decision 9): a batch in the currency of one of the entity's bank accounts is kept in that currency (its tie is
+  // evaluated in it, never converted); any other currency is left out of this entity, as before.
+  if (v0.currency !== c.currency && !c.accountCurrencies.has(v0.currency as string)) return { outcome: "skipped", targets: [] };
   const sumOf = (k: string, pick: (r: AnalysedRow) => boolean = () => true) => rows.filter(pick).reduce((s, r) => s + (big(r.values[k]) ?? 0n), 0n);
   const refund = (r: AnalysedRow) => r.values.line_type === "refund";
   const feeLine = (r: AnalysedRow) => r.values.line_type === "fee";
@@ -327,8 +336,10 @@ export async function normaliseUpload(ctx: TenantContext, uploadId: string, idem
       throw new RequestRefused(409, "VALIDATION_CHANGED", "The file no longer validates as it did when it was confirmed. Nothing was written; validate and confirm it again.");
     const [ent] = await tx.select().from(t.merchantEntities).where(and(eq(t.merchantEntities.orgId, ctx.orgId), eq(t.merchantEntities.id, u.entityId)));
     if (!(ent.functionalCurrency in FIAT_DECIMALS)) throw new RequestRefused(409, "ENTITY_CURRENCY", "The entity's currency is not supported by reconciliation.");
+    const accounts = await tx.select({ id: t.bankAccounts.id, currency: t.bankAccounts.currency }).from(t.bankAccounts).where(and(eq(t.bankAccounts.orgId, ctx.orgId), eq(t.bankAccounts.entityId, u.entityId)));
     const c: Ctx = {
       tx, orgId: ctx.orgId, entityId: u.entityId, currency: ent.functionalCurrency as FiatCurrency, u, tokens: await tx.select().from(t.tokenConfig),
+      accountCurrency: accounts.find((a) => a.id === u.bankAccountId)?.currency, accountCurrencies: new Set(accounts.map((a) => a.currency).filter((x) => x in FIAT_DECIMALS)),
       prov: (row) => ({ uploadId: u.id, sourceRow: row, mappingTemplateId: u.templateId, mappingTemplateVersion: u.templateVersion, uploadedBy: u.uploadedBy }),
       mode: "collect", keys: new Map(), state: new Map(), pending: [],
     };

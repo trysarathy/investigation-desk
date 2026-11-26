@@ -24,6 +24,8 @@ export const MERCHANT_ACCOUNTS = {
   payment_processing_fees: "Payment processing fees",
   sales_refunds: "Sales refunds",
   bank: "Bank",
+  // v1 (decision 9, FX posting rules pending the founder's sign-off): only period-end revaluation proposals use it
+  unrealised_fx: "Unrealised FX gain/loss",
 } as const;
 export type MerchantAccount = keyof typeof MERCHANT_ACCOUNTS;
 
@@ -36,7 +38,7 @@ export interface JournalLine {
 export interface JournalProposal {
   label: TestModeLabel;
   id: string;
-  kind: "provider_confirmation" | "approved_writeoff" | "refund" | "settlement";
+  kind: "provider_confirmation" | "approved_writeoff" | "refund" | "settlement" | "fx_revaluation";
   status: "proposed";
   postingRuleStatus: "pending_sign_off";
   ruleId: JournalRuleId;

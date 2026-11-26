@@ -120,8 +120,9 @@ describe("statement currency = account currency", () => {
     const v = (await validateUpload(fin, ok.upload.id, key())).body;
     expect(v.counts).toMatchObject({ rows: 2, accepted: 2, rejected: 0 });
     await decideUpload(await liveCtx(s, "approver@live-a.example", "a"), ok.upload.id, { decision: "confirm", reason: "USD statement checked (fictional)", contentSha256: v.contentSha256, rowsSha256: v.rowsSha256! }, key());
-    // [ASSUMPTION, unchanged engine rule] reconciliation reads statement credits in the ENTITY's currency only: a USD account's lines under an SGD entity are skipped, not converted
-    expect((await normaliseUpload(fin, ok.upload.id, key())).body.counts).toEqual({ created: 0, existing: 0, conflict: 0, skipped: 2 });
+    // v1 founder decision 9: a USD account's credits under the SGD entity are kept in USD (reconciled in the account's
+    // currency, never converted); the debit is skipped. (Before decision 9 both lines were skipped.)
+    expect((await normaliseUpload(fin, ok.upload.id, key())).body.counts).toEqual({ created: 1, existing: 0, conflict: 0, skipped: 1 });
   });
   it("a CSV statement mapped as SGD uploaded to the USD account: every row is rejected (currency_not_bank_account) and nothing can be confirmed", async () => {
     const fin = await liveCtx(s, "finance@live-a.example", "a");
