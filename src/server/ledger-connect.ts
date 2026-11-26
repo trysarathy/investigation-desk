@@ -17,13 +17,14 @@ import { open, pkceChallenge, randomToken, sameText, seal, SealBroken, stateHash
 import { LedgerPullRefused } from "@/lib/accounting/ledger-pull";
 import { plainAmount } from "@/lib/clearline/exports/journal-drafts";
 import { MERCHANT_ACCOUNTS } from "@/lib/clearline/merchant/journal";
+import { postingRulesCatalogue } from "@/lib/clearline/merchant/posting-rules";
 import type { Tx } from "./db/client";
 import * as t from "./db/schema";
 import { can, type Permission } from "./authz";
 import { serverAudit } from "./control";
 import { RequestRefused } from "./errors";
 import { dataModeOf } from "./mapping-templates";
-import { AccessDenied, membershipsFor, resolveTenant, withTenant, type TenantContext } from "./tenant";
+import { AccessDenied, membershipsFor, requireUnscoped, resolveTenant, withTenant, type TenantContext } from "./tenant";
 import { createUpload, setUploadMapping, validateUpload } from "./uploads";
 import type { UploadStorage } from "./storage";
 import { isAppRole } from "./authz";
@@ -67,6 +68,9 @@ const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
 function require(ctx: TenantContext, p: Permission) {
   if (!can(ctx.role, p)) throw new AccessDenied(403, `Your role (${ctx.role}) does not allow this.`);
+  // wave 2 (w1-19): a ledger connection serves the whole organisation, so connecting, choosing, reconnecting or
+  // disconnecting it needs an Admin whose access is not limited to some entities
+  if (p === "ledger_connect") requireUnscoped(ctx);
 }
 const tenantTx = <T>(ctx: { userId: string; orgId: string }, fn: (tx: Tx) => Promise<T>) => withTenant({ userId: ctx.userId, orgId: ctx.orgId }, fn);
 const tenantRead = <T>(ctx: { userId: string; orgId: string }, fn: (tx: Tx) => Promise<T>) => withTenant({ userId: ctx.userId, orgId: ctx.orgId }, fn, { read: true });
@@ -428,17 +432,14 @@ export async function signedPostingRulesVersion(tx: Tx, orgId: string): Promise<
       if (!exists.rows[0]?.ok) return null;
       const r = await sp.execute(sql`select version::text as v from public.posting_rules_signatures where org_id = ${orgId} and revoked_at is null order by signed_at desc limit 1`);
       const v = r.rows[0]?.v;
-      return typeof v === "string" && v.length > 0 && v.length <= 64 ? v : null;
+      // wave 2: d2's contract — only a signature of the CURRENT catalogue version counts (an older version is not signed)
+      return typeof v === "string" && v === postingRulesCatalogue().version ? v : null;
     });
   } catch { return null; }
 }
 
-/** True only when this organisation's posting rules are signed (see signedPostingRulesVersion). Never throws. */
-export async function postingRulesSigned(orgId: string, userId?: string): Promise<boolean> {
-  try {
-    return (await withTenant({ userId: userId ?? "", orgId }, (tx) => signedPostingRulesVersion(tx, orgId), { read: true })) !== null;
-  } catch { return false; }
-}
+/** True only when this organisation's posting rules are signed: d2's postingRulesSigned (current version only). */
+export { postingRulesSigned } from "./posting-rules";
 
 // ---------------------------------------------------------------------------------------------
 // Account mapping and draft journals

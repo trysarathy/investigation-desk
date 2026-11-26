@@ -9,11 +9,11 @@
 import { randomBytes } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
-import { closeOwner, ownerDb, PASSWORD, resetAndSeed } from "./harness";
+import { currentPostingRulesVersion, signPostingRules } from "./posting-rules-sign";
+import { closeOwner, enrolTestTotp, ownerDb, PASSWORD, resetAndSeed, signInWithMfa } from "./harness";
 import { seedLiveMerchants, useTestStorage, type LiveSeed } from "./upload-harness";
 import { closeDatabase } from "../../src/server/db/client";
 import * as t from "../../src/server/db/schema";
-import { POST as authPOST } from "../../src/app/api/auth/[...all]/route";
 import { POST as connectPOST } from "../../src/app/api/control/merchant/ledger/connect/route";
 import { GET as callbackGET } from "../../src/app/api/control/merchant/ledger/callback/route";
 import { GET as connectionsGET } from "../../src/app/api/control/merchant/ledger/connections/route";
@@ -33,11 +33,8 @@ let k = 0, ip = 60;
 const key = () => `ledger-e2e-${++k}-${Date.now()}`;
 
 async function signIn(email: string) {
-  const res = await authPOST(new Request(`${ORIGIN}/api/auth/sign-in/email`, {
-    method: "POST", headers: { "content-type": "application/json", origin: ORIGIN, "x-forwarded-for": `198.51.100.${ip++}` }, body: JSON.stringify({ email, password: PASSWORD }),
-  }));
-  expect(res.status).toBe(200);
-  return res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+  // wave 2 (w1-14, w1-28): password, then the fictional test authenticator when the account has MFA (an Admin must)
+  return signInWithMfa(email, PASSWORD, `198.51.100.${ip++}`);
 }
 const post = (path: string, who: string, body: unknown, headers: Record<string, string> = {}) => new Request(`${ORIGIN}/api/control/merchant/ledger/${path}`, {
   method: "POST", headers: { cookie: `${cookie[who]}; clearline_org=${s.slugs.a}`, origin: ORIGIN, "idempotency-key": key(), "content-type": "application/json", ...headers }, body: JSON.stringify(body),
@@ -69,12 +66,12 @@ beforeAll(async () => {
   Object.assign(process.env, { CLEARLINE_LEDGER_ENV: "standin", XERO_CLIENT_ID: "standin-xero-e2e", XERO_CLIENT_SECRET: "standin-xero-e2e-secret-fictional", CLEARLINE_XERO_STANDIN_URL: xero.url, CLEARLINE_LEDGER_TOKEN_KEY: randomBytes(32).toString("base64") });
   await resetAndSeed();
   s = await seedLiveMerchants(ownerDb(), "-le2e");
+  await enrolTestTotp(s.users["admin@live-a.example"]); // v1 1.2: an Admin cannot use Control without MFA
   for (const [who, email] of [["admin", "admin-le2e@live-a.example"], ["finance", "finance-le2e@live-a.example"], ["viewer", "viewer-le2e@live-a.example"]]) cookie[who] = await signIn(email);
   await ownerDb().insert(t.merchantJournalProposals).values({ orgId: s.orgs.a, id: "JP-E2E-0001", entityId: "ENT-LIVE-SG", pattern: "provider_confirmation", currency: "SGD",
     lines: [{ side: "debit", account: "provider_clearing", amountMinor: "135000" }, { side: "credit", account: "accounts_receivable", amountMinor: "135000" }], evidenceRefs: { entryDate: "2026-11-05", memo: "fictional" } });
 });
 afterAll(async () => {
-  await ownerDb().execute(sql`drop table if exists posting_rules_signatures`);
   await xero?.close();
   for (const [v, x] of Object.entries(saved)) { if (x === undefined) delete process.env[v]; else process.env[v] = x; }
   await closeDatabase(); await closeOwner();
@@ -114,9 +111,8 @@ describe("ledger connection, end to end with the Xero stand-in", () => {
     expect(unsigned.status).toBe(409);
     expect((await body(unsigned)).error?.code).toBe("POSTING_RULES_UNSIGNED");
     expect(xero.journals).toHaveLength(0);
-    // a TEST signature, in the table shape postingRulesSigned reads (the real sign-off is Phase 4)
-    await ownerDb().execute(sql`create table posting_rules_signatures (org_id uuid not null, version text not null, signed_at timestamptz not null default now(), revoked_at timestamptz); grant select on posting_rules_signatures to clearline_app`);
-    await ownerDb().execute(sql`insert into posting_rules_signatures (org_id, version) values (${s.orgs.a}, 'PR-E2E-TEST-1')`);
+    // wave 2: a signature of the current posting-rules version in d2's table (drizzle/0077), recorded as the owner
+    await signPostingRules(s.orgs.a, String((await ownerDb().execute(sql`select id from users where email = 'admin-le2e@live-a.example'`)).rows[0].id));
     const unmapped = await draftPOST(post("journal-draft", "finance", { connectionId, proposalId: "JP-E2E-0001" }));
     expect((await body(unmapped)).error?.code).toBe("ACCOUNT_UNMAPPED");
     expect((await accountsPOST(post("accounts", "finance", { connectionId, accounts: { provider_clearing: "090", accounts_receivable: "610" } }))).status).toBe(200);
@@ -131,7 +127,7 @@ describe("ledger connection, end to end with the Xero stand-in", () => {
     expect(await body(again)).toMatchObject({ replayed: true, externalId: d.externalId });
     expect(xero.journals).toHaveLength(1);
     const list = await body(await connectionsGET(get("connections", "viewer")));
-    expect(list.drafts).toEqual([expect.objectContaining({ proposalId: "JP-E2E-0001", status: "drafted", postingRulesVersion: "PR-E2E-TEST-1" })]);
+    expect(list.drafts).toEqual([expect.objectContaining({ proposalId: "JP-E2E-0001", status: "drafted", postingRulesVersion: currentPostingRulesVersion() })]);
   });
 
   it("revoked at the ledger → Reconnect needed → reconnect → disconnect", async () => {

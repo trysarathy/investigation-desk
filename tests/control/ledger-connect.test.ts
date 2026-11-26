@@ -9,9 +9,10 @@
  * (fail closed: no table, other organisation, revoked, wrong shape), idempotent DRAFT journals, QuickBooks never
  * written, roles, cross-organisation isolation and the database's own guards.
  */
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
+import { currentPostingRulesVersion, OLDER_POSTING_RULES, revokePostingRules, signPostingRules } from "./posting-rules-sign";
 import { closeOwner, ownerDb, resetAndSeed } from "./harness";
 import { liveCtx, seedLiveMerchants, useTestStorage, type LiveSeed } from "./upload-harness";
 import { closeDatabase } from "../../src/server/db/client";
@@ -75,8 +76,6 @@ async function mentions(needle: string): Promise<string[]> {
 const connRow = async (id: string) => (await ownerDb().select().from(t.ledgerConnections).where(eq(t.ledgerConnections.id, id)))[0];
 const tokenOf = async (orgId: string, id: string) => { const r = await connRow(id); return open(r.accessTokenSealed!, { orgId, connectionId: id, field: "access_token" }); };
 
-const SIGNATURES = sql`create table if not exists posting_rules_signatures (org_id uuid not null, version text not null, signed_at timestamptz not null default now(), revoked_at timestamptz);
-  grant select on posting_rules_signatures to clearline_app`;
 
 beforeAll(async () => {
   useTestStorage();
@@ -102,7 +101,6 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   vi.restoreAllMocks();
-  await ownerDb().execute(sql`drop table if exists posting_rules_signatures`);
   await xero?.close(); await qbo?.close();
   for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
   await closeDatabase(); await closeOwner();
@@ -288,7 +286,7 @@ describe("draft journals, only when the posting rules are signed", () => {
     ]);
   });
 
-  it("postingRulesSigned is false while the signature table does not exist", async () => {
+  it("postingRulesSigned is false while nothing is signed", async () => {
     expect(await postingRulesSigned(s.orgs.a, fin.userId)).toBe(false);
     await refused(draftJournalToLedger(fin, { connectionId: xeroConn, proposalId: P1 }), "POSTING_RULES_UNSIGNED");
     expect(xero.journals).toHaveLength(0);
@@ -297,26 +295,19 @@ describe("draft journals, only when the posting rules are signed", () => {
     expect(a.details).toMatchObject({ code: "POSTING_RULES_UNSIGNED" });
   });
 
-  it("stays false for another organisation's signature, a revoked signature and a table of another shape", async () => {
-    await ownerDb().execute(sql`create table posting_rules_signatures (org_id uuid not null, version text not null, signed_at timestamptz not null default now()); grant select on posting_rules_signatures to clearline_app`);
-    await ownerDb().execute(sql`insert into posting_rules_signatures (org_id, version) values (${s.orgs.a}, 'PR-WRONG-SHAPE')`);
-    expect(await postingRulesSigned(s.orgs.a, fin.userId)).toBe(false); // no revoked_at column: the query fails, so not signed
-    await ownerDb().execute(sql`drop table posting_rules_signatures`);
-    await ownerDb().execute(SIGNATURES);
-    await ownerDb().execute(sql`revoke select on posting_rules_signatures from clearline_app`);
-    await ownerDb().execute(sql`insert into posting_rules_signatures (org_id, version) values (${s.orgs.a}, 'PR-NO-GRANT')`);
-    expect(await postingRulesSigned(s.orgs.a, fin.userId)).toBe(false); // the app cannot read it: not signed
-    await ownerDb().execute(sql`grant select on posting_rules_signatures to clearline_app; delete from posting_rules_signatures`);
-    await ownerDb().execute(sql`insert into posting_rules_signatures (org_id, version) values (${s.orgs.b}, 'PR-B-1')`);
+  it("stays false for another organisation's signature, a revoked signature and an older version (d2's contract)", async () => {
+    await signPostingRules(s.orgs.b, finB.userId); // recorded as the owner: B's row only matters for being B's
     expect(await postingRulesSigned(s.orgs.a, fin.userId)).toBe(false);
-    await ownerDb().execute(sql`insert into posting_rules_signatures (org_id, version, revoked_at) values (${s.orgs.a}, 'PR-A-0', now())`);
+    await signPostingRules(s.orgs.a, admin.userId, OLDER_POSTING_RULES);
+    expect(await postingRulesSigned(s.orgs.a, fin.userId)).toBe(false); // signed, but not the current catalogue version
+    await revokePostingRules(await signPostingRules(s.orgs.a, admin.userId), admin.userId);
     expect(await postingRulesSigned(s.orgs.a, fin.userId)).toBe(false);
     await refused(draftJournalToLedger(fin, { connectionId: xeroConn, proposalId: P1 }), "POSTING_RULES_UNSIGNED");
     expect(xero.journals).toHaveLength(0);
   });
 
   it("after a (test) signature: refuses unmapped accounts, other currencies, exported and unbalanced journals; roles", async () => {
-    await ownerDb().execute(sql`insert into posting_rules_signatures (org_id, version) values (${s.orgs.a}, 'PR-A-1')`);
+    await signPostingRules(s.orgs.a, admin.userId);
     expect(await postingRulesSigned(s.orgs.a, fin.userId)).toBe(true);
     await refused(draftJournalToLedger(fin, { connectionId: xeroConn, proposalId: P1 }), "ACCOUNT_UNMAPPED");
     for (const c of [ops, viewer, approver, admin]) await refused(setLedgerAccountMap(c, { connectionId: xeroConn, accounts: { provider_clearing: "090" } }), "ACCESS_403");
@@ -335,7 +326,7 @@ describe("draft journals, only when the posting rules are signed", () => {
     expect(xero.journals).toHaveLength(1);
     expect(xero.journals[0]).toMatchObject({ tenantId: xero.orgs[0].tenantId, status: "DRAFT", lines: 2 });
     const [d] = await rows(sql`select status, external_id, idempotency_key, posting_rules_version, attempts from ledger_journal_drafts where proposal_id = ${P1}`);
-    expect(d).toMatchObject({ status: "drafted", external_id: xero.journals[0].id, posting_rules_version: "PR-A-1", attempts: 1 });
+    expect(d).toMatchObject({ status: "drafted", external_id: xero.journals[0].id, posting_rules_version: currentPostingRulesVersion(), attempts: 1 });
     expect(xero.journals[0].idempotencyKey).toBe(d.idempotency_key);
     const puts = xero.calls.filter((c) => c.method === "PUT").length;
     const again = await draftJournalToLedger(fin, { connectionId: xeroConn, proposalId: P1 }, { limiter: limiter() });
@@ -343,7 +334,7 @@ describe("draft journals, only when the posting rules are signed", () => {
     expect(xero.calls.filter((c) => c.method === "PUT").length).toBe(puts);
     expect(xero.calls.filter((c) => c.method !== "GET" && c.path !== "/ManualJournals")).toEqual([]);
     const [a] = await rows(sql`select details from audit_events where org_id = ${s.orgs.a} and action = 'ledger_journal_drafted'`);
-    expect(a.details).toMatchObject({ externalId: xero.journals[0].id, postingRulesVersion: "PR-A-1", idempotencyKey: d.idempotency_key });
+    expect(a.details).toMatchObject({ externalId: xero.journals[0].id, postingRulesVersion: currentPostingRulesVersion(), idempotencyKey: d.idempotency_key });
   });
 
   it("a failed send is recorded and retried with the same key; the database refuses a second draft or a changed one", async () => {
@@ -419,5 +410,13 @@ describe("disconnecting", () => {
     const log = captured.join("\n");
     expect(log).not.toMatch(/Kestrel|Marrow|access_token|refresh_token|code=/);
     expect(await rows(sql`select 1 from audit_events where org_id = ${s.orgs.a} and (summary like '%Kestrel%' or details::text like '%v1.%' or details::text like '%Bearer%')`)).toEqual([]);
+  });
+});
+
+describe("wave 2: a ledger connection is organisation-wide", () => {
+  it("an Admin limited to some entities cannot connect, choose, reconnect or disconnect a ledger", async () => {
+    const scoped: TenantContext = { ...admin, entityScope: Object.freeze(["ENT-LIVE-SG"]) };
+    await refused(startLedgerConnect(scoped, { provider: "xero" }), "ACCESS_403");
+    await refused(disconnectLedger(scoped, { connectionId: randomUUID() }), "ACCESS_403");
   });
 });
