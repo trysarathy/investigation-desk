@@ -86,6 +86,7 @@ test("rc4 pages: no horizontal overflow at 1440, 768, 390 and 320, and no axe vi
       const o = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
       if (o.sw > o.cw + 1) out.push(`${w} ${p}: overflow ${o.sw} > ${o.cw}`);
       if (w === 1440 || w === 320) {
+        await page.waitForFunction(() => document.title.trim().length > 0); // the <title> streams in just after hydration
         if (!(await page.evaluate(() => "axe" in window))) await page.evaluate(axeSource());
         const v = await page.evaluate(async () => (await (window as unknown as { axe: { run: (o: unknown) => Promise<{ violations: { id: string; impact: string; nodes: unknown[] }[] }> } }).axe.run({ resultTypes: ["violations"] })).violations.map((x) => `${x.id}(${x.impact})×${x.nodes.length}`));
         if (v.length) out.push(`${w} ${p}: ${v.join(", ")}`);

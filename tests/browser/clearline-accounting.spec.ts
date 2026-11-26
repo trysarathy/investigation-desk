@@ -38,6 +38,9 @@ async function tab(page: Page, name: string) {
 }
 
 async function axeViolations(page: Page, axe: string): Promise<string[]> {
+  // After a client-side navigation the <title> arrives with the streamed metadata, a moment after hydration.
+  // axe's document-title rule failed intermittently on that gap (2 of 5 CI runs, hidden by retries: 1).
+  await page.waitForFunction(() => document.title.trim().length > 0);
   await page.evaluate(axe);
   return page.evaluate(async () => {
     const r = await (window as unknown as { axe: { run: (o: unknown) => Promise<{ violations: { id: string; impact: string; nodes: unknown[] }[] }> } }).axe.run({ resultTypes: ["violations"] });
@@ -678,7 +681,10 @@ test("accounting and audit pages: axe 0 violations and no horizontal overflow at
     await check(`review open @${width}`);
     await open(page, "/clearline/payments");
     await page.locator('#payments a[href^="/clearline/payments/pi_"]').nth(1).click();
+    await page.waitForURL(/\/clearline\/payments\/pi_/);
     await hydrated(page);
+    // A client-side navigation swaps the <title> after hydration: wait for the destination's own title.
+    await expect(page).toHaveTitle(/Payment investigation/);
     await check(`investigation with accounting outcome @${width}`);
   }
   expect(report, report.join("\n")).toEqual([]);

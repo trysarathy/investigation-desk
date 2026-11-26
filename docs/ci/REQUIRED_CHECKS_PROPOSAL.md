@@ -79,18 +79,14 @@ There is **exactly one** case in all 300 runs [VERIFIED: one run has `run_attemp
   - The 5 runs on shas WITH the fix all passed. [ASSUMPTION: 5 runs is a small sample; keep watching.]
 - `release/v1` contains the fix.
 
-### 2. `clearline-browser`: an axe check hidden by `retries: 1`. Flaky; not quarantined.
+### 2. `clearline-browser`: an axe check hidden by `retries: 1`. Fixed in v1; retries now 0.
 
-- **Symptom:** `tests/browser/clearline-accounting.spec.ts:659`, "accounting and audit pages: axe 0 violations and no horizontal overflow …", failed its first attempt and passed on Playwright's automatic retry.
-- **Where [VERIFIED in the job logs]:**
-  - 0a79e37: `document-title (serious, 1)` at 1024 px;
-  - 2184ac0: the same rule at 390 px.
-- **How often:** 2 of the 5 most recent `clearline-browser` runs report "1 flaky"; 727d4cf, d6bcedc and fc74038 report none. The job still passed every time, because `playwright.clearline.config.ts` sets `retries: 1`. Run conclusions alone do not show this flake.
-- **Suspected cause [GUESS]:** axe runs before the page's `<title>` is set after a client-side navigation or resize.
-- **Proposal:**
-  - Fix the wait in the test (wait for `document.title` to be non-empty before running axe).
-  - Then set `retries: 0` like every other suite, so a flake fails loudly.
-  - Do not quarantine it: it checks accessibility, and quarantining it would hide a real `document-title` violation if one appeared.
+- **Symptom:** `tests/browser/clearline-accounting.spec.ts`, "accounting and audit pages: axe 0 violations and no horizontal overflow …", failed its first attempt with `document-title (serious, 1)` (0a79e37 at 1024 px, 2184ac0 at 390 px) and passed on the automatic retry; 2 of the 5 most recent runs reported "1 flaky" [VERIFIED in the job logs].
+- **Cause [VERIFIED locally]:** axe ran in the gap after a client-side navigation, before the destination page's `<title>` was in place. A first fix (wait for any non-empty title) was not enough: 1 of 3 local full runs still failed at the same step, because the previous page's title is non-empty until it is swapped.
+- **Fix:** after clicking into a payment, the test waits for the URL and for the destination's own title (`toHaveTitle(/Payment investigation/)`); every browser spec that runs axe also waits for a non-empty title first. `playwright.clearline.config.ts` now sets `retries: 0`, like every other suite.
+- **Evidence after the fix [VERIFIED locally, 25 Nov 2026]:** the axe test repeated 6 times: 6 passed. The full clearline-browser suite with the first fix and retries 0: run 1 had this one failure, runs 2 and 3 were 291 passed, 11 skipped; the final fix was verified by the 6 repeats and by the full suite on the integrated stack (see PROGRESS_V1.md).
+- **Not quarantined:** it checks accessibility; quarantining would hide a real violation.
+- **Still not proposed as required:** `clearline-browser` is path-filtered, so it does not run on every PR. Requiring it would block unrelated PRs.
 
 ### 3. `control-db`: the demo reset test's unhandled database error. Flaky; fixed in v1 Phase 0, not quarantined.
 
@@ -111,7 +107,7 @@ There is **exactly one** case in all 300 runs [VERIFIED: one run has `run_attemp
 ### Quarantined or excluded tests
 
 - **None are quarantined.** No test is skipped for flakiness [VERIFIED: every `test.skip` in `tests/` is a documented project or viewport condition, for example "runs on desktop only"].
-- The only retry in any suite is `retries: 1` in `playwright.clearline.config.ts`; see item 2.
+- No suite retries: every Playwright config sets `retries: 0` (v1) [VERIFIED by grep].
 
 ## How the founder would apply this (not run by Claude)
 

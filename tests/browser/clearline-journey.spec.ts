@@ -70,6 +70,7 @@ async function noHorizontalOverflow(page: Page, label = "") {
 }
 
 async function axeViolations(page: Page, axe: string): Promise<string[]> {
+  await page.waitForFunction(() => document.title.trim().length > 0); // the <title> streams in just after hydration
   await page.evaluate(axe); // evaluated over CDP: the nonce CSP (rc3) blocks injected inline <script> tags
   return page.evaluate(async () => {
     const r = await (window as unknown as { axe: { run: (o: unknown) => Promise<{ violations: { id: string; impact: string; nodes: unknown[] }[] }> } }).axe.run({ resultTypes: ["violations"] });

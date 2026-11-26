@@ -194,6 +194,7 @@ test("no horizontal overflow and no axe violations on every console page", async
     const o = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
     if (o.sw > o.cw + 1) out.push(`${p}: overflow ${o.sw} > ${o.cw}`);
     // page.evaluate runs through DevTools, which the nonce CSP does not block (an inline <script> would be).
+    await page.waitForFunction(() => document.title.trim().length > 0); // the <title> streams in just after hydration
     if (!(await page.evaluate(() => "axe" in window))) await page.evaluate(axeSource());
     const v = await page.evaluate(async () => (await (window as unknown as { axe: { run: (o: unknown) => Promise<{ violations: { id: string; impact: string; nodes: unknown[] }[] }> } }).axe.run({ resultTypes: ["violations"] })).violations.map((x) => `${x.id}(${x.impact})×${x.nodes.length}`));
     if (v.length) out.push(`${p}: ${v.join(", ")}`);

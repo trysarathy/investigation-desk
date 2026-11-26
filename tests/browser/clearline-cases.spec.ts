@@ -111,6 +111,7 @@ test.describe("public merchant cases (no sign-in)", () => {
 
     test(`${c.slug}: axe finds no violations`, async ({ page }) => {
       await open(page, `/clearline/cases/${c.slug}`);
+      await page.waitForFunction(() => document.title.trim().length > 0); // the <title> streams in just after hydration
       await page.evaluate(axeSource()); // over CDP: the nonce CSP blocks an injected inline <script>
       const v = await page.evaluate(async () => {
         const r = await (window as unknown as { axe: { run: (o: unknown) => Promise<{ violations: { id: string; impact: string; nodes: { target: unknown }[] }[] }> } }).axe.run({ resultTypes: ["violations"] });
