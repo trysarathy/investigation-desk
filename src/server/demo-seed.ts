@@ -140,7 +140,8 @@ export async function seedDemo(owner: Db, opts: DemoSeedOptions): Promise<DemoSe
  * that wrote it: a column qualifies only when its default is now() and its value lies inside that step's window of
  * the database clock (and is not itself a demo instant). It touches no amount, decision, rule or policy value.
  *
- * It runs as the demo cluster's superuser with session_replication_role = replica for this one transaction, because
+ * It runs as the demo cluster's superuser with session_replication_role = replica for this one transaction (on Neon:
+ * as clearline_owner with each table's triggers off around its update, in the same transaction), because
  * the append-only triggers (approval decisions, notifications, chain facts) rightly refuse updates from the app's
  * logins. Never used by the app or by a real install; the database name is checked like the reset's.
  */
@@ -158,13 +159,21 @@ export async function restampDemoSeed(superUrl: string, database: string, window
       where table_schema = 'public' and data_type like 'timestamp%' and column_default ilike '%now()%' order by 1, 2`);
     const instants = windows.map((w) => w.at);
     await c.query("begin");
-    await c.query("set local session_replication_role = replica");
+    // A managed server (Neon) refuses session_replication_role to its owner login. There the same transaction acts as
+    // clearline_owner (the hosted build's owner login is a member of it) and turns each table's own triggers off
+    // and on again around its update, so no other session ever sees them off.
+    await c.query("savepoint replica_mode");
+    let perTable = false;
+    try { await c.query("set local session_replication_role = replica"); }
+    catch { await c.query("rollback to savepoint replica_mode"); await c.query("set local role clearline_owner"); perTable = true; }
     for (const { t: table, c: col } of cols as { t: string; c: string }[]) {
+      if (perTable) await c.query(`alter table "${table}" disable trigger user`);
       let n = 0;
       for (const w of windows) {
         const r = await c.query(`update "${table}" set "${col}" = $1::timestamptz where "${col}" between $2::timestamptz and $3::timestamptz and "${col}" <> all($4::timestamptz[])`, [w.at, w.dbFrom, w.dbTo, instants]);
         n += r.rowCount ?? 0;
       }
+      if (perTable) await c.query(`alter table "${table}" enable trigger user`);
       if (n) columns[`${table}.${col}`] = n;
       rows += n;
     }
