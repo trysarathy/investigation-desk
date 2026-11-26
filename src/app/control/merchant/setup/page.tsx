@@ -27,7 +27,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   if (!can(ctx.role, "manage_members")) {
     return (<><h1 className={s.title}>Setup</h1><Empty>Only an Admin of this organisation runs its setup.</Empty></>);
   }
-  if (!process.env.DATABASE_PROVISIONING_URL) {
+  if (!process.env.DATABASE_PROVISIONING_URL && process.env.CLEARLINE_DB_FROM_NEON !== "1") {
     return (<><h1 className={s.title}>Setup</h1><Empty>Setup is not available on this deployment: your operator sets up the organisation with the administration command.</Empty></>);
   }
   const v = await orNotFound(setupView(ctx));
