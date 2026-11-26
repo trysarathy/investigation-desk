@@ -4,6 +4,7 @@ import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { AccessDenied } from "../tenant";
 import { RequestRefused } from "../errors";
+import { neonLoginUrl } from "./neon-logins";
 
 /**
  * v1 phase 1.1: the PROVISIONING connection (DATABASE_PROVISIONING_URL, the `clearline_provisioning` login of
@@ -16,7 +17,7 @@ declare global { var __clearlineProvDb: { pool: Pool; db: ProvDb } | undefined }
 
 function provisioningDb(): ProvDb {
   if (!globalThis.__clearlineProvDb) {
-    const url = process.env.DATABASE_PROVISIONING_URL;
+    const url = neonLoginUrl("provisioning") ?? process.env.DATABASE_PROVISIONING_URL;
     if (!url) throw new RequestRefused(409, "PROVISIONING_NOT_CONFIGURED", "Setup is not available on this deployment (DATABASE_PROVISIONING_URL is not set).");
     const pool = new Pool({ connectionString: url, max: Number(process.env.DATABASE_PROVISIONING_POOL_MAX ?? 3), statement_timeout: 15_000 });
     pool.on("error", (e) => console.error(JSON.stringify({ event: "db_provisioning_idle_connection_lost", code: (e as { code?: string }).code ?? "unknown" })));

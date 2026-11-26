@@ -13,10 +13,13 @@ export const metadata: Metadata = {
 
 const STAGING_LABEL = "PRIVATE STAGING — FICTIONAL DATA (no real payments)";
 
+// A hosted pilot shows its own notice instead (CLEARLINE_PILOT_BANNER, read per request on the server).
+const label = () => process.env.CLEARLINE_PILOT_BANNER?.trim() || STAGING_LABEL;
+
 export default function ControlRootLayout({ children }: { children: ReactNode }) {
   return (
     <div className={s.root}>
-      <aside className={s.staging} aria-label="Environment notice"><p className={s.stagingText} data-testid="staging-label">{STAGING_LABEL}</p></aside>
+      <aside className={s.staging} aria-label="Environment notice"><p className={s.stagingText} data-testid="staging-label">{label()}</p></aside>
       {children}
     </div>
   );
