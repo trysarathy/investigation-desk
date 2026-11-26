@@ -131,6 +131,10 @@ const nextConfig = {
   ...(process.env.CLEARLINE_HOSTED_DEMO === '1' && process.env.CLEARLINE_DEMO_BUILD === '1'
     ? { outputFileTracingIncludes: { '/**': ['./.demo/chain-recording.json'] } }
     : {}),
+  // Hosted demo: the front door is the Control sign-in (the local demo keeps its own start page).
+  ...(process.env.CLEARLINE_HOSTED_DEMO === '1' && process.env.CLEARLINE_DEMO_BUILD === '1'
+    ? { async redirects() { return [{ source: '/', destination: '/control/sign-in', permanent: false }]; } }
+    : {}),
   poweredByHeader: false,
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
