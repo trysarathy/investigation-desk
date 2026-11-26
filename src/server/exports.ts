@@ -155,3 +155,37 @@ export async function exportMonths(ctx: TenantContext, entityId: string) {
     return [...new Set(rows.map((r) => r.d?.slice(0, 7)).filter((x): x is string => !!x))].sort();
   }, { read: true });
 }
+
+/**
+ * v1 overnight: results as plain CSV for a spreadsheet. kind "exceptions": every open exception with its owner, reason
+ * and next step; kind "matched": every payment decided matched or matched_with_difference, with its rule and the bank
+ * evidence level. Same role rule as the other exports, entity scope applied, formula-safe cells, audited, hashed.
+ */
+export const ResultsKind = z.enum(["exceptions", "matched"]);
+export async function resultsCsv(ctx: TenantContext, kind: z.infer<typeof ResultsKind>) {
+  requireExport(ctx);
+  const k = ResultsKind.parse(kind);
+  return withTenant({ userId: ctx.userId, orgId: ctx.orgId }, async (tx) => {
+    const inScope = (entityId: string | null) => ctx.entityScope === null || (entityId !== null && ctx.entityScope.includes(entityId));
+    let rows: unknown[][];
+    if (k === "exceptions") {
+      const names = await memberNames(tx, ctx.orgId);
+      const ex = await tx.select().from(t.reconExceptions).where(and(eq(t.reconExceptions.orgId, ctx.orgId), ne(t.reconExceptions.status, "resolved")))
+        .orderBy(asc(t.reconExceptions.openedAt), asc(t.reconExceptions.id));
+      rows = [["exception_id", "order_id", "entity", "status", "owner_role", "owner", "reason", "next_step", "opened_at"],
+        ...ex.filter((e) => inScope(e.entityId)).map((e) => [e.id, e.orderId, e.entityId, e.status, e.ownerRole, e.ownerUserId ? names.get(e.ownerUserId) ?? "A former member" : "", e.reason, e.nextStep, e.openedAt.toISOString()])];
+    } else {
+      const recs = await tx.select({ orderId: t.matchRecords.orderId, decision: t.matchRecords.decision, ruleId: t.matchRecords.ruleId, bankEvidence: t.matchRecords.bankEvidence,
+        settled: t.matchRecords.settled, computedAt: t.matchRecords.computedAt, entityId: t.invoices.entityId }).from(t.matchRecords)
+        .innerJoin(t.invoices, and(eq(t.invoices.orgId, t.matchRecords.orgId), eq(t.invoices.orderId, t.matchRecords.orderId)))
+        .where(and(eq(t.matchRecords.orgId, ctx.orgId), inArray(t.matchRecords.decision, ["matched", "matched_with_difference"]))).orderBy(asc(t.matchRecords.orderId));
+      rows = [["order_id", "entity", "decision", "rule", "bank_evidence", "settled", "decided_at"],
+        ...recs.filter((r) => inScope(r.entityId)).map((r) => [r.orderId, r.entityId, r.decision, r.ruleId, r.bankEvidence, r.settled ? "yes" : "no", r.computedAt.toISOString()])];
+    }
+    const body = csv(rows);
+    const digest = sha256(body);
+    await serverAudit(tx, ctx, "merchant_results_exported", "organization", ctx.orgId, `${k === "exceptions" ? "Open exceptions" : "Matched payments"} CSV: ${rows.length - 1} row(s) (sha256 ${digest.slice(0, 12)}…)`,
+      { format: "csv", scope: k, counts: { rows: rows.length - 1 }, sha256: digest });
+    return { body, sha256: digest, fileName: `clearline-${k}-${ctx.orgSlug}-${new Date().toISOString().slice(0, 10)}.csv`, contentType: "text/csv; charset=utf-8" };
+  });
+}

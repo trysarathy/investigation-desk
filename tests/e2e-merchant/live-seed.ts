@@ -38,8 +38,12 @@ export async function seedLiveMerchant(db: Db, password: string) {
   const merchant = await createOrganization(db, { slug: LIVE.merchant.slug, name: LIVE.merchant.name, seed: "empty", dataMode: "live" });
   const other = await createOrganization(db, { slug: LIVE.other.slug, name: LIVE.other.name, seed: "empty", dataMode: "live" });
   await db.update(t.organizations).set({ kind: "provider", theme: THEME }).where(eq(t.organizations.id, provider));
-  await db.update(t.organizations).set({ providerOrgId: provider }).where(eq(t.organizations.id, merchant));
-  await db.update(t.organizations).set({ providerOrgId: provider }).where(eq(t.organizations.id, other));
+  // v1 overnight: CLEARLINE_MERCHANT_E2E_NO_PROVIDER=1 runs the same journeys for live merchants onboarded directly,
+  // with no provider (they must land in, and work in, the merchant workspace all the same)
+  if (process.env.CLEARLINE_MERCHANT_E2E_NO_PROVIDER !== "1") {
+    await db.update(t.organizations).set({ providerOrgId: provider }).where(eq(t.organizations.id, merchant));
+    await db.update(t.organizations).set({ providerOrgId: provider }).where(eq(t.organizations.id, other));
+  }
   const ents = [...world.entities.map((e) => ({ org: merchant, e })), { org: other, e: { ...world.entities[0], id: "ENT-OTHER-SYN", name: "Otherbay Synthetic (fictional)" } }];
   for (const { org, e } of ents) {
     const p = toEnginePolicy(world.policy, e.functionalCurrency);
