@@ -89,12 +89,15 @@ describe("#174 refund rows in a per-payment settlement file", () => {
     const br = reconcile(after).bridges[0];
     expect(br).toMatchObject({ tied: true, settlementVerified: false, bankLineLabel: "imported, not bank-authenticated", checks: { perPaymentLines: true, linesEqualGross: true, grossLessFeesRefundsEqualsNet: true, netEqualsBankLine: true } });
     expect(br.lines.find((l) => l.kind === "refund_netted")).toMatchObject({ amountMinor: -10000n, paymentIds: ["RF-SG-1"], orderIds: ["SG-1002"] });
-    expect([sg1(after).decision, sg1(after).ruleId]).toEqual(["suggested_for_review", "M5.bank.imported_not_verified"]);
+    // v1 Phase 0.5 (evidence-level split, integrated with #174): flag off, the exact payment in the tied batch is matched
+    // by reference with its bank evidence shown apart; the batch is still never "settlement verified" by an import
+    expect([sg1(after).decision, sg1(after).ruleId]).toEqual(["matched", "M5.batch.tied_evidence_separate"]);
+    expect(br.bankEvidence).not.toBe("bank_authenticated");
     expect([sg1(after, true).decision, sg1(after, true).ruleId]).toEqual(["matched", "M5.batch.tied_verified"]);
     // the refunded order is never closed
     expect(reconcile({ ...after, policy: { ...after.policy, allowImportedBankLinesAsVerified: true } }).records.find((x) => x.orderId === "SG-1002")!.explanation.decision).not.toMatch(/^matched/);
     const stored = await ownerDb().select().from(t.matchRecords).where(eq(t.matchRecords.orgId, s.orgs.a));
-    expect(stored.find((m) => m.orderId === "SG-1001")!.ruleId).toBe("M5.bank.imported_not_verified");
+    expect(stored.find((m) => m.orderId === "SG-1001")!.ruleId).toBe("M5.batch.tied_evidence_separate");
   });
 
   it("upload validation: a positive refund amount, a fee or a missing refund ID is refused; an unknown payment, another currency's or one above the credit is a conflict", async () => {
