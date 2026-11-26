@@ -174,13 +174,15 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput, am
   };
 
   // Step 1a (rc7): chain data unavailable for this order's deposit addresses or transactions → never matched.
-  const down = (input.chainUnavailable ?? []).filter((u) => {
-    const addr = (a: string) => normAddress(u.network, a);
-    const mine = [...quotes.map((q) => ({ network: q.network, address: q.depositAddress })), ...links.map((l) => ({ network: l.token.network, address: l.depositAddress }))];
-    const txs = input.providerRecords.filter((r) => r.transferRef && (quotes.some((q) => q.quoteId === r.ref.quoteId) || links.some((l) => l.linkId === r.ref.linkId))).map((r) => r.transferRef!);
-    return (u.address !== undefined && mine.some((m) => m.network === u.network && normAddress(m.network, m.address) === addr(u.address!)))
-      || (u.txHash !== undefined && txs.some((t) => t.network === u.network && t.txHash === u.txHash));
-  });
+  // (wave 1: the order's addresses and claimed transactions are computed once per order, not once per unavailable read;
+  // the same sets, the same result: a month with every claimed transaction not yet read was quadratic)
+  const unavailable = input.chainUnavailable ?? [];
+  const myAddresses = unavailable.length ? new Set([...quotes.map((q) => ({ network: q.network, address: q.depositAddress })), ...links.map((l) => ({ network: l.token.network, address: l.depositAddress }))]
+    .map((m) => `${m.network}|${normAddress(m.network, m.address)}`)) : new Set<string>();
+  const myTxs = unavailable.length ? new Set(input.providerRecords.filter((r) => r.transferRef && (quotes.some((q) => q.quoteId === r.ref.quoteId) || links.some((l) => l.linkId === r.ref.linkId)))
+    .map((r) => `${r.transferRef!.network}|${r.transferRef!.txHash}`)) : new Set<string>();
+  const down = unavailable.filter((u) => (u.address !== undefined && myAddresses.has(`${u.network}|${normAddress(u.network, u.address)}`))
+    || (u.txHash !== undefined && myTxs.has(`${u.network}|${u.txHash}`)));
   if (down.length > 0 && active("M1.chain.unavailable")) {
     const d = down[0];
     note(1, "M1.chain.unavailable", "fail", `Chain data unavailable (${d.source}, ${d.at}): ${d.reason}`);
