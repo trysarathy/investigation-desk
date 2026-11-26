@@ -142,3 +142,19 @@ describe("PostgresStorage", () => {
     expect(uploadStorage().constructor.name).toBe("LocalDiskStorage");
   });
 });
+
+describe("default store on a hosted deployment", () => {
+  it("is the database store when the Neon logins are on and no store is named; an explicit store still wins", async () => {
+    const { uploadStorage } = await import("../../src/server/storage");
+    const { PostgresStorage } = await import("../../src/server/storage/postgres");
+    const saved = { ...process.env };
+    try {
+      process.env.CLEARLINE_DB_FROM_NEON = "1"; delete process.env.CLEARLINE_UPLOAD_STORE;
+      expect(uploadStorage()).toBeInstanceOf(PostgresStorage);
+      process.env.CLEARLINE_UPLOAD_STORE = "local";
+      expect(uploadStorage()).not.toBeInstanceOf(PostgresStorage);
+      delete process.env.CLEARLINE_DB_FROM_NEON; delete process.env.CLEARLINE_UPLOAD_STORE;
+      expect(uploadStorage()).not.toBeInstanceOf(PostgresStorage);
+    } finally { process.env = saved; }
+  });
+});

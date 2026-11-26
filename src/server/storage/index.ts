@@ -46,7 +46,8 @@ export function uploadStorage(via: PostgresStorageVia = {}): UploadStorage {
   const key = uploadKeyFromEnv(process.env.CLEARLINE_UPLOAD_KEY);
   const noKey = !key && process.env.NODE_ENV === "production"
     ? "Uploads are refused: CLEARLINE_UPLOAD_KEY is not set, and files are never stored unencrypted in production." : undefined;
-  const store = process.env.CLEARLINE_UPLOAD_STORE || "local";
+  // a hosted deployment with the Neon logins (Vercel) has no shared disk: its default is the database store
+  const store = process.env.CLEARLINE_UPLOAD_STORE || (process.env.CLEARLINE_DB_FROM_NEON === "1" ? "postgres" : "local");
   if (store === "s3") {
     const cfg = s3ConfigFromEnv(process.env);
     if ("problem" in cfg) return new RefusingStorage(cfg.problem);
