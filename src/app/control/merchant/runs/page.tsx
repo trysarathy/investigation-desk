@@ -5,7 +5,7 @@ import { DEFAULT_LOCAL_TIME, listRuns } from "@/server/runs";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
 import { RunReconciliation, ScheduleForm } from "@/components/merchant/forms";
-import { Chip, Empty } from "@/components/merchant/ui";
+import { Chip, Empty, whenIn } from "@/components/merchant/ui";
 import { when } from "@/components/control/ui";
 
 export const metadata: Metadata = { title: "Runs" };
@@ -66,7 +66,7 @@ export default async function RunsPage() {
               </tr></thead>
               <tbody>{v.runs.map((r) => (
                 <tr key={r.id} data-testid="run-row">
-                  <td>{when(r.startedAt)}</td><td className={s.mono}>{r.entityId}</td><td>{TRIGGER[r.trigger] ?? r.trigger}</td><td><Status status={r.status} code={r.errorCode} /></td>
+                  <td>{whenIn(r.startedAt, shell.entities.find((e) => e.id === r.entityId))}</td><td className={s.mono}>{r.entityId}</td><td>{TRIGGER[r.trigger] ?? r.trigger}</td><td><Status status={r.status} code={r.errorCode} /></td>
                   <td><span className={s.mono}>{r.ruleSetVersion}</span> · policy r{r.policyRevision}</td>
                   <td className={s.num}>{r.counts.matched}</td><td className={s.num}>{r.counts.withDifference}</td><td className={s.num}>{r.counts.review}</td>
                   <td className={s.num}>{r.counts.exceptions}</td><td className={s.num}>{r.counts.unpaid}</td><td className={s.num}>{r.counts.kept}</td><td className={s.num}>{r.counts.notices}</td>

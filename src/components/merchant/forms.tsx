@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Result, Submit, useMutation } from "@/components/control/forms";
 import s from "@/components/control/control.module.css";
 import m from "./merchant.module.css";
@@ -16,14 +16,25 @@ const API = "/api/control/merchant";
 
 export function RunReconciliation({ entityId, entityName }: { entityId: string; entityName: string }) {
   const x = useMutation(`reconcile:${entityId}`);
+  const [started, setStarted] = useState<number | null>(null);
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    if (!x.busy || started === null) return;
+    const t = window.setInterval(() => setNow(Date.now()), 500);
+    return () => window.clearInterval(t);
+  }, [x.busy, started]);
+  const secs = started !== null && x.busy ? Math.max(0, Math.floor((now - started) / 1000)) : 0;
   return (
     <form autoComplete="off" onSubmit={(ev) => {
       ev.preventDefault();
+      const t0 = Date.now();
+      setStarted(t0); setNow(t0);
       void x.run("POST", `${API}/reconcile`, { entityId }, (d) => d?.changed
-        ? `Reconciled ${String(d.records ?? "?")} payments for ${entityName}: ${String(d.exceptions ?? 0)} exceptions, ${String(d.journals ?? 0)} journal proposals pending sign-off.`
+        ? `Reconciled ${String(d.records ?? "?")} payments for ${entityName}: ${String(d.exceptions ?? 0)} exceptions, ${String(d.journals ?? 0)} journal proposals pending sign-off. The run is on the Runs page.`
         : `Nothing changed for ${entityName}: the same data was already reconciled (input sha256 ${String(d?.inputSha256 ?? "").slice(0, 12)}…).`);
     }}>
       <Submit busy={x.busy} variant="secondary">Run reconciliation for {entityId}</Submit>
+      {x.busy && started !== null ? <p className={s.small} role="status" aria-live="polite" data-testid={`reconcile-progress-${entityId}`}>Reconciling {entityId}: reading the files, verifying the chain transfers, matching and writing the result; running for {secs} s.</p> : null}
       <Result outcome={x.outcome} />
     </form>
   );
@@ -51,15 +62,21 @@ export function ScheduleForm({ entityId, localTime, enabled }: { entityId: strin
   );
 }
 
-export function AssignForm({ exceptionId, members, current }: { exceptionId: string; members: { userId: string; name: string; role: string }[]; current: string | null }) {
+export function AssignForm({ exceptionId, members, current, me }: { exceptionId: string; members: { userId: string; name: string; role: string }[]; current: string | null; me?: string }) {
   const x = useMutation(`assign:${exceptionId}`);
   const id = useId();
+  const assign = (owner: string) => void x.run("POST", `${API}/exceptions/${encodeURIComponent(exceptionId)}/assign`, { ownerUserId: owner || null }, (d) => (d?.ownerName ? `Saved: ${String(d.ownerName)} owns this exception.` : "Saved: the exception is unassigned."));
+  const mayTake = !!me && members.some((p) => p.userId === me);
   return (
     <form className={s.form} autoComplete="off" onSubmit={(ev) => {
       ev.preventDefault();
-      const v = String(new FormData(ev.currentTarget).get("owner") ?? "");
-      void x.run("POST", `${API}/exceptions/${encodeURIComponent(exceptionId)}/assign`, { ownerUserId: v || null }, (d) => (d?.ownerName ? `Saved: ${String(d.ownerName)} owns this exception.` : "Saved: the exception is unassigned."));
+      assign(String(new FormData(ev.currentTarget).get("owner") ?? ""));
     }}>
+      {mayTake ? (
+        <div className={s.row}>
+          {current === me ? <p className={s.small} data-testid="assigned-to-me">You own this exception.</p> : <button type="button" className={`${s.button} ${s.buttonSecondary}`} disabled={x.busy} onClick={() => assign(me!)}>Assign to me</button>}
+        </div>
+      ) : null}
       <div className={s.field}>
         <label className={s.label} htmlFor={id}>Owner</label>
         <select className={s.select} id={id} name="owner" defaultValue={current ?? ""}>

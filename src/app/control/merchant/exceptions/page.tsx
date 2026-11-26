@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { exceptionsView } from "@/server/merchant-ui";
 import { merchantMember } from "@/server/merchant-page";
+import { pageNow } from "@/server/demo-build";
 import s from "@/components/control/control.module.css";
 import { Chip, Empty, age } from "@/components/merchant/ui";
 
@@ -9,7 +10,7 @@ export const metadata: Metadata = { title: "Exceptions" };
 export default async function ExceptionsPage() {
   const { ctx, shell } = await merchantMember();
   const v = await exceptionsView(ctx);
-  const now = Date.now();
+  const now = pageNow(shell.dataMode); // demo build: the demo clock for a demo organisation, so ages never drift
   return (
     <>
       <h1 className={s.title}>Exceptions</h1>

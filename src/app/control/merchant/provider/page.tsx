@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { providerMerchants } from "@/server/provider";
 import { providerMember } from "@/server/merchant-page";
+import { pageNow } from "@/server/demo-build";
 import s from "@/components/control/control.module.css";
 import { Chip, Empty, age } from "@/components/merchant/ui";
 import { when } from "@/components/control/ui";
@@ -8,9 +9,9 @@ import { when } from "@/components/control/ui";
 export const metadata: Metadata = { title: "Merchants" };
 
 export default async function ProviderMerchantsPage() {
-  const { ctx } = await providerMember();
+  const { ctx, shell } = await providerMember();
   const p = await providerMerchants(ctx);
-  const now = Date.now();
+  const now = pageNow(shell.dataMode); // demo build: the demo clock for a demo organisation
   return (
     <>
       <h1 className={s.title}>Merchants</h1>

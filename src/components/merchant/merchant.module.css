@@ -130,3 +130,66 @@
 .filterLinks { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin: 12px 0 8px; font-size: 14px; }
 .filterLinks a[aria-current="true"] { font-weight: 700; color: var(--ink); }
 .reasons { margin: 0; padding-left: 18px; }
+
+/* Demo build only: the Reset demo button next to the data label. */
+.demoReset { margin-left: 0.75rem; font-size: 0.875rem; }
+.demoReset button { font: inherit; padding: 0.15rem 0.6rem; border: 1px solid currentColor; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
+.demoReset button:disabled { opacity: 0.6; cursor: progress; }
+.demoSwitch { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-left: 0.75rem; font-size: 0.875rem; }
+.demoSwitch select { font: inherit; min-height: 32px; padding: 0.15rem 0.4rem; border: 1px solid var(--line, #8a8f98); border-radius: 4px; background: var(--surface, #fff); color: inherit; max-width: 100%; }
+.demoSwitch button { font: inherit; min-height: 32px; padding: 0.15rem 0.6rem; border: 1px solid currentColor; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
+.demoSwitch button:disabled, .demoSwitch select:disabled { opacity: 0.6; cursor: progress; }
+
+/* Overview (how Clearline works): the five records of one payment, left to right on a wide screen, stacked on a phone */
+.flow { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; counter-reset: none; }
+.flowStep { position: relative; background: var(--panel); border: 1px solid var(--hairline); border-top: 4px solid var(--brand); border-radius: 8px; padding: 12px 14px; }
+.flowStep p { margin: 4px 0; }
+.flowNum { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 999px; background: var(--brand); color: var(--on-brand); font-weight: 700; font-size: 14px; }
+.flowTitle { font-size: 16px; font-weight: 600; margin: 6px 0 4px; }
+.flowCount { font-weight: 700; font-variant-numeric: tabular-nums; }
+.decisions { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.journey { padding-left: 20px; line-height: 1.8; }
+.cta { display: inline-block; font-weight: 600; font-size: 15px; color: #ffffff !important; background: var(--ink); border: 1px solid var(--ink); border-radius: 4px; padding: 10px 18px; text-decoration: none !important; min-height: 24px; }
+.cta:hover { background: #333333; }
+
+/* Batch bridge waterfall: each step floats from the running total; totals start at the axis */
+.wf { margin: 0 0 16px; background: var(--panel); border: 1px solid var(--hairline); border-radius: 8px; padding: 12px 14px; }
+.wfList { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.wfRow { display: grid; grid-template-columns: minmax(0, 15rem) 9rem minmax(0, 1fr); gap: 4px 12px; align-items: center; }
+.wfLabel { font-size: 14px; min-width: 0; overflow-wrap: anywhere; }
+.wfAmount { font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wfTrack { position: relative; display: block; height: 24px; min-width: 0; background: repeating-linear-gradient(90deg, transparent 0 24.8%, var(--hairline) 24.8% 25%); }
+.wfLink { position: absolute; inset: 0; display: block; }
+.wfLink:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.wfBar { position: absolute; top: 4px; bottom: 4px; left: var(--l); width: var(--w); min-width: 3px; border-radius: 2px; }
+.wfTotal { background: var(--info); }
+.wfPos { background: #2f5d50; }
+.wfNeg { background: var(--oxblood); }
+.wfLink:hover .wfBar { filter: brightness(1.25); }
+@media (max-width: 640px) {
+  .wfRow { grid-template-columns: minmax(0, 1fr) auto; }
+  .wfTrack { grid-column: 1 / -1; }
+}
+.pager { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 12px 0 0; }
+.pager a { display: inline-block; padding: 6px 0; }
+
+/* Demo build only: presenter guide (side panel) and "Note feedback" */
+.demoButton { font: inherit; font-size: 0.875rem; min-height: 32px; padding: 0.15rem 0.6rem; border: 1px solid currentColor; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
+.demoButton:disabled { opacity: 0.6; cursor: progress; }
+.feedbackWrap, .guideWrap { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-left: 0.75rem; font-size: 0.875rem; max-width: 100%; }
+.feedbackForm { position: fixed; left: 16px; bottom: 16px; z-index: 45; display: grid; gap: 0.4rem; width: min(520px, calc(100vw - 32px)); box-sizing: border-box; padding: 12px 14px; background: var(--panel, #fff); color: var(--ink, #111); border: 1px solid var(--hairline, #ccc); border-radius: 8px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15); }
+.feedbackForm[hidden] { display: none; }
+.feedbackForm textarea { font: inherit; width: 100%; box-sizing: border-box; padding: 0.4rem; border: 1px solid var(--line, #8a8f98); border-radius: 4px; background: var(--surface, #fff); color: inherit; }
+.feedbackActions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.guidePanel { position: fixed; top: 0; right: 0; bottom: 0; z-index: 50; width: min(380px, 100vw); box-sizing: border-box; overflow-y: auto; background: var(--panel, #fff); color: var(--ink, #111); border-left: 1px solid var(--hairline, #ccc); box-shadow: -6px 0 18px rgba(0, 0, 0, 0.12); padding: 14px 16px 24px; font-size: 14px; }
+.guidePanel[hidden] { display: none; }
+.guidePanel:focus { outline: 2px solid var(--brand, #1b4fd6); outline-offset: -2px; }
+.guideHead { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.guideTitle { font-size: 16px; font-weight: 700; margin: 0; }
+.guideNote { color: var(--muted, #555); font-size: 12px; margin: 6px 0; }
+.guideList { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; }
+.guideStep { border: 1px solid var(--hairline, #ccc); border-radius: 6px; padding: 8px 10px; }
+.guideStepTitle { font-weight: 600; margin: 0 0 4px; }
+.guideNum { display: inline-grid; place-items: center; min-width: 22px; height: 22px; border-radius: 999px; background: var(--brand, #1b4fd6); color: var(--on-brand, #fff); font-size: 12px; font-weight: 700; margin-right: 4px; }
+.guidePoints { margin: 0 0 6px; padding-left: 18px; }
+.guidePoints li { margin: 2px 0; }

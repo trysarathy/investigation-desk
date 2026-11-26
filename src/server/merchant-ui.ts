@@ -8,10 +8,10 @@ import type { Tx } from "./db/client";
 import * as t from "./db/schema";
 import { can, isAppRole, type Permission } from "./authz";
 import { Decision, IdempotencyKey, canonical, idempotent, serverAudit } from "./control";
-import { decideWriteoff, monthEnd } from "./merchant";
+import { decideWriteoff, entityOnly, monthEnd } from "./merchant";
 import { MissingEntity, loadReconcileInput } from "./merchant-store";
 import { dataModeOf } from "./mapping-templates";
-import { LIVE_DATA_LABEL, type DataLabel, type DataMode } from "@/lib/clearline/data-mode";
+import { DEMO_DATA_LABEL, labelUsesUploadPipeline, type DataLabel, type DataMode } from "@/lib/clearline/data-mode";
 import { AccessDenied, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
 
@@ -82,10 +82,12 @@ export async function merchantShell(ctx: TenantContext): Promise<{ label: DataLa
 
 async function entitySummaries(tx: Tx, orgId: string): Promise<EntitySummary[]> {
   const ents = await tx.select().from(t.merchantEntities).where(eq(t.merchantEntities.orgId, orgId)).orderBy(asc(t.merchantEntities.id));
-  const rows = await tx.select({ m: t.matchRecords, entityId: t.invoices.entityId }).from(t.matchRecords)
-    .innerJoin(t.invoices, and(eq(t.invoices.orgId, t.matchRecords.orgId), eq(t.invoices.orderId, t.matchRecords.orderId))).where(eq(t.matchRecords.orgId, orgId));
+  // only the stored chain transfers' timestamps (every page's shell needs the days, not the records)
+  const rows = (await tx.execute(sql`select i.entity_id, x->>'timestamp' as ts from match_records m
+    join invoices i on i.org_id = m.org_id and i.order_id = m.order_id cross join lateral jsonb_array_elements(m.chain->'transfers') x
+    where m.org_id = ${orgId}`)).rows as { entity_id: string; ts: string }[];
   return ents.map((e) => {
-    const ts = rows.filter((r) => r.entityId === e.id).flatMap((r) => partsOf(r.m).chain.transfers.map((x) => x.timestamp));
+    const ts = rows.filter((r) => r.entity_id === e.id).map((r) => r.ts);
     const days = [...new Set(ts.map((x) => localDate(x, e.utcOffsetMinutes)))].sort();
     return {
       id: e.id, name: e.name, currency: e.functionalCurrency, timezone: e.timezone, utcOffsetMinutes: e.utcOffsetMinutes, ledger: e.ledger,
@@ -102,6 +104,43 @@ export function dataAsOf(entities: EntitySummary[]): string | null {
 // ---------------------------------------------------------------------------------------------
 // Batches
 // ---------------------------------------------------------------------------------------------
+
+/**
+ * The overview's counts, one per record kind in the order Clearline follows a payment: the provider's records, the
+ * chain transfers (chain facts only, never a provider's claim of one), the orders, the settlement batches and the bank
+ * lines; and the decisions so far. Counts only.
+ */
+export async function overviewCounts(ctx: TenantContext) {
+  require(ctx, "read");
+  return tenantRead(ctx, async (tx) => {
+    const n = async (q: ReturnType<typeof sql>) => Number(((await tx.execute(q)).rows[0] as { n: string | number }).n);
+    const o = ctx.orgId;
+    const decisions = (await tx.execute(sql`select decision, count(*)::int as n from match_records where org_id = ${o} group by decision`)).rows as { decision: string; n: number }[];
+    return {
+      providerRecords: await n(sql`select count(*)::int as n from provider_payment_records where org_id = ${o}`),
+      chainTransfers: await n(sql`select count(*)::int as n from chain_transfers where org_id = ${o} and source <> 'provider_export'`),
+      orders: await n(sql`select count(*)::int as n from invoices where org_id = ${o}`),
+      batches: await n(sql`select count(*)::int as n from settlement_batches where org_id = ${o}`),
+      bankLines: await n(sql`select count(*)::int as n from bank_lines where org_id = ${o}`),
+      decisions: Object.fromEntries(decisions.map((d) => [d.decision, d.n])) as Partial<Record<"matched" | "matched_with_difference" | "suggested_for_review" | "exception", number>>,
+    };
+  });
+}
+
+/** The open exceptions of some orders (id, order, reason), for pages that show where a person is needed. */
+export async function openExceptionsOf(ctx: TenantContext, orderIds: string[]) {
+  require(ctx, "read");
+  if (orderIds.length === 0) return [];
+  return tenantRead(ctx, async (tx) => tx.select({ id: t.reconExceptions.id, orderId: t.reconExceptions.orderId, reason: t.reconExceptions.reason, status: t.reconExceptions.status }).from(t.reconExceptions)
+    .where(and(eq(t.reconExceptions.orgId, ctx.orgId), inArray(t.reconExceptions.orderId, orderIds), sql`${t.reconExceptions.status} <> 'resolved'`)).orderBy(asc(t.reconExceptions.id)));
+}
+
+/** The settlement batch ids, in the batches page's order (for a filter list; no bridge is computed). */
+export async function batchIds(ctx: TenantContext): Promise<string[]> {
+  require(ctx, "read");
+  return tenantRead(ctx, async (tx) => (await tx.select({ batchId: t.settlementBatches.batchId }).from(t.settlementBatches).where(eq(t.settlementBatches.orgId, ctx.orgId))
+    .orderBy(asc(t.settlementBatches.dayStart), asc(t.settlementBatches.batchId))).map((b) => b.batchId));
+}
 
 export async function listBatches(ctx: TenantContext) {
   require(ctx, "read");
@@ -150,7 +189,7 @@ export async function paymentContext(ctx: TenantContext, orderId: string) {
     const label = await orgLabel(tx, ctx.orgId);
     for (const x of p.chain.transfers) {
       const row = chainRows.find((c) => c.txHash === x.txHash && c.logIndex === x.logIndex);
-      tl.push({ at: x.timestamp, kind: "chain", title: `On-chain transfer on ${x.network}`, detail: `${x.txHash} · ${x.confirmations} confirmations${row ? (row.finalised ? " · final" : " · not final") : ""}${label === LIVE_DATA_LABEL ? ` · ${row?.source ?? "chain data"}` : " · recorded fixture"}`, independent: true });
+      tl.push({ at: x.timestamp, kind: "chain", title: `On-chain transfer on ${x.network}`, detail: `${x.txHash} · ${x.confirmations} confirmations${row ? (row.finalised ? " · final" : " · not final") : ""}${labelUsesUploadPipeline(label) ? ` · ${row?.source ?? "chain data"}` : " · recorded fixture"}`, independent: true });
     }
     for (const r of p.provider.records) tl.push({ at: m.computedAt.toISOString(), kind: "provider", title: `Provider record ${r.providerPaymentId}`, detail: `Provider claims "${r.statusClaim}"${r.displayedStatus ? ` (shown as "${r.displayedStatus}")` : ""}; credited ${money(r.creditedMinor, inv.currency)}. A claim, not proof.`, independent: false });
     for (const b of batches) tl.push({ at: b.dayEnd.toISOString(), kind: "settlement", title: `Settlement batch ${b.batchId}`, detail: `Provider day ${b.dayStart.toISOString().slice(0, 10)} (provider day = UTC); net ${money(b.netMinor, b.currency)}. Provider report, not proof.`, independent: false });
@@ -402,10 +441,12 @@ const AGE_BUCKETS = [{ label: "Under 1 day", max: 1 }, { label: "1–7 days", ma
 export async function monthEndView(ctx: TenantContext, entityId: string, month: string, asOf: string | null) {
   const base = await monthEnd(ctx, entityId, month);
   return tenantRead(ctx, async (tx) => {
-    const input = await load(tx, ctx, entityId);
+    // the entity's own facts and its batches' currencies (the full reconcile input is not needed here)
+    const ent = await entityOnly(tx, ctx, entityId);
+    const batchCurrencies = (await tx.select({ c: t.settlementBatches.currency }).from(t.settlementBatches).where(and(eq(t.settlementBatches.orgId, ctx.orgId), eq(t.settlementBatches.entityId, entityId))).orderBy(asc(t.settlementBatches.batchId))).map((b) => b.c);
     const recs = await tx.select({ m: t.matchRecords }).from(t.matchRecords).innerJoin(t.invoices, and(eq(t.invoices.orgId, t.matchRecords.orgId), eq(t.invoices.orderId, t.matchRecords.orderId)))
       .where(and(eq(t.matchRecords.orgId, ctx.orgId), eq(t.invoices.entityId, entityId))).orderBy(asc(t.matchRecords.orderId));
-    const off = input.entity.timeZone.utcOffsetMinutes;
+    const off = ent.utcOffsetMinutes;
     const receivable = new Map<string, { batchId: string; orderIds: string[]; creditedMinor: bigint; reason: string }>();
     for (const { m } of recs) {
       const p = partsOf(m);
@@ -422,12 +463,12 @@ export async function monthEndView(ctx: TenantContext, entityId: string, month: 
     const ref = asOf ? Date.parse(asOf) : Date.now();
     const ages = AGE_BUCKETS.map((b, i) => ({ label: b.label, ids: ex.filter((e) => { const d = Math.max(0, (ref - e.openedAt.getTime()) / 86_400_000); return d < b.max && (i === 0 || d >= AGE_BUCKETS[i - 1].max); }).map((e) => e.id) }));
     const fx = (await tx.select().from(t.fxRates).where(eq(t.fxRates.orgId, ctx.orgId)).orderBy(desc(t.fxRates.observedAt))).filter((r) => r.observedAt.toISOString().startsWith(month) || !r.entityId || r.entityId === entityId);
-    const foreign = [...new Set(input.batches.map((b) => b.currency).filter((c) => c !== input.entity.functionalCurrency))];
+    const foreign = [...new Set(batchCurrencies.filter((c) => c !== ent.functionalCurrency))];
     return {
       ...base,
       receivableFromProvider: [...receivable.values()].map((g) => ({ ...g, creditedMinor: g.creditedMinor.toString() })),
       exceptionAges: ages,
-      fx: { functionalCurrency: input.entity.functionalCurrency, foreignCurrencies: foreign, rates: fx.slice(0, 6).map((r) => ({ pair: r.pair, rate: r.rate, source: r.source, observedAt: r.observedAt.toISOString() })) },
+      fx: { functionalCurrency: ent.functionalCurrency, foreignCurrencies: foreign, rates: fx.slice(0, 6).map((r) => ({ pair: r.pair, rate: r.rate, source: r.source, observedAt: r.observedAt.toISOString() })) },
     };
   });
 }
@@ -489,7 +530,7 @@ export async function packData(tx: Tx, ctx: TenantContext, scope: PackScope) {
   return {
     label, organisation: ctx.orgName, entity: { id: ent.id, name: ent.name, currency: ent.functionalCurrency, timezone: ent.timezone, ledger: ent.ledger },
     scope, cutOffNote: "provider day = UTC",
-    note: label === LIVE_DATA_LABEL ? "Read-only evidence. Provider statuses are claims, not proof; each chain fact names its source; imported bank statements are not bank-authenticated; nothing moves money."
+    note: labelUsesUploadPipeline(label) ? "Read-only evidence. Provider statuses are claims, not proof; each chain fact names its source; imported bank statements are not bank-authenticated; nothing moves money."
       : "Read-only evidence. Provider statuses are claims, not proof; chain data is a recorded fixture; nothing moves money.",
     payments: parts.map(({ m, p }) => ({ orderId: m.orderId, decision: m.decision, decidingStep: m.decidingStep, ruleId: m.ruleId, engineVersion: m.engineVersion, inputSha256: m.inputSha256, ledger: p.ledger, bank: p.bank, explanation: { history: p.explanation.history, differences: p.explanation.differences } })),
     chainProof: chain.map((c) => ({ network: c.network, txHash: c.txHash, logIndex: c.logIndex, block: c.block, blockTime: c.blockTime.toISOString(), tokenContract: c.tokenContract, from: c.fromAddress, to: c.toAddress, amountBaseUnits: c.amountBaseUnits, decimals: c.decimals, confirmations: c.confirmations, finalised: c.finalised, source: c.source })),
@@ -543,7 +584,7 @@ async function packPdf(p: Pack): Promise<Uint8Array> {
   const LABEL = p.label;
   doc.setTitle(`Clearline evidence pack — ${LABEL}`);
   doc.setSubject(LABEL);
-  doc.setProducer(LABEL === LIVE_DATA_LABEL ? "Clearline" : "Clearline (test mode)");
+  doc.setProducer(LABEL === DEMO_DATA_LABEL ? "Clearline (demo build)" : labelUsesUploadPipeline(LABEL) ? "Clearline" : "Clearline (test mode)");
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const W = 595, H = 842, M = 48;
@@ -573,7 +614,7 @@ async function packPdf(p: Pack): Promise<Uint8Array> {
   const head = (s: string) => { y -= 4; line(s, { b: true, size: 11, gap: 2 }); };
   head(`Payments (${p.payments.length})`);
   for (const x of p.payments) line(`${x.orderId}: ${x.decision} at step ${x.decidingStep} (rule ${x.ruleId}); invoice ${money(x.ledger.invoice.amountMinor, x.ledger.invoice.currency)}, credited ${money(x.ledger.creditedMinor, x.ledger.invoice.currency)}, ${x.ledger.balanceLabel}; bank ${x.bank.status}${x.bank.batchTied ? ", batch tied" : ""}.`);
-  head(`Chain proof (${p.chainProof.length})${LABEL === LIVE_DATA_LABEL ? "" : " — recorded fixture"}`);
+  head(`Chain proof (${p.chainProof.length})${labelUsesUploadPipeline(LABEL) ? "" : " — recorded fixture"}`);
   for (const c of p.chainProof.slice(0, 60)) line(`${c.network} ${c.txHash} log ${c.logIndex}, block ${c.block}, ${c.blockTime}, ${c.confirmations} confirmations${c.finalised ? " (final)" : " (not final)"}, to ${c.to}`);
   if (p.chainProof.length > 60) line(`… ${p.chainProof.length - 60} more in the CSV and JSON files.`);
   head(`Provider records (${p.providerRecords.length}) — claims, not proof`);
@@ -593,8 +634,9 @@ async function packPdf(p: Pack): Promise<Uint8Array> {
   return doc.save({ useObjectStreams: false });
 }
 
+/** rc8 founder decision 3: Finance, an Approver or an Admin only (merchant_export), whatever the scope. */
 export async function evidencePack(ctx: TenantContext, scope: PackScope, format: z.infer<typeof PackFormat>) {
-  require(ctx, "read");
+  require(ctx, "merchant_export");
   return tenantTx(ctx, async (tx) => {
     const p = await packData(tx, ctx, scope);
     const body: string | Uint8Array = format === "json" ? JSON.stringify(p, null, 2) + "\n" : format === "csv" ? packCsv(p) : await packPdf(p);
@@ -612,8 +654,9 @@ export async function evidencePack(ctx: TenantContext, scope: PackScope, format:
 
 export const SANDBOX_EXPORT_LABEL = "sandbox/demo company only; posting rules pending sign-off";
 
+/** rc8 founder decision 3: Finance, an Approver or an Admin only (merchant_export; was Finance only). */
 export async function journalExport(ctx: TenantContext, entityId: string, month: string, format: "csv" | "json") {
-  require(ctx, "accounting_prepare");
+  require(ctx, "merchant_export");
   const me = await monthEnd(ctx, entityId, month);
   return tenantTx(ctx, async (tx) => {
     const [ent] = await tx.select().from(t.merchantEntities).where(and(eq(t.merchantEntities.orgId, ctx.orgId), eq(t.merchantEntities.id, entityId)));

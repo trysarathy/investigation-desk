@@ -77,6 +77,18 @@ export interface WorldParams {
   /** Observation instant for confirmations ("now" of the data). Default: midnight UTC after the last active day. */
   asOf?: string;
   providerName?: string;
+  /**
+   * Demo build: start on this UTC calendar date (YYYY-MM-DD) instead of the first of `month`, for `activeDays` days
+   * (required with it). `month` then only names identifiers (PAY-yymm-…). Default: the calendar month.
+   */
+  startDate?: string;
+  /**
+   * Demo build: calendar dates (YYYY-MM-DD) on which an entity must have no payment, as UTC provider day or merchant
+   * day, so documented cases embedded on those days keep their exact bridges. Plans that land there are drawn again.
+   */
+  blockedDays?: Readonly<Record<string, readonly string[]>>;
+  /** Demo build: order ids per entity (default `<code>-<yymm>-<n>`). */
+  orderIdFor?: (entityCode: string, n: number) => string;
 }
 
 export interface Customer { customerId: string; name: string; email: string; wallets: Partial<Record<NetworkId, string[]>> }
@@ -225,7 +237,10 @@ export function generateWorld(params: WorldParams): SyntheticWorld {
     plan: rng.fork("plan"), addr: rng.fork("addresses"), amt: rng.fork("amounts"), time: rng.fork("time"), fx: rng.fork("fx"),
     bank: rng.fork("bank"), extra: rng.fork("extras"), cust: rng.fork("customers"),
   };
-  const { startMs, days } = parseMonth(params.month);
+  const cal = parseMonth(params.month);
+  if (params.startDate && (!params.activeDays || !/^\d{4}-\d{2}-\d{2}$/.test(params.startDate))) throw new RangeError("startDate (YYYY-MM-DD) needs activeDays");
+  const startMs = params.startDate ? ms(`${params.startDate}T00:00:00.000Z`) : cal.startMs;
+  const days = params.startDate ? params.activeDays! : cal.days;
   const activeDays = Math.min(params.activeDays ?? days, days);
   if (activeDays < 4) throw new RangeError("activeDays must be at least 4");
   const asOfMs = params.asOf ? ms(params.asOf) : startMs + activeDays * DAY_MS;
@@ -287,6 +302,18 @@ export function generateWorld(params: WorldParams): SyntheticWorld {
     };
     put("USDT/SGD", sgd); put("USDC/SGD", usdcSgd); put("USDT/USD", usdtUsd); put("USDC/USD", 10_000);
   }
+  if (entitySpecs.some((e) => e.currency === "AED")) {
+    // [ASSUMPTION] AED is pegged near 3.6725 per USD; its own stream, so worlds without an AED entity are unchanged.
+    const fxAed = rng.fork("fx-aed");
+    for (let d = -2; d < days + 7; d++) {
+      const date = dateAt(startMs + d * DAY_MS, 0);
+      for (const [pair, v] of [["USDT/AED", 36_725 + fxAed.int(-4, 4)], ["USDC/AED", 36_725 + fxAed.int(-3, 3)]] as const) {
+        const rate = `${Math.floor(v / 10_000)}.${String(v % 10_000).padStart(4, "0")}`;
+        rateOf.set(`${pair}|${date}`, rate);
+        fxRates.push({ pair, rate, source: "Fictional Rate Desk", timestamp: `${date}T00:00:00.000Z` });
+      }
+    }
+  }
   const fx = (symbol: string, cur: FiatCurrency, atMs: number): string => {
     const v = rateOf.get(`${symbol}/${cur}|${dateAt(atMs, 0)}`);
     if (!v) throw new RangeError(`no FX rate for ${symbol}/${cur} at ${iso(atMs)}`);
@@ -322,6 +349,17 @@ export function generateWorld(params: WorldParams): SyntheticWorld {
       return t;
     }
   };
+  // Demo build: a plan whose payment (or, for spanDays, the days after it) touches a blocked day is drawn again.
+  const blocked = (e: WorldEntitySpec, tMs: number, spanDays: number): boolean => {
+    const list = params.blockedDays?.[e.id];
+    if (!list?.length) return false;
+    for (let k = 0; k <= spanDays; k++) {
+      const t = tMs + k * DAY_MS;
+      if (list.includes(dateAt(t, 0)) || list.includes(dateAt(t, e.timeZone.utcOffsetMinutes))) return true;
+    }
+    return false;
+  };
+  const spanOf = (s: Scenario): number => (s === "partial_completed" ? 4 : s === "late_settlement" || s === "duplicate_amount" || s === "amount_coincidence" ? 1 : 0);
   const plans: Plan[] = [];
   let key = 0;
   let forcedBoundary = 0;
@@ -336,6 +374,7 @@ export function generateWorld(params: WorldParams): SyntheticWorld {
       else if (s === "partial_completed") { day = r.plan.int(1, lastDay - 3); tsMs = timeOn(day, { maxHour: 15 }); }
       else if (s === "exact" && forcedBoundary < 2 * entitySpecs.length && day < lastDay) { tsMs = timeOn(day, { minHour: 16 }); forcedBoundary++; }
       else tsMs = timeOn(day);
+      if (params.blockedDays && blocked(entity, tsMs, spanOf(s))) { i--; continue; }
       if (s !== "pending_claimed_paid" && s !== "pending_claim") boundary = dateAt(tsMs, entity.timeZone.utcOffsetMinutes) !== dateAt(tsMs, 0);
       plans.push({ scenario: s, entity, day, tsMs, boundary, key: key++ });
     }
@@ -412,7 +451,7 @@ export function generateWorld(params: WorldParams): SyntheticWorld {
   function newOrder(plan: Plan, issuedMs: number, invoiceMinor: bigint, customer: Customer): WorldOrder {
     const n = (seqByEntity.get(plan.entity.id) ?? 0) + 1;
     seqByEntity.set(plan.entity.id, n);
-    const orderId = `${plan.entity.code}-${yymm}-${String(n).padStart(5, "0")}`;
+    const orderId = params.orderIdFor ? params.orderIdFor(plan.entity.code, n) : `${plan.entity.code}-${yymm}-${String(n).padStart(5, "0")}`;
     const o: WorldOrder = {
       orderId, entityId: plan.entity.id, customerId: customer.customerId, issuedAt: iso(issuedMs),
       description: r.plan.pick(["Wholesale order (fictional)", "Subscription renewal (fictional)", "Hardware order (fictional)", "Services invoice (fictional)", "Event booking (fictional)"]),
@@ -564,7 +603,8 @@ export function generateWorld(params: WorldParams): SyntheticWorld {
         const probeRate = fx(token.symbol, cur, qCreatedMs);
         let delta = 0;
         for (;;) {
-          delta = beyond ? r.amt.pick([-1, 1]) * r.amt.int(70, 160) : r.amt.pick([-1, 1]) * r.amt.int(1, 9);
+          // AED rates are about 2.7× SGD ones: the same relative shift needs about 3× the ten-thousandths to leave the band
+          delta = beyond ? r.amt.pick([-1, 1]) * r.amt.int(70, 160) * (cur === "AED" ? 3 : 1) : r.amt.pick([-1, 1]) * r.amt.int(1, 9);
           const rp = ratePart(quoted, shiftRate(probeRate, delta), probeRate, cur);
           const inv = fiat(quoted, probeRate, cur);
           const maxBand = bpsOf(inv, policy.toleranceBps) > fixedOf(cur) ? bpsOf(inv, policy.toleranceBps) : fixedOf(cur);
@@ -725,7 +765,9 @@ export function generateWorld(params: WorldParams): SyntheticWorld {
   // ---- transfers that belong to no order
   const extras = { ...DEFAULT_EXTRAS, ...(params.extras ?? {}) };
   const nExtra = (x: Extra) => Math.max(1, Math.round(extras[x] * params.paymentCount));
-  const extraTime = () => timeOn(r.extra.int(1, lastDay));
+  const extraTime = (): number => {
+    for (;;) { const t = timeOn(r.extra.int(1, lastDay)); if (!params.blockedDays || !entitySpecs.some((e) => blocked(e, t, 0))) return t; }
+  };
   for (let i = 0; i < nExtra("unattributed"); i++) {
     const token = r.extra.pick(tokens);
     const c = r.extra.pick(customers);

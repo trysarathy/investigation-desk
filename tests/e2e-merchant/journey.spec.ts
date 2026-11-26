@@ -179,8 +179,8 @@ test("Case 3 (AED, two chains, two links): the 14.16 write-off proposed by Finan
   await expect(page.getByTestId("daily-summary")).toContainText("write-off awaiting approval");
   await nav(page, "Payments");
   await page.getByRole("link", { name: "BK-25102" }).click();
-  await expect(page.getByTestId("part-chain")).toContainText("tron");
-  await expect(page.getByTestId("part-chain")).toContainText("ethereum");
+  await expect(page.getByTestId("part-chain")).toContainText("TRON");
+  await expect(page.getByTestId("part-chain")).toContainText("Ethereum");
   await expect(page.getByRole("region", { name: "Differences table" })).toContainText("Underpayment");
   await submitAndConfirm(page, () => page.getByRole("button", { name: "Submit write-off of AED 14.16 for approval" }).click(), /Sent for approval: write-off AED 14.16 v1/);
   const hash = await preparerCannotApprove(page, "write-off");

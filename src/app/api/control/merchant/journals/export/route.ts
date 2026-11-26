@@ -6,7 +6,8 @@ export const dynamic = "force-dynamic";
 
 /**
  * Accounting Bridge export as a FILE only (?entity=&month=YYYY-MM&format=csv|json): no Xero or QuickBooks connection,
- * sandbox/demo company only, posting rules pending sign-off. The export is audited; nothing is posted.
+ * sandbox/demo company only, posting rules pending sign-off. Finance, an Approver or an Admin only (rc8 founder
+ * decision 3; the service checks it). The export is audited; nothing is posted.
  */
 export const GET = (req: Request) => read(req, async (ctx) => {
   const q = new URL(req.url).searchParams;

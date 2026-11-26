@@ -23,8 +23,8 @@ export function jobsDb(): Db {
 }
 export async function closeJobs() { await jobsPool?.end(); jobsPool = undefined; }
 
-/** Truncate all data (owner; triggers disabled only for the reset) and seed two fictional organisations. */
-export async function resetAndSeed() {
+/** Truncate all data (owner; triggers disabled only for the reset): a blank database, no organisation and no user. */
+export async function resetBlank() {
   const db = ownerDb();
   // Test-only reset as the schema owner: the owner can always alter its own tables (documented in the threat model);
   // the runtime role can never do this.
@@ -35,6 +35,12 @@ export async function resetAndSeed() {
   for (const tb of ["audit_events", "investigation_notes", "approval_decisions", "approval_requests"]) await db.execute(sql.raw(`ALTER TABLE ${tb} DISABLE TRIGGER USER`));
   await db.execute(sql.raw(`TRUNCATE ${TABLES} CASCADE`));
   for (const tb of ["audit_events", "investigation_notes", "approval_decisions", "approval_requests"]) await db.execute(sql.raw(`ALTER TABLE ${tb} ENABLE TRIGGER USER`));
+}
+
+/** A blank database, then two fictional organisations. */
+export async function resetAndSeed() {
+  const db = ownerDb();
+  await resetBlank();
   const { createOrganization, createUser, grantMembership } = await import("../../src/server/admin");
   await createOrganization(db, { slug: "lumen-demo", name: "Lumen (fictional)", seed: "sample" });
   await createOrganization(db, { slug: "harbour-demo", name: "Harbour (fictional)", seed: "sample" });

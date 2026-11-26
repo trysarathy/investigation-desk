@@ -4,22 +4,32 @@ import type { Metadata } from "next";
 import { can } from "@/server/authz";
 import { orNotFound } from "@/server/control-page";
 import { merchantPaymentDetail } from "@/server/merchant";
-import { paymentContext, type StoredBank, type StoredExplanation, type StoredLedger, type StoredProviderRecord, type StoredTransfer } from "@/server/merchant-ui";
+import { paymentContext, type StoredBank, type StoredDifference, type StoredExplanation, type StoredLedger, type StoredProviderRecord, type StoredTransfer } from "@/server/merchant-ui";
 import { merchantMember } from "@/server/merchant-page";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
 import { SubmitWriteoff } from "@/components/merchant/forms";
 import { FlashMessage } from "@/components/control/forms";
-import { Chip, DecisionChip, STEP_NAMES, bankStatusLabel, differenceLabel, fiat, token } from "@/components/merchant/ui";
-import { when } from "@/components/control/ui";
+import { Chip, DecisionChip, STEP_NAMES, bankStatusLabel, differenceLabel, fiat, networkLabel, token, whenIn } from "@/components/merchant/ui";
 
 export const metadata: Metadata = { title: "Payment" };
 
 const WO_STATUS: Record<string, string> = { proposed: "Proposed by the engine", awaiting_approval: "Awaiting a second person's approval", approved: "Approved by a second person", rejected: "Rejected", superseded: "Superseded by a later reconciliation" };
 const KIND_LABEL: Record<string, string> = { chain: "Chain", provider: "Provider", settlement: "Settlement", bank: "Bank", reconciliation: "Clearline", exception: "Exception", note: "Note", evidence: "Evidence", approval: "Approval", decision: "Decision" };
 
+/** The smallest set of differences whose amounts add up to `target` (minor units), or null. At most a dozen differences. */
+function explainingSet(diffs: StoredDifference[], target: bigint): StoredDifference[] | null {
+  const xs = diffs.slice(0, 12);
+  let best: StoredDifference[] | null = null;
+  for (let mask = 1; mask < 1 << xs.length; mask++) {
+    const pick = xs.filter((_, i) => mask & (1 << i));
+    if (pick.reduce((a, x) => a + BigInt(x.amountMinor), 0n) === target && (!best || pick.length < best.length)) best = pick;
+  }
+  return best;
+}
+
 export default async function MerchantPaymentPage({ params }: { params: Promise<{ orderId: string }> }) {
-  const { ctx } = await merchantMember();
+  const { ctx, shell } = await merchantMember();
   const { orderId: raw } = await params;
   const orderId = decodeURIComponent(raw);
   const [d, c] = await Promise.all([orNotFound(merchantPaymentDetail(ctx, orderId)), orNotFound(paymentContext(ctx, orderId))]);
@@ -31,6 +41,17 @@ export default async function MerchantPaymentPage({ params }: { params: Promise<
   const cur = ledger.invoice.currency;
   const mayPropose = can(ctx.role, "propose_writeoff");
   const fin = (r: (typeof c.chainRows)[number] | undefined) => (r ? (r.finalised ? "final" : "not final") : "—");
+  const ent = shell.entities.find((e) => e.id === c.entityId) ?? null;
+  const when = (v: string | Date | null | undefined) => whenIn(v, ent);
+  // the differences of the current decision; rows a run before the latest data wrote are kept, and shown apart
+  const current = ex.differences;
+  const currentIds = new Set(current.map((x) => x.persistedId ?? x.id));
+  const earlier = (d.differences as { id: string; type: string; amountMinor: string; currency: string; reason: string; ruleId: string }[]).filter((x) => !currentIds.has(x.id));
+  // a payment in parts: the parts, and the differences that make up what is still open (or over)
+  const parts = chain.transfers.length > 1 ? [...chain.transfers].sort((a, b) => a.timestamp.localeCompare(b.timestamp)) : [];
+  const gap = BigInt(ledger.openBalanceMinor) - BigInt(ledger.customerOverpaymentMinor);
+  const gapSet = parts.length && gap !== 0n ? explainingSet(current.filter((x) => x.type !== "partial_payment_open"), -gap) : null;
+  const networks = new Set(parts.map((x) => x.network));
 
   return (
     <>
@@ -50,7 +71,7 @@ export default async function MerchantPaymentPage({ params }: { params: Promise<
                 return (
                   <dl className={m.kv} key={`${x.txHash}:${x.logIndex}`}>
                     <dt>Amount</dt><dd>{token(x.amountBaseUnits, x.decimals, x.symbol)}</dd>
-                    <dt>Network</dt><dd>{x.network}</dd>
+                    <dt>Network</dt><dd>{networkLabel(x.network)}</dd>
                     <dt>Tx</dt><dd className={s.mono}>{x.txHash}</dd>
                     <dt>Block</dt><dd>{x.block} · {x.confirmations} conf. · {fin(row)}</dd>
                     <dt>To</dt><dd className={s.mono}>{x.to}</dd>
@@ -115,18 +136,40 @@ export default async function MerchantPaymentPage({ params }: { params: Promise<
         </div>
       </section>
 
+      {parts.length ? (
+        <section className={s.section} aria-labelledby="parts-h" data-testid="parts">
+          <h2 className={s.h2} id="parts-h">Paid in {parts.length} parts{networks.size > 1 ? ` on ${networks.size} chains` : ""}</h2>
+          <div className={s.panel}>
+            <ol>{parts.map((x, i) => {
+              const pr = provider.records.find((r) => (x.linkId && r.ref.linkId === x.linkId) || (x.quoteId && r.ref.quoteId === x.quoteId));
+              return <li key={`${x.txHash}:${x.logIndex}`} data-testid="part">Part {i + 1}: {token(x.amountBaseUnits, x.decimals, x.symbol)} on {networkLabel(x.network)}, {when(x.timestamp)}{pr ? <>; Provider record <span className={s.mono}>{pr.providerPaymentId}</span> credits {fiat(pr.creditedMinor, cur)} at {pr.executedRate}{pr.batchId ? <> in batch <a href={`/control/merchant/batches/${encodeURIComponent(pr.batchId)}`}>{pr.batchId}</a></> : null}</> : null}.</li>;
+            })}</ol>
+            <p data-testid="parts-gap">{gap === 0n ? <>Together the parts settle the invoice of {fiat(ledger.invoice.amountMinor, cur)} exactly.</> : gapSet ? (
+              <>Together they credit {fiat(ledger.creditedMinor, cur)} of the invoice&rsquo;s {fiat(ledger.invoice.amountMinor, cur)}. The {fiat(gap < 0n ? -gap : gap, cur)} {gap > 0n ? "still open" : "paid over"} is {gapSet.map((x, i) => <span key={x.id}>{i ? (i === gapSet.length - 1 ? " and " : ", ") : ""}{differenceLabel(x.type).toLowerCase()} of {fiat(BigInt(x.amountMinor) < 0n ? -BigInt(x.amountMinor) : BigInt(x.amountMinor), x.currency)} ({x.reason.replace(/\.$/, "")})</span>)}. {d.decision === "matched_with_difference" ? "It is inside this entity's tolerance band, so the payment is matched with a difference, not closed silently." : null}</>
+            ) : <>Together they credit {fiat(ledger.creditedMinor, cur)} of the invoice&rsquo;s {fiat(ledger.invoice.amountMinor, cur)}; {fiat(gap < 0n ? -gap : gap, cur)} is {gap > 0n ? "still open" : "paid over"}. The differences below explain it.</>}</p>
+          </div>
+        </section>
+      ) : null}
+
       <section className={s.section} aria-labelledby="diffs">
         <h2 className={s.h2} id="diffs">Differences</h2>
-        {(d.differences as unknown[]).length === 0 ? <p>No differences: the records agree.</p> : (
+        {current.length === 0 ? <p>No differences: the records agree.</p> : (
           <div className={s.tableWrap} role="region" aria-label="Differences table" tabIndex={0}>
             <table className={s.table}>
+              <caption className={s.small}>The typed differences behind the current result, each with the rule that found it.</caption>
               <thead><tr><th scope="col">Type</th><th scope="col" className={s.num}>Amount</th><th scope="col">Reason</th><th scope="col">Rule</th></tr></thead>
-              <tbody>{(d.differences as { id: string; type: string; amountMinor: string; currency: string; reason: string; ruleId: string }[]).map((x) => (
-                <tr key={x.id}><td><Chip tone="info">{differenceLabel(x.type)}</Chip></td><td className={s.num}>{fiat(x.amountMinor, x.currency)}</td><td>{x.reason}</td><td className={s.mono}>{x.ruleId}</td></tr>
+              <tbody>{current.map((x) => (
+                <tr key={x.id} data-testid="difference-row"><td><Chip tone="info">{differenceLabel(x.type)}</Chip></td><td className={s.num}>{fiat(x.amountMinor, x.currency)}</td><td>{x.reason}</td><td className={s.mono}>{x.ruleId}</td></tr>
               ))}</tbody>
             </table>
           </div>
         )}
+        {earlier.length ? (
+          <details className={s.small} data-testid="earlier-differences">
+            <summary>{earlier.length === 1 ? "1 difference" : `${earlier.length} differences`} recorded by an earlier run, before the latest data (kept for the record; not part of the current result)</summary>
+            <ul>{earlier.map((x) => <li key={x.id}>{differenceLabel(x.type)} {fiat(x.amountMinor, x.currency)}: {x.reason} <span className={s.mono}>({x.ruleId})</span></li>)}</ul>
+          </details>
+        ) : null}
       </section>
 
       <section className={s.section} aria-labelledby="attention">
@@ -163,11 +206,13 @@ export default async function MerchantPaymentPage({ params }: { params: Promise<
       <section className={s.section} aria-labelledby="pack">
         <h2 className={s.h2} id="pack">Evidence pack</h2>
         <p className={s.small}>Chain proof, provider record, bank line, approvals and audit trail for this payment. Each download is recorded in the audit history. {d.label}.</p>
-        <ul className={m.downloads}>
-          <li><a href={`/api/control/merchant/evidence?order=${encodeURIComponent(orderId)}&format=pdf`} download>Download PDF summary</a></li>
-          <li><a href={`/api/control/merchant/evidence?order=${encodeURIComponent(orderId)}&format=csv`} download>Download CSV</a></li>
-          <li><a href={`/api/control/merchant/evidence?order=${encodeURIComponent(orderId)}&format=json`} download>Download JSON</a></li>
-        </ul>
+        {can(ctx.role, "merchant_export") ? (
+          <ul className={m.downloads}>
+            <li><a href={`/api/control/merchant/evidence?order=${encodeURIComponent(orderId)}&format=pdf`} download>Download PDF summary</a></li>
+            <li><a href={`/api/control/merchant/evidence?order=${encodeURIComponent(orderId)}&format=csv`} download>Download CSV</a></li>
+            <li><a href={`/api/control/merchant/evidence?order=${encodeURIComponent(orderId)}&format=json`} download>Download JSON</a></li>
+          </ul>
+        ) : <p className={s.small} data-testid="export-not-allowed">Evidence packs are downloaded by Finance, an Approver or an Admin.</p>}
       </section>
 
       <section className={s.section} aria-labelledby="audit">

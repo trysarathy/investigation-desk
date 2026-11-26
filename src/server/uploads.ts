@@ -7,7 +7,7 @@ import {
   type BankParseResult, type ParsedTable,
 } from "@/lib/clearline/ingest";
 import { FILE_TYPES, applyMapping, validateMapping, type AppliedRow, type FileType, type Mapping, type MappedValue } from "@/lib/clearline/mapping";
-import { dataLabel, type DataLabel } from "@/lib/clearline/data-mode";
+import { usesUploadPipeline, type DataLabel } from "@/lib/clearline/data-mode";
 import type { NetworkId, TokenConfig } from "@/lib/clearline/merchant/types";
 import { stableJson } from "@/lib/clearline/merchant/adapters";
 import type { Db, Tx } from "./db/client";
@@ -36,6 +36,8 @@ function require(ctx: TenantContext, p: Permission) {
 }
 const tenantTx = <T>(ctx: TenantContext, fn: (tx: Tx) => Promise<T>) => withTenant({ userId: ctx.userId, orgId: ctx.orgId }, fn);
 const tenantRead = <T>(ctx: TenantContext, fn: (tx: Tx) => Promise<T>) => withTenant({ userId: ctx.userId, orgId: ctx.orgId }, fn, { read: true });
+/** The organisation's own data label ("Your data" for a live merchant, "Demo · fictional data" for a demo one). */
+const orgDataLabel = (ctx: TenantContext): Promise<DataLabel> => tenantRead(ctx, async (tx) => (await dataModeOf(tx, ctx.orgId)).label);
 const sha256 = (b: Uint8Array | string) => createHash("sha256").update(b).digest("hex");
 const UploadId = z.uuid();
 export type UploadRow = typeof t.uploads.$inferSelect;
@@ -209,7 +211,7 @@ export async function createUpload(ctx: TenantContext, input: z.input<typeof Cre
   // the audit, the idempotency record or the commit itself), the file is removed again unless its row committed.
   let written: string | undefined;
   const r = await tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "upload_create", ...v, contentSha256 }, async () => {
-    if ((await dataModeOf(tx, ctx.orgId)).dataMode !== "live") throw new RequestRefused(409, "SAMPLE_ORGANISATION", "This organisation holds sample data (Test mode · illustrative data); upload your files to your live organisation.");
+    if (!usesUploadPipeline((await dataModeOf(tx, ctx.orgId)).dataMode)) throw new RequestRefused(409, "SAMPLE_ORGANISATION", "This organisation holds sample data (Test mode · illustrative data); upload your files to your live organisation.");
     const [ent] = await tx.select({ id: t.merchantEntities.id }).from(t.merchantEntities).where(and(eq(t.merchantEntities.orgId, ctx.orgId), eq(t.merchantEntities.id, v.entityId)));
     if (!ent) throw new AccessDenied(404, "Not found.");
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${ctx.orgId}|upload|${contentSha256}`}))`);
@@ -237,7 +239,7 @@ export async function createUpload(ctx: TenantContext, input: z.input<typeof Cre
     throw e;
   });
   const suggestion = "table" in parsed ? await suggestTemplate(ctx, { fileType: v.fileType, headers: parsed.table.headers }) : null;
-  return { status: r.status, replayed: r.replayed, upload: r.body, label: dataLabel("live"), preview: previewOf(parsed), suggestion };
+  return { status: r.status, replayed: r.replayed, upload: r.body, label: await orgDataLabel(ctx), preview: previewOf(parsed), suggestion };
 }
 
 /**
@@ -274,7 +276,7 @@ export async function uploadPreview(ctx: TenantContext, id: string, storage: Upl
   const u = await tenantRead(ctx, (tx) => loadUpload(tx, ctx, id));
   const parsed = await parseUpload(await storage.get(ctx.orgId, u.storageKey!), u.fileType as FileType, u.originalName, u.jsonList);
   const suggestion = "table" in parsed ? await suggestTemplate(ctx, { fileType: u.fileType as FileType, headers: parsed.table.headers }) : null;
-  return { label: dataLabel("live"), upload: summary(u), preview: previewOf(parsed), suggestion };
+  return { label: await orgDataLabel(ctx), upload: summary(u), preview: previewOf(parsed), suggestion };
 }
 
 export const SetMapping = z.union([
@@ -362,7 +364,7 @@ export async function validationReport(ctx: TenantContext, id: string, query: z.
     const [{ total }] = await tx.select({ total: sql<number>`count(*)::int` }).from(t.uploadRows).where(where);
     const rows = await tx.select({ rowNumber: t.uploadRows.rowNumber, status: t.uploadRows.status, reasonCodes: t.uploadRows.reasonCodes, targetRef: t.uploadRows.targetRef })
       .from(t.uploadRows).where(where).orderBy(asc(t.uploadRows.rowNumber)).limit(q.pageSize).offset((q.page - 1) * q.pageSize);
-    return { label: dataLabel("live"), upload: summary(u), page: q.page, pageSize: q.pageSize, total, rows };
+    return { label: (await dataModeOf(tx, ctx.orgId)).label, upload: summary(u), page: q.page, pageSize: q.pageSize, total, rows };
   });
 }
 

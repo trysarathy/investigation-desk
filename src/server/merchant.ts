@@ -17,7 +17,9 @@ import { AccessDenied, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
 import { dataModeOf } from "./mapping-templates";
 import type { DataLabel } from "@/lib/clearline/data-mode";
-import { isLiveOrg, verifyChainForEntity, verifyClientFromEnv } from "./chain-verify";
+import { orgDataMode, verifyChainForEntity, verifyClientFromEnv } from "./chain-verify";
+import { usesUploadPipeline, isDataMode } from "@/lib/clearline/data-mode";
+import { demoNow } from "@/lib/clearline/demo/clock";
 import type { VerifyChainClient } from "@/lib/clearline/merchant/chain";
 import type { RunTrigger } from "./db/ops-schema";
 import { MERCHANT_ENGINE_VERSION, RULE_SET_VERSION, closedOrders, errorCodeOf, newOutcome, outcomeKey, runCounts, runState, storedOutcome, type RunCounts } from "./runs";
@@ -57,6 +59,17 @@ async function load(tx: Tx, ctx: TenantContext, entityId: string) {
   }
 }
 
+/**
+ * The entity and its policy row, and nothing else: for a read that needs only the entity's own facts (its currency,
+ * its time zone). Not found, exactly as `load`, when either is missing.
+ */
+export async function entityOnly(tx: Tx, ctx: TenantContext, entityId: string) {
+  const [ent] = await tx.select().from(t.merchantEntities).where(and(eq(t.merchantEntities.orgId, ctx.orgId), eq(t.merchantEntities.id, entityId)));
+  const [pol] = ent ? await tx.select({ id: t.merchantPolicy.entityId }).from(t.merchantPolicy).where(and(eq(t.merchantPolicy.orgId, ctx.orgId), eq(t.merchantPolicy.entityId, entityId))) : [];
+  if (!ent || !pol) throw new AccessDenied(404, "Not found.");
+  return ent;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Ingestion and reconciliation
 // ---------------------------------------------------------------------------------------------
@@ -74,7 +87,7 @@ export async function ingestAdapterOutput(ctx: TenantContext, entityId: string, 
 }
 
 /** Options of a run. `ruleSetVersion` replaces the code's version only in tests (to show a rule change re-runs). */
-export interface RunOptions { chain?: VerifyChainClient; trigger?: RunTrigger; jobId?: string; ruleSetVersion?: string }
+export interface RunOptions { chain?: VerifyChainClient; trigger?: RunTrigger; jobId?: string; ruleSetVersion?: string; /** The instant chain reads are made at (default: now; the demo clock for a demo organisation). */ now?: Date }
 
 /**
  * (Live data: verify against the chain first, see chain-verify.ts.) Load the entity's rows → reconcile → persist the five parts, differences (append-only), exceptions, write-off
@@ -91,7 +104,10 @@ export async function runReconciliation(ctx: TenantContext, entityId: string, id
   try {
     // rc7 phase 2: a live organisation's payments are verified against chain data first (sample data is seeded with
     // its recorded chain facts). Reads happen outside the reconcile transaction; failed reads are stored, not thrown.
-    if (await isLiveOrg(ctx)) await verifyChainForEntity(ctx, entityId, opts.chain ?? verifyClientFromEnv());
+    // Demo build: a demo organisation goes through the same verification, against the recorded chain file, at the
+    // demo clock (src/lib/clearline/demo/clock.ts); verifyClientFromEnv refuses the recording for any other org.
+    const mode = await orgDataMode(ctx);
+    if (isDataMode(mode) && usesUploadPipeline(mode)) await verifyChainForEntity(ctx, entityId, opts.chain ?? verifyClientFromEnv(process.env, mode), mode === "demo" ? { now: opts.now ?? demoNow() } : opts.now ? { now: opts.now } : {});
     return await tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "merchant_reconcile", entityId }, () => reconcileInTx(tx, ctx, entityId, { trigger, version, startedAt, jobId: opts.jobId ?? null })));
   } catch (e) {
     // A failed run is recorded with a code (never the message). An unknown entity or a refused member is not a run.
@@ -370,6 +386,39 @@ export async function dailyReport(ctx: TenantContext, entityId: string, date: st
   });
 }
 
+/**
+ * The daily report for every date of one entity in one read (the same figures as dailyReport for each date): the
+ * entity's input and stored records are loaded once and the bridges computed once, instead of once per date.
+ */
+export async function dailyReports(ctx: TenantContext, entityId: string, dates: string[]) {
+  require(ctx, "read");
+  for (const d of dates) if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) throw new RequestRefused(422, "BAD_DATE", "Use YYYY-MM-DD.");
+  return tenantRead(ctx, async (tx) => {
+    const input = await load(tx, ctx, entityId);
+    const off = input.entity.timeZone.utcOffsetMinutes;
+    const all = await storedRecords(tx, ctx.orgId, entityId);
+    const allBridges = reconcile(input).bridges;
+    const ex = await tx.select().from(t.reconExceptions).where(and(eq(t.reconExceptions.orgId, ctx.orgId), sql`${t.reconExceptions.status} <> 'resolved'`));
+    const wos = await tx.select().from(t.writeoffProposals).where(and(eq(t.writeoffProposals.orgId, ctx.orgId), inArray(t.writeoffProposals.status, ["proposed", "awaiting_approval"])));
+    const label = await orgLabel(tx, ctx.orgId);
+    const out = new Map<string, { label: string; entityId: string; date: string; timeZone: string; cutOffNote: string; payments: number; settlementsTied: number; settlements: number; exceptions: number; writeoffsAwaitingApproval: number; summary: string }>();
+    for (const date of dates) {
+      const recs = all.filter((r) => r.rec.chain.transfers.some((x) => localDate(x.timestamp, off) === date));
+      const orders = new Set(recs.map((r) => r.row.orderId));
+      const bridges = allBridges.filter((b) => b.providerDay === date);
+      const nEx = ex.filter((e) => e.orderId && orders.has(e.orderId)).length;
+      const nWo = wos.filter((w) => orders.has(w.orderId)).length;
+      const tied = bridges.filter((b) => b.tied).length;
+      out.set(date, {
+        label, entityId, date, timeZone: input.entity.timeZone.name, cutOffNote: PROVIDER_DAY_NOTE,
+        payments: recs.length, settlementsTied: tied, settlements: bridges.length, exceptions: nEx, writeoffsAwaitingApproval: nWo,
+        summary: `${plural(recs.length, "payment")} · ${plural(tied, "settlement")} tied · ${plural(nEx, "exception")} · ${plural(nWo, "write-off")} awaiting approval`,
+      });
+    }
+    return out;
+  });
+}
+
 export const PaymentFilters = z.object({
   entityId: z.string().max(64).optional(), result: z.enum(["matched", "matched_with_difference", "suggested_for_review", "exception"]).optional(),
   differenceType: z.string().max(40).optional(), network: z.string().max(20).optional(), token: z.string().max(120).optional(), batchId: z.string().max(64).optional(),
@@ -451,7 +500,7 @@ export async function monthEnd(ctx: TenantContext, entityId: string, month: stri
   require(ctx, "read");
   if (!/^\d{4}-\d{2}$/.test(month)) throw new RequestRefused(422, "BAD_MONTH", "Use YYYY-MM.");
   return tenantRead(ctx, async (tx) => {
-    const input = await load(tx, ctx, entityId);
+    const ent = await entityOnly(tx, ctx, entityId);
     const js = await tx.select().from(t.merchantJournalProposals).where(and(eq(t.merchantJournalProposals.orgId, ctx.orgId), eq(t.merchantJournalProposals.entityId, entityId), sql`${t.merchantJournalProposals.status} <> 'superseded'`)).orderBy(asc(t.merchantJournalProposals.id));
     const inMonth = js.filter((j) => { const d = (j.evidenceRefs as { entryDate: string | null }).entryDate; return d === null || d.startsWith(month); });
     const balances: Record<string, bigint> = {};
@@ -463,7 +512,7 @@ export async function monthEnd(ctx: TenantContext, entityId: string, month: stri
     const wos = (await tx.select().from(t.writeoffProposals).where(eq(t.writeoffProposals.orgId, ctx.orgId))).filter((w) => orders.has(w.orderId));
     const label = await orgLabel(tx, ctx.orgId);
     return {
-      label, entityId, month, currency: input.entity.functionalCurrency, postingRuleStatus: "pending_sign_off" as const,
+      label, entityId, month, currency: ent.functionalCurrency, postingRuleStatus: "pending_sign_off" as const,
       journals: inMonth.map((j) => ({ id: j.id, pattern: j.pattern, status: j.status, postingRuleStatus: j.postingRuleStatus, lines: j.lines, evidence: { ...(j.evidenceRefs as Record<string, unknown>), label } as unknown })),
       balances: Object.fromEntries(Object.entries(balances).map(([k, v]) => [k, v.toString()])), openReceivablesMinor: openAr.toString(), openExceptions: ex.length,
       writeoffs: { pending: wos.filter((w) => w.status !== "approved" && w.status !== "rejected").length, approved: wos.filter((w) => w.status === "approved").length },

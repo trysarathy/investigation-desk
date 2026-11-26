@@ -60,6 +60,15 @@ export function deploymentConfigProblems(env) {
     if (!env.DATABASE_URL) problems.push('DATABASE_URL (the clearline_runtime login) is required in the pilot.');
     if (env.DATABASE_URL && /clearline_owner/.test(env.DATABASE_URL)) problems.push('DATABASE_URL must use the clearline_runtime login, never the schema owner (row-level security would not apply).');
   }
+  // Demo build (src/server/demo-build.ts): the local offline demo only; it is an authenticated pilot build, never a test
+  // build, a public preview or a funding-only deployment.
+  const demo = ON(env.CLEARLINE_DEMO_BUILD);
+  if (demo && demo !== '1') problems.push(`CLEARLINE_DEMO_BUILD is ${JSON.stringify(demo)}; only "1" makes a demo build. Use "1", or unset it.`);
+  if (demo === '1') {
+    if (pilot !== '1') problems.push('CLEARLINE_DEMO_BUILD=1 needs CLEARLINE_CONTROL_PILOT=1: the demo is the authenticated pilot with fictional data.');
+    if (env.CLEARLINE_TEST_BUILD === '1') problems.push('CLEARLINE_DEMO_BUILD and CLEARLINE_TEST_BUILD are both "1"; a build is either a demo build or a test build. Set only one.');
+    if (env.CLEARLINE_CHAIN_LIVE === '1' || env.CLEARLINE_LEDGER_PULL === '1') problems.push('A demo build runs offline: unset CLEARLINE_CHAIN_LIVE and CLEARLINE_LEDGER_PULL.');
+  }
   const user = ON(env.PREVIEW_USER);
   const password = ON(env.PREVIEW_PASSWORD);
   if (!!user !== !!password) problems.push(`Only ${user ? 'PREVIEW_USER' : 'PREVIEW_PASSWORD'} is set; the preview password gate needs both, and with one alone nothing is protected.`);
@@ -107,11 +116,25 @@ const nextConfig = {
     // honoured only in a build made with CLEARLINE_TEST_BUILD=1; the value is fixed at build, never read at run time.
     CLEARLINE_NEXT_BUILD: '1',
     CLEARLINE_TEST_BUILD: process.env.CLEARLINE_TEST_BUILD === '1' ? '1' : '',
+    // Demo build (src/server/demo-build.ts): the local offline demo's conveniences exist only in a build made with
+    // CLEARLINE_DEMO_BUILD=1; fixed at build like CLEARLINE_TEST_BUILD, never read at run time.
+    CLEARLINE_DEMO_BUILD: process.env.CLEARLINE_DEMO_BUILD === '1' ? '1' : '',
     NEXT_PUBLIC_CLEARLINE_PRODUCT_URL: releaseUrls.product,
     NEXT_PUBLIC_CLEARLINE_MARKETING_URL: releaseUrls.marketing,
     NEXT_PUBLIC_CLEARLINE_FUNDING_DESK_URL: releaseUrls.fundingDesk,
     NEXT_PUBLIC_CLEARLINE_RELEASE_SOURCE: releaseUrls.source,
   },
+  // `npm run demo` builds into .next-demo (CLEARLINE_DIST_DIR) so a demo build never overwrites a real one in .next.
+  ...(process.env.CLEARLINE_DIST_DIR ? { distDir: process.env.CLEARLINE_DIST_DIR } : {}),
+  // Hosted demo (scripts/demo/hosted-build.ts on Vercel): the recorded chain file is read at run time, so it ships
+  // with every server function. Only in that build; a real build never carries it.
+  ...(process.env.CLEARLINE_HOSTED_DEMO === '1' && process.env.CLEARLINE_DEMO_BUILD === '1'
+    ? { outputFileTracingIncludes: { '/**': ['./.demo/chain-recording.json'] } }
+    : {}),
+  // Hosted demo: the front door is the Control sign-in (the local demo keeps its own start page).
+  ...(process.env.CLEARLINE_HOSTED_DEMO === '1' && process.env.CLEARLINE_DEMO_BUILD === '1'
+    ? { async redirects() { return [{ source: '/', destination: '/control/sign-in', permanent: false }]; } }
+    : {}),
   poweredByHeader: false,
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];

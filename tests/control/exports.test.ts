@@ -1,6 +1,7 @@
 /**
  * rc7 phase 3b exports against PostgreSQL 16, on a LIVE merchant filled through the real upload pipeline: draft
- * journal files in Xero's and QuickBooks' import layouts and the month-end pack (ZIP). Finance or an Approver only;
+ * journal files in Xero's and QuickBooks' import layouts and the month-end pack (ZIP). Finance, an Approver or an Admin
+ * only (rc8 founder decision 3);
  * another merchant's entity is refused; nothing is posted (proposals unchanged); the audit row holds ids, counts and
  * hashes, never file contents. Fictional values only.
  */
@@ -73,8 +74,10 @@ describe("draft journal files (sandbox only, nothing posted)", () => {
     expect(after.every((j) => j.status === "proposed" || j.status === "superseded")).toBe(true);
   });
 
-  it("only Finance or an Approver may export; another merchant's entity is refused", async () => {
-    for (const c of [live.ops, live.viewer, live.admin]) await refused(journalDraftFile(c, live.entityId, month, "xero"), "ACCESS_403");
+  it("only Finance, an Approver or an Admin may export; another merchant's entity is refused", async () => {
+    for (const c of [live.ops, live.viewer]) await refused(journalDraftFile(c, live.entityId, month, "xero"), "ACCESS_403");
+    // rc8 founder decision 3: an Admin exports too (rc7: Finance or an Approver)
+    expect((await journalDraftFile(live.admin, live.entityId, month, "xero")).journals).toBeGreaterThan(0);
     const finB = await liveCtx(s, "finance@live-b.example", "b");
     await refused(journalDraftFile(finB, live.entityId, month, "xero"), "ACCESS_404");
     await refused(monthEndPack(finB, live.entityId, month), "ACCESS_404");

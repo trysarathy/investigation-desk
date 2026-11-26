@@ -14,6 +14,8 @@ import { can } from "./authz";
 import { serverAudit } from "./control";
 import { AccessDenied, type TenantContext, withTenant } from "./tenant";
 import { ChainRecordingRefused } from "./test-build";
+import { DemoRecordingRefused } from "./demo-build";
+import { DEMO_NOW } from "@/lib/clearline/demo/clock";
 
 /**
  * rc7 phase 2: verify an entity's payments against CHAIN data. For every deposit address issued for its orders
@@ -41,8 +43,13 @@ const hashKey = (network: string, h: string) => `${network}|${network === "tron"
  * The client to use, from the server's environment. rc8: a recording (CLEARLINE_CHAIN_RECORDING) is honoured only in
  * a test build; anywhere else it is refused (src/server/test-build.ts). The test-build condition is written inline,
  * not called, so that `next build` without CLEARLINE_TEST_BUILD=1 sees the constant `false` and drops the branch.
+ *
+ * Demo build (src/server/demo-build.ts): a build made with CLEARLINE_DEMO_BUILD=1 also honours the recording, but
+ * only for an organisation whose data mode is 'demo' (`dataMode`), and reads it at the demo clock (DEMO_NOW). For any
+ * other organisation it refuses (DemoRecordingRefused). The demo condition is inline too, so a build without the
+ * flag drops that branch and its marker.
  */
-export function verifyClientFromEnv(env: Env = process.env): VerifyChainClient {
+export function verifyClientFromEnv(env: Env = process.env, dataMode?: string): VerifyChainClient {
   if (env.CLEARLINE_CHAIN_LIVE === "1") return liveChainClientFromEnv(env); // refused under tests / CI by its guard
   if (env.CLEARLINE_CHAIN_RECORDING) {
     if (process.env.CLEARLINE_NEXT_BUILD === "1" ? process.env.CLEARLINE_TEST_BUILD === "1" : process.env.VITEST === "true") {
@@ -50,6 +57,13 @@ export function verifyClientFromEnv(env: Env = process.env): VerifyChainClient {
       // the marker below exists only in this branch: the build check greps the server bundle for it
       try { recording = JSON.parse(readFileSync(env.CLEARLINE_CHAIN_RECORDING, "utf8")); } catch { throw new Error("clearline-chain-recording[test-build-only]: the recording file could not be read as JSON"); }
       return new RecordingChainClient(recording, { now: new Date().toISOString() });
+    }
+    if (process.env.CLEARLINE_NEXT_BUILD === "1" ? process.env.CLEARLINE_DEMO_BUILD === "1" : false) {
+      if (dataMode !== "demo") throw new DemoRecordingRefused();
+      let recording: unknown;
+      // the marker below exists only in this branch: scripts/build/check-chain-recording.mjs --marker demo greps for it
+      try { recording = JSON.parse(readFileSync(env.CLEARLINE_CHAIN_RECORDING, "utf8")); } catch { throw new Error("clearline-demo[demo-build-only]: the recording file could not be read as JSON"); }
+      return new RecordingChainClient(recording, { now: DEMO_NOW });
     }
     throw new ChainRecordingRefused();
   }
@@ -168,7 +182,7 @@ export async function verifyChainForEntity(ctx: TenantContext, entityId: string,
           orgId: ctx.orgId, network: x.network, txHash: x.txHash, logIndex: x.logIndex, tokenContract: x.tokenContract, fromAddress: x.from, toAddress: x.to,
           amountBaseUnits: x.amountBaseUnits.toString(), decimals: x.decimals, block: Number(x.blockNumber), blockTime: new Date(x.timestamp),
           confirmations: Number(x.confirmations > 2_000_000_000n ? 2_000_000_000n : x.confirmations), finalised, source: "chain_client", entityId,
-          claimedSymbol: x.symbol, blockHash: x.blockHash ?? ev.blockHash ?? null, ...evidence,
+          claimedSymbol: x.symbol, blockHash: x.blockHash ?? ev.blockHash ?? null, ...(x.priorHops?.length ? { priorHops: x.priorHops.map((h) => ({ ...h })) } : {}), ...evidence,
         };
         counts[finalised ? "final" : "pending"]++;
       } else {
@@ -206,10 +220,15 @@ export async function verifyChainForEntity(ctx: TenantContext, entityId: string,
   return { entityId, mode: client.mode, addresses: addresses.length, transactions: readTx.size, cached, ...counts, unavailable: reads.filter((r) => r.status === "unavailable").length };
 }
 
-/** Whether the organisation holds live (uploaded) data: only then does reconciliation verify against the chain. */
-export async function isLiveOrg(ctx: TenantContext): Promise<boolean> {
+/** The organisation's data mode (sample, live or demo); undefined when the row is not visible. */
+export async function orgDataMode(ctx: TenantContext): Promise<string | undefined> {
   return withTenant({ userId: ctx.userId, orgId: ctx.orgId }, async (tx) => {
     const [o] = await tx.select({ dataMode: t.organizations.dataMode }).from(t.organizations).where(eq(t.organizations.id, ctx.orgId));
-    return o?.dataMode === "live";
+    return o?.dataMode;
   }, { read: true });
+}
+
+/** Whether the organisation holds live (uploaded) data. */
+export async function isLiveOrg(ctx: TenantContext): Promise<boolean> {
+  return (await orgDataMode(ctx)) === "live";
 }

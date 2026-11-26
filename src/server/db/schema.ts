@@ -98,7 +98,7 @@ export const organizations = pgTable("organizations", {
 }, (t) => [
   check("organizations_slug_chk", sql`${t.slug} ~ '^[a-z0-9][a-z0-9-]{1,62}$'`),
   check("organizations_kind_chk", sql`${t.kind} in ('merchant','provider')`),
-  check("organizations_data_mode_chk", sql`${t.dataMode} in ('sample','live')`),
+  check("organizations_data_mode_chk", sql`${t.dataMode} in ('sample','live','demo')`),
   check("organizations_provider_chk", sql`${t.kind} = 'merchant' or ${t.providerOrgId} is null`),
   foreignKey({ columns: [t.providerOrgId], foreignColumns: [t.id], name: "organizations_provider_fk" }),
 ]);
@@ -397,3 +397,4 @@ export * from "./upload-schema";
 export * from "./ops-schema";
 export * from "./ledger-schema";
 export * from "./notify-schema";
+export * from "./demo-schema";
