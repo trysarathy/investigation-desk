@@ -13,7 +13,7 @@ export default async function ControlAppLayout({ children }: { children: ReactNo
         <div className={s.headerInner}>
           <p className={s.brand}>Clearline Control<span className={s.brandOrg} data-testid="org-name">{ctx.orgName}</span></p>
           <p className={s.who} data-testid="signed-in-as">
-            Signed in as <strong>{ctx.name}</strong> ({ctx.email}) · {ROLE_LABELS[ctx.role]} · <SignOutButton />
+            Signed in as <strong>{ctx.name}</strong> ({ctx.email}) · {ROLE_LABELS[ctx.role]} · <a href="/control/security">Security</a> · <SignOutButton />
           </p>
         </div>
         <ControlNav />

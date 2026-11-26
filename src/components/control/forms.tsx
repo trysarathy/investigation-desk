@@ -130,7 +130,12 @@ export function SignInForm() {
         method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: String(f.get("email") ?? ""), password: String(f.get("password") ?? "") }),
       });
-      if (res.ok) { window.location.assign("/control"); return; }
+      if (res.ok) {
+        // v1 1.2: an account with MFA gets the second step (Better Auth's signed two_factor cookie is now set).
+        const body = (await res.json().catch(() => null)) as { twoFactorRedirect?: boolean } | null;
+        window.location.assign(body?.twoFactorRedirect ? "/control/sign-in/two-factor" : "/control");
+        return;
+      }
       // One generic answer for a wrong password, an unknown user or a disabled account.
       setError(res.status === 429 ? "Too many sign-in attempts. Wait a few minutes, then try again." : "Sign-in failed. Check your email and password and try again.");
     } catch {
@@ -150,6 +155,7 @@ export function SignInForm() {
       </div>
       <div><Submit busy={busy}>{busy ? "Signing in…" : "Sign in"}</Submit></div>
       <p role="alert" className={`${s.result} ${s.resultError}`}>{error ?? ""}</p>
+      <p className={s.small}><a href="/control/sign-in/forgot">Forgot your password?</a></p>
     </form>
   );
 }
