@@ -477,6 +477,13 @@
       "when": 1796840000000,
       "tag": "0084_field_encryption_expand",
       "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1796850000000,
+      "tag": "0085_wave2_scope_and_auditor",
+      "breakpoints": true
     }
   ]
 }

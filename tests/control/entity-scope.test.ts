@@ -202,7 +202,8 @@ describe("the server check holds on its own", () => {
     // v1 phase 2.1 (drizzle/0074, was 0055): +2, upload_pickup_sources and upload_pickup_items
     // v1 phase 2.2 (drizzle/0076, was 0058): +3, provider_api_connections, provider_pulls, provider_webhook_events
     // v1 phase 3 (drizzle/0079-0080, were 0064-0065): +3, job_events, period_locks, period_corrections
-    expect(pols.length).toBe(41);
+    // wave 2 integration (drizzle/0085): +1, ledger_journal_drafts (c3's table predates wave 1's entity scope)
+    expect(pols.length).toBe(42);
     try {
       for (const p of pols) await ownerDb().execute(sql.raw(`drop policy entity_scope on ${p.tablename}`));
       const f = await ctx("finance-one@straits-demo.example");
@@ -224,7 +225,7 @@ describe("the server check holds on its own", () => {
     } finally {
       for (const p of pols) await ownerDb().execute(sql.raw(`create policy entity_scope on ${p.tablename} as restrictive for all to clearline_app using (${p.qual}) with check (${p.with_check})`));
     }
-    expect((await rows(sql`select count(*)::int as n from pg_policies where policyname = 'entity_scope' and permissive = 'RESTRICTIVE'`))[0].n).toBe(41);
+    expect((await rows(sql`select count(*)::int as n from pg_policies where policyname = 'entity_scope' and permissive = 'RESTRICTIVE'`))[0].n).toBe(42);
   });
 });
 
