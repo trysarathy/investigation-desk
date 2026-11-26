@@ -119,8 +119,12 @@ export function newNonce(): string {
   return btoa(String.fromCharCode(...bytes));
 }
 
-/** A Control page that needs a signed-in member (everything under /control except the sign-in page). */
-export const isControlPage = (p: string) => (p === "/control" || p.startsWith("/control/")) && p !== "/control/sign-in" && !p.startsWith("/control/sign-in/");
+/**
+ * A Control page that needs a signed-in member: everything under /control except the sign-in page and (v1 phase 1.1)
+ * the invitation page, whose one-time token is the proof (the person has no account yet).
+ */
+const PUBLIC_CONTROL_PAGES = ["/control/sign-in", "/control/invite"];
+export const isControlPage = (p: string) => (p === "/control" || p.startsWith("/control/")) && !PUBLIC_CONTROL_PAGES.some((x) => p === x || p.startsWith(`${x}/`));
 
 /** Better Auth's session cookie for the pilot (cookiePrefix "clearline"; "__Secure-" prefixed on https). */
 const hasSessionCookie = (req: NextRequest) => req.cookies.has("clearline.session_token") || req.cookies.has("__Secure-clearline.session_token");

@@ -19,6 +19,9 @@ export const pageContext = cache(async (): Promise<TenantContext> => {
     return await resolveTenant(p, slug);
   } catch (e) {
     if (e instanceof AccessDenied && e.status === 404) notFound();
+    // v1 phase 1.1: a signed-in person with no organisation (e.g. a platform operator) goes to the platform console,
+    // which is itself a not-found page unless the console is on and the person is an operator.
+    if (e instanceof AccessDenied && e.status === 403 && process.env.CLEARLINE_PLATFORM_CONSOLE === "1") redirect("/control/platform");
     throw e;
   }
 });
