@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { axeSource } from "../browser/axe-source";
 import { MERCHANT_E2E } from "./env";
+import { enrolFictionalTotp, forgetUsedCodes, totp } from "../support/totp";
 
 export const LABEL = "Test mode · illustrative data";
 
@@ -13,13 +14,25 @@ function testAddress(info: TestInfo) {
   return `198.19.${(info.project.name === "mobile" ? 128 : 0) + (info.workerIndex % 64)}.${(n % 250) + 1}`;
 }
 
-/** Sign in; a merchant member lands on the daily report, a provider member on the provider console. */
+/**
+ * Sign in; a merchant member lands on the daily report, a provider member on the provider console. v1 1.2: an Admin or
+ * Approver needs a second factor; the fictional ones (including any a spec granted later) get the suite's test
+ * authenticator (tests/support/totp.ts) and enter its code, exactly as a person would.
+ */
 export async function signIn(page: Page, email: string, info: TestInfo, landing: RegExp = /\/control\/merchant(\/provider)?$/) {
+  await enrolFictionalTotp(MERCHANT_E2E.ownerUrl, MERCHANT_E2E.authSecret, { emails: [email] });
   await page.context().setExtraHTTPHeaders({ "x-forwarded-for": testAddress(info) });
   await page.goto("/control/sign-in");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(MERCHANT_E2E.password);
   await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).not.toHaveURL(/\/control\/sign-in$/);
+  if (/\/control\/sign-in\/two-factor$/.test(page.url())) {
+    await forgetUsedCodes(MERCHANT_E2E.ownerUrl);
+    await page.waitForLoadState("networkidle"); // hydrated: the form submits through the client handler
+    await page.getByLabel("6-digit code from your authenticator app").fill(totp());
+    await page.getByRole("button", { name: "Continue" }).click();
+  }
   await expect(page).toHaveURL(landing);
   await expect(page.getByTestId("signed-in-as")).toContainText(email);
 }
