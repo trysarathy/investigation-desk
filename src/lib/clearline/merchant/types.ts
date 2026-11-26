@@ -198,6 +198,12 @@ export interface BankLine {
   description: string;
   source: "bank_feed" | "csv_import";
   provenance: string;
+  /**
+   * v1 Phase 0.5: the imported statement this line came from was confirmed by a second person (an Approver who did not
+   * upload it; the upload pipeline enforces this for bank statements). Set by the loader from the stored confirmation,
+   * never from a file column. Absent = not known to be confirmed. It never makes a line bank-authenticated.
+   */
+  secondPersonConfirmed?: true;
 }
 
 export interface FxRate { pair: string; rate: string; source: string; timestamp: string }
