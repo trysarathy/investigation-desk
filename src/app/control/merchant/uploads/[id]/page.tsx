@@ -7,6 +7,7 @@ import { uploadWorkspace } from "@/server/upload-ui";
 import { validationReport } from "@/server/uploads";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
+import g from "@/components/merchant/screens-g2.module.css";
 import { FlashMessage } from "@/components/control/forms";
 import { MappingForm } from "@/components/merchant/upload-forms";
 import { RunReconciliation } from "@/components/merchant/forms";
@@ -29,6 +30,21 @@ function MappingSummary({ mapping }: { mapping: Mapping }) {
       ))}
     </dl>
   );
+}
+
+/**
+ * How each preview column is shown: amounts right-aligned in mono, references and ids in mono, other text as text.
+ * Display only (it decides nothing): a column is "number" when every non-empty preview value looks like an amount,
+ * "mono" when its header names a reference, id, hash, address or account.
+ */
+const AMOUNTISH = /^\(?[-+]?(?:[A-Z]{3}\s+)?[-+]?\d[\d.,'\u00a0 ]*\)?$/;
+const REFERENCE = /(ref|id\b|_id|hash|tx|address|wallet|account|iban|invoice|order|batch|number|no\.?$)/i;
+function columnKinds(headers: string[], rows: string[][]): ("number" | "mono" | "text")[] {
+  return headers.map((h, j) => {
+    const vals = rows.map((r) => (r[j] ?? "").trim()).filter(Boolean);
+    if (vals.length && vals.every((v) => AMOUNTISH.test(v) && !/^\d{4}-\d{2}-\d{2}/.test(v) && !/^\d{1,2}[/.]\d{1,2}[/.]\d{2,4}/.test(v))) return "number";
+    return REFERENCE.test(h) ? "mono" : "text";
+  });
 }
 
 /** rc7: one upload, from preview and mapping to the validation report, confirmation (a second person for bank statements) and reconciliation. */
@@ -57,6 +73,7 @@ export default async function UploadPage({ params, searchParams }: { params: Pro
   const mayNormalise = u.status === "confirmed" && (can(ctx.role, "merchant_upload") || can(ctx.role, "confirm_import"));
   const mayDelete = can(ctx.role, "merchant_upload") && !["confirmed", "normalised"].includes(u.status);
   const href = (x: Record<string, string | undefined>) => `/control/merchant/uploads/${u.id}${q(x)}#report`;
+  const kinds = columnKinds(p.headers, p.rows);
   const fieldLabel = (f: string) => fieldOf(u.fileType, f)?.label ?? f.replace(/_/g, " ");
   return (
     <>
@@ -85,10 +102,10 @@ export default async function UploadPage({ params, searchParams }: { params: Pro
         </div>
         <h3 className={s.h3} id="preview-h">First {Math.min(20, p.rows.length)} rows</h3>
         {p.rows.length === 0 ? <p className={s.small}>The file has no data rows.</p> : (
-          <div className={s.tableWrap} role="region" aria-label={`First ${Math.min(20, p.rows.length)} rows of ${u.originalName}`} tabIndex={0} data-testid="preview">
-            <table className={s.table}>
-              <thead><tr><th scope="col">#</th>{p.headers.map((h) => <th scope="col" key={h}>{h}</th>)}</tr></thead>
-              <tbody>{p.rows.map((r, i) => <tr key={i}><td className={s.num}>{i + 1}</td>{r.map((c, j) => <td key={j} className={m.cell} title={c.length > 28 ? c : undefined}>{c}</td>)}</tr>)}</tbody>
+          <div className={`${g.wrap} ${g.wrapTall}`} role="region" aria-label={`First ${Math.min(20, p.rows.length)} rows of ${u.originalName}`} tabIndex={0} data-testid="preview">
+            <table className={g.dense}>
+              <thead><tr><th scope="col" className={g.rowNo}>#</th>{p.headers.map((h, j) => <th scope="col" key={h} className={kinds[j] === "number" ? g.num : undefined}>{h}</th>)}</tr></thead>
+              <tbody>{p.rows.map((r, i) => <tr key={i}><td className={g.rowNo}>{i + 1}</td>{r.map((c, j) => <td key={j} className={kinds[j] === "number" ? g.cellNum : kinds[j] === "mono" ? g.cellMono : g.cellText} title={c.length > 28 ? c : undefined}>{c}</td>)}</tr>)}</tbody>
             </table>
           </div>
         )}
@@ -125,17 +142,19 @@ export default async function UploadPage({ params, searchParams }: { params: Pro
             </nav>
             <p className={s.small} role="status" data-testid="report-range">{report.total === 0 ? "No rows with this status." : `Rows ${(pageNo - 1) * PAGE_SIZE + 1}–${Math.min(report.total, pageNo * PAGE_SIZE)} of ${report.total}${filter ? ` (${ROW_STATUS[filter].label.toLowerCase()})` : ""}.`} Reasons name the field, never the value.</p>
             {report.rows.length ? (
-              <div className={s.tableWrap} role="region" aria-label="Validation report rows" tabIndex={0}>
-                <table className={s.table}>
-                  <thead><tr><th scope="col" className={s.num}>Row in file</th><th scope="col">Status</th><th scope="col">Reason</th></tr></thead>
+              <div className={`${g.wrap} ${g.wrapTall}`} role="region" aria-label="Validation report rows" tabIndex={0}>
+                <table className={g.dense}>
+                  <thead><tr><th scope="col" className={g.num}>Row in file</th><th scope="col">Status</th><th scope="col">Reason</th></tr></thead>
                   <tbody>{report.rows.map((r) => {
                     const codes = (r.reasonCodes as { field?: string; code: string; level: string }[]) ?? [];
                     return (
                       <tr key={r.rowNumber} data-testid="report-row">
-                        <td className={s.num}>{r.rowNumber}</td>
+                        <td className={g.num}><span className={g.rowRef}>{r.rowNumber}</span></td>
                         <td><Chip tone={ROW_STATUS[r.status]?.tone ?? "plain"}>{ROW_STATUS[r.status]?.label ?? r.status}</Chip></td>
                         <td>{r.status === "duplicate" ? "The same row is already in another upload of this entity and file type; it is not imported twice." : codes.length === 0 ? "—" : (
-                          <ul className={m.reasons}>{codes.map((c, i) => <li key={i}>{c.level === "warning" ? "Warning: " : ""}{c.field ? `${fieldLabel(c.field)} ` : ""}{reasonText(c.code)}.</li>)}</ul>
+                          <ul className={g.issues} aria-label={`Reasons for row ${r.rowNumber}`}>{codes.map((c, i) => (
+                            <li key={i}><span className={`${g.issueTag} ${c.level === "warning" ? g.issueWarn : g.issueError}`}>{c.level === "warning" ? "Warning" : "Error"}</span><span>{c.field ? `${fieldLabel(c.field)} ` : ""}{reasonText(c.code)}.</span></li>
+                          ))}</ul>
                         )}</td>
                       </tr>
                     );

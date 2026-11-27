@@ -3,9 +3,14 @@ import type { Metadata } from "next";
 import { can } from "@/server/authz";
 import { merchantMember } from "@/server/merchant-page";
 import { DEFAULT_LOCAL_TIME, listRuns } from "@/server/runs";
+import { RUN_STAGES } from "@/server/merchant";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
-import { RunReconciliation, ScheduleForm } from "@/components/merchant/forms";
+import { ScheduleForm } from "@/components/merchant/forms";
+import { RunReconciliationLive } from "@/components/merchant/run-progress";
+import { StaticTable } from "@/components/merchant/StaticTable";
+import { LiveRefresh, Mono } from "@/components/ui";
+import g from "@/components/merchant/screens-g2.module.css";
 import { JobQueue, QueueRun } from "@/components/merchant/job-queue";
 import { listJobs } from "@/server/job-queue";
 import { Chip, Empty, whenIn } from "@/components/merchant/ui";
@@ -32,7 +37,7 @@ export default async function RunsPage() {
   const ents = shell.entities;
   return (
     <>
-      <h1 className={s.title}>Runs</h1>
+      <div className={g.toolbar}><h1 className={s.title} style={{ margin: 0 }}>Runs</h1><LiveRefresh /></div>
       <p className={s.lede}>Each reconciliation run: when it ran, why, under which rules, and what it decided. A run on the same data under the same rules writes nothing and says &ldquo;No change&rdquo;. Payments a person closed are never changed by a run.</p>
       {can(ctx.role, "merchant_upload") ? <p><a className={m.cta} href="/control/merchant/uploads" data-testid="runs-upload-files">Upload files</a></p> : null}
 
@@ -49,7 +54,7 @@ export default async function RunsPage() {
                 {mayRun ? (
                   <>
                     <ScheduleForm entityId={e.id} localTime={sc?.localTime ?? DEFAULT_LOCAL_TIME} enabled={sc?.enabled ?? false} />
-                    <RunReconciliation entityId={e.id} entityName={e.name} />
+                    <RunReconciliationLive entityId={e.id} entityName={e.name} steps={RUN_STAGES} />
                     <QueueRun entityId={e.id} />
                   </>
                 ) : null}
@@ -63,28 +68,41 @@ export default async function RunsPage() {
       <section className={s.section} aria-labelledby="queue-h">
         <h2 className={s.h2} id="queue-h">Job queue</h2>
         <p className={s.small}>Runs in the background are done by the worker, one stage at a time; this list follows them live. A job that fails is retried with a growing wait, and after its last attempt it stays here as failed with its error code until an operator re-queues it.</p>
-        <JobQueue initial={queue.jobs} />
+        <JobQueue initial={queue.jobs} steps={RUN_STAGES} />
       </section>
 
       <section className={s.section} aria-labelledby="runs-h">
         <h2 className={s.h2} id="runs-h">Recent runs</h2>
         {v.runs.length === 0 ? <Empty>No runs yet.</Empty> : (
-          <div className={s.tableWrap} role="region" aria-label="Runs table" tabIndex={0}>
-            <table className={s.table} data-testid="runs-table">
-              <thead><tr>
-                <th scope="col">Started</th><th scope="col">Entity</th><th scope="col">Trigger</th><th scope="col">Status</th><th scope="col">Rules and policy</th>
-                <th scope="col" className={s.num}>Matched</th><th scope="col" className={s.num}>With difference</th><th scope="col" className={s.num}>Review</th>
-                <th scope="col" className={s.num}>Exceptions</th><th scope="col" className={s.num}>Unpaid</th><th scope="col" className={s.num}>Closed, kept</th><th scope="col" className={s.num}>Rule-change notices</th>
-              </tr></thead>
-              <tbody>{v.runs.map((r) => (
-                <tr key={r.id} data-testid="run-row">
-                  <td>{whenIn(r.startedAt, shell.entities.find((e) => e.id === r.entityId))}</td><td className={s.mono}>{r.entityId}</td><td>{TRIGGER[r.trigger] ?? r.trigger}</td><td><Status status={r.status} code={r.errorCode} /></td>
-                  <td><span className={s.mono}>{r.ruleSetVersion}</span> · policy r{r.policyRevision}</td>
-                  <td className={s.num}>{r.counts.matched}</td><td className={s.num}>{r.counts.withDifference}</td><td className={s.num}>{r.counts.review}</td>
-                  <td className={s.num}>{r.counts.exceptions}</td><td className={s.num}>{r.counts.unpaid}</td><td className={s.num}>{r.counts.kept}</td><td className={s.num}>{r.counts.notices}</td>
-                </tr>
-              ))}</tbody>
-            </table>
+          <div role="region" aria-label="Runs table" tabIndex={0} className={g.region}>
+            <StaticTable label="Recent runs" filterLabel="Filter runs" testId="runs-table"
+              columns={[
+                { id: "started", header: "Started", sortable: true, hideable: false },
+                { id: "entity", header: "Entity", sortable: true },
+                { id: "trigger", header: "Trigger", sortable: true },
+                { id: "status", header: "Status", sortable: true },
+                { id: "rules", header: "Rules and policy", sortable: true },
+                { id: "matched", header: "Matched", numeric: true, sortable: true },
+                { id: "diff", header: "With difference", numeric: true, sortable: true },
+                { id: "review", header: "Review", numeric: true, sortable: true },
+                { id: "exceptions", header: "Exceptions", numeric: true, sortable: true },
+                { id: "unpaid", header: "Unpaid", numeric: true, sortable: true },
+                { id: "kept", header: "Closed, kept", numeric: true, sortable: true },
+                { id: "notices", header: "Rule-change notices", numeric: true, sortable: true },
+              ]}
+              rows={v.runs.map((r) => ({
+                key: r.id, testId: "run-row",
+                sort: { started: String(r.startedAt), entity: r.entityId, trigger: TRIGGER[r.trigger] ?? r.trigger, status: r.status, rules: `${r.ruleSetVersion} r${r.policyRevision}`,
+                  matched: r.counts.matched, diff: r.counts.withDifference, review: r.counts.review, exceptions: r.counts.exceptions, unpaid: r.counts.unpaid, kept: r.counts.kept, notices: r.counts.notices },
+                cells: {
+                  started: <Mono>{whenIn(r.startedAt, shell.entities.find((e) => e.id === r.entityId))}</Mono>,
+                  entity: <Mono>{r.entityId}</Mono>,
+                  trigger: TRIGGER[r.trigger] ?? r.trigger,
+                  status: <Status status={r.status} code={r.errorCode} />,
+                  rules: <><Mono>{r.ruleSetVersion}</Mono> · policy r{r.policyRevision}</>,
+                  matched: r.counts.matched, diff: r.counts.withDifference, review: r.counts.review, exceptions: r.counts.exceptions, unpaid: r.counts.unpaid, kept: r.counts.kept, notices: r.counts.notices,
+                },
+              }))} />
           </div>
         )}
       </section>

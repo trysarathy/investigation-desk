@@ -8,6 +8,7 @@ import { detectDecimalSeparator } from "@/lib/clearline/ingest/decimal";
 import { ACCEPT, FILE_TYPE_HINTS, FILE_TYPE_LABELS, LIMITS_TEXT, bankAccountLabel } from "@/lib/clearline/upload-words";
 import s from "@/components/control/control.module.css";
 import m from "./merchant.module.css";
+import g from "./screens-g2.module.css";
 
 /**
  * rc7 upload screens, client parts. Each request goes to /api/control/merchant/uploads (session, organisation, exact
@@ -45,6 +46,48 @@ export function reloadWith(key: string, message: string, url?: string) {
 
 const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1)} MB`;
 
+/**
+ * The same request as post() (same endpoint, fields, credentials and Idempotency-Key header), sent with XMLHttpRequest
+ * so the browser reports how many bytes have gone up. `onProgress` gets the share sent (0..1); 1 means every byte has
+ * reached the server and it is now reading the file. The answer is read exactly as post() reads it.
+ */
+function postWithProgress(url: string, body: FormData, onProgress: (share: number) => void): Promise<Reply> {
+  return new Promise((resolve) => {
+    let xhr: XMLHttpRequest;
+    try { xhr = new XMLHttpRequest(); } catch { void post(url, body).then(resolve); return; }
+    xhr.open("POST", url, true);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader("idempotency-key", newKey());
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable && e.total > 0) onProgress(Math.min(1, e.loaded / e.total)); };
+    xhr.upload.onload = () => onProgress(1);
+    xhr.onload = () => {
+      let data: Record<string, unknown> | null = null;
+      try { data = JSON.parse(xhr.responseText) as Record<string, unknown>; } catch { data = null; }
+      const ok = xhr.status >= 200 && xhr.status < 300;
+      const e = data?.error as { message?: string } | undefined;
+      resolve({ ok, data, message: e?.message ?? (ok ? "" : `The server refused this (HTTP ${xhr.status}).`) });
+    };
+    xhr.onerror = () => resolve({ ok: false, data: null, message: "The server could not be reached. Nothing was saved." });
+    xhr.onabort = xhr.onerror;
+    xhr.send(body);
+  });
+}
+
+/** Upload progress: bytes sent from the browser (the browser's own count), then "reading" once every byte is sent. */
+function UploadProgress({ sent, size }: { sent: number; size: number }) {
+  const pct = Math.floor(sent * 100);
+  const reading = sent >= 1;
+  return (
+    <div className={g.progress} data-testid="upload-progress">
+      <div className={g.progressHead}>
+        <span>{reading ? "Sent. The server is reading and checking the file…" : "Sending the file"}</span>
+        <span className={g.mono}>{reading ? mb(size) : `${pct}% · ${mb(Math.floor(size * sent))} of ${mb(size)}`}</span>
+      </div>
+      <progress className={g.bar} max={100} value={reading ? undefined : pct} aria-label={reading ? "The server is reading the file" : `Upload progress, ${pct}% sent`} />
+    </div>
+  );
+}
+
 export interface BankAccountChoice { id: string; entityId: string; displayName: string; accountLast4: string; currency: string }
 
 export function UploadForm({ entities, bankAccounts = [] }: { entities: { id: string; name: string; currency: string }[]; bankAccounts?: BankAccountChoice[] }) {
@@ -58,6 +101,8 @@ export function UploadForm({ entities, bankAccounts = [] }: { entities: { id: st
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  /** Bytes sent so far as a share of the file (0..1) while the request is uploading; null when not uploading. */
+  const [progress, setProgress] = useState<number | null>(null);
   /** A JSON file with several lists: the server names them and the person chooses one (never guessed). */
   const [lists, setLists] = useState<string[]>([]);
   const pick = (f: File | null) => {
@@ -77,8 +122,9 @@ export function UploadForm({ entities, bankAccounts = [] }: { entities: { id: st
       ev.preventDefault();
       const f = new FormData(ev.currentTarget);
       if (!file) { setError("Choose a file to upload."); return; }
-      setBusy(true); setError("");
-      const r = await post(API, f);
+      setBusy(true); setError(""); setProgress(0);
+      const r = await postWithProgress(API, f, setProgress);
+      setProgress(null);
       if (!r.ok) {
         const choices = (r.data?.error as { code?: string; choices?: unknown } | undefined);
         if (choices?.code === "FILE_JSON_LIST_CHOICE" && Array.isArray(choices.choices)) setLists(choices.choices.filter((x): x is string => typeof x === "string"));
@@ -120,10 +166,15 @@ export function UploadForm({ entities, bankAccounts = [] }: { entities: { id: st
           </div>
         ) : null}
       </div>
-      <div className={`${m.drop} ${over ? m.dropOver : ""}`} onDragOver={(ev) => { ev.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)} onDrop={drop} data-testid="drop-zone">
-        <label className={s.label} htmlFor={`${id}-file`}>File</label>
-        <input ref={input} className={m.fileInput} type="file" id={`${id}-file`} name="file" accept={ACCEPT} required aria-describedby={`${id}-drop`} onChange={(ev) => pick(ev.currentTarget.files?.[0] ?? null)} />
-        <p className={s.hint} id={`${id}-drop`}>Choose a file, or drag it onto this area. {file ? <strong>Selected: {file.name} ({mb(file.size)})</strong> : null}</p>
+      <div className={`${m.drop} ${g.drop} ${over ? `${m.dropOver} ${g.dropOver}` : ""} ${file ? g.dropChosen : ""}`} onDragOver={(ev) => { ev.preventDefault(); setOver(true); }} onDragEnter={(ev) => { ev.preventDefault(); setOver(true); }} onDragLeave={(ev) => { if (!ev.currentTarget.contains(ev.relatedTarget as Node | null)) setOver(false); }} onDrop={drop} data-testid="drop-zone">
+        <span className={g.dropIcon} aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 15V4" /><path d="m7 9 5-5 5 5" /><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" /></svg>
+        </span>
+        <div className={g.dropBody}>
+          <label className={s.label} htmlFor={`${id}-file`}>File</label>
+          <input ref={input} className={m.fileInput} type="file" id={`${id}-file`} name="file" accept={ACCEPT} required aria-describedby={`${id}-drop`} onChange={(ev) => pick(ev.currentTarget.files?.[0] ?? null)} />
+          <p className={s.hint} id={`${id}-drop`}>{over ? "Drop the file to choose it." : "Choose a file, or drag it onto this area."} {file ? <strong className={g.chosen}>Selected: <span className={g.mono}>{file.name}</span> ({mb(file.size)})</strong> : null}</p>
+        </div>
       </div>
       {lists.length ? (
         <div className={s.field}>
@@ -136,7 +187,8 @@ export function UploadForm({ entities, bankAccounts = [] }: { entities: { id: st
         </div>
       ) : null}
       <div><button type="submit" className={s.button} disabled={busy} aria-disabled={busy}>Upload file</button></div>
-      <p role={error ? "alert" : "status"} className={`${s.result} ${error ? s.resultError : s.resultOk}`}>{error ? `Refused: ${error}` : busy ? "Uploading and reading the file…" : ""}</p>
+      {busy && progress !== null && file ? <UploadProgress sent={progress} size={file.size} /> : null}
+      <p role={error ? "alert" : "status"} className={`${s.result} ${error ? s.resultError : s.resultOk}`}>{error ? `Refused: ${error}` : busy ? (progress !== null && progress < 1 ? "Uploading the file…" : "Uploading and reading the file…") : ""}</p>
     </form>
   );
 }
