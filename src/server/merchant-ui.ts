@@ -156,6 +156,32 @@ export async function overviewCounts(ctx: TenantContext) {
   });
 }
 
+/** When each independent source last arrived: an upload's time, or else the newest stored record's own date. */
+export interface SourceFreshness { at: string; what: "upload" | "record" }
+
+/**
+ * Data freshness for the overview and the daily report (read only): per source, the newest provider file (an
+ * export or settlement report upload, else the newest settlement batch's provider day) and the newest bank statement
+ * (an upload, else the newest bank line's value date). The chain's freshness is the shell's dataAsOf (the newest
+ * stored chain transfer), already on every page. Null: not yet received. Entity scope as everywhere.
+ */
+export async function sourceFreshness(ctx: TenantContext): Promise<{ provider: SourceFreshness | null; bank: SourceFreshness | null }> {
+  require(ctx, "read");
+  return tenantRead(ctx, async (tx) => {
+    const sc = ctx.entityScope;
+    const arr = sql`array(select jsonb_array_elements_text(${JSON.stringify(sc ?? [])}::jsonb))`;
+    const ent = sc === null ? sql`` : sql` and entity_id = any(${arr})`;
+    const one = async (q: ReturnType<typeof sql>) => ((await tx.execute(q)).rows[0] as { at: string | Date | null } | undefined)?.at ?? null;
+    const iso = (v: string | Date | null, what: SourceFreshness["what"]): SourceFreshness | null => (v === null ? null : { at: v instanceof Date ? v.toISOString() : String(v), what });
+    const providerUpload = await one(sql`select max(created_at) as at from uploads where org_id = ${ctx.orgId} and deleted_at is null and status not in ('rejected', 'deleted') and file_type in ('provider_export', 'settlement_report', 'settlement_payments')${ent}`);
+    const bankUpload = await one(sql`select max(created_at) as at from uploads where org_id = ${ctx.orgId} and deleted_at is null and status not in ('rejected', 'deleted') and file_type = 'bank_statement'${ent}`);
+    return {
+      provider: iso(providerUpload, "upload") ?? iso(await one(sql`select max(day_end) as at from settlement_batches where org_id = ${ctx.orgId}${ent}`), "record"),
+      bank: iso(bankUpload, "upload") ?? iso(await one(sql`select max(value_date) as at from bank_lines where org_id = ${ctx.orgId}${ent}`), "record"),
+    };
+  });
+}
+
 /** The open exceptions of some orders (id, order, reason), for pages that show where a person is needed. */
 export async function openExceptionsOf(ctx: TenantContext, orderIds: string[]) {
   require(ctx, "read");

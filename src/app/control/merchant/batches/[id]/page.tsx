@@ -7,7 +7,8 @@ import { openExceptionsOf } from "@/server/merchant-ui";
 import { merchantMember } from "@/server/merchant-page";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
-import { Chip, EvidenceChip, differenceLabel, fiat } from "@/components/merchant/ui";
+import { Chip, differenceLabel, fiat } from "@/components/merchant/ui";
+import { EvidenceBadge, StatusBadge } from "@/components/ui";
 import { BANK_EVIDENCE_LABEL } from "@/lib/clearline/merchant";
 
 export const metadata: Metadata = { title: "Batch bridge" };
@@ -50,7 +51,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
     <>
       <p className={s.small}><a href="/control/merchant/batches">← All batches</a></p>
       <h1 className={s.title}>Batch {b.batchId}</h1>
-      <p className={s.lede}>From the merchant&rsquo;s day ({b.merchantDay}, {b.merchantTimeZone.name}) to the bank credit. Provider day {b.providerDay} ({b.cutOffNote}). {b.tied ? <Chip tone="ok" testId="batch-tied">Tied to the cent</Chip> : <Chip tone="warn" testId="batch-tied">Not tied</Chip>}</p>
+      <p className={s.lede}>From the merchant&rsquo;s day ({b.merchantDay}, {b.merchantTimeZone.name}) to the bank credit. Provider day {b.providerDay} ({b.cutOffNote}). {b.tied ? <StatusBadge kind="matched" label="Tied to the cent" data-testid="batch-tied" /> : <StatusBadge kind="exception" label="Not tied" data-testid="batch-tied" />}</p>
 
       <section className={s.section} aria-labelledby="waterfall-h">
         <h2 className={s.h2} id="waterfall-h">Bridge</h2>
@@ -72,7 +73,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
         </figure>
         {exceptions.length ? (
           <div className={s.warnBox} role="note" data-testid="bridge-exceptions">
-            {exceptions.map((e) => <p key={e.id}><Chip tone="warn">Exception</Chip> <a href={`/control/merchant/exceptions/${encodeURIComponent(e.id)}`}>{e.id}</a> for <a href={`/control/merchant/payments/${encodeURIComponent(e.orderId!)}`}>{e.orderId}</a>: {e.reason}</p>)}
+            {exceptions.map((e) => <p key={e.id}><StatusBadge kind="exception" /> <a href={`/control/merchant/exceptions/${encodeURIComponent(e.id)}`}>{e.id}</a> for <a href={`/control/merchant/payments/${encodeURIComponent(e.orderId!)}`}>{e.orderId}</a>: {e.reason}</p>)}
           </div>
         ) : null}
         <div className={s.tableWrap} role="region" aria-label="Batch bridge table" tabIndex={0}>
@@ -94,8 +95,8 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
       </section>
       <section className={s.section} aria-labelledby="checks">
         <h2 className={s.h2} id="checks">Checks</h2>
-        <ul className={s.plainList}>{Object.entries(b.checks).map(([k, v]) => <li key={k} className={s.row}>{v ? <Chip tone="ok">Pass</Chip> : <Chip tone="warn">Fail</Chip>} {CHECKS[k] ?? k}</li>)}</ul>
-        <p className={s.small}>Bank line: {b.bankLineId ? <span className={s.mono}>{b.bankLineId}</span> : "none yet"}{b.bankLineLabel ? ` (${b.bankLineLabel})` : ""}. Settlement {b.settlementVerified ? "verified by the bank line" : "not verified"}. <EvidenceChip level={b.bankEvidence} label={BANK_EVIDENCE_LABEL[b.bankEvidence]} /> {b.settled ? <Chip tone="ok" testId="batch-settled">Settled</Chip> : <Chip tone="plain" testId="batch-settled">Not settled</Chip>}</p>
+        <ul className={s.plainList}>{Object.entries(b.checks).map(([k, v]) => <li key={k} className={s.row}>{v ? <StatusBadge kind="matched" label="Pass" /> : <StatusBadge kind="exception" label="Fail" />} {CHECKS[k] ?? k}</li>)}</ul>
+        <p className={s.small}>Bank line: {b.bankLineId ? <span className={s.mono}>{b.bankLineId}</span> : "none yet"}{b.bankLineLabel ? ` (${b.bankLineLabel})` : ""}. Settlement {b.settlementVerified ? "verified by the bank line" : "not verified"}. <EvidenceBadge level={b.bankEvidence} label={BANK_EVIDENCE_LABEL[b.bankEvidence]} wrap /> {b.settled ? <StatusBadge kind="approved" label="Settled" data-testid="batch-settled" /> : <StatusBadge kind="awaiting_evidence" label="Not settled" data-testid="batch-settled" />}</p>
         {b.entityValue ? (b.entityValue.status === "rated"
           ? <p className={s.small} data-testid="batch-entity-value">In the entity&rsquo;s currency: {fiat(b.entityValue.amountMinor, b.entityValue.currency)} at {b.entityValue.pair} {b.entityValue.rate} ({b.entityValue.source}, as of {b.entityValue.asOf}). Shown only: the batch is tied in {b.currency}, never converted.</p>
           : <p className={s.small} data-testid="batch-entity-value"><Chip tone="warn" testId="batch-needs-rate">Needs a rate</Chip> In the entity&rsquo;s currency: not shown ({b.entityValue.reason}). The batch is tied in {b.currency}, never converted.</p>) : null}
