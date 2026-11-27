@@ -62,7 +62,7 @@
 .livePaused .liveDot { opacity: 0.35; }
 
 /* DataTable */
-.dt { display: grid; gap: 8px; min-width: 0; }
+.dt { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; }
 .dtTools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
 .input { font: inherit; font-size: 13px; color: var(--cl-text); background: var(--cl-surface); border: 1px solid var(--cl-border-strong); border-radius: 6px; padding: 4px 8px; min-height: 28px; min-width: 0; max-width: 100%; }
 .dtCount { font-size: 12px; color: var(--cl-muted); font-variant-numeric: tabular-nums; }
