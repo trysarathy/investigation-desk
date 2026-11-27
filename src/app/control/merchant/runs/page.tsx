@@ -5,6 +5,8 @@ import { DEFAULT_LOCAL_TIME, listRuns } from "@/server/runs";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
 import { RunReconciliation, ScheduleForm } from "@/components/merchant/forms";
+import { JobQueue, QueueRun } from "@/components/merchant/job-queue";
+import { listJobs } from "@/server/job-queue";
 import { Chip, Empty, whenIn } from "@/components/merchant/ui";
 import { when } from "@/components/control/ui";
 
@@ -24,6 +26,7 @@ function Status({ status, code }: { status: string; code: string | null }) {
 export default async function RunsPage() {
   const { ctx, shell } = await merchantMember();
   const v = await listRuns(ctx);
+  const queue = await listJobs(ctx, { limit: 20 });
   const mayRun = can(ctx.role, "merchant_reconcile");
   const ents = shell.entities;
   return (
@@ -45,13 +48,20 @@ export default async function RunsPage() {
                   <>
                     <ScheduleForm entityId={e.id} localTime={sc?.localTime ?? DEFAULT_LOCAL_TIME} enabled={sc?.enabled ?? false} />
                     <RunReconciliation entityId={e.id} entityName={e.name} />
+                    <QueueRun entityId={e.id} />
                   </>
                 ) : null}
               </article>
             );
           })}</div>
         )}
-        {mayRun ? <p className={s.small}>A daily run acts for the person who set it and stops if their access is removed. It needs the job worker running (<span className={s.mono}>npm run jobs:worker</span>).</p> : <p className={s.small}>Payment Operations or Finance set the daily run.</p>}
+        {mayRun ? <p className={s.small}>A daily run acts for the person who set it and stops if their access is removed. It needs the job worker running (<span className={s.mono}>npm run worker</span>).</p> : <p className={s.small}>Payment Operations or Finance set the daily run.</p>}
+      </section>
+
+      <section className={s.section} aria-labelledby="queue-h">
+        <h2 className={s.h2} id="queue-h">Job queue</h2>
+        <p className={s.small}>Runs in the background are done by the worker, one stage at a time; this list follows them live. A job that fails is retried with a growing wait, and after its last attempt it stays here as failed with its error code until an operator re-queues it.</p>
+        <JobQueue initial={queue.jobs} />
       </section>
 
       <section className={s.section} aria-labelledby="runs-h">

@@ -8,6 +8,8 @@ on:
   pull_request:
   push:
     branches: [main]
+  # v1 phase 6: also a gate of deploy-staging.yml
+  workflow_call:
 
 permissions:
   contents: read

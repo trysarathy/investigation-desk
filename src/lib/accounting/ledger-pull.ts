@@ -9,6 +9,7 @@
 
 import type { Fetch } from "./providers/xero";
 import { XERO_API } from "./providers/xero";
+import { AMOUNT_TEXT, isFormulaLike } from "../csv/cell";
 
 export type LedgerSource = "xero_demo" | "qbo_sandbox";
 export const QBO_SANDBOX_HOST = "https://sandbox-quickbooks.api.intuit.com";
@@ -111,9 +112,9 @@ export async function pullQboInvoices(creds: QboReadCredentials, fetchFn: Fetch,
 export const LEDGER_PULL_HEADERS = ["Invoice Number", "Ledger ID", "Reference", "Contact", "Currency", "Total", "Amount Due", "Amount Paid", "Status", "Invoice Date", "Due Date"] as const;
 
 /** One CSV cell; text starting with = + - @ is prefixed with ' so a spreadsheet never runs it. Amounts are unsigned. */
-function cell(v: string): string {
+export function ledgerPullCell(v: string): string {
   let s = v.replace(/[\r\n\u2028\u2029]+/g, " ");
-  if (/^[=+\-@\t]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s)) s = "'" + s;
+  if (!AMOUNT_TEXT.test(s) && isFormulaLike(s)) s = "'" + s;
   return /[",']|^\s|\s$/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
@@ -121,7 +122,7 @@ function cell(v: string): string {
 export function ledgerInvoicesCsv(invoices: PulledInvoice[]): Uint8Array {
   const rows = [...invoices].sort((a, b) => (a.invoiceNumber < b.invoiceNumber ? -1 : a.invoiceNumber > b.invoiceNumber ? 1 : 0))
     .map((i) => [i.invoiceNumber, i.ledgerId, i.reference, i.contact, i.currency, i.total, i.amountDue, i.amountPaid, i.status, i.issuedOn, i.dueOn]);
-  return new TextEncoder().encode([LEDGER_PULL_HEADERS as readonly string[], ...rows].map((r) => r.map(cell).join(",")).join("\r\n") + "\r\n");
+  return new TextEncoder().encode([LEDGER_PULL_HEADERS as readonly string[], ...rows].map((r) => r.map(ledgerPullCell).join(",")).join("\r\n") + "\r\n");
 }
 
 /** The mapping of a pulled file (it is always the same layout); amounts in the CSV use a decimal point. */

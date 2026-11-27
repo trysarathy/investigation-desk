@@ -1,5 +1,6 @@
 import "server-only";
 import { and, asc, eq, inArray, isNotNull, or } from "drizzle-orm";
+import { anyOf } from "./db/bulk";
 import {
   NETWORKS, localDate, toFiatMinor,
   type BankLine, type ChainTransfer, type ChainUnavailable, type FiatCurrency, type Invoice, type MerchantEntity, type MerchantPolicy, type NetworkId, type PaymentLink,
@@ -9,6 +10,8 @@ import { TEST_MODE_LABEL } from "@/lib/clearline/merchant/types";
 import { normAddress } from "@/lib/clearline/merchant/config";
 import type { Tx } from "./db/client";
 import * as t from "./db/schema";
+import { openRows, sealRows } from "./crypto/fields";
+import { cipherFor } from "./crypto/org-keys";
 
 /**
  * rc6 merchant rows ↔ the pure engine's ReconcileInput. `loadReconcileInput` reads one entity's rows (inside the
@@ -73,7 +76,9 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
     ...(i.priceTokenAmount !== null && i.priceNetwork !== null && i.priceTokenContract !== null
       ? { price: { token: { network: dbNetwork(i.priceNetwork), contract: i.priceTokenContract }, baseUnits: BigInt(i.priceTokenAmount) } } : {}),
   }));
-  const qs = orderIds.length ? await tx.select().from(t.merchantQuotes).where(and(eq(t.merchantQuotes.orgId, orgId), inArray(t.merchantQuotes.orderId, orderIds))).orderBy(asc(t.merchantQuotes.quoteId)) : [];
+  // v1 Phase 5.3: wallet addresses are read from their sealed copies (src/server/crypto/fields.ts); one cipher per load
+  const cipher = await cipherFor(tx, orgId, "read");
+  const qs = orderIds.length ? await openRows(tx, orgId, "merchant_quotes", await tx.select().from(t.merchantQuotes).where(and(eq(t.merchantQuotes.orgId, orgId), anyOf(t.merchantQuotes.orderId, orderIds))).orderBy(asc(t.merchantQuotes.quoteId)), cipher) : [];
   // rc7: terms an uploaded export did not carry are NULL. The engine gets placeholders it never uses, and the list of
   // unknown terms, so the order abstains (M3.quote.terms_unknown). Nothing is derived to fill them.
   const quotes: Quote[] = qs.map((q) => {
@@ -84,7 +89,7 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
       expiresAt: iso(q.expiresAt ?? EPOCH), depositAddress: q.depositAddress, ...(unknown.length ? { unknown } : {}),
     };
   });
-  const ls = orderIds.length ? await tx.select().from(t.paymentLinks).where(and(eq(t.paymentLinks.orgId, orgId), inArray(t.paymentLinks.orderId, orderIds))).orderBy(asc(t.paymentLinks.linkId)) : [];
+  const ls = orderIds.length ? await openRows(tx, orgId, "payment_links", await tx.select().from(t.paymentLinks).where(and(eq(t.paymentLinks.orgId, orgId), anyOf(t.paymentLinks.orderId, orderIds))).orderBy(asc(t.paymentLinks.linkId)), cipher) : [];
   const paymentLinks: PaymentLink[] = ls.map((l) => {
     // the upload pipeline always records a link's quote and token (normalise); only a hand-made row could lack them
     if (!l.quoteId || !l.tokenContract) throw new Error(`payment link ${l.linkId} lacks the fields reconciliation needs`);
@@ -95,7 +100,7 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
     return { linkId: l.linkId, orderId: l.orderId, quoteId: l.quoteId, kind: l.kind as PaymentLink["kind"], token: { network: dbNetwork(l.network), contract: l.tokenContract }, depositAddress: l.depositAddress, ...requested, ...window };
   });
   const qIds = quotes.map((q) => q.quoteId), lIds = paymentLinks.map((l) => l.linkId);
-  const refs = [...(qIds.length ? [inArray(t.providerPaymentRecords.quoteId, qIds)] : []), ...(lIds.length ? [inArray(t.providerPaymentRecords.linkId, lIds)] : [])];
+  const refs = [...(qIds.length ? [anyOf(t.providerPaymentRecords.quoteId, qIds)] : []), ...(lIds.length ? [anyOf(t.providerPaymentRecords.linkId, lIds)] : [])];
   const prs = refs.length ? await tx.select().from(t.providerPaymentRecords).where(and(eq(t.providerPaymentRecords.orgId, orgId), or(...refs))).orderBy(asc(t.providerPaymentRecords.providerPaymentId)) : [];
   const providerRecords: ProviderPaymentRecord[] = prs.map((p) => {
     const r = p.record as { ref: ProviderPaymentRecord["ref"]; transferRef?: ProviderPaymentRecord["transferRef"]; displayedStatus?: string; executedRate: string; logIndexUnknown?: boolean };
@@ -107,12 +112,12 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
     };
   });
   const required = (n: string) => networks.find((x) => x.network === n)?.confirmationsRequired ?? 1;
-  const all = await tx.select().from(t.chainTransfers).where(and(eq(t.chainTransfers.orgId, orgId), eq(t.chainTransfers.entityId, entityId)))
-    .orderBy(asc(t.chainTransfers.network), asc(t.chainTransfers.txHash), asc(t.chainTransfers.logIndex), asc(t.chainTransfers.source));
+  const all = await openRows(tx, orgId, "chain_transfers", await tx.select().from(t.chainTransfers).where(and(eq(t.chainTransfers.orgId, orgId), eq(t.chainTransfers.entityId, entityId)))
+    .orderBy(asc(t.chainTransfers.network), asc(t.chainTransfers.txHash), asc(t.chainTransfers.logIndex), asc(t.chainTransfers.source)), cipher);
   // rc7: a provider file's claimed transfer is a claim, not a fact. The engine reads chain facts only; the claim is on
   // the provider record. A claim no chain read has covered yet is "chain data unavailable", never "nothing arrived".
   const ct = all.filter((c) => c.source !== "provider_export");
-  const chainUnavailable = await unavailableReads(tx, orgId, entityId, all);
+  const chainUnavailable = await unavailableReads(tx, orgId, entityId, all, cipher);
   const transfers: ChainTransfer[] = ct.map((c) => ({
     network: dbNetwork(c.network), txHash: c.txHash, logIndex: c.logIndex, tokenContract: c.tokenContract, ...(c.claimedSymbol ? { claimedSymbol: c.claimedSymbol } : {}),
     from: c.fromAddress, to: c.toAddress, amountBaseUnits: BigInt(c.amountBaseUnits), decimals: c.decimals, block: c.block, timestamp: iso(c.blockTime),
@@ -155,7 +160,8 @@ export async function loadReconcileInput(tx: Tx, orgId: string, entityId: string
   const fr = await tx.select().from(t.fiatRates).where(and(eq(t.fiatRates.orgId, orgId), eq(t.fiatRates.quoteCurrency, ent.functionalCurrency)))
     .orderBy(asc(t.fiatRates.baseCurrency), asc(t.fiatRates.asOf), asc(t.fiatRates.sourceLabel));
   const fiatRates = fr.map((r) => ({ pair: `${r.baseCurrency}/${r.quoteCurrency}`, rate: normRate(r.rate), asOf: iso(r.asOf), source: r.sourceLabel }));
-  const af = await tx.select().from(t.addressFacts).where(eq(t.addressFacts.orgId, orgId)).orderBy(asc(t.addressFacts.network), asc(t.addressFacts.address), asc(t.addressFacts.fact));
+  // [expand phase] ordered by the plaintext column while it exists; the contract step orders after opening (ENCRYPTION_V1.md)
+  const af = await openRows(tx, orgId, "address_facts", await tx.select().from(t.addressFacts).where(eq(t.addressFacts.orgId, orgId)).orderBy(asc(t.addressFacts.network), asc(t.addressFacts.address), asc(t.addressFacts.fact)), cipher);
   return {
     label: TEST_MODE_LABEL, entity, policy, networks, tokens, invoices, quotes, paymentLinks, transfers, providerRecords, batches, batchLines,
     ...(settlementPaymentLines.length ? { settlementPaymentLines } : {}), bankLines,
@@ -189,26 +195,29 @@ const txNorm = (network: string, h: string) => (network === "tron" ? h.toLowerCa
  * rc7 phase 2: the chain reads that could not be done for this entity (the latest read of each address or transaction
  * is `unavailable`), plus every provider-claimed transaction no read has covered and no chain fact confirms yet.
  */
-async function unavailableReads(tx: Tx, orgId: string, entityId: string, transfers: (typeof t.chainTransfers.$inferSelect)[]): Promise<ChainUnavailable[]> {
+async function unavailableReads(tx: Tx, orgId: string, entityId: string, transfers: (typeof t.chainTransfers.$inferSelect)[], cipher: Awaited<ReturnType<typeof cipherFor>>): Promise<ChainUnavailable[]> {
   // Every run records its chain reads, so this table grows by a few hundred rows a day. When no read of the entity is
   // `unavailable` (the usual case), only the transaction reads can matter below (the provider-claim check); the
   // address reads cannot produce an output. Both filters are leakproof, so PostgreSQL applies them before the
   // per-row RLS check instead of checking every read. Same result as reading every row.
   const where = and(eq(t.chainReads.orgId, orgId), eq(t.chainReads.entityId, entityId));
-  const anyUnavailable = (await tx.select({ id: t.chainReads.id }).from(t.chainReads).where(and(where, eq(t.chainReads.status, "unavailable"))).limit(1)).length > 0;
-  const reads = await tx.select().from(t.chainReads).where(anyUnavailable ? where : and(where, isNotNull(t.chainReads.txHash)))
-    .orderBy(asc(t.chainReads.at), asc(t.chainReads.id));
+  // v1: a `conflicting` read (two providers disagree) is loaded exactly like an unavailable one, typed as conflicting
+  const anyUnavailable = (await tx.select({ id: t.chainReads.id }).from(t.chainReads).where(and(where, or(eq(t.chainReads.status, "unavailable"), eq(t.chainReads.status, "conflicting")))).limit(1)).length > 0;
+  const reads = await openRows(tx, orgId, "chain_reads", await tx.select().from(t.chainReads).where(anyUnavailable ? where : and(where, isNotNull(t.chainReads.txHash)))
+    .orderBy(asc(t.chainReads.at), asc(t.chainReads.id)), cipher);
   const latest = new Map<string, typeof reads[number]>();
   for (const r of reads) {
     const n = dbNetwork(r.network);
     // ids order rows written in one run arbitrarily; within one instant an unavailable read wins (never hide an outage)
     const k = r.address !== null ? `a|${n}|${normAddress(n, r.address)}` : `t|${n}|${txNorm(n, r.txHash!)}`;
     const prev = latest.get(k);
-    if (!prev || prev.at.getTime() < r.at.getTime() || r.status === "unavailable") latest.set(k, r);
+    // within one instant a conflicting read wins over everything, then an unavailable one
+    const rank = (x: typeof r) => (x.status === "conflicting" ? 2 : x.status === "unavailable" ? 1 : 0);
+    if (!prev || prev.at.getTime() < r.at.getTime() || (prev.at.getTime() === r.at.getTime() && rank(r) >= rank(prev) && rank(r) > 0)) latest.set(k, r);
   }
-  const out: ChainUnavailable[] = [...latest.values()].filter((r) => r.status === "unavailable").map((r) => ({
+  const out: ChainUnavailable[] = [...latest.values()].filter((r) => r.status === "unavailable" || r.status === "conflicting").map((r) => ({
     network: dbNetwork(r.network), ...(r.address !== null ? { address: r.address } : { txHash: r.txHash! }), source: r.host ? `${r.source} (${r.host})` : r.source,
-    reason: r.reason ?? "chain data unavailable", at: iso(r.at),
+    reason: r.reason ?? (r.status === "conflicting" ? "chain data conflicting" : "chain data unavailable"), at: iso(r.at), ...(r.status === "conflicting" ? { kind: "conflicting" as const } : {}),
   }));
   const facts = new Set(transfers.filter((c) => c.source !== "provider_export").map((c) => `${dbNetwork(c.network)}|${txNorm(c.network, c.txHash)}`));
   const seen = new Set<string>();
@@ -233,34 +242,44 @@ export async function writeIngested(tx: Tx, orgId: string, entityId: string, p: 
   const [ent] = await tx.select().from(t.merchantEntities).where(and(eq(t.merchantEntities.orgId, orgId), eq(t.merchantEntities.id, entityId)));
   if (!ent) throw new MissingEntity(entityId);
   const quotes = p.quotes ?? [];
+  // v1 phase 3 (volume): each invoice's first quote time and each link's quote, found through maps (same values as the scans)
+  const firstQuoteAt = new Map<string, string>();
+  for (const q of quotes) { const a = firstQuoteAt.get(q.orderId); if (a === undefined || q.createdAt < a) firstQuoteAt.set(q.orderId, q.createdAt); }
+  // v1 Phase 5.3: wallet addresses are sealed on insert (null when field encryption is off, local only)
+  const needsCipher = !!(quotes.length || p.paymentLinks?.length || p.transfers?.length || p.addressFacts?.length);
+  const cipher = needsCipher ? await cipherFor(tx, orgId, "write") : null;
   if (p.invoices?.length) count("invoices", await tx.insert(t.invoices).values(p.invoices.map((i) => ({
     orgId, orderId: i.orderId, entityId, currency: i.currency, status: i.status === "void" ? "void" : "open",
     // v1: a token-priced invoice stores its token price and no fiat amount (exactly one pricing mode, migration 0040)
     ...(i.price ? { amountMinor: null, priceNetwork: i.price.token.network === "arbitrum_one" ? "arbitrum-one" : i.price.token.network, priceTokenContract: i.price.token.contract, priceTokenAmount: i.price.baseUnits.toString() }
       : { amountMinor: i.amountMinor }),
     // [ASSUMPTION] an invoice's issue time is its first quote's creation (the export carries no invoice date)
-    issuedAt: new Date(quotes.filter((q) => q.orderId === i.orderId).map((q) => q.createdAt).sort()[0] ?? "2026-01-01T00:00:00.000Z"),
+    issuedAt: new Date(firstQuoteAt.get(i.orderId) ?? "2026-01-01T00:00:00.000Z"),
   }))).onConflictDoNothing().returning({ id: t.invoices.orderId }));
-  if (quotes.length) count("quotes", await tx.insert(t.merchantQuotes).values(quotes.map((q) => ({
+  if (quotes.length) count("quotes", await tx.insert(t.merchantQuotes).values(await sealRows(tx, orgId, "merchant_quotes", quotes.map((q) => ({
     orgId, quoteId: q.quoteId, orderId: q.orderId, network: q.network, tokenContract: q.token.contract, quotedBaseUnits: q.quotedBaseUnits.toString(), rate: q.rate,
     rateSource: q.rateSource, rateAt: new Date(q.rateAt), createdAt: new Date(q.createdAt), expiresAt: new Date(q.expiresAt), depositAddress: q.depositAddress,
-  }))).onConflictDoNothing().returning({ id: t.merchantQuotes.quoteId }));
-  const allQuotes = await tx.select().from(t.merchantQuotes).where(eq(t.merchantQuotes.orgId, orgId));
+  })), cipher)).onConflictDoNothing().returning({ id: t.merchantQuotes.quoteId }));
+  const linkQuoteIds = [...new Set((p.paymentLinks ?? []).map((l) => l.quoteId))];
+  const quoteById = new Map<string, typeof t.merchantQuotes.$inferSelect>();
+  for (let i = 0; i < linkQuoteIds.length; i += 1000) {
+    for (const q of await tx.select().from(t.merchantQuotes).where(and(eq(t.merchantQuotes.orgId, orgId), inArray(t.merchantQuotes.quoteId, linkQuoteIds.slice(i, i + 1000))))) quoteById.set(q.quoteId, q);
+  }
   const tokenRows = await tx.select().from(t.tokenConfig);
   const decimalsOf = (network: string, contract: string) => {
     const k = tokenRows.find((x) => dbNetwork(x.network) === network && x.contract === contract);
     if (!k) throw new Error(`token ${contract} on ${network} is not configured`);
     return k.decimals;
   };
-  if (p.paymentLinks?.length) count("paymentLinks", await tx.insert(t.paymentLinks).values(p.paymentLinks.map((l) => {
-    const q = allQuotes.find((x) => x.quoteId === l.quoteId);
+  if (p.paymentLinks?.length) count("paymentLinks", await tx.insert(t.paymentLinks).values(await sealRows(tx, orgId, "payment_links", p.paymentLinks.map((l) => {
+    const q = quoteById.get(l.quoteId);
     if (!q) throw new Error(`link ${l.linkId}: unknown quote ${l.quoteId}`);
     return {
       orgId, linkId: l.linkId, orderId: l.orderId, kind: l.kind, network: l.token.network, depositAddress: l.depositAddress, tokenContract: l.token.contract, quoteId: l.quoteId,
       requestedBaseUnits: l.requestedBaseUnits.toString(), requestedMinor: q.rate === null ? null : toFiatMinor(l.requestedBaseUnits, decimalsOf(l.token.network, l.token.contract), normRate(q.rate), ent.functionalCurrency as FiatCurrency),
       createdAt: new Date(l.createdAt), expiresAt: new Date(l.expiresAt),
     };
-  })).onConflictDoNothing().returning({ id: t.paymentLinks.linkId }));
+  }), cipher)).onConflictDoNothing().returning({ id: t.paymentLinks.linkId }));
   if (p.providerRecords?.length) count("providerRecords", await tx.insert(t.providerPaymentRecords).values(p.providerRecords.map((r) => ({
     orgId, providerPaymentId: r.providerPaymentId, quoteId: r.ref.quoteId ?? null, linkId: r.ref.linkId ?? null, statusClaim: r.statusClaim,
     receivedBaseUnits: r.receivedBaseUnits.toString(), creditedMinor: r.creditedMinor, creditedCurrency: ent.functionalCurrency, executedRate: r.executedRate,
@@ -268,11 +287,11 @@ export async function writeIngested(tx: Tx, orgId: string, entityId: string, p: 
   }))).onConflictDoNothing().returning({ id: t.providerPaymentRecords.providerPaymentId }));
   for (const c of p.transfers ?? []) {
     const finalised = opts.finalised ? opts.finalised(c) : true;
-    const row = {
+    const [row] = await sealRows(tx, orgId, "chain_transfers", [{
       orgId, network: c.network, txHash: c.txHash, logIndex: c.logIndex, tokenContract: c.tokenContract, fromAddress: c.from, toAddress: c.to,
       amountBaseUnits: c.amountBaseUnits.toString(), decimals: c.decimals, block: c.block, blockTime: new Date(c.timestamp), confirmations: c.confirmations, finalised,
       source: opts.chainSource, entityId, claimedSymbol: c.claimedSymbol ?? null, priorHops: c.priorHops ? (plain(c.priorHops) as object) : null,
-    };
+    }], cipher);
     count("transfers", await tx.insert(t.chainTransfers).values(row).onConflictDoUpdate({
       target: [t.chainTransfers.orgId, t.chainTransfers.network, t.chainTransfers.txHash, t.chainTransfers.logIndex, t.chainTransfers.source],
       set: { confirmations: row.confirmations, finalised: row.finalised, block: row.block },
@@ -285,8 +304,10 @@ export async function writeIngested(tx: Tx, orgId: string, entityId: string, p: 
       currency: b.currency, targetBankAccount: b.targetBankAccount, grossMinor: b.grossMinor, feesMinor: b.feesMinor, refundsMinor: b.refundsMinor, netMinor: b.netMinor,
     };
   })).onConflictDoNothing().returning({ id: t.settlementBatches.batchId }));
-  const lineRows = [...new Set((p.batchLines ?? []).map((l) => l.batchId))].flatMap((batchId) =>
-    (p.batchLines ?? []).filter((l) => l.batchId === batchId).sort((a, b) => ((a.kind + (a.providerPaymentId ?? a.refundId)) < (b.kind + (b.providerPaymentId ?? b.refundId)) ? -1 : 1))
+  const linesByBatch = new Map<string, NonNullable<IngestParts["batchLines"]>[number][]>();
+  for (const l of p.batchLines ?? []) { const a = linesByBatch.get(l.batchId); if (a) a.push(l); else linesByBatch.set(l.batchId, [l]); }
+  const lineRows = [...linesByBatch.keys()].flatMap((batchId) =>
+    [...linesByBatch.get(batchId)!].sort((a, b) => ((a.kind + (a.providerPaymentId ?? a.refundId)) < (b.kind + (b.providerPaymentId ?? b.refundId)) ? -1 : 1))
       .map((l, i) => ({ orgId, batchId, lineNo: i + 1, kind: l.kind, ref: (l.kind === "payment" ? l.providerPaymentId : l.refundId) ?? "", amountMinor: l.amountMinor, orderId: l.orderId })));
   if (lineRows.length) count("batchLines", await tx.insert(t.settlementBatchLines).values(lineRows).onConflictDoNothing().returning({ id: t.settlementBatchLines.lineNo }));
   if (p.bankLines?.length) count("bankLines", await tx.insert(t.bankLines).values(p.bankLines.map((b) => ({
@@ -295,7 +316,7 @@ export async function writeIngested(tx: Tx, orgId: string, entityId: string, p: 
   }))).onConflictDoNothing().returning({ id: t.bankLines.lineId }));
   if (p.fxRates?.length) count("fxRates", await tx.insert(t.fxRates).values(p.fxRates.map((r) => ({ orgId, pair: r.pair, rate: r.rate, source: r.source, observedAt: new Date(r.timestamp), entityId })))
     .onConflictDoNothing().returning({ id: t.fxRates.pair }));
-  if (p.addressFacts?.length) count("addressFacts", await tx.insert(t.addressFacts).values(p.addressFacts.map((a) => ({ orgId, network: a.network, address: a.address, fact: a.fact })))
+  if (p.addressFacts?.length) count("addressFacts", await tx.insert(t.addressFacts).values(await sealRows(tx, orgId, "address_facts", p.addressFacts.map((a) => ({ orgId, network: a.network, address: a.address, fact: a.fact })), cipher))
     .onConflictDoNothing().returning({ id: t.addressFacts.address }));
   return n;
 }

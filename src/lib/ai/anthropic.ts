@@ -5,6 +5,8 @@
 
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
+import { safeFetcher } from "../net/safe-fetch";
+import { aiPolicy } from "../net/outbound-hosts";
 import type { TextModel } from "./explain";
 import type { AiInput } from "./types";
 
@@ -63,7 +65,8 @@ export function requestParams(model: string, input: AiInput) {
 }
 
 export class ClaudeModel implements TextModel {
-  private readonly client = new Anthropic({ timeout: 30_000, maxRetries: 1 });
+  // v1 E1: every API call goes through the SSRF-safe client (api.anthropic.com, or the ANTHROPIC_BASE_URL host).
+  private readonly client = new Anthropic({ timeout: 30_000, maxRetries: 1, fetch: safeFetcher(aiPolicy()) });
 
   constructor(private readonly model: string = aiModelId()) {}
 

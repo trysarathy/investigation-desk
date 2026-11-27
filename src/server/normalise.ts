@@ -15,6 +15,9 @@ import { RequestRefused } from "./errors";
 import { analyseUpload, loadUpload, type AnalysedRow, type UploadRow } from "./uploads";
 import { uploadStorage, type UploadStorage } from "./storage";
 import { stampNow } from "./live-clock";
+import { ENCRYPTED_TABLES, isEncryptedTable, openOne, sealOne, type EncryptedTable } from "./crypto/fields";
+import type { OrgCipher } from "./crypto/envelope";
+import { cipherFor } from "./crypto/org-keys";
 
 /**
  * rc7 normalisation: the accepted rows of a CONFIRMED upload → the rc6 merchant tables the engine reads
@@ -56,7 +59,12 @@ interface Ctx {
   tokens: { network: string; contract: string; decimals: number }[];
   prov: (row: number) => { uploadId: string; sourceRow: number; mappingTemplateId: string | null; mappingTemplateVersion: number | null; uploadedBy: string };
   mode: Mode; keys: Map<string, Set<string>>; state: Map<string, Map<string, Record<string, unknown>>>; pending: Pending[];
+  /** v1 Phase 5.3: the organisation's field cipher (null when field encryption is off, local only). */
+  cipher: OrgCipher | null;
 }
+/** v1 Phase 5.3: a row as inserted (addresses and references sealed) and a stored row as compared (opened). */
+const sealed = (c: { cipher: OrgCipher | null }, name: string, values: Record<string, unknown>) => (c.cipher && isEncryptedTable(name) ? sealOne(c.cipher, ENCRYPTED_TABLES[name] as EncryptedTable, values) : values);
+const opened = <T extends Record<string, unknown> | undefined>(c: { cipher: OrgCipher | null }, name: string, row: T): T => (row && isEncryptedTable(name) ? openOne(c.cipher, ENCRYPTED_TABLES[name] as EncryptedTable, row) as T : row);
 const note = (c: Ctx, name: string, key: string) => { const s = c.keys.get(name) ?? new Set<string>(); s.add(key); c.keys.set(name, s); };
 const lookup = (c: Ctx, name: string, key: string) => c.pending.find((p) => p.name === name && p.key === key)?.values ?? c.state.get(name)?.get(key);
 
@@ -73,8 +81,8 @@ async function put<R extends Record<string, unknown>>(c: Ctx, table: PgTable, na
     out.push({ table: name, key });
     return found ? "existing" : "created";
   }
-  const created = await c.tx.insert(table).values(values).onConflictDoNothing().returning();
-  const outcome: Outcome = created.length ? "created" : await find().then((x) => (x && same(facts(x), facts(values)) ? "existing" : Promise.reject(new Conflict(name))));
+  const created = await c.tx.insert(table).values(sealed(c, name, values)).onConflictDoNothing().returning();
+  const outcome: Outcome = created.length ? "created" : await find().then((f) => opened(c, name, f)).then((x) => (x && same(facts(x), facts(values)) ? "existing" : Promise.reject(new Conflict(name))));
   out.push({ table: name, key });
   return outcome;
 }
@@ -155,7 +163,7 @@ async function providerRow(c: Ctx, v: Record<string, MappedValue>, row: number):
       const found = lookup(c, "chain_transfers", key);
       if (!found) c.pending.push({ name: "chain_transfers", key, table: t.chainTransfers, values });
       outcomes.push(found ? "existing" : "created");
-    } else outcomes.push((await tx.insert(t.chainTransfers).values(values).onConflictDoNothing().returning({ k: t.chainTransfers.txHash })).length ? "created" : "existing");
+    } else outcomes.push((await tx.insert(t.chainTransfers).values(sealed(c, "chain_transfers", values) as typeof values).onConflictDoNothing().returning({ k: t.chainTransfers.txHash })).length ? "created" : "existing");
     targets.push({ table: "chain_transfers", key });
   }
   return { outcome: outcomes.includes("created") ? "created" : "existing", targets };
@@ -322,21 +330,21 @@ const LOADERS: Record<string, { table: PgTable; keyOf: (r: Row) => string; load:
 };
 const WRITE_ORDER = ["invoices", "merchant_quotes", "payment_links", "provider_payment_records", "chain_transfers", "settlement_batches", "settlement_batch_lines", "settlement_payment_lines", "bank_lines", "ledger_invoices"];
 
-async function loadExisting(tx: Tx, orgId: string, name: string, keys: string[]): Promise<Map<string, Row>> {
+async function loadExisting(tx: Tx, orgId: string, name: string, keys: string[], cipher: OrgCipher | null): Promise<Map<string, Row>> {
   const l = LOADERS[name];
   const out = new Map<string, Row>();
   const want = new Set(keys);
-  for (let i = 0; i < keys.length; i += 1000) for (const r of await l.load(tx, orgId, keys.slice(i, i + 1000)) as Row[]) { const k = l.keyOf(r); if (want.has(k)) out.set(k, r); }
+  for (let i = 0; i < keys.length; i += 1000) for (const r of await l.load(tx, orgId, keys.slice(i, i + 1000)) as Row[]) { const k = l.keyOf(r); if (want.has(k)) out.set(k, opened({ cipher }, name, r)); }
   return out;
 }
 
 /** Write the planned rows in bulk, parents first; anything not inserted exactly as planned undoes the bulk write. */
-async function writeBulk(tx: Tx, creates: Pending[]) {
+async function writeBulk(tx: Tx, creates: Pending[], cipher: OrgCipher | null) {
   for (const name of WRITE_ORDER) {
     const rows = creates.filter((p) => p.name === name);
     for (let i = 0; i < rows.length; i += 500) {
       const chunk = rows.slice(i, i + 500);
-      const done = await tx.insert(LOADERS[name].table).values(chunk.map((p) => p.values)).onConflictDoNothing().returning();
+      const done = await tx.insert(LOADERS[name].table).values(chunk.map((p) => sealed({ cipher }, name, p.values))).onConflictDoNothing().returning();
       if (done.length !== chunk.length) throw new BulkMiss(name);
     }
   }
@@ -368,6 +376,8 @@ export async function normaliseUpload(ctx: TenantContext, uploadId: string, idem
       accountCurrency: accounts.find((a) => a.id === u.bankAccountId)?.currency, accountCurrencies: new Set(accounts.map((a) => a.currency).filter((x) => x in FIAT_DECIMALS)),
       prov: (row) => ({ uploadId: u.id, sourceRow: row, mappingTemplateId: u.templateId, mappingTemplateVersion: u.templateVersion, uploadedBy: u.uploadedBy }),
       mode: "collect", keys: new Map(), state: new Map(), pending: [],
+      // only files that carry addresses or references need the cipher (and create the organisation's keys)
+      cipher: u.fileType === "provider_export" || u.fileType === "ledger_invoices" ? await cipherFor(tx, ctx.orgId, "write") : null,
     };
     // one normalisation at a time per organisation: the bulk plan reads what is there, then writes
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${ctx.orgId}|normalise`}))`);
@@ -408,12 +418,12 @@ export async function normaliseUpload(ctx: TenantContext, uploadId: string, idem
     if (opts.rowByRow) c.mode = "db"; // the row-by-row path only (the equivalence test compares both)
     await runRows(); // collect (or, row by row, everything)
     if (c.mode === "collect") {
-      for (const [name, keys] of c.keys) c.state.set(name, await loadExisting(tx, ctx.orgId, name, [...keys]));
+      for (const [name, keys] of c.keys) c.state.set(name, await loadExisting(tx, ctx.orgId, name, [...keys], c.cipher));
       c.mode = "plan";
       for (const r of live) results.delete(r.rowNumber);
       await runRows();
       try {
-        await tx.transaction(async () => writeBulk(tx, creates));
+        await tx.transaction(async () => writeBulk(tx, creates, c.cipher));
       } catch (e) {
         if (!(e instanceof BulkMiss)) throw e;
         c.mode = "db";

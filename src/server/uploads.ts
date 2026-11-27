@@ -3,12 +3,13 @@ import { createHash } from "node:crypto";
 import { and, asc, eq, inArray, isNull, lte, ne, notInArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
-  IngestError, formatMinor, currencyPrecision, parseCamt053, parseMt940, preview as previewRows, readTabular, sniffFile,
+  IngestError, formatMinor, currencyPrecision, parseBai2, parseCamt053, parseCamt054, parseMt940, preview as previewRows, readTabular, sniffFile,
   type BankParseResult, type ParsedTable,
 } from "@/lib/clearline/ingest";
 import { FILE_TYPES, applyMapping, validateMapping, type AppliedRow, type FileType, type Mapping, type MappedValue } from "@/lib/clearline/mapping";
 import { usesUploadPipeline, type DataLabel } from "@/lib/clearline/data-mode";
-import { otherCurrencies, rejectOtherCurrency } from "@/lib/clearline/bank-accounts";
+import { otherCurrencies, rejectOtherCurrency, statementAccountsNotLast4 } from "@/lib/clearline/bank-accounts";
+import { isStatementFormat, STATEMENT_FORMATS, type StatementFormat } from "@/lib/clearline/upload-words";
 import type { NetworkId, TokenConfig } from "@/lib/clearline/merchant/types";
 import { stableJson } from "@/lib/clearline/merchant/adapters";
 import type { Db, Tx } from "./db/client";
@@ -19,6 +20,7 @@ import { dataModeOf, suggestTemplate, type TemplateSuggestion } from "./mapping-
 import { AccessDenied, inEntityScope, requireEntity, requireUnscoped, type TenantContext, withTenant } from "./tenant";
 import { RequestRefused } from "./errors";
 import { StorageRefused, uploadStorage, type UploadStorage } from "./storage";
+import { ScanUnavailable, malwareScanner, scanRequired, type MalwareScanner, type ScanResult } from "./malware";
 import { purgeDerivedRows } from "./upload-retention";
 import { stampNow } from "./live-clock";
 
@@ -62,7 +64,35 @@ const refuse = (e: unknown): never => {
   throw e;
 };
 
-type Parsed = { format: "csv" | "tsv" | "xlsx" | "json"; table: ParsedTable } | { format: "mt940" | "camt053"; statement: BankParseResult };
+/**
+ * v1 phase 2.1: the strict allowlist. The file's kind is decided from its content (sniffFile: magic bytes, zip parts,
+ * text shape), never from its name; a statement format is accepted only as a bank statement. In addition, a name
+ * that carries an extension (with a letter in it: "report.2026.11" has none) must carry one of these (content is still what decides how the file is read): a CSV
+ * named invoice.exe or report.html is refused rather than stored.
+ */
+export const ALLOWED_EXTENSIONS: ReadonlySet<string> = new Set(["csv", "tsv", "tab", "txt", "xlsx", "json", "xml", "sta", "mt940", "940", "fin", "bai", "bai2"]);
+const TABLE_KINDS = ["csv", "tsv", "xlsx", "json"] as const;
+export function allowedKinds(fileType: FileType): readonly string[] {
+  return fileType === "bank_statement" ? [...TABLE_KINDS, ...STATEMENT_FORMATS] : TABLE_KINDS;
+}
+function checkAllowedFile(kind: string, fileType: FileType, fileName?: string) {
+  if (kind === "unknown") return; // the reader refuses it with the sniffer's plain-English reason
+  if (isStatementFormat(kind)) {
+    if (!allowedKinds(fileType).includes(kind)) throw new RequestRefused(422, "FILE_NOT_A_TABLE", "This is a bank statement; upload it as a bank statement.");
+  } else if (!allowedKinds(fileType).includes(kind)) throw new RequestRefused(422, "FILE_TYPE_NOT_ALLOWED", "This kind of file is not accepted for this upload.");
+  const ext = fileName ? /\.([A-Za-z0-9]{1,10})$/.exec(fileName.split(/[/\\]/).pop() ?? "")?.[1]?.toLowerCase() : undefined;
+  if (ext !== undefined && /[a-z]/.test(ext) && !ALLOWED_EXTENSIONS.has(ext)) {
+    throw new RequestRefused(422, "FILE_EXTENSION_NOT_ALLOWED", `Files named .${ext} are not accepted. Upload a .csv, .xlsx, .json, MT940, camt.053 or camt.054 (.xml) or BAI2 file.`);
+  }
+}
+
+type Parsed = { format: "csv" | "tsv" | "xlsx" | "json"; table: ParsedTable } | { format: StatementFormat; statement: BankParseResult };
+/**
+ * v1: formats whose account must match the chosen bank account's last four characters. MT940 and camt.053 are not
+ * checked yet (existing behaviour kept; extending the check to them is a pending decision).
+ */
+const ACCOUNT_CHECKED_FORMATS: ReadonlySet<StatementFormat> = new Set(["camt054", "bai2"]);
+const STATEMENT_PARSERS: Readonly<Record<StatementFormat, (bytes: Uint8Array) => BankParseResult>> = { mt940: parseMt940, camt053: parseCamt053, camt054: parseCamt054, bai2: parseBai2 };
 
 /**
  * Read a file with the rc7 ingest parsers (size, row and cell limits included). Statements are only bank statements.
@@ -71,10 +101,11 @@ type Parsed = { format: "csv" | "tsv" | "xlsx" | "json"; table: ParsedTable } | 
 export async function parseUpload(bytes: Uint8Array, fileType: FileType, fileName?: string, jsonList?: string | null): Promise<Parsed> {
   try {
     const kind = sniffFile(bytes, fileName).kind;
+    checkAllowedFile(kind, fileType, fileName);
     if (jsonList && kind !== "json") throw new RequestRefused(422, "JSON_LIST_NOT_JSON", "Choosing a list applies to JSON files only.");
-    if (kind === "mt940" || kind === "camt053") {
+    if (isStatementFormat(kind)) {
       if (fileType !== "bank_statement") throw new RequestRefused(422, "FILE_NOT_A_TABLE", "This is a bank statement; upload it as a bank statement.");
-      return { format: kind, statement: kind === "mt940" ? parseMt940(bytes) : parseCamt053(bytes) };
+      return { format: kind, statement: STATEMENT_PARSERS[kind](bytes) };
     }
     const table = await readTabular(bytes, { fileName, ...(jsonList ? { arrayProperty: jsonList } : {}) });
     return { format: table.kind, table };
@@ -139,7 +170,9 @@ export async function analyseUpload(tx: Tx, u: Pick<UploadRow, "orgId" | "fileTy
     const rows: AppliedRow[] = s.lines.map((l) => {
       const values: Record<string, MappedValue> = { bank_account: l.account, value_date: l.valueDate, amount: l.amountMinor, currency: l.currency, direction: l.direction, reference: l.reference };
       for (const [k, v] of [["booking_date", l.bookingDate], ["counterparty", l.counterparty], ["bank_reference", l.bankReference], ["description", l.narrative]] as const) if (v) values[k] = v;
-      const warnings = l.amountMinor === 0n ? [{ field: "amount", code: "zero_amount" }] : [];
+      const warnings = [...(l.amountMinor === 0n ? [{ field: "amount", code: "zero_amount" }] : []),
+        // v1: a reversal or return the bank marked (camt RvslInd, BAI2 return code) is accepted only with a warning, for review
+        ...(l.reversal ? [{ field: "direction", code: "bank_reversal" }] : [])];
       return { rowNumber: l.sourceRow, status: warnings.length ? "warning" : "accepted", values, errors: [], warnings };
     });
     return { rows: hashRows(fileType, inAccountCurrency(rows), u.bankAccountId ?? null), notes };
@@ -184,12 +217,14 @@ export interface UploadSummary {
   status: string; templateId: string | null; templateVersion: number | null; mapping: Mapping | null; rowsSha256: string | null;
   counts: { rows: number; accepted: number; rejected: number; warning: number; duplicate: number }; notes: string[];
   uploadedBy: string; confirmedBy: string | null; deleteAfter: string; createdAt: string;
+  /** v1 phase 2.1: the pickup source the file came from (absent when a person uploaded it). */
+  pickupSourceId?: string;
 }
 export const summary = (u: UploadRow): UploadSummary => ({
   id: u.id, entityId: u.entityId, bankAccountId: u.bankAccountId ?? null, fileType: u.fileType as FileType, fileFormat: u.fileFormat, originalName: u.originalName, byteSize: u.byteSize, contentSha256: u.contentSha256,
   encrypted: u.encrypted, jsonList: u.jsonList ?? null, status: u.status, templateId: u.templateId, templateVersion: u.templateVersion, mapping: (u.mapping as Mapping | null) ?? null, rowsSha256: u.rowsSha256,
   counts: { rows: u.rowCount, accepted: u.acceptedCount, rejected: u.rejectedCount, warning: u.warningCount, duplicate: u.duplicateCount }, notes: u.notes as string[],
-  uploadedBy: u.uploadedBy, confirmedBy: u.confirmedBy, deleteAfter: u.deleteAfter.toISOString(), createdAt: u.createdAt.toISOString(),
+  uploadedBy: u.uploadedBy, confirmedBy: u.confirmedBy, deleteAfter: u.deleteAfter.toISOString(), createdAt: u.createdAt.toISOString(), ...(u.pickupSourceId ? { pickupSourceId: u.pickupSourceId } : {}),
 });
 const counts = (u: UploadSummary) => ({ ...u.counts });
 
@@ -231,7 +266,9 @@ export interface UploadResult { upload: UploadSummary; label: DataLabel; preview
  * unreadable or oversized file (with the parser's plain-English reason), or the same file already uploaded for this
  * entity and file type. Returns the preview (first 20 rows) and the template / header suggestions to confirm.
  */
-export async function createUpload(ctx: TenantContext, input: z.input<typeof CreateUpload> & { bytes: Uint8Array }, idempotencyKey: string, storage: UploadStorage = uploadStorage()): Promise<UploadResult & { status: number; replayed: boolean }> {
+export async function createUpload(ctx: TenantContext, input: z.input<typeof CreateUpload> & { bytes: Uint8Array }, idempotencyKey: string, storage: UploadStorage = uploadStorage(),
+  /** v1 phase 2.1: set by scheduled pickup only (src/server/upload-pickup.ts); the database checks it (drizzle/0074, was 0055). */
+  opts: { pickupSourceId?: string } = {}): Promise<UploadResult & { status: number; replayed: boolean }> {
   require(ctx, "merchant_upload");
   const key = IdempotencyKey.parse(idempotencyKey);
   const v = CreateUpload.parse({ entityId: input.entityId, fileType: input.fileType, fileName: input.fileName, ...(input.jsonList ? { jsonList: input.jsonList } : {}),
@@ -254,18 +291,27 @@ export async function createUpload(ctx: TenantContext, input: z.input<typeof Cre
     const acct = await tenantRead(ctx, (tx) => bankAccountOf(tx, ctx.orgId, v.bankAccountId!));
     if (!acct || acct.entityId !== v.entityId) throw new AccessDenied(404, "Not found.");
     if (acct.status !== "active") throw new RequestRefused(409, "BANK_ACCOUNT_CLOSED", "This bank account is closed; upload statements to an active account.");
-    // a structured statement (MT940, camt.053) states its currency: every line must be in the account's currency
+    // a structured statement (MT940, camt.053, camt.054, BAI2) states its currency: every line must be in the account's currency
     const other = "statement" in parsed ? otherCurrencies(parsed.statement.lines, acct.currency) : [];
     if (other.length) {
       await tenantTx(ctx, (tx) => serverAudit(tx, ctx, "upload_refused", "upload", null, "Upload refused before storing (STATEMENT_CURRENCY_MISMATCH)",
         { code: "STATEMENT_CURRENCY_MISMATCH", byteSize: bytes.byteLength, fileType: v.fileType, entityId: v.entityId, bankAccountId: acct.id }));
       throw new RequestRefused(422, "STATEMENT_CURRENCY_MISMATCH", `This statement is in ${other.join(", ")}; the bank account ${acct.displayName} is in ${acct.currency}. Nothing was stored.`);
     }
+    // v1 (camt.054, BAI2): the account the file names must end in the bank account's last four characters
+    if ("statement" in parsed && ACCOUNT_CHECKED_FORMATS.has(parsed.format) && statementAccountsNotLast4(parsed.statement.statements, acct.accountLast4)) {
+      await tenantTx(ctx, (tx) => serverAudit(tx, ctx, "upload_refused", "upload", null, "Upload refused before storing (STATEMENT_ACCOUNT_MISMATCH)",
+        { code: "STATEMENT_ACCOUNT_MISMATCH", byteSize: bytes.byteLength, fileType: v.fileType, entityId: v.entityId, bankAccountId: acct.id }));
+      throw new RequestRefused(422, "STATEMENT_ACCOUNT_MISMATCH", `This statement names an account that does not end in ${acct.accountLast4}, the last four characters of ${acct.displayName}. Nothing was stored.`);
+    }
   }
+  // v1 phase 2.1: an optional malware scan (a local ClamAV daemon) before anything is stored; fail closed
+  await scanBeforeStoring(ctx, bytes, { fileType: v.fileType, entityId: v.entityId });
   // rc8: the file is written before its row, inside the transaction. If anything after the write fails (the insert,
   // the audit, the idempotency record or the commit itself), the file is removed again unless its row committed.
   let written: string | undefined;
-  const r = await tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "upload_create", ...v, contentSha256 }, async () => {
+  const pickup = opts.pickupSourceId ? { pickupSourceId: z.uuid().parse(opts.pickupSourceId) } : {};
+  const r = await tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "upload_create", ...v, contentSha256, ...pickup }, async () => {
     if (!usesUploadPipeline((await dataModeOf(tx, ctx.orgId)).dataMode)) throw new RequestRefused(409, "SAMPLE_ORGANISATION", "This organisation holds sample data (Test mode · illustrative data); upload your files to your live organisation.");
     const [ent] = await tx.select({ id: t.merchantEntities.id }).from(t.merchantEntities).where(and(eq(t.merchantEntities.orgId, ctx.orgId), eq(t.merchantEntities.id, v.entityId)));
     if (!ent) throw new AccessDenied(404, "Not found.");
@@ -285,9 +331,10 @@ export async function createUpload(ctx: TenantContext, input: z.input<typeof Cre
     const [u] = await tx.insert(t.uploads).values({
       orgId: ctx.orgId, entityId: v.entityId, ...(v.bankAccountId ? { bankAccountId: v.bankAccountId } : {}), fileType: v.fileType, fileFormat, originalName, byteSize: bytes.byteLength, contentSha256,
       storageKey: stored.storageKey, encrypted: stored.encrypted, ...(v.jsonList ? { jsonList: v.jsonList } : {}), status: "stored", uploadedBy: ctx.userId, deleteAfter: new Date(Date.now() + days * 86_400_000),
+      ...pickup,
     }).returning();
-    await serverAudit(tx, ctx, "upload_stored", "upload", u.id, `File stored for ${v.entityId} (${v.fileType}, ${fileFormat}, ${bytes.byteLength} bytes${stored.encrypted ? ", encrypted" : ""}); deleted after ${days} days`,
-      { uploadId: u.id, entityId: v.entityId, ...(v.bankAccountId ? { bankAccountId: v.bankAccountId } : {}), fileType: v.fileType, fileFormat, byteSize: bytes.byteLength, encrypted: stored.encrypted, retentionDays: days });
+    await serverAudit(tx, ctx, "upload_stored", "upload", u.id, `File stored for ${v.entityId} (${v.fileType}, ${fileFormat}, ${bytes.byteLength} bytes${stored.encrypted ? ", encrypted" : ""}${opts.pickupSourceId ? ", picked up" : ""}); deleted after ${days} days`,
+      { uploadId: u.id, entityId: v.entityId, ...(v.bankAccountId ? { bankAccountId: v.bankAccountId } : {}), fileType: v.fileType, fileFormat, byteSize: bytes.byteLength, encrypted: stored.encrypted, retentionDays: days, ...pickup });
     return { status: 201, body: summary(u) };
   })).catch(async (e) => {
     if (written) await discardUnrecordedFile(ctx, storage, written);
@@ -295,6 +342,32 @@ export async function createUpload(ctx: TenantContext, input: z.input<typeof Cre
   });
   const suggestion = "table" in parsed ? await suggestTemplate(ctx, { fileType: v.fileType, headers: parsed.table.headers }) : null;
   return { status: r.status, replayed: r.replayed, upload: r.body, label: await orgDataLabel(ctx), preview: previewOf(parsed), suggestion };
+}
+
+/**
+ * v1 phase 2.1: scan the bytes with the configured malware scanner (src/server/malware.ts) before storing them. An
+ * infected file is refused (422 FILE_MALWARE_FOUND); while a configured scanner cannot answer, or when scanning is
+ * required and none is configured, every upload is refused (409 MALWARE_SCAN_UNAVAILABLE). Audit: code and sizes,
+ * and the signature name clamd reported; never file contents.
+ */
+async function scanBeforeStoring(ctx: TenantContext, bytes: Uint8Array, at: { fileType: string; entityId: string }) {
+  const refuseWith = async (status: 409 | 422, code: string, message: string, extra: Record<string, unknown> = {}): Promise<never> => {
+    await tenantTx(ctx, (tx) => serverAudit(tx, ctx, "upload_refused", "upload", null, `Upload refused before storing (${code})`, { code, byteSize: bytes.byteLength, ...at, ...extra }));
+    throw new RequestRefused(status, code, message);
+  };
+  const unavailable = "Uploads are paused: the malware scanner is not answering. Nothing was stored; try again later.";
+  let scanner: MalwareScanner | null;
+  try { scanner = malwareScanner(); } catch { return refuseWith(409, "MALWARE_SCAN_UNAVAILABLE", unavailable, { reason: "misconfigured" }); }
+  if (!scanner) {
+    if (scanRequired()) await refuseWith(409, "MALWARE_SCAN_UNAVAILABLE", unavailable, { reason: "not_configured" });
+    return;
+  }
+  let result: ScanResult;
+  try { result = await scanner.scan(bytes); } catch (e) {
+    if (e instanceof ScanUnavailable) return refuseWith(409, "MALWARE_SCAN_UNAVAILABLE", unavailable, { scanner: scanner.name });
+    throw e;
+  }
+  if (!result.clean) await refuseWith(422, "FILE_MALWARE_FOUND", "The malware scanner flagged this file, so it was not stored. Check the file with your IT team before uploading it again.", { scanner: scanner.name, signature: result.signature });
 }
 
 /**
@@ -347,7 +420,7 @@ export async function setUploadMapping(ctx: TenantContext, id: string, input: z.
   return tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "upload_map", id, ...v }, async () => {
     const u = await loadUpload(tx, ctx, id, true);
     if (!["stored", "mapped", "validated"].includes(u.status)) throw new RequestRefused(409, "UPLOAD_DECIDED", `This upload is ${u.status}; its mapping cannot change.`);
-    if (u.fileFormat === "mt940" || u.fileFormat === "camt053") throw new RequestRefused(409, "NO_MAPPING_NEEDED", "MT940 and camt.053 statements need no column mapping; validate the upload.");
+    if (isStatementFormat(u.fileFormat)) throw new RequestRefused(409, "NO_MAPPING_NEEDED", "MT940, camt.053, camt.054 and BAI2 statements need no column mapping; validate the upload.");
     let mapping: unknown, templateId: string | null = null, templateVersion: number | null = null;
     if ("templateId" in v) {
       const [tpl] = await tx.select().from(t.mappingTemplates).where(and(eq(t.mappingTemplates.orgId, ctx.orgId), eq(t.mappingTemplates.id, v.templateId)));
@@ -378,7 +451,7 @@ export async function validateUpload(ctx: TenantContext, id: string, idempotency
   return tenantTx(ctx, (tx) => idempotent(tx, ctx, key, { op: "upload_validate", id }, async () => {
     const u = await loadUpload(tx, ctx, id, true);
     if (!["stored", "mapped", "validated"].includes(u.status)) throw new RequestRefused(409, "UPLOAD_DECIDED", `This upload is ${u.status}.`);
-    if (u.status === "stored" && u.fileFormat !== "mt940" && u.fileFormat !== "camt053") throw new RequestRefused(409, "NOT_MAPPED", "Map the file's columns first.");
+    if (u.status === "stored" && !isStatementFormat(u.fileFormat)) throw new RequestRefused(409, "NOT_MAPPED", "Map the file's columns first.");
     const analysis = await analyseUpload(tx, u, await storage.get(ctx.orgId, u.storageKey!));
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${ctx.orgId}|upload-rows|${u.entityId}|${u.fileType}`}))`);
     const hashes = [...new Set(analysis.rows.map((r) => r.rowHash).filter((h): h is string => h !== null))];
@@ -503,14 +576,20 @@ export interface OrphanSweep { scanned: number; removed: number; partialRemoved:
  * (default 60). A file a row names is never touched, whatever the row's status. Runs on the schema OWNER connection,
  * across organisations, with retention (`control:admin -- purge-uploads`). Returns counts; `log` receives ids only.
  */
-export async function sweepOrphanFiles(db: Db, now: Date, opts: { storage?: UploadStorage; olderThanMinutes?: number; log?: (line: { event: "orphan_file_removed"; orgId: string; storageKey: string; partial: boolean }) => void } = {}): Promise<OrphanSweep> {
+export async function sweepOrphanFiles(db: Db, now: Date, opts: {
+  storage?: UploadStorage; olderThanMinutes?: number; log?: (line: { event: "orphan_file_removed"; orgId: string; storageKey: string; partial: boolean }) => void;
+  /** v1 phase 2.1: count (and report through `onOrphan`) what would be removed, and remove nothing. */
+  dryRun?: boolean; onOrphan?: (f: { orgId: string; storageKey: string; partial: boolean }) => void;
+  /** v1 phase 2.1: the listing already taken by the caller (so both sweep directions see the same files). */
+  files?: Awaited<ReturnType<NonNullable<UploadStorage["list"]>>>;
+} = {}): Promise<OrphanSweep> {
   const storage = opts.storage ?? uploadStorage();
   const minutes = opts.olderThanMinutes ?? ORPHAN_MINUTES;
   if (!Number.isFinite(minutes) || minutes < 5) throw new Error("the orphan sweep keeps files younger than 5 minutes");
   const out: OrphanSweep = { scanned: 0, removed: 0, partialRemoved: 0, kept: 0, tooRecent: 0 };
   if (!storage.list) return out;
   const cutoff = now.getTime() - minutes * 60_000;
-  const files = await storage.list();
+  const files = opts.files ?? await storage.list();
   out.scanned = files.length;
   // read the rows AFTER listing: a file listed above whose row commits meanwhile is young, so it is kept either way
   const named = new Set((await db.select({ orgId: t.uploads.orgId, key: t.uploads.storageKey }).from(t.uploads).where(sql`${t.uploads.storageKey} is not null`))
@@ -518,6 +597,8 @@ export async function sweepOrphanFiles(db: Db, now: Date, opts: { storage?: Uplo
   for (const f of files) {
     if (!f.partial && named.has(`${f.orgId}/${f.storageKey}`)) { out.kept++; continue; }
     if (f.modifiedAt.getTime() > cutoff) { out.tooRecent++; continue; }
+    opts.onOrphan?.({ orgId: f.orgId, storageKey: f.storageKey, partial: f.partial });
+    if (opts.dryRun) { if (f.partial) out.partialRemoved++; else out.removed++; continue; }
     const gone = f.partial ? await storage.deletePartial?.(f.orgId, f.storageKey) : await storage.delete(f.orgId, f.storageKey);
     if (!gone) continue;
     if (f.partial) out.partialRemoved++; else out.removed++;
@@ -534,14 +615,17 @@ export type DerivedPurge = (tx: Db | Tx, u: UploadRow) => Promise<Record<string,
  * and the data derived only from it, and mark it deleted. Runs with the schema OWNER connection (a scheduled job,
  * like the admin CLI), across organisations. Audit rows record counts only.
  */
-export async function purgeExpiredUploads(db: Db, now: Date, opts: { storage?: UploadStorage; derived?: DerivedPurge } = {}) {
+export async function purgeExpiredUploads(db: Db, now: Date, opts: { storage?: UploadStorage; derived?: DerivedPurge; /** v1 phase 3: one organisation only (the worker's retention job). */ orgId?: string } = {}) {
   const storage = opts.storage ?? uploadStorage();
   const derived = opts.derived ?? purgeDerivedRows;
-  const due = await db.select().from(t.uploads).where(and(ne(t.uploads.status, "deleted"), lte(t.uploads.deleteAfter, now))).orderBy(asc(t.uploads.deleteAfter));
+  const due = await db.select().from(t.uploads).where(and(ne(t.uploads.status, "deleted"), lte(t.uploads.deleteAfter, now), ...(opts.orgId ? [eq(t.uploads.orgId, opts.orgId)] : []))).orderBy(asc(t.uploads.deleteAfter));
   const total = { uploads: 0, files: 0, rows: 0 } as Record<string, number>;
   for (const u of due) {
     const file = u.storageKey ? await storage.delete(u.orgId, u.storageKey) : false;
     await db.transaction(async (tx) => {
+      // v1 5.6: two retention runs at once never purge (or audit) the same upload twice
+      const [still] = await tx.select({ id: t.uploads.id }).from(t.uploads).where(and(eq(t.uploads.orgId, u.orgId), eq(t.uploads.id, u.id), ne(t.uploads.status, "deleted"))).for("update");
+      if (!still) return;
       const removed = await derived(tx, u);
       const rows = await tx.delete(t.uploadRows).where(and(eq(t.uploadRows.orgId, u.orgId), eq(t.uploadRows.uploadId, u.id))).returning({ n: t.uploadRows.rowNumber });
       await tx.update(t.uploads).set({ status: "deleted", storageKey: null, deletedAt: now }).where(and(eq(t.uploads.orgId, u.orgId), eq(t.uploads.id, u.id)));

@@ -20,7 +20,7 @@ function same(a: string, b: string): boolean {
   return diff === 0;
 }
 
-/** Reads CLEARLINE_CUSTOMER_PREVIEW, CLEARLINE_FUNDING_ONLY, PREVIEW_USER and PREVIEW_PASSWORD (process.env fits). */
+/** Reads CLEARLINE_CUSTOMER_PREVIEW, CLEARLINE_FUNDING_ONLY, PREVIEW_USER, PREVIEW_PASSWORD and CLEARLINE_PUBLIC_STATUS (process.env fits). */
 export type GateEnv = Readonly<Record<string, string | undefined>>;
 
 /** What the deployment gates decide for one request. Pure: no I/O, no clock, no randomness. */
@@ -37,7 +37,15 @@ const isConsolePath = (p: string) => p === "/mentor-demo" || p === "/clearline" 
 const isPilotPath = (p: string) =>
   p === "/control" || p.startsWith("/control/") || p.startsWith("/api/control/") || p === "/api/control" || p.startsWith("/api/auth/");
 
+/**
+ * v1 phase 5.5: the uptime checks and the public status page (src/server/ops). They show ok/fail per component and the
+ * operator's incident notes, nothing else. APPROVAL-ONLY (v1 E4): they are served past every gate below ONLY when
+ * CLEARLINE_PUBLIC_STATUS=1; unset, every deployment treats them exactly as before (the pilot answers 404).
+ */
+export const PUBLIC_STATUS_PATHS: readonly string[] = ["/api/health", "/api/ready", "/status"];
+
 export function deploymentGate(pathname: string, authorization: string | null, env: GateEnv): GateDecision {
+  if (env.CLEARLINE_PUBLIC_STATUS === "1" && PUBLIC_STATUS_PATHS.includes(pathname)) return { action: "next", consoleShell: true };
   // rc5 private staging: Clearline Control with real sign-in and PostgreSQL. A pilot deployment serves ONLY the pilot
   // (no public sandbox, no legacy app), and every other deployment refuses the pilot paths, so the authenticated
   // product and the fictional public demo never share a surface, a cookie or a session.
@@ -95,21 +103,35 @@ export function gateResponse(decision: GateDecision, requestUrl: string): Respon
 
 // ---- R2: nonce-based Content-Security-Policy ----------------------------------------------------
 // Directives other than script-src are identical to the static fallback policy in next.config.mjs
-// (a test checks this). style-src keeps 'unsafe-inline': React renders `style={...}` props as inline
-// style attributes in the server HTML, which a nonce cannot cover (see SECURITY_PLATFORM_RC3.md).
+// (a test checks this). v1 E1 tightening: style ELEMENTS are 'self' only (no 'unsafe-inline'); only style
+// ATTRIBUTES keep 'unsafe-inline' via style-src-attr, because React renders `style={...}` props as inline
+// style attributes in the server HTML, which a nonce cannot cover. A style attribute cannot run script.
+// base-uri is 'none' (nothing uses <base>), and frame-src/worker-src/manifest-src are pinned explicitly.
 export function nonceContentSecurityPolicy(nonce: string, dev = process.env.NODE_ENV !== "production"): string {
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
-    "style-src 'self' 'unsafe-inline'",
+    ...sharedCspDirectives(dev),
+  ].join("; ");
+}
+
+/** Every directive but default-src and script-src; next.config.mjs builds the same list (a test checks they agree). */
+function sharedCspDirectives(dev: boolean): string[] {
+  return [
+    // Development keeps 'unsafe-inline' for styles: Next's dev overlay and React Refresh inject <style> elements.
+    `style-src 'self'${dev ? " 'unsafe-inline'" : ""}`,
+    "style-src-attr 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
     `connect-src 'self'${dev ? " ws: wss:" : ""}`,
+    "frame-src 'none'",
+    "worker-src 'self'",
+    "manifest-src 'self'",
     "object-src 'none'",
-    "base-uri 'self'",
+    "base-uri 'none'",
     "form-action 'self'",
     "frame-ancestors 'none'",
-  ].join("; ");
+  ];
 }
 
 /** 128 random bits, base64. */

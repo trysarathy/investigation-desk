@@ -14,6 +14,7 @@
 import { FIAT_DECIMALS } from "../merchant/config";
 import { MERCHANT_ACCOUNTS } from "../merchant/journal";
 import type { FiatCurrency } from "../merchant/types";
+import { AMOUNT_TEXT, isFormulaLike } from "../../csv/cell";
 
 export const DRAFT_MARKING = "DRAFT - sandbox/demo company only; posting rules pending sign-off; nothing posted";
 export type DraftTool = "xero" | "quickbooks";
@@ -35,7 +36,7 @@ const ddmmyyyy = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.
 /** One CSV cell: formula characters neutralised (a leading ' for = + - @ text), quotes doubled, line breaks removed. */
 export function draftCell(v: string): string {
   let s = v.replace(/[\r\n\u2028\u2029]+/g, " ");
-  if (/^[=+\-@\t]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s)) s = "'" + s;
+  if (!AMOUNT_TEXT.test(s) && isFormulaLike(s)) s = "'" + s;
   return /[",']|^\s|\s$/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 const csv = (rows: string[][]) => rows.map((r) => r.map(draftCell).join(",")).join("\r\n") + "\r\n";

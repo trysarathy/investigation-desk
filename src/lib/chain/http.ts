@@ -6,6 +6,8 @@
 import { createHash } from "node:crypto";
 import type { Chain, RawResponse } from "../types";
 import type { ResponseStore } from "./store";
+import { safeFetch } from "../net/safe-fetch";
+import { CHAIN_LEGACY_POLICY } from "../net/outbound-hosts";
 
 export interface HttpRequest {
   method: "GET" | "POST";
@@ -22,13 +24,14 @@ export interface HttpResponse {
 
 export type Transport = (req: HttpRequest) => Promise<HttpResponse>;
 
+/** v1 E1: through the SSRF-safe client (policy "chain-legacy": the fixed API hosts only, public addresses, no redirects). */
 export const fetchTransport: Transport = async (req) => {
-  const res = await fetch(req.url, {
+  const res = await safeFetch(req.url, {
     method: req.method,
     headers: req.headers,
     body: req.body,
     signal: AbortSignal.timeout(15_000),
-  });
+  }, CHAIN_LEGACY_POLICY);
   const headers: Record<string, string> = {};
   res.headers.forEach((v, k) => { headers[k.toLowerCase()] = v; });
   return { status: res.status, headers, body: await res.text() };

@@ -45,6 +45,9 @@ export interface RateLimit { /** Bucket size (burst). */ capacity: number; /** T
 export const DEFAULT_RATE_LIMITS: Record<string, RateLimit> = {
   trongrid: { capacity: 10, refillPerSec: 10 },
   "ethereum-rpc": { capacity: 5, refillPerSec: 5 },
+  // [ASSUMPTION] v1: the same free-tier budget for other EVM JSON-RPC endpoints and for Solana JSON-RPC.
+  "evm-rpc": { capacity: 5, refillPerSec: 5 },
+  "solana-rpc": { capacity: 5, refillPerSec: 5 },
 };
 
 /** Token bucket per host. `acquire` waits (via the injected sleep) until a token is available. */

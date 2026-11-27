@@ -10,7 +10,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { testDeployEnv } from "../deploy-env";
 
-export const PORT = 3284;
+// CLEARLINE_PLATFORM_PORT lets parallel runs on one machine use different ports (default 3284, unchanged).
+export const PORT = Number(process.env.CLEARLINE_PLATFORM_PORT ?? 3284);
 export const BASE = `http://127.0.0.1:${PORT}`;
 const ROOT = path.resolve(__dirname, "../..");
 /** Every variable the deployment gates and the config validation read: cleared, then set per mode. */
@@ -158,7 +159,7 @@ export function chunkedUpload(pid: number, rawPath: string, totalBytes: number, 
   });
 }
 
-export const SECURITY_HEADERS = ["content-security-policy", "x-frame-options", "x-content-type-options", "referrer-policy", "permissions-policy"] as const;
+export const SECURITY_HEADERS = ["content-security-policy", "x-frame-options", "x-content-type-options", "referrer-policy", "permissions-policy", "strict-transport-security", "cross-origin-opener-policy", "cross-origin-resource-policy"] as const;
 
 /** The script-src directive of a Content-Security-Policy header value. */
 export const scriptSrc = (csp: string) => csp.split(";").map((d) => d.trim()).find((d) => d.startsWith("script-src ")) ?? "";

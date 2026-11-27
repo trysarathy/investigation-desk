@@ -9,7 +9,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { dataDir } from "../../data-dir";
 import { fileLockKey, withLock, writeAtomic } from "../../lock";
-import type { Fetch } from "./xero";
+import { ledgerFetch, type Fetch } from "./xero";
 
 export const XERO_AUTHORIZE = "https://login.xero.com/identity/connect/authorize";
 export const XERO_TOKEN = "https://identity.xero.com/connect/token";
@@ -44,7 +44,7 @@ async function tokenRequest(form: Record<string, string>, fetchFn: Fetch) {
 }
 
 /** Exchange the code from the callback, pick the organisation, and keep the tokens server-side. */
-export async function completeConnection(code: string, redirectUri: string, fetchFn: Fetch = fetch as unknown as Fetch, now = Date.now()): Promise<XeroTokens> {
+export async function completeConnection(code: string, redirectUri: string, fetchFn: Fetch = ledgerFetch, now = Date.now()): Promise<XeroTokens> {
   const t = await tokenRequest({ grant_type: "authorization_code", code, redirect_uri: redirectUri }, fetchFn);
   const res = await fetchFn(XERO_CONNECTIONS, { method: "GET", headers: { Authorization: `Bearer ${t.access_token}`, Accept: "application/json" } });
   if (!res.ok) throw new Error(`Couldn't list Xero organisations (${res.status}).`);
@@ -61,7 +61,7 @@ export async function loadTokens(): Promise<XeroTokens | undefined> {
 }
 
 /** A fresh access token, refreshed (and saved) when it has less than a minute left. */
-export function accessToken(fetchFn: Fetch = fetch as unknown as Fetch, now = Date.now()): Promise<{ token: string; tenantId: string }> {
+export function accessToken(fetchFn: Fetch = ledgerFetch, now = Date.now()): Promise<{ token: string; tenantId: string }> {
   // One refresh at a time: Xero replaces the refresh token on every use, so two at once would lose it.
   return withLock(fileLockKey(tokenFile()), () => refreshIfNeeded(fetchFn, now));
 }

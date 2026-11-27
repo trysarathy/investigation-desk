@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fictional camt.054.001.08: two notifications for two different accounts in one file (refused: one upload, one account). -->
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.054.001.08">
+  <BkToCstmrDbtCdtNtfctn>
+    <GrpHdr><MsgId>FICT-054-MSG-3</MsgId><CreDtTm>2026-11-21T08:00:00</CreDtTm></GrpHdr>
+    <Ntfctn>
+      <Id>FICT-NTFCTN-3A</Id>
+      <Acct><Id><IBAN>XX00FICT00004321</IBAN></Id><Ccy>SGD</Ccy></Acct>
+      <Ntry><Amt Ccy="SGD">10.00</Amt><CdtDbtInd>CRDT</CdtDbtInd><Sts><Cd>BOOK</Cd></Sts><ValDt><Dt>2026-11-21</Dt></ValDt></Ntry>
+    </Ntfctn>
+    <Ntfctn>
+      <Id>FICT-NTFCTN-3B</Id>
+      <Acct><Id><IBAN>XX00FICT00009999</IBAN></Id><Ccy>SGD</Ccy></Acct>
+      <Ntry><Amt Ccy="SGD">20.00</Amt><CdtDbtInd>CRDT</CdtDbtInd><Sts><Cd>BOOK</Cd></Sts><ValDt><Dt>2026-11-21</Dt></ValDt></Ntry>
+    </Ntfctn>
+  </BkToCstmrDbtCdtNtfctn>
+</Document>

@@ -1,0 +1,116 @@
+name: deploy-production
+
+# v1 phase 6: PRODUCTION deploys only from here, only by hand (workflow_dispatch), only a commit that is on `release`
+# AND passed staging (status deployed/staging, set by deploy-staging.yml after its smoke test), and only after the
+# `production` GitHub environment's required reviewer (the founder) approves the job. It never builds: it deploys the
+# exact image staging ran. Rollback = run this again with the previous sha (docs/ops/DEPLOY_AND_ROLLBACK.md).
+#
+# Without the secrets (DIGITALOCEAN_ACCESS_TOKEN in the `production` environment, vars DO_APP_ID_PRODUCTION and
+# PRODUCTION_ORIGIN) the deploy steps are skipped with a notice and nothing changes.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Full 40-character commit sha to deploy (it must have passed staging)"
+        required: true
+        type: string
+      reason:
+        description: "Why (release notes link, or 'rollback: <incident>')"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: verify the sha
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      statuses: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: The sha is a full commit on the release branch
+        env:
+          SHA: ${{ inputs.sha }}
+        run: |
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::sha must be the full 40-character commit sha"; exit 1; }
+          git fetch -q origin release
+          git merge-base --is-ancestor "$SHA" origin/release || { echo "::error::$SHA is not on the release branch"; exit 1; }
+      - name: The sha passed staging (deployed and smoke-tested)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ inputs.sha }}
+        run: |
+          state="$(gh api "repos/${{ github.repository }}/commits/$SHA/statuses" --jq '[.[] | select(.context == "deployed/staging")][0].state // "none"')"
+          [ "$state" = success ] || { echo "::error::$SHA has no successful deployed/staging status ($state); deploy it to staging first"; exit 1; }
+
+  deploy:
+    name: deploy production
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    # Required reviewer (the founder) is configured on this environment in the repository settings; the job waits for
+    # the approval before any step runs. Deployment branches: release only.
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_ORIGIN }}
+    permissions:
+      contents: read
+      statuses: write
+    env:
+      SHA: ${{ inputs.sha }}
+    steps:
+      - name: Are the deploy secrets configured?
+        id: ready
+        env:
+          TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          APP: ${{ vars.DO_APP_ID_PRODUCTION }}
+          ORIGIN: ${{ vars.PRODUCTION_ORIGIN }}
+        run: |
+          if [ -n "$TOKEN" ] && [ -n "$APP" ] && [ -n "$ORIGIN" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"
+          else echo "ok=false" >> "$GITHUB_OUTPUT"; echo "::notice::Production deploy skipped: DIGITALOCEAN_ACCESS_TOKEN, DO_APP_ID_PRODUCTION or PRODUCTION_ORIGIN is not configured. Nothing was deployed."; fi
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        if: steps.ready.outputs.ok == 'true'
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ inputs.sha }}
+      - name: Migrations are expand-only against the code production runs now
+        if: steps.ready.outputs.ok == 'true'
+        env:
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          APP: ${{ vars.DO_APP_ID_PRODUCTION }}
+        run: |
+          current="$(scripts/deploy/do-current-tag.sh "$APP")"
+          if [ -z "$current" ]; then echo "::notice::first deploy (no running version): migration lint not needed"; exit 0; fi
+          if git merge-base --is-ancestor "$SHA" "$current"; then
+            echo "::warning::ROLLBACK: $SHA is older than the running $current. Expand-only migrations keep the newer schema; the older code must still run on it (it did on staging)."
+            exit 0
+          fi
+          node scripts/deploy/check-migrations.mjs --base "$current"
+      - name: Deploy (the image staging ran; pre-deploy migrate job first)
+        if: steps.ready.outputs.ok == 'true'
+        env:
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        run: |
+          echo "deploying $SHA to production, triggered by ${{ github.actor }}"
+          scripts/deploy/do-deploy.sh "${{ vars.DO_APP_ID_PRODUCTION }}" "$SHA"
+      - name: Smoke test
+        if: steps.ready.outputs.ok == 'true'
+        run: scripts/deploy/smoke.sh "${{ vars.PRODUCTION_ORIGIN }}" --expect-https
+      - name: Record the production deploy on the commit
+        if: steps.ready.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api "repos/${{ github.repository }}/statuses/$SHA" -f state=success -f context=deployed/production -f description="deployed to production" > /dev/null

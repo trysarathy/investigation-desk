@@ -8,6 +8,7 @@ import { storeZip } from "@/lib/clearline/exports/zip";
 import { NEEDS_A_RATE } from "@/lib/clearline/merchant/fiat-value";
 import type { Tx } from "./db/client";
 import * as t from "./db/schema";
+import { openRows } from "./crypto/fields";
 import { can } from "./authz";
 import { serverAudit } from "./control";
 import { MissingEntity, loadReconcileInput } from "./merchant-store";
@@ -110,7 +111,7 @@ export async function monthEndPack(ctx: TenantContext, entityId: string, month: 
         who(u.uploadedBy), who(u.confirmedBy), u.confirmedAt?.toISOString() ?? "", u.normalisedAt?.toISOString() ?? "", u.deleteAfter.toISOString()])]);
 
     // ledger invoices against the orders in reconciliation (reference only; never changes a decision)
-    const ledger = await tx.select().from(t.ledgerInvoices).where(and(eq(t.ledgerInvoices.orgId, ctx.orgId), eq(t.ledgerInvoices.entityId, entityId))).orderBy(asc(t.ledgerInvoices.invoiceNumber));
+    const ledger = await openRows(tx, ctx.orgId, "ledger_invoices", await tx.select().from(t.ledgerInvoices).where(and(eq(t.ledgerInvoices.orgId, ctx.orgId), eq(t.ledgerInvoices.entityId, entityId))).orderBy(asc(t.ledgerInvoices.invoiceNumber)));
     const inv = new Map(input.invoices.map((i) => [i.orderId, i]));
     // v1 (#173): a token-priced order has no fiat price; its fiat value is the stored record's, at a recorded rate, or
     // "needs a rate" (never 0, and never compared as if it were 0)

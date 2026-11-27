@@ -3,7 +3,8 @@
  * made a month of 10,000 payments quadratic). Pure; each map keeps the FIRST element for a key, exactly like the
  * `Array.prototype.find` it replaces, so results are identical. Inputs are treated as immutable.
  */
-import type { PaymentLink, ProviderPaymentRecord, Quote, ReconcileInput, ChainTransfer, TransferRef } from "./types";
+import { normAddress } from "./config";
+import type { AddressFact, SettlementBatchLine, SettlementPaymentLine, PaymentLink, ProviderPaymentRecord, Quote, ReconcileInput, ChainTransfer, TransferRef } from "./types";
 
 export const transferKey = (r: TransferRef): string => `${r.network}|${r.txHash}|${r.logIndex}`;
 
@@ -24,6 +25,15 @@ export interface InputIndexes {
   untransferredNoRef: ProviderPaymentRecord | undefined;
   /** every record by its linkId ?? quoteId. */
   recordsByRef: Map<string, ProviderPaymentRecord[]>;
+  /** v1 phase 3: address facts by "network|normalised address", in input order (what the per-transfer filter kept). */
+  factsByAddress: Map<string, AddressFact[]>;
+  /** v1 phase 3: every record by its quoteId, and by its linkId (a record may appear under both). */
+  recordsByQuote: Map<string, ProviderPaymentRecord[]>;
+  recordsByLink: Map<string, ProviderPaymentRecord[]>;
+  /** v1 phase 3: order ids with a refund batch line; order ids and payment ids with a refund settlement line. */
+  refundBatchLineOrders: Set<string>;
+  refundPaymentLineOrders: Set<string>;
+  refundPaymentLinePayments: Set<string>;
 }
 
 const firstBy = <T>(xs: readonly T[], key: (x: T) => string | undefined): Map<string, T> => {
@@ -56,6 +66,12 @@ export function indexesOf(input: ReconcileInput): InputIndexes {
     untransferredByQuoteNoLink: firstBy(recs, (r) => (!r.transferRef && !r.ref.linkId ? r.ref.quoteId : undefined)),
     untransferredNoRef: recs.find((r) => !r.transferRef && !r.ref.linkId && r.ref.quoteId === undefined),
     recordsByRef: groupBy(recs, (r) => r.ref.linkId ?? r.ref.quoteId ?? ""),
+    recordsByQuote: groupBy(recs, (r) => r.ref.quoteId),
+    recordsByLink: groupBy(recs, (r) => r.ref.linkId),
+    factsByAddress: groupBy(input.addressFacts, (f) => `${f.network}|${normAddress(f.network, f.address)}`),
+    refundBatchLineOrders: new Set(input.batchLines.filter((l: SettlementBatchLine) => l.kind === "refund" && l.orderId !== undefined).map((l) => l.orderId!)),
+    refundPaymentLineOrders: new Set((input.settlementPaymentLines ?? []).filter((l: SettlementPaymentLine) => l.kind === "refund" && l.orderId !== undefined).map((l) => l.orderId!)),
+    refundPaymentLinePayments: new Set((input.settlementPaymentLines ?? []).filter((l: SettlementPaymentLine) => l.kind === "refund" && l.providerPaymentId !== undefined).map((l) => l.providerPaymentId!)),
   };
   cache.set(input, idx);
   return idx;

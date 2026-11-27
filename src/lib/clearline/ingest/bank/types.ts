@@ -1,10 +1,10 @@
 /**
- * One normalised bank-statement line for every source: CSV/XLSX (after column mapping), SWIFT MT940 and ISO 20022
- * camt.053. Amounts are positive BigInt minor units; the sign lives in `direction`.
+ * One normalised bank-statement line for every source: CSV/XLSX (after column mapping), SWIFT MT940, ISO 20022
+ * camt.053 and camt.054, and BAI2. Amounts are positive BigInt minor units; the sign lives in `direction`.
  */
 import type { IngestWarning } from "../errors";
 
-export type BankSourceFormat = "csv" | "xlsx" | "mt940" | "camt053";
+export type BankSourceFormat = "csv" | "xlsx" | "mt940" | "camt053" | "camt054" | "bai2";
 export type BankDirection = "credit" | "debit";
 
 export interface BankLine {
@@ -26,8 +26,13 @@ export interface BankLine {
   counterparty?: string;
   /** The bank's own reference (MT940 after //, camt AcctSvcrRef). */
   bankReference?: string;
+  /**
+   * The bank marks this entry as a reversal or return of an earlier one (camt RvslInd, a BAI2 return type code). The
+   * direction is still the direction of THIS entry; the flag is for review and never nets anything. Absent = not marked.
+   */
+  reversal?: true;
   sourceFormat: BankSourceFormat;
-  /** MT940: the file line of the :61: field. camt.053: the entry's position in the file (1-based). CSV/XLSX: the row. */
+  /** MT940: the file line of the :61: field. camt.053/.054: the entry's position in the file (1-based). BAI2: the file line of the 16 record. CSV/XLSX: the row. */
   sourceRow: number;
 }
 

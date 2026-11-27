@@ -5,9 +5,10 @@ import {
   LEDGER_PULL_MAPPING, LedgerPullRefused, ledgerInvoicesCsv, pullQboInvoices, pullXeroInvoices,
   type LedgerSource, type PulledInvoice, type QboReadCredentials, type XeroReadCredentials,
 } from "@/lib/accounting/ledger-pull";
-import type { Fetch } from "@/lib/accounting/providers/xero";
+import { ledgerFetch, type Fetch } from "@/lib/accounting/providers/xero";
 import { accessToken, loadTokens } from "@/lib/accounting/providers/xero-auth";
 import * as t from "./db/schema";
+import { openRows } from "./crypto/fields";
 import { can, type Permission } from "./authz";
 import { withTenant, AccessDenied, requireEntity, type TenantContext } from "./tenant";
 import { RequestRefused } from "./errors";
@@ -58,7 +59,7 @@ export async function pullLedgerInvoices(ctx: TenantContext, input: z.input<type
   if (!ledgerPullEnabled()) throw new RequestRefused(409, "LEDGER_PULL_OFF", `Reading invoices from a ledger is off (${LEDGER_PULL_FLAG} is not set). Upload a ledger export instead.`);
   const mode = await withTenant({ userId: ctx.userId, orgId: ctx.orgId }, (tx) => dataModeOf(tx, ctx.orgId), { read: true });
   if (mode.dataMode !== "live") throw new RequestRefused(409, "SAMPLE_ORGANISATION", "This organisation holds sample data; ledger invoices go to your live organisation.");
-  const fetchFn = deps.fetchFn ?? (fetch as unknown as Fetch);
+  const fetchFn = deps.fetchFn ?? ledgerFetch;
   const creds = deps.xero || deps.qbo ? deps : await defaultCreds(v.source);
   let invoices: PulledInvoice[];
   try {
@@ -82,7 +83,7 @@ export async function listLedgerInvoices(ctx: TenantContext, entityId: string) {
   requireEntity(ctx, entityId);
   return withTenant({ userId: ctx.userId, orgId: ctx.orgId }, async (tx) => {
     const { label } = await dataModeOf(tx, ctx.orgId);
-    const rows = await tx.select().from(t.ledgerInvoices).where(and(eq(t.ledgerInvoices.orgId, ctx.orgId), eq(t.ledgerInvoices.entityId, entityId))).orderBy(asc(t.ledgerInvoices.invoiceNumber));
+    const rows = await openRows(tx, ctx.orgId, "ledger_invoices", await tx.select().from(t.ledgerInvoices).where(and(eq(t.ledgerInvoices.orgId, ctx.orgId), eq(t.ledgerInvoices.entityId, entityId))).orderBy(asc(t.ledgerInvoices.invoiceNumber)));
     return {
       label, entityId,
       invoices: rows.map((r) => ({

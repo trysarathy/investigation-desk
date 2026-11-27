@@ -161,7 +161,9 @@ export function readJson(bytes: Uint8Array, opts: JsonOptions = {}): ParsedTable
   return { kind: "json", headers, rows, warnings, headerRowNumber: 0, blankRowsSkipped: blank, excludedRows: [], encoding: decoded.encoding, list, ...(lists ? { lists } : {}) };
 }
 
-/** Sniff the bytes and read them with the matching reader. MT940 and camt.053 go to the bank parsers instead. */
+const BANK_KIND_WORDS = { mt940: "SWIFT MT940", camt053: "camt.053", camt054: "camt.054", bai2: "BAI2" } as const;
+
+/** Sniff the bytes and read them with the matching reader. MT940, camt.053, camt.054 and BAI2 go to the bank parsers instead. */
 export async function readTabular(bytes: Uint8Array, opts: DelimitedOptions & XlsxOptions & JsonOptions & { fileName?: string } = {}): Promise<ParsedTable> {
   checkFileSize(bytes, resolveLimits(opts.limits));
   const sniff = sniffFile(bytes, opts.fileName);
@@ -175,7 +177,9 @@ export async function readTabular(bytes: Uint8Array, opts: DelimitedOptions & Xl
     case "csv":
     case "tsv": return prepend(readDelimited(bytes, { ...opts, delimiter: opts.delimiter ?? sniff.delimiter }));
     case "mt940":
-    case "camt053": throw new IngestError("unsupported_file", `This is a ${sniff.kind === "mt940" ? "SWIFT MT940" : "camt.053"} bank statement, not a table; read it as a bank statement.`);
+    case "camt053":
+    case "camt054":
+    case "bai2": throw new IngestError("unsupported_file", `This is a ${BANK_KIND_WORDS[sniff.kind]} bank statement, not a table; read it as a bank statement.`);
     default: throw new IngestError("unsupported_file", sniff.reason);
   }
 }

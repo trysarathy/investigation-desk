@@ -7,8 +7,9 @@
  * The committed fixture (tests/control/fixtures/runtime-grants.json) was first captured from migrations 0000–0041 at
  * the base commit 6352925, before the provisioning role existed (B1 changed nothing in it). It was regenerated on the
  * integrated wave 1 stack (migrations to 0069), adding only what B2 (0050/0051), A2 (0044) and B3 (0053/0054) grant
- * on purpose (listed in the wave 1 integration commit); tests/control/provisioning.test.ts compares it with the fully
- * migrated database. Regenerate it ONLY when a reviewed migration intentionally changes the runtime grants:
+ * on purpose (listed in the wave 1 integration commit), and again on the integrated wave 2 stack (migrations to 0085:
+ * 377 -> 808 entries, 431 added, 0 removed; the categories are listed in the wave 2 integration commit and in
+ * docs/release/DECISIONS_LOG_V1.md); tests/control/provisioning.test.ts compares it with the fully migrated database. Regenerate it ONLY when a reviewed migration intentionally changes the runtime grants:
  *   CLEARLINE_TEST_OWNER_URL=... npx tsx tests/control/runtime-grants.ts > tests/control/fixtures/runtime-grants.json
  */
 import { Pool } from "pg";

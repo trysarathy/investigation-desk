@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fictional camt.054.001.08 debit/credit notification: one account, two booked credits, one booked debit, one pending. -->
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.054.001.08">
+  <BkToCstmrDbtCdtNtfctn>
+    <GrpHdr><MsgId>FICT-054-MSG-1</MsgId><CreDtTm>2026-11-20T08:00:00+08:00</CreDtTm></GrpHdr>
+    <Ntfctn>
+      <Id>FICT-NTFCTN-1</Id>
+      <ElctrncSeqNb>41</ElctrncSeqNb>
+      <Acct><Id><IBAN>XX00FICT00004321</IBAN></Id><Ccy>SGD</Ccy></Acct>
+      <Ntry>
+        <NtryRef>FICT-054-N1</NtryRef>
+        <Amt Ccy="SGD">1250.00</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-11-19</Dt></BookgDt>
+        <ValDt><Dt>2026-11-19</Dt></ValDt>
+        <AcctSvcrRef>FICTBANK-054-1</AcctSvcrRef>
+        <NtryDtls><TxDtls>
+          <Refs><EndToEndId>INV-1001</EndToEndId></Refs>
+          <RltdPties><Dbtr><Pty><Nm>Fictional Payer Pte</Nm></Pty></Dbtr></RltdPties>
+          <RmtInf><Ustrd>INVOICE INV-1001</Ustrd></RmtInf>
+        </TxDtls></NtryDtls>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="SGD">500.00</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-11-19</Dt></BookgDt>
+        <ValDt><Dt>2026-11-20</Dt></ValDt>
+        <AcctSvcrRef>FICTBANK-054-2</AcctSvcrRef>
+        <NtryDtls><TxDtls>
+          <Refs><EndToEndId>NOTPROVIDED</EndToEndId></Refs>
+          <RmtInf><Ustrd>PAYOUT BATCH FICT-B-7</Ustrd></RmtInf>
+        </TxDtls></NtryDtls>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="SGD">300.00</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-11-19</Dt></BookgDt>
+        <ValDt><Dt>2026-11-19</Dt></ValDt>
+        <AcctSvcrRef>FICTBANK-054-3</AcctSvcrRef>
+        <NtryDtls><TxDtls>
+          <RltdPties><Cdtr><Pty><Nm>Fictional Supplier Ltd</Nm></Pty></Cdtr></RltdPties>
+          <RmtInf><Ustrd>SUPPLIER PAYMENT 5</Ustrd></RmtInf>
+        </TxDtls></NtryDtls>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="SGD">99.00</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts><Cd>PDNG</Cd></Sts>
+        <ValDt><Dt>2026-11-21</Dt></ValDt>
+      </Ntry>
+    </Ntfctn>
+  </BkToCstmrDbtCdtNtfctn>
+</Document>

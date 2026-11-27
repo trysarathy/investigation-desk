@@ -1,0 +1,91 @@
+name: deploy-staging
+
+# v1 phase 6: every push to the `release` branch runs ALL the gates (ci: typecheck, unit, production-build gate,
+# control-db, migrations, lint; control-e2e; merchant-e2e), then builds the ONE production image (Dockerfile.prod),
+# pushes it to the registry tagged with the commit sha, and deploys it to STAGING (App Platform, Singapore), then runs
+# the smoke test. Production later deploys exactly this tag (deploy-production.yml). docs/ops/DEPLOY_AND_ROLLBACK.md.
+#
+# Without the secrets (DIGITALOCEAN_ACCESS_TOKEN in the `staging` environment, vars DO_APP_ID_STAGING,
+# DO_REGISTRY and STAGING_ORIGIN) every deploy step is skipped with a notice and the job succeeds: nothing is deployed,
+# and no "deployed/staging" status is set, so production cannot be promoted from such a run.
+
+on:
+  push:
+    branches: [release]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+  control-e2e:
+    uses: ./.github/workflows/control-e2e.yml
+  merchant-e2e:
+    uses: ./.github/workflows/merchant-e2e.yml
+
+  deploy:
+    name: deploy staging
+    needs: [ci, control-e2e, merchant-e2e]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment:
+      name: staging
+      url: ${{ vars.STAGING_ORIGIN }}
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: Are the deploy secrets configured?
+        id: ready
+        env:
+          TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          APP: ${{ vars.DO_APP_ID_STAGING }}
+          REGISTRY: ${{ vars.DO_REGISTRY }}
+          ORIGIN: ${{ vars.STAGING_ORIGIN }}
+        run: |
+          if [ -n "$TOKEN" ] && [ -n "$APP" ] && [ -n "$REGISTRY" ] && [ -n "$ORIGIN" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"
+          else echo "ok=false" >> "$GITHUB_OUTPUT"; echo "::notice::Staging deploy skipped: DIGITALOCEAN_ACCESS_TOKEN, DO_APP_ID_STAGING, DO_REGISTRY or STAGING_ORIGIN is not configured. Nothing was deployed."; fi
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        if: steps.ready.outputs.ok == 'true'
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Migrations are expand-only against the code staging runs now
+        if: steps.ready.outputs.ok == 'true'
+        env:
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          APP: ${{ vars.DO_APP_ID_STAGING }}
+        run: |
+          current="$(scripts/deploy/do-current-tag.sh "$APP")"
+          if [ -z "$current" ]; then echo "::notice::first deploy (no running version): migration lint not needed"; exit 0; fi
+          node scripts/deploy/check-migrations.mjs --base "$current"
+      - name: Build the production image (plain build; demo and recorded-chain absence checked inside)
+        if: steps.ready.outputs.ok == 'true'
+        run: docker build -f Dockerfile.prod -t "registry.digitalocean.com/${{ vars.DO_REGISTRY }}/clearline:${{ github.sha }}" .
+      - name: Push it to the registry
+        if: steps.ready.outputs.ok == 'true'
+        env:
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        run: |
+          printf '%s' "$DIGITALOCEAN_ACCESS_TOKEN" | docker login registry.digitalocean.com -u token --password-stdin
+          docker push "registry.digitalocean.com/${{ vars.DO_REGISTRY }}/clearline:${{ github.sha }}"
+          docker logout registry.digitalocean.com
+      - name: Deploy to staging (pre-deploy migrate job first)
+        if: steps.ready.outputs.ok == 'true'
+        env:
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        run: scripts/deploy/do-deploy.sh "${{ vars.DO_APP_ID_STAGING }}" "${{ github.sha }}"
+      - name: Smoke test
+        if: steps.ready.outputs.ok == 'true'
+        run: scripts/deploy/smoke.sh "${{ vars.STAGING_ORIGIN }}" --expect-https
+      - name: Record that this sha passed staging (production promotes only such a sha)
+        if: steps.ready.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api "repos/${{ github.repository }}/statuses/${{ github.sha }}" -f state=success -f context=deployed/staging -f description="deployed to staging and smoke-tested" > /dev/null

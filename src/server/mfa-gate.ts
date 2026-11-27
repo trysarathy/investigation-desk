@@ -11,13 +11,13 @@ import { withTenant, type TenantContext } from "./tenant";
  * The MFA gate (v1 phase 1.2, security control — strengthens). Runs on every /control page and /api/control request
  * after the organisation is resolved (src/server/control-page.ts, src/server/control-http.ts), so no route can skip it:
  *
- * - An Admin or an Approver must have MFA (a verified authenticator app; passkeys are added on top). Until then
+ * - An Admin, an Approver or an Auditor (v1 phase 4) must have MFA (a verified authenticator app; passkeys are added on top). Until then
  *   every page sends them to /control/security to set it up and every API answers 403 MFA_ENROLLMENT_REQUIRED.
  * - An organisation may require MFA for every member (org_security_settings.require_mfa_all, set by an Admin).
  * - A user who HAS MFA must have proved it in this session; a session without that proof (it could only come from a
  *   path that did not ask for it) answers 403 MFA_VERIFICATION_REQUIRED until a step-up.
  */
-export const MFA_REQUIRED_ROLES: readonly AppRole[] = ["admin", "approver"];
+export const MFA_REQUIRED_ROLES: readonly AppRole[] = ["admin", "approver", "auditor"];
 
 export class MfaRequired extends RequestRefused {}
 

@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { can } from "./authz";
 import { pageContext } from "./control-page";
 import { merchantShell } from "./merchant-ui";
@@ -17,6 +17,8 @@ export const merchantPage = cache(async () => {
  */
 export async function merchantMember() {
   const r = await merchantPage();
+  // v1 phase 4: an Auditor has one page, its period's evidence packs
+  if (r.shell.kind === "merchant" && can(r.ctx.role, "audit_download")) redirect("/control/merchant/audit");
   if (r.shell.kind !== "merchant" || !can(r.ctx.role, "read")) notFound();
   return r;
 }

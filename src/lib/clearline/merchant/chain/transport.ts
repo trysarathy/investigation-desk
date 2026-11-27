@@ -1,10 +1,14 @@
 /**
  * HTTP transport for the read-only chain readers. A transport performs ONE request and returns the raw response; it
- * never retries, caches or interprets (resilience.ts does that). Production uses global `fetch` with an
- * AbortController timeout; tests inject a recorded transport (recorded.ts). Nothing here signs, sends or holds keys:
+ * never retries, caches or interprets (resilience.ts does that). Production uses the SSRF-safe client
+ * (src/lib/net/safe-fetch.ts, policy "chain-merchant": TronGrid plus the configured TRONGRID_BASE_URL and
+ * ETHEREUM_RPC_URL hosts, public addresses only, no redirects) with an AbortController timeout; tests inject a recorded transport (recorded.ts). Nothing here signs, sends or holds keys:
  * the only secrets are read-API credentials (a TronGrid key header, an RPC URL that may embed a key), and they are
  * redacted from every error, log line and evidence record via `redact()`.
  */
+
+import { safeFetch, OutboundRefused, type Lookup, type OutboundPolicy } from "../../../net/safe-fetch";
+import { merchantChainPolicy } from "../../../net/outbound-hosts";
 
 export interface HttpRequest { url: string; method: "GET" | "POST"; headers: Record<string, string>; body?: string }
 export interface HttpResponse { status: number; headers: Record<string, string>; body: string }
@@ -22,22 +26,24 @@ export class TransportError extends Error {
 export const DEFAULT_TIMEOUT_MS = 15_000;
 
 /**
- * Production transport over global fetch. Timeout via AbortController. Errors are rethrown as TransportError with a
- * generic message only (the underlying error may echo the URL, so its text is dropped).
+ * Production transport over the SSRF-safe client. Timeout via AbortController. Errors are rethrown as TransportError
+ * with a generic message only (the underlying error may echo the URL, so its text is dropped). A request the outbound
+ * policy refuses (host not allowed, private address, redirect) is a "network" TransportError naming the refusal code.
  */
-export function fetchTransport(opts: { timeoutMs?: number; fetchImpl?: typeof fetch } = {}): HttpTransport {
+export function fetchTransport(opts: { timeoutMs?: number; fetchImpl?: typeof fetch; policy?: OutboundPolicy; lookup?: Lookup } = {}): HttpTransport {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const policy = opts.policy ?? merchantChainPolicy(process.env);
   return async (req) => {
-    const f = opts.fetchImpl ?? globalThis.fetch;
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), timeoutMs);
     try {
-      const res = await f(req.url, { method: req.method, headers: req.headers, body: req.body, signal: ctl.signal });
+      const res = await safeFetch(req.url, { method: req.method, headers: req.headers, body: req.body, signal: ctl.signal }, policy, { fetchImpl: opts.fetchImpl, lookup: opts.lookup });
       const headers: Record<string, string> = {};
       res.headers.forEach((v, k) => { headers[k.toLowerCase()] = v; });
       return { status: res.status, headers, body: await res.text() };
     } catch (e) {
       if (ctl.signal.aborted) throw new TransportError("timeout", `request timed out after ${timeoutMs} ms`);
+      if (e instanceof OutboundRefused) throw new TransportError("network", `outbound request refused (${e.code})`);
       throw new TransportError("network", `network error (${(e as Error)?.name ?? "Error"})`);
     } finally {
       clearTimeout(timer);

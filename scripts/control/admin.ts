@@ -21,11 +21,33 @@
  *   purge-uploads                           (rc7 retention: delete every upload past its delete_after, its file, its
  *                                            validation rows and the data derived only from it; rc8: then delete stored
  *                                            files no upload row names that are older than 60 minutes; prints counts only)
+ *   sweep-orphans [--dry-run] [--older-than-minutes N]
+ *                                           (v1 phase 2.1: stored files no upload row names, and open uploads whose file
+ *                                            is gone (closed as deleted); confirmed uploads without a file are only
+ *                                            reported. --dry-run changes nothing. One audit row per organisation; prints
+ *                                            counts only)
+ *   pickup-run                              (v1 phase 2.1: scheduled pickup — read every enabled, due SFTP / email
+ *                                            source into the upload pipeline as its configured member; prints counts)
  *   delete-merchant <org-slug> [--confirm <org-slug>]
  *                                           (rc7 phase 3b: delete ONE merchant organisation, every row it holds in every
  *                                            table, its members who belong nowhere else, and its uploaded files. Without
  *                                            --confirm repeating the slug it only prints what would be deleted.
  *                                            Prints counts only)
+ *   retention [--dry-run]                   (v1 5.6: one retention pass — uploads past their merchant's retention (default
+ *                                            90 days) and orphan files, audit events and approvals older than 7 years
+ *                                            [ASSUMPTION], deleted merchants' minimal records past retain_until; recorded
+ *                                            in retention_runs; idempotent. --dry-run counts and changes nothing.
+ *                                            Long-running form: npm run jobs:retention. Prints counts only)
+ *   export-merchant <org-slug> --out <file>
+ *                                           (v1 5.6: everything Clearline holds for ONE merchant — every row of every table
+ *                                            that holds its data, its members' profiles, its audit log and approvals, its
+ *                                            uploaded files — as a tar archive encrypted with CLEARLINE_EXPORT_PASSPHRASE
+ *                                            and signed with CLEARLINE_EXPORT_SIGNING_KEY (Ed25519); writes <file> and
+ *                                            <file>.sig.json (never overwrites). Audited. Prints counts and digests only)
+ *   open-export <file> --public-key <spki-pem-file> --out-dir <new-dir>
+ *                                           (v1 5.6: verify the signature with the TRUSTED public key, decrypt with
+ *                                            CLEARLINE_EXPORT_PASSPHRASE and unpack into a new folder; refuses on any
+ *                                            mismatch. No database needed)
  *   chain-read-partitions [--months-ahead N] (v1: create the missing monthly partitions of chain_reads from this month
  *                                            to N months ahead, default 24 (#169), max 120; idempotent; prints the count
  *                                            and the last month covered. Run monthly (docs/runbooks/CHAIN_READ_PARTITIONS.md):
@@ -70,7 +92,7 @@
  */
 import { sql } from "drizzle-orm";
 import { closeDatabase, database } from "../../src/server/db/client";
-import { acceptInvitation, createOrganization, createUser, grantMembership, revokeMembership, revokeSessions, setEntityScope } from "../../src/server/admin";
+import { acceptInvitation, createOrganization, createUser, grantAuditor, grantMembership, revokeAuditor, revokeMembership, revokeSessions, setEntityScope } from "../../src/server/admin";
 
 /** "all" or a comma-separated list of entity ids (refused when empty). */
 function entityList(v: string | undefined): string[] | "all" {
@@ -83,7 +105,14 @@ function entityList(v: string | undefined): string[] | "all" {
 import type { AppRole } from "../../src/server/authz";
 import { seedMerchantCases } from "../../src/server/merchant-seed";
 import { purgeExpiredUploads, sweepOrphanFiles } from "../../src/server/uploads";
+import { cleanupOrphans } from "../../src/server/upload-orphans";
+import { runPickup } from "../../src/server/upload-pickup";
 import { deleteMerchant, planMerchantDeletion } from "../../src/server/merchant-deletion";
+import { exportMerchant } from "../../src/server/privacy/export";
+import { runRetention } from "../../src/server/privacy/retention";
+import { openExport, passphraseFrom, publicKeyFrom, signingKeyFrom, untar, type ExportSignature } from "../../src/server/privacy/archive";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { monthsAheadArg } from "../../src/server/chain-read-partitions";
 import { addBankAccount, addEntity, addMember, closeBankAccount, createMerchant, createProvider, linkProvider, openOwnerDb, recordFiatRate, setPolicy, setupSummary } from "../../src/server/merchant-setup";
 import { grantPlatformOperator, inviteFirstAdmin, revokePlatformOperator } from "../../src/server/onboarding/operator";
@@ -152,6 +181,21 @@ async function setup(cmd: string, args: string[]) {
 async function main() {
   const [cmd, ...a] = process.argv.slice(2);
   if (SETUP.has(cmd)) return setup(cmd, a);
+  if (cmd === "open-export") {
+    const { pos, f } = flags(a);
+    if (!pos[0] || !f["public-key"] || !f["out-dir"]) throw new Error("usage: open-export <file> --public-key <spki-pem-file> --out-dir <new-dir>");
+    const sig = JSON.parse(readFileSync(`${pos[0]}.sig.json`, "utf8")) as ExportSignature;
+    const { plain } = openExport(readFileSync(pos[0]), sig, { passphrase: passphraseFrom(process.env.CLEARLINE_EXPORT_PASSPHRASE), trusted: publicKeyFrom(readFileSync(f["public-key"], "utf8")) });
+    const entries = untar(plain);
+    mkdirSync(f["out-dir"], { mode: 0o700 }); // a new folder: refuses an existing one
+    for (const x of entries) {
+      const dest = path.join(f["out-dir"], x.name);
+      mkdirSync(path.dirname(dest), { recursive: true, mode: 0o700 });
+      writeFileSync(dest, x.data, { mode: 0o600, flag: "wx" });
+    }
+    console.log(JSON.stringify({ verified: true, entries: entries.length }));
+    return;
+  }
   const db = database();
   switch (cmd) {
     case "create-org": console.log(await createOrganization(db, a[2] === "live" ? { slug: a[0], name: a[1], seed: "empty", dataMode: "live" } : { slug: a[0], name: a[1], seed: (a[2] as "sample" | "empty") ?? "sample" })); break;
@@ -166,11 +210,27 @@ async function main() {
     }
     case "set-entity-scope": console.log(JSON.stringify(await setEntityScope(db, { orgSlug: a[0], email: a[1], entities: entityList(a[2]) }))); break;
     case "revoke": await revokeMembership(db, { orgSlug: a[0], email: a[1] }); break;
+    // v1 phase 4: grant-auditor <org> <email> --from YYYY-MM --to YYYY-MM --expires <ISO> --by <who asked> [--entities A,B]
+    case "grant-auditor": {
+      const f = (k: string) => { const i = a.indexOf(`--${k}`); return i >= 0 ? a[i + 1] : undefined; };
+      const req = (k: string) => { const v = f(k); if (!v) throw new Error(`--${k} is required`); return v; };
+      console.log(JSON.stringify(await grantAuditor(db, { orgSlug: a[0], email: a[1], from: req("from"), to: req("to"), expiresAt: req("expires"), grantedBy: req("by"), ...(f("entities") ? { entities: entityList(f("entities")) } : {}) })));
+      break;
+    }
+    case "revoke-auditor": console.log(JSON.stringify(await revokeAuditor(db, { orgSlug: a[0], email: a[1] }))); break;
     case "purge-uploads": {
       const now = new Date();
       console.log(JSON.stringify({ ...(await purgeExpiredUploads(db, now)), orphanFiles: await sweepOrphanFiles(db, now) }));
       break;
     }
+    case "sweep-orphans": {
+      // v1 phase 2.1: both directions (files without a row, open uploads without a file); --dry-run changes nothing
+      const i = a.indexOf("--older-than-minutes");
+      const r = await cleanupOrphans(db, new Date(), { dryRun: a.includes("--dry-run"), ...(i >= 0 ? { olderThanMinutes: Number(a[i + 1]) } : {}) });
+      console.log(JSON.stringify({ dryRun: r.dryRun, files: r.files, rows: r.rows, organisations: Object.keys(r.byOrg).length }));
+      break;
+    }
+    case "pickup-run": console.log(JSON.stringify(await runPickup(db, new Date()))); break;
     case "revoke-sessions": console.log(await revokeSessions(db, a[0]), "sessions revoked"); break;
     case "seed-demo": {
       const pw = process.env.CLEARLINE_SEED_PASSWORD;
@@ -200,6 +260,22 @@ async function main() {
         break;
       }
       console.log(JSON.stringify({ deleted: await deleteMerchant(db, a[0], confirm) }));
+      break;
+    }
+    case "retention": {
+      const r = await runRetention(db, { now: new Date(), dryRun: a.includes("--dry-run") });
+      console.log(JSON.stringify({ retention: r }));
+      break;
+    }
+    case "export-merchant": {
+      const { pos, f } = flags(a);
+      if (!pos[0] || !f.out) throw new Error("usage: export-merchant <org-slug> --out <file>");
+      if (existsSync(f.out) || existsSync(`${f.out}.sig.json`)) throw new Error("the output file exists; name a new one");
+      const passphrase = passphraseFrom(process.env.CLEARLINE_EXPORT_PASSPHRASE), signingKey = signingKeyFrom(process.env.CLEARLINE_EXPORT_SIGNING_KEY);
+      const r = await exportMerchant(db, pos[0], { passphrase, signingKey });
+      writeFileSync(f.out, r.archive, { mode: 0o600, flag: "wx" });
+      writeFileSync(`${f.out}.sig.json`, JSON.stringify(r.signature, null, 2), { mode: 0o644, flag: "wx" });
+      console.log(JSON.stringify({ exported: { ...r.summary, publicKeySha256: r.signature.publicKeySha256 } }));
       break;
     }
     case "chain-read-partitions": {

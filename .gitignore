@@ -5,6 +5,7 @@ next-env.d.ts
 .env
 .env.*
 !.env.example
+!.env.prod-local.example
 .data/
 demo/video/src/voices/*.onnx*
 
@@ -27,3 +28,13 @@ synthetic-data/
 
 # the demo walkthrough video (npm run demo:video): a large binary, kept out of git
 docs/demo/walkthrough.webm
+/.bench/
+
+# v1 phase 6: scripts/prodlocal/run.sh state (local cluster, generated secrets, objects, logs). Never commit.
+.prodlocal/
+
+# v1 phase 6: local copies of the App Platform specs with real values (never commit)
+ops/do/*.local.yaml
+ops/terraform/.terraform/
+ops/terraform/*.tfstate*
+ops/terraform/terraform.tfvars

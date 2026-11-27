@@ -5,10 +5,15 @@
  */
 import { NETWORKS, TOKENS } from "../config";
 import type { NetworkConfig, TokenConfig } from "../types";
+import { V1_NETWORK_TOKENS } from "./networks";
 
-export type ChainNetwork = "tron" | "ethereum";
-/** "recording": a recorded or fixture client (tests, the synthetic e2e flow); never a live read. */
-export type EvidenceSource = "trongrid" | "ethereum-rpc" | "recording";
+/** v1: Polygon, Base, Arbitrum One and Solana are read behind per-network flags (default OFF; see networks.ts). */
+export type ChainNetwork = "tron" | "ethereum" | "polygon" | "base" | "arbitrum_one" | "solana";
+/**
+ * "recording": a recorded or fixture client (tests, the synthetic e2e flow); never a live read. "evm-rpc": a JSON-RPC
+ * reader on an EVM network other than Ethereum (the evidence's network says which). "solana-rpc": Solana JSON-RPC.
+ */
+export type EvidenceSource = "trongrid" | "ethereum-rpc" | "evm-rpc" | "solana-rpc" | "recording";
 
 /** Where a fact came from. `host` is the hostname only: never a path, query, header or key. */
 export interface Evidence {
@@ -61,7 +66,11 @@ export interface NonMatchingTokenFact {
   evidence: Evidence[];
 }
 
-export interface UnresolvedTx { txHash: string; status: "unavailable" | "reorged" | "not_found" | "failed_transaction"; reason: string }
+/**
+ * v1: "conflicting" = the primary and fallback providers disagree on a fact of this transaction (chain data
+ * conflicting). Like "unavailable" it is never matched; unlike it, it is a typed exception that needs a person.
+ */
+export interface UnresolvedTx { txHash: string; status: "unavailable" | "reorged" | "not_found" | "failed_transaction" | "conflicting"; reason: string }
 
 export type TransferOutcome =
   | { status: "ok"; transfers: ChainTransferFact[]; nonMatching: NonMatchingTokenFact[]; evidence: Evidence[] }
@@ -71,7 +80,9 @@ export type TransferOutcome =
   | { status: "not_found"; reason: string; evidence: Evidence[] }
   /** The receipt moved or vanished between reads: not final. `currentBlock` is set if it reappeared elsewhere. */
   | { status: "reorged"; reason: string; currentBlock?: bigint; transfers: ChainTransferFact[]; evidence: Evidence[] }
-  | { status: "unavailable"; reason: string; evidence: Evidence[] };
+  | { status: "unavailable"; reason: string; evidence: Evidence[] }
+  /** v1: two providers disagree on this transaction's facts. Never matched; both sides' evidence is kept. */
+  | { status: "conflicting"; reason: string; evidence: Evidence[] };
 
 export type IncomingOutcome =
   | { status: "ok"; transfers: ChainTransferFact[]; nonMatching: NonMatchingTokenFact[]; unresolved: UnresolvedTx[]; evidence: Evidence[] }
@@ -87,9 +98,11 @@ export const CHAIN_TOKENS: readonly TokenConfig[] = [
   ...TOKENS,
   ...(TOKENS.some((t) => t.network === "ethereum" && t.contract.toLowerCase() === USDT_ETHEREUM.toLowerCase())
     ? [] : [{ network: "ethereum" as const, contract: USDT_ETHEREUM, symbol: "USDT", decimals: 6 }]),
+  // v1: the flagged networks' verified allowlists (networks.ts). Recognised by the readers only; matching still needs token_config.
+  ...V1_NETWORK_TOKENS,
 ];
 
-export function requiredConfirmations(network: ChainNetwork, networks: readonly NetworkConfig[] = NETWORKS): bigint {
+export function requiredConfirmations(network: ChainNetwork | string, networks: readonly NetworkConfig[] = NETWORKS): bigint {
   const n = networks.find((x) => x.network === network);
   if (!n) throw new Error(`no network config for ${network}`);
   return BigInt(n.confirmationsRequired);
@@ -125,14 +138,18 @@ export const stringifyFacts = (v: unknown, space?: number): string =>
  * 5. `transfers` with `finalised: false` → seen but not final: may be shown as pending, never counted as paid.
  * 6. Only `finalised: true` transfers may be matched as received funds.
  * 7. `nonMatching` facts (look-alike contracts) are shown as facts and never count as a payment of a configured token.
+ * 8. v1: `conflicting` (two providers disagree) → "chain data conflicting" for that transaction: never matched, a typed
+ *    exception for a person (it is not an outage, so it is not simply retried away).
  */
 export type ChainConsumption =
   | { kind: "chain_data_unavailable"; reason: string; mayMatch: false; evidence: Evidence[] }
-  | { kind: "facts"; final: ChainTransferFact[]; pending: ChainTransferFact[]; nonMatching: NonMatchingTokenFact[]; unavailableTx: UnresolvedTx[]; noTransfer: UnresolvedTx[]; reorged: UnresolvedTx[] };
+  | { kind: "chain_data_conflicting"; reason: string; mayMatch: false; evidence: Evidence[] }
+  | { kind: "facts"; final: ChainTransferFact[]; pending: ChainTransferFact[]; nonMatching: NonMatchingTokenFact[]; unavailableTx: UnresolvedTx[]; noTransfer: UnresolvedTx[]; reorged: UnresolvedTx[]; conflictingTx: UnresolvedTx[] };
 
 export function consumeChainOutcome(o: ChainOutcome, txHash?: string): ChainConsumption {
   if (o.status === "unavailable") return { kind: "chain_data_unavailable", reason: o.reason, mayMatch: false, evidence: o.evidence };
-  const empty = { final: [], pending: [], nonMatching: [], unavailableTx: [], noTransfer: [], reorged: [] };
+  if (o.status === "conflicting") return { kind: "chain_data_conflicting", reason: o.reason, mayMatch: false, evidence: o.evidence };
+  const empty = { final: [], pending: [], nonMatching: [], unavailableTx: [], noTransfer: [], reorged: [], conflictingTx: [] };
   const tx = txHash ?? "";
   if (o.status === "failed_transaction" || o.status === "not_found") return { kind: "facts", ...empty, noTransfer: [{ txHash: tx, status: o.status, reason: o.reason }] };
   if (o.status === "reorged") return { kind: "facts", ...empty, pending: o.transfers.map((t) => ({ ...t, finalised: false })), reorged: [{ txHash: tx, status: "reorged", reason: o.reason }] };
@@ -145,5 +162,6 @@ export function consumeChainOutcome(o: ChainOutcome, txHash?: string): ChainCons
     unavailableTx: unresolved.filter((u) => u.status === "unavailable"),
     noTransfer: unresolved.filter((u) => u.status === "failed_transaction" || u.status === "not_found"),
     reorged: unresolved.filter((u) => u.status === "reorged"),
+    conflictingTx: unresolved.filter((u) => u.status === "conflicting"),
   };
 }

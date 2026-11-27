@@ -30,10 +30,27 @@ function unlinkedMatchBlocked(rec: MatchRecord, input: ReconcileInput): boolean 
     || input.paymentLinks.some((l) => l.kind === "balance" && l.orderId === rec.orderId);
 }
 
-function applyStep5(rec: MatchRecord, bridges: BatchBridge[], groupings: ProposedGrouping[], knownBatches: ReadonlySet<string>, blocked: (r: MatchRecord) => boolean): { decision: Decision; ruleId: RuleId; attention?: Attention; note?: HistoryEntry } | null {
+/**
+ * v1 phase 3 (volume): which bridges (or groupings) name a payment id, as positions in their list. Picking a record's
+ * bridges through this index gives exactly `list.filter((b) => b.paymentIds.some((id) => ids.has(id)))`, in the same
+ * order, without scanning every bridge for every payment.
+ */
+function positionsByPaymentId(list: readonly { paymentIds: readonly string[] }[]): Map<string, number[]> {
+  const out = new Map<string, number[]>();
+  list.forEach((x, i) => { for (const id of x.paymentIds) { const a = out.get(id); if (!a) out.set(id, [i]); else if (a[a.length - 1] !== i) a.push(i); } });
+  return out;
+}
+function namingAny<T>(list: readonly T[], index: ReadonlyMap<string, number[]>, ids: ReadonlySet<string>): T[] {
+  const at = new Set<number>();
+  for (const id of ids) for (const i of index.get(id) ?? []) at.add(i);
+  return [...at].sort((a, b) => a - b).map((i) => list[i]);
+}
+
+function applyStep5(rec: MatchRecord, bridges: BatchBridge[], groupings: ProposedGrouping[], knownBatches: ReadonlySet<string>,
+  ix: { bridges: ReadonlyMap<string, number[]>; groupings: ReadonlyMap<string, number[]> }, blocked: (r: MatchRecord) => boolean): { decision: Decision; ruleId: RuleId; attention?: Attention; note?: HistoryEntry } | null {
   const ids = new Set(rec.provider.records.map((r) => r.providerPaymentId));
-  const mine = bridges.filter((b) => b.paymentIds.some((id) => ids.has(id)));
-  const grouped = groupings.filter((g) => g.paymentIds.some((id) => ids.has(id)));
+  const mine = namingAny(bridges, ix.bridges, ids);
+  const grouped = namingAny(groupings, ix.groupings, ids);
   rec.bank = {
     ...rec.bank,
     status: rec.bank.status === "held_by_provider" ? "held_by_provider" : grouped.length ? "proposed_grouping" : mine.length ? "in_batch" : "not_in_batch",
@@ -87,8 +104,9 @@ export function reconcile(raw: ReconcileInput): ReconcileResult {
   const { bridges, groupings } = buildBridges(input, orderOf);
   const exceptions = [...matched.exceptions];
   const knownBatches = new Set(input.batches.map((b) => b.batchId));
+  const step5Index = { bridges: positionsByPaymentId(bridges), groupings: positionsByPaymentId(groupings) };
   for (const rec of matched.records) {
-    const v = applyStep5(rec, bridges, groupings, knownBatches, (r) => unlinkedMatchBlocked(r, input));
+    const v = applyStep5(rec, bridges, groupings, knownBatches, step5Index, (r) => unlinkedMatchBlocked(r, input));
     if (v?.note) rec.explanation = { ...rec.explanation, history: [...rec.explanation.history, v.note] };
     const confirms = v?.ruleId === "M5.batch.tied_verified" || v?.ruleId === "M5.batch.tied_evidence_separate" || v?.ruleId === "M5.grouping.matched_settlement_unlinked";
     if (!v || (RANK[v.decision] < RANK[rec.explanation.decision]) || (RANK[v.decision] === RANK[rec.explanation.decision] && !confirms)) continue;
@@ -96,7 +114,10 @@ export function reconcile(raw: ReconcileInput): ReconcileResult {
     if (v.attention) rec.attention = v.attention;
     if (v.decision === "exception") exceptions.push({ id: `EX-${rec.orderId}`, step: 5, ruleId: v.ruleId, orderId: rec.orderId, ...v.attention! });
   }
-  const writeOffs = matched.writeOffs.filter((w) => matched.records.find((r) => r.orderId === w.orderId)?.explanation.decision === "matched_with_difference");
+  // the first record of each order (as Array.find would return it), indexed once
+  const firstRecord = new Map<string, MatchRecord>();
+  for (const r of matched.records) if (!firstRecord.has(r.orderId)) firstRecord.set(r.orderId, r);
+  const writeOffs = matched.writeOffs.filter((w) => firstRecord.get(w.orderId)?.explanation.decision === "matched_with_difference");
   exceptions.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return { label: TEST_MODE_LABEL, entityId: input.entity.id, ...matched, exceptions, writeOffs, bridges, proposedGroupings: groupings };
 }

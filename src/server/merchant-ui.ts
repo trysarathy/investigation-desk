@@ -1,4 +1,5 @@
 import "server-only";
+import { isFormulaLike } from "@/lib/csv/cell";
 import { createHash } from "node:crypto";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -8,6 +9,7 @@ import { splitDifferences } from "@/lib/clearline/merchant/difference-rows";
 import { NEEDS_A_RATE, NEEDS_RATE_STATUS, differenceNeedsRate, ledgerWire, minorOrNull } from "@/lib/clearline/merchant/fiat-value";
 import type { Tx } from "./db/client";
 import * as t from "./db/schema";
+import { openRows } from "./crypto/fields";
 import { can, isAppRole, type Permission } from "./authz";
 import { Decision, IdempotencyKey, canonical, idempotent, serverAudit } from "./control";
 import { decideWriteoff, entityOnly, monthEnd } from "./merchant";
@@ -196,7 +198,7 @@ export async function paymentContext(ctx: TenantContext, orderId: string) {
     if (!inv) throw new AccessDenied(404, "Not found.");
     requireEntity(ctx, inv.entityId);
     const p = partsOf(m);
-    const chainRows = p.chain.transfers.length ? await tx.select().from(t.chainTransfers).where(and(eq(t.chainTransfers.orgId, ctx.orgId), inArray(t.chainTransfers.txHash, p.chain.transfers.map((x) => x.txHash)))) : [];
+    const chainRows = p.chain.transfers.length ? await openRows(tx, ctx.orgId, "chain_transfers", await tx.select().from(t.chainTransfers).where(and(eq(t.chainTransfers.orgId, ctx.orgId), inArray(t.chainTransfers.txHash, p.chain.transfers.map((x) => x.txHash))))) : [];
     const batchIds = [...new Set([...p.bank.batchIds, ...p.provider.records.map((r) => r.batchId).filter((x): x is string => !!x)])];
     const batches = batchIds.length ? await tx.select().from(t.settlementBatches).where(and(eq(t.settlementBatches.orgId, ctx.orgId), inArray(t.settlementBatches.batchId, batchIds))) : [];
     const banks = p.bank.bankLineIds.length ? await tx.select().from(t.bankLines).where(and(eq(t.bankLines.orgId, ctx.orgId), inArray(t.bankLines.lineId, p.bank.bankLineIds))) : [];
@@ -486,7 +488,26 @@ export async function listMerchantApprovals(ctx: TenantContext) {
 // Month-end
 // ---------------------------------------------------------------------------------------------
 
-const AGE_BUCKETS = [{ label: "Under 1 day", max: 1 }, { label: "1–7 days", max: 7 }, { label: "8–30 days", max: 30 }, { label: "Over 30 days", max: Infinity }] as const;
+export const AGE_BUCKETS = [{ label: "Under 1 day", max: 1 }, { label: "1–7 days", max: 7 }, { label: "8–30 days", max: 30 }, { label: "Over 30 days", max: Infinity }] as const;
+
+/**
+ * Money the provider confirmed for the month's payments (a transfer in the month, entity zone) that is not yet in a
+ * settlement verified against a bank line, by batch ("(no settlement batch)" when in none), in the invoice's currency.
+ */
+export function receivableFromProvider(recs: (typeof t.matchRecords.$inferSelect)[], month: string, off: number) {
+  const receivable = new Map<string, { batchId: string; currency: string; orderIds: string[]; creditedMinor: bigint; reason: string }>();
+  for (const m of recs) {
+    const p = partsOf(m);
+    if (!p.chain.transfers.some((x) => localDate(x.timestamp, off).startsWith(month))) continue;
+    for (const r of p.provider.records) {
+      if (p.bank.settlementVerified || !r.creditedMinor || big(r.creditedMinor) === 0n) continue;
+      const k = r.batchId ?? "(no settlement batch)";
+      const g = receivable.get(k) ?? { batchId: k, currency: p.ledger.invoice.currency, orderIds: [], creditedMinor: 0n, reason: r.batchId ? "In a batch that is not yet verified against a bank line." : p.bank.status === "held_by_provider" ? "Held by the provider; in no settlement." : "In no settlement yet." };
+      g.orderIds.push(m.orderId); g.creditedMinor += big(r.creditedMinor); receivable.set(k, g);
+    }
+  }
+  return [...receivable.values()];
+}
 
 export async function monthEndView(ctx: TenantContext, entityId: string, month: string, asOf: string | null) {
   const base = await monthEnd(ctx, entityId, month);
@@ -496,18 +517,7 @@ export async function monthEndView(ctx: TenantContext, entityId: string, month: 
     const batchCurrencies = (await tx.select({ c: t.settlementBatches.currency }).from(t.settlementBatches).where(and(eq(t.settlementBatches.orgId, ctx.orgId), eq(t.settlementBatches.entityId, entityId))).orderBy(asc(t.settlementBatches.batchId))).map((b) => b.c);
     const recs = await tx.select({ m: t.matchRecords }).from(t.matchRecords).innerJoin(t.invoices, and(eq(t.invoices.orgId, t.matchRecords.orgId), eq(t.invoices.orderId, t.matchRecords.orderId)))
       .where(and(eq(t.matchRecords.orgId, ctx.orgId), eq(t.invoices.entityId, entityId))).orderBy(asc(t.matchRecords.orderId));
-    const off = ent.utcOffsetMinutes;
-    const receivable = new Map<string, { batchId: string; orderIds: string[]; creditedMinor: bigint; reason: string }>();
-    for (const { m } of recs) {
-      const p = partsOf(m);
-      if (!p.chain.transfers.some((x) => localDate(x.timestamp, off).startsWith(month))) continue;
-      for (const r of p.provider.records) {
-        if (p.bank.settlementVerified || !r.creditedMinor || big(r.creditedMinor) === 0n) continue;
-        const k = r.batchId ?? "(no settlement batch)";
-        const g = receivable.get(k) ?? { batchId: k, orderIds: [], creditedMinor: 0n, reason: r.batchId ? "In a batch that is not yet verified against a bank line." : p.bank.status === "held_by_provider" ? "Held by the provider; in no settlement." : "In no settlement yet." };
-        g.orderIds.push(m.orderId); g.creditedMinor += big(r.creditedMinor); receivable.set(k, g);
-      }
-    }
+    const receivable = receivableFromProvider(recs.map((r) => r.m), month, ent.utcOffsetMinutes);
     const orders = new Set(recs.map((r) => r.m.orderId));
     const ex = (await tx.select().from(t.reconExceptions).where(and(eq(t.reconExceptions.orgId, ctx.orgId), sql`${t.reconExceptions.status} <> 'resolved'`))).filter((e) => e.orderId && orders.has(e.orderId));
     const ref = asOf ? Date.parse(asOf) : Date.now();
@@ -516,7 +526,7 @@ export async function monthEndView(ctx: TenantContext, entityId: string, month: 
     const foreign = [...new Set(batchCurrencies.filter((c) => c !== ent.functionalCurrency))];
     return {
       ...base,
-      receivableFromProvider: [...receivable.values()].map((g) => ({ ...g, creditedMinor: g.creditedMinor.toString() })),
+      receivableFromProvider: receivable.map((g) => ({ batchId: g.batchId, orderIds: g.orderIds, creditedMinor: g.creditedMinor.toString(), reason: g.reason })),
       exceptionAges: ages,
       fx: { functionalCurrency: ent.functionalCurrency, foreignCurrencies: foreign, rates: fx.slice(0, 6).map((r) => ({ pair: r.pair, rate: r.rate, source: r.source, observedAt: r.observedAt.toISOString() })) },
     };
@@ -530,7 +540,7 @@ export async function monthEndView(ctx: TenantContext, entityId: string, month: 
 /** One CSV cell. Text starting with = + - @ (or a tab/CR) is prefixed with ' so a spreadsheet never runs it. */
 export function csvCell(v: unknown): string {
   let s = (v === null || v === undefined ? "" : String(v)).replace(/[\r\n\u2028\u2029]+/g, " ");
-  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  if (isFormulaLike(s)) s = "'" + s;
   return /[",\r\n']|^\s|\s$/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 const csv = (rows: unknown[][]) => rows.map((r) => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
@@ -561,7 +571,7 @@ export async function packData(tx: Tx, ctx: TenantContext, scope: PackScope) {
   const recs = orderIds.length ? await tx.select().from(t.matchRecords).where(and(eq(t.matchRecords.orgId, ctx.orgId), inArray(t.matchRecords.orderId, orderIds))).orderBy(asc(t.matchRecords.orderId)) : [];
   const parts = recs.map((m) => ({ m, p: partsOf(m) }));
   const txHashes = parts.flatMap(({ p }) => p.chain.transfers.map((x) => x.txHash));
-  const chain = txHashes.length ? await tx.select().from(t.chainTransfers).where(and(eq(t.chainTransfers.orgId, ctx.orgId), inArray(t.chainTransfers.txHash, txHashes))).orderBy(asc(t.chainTransfers.blockTime)) : [];
+  const chain = txHashes.length ? await openRows(tx, ctx.orgId, "chain_transfers", await tx.select().from(t.chainTransfers).where(and(eq(t.chainTransfers.orgId, ctx.orgId), inArray(t.chainTransfers.txHash, txHashes))).orderBy(asc(t.chainTransfers.blockTime))) : [];
   const ppIds = parts.flatMap(({ p }) => p.provider.records.map((r) => r.providerPaymentId));
   const provider = ppIds.length ? await tx.select().from(t.providerPaymentRecords).where(and(eq(t.providerPaymentRecords.orgId, ctx.orgId), inArray(t.providerPaymentRecords.providerPaymentId, ppIds))).orderBy(asc(t.providerPaymentRecords.providerPaymentId)) : [];
   const blIds = [...new Set(parts.flatMap(({ p }) => p.bank.bankLineIds))];
@@ -707,12 +717,17 @@ async function packPdf(p: Pack): Promise<Uint8Array> {
   return doc.save({ useObjectStreams: false });
 }
 
+/** The evidence pack's file in one format (the same bytes for every role that may download it). */
+export async function renderPack(p: Pack, format: z.infer<typeof PackFormat>): Promise<string | Uint8Array> {
+  return format === "json" ? JSON.stringify(p, null, 2) + "\n" : format === "csv" ? packCsv(p) : await packPdf(p);
+}
+
 /** rc8 founder decision 3: Finance, an Approver or an Admin only (merchant_export), whatever the scope. */
 export async function evidencePack(ctx: TenantContext, scope: PackScope, format: z.infer<typeof PackFormat>) {
   require(ctx, "merchant_export");
   return tenantTx(ctx, async (tx) => {
     const p = await packData(tx, ctx, scope);
-    const body: string | Uint8Array = format === "json" ? JSON.stringify(p, null, 2) + "\n" : format === "csv" ? packCsv(p) : await packPdf(p);
+    const body = await renderPack(p, format);
     const digest = sha256(body);
     const id = scope.kind === "payment" ? scope.orderId : `${scope.entityId}-${scope.month}`;
     await serverAudit(tx, ctx, "merchant_evidence_pack_exported", scope.kind === "payment" ? "payment" : "merchant_entity", scope.kind === "payment" ? scope.orderId : scope.entityId, `Evidence pack exported (${format}, ${id}, sha256 ${digest.slice(0, 12)}…)`, { sha256: digest, format, scope });

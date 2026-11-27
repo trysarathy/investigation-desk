@@ -1,6 +1,7 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { NETWORKS, normAddress } from "@/lib/clearline/merchant/config";
 import type { NetworkId } from "@/lib/clearline/merchant/types";
 import {
@@ -10,8 +11,11 @@ import {
 import type { Env } from "@/lib/clearline/merchant/chain/guard";
 import type { Tx } from "./db/client";
 import * as t from "./db/schema";
+import { anyOf, bulkInsert, setExcluded } from "./db/bulk";
 import { can } from "./authz";
 import { serverAudit } from "./control";
+import { openRows, sealRows } from "./crypto/fields";
+import { cipherFor } from "./crypto/org-keys";
 import { AccessDenied, requireEntity, type TenantContext, withTenant } from "./tenant";
 import { ChainRecordingRefused } from "./test-build";
 import { DemoRecordingRefused } from "./demo-build";
@@ -28,6 +32,12 @@ import { DEMO_NOW } from "@/lib/clearline/demo/clock";
  * - Finality: confirmations ≥ the network's confirmations_required, and a fact is stored as final only after a second
  *   read of its transaction returns the same block (and block hash when the source gives one).
  * - Cache: a transaction whose stored facts are all final is not read again. Nothing non-final is cached.
+ * - v1: "chain data conflicting" (a primary and a fallback provider disagree) is stored as a `conflicting` read: those
+ *   orders are a typed exception (M1.chain.conflicting), never matched.
+ * - v1 reorg revert: when any read now reports a transaction that has a stored FINAL fact as reorged, missing, failed
+ *   or conflicting (or returns its fact as not final), the fact goes back to not final, so a payment matched on it
+ *   returns to review on the next reconciliation; an audit entry (`merchant_chain_final_reverted`, counts only)
+ *   records it. Never silent.
  * - Clients: the recorded client (CLEARLINE_CHAIN_RECORDING; rc8: test builds only); the real readers only with
  *   CLEARLINE_CHAIN_LIVE=1 and keys (refused under tests and CI); otherwise every read is unavailable.
  * Logs and audit carry ids and counts only.
@@ -71,10 +81,10 @@ export function verifyClientFromEnv(env: Env = process.env, dataMode?: string): 
 }
 
 interface AddressTarget { network: NetworkId; address: string; fromMs: number }
-interface ChainRead { network: NetworkId; address?: string; txHash?: string; status: "ok" | "unavailable" | "not_found" | "failed_transaction" | "reorged"; reason?: string; evidence: Evidence[]; transfers: number }
+interface ChainRead { network: NetworkId; address?: string; txHash?: string; status: "ok" | "unavailable" | "not_found" | "failed_transaction" | "reorged" | "conflicting"; reason?: string; evidence: Evidence[]; transfers: number }
 type Fact = { kind: "transfer"; f: ChainTransferFact } | { kind: "lookalike"; f: NonMatchingTokenFact };
 
-export interface VerifyResult { entityId: string; mode: VerifyChainClient["mode"]; addresses: number; transactions: number; cached: number; facts: number; final: number; pending: number; unavailable: number }
+export interface VerifyResult { entityId: string; mode: VerifyChainClient["mode"]; addresses: number; transactions: number; cached: number; facts: number; final: number; pending: number; unavailable: number; conflicting: number; reverted: number }
 
 const factKey = (f: Fact) => `${f.f.network}|${f.f.txHash}|${f.f.logIndex ?? 0}`;
 
@@ -83,8 +93,9 @@ async function targetsOf(tx: Tx, orgId: string, entityId: string) {
     .where(and(eq(t.invoices.orgId, orgId), eq(t.invoices.entityId, entityId), ne(t.invoices.status, "void")));
   const issued = new Map(inv.map((i) => [i.orderId, i.issuedAt.getTime()]));
   const ids = [...issued.keys()];
-  const quotes = ids.length ? await tx.select().from(t.merchantQuotes).where(and(eq(t.merchantQuotes.orgId, orgId), inArray(t.merchantQuotes.orderId, ids))) : [];
-  const links = ids.length ? await tx.select().from(t.paymentLinks).where(and(eq(t.paymentLinks.orgId, orgId), inArray(t.paymentLinks.orderId, ids))) : [];
+  // v1 Phase 5.3: deposit addresses from their sealed copies
+  const quotes = ids.length ? await openRows(tx, orgId, "merchant_quotes", await tx.select().from(t.merchantQuotes).where(and(eq(t.merchantQuotes.orgId, orgId), anyOf(t.merchantQuotes.orderId, ids)))) : [];
+  const links = ids.length ? await openRows(tx, orgId, "payment_links", await tx.select().from(t.paymentLinks).where(and(eq(t.paymentLinks.orgId, orgId), anyOf(t.paymentLinks.orderId, ids)))) : [];
   const addresses = new Map<string, AddressTarget>();
   const add = (network: string, address: string, at: Date | null | undefined, orderId: string) => {
     const n = dbNetwork(network);
@@ -133,6 +144,10 @@ export async function verifyChainForEntity(ctx: TenantContext, entityId: string,
     for (const f of o.transfers) keep({ kind: "transfer", f });
     for (const f of o.nonMatching) if (toIssued(f.network, f.to)) keep({ kind: "lookalike", f });
     for (const u of o.unresolved) reads.push({ network: a.network, txHash: u.txHash, status: u.status, reason: u.reason, evidence: [], transfers: 0 });
+    // v1: a conflicting transaction to this address makes the address's read conflicting too, so the order it belongs
+    // to is a typed exception (never "nothing arrived") even when no provider file names the transaction
+    const clashes = o.unresolved.filter((u) => u.status === "conflicting");
+    if (clashes.length) reads.push({ network: a.network, address: a.address, status: "conflicting", reason: `${clashes.length} transaction(s) to this address: ${clashes[0].reason}`, evidence: o.evidence, transfers: 0 });
   }
   let cached = 0;
   for (const c of claims) {
@@ -141,7 +156,7 @@ export async function verifyChainForEntity(ctx: TenantContext, entityId: string,
     if (storedFinal.get(k) === true) { cached++; continue; } // a transaction whose stored facts are all final is not read again
     const o = await client.transfer(network, c.txHash);
     readTx.add(k);
-    if (o.status === "unavailable" || o.status === "not_found" || o.status === "failed_transaction") {
+    if (o.status === "unavailable" || o.status === "not_found" || o.status === "failed_transaction" || o.status === "conflicting") {
       reads.push({ network, txHash: c.txHash, status: o.status, reason: o.reason, evidence: o.evidence, transfers: 0 });
       continue;
     }
@@ -161,12 +176,15 @@ export async function verifyChainForEntity(ctx: TenantContext, entityId: string,
       && (x.blockHash === undefined || f.f.blockHash === undefined || x.blockHash === f.f.blockHash));
     if (!same) {
       f.f = { ...f.f, finalised: false };
-      reads.push({ network: f.f.network, txHash: f.f.txHash, status: again.status === "unavailable" ? "unavailable" : "reorged", reason: again.status === "unavailable" ? again.reason : "the transaction's block changed on the re-check before finalising (reorg)", evidence: again.evidence, transfers: 0 });
+      reads.push({ network: f.f.network, txHash: f.f.txHash, status: again.status === "unavailable" || again.status === "conflicting" ? again.status : "reorged", reason: again.status === "unavailable" || again.status === "conflicting" ? again.reason : "the transaction's block changed on the re-check before finalising (reorg)", evidence: again.evidence, transfers: 0 });
     }
   }
 
   const required = (n: string) => NETWORKS.find((x) => x.network === n)?.confirmationsRequired ?? Number.MAX_SAFE_INTEGER;
   const counts = { facts: 0, final: 0, pending: 0 };
+  // v1: stored final facts that a read in this run contradicts (reorged, missing, failed or conflicting)
+  const contradicted = new Set(reads.filter((r) => r.txHash && (r.status === "reorged" || r.status === "not_found" || r.status === "failed_transaction" || r.status === "conflicting")).map((r) => hashKey(r.network, r.txHash!)));
+  let reverted = 0;
   await withTenant(tenant, async (tx) => {
     const netRows = await tx.select().from(t.networkConfig);
     const requiredOf = (n: string) => netRows.find((x) => dbNetwork(x.network) === n)?.confirmationsRequired ?? required(n);
@@ -186,6 +204,7 @@ export async function verifyChainForEntity(ctx: TenantContext, entityId: string,
           claimedSymbol: x.symbol, blockHash: x.blockHash ?? ev.blockHash ?? null, ...(x.priorHops?.length ? { priorHops: x.priorHops.map((h) => ({ ...h })) } : {}), ...evidence,
         };
         counts[finalised ? "final" : "pending"]++;
+        if (!finalised && storedByKey.get(factKey(f))?.finalised) reverted++;
       } else {
         const x = f.f;
         if (!x.rawAmount || x.rawAmount <= 0n || !x.from || !x.to) continue;
@@ -201,24 +220,39 @@ export async function verifyChainForEntity(ctx: TenantContext, entityId: string,
     }
     // rc7 phase 3b: written in chunks (same rows, same order); facts stay as first read (trigger 0007); only
     // confirmations, finality, block and evidence of the latest read change
-    for (let i = 0; i < rows.length; i += 500) {
-      await tx.insert(t.chainTransfers).values(rows.slice(i, i + 500)).onConflictDoUpdate({
-        target: [t.chainTransfers.orgId, t.chainTransfers.network, t.chainTransfers.txHash, t.chainTransfers.logIndex, t.chainTransfers.source],
-        set: { confirmations: sql`excluded.confirmations`, finalised: sql`excluded.finalised`, block: sql`excluded.block`, blockHash: sql`excluded.block_hash`,
-          evidenceSource: sql`excluded.evidence_source`, evidenceHost: sql`excluded.evidence_host`, evidenceEndpoint: sql`excluded.evidence_endpoint`, fetchedAt: sql`excluded.fetched_at` },
-      });
-    }
-    const readRows = reads.map((r) => ({
-      orgId: ctx.orgId, entityId, network: r.network, address: r.address ?? null, txHash: r.txHash ?? null, status: r.status, reason: r.reason?.slice(0, 500) ?? null,
+    // v1 phase 3: bulk statements (db/bulk.ts), the same rows and conflict handling
+    // v1 Phase 5.3: addresses sealed on insert; a transfer seen again keeps the sealed values it was first written with
+    // (the conflict update sets none of the sealed columns)
+    const cipher = rows.length || reads.some((r) => r.address !== undefined) ? await cipherFor(tx, ctx.orgId, "write") : null;
+    const sealed = await sealRows(tx, ctx.orgId, "chain_transfers", rows, cipher);
+    await bulkInsert(tx, t.chainTransfers, sealed, { chunk: 2_000, onConflict: { target: ["org_id", "network", "tx_hash", "log_index", "source"],
+      set: setExcluded(["confirmations", "finalised", "block", "block_hash", "evidence_source", "evidence_host", "evidence_endpoint", "fetched_at"]) } });
+    const readRows = await sealRows(tx, ctx.orgId, "chain_reads", reads.map((r) => ({
+      // the id is made here (not by the column default) because a sealed address is bound to its row's id
+      orgId: ctx.orgId, id: randomUUID(), entityId, network: r.network, address: r.address ?? null, txHash: r.txHash ?? null, status: r.status, reason: r.reason?.slice(0, 500) ?? null,
       source: r.evidence[0]?.source ?? client.mode, host: r.evidence[0]?.host ?? null, endpoint: r.evidence[0]?.method ?? null, transfers: r.transfers, at: now,
-    }));
-    for (let i = 0; i < readRows.length; i += 1000) await tx.insert(t.chainReads).values(readRows.slice(i, i + 1000));
+    })), cipher);
+    await bulkInsert(tx, t.chainReads, readRows);
+    // v1: a stored final fact this run did not re-store, but a read contradicts, goes back to not final too
+    const written = new Set([...facts.values()].map(factKey));
+    for (const st of stored) {
+      if (!st.finalised || written.has(`${dbNetwork(st.network)}|${st.txHash}|${st.logIndex}`) || !contradicted.has(hashKey(st.network, st.txHash))) continue;
+      await tx.update(t.chainTransfers).set({ finalised: false, confirmations: 0 }).where(and(eq(t.chainTransfers.orgId, ctx.orgId), eq(t.chainTransfers.network, st.network),
+        eq(t.chainTransfers.txHash, st.txHash), eq(t.chainTransfers.logIndex, st.logIndex), eq(t.chainTransfers.source, "chain_client")));
+      reverted++;
+    }
+    if (reverted > 0) {
+      await serverAudit(tx, ctx, "merchant_chain_final_reverted", "merchant_entity", entityId,
+        `Chain re-read: ${reverted} final chain transfer(s) returned to not final (reorg, missing, failed or conflicting chain data); payments matched on them go back to review`,
+        { mode: client.mode, reverted });
+    }
     const unavailable = reads.filter((r) => r.status === "unavailable").length;
+    const conflicting = reads.filter((r) => r.status === "conflicting").length;
     await serverAudit(tx, ctx, "merchant_chain_verified", "merchant_entity", entityId,
-      `Chain verified (${client.mode}): ${addresses.length} address(es), ${readTx.size} transaction(s) read, ${cached} cached final; ${counts.facts} fact(s), ${counts.final} final, ${counts.pending} not final; ${unavailable} read(s) unavailable`,
-      { mode: client.mode, addresses: addresses.length, transactions: readTx.size, cached, ...counts, unavailable });
+      `Chain verified (${client.mode}): ${addresses.length} address(es), ${readTx.size} transaction(s) read, ${cached} cached final; ${counts.facts} fact(s), ${counts.final} final, ${counts.pending} not final; ${unavailable} read(s) unavailable; ${conflicting} conflicting; ${reverted} final reverted`,
+      { mode: client.mode, addresses: addresses.length, transactions: readTx.size, cached, ...counts, unavailable, conflicting, reverted });
   });
-  return { entityId, mode: client.mode, addresses: addresses.length, transactions: readTx.size, cached, ...counts, unavailable: reads.filter((r) => r.status === "unavailable").length };
+  return { entityId, mode: client.mode, addresses: addresses.length, transactions: readTx.size, cached, ...counts, unavailable: reads.filter((r) => r.status === "unavailable").length, conflicting: reads.filter((r) => r.status === "conflicting").length, reverted };
 }
 
 /** The organisation's data mode (sample, live or demo); undefined when the row is not visible. */

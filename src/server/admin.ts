@@ -141,3 +141,38 @@ export async function acceptInvitation(db: Db, id: string, input: { password?: s
   await db.update(t.merchantInvitations).set({ status: "accepted", acceptedAt: new Date() }).where(eq(t.merchantInvitations.id, id));
   return { email: inv.email, role: inv.role, orgSlug: org.slug };
 }
+
+/**
+ * v1 phase 4: make a person an Auditor of a merchant for whole months `from`..`to` (YYYY-MM, at most twelve), optionally
+ * limited to some entities, until `expiresAt` (at most 90 days ahead). An existing membership with another role is
+ * refused (an Auditor is a separate, read-only membership). Audited with ids and the period only.
+ */
+export async function grantAuditor(db: Db, input: { orgSlug: string; email: string; from: string; to: string; expiresAt: string; grantedBy: string; entities?: readonly string[] | "all" }) {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(input.from) || !/^\d{4}-(0[1-9]|1[0-2])$/.test(input.to)) throw new Error("--from and --to are months (YYYY-MM)");
+  const expires = new Date(input.expiresAt);
+  if (Number.isNaN(expires.getTime())) throw new Error("--expires is an ISO date-time");
+  const [org] = await db.select().from(t.organizations).where(eq(t.organizations.slug, input.orgSlug));
+  const [user] = await db.select().from(t.users).where(eq(t.users.email, input.email.toLowerCase()));
+  if (!org || !user) throw new Error("organisation or user not found");
+  if (org.kind !== "merchant") throw new Error("an Auditor is granted on a merchant organisation");
+  const [m] = await db.select().from(t.organizationMemberships).where(and(eq(t.organizationMemberships.orgId, org.id), eq(t.organizationMemberships.userId, user.id), isNull(t.organizationMemberships.revokedAt)));
+  if (m && m.role !== "auditor") throw new Error(`this person already holds the ${m.role} role here; an Auditor needs a separate account`);
+  const last = new Date(Date.UTC(Number(input.to.slice(0, 4)), Number(input.to.slice(5, 7)), 0)).toISOString().slice(0, 10);
+  await grantMembership(db, { orgSlug: input.orgSlug, email: input.email, role: "auditor", entities: input.entities ?? "all" });
+  return db.transaction(async (tx) => {
+    const [g] = await tx.insert(t.auditorGrants).values({ orgId: org.id, userId: user.id, periodStart: `${input.from}-01`, periodEnd: last, expiresAt: expires, grantedBy: input.grantedBy }).returning({ id: t.auditorGrants.id });
+    await tx.insert(t.auditEvents).values({ orgId: org.id, source: "server", action: "auditor_granted", entityType: "user", entityId: user.id, summary: `Auditor access granted for ${input.from}..${input.to} until ${expires.toISOString()}`,
+      details: { grantId: g.id, from: input.from, to: input.to, expiresAt: expires.toISOString(), entities: input.entities ?? "all" }, at: new Date() });
+    return { grantId: g.id, periodStart: `${input.from}-01`, periodEnd: last, expiresAt: expires.toISOString() };
+  });
+}
+
+/** End an Auditor's access now: every active grant revoked, the membership revoked, its sessions signed out. */
+export async function revokeAuditor(db: Db, input: { orgSlug: string; email: string }) {
+  const [org] = await db.select().from(t.organizations).where(eq(t.organizations.slug, input.orgSlug));
+  const [user] = await db.select().from(t.users).where(eq(t.users.email, input.email.toLowerCase()));
+  if (!org || !user) throw new Error("organisation or user not found");
+  const n = await db.update(t.auditorGrants).set({ revokedAt: new Date() }).where(and(eq(t.auditorGrants.orgId, org.id), eq(t.auditorGrants.userId, user.id), isNull(t.auditorGrants.revokedAt))).returning({ id: t.auditorGrants.id });
+  await revokeMembership(db, input);
+  return { grantsRevoked: n.length };
+}

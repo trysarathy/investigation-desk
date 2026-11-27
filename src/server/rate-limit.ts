@@ -32,10 +32,13 @@ export const LIMITS = {
   verify_submit_ip: { max: 10, windowSeconds: 15 * 60 },
   /** A TOTP code already accepted for an account (replay guard: once per code within its validity window). */
   totp_used: { max: 1, windowSeconds: 120 },
+  /** v1 phase 2.2: refused provider webhook deliveries from one address (an accepted one is never counted). */
+  provider_webhook_ip: { max: 30, windowSeconds: 15 * 60 },
 } as const satisfies Record<string, Rule>;
 export type Scope = keyof typeof LIMITS;
 
-function keyHash(scope: Scope, key: string): string {
+/** The stored HMAC of one key (exported for merchant deletion, which removes the counters of deleted accounts). */
+export function keyHash(scope: Scope, key: string): string {
   const secret = process.env.BETTER_AUTH_SECRET;
   if (!secret) throw new Error("BETTER_AUTH_SECRET is required");
   return createHmac("sha256", secret).update(`clearline-rate:${scope}:${key.trim().toLowerCase()}`).digest("hex");

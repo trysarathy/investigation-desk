@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { AccessDenied } from "./tenant";
 import { RequestRefused } from "./errors";
 import { ZodError } from "zod";
+import { log } from "./ops/log";
 
 /**
  * CSRF defence for every state-changing request to /api/auth and /api/control: the Origin header must be exactly the
@@ -28,6 +29,6 @@ export function errorResponse(e: unknown): Response {
   if (e instanceof ZodError) return json(400, { error: { code: "INVALID_REQUEST", message: "The request is not valid.", issues: e.issues.map((i) => ({ path: i.path.join("."), message: i.message })) } });
   const cause = (e as { cause?: { code?: string; message?: string } }).cause;
   if (cause?.code === "23514" || cause?.code === "23505" || cause?.code === "23503" || cause?.code === "42501") return json(409, { error: { code: "REFUSED_BY_DATABASE", message: "The database refused this change." } });
-  console.error("clearline-control: unexpected error", e instanceof Error ? e.name : typeof e);
+  log.error("api_unexpected_error", e);
   return json(500, { error: { code: "INTERNAL", message: "Something went wrong. Nothing was changed." } });
 }

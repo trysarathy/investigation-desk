@@ -2,5 +2,5 @@
 export class RequestRefused extends Error {
   /** rc7: what the person may choose from to retry (e.g. the lists of a JSON file); names only, never cell values. */
   readonly choices?: string[];
-  constructor(readonly status: 400 | 403 | 409 | 422 | 429, readonly code: string, message: string, choices?: string[]) { super(message); if (choices) this.choices = choices; }
+  constructor(readonly status: 400 | 403 | 409 | 422 | 429 | 502, readonly code: string, message: string, choices?: string[]) { super(message); if (choices) this.choices = choices; }
 }
