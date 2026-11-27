@@ -91,14 +91,20 @@ export async function merchantShell(ctx: TenantContext): Promise<{ label: DataLa
     const theme = safeTheme(row.theme, row.provider_name ?? null);
     const { label, dataMode } = await dataModeOf(tx, ctx.orgId);
     if (kind === "provider" || !can(ctx.role, "read")) return { label, dataMode, kind, providerName: row.provider_name ?? null, theme, entities: [] };
-    return { label, dataMode, kind, providerName: row.provider_name ?? null, theme, entities: (await entitySummaries(tx, ctx.orgId)).filter((e) => inEntityScope(ctx, e.id)) };
+    return { label, dataMode, kind, providerName: row.provider_name ?? null, theme, entities: (await entitySummaries(tx, ctx.orgId, ctx)).filter((e) => inEntityScope(ctx, e.id)) };
   });
 }
 
-async function entitySummaries(tx: Tx, orgId: string): Promise<EntitySummary[]> {
+async function entitySummaries(tx: Tx, orgId: string, ctx?: Pick<TenantContext, "entityScope" | "audit" | "role">): Promise<EntitySummary[]> {
   const ents = await tx.select().from(t.merchantEntities).where(eq(t.merchantEntities.orgId, orgId)).orderBy(asc(t.merchantEntities.id));
-  // only the stored chain transfers' timestamps (every page's shell needs the days, not the records)
-  const rows = (await tx.execute(sql`select i.entity_id, x->>'timestamp' as ts from match_records m
+  // only the stored chain transfers' timestamps (every page's shell needs the days, not the records). For an
+  // unscoped, non-auditor member the invoice join is not needed: every record has its invoice (foreign key, invoices
+  // are never updated) under the same organisation policy, and the record's ledger carries that invoice's entity.
+  // Skipping the join halves the row-level-security work on every page at volume; the rows are the same.
+  const direct = !!ctx && ctx.entityScope === null && !ctx.audit && ctx.role !== "auditor";
+  const rows = (await tx.execute(direct
+    ? sql`select m.ledger->'invoice'->>'entityId' as entity_id, x->>'timestamp' as ts from match_records m cross join lateral jsonb_array_elements(m.chain->'transfers') x where m.org_id = ${orgId}`
+    : sql`select i.entity_id, x->>'timestamp' as ts from match_records m
     join invoices i on i.org_id = m.org_id and i.order_id = m.order_id cross join lateral jsonb_array_elements(m.chain->'transfers') x
     where m.org_id = ${orgId}`)).rows as { entity_id: string; ts: string }[];
   return ents.map((e) => {

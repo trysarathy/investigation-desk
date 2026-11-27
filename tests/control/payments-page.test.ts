@@ -10,7 +10,7 @@ import { liveKey } from "./live-data";
 import { closeDatabase } from "../../src/server/db/client";
 import { resolveTenant, type TenantContext } from "../../src/server/tenant";
 import { listMerchantPayments, merchantPaymentsPage, runReconciliation } from "../../src/server/merchant";
-import { partsSummaries, partsSummaryOf } from "../../src/server/merchant-ui";
+import { merchantShell, partsSummaries, partsSummaryOf } from "../../src/server/merchant-ui";
 import { MERCHANT_SEED_ORGS, seedMerchantCases } from "../../src/server/merchant-seed";
 
 let fin: TenantContext;
@@ -71,5 +71,14 @@ describe("payments page: one page computed, identical output", () => {
     for (const f of [{}, { result: "exception" as const }, { search: "BK" }]) {
       expect(await newPage(scoped, f, [], 1, 10)).toEqual(await oldPage(scoped, f, [], 1, 10));
     }
+  });
+
+  it("the page shell's entity summaries are the same with and without the invoice join", async () => {
+    // an unscoped member reads the entity from the record's ledger; a member scoped to every entity takes the join
+    const direct = await merchantShell(fin);
+    expect(direct.entities.length).toBeGreaterThan(1);
+    expect(direct.entities.some((e) => e.days.length > 0)).toBe(true);
+    const joined = await merchantShell({ ...fin, entityScope: direct.entities.map((e) => e.id) });
+    expect(joined).toEqual(direct);
   });
 });
