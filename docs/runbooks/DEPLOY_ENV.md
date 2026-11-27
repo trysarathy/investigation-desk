@@ -35,6 +35,9 @@ checks off. With `staging` or `production`, a demo build or a test build also re
 - The demo: `scripts/demo/lib.ts` (`appEnv`, used by `npm run demo` and `scripts/demo/e2e-server.ts`, so
   `playwright.demo.config.ts` and `playwright.demo-video.config.ts` too): `demo`.
 - CI: every job in `.github/workflows/*.yml` except `lint` sets `CLEARLINE_DEPLOY_ENV: ci`.
+- v1 phase 6: the App Platform specs set `staging` / `production` (`ops/do/app.staging.yaml`,
+  `ops/do/app.production.yaml`); `scripts/prodlocal/run.sh` and `docker-compose.prod-local.yml` set `local`;
+  `Dockerfile.prod` does not set it.
 - The `Dockerfile` deliberately does **not** set it: whoever runs the image says which (`-e CLEARLINE_DEPLOY_ENV=demo`
   for the preview). A real deployment sets `production` or `staging` in its hosting settings.
 

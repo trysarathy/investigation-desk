@@ -1,0 +1,78 @@
+name: Security
+
+# v1 E1 (phase 5.1-5.2). Not required checks yet: see docs/ci/REQUIRED_CHECKS_PROPOSAL.md ("Security checks").
+# Every job runs on every pull request (no paths filter), so each can become required without leaving PRs waiting.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # New advisories appear without any code change: audit main every Monday at 03:17 UTC.
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Production dependencies only. Fails on a HIGH or CRITICAL advisory that is not on
+  # .github/security/audit-allowlist.json (each entry: owner, reason, expiry at most 90 days out).
+  dependency-audit:
+    name: dependency-audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.22.0"
+      # npm audit reads package-lock.json and asks the registry; no install, no lifecycle scripts run.
+      # It exits 1 whenever any advisory exists, so the gate script (not npm's exit code) decides.
+      - run: npm audit --omit=dev --json > audit.json || true
+      - run: node scripts/security/audit-gate.mjs audit.json .github/security/audit-allowlist.json
+
+  # In-repo scanner (scripts/security/secret-scan.mjs): no dependency, no network at run time.
+  # On a pull request it scans the lines the PR adds, then the whole tracked tree; on main, the tree.
+  secret-scan:
+    name: secret-scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.22.0"
+      - if: github.event_name == 'pull_request'
+        run: node scripts/security/secret-scan.mjs --diff "origin/${BASE_REF}"
+        env:
+          BASE_REF: ${{ github.base_ref }}
+      - run: node scripts/security/secret-scan.mjs --tree
+
+  # Security headers and the strict CSP on key routes of a production build (tests/platform/headers.spec.ts).
+  security-headers:
+    name: security-headers
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CLEARLINE_DEPLOY_ENV: ci
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.22.0"
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx next build
+      - run: npx playwright test -c playwright.platform.config.ts headers.spec.ts --project=desktop

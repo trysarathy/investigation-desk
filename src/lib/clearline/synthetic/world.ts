@@ -89,6 +89,12 @@ export interface WorldParams {
   blockedDays?: Readonly<Record<string, readonly string[]>>;
   /** Demo build: order ids per entity (default `<code>-<yymm>-<n>`). */
   orderIdFor?: (entityCode: string, n: number) => string;
+  /**
+   * v1 phase 3 (volume): this many more fictional bank lines that are not settlements (supplier payments, payroll,
+   * card takings, bank fees), spread over the business days and the bank accounts. Default 0: the world is exactly
+   * as before (no draw is made).
+   */
+  otherBankLines?: number;
 }
 
 export interface Customer { customerId: string; name: string; email: string; wallets: Partial<Record<NetworkId, string[]>> }
@@ -855,6 +861,26 @@ export function generateWorld(params: WorldParams): SyntheticWorld {
     ];
     for (const [valueDate, amountMinor, description, reason] of others)
       rawBank.push({ line: { account: a.accountId, currency: a.currency, valueDate, amountMinor, description, source: "bank_feed", provenance: `synthetic statement ${a.accountId} ${params.month}` }, meta: { kind: "non_settlement", reason } });
+  }
+  // v1 phase 3: volume of everyday non-settlement lines (own stream, drawn only when asked for)
+  if ((params.otherBankLines ?? 0) > 0) {
+    const ro = rng.fork("bank-other");
+    const businessDays = Array.from({ length: activeDays }, (_, i) => dateAt(startMs + i * DAY_MS, 0)).filter(isBusinessDay);
+    const KINDS: [string, number, string][] = [
+      ["OUTWARD TRANSFER TO FICTIONAL SUPPLIER", -1, "Merchant's own outgoing payment: not a settlement."],
+      ["PAYROLL FICTIONAL STAFF", -1, "Merchant's payroll: not a settlement."],
+      ["CARD TAKINGS FICTIONAL ACQUIRER", 1, "Card acquirer's credit: not a settlement of this provider."],
+      ["INWARD TRANSFER FICTIONAL CUSTOMER", 1, "A customer's bank transfer: not a settlement."],
+      ["BANK CHARGES (FICTIONAL)", -1, "Bank's charge: not a settlement."],
+    ];
+    for (let i = 0; i < params.otherBankLines!; i++) {
+      const a = bankAccounts[i % bankAccounts.length];
+      const [desc, sign, reason] = ro.pick(KINDS);
+      rawBank.push({
+        line: { account: a.accountId, currency: a.currency, valueDate: ro.pick(businessDays), amountMinor: BigInt(sign) * BigInt(ro.int(1_00, 250_000_00)), description: `${desc} ${String(i + 1).padStart(6, "0")}`, source: "bank_feed", provenance: `synthetic statement ${a.accountId} ${params.month}` },
+        meta: { kind: "non_settlement", reason },
+      });
+    }
   }
   rawBank.sort((x, y) => (x.line.account < y.line.account ? -1 : x.line.account > y.line.account ? 1 : x.line.valueDate < y.line.valueDate ? -1 : x.line.valueDate > y.line.valueDate ? 1 : x.line.description < y.line.description ? -1 : 1));
   const bankLines: BankLine[] = [];

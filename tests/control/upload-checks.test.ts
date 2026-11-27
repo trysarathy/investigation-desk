@@ -112,7 +112,9 @@ beforeAll(async () => {
   for (const tb of ["invoices", "bank_lines", "chain_transfers", "merchant_quotes", "provider_payment_records"]) {
     const [r] = (await ownerDb().execute(sql`select to_jsonb(x) as j from ${sql.identifier(tb)} x where org_id = ${s.orgs.a} and upload_id = ${tb === "bank_lines" ? U.bank1 : U.export1} limit 1`)).rows;
     expect(r, `${tb}: normalisation wrote a template row`).toBeDefined();
-    T[tb] = r.j as Row;
+    // v1 Phase 5.3: a template row is copied under other keys and values, so its sealed copies (bound to the original
+    // row and value) are dropped; the copies are plaintext-only rows, as rows written before encryption was on
+    T[tb] = Object.fromEntries(Object.entries(r.j as Row).filter(([k]) => !/_(enc|bidx)$/.test(k))) as Row;
   }
   expect(T.chain_transfers).toMatchObject({ source: "provider_export", finalised: false, confirmations: 0 });
   expect(T.bank_lines).toMatchObject({ source: "file_import" });

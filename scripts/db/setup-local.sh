@@ -8,6 +8,8 @@
 #                       NOBYPASSRLS, owns nothing, no table privileges; migration 0049 grants it EXECUTE on the prov_*
 #                       functions only. Created only when its password is given (5th argument or
 #                       CLEARLINE_PROVISIONING_PASSWORD); otherwise the migration creates it without login.
+# PGADMINDB (default postgres) is the database the admin connects to first (a managed cluster may name it differently,
+# e.g. defaultdb on DigitalOcean; scripts/ops/db-bootstrap.sh sets it).
 # Usage: PGHOST=... PGUSER=<superuser> scripts/db/setup-local.sh <database> <owner-password> <runtime-password> [<jobs-password>] [<provisioning-password>]
 #   (the jobs password may instead come from CLEARLINE_JOBS_PASSWORD; it is required either way and never printed)
 set -euo pipefail
@@ -15,7 +17,7 @@ db="${1:?database}"; ownerpw="${2:?owner password}"; runpw="${3:?runtime passwor
 jobspw="${4:-${CLEARLINE_JOBS_PASSWORD:-}}"
 provpw="${5:-${CLEARLINE_PROVISIONING_PASSWORD:-}}"
 [ -n "${jobspw}" ] || { echo "jobs password: pass it as the 4th argument or set CLEARLINE_JOBS_PASSWORD" >&2; exit 2; }
-psql -v ON_ERROR_STOP=1 -q -d postgres <<SQL
+psql -v ON_ERROR_STOP=1 -q -d "${PGADMINDB:-postgres}" <<SQL
 DO \$\$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='clearline_owner') THEN CREATE ROLE clearline_owner LOGIN BYPASSRLS CREATEROLE PASSWORD '${ownerpw}'; END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='clearline_app') THEN CREATE ROLE clearline_app NOLOGIN NOBYPASSRLS; END IF;
@@ -25,13 +27,13 @@ DO \$\$ BEGIN
 END \$\$;
 SQL
 if [ -n "${provpw}" ]; then
-psql -v ON_ERROR_STOP=1 -q -d postgres <<SQL
+psql -v ON_ERROR_STOP=1 -q -d "${PGADMINDB:-postgres}" <<SQL
 DO \$\$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='clearline_provisioning') THEN CREATE ROLE clearline_provisioning LOGIN NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD '${provpw}';
   ELSIF NOT (SELECT rolcanlogin FROM pg_roles WHERE rolname='clearline_provisioning') THEN ALTER ROLE clearline_provisioning LOGIN PASSWORD '${provpw}'; END IF;
 END \$\$;
 SQL
 fi
-psql -q -d postgres -tc "SELECT 1 FROM pg_database WHERE datname='${db}'" | grep -q 1 || psql -v ON_ERROR_STOP=1 -q -d postgres -c "CREATE DATABASE \"${db}\" OWNER clearline_owner"
+psql -q -d "${PGADMINDB:-postgres}" -tc "SELECT 1 FROM pg_database WHERE datname='${db}'" | grep -q 1 || psql -v ON_ERROR_STOP=1 -q -d "${PGADMINDB:-postgres}" -c "CREATE DATABASE \"${db}\" OWNER clearline_owner"
 psql -v ON_ERROR_STOP=1 -q -d "${db}" -c "REVOKE ALL ON SCHEMA public FROM PUBLIC; GRANT USAGE, CREATE ON SCHEMA public TO clearline_owner; ALTER SCHEMA public OWNER TO clearline_owner;"
 echo "database ${db} ready"

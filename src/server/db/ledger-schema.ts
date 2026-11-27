@@ -19,6 +19,8 @@ export const ledgerInvoices = pgTable("ledger_invoices", {
   invoiceNumber: text("invoice_number").notNull(),
   orderRef: text("order_ref"),
   contact: text("contact"),
+  // v1 Phase 5.3 (0084, was 0072): the order reference sealed (with a blind index, it is compared with orders) and the contact sealed
+  orderRefEnc: text("order_ref_enc"), orderRefBidx: text("order_ref_bidx"), contactEnc: text("contact_enc"),
   currency: text("currency").notNull(),
   totalMinor: money("total_minor").notNull(),
   amountDueMinor: money("amount_due_minor"),

@@ -1,7 +1,7 @@
 import "server-only";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { database, type Tx } from "./db/client";
-import { membershipEntityScopes, organizationMemberships, organizations } from "./db/schema";
+import { auditorGrants, membershipEntityScopes, organizationMemberships, organizations } from "./db/schema";
 import { type AppRole, isAppRole } from "./authz";
 import { runWithLiveClock } from "./live-clock";
 
@@ -22,7 +22,11 @@ export interface TenantContext extends Principal {
    * unscoped membership, the default). The database enforces the same scope (drizzle/0053, RESTRICTIVE policies).
    */
   entityScope: readonly string[] | null;
+  /** v1 phase 4: an Auditor's active grant (whole months, inclusive), set only for the auditor role. */
+  audit?: AuditGrant;
 }
+
+export interface AuditGrant { grantId: string; periodStart: string; periodEnd: string; expiresAt: string; months: readonly string[] }
 
 export class AccessDenied extends Error {
   constructor(readonly status: 401 | 403 | 404, message: string) { super(message); }
@@ -114,5 +118,21 @@ export async function resolveTenant(p: Principal, requestedSlug: string | undefi
   const m = requestedSlug ? ms.find((x) => x.slug === requestedSlug) : ms[0];
   if (!m) throw new AccessDenied(404, "Not found.");
   if (!isAppRole(m.role)) throw new AccessDenied(403, "Unknown role.");
-  return { ...p, orgId: m.orgId, orgSlug: m.slug, orgName: m.name, role: m.role, entityScope: await entityScopeOf(p, m.orgId, m.entityScoped) };
+  const ctx: TenantContext = { ...p, orgId: m.orgId, orgSlug: m.slug, orgName: m.name, role: m.role, entityScope: await entityScopeOf(p, m.orgId, m.entityScoped) };
+  if (m.role === "auditor") ctx.audit = await activeAuditGrant(p, m.orgId);
+  return ctx;
+}
+
+/**
+ * v1 phase 4: an Auditor acts only through an active grant (not revoked, not expired); none → 403. The database
+ * applies the same period (drizzle/0078), so this is the server's half of the check, not the only one.
+ */
+async function activeAuditGrant(p: Principal, orgId: string): Promise<AuditGrant> {
+  const [g] = await withTenant({ userId: p.userId, orgId }, (tx) => tx.select().from(auditorGrants)
+    .where(and(eq(auditorGrants.orgId, orgId), eq(auditorGrants.userId, p.userId), isNull(auditorGrants.revokedAt), gt(auditorGrants.expiresAt, sql`now()`)))
+    .orderBy(desc(auditorGrants.createdAt)).limit(1), { read: true });
+  if (!g) throw new AccessDenied(403, "Your auditor access has ended or has not been granted.");
+  const months: string[] = [];
+  for (let d = new Date(`${g.periodStart}T00:00:00Z`); d.toISOString().slice(0, 10) <= g.periodEnd; d.setUTCMonth(d.getUTCMonth() + 1)) months.push(d.toISOString().slice(0, 7));
+  return Object.freeze({ grantId: g.id, periodStart: g.periodStart, periodEnd: g.periodEnd, expiresAt: g.expiresAt.toISOString(), months: Object.freeze(months) });
 }

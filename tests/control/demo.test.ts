@@ -63,14 +63,18 @@ const noBuild = () => { for (const k of ["CLEARLINE_NEXT_BUILD", "CLEARLINE_TEST
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 const TS = /\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}(:\d{2})?)?/g;
 /** Content of every org-scoped table for one org, without ids, times or the slug suffix. */
+const SEALED_COLUMNS = /"[a-z_]+_(?:enc|bidx)":(?:"[^"]*"|null),?/g;
 async function contentFingerprint(org: string, sfx = ""): Promise<Record<string, string>> {
   const db = ownerDb();
   const tables = (await db.execute(sql`select table_name from information_schema.columns where table_schema = 'public' and column_name = 'org_id' order by 1`)).rows.map((r) => String(r.table_name));
   const out: Record<string, string> = {};
   for (const tb of tables) {
     if (["audit_events", "idempotency_records"].includes(tb)) continue; // name the actor and the key: not content
+    // v1 Phase 5.3: an organisation's keys, sealed values (random IVs) and blind indexes (per-organisation keys) differ
+    // by design between two organisations; their plaintext is compared through the columns they seal
+    if (tb === "org_data_keys") continue;
     const rows = (await db.execute(sql.raw(`select row_to_json(x)::text as j from "${tb}" x where org_id = '${org}'`))).rows.map((r) => String(r.j)
-      .replace(UUID, "U").replace(TS, "T").split(sfx || "\u0000").join(""));
+      .replace(SEALED_COLUMNS, "").replace(UUID, "U").replace(TS, "T").split(sfx || "\u0000").join(""));
     rows.sort();
     out[tb] = `${rows.length}:${createHash("sha256").update(rows.join("\n")).digest("hex").slice(0, 16)}`;
   }

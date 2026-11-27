@@ -31,8 +31,10 @@ describe("benchmark (small)", () => {
     const targets = (org: string) => sql`select u.original_name, t.row_number, t.target_table, regexp_replace(t.target_key, '^FILE-[0-9a-f]+$', 'FILE-<row fingerprint>') as target_key from upload_row_targets t join uploads u on u.org_id = t.org_id and u.id = t.upload_id
       where t.org_id = ${org} order by 1, 2, 3, 4`;
     expect(await rows(bulk.orgId, targets)).toEqual(await rows(slow.orgId, targets));
+    // v1 Phase 5.3: sealed copies and blind indexes differ between two organisations by design (random IVs, per-organisation keys)
     for (const tb of ["invoices", "merchant_quotes", "payment_links", "provider_payment_records", "settlement_batches", "settlement_batch_lines", "bank_lines"]) {
-      const q = (org: string) => sql`select (to_jsonb(x) - 'org_id' - 'upload_id' - 'uploaded_by' - 'observed_at' - 'mapping_template_id' - 'provenance' - 'bank_account_id' - 'line_id')::text as j from ${sql.identifier(tb)} x where x.org_id = ${org} order by 1`;
+      const q = (org: string) => sql`select (to_jsonb(x) - 'org_id' - 'upload_id' - 'uploaded_by' - 'observed_at' - 'mapping_template_id' - 'provenance' - 'bank_account_id' - 'line_id'
+        - 'deposit_address_enc' - 'deposit_address_bidx')::text as j from ${sql.identifier(tb)} x where x.org_id = ${org} order by 1`;
       expect(await rows(bulk.orgId, q), tb).toEqual(await rows(slow.orgId, q));
     }
     // v1 decision 9: a statement line's id is its row's fingerprint, which includes the (per-organisation) bank account,

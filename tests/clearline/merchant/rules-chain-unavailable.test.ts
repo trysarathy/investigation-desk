@@ -41,3 +41,20 @@ describe("[M1.chain.unavailable] chain data unavailable never matches", () => {
     expect(other.records.map((x) => x.explanation)).toEqual(reconcile(input).records.map((x) => x.explanation));
   });
 });
+
+describe("[M1.chain.conflicting] v1: two chain data providers disagree → never matched, a typed exception", () => {
+  const input = case1();
+  const q = input.quotes.find((x) => x.orderId === "BK-24817")!;
+  const clash = { ...down(q.network, { address: q.depositAddress }), reason: "chain data conflicting: primary and fallback disagree on log 0", kind: "conflicting" as const };
+  it("the order is an M1.chain.conflicting exception for Payment Operations (outranking 'unavailable'); the other orders are unchanged", () => {
+    const r = reconcile({ ...input, chainUnavailable: [down(q.network, { address: q.depositAddress }), clash] });
+    const rec = r.records.find((x) => x.orderId === "BK-24817")!;
+    expect([rec.explanation.decision, rec.explanation.decidingStep, rec.explanation.ruleId]).toEqual(["exception", 1, "M1.chain.conflicting"]);
+    expect(rec.attention).toMatchObject({ owner: "Payment Operations" });
+    expect(rec.attention!.reason).toContain("Chain data conflicting");
+    expect(rec.attention!.nextStep).toContain("never matches it while the providers disagree");
+    expect(r.writeOffs.some((w) => w.orderId === "BK-24817")).toBe(false);
+    const before = reconcile(input).records.filter((x) => x.orderId !== "BK-24817").map((x) => [x.orderId, x.explanation.ruleId]);
+    expect(r.records.filter((x) => x.orderId !== "BK-24817").map((x) => [x.orderId, x.explanation.ruleId])).toEqual(before);
+  });
+});

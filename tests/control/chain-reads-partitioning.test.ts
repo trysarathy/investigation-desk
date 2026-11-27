@@ -168,14 +168,21 @@ describe("SECURITY (approval-only, 0037): chain_reads isolation with indexed pol
   it("the policies: one indexed organisation predicate for reads, the membership check once per statement for inserts", async () => {
     const pol = await rows(`select polname, polcmd, pg_get_expr(polqual, polrelid) as q, pg_get_expr(polwithcheck, polrelid) as c from pg_policy
       where polrelid = 'chain_reads'::regclass order by polname`);
+    // v1 phase 4 (drizzle/0078, approval-only, tightening): RESTRICTIVE Auditor policies (chain_reads is hidden from an
+    // Auditor and it writes nothing); each is an InitPlan, so the rows stay one indexed organisation predicate
+    const NOT_AUDITOR = "(NOT ( SELECT app_is_auditor() AS app_is_auditor))";
     expect(pol).toEqual([
+      { polname: "auditor_no_delete", polcmd: "d", q: NOT_AUDITOR, c: null },
+      { polname: "auditor_no_insert", polcmd: "a", q: null, c: NOT_AUDITOR },
+      { polname: "auditor_no_update", polcmd: "w", q: NOT_AUDITOR, c: null },
+      { polname: "auditor_read", polcmd: "r", q: "((( SELECT app_auditor_period() AS app_auditor_period) IS NULL) OR false)", c: null },
       { polname: "chain_reads_insert", polcmd: "a", q: null, c: "((org_id = app_org_id()) AND ( SELECT app_is_member(app_org_id()) AS app_is_member))" },
       { polname: "chain_reads_read", polcmd: "r", q: "(org_id = ANY (( SELECT app_readable_org_ids() AS app_readable_org_ids)::uuid[]))", c: null },
       // v1 phase 1.3 (drizzle/0053, approval-only, tightening): a RESTRICTIVE entity-scope check, AND-ed with the above;
       // its function is an InitPlan too (once per statement), so the rows stay one indexed organisation predicate
       { polname: "entity_scope", polcmd: "*", q: ENTITY_SCOPE, c: ENTITY_SCOPE },
     ]);
-    // no UPDATE or DELETE policy and no such privilege: both stay refused (plus the append-only trigger)
+    // no permissive UPDATE or DELETE policy and no such privilege: both stay refused (plus the append-only trigger)
     for (const f of ["app_readable_org_ids()", "app_provider_full_access_merchants()"]) {
       const r = (await rows(`select p.prosecdef, p.provolatile, has_function_privilege('clearline_runtime', '${f}', 'EXECUTE') as rt,
         has_function_privilege('clearline_jobs', '${f}', 'EXECUTE') as jb from pg_proc p where p.oid = '${f}'::regprocedure`))[0];

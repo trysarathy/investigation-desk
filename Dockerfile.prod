@@ -1,0 +1,39 @@
+# v1 phase 6: the PRODUCTION image (staging and production run the same image; docs/ops/HOSTING_PROPOSAL.md).
+# A plain `next build` (no demo, test or recorded-chain switch), checked in the build itself: the image does not exist
+# if a demo or recorded-chain marker is in the bundle. The same image runs three ways (the host picks the command):
+#   web     npx next start -H 0.0.0.0 -p 8080            (default CMD)
+#   worker  npx tsx --conditions=react-server scripts/jobs/worker.ts --interval-seconds 60
+#   migrate npx drizzle-kit migrate                       (pre-deploy job, owner login; expand-only, see check-migrations)
+# No secret is baked in: the build-time values below are placeholders that only satisfy next.config.mjs's shape check;
+# every real value (database logins, BETTER_AUTH_SECRET, CLEARLINE_ORIGIN, CLEARLINE_UPLOAD_KEY, CLEARLINE_S3_*) comes
+# from the host's encrypted environment at run time, and next.config.mjs checks them again at `next start`.
+# CLEARLINE_DEPLOY_ENV is deliberately not set: the server refuses to start until the host sets staging or production.
+FROM node:22.22.0-slim AS build
+WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY . .
+RUN CLEARLINE_CONTROL_PILOT=1 \
+    BETTER_AUTH_SECRET=build-only-placeholder-not-a-secret-000000 \
+    CLEARLINE_ORIGIN=https://build.invalid \
+    DATABASE_URL=postgres://clearline_runtime:build-only@127.0.0.1:1/build_only \
+    npx next build \
+ && node scripts/build/check-chain-recording.mjs --expect absent \
+ && node scripts/build/check-chain-recording.mjs --marker demo --expect absent
+
+FROM node:22.22.0-slim
+WORKDIR /app
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=8080 CLEARLINE_CONTROL_PILOT=1 CLEARLINE_UPLOAD_STORE=s3
+# Full node_modules: the worker (tsx) and the migrate job (drizzle-kit) run from this image too.
+COPY --from=build --chown=node:node /app/package.json /app/package-lock.json /app/tsconfig.json /app/drizzle.config.ts /app/next.config.mjs /app/release-urls.mjs /app/clearline-release.json ./
+COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/.next ./.next
+COPY --from=build --chown=node:node /app/drizzle ./drizzle
+COPY --from=build --chown=node:node /app/src ./src
+COPY --from=build --chown=node:node /app/scripts ./scripts
+USER node
+EXPOSE 8080
+# writes the managed database's CA certificate (if given) for sslmode=verify-full, then runs the command
+ENTRYPOINT ["scripts/deploy/entrypoint.sh"]
+CMD ["npx", "next", "start", "-H", "0.0.0.0", "-p", "8080"]

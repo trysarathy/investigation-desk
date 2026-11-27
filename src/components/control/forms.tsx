@@ -24,7 +24,7 @@ function newKey(): string {
   return `ui-${Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("")}`;
 }
 
-async function send(method: string, url: string, body?: unknown): Promise<{ ok: boolean; status: number; data: Record<string, unknown> | null }> {
+export async function send(method: string, url: string, body?: unknown): Promise<{ ok: boolean; status: number; data: Record<string, unknown> | null }> {
   const res = await fetch(url, {
     method,
     credentials: "same-origin",
@@ -35,7 +35,7 @@ async function send(method: string, url: string, body?: unknown): Promise<{ ok: 
   return { ok: res.ok, status: res.status, data };
 }
 
-function serverMessage(status: number, data: Record<string, unknown> | null): string {
+export function serverMessage(status: number, data: Record<string, unknown> | null): string {
   const e = data?.error as { message?: string; issues?: { path: string; message: string }[] } | undefined;
   const detail = e?.issues?.length ? ` (${e.issues.map((i) => `${i.path || "request"}: ${i.message}`).join("; ")})` : "";
   return `${e?.message ?? `The server refused this (HTTP ${status}).`}${detail}`;

@@ -11,7 +11,7 @@
 
 import { PartialPostError } from "../types";
 import type { BooksAdapter, BooksInvoice, InvoiceLink, PostedLine, PostingLine } from "../types";
-import type { Fetch } from "./xero";
+import { ledgerFetch, type Fetch } from "./xero";
 
 export const qboBase = (realmId: string, env = process.env.QBO_ENV ?? "sandbox") =>
   `${env === "production" ? "https://quickbooks.api.intuit.com" : "https://sandbox-quickbooks.api.intuit.com"}/v3/company/${realmId}`;
@@ -44,7 +44,7 @@ export function qboBodies(link: InvoiceLink, l: PostingLine, pendingNote: string
 
 export class QuickBooksAdapter implements BooksAdapter {
   readonly provider = "quickbooks" as const;
-  constructor(private readonly creds: QboCredentials, private readonly fetchFn: Fetch = fetch as unknown as Fetch) {}
+  constructor(private readonly creds: QboCredentials, private readonly fetchFn: Fetch = ledgerFetch) {}
 
   private async call(method: "GET" | "POST", path: string, body?: unknown, requestId?: string): Promise<Record<string, unknown>> {
     const sep = path.includes("?") ? "&" : "?";

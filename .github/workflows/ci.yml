@@ -4,6 +4,8 @@ on:
   pull_request:
   push:
     branches: [main]
+  # v1 phase 6: deploy-staging.yml runs this whole workflow as its gate before building the release image
+  workflow_call:
 
 permissions:
   contents: read
@@ -31,6 +33,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx tsc --noEmit
+      # v1 phase 5.4: no console call logs a request body (logs go through src/server/ops/log.ts, scrubbed)
+      - run: node scripts/ops/check-log-safety.mjs
       - run: npx vitest run
       # v1 release gate: a plain production `next build` (demo/test switches stripped), then no demo, recorded-chain,
       # role-switcher, presenter-guide, feedback, reset, demo-calendar or demo-seed code in the server or client
@@ -79,6 +83,26 @@ jobs:
       - run: npm ci
       - run: scripts/db/setup-local.sh clearline_test ci-owner-pw ci-runtime-pw ci-jobs-pw ci-provisioning-pw
       - run: npm run test:control
+
+  # v1 phase 6: expand/contract migration lint. A migration that drops something the deployed (base) or new code still
+  # names, or renames / retypes a column, fails (scripts/deploy/check-migrations.mjs; docs/ops/DEPLOY_AND_ROLLBACK.md).
+  migrations:
+    name: migrations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Expand-only migrations since the base
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "::notice::no base commit for this event; migration lint skipped"; exit 0
+          fi
+          node scripts/deploy/check-migrations.mjs --base "$BASE"
 
   # Not required yet: main has 5 existing lint errors in app code
   # (react/no-unescaped-entities x4, @next/next/no-html-link-for-pages x1).

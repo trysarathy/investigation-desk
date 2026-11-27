@@ -8,6 +8,7 @@ import { IngestError, type IngestWarning } from "./errors";
 import type { IngestLimits } from "./limits";
 import type { TabularRow } from "./table";
 import { xlsxNumberToText } from "./xlsx-cell";
+import { checkZipContainer } from "./zip-guard";
 
 export interface SheetGrid { sheet: string; sheets: string[]; grid: TabularRow[]; warnings: IngestWarning[] }
 
@@ -70,6 +71,8 @@ function cellText(cell: CellLike, warn: (w: IngestWarning) => void, row: number)
 
 /** Load the workbook and return the chosen sheet as rows of text: the named sheet, else the first non-empty one. */
 export async function readXlsxGrid(bytes: Uint8Array, limits: IngestLimits, sheetName?: string): Promise<SheetGrid> {
+  // v1 phase 2.1: zip bomb, lying headers, encrypted parts and XML entity declarations are refused before exceljs runs
+  checkZipContainer(bytes);
   const workbook = new ExcelJS.Workbook();
   try {
     // exceljs accepts any binary JSZip accepts; its type says Buffer.

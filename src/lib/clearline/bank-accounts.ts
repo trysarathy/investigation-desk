@@ -35,3 +35,13 @@ export function rejectOtherCurrency(rows: AppliedRow[], accountCurrency: string 
   return rows.map((r) => (r.status === "rejected" || r.values.currency === undefined || r.values.currency === accountCurrency ? r
     : { ...r, status: "rejected", errors: [...r.errors, { field: "currency", code: "currency_not_bank_account" }] }));
 }
+
+/**
+ * True when any statement in a parsed file names an account whose letters and digits do not end in the bank account's
+ * last four characters (case-insensitive; spaces and punctuation ignored). Only the comparison result leaves here:
+ * the file's account number is never stored or logged.
+ */
+export function statementAccountsNotLast4(statements: readonly { account: string }[], last4: string): boolean {
+  const want = last4.toUpperCase();
+  return statements.some((s) => !s.account.replace(/[^A-Za-z0-9]/g, "").toUpperCase().endsWith(want));
+}

@@ -169,7 +169,7 @@ test("live merchant: upload, map, validate, confirm (bank by a second person), r
 
   // 4. MT940 (no column mapping)
   const mt940Id = await upload(page, "ENT-US-SYN", "Bank statement", { name: f.mt940Us.name, bytes: f.mt940Us.bytes });
-  await expect(page.getByText("MT940 and camt.053 statements need no column mapping")).toBeVisible();
+  await expect(page.getByText("MT940, camt.053, camt.054 and BAI2 statements need no column mapping")).toBeVisible();
   await expect(page.getByTestId("file-facts")).toContainText("MT940 statement");
   await axeBoth(page, info, "MT940 upload");
 

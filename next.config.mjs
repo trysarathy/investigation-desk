@@ -7,24 +7,41 @@
 // would fail closed (its inline scripts blocked), not open. Directives other than script-src match the
 // nonce policy (tests/platform checks this). Dev mode additionally needs 'unsafe-eval' for React Refresh.
 const isDev = process.env.NODE_ENV !== 'production';
+// v1 E1: style elements 'self' only in production (style ATTRIBUTES keep 'unsafe-inline' through style-src-attr:
+// React renders style={...} props as attributes); base-uri 'none'; frame/worker/manifest sources pinned. Strict
+// transport, cross-origin isolation of the window (COOP) and of every resource (CORP) for every route.
 export const contentSecurityPolicy = [
   "default-src 'self'",
   `script-src 'self'${isDev ? " 'unsafe-eval'" : ''}`,
-  "style-src 'self' 'unsafe-inline'",
+  `style-src 'self'${isDev ? " 'unsafe-inline'" : ''}`,
+  "style-src-attr 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
   `connect-src 'self'${isDev ? ' ws: wss:' : ''}`,
+  "frame-src 'none'",
+  "worker-src 'self'",
+  "manifest-src 'self'",
   "object-src 'none'",
-  "base-uri 'self'",
+  "base-uri 'none'",
   "form-action 'self'",
   "frame-ancestors 'none'",
 ].join('; ');
+export const PERMISSIONS_POLICY = [
+  'accelerometer=()', 'autoplay=()', 'bluetooth=()', 'browsing-topics=()', 'camera=()', 'display-capture=()', 'geolocation=()',
+  'gyroscope=()', 'hid=()', 'magnetometer=()', 'microphone=()', 'midi=()', 'payment=()', 'serial=()', 'usb=()',
+].join(', ');
 export const securityHeaders = [
   { key: 'Content-Security-Policy', value: contentSecurityPolicy },
+  // Two years, subdomains included. Browsers ignore it over plain http (local runs), so it is safe to send everywhere.
+  // [ASSUMPTION] no 'preload': submitting the domain to the preload list is a separate, deliberate step.
+  { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=()' },
+  { key: 'Permissions-Policy', value: PERMISSIONS_POLICY },
+  { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+  { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
+  { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
 ];
 
 import { loadRelease, resolveReleaseUrls } from './release-urls.mjs';

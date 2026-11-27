@@ -5,3 +5,9 @@ node_modules
 .env.*
 .git
 *.tsbuildinfo
+.prodlocal
+.demo
+.next-demo
+reconstruction-data
+synthetic-data
+test-results

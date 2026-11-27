@@ -90,8 +90,22 @@ describe("R2: Content-Security-Policy", () => {
     const d = directives(nonceContentSecurityPolicy("abc", false));
     expect(d["script-src"]).toBe("'self' 'nonce-abc' 'strict-dynamic'");
     expect(d["object-src"]).toBe("'none'");
-    expect(d["base-uri"]).toBe("'self'");
+    expect(d["base-uri"]).toBe("'none'");
     expect(d["frame-ancestors"]).toBe("'none'");
+    expect(d["form-action"]).toBe("'self'");
+  });
+  it("v1 E1: production has no 'unsafe-inline' or 'unsafe-eval' in ANY directive except style ATTRIBUTES", () => {
+    for (const csp of [nonceContentSecurityPolicy("abc", false)]) {
+      const d = directives(csp);
+      for (const [k, v] of Object.entries(d)) {
+        expect(v, k).not.toMatch(/unsafe-eval|unsafe-hashes|\*/);
+        if (k !== "style-src-attr") expect(v, k).not.toMatch(/unsafe-inline/);
+      }
+      expect(d["style-src"]).toBe("'self'");
+      expect(d["style-src-attr"]).toBe("'unsafe-inline'");
+      expect(d["frame-src"]).toBe("'none'");
+      expect(d["connect-src"]).toBe("'self'");
+    }
   });
   it("the static fallback (test API, static files, gate refusals) has no 'unsafe-inline' scripts either", () => {
     expect(directives(contentSecurityPolicy)["script-src"]).not.toMatch(/unsafe-inline/);
@@ -103,6 +117,19 @@ describe("R2: Content-Security-Policy", () => {
     delete dyn["script-src"];
     delete stat["script-src"];
     expect(dyn).toEqual(stat);
+  });
+  it("v1 E1: every route carries HSTS, COOP, CORP, nosniff, a deny-all Permissions-Policy and no-referrer-leak headers", async () => {
+    const h = Object.fromEntries((securityHeaders as { key: string; value: string }[]).map((x) => [x.key.toLowerCase(), x.value]));
+    expect(h["strict-transport-security"]).toBe("max-age=63072000; includeSubDomains");
+    expect(h["x-content-type-options"]).toBe("nosniff");
+    expect(h["x-frame-options"]).toBe("DENY");
+    expect(h["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+    expect(h["cross-origin-opener-policy"]).toBe("same-origin");
+    expect(h["cross-origin-resource-policy"]).toBe("same-origin");
+    for (const f of ["camera", "microphone", "geolocation", "payment", "usb", "browsing-topics"]) expect(h["permissions-policy"]).toContain(`${f}=()`);
+    // WebAuthn (passkeys, v1 MFA) must stay allowed on our own origin: never listed, so the browser default (self) applies.
+    expect(h["permissions-policy"]).not.toMatch(/publickey-credentials/);
+    expect(await nextConfig.headers()).toEqual([{ source: "/:path*", headers: securityHeaders }]);
   });
   it("nonces are 128-bit and unique", () => {
     const seen = new Set(Array.from({ length: 1000 }, newNonce));

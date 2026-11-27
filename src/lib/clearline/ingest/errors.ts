@@ -8,7 +8,7 @@ export type IngestErrorCode =
   | "file_empty" | "file_too_large" | "too_many_rows" | "too_many_columns" | "cell_too_long"
   | "binary_file" | "invalid_encoding" | "unsupported_file" | "unterminated_quote" | "no_header"
   | "invalid_json" | "json_shape" | "sheet_not_found" | "invalid_xlsx" | "no_data"
-  | "invalid_mt940" | "invalid_camt053" | "unsafe_xml" | "unknown_currency" | "invalid_amount" | "invalid_date"
+  | "invalid_mt940" | "invalid_camt053" | "invalid_camt054" | "invalid_bai2" | "multiple_accounts" | "unsafe_xml" | "unsafe_zip" | "unknown_currency" | "invalid_amount" | "invalid_date"
   | "invalid_option";
 
 export class IngestError extends Error {

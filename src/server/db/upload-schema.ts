@@ -35,7 +35,7 @@ export const mappingTemplates = pgTable("mapping_templates", {
 ]);
 
 export const UPLOAD_STATUSES = ["stored", "mapped", "validated", "confirmed", "normalised", "rejected", "deleted"] as const;
-export const UPLOAD_FORMATS = ["csv", "tsv", "xlsx", "json", "mt940", "camt053"] as const;
+export const UPLOAD_FORMATS = ["csv", "tsv", "xlsx", "json", "mt940", "camt053", "camt054", "bai2"] as const;
 const inList = (xs: readonly string[]) => sql.raw(`(${xs.map((x) => `'${x}'`).join(",")})`);
 
 /**
@@ -84,6 +84,8 @@ export const uploads = pgTable("uploads", {
   deleteAfter: ts("delete_after").notNull(),
   deletedAt: ts("deleted_at"),
   createdAt: ts("created_at").notNull().defaultNow(),
+  /** v1 phase 2.1: the pickup source the file came from (null for a file a person uploaded); never changes. */
+  pickupSourceId: uuid("pickup_source_id"),
 }, (t) => [
   primaryKey({ columns: [t.orgId, t.id] }),
   foreignKey({ columns: [t.orgId, t.entityId], foreignColumns: [merchantEntities.orgId, merchantEntities.id], name: "uploads_entity_fk" }),
@@ -151,4 +153,51 @@ export const uploadRowTargets = pgTable("upload_row_targets", {
   foreignKey({ columns: [t.orgId, t.uploadId, t.rowNumber], foreignColumns: [uploadRows.orgId, uploadRows.uploadId, uploadRows.rowNumber], name: "upload_row_targets_row_fk" }),
   index("upload_row_targets_target_idx").on(t.orgId, t.targetTable, t.targetKey),
   check("upload_row_targets_table_chk", sql`${t.targetTable} in ('invoices','merchant_quotes','payment_links','provider_payment_records','chain_transfers','settlement_batches','settlement_batch_lines','bank_lines','ledger_invoices','settlement_payment_lines')`),
+]);
+
+export const PICKUP_KINDS = ["sftp", "email"] as const;
+
+/**
+ * v1 phase 2.1: a scheduled pickup source (drizzle/0074, was 0055). `location` is a relative folder or mailbox name;
+ * `credentialRef` NAMES the environment variable holding a real server's credential (never the credential).
+ */
+export const uploadPickupSources = pgTable("upload_pickup_sources", {
+  orgId: uuid("org_id").notNull().references(() => organizations.id),
+  id: uuid("id").notNull().defaultRandom(),
+  kind: text("kind").notNull(),
+  name: text("name").notNull(),
+  entityId: text("entity_id").notNull(),
+  fileType: text("file_type").notNull(),
+  bankAccountId: uuid("bank_account_id"),
+  templateId: uuid("template_id"),
+  location: text("location").notNull(),
+  credentialRef: text("credential_ref"),
+  allowedSenders: jsonb("allowed_senders").notNull().default([]),
+  runAsUserId: text("run_as_user_id").notNull().references(() => users.id),
+  intervalMinutes: integer("interval_minutes").notNull().default(60),
+  enabled: boolean("enabled").notNull().default(true),
+  lastRunAt: ts("last_run_at"),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: ts("created_at").notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.orgId, t.id] }),
+  foreignKey({ columns: [t.orgId, t.entityId], foreignColumns: [merchantEntities.orgId, merchantEntities.id], name: "upload_pickup_sources_entity_fk" }),
+  foreignKey({ columns: [t.orgId, t.bankAccountId], foreignColumns: [bankAccounts.orgId, bankAccounts.id], name: "upload_pickup_sources_bank_account_fk" }),
+  foreignKey({ columns: [t.orgId, t.templateId], foreignColumns: [mappingTemplates.orgId, mappingTemplates.id], name: "upload_pickup_sources_template_fk" }),
+  check("upload_pickup_sources_kind_chk", sql`${t.kind} in ${inList(PICKUP_KINDS)}`),
+]);
+
+/** v1 phase 2.1: every remote item a source has seen (hash of its remote identity), so nothing is read twice. */
+export const uploadPickupItems = pgTable("upload_pickup_items", {
+  orgId: uuid("org_id").notNull().references(() => organizations.id),
+  sourceId: uuid("source_id").notNull(),
+  itemKey: text("item_key").notNull(),
+  outcome: text("outcome").notNull(),
+  code: text("code"),
+  uploadId: uuid("upload_id"),
+  pickedAt: ts("picked_at").notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.orgId, t.sourceId, t.itemKey] }),
+  foreignKey({ columns: [t.orgId, t.sourceId], foreignColumns: [uploadPickupSources.orgId, uploadPickupSources.id], name: "upload_pickup_items_source_fk" }),
+  foreignKey({ columns: [t.orgId, t.uploadId], foreignColumns: [uploads.orgId, uploads.id], name: "upload_pickup_items_upload_fk" }),
 ]);

@@ -179,10 +179,20 @@ function evaluateOrder(inv: Invoice, states: TState[], input: ReconcileInput, am
   const unavailable = input.chainUnavailable ?? [];
   const myAddresses = unavailable.length ? new Set([...quotes.map((q) => ({ network: q.network, address: q.depositAddress })), ...links.map((l) => ({ network: l.token.network, address: l.depositAddress }))]
     .map((m) => `${m.network}|${normAddress(m.network, m.address)}`)) : new Set<string>();
-  const myTxs = unavailable.length ? new Set(input.providerRecords.filter((r) => r.transferRef && (quotes.some((q) => q.quoteId === r.ref.quoteId) || links.some((l) => l.linkId === r.ref.linkId)))
-    .map((r) => `${r.transferRef!.network}|${r.transferRef!.txHash}`)) : new Set<string>();
+  // (v1 phase 3: the records naming one of this order's quotes or links come from the indexes, the same set as a scan
+  // of every provider record; only membership is tested)
+  const myTxs = unavailable.length ? new Set([...quotes.flatMap((q) => ix.recordsByQuote.get(q.quoteId) ?? []), ...links.flatMap((l) => ix.recordsByLink.get(l.linkId) ?? [])]
+    .filter((r) => r.transferRef).map((r) => `${r.transferRef!.network}|${r.transferRef!.txHash}`)) : new Set<string>();
   const down = unavailable.filter((u) => (u.address !== undefined && myAddresses.has(`${u.network}|${normAddress(u.network, u.address)}`))
     || (u.txHash !== undefined && myTxs.has(`${u.network}|${u.txHash}`)));
+  // v1: two providers disagree (chain data conflicting) → a typed exception for a person; it outranks "unavailable".
+  const clash = down.filter((u) => u.kind === "conflicting");
+  if (clash.length > 0 && active("M1.chain.conflicting")) {
+    const d = clash[0];
+    note(1, "M1.chain.conflicting", "fail", `Chain data conflicting (${d.source}, ${d.at}): ${d.reason}`);
+    return finish({ decision: "exception", step: 1, ruleId: "M1.chain.conflicting",
+      attention: att("Payment Operations", `Chain data conflicting for ${clash.length === 1 ? "one" : clash.length} ${d.network} read${clash.length === 1 ? "" : "s"} (${d.source}, ${d.at}): ${d.reason}. Nothing is treated as received or missing.`, "Check the transaction on a block explorer and with both chain data providers; Clearline re-reads it on the next run and never matches it while the providers disagree.") });
+  }
   if (down.length > 0 && active("M1.chain.unavailable")) {
     const d = down[0];
     note(1, "M1.chain.unavailable", "fail", `Chain data unavailable (${d.source}, ${d.at}): ${d.reason}`);
@@ -370,7 +380,7 @@ function exactWithoutTerms(inv: Invoice, cur: Invoice["currency"], states: TStat
   // no refund, partial or balance payment, and the provider claims paid
   if (rec.statusClaim !== "paid") return `the provider's status is ${rec.statusClaim}, not paid`;
   if (partOpen || links.some((l) => l.kind === "balance")) return "the order has a balance payment link (part payment)";
-  if (input.batchLines.some((l) => l.kind === "refund" && l.orderId === inv.orderId) || refundRowFor(input, inv.orderId, rec.providerPaymentId)) return "a refund is recorded for this order";
+  if (refundBatchLineFor(input, inv.orderId) || refundRowFor(input, inv.orderId, rec.providerPaymentId)) return "a refund is recorded for this order";
   if (inv.status === "void") return "the invoice is void";
   // guard (c): the provider's credit equals the invoice exactly, in the same currency, to the minor unit
   if (rec.creditedCurrency === undefined || rec.creditedCurrency !== inv.currency || inv.currency !== cur) return `the provider's credited currency (${rec.creditedCurrency ?? "not given"}) is not the invoice's ${inv.currency}`;
@@ -379,8 +389,12 @@ function exactWithoutTerms(inv: Invoice, cur: Invoice["currency"], states: TStat
 }
 
 /** v1 #174: a per-payment settlement file's refund row for this order's payment (by its payment ID) or naming the order. */
-const refundRowFor = (input: ReconcileInput, orderId: string, paymentId: string): boolean =>
-  (input.settlementPaymentLines ?? []).some((l) => l.kind === "refund" && (l.providerPaymentId === paymentId || l.orderId === orderId));
+const refundRowFor = (input: ReconcileInput, orderId: string, paymentId: string): boolean => {
+  const ix = indexesOf(input); // v1 phase 3: the same test as a scan of every settlement line, through an index
+  return ix.refundPaymentLinePayments.has(paymentId) || ix.refundPaymentLineOrders.has(orderId);
+};
+/** A refund batch line names this order (an index over input.batchLines). */
+const refundBatchLineFor = (input: ReconcileInput, orderId: string): boolean => indexesOf(input).refundBatchLineOrders.has(orderId);
 
 const sameToken = (t: { network: NetworkId; tokenContract: string }, ref: TokenRef): boolean =>
   t.network === ref.network && normAddress(t.network, t.tokenContract) === normAddress(ref.network, ref.contract);
@@ -438,13 +452,14 @@ function exactTokenPriced(inv: Invoice, price: InvoiceTokenPrice, states: TState
   if (quote && !(quote.unknown ?? []).includes("quoted_amount") && quote.quotedBaseUnits !== price.baseUnits) return "the quote's token amount differs from the invoice's price";
   if (rec.statusClaim !== "paid") return `the provider's status is ${rec.statusClaim}, not paid`;
   if (partOpen || links.some((l) => l.kind === "balance")) return "the order has a balance payment link (part payment)";
-  if (input.batchLines.some((l) => l.kind === "refund" && l.orderId === inv.orderId) || refundRowFor(input, inv.orderId, rec.providerPaymentId)) return "a refund is recorded for this order";
+  if (refundBatchLineFor(input, inv.orderId) || refundRowFor(input, inv.orderId, rec.providerPaymentId)) return "a refund is recorded for this order";
   if (inv.status === "void") return "the invoice is void";
   return undefined;
 }
 
 function view(s: TState, input: ReconcileInput): ChainTransferView {
-  const factsOf = (a: string) => input.addressFacts.filter((f) => f.network === s.t.network && normAddress(f.network, f.address) === normAddress(s.t.network, a)).map((f) => f.fact);
+  const facts = indexesOf(input).factsByAddress; // v1 phase 3: indexed once per input (same facts, same order)
+  const factsOf = (a: string) => (facts.get(`${s.t.network}|${normAddress(s.t.network, a)}`) ?? []).map((f) => f.fact);
   const pathFacts = (s.t.priorHops ?? []).flatMap((h) => [h.from, h.to]).filter((a, i, xs) => xs.indexOf(a) === i).map((address) => ({ address, facts: factsOf(address) }));
   return { ...s.t, symbol: s.token?.symbol ?? "unknown", senderFacts: factsOf(s.t.from), pathFacts, ...(s.ref?.linkId ? { linkId: s.ref.linkId } : {}), ...(s.ref ? { quoteId: s.ref.quoteId } : {}) };
 }

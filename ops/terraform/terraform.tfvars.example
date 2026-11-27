@@ -1,0 +1,4 @@
+# Copy to terraform.tfvars (git-ignored). No secrets here: the token and Spaces admin key come from the environment.
+admin_ip_cidrs = ["203.0.113.10/32"] # your own address (this example is a documentation address)
+# after `doctl apps create`, second apply:
+# app_ids = { staging = "<app id>", production = "<app id>" }

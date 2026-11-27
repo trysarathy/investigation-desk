@@ -15,7 +15,7 @@ export default defineConfig({
   workers: 1,
   fullyParallel: false,
   outputDir: "test-results/platform",
-  use: { baseURL: "http://127.0.0.1:3284", trace: "off", screenshot: "only-on-failure", launchOptions },
+  use: { baseURL: `http://127.0.0.1:${process.env.CLEARLINE_PLATFORM_PORT ?? 3284}`, trace: "off", screenshot: "only-on-failure", launchOptions },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 }, launchOptions } },
     // The browser checks again on a phone viewport; the server-only specs run once (desktop).

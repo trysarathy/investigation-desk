@@ -14,6 +14,7 @@ import { evidenceTimelineFor, investigate, matchedMinorFor, ENGINE_DISCLAIMER } 
 import { HUMAN_LABELS, describeCode, describeStatus } from "./labels";
 import { formatDecimal } from "./money";
 import type { CurrencyCode, EngineError, ExceptionCategory, ExceptionStatus, Money, ReportExceptionStatus, ReconciliationException, ReconciliationState, Result, SettlementEvidenceState, SettlementScope, Severity, ExecutionState, Workspace } from "./types";
+import { isFormulaLike } from "../csv/cell";
 
 export const CASE_REPORT_MARKING = "FICTIONAL · SANDBOX — synthetic data from the Clearline test-mode engine. Not a real payment, bank, chain or compliance record." as const;
 
@@ -254,9 +255,10 @@ export const caseReportToJson = (r: SyntheticCaseReport): string => JSON.stringi
 export const CASE_REPORT_CSV_COLUMNS = ["section", "code", "label", "at", "source", "independent", "amount", "currency", "text", "refs"] as const;
 
 /** One CSV cell. Text cells starting with = + - @ (or a tab/CR) are prefixed with ' so spreadsheets never run them. */
-function cell(v: string | undefined, kind: "text" | "amount" = "text"): string {
+const cell = (v: string | undefined, kind: "text" | "amount" = "text") => caseReportCell(v, kind);
+export function caseReportCell(v: string | undefined, kind: "text" | "amount" = "text"): string {
   let s = (v ?? "").replace(/[\r\n\u2028\u2029]+/g, " ⏎ ");
-  if (kind === "text" && /^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  if (kind === "text" && isFormulaLike(s)) s = "'" + s;
   return /[",\r\n]|^\s|\s$/.test(s) || s.includes("'") ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

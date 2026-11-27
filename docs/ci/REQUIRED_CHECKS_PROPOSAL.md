@@ -146,3 +146,32 @@ gh api -X PUT repos/trysarathy/investigation-desk/rulesets/26284409 --input rule
 - The existing `pull_request` rule requires 0 approvals. For the v1 merge, the founder may want 1, so that the independent review is recorded in GitHub.
 
 **Order:** land the item 3 fix in `release/v1` first. Otherwise the v1 merge PR can be blocked by its own required check.
+
+## Security checks (v1 E1): proposed, not yet required
+
+`.github/workflows/security.yml` adds three jobs. Each runs on every pull request (no `paths:` filter), so each can be
+made required without leaving a PR waiting. **Proposal:** require `secret-scan` and `security-headers` now; require
+`dependency-audit` after two weeks of green runs, because it depends on the registry's advisory feed, which can turn a
+PR red with no code change (the Monday schedule surfaces those on `main` first).
+
+| Check (job name) | What it runs | Network at run time |
+|---|---|---|
+| `dependency-audit` | `npm audit --omit=dev --json`, then `scripts/security/audit-gate.mjs`: fails on a HIGH or CRITICAL advisory that is not on `.github/security/audit-allowlist.json`, or on an expired / over-90-day acceptance. Moderate and low are reported only. | npm registry (advisory feed) |
+| `secret-scan` | `scripts/security/secret-scan.mjs --diff origin/<base>` (lines the PR adds), then `--tree` (every tracked file). Accepted fictional fixtures: `.github/security/secret-scan-allowlist.json` (path + fingerprint + reason). | none |
+| `security-headers` | A plain production build, then `tests/platform/headers.spec.ts`: the full header set and a production CSP on key routes. | npm + Playwright's browser download (like `clearline-browser`) |
+
+**Why an in-repo secret scanner rather than gitleaks [decision, reversible]:** the brief asks for a pinned, no-network
+approach. The gitleaks action downloads its binary at run time (and its licence terms for organisation use need a
+check), so it is neither offline nor free of a third-party fetch. The in-repo script is ~180 lines, has unit tests
+(`tests/platform/security-ci.test.ts`), never prints a matched value, and runs in under a second. Trade-off: fewer
+rules than gitleaks' ~150. To switch, replace the job's two steps with a SHA-pinned gitleaks action and keep the
+allow-list semantics.
+
+## v1 phase 6 update (proposal; nothing changed on GitHub)
+
+- The `paths:` filters are removed from `clearline-browser`, `funding-browser`, `funding-replay` and `mentor-browser`,
+  so every pull request runs every suite and any of them can now be required without leaving a PR waiting.
+- New job `migrations` in `ci.yml` (`scripts/deploy/check-migrations.mjs`, expand/contract lint; see
+  docs/ops/DEPLOY_AND_ROLLBACK.md). Proposed as required, with the five above.
+- `ci.yml`, `control-e2e.yml` and `merchant-e2e.yml` can also be called (`workflow_call`) by `deploy-staging.yml`,
+  which runs them as its gates before building the release image.

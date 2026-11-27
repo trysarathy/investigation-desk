@@ -13,7 +13,7 @@
 // Nothing is signed or sent: the only calls are reads. Exit codes: 0 ok, 2 refused / missing config, 1 read failed.
 import { USDC_ETHEREUM, USDT_TRON } from "../../src/lib/clearline/merchant/config";
 import {
-  DEFAULT_RATE_LIMITS, DEFAULT_RETRY, type EthereumReader, RateLimiter, Secrets, TRANSFER_TOPIC, type TransferOutcome, type TronReader,
+  DEFAULT_RATE_LIMITS, DEFAULT_RETRY, EthereumReader, FallbackChainReader, RateLimiter, Secrets, TRANSFER_TOPIC, type TransferOutcome, TronReader,
   fetchTransport, hostOf, isTestOrCi, liveReadersFromEnv, resilientRequest, systemRuntime,
 } from "../../src/lib/clearline/merchant/chain";
 
@@ -72,10 +72,13 @@ function report(network: string, hash: string, o: TransferOutcome): boolean {
 
 async function main() {
   const readers = liveReadersFromEnv({ ...env, CLEARLINE_CHAIN_LIVE: "1" }, { transport }); // the gate still refuses CI / tests
-  if (!readers.tron || !readers.ethereum) return fail(2, "readers not configured.");
-  const tronHash = await discoverTron(readers.tron);
+  // v1: a network with a fallback is a FallbackChainReader; discovery uses its primary, the read goes through the pair
+  const primaryOf = <T,>(r: unknown, k: new (...a: never[]) => T): T | undefined => (r instanceof FallbackChainReader ? r.primaryReader : r) instanceof k ? ((r instanceof FallbackChainReader ? r.primaryReader : r) as T) : undefined;
+  const tron = primaryOf(readers.tron, TronReader), eth = primaryOf(readers.ethereum, EthereumReader);
+  if (!readers.tron || !readers.ethereum || !tron || !eth) return fail(2, "readers not configured.");
+  const tronHash = await discoverTron(tron);
   const ok1 = report("tron", tronHash, await readers.tron.getTransfer(tronHash));
-  const ethHash = await discoverEthereum(readers.ethereum);
+  const ethHash = await discoverEthereum(eth);
   const ok2 = report("ethereum", ethHash, await readers.ethereum.getTransfer(ethHash));
   if (!ok1 || !ok2) fail(1, "at least one read did not return a transfer.");
   say("chain:smoke: ok");
