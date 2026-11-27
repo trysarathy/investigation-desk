@@ -22,9 +22,9 @@ const LOOK: Record<MemberState, { cls: string; word: string; icon: () => ReactNo
   expired: { cls: u["st-exception"], word: "Expired", icon: () => <IconAlert /> },
 };
 
-export function MemberStatus({ state, label, testId }: { state: MemberState; label?: ReactNode; testId?: string }) {
+export function MemberStatus({ state, label, testId, wrap }: { state: MemberState; label?: ReactNode; testId?: string; wrap?: boolean }) {
   const l = LOOK[state];
-  return <span className={`${u.badge} ${u.badgeWrap} ${l.cls}`} data-member-state={state} data-testid={testId}>{l.icon()}<span>{label ?? l.word}</span></span>;
+  return <span className={`${u.badge} ${wrap ? u.badgeWrap : ""} ${l.cls}`} data-member-state={state} data-testid={testId}>{l.icon()}<span>{label ?? l.word}</span></span>;
 }
 
 /** The product mark: a small square with a check-and-line glyph (decorative; the name is always written next to it). */

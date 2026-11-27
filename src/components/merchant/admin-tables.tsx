@@ -90,7 +90,7 @@ const ACCESS_COLUMNS: Column<AccessRow>[] = [
   { id: "role", header: "Role", sortValue: (r) => r.roleLabel, cell: (r) => r.roleLabel },
   {
     id: "status", header: "Status", sortValue: (r) => (r.revoked ? 1 : 0), filterValue: (r) => (r.revoked ? `Deactivated ${r.revoked}` : "Active"),
-    cell: (r) => (r.revoked ? <MemberStatus state="deactivated" label={`Revoked ${r.revoked}`} /> : <MemberStatus state="active" />),
+    cell: (r) => (r.revoked ? <MemberStatus state="deactivated" label={`Revoked ${r.revoked}`} wrap /> : <MemberStatus state="active" />),
   },
   { id: "scope", header: "Entity scope", sortValue: (r) => r.scope, cell: (r) => <span data-testid="access-scope" className={r.scopeLimited ? x.mono : undefined}>{r.scope}</span> },
   { id: "mfa", header: "Second factor", sortValue: (r) => r.mfa, cell: (r) => <span data-testid="access-mfa">{r.mfa}</span> },
