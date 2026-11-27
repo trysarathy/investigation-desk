@@ -4,15 +4,21 @@ import { orgKind } from "@/server/merchant-ui";
 
 export const dynamic = "force-dynamic";
 
+/** notFound() from pageContext (e.g. an organisation cookie left from another sign-in): the page answers it as before. */
+const isNotFound = (e: unknown) => typeof (e as { digest?: unknown })?.digest === "string" && (e as { digest: string }).digest.startsWith("NEXT_HTTP_ERROR_FALLBACK;404");
+
 /**
- * Where a signed-in member starts: the same decision as the /control page (src/app/control/(app)/page.tsx), answered
- * as a real redirect. A page's redirect is streamed (the root loading boundary wraps every page), so it arrived late
- * and could overtake the next navigation; a route handler's redirect is a plain 307. Sign-in, the MFA gate and
- * organisation selection run exactly as for a page (pageContext).
+ * design-fluid: where a person lands after signing in. The same decision as the Overview page, answered as a real
+ * redirect (the root loading skeleton would otherwise stream a page's redirect late, after a 200).
  */
 export async function GET() {
-  const ctx = await pageContext();
-  const k = await orgKind(ctx);
+  let k: Awaited<ReturnType<typeof orgKind>>;
+  try {
+    k = await orgKind(await pageContext());
+  } catch (e) {
+    if (isNotFound(e)) redirect("/control");
+    throw e;
+  }
   if (k.kind === "merchant" && (k.hasProvider || k.live)) redirect("/control/merchant");
   if (k.kind === "provider") redirect("/control/merchant/provider");
   redirect("/control");
