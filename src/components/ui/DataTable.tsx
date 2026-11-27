@@ -161,7 +161,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
         </div>
       ) : null}
       <div className={u.scroller} ref={scroller} style={windowed ? { maxHeight, overflowY: "auto" } : undefined} onScroll={windowed ? (e) => setScrollTop(e.currentTarget.scrollTop) : undefined}>
-        <table className={u.table} aria-label={caption ? undefined : label} aria-rowcount={windowed ? shown.length + 1 : undefined}>
+        <table className={u.table} aria-label={caption ? undefined : label} aria-rowcount={windowed ? shown.length + 1 : undefined} data-windowed={windowed ? "true" : undefined}>
           {caption ? <caption>{caption}</caption> : null}
           <thead>
             <tr>

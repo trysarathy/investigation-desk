@@ -24,8 +24,8 @@ const COLUMNS: Column<QueueRow>[] = [
   { id: "owner", header: "Owner", sortValue: (r) => `${r.ownerRole} ${r.ownerName ?? ""}`, cell: (r) => <>{r.ownerRole}<br /><span className={s.small}>{r.ownerName ?? "Unassigned"}</span></> },
   // oldest first when sorted descending by age: the opening instant sorts ascending
   { id: "age", header: "Age", sortValue: (r) => r.openedAt, cell: (r) => <span title={r.openedAt} className="tabular-nums">{r.age}</span> },
-  { id: "reason", header: "Reason", sortValue: (r) => r.reason, className: m.wrapCell, cell: (r) => r.reason },
-  { id: "next", header: "Next step", sortValue: (r) => r.nextStep, className: m.wrapCell, cell: (r) => r.nextStep },
+  { id: "reason", header: "Reason", sortValue: (r) => r.reason, className: m.wrapCell, cell: (r) => <span className={m.clamp2} title={r.reason}>{r.reason}</span> },
+  { id: "next", header: "Next step", sortValue: (r) => r.nextStep, className: m.wrapCell, cell: (r) => <span className={m.clamp2} title={r.nextStep}>{r.nextStep}</span> },
   { id: "evidence", header: "Evidence", numeric: true, sortValue: (r) => r.evidenceCount,
     cell: (r) => <>{r.evidenceCount ? `${r.evidenceCount} attached` : <span className={s.muted}>None</span>}{r.noteCount ? <><br /><span className={s.small}>{r.noteCount} note{r.noteCount === 1 ? "" : "s"}</span></> : null}</> },
   { id: "status", header: "Status", sortValue: (r) => (r.pendingResolutionVersion ? 2 : r.status === "in_review" ? 1 : 0),
@@ -49,7 +49,7 @@ export function ExceptionsQueue({ rows }: { rows: QueueRow[] }) {
     <div role="region" aria-label="Open exceptions table" onKeyDown={onKeyDown} aria-describedby="queue-keys">
       <p id="queue-keys" className={s.small}>Keys: <kbd>j</kbd> / <kbd>k</kbd> move, <kbd>Enter</kbd> opens, <kbd>a</kbd> assigns, <kbd>e</kbd> adds evidence.</p>
       <DataTable rows={rows} columns={COLUMNS} rowKey={(r) => r.id} label="Open exceptions" onOpen={(r) => open(r.id)} filterLabel="Filter open exceptions"
-        virtualizeAbove={Infinity} rowTestId={() => "exception-row"} />
+        virtualizeAbove={300} rowHeight={64} rowTestId={() => "exception-row"} />
     </div>
   );
 }
