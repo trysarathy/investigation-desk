@@ -232,5 +232,4 @@
 
 /* a long queue (over 300 rows) is windowed: every row keeps one fixed height, and the reason and next step show their
    first two lines (the full text stays in the page and on the exception) */
-table[data-windowed="true"] tbody tr > td { overflow: hidden; vertical-align: top; }
 table[data-windowed="true"] .clamp2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
