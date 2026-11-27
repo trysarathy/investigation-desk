@@ -10,17 +10,18 @@
  *   brand text on brand: chosen per theme, always ≥ 4.5:1 (src/lib/clearline/merchant/theme.ts)
  */
 .mroot {
-  --paper: #f6f7f9;
+  /* v1 design-fluid: theme tokens (globals.css --cl-*; ratios in docs/design/TOKENS.md) */
+  --paper: var(--cl-bg);
   --serif: var(--sans);
-  --info: #1f4e79;
-  --info-bg: #e8f0f7;
-  --amber: #6b4a00;
-  --amber-bg: #fbf1da;
+  --info: var(--cl-ev-imported-fg);
+  --info-bg: var(--cl-ev-imported-bg);
+  --amber: var(--cl-st-review-fg);
+  --amber-bg: var(--cl-st-review-bg);
   background: var(--paper);
   min-height: 100vh;
 }
 .skip { position: absolute; left: -9999px; top: 0; }
-.skip:focus { left: 16px; top: 8px; z-index: 10; background: #ffffff; padding: 8px 12px; border: 2px solid var(--ink); }
+.skip:focus { left: 16px; top: 8px; z-index: 10; background: var(--panel); color: var(--ink); padding: 8px 12px; border: 2px solid var(--ink); }
 
 .brandBar { background: var(--brand); color: var(--on-brand); border-bottom: 3px solid var(--accent); }
 .brandInner { max-width: 1240px; margin: 0 auto; padding: 12px 24px; display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; justify-content: space-between; }
@@ -40,7 +41,7 @@
 .demoChip { display: inline-block; font-size: 12px; font-weight: 600; color: var(--amber); background: var(--amber-bg); border: 1px solid var(--amber); border-radius: 999px; padding: 2px 10px; }
 .mnav { max-width: 1240px; margin: 0 auto; padding: 4px 24px 0; border-bottom: 1px solid var(--hairline); }
 .mnavList { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0 18px; }
-.mnavList a { display: inline-block; padding: 10px 0; text-decoration: none !important; color: var(--muted) !important; border-bottom: 2px solid transparent; font-size: 14px; }
+.mnavList a { display: inline-block; padding: 10px 0; text-decoration: none !important; color: var(--muted) !important; border-bottom: 2px solid transparent; font-size: 14px; transition: color var(--cl-dur) var(--cl-ease), border-color var(--cl-dur) var(--cl-ease); }
 .mnavList a[aria-current="page"] { color: var(--ink) !important; border-bottom-color: var(--ink); font-weight: 600; }
 .mnavList a:hover { color: var(--ink) !important; }
 .mmain { max-width: 1240px; margin: 0 auto; padding: 20px 24px 56px; }
@@ -140,7 +141,7 @@
 .demoReset button { font: inherit; padding: 0.15rem 0.6rem; border: 1px solid currentColor; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
 .demoReset button:disabled { opacity: 0.6; cursor: progress; }
 .demoSwitch { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-left: 0.75rem; font-size: 0.875rem; }
-.demoSwitch select { font: inherit; min-height: 32px; padding: 0.15rem 0.4rem; border: 1px solid var(--line, #8a8f98); border-radius: 4px; background: var(--surface, #fff); color: inherit; max-width: 100%; }
+.demoSwitch select { font: inherit; min-height: 32px; padding: 0.15rem 0.4rem; border: 1px solid var(--rule); border-radius: 4px; background: var(--panel); color: inherit; max-width: 100%; }
 .demoSwitch button { font: inherit; min-height: 32px; padding: 0.15rem 0.6rem; border: 1px solid currentColor; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
 .demoSwitch button:disabled, .demoSwitch select:disabled { opacity: 0.6; cursor: progress; }
 
@@ -153,8 +154,8 @@
 .flowCount { font-weight: 700; font-variant-numeric: tabular-nums; }
 .decisions { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 20px; }
 .journey { padding-left: 20px; line-height: 1.8; }
-.cta { display: inline-block; font-weight: 600; font-size: 15px; color: #ffffff !important; background: var(--ink); border: 1px solid var(--ink); border-radius: 4px; padding: 10px 18px; text-decoration: none !important; min-height: 24px; }
-.cta:hover { background: #333333; }
+.cta { display: inline-block; font-weight: 600; font-size: 15px; color: var(--on-ink) !important; background: var(--ink); border: 1px solid var(--ink); border-radius: 4px; padding: 10px 18px; text-decoration: none !important; min-height: 24px; }
+.cta:hover { background: var(--muted); }
 
 /* Batch bridge waterfall: each step floats from the running total; totals start at the axis */
 .wf { margin: 0 0 16px; background: var(--panel); border: 1px solid var(--hairline); border-radius: 8px; padding: 12px 14px; }
@@ -167,7 +168,7 @@
 .wfLink:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .wfBar { position: absolute; top: 4px; bottom: 4px; left: var(--l); width: var(--w); min-width: 3px; border-radius: 2px; }
 .wfTotal { background: var(--info); }
-.wfPos { background: #2f5d50; }
+.wfPos { background: var(--green); }
 .wfNeg { background: var(--oxblood); }
 .wfLink:hover .wfBar { filter: brightness(1.25); }
 @media (max-width: 640px) {
@@ -183,7 +184,7 @@
 .feedbackWrap, .guideWrap { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-left: 0.75rem; font-size: 0.875rem; max-width: 100%; }
 .feedbackForm { position: fixed; left: 16px; bottom: 16px; z-index: 45; display: grid; gap: 0.4rem; width: min(520px, calc(100vw - 32px)); box-sizing: border-box; padding: 12px 14px; background: var(--panel, #fff); color: var(--ink, #111); border: 1px solid var(--hairline, #ccc); border-radius: 8px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15); }
 .feedbackForm[hidden] { display: none; }
-.feedbackForm textarea { font: inherit; width: 100%; box-sizing: border-box; padding: 0.4rem; border: 1px solid var(--line, #8a8f98); border-radius: 4px; background: var(--surface, #fff); color: inherit; }
+.feedbackForm textarea { font: inherit; width: 100%; box-sizing: border-box; padding: 0.4rem; border: 1px solid var(--rule); border-radius: 4px; background: var(--panel); color: inherit; }
 .feedbackActions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 .guidePanel { position: fixed; top: 0; right: 0; bottom: 0; z-index: 50; width: min(380px, 100vw); box-sizing: border-box; overflow-y: auto; background: var(--panel, #fff); color: var(--ink, #111); border-left: 1px solid var(--hairline, #ccc); box-shadow: -6px 0 18px rgba(0, 0, 0, 0.12); padding: 14px 16px 24px; font-size: 14px; }
 .guidePanel[hidden] { display: none; }
@@ -197,3 +198,15 @@
 .guideNum { display: inline-grid; place-items: center; min-width: 22px; height: 22px; border-radius: 999px; background: var(--brand, #1b4fd6); color: var(--on-brand, #fff); font-size: 12px; font-weight: 700; margin-right: 4px; }
 .guidePoints { margin: 0 0 6px; padding-left: 18px; }
 .guidePoints li { margin: 2px 0; }
+
+/* v1 design-fluid: header tools (command palette, live refresh, theme) on the provider's brand colours */
+.brandTools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; color: var(--on-brand); font-size: 12px; min-width: 0; }
+.brandButton {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 2px 8px 2px 10px; border: 1px solid var(--on-brand); border-radius: 6px;
+  background: transparent; color: var(--on-brand); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+  transition: background-color var(--cl-dur) var(--cl-ease);
+}
+.brandButton:hover, .brandTools button:hover { background: color-mix(in srgb, var(--on-brand) 16%, transparent) !important; border-color: var(--on-brand) !important; }
+.brandTools button { color: var(--on-brand) !important; }
+.brandIcon { border-color: color-mix(in srgb, var(--on-brand) 45%, transparent) !important; }
+.brandBar :focus-visible { outline: 2px solid var(--on-brand) !important; outline-offset: 2px; }

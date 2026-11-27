@@ -173,6 +173,9 @@ export function middleware(req: NextRequest) {
   const csp = nonceContentSecurityPolicy(nonce);
   const h = new Headers(req.headers);
   if (decision.consoleShell) h.set("x-clearline-mentor-demo-route", "1");
+  // v1 design-fluid: the root layout applies the Control theme (cookie or system preference) only to /control pages.
+  const controlPath = req.nextUrl.pathname === "/control" || req.nextUrl.pathname.startsWith("/control/");
+  if (controlPath) h.set("x-clearline-control-theme", "1"); else h.delete("x-clearline-control-theme");
   // Next reads the nonce from the request's CSP header and puts it on its own scripts; the root layout
   // reads x-nonce for its inline theme script.
   h.set("x-nonce", nonce);

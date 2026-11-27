@@ -1,5 +1,6 @@
-import s from "@/components/control/control.module.css";
+import { PageSkeleton } from "@/components/ui/Skeleton";
 
+/** v1 design-fluid: shaped like the page that is coming (a title, a line and a table), never a full-page spinner. */
 export default function MerchantLoading() {
-  return <div aria-busy="true" role="status"><p className={s.muted}>Loading the stored reconciliation…</p></div>;
+  return <PageSkeleton label="Loading the stored reconciliation…" />;
 }

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";
@@ -11,6 +11,7 @@ import { searchIndex } from "@/lib/view";
 import { loadWorkspace } from "@/lib/workspace/live";
 import { DEMO_ACTOR, isDemoMode } from "@/lib/mode";
 import { DEMO_BUSINESS } from "@/lib/requests/demo";
+import { THEME_BOOT_SCRIPT, THEME_COOKIE, parseTheme } from "@/lib/theme";
 
 /** Customer-preview deployments show only the Clearline console; nothing from the legacy app. */
 const isCustomerPreview = () => process.env.CLEARLINE_CUSTOMER_PREVIEW === "1";
@@ -33,7 +34,20 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const requestHeaders = await headers();
   const isMentorDemo = requestHeaders.get("x-clearline-mentor-demo-route") === "1";
   // QA residual R1: in the customer preview every page, including a 404, skips the legacy shell.
-  if (isMentorDemo || isCustomerPreview()) return <html lang="en"><body>{children}</body></html>;
+  if (isMentorDemo || isCustomerPreview()) {
+    // v1 design-fluid: Clearline Control's theme. The cookie sets data-theme on the server (no flash); with no stored
+    // choice, the inline script (the request's CSP nonce) applies localStorage or prefers-color-scheme before first paint.
+    if (requestHeaders.get("x-clearline-control-theme") === "1") {
+      const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
+      return (
+        <html lang="en" suppressHydrationWarning {...(theme ? { "data-theme": theme } : {})}>
+          <head>{theme ? null : <script nonce={requestHeaders.get("x-nonce") ?? undefined} dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />}</head>
+          <body>{children}</body>
+        </html>
+      );
+    }
+    return <html lang="en"><body>{children}</body></html>;
+  }
   if (process.env.CLEARLINE_FUNDING_ONLY === "1") return <html lang="en"><body>{children}</body></html>;
   // The sidebar must not call uploaded data "fabricated" (real-data test, 24 Oct 2026).
   const demoMode = isDemoMode();
