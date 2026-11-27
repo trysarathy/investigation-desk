@@ -121,7 +121,7 @@ export default async function SecurityPage({ searchParams }: { searchParams: Pro
             </table>
           </TableRegion>
           {/* Always shown: it also carries the confirmation of a revoke after the reload (the revoked row is gone). */}
-          <ActionButton url="/api/control/security/revoke-other-sessions" label="Sign out all other sessions" done="Every other session is signed out." flashKey="sessions" variant="secondary" />
+          <div className={x.after}><ActionButton url="/api/control/security/revoke-other-sessions" label="Sign out all other sessions" done="Every other session is signed out." flashKey="sessions" variant="secondary" /></div>
         </section>
 
         {!mustEnrol && !mustVerify ? <p><a className={x.linkButton} href="/control">Continue to Clearline Control</a></p> : null}
