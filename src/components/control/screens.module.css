@@ -105,3 +105,8 @@
 @media (max-width: 640px) { .barInner, .page { padding-left: 16px; padding-right: 16px; } }
 .appHeader { background: var(--cl-surface); }
 .appHeader nav { padding-top: 0; }
+/* the one-time invitation link (shown once, then "Copy link") */
+.linkPanel { display: grid; gap: 8px; border: 1px solid var(--cl-st-matched-fg); border-left-width: 3px; border-radius: var(--cl-radius); background: var(--cl-surface); padding: 12px 14px; font-size: 14px; }
+.linkPanel p { margin: 0; }
+.actions button { min-height: 28px; padding: 3px 10px; font-size: 13px; }
+.actions p:empty { display: none; }
