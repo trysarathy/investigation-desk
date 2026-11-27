@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { currentPrincipal } from "@/server/auth";
 import { TwoFactorChallenge } from "@/components/control/security-forms";
-import s from "@/components/control/control.module.css";
+import { AuthFrame } from "@/components/control/AuthFrame";
 
 export const metadata: Metadata = { title: "Second step of sign-in" };
 
@@ -11,11 +11,9 @@ export const metadata: Metadata = { title: "Second step of sign-in" };
 export default async function TwoFactorPage() {
   if (await currentPrincipal(await headers())) redirect("/control");
   return (
-    <main className={s.narrow}>
-      <h1 className={s.title}>Confirm it is you</h1>
-      <p className={s.lede}>Your password was right. Now enter the code from your authenticator app.</p>
-      <div className={s.panel}><TwoFactorChallenge /></div>
-      <p className={s.small}><a href="/control/sign-in">Start again</a></p>
-    </main>
+    <AuthFrame title="Confirm it is you" eyebrow="Sign in · step 2 of 2" otp lede="Your password was right. Now enter the code from your authenticator app."
+      foot={<p><a href="/control/sign-in">Start again</a></p>}>
+      <TwoFactorChallenge />
+    </AuthFrame>
   );
 }
