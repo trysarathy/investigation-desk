@@ -4,6 +4,7 @@ import { useEffect, useId, useState } from "react";
 import { Result, Submit, useMutation } from "@/components/control/forms";
 import s from "@/components/control/control.module.css";
 import m from "./merchant.module.css";
+import { useExceptionOptimism } from "./exception-optimism";
 
 /**
  * Client forms for the merchant screens. Same contract as the rc5 Control forms: each sends the request to
@@ -65,7 +66,13 @@ export function ScheduleForm({ entityId, localTime, enabled }: { entityId: strin
 export function AssignForm({ exceptionId, members, current, me }: { exceptionId: string; members: { userId: string; name: string; role: string }[]; current: string | null; me?: string }) {
   const x = useMutation(`assign:${exceptionId}`);
   const id = useId();
-  const assign = (owner: string) => void x.run("POST", `${API}/exceptions/${encodeURIComponent(exceptionId)}/assign`, { ownerUserId: owner || null }, (d) => (d?.ownerName ? `Saved: ${String(d.ownerName)} owns this exception.` : "Saved: the exception is unassigned."));
+  const opt = useExceptionOptimism();
+  const assign = (owner: string) => {
+    // optimistic: the chosen owner shows at once; a refusal rolls it back (the server's message shows below)
+    const undo = opt?.assign(owner ? members.find((p) => p.userId === owner)?.name ?? null : null);
+    void x.run("POST", `${API}/exceptions/${encodeURIComponent(exceptionId)}/assign`, { ownerUserId: owner || null }, (d) => (d?.ownerName ? `Saved: ${String(d.ownerName)} owns this exception.` : "Saved: the exception is unassigned."))
+      .then((ok) => { if (!ok) undo?.(); });
+  };
   const mayTake = !!me && members.some((p) => p.userId === me);
   return (
     <form className={s.form} autoComplete="off" onSubmit={(ev) => {
@@ -93,13 +100,16 @@ export function AssignForm({ exceptionId, members, current, me }: { exceptionId:
 export function ExceptionNoteForm({ exceptionId, kind }: { exceptionId: string; kind: "note" | "evidence" }) {
   const x = useMutation(`${kind}:${exceptionId}`);
   const id = useId();
+  const opt = useExceptionOptimism();
   return (
     <form className={s.form} autoComplete="off" onSubmit={(ev) => {
       ev.preventDefault();
       const f = new FormData(ev.currentTarget);
       const reference = String(f.get("reference") ?? "").trim();
+      const undo = opt?.addNote({ kind, body: String(f.get("body") ?? ""), reference: reference || null });
       void x.run("POST", `${API}/exceptions/${encodeURIComponent(exceptionId)}/notes`, { kind, body: String(f.get("body") ?? ""), ...(reference ? { reference } : {}) },
-        () => (kind === "evidence" ? "Saved: the evidence is attached (recorded as attached by a person, not as independent evidence)." : "Saved: the note is recorded."));
+        () => (kind === "evidence" ? "Saved: the evidence is attached (recorded as attached by a person, not as independent evidence)." : "Saved: the note is recorded."))
+        .then((ok) => { if (!ok) undo?.(); });
     }}>
       <div className={s.field}>
         <label className={s.label} htmlFor={`${id}-body`}>{kind === "evidence" ? "Evidence description" : "Note"}</label>
@@ -121,12 +131,15 @@ export function ExceptionNoteForm({ exceptionId, kind }: { exceptionId: string; 
 export function ProposeResolutionForm({ exceptionId, evidence }: { exceptionId: string; evidence: { id: string; label: string }[] }) {
   const x = useMutation(`resolution:${exceptionId}`);
   const id = useId();
+  const opt = useExceptionOptimism();
   return (
     <form className={s.form} autoComplete="off" onSubmit={(ev) => {
       ev.preventDefault();
       const f = new FormData(ev.currentTarget);
+      const undo = opt?.propose(String(f.get("note") ?? ""));
       void x.run("POST", `${API}/resolutions`, { exceptionId, note: String(f.get("note") ?? ""), evidenceIds: f.getAll("evidence").map(String) },
-        (d) => `Sent for approval: version ${String(d?.version ?? "?")} (sha256 ${String(d?.payloadSha256 ?? "").slice(0, 12)}…) is waiting for a different approver.`);
+        (d) => `Sent for approval: version ${String(d?.version ?? "?")} (sha256 ${String(d?.payloadSha256 ?? "").slice(0, 12)}…) is waiting for a different approver.`)
+        .then((ok) => { if (!ok) undo?.(); });
     }}>
       <div className={s.field}>
         <label className={s.label} htmlFor={`${id}-note`}>Proposed resolution</label>

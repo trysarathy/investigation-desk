@@ -98,6 +98,8 @@ export const SHORTCUTS: readonly { keys: string[]; does: string }[] = [
   { keys: ["j"], does: "Next row in a table" },
   { keys: ["k"], does: "Previous row in a table" },
   { keys: ["Enter"], does: "Open the selected row" },
+  { keys: ["a"], does: "Exceptions: assign the selected or open exception (moves to its Owner control)" },
+  { keys: ["e"], does: "Exceptions: add evidence to the selected or open exception" },
   { keys: ["Esc"], does: "Close a dialog" },
 ];
 
