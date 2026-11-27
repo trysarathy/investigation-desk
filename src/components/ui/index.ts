@@ -7,4 +7,5 @@ export { DataTable, type Column, type DataTableProps } from "./DataTable";
 export { CommandPalette, type CommandPaletteProps, type PaletteLink, type PaletteSearchResult } from "./CommandPalette";
 export { ShortcutSheet } from "./ShortcutSheet";
 export { ThemeToggle } from "./ThemeToggle";
+export { NavPendingFrame, startNavigation } from "./NavPending";
 export * from "./logic";

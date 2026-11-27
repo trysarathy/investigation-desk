@@ -6,6 +6,7 @@ import { SignOutButton } from "@/components/control/forms";
 import { MerchantNav } from "@/components/merchant/Nav";
 import { merchantActionsFor, merchantNavFor } from "@/server/merchant-nav";
 import { CommandPalette, LiveRefresh, ShortcutSheet, ThemeToggle } from "@/components/ui";
+import { NavPendingFrame } from "@/components/ui/NavPending";
 import { DataChip } from "@/components/merchant/ui";
 import { DemoBar } from "@/components/merchant/DemoBar";
 import m from "@/components/merchant/merchant.module.css";
@@ -44,7 +45,7 @@ export default async function MerchantLayout({ children }: { children: ReactNode
       </header>
       <aside className={m.demo} aria-label="Data notice"><DataChip label={shell.label} /><DemoBar dataMode={shell.dataMode} who={{ userId: ctx.userId, name: ctx.name, email: ctx.email }} /></aside>
       <MerchantNav items={nav} label={shell.kind === "provider" ? "Provider console" : "Merchant reconciliation"} />
-      <main className={m.mmain} id="main">{children}</main>
+      <main className={m.mmain} id="main"><NavPendingFrame>{children}</NavPendingFrame></main>
       <ShortcutSheet />
       <footer className={m.mfooter}>
         <p>Read-only reconciliation: nothing here moves money or tokens. Provider statuses are claims, not proof{shell.dataMode === "demo" ? "; imported bank statements are not bank-authenticated; chain data in this demo build is recorded (fictional)" : shell.dataMode === "live" ? "; imported bank statements are not bank-authenticated" : "; chain data in this pilot is a recorded fixture"}. {shell.label}.</p>
