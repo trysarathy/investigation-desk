@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-html-link-for-pages -- plain links on purpose: full page loads for the rc5 Control pages */
 "use client";
 
 import { usePathname } from "next/navigation";
