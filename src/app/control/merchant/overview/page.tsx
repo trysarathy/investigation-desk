@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-html-link-for-pages -- plain links on purpose: every page is a full load rendered on the server from the database (as in rc5 Control) */
 import type { Metadata } from "next";
-import { overviewCounts } from "@/server/merchant-ui";
+import { dataAsOf, overviewCounts, sourceFreshness } from "@/server/merchant-ui";
 import { merchantMember } from "@/server/merchant-page";
 import { can } from "@/server/authz";
 import { demoBuild } from "@/server/demo-build";
@@ -8,6 +8,8 @@ import { DEMO_LAST_DAY, DEMO_TODAY } from "@/lib/clearline/demo/clock";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
 import { DecisionChip, EvidenceChip } from "@/components/merchant/ui";
+import { FreshnessStrip } from "@/components/merchant/freshness";
+import { LiveRefresh } from "@/components/ui";
 import { BANK_EVIDENCE_SHORT } from "@/lib/clearline/merchant";
 
 export const metadata: Metadata = { title: "Overview" };
@@ -25,13 +27,14 @@ const STEPS = [
 
 export default async function OverviewPage() {
   const { ctx, shell } = await merchantMember();
-  const c = await overviewCounts(ctx);
+  const [c, fresh] = await Promise.all([overviewCounts(ctx), sourceFreshness(ctx)]);
   const demo = demoBuild() && shell.dataMode === "demo";
   const evaluated = Object.values(c.decisions).reduce((a, x) => a + (x ?? 0), 0);
   return (
     <>
-      <h1 className={s.title}>How Clearline works</h1>
+      <div className={m.titleRow}><h1 className={s.title}>How Clearline works</h1><LiveRefresh /></div>
       <p className={s.lede}>Every stablecoin payment leaves five records in five places. Clearline puts them side by side for each payment, explains every difference in plain English, and asks a person only where the records disagree. It is read-only: it never holds, sends or converts money.</p>
+      <FreshnessStrip provider={fresh.provider} bank={fresh.bank} chain={dataAsOf(shell.entities)} />
       {can(ctx.role, "merchant_upload") ? <p><a className={m.cta} href="/control/merchant/uploads" data-testid="overview-upload-files">Upload files</a> <a href="/control/merchant/getting-started">How to get started</a></p> : null}
 
       <section className={s.section} aria-labelledby="flow-h">
