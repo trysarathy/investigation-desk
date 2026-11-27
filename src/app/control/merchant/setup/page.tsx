@@ -27,7 +27,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   if (!can(ctx.role, "manage_members")) {
     return (<><h1 className={s.title}>Setup</h1><Empty>Only an Admin of this organisation runs its setup.</Empty></>);
   }
-  if (!process.env.DATABASE_PROVISIONING_URL) {
+  if (!process.env.DATABASE_PROVISIONING_URL && process.env.CLEARLINE_DB_FROM_NEON !== "1") {
     return (<><h1 className={s.title}>Setup</h1><Empty>Setup is not available on this deployment: your operator sets up the organisation with the administration command.</Empty></>);
   }
   const v = await orNotFound(setupView(ctx));
@@ -146,7 +146,7 @@ function Step({ step, v }: { step: SetupStep; v: SetupView }) {
     );
     case "members": return (
       <>
-        <p className={s.small}>Invite your team. Each person gets an email with a one-time link (valid three days). Least privilege: an Admin manages members but holds no financial authority; only an Approver approves, and never their own request.</p>
+        <p className={s.small}>Invite your team. Each person gets a one-time link (valid three days): by email when this deployment sends email, otherwise shown to you once to copy. Least privilege: an Admin manages members but holds no financial authority; only an Approver approves, and never their own request.</p>
         <Table caption="Members" head={["Name", "Email", "Role"]} rows={v.members.map((m) => [m.name, m.email, m.revoked ? "Revoked" : isAppRole(m.role) ? ROLE_LABELS[m.role] : m.role])} empty="No member." testid="member-row" />
         <h3 className={s.label}>Pending invitations</h3>
         {v.invitations.length === 0 ? <Empty>No pending invitation.</Empty> : (

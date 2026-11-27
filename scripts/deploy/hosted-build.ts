@@ -8,6 +8,7 @@
  *   (d) first run only: the organisation (CLEARLINE_BOOTSTRAP_ORG_SLUG / _NAME / _TIMEZONE), one entity and its first
  *       Admin (CLEARLINE_BOOTSTRAP_ADMIN_EMAIL, password CLEARLINE_BOOTSTRAP_PASSWORD) through the admin CLI. No demo
  *       or sample data;
+ *       With CLEARLINE_BOOTSTRAP_PLATFORM_OPERATOR=1 that Admin is also made a platform operator (idempotent);
  *   (e) `next build` with the Control pilot on.
  * No password or URL is printed.
  */
@@ -68,6 +69,9 @@ async function main() {
     cli(["create-merchant", slug, "--name", need("CLEARLINE_BOOTSTRAP_ORG_NAME"), "--timezone", tz]);
     cli(["add-entity", slug, env.CLEARLINE_BOOTSTRAP_ENTITY_ID ?? "main", "--name", need("CLEARLINE_BOOTSTRAP_ORG_NAME"), "--currency", env.CLEARLINE_BOOTSTRAP_CURRENCY ?? "SGD", "--timezone", tz]);
     cli(["add-member", slug, need("CLEARLINE_BOOTSTRAP_ADMIN_EMAIL"), "admin", "--name", env.CLEARLINE_BOOTSTRAP_ADMIN_NAME ?? "Admin"], { CLEARLINE_SEED_PASSWORD: need("CLEARLINE_BOOTSTRAP_PASSWORD", 12) });
+    // optional: make that first Admin a platform operator (the platform console, CLEARLINE_PLATFORM_CONSOLE=1, creates
+    // organisations and first-Admin invite links). Only the bootstrap Admin's own email; idempotent.
+    if (env.CLEARLINE_BOOTSTRAP_PLATFORM_OPERATOR === "1") cli(["grant-platform-operator", need("CLEARLINE_BOOTSTRAP_ADMIN_EMAIL")]);
   }
   out(`  database ready in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
 

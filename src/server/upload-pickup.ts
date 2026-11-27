@@ -9,7 +9,7 @@ import { IdempotencyKey, idempotent, serverAudit } from "./control";
 import { RequestRefused } from "./errors";
 import { AccessDenied, requireUnscoped, resolveTenant, withTenant, type TenantContext } from "./tenant";
 import { createUpload, setUploadMapping, validateUpload } from "./uploads";
-import { uploadStorage, type UploadStorage } from "./storage";
+import type { UploadStorage } from "./storage";
 import { PickupUnavailable, pickupSourceFor, type PickupSource, type SourceConfig } from "./pickup/sources";
 import { stampNow } from "./live-clock";
 
@@ -102,7 +102,7 @@ export async function runPickup(db: Db, now: Date, opts: {
   log?: (line: { event: "pickup_source_unavailable" | "pickup_source_done"; orgId: string; sourceId: string; code?: string; counts?: Record<string, number> }) => void;
 } = {}): Promise<PickupRunCounts> {
   const sourceFor = opts.sourceFor ?? ((row: SourceConfig) => pickupSourceFor(row));
-  const storage = opts.storage ?? uploadStorage();
+  const storage = opts.storage; // unset: each upload call uses the configured store, acting for the source's member
   const total: PickupRunCounts = { sources: 0, items: 0, stored: 0, duplicate: 0, refused: 0, validated: 0, unavailable: 0 };
   const due = await db.select({ src: t.uploadPickupSources, slug: t.organizations.slug, email: t.users.email, name: t.users.name }).from(t.uploadPickupSources)
     .innerJoin(t.organizations, eq(t.organizations.id, t.uploadPickupSources.orgId))

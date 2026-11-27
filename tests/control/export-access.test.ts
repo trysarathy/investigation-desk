@@ -22,6 +22,7 @@ import { GET as evidenceGET } from "../../src/app/api/control/merchant/evidence/
 import { GET as journalGET } from "../../src/app/api/control/merchant/journals/export/route";
 import { GET as monthEndGET } from "../../src/app/api/control/merchant/exports/month-end/route";
 import { GET as draftGET } from "../../src/app/api/control/merchant/exports/journal-draft/route";
+import { GET as resultsGET } from "../../src/app/api/control/merchant/exports/results/route";
 
 const ORIGIN = process.env.CLEARLINE_ORIGIN!;
 const SLUG = { sg: MERCHANT_SEED_ORGS.sg.slug, provider: MERCHANT_SEED_ORGS.provider.slug };
@@ -29,7 +30,7 @@ const VIEWER = "viewer@straits-demo.example";
 const ALLOWED = ["finance@straits-demo.example", "approver@straits-demo.example", "admin@straits-demo.example"] as const;
 const MERCHANT_REFUSED = ["ops@straits-demo.example", VIEWER] as const;
 const PROVIDER = ["admin@northwind-pay.example", "ops@northwind-pay.example"] as const;
-const EXPORT_ACTIONS = ["merchant_evidence_pack_exported", "merchant_journal_file_exported", "merchant_journal_draft_exported", "merchant_month_end_pack_exported"];
+const EXPORT_ACTIONS = ["merchant_evidence_pack_exported", "merchant_journal_file_exported", "merchant_journal_draft_exported", "merchant_month_end_pack_exported", "merchant_results_exported"];
 
 let seed: Awaited<ReturnType<typeof seedMerchantCases>>;
 const users: Record<string, string> = {};
@@ -51,6 +52,8 @@ const ENDPOINTS: { name: string; path: string; handler: (req: Request) => Promis
   { name: "month-end pack (ZIP)", path: "/api/control/merchant/exports/month-end?entity=ENT-SG-01&month=2026-11", handler: monthEndGET },
   { name: "draft Xero journal", path: "/api/control/merchant/exports/journal-draft?entity=ENT-SG-01&month=2026-11&tool=xero", handler: draftGET },
   { name: "draft QuickBooks journal", path: "/api/control/merchant/exports/journal-draft?entity=ENT-SG-01&month=2026-11&tool=quickbooks", handler: draftGET },
+  { name: "open exceptions CSV", path: "/api/control/merchant/exports/results?kind=exceptions", handler: resultsGET },
+  { name: "matched payments CSV", path: "/api/control/merchant/exports/results?kind=matched", handler: resultsGET },
 ];
 
 async function signIn(email: string) {

@@ -356,7 +356,7 @@ export interface NormaliseResult { uploadId: string; status: "normalised"; chang
  * Normalise a confirmed upload into the merchant tables. The file is re-read and re-validated: if its validation no
  * longer matches what the confirmer reviewed (e.g. the token configuration changed), nothing is written.
  */
-export async function normaliseUpload(ctx: TenantContext, uploadId: string, idempotencyKey: string, storage: UploadStorage = uploadStorage(), opts: { rowByRow?: boolean } = {}) {
+export async function normaliseUpload(ctx: TenantContext, uploadId: string, idempotencyKey: string, storage: UploadStorage = uploadStorage({ tenant: ctx }), opts: { rowByRow?: boolean } = {}) {
   if (!can(ctx.role, "merchant_upload") && !can(ctx.role, "confirm_import")) throw new AccessDenied(403, `Your role (${ctx.role}) does not allow this.`);
   const key = IdempotencyKey.parse(idempotencyKey);
   return withTenant({ userId: ctx.userId, orgId: ctx.orgId }, (tx) => idempotent(tx, ctx, key, { op: "upload_normalise", uploadId }, async () => {

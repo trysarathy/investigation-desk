@@ -78,7 +78,8 @@ export function FlashMessage({ flashKey }: { flashKey: string }) {
 export function useMutation(flashKey: string) {
   const [outcome, setOutcome] = useState<Outcome>({ kind: "idle" });
   useFlash(flashKey, (message) => setOutcome({ kind: "ok", message }));
-  async function run(method: string, url: string, body: unknown, success: (data: Record<string, unknown> | null) => string) {
+  /** `hold`: when it answers true for the server's data, the page is NOT reloaded (the caller shows that data itself, once). */
+  async function run(method: string, url: string, body: unknown, success: (data: Record<string, unknown> | null) => string, hold?: (data: Record<string, unknown> | null) => boolean) {
     setOutcome({ kind: "pending" });
     let r;
     try { r = await send(method, url, body); } catch {
@@ -86,6 +87,7 @@ export function useMutation(flashKey: string) {
       return false;
     }
     if (!r.ok) { setOutcome({ kind: "error", message: serverMessage(r.status, r.data) }); return false; }
+    if (hold?.(r.data)) { setOutcome({ kind: "idle" }); return true; }
     // The server has confirmed the change: reload so every part of the page shows the stored state, then confirm.
     putFlash(flashKey, success(r.data));
     setOutcome({ kind: "reloading" });

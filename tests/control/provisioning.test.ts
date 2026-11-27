@@ -106,11 +106,11 @@ describe("the provisioning role holds only its function grants", () => {
     expect((await rows(sql`select has_schema_privilege('clearline_provisioning', 'public', 'CREATE') as c`))[0].c).toBe(false);
   });
 
-  it("may execute exactly the 15 prov_* entry points (the internal helpers are not executable), besides what PUBLIC may execute", async () => {
+  it("may execute exactly the 18 prov_* entry points (the internal helpers are not executable), besides what PUBLIC may execute", async () => {
     const fns = (await rows(sql`select p.proname as f from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and p.proname like 'prov\\_%' and has_function_privilege('clearline_provisioning', p.oid, 'EXECUTE') order by 1`)).map((r) => r.f);
     expect(fns).toEqual(["prov_accept_invitation", "prov_add_bank_account", "prov_add_entity", "prov_add_mapping_template", "prov_invite_member", "prov_is_platform_operator",
-      "prov_link_provider", "prov_mark_step", "prov_platform_create_org", "prov_platform_invite_admin", "prov_platform_orgs", "prov_queue_invitation_email", "prov_revoke_invitation", "prov_set_entity_ledger", "prov_setup_state"]);
+      "prov_link_provider", "prov_mark_step", "prov_member_deactivate", "prov_member_invite", "prov_member_revoke_invitation", "prov_platform_create_org", "prov_platform_invite_admin", "prov_platform_orgs", "prov_queue_invitation_email", "prov_revoke_invitation", "prov_set_entity_ledger", "prov_setup_state"]);
     // everything else it may execute, PUBLIC (hence the runtime role) may execute too: nothing extra was granted
     expect(await rows(sql`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname not like 'prov\\_%'
       and has_function_privilege('clearline_provisioning', p.oid, 'EXECUTE') and not has_function_privilege('clearline_runtime', p.oid, 'EXECUTE')`)).toEqual([]);

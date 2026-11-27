@@ -24,6 +24,7 @@ export default async function UploadsPage() {
       <h1 className={s.title}>Uploads</h1>
       <p className={s.lede}>Bring in your own files: provider exports, settlement reports, orders or invoices, and bank statements. You map the columns once, check the validation report, and confirm before anything reaches reconciliation.</p>
       <FlashMessage flashKey="upload:deleted" />
+      <p className={s.lede} data-testid="pilot-upload-notice"><strong>Pilot: anonymised or sample files only until your data agreement is signed.</strong> Need files to try it? <a href="/control/merchant/getting-started#samples">Download sample files</a>.</p>
 
       <section className={s.section} aria-labelledby="new-upload">
         <h2 className={s.h2} id="new-upload">Upload a file</h2>

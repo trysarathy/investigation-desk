@@ -25,7 +25,8 @@ import { seal, tar, type ExportSignature, type TarEntry } from "./archive";
 
 export const EXPORT_FORMAT = "clearline-merchant-export/1";
 /** Columns never exported (credentials or their digests). */
-const REDACTED: Record<string, string[]> = { org_invitations: ["token_sha256"] };
+// upload_blobs.body: the sealed file (CLEARLINE_UPLOAD_STORE=postgres); the file itself is exported under files/
+const REDACTED: Record<string, string[]> = { org_invitations: ["token_sha256"], upload_blobs: ["body"] };
 export const EXCLUDED = [
   "password hashes and sign-in accounts (accounts)",
   "authenticator secrets and recovery codes (two_factors), passkey public keys (passkeys)",
@@ -52,7 +53,7 @@ const jsonl = (rows: unknown[]) => new TextEncoder().encode(rows.map((r) => JSON
 export async function collectMerchantExport(db: Db, slug: string, opts: { storage?: UploadStorage; now?: Date } = {}) {
   const org = await merchant(db, slug);
   const now = opts.now ?? new Date();
-  const storage = opts.storage ?? uploadStorage();
+  const storage = opts.storage ?? uploadStorage({ owner: db });
   const entries: TarEntry[] = [];
   const manifestTables: Record<string, { rows: number; sha256: string }> = {};
   const byTable = new Map<string, unknown[]>();

@@ -28,6 +28,8 @@ export function merchantServerEnv(): Record<string, string> {
     CLEARLINE_ORIGIN: MERCHANT_E2E.origin,
     NEXT_TELEMETRY_DISABLED: "1",
     CLEARLINE_UPLOAD_DIR: MERCHANT_E2E.uploadDir,
+    // v1 overnight: CLEARLINE_MERCHANT_E2E_UPLOAD_STORE=postgres runs the journeys with uploaded files kept in PostgreSQL
+    ...(process.env.CLEARLINE_MERCHANT_E2E_UPLOAD_STORE ? { CLEARLINE_UPLOAD_STORE: process.env.CLEARLINE_MERCHANT_E2E_UPLOAD_STORE } : {}),
     CLEARLINE_UPLOAD_KEY: MERCHANT_E2E.uploadKey,
     CLEARLINE_CHAIN_RECORDING: MERCHANT_E2E.chainRecording,
     // v1 #165: a production server refuses to start without it

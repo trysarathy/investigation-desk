@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import { overviewCounts } from "@/server/merchant-ui";
 import { merchantMember } from "@/server/merchant-page";
+import { can } from "@/server/authz";
 import { demoBuild } from "@/server/demo-build";
 import { DEMO_LAST_DAY, DEMO_TODAY } from "@/lib/clearline/demo/clock";
 import s from "@/components/control/control.module.css";
@@ -31,6 +32,7 @@ export default async function OverviewPage() {
     <>
       <h1 className={s.title}>How Clearline works</h1>
       <p className={s.lede}>Every stablecoin payment leaves five records in five places. Clearline puts them side by side for each payment, explains every difference in plain English, and asks a person only where the records disagree. It is read-only: it never holds, sends or converts money.</p>
+      {can(ctx.role, "merchant_upload") ? <p><a className={m.cta} href="/control/merchant/uploads" data-testid="overview-upload-files">Upload files</a> <a href="/control/merchant/getting-started">How to get started</a></p> : null}
 
       <section className={s.section} aria-labelledby="flow-h">
         <h2 className={s.h2} id="flow-h">The five records of one payment</h2>

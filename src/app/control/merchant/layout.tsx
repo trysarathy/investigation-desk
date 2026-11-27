@@ -9,6 +9,7 @@ import { DemoBar } from "@/components/merchant/DemoBar";
 import m from "@/components/merchant/merchant.module.css";
 
 const MERCHANT_NAV: NavItem[] = [
+  { href: "/control/merchant/getting-started", label: "Get started" },
   { href: "/control/merchant/overview", label: "Overview" },
   { href: "/control/merchant", label: "Daily report" },
   { href: "/control/merchant/payments", label: "Payments" },
@@ -48,7 +49,7 @@ export default async function MerchantLayout({ children }: { children: ReactNode
   // v1 phase 1.4: the access review, for an Admin of the merchant or the provider with access to every entity
   const review = can(ctx.role, "access_review") && ctx.entityScope === null ? [{ href: "/control/merchant/access-review", label: "Access review" }] : [];
   // v1 phase 4: an Auditor sees only its own page
-  const nav = can(ctx.role, "audit_download") ? [{ href: "/control/merchant/audit", label: "Audit" }] : shell.kind === "merchant" ? [...merchantNav, ...(can(ctx.role, "manage_members") ? [...(process.env.DATABASE_PROVISIONING_URL && ctx.entityScope === null ? [{ href: "/control/merchant/setup", label: "Setup" }] : []), { href: "/control/merchant/admin", label: "Admin" }] : []), ...review] : [...PROVIDER_NAV, ...review];
+  const nav = can(ctx.role, "audit_download") ? [{ href: "/control/merchant/audit", label: "Audit" }] : shell.kind === "merchant" ? [...merchantNav, ...(can(ctx.role, "manage_members") ? [...((process.env.DATABASE_PROVISIONING_URL || process.env.CLEARLINE_DB_FROM_NEON === "1") && ctx.entityScope === null ? [{ href: "/control/merchant/setup", label: "Setup" }] : []), { href: "/control/merchant/admin", label: "Admin" }] : []), ...review] : [...PROVIDER_NAV, ...review];
   const unread = shell.kind === "merchant" ? await unreadCount(ctx) : 0;
   return (
     <div className={m.mroot} style={vars}>

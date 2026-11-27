@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { exceptionsView } from "@/server/merchant-ui";
 import { merchantMember } from "@/server/merchant-page";
+import { can } from "@/server/authz";
 import { pageNow } from "@/server/demo-build";
 import s from "@/components/control/control.module.css";
 import { Chip, Empty, age } from "@/components/merchant/ui";
@@ -15,6 +16,7 @@ export default async function ExceptionsPage() {
     <>
       <h1 className={s.title}>Exceptions</h1>
       <p className={s.lede}>Every open exception has an owner, a plain-English reason and a next step. Open one to assign it, add a note, attach evidence or propose a resolution for a second person to approve.</p>
+      {can(ctx.role, "merchant_export") ? <p className={s.small}>Download: <a href="/api/control/merchant/exports/results?kind=exceptions" data-testid="export-exceptions-csv">open exceptions (CSV)</a> · <a href="/api/control/merchant/exports/results?kind=matched" data-testid="export-matched-csv">matched payments (CSV)</a></p> : null}
       <section className={s.section} aria-labelledby="open">
         <h2 className={s.h2} id="open">Open exceptions ({v.exceptions.length})</h2>
         {v.exceptions.length === 0 ? <Empty>No open exceptions{shell.entities.length ? "" : " (no entities yet)"}.</Empty> : (

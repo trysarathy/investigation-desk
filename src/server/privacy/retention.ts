@@ -54,7 +54,7 @@ export async function runRetention(db: Db, o: RetentionOptions): Promise<Retenti
   const years = o.auditYears ?? AUDIT_RETENTION_YEARS;
   if (!Number.isInteger(years) || years < 1) throw new Error("audit retention is at least one whole year");
   const cutoff = cutoffOf(now, years);
-  const storage = o.storage ?? uploadStorage();
+  const storage = o.storage ?? uploadStorage({ owner: db });
   let counts: Record<string, number> = {};
   const record = async (status: "done" | "failed", errorCode: string | null) => {
     const [r] = await db.insert(t.retentionRuns).values({ startedAt, finishedAt: new Date(), asOf: now, dryRun, status, counts, errorCode }).returning({ id: t.retentionRuns.id });
