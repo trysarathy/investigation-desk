@@ -70,7 +70,7 @@
 .menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 200px; max-height: 320px; overflow: auto; background: var(--cl-surface); color: var(--cl-text); border: 1px solid var(--cl-border); border-radius: 8px; box-shadow: var(--cl-shadow); padding: 6px; display: grid; gap: 2px; }
 .menu label { display: flex; gap: 8px; align-items: center; padding: 4px 6px; border-radius: 4px; font-size: 13px; cursor: pointer; min-height: 24px; }
 .menu label:hover { background: var(--cl-sunk); }
-.scroller { overflow: auto; border: 1px solid var(--cl-border); border-radius: 6px; background: var(--cl-surface); max-width: 100%; }
+.scroller { position: relative; overflow: auto; border: 1px solid var(--cl-border); border-radius: 6px; background: var(--cl-surface); max-width: 100%; }
 .table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; color: var(--cl-text); }
 .table caption { text-align: left; padding: 8px 10px; color: var(--cl-muted); font-size: 12px; caption-side: top; }
 .table th, .table td { text-align: left; vertical-align: middle; padding: 0 10px; height: var(--cl-row-h); border-bottom: 1px solid var(--cl-border); white-space: nowrap; }
