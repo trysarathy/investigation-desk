@@ -606,12 +606,19 @@ export async function listMerchantPayments(ctx: TenantContext, filters: z.input<
  * record (decision, difference types, networks, tokens, batches, hashes, age); deposit addresses are read for every
  * order only when a search needs them.
  */
-export async function merchantPaymentsPage(ctx: TenantContext, filters: z.input<typeof PaymentFilters>, opts: { orders?: string[]; page: number; pageSize: number }) {
+export async function merchantPaymentsPage(ctx: TenantContext, filters: z.input<typeof PaymentFilters>, opts: {
+  orders?: string[]; page: number; pageSize: number;
+  /** The age reference, when it is still being read (the page shell's dataAsOf): awaited only when ages are needed, so the scan can start at once. Overrides filters.asOf. */
+  asOfLater?: Promise<string | null | undefined>;
+}) {
   require(ctx, "read");
   const f = PaymentFilters.parse(filters);
   if (f.entityId !== undefined) requireEntity(ctx, f.entityId);
-  const asOf = f.asOf ? Date.parse(f.asOf) : Date.now();
+  const asOfNow = f.asOf ? Date.parse(f.asOf) : Date.now();
+  const asOfOf = async () => { if (!opts.asOfLater) return asOfNow; const a = await opts.asOfLater; return a ? Date.parse(a) : Date.now(); };
+  const ageFilter = f.minAgeDays !== undefined || f.maxAgeDays !== undefined;
   return tenantRead(ctx, async (tx) => {
+    let asOf = ageFilter ? await asOfOf() : asOfNow;
     const proj = {
       orderId: t.matchRecords.orderId, decision: t.matchRecords.decision,
       diffs: sql<string[] | null>`jsonb_path_query_array(${t.matchRecords.explanation}, '$.differences[*].type')`,
@@ -649,6 +656,7 @@ export async function merchantPaymentsPage(ctx: TenantContext, filters: z.input<
       .where(and(eq(t.matchRecords.orgId, ctx.orgId), inArray(t.matchRecords.orderId, ids))) : [];
     const byId = new Map(full.map(({ m, inv }) => [m.orderId, { inv, rec: { orderId: m.orderId, decision: m.decision as MatchDecision, ruleId: m.ruleId, chain: m.chain, provider: m.provider, ledger: m.ledger, explanation: m.explanation } as StoredRecord, m }]));
     const pageDeposits = deposits ?? await depositsByOrder(tx, ctx.orgId, ids);
+    if (!ageFilter) asOf = await asOfOf();
     const rows = ids.map((id) => byId.get(id)!).map((r) => paymentRow(label, r, pageDeposits.get(r.rec.orderId) ?? [], asOf));
     // the stored records of the rows shown, for their record summaries (partsSummaryOf in merchant-ui)
     return { total: filtered.length, shown: shown.length, pages, pageNo, rows, records: ids.map((id) => byId.get(id)!.m) };

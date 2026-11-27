@@ -65,6 +65,16 @@ describe("payments page: one page computed, identical output", () => {
     expect(compared).toBeGreaterThan(500);
   }, 120_000);
 
+  it("is identical when the age reference arrives later (the page passes the shell's dataAsOf as a promise)", async () => {
+    const asOf = "2026-11-27T00:00:00.000Z";
+    for (const f of [{}, { minAgeDays: 2 }, { maxAgeDays: 3, result: "exception" as const }, { search: "BK-248" }]) {
+      const later = await merchantPaymentsPage(fin, f, { page: 1, pageSize: 10, asOfLater: new Promise((r) => setTimeout(() => r(asOf), 20)) });
+      const now = await merchantPaymentsPage(fin, { ...f, asOf }, { page: 1, pageSize: 10 });
+      expect(later).toEqual(now);
+      expect({ total: later.total, rows: later.rows }).toEqual(await oldPage(fin, { ...f, asOf }, [], 1, 10).then((o) => ({ total: o.total, rows: o.rows })));
+    }
+  });
+
   it("is identical for an entity-scoped member", async () => {
     // the scope is applied as the database applies it: the same membership, narrowed to one entity
     const scoped: TenantContext = { ...fin, entityScope: ["ENT-SG-01"] };

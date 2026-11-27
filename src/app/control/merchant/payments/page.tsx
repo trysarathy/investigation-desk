@@ -4,6 +4,7 @@ import { DIFFERENCE_TYPES } from "@/server/db/merchant-schema";
 import { PaymentFilters, merchantPaymentsPage } from "@/server/merchant";
 import { batchIds, dataAsOf, partsSummaryOf } from "@/server/merchant-ui";
 import { merchantMember } from "@/server/merchant-page";
+import { pageContext } from "@/server/control-page";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
 import { Empty, differenceLabel, one } from "@/components/merchant/ui";
@@ -19,18 +20,24 @@ const num = (v: string | undefined) => (v && /^\d{1,4}$/.test(v) ? Number(v) : u
 const PAGE = 100;
 
 export default async function PaymentsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const { ctx, shell } = await merchantMember();
+  // the payments scan starts at once, beside the page shell (the shell's dataAsOf, the age reference, is awaited only
+  // where ages are needed); the access checks below still run before anything is shown
+  const member = merchantMember();
   const sp = await searchParams;
-  const asOf = dataAsOf(shell.entities);
   const f = PaymentFilters.safeParse({
     entityId: one(sp.entity), result: one(sp.result), differenceType: one(sp.difference), network: one(sp.network), token: one(sp.token), batchId: one(sp.batch),
-    minAgeDays: num(one(sp.minAge)), maxAgeDays: num(one(sp.maxAge)), search: one(sp.search), ...(asOf ? { asOf } : {}),
+    minAgeDays: num(one(sp.minAge)), maxAgeDays: num(one(sp.maxAge)), search: one(sp.search),
   });
-  const filters = f.success ? f.data : {};
   const orders = (one(sp.orders) ?? "").split(",").map((x) => x.trim()).filter(Boolean).slice(0, 200);
+  const asOfLater = member.then((r) => dataAsOf(r.shell.entities));
   // only the page shown is computed in full (its records, deposit addresses and record summaries); the filters and
   // the counts still cover every payment
-  const [pg, batches] = await Promise.all([merchantPaymentsPage(ctx, filters, { orders, page: num(one(sp.page)) ?? 1, pageSize: PAGE }), batchIds(ctx)]);
+  const pgP = pageContext().then((c) => merchantPaymentsPage(c, f.success ? f.data : {}, { orders, page: num(one(sp.page)) ?? 1, pageSize: PAGE, ...(f.success ? { asOfLater } : {}) }));
+  pgP.catch(() => undefined);
+  const { ctx, shell } = await member;
+  const asOf = dataAsOf(shell.entities);
+  const filters = f.success ? { ...f.data, ...(asOf ? { asOf } : {}) } : {};
+  const [pg, batches] = await Promise.all([pgP, batchIds(ctx)]);
   const active = Object.values(filters).some((v) => v !== undefined && v !== asOf) || orders.length > 0;
   const { pages, pageNo } = pg;
   const total = pg.total, shownCount = pg.shown;
