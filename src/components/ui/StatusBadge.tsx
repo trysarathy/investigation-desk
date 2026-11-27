@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { IconAlert, IconBank, IconCheck, IconCheckDiff, IconCircleDash, IconClock, IconEye, IconFile, IconSeal, IconTwoPerson } from "./icons";
+import { BANK_EVIDENCE_RANK, BANK_EVIDENCE_SHORT, type BankEvidenceLevel } from "@/lib/clearline/merchant/types";
 import u from "./ui.module.css";
 
 /** The six states. The engine's decision names are accepted as they are stored ("suggested_for_review" = needs review). */
@@ -34,17 +35,22 @@ export function StatusBadge({ kind, label, wrap, title, className, ...rest }: Ba
 }
 
 /**
- * Bank evidence levels (src/lib/clearline/merchant/types.ts BankEvidenceLevel) plus "imported" (an imported line not yet
- * confirmed by a second person). bank_authenticated is RESERVED: nothing produces it yet.
+ * Bank evidence levels (src/lib/clearline/merchant/types.ts BankEvidenceLevel, ranked by BANK_EVIDENCE_RANK) plus
+ * "imported" (an imported line not yet confirmed by a second person). The top level (rank 2, bank-authenticated) is
+ * RESERVED: nothing produces it yet, so this file only derives its badge from the level's own definitions.
  */
-export type EvidenceLevel = "none" | "imported" | "imported_two_person_confirmed" | "bank_authenticated";
+export type EvidenceLevel = BankEvidenceLevel | "imported";
 
-const EVIDENCE: Record<EvidenceLevel, { cls: string; word: string; icon: () => ReactNode }> = {
-  none: { cls: u["ev-none"], word: "Bank evidence: none", icon: () => <IconCircleDash /> },
-  imported: { cls: u["ev-imported"], word: "Bank evidence: imported, not yet confirmed", icon: () => <IconFile /> },
-  imported_two_person_confirmed: { cls: u["ev-two-person"], word: "Bank evidence: imported, second-person confirmed", icon: () => <IconTwoPerson /> },
-  bank_authenticated: { cls: u["ev-bank"], word: "Bank evidence: bank-authenticated", icon: () => <IconBank /> },
+type Look = { cls: string; word: string; icon: () => ReactNode };
+const BY_RANK: Record<number, Omit<Look, "word">> = {
+  0: { cls: u["ev-none"], icon: () => <IconCircleDash /> },
+  1: { cls: u["ev-two-person"], icon: () => <IconTwoPerson /> },
+  2: { cls: u["ev-bank"], icon: () => <IconBank /> },
 };
+const EVIDENCE = Object.fromEntries([
+  ...(Object.keys(BANK_EVIDENCE_RANK) as BankEvidenceLevel[]).map((l) => [l, { ...BY_RANK[BANK_EVIDENCE_RANK[l]], word: BANK_EVIDENCE_SHORT[l] }]),
+  ["imported", { cls: u["ev-imported"], word: "Bank evidence: imported, not yet confirmed", icon: () => <IconFile /> }],
+]) as Record<EvidenceLevel, Look>;
 
 export const EVIDENCE_WORDS: Readonly<Record<EvidenceLevel, string>> = Object.fromEntries(Object.entries(EVIDENCE).map(([k, v]) => [k, v.word])) as Record<EvidenceLevel, string>;
 
