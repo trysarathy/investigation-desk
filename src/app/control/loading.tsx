@@ -1,6 +1,7 @@
 import s from "@/components/control/control.module.css";
+import { PageSkeleton } from "@/components/ui/Skeleton";
 
-/** Shown while a Control page loads (instead of the legacy app's skeleton from src/app/loading.tsx). */
+/** Shown while a Control page loads: shaped like a page (title and table), never a full-page spinner. */
 export default function ControlLoading() {
-  return <main className={s.main} aria-busy="true"><p className={s.muted}>Loading…</p></main>;
+  return <main className={s.main} aria-busy="true"><PageSkeleton label="Loading…" /></main>;
 }

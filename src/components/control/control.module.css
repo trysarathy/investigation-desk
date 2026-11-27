@@ -19,32 +19,33 @@
  *   rule     #8A8273 on paper / panel     3.58:1 / 3.80:1   input borders (non-text, ≥ 3:1)
  */
 .root {
-  --paper: #faf8f3;
-  --panel: #ffffff;
-  --sunk: #f3efe6;
-  --ink: #141414;
-  --muted: #57524a;
-  --oxblood: #7a1f1f;
-  --warn-bg: #f6eae7;
-  --green: #2f5d50;
-  --ok-bg: #e7f0ec;
-  --rule: #8a8273;
-  --hairline: #e2dccf;
+  /* v1 design-fluid: the Control tokens now follow the theme (globals.css --cl-*; ratios in docs/design/TOKENS.md). */
+  --paper: var(--cl-bg);
+  --panel: var(--cl-surface);
+  --sunk: var(--cl-sunk);
+  --ink: var(--cl-text);
+  --muted: var(--cl-muted);
+  --oxblood: var(--cl-st-exception-fg);
+  --warn-bg: var(--cl-st-exception-bg);
+  --green: var(--cl-st-matched-fg);
+  --ok-bg: var(--cl-st-matched-bg);
+  --rule: var(--cl-border-strong);
+  --hairline: var(--cl-border);
+  --on-ink: var(--cl-on-strong);
   --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-  --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --sans: var(--cl-font-ui);
+  --mono: var(--cl-font-mono);
   min-height: 100vh;
   background: var(--paper);
   color: var(--ink);
   font-family: var(--sans);
   font-size: 15px;
   line-height: 1.5;
-  color-scheme: light;
   overflow-wrap: anywhere;
 }
 .root a { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
 .root a:hover { text-decoration-thickness: 2px; }
-.root :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.root :focus-visible { outline: 2px solid var(--cl-focus); outline-offset: 2px; }
 
 .staging {
   background: var(--sunk);
@@ -121,6 +122,8 @@
 .tableWrap { overflow-x: auto; border: 1px solid var(--hairline); border-radius: 4px; background: var(--panel); }
 .table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .table caption { text-align: left; padding: 10px 12px; color: var(--muted); font-size: 13px; caption-side: top; }
+.table tbody tr { transition: background-color var(--cl-dur-fast) var(--cl-ease); }
+.table tbody tr:hover { background: var(--cl-sunk); }
 .table th, .table td { text-align: left; vertical-align: top; padding: 9px 12px; border-top: 1px solid var(--hairline); }
 .table thead th { background: var(--sunk); color: var(--ink); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; border-top: 0; }
 .table td.num, .table th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -147,9 +150,10 @@
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
 .button {
-  font: inherit; font-weight: 600; font-size: 14px; color: #ffffff; background: var(--ink); border: 1px solid var(--ink);
+  font: inherit; font-weight: 600; font-size: 14px; color: var(--on-ink); background: var(--ink); border: 1px solid var(--ink);
   border-radius: 3px; padding: 8px 14px; cursor: pointer;
 }
+.button, .buttonSecondary, .linkButton, .input, .select, .textarea { transition: background-color var(--cl-dur) var(--cl-ease), border-color var(--cl-dur) var(--cl-ease), color var(--cl-dur) var(--cl-ease); }
 .button:disabled { cursor: progress; opacity: 0.75; }
 .buttonSecondary { color: var(--ink); background: var(--panel); border-color: var(--ink); }
 .buttonDanger { background: var(--oxblood); border-color: var(--oxblood); }
