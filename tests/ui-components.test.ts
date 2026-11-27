@@ -33,7 +33,7 @@ describe("amounts: the exact decimal string, never rounded", () => {
     expect(html).toContain("1,000.005");
     expect(html).toContain("USDT");
     expect(html).toContain('data-amount="1000.005"');
-    expect(renderToStaticMarkup(h(Amount, { minor: "-1999", exponent: 2, currency: "SGD" }))).toMatch(/SGD<\/span>-19\.99/);
+    expect(renderToStaticMarkup(h(Amount, { minor: "-1999", exponent: 2, currency: "SGD" }))).toMatch(/SGD<\/span> -19\.99/);
   });
 });
 

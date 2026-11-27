@@ -29,7 +29,8 @@ export function Amount({ value, minor, exponent, currency, group = false, curren
   const cls = [u.amount, block ? u.amountBlock : "", tone && text.startsWith("-") ? u.negative : "", className ?? ""].filter(Boolean).join(" ");
   return (
     <span className={cls} data-testid={rest["data-testid"]} data-amount={exact} data-currency={currency}>
-      {currencyPosition === "before" ? <>{cur}{text}</> : <>{text}{cur}</>}
+      {/* a real space, so copied or read-out text is "SGD 324.00" (the CSS gap is visual only) */}
+      {currencyPosition === "before" ? <>{cur}{" "}{text}</> : <>{text}{" "}{cur}</>}
     </span>
   );
 }
