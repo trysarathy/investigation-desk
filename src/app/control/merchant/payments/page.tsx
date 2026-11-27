@@ -1,13 +1,13 @@
 /* eslint-disable @next/next/no-html-link-for-pages -- plain links on purpose: every page is a full load rendered on the server from the database (as in rc5 Control) */
 import type { Metadata } from "next";
 import { DIFFERENCE_TYPES } from "@/server/db/merchant-schema";
-import { PaymentFilters, listMerchantPayments } from "@/server/merchant";
-import { batchIds, dataAsOf, partsSummaries } from "@/server/merchant-ui";
+import { PaymentFilters, merchantPaymentsPage } from "@/server/merchant";
+import { batchIds, dataAsOf, partsSummaryOf } from "@/server/merchant-ui";
 import { merchantMember } from "@/server/merchant-page";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
-import { NEEDS_A_RATE } from "@/lib/clearline/merchant/fiat-value";
-import { BankChip, ChainChip, DecisionChip, Empty, LedgerChip, ProviderChip, differenceLabel, fiat, one } from "@/components/merchant/ui";
+import { Empty, differenceLabel, one } from "@/components/merchant/ui";
+import { PaymentsTable } from "@/components/merchant/payments-table";
 
 export const metadata: Metadata = { title: "Payments" };
 
@@ -28,12 +28,13 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   });
   const filters = f.success ? f.data : {};
   const orders = (one(sp.orders) ?? "").split(",").map((x) => x.trim()).filter(Boolean).slice(0, 200);
-  const [rows, parts, batches] = await Promise.all([listMerchantPayments(ctx, filters), partsSummaries(ctx), batchIds(ctx)]);
-  const shown = orders.length ? rows.filter((r) => orders.includes(r.orderId)) : rows;
+  // only the page shown is computed in full (its records, deposit addresses and record summaries); the filters and
+  // the counts still cover every payment
+  const [pg, batches] = await Promise.all([merchantPaymentsPage(ctx, filters, { orders, page: num(one(sp.page)) ?? 1, pageSize: PAGE }), batchIds(ctx)]);
   const active = Object.values(filters).some((v) => v !== undefined && v !== asOf) || orders.length > 0;
-  const pages = Math.max(1, Math.ceil(shown.length / PAGE));
-  const pageNo = Math.min(pages, Math.max(1, num(one(sp.page)) ?? 1));
-  const visible = shown.slice((pageNo - 1) * PAGE, pageNo * PAGE);
+  const { pages, pageNo } = pg;
+  const total = pg.total, shownCount = pg.shown;
+  const visible = pg.rows.map((r, i) => ({ ...r, parts: partsSummaryOf(pg.records[i]) }));
   const pageHref = (n: number) => {
     const u = new URLSearchParams();
     for (const [k, v] of Object.entries(sp)) { const x = one(v); if (x && k !== "page") u.set(k, x); }
@@ -68,36 +69,13 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         <div className={s.row}><button type="submit" className={s.button}>Apply filters</button>{active ? <a href="/control/merchant/payments">Clear</a> : null}</div>
       </form>
       {!f.success ? <p role="alert" className={`${s.result} ${s.resultError}`}>Some filters were not valid and were ignored.</p> : null}
-      <p className={s.small} role="status" data-testid="payments-count">{shown.length} of {rows.length} payments{orders.length ? ` (the ${orders.length} payments behind one bridge line)` : ""}. Age is measured from the latest data ({asOf ? asOf.slice(0, 10) : "none"}){shell.dataMode !== "sample" ? "." : ", so illustrative data ages the same way every day."}</p>
-      {shown.length === 0 ? <Empty>{rows.length === 0 && !active ? "No payments are reconciled yet. Run reconciliation from the daily report." : "No payment matches these filters."}</Empty> : (
-        <div className={s.tableWrap} role="region" aria-label="Payments table" tabIndex={0}>
-          <table className={s.table}>
-            <thead><tr><th scope="col">Order</th><th scope="col">Entity</th><th scope="col" className={s.num}>Invoice</th><th scope="col">Explanation</th><th scope="col">Chain</th><th scope="col">Provider</th><th scope="col">Bank</th><th scope="col">Ledger</th><th scope="col">Differences</th><th scope="col" className={s.num}>Age</th></tr></thead>
-            <tbody>
-              {visible.map((r) => (
-                <tr key={r.orderId}>
-                  <td><a href={`/control/merchant/payments/${encodeURIComponent(r.orderId)}`}>{r.orderId}</a></td>
-                  <td className={s.mono}>{r.entityId}</td>
-                  <td className={s.num} data-testid="invoice-amount">{"priceToken" in r && r.priceToken
-                    // v1 (#173): a token-priced invoice shows its fiat value at a recorded rate, or "needs a rate" (never 0)
-                    ? (r.fiatValueMinor !== null ? <>{fiat(r.fiatValueMinor, r.currency)} <span className={s.muted}>(priced in a token)</span></> : <>{NEEDS_A_RATE} <span className={s.muted}>(priced in a token)</span></>)
-                    : fiat(r.invoiceMinor, r.currency)}</td>
-                  <td><DecisionChip decision={r.decision} /></td>
-                  <td><ChainChip p={parts.get(r.orderId)} /></td>
-                  <td><ProviderChip p={parts.get(r.orderId)} /></td>
-                  <td><BankChip p={parts.get(r.orderId)} /></td>
-                  <td><LedgerChip p={parts.get(r.orderId)} /></td>
-                  <td>{r.differenceTypes.length ? r.differenceTypes.map(differenceLabel).join(", ") : <span className={s.muted}>None</span>}</td>
-                  <td className={s.num}>{r.ageDays} d</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <p className={s.small} role="status" data-testid="payments-count">{shownCount} of {total} payments{orders.length ? ` (the ${orders.length} payments behind one bridge line)` : ""}. Age is measured from the latest data ({asOf ? asOf.slice(0, 10) : "none"}){shell.dataMode !== "sample" ? "." : ", so illustrative data ages the same way every day."}</p>
+      {shownCount === 0 ? <Empty>{total === 0 && !active ? "No payments are reconciled yet. Run reconciliation from the daily report." : "No payment matches these filters."}</Empty> : (
+        <PaymentsTable rows={visible} />
       )}
       {pages > 1 ? (
         <nav className={m.pager} aria-label="Pages of payments" data-testid="payments-pager">
-          <span className={s.small}>Showing {(pageNo - 1) * PAGE + 1}–{Math.min(pageNo * PAGE, shown.length)} of {shown.length} · page {pageNo} of {pages}</span>
+          <span className={s.small}>Showing {(pageNo - 1) * PAGE + 1}–{Math.min(pageNo * PAGE, shownCount)} of {shownCount} · page {pageNo} of {pages}</span>
           {pageNo > 1 ? <a href={pageHref(pageNo - 1)} rel="prev">Previous page</a> : null}
           {pageNo < pages ? <a href={pageHref(pageNo + 1)} rel="next">Next page</a> : null}
         </nav>

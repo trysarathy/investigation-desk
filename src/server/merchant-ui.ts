@@ -790,6 +790,17 @@ export async function orgKind(ctx: TenantContext): Promise<{ kind: "merchant" | 
 
 export interface PartsSummary { chain: { transfers: number; pending: number; networks: string[] }; provider: { claims: string[]; records: number }; bank: { status: string; tied: boolean; verified: boolean; imported: boolean; evidence: BankEvidenceLevel; evidenceLabel: string; settled: boolean }; ledger: { state: string; label: string } }
 
+/** One order's record summary: what each of the five parts says on its own (never merged into one status). */
+export function partsSummaryOf(m: typeof t.matchRecords.$inferSelect): PartsSummary {
+  const p = partsOf(m);
+  return {
+    chain: { transfers: p.chain.transfers.length, pending: p.chain.pending.length, networks: [...new Set(p.chain.transfers.map((x) => x.network))] },
+    provider: { claims: [...new Set(p.provider.records.map((r) => r.statusClaim))], records: p.provider.records.length },
+    bank: { status: p.bank.status, tied: p.bank.batchTied, verified: p.bank.settlementVerified, imported: p.bank.bankLineLabels.length > 0, evidence: p.bank.evidence, evidenceLabel: BANK_EVIDENCE_SHORT[p.bank.evidence], settled: p.bank.settled },
+    ledger: { state: p.ledger.balanceState, label: p.ledger.balanceLabel },
+  };
+}
+
 /** Per order: what each of the five parts says on its own (never merged into one status). */
 export async function partsSummaries(ctx: TenantContext): Promise<Map<string, PartsSummary>> {
   require(ctx, "read");
@@ -797,14 +808,6 @@ export async function partsSummaries(ctx: TenantContext): Promise<Map<string, Pa
     const ms = (await tx.select({ m: t.matchRecords, entityId: t.invoices.entityId }).from(t.matchRecords)
       .innerJoin(t.invoices, and(eq(t.invoices.orgId, t.matchRecords.orgId), eq(t.invoices.orderId, t.matchRecords.orderId)))
       .where(eq(t.matchRecords.orgId, ctx.orgId))).filter((x) => inEntityScope(ctx, x.entityId)).map((x) => x.m);
-    return new Map(ms.map((m) => {
-      const p = partsOf(m);
-      return [m.orderId, {
-        chain: { transfers: p.chain.transfers.length, pending: p.chain.pending.length, networks: [...new Set(p.chain.transfers.map((x) => x.network))] },
-        provider: { claims: [...new Set(p.provider.records.map((r) => r.statusClaim))], records: p.provider.records.length },
-        bank: { status: p.bank.status, tied: p.bank.batchTied, verified: p.bank.settlementVerified, imported: p.bank.bankLineLabels.length > 0, evidence: p.bank.evidence, evidenceLabel: BANK_EVIDENCE_SHORT[p.bank.evidence], settled: p.bank.settled },
-        ledger: { state: p.ledger.balanceState, label: p.ledger.balanceLabel },
-      }];
-    }));
+    return new Map(ms.map((m) => [m.orderId, partsSummaryOf(m)]));
   });
 }

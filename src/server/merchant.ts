@@ -540,38 +540,118 @@ export const PaymentFilters = z.object({
   minAgeDays: z.number().int().min(0).optional(), maxAgeDays: z.number().int().min(0).optional(), asOf: z.string().optional(), search: z.string().trim().max(200).optional(),
 }).strict();
 
+type PaymentFilter = z.output<typeof PaymentFilters>;
+type StoredRow = Awaited<ReturnType<typeof storedRecords>>[number];
+
+/** One payments-list row from its stored record and invoice (the same shape for the full list and for one page). */
+function paymentRow(label: string, { rec, inv }: Pick<StoredRow, "rec" | "inv">, deposit: string[], asOf: number) {
+  const tr = rec.chain.transfers;
+  // v1 (#173): a token-priced invoice's fiat value only from a recorded rate; without one its amounts are null and
+  // fiatValueStatus says "needs_rate" (never 0)
+  const unk = unknownFiat(rec.ledger);
+  return {
+    label, orderId: rec.orderId, entityId: inv.entityId, decision: rec.decision, ruleId: rec.ruleId, invoiceMinor: inv.amountMinor === null ? null : inv.amountMinor.toString(), currency: inv.currency,
+    // v1: a token-priced invoice has no fiat price; its token price (base units) is given instead
+    ...(inv.priceTokenAmount !== null ? { priceToken: { network: inv.priceNetwork, contract: inv.priceTokenContract, baseUnits: String(inv.priceTokenAmount) },
+      fiatValueStatus: rec.ledger.fiatValue?.status ?? NEEDS_RATE_STATUS, fiatValueMinor: rec.ledger.fiatValue?.status === "rated" ? String(rec.ledger.fiatValue.amountMinor) : null } : {}),
+    creditedMinor: rec.ledger.creditedMinor, openBalanceMinor: minorOrNull(unk.open, rec.ledger.openBalanceMinor), balanceLabel: rec.ledger.balanceLabel,
+    differenceTypes: [...new Set(rec.explanation.differences.map((d) => d.type))], networks: [...new Set(tr.map((x) => x.network))],
+    tokens: [...new Set(tr.flatMap((x) => [x.symbol, x.tokenContract]))], batchIds: [...new Set(rec.provider.records.map((r) => r.batchId).filter((x): x is string => !!x))],
+    txHashes: tr.map((x) => x.txHash), depositAddresses: deposit, ageDays: Math.floor((asOf - inv.issuedAt.getTime()) / 86_400_000),
+  };
+}
+export type MerchantPaymentRow = ReturnType<typeof paymentRow>;
+
+/** The fields the payment filters read (a payments-list row has every one of them). */
+type Filterable = Pick<MerchantPaymentRow, "orderId" | "decision" | "differenceTypes" | "networks" | "tokens" | "batchIds" | "ageDays" | "txHashes" | "depositAddresses">;
+function paymentFilter(f: PaymentFilter) {
+  const q = f.search?.toLowerCase();
+  return (r: Filterable) => (!f.result || r.decision === f.result) && (!f.differenceType || r.differenceTypes.includes(f.differenceType))
+    && (!f.network || r.networks.includes(f.network)) && (!f.token || r.tokens.some((x) => x.toLowerCase() === f.token!.toLowerCase())) && (!f.batchId || r.batchIds.includes(f.batchId))
+    && (f.minAgeDays === undefined || r.ageDays >= f.minAgeDays) && (f.maxAgeDays === undefined || r.ageDays <= f.maxAgeDays)
+    && (!q || [r.orderId, ...r.txHashes, ...r.depositAddresses].some((x) => x.toLowerCase().includes(q)));
+}
+
+/** Deposit addresses by order, from their sealed copies (v1 Phase 5.3), quotes first then links, in stored order. */
+async function depositsByOrder(tx: Tx, orgId: string, orderIds?: string[]): Promise<Map<string, string[]>> {
+  if (orderIds && orderIds.length === 0) return new Map();
+  const qw = orderIds ? and(eq(t.merchantQuotes.orgId, orgId), inArray(t.merchantQuotes.orderId, orderIds)) : eq(t.merchantQuotes.orgId, orgId);
+  const lw = orderIds ? and(eq(t.paymentLinks.orgId, orgId), inArray(t.paymentLinks.orderId, orderIds)) : eq(t.paymentLinks.orgId, orgId);
+  const quotes = await openRows(tx, orgId, "merchant_quotes", await tx.select().from(t.merchantQuotes).where(qw));
+  const links = await openRows(tx, orgId, "payment_links", await tx.select().from(t.paymentLinks).where(lw));
+  const out = new Map<string, string[]>();
+  const add = (o: string | null, a: string) => { if (o === null) return; const xs = out.get(o); if (xs) xs.push(a); else out.set(o, [a]); };
+  for (const q of quotes) add(q.orderId, q.depositAddress);
+  for (const l of links) add(l.orderId, l.depositAddress);
+  return out;
+}
+
 export async function listMerchantPayments(ctx: TenantContext, filters: z.input<typeof PaymentFilters> = {}) {
   require(ctx, "read");
   const f = PaymentFilters.parse(filters);
   if (f.entityId !== undefined) requireEntity(ctx, f.entityId);
   const asOf = f.asOf ? Date.parse(f.asOf) : Date.now();
   return tenantRead(ctx, async (tx) => {
-    // v1 Phase 5.3: deposit addresses from their sealed copies
-    const quotes = await openRows(tx, ctx.orgId, "merchant_quotes", await tx.select().from(t.merchantQuotes).where(eq(t.merchantQuotes.orgId, ctx.orgId)));
-    const links = await openRows(tx, ctx.orgId, "payment_links", await tx.select().from(t.paymentLinks).where(eq(t.paymentLinks.orgId, ctx.orgId)));
+    const deposits = await depositsByOrder(tx, ctx.orgId);
     const label = await orgLabel(tx, ctx.orgId);
-    const rows = (await storedRecords(tx, ctx.orgId, f.entityId)).filter(({ inv }) => inEntityScope(ctx, inv.entityId)).map(({ rec, inv }) => {
-      const tr = rec.chain.transfers;
-      // v1 (#173): a token-priced invoice's fiat value only from a recorded rate; without one its amounts are null and
-      // fiatValueStatus says "needs_rate" (never 0)
-      const unk = unknownFiat(rec.ledger);
-      const deposit = [...quotes.filter((q) => q.orderId === rec.orderId).map((q) => q.depositAddress), ...links.filter((l) => l.orderId === rec.orderId).map((l) => l.depositAddress)];
-      return {
-        label, orderId: rec.orderId, entityId: inv.entityId, decision: rec.decision, ruleId: rec.ruleId, invoiceMinor: inv.amountMinor === null ? null : inv.amountMinor.toString(), currency: inv.currency,
-        // v1: a token-priced invoice has no fiat price; its token price (base units) is given instead
-        ...(inv.priceTokenAmount !== null ? { priceToken: { network: inv.priceNetwork, contract: inv.priceTokenContract, baseUnits: String(inv.priceTokenAmount) },
-          fiatValueStatus: rec.ledger.fiatValue?.status ?? NEEDS_RATE_STATUS, fiatValueMinor: rec.ledger.fiatValue?.status === "rated" ? String(rec.ledger.fiatValue.amountMinor) : null } : {}),
-        creditedMinor: rec.ledger.creditedMinor, openBalanceMinor: minorOrNull(unk.open, rec.ledger.openBalanceMinor), balanceLabel: rec.ledger.balanceLabel,
-        differenceTypes: [...new Set(rec.explanation.differences.map((d) => d.type))], networks: [...new Set(tr.map((x) => x.network))],
-        tokens: [...new Set(tr.flatMap((x) => [x.symbol, x.tokenContract]))], batchIds: [...new Set(rec.provider.records.map((r) => r.batchId).filter((x): x is string => !!x))],
-        txHashes: tr.map((x) => x.txHash), depositAddresses: deposit, ageDays: Math.floor((asOf - inv.issuedAt.getTime()) / 86_400_000),
-      };
-    });
-    const q = f.search?.toLowerCase();
-    return rows.filter((r) => (!f.result || r.decision === f.result) && (!f.differenceType || r.differenceTypes.includes(f.differenceType))
-      && (!f.network || r.networks.includes(f.network)) && (!f.token || r.tokens.some((x) => x.toLowerCase() === f.token!.toLowerCase())) && (!f.batchId || r.batchIds.includes(f.batchId))
-      && (f.minAgeDays === undefined || r.ageDays >= f.minAgeDays) && (f.maxAgeDays === undefined || r.ageDays <= f.maxAgeDays)
-      && (!q || [r.orderId, ...r.txHashes, ...r.depositAddresses].some((x) => x.toLowerCase().includes(q))));
+    const rows = (await storedRecords(tx, ctx.orgId, f.entityId)).filter(({ inv }) => inEntityScope(ctx, inv.entityId)).map((r) => paymentRow(label, r, deposits.get(r.rec.orderId) ?? [], asOf));
+    return rows.filter(paymentFilter(f));
+  });
+}
+
+/**
+ * One page of the payments list, computed for that page only: the same rows, values, order and counts as
+ * listMerchantPayments (then the `orders` restriction, then the page slice), but the full stored records, deposit
+ * addresses and record summaries are read only for the rows shown. The filters run on a light projection of every
+ * record (decision, difference types, networks, tokens, batches, hashes, age); deposit addresses are read for every
+ * order only when a search needs them.
+ */
+export async function merchantPaymentsPage(ctx: TenantContext, filters: z.input<typeof PaymentFilters>, opts: { orders?: string[]; page: number; pageSize: number }) {
+  require(ctx, "read");
+  const f = PaymentFilters.parse(filters);
+  if (f.entityId !== undefined) requireEntity(ctx, f.entityId);
+  const asOf = f.asOf ? Date.parse(f.asOf) : Date.now();
+  return tenantRead(ctx, async (tx) => {
+    const proj = {
+      orderId: t.matchRecords.orderId, decision: t.matchRecords.decision,
+      diffs: sql<string[] | null>`jsonb_path_query_array(${t.matchRecords.explanation}, '$.differences[*].type')`,
+      networks: sql<string[] | null>`jsonb_path_query_array(${t.matchRecords.chain}, '$.transfers[*].network')`,
+      symbols: sql<string[] | null>`jsonb_path_query_array(${t.matchRecords.chain}, '$.transfers[*].symbol')`,
+      contracts: sql<string[] | null>`jsonb_path_query_array(${t.matchRecords.chain}, '$.transfers[*].tokenContract')`,
+      hashes: sql<string[] | null>`jsonb_path_query_array(${t.matchRecords.chain}, '$.transfers[*].txHash')`,
+      batches: sql<(string | null)[] | null>`jsonb_path_query_array(${t.matchRecords.provider}, '$.records[*].batchId')`,
+    };
+    // The invoice side (entity and issue date) is read for every record only when something needs it: an entity
+    // filter, an age filter, an entity-scoped or auditor membership. Otherwise every stored record has its invoice
+    // (the match_records_invoice_fk foreign key) under the same organisation policy, so the rows are the same, and the
+    // invoices of the rows shown are read with their full records below.
+    const needInvoice = f.entityId !== undefined || f.minAgeDays !== undefined || f.maxAgeDays !== undefined || ctx.entityScope !== null || !!ctx.audit || ctx.role === "auditor";
+    const light: { orderId: string; decision: string; issuedAt: Date | null; diffs: string[] | null; networks: string[] | null; symbols: string[] | null; contracts: string[] | null; hashes: string[] | null; batches: (string | null)[] | null }[] = needInvoice
+      ? (await tx.select({ ...proj, entityId: t.invoices.entityId, issuedAt: t.invoices.issuedAt }).from(t.matchRecords)
+        .innerJoin(t.invoices, and(eq(t.invoices.orgId, t.matchRecords.orgId), eq(t.invoices.orderId, t.matchRecords.orderId)))
+        .where(and(eq(t.matchRecords.orgId, ctx.orgId), ...(f.entityId ? [eq(t.invoices.entityId, f.entityId)] : []))).orderBy(asc(t.matchRecords.orderId)))
+        .filter((r) => inEntityScope(ctx, r.entityId))
+      : (await tx.select(proj).from(t.matchRecords).where(eq(t.matchRecords.orgId, ctx.orgId)).orderBy(asc(t.matchRecords.orderId))).map((r) => ({ ...r, issuedAt: null }));
+    const deposits = f.search ? await depositsByOrder(tx, ctx.orgId) : null;
+    const keep = paymentFilter(f);
+    const filtered = light.filter((r) => keep({
+      orderId: r.orderId, decision: r.decision as MatchDecision, differenceTypes: r.diffs ?? [], networks: r.networks ?? [], tokens: [...(r.symbols ?? []), ...(r.contracts ?? [])],
+      batchIds: (r.batches ?? []).filter((x): x is string => !!x), ageDays: r.issuedAt ? Math.floor((asOf - r.issuedAt.getTime()) / 86_400_000) : 0, txHashes: r.hashes ?? [], depositAddresses: deposits?.get(r.orderId) ?? [],
+    })).map((r) => r.orderId);
+    const orders = opts.orders ?? [];
+    const shown = orders.length ? filtered.filter((o) => orders.includes(o)) : filtered;
+    const pages = Math.max(1, Math.ceil(shown.length / opts.pageSize));
+    const pageNo = Math.min(pages, Math.max(1, opts.page));
+    const ids = shown.slice((pageNo - 1) * opts.pageSize, pageNo * opts.pageSize);
+    const label = await orgLabel(tx, ctx.orgId);
+    const full = ids.length ? await tx.select({ m: t.matchRecords, inv: t.invoices }).from(t.matchRecords)
+      .innerJoin(t.invoices, and(eq(t.invoices.orgId, t.matchRecords.orgId), eq(t.invoices.orderId, t.matchRecords.orderId)))
+      .where(and(eq(t.matchRecords.orgId, ctx.orgId), inArray(t.matchRecords.orderId, ids))) : [];
+    const byId = new Map(full.map(({ m, inv }) => [m.orderId, { inv, rec: { orderId: m.orderId, decision: m.decision as MatchDecision, ruleId: m.ruleId, chain: m.chain, provider: m.provider, ledger: m.ledger, explanation: m.explanation } as StoredRecord, m }]));
+    const pageDeposits = deposits ?? await depositsByOrder(tx, ctx.orgId, ids);
+    const rows = ids.map((id) => byId.get(id)!).map((r) => paymentRow(label, r, pageDeposits.get(r.rec.orderId) ?? [], asOf));
+    // the stored records of the rows shown, for their record summaries (partsSummaryOf in merchant-ui)
+    return { total: filtered.length, shown: shown.length, pages, pageNo, rows, records: ids.map((id) => byId.get(id)!.m) };
   });
 }
 
