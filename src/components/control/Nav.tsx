@@ -1,6 +1,6 @@
+/* eslint-disable @next/next/no-html-link-for-pages -- plain links on purpose: full page loads for the rc5 Control pages */
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import s from "./control.module.css";
 
@@ -14,17 +14,15 @@ const ITEMS = [
   { href: "/control/settings", label: "Settings" },
 ];
 
-/** v1 design-fluid: next/link (prefetched on hover or focus: layout and loading state only, never stale data) for the menu routes; every Control page is still rendered on the server for each request. */
+/** The rc5 Control pages keep full page loads (plain links): a client navigation here could stop half-way on the pilot build (Control journey, design-fluid). The merchant workspace menu uses client navigation with its own skeleton. */
 export function ControlNav() {
   const path = usePathname() ?? "";
-  // no prefetch: every page is rendered for its request, so a hover prefetch only rendered the shell a second time
-  // (measured: menu click to page ready 882 ms with it); the skeleton replaces the old page at once instead
   const current = (href: string) => (href === "/control" ? path === "/control" : path === href || path.startsWith(`${href}/`));
   return (
     <nav className={s.nav} aria-label="Clearline Control">
       <ul className={s.navList}>
         {ITEMS.map((i) => (
-          <li key={i.href}><Link href={i.href} prefetch={false} aria-current={current(i.href) ? "page" : undefined}>{i.label}</Link></li>
+          <li key={i.href}><a href={i.href} aria-current={current(i.href) ? "page" : undefined}>{i.label}</a></li>
         ))}
       </ul>
     </nav>

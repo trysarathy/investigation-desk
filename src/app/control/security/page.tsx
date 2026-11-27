@@ -124,7 +124,7 @@ export default async function SecurityPage({ searchParams }: { searchParams: Pro
           <div className={x.after}><ActionButton url="/api/control/security/revoke-other-sessions" label="Sign out all other sessions" done="Every other session is signed out." flashKey="sessions" variant="secondary" /></div>
         </section>
 
-        {!mustEnrol && !mustVerify ? <p><a className={x.linkButton} href="/control">Continue to Clearline Control</a></p> : null}
+        {!mustEnrol && !mustVerify ? <p><a className={x.linkButton} href="/control/home">Continue to Clearline Control</a></p> : null}
       </main>
     </>
   );

@@ -66,7 +66,7 @@ export function JsonForm({ flashKey, url, fields, submit, success, extra, varian
   const [issued, setIssued] = useState<IssuedLink | null>(null);
   if (issued) return <OneTimeLink issued={issued} onDone={() => { setIssued(null); window.location.reload(); }} />;
   return (
-    <form className={s.form} autoComplete="off" onSubmit={(ev) => {
+    <form method="post" className={s.form} autoComplete="off" onSubmit={(ev) => {
       ev.preventDefault();
       const f = new FormData(ev.currentTarget);
       const body: Record<string, string> = { ...extra };
@@ -104,7 +104,7 @@ export function JsonForm({ flashKey, url, fields, submit, success, extra, varian
 export function ActionButton({ flashKey, url, body, label, success, variant }: { flashKey: string; url: string; body: Record<string, string>; label: string; success: string; variant?: "secondary" | "danger" }) {
   const x = useMutation(flashKey);
   return (
-    <form autoComplete="off" onSubmit={(ev) => { ev.preventDefault(); void x.run("POST", url, body, () => success); }}>
+    <form method="post" autoComplete="off" onSubmit={(ev) => { ev.preventDefault(); void x.run("POST", url, body, () => success); }}>
       <Submit busy={x.busy} variant={variant}>{label}</Submit>
       <Result outcome={x.outcome} />
     </form>
@@ -150,7 +150,7 @@ export function AcceptInvitationForm() {
     );
   }
   return (
-    <form className={s.form} autoComplete="off" onSubmit={onSubmit}>
+    <form method="post" className={s.form} autoComplete="off" onSubmit={onSubmit}>
       <div className={s.field}>
         <label className={s.label} htmlFor="invite-name">Your name</label>
         <input className={s.input} id="invite-name" name="name" type="text" autoComplete="name" maxLength={200} aria-describedby="invite-name-hint" />

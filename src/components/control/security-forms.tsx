@@ -56,7 +56,7 @@ export function TwoFactorChallenge() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   async function done(r: { ok: boolean; status: number; data: Json }) {
-    if (r.ok) { window.location.assign("/control"); return; }
+    if (r.ok) { window.location.assign("/control/home"); return; }
     setError(r.status === 401 && /COOKIE/.test(JSON.stringify(r.data)) ? "This sign-in has expired. Sign in with your password again." : message(r, "That code is not right. Try again."));
     setBusy(false);
   }
@@ -74,7 +74,7 @@ export function TwoFactorChallenge() {
   }
   return (
     <>
-      <form className={s.form} autoComplete="off" onSubmit={onSubmit}>
+      <form method="post" className={s.form} autoComplete="off" onSubmit={onSubmit}>
         <div className={s.field}>
           <label className={s.label} htmlFor="code">{mode === "totp" ? "6-digit code from your authenticator app" : "Recovery code"}</label>
           <input className={s.input} id="code" name="code" required autoComplete="one-time-code" {...(mode === "totp" ? { inputMode: "numeric" as const, pattern: "[0-9 ]{6,7}", maxLength: 7 } : { maxLength: 20 })} />
@@ -105,7 +105,7 @@ export function ForgotPasswordForm() {
     setBusy(false);
   }
   return (
-    <form className={s.form} onSubmit={onSubmit}>
+    <form method="post" className={s.form} onSubmit={onSubmit}>
       <div className={s.field}>
         <label className={s.label} htmlFor="email">Email</label>
         <input className={s.input} id="email" name="email" type="email" autoComplete="username" required />
@@ -137,7 +137,7 @@ export function ResetPasswordForm() {
   if (token === undefined) return null;
   if (!token) return <p role={note ? "status" : "alert"} className={`${s.result} ${note?.ok ? s.resultOk : s.resultError}`}>{note?.text ?? "This page needs the link from your reset e-mail."} <a href="/control/sign-in">Sign in</a></p>;
   return (
-    <form className={s.form} onSubmit={onSubmit}>
+    <form method="post" className={s.form} onSubmit={onSubmit}>
       <div className={s.field}>
         <label className={s.label} htmlFor="password">New password</label>
         <input className={s.input} id="password" name="password" type="password" autoComplete="new-password" required minLength={12} maxLength={128} aria-describedby="pw-hint" />
@@ -216,7 +216,7 @@ export function EnrolTotp() {
   }
   if (saved) return <Codes codes={saved} />;
   if (!step) return (
-    <form className={s.form} onSubmit={start} aria-label="Set up an authenticator app">
+    <form method="post" className={s.form} onSubmit={start} aria-label="Set up an authenticator app">
       <div className={s.field}>
         <label className={s.label} htmlFor="enrol-password">Your password</label>
         <input className={s.input} id="enrol-password" name="password" type="password" autoComplete="current-password" required />
@@ -226,7 +226,7 @@ export function EnrolTotp() {
     </form>
   );
   return (
-    <form className={s.form} onSubmit={confirm} aria-label="Confirm the authenticator app">
+    <form method="post" className={s.form} onSubmit={confirm} aria-label="Confirm the authenticator app">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={step.qr} width={200} height={200} alt="QR code to scan with your authenticator app" />
       <p className={s.small}>Can’t scan it? Enter this key in the app: <code className={s.mono} data-testid="totp-secret">{step.secret}</code></p>
@@ -265,7 +265,7 @@ export function StepUp({ mfaEnrolled, hasPasskey }: { mfaEnrolled: boolean; hasP
   }
   const label = !mfaEnrolled ? "Your password" : recovery ? "Recovery code" : "6-digit code from your authenticator app";
   return (
-    <form className={s.form} onSubmit={onSubmit} aria-label="Confirm it is you">
+    <form method="post" className={s.form} onSubmit={onSubmit} aria-label="Confirm it is you">
       <div className={s.field}>
         <label className={s.label} htmlFor="step-up">{label}</label>
         <input className={s.input} id="step-up" name="secret" required {...(!mfaEnrolled ? { type: "password", autoComplete: "current-password" } : { autoComplete: "one-time-code", inputMode: recovery ? undefined : ("numeric" as const) })} />
@@ -296,7 +296,7 @@ export function RegenerateCodes() {
   }
   if (codes) return <Codes codes={codes} />;
   return (
-    <form className={s.form} onSubmit={onSubmit} aria-label="New recovery codes">
+    <form method="post" className={s.form} onSubmit={onSubmit} aria-label="New recovery codes">
       <div className={s.field}>
         <label className={s.label} htmlFor="codes-password">Your password</label>
         <input className={s.input} id="codes-password" name="password" type="password" autoComplete="current-password" required />
@@ -325,7 +325,7 @@ export function AddPasskey() {
     } catch { setError("The passkey was not created."); }
   }
   return (
-    <form className={s.form} onSubmit={onSubmit} aria-label="Add a passkey">
+    <form method="post" className={s.form} onSubmit={onSubmit} aria-label="Add a passkey">
       <div className={s.field}>
         <label className={s.label} htmlFor="pk-name">Name for this passkey</label>
         <input className={s.input} id="pk-name" name="name" required maxLength={60} placeholder="Work laptop" />
@@ -351,7 +351,7 @@ export function OrgMfaPolicyForm({ requireAll }: { requireAll: boolean }) {
   const m = useMutation("org-mfa-policy");
   const [value, setValue] = useState(requireAll);
   return (
-    <form className={s.form} onSubmit={(ev) => { ev.preventDefault(); void m.run("POST", "/api/control/security/org-mfa-policy", { requireMfaAll: value }, () => (value ? "Every member now needs multi-factor sign-in." : "Only Admins and Approvers now need multi-factor sign-in.")); }}>
+    <form method="post" className={s.form} onSubmit={(ev) => { ev.preventDefault(); void m.run("POST", "/api/control/security/org-mfa-policy", { requireMfaAll: value }, () => (value ? "Every member now needs multi-factor sign-in." : "Only Admins and Approvers now need multi-factor sign-in.")); }}>
       <label className={s.check}><input type="checkbox" checked={value} onChange={(e) => setValue(e.target.checked)} /> Require multi-factor sign-in for every member (Admins and Approvers always need it)</label>
       <div><Submit busy={m.busy} variant="secondary">Save sign-in policy</Submit></div>
       <Result outcome={m.outcome} />
