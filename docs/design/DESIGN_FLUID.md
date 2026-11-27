@@ -14,9 +14,9 @@ Progress, decisions and measurements are added here as the work lands; the PR bo
   `x-clearline-control-theme`); otherwise a nonce'd boot script applies localStorage or prefers-color-scheme.
 - Shared components in `src/components/ui` (Amount, StatusBadge, EvidenceBadge, Mono, HashLink, CopyButton, Skeleton,
   LiveRefresh, DataTable, CommandPalette, ShortcutSheet, ThemeToggle, NavPendingFrame).
-- Navigation: menu links are next/link, prefetched on hover or focus only. A full prefetch of these dynamic pages could
-  show data from before a change, and prefetching every menu route on every view would render the merchant layout
-  (its database reads) ~17 times per page. On a menu click the page being left is replaced by the loading skeleton at
-  once (NavPendingFrame), so nobody acts on it while the new page renders on the server.
+- Navigation: the menus stay plain links (full server-rendered loads). Client navigation with next/link was built and
+  measured, and was slower here: menu click to page ready 853 ms median (bimodal ~400/~880 ms as the dynamic page streamed
+  in) against a steady ~400-500 ms for a full load; hover prefetch rendered the shell twice (882 ms). The palette, the
+  shortcut keys and the in-page links still navigate on the client.
 - Palette search: `GET /api/control/merchant/search?q=` through `read()` (session, tenant, MFA gate) and `withTenant`
   (RLS), with entity scope; `tests/control/palette-search.test.ts` proves org B never sees org A's ids.
