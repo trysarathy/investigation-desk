@@ -10,7 +10,8 @@ import m from "@/components/merchant/merchant.module.css";
 import g from "@/components/merchant/screens-g2.module.css";
 import { FlashMessage } from "@/components/control/forms";
 import { MappingForm } from "@/components/merchant/upload-forms";
-import { RunReconciliation } from "@/components/merchant/forms";
+import { RunReconciliationLive } from "@/components/merchant/run-progress";
+import { RUN_STAGES } from "@/server/merchant";
 import { DeleteUpload, NormaliseUpload, UploadDecisionForm, ValidateUpload } from "@/components/merchant/upload-review-forms";
 import { Chip, Empty, one, q } from "@/components/merchant/ui";
 import { fieldOf, type Mapping } from "@/lib/clearline/mapping";
@@ -192,7 +193,7 @@ export default async function UploadPage({ params, searchParams }: { params: Pro
         ) : u.status === "normalised" ? (
           <div className={s.panel} data-testid="in-reconciliation">
             <p>In reconciliation{w.confirmedByName ? ` (confirmed by ${w.confirmedByName})` : ""}. Run reconciliation for {w.entity.name} to match it with the other records, then read the <a href={`/control/merchant${q({ entity: u.entityId })}`}>daily report</a> or the <a href={`/control/merchant/payments${q({ entity: u.entityId })}`}>payments</a>.</p>
-            {can(ctx.role, "merchant_reconcile") ? <RunReconciliation entityId={u.entityId} entityName={w.entity.name} /> : <p className={s.small}>Payment Operations or Finance run reconciliation.</p>}
+            {can(ctx.role, "merchant_reconcile") ? <RunReconciliationLive entityId={u.entityId} entityName={w.entity.name} steps={RUN_STAGES} /> : <p className={s.small}>Payment Operations or Finance run reconciliation.</p>}
           </div>
         ) : u.status === "rejected" ? <p>Declined{w.confirmedByName ? ` by ${w.confirmedByName}` : ""}: nothing from this file is imported.</p>
           : <p className={s.small}>Validate the upload first; then it can be confirmed.</p>}

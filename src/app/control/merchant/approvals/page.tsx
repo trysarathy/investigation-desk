@@ -9,8 +9,8 @@ import { SubmitWriteoff } from "@/components/merchant/forms";
 import { Chip, Empty, differenceLabel, whenIn } from "@/components/merchant/ui";
 import { ApprovalCard } from "@/components/merchant/approval-card";
 import { StaticTable } from "@/components/merchant/StaticTable";
-import { Amount, CopyButton, LiveRefresh, Mono, StatusBadge } from "@/components/ui";
-import { FIAT_DECIMALS } from "@/lib/clearline/merchant/config";
+import { CopyButton, LiveRefresh, Mono, StatusBadge } from "@/components/ui";
+import { FiatAmount } from "@/components/merchant/FiatAmount";
 import g from "@/components/merchant/screens-g2.module.css";
 import { when } from "@/components/control/ui";
 
@@ -19,8 +19,7 @@ export const metadata: Metadata = { title: "Approvals" };
 type WoPayload = { amountMinor: string; currency: string; orderId: string; differences: { id: string; type: string; amountMinor: string; reason: string }[]; matchDecision: string | null };
 type ResPayload = { exception: { id: string; orderId: string | null; reason: string; nextStep: string }; note: string; evidence: { id: string; body: string; reference: string | null }[]; match: { decision: string } | null };
 
-/** An exact amount in its currency (minor units, the currency's own decimals): never through a float. */
-const amt = (minor: string, currency: string) => <Amount minor={minor} exponent={FIAT_DECIMALS[currency as keyof typeof FIAT_DECIMALS] ?? 2} currency={currency} group />;
+const amt = (minor: string, currency: string) => <FiatAmount minor={minor} currency={currency} />;
 
 export default async function ApprovalsPage() {
   const { ctx, shell } = await merchantMember();

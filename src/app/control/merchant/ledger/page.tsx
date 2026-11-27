@@ -7,6 +7,8 @@ import { ledgerAccountMap, listLedgerConnections, listLedgerDrafts, postingRules
 import { ledgerEnv } from "@/lib/accounting/connect/providers";
 import s from "@/components/control/control.module.css";
 import { Chip, Empty, one } from "@/components/merchant/ui";
+import { Mono } from "@/components/ui";
+import g from "@/components/merchant/screens-g2.module.css";
 import { EntityMonthForm, pickEntityMonth } from "@/components/merchant/EntityMonth";
 import { AccountMapForm, ChooseTenantForm, ConnectButton, DisconnectButton, DraftJournalButton, ReadInvoicesForm } from "@/components/merchant/ledger-forms";
 
@@ -51,7 +53,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
         {live.length === 0 ? <Empty>No ledger is connected.</Empty> : live.map((c) => (
           <article className={s.panel} key={c.id} data-testid={`ledger-${c.provider}`}>
             <h3 className={s.h3}>{NAME[c.provider]} <Chip tone={STATUS[c.status].tone} testId={`ledger-status-${c.provider}`}>{STATUS[c.status].label}</Chip> {c.env === "standin" ? <Chip tone="amber">Stand-in</Chip> : <Chip tone="amber">Sandbox</Chip>}</h3>
-            {c.tenantName ? <p className={s.small}>Organisation: {c.tenantName}{c.baseCurrency ? ` · base currency ${c.baseCurrency}` : ""}</p> : null}
+            {c.tenantName ? <p className={s.small}>Organisation: {c.tenantName}{c.baseCurrency ? <> · base currency <Mono>{c.baseCurrency}</Mono></> : null}</p> : null}
             {c.status === "active" ? <p className={s.small}>Access renews automatically before it expires{c.refreshExpiresAt ? `; reconnect before ${c.refreshExpiresAt.slice(0, 10)}` : ""}.</p> : null}
             {c.status === "needs_reconnect" ? <p role="alert" className={`${s.result} ${s.resultError}`}>{c.reconnectReason ?? "The ledger no longer accepts this connection."}</p> : null}
             {c.status === "needs_reconnect" && mayConnect ? <ConnectButton provider={c.provider} reconnect /> : null}
@@ -73,9 +75,9 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
           <span className={s.small}>{signed ? "Journal proposals may be written to Xero as drafts; a person posts them in Xero." : "Nothing is written to a ledger until the posting rules are signed. Use the accounting export file meanwhile."}</span></p>
         {pick && xero && mayPrepare ? <EntityMonthForm action="/control/merchant/ledger" entities={shell.entities} entity={pick.entity} month={pick.month} label="Choose entity and month" /> : null}
         {xero && mayPrepare ? (proposals.length === 0 ? <Empty>No proposed journals for this entity and month.</Empty> : (
-          <ul>{proposals.map((j) => {
+          <ul className={g.downloadList}>{proposals.map((j) => {
             const d = drafts.find((x) => x.proposalId === j.id && x.connectionId === xero.id);
-            return <li key={j.id}><span className={s.mono}>{j.id}</span> {d ? <Chip tone={d.status === "drafted" ? "ok" : d.status === "failed" ? "warn" : "amber"}>{d.status === "drafted" ? `Draft ${d.externalId}` : d.status}</Chip> : null}
+            return <li key={j.id}><Mono>{j.id}</Mono> {d ? <Chip tone={d.status === "drafted" ? "ok" : d.status === "failed" ? "warn" : "amber"}>{d.status === "drafted" ? `Draft ${d.externalId}` : d.status}</Chip> : null}
               {signed && d?.status !== "drafted" ? <DraftJournalButton connectionId={xero.id} proposalId={j.id} /> : null}</li>;
           })}</ul>)) : <p className={s.small}>{mayPrepare ? "Connect Xero to write drafts." : "Finance writes drafts."}</p>}
       </section>
