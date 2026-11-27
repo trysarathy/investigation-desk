@@ -9,7 +9,7 @@ import m from "@/components/merchant/merchant.module.css";
 import { ScheduleForm } from "@/components/merchant/forms";
 import { RunReconciliationLive } from "@/components/merchant/run-progress";
 import { StaticTable } from "@/components/merchant/StaticTable";
-import { LiveRefresh, Mono } from "@/components/ui";
+import { Mono } from "@/components/ui";
 import g from "@/components/merchant/screens-g2.module.css";
 import { JobQueue, QueueRun } from "@/components/merchant/job-queue";
 import { listJobs } from "@/server/job-queue";
@@ -37,7 +37,7 @@ export default async function RunsPage() {
   const ents = shell.entities;
   return (
     <>
-      <div className={g.toolbar}><h1 className={s.title} style={{ margin: 0 }}>Runs</h1><LiveRefresh /></div>
+      <h1 className={s.title}>Runs</h1>
       <p className={s.lede}>Each reconciliation run: when it ran, why, under which rules, and what it decided. A run on the same data under the same rules writes nothing and says &ldquo;No change&rdquo;. Payments a person closed are never changed by a run.</p>
       {can(ctx.role, "merchant_upload") ? <p><a className={m.cta} href="/control/merchant/uploads" data-testid="runs-upload-files">Upload files</a></p> : null}
 

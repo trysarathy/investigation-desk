@@ -9,7 +9,7 @@ import { SubmitWriteoff } from "@/components/merchant/forms";
 import { Chip, Empty, differenceLabel, whenIn } from "@/components/merchant/ui";
 import { ApprovalCard } from "@/components/merchant/approval-card";
 import { StaticTable } from "@/components/merchant/StaticTable";
-import { CopyButton, LiveRefresh, Mono, StatusBadge } from "@/components/ui";
+import { CopyButton, Mono, StatusBadge } from "@/components/ui";
 import { FiatAmount } from "@/components/merchant/FiatAmount";
 import g from "@/components/merchant/screens-g2.module.css";
 import { when } from "@/components/control/ui";
@@ -32,7 +32,7 @@ export default async function ApprovalsPage() {
   const mayPropose = can(ctx.role, "propose_writeoff");
   return (
     <>
-      <div className={g.toolbar}><h1 className={s.title} style={{ margin: 0 }}>Approvals</h1><LiveRefresh /></div>
+      <h1 className={s.title}>Approvals</h1>
       <p className={s.lede}>Write-offs and resolutions wait here for a <strong>different</strong> person with the Approver role. The approver decides the exact version they reviewed: its SHA-256 goes with the decision, and the server and the database refuse any other version, or a decision by the person who prepared it.</p>
       {closed.slice(0, 20).map((r) => <FlashMessage key={r.id} flashKey={`decision:${r.id}`} />)}
       {pending.filter((r) => r.kind === "merchant_writeoff").map((r) => <FlashMessage key={r.id} flashKey={`writeoff:${r.subjectId}`} />)}

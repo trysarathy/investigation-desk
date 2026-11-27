@@ -3,7 +3,7 @@
 .mono { font-family: var(--cl-font-mono); font-variant-numeric: tabular-nums; font-size: 0.92em; }
 
 /* ---------------------------------------------------------------- upload drop zone and progress */
-.drop { grid-template-columns: auto 1fr; align-items: start; gap: 4px 14px; border-color: var(--cl-border-strong); background: var(--cl-surface); transition: border-color var(--cl-dur) var(--cl-ease), background-color var(--cl-dur) var(--cl-ease); }
+.drop { grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 4px 14px; border-color: var(--cl-border-strong); background: var(--cl-surface); transition: border-color var(--cl-dur) var(--cl-ease), background-color var(--cl-dur) var(--cl-ease); }
 .dropOver { border-color: var(--cl-accent); background: var(--cl-sunk); }
 .dropChosen { border-style: solid; }
 .dropIcon { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 8px; background: var(--cl-sunk); color: var(--cl-muted); }
@@ -60,7 +60,7 @@
 .card { transition: opacity var(--cl-dur) var(--cl-ease); }
 .cardPending { opacity: 0.72; }
 .optimistic { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 8px 0 0; padding: 8px 10px; border-radius: var(--cl-radius); border: 1px dashed var(--cl-border-strong); background: var(--cl-sunk); font-size: 13px; }
-.sha { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; max-width: 100%; }
+.sha { position: relative; display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; max-width: 100%; }
 .sha > span:first-child { overflow-wrap: anywhere; }
 
 /* ---------------------------------------------------------------- general */
@@ -77,9 +77,13 @@
 .kpiRow .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .kpiRow .l { font-size: 12.5px; color: var(--cl-muted); }
 .region { max-width: 100%; min-width: 0; }
+/* the DataTable is a grid: keep its one column within the page so wide tables scroll inside their own container */
+.region > div { grid-template-columns: minmax(0, 1fr); }
 .region:focus-visible { outline: 2px solid var(--cl-focus); outline-offset: 2px; }
 .spin { display: inline-block; width: 12px; height: 12px; margin-right: 8px; vertical-align: -1px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: g2spin 0.9s linear infinite; }
 @keyframes g2spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spin { animation: none; border-right-color: currentColor; opacity: 0.6; } }
 .wrapCell { white-space: normal; min-width: 16ch; display: inline-block; }
 .breakAll { overflow-wrap: anywhere; word-break: break-all; }
+@media (max-width: 520px) { .drop { grid-template-columns: minmax(0, 1fr); } .dropIcon { display: none; } }
+.drop input[type="file"] { width: 100%; min-width: 0; }
