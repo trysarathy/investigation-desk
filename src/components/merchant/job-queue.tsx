@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { Result, Submit, useMutation } from "@/components/control/forms";
 import s from "@/components/control/control.module.css";
+import g from "./screens-g2.module.css";
+import { stepProgress } from "./run-progress";
 
 /**
  * v1 phase 3: the job queue on the Runs page. "Run in the background" queues a reconciliation for the worker (the
@@ -41,7 +43,8 @@ export function QueueRun({ entityId }: { entityId: string }) {
 
 const secondsAgo = (iso: string | null, now: number) => (iso ? Math.max(0, Math.round((now - Date.parse(iso)) / 1000)) : null);
 
-export function JobQueue({ initial }: { initial: JobView[] }) {
+/** `steps`: the engine's step list (from the server), so a running reconciliation shows its step and the share of steps done. */
+export function JobQueue({ initial, steps = [] }: { initial: JobView[]; steps?: readonly string[] }) {
   const [jobs, setJobs] = useState<JobView[]>(initial);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -66,7 +69,7 @@ export function JobQueue({ initial }: { initial: JobView[] }) {
       <div className={s.tableWrap} role="region" aria-label="Job queue" tabIndex={0}>
         <table className={s.table} data-testid="job-queue">
           <thead><tr>
-            <th scope="col">Queued</th><th scope="col">Job</th><th scope="col">Entity</th><th scope="col">Why</th><th scope="col">Status</th><th scope="col">Stage</th>
+            <th scope="col">Queued</th><th scope="col">Job</th><th scope="col">Entity</th><th scope="col">Why</th><th scope="col">Status</th><th scope="col">Stage</th><th scope="col">Progress</th>
             <th scope="col" className={s.num}>Attempt</th><th scope="col">Worker heartbeat</th><th scope="col">Steps</th>
           </tr></thead>
           <tbody aria-live="polite">{jobs.map((j) => {
@@ -77,6 +80,16 @@ export function JobQueue({ initial }: { initial: JobView[] }) {
                 <td>{KIND[j.kind] ?? j.kind}</td><td className={s.mono}>{j.entityId ?? "(organisation)"}</td><td>{TRIGGER[j.trigger] ?? j.trigger}</td>
                 <td data-testid="job-status">{STATUS[j.status] ?? j.status}{j.lastErrorCode ? <> · <span className={s.mono}>{j.lastErrorCode}</span></> : null}</td>
                 <td data-testid="job-stage">{j.stage ? STAGE[j.stage] ?? j.stage : j.status === "queued" ? "Waiting for the worker" : "—"}</td>
+                <td data-testid="job-progress">{(() => {
+                  const p = j.kind === "reconcile" ? stepProgress(j.stage, j.status, steps) : null;
+                  if (!p) return "—";
+                  return (
+                    <span className={g.jobProgress}>
+                      <progress className={`${g.bar} ${g.barSm}`} max={100} value={p.pct} aria-label={`${KIND[j.kind] ?? j.kind} ${j.entityId ?? ""}: step ${p.step} of ${p.of}, ${p.pct}% of steps done`} />
+                      <span>{p.step === 0 || p.pct === 100 ? `${p.pct}%` : `Step ${p.step} of ${p.of} · ${p.pct}% done`}</span>
+                    </span>
+                  );
+                })()}</td>
                 <td className={s.num}>{j.attempts}/{j.maxAttempts}{j.recoveries ? ` (taken back ${j.recoveries}×)` : ""}</td>
                 <td>{j.status === "running" && beat !== null ? `${beat} s ago` : "—"}</td>
                 <td className={s.small}>{j.events.filter((e) => e.event !== "heartbeat").map((e) => (e.event === "stage" ? STAGE[e.stage ?? ""] ?? e.stage : e.event)).join(" → ")}</td>

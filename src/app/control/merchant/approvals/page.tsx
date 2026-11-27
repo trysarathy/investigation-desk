@@ -5,14 +5,21 @@ import { merchantMember } from "@/server/merchant-page";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
 import { FlashMessage } from "@/components/control/forms";
-import { MerchantDecisionForm, SubmitWriteoff } from "@/components/merchant/forms";
-import { Chip, Empty, differenceLabel, fiat, whenIn } from "@/components/merchant/ui";
+import { SubmitWriteoff } from "@/components/merchant/forms";
+import { Chip, Empty, differenceLabel, whenIn } from "@/components/merchant/ui";
+import { ApprovalCard } from "@/components/merchant/approval-card";
+import { StaticTable } from "@/components/merchant/StaticTable";
+import { CopyButton, Mono, StatusBadge } from "@/components/ui";
+import { FiatAmount } from "@/components/merchant/FiatAmount";
+import g from "@/components/merchant/screens-g2.module.css";
 import { when } from "@/components/control/ui";
 
 export const metadata: Metadata = { title: "Approvals" };
 
 type WoPayload = { amountMinor: string; currency: string; orderId: string; differences: { id: string; type: string; amountMinor: string; reason: string }[]; matchDecision: string | null };
 type ResPayload = { exception: { id: string; orderId: string | null; reason: string; nextStep: string }; note: string; evidence: { id: string; body: string; reference: string | null }[]; match: { decision: string } | null };
+
+const amt = (minor: string, currency: string) => <FiatAmount minor={minor} currency={currency} />;
 
 export default async function ApprovalsPage() {
   const { ctx, shell } = await merchantMember();
@@ -36,15 +43,15 @@ export default async function ApprovalsPage() {
           const mine = r.requestedBy === ctx.userId;
           const what = r.kind === "merchant_writeoff" ? "write-off" : "resolution";
           return (
-            <article className={s.panel} key={r.id} aria-labelledby={`req-${r.id}`} data-testid="approval-request">
+            <ApprovalCard key={r.id} requestId={r.id} labelledBy={`req-${r.id}`} decide={!mine && mayDecide ? { payloadSha256: r.payloadSha256, version: r.version, what } : null}>
               <h3 className={s.h3} id={`req-${r.id}`}>{r.kind === "merchant_writeoff" ? `Write-off ${r.amount ?? ""}` : `Resolution of ${r.subjectId}`} · version {r.version}</h3>
-              <p className={s.row}><Chip tone="amber">Awaiting approval</Chip><span className={s.small}>Prepared by {r.requestedByName} · {r.kind === "merchant_writeoff" ? whenIn(r.createdAt, zoneOf((r.payload as WoPayload).currency)) : when(r.createdAt)}{r.orderId ? <> · payment <a href={`/control/merchant/payments/${encodeURIComponent(r.orderId)}`}>{r.orderId}</a></> : null}</span></p>
+              <p className={s.row}><StatusBadge kind="needs_review" label="Awaiting approval" /><span className={s.small}>Prepared by {r.requestedByName} · {r.kind === "merchant_writeoff" ? whenIn(r.createdAt, zoneOf((r.payload as WoPayload).currency)) : when(r.createdAt)}{r.orderId ? <> · payment <a href={`/control/merchant/payments/${encodeURIComponent(r.orderId)}`}>{r.orderId}</a></> : null}</span></p>
               {r.kind === "merchant_writeoff" ? (() => {
                 const p = r.payload as WoPayload;
                 return (
                   <div>
-                    <p>Write off <strong>{fiat(p.amountMinor, p.currency)}</strong> on {p.orderId} (payment {p.matchDecision?.replace(/_/g, " ") ?? "—"}).</p>
-                    <ul className={s.small}>{p.differences.map((d) => <li key={d.id}>{differenceLabel(d.type)} {fiat(d.amountMinor, p.currency)}: {d.reason}</li>)}</ul>
+                    <p>Write off <strong>{amt(p.amountMinor, p.currency)}</strong> on {p.orderId} (payment {p.matchDecision?.replace(/_/g, " ") ?? "—"}).</p>
+                    <ul className={s.small}>{p.differences.map((d) => <li key={d.id}>{differenceLabel(d.type)} {amt(d.amountMinor, p.currency)}: {d.reason}</li>)}</ul>
                   </div>
                 );
               })() : (() => {
@@ -63,9 +70,9 @@ export default async function ApprovalsPage() {
                 <pre className={m.pre}>{JSON.stringify(r.payload, null, 2)}</pre>
               </details>
               {mine ? <p className={s.small} data-testid="preparer-note">You prepared this {what}, so you cannot approve it. A different approver must decide.</p>
-                : mayDecide ? <MerchantDecisionForm requestId={r.id} payloadSha256={r.payloadSha256} version={r.version} what={what} />
-                : <><p className={s.small}>SHA-256 <span className={s.mono}>{r.payloadSha256}</span></p><p className={s.small}>Only a person with the Approver role can decide.</p></>}
-            </article>
+                : mayDecide ? null
+                : <><p className={`${s.small} ${g.sha}`}>SHA-256 <Mono>{r.payloadSha256}</Mono> <CopyButton value={r.payloadSha256} label={`Copy SHA-256 ${r.payloadSha256}`} /></p><p className={s.small}>Only a person with the Approver role can decide.</p></>}
+            </ApprovalCard>
           );
         })}
       </section>
@@ -85,19 +92,27 @@ export default async function ApprovalsPage() {
       <section className={s.section} aria-labelledby="closed">
         <h2 className={s.h2} id="closed">Decided and superseded</h2>
         {closed.length === 0 ? <p>None yet.</p> : (
-          <div className={s.tableWrap} role="region" aria-label="Decided and superseded requests table" tabIndex={0}>
-            <table className={s.table}>
-              <thead><tr><th scope="col">Request</th><th scope="col">Status</th><th scope="col">Prepared by</th><th scope="col">Decision</th><th scope="col">SHA-256</th></tr></thead>
-              <tbody>{closed.map((r) => (
-                <tr key={r.id}>
-                  <td>{r.kind === "merchant_writeoff" ? `Write-off ${r.amount ?? ""}` : `Resolution ${r.subjectId}`} v{r.version}</td>
-                  <td><Chip tone={r.status === "approved" ? "ok" : r.status === "rejected" ? "warn" : "plain"}>{r.status}</Chip></td>
-                  <td>{r.requestedByName}</td>
-                  <td>{r.decisions.map((d, i) => <span key={i}>{d.decision === "approve" ? "Approved" : "Rejected"} by {d.by}: {d.reason}</span>)}{r.decisions.length === 0 ? <span className={s.muted}>No decision (a newer version replaced it)</span> : null}</td>
-                  <td className={s.mono}>{r.payloadSha256.slice(0, 16)}…</td>
-                </tr>
-              ))}</tbody>
-            </table>
+          <div role="region" aria-label="Decided and superseded requests table" tabIndex={0} className={g.region}>
+            <StaticTable label="Decided and superseded requests" filterLabel="Filter decided requests"
+              columns={[
+                { id: "request", header: "Request", sortable: true, hideable: false, rowHeader: true },
+                { id: "status", header: "Status", sortable: true },
+                { id: "by", header: "Prepared by", sortable: true },
+                { id: "decision", header: "Decision" },
+                { id: "sha", header: "SHA-256" },
+              ]}
+              rows={closed.map((r) => ({
+                key: r.id,
+                sort: { request: `${r.kind === "merchant_writeoff" ? `Write-off ${r.amount ?? ""}` : `Resolution ${r.subjectId}`} v${r.version}`, status: r.status, by: r.requestedByName,
+                  decision: r.decisions.map((d) => `${d.decision} ${d.by} ${d.reason}`).join(" "), sha: r.payloadSha256 },
+                cells: {
+                  request: <>{r.kind === "merchant_writeoff" ? `Write-off ${r.amount ?? ""}` : `Resolution ${r.subjectId}`} v{r.version}</>,
+                  status: r.status === "approved" ? <StatusBadge kind="approved" label={r.status} /> : r.status === "rejected" ? <StatusBadge kind="exception" label={r.status} /> : <Chip tone="plain">{r.status}</Chip>,
+                  by: r.requestedByName,
+                  decision: <>{r.decisions.map((d, i) => <span key={i}>{d.decision === "approve" ? "Approved" : "Rejected"} by {d.by}: {d.reason}</span>)}{r.decisions.length === 0 ? <span className={s.muted}>No decision (a newer version replaced it)</span> : null}</>,
+                  sha: <span className={g.sha}><Mono title={r.payloadSha256}>{r.payloadSha256.slice(0, 16)}…</Mono><CopyButton value={r.payloadSha256} label={`Copy SHA-256 ${r.payloadSha256}`} /></span>,
+                },
+              }))} />
           </div>
         )}
       </section>

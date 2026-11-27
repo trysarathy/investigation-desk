@@ -7,7 +7,10 @@ import { merchantMember } from "@/server/merchant-page";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
 import { EntityMonthForm, pickEntityMonth } from "@/components/merchant/EntityMonth";
-import { Chip, Empty, PendingSignOff, fiat, one } from "@/components/merchant/ui";
+import { Chip, Empty, PendingSignOff, one } from "@/components/merchant/ui";
+import { FiatAmount } from "@/components/merchant/FiatAmount";
+import { Mono, StatusBadge } from "@/components/ui";
+import g from "@/components/merchant/screens-g2.module.css";
 
 export const metadata: Metadata = { title: "Accounting export" };
 
@@ -47,7 +50,7 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
         {mayExport ? (
           <>
             <p className={s.small}>{js.length} proposals for {entity.id}, {month}, in a {ledger} journal import layout. The export is recorded in the audit history with its SHA-256; it changes no proposal and posts nothing. Marked &ldquo;{SANDBOX_EXPORT_LABEL}&rdquo;.</p>
-            <ul className={m.downloads}>
+            <ul className={`${m.downloads} ${g.downloadList}`}>
               <li><a href={`/api/control/merchant/journals/export?entity=${encodeURIComponent(entity.id)}&month=${month}&format=csv`} download>Download journal CSV (sandbox)</a></li>
               <li><a href={`/api/control/merchant/journals/export?entity=${encodeURIComponent(entity.id)}&month=${month}&format=json`} download>Download journal JSON (sandbox)</a></li>
             </ul>
@@ -63,18 +66,20 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
           const ev = j.evidence as Ev;
           return (
             <article className={s.panel} key={j.id} aria-labelledby={`j-${i}`} data-testid="journal-entry">
-              <h3 className={s.h3} id={`j-${i}`}>{PATTERN[j.pattern] ?? j.pattern} · <span className={s.mono}>{j.id}</span></h3>
-              <p className={s.row}><PendingSignOff /> <Chip>Proposed</Chip> {ev.requiresApprovalOf ? <Chip tone="amber">{ev.requiresApprovalOf.startsWith("resolution:") ? "Post only after the controller's resolution" : "Post only after write-off approval"}</Chip> : null} <span className={s.small}>Entry date {ev.entryDate ?? "when approved"} · rule <span className={s.mono}>{ev.ruleId}</span></span></p>
+              <h3 className={s.h3} id={`j-${i}`}>{PATTERN[j.pattern] ?? j.pattern} · <Mono>{j.id}</Mono></h3>
+              <p className={s.row}><PendingSignOff /> <Chip>Proposed</Chip> {ev.requiresApprovalOf ? <Chip tone="amber">{ev.requiresApprovalOf.startsWith("resolution:") ? "Post only after the controller's resolution" : "Post only after write-off approval"}</Chip> : null} <span className={s.small}>Entry date {ev.entryDate ?? "when approved"} · rule <Mono>{ev.ruleId}</Mono></span></p>
               <p className={s.small}>{ev.memo}</p>
-              <div className={s.tableWrap} role="region" aria-label={`Lines of ${j.id}`} tabIndex={0}>
-                <table className={s.table}>
-                  <thead><tr><th scope="col">Account</th><th scope="col" className={s.num}>Debit</th><th scope="col" className={s.num}>Credit</th><th scope="col">Reference</th></tr></thead>
+              <div className={g.wrap} role="region" aria-label={`Lines of ${j.id}`} tabIndex={0}>
+                <table className={g.dense}>
+                  <thead><tr><th scope="col">Account</th><th scope="col" className={g.num}>Debit</th><th scope="col" className={g.num}>Credit</th><th scope="col">Reference</th></tr></thead>
                   <tbody>
                     {(j.lines as Line[]).map((l, k) => (
-                      <tr key={k}><td>{MERCHANT_ACCOUNTS[l.account] ?? l.account}{l.onApproval ? <span className={s.small}> (on approval)</span> : null}</td><td className={s.num}>{l.side === "debit" ? fiat(l.amountMinor, cur) : ""}</td><td className={s.num}>{l.side === "credit" ? fiat(l.amountMinor, cur) : ""}</td><td className={s.mono}>{l.orderId ?? l.batchId ?? ""}</td></tr>
+                      <tr key={k}><td>{MERCHANT_ACCOUNTS[l.account] ?? l.account}{l.onApproval ? <span className={s.small}> (on approval)</span> : null}</td><td className={g.num}>{l.side === "debit" ? <FiatAmount minor={l.amountMinor} currency={cur} /> : ""}</td><td className={g.num}>{l.side === "credit" ? <FiatAmount minor={l.amountMinor} currency={cur} /> : ""}</td><td className={g.cellMono}>{l.orderId ?? l.batchId ?? ""}</td></tr>
                     ))}
-                    <tr><th scope="row">Total</th><td className={s.num}><strong>{fiat(totals[i].dr, cur)}</strong></td><td className={s.num}><strong>{fiat(totals[i].cr, cur)}</strong></td><td>{totals[i].dr === totals[i].cr ? <Chip tone="ok">Balanced</Chip> : <Chip tone="warn">Not balanced</Chip>}</td></tr>
                   </tbody>
+                  <tfoot>
+                    <tr><th scope="row">Total</th><td className={g.num}><strong><FiatAmount minor={totals[i].dr} currency={cur} /></strong></td><td className={g.num}><strong><FiatAmount minor={totals[i].cr} currency={cur} /></strong></td><td>{totals[i].dr === totals[i].cr ? <StatusBadge kind="matched" label="Balanced" /> : <StatusBadge kind="exception" label="Not balanced" />}</td></tr>
+                  </tfoot>
                 </table>
               </div>
             </article>

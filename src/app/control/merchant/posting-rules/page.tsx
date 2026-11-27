@@ -8,6 +8,9 @@ import { postingRulesStatus } from "@/server/posting-rules";
 import s from "@/components/control/control.module.css";
 import { ActionButton, StepUp } from "@/components/control/security-forms";
 import { Chip } from "@/components/merchant/ui";
+import { FiatAmount } from "@/components/merchant/FiatAmount";
+import { CopyButton, Mono, StatusBadge } from "@/components/ui";
+import g from "@/components/merchant/screens-g2.module.css";
 
 export const metadata: Metadata = { title: "Posting rules sign-off" };
 
@@ -33,11 +36,11 @@ export default async function PostingRulesPage() {
 
       <section className={s.section} aria-labelledby="sig">
         <h2 className={s.h2} id="sig">Version {cat.version}</h2>
-        <p className={s.small}>SHA-256 <span className={s.mono} data-testid="rules-sha256">{cat.sha256}</span> · {cat.patterns.length} patterns</p>
+        <p className={`${s.small} ${g.sha}`}>SHA-256 <span className={`${s.mono} ${g.breakAll}`} data-testid="rules-sha256">{cat.sha256}</span><CopyButton value={cat.sha256} label={`Copy SHA-256 ${cat.sha256}`} /> · {cat.patterns.length} patterns</p>
         {st.signed && st.standing ? (
-          <p data-testid="rules-signed"><Chip tone="ok">Signed</Chip> by {st.standing.signedBy} at {st.standing.signedAt.slice(0, 16).replace("T", " ")} UTC (signature <span className={s.mono}>{st.standing.id}</span>).</p>
+          <p data-testid="rules-signed"><StatusBadge kind="approved" label="Signed" /> by {st.standing.signedBy} at {st.standing.signedAt.slice(0, 16).replace("T", " ")} UTC (signature <Mono>{st.standing.id}</Mono>).</p>
         ) : (
-          <p data-testid="rules-not-signed"><Chip tone="amber">Not signed</Chip> {st.standing ? `The standing signature is for an older version (${st.standing.version}); this version needs a new signature.` : "No version has been signed."} Journals stay drafts.</p>
+          <p data-testid="rules-not-signed"><StatusBadge kind="awaiting_evidence" label="Not signed" /> {st.standing ? `The standing signature is for an older version (${st.standing.version}); this version needs a new signature.` : "No version has been signed."} Journals stay drafts.</p>
         )}
         {maySign ? (
           !fresh ? (
@@ -54,22 +57,22 @@ export default async function PostingRulesPage() {
         ) : <p className={s.small}>An Admin with access to every entity signs the posting rules.</p>}
       </section>
 
-      {GROUPS.map(([g, title]) => (
-        <section className={s.section} key={g} aria-labelledby={`g-${g}`}>
-          <h2 className={s.h2} id={`g-${g}`}>{title}</h2>
-          {cat.patterns.filter((p) => p.group === g).map((p) => (
+      {GROUPS.map(([grp, title]) => (
+        <section className={s.section} key={grp} aria-labelledby={`g-${grp}`}>
+          <h2 className={s.h2} id={`g-${grp}`}>{title}</h2>
+          {cat.patterns.filter((p) => p.group === grp).map((p) => (
             <article className={s.panel} key={p.id} data-testid="rule-pattern">
-              <h3 className={s.h3}><span className={s.mono}>{p.id}</span> · {p.title}</h3>
+              <h3 className={s.h3}><Mono>{p.id}</Mono> · {p.title}</h3>
               <p className={s.row}><Chip tone={STATUS[p.status].tone}>{STATUS[p.status].label}</Chip> <span className={s.small}>{p.reference}{p.engine ? ` · engine: ${p.engine}` : ""}</span></p>
               <p className={s.small}>When: {p.when} Debit: {p.debit}. Credit: {p.credit}.</p>
               {p.examples.map((e, i) => (
-                <div className={s.tableWrap} key={i} role="region" aria-label={`Worked example ${e.title}`} tabIndex={0}>
-                  <table className={s.table}>
+                <div className={g.wrap} key={i} role="region" aria-label={`Worked example ${e.title}`} tabIndex={0} style={{ marginTop: 8 }}>
+                  <table className={g.dense}>
                     <caption>{e.title} ({e.currency}{e.entryDate ? `, ${e.entryDate}` : ""}) · computed by {e.source}</caption>
-                    <thead><tr><th scope="col">Account</th><th scope="col" className={s.num}>Debit</th><th scope="col" className={s.num}>Credit</th></tr></thead>
+                    <thead><tr><th scope="col">Account</th><th scope="col" className={g.num}>Debit</th><th scope="col" className={g.num}>Credit</th></tr></thead>
                     <tbody>
                       {e.lines.length === 0 ? <tr><td colSpan={3}>No entry: {e.noEntry}. {e.memo}</td></tr> : e.lines.map((l, k) => (
-                        <tr key={k}><td>{l.accountName}{l.onApproval ? <span className={s.small}> (on approval: {l.onApproval})</span> : null}</td><td className={s.num}>{l.side === "debit" ? l.amount : ""}</td><td className={s.num}>{l.side === "credit" ? l.amount : ""}</td></tr>
+                        <tr key={k}><td>{l.accountName}{l.onApproval ? <span className={s.small}> (on approval: {l.onApproval})</span> : null}</td><td className={g.num}>{l.side === "debit" ? <FiatAmount minor={l.amountMinor} currency={e.currency} /> : ""}</td><td className={g.num}>{l.side === "credit" ? <FiatAmount minor={l.amountMinor} currency={e.currency} /> : ""}</td></tr>
                       ))}
                     </tbody>
                   </table>
