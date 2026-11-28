@@ -1,0 +1,493 @@
+{
+  "revision": "4a297ac",
+  "started": "2026-11-27T19:30:44.707Z",
+  "finished": "2026-11-27T19:33:23.404Z",
+  "baseURL": "http://127.0.0.1:3461",
+  "viewport": "1440x900 (Desktop Chrome, headless)",
+  "method": {
+    "pageLoad": "median of 5 full navigations after one warm-up; navigation start until a visible h1 and no visible aria-busy=true",
+    "interactions": "PerformanceObserver 'event' entries (durationThreshold 16, buffered) in every document, kept across navigations; per interaction the max entry duration (0 = all under 16 ms); 1 warm-up + 5 samples; doneMs = action until its result is on screen",
+    "table": "separate database with synthetic payments (volume bench path); render = full navigation until settled, median of 5; scroll = requestAnimationFrame deltas while moving the main scroller top to bottom (~240 frames), 3 passes, p95 per pass and the median of the passes"
+  },
+  "pageLoad": [
+    {
+      "path": "/control/merchant",
+      "samples": [
+        394,
+        401,
+        387,
+        401,
+        399
+      ],
+      "median": 399
+    },
+    {
+      "path": "/control/merchant?entity=ENT-SG-02&date=2026-11-25",
+      "samples": [
+        390,
+        383,
+        400,
+        400,
+        383
+      ],
+      "median": 390
+    },
+    {
+      "path": "/control/merchant/payments",
+      "samples": [
+        402,
+        434,
+        431,
+        433,
+        444
+      ],
+      "median": 433
+    },
+    {
+      "path": "/control/merchant/payments?result=exception&network=tron",
+      "samples": [
+        150,
+        128,
+        133,
+        133,
+        163
+      ],
+      "median": 133
+    },
+    {
+      "path": "/control/merchant/payments/BK-24817",
+      "samples": [
+        383,
+        397,
+        383,
+        402,
+        401
+      ],
+      "median": 397
+    },
+    {
+      "path": "/control/merchant/payments/BK-24871",
+      "samples": [
+        385,
+        144,
+        376,
+        397,
+        384
+      ],
+      "median": 384
+    },
+    {
+      "path": "/control/merchant/exceptions",
+      "samples": [
+        386,
+        395,
+        387,
+        140,
+        375
+      ],
+      "median": 386
+    },
+    {
+      "path": "/control/merchant/exceptions/EX-BK-24830",
+      "samples": [
+        379,
+        414,
+        401,
+        406,
+        378
+      ],
+      "median": 401
+    },
+    {
+      "path": "/control/merchant/batches",
+      "samples": [
+        380,
+        397,
+        403,
+        419,
+        396
+      ],
+      "median": 397
+    },
+    {
+      "path": "/control/merchant/batches/B-1125-SGD",
+      "samples": [
+        391,
+        399,
+        388,
+        413,
+        400
+      ],
+      "median": 399
+    },
+    {
+      "path": "/control/merchant/approvals",
+      "samples": [
+        148,
+        377,
+        134,
+        141,
+        406
+      ],
+      "median": 148
+    },
+    {
+      "path": "/control/merchant/month-end?entity=ENT-SG-02&month=2026-11",
+      "samples": [
+        399,
+        399,
+        415,
+        409,
+        406
+      ],
+      "median": 406
+    },
+    {
+      "path": "/control/merchant/evidence",
+      "samples": [
+        394,
+        181,
+        137,
+        164,
+        419
+      ],
+      "median": 181
+    },
+    {
+      "path": "/control/merchant/accounting?entity=ENT-SG-01&month=2026-11",
+      "samples": [
+        190,
+        381,
+        419,
+        149,
+        131
+      ],
+      "median": 190
+    },
+    {
+      "path": "/control/merchant/pilot",
+      "samples": [
+        409,
+        431,
+        401,
+        414,
+        399
+      ],
+      "median": 409
+    },
+    {
+      "path": "/control/merchant/settings",
+      "samples": [
+        137,
+        180,
+        186,
+        230,
+        406
+      ],
+      "median": 186
+    },
+    {
+      "path": "/control/merchant/runs",
+      "samples": [
+        129,
+        393,
+        128,
+        387,
+        139
+      ],
+      "median": 139
+    }
+  ],
+  "interactions": [
+    {
+      "id": "nav-exceptions",
+      "what": "click the 'Exceptions' menu link on the daily report; done = Exceptions h1 on screen and settled",
+      "status": "ok",
+      "inpSamples": [
+        0,
+        0,
+        0,
+        0,
+        16
+      ],
+      "doneSamples": [
+        191,
+        212,
+        487,
+        509,
+        480
+      ],
+      "inpP50": 0,
+      "inpMax": 16,
+      "doneP50": 480,
+      "eventNames": [
+        "pointerdown",
+        "pointerup",
+        "click"
+      ]
+    },
+    {
+      "id": "sort-or-filter",
+      "what": "payments table: click a column-header sort control if one exists, else type 'BK-248' into the search box [used: sort: header button 'Order']",
+      "status": "ok",
+      "inpSamples": [
+        16,
+        16,
+        16,
+        16,
+        16
+      ],
+      "doneSamples": [
+        149,
+        151,
+        148,
+        167,
+        164
+      ],
+      "inpP50": 16,
+      "inpMax": 16,
+      "doneP50": 151,
+      "eventNames": [
+        "pointerdown",
+        "pointerup",
+        "click"
+      ]
+    },
+    {
+      "id": "filter-result",
+      "what": "payments: choose Result = Exception and click 'Apply filters' (if present); done = the count/rows updated and settled",
+      "status": "ok",
+      "inpSamples": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "doneSamples": [
+        199,
+        233,
+        211,
+        264,
+        486
+      ],
+      "inpP50": 0,
+      "inpMax": 0,
+      "doneP50": 233,
+      "eventNames": []
+    },
+    {
+      "id": "open-exception",
+      "what": "exceptions list: click the first exception id link; done = the exception's h1 on screen and settled",
+      "status": "ok",
+      "inpSamples": [
+        24,
+        16,
+        0,
+        0,
+        0
+      ],
+      "doneSamples": [
+        433,
+        437,
+        434,
+        159,
+        162
+      ],
+      "inpP50": 0,
+      "inpMax": 24,
+      "doneP50": 433,
+      "eventNames": [
+        "pointerdown",
+        "pointerup",
+        "click"
+      ]
+    },
+    {
+      "id": "assign-exception",
+      "what": "exception EX-BK-24823: choose a fictional owner in 'Owner' and click 'Save owner'; done = the server's 'owns this exception' confirmation",
+      "status": "ok",
+      "inpSamples": [
+        16,
+        24,
+        24,
+        24,
+        24
+      ],
+      "doneSamples": [
+        298,
+        1090,
+        1002,
+        1003,
+        998
+      ],
+      "inpP50": 24,
+      "inpMax": 24,
+      "doneP50": 1002,
+      "eventNames": [
+        "pointerdown",
+        "pointerup",
+        "click"
+      ]
+    },
+    {
+      "id": "open-disclosure",
+      "what": "open a collapsed menu button (aria-expanded=false) on the daily report if visible, else the first <summary> on Approvals; done = expanded/open [used: menu button 'Columns']",
+      "status": "ok",
+      "inpSamples": [
+        16,
+        0,
+        16,
+        0,
+        16
+      ],
+      "doneSamples": [
+        50,
+        24,
+        58,
+        27,
+        32
+      ],
+      "inpP50": 16,
+      "inpMax": 16,
+      "doneP50": 32,
+      "eventNames": [
+        "pointerdown",
+        "pointerup",
+        "click"
+      ]
+    },
+    {
+      "id": "toggle",
+      "what": "toggle a theme switch if one exists (daily report), else the first checkbox/switch on Settings, Runs or exception EX-BK-24823 (clicked, never saved); done = state flipped [used: theme toggle 'Dark theme']",
+      "status": "ok",
+      "inpSamples": [
+        24,
+        24,
+        40,
+        24,
+        32
+      ],
+      "doneSamples": [
+        110,
+        98,
+        132,
+        112,
+        103
+      ],
+      "inpP50": 24,
+      "inpMax": 40,
+      "doneP50": 110,
+      "eventNames": [
+        "pointerdown",
+        "pointerup",
+        "click"
+      ]
+    }
+  ],
+  "table10k": {
+    "db": "postgres://clearline_runtime:***@127.0.0.1:54329/clearline_dzi_sp_10k",
+    "rows": 10000,
+    "seed": {
+      "org": "vol-3f7225e0",
+      "payments": 10000,
+      "bankLines": 600,
+      "records": 9800,
+      "seedMs": 37825
+    },
+    "pages": [
+      {
+        "path": "/control/merchant/payments",
+        "renderMs": [
+          1036,
+          873,
+          846,
+          818,
+          784
+        ],
+        "renderP50": 846,
+        "rowsInDom": 100,
+        "countText": "9800 of 9800 payments. Age is measured from the latest data (2026-11-01).",
+        "frames": [
+          {
+            "scroller": "document",
+            "rangePx": 3164,
+            "stepPx": 40,
+            "n": 78,
+            "p50": 16.7,
+            "p95": 16.7,
+            "max": 16.8,
+            "over50": 0
+          },
+          {
+            "scroller": "document",
+            "rangePx": 3164,
+            "stepPx": 40,
+            "n": 78,
+            "p50": 16.7,
+            "p95": 16.8,
+            "max": 16.8,
+            "over50": 0
+          },
+          {
+            "scroller": "document",
+            "rangePx": 3164,
+            "stepPx": 40,
+            "n": 78,
+            "p50": 16.7,
+            "p95": 16.8,
+            "max": 16.8,
+            "over50": 0
+          }
+        ],
+        "frameP95": 16.8
+      },
+      {
+        "path": "/control/merchant/exceptions",
+        "renderMs": [
+          909,
+          956,
+          996,
+          1081,
+          1056
+        ],
+        "renderP50": 996,
+        "rowsInDom": 401,
+        "countText": null,
+        "frames": [
+          {
+            "scroller": "div",
+            "rangePx": 37519,
+            "stepPx": 157,
+            "n": 237,
+            "p50": 16.7,
+            "p95": 16.8,
+            "max": 16.8,
+            "over50": 0
+          },
+          {
+            "scroller": "div",
+            "rangePx": 37519,
+            "stepPx": 157,
+            "n": 237,
+            "p50": 16.7,
+            "p95": 16.8,
+            "max": 16.8,
+            "over50": 0
+          },
+          {
+            "scroller": "div",
+            "rangePx": 37519,
+            "stepPx": 157,
+            "n": 237,
+            "p50": 16.7,
+            "p95": 16.7,
+            "max": 16.8,
+            "over50": 0
+          }
+        ],
+        "frameP95": 16.8
+      }
+    ]
+  }
+}

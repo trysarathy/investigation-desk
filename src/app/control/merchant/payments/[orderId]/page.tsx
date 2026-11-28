@@ -10,7 +10,8 @@ import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
 import { SubmitWriteoff } from "@/components/merchant/forms";
 import { FlashMessage } from "@/components/control/forms";
-import { Chip, DecisionChip, EvidenceChip, STEP_NAMES, bankStatusLabel, differenceLabel, fiat, networkLabel, token, whenIn } from "@/components/merchant/ui";
+import { EvidenceBadge, HashLink, Mono, StatusBadge } from "@/components/ui";
+import { Chip, DecisionChip, STEP_NAMES, bankStatusLabel, differenceLabel, fiat, networkLabel, token, whenIn } from "@/components/merchant/ui";
 import { NEEDS_A_RATE, differenceNeedsRate, fiatOrNeedsRate, unknownFiat } from "@/lib/clearline/merchant/fiat-value";
 
 export const metadata: Metadata = { title: "Payment" };
@@ -79,15 +80,15 @@ export default async function MerchantPaymentPage({ params }: { params: Promise<
                   <dl className={m.kv} key={`${x.txHash}:${x.logIndex}`}>
                     <dt>Amount</dt><dd>{token(x.amountBaseUnits, x.decimals, x.symbol)}</dd>
                     <dt>Network</dt><dd>{networkLabel(x.network)}</dd>
-                    <dt>Tx</dt><dd className={s.mono}>{x.txHash}</dd>
+                    <dt>Tx</dt><dd><HashLink value={x.txHash} network={x.network} /></dd>
                     <dt>Block</dt><dd>{x.block} · {x.confirmations} conf. · {fin(row)}</dd>
-                    <dt>To</dt><dd className={s.mono}>{x.to}</dd>
+                    <dt>To</dt><dd><HashLink value={x.to} network={x.network} kind="address" /></dd>
                     <dt>Sender</dt><dd>{x.senderFacts.length ? x.senderFacts.join(", ").replace(/_/g, " ") : "no recorded facts"} (a fact, never a judgement)</dd>
                     <dt>When</dt><dd>{when(x.timestamp)}</dd>
                   </dl>
                 );
               })}
-              {chain.pending.length ? <p><Chip tone="amber">{chain.pending.length} pending (not final)</Chip></p> : null}
+              {chain.pending.length ? <p><StatusBadge kind="awaiting_evidence" label={`${chain.pending.length} pending (not final)`} /></p> : null}
               <p className={s.muted}>Recorded fixture (no live chain connection).</p>
             </div>
           </article>
@@ -96,7 +97,7 @@ export default async function MerchantPaymentPage({ params }: { params: Promise<
             <div className={m.partBody}>
               {provider.records.length === 0 ? <p>No provider record.</p> : provider.records.map((r) => (
                 <dl className={m.kv} key={r.providerPaymentId}>
-                  <dt>Record</dt><dd className={s.mono}>{r.providerPaymentId}</dd>
+                  <dt>Record</dt><dd><Mono>{r.providerPaymentId}</Mono></dd>
                   <dt>Claims</dt><dd>{r.statusClaim.replace(/_/g, " ")}{r.displayedStatus ? ` (shown as “${r.displayedStatus}”)` : ""}</dd>
                   <dt>Credited</dt><dd>{fiat(r.creditedMinor, cur)}</dd>
                   <dt>Rate</dt><dd>{r.executedRate}</dd>
@@ -110,7 +111,7 @@ export default async function MerchantPaymentPage({ params }: { params: Promise<
           <article className={m.part} aria-labelledby="p-bank" data-testid="part-bank">
             <h3 className={m.partName} id="p-bank">Bank</h3>
             <div className={m.partBody}>
-              <p><Chip tone={bank.settlementVerified ? "ok" : "warn"}>{bank.settlementVerified ? "Settlement verified" : "Settlement not verified"}</Chip> <EvidenceChip level={bank.evidence} label={bank.evidenceLabel} /></p>
+              <p className={m.badges}>{bank.settlementVerified ? <StatusBadge kind="matched" label="Settlement verified" wrap /> : <StatusBadge kind="awaiting_evidence" label="Settlement not verified" wrap />} <EvidenceBadge level={bank.evidence} label={bank.evidenceLabel} wrap /></p>
               <dl className={m.kv}>
                 <dt>Status</dt><dd>{bankStatusLabel(bank.status)}</dd>
                 <dt>Batch</dt><dd>{bank.batchIds.length ? bank.batchIds.map((b) => <a key={b} className={s.mono} href={`/control/merchant/batches/${encodeURIComponent(b)}`}>{b}</a>) : "none"}</dd>
@@ -141,7 +142,7 @@ export default async function MerchantPaymentPage({ params }: { params: Promise<
               <p><DecisionChip decision={d.decision} /></p>
               <p data-testid="deciding-step">Decided at step {d.decidingStep} ({STEP_NAMES[d.decidingStep] ?? "?"}) by rule <span className={s.mono}>{d.ruleId}</span>.</p>
               <ol className={s.small}>{ex.history.map((h, i) => <li key={i}>Step {h.step} · {h.outcome}: {h.detail}</li>)}</ol>
-              <p className={s.muted}>Engine {d.engineVersion}; input sha256 <span className={s.mono}>{d.inputSha256.slice(0, 16)}…</span></p>
+              <p className={s.muted}>Engine {d.engineVersion}; input sha256 <HashLink value={d.inputSha256} head={8} tail={8} /></p>
             </div>
           </article>
         </div>

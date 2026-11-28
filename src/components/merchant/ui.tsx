@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { fmtFiat, fmtToken, type FiatCurrency } from "@/lib/clearline/merchant";
+import { FIAT_DECIMALS, fmtFiat, fmtToken, type FiatCurrency } from "@/lib/clearline/merchant";
+import { Amount } from "@/components/ui";
 import type { PartsSummary } from "@/server/merchant-ui";
 import s from "@/components/control/control.module.css";
 import m from "./merchant.module.css";
@@ -27,6 +28,13 @@ const NETWORK_LABELS: Record<string, string> = { tron: "TRON", ethereum: "Ethere
 export const networkLabel = (n: string) => NETWORK_LABELS[n] ?? n;
 
 export const fiat = (minor: string | bigint | number | null | undefined, cur: string) => (minor === null || minor === undefined ? "—" : fmtFiat(BigInt(minor), cur as FiatCurrency));
+/** A fiat amount from its minor units, exact (as fiat(), digit for digit), right-aligned with tabular figures and its currency. */
+export function FiatAmount({ minor, currency, block, testId }: { minor: string | bigint | number | null | undefined; currency: string; block?: boolean; testId?: string }) {
+  if (minor === null || minor === undefined) return <span className={s.muted}>—</span>;
+  const exp = FIAT_DECIMALS[currency as FiatCurrency];
+  if (exp === undefined) return <>{fiat(minor, currency)}</>;
+  return <Amount minor={String(minor)} exponent={exp} currency={currency} group block={block} data-testid={testId} />;
+}
 export const token = (base: string, decimals: number, symbol: string) => fmtToken(BigInt(base), decimals, symbol);
 
 export type ChipTone = "ok" | "warn" | "info" | "amber" | "plain";

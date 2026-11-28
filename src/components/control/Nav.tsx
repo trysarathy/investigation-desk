@@ -13,7 +13,7 @@ const ITEMS = [
   { href: "/control/settings", label: "Settings" },
 ];
 
-/** Plain links (full page loads): every Control page is rendered on the server from the database for each request. */
+/** The rc5 Control pages keep full page loads (plain links): a client navigation here could stop half-way on the pilot build (Control journey, design-fluid). The merchant workspace menu uses client navigation with its own skeleton. */
 export function ControlNav() {
   const path = usePathname() ?? "";
   const current = (href: string) => (href === "/control" ? path === "/control" : path === href || path.startsWith(`${href}/`));

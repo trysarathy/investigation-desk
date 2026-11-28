@@ -91,14 +91,20 @@ export async function merchantShell(ctx: TenantContext): Promise<{ label: DataLa
     const theme = safeTheme(row.theme, row.provider_name ?? null);
     const { label, dataMode } = await dataModeOf(tx, ctx.orgId);
     if (kind === "provider" || !can(ctx.role, "read")) return { label, dataMode, kind, providerName: row.provider_name ?? null, theme, entities: [] };
-    return { label, dataMode, kind, providerName: row.provider_name ?? null, theme, entities: (await entitySummaries(tx, ctx.orgId)).filter((e) => inEntityScope(ctx, e.id)) };
+    return { label, dataMode, kind, providerName: row.provider_name ?? null, theme, entities: (await entitySummaries(tx, ctx.orgId, ctx)).filter((e) => inEntityScope(ctx, e.id)) };
   });
 }
 
-async function entitySummaries(tx: Tx, orgId: string): Promise<EntitySummary[]> {
+async function entitySummaries(tx: Tx, orgId: string, ctx?: Pick<TenantContext, "entityScope" | "audit" | "role">): Promise<EntitySummary[]> {
   const ents = await tx.select().from(t.merchantEntities).where(eq(t.merchantEntities.orgId, orgId)).orderBy(asc(t.merchantEntities.id));
-  // only the stored chain transfers' timestamps (every page's shell needs the days, not the records)
-  const rows = (await tx.execute(sql`select i.entity_id, x->>'timestamp' as ts from match_records m
+  // only the stored chain transfers' timestamps (every page's shell needs the days, not the records). For an
+  // unscoped, non-auditor member the invoice join is not needed: every record has its invoice (foreign key, invoices
+  // are never updated) under the same organisation policy, and the record's ledger carries that invoice's entity.
+  // Skipping the join halves the row-level-security work on every page at volume; the rows are the same.
+  const direct = !!ctx && ctx.entityScope === null && !ctx.audit && ctx.role !== "auditor";
+  const rows = (await tx.execute(direct
+    ? sql`select m.ledger->'invoice'->>'entityId' as entity_id, x->>'timestamp' as ts from match_records m cross join lateral jsonb_array_elements(m.chain->'transfers') x where m.org_id = ${orgId}`
+    : sql`select i.entity_id, x->>'timestamp' as ts from match_records m
     join invoices i on i.org_id = m.org_id and i.order_id = m.order_id cross join lateral jsonb_array_elements(m.chain->'transfers') x
     where m.org_id = ${orgId}`)).rows as { entity_id: string; ts: string }[];
   return ents.map((e) => {
@@ -146,6 +152,32 @@ export async function overviewCounts(ctx: TenantContext) {
       decisions: Object.fromEntries(decisions.map((d) => [d.decision, d.n])) as Partial<Record<"matched" | "matched_with_difference" | "suggested_for_review" | "exception", number>>,
       /** v1 Phase 0.5: payments by bank evidence level (shown apart from the decisions). */
       bankEvidence: Object.fromEntries(evidence.map((d) => [d.bank_evidence, d.n])) as Partial<Record<BankEvidenceLevel, number>>,
+    };
+  });
+}
+
+/** When each independent source last arrived: an upload's time, or else the newest stored record's own date. */
+export interface SourceFreshness { at: string; what: "upload" | "record" }
+
+/**
+ * Data freshness for the overview and the daily report (read only): per source, the newest provider file (an
+ * export or settlement report upload, else the newest settlement batch's provider day) and the newest bank statement
+ * (an upload, else the newest bank line's value date). The chain's freshness is the shell's dataAsOf (the newest
+ * stored chain transfer), already on every page. Null: not yet received. Entity scope as everywhere.
+ */
+export async function sourceFreshness(ctx: TenantContext): Promise<{ provider: SourceFreshness | null; bank: SourceFreshness | null }> {
+  require(ctx, "read");
+  return tenantRead(ctx, async (tx) => {
+    const sc = ctx.entityScope;
+    const arr = sql`array(select jsonb_array_elements_text(${JSON.stringify(sc ?? [])}::jsonb))`;
+    const ent = sc === null ? sql`` : sql` and entity_id = any(${arr})`;
+    const one = async (q: ReturnType<typeof sql>) => ((await tx.execute(q)).rows[0] as { at: string | Date | null } | undefined)?.at ?? null;
+    const iso = (v: string | Date | null, what: SourceFreshness["what"]): SourceFreshness | null => (v === null ? null : { at: v instanceof Date ? v.toISOString() : String(v), what });
+    const providerUpload = await one(sql`select max(created_at) as at from uploads where org_id = ${ctx.orgId} and deleted_at is null and status not in ('rejected', 'deleted') and file_type in ('provider_export', 'settlement_report', 'settlement_payments')${ent}`);
+    const bankUpload = await one(sql`select max(created_at) as at from uploads where org_id = ${ctx.orgId} and deleted_at is null and status not in ('rejected', 'deleted') and file_type = 'bank_statement'${ent}`);
+    return {
+      provider: iso(providerUpload, "upload") ?? iso(await one(sql`select max(day_end) as at from settlement_batches where org_id = ${ctx.orgId}${ent}`), "record"),
+      bank: iso(bankUpload, "upload") ?? iso(await one(sql`select max(value_date) as at from bank_lines where org_id = ${ctx.orgId}${ent}`), "record"),
     };
   });
 }
@@ -790,6 +822,17 @@ export async function orgKind(ctx: TenantContext): Promise<{ kind: "merchant" | 
 
 export interface PartsSummary { chain: { transfers: number; pending: number; networks: string[] }; provider: { claims: string[]; records: number }; bank: { status: string; tied: boolean; verified: boolean; imported: boolean; evidence: BankEvidenceLevel; evidenceLabel: string; settled: boolean }; ledger: { state: string; label: string } }
 
+/** One order's record summary: what each of the five parts says on its own (never merged into one status). */
+export function partsSummaryOf(m: typeof t.matchRecords.$inferSelect): PartsSummary {
+  const p = partsOf(m);
+  return {
+    chain: { transfers: p.chain.transfers.length, pending: p.chain.pending.length, networks: [...new Set(p.chain.transfers.map((x) => x.network))] },
+    provider: { claims: [...new Set(p.provider.records.map((r) => r.statusClaim))], records: p.provider.records.length },
+    bank: { status: p.bank.status, tied: p.bank.batchTied, verified: p.bank.settlementVerified, imported: p.bank.bankLineLabels.length > 0, evidence: p.bank.evidence, evidenceLabel: BANK_EVIDENCE_SHORT[p.bank.evidence], settled: p.bank.settled },
+    ledger: { state: p.ledger.balanceState, label: p.ledger.balanceLabel },
+  };
+}
+
 /** Per order: what each of the five parts says on its own (never merged into one status). */
 export async function partsSummaries(ctx: TenantContext): Promise<Map<string, PartsSummary>> {
   require(ctx, "read");
@@ -797,14 +840,6 @@ export async function partsSummaries(ctx: TenantContext): Promise<Map<string, Pa
     const ms = (await tx.select({ m: t.matchRecords, entityId: t.invoices.entityId }).from(t.matchRecords)
       .innerJoin(t.invoices, and(eq(t.invoices.orgId, t.matchRecords.orgId), eq(t.invoices.orderId, t.matchRecords.orderId)))
       .where(eq(t.matchRecords.orgId, ctx.orgId))).filter((x) => inEntityScope(ctx, x.entityId)).map((x) => x.m);
-    return new Map(ms.map((m) => {
-      const p = partsOf(m);
-      return [m.orderId, {
-        chain: { transfers: p.chain.transfers.length, pending: p.chain.pending.length, networks: [...new Set(p.chain.transfers.map((x) => x.network))] },
-        provider: { claims: [...new Set(p.provider.records.map((r) => r.statusClaim))], records: p.provider.records.length },
-        bank: { status: p.bank.status, tied: p.bank.batchTied, verified: p.bank.settlementVerified, imported: p.bank.bankLineLabels.length > 0, evidence: p.bank.evidence, evidenceLabel: BANK_EVIDENCE_SHORT[p.bank.evidence], settled: p.bank.settled },
-        ledger: { state: p.ledger.balanceState, label: p.ledger.balanceLabel },
-      }];
-    }));
+    return new Map(ms.map((m) => [m.orderId, partsSummaryOf(m)]));
   });
 }

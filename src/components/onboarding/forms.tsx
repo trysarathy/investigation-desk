@@ -3,6 +3,7 @@
 import { useEffect, useId, useState, type FormEvent } from "react";
 import { Result, Submit, useMutation } from "@/components/control/forms";
 import s from "@/components/control/control.module.css";
+import x from "@/components/control/screens.module.css";
 
 /**
  * v1 phase 1.1 onboarding forms: the platform console, the invitation acceptance and the setup wizard. Same contract
@@ -37,10 +38,10 @@ export function OneTimeLink({ issued, onDone }: { issued: IssuedLink; onDone: ()
   const [copied, setCopied] = useState<"idle" | "ok" | "failed">("idle");
   const expires = `${issued.expiresAt.slice(0, 16).replace("T", " ")} UTC`;
   return (
-    <div role="status" className={`${s.result} ${s.resultOk}`} data-testid="one-time-link">
-      <p><strong>Invitation created. Copy this link now: it is shown only once.</strong> Send it to the person yourself (no email was sent). It works once and expires on {expires}.</p>
+    <div role="status" className={x.linkPanel} data-testid="one-time-link">
+      <p><strong>Invitation created. Copy this link now: it is shown only once.</strong> Send it to the person yourself (no email was sent). It works once and expires on <span className={x.mono}>{expires}</span>.</p>
       <label className={s.label} htmlFor={`${id}-link`}>One-time invitation link</label>
-      <input className={s.input} id={`${id}-link`} type="text" readOnly value={issued.link} onFocus={(e) => e.currentTarget.select()} data-testid="one-time-link-value" />
+      <input className={`${s.input} ${x.mono}`} id={`${id}-link`} type="text" readOnly value={issued.link} onFocus={(e) => e.currentTarget.select()} data-testid="one-time-link-value" />
       <p className={s.row}>
         <button type="button" className={s.button} onClick={() => {
           if (!navigator.clipboard) { setCopied("failed"); return; }
@@ -48,7 +49,7 @@ export function OneTimeLink({ issued, onDone }: { issued: IssuedLink; onDone: ()
         }}>Copy link</button>
         <button type="button" className={`${s.button} ${s.buttonSecondary}`} onClick={onDone}>Done</button>
       </p>
-      <p className={s.small} aria-live="polite">{copied === "ok" ? "Copied." : copied === "failed" ? "Copying is not available here: select the link and copy it." : ""}</p>
+      <p className={`${s.small} ${copied === "failed" ? s.resultError : ""}`} aria-live="polite">{copied === "ok" ? "Copied." : copied === "failed" ? "Copying is not available here: select the link and copy it." : ""}</p>
     </div>
   );
 }
@@ -65,7 +66,7 @@ export function JsonForm({ flashKey, url, fields, submit, success, extra, varian
   const [issued, setIssued] = useState<IssuedLink | null>(null);
   if (issued) return <OneTimeLink issued={issued} onDone={() => { setIssued(null); window.location.reload(); }} />;
   return (
-    <form className={s.form} autoComplete="off" onSubmit={(ev) => {
+    <form method="post" className={s.form} autoComplete="off" onSubmit={(ev) => {
       ev.preventDefault();
       const f = new FormData(ev.currentTarget);
       const body: Record<string, string> = { ...extra };
@@ -103,7 +104,7 @@ export function JsonForm({ flashKey, url, fields, submit, success, extra, varian
 export function ActionButton({ flashKey, url, body, label, success, variant }: { flashKey: string; url: string; body: Record<string, string>; label: string; success: string; variant?: "secondary" | "danger" }) {
   const x = useMutation(flashKey);
   return (
-    <form autoComplete="off" onSubmit={(ev) => { ev.preventDefault(); void x.run("POST", url, body, () => success); }}>
+    <form method="post" autoComplete="off" onSubmit={(ev) => { ev.preventDefault(); void x.run("POST", url, body, () => success); }}>
       <Submit busy={x.busy} variant={variant}>{label}</Submit>
       <Result outcome={x.outcome} />
     </form>
@@ -149,7 +150,7 @@ export function AcceptInvitationForm() {
     );
   }
   return (
-    <form className={s.form} autoComplete="off" onSubmit={onSubmit}>
+    <form method="post" className={s.form} autoComplete="off" onSubmit={onSubmit}>
       <div className={s.field}>
         <label className={s.label} htmlFor="invite-name">Your name</label>
         <input className={s.input} id="invite-name" name="name" type="text" autoComplete="name" maxLength={200} aria-describedby="invite-name-hint" />

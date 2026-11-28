@@ -3,5 +3,7 @@ import path from "node:path";
 
 export default defineConfig({
   resolve: { alias: { "@": path.resolve(__dirname, "src"), "server-only": path.resolve(__dirname, "tests/stubs/server-only.ts") } },
+  // v1 design-fluid: the shared UI component tests render .tsx with the automatic JSX runtime
+  oxc: { jsx: { runtime: "automatic" } },
   test: { include: ["tests/**/*.test.ts"], exclude: ["tests/control/**", "**/node_modules/**"] },
 });

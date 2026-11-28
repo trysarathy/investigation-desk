@@ -1,5 +1,6 @@
-/* eslint-disable @next/next/no-html-link-for-pages -- plain links on purpose: every merchant page is a full load rendered on the server */
 import type { Metadata } from "next";
+import Link from "next/link";
+import g from "@/components/merchant/screens-g2.module.css";
 import { merchantMember } from "@/server/merchant-page";
 import s from "@/components/control/control.module.css";
 
@@ -20,24 +21,24 @@ export default async function GettingStartedPage() {
       <p className={s.lede}>Pilot: anonymised or sample files only until your data agreement is signed. Clearline is read-only: it never holds, sends or converts money.</p>
       <section className={s.section} aria-labelledby="steps">
         <h2 className={s.h2} id="steps">Steps</h2>
-        <ol>
+        <ol className={g.steps}>
           <li><strong>Sign in</strong> with the link your administrator sent you, and choose a password.</li>
           <li><strong>Set up two-factor sign-in.</strong> Admins and Approvers must add an authenticator app (Security page) before they can work.</li>
-          <li><strong>Create your entity</strong> (Admin): <a href="/control/merchant/setup">Setup</a> → entity name, base currency, time zone, tolerance, provider and the wallet addresses to watch. To try the sample files, create the entity with ID <code>ENT-SG-SYN</code> in SGD.</li>
-          <li><strong>Upload your files</strong> (Finance): <a href="/control/merchant/uploads">Uploads</a> → choose the entity and the file type, upload, check the column mapping, validate, and confirm. A bank statement needs a second person to confirm it.</li>
-          <li><strong>Run reconciliation</strong>: <a href="/control/merchant/runs">Runs</a> → &ldquo;Run reconciliation&rdquo; for the entity.</li>
-          <li><strong>Review exceptions</strong>: <a href="/control/merchant/exceptions">Exceptions</a> → each one has an owner, a reason and a next step. Assign it, add a note, or prepare a write-off.</li>
-          <li><strong>Approve</strong> (Approver, a different person from the one who prepared it): <a href="/control/merchant/approvals">Approvals</a>.</li>
-          <li><strong>Export</strong>: <a href="/control/merchant/accounting">Accounting export</a> (journal file preview), <a href="/control/merchant/month-end">Month-end</a> pack, and <a href="/control/merchant/evidence">Evidence packs</a>.</li>
+          <li><strong>Create your entity</strong> (Admin): <Link href="/control/merchant/setup">Setup</Link> → entity name, base currency, time zone, tolerance, provider and the wallet addresses to watch. To try the sample files, create the entity with ID <code>ENT-SG-SYN</code> in SGD.</li>
+          <li><strong>Upload your files</strong> (Finance): <Link href="/control/merchant/uploads">Uploads</Link> → choose the entity and the file type, upload, check the column mapping, validate, and confirm. A bank statement needs a second person to confirm it.</li>
+          <li><strong>Run reconciliation</strong>: <Link href="/control/merchant/runs">Runs</Link> → &ldquo;Run reconciliation&rdquo; for the entity.</li>
+          <li><strong>Review exceptions</strong>: <Link href="/control/merchant/exceptions">Exceptions</Link> → each one has an owner, a reason and a next step. Assign it, add a note, or prepare a write-off.</li>
+          <li><strong>Approve</strong> (Approver, a different person from the one who prepared it): <Link href="/control/merchant/approvals">Approvals</Link>.</li>
+          <li><strong>Export</strong>: <Link href="/control/merchant/accounting">Accounting export</Link> (journal file preview), <Link href="/control/merchant/month-end">Month-end</Link> pack, and <Link href="/control/merchant/evidence">Evidence packs</Link>.</li>
         </ol>
         <p className={s.small}>A payment is matched only when the chain transfer, the provider record and your order agree by reference, with exact amounts after typed differences. An amount alone never closes a match; anything uncertain goes to review.</p>
       </section>
       <section className={s.section} aria-labelledby="samples">
         <h2 className={s.h2} id="samples">Download sample files</h2>
         <p className={s.small}>A fictional company (&ldquo;Kestrelbay Synthetic&rdquo;, entity ENT-SG-SYN, SGD). Every name, number, address and hash in them is made up, so on a live deployment the chain cannot confirm these payments and they go to review rather than being matched.</p>
-        <ul>
+        <ul className={g.downloadList}>
           {SAMPLES.map((x) => (
-            <li key={x.file}><a href={`/samples/${x.file}`} download>{x.label}</a> <span className={s.small}>(upload as &ldquo;{x.type}&rdquo;)</span></li>
+            <li key={x.file}><a href={`/samples/${x.file}`} download>{x.label}</a> <span className={s.small}>(upload as &ldquo;{x.type}&rdquo;)</span> <span className={`${s.small} ${g.mono}`}>{x.file}</span></li>
           ))}
         </ul>
       </section>

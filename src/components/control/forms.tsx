@@ -135,7 +135,7 @@ export function SignInForm() {
       if (res.ok) {
         // v1 1.2: an account with MFA gets the second step (Better Auth's signed two_factor cookie is now set).
         const body = (await res.json().catch(() => null)) as { twoFactorRedirect?: boolean } | null;
-        window.location.assign(body?.twoFactorRedirect ? "/control/sign-in/two-factor" : "/control");
+        window.location.assign(body?.twoFactorRedirect ? "/control/sign-in/two-factor" : "/control/home");
         return;
       }
       // One generic answer for a wrong password, an unknown user or a disabled account.
@@ -146,7 +146,7 @@ export function SignInForm() {
     setBusy(false);
   }
   return (
-    <form className={s.form} autoComplete="off" onSubmit={onSubmit}>
+    <form method="post" className={s.form} autoComplete="off" onSubmit={onSubmit}>
       <div className={s.field}>
         <label className={s.label} htmlFor="email">Email</label>
         <input className={s.input} id="email" name="email" type="email" autoComplete="username" required />
@@ -188,7 +188,7 @@ export function OrgSwitcher({ orgs, current }: { orgs: { slug: string; name: str
   const m = useMutation("org");
   const id = useId();
   return (
-    <form className={s.form} autoComplete="off" onSubmit={(ev) => {
+    <form method="post" className={s.form} autoComplete="off" onSubmit={(ev) => {
       ev.preventDefault();
       const slug = String(new FormData(ev.currentTarget).get("slug") ?? "");
       void m.run("POST", "/api/control/org", { slug }, (d) => `Now working in ${(d?.org as { name?: string } | undefined)?.name ?? slug}.`);
@@ -213,7 +213,7 @@ export function AssignToMe({ target, ownerName, isMine, label }: { target: Targe
     <div>
       <p className={s.small}>Owner: <strong>{ownerName ?? "Unassigned"}</strong>{isMine ? " (you)" : ""}</p>
       {!isMine ? (
-        <form autoComplete="off" onSubmit={(ev) => { ev.preventDefault(); void m.run("POST", "/api/control/actions", { type: "assign_owner", target }, () => "Saved: you are now the owner."); }}>
+        <form method="post" autoComplete="off" onSubmit={(ev) => { ev.preventDefault(); void m.run("POST", "/api/control/actions", { type: "assign_owner", target }, () => "Saved: you are now the owner."); }}>
           <Submit busy={m.busy} variant="secondary">{label}</Submit>
         </form>
       ) : null}
@@ -226,7 +226,7 @@ export function NoteForm({ target }: { target: Target }) {
   const m = useMutation(`note:${target.kind}:${target.id}`);
   const id = useId();
   return (
-    <form className={s.form} autoComplete="off" onSubmit={async (ev) => {
+    <form method="post" className={s.form} autoComplete="off" onSubmit={async (ev) => {
       ev.preventDefault();
       const form = ev.currentTarget;
       const text = String(new FormData(form).get("text") ?? "");
@@ -246,7 +246,7 @@ export function EvidenceForm({ target }: { target: Target }) {
   const m = useMutation(`evidence:${target.kind}:${target.id}`);
   const id = useId();
   return (
-    <form className={s.form} autoComplete="off" onSubmit={async (ev) => {
+    <form method="post" className={s.form} autoComplete="off" onSubmit={async (ev) => {
       ev.preventDefault();
       const form = ev.currentTarget;
       const f = new FormData(form);
@@ -282,7 +282,7 @@ export function CaseDetailsForm({ caseId, priority, nextAction, dueDate }: { cas
   const m = useMutation(`case:${caseId}`);
   const id = useId();
   return (
-    <form className={s.form} autoComplete="off" onSubmit={(ev) => {
+    <form method="post" className={s.form} autoComplete="off" onSubmit={(ev) => {
       ev.preventDefault();
       const f = new FormData(ev.currentTarget);
       const na = String(f.get("nextAction") ?? "").trim();
@@ -316,7 +316,7 @@ export function ResolutionForm({ target, evidence }: { target: Target; evidence:
   const m = useMutation(`resolution:${target.kind}:${target.id}`);
   const id = useId();
   return (
-    <form className={s.form} autoComplete="off" onSubmit={(ev) => {
+    <form method="post" className={s.form} autoComplete="off" onSubmit={(ev) => {
       ev.preventDefault();
       const f = new FormData(ev.currentTarget);
       const evidenceRefs = f.getAll("evidence").map(String);
@@ -347,7 +347,7 @@ export function DecisionForm({ requestId, payloadSha256, version }: { requestId:
   const m = useMutation(`decision:${requestId}`);
   const id = useId();
   return (
-    <form className={s.form} autoComplete="off" onSubmit={(ev) => {
+    <form method="post" className={s.form} autoComplete="off" onSubmit={(ev) => {
       ev.preventDefault();
       const submitter = (ev.nativeEvent as SubmitEvent).submitter;
       const f = new FormData(ev.currentTarget, submitter instanceof HTMLButtonElement ? submitter : null);

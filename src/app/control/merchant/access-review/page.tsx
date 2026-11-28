@@ -1,12 +1,21 @@
+import { Fragment } from "react";
 import type { Metadata } from "next";
 import { can } from "@/server/authz";
 import { merchantPage } from "@/server/merchant-page";
 import { accessReview, invitedLabel, MFA_LABEL, scopeLabel } from "@/server/access-review";
 import s from "@/components/control/control.module.css";
-import { Chip, Empty } from "@/components/merchant/ui";
+import x from "@/components/control/screens.module.css";
+import { Empty } from "@/components/merchant/ui";
 import { when } from "@/components/control/ui";
+import { AccessTable } from "@/components/merchant/admin-tables";
 
 export const metadata: Metadata = { title: "Access review" };
+
+const IconDownload = () => (
+  <svg width={14} height={14} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <path d="M8 2.5v8M4.8 7.5L8 10.7l3.2-3.2M2.8 13.5h10.4" />
+  </svg>
+);
 
 /**
  * v1 phase 1.4: who has access to what — every membership of this organisation with its role, entity scope, second
@@ -16,53 +25,42 @@ export const metadata: Metadata = { title: "Access review" };
 export default async function AccessReviewPage() {
   const { ctx } = await merchantPage();
   if (!can(ctx.role, "access_review") || ctx.entityScope !== null) {
-    return (<><h1 className={s.title}>Access review</h1><Empty>Only an Admin with access to every entity of this organisation reviews access.</Empty></>);
+    return (<><div className={x.head}><div className={x.headText}><h1 className={s.title}>Access review</h1></div></div><Empty>Only an Admin with access to every entity of this organisation reviews access.</Empty></>);
   }
   const v = await accessReview(ctx);
   const active = v.rows.filter((r) => r.status === "active").length;
   return (
     <>
-      <h1 className={s.title}>Access review</h1>
-      <p className={s.lede}>Who has access to {v.organisation.name}, in which role and for which entities. Generated {when(v.generatedAt)}. Roles and entity limits are changed with the administration command; this page changes nothing.</p>
-      <p className={s.small} data-testid="review-summary">{active} active and {v.rows.length - active} revoked membership(s).{" "}
+      <div className={x.head}>
+        <div className={x.headText}>
+          <h1 className={s.title}>Access review</h1>
+          <p>Who has access to {v.organisation.name}, in which role and for which entities. Generated <span className={x.mono}>{when(v.generatedAt)}</span>. Roles and entity limits are changed with the administration command; this page changes nothing.</p>
+        </div>
+        <div className={x.headTools}>
+          {/* plain links: each is a file download (audited on the server), not a page */}
+          <a className={x.linkButton} href="/api/control/merchant/access-review/export?format=csv" download data-testid="export-csv"><IconDownload />Download CSV</a>
+          <a className={x.linkButton} href="/api/control/merchant/access-review/export?format=pdf" download data-testid="export-pdf"><IconDownload />Download PDF</a>
+        </div>
+      </div>
+      <p className={x.note} data-testid="review-summary">{active} active and {v.rows.length - active} revoked membership(s).{" "}
         Second factor: the authenticator app (required for Admins and Approvers), with any passkeys counted apart.</p>
-      <p className={s.small}>
-        <a href="/api/control/merchant/access-review/export?format=csv" download data-testid="export-csv">Download CSV</a>{" · "}
-        <a href="/api/control/merchant/access-review/export?format=pdf" download data-testid="export-pdf">Download PDF</a>{" "}
-        (for an auditor; every download is recorded in the audit log)
-      </p>
+      <p className={x.note}>The downloads are for an auditor; every download is recorded in the audit log.</p>
 
-      <section className={s.section} aria-labelledby="access-h">
-        <h2 className={s.h2} id="access-h">Memberships ({v.rows.length})</h2>
+      <section className={x.section} aria-labelledby="access-h">
+        <div className={x.sectionHead}><h2 id="access-h">Memberships <span className={x.count}>({v.rows.length})</span></h2></div>
         {v.rows.length === 0 ? <Empty>No memberships.</Empty> : (
-          <div className={s.tableWrap} role="region" aria-label="Access review table" tabIndex={0}>
-            <table className={s.table}>
-              <caption>Members, roles, entity scope, second factor, access dates and inviter</caption>
-              <thead><tr>
-                <th scope="col">Member</th><th scope="col">Role</th><th scope="col">Entity scope</th><th scope="col">Second factor</th>
-                <th scope="col">Access granted</th><th scope="col">Last sign-in</th><th scope="col">Invited by</th>
-              </tr></thead>
-              <tbody>
-                {v.rows.map((r) => (
-                  <tr key={r.userId} data-testid="access-row">
-                    <td><strong>{r.name}</strong><br /><span className={s.small}>{r.email}</span></td>
-                    <td>{r.roleLabel}{r.status === "revoked" ? <> <Chip tone="warn">Revoked {when(r.revokedAt)}</Chip></> : null}</td>
-                    <td data-testid="access-scope">{r.entityScope === "all" ? scopeLabel(r.entityScope) : <Chip tone="info">{scopeLabel(r.entityScope)}</Chip>}</td>
-                    <td data-testid="access-mfa">{MFA_LABEL[r.mfa]}{r.passkeys ? ` (+${r.passkeys} passkey${r.passkeys === 1 ? "" : "s"})` : ""}</td>
-                    <td>{when(r.grantedAt)}</td>
-                    <td>{r.lastSignInAt ? when(r.lastSignInAt) : "Not recorded"}</td>
-                    <td>{invitedLabel(r.invitedBy)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <AccessTable rows={v.rows.map((r) => ({
+            userId: r.userId, name: r.name, email: r.email, roleLabel: r.roleLabel, revoked: r.status === "revoked" ? when(r.revokedAt) : null,
+            scope: scopeLabel(r.entityScope), scopeLimited: r.entityScope !== "all",
+            mfa: `${MFA_LABEL[r.mfa]}${r.passkeys ? ` (+${r.passkeys} passkey${r.passkeys === 1 ? "" : "s"})` : ""}`,
+            granted: when(r.grantedAt), lastSignIn: r.lastSignInAt ? when(r.lastSignInAt) : "Not recorded", invitedBy: invitedLabel(r.invitedBy),
+          }))} />
         )}
       </section>
       {v.entities.length ? (
-        <section className={s.section} aria-labelledby="entities-h">
-          <h2 className={s.h2} id="entities-h">Entities</h2>
-          <ul className={s.small}>{v.entities.map((e) => <li key={e.id}><span className={s.mono}>{e.id}</span> — {e.name}</li>)}</ul>
+        <section className={x.section} aria-labelledby="entities-h">
+          <div className={x.sectionHead}><h2 id="entities-h">Entities <span className={x.count}>({v.entities.length})</span></h2></div>
+          <dl className={`${x.kv} ${x.card}`}>{v.entities.map((e) => <Fragment key={e.id}><dt className={x.mono}>{e.id}</dt><dd>{e.name}</dd></Fragment>)}</dl>
         </section>
       ) : null}
     </>

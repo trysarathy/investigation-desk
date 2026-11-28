@@ -1,0 +1,89 @@
+/* Screens G2 (uploads, runs, approvals, month-end, exports, ledger, posting rules): dense, calm, precise. Tokens only. */
+
+.mono { font-family: var(--cl-font-mono); font-variant-numeric: tabular-nums; font-size: 0.92em; }
+
+/* ---------------------------------------------------------------- upload drop zone and progress */
+.drop { grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 4px 14px; border-color: var(--cl-border-strong); background: var(--cl-surface); transition: border-color var(--cl-dur) var(--cl-ease), background-color var(--cl-dur) var(--cl-ease); }
+.dropOver { border-color: var(--cl-accent); background: var(--cl-sunk); }
+.dropChosen { border-style: solid; }
+.dropIcon { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 8px; background: var(--cl-sunk); color: var(--cl-muted); }
+.dropOver .dropIcon { color: var(--cl-accent); }
+.dropBody { display: grid; gap: 6px; min-width: 0; }
+.chosen { overflow-wrap: anywhere; }
+.progress { display: grid; gap: 4px; margin: 4px 0 0; font-size: 13px; color: var(--cl-text); }
+.progressHead { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; }
+.progressHead > :last-child { color: var(--cl-muted); }
+.bar { width: 100%; height: 6px; appearance: none; border: 0; border-radius: 999px; background: var(--cl-sunk); color: var(--cl-accent); overflow: hidden; }
+.bar::-webkit-progress-bar { background: var(--cl-sunk); border-radius: 999px; }
+.bar::-webkit-progress-value { background: var(--cl-accent); border-radius: 999px; transition: width var(--cl-dur) var(--cl-ease); }
+.bar::-moz-progress-bar { background: var(--cl-accent); border-radius: 999px; }
+.barSm { height: 4px; min-width: 80px; }
+
+/* ---------------------------------------------------------------- dense tables in a scroll container */
+.wrap { max-width: 100%; overflow: auto; border: 1px solid var(--cl-border); border-radius: var(--cl-radius); background: var(--cl-surface); }
+.wrapTall { max-height: 440px; }
+.dense { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; color: var(--cl-text); }
+.dense caption { text-align: left; padding: 8px 10px; color: var(--cl-muted); font-size: 12px; caption-side: top; }
+.dense th, .dense td { text-align: left; vertical-align: middle; padding: 6px 10px; border-bottom: 1px solid var(--cl-border); }
+.dense thead th { position: sticky; top: 0; z-index: 1; background: var(--cl-sunk); color: var(--cl-muted); font-size: 11.5px; font-weight: 600; letter-spacing: 0.03em; white-space: nowrap; }
+.dense tbody tr:last-child > * { border-bottom: 0; }
+.dense tbody tr:hover > * { background: var(--cl-sunk); }
+.dense .num, .dense th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dense .rowNo { color: var(--cl-muted); text-align: right; font-variant-numeric: tabular-nums; width: 1%; white-space: nowrap; }
+.dense tfoot th, .dense tfoot td, .totalRow > * { border-top: 1px solid var(--cl-border-strong); font-weight: 600; }
+.cellMono { font-family: var(--cl-font-mono); font-size: 12px; white-space: nowrap; }
+.cellNum { font-family: var(--cl-font-mono); font-size: 12px; text-align: right; white-space: nowrap; }
+.cellText { white-space: nowrap; max-width: 28ch; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------------------------------------------------------------- validation report */
+.issues { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.issues li { display: grid; grid-template-columns: auto 1fr; gap: 6px; align-items: baseline; }
+.issueTag { font-size: 11px; font-weight: 600; letter-spacing: 0.02em; padding: 0 6px; border-radius: 4px; white-space: nowrap; }
+.issueError { color: var(--cl-st-exception-fg); background: var(--cl-st-exception-bg); }
+.issueWarn { color: var(--cl-st-review-fg); background: var(--cl-st-review-bg); }
+.rowRef { font-family: var(--cl-font-mono); font-size: 12px; white-space: nowrap; }
+
+/* ---------------------------------------------------------------- run progress */
+.stepper { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12.5px; color: var(--cl-muted); }
+.stepper li { display: inline-flex; align-items: center; gap: 6px; }
+.stepper li::before { content: ""; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--cl-border-strong); }
+.stepDone::before { background: var(--cl-st-matched-fg); border-color: var(--cl-st-matched-fg) !important; }
+.stepNow { color: var(--cl-text); font-weight: 600; }
+.stepNow::before { border-color: var(--cl-accent) !important; background: var(--cl-accent); }
+.runBusy { display: grid; gap: 4px; margin: 6px 0 0; padding: 8px 10px; border: 1px solid var(--cl-border); border-radius: var(--cl-radius); background: var(--cl-sunk); font-size: 13px; }
+.runBusy strong { font-weight: 600; }
+.jobProgress { display: grid; gap: 3px; min-width: 140px; }
+.jobProgress span { font-size: 12px; color: var(--cl-muted); white-space: nowrap; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin: 0 0 8px; }
+
+/* ---------------------------------------------------------------- approvals */
+.card { transition: opacity var(--cl-dur) var(--cl-ease); }
+.cardPending { opacity: 0.72; }
+.optimistic { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 8px 0 0; padding: 8px 10px; border-radius: var(--cl-radius); border: 1px dashed var(--cl-border-strong); background: var(--cl-sunk); font-size: 13px; }
+.sha { position: relative; display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; max-width: 100%; }
+.sha > span:first-child { overflow-wrap: anywhere; }
+
+/* ---------------------------------------------------------------- general */
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.stack { display: grid; gap: 6px; }
+.steps { margin: 0; padding: 0; list-style: none; counter-reset: s; display: grid; gap: 8px; }
+.steps > li { counter-increment: s; position: relative; padding: 10px 12px 10px 46px; border: 1px solid var(--cl-border); border-radius: var(--cl-radius); background: var(--cl-surface); line-height: 1.5; }
+.steps > li::before { content: counter(s); position: absolute; left: 12px; top: 9px; display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--cl-sunk); color: var(--cl-text); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.downloadList { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.downloadList > li { overflow-wrap: anywhere; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 8px 12px; border: 1px solid var(--cl-border); border-radius: var(--cl-radius); background: var(--cl-surface); }
+.downloadList a { font-weight: 600; display: inline-block; padding: 4px 0; }
+.kpiRow { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+.kpiRow > li { border: 1px solid var(--cl-border); border-radius: var(--cl-radius); background: var(--cl-surface); padding: 8px 12px; display: grid; gap: 2px; }
+.kpiRow .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.kpiRow .l { font-size: 12.5px; color: var(--cl-muted); }
+.region { max-width: 100%; min-width: 0; }
+/* the DataTable is a grid: keep its one column within the page so wide tables scroll inside their own container */
+.region > div { grid-template-columns: minmax(0, 1fr); }
+.region:focus-visible { outline: 2px solid var(--cl-focus); outline-offset: 2px; }
+.spin { display: inline-block; width: 12px; height: 12px; margin-right: 8px; vertical-align: -1px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: g2spin 0.9s linear infinite; }
+@keyframes g2spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; border-right-color: currentColor; opacity: 0.6; } }
+.wrapCell { white-space: normal; min-width: 16ch; display: inline-block; }
+.breakAll { overflow-wrap: anywhere; word-break: break-all; }
+@media (max-width: 520px) { .drop { grid-template-columns: minmax(0, 1fr); } .dropIcon { display: none; } }
+.drop input[type="file"] { width: 100%; min-width: 0; }

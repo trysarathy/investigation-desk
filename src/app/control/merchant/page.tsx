@@ -4,9 +4,13 @@ import { can } from "@/server/authz";
 import { dailyReports } from "@/server/merchant";
 import { DEMO_LAST_DAY, DEMO_TODAY } from "@/lib/clearline/demo/clock";
 import { merchantMember } from "@/server/merchant-page";
+import { dataAsOf, sourceFreshness } from "@/server/merchant-ui";
+import { FreshnessStrip } from "@/components/merchant/freshness";
+import { LiveRefresh } from "@/components/ui";
 import s from "@/components/control/control.module.css";
 import m from "@/components/merchant/merchant.module.css";
 import { RunReconciliation } from "@/components/merchant/forms";
+import { DateTable, EntityDayTable } from "@/components/merchant/report-tables";
 import { Empty, one, q } from "@/components/merchant/ui";
 
 export const metadata: Metadata = { title: "Daily report" };
@@ -32,7 +36,10 @@ export default async function DailyReportPage({ searchParams }: { searchParams: 
   const fallback = shell.dataMode === "demo" && days.includes(DEMO_LAST_DAY) ? DEMO_LAST_DAY : days.at(-1) ?? null;
   const date = days.includes(one(sp.date) ?? "") ? one(sp.date)! : fallback;
   const mayReconcile = can(ctx.role, "merchant_reconcile");
-  const reports = new Map(await Promise.all(scope.map(async (e) => [e.id, await dailyReports(ctx, e.id, e.days)] as const)));
+  const [reports, fresh] = await Promise.all([
+    Promise.all(scope.map(async (e) => [e.id, await dailyReports(ctx, e.id, e.days)] as const)).then((xs) => new Map(xs)),
+    sourceFreshness(ctx),
+  ]);
   const perEntity = date ? scope.filter((e) => e.days.includes(date)).map((e) => ({ e, r: reports.get(e.id)!.get(date)! })) : [];
   const perDate = days.map((d) => ({ d, t: total(scope.filter((e) => e.days.includes(d)).map((e) => reports.get(e.id)!.get(d)!)) }));
   const t = total(perEntity.map((x) => x.r));
@@ -43,8 +50,9 @@ export default async function DailyReportPage({ searchParams }: { searchParams: 
 
   return (
     <>
-      <h1 className={s.title}>Daily report</h1>
+      <div className={m.titleRow}><h1 className={s.title}>Daily report</h1><LiveRefresh /></div>
       <p className={s.lede}>What happened to {sel ? sel.name : "every entity"} on one day, and what still needs a person.</p>
+      {ents.length ? <FreshnessStrip provider={fresh.provider} bank={fresh.bank} chain={dataAsOf(scope)} /> : null}
 
       {ents.length === 0 ? <Empty>No entities are set up for {ctx.orgName} yet. Your provider&rsquo;s onboarding adds them; nothing to report.</Empty> : (
         <>
@@ -87,32 +95,14 @@ export default async function DailyReportPage({ searchParams }: { searchParams: 
           {perEntity.length > 0 ? (
             <section className={s.section} aria-labelledby="per-entity">
               <h2 className={s.h2} id="per-entity">Per entity, {dayLabel(date!)}</h2>
-              <div className={s.tableWrap} role="region" aria-label="Per entity table" tabIndex={0}>
-                <table className={s.table}>
-                  <thead><tr><th scope="col">Entity</th><th scope="col" className={s.num}>Payments</th><th scope="col" className={s.num}>Settlements tied</th><th scope="col" className={s.num}>Exceptions</th><th scope="col" className={s.num}>Write-offs awaiting approval</th><th scope="col">Merchant day</th></tr></thead>
-                  <tbody>
-                    {perEntity.map(({ e, r }) => (
-                      <tr key={e.id}>
-                        <td><a href={`/control/merchant${q({ entity: e.id, date })}`}>{e.name}</a> <span className={s.mono}>{e.id}</span></td>
-                        <td className={s.num}>{r.payments}</td><td className={s.num}>{r.settlementsTied} of {r.settlements}<br /><span className={s.small}>{r.settlementsSettled} settled</span></td><td className={s.num}>{r.exceptions}</td><td className={s.num}>{r.writeoffsAwaitingApproval}</td>
-                        <td>{e.timezone}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <EntityDayTable rows={perEntity.map(({ e, r }) => ({ id: e.id, name: e.name, href: `/control/merchant${q({ entity: e.id, date })}`, payments: r.payments, tied: r.settlementsTied, settlements: r.settlements, settled: r.settlementsSettled, exceptions: r.exceptions, writeoffs: r.writeoffsAwaitingApproval, timezone: e.timezone }))} />
             </section>
           ) : null}
 
           {perDate.length > 0 ? (
             <section className={s.section} aria-labelledby="per-date">
               <h2 className={s.h2} id="per-date">Per date{sel ? `, ${sel.id}` : ""}</h2>
-              <div className={s.tableWrap} role="region" aria-label="Per date table" tabIndex={0}>
-                <table className={s.table}>
-                  <thead><tr><th scope="col">Date</th><th scope="col">Summary</th></tr></thead>
-                  <tbody>{perDate.map(({ d, t: x }) => <tr key={d}><td><a href={`/control/merchant${q({ entity: sel?.id, date: d })}`} aria-current={d === date ? "true" : undefined}>{dayLabel(d)}</a></td><td>{x.summary}</td></tr>)}</tbody>
-                </table>
-              </div>
+              <DateTable rows={perDate.map(({ d, t: x }) => ({ date: d, label: dayLabel(d), href: `/control/merchant${q({ entity: sel?.id, date: d })}`, current: d === date, summary: x.summary }))} />
             </section>
           ) : null}
 

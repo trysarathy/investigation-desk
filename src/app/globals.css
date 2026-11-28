@@ -1,3 +1,145 @@
+/*
+ * Clearline design tokens (v1 design-fluid): light (default) and dark, for Clearline Control and the merchant workspace.
+ * Every text/background pair and its contrast ratio is recorded in docs/design/TOKENS.md and recomputed from these
+ * hex values by tests/design-tokens.test.ts (fails below 4.5:1 for text, 3:1 for UI). Keep the three blocks in step:
+ * light, dark, and the dark block repeated for prefers-color-scheme when no theme is stored.
+ */
+/* cl-tokens:light */
+:root {
+  --cl-bg: #f6f7f9;
+  --cl-surface: #ffffff;
+  --cl-sunk: #eef0f3;
+  --cl-text: #16181d;
+  --cl-muted: #555b66;
+  --cl-border: #e1e4e9;
+  --cl-border-strong: #848a95;
+  --cl-focus: #2b56d1;
+  --cl-accent: #2b53c6;
+  --cl-on-accent: #ffffff;
+  --cl-strong: #16181d;
+  --cl-on-strong: #ffffff;
+  --cl-st-matched-fg: #1b6a43;
+  --cl-st-matched-bg: #e5f3ea;
+  --cl-st-diff-fg: #0c5c70;
+  --cl-st-diff-bg: #e1f1f6;
+  --cl-st-review-fg: #774b00;
+  --cl-st-review-bg: #fbefd5;
+  --cl-st-exception-fg: #9a1b1b;
+  --cl-st-exception-bg: #fae8e8;
+  --cl-st-approved-fg: #4535a6;
+  --cl-st-approved-bg: #ece9fa;
+  --cl-st-awaiting-fg: #4a5260;
+  --cl-st-awaiting-bg: #eceef2;
+  --cl-ev-none-fg: #4a5260;
+  --cl-ev-none-bg: #eceef2;
+  --cl-ev-imported-fg: #1d4c78;
+  --cl-ev-imported-bg: #e5eef7;
+  --cl-ev-two-person-fg: #13615a;
+  --cl-ev-two-person-bg: #e1f2ef;
+  --cl-ev-bank-fg: #4535a6;
+  --cl-ev-bank-bg: #ece9fa;
+  --cl-shadow: 0 8px 28px rgba(15, 17, 21, 0.16);
+}
+/* cl-tokens:dark */
+:root[data-theme="dark"] {
+  --cl-bg: #0e1014;
+  --cl-surface: #15181e;
+  --cl-sunk: #1b1f27;
+  --cl-text: #e7e9ee;
+  --cl-muted: #a2a8b4;
+  --cl-border: #2a2f39;
+  --cl-border-strong: #6c7381;
+  --cl-focus: #8db1ff;
+  --cl-accent: #86a3ff;
+  --cl-on-accent: #0b1020;
+  --cl-strong: #e7e9ee;
+  --cl-on-strong: #111318;
+  --cl-st-matched-fg: #6fd39c;
+  --cl-st-matched-bg: #0f271b;
+  --cl-st-diff-fg: #6cc8de;
+  --cl-st-diff-bg: #0c2630;
+  --cl-st-review-fg: #f0c066;
+  --cl-st-review-bg: #2b2210;
+  --cl-st-exception-fg: #ff958c;
+  --cl-st-exception-bg: #33161a;
+  --cl-st-approved-fg: #b7abff;
+  --cl-st-approved-bg: #201b3c;
+  --cl-st-awaiting-fg: #b6bdc9;
+  --cl-st-awaiting-bg: #1e232c;
+  --cl-ev-none-fg: #b6bdc9;
+  --cl-ev-none-bg: #1e232c;
+  --cl-ev-imported-fg: #90bff2;
+  --cl-ev-imported-bg: #0f2239;
+  --cl-ev-two-person-fg: #70d6c7;
+  --cl-ev-two-person-bg: #0c2926;
+  --cl-ev-bank-fg: #b7abff;
+  --cl-ev-bank-bg: #201b3c;
+  --cl-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+}
+/* cl-tokens:dark-media (no stored choice: follow the system) */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --cl-bg: #0e1014;
+    --cl-surface: #15181e;
+    --cl-sunk: #1b1f27;
+    --cl-text: #e7e9ee;
+    --cl-muted: #a2a8b4;
+    --cl-border: #2a2f39;
+    --cl-border-strong: #6c7381;
+    --cl-focus: #8db1ff;
+    --cl-accent: #86a3ff;
+    --cl-on-accent: #0b1020;
+    --cl-strong: #e7e9ee;
+    --cl-on-strong: #111318;
+    --cl-st-matched-fg: #6fd39c;
+    --cl-st-matched-bg: #0f271b;
+    --cl-st-diff-fg: #6cc8de;
+    --cl-st-diff-bg: #0c2630;
+    --cl-st-review-fg: #f0c066;
+    --cl-st-review-bg: #2b2210;
+    --cl-st-exception-fg: #ff958c;
+    --cl-st-exception-bg: #33161a;
+    --cl-st-approved-fg: #b7abff;
+    --cl-st-approved-bg: #201b3c;
+    --cl-st-awaiting-fg: #b6bdc9;
+    --cl-st-awaiting-bg: #1e232c;
+    --cl-ev-none-fg: #b6bdc9;
+    --cl-ev-none-bg: #1e232c;
+    --cl-ev-imported-fg: #90bff2;
+    --cl-ev-imported-bg: #0f2239;
+    --cl-ev-two-person-fg: #70d6c7;
+    --cl-ev-two-person-bg: #0c2926;
+    --cl-ev-bank-fg: #b7abff;
+    --cl-ev-bank-bg: #201b3c;
+    --cl-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+  }
+}
+/* cl-tokens:end */
+:root {
+  --cl-font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --cl-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --cl-dur: 150ms;
+  --cl-dur-fast: 100ms;
+  --cl-dur-slow: 200ms;
+  --cl-ease: cubic-bezier(0.2, 0, 0, 1);
+  --cl-row-h: 32px;
+  --cl-radius: 6px;
+}
+:root[data-theme="dark"] { color-scheme: dark; }
+
+/* Figures: every amount, id and count lines up. */
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* Motion: 100–200 ms only, and none at all when the person asks for reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Design tokens from spec section 9. 8px grid, 1px borders, 6px radius, no shadows. */
 :root {
   --canvas: #f7f7f5;
